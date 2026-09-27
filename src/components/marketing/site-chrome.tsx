@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Menu, X } from "lucide-react";
 
 const LINKS = [
@@ -39,27 +40,27 @@ export function SiteNav() {
     <>
       <header className={`site-nav ${stuck ? "stuck" : ""}`}>
         <div className="site-nav-inner">
-          <a className="site-brand" href="/">
+          <Link className="site-brand" href="/">
             <BrandMark />
             <span>
               <strong>linaw</strong>
               <small>HR &amp; Payroll</small>
             </span>
-          </a>
+          </Link>
 
           <nav className="site-links" aria-label="Sections">
             {LINKS.map((link) => (
-              <a key={link.href} href={link.href}>
+              <Link key={link.href} href={link.href}>
                 {link.label}
-              </a>
+              </Link>
             ))}
           </nav>
 
           <div className="site-nav-cta">
-            <a className="secondary-button" href="/login">
+            <Link className="secondary-button" href="/login">
               Sign in
             </a>
-            <a className="primary-button" href="/#preview">
+            <Link className="primary-button" href="/#preview">
               Try live demo
             </a>
             <button
@@ -76,15 +77,15 @@ export function SiteNav() {
 
       <div className={`site-drawer ${drawer ? "open" : ""}`}>
         {LINKS.map((link) => (
-          <a key={link.href} href={link.href} onClick={() => setDrawer(false)}>
+          <Link key={link.href} href={link.href} onClick={() => setDrawer(false)}>
             {link.label}
-          </a>
+          </Link>
         ))}
         <div className="drawer-cta">
-          <a className="secondary-button" href="/login">
+          <Link className="secondary-button" href="/login">
             Sign in
           </a>
-          <a className="primary-button" href="/#preview" onClick={() => setDrawer(false)}>
+          <Link className="primary-button" href="/#preview" onClick={() => setDrawer(false)}>
             Try live demo
           </a>
         </div>
@@ -99,7 +100,7 @@ export function SiteFooter() {
       <div className="site-shell">
         <div className="footer-grid">
           <div>
-            <a className="site-brand" href="/" style={{ color: "#fff" }}>
+            <Link className="site-brand" href="/" style={{ color: "#fff" }}>
               <BrandMark />
               <span>
                 <strong style={{ color: "#fff" }}>linaw</strong>
@@ -115,31 +116,31 @@ export function SiteFooter() {
           <div>
             <h4>Product</h4>
             <ul>
-              <li><a href="/#payroll">Payroll software</a></li>
-              <li><a href="/#workspace">HRIS workspace</a></li>
-              <li><a href="/#preview">Interactive demo</a></li>
-              <li><a href="/#pricing">Pricing</a></li>
-              <li><a href="/payroll-outsourcing">Payroll outsourcing</a></li>
+              <li><Link href="/#payroll">Payroll software</Link></li>
+              <li><Link href="/#workspace">HRIS workspace</Link></li>
+              <li><Link href="/#preview">Interactive demo</Link></li>
+              <li><Link href="/#pricing">Pricing</Link></li>
+              <li><Link href="/payroll-outsourcing">Payroll outsourcing</Link></li>
             </ul>
           </div>
 
           <div>
             <h4>Proof</h4>
             <ul>
-              <li><a href="/scorecard">Capability scorecard</a></li>
-              <li><a href="/status">System status</a></li>
-              <li><a href="/api/readiness">Launch readiness gates</a></li>
-              <li><a href="/api/capabilities">Capabilities API</a></li>
+              <li><Link href="/scorecard">Capability scorecard</Link></li>
+              <li><Link href="/status">System status</Link></li>
+              <li><Link href="/api/readiness">Launch readiness gates</Link></li>
+              <li><Link href="/api/capabilities">Capabilities API</Link></li>
             </ul>
           </div>
 
           <div>
             <h4>Get started</h4>
             <ul>
-              <li><a href="/signup">Start free</a></li>
-              <li><a href="/#preview">Try live demo</a></li>
-              <li><a href="/book-demo">Book a demo</a></li>
-              <li><a href="/login">Sign in</a></li>
+              <li><Link href="/signup">Start free</Link></li>
+              <li><a href="/#preview">Try live demo</Link></li>
+              <li><Link href="/book-demo">Book a demo</Link></li>
+              <li><Link href="/login">Sign in</Link></li>
             </ul>
           </div>
         </div>
