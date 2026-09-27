@@ -641,126 +641,217 @@ function Overview({
       : currentRun.status === "Needs review" ? 68 : currentRun.status === "Released" ? 100 : 28
     : 0;
   const peopleReady = data.employees.filter((employee) => employee.status === "Active").length;
+  const runGross = Number(currentRun?.grossPay ?? 0);
+  const runNet = Number(currentRun?.netPay ?? 0);
+  const runDeductions = Math.max(0, runGross - runNet);
+  const trendRuns = data.payrollRuns.slice(0, 6).reverse();
+  const trendValues = trendRuns.map((run) => Number(run.netPay));
+  const trendPoints = buildSparklinePoints(trendValues, 320, 96);
+  const donut = buildDonutSegments([
+    { key: "net", value: runNet },
+    { key: "deductions", value: runDeductions },
+  ]);
+  const netPercent = donut.find((segment) => segment.key === "net")?.percent ?? 0;
+  const incompletePunches = (data.punches ?? []).filter((punch) => !["complete", "approved", "ready"].includes(punch.status.toLowerCase())).length;
+  const queuedJobs = (data.payrollJobs ?? []).filter((job) => !["processed", "complete", "done"].includes(job.status.toLowerCase())).length;
+  const accessLabel = data.access?.companyWide ? "Company-wide" : data.access?.orgUnitName ?? "Tenant-scoped";
+  const todayLabel = new Intl.DateTimeFormat("en-PH", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+    timeZone: "Asia/Manila",
+  }).format(new Date());
 
   return (
     <>
-      <PageHeading
-        eyebrow="Monday, 16 March"
-        title={`Good morning, ${userName.split(" ")[0]}.`}
-        copy={`Here’s what needs your attention across ${data.selectedOrganization.name}.`}
-        actions={
-          <>
-            <button className="secondary-button" onClick={() => onPage("Reports")}><FileBarChart2 size={16} /> Reports</button>
-            <button className="primary-button" onClick={onPayroll}><Plus size={17} /> New payroll</button>
-          </>
-        }
-      />
-
-      <section className="welcome-strip">
+      <section className="dashboard-heading">
         <div>
-          <span className="sun-icon">✦</span>
-          <strong>Semi-monthly payroll cut-off is in 2 days</strong>
-          <p>March 1–15 timesheets close on Wednesday at 5:00 PM. Incomplete punches will flag for reviewer sign-off.</p>
+          <div className="dashboard-eyebrow"><span className="live-indicator" /> Operational cockpit <span>· {todayLabel}</span></div>
+          <h1>Good morning, {userName.split(" ")[0]}.</h1>
+          <p>Payroll, people, approvals, and statutory operations for <strong>{data.selectedOrganization.name}</strong> in one focused workspace.</p>
         </div>
-        <button onClick={() => onPage("Time & attendance")}>Review time <ArrowUpRight size={15} /></button>
+        <div className="dashboard-heading-actions">
+          <button className="secondary-button" onClick={() => onPage("Reports")}><FileBarChart2 size={16} /> Reports</button>
+          <button className="primary-button" onClick={onPayroll}><Plus size={17} /> New payroll</button>
+        </div>
       </section>
 
-      <section className="stats-grid">
-        <Metric label="ACTIVE PEOPLE" value={String(peopleReady)} hint={`of ${data.employees.length} on this client`} icon={<UsersRound size={19} />} tone="mint" />
-        <Metric label="NEXT PAYROLL" value={currentRun?.periodLabel ?? "No active run"} hint={currentRun ? `${currentRun.employeeCount} employees · pay date ${formatDate(currentRun.payDate)}` : "Start a payroll draft"} icon={<WalletCards size={19} />} tone="purple" compact />
-        <Metric label="EST. NET PAY" value={currentRun ? shortMoney(currentRun.netPay) : "—"} hint={currentRun ? `${shortMoney(currentRun.grossPay)} gross · PH-2026.09` : "No payroll data"} icon={<CircleDollarSign size={19} />} tone="orange" />
-        <Metric label="OPEN APPROVALS" value={String(openTasks.length)} hint={openTasks.length ? "1 requires action today" : "Everything is reviewed"} icon={<ClipboardCheck size={19} />} tone="blue" />
+      <section className="dashboard-context-bar" aria-label="Workspace context">
+        <div><span className="context-icon"><ShieldCheck size={14} /></span><span><b>{accessLabel}</b><small>access scope</small></span></div>
+        <div><span className="context-icon"><Database size={14} /></span><span><b>{currentRun?.ruleVersion ?? "PH rule engine"}</b><small>calculation version</small></span></div>
+        <div><span className="context-icon"><Activity size={14} /></span><span><b>{queuedJobs ? `${queuedJobs} queued` : "Queue clear"}</b><small>worker state</small></span></div>
+        <button onClick={() => onPage("Audit trail")}>Open audit stream <ArrowUpRight size={14} /></button>
       </section>
 
-      <section className="overview-grid">
-        <article className="card payroll-card">
-          <div className="card-header">
+      <section className="dashboard-kpi-grid">
+        <Metric label="ACTIVE PEOPLE" value={String(peopleReady)} hint={`${data.employees.length} total on this client`} icon={<UsersRound size={18} />} tone="blue" />
+        <Metric label="GROSS THIS RUN" value={currentRun ? shortMoney(runGross) : "—"} hint={currentRun ? `${currentRun.employeeCount} payroll entries` : "No active payroll"} icon={<WalletCards size={18} />} tone="purple" />
+        <Metric label="NET TO EMPLOYEES" value={currentRun ? shortMoney(runNet) : "—"} hint={currentRun ? `${shortMoney(runDeductions)} statutory + other deductions` : "Waiting for a run"} icon={<CircleDollarSign size={18} />} tone="green" />
+        <Metric label="REVIEW QUEUE" value={String(openTasks.length + (currentRun?.exceptions ?? 0))} hint={openTasks.length || currentRun?.exceptions ? `${openTasks.length} approvals · ${currentRun?.exceptions ?? 0} payroll exceptions` : "No blocked actions"} icon={<ClipboardCheck size={18} />} tone="orange" />
+      </section>
+
+      <section className="dashboard-primary-grid">
+        <article className="card dashboard-payroll-signal">
+          <div className="dashboard-card-head">
             <div>
-              <div className="card-kicker">IN PROGRESS · QUEUED RUN</div>
+              <div className="card-kicker">PAYROLL SIGNAL</div>
               <h2>{currentRun?.periodLabel ?? "No payroll in progress"}</h2>
-              <p>{currentRun?.scopeLabel ?? "Create a scoped payroll run when ready"}</p>
+              <p>{currentRun ? `${currentRun.scopeLabel} · pay date ${formatDate(currentRun.payDate)}` : "Create a payroll run to start the operating flow."}</p>
             </div>
             <Status value={currentRun?.status ?? "Ready"} />
           </div>
-          {currentRun && (
-            <>
-              <div className="payroll-summary">
-                <div><span>Estimated net pay</span><strong>{money(currentRun.netPay)}</strong></div>
-                <div><span>Pay date</span><strong>{formatDate(currentRun.payDate)}</strong></div>
-                <div><span>Exceptions</span><strong className={currentRun.exceptions ? "text-amber" : ""}>{currentRun.exceptions}</strong></div>
+
+          <div className="payroll-signal-grid">
+            <div className="signal-number">
+              <span>Estimated net disbursement</span>
+              <strong>{currentRun ? money(runNet) : "—"}</strong>
+              <small>{currentRun ? `${money(runGross)} gross · ${currentRun.employeeCount} people` : "No active payroll data"}</small>
+            </div>
+            <div className="signal-progress">
+              <div><span>Run progress</span><strong>{payrollProgress}%</strong></div>
+              <div className="signal-progress-track"><span style={{ width: `${payrollProgress}%` }} /></div>
+              <div className="signal-steps">
+                <span className={payrollProgress >= 20 ? "done" : ""}>Inputs</span>
+                <span className={payrollProgress >= 45 ? "done" : ""}>Compute</span>
+                <span className={payrollProgress >= 70 ? "done" : ""}>Review</span>
+                <span className={payrollProgress === 100 ? "done" : ""}>Release</span>
               </div>
-              <div className="progress-label"><span>Run progress</span><strong>{payrollProgress}%</strong></div>
-              <div className="progress-track"><span style={{ width: `${payrollProgress}%` }} /></div>
-              <div className="stepper">
-                <span className="complete"><i><Check size={12} /></i>Inputs checked</span>
-                <span className="complete"><i><Check size={12} /></i>Calculate</span>
-                <span className="current"><i>3</i>Review</span>
-                <span><i>4</i>Release</span>
-              </div>
-              <button className="card-action" onClick={() => onPage("Payroll")}>Open payroll workspace <ArrowUpRight size={16} /></button>
-            </>
-          )}
+            </div>
+          </div>
+
+          <div className="trend-panel">
+            <div className="trend-header">
+              <span><TrendingUp size={14} /> Net pay trend</span>
+              <small>{trendRuns.length} recent payroll runs</small>
+            </div>
+            <svg viewBox="0 0 320 112" role="img" aria-label="Net pay trend" className="payroll-trend-svg" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="payrollTrendFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="currentColor" stopOpacity="0.22" />
+                  <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <line x1="0" y1="96" x2="320" y2="96" className="chart-axis" />
+              <line x1="0" y1="48" x2="320" y2="48" className="chart-grid" />
+              {trendPoints && <polygon points={`0,96 ${trendPoints} 320,96`} fill="url(#payrollTrendFill)" />}
+              {trendPoints && <polyline points={trendPoints} className="chart-line" />}
+            </svg>
+            <div className="trend-labels">
+              <span>{trendRuns[0]?.periodLabel ?? "—"}</span>
+              <span>{trendRuns[trendRuns.length - 1]?.periodLabel ?? "—"}</span>
+            </div>
+          </div>
+
+          <div className="dashboard-card-footer">
+            <div><span className="mini-dot success" />{currentRun?.exceptions ? `${currentRun.exceptions} exception(s) need review` : "No payroll exceptions"}</div>
+            <button onClick={() => onPage("Payroll")}>Open payroll workspace <ArrowUpRight size={15} /></button>
+          </div>
         </article>
 
-        <article className="card attention-card">
-          <div className="card-header">
-            <div><div className="card-kicker">ATTENTION QUEUE</div><h2>Your action items</h2><p>Items assigned to you or your delegates</p></div>
+        <article className="card dashboard-donut-card">
+          <div className="dashboard-card-head compact">
+            <div><div className="card-kicker">CASH COMPOSITION</div><h2>Net vs deductions</h2><p>Current payroll run</p></div>
+            <Gauge size={18} />
+          </div>
+          <div className="donut-wrap">
+            <svg viewBox="0 0 120 120" role="img" aria-label="Net pay versus deductions" className="deduction-donut">
+              <circle cx="60" cy="60" r="46" pathLength="100" className="donut-track" />
+              {donut.map((segment) => (
+                <circle
+                  key={segment.key}
+                  cx="60"
+                  cy="60"
+                  r="46"
+                  pathLength="100"
+                  className={segment.key === "net" ? "donut-segment donut-net" : "donut-segment donut-deductions"}
+                  strokeDasharray={`${segment.percent} ${100 - segment.percent}`}
+                  strokeDashoffset={-segment.offset}
+                  transform="rotate(-90 60 60)"
+                />
+              ))}
+            </svg>
+            <div className="donut-center"><strong>{Math.round(netPercent)}%</strong><span>net pay</span></div>
+          </div>
+          <div className="donut-legend">
+            <div><span className="legend-swatch net" /><span><b>{money(runNet)}</b><small>Net pay</small></span></div>
+            <div><span className="legend-swatch deductions" /><span><b>{money(runDeductions)}</b><small>Deductions</small></span></div>
+          </div>
+          <div className="rule-engine-chip"><Terminal size={14} /><span>{currentRun?.ruleVersion ?? "PH rules"} · deterministic trace</span></div>
+        </article>
+      </section>
+
+      <section className="dashboard-secondary-grid">
+        <article className="card dashboard-queue-card">
+          <div className="dashboard-card-head compact">
+            <div><div className="card-kicker">ACTION QUEUE</div><h2>Needs your attention</h2><p>Approvals and exceptions, ordered for action.</p></div>
             <button className="link-button" onClick={() => onPage("Approvals")}>View all</button>
           </div>
-          <div className="attention-list">
+          <div className="modern-action-list">
             {openTasks.length === 0 ? (
-              <div className="empty-state small"><Check size={19} />Your approval queue is clear.</div>
-            ) : (
-              openTasks.slice(0, 3).map((task) => (
-                <div className="attention-item" key={task.id}>
-                  <div className={`attention-icon ${task.priority === "High" ? "urgent" : ""}`}><ClipboardCheck size={17} /></div>
-                  <div>
-                    <strong>{task.title}</strong>
-                    <p>{task.detail}</p>
-                    <span>{task.dueLabel}</span>
-                  </div>
-                  <button onClick={() => onDecide(task.id, "Approved")} className="approve-mini" aria-label={`Approve ${task.title}`} title="Quick Approve">
-                    <Check size={16} />
-                  </button>
-                </div>
-              ))
+              <div className="modern-empty"><span><Check size={17} /></span><div><strong>Approval queue is clear</strong><small>No pending decisions assigned to you.</small></div></div>
+            ) : openTasks.slice(0, 4).map((task) => (
+              <div className="modern-action-row" key={task.id}>
+                <span className={task.priority === "High" ? "action-symbol urgent" : "action-symbol"}><ClipboardCheck size={16} /></span>
+                <div><strong>{task.title}</strong><small>{task.detail}</small></div>
+                <span className="action-due">{task.dueLabel}</span>
+                <button onClick={() => onDecide(task.id, "Approved")} aria-label={`Approve ${task.title}`}><Check size={15} /></button>
+              </div>
+            ))}
+            {(currentRun?.exceptions ?? 0) > 0 && (
+              <button className="exception-line" onClick={() => onPage("Payroll")}>
+                <span className="action-symbol urgent"><AlertCircle size={16} /></span>
+                <span><strong>{currentRun?.exceptions} payroll exception(s)</strong><small>Open the register to inspect arithmetic traces.</small></span>
+                <ArrowUpRight size={15} />
+              </button>
             )}
+          </div>
+        </article>
+
+        <article className="card dashboard-workforce-card">
+          <div className="dashboard-card-head compact">
+            <div><div className="card-kicker">WORKFORCE PULSE</div><h2>{peopleReady}/{data.employees.length} active</h2><p>Operational readiness at a glance.</p></div>
+            <Activity size={18} />
+          </div>
+          <div className="workforce-meter">
+            <div><span style={{ width: `${data.employees.length ? Math.round((peopleReady / data.employees.length) * 100) : 0}%` }} /></div>
+            <small>{data.employees.length ? Math.round((peopleReady / data.employees.length) * 100) : 0}% active workforce</small>
+          </div>
+          <div className="workforce-facts">
+            <div><strong>{incompletePunches}</strong><span>time exceptions</span></div>
+            <div><strong>{data.orgUnits?.length ?? 0}</strong><span>org units</span></div>
+            <div><strong>{data.selectedOrganization.plan}</strong><span>current plan</span></div>
+          </div>
+          <button className="dashboard-inline-action" onClick={() => onPage("People")}>Open people directory <ArrowUpRight size={14} /></button>
+        </article>
+
+        <article className="card dashboard-system-card">
+          <div className="dashboard-card-head compact">
+            <div><div className="card-kicker">DEVELOPER SURFACE</div><h2>System state</h2><p>What is powering this tenant right now.</p></div>
+            <Database size={18} />
+          </div>
+          <div className="system-state-list">
+            <button onClick={() => onPage("Developer")}><span><Terminal size={15} /></span><div><strong>API workspace</strong><small>{data.capabilities?.developer ? "Enabled for this plan" : "Restricted on this plan"}</small></div><ArrowUpRight size={14} /></button>
+            <button onClick={() => onPage("Audit trail")}><span><ShieldCheck size={15} /></span><div><strong>Tenant isolation</strong><small>{accessLabel} · auditable actions</small></div><ArrowUpRight size={14} /></button>
+            <button onClick={() => onPage("Payroll")}><span><Activity size={15} /></span><div><strong>Queue worker</strong><small>{queuedJobs ? `${queuedJobs} chunk(s) queued` : "No queued chunks"}</small></div><ArrowUpRight size={14} /></button>
           </div>
         </article>
       </section>
 
-      <section className="overview-grid lower-grid">
-        <article className="card directory-card">
-          <div className="card-header">
-            <div><div className="card-kicker">TEAM DIRECTORY</div><h2>Recently active employees</h2></div>
-            <button className="link-button" onClick={() => onPage("People")}>Directory <ArrowUpRight size={14} /></button>
-          </div>
-          <div className="mini-directory">
-            {data.employees.slice(0, 5).map((employee) => (
-              <div className="mini-person" key={employee.id}>
-                <Avatar initials={employee.avatarInitials} index={employee.id} />
-                <div><strong>{employee.firstName} {employee.lastName}</strong><span>{employee.title}</span></div>
-                <Status value={employee.status} />
-              </div>
-            ))}
-          </div>
-        </article>
-
-        <article className="card compliance-brief">
-          <div className="card-header">
-            <div><div className="card-kicker">COMPLIANCE WATCH</div><h2>Statutory rulebook snapshot</h2></div>
-            <Status value="PH-2026.09" />
-          </div>
-          <div className="compliance-row">
-            <span className="check-round"><Check size={14} /></span>
-            <div><strong>SSS / PhilHealth / Pag-IBIG tables versioned</strong><p>Computed and unit-tested against Republic Acts 11199, 11223, and 9679.</p></div>
-          </div>
-          <div className="compliance-row amber">
-            <span className="alert-round">!</span>
-            <div><strong>Weather disruption pay policy is explicit</strong><p>No blanket statutory calamity premium is assumed. Employer policy/CBA incentives are applied only when configured.</p></div>
-          </div>
-          <button className="card-action" onClick={() => onPage("Compliance")}>Open compliance centre <ArrowUpRight size={16} /></button>
-        </article>
+      <section className="card dashboard-audit-strip">
+        <div className="dashboard-card-head compact">
+          <div><div className="card-kicker">RECENT ACTIVITY</div><h2>Audit stream</h2></div>
+          <button className="link-button" onClick={() => onPage("Audit trail")}>Full trail</button>
+        </div>
+        <div className="audit-stream">
+          {data.auditEvents.slice(0, 4).map((event) => (
+            <div key={event.id}>
+              <span className="audit-node" />
+              <strong>{event.action}</strong>
+              <small>{event.actor} · {event.resource}</small>
+            </div>
+          ))}
+          {data.auditEvents.length === 0 && <div className="modern-empty"><span><Activity size={17} /></span><div><strong>No recent audit events</strong><small>Workspace activity will appear here.</small></div></div>}
+        </div>
       </section>
     </>
   );
@@ -768,11 +859,14 @@ function Overview({
 
 function Metric({ label, value, hint, icon, tone, compact = false }: { label: string; value: string; hint: string; icon: React.ReactNode; tone: string; compact?: boolean }) {
   return (
-    <article className={`stat-card ${compact ? "stat-compact" : ""}`}>
-      <div className={`stat-icon ${tone}`}>{icon}</div>
-      <p>{label}</p>
-      <h3>{value}</h3>
-      <span>{hint}</span>
+    <article className={`dashboard-metric-card ${compact ? "stat-compact" : ""}`}>
+      <div className={`dashboard-metric-icon ${tone}`}>{icon}</div>
+      <div className="dashboard-metric-copy">
+        <p>{label}</p>
+        <h3>{value}</h3>
+        <span>{hint}</span>
+      </div>
+      <span className="metric-corner" />
     </article>
   );
 }
