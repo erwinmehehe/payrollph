@@ -136,7 +136,7 @@ export async function createPaymongoBatchDisbursement(
   idempotencyKey: string,
 ): Promise<BatchDisbursementResult> {
   if (rows.length === 0) throw new Error("No payout rows to disburse.");
-  if (rows.length > 1000) throw new Error("PayMongo batch disbursements are capped at 1,000 transfers, split into multiple batches.");
+  if (rows.length > 1000) throw new Error("PayMongo batch disbursements are capped at 1,000 transfers. Split this run into multiple batches.");
 
   const secret = requirePaymongoSecret();
   const provider = choosePayrollRail(rows);

@@ -134,9 +134,9 @@ export async function GET() {
       ready: pagibigValidated,
       detail: pagibigValidated
         ? "Output has been confirmed accepted through Pag-IBIG's employer e-services portal."
-        : "Unlike BIR/SSS/PhilHealth, I could not confirm a published batch-file upload spec for Pag-IBIG's MCRF, other PH payroll tools appear to only generate a filled PDF form for this one, not a machine-importable file. Treat this as portal data entry (Virtual Pag-IBIG employer e-services) until someone confirms otherwise directly with Pag-IBIG.",
+        : "Unlike BIR/SSS/PhilHealth, I could not confirm a published batch-file upload spec for Pag-IBIG's MCRF, other PH payroll tools appear to only generate a filled PDF form for this one, not a machine-importable file. Pag-IBIG does run eSRS (Electronic Submission of Remittance Schedule) for online submission, but it is open only to employers with at most 30 employees, and whether it accepts a bulk file or requires manual encoding is still unconfirmed. Treat this as portal data entry (eSRS or Virtual Pag-IBIG employer e-services) until someone confirms otherwise directly with Pag-IBIG.",
       blocks: pagibigValidated ? "none" : "launch",
-      manualWorkaround: pagibigValidated ? undefined : "Enter the DRAFT figures into Pag-IBIG's Virtual employer e-services portal by hand.",
+      manualWorkaround: pagibigValidated ? undefined : "Enter the DRAFT figures by hand into eSRS (employers with at most 30 employees) or Pag-IBIG's Virtual employer e-services portal.",
     },
     {
       key: "object-storage",
