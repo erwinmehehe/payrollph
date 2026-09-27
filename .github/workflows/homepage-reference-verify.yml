@@ -139,19 +139,21 @@ jobs:
             if (!initialSalary || !initialSalary.includes("38,500")) {
               throw new Error(`Unexpected StatutoryLab initial salary: ${initialSalary}`);
             }
-            const netBefore = await payroll.getByText("Net take-home", { exact: true }).locator("..").locator("strong").textContent();
+            const netRow = payroll.locator(".run-stats > div").filter({ hasText: "Net take-home" }).first();
+            const netBefore = await netRow.locator("strong").textContent();
             await salary.fill("50000");
             const changedSalary = await salaryOutput.textContent();
-            const netAfter = await payroll.getByText("Net take-home", { exact: true }).locator("..").locator("strong").textContent();
+            const netAfter = await netRow.locator("strong").textContent();
             if (!changedSalary || !changedSalary.includes("50,000") || netBefore === netAfter) {
               throw new Error(`Statutory slider failed: salary=${changedSalary}, netBefore=${netBefore}, netAfter=${netAfter}`);
             }
-            const withholdingBefore = await payroll.getByText("Withholding tax", { exact: true }).locator("..").locator("strong").textContent();
+            const withholdingRow = payroll.locator(".sim-breakdown-row").filter({ hasText: "Withholding tax" }).first();
+            const withholdingBefore = await withholdingRow.locator("strong").textContent();
             await payroll.getByText("Treat as a minimum-wage earner (MWE)", { exact: true }).click();
             if (!(await payroll.getByText("MWE, fully exempt").isVisible())) {
               throw new Error("MWE state did not update");
             }
-            const withholdingAfter = await payroll.getByText("Withholding tax", { exact: true }).locator("..").locator("strong").textContent();
+            const withholdingAfter = await withholdingRow.locator("strong").textContent();
             if (withholdingBefore === withholdingAfter) {
               throw new Error("MWE switch did not change withholding");
             }
