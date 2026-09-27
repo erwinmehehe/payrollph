@@ -96,6 +96,7 @@ jobs:
             const desktop = await browser.newPage({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
 
             await desktop.goto("http://127.0.0.1:3000/", { waitUntil: "networkidle" });
+            await desktop.screenshot({ path: "homepage-artifacts/hero-1440.png" });
             if (!(await desktop.getByRole("heading", { name: /Philippine payroll software without the guesswork/i }).isVisible())) {
               throw new Error("Homepage H1 is not visible");
             }
@@ -175,10 +176,16 @@ jobs:
                 .software-home .proof-card,
                 .software-home .pricing-layout > .home-editorial,
                 .software-home .pricing-surface,
-                .software-home .closing-band {
+                .software-home .closing-band,
+                .software-home .section-head,
+                .software-home .feature-card,
+                .software-home .price-card {
                   animation: none !important;
                   opacity: 1 !important;
                   transform: none !important;
+                }
+                .software-home .site-nav {
+                  position: static !important;
                 }
               }
             ` });
@@ -211,10 +218,16 @@ jobs:
                 .software-home .proof-card,
                 .software-home .pricing-layout > .home-editorial,
                 .software-home .pricing-surface,
-                .software-home .closing-band {
+                .software-home .closing-band,
+                .software-home .section-head,
+                .software-home .feature-card,
+                .software-home .price-card {
                   animation: none !important;
                   opacity: 1 !important;
                   transform: none !important;
+                }
+                .software-home .site-nav {
+                  position: static !important;
                 }
               }
             ` });
