@@ -34,5 +34,5 @@ jobs:
       - name: Initialize test database
         run: npx drizzle-kit push
       - run: npx tsc --noEmit
-      - run: npx tsx --test tests/payroll-rules.test.ts tests/security.test.ts tests/integrations.test.ts tests/annualization.test.ts tests/wage-orders.test.ts tests/launch-gates.test.ts tests/auth-surface.test.ts tests/self-service.test.ts tests/payslip-pdf.test.ts tests/csv-import.test.ts tests/billing.test.ts tests/benefits.test.ts tests/benefits-wiring.test.ts tests/tenancy.test.ts tests/marketing.test.ts tests/mailer-smtp.test.ts tests/manual-launch-readiness.test.ts tests/paymongo-disbursements.test.ts tests/government-draft-tin.test.ts tests/sss-r3-draft.test.ts
+      - run: npx tsx --test tests/final-pay.test.ts tests/payroll-rules.test.ts tests/security.test.ts tests/integrations.test.ts tests/annualization.test.ts tests/wage-orders.test.ts tests/launch-gates.test.ts tests/auth-surface.test.ts tests/self-service.test.ts tests/payslip-pdf.test.ts tests/csv-import.test.ts tests/billing.test.ts tests/benefits.test.ts tests/benefits-wiring.test.ts tests/tenancy.test.ts tests/marketing.test.ts tests/mailer-smtp.test.ts tests/manual-launch-readiness.test.ts tests/paymongo-disbursements.test.ts tests/government-draft-tin.test.ts tests/sss-r3-draft.test.ts
       - run: npx next build
