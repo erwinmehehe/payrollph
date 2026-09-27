@@ -736,6 +736,7 @@ export const separationRecords = pgTable("separation_records", {
   taxAdjustment: numeric("tax_adjustment", { precision: 12, scale: 2 }).notNull().default("0"),
   loanDeductions: numeric("loan_deductions", { precision: 12, scale: 2 }).notNull().default("0"),
   netFinalPay: numeric("net_final_pay", { precision: 12, scale: 2 }).notNull().default("0"),
+  finalPayBreakdown: jsonb("final_pay_breakdown").notNull().default({}),
   status: varchar("status", { length: 32 }).notNull().default("draft"), // "draft", "approved", "released"
   coeIssued: boolean("coe_issued").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
