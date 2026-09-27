@@ -43,64 +43,71 @@ export async function SoftwareHome() {
   const ncr = wageOrderFor("NCR");
 
   return (
-    <div className="site">
+    <div className="site software-home">
       <SiteNav />
 
-      <section className="hero">
-        <div className="hero-inner">
-          <div className="site-shell">
-            <div className="hero-copy">
-              <span className="pill">
-                <i aria-hidden />
-                NCR wage order <span className="mono">{ncr.wageOrder}</span> · ₱{ncr.dailyRate}/day is in the payroll rules
+      <section className="hero home-hero">
+        <div className="site-shell home-hero-grid">
+          <div className="hero-copy home-hero-copy">
+            <span className="pill">
+              <i aria-hidden />
+              NCR wage order <span className="mono">{ncr.wageOrder}</span> · ₱{ncr.dailyRate}/day is in the payroll rules
+            </span>
+
+            <h1>
+              Philippine payroll software
+              <br />
+              without the <span className="accent">guesswork.</span>
+            </h1>
+
+            <p className="hero-sub">
+              Run payroll, attendance, statutory deductions, payslips, approvals and reporting in one HRIS and payroll
+              system built around Philippine payroll rules. Review how every figure was produced before you release a run.
+            </p>
+
+            <HeroActions demoEnabled={demoEnabled} />
+
+            <div className="hero-facts">
+              <span>
+                <Check size={14} className="i-green" /> SSS, PhilHealth, Pag-IBIG and TRAIN computed server-side
               </span>
-
-              <h1>
-                Philippine payroll software
-                <br />
-                without the <span className="accent">guesswork.</span>
-              </h1>
-
-              <p className="hero-sub">
-                Run payroll, attendance, statutory deductions, payslips, approvals and reporting in one HRIS and payroll
-                system built around Philippine payroll rules. Review how every figure was produced before you release a run.
-              </p>
-
-              <HeroActions demoEnabled={demoEnabled} />
-
-              <div className="hero-facts">
-                <span>
-                  <Check size={14} className="i-green" /> SSS, PhilHealth, Pag-IBIG and TRAIN computed server-side
-                </span>
-                <span>
-                  <Check size={14} className="i-green" /> Attendance exceptions stay visible instead of being guessed
-                </span>
-                <span>
-                  <Check size={14} className="i-green" /> Published pricing from the same table the app uses
-                </span>
-              </div>
-
-              <div className="chip-row" aria-label="Payroll coverage">
-                {["SSS", "PhilHealth", "Pag-IBIG", "BIR TRAIN", "DOLE wage orders", "13th month", "Night differential", "Holiday stacking"].map(
-                  (chip) => (
-                    <span className="chip" key={chip}>
-                      {chip}
-                    </span>
-                  ),
-                )}
-              </div>
+              <span>
+                <Check size={14} className="i-green" /> Attendance exceptions stay visible instead of being guessed
+              </span>
+              <span>
+                <Check size={14} className="i-green" /> Published pricing from the same table the app uses
+              </span>
             </div>
           </div>
 
-          <div className="hero-visual">
-            <div className="site-shell">
+          <div className="home-hero-stage" aria-label="Linaw payroll workspace preview">
+            <div className="home-hero-glow" aria-hidden />
+            <div className="home-hero-badge home-hero-badge-top">
+              <span className="status status-verified">Live rules</span>
+              <small>Philippine statutory engine</small>
+            </div>
+            <div className="home-hero-visual">
               <WorkspacePreview mode="showcase" />
             </div>
+            <div className="home-hero-badge home-hero-badge-bottom">
+              <span className="mono">{ncr.wageOrder}</span>
+              <small>Current NCR rule in this build</small>
+            </div>
+          </div>
+
+          <div className="chip-row home-coverage" aria-label="Payroll coverage">
+            {["SSS", "PhilHealth", "Pag-IBIG", "BIR TRAIN", "DOLE wage orders", "13th month", "Night differential", "Holiday stacking"].map(
+              (chip) => (
+                <span className="chip" key={chip}>
+                  {chip}
+                </span>
+              ),
+            )}
           </div>
         </div>
       </section>
 
-      <section className="section" id="preview">
+      <section className="section home-section home-demo-section" id="preview">
         <div className="site-shell">
           <div className="section-head">
             <p className="eyebrow">Interactive payroll demo</p>
@@ -114,7 +121,7 @@ export async function SoftwareHome() {
         </div>
       </section>
 
-      <section className="section alt" id="payroll">
+      <section className="section alt home-section home-payroll-section" id="payroll">
         <div className="site-shell">
           <div className="section-head">
             <p className="eyebrow">Philippine payroll engine</p>
@@ -125,9 +132,9 @@ export async function SoftwareHome() {
             </p>
           </div>
 
-          <div className="split">
+          <div className="split payroll-showcase">
             <div>
-              <div className="feature-grid" style={{ gridTemplateColumns: "minmax(0, 1fr)", gap: 14 }}>
+              <div className="feature-grid payroll-feature-stack">
                 <article className="feature-card">
                   <span className="feature-icon" aria-hidden>
                     <WalletCards size={17} className="i-green" />
@@ -171,7 +178,7 @@ export async function SoftwareHome() {
         </div>
       </section>
 
-      <section className="section" id="workspace">
+      <section className="section home-section home-workspace-section" id="workspace">
         <div className="site-shell">
           <div className="section-head">
             <p className="eyebrow">HRIS and payroll workspace</p>
@@ -286,7 +293,7 @@ export async function SoftwareHome() {
         </div>
       </section>
 
-      <section className="section alt" id="proof">
+      <section className="section alt home-section home-proof-section" id="proof">
         <div className="site-shell">
           <div className="section-head">
             <p className="eyebrow">Proof before purchase</p>
@@ -359,7 +366,7 @@ export async function SoftwareHome() {
         </div>
       </section>
 
-      <section className="section" id="pricing">
+      <section className="section home-section home-pricing-section" id="pricing">
         <div className="site-shell">
           <div className="section-head">
             <p className="eyebrow">Payroll software pricing</p>
@@ -373,7 +380,7 @@ export async function SoftwareHome() {
         </div>
       </section>
 
-      <section className="section tight alt">
+      <section className="section tight alt home-closing">
         <div className="site-shell">
           <div className="module-grid three" style={{ marginTop: 0 }}>
             <article className="feature-card">
