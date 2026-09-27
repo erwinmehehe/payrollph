@@ -53,7 +53,7 @@ export default function PayrollOutsourcingPage() {
       <section className="outsourcing-hero">
         <div className="site-shell outsourcing-hero-grid">
           <div>
-            <p className="eyebrow">Managed payroll services Philippines</p>
+            <p className="eyebrow">Managed payroll services</p>
             <h1>Payroll outsourcing for Philippine businesses. We process your payroll. You stay in control.</h1>
             <p className="outsourcing-lead">
               Hand off the repetitive payroll work without handing over approval. The payroll team handles processing,
@@ -73,7 +73,7 @@ export default function PayrollOutsourcingPage() {
             <div className="outsourcing-trust">
               <span><Check size={15} className="i-green" /> Approval stays with your team</span>
               <span><Check size={15} className="i-green" /> Exceptions are surfaced for review</span>
-              <span><Check size={15} className="i-green" /> Service and software have separate conversion paths</span>
+              <span><Check size={15} className="i-green" /> Funding and bank credentials stay with your business</span>
             </div>
           </div>
 
