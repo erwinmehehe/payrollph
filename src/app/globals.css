@@ -3546,6 +3546,369 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
 }
 
 
+
+/* ==========================================================================
+   Generous whitespace pass
+   Product-page rhythm inspired by mature SaaS landing pages: fewer competing
+   elements per viewport, larger editorial gaps, and more air around real
+   product surfaces. No content or functionality changes.
+   ========================================================================== */
+
+.software-home {
+  --home-max: 1280px;
+}
+.software-home .site-shell,
+.software-home .site-nav-inner,
+.software-home .site-footer .site-shell {
+  max-width: var(--home-max);
+}
+.software-home .site-shell,
+.software-home .site-nav-inner {
+  padding-inline: clamp(28px, 4.2vw, 68px);
+}
+
+/* Let the first viewport breathe instead of packing hero + proof too tightly. */
+.software-home .home-hero-grid {
+  min-height: calc(100vh - 68px);
+  column-gap: clamp(56px, 6vw, 96px);
+  row-gap: 44px;
+  padding-top: clamp(82px, 9vh, 118px);
+  padding-bottom: clamp(68px, 8vh, 100px);
+}
+.software-home .home-hero-copy {
+  max-width: 540px;
+}
+.software-home .pill {
+  margin-bottom: 2px;
+}
+.software-home .hero h1 {
+  margin-top: 30px;
+}
+.software-home .hero-sub {
+  margin-top: 28px;
+  max-width: 520px;
+}
+.software-home .hero-cta {
+  margin-top: 34px;
+}
+.software-home .hero-facts {
+  margin-top: 28px;
+  gap: 11px;
+}
+.software-home .home-hero-stage {
+  padding-block: 54px 44px;
+}
+.software-home .home-coverage {
+  margin-top: 12px;
+  gap: 10px;
+}
+
+/* Larger pauses between story beats. */
+.software-home .home-section {
+  padding-block: 136px;
+}
+.software-home .home-section + .home-section {
+  border-top-color: rgba(84,95,120,.055);
+}
+.software-home .section-head h2 {
+  margin-top: 14px;
+}
+.software-home .section-head p {
+  margin-top: 20px;
+}
+.software-home .editorial-facts {
+  margin-top: 30px;
+  gap: 13px;
+}
+
+/* Product surfaces get room around them instead of touching the editorial rail. */
+.software-home .home-demo-grid {
+  grid-template-columns: minmax(240px, 29fr) minmax(0, 71fr);
+  gap: clamp(64px, 7vw, 104px);
+}
+.software-home .demo-surface {
+  padding: 22px;
+  border-radius: 30px;
+}
+.software-home .demo-surface .frame.standalone {
+  border-radius: 22px;
+}
+.software-home .demo-surface .frame-body {
+  min-height: 590px;
+}
+
+.software-home .payroll-showcase {
+  grid-template-columns: minmax(250px, 31fr) minmax(0, 69fr);
+  gap: clamp(66px, 7vw, 106px);
+}
+.software-home .payroll-feature-stack {
+  margin-top: 32px;
+  gap: 14px;
+}
+.software-home .payroll-feature-row {
+  padding-block: 15px;
+}
+.software-home .payroll-lab-surface {
+  padding: 22px;
+  border-radius: 30px;
+}
+.software-home .payroll-lab-surface .simulator-card {
+  padding: 34px;
+  border-radius: 22px;
+}
+
+/* Bento still feels rich, but the cards no longer touch one another visually. */
+.software-home .workspace-layout {
+  grid-template-columns: minmax(240px, 28fr) minmax(0, 72fr);
+  gap: 54px 76px;
+}
+.software-home .home-workspace-section .bento {
+  gap: 18px;
+}
+.software-home .home-workspace-section .bento > .feature-card {
+  min-height: 232px;
+  padding: 26px;
+  border-radius: 20px;
+}
+.software-home .home-workspace-section .bento > .feature-card.wide {
+  min-height: 482px;
+  padding: 34px;
+}
+.software-home .workspace-layout > .persona-strip {
+  margin-top: 10px !important;
+  padding: 14px;
+}
+
+/* Evidence remains dense inside the cards, with more breathing room around them. */
+.software-home .proof-layout {
+  grid-template-columns: minmax(230px, 26fr) minmax(0, 74fr);
+  gap: clamp(68px, 7vw, 110px);
+}
+.software-home .proof-evidence {
+  gap: 24px;
+}
+.software-home .proof-card {
+  padding: 22px;
+  border-radius: 22px;
+}
+.software-home .proof-card-head {
+  padding: 8px 8px 20px;
+}
+.software-home .proof-readiness {
+  margin-top: 4px;
+}
+
+/* Pricing gets a large quiet field around the real database-driven cards. */
+.software-home .pricing-layout {
+  grid-template-columns: minmax(230px, 26fr) minmax(0, 74fr);
+  gap: clamp(68px, 7vw, 106px);
+}
+.software-home .pricing-surface {
+  padding: 18px;
+  border-radius: 28px;
+}
+.software-home .pricing-surface .pricing-calculator {
+  margin-bottom: 16px;
+  padding: 22px 24px;
+}
+.software-home .pricing-surface .pricing-grid {
+  gap: 14px;
+}
+.software-home .pricing-surface .price-card {
+  padding: 24px;
+  border-radius: 18px;
+}
+
+/* Give the final action a distinct pause before the footer. */
+.software-home .home-closing {
+  padding: 66px 0 82px;
+}
+.software-home .closing-band {
+  padding: 38px 40px;
+  border-radius: 22px;
+}
+.software-home .site-footer {
+  padding: 54px 0 34px;
+}
+.software-home .site-footer .footer-grid {
+  gap: 42px;
+}
+.software-home .site-footer .footer-note {
+  margin-top: 32px;
+  padding-top: 22px;
+}
+
+@media (max-width: 1180px) and (min-width: 901px) {
+  .software-home .site-shell,
+  .software-home .site-nav-inner {
+    padding-inline: 34px;
+  }
+  .software-home .home-hero-grid {
+    column-gap: 38px;
+    padding-top: 74px;
+    padding-bottom: 68px;
+  }
+  .software-home .home-section {
+    padding-block: 112px;
+  }
+  .software-home .home-demo-grid,
+  .software-home .payroll-showcase,
+  .software-home .workspace-layout,
+  .software-home .proof-layout,
+  .software-home .pricing-layout {
+    gap: 46px;
+  }
+}
+
+@media (max-width: 900px) {
+  .software-home .site-shell,
+  .software-home .site-nav-inner {
+    padding-inline: 28px;
+  }
+
+  /* WorkspacePreview has a more specific desktop grid inside the hero.
+     Collapse that grid explicitly so the real product remains readable rather
+     than being visually clipped inside the mobile frame. */
+  .software-home .home-hero-visual .pv,
+  .software-home .demo-surface .pv {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .software-home .home-hero-visual .pv-side,
+  .software-home .demo-surface .pv-side {
+    display: none;
+  }
+  .software-home .home-hero-visual .pv-main,
+  .software-home .demo-surface .pv-main,
+  .software-home .home-hero-visual .frame,
+  .software-home .demo-surface .frame {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .software-home .home-hero-visual .pv {
+    min-height: 0;
+  }
+  .software-home .home-hero-visual .pv-body {
+    max-height: 520px;
+    overflow: hidden;
+  }
+  .software-home .demo-surface .pv-body {
+    max-height: none;
+  }
+  .software-home .home-hero-grid {
+    padding-top: 66px;
+    padding-bottom: 58px;
+    row-gap: 40px;
+  }
+  .software-home .home-hero-stage {
+    padding-block: 20px 8px;
+  }
+  .software-home .home-section {
+    padding-block: 96px;
+  }
+  .software-home .home-demo-grid,
+  .software-home .payroll-showcase,
+  .software-home .workspace-layout,
+  .software-home .proof-layout,
+  .software-home .pricing-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 40px;
+  }
+}
+
+@media (max-width: 680px) {
+  .software-home .site-shell,
+  .software-home .site-nav-inner {
+    padding-inline: 20px;
+  }
+  .software-home .home-hero-visual .pv-body {
+    max-height: 470px;
+    padding: 14px;
+  }
+  .software-home .home-hero-visual .console-strip {
+    padding: 16px;
+  }
+  .software-home .home-hero-visual .console-strip-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .software-home .home-hero-visual .console-figures {
+    gap: 16px;
+  }
+  .software-home .home-hero-visual .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .software-home .demo-surface .frame-body,
+  .software-home .demo-surface .pv-main {
+    width: 100%;
+    min-width: 0;
+  }
+  .software-home .home-hero-grid {
+    padding-top: 48px;
+    padding-bottom: 44px;
+    row-gap: 34px;
+  }
+  .software-home .hero h1 {
+    margin-top: 24px;
+  }
+  .software-home .hero-sub {
+    margin-top: 22px;
+  }
+  .software-home .hero-cta {
+    margin-top: 28px;
+  }
+  .software-home .hero-facts {
+    margin-top: 24px;
+    gap: 10px;
+  }
+  .software-home .home-coverage {
+    margin-top: 4px;
+  }
+  .software-home .home-section {
+    padding-block: 78px;
+  }
+  .software-home .section-head h2 {
+    margin-top: 12px;
+  }
+  .software-home .section-head p {
+    margin-top: 16px;
+  }
+  .software-home .editorial-facts {
+    margin-top: 24px;
+  }
+  .software-home .demo-surface,
+  .software-home .payroll-lab-surface {
+    padding: 10px;
+    border-radius: 20px;
+  }
+  .software-home .home-workspace-section .bento {
+    gap: 14px;
+  }
+  .software-home .home-workspace-section .bento > .feature-card,
+  .software-home .home-workspace-section .bento > .feature-card.wide {
+    padding: 22px;
+  }
+  .software-home .proof-evidence {
+    gap: 18px;
+  }
+  .software-home .proof-card {
+    padding: 12px;
+    border-radius: 18px;
+  }
+  .software-home .pricing-surface {
+    padding: 10px;
+  }
+  .software-home .home-closing {
+    padding: 46px 0 58px;
+  }
+  .software-home .closing-band {
+    padding: 28px 22px;
+  }
+  .software-home .site-footer {
+    padding-top: 42px;
+  }
+}
+
 /* Payroll outsourcing service page
    Keeps the service funnel visually separate from the software product page. */
 .outsourcing-hero {
