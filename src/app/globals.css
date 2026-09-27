@@ -3811,6 +3811,7 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
   .software-home .workspace-layout,
   .software-home .proof-layout,
   .software-home .pricing-layout {
+    grid-template-columns: minmax(0, 1fr);
     gap: 40px;
   }
 }
