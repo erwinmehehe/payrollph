@@ -1,5 +1,0 @@
-.env.local
-node_modules/
-.next/
-coverage/
-npm-debug.log*

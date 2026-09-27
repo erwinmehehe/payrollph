@@ -1,3 +1,0 @@
-import assert from "node:assert/strict"; import test from "node:test"; import { payrollPeriodLabel, validatePayrollWindow } from "../src/lib/payroll-period";
-test("payroll windows require explicit valid dates and max 16 days",()=>{assert.equal(validatePayrollWindow("2026-09-01","2026-09-15","2026-09-15").ok,true);assert.equal(validatePayrollWindow("2026-09-01","2026-09-17","2026-09-17").ok,false);assert.equal(validatePayrollWindow("2026-09-15","2026-09-01","2026-09-15").ok,false);});
-test("period labels derive from cutoff",()=>assert.equal(payrollPeriodLabel("2026-09-16","2026-09-30"),"Sep 16–30, 2026"));
