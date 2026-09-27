@@ -1,14 +1,12 @@
 import { asc } from "drizzle-orm";
 import {
   ArrowUpRight,
-  Building2,
   CalendarDays,
   Check,
   ClipboardCheck,
   Clock3,
   FileSpreadsheet,
   Layers,
-  LockKeyhole,
   ShieldCheck,
   Terminal,
   UserCheck,
@@ -32,6 +30,17 @@ const COMPETITORS = [
   { name: "PayrollHero", freelancer: "No", pricing: "Quote on request", multiClient: "Limited CPA tooling", filing: "Certified filing" },
   { name: "GreatDay HR", freelancer: "No", pricing: "Quote on request", multiClient: "Limited", filing: "Certified filing" },
   { name: "Kazam", freelancer: "No", pricing: "Quote on request", multiClient: "No", filing: "Certified filing" },
+];
+
+const COVERAGE = [
+  { label: "SSS", icon: ShieldCheck, tone: "i-green" },
+  { label: "PhilHealth", icon: ShieldCheck, tone: "i-cyan" },
+  { label: "Pag-IBIG", icon: WalletCards, tone: "i-blue" },
+  { label: "BIR TRAIN", icon: FileSpreadsheet, tone: "i-purple" },
+  { label: "DOLE wage orders", icon: ClipboardCheck, tone: "i-amber" },
+  { label: "13th month", icon: CalendarDays, tone: "i-teal" },
+  { label: "Night differential", icon: Clock3, tone: "i-cyan" },
+  { label: "Holiday stacking", icon: CalendarDays, tone: "i-pink" },
 ];
 
 export async function SoftwareHome() {
@@ -95,92 +104,95 @@ export async function SoftwareHome() {
             </div>
           </div>
 
-          <div className="chip-row home-coverage" aria-label="Payroll coverage">
-            {["SSS", "PhilHealth", "Pag-IBIG", "BIR TRAIN", "DOLE wage orders", "13th month", "Night differential", "Holiday stacking"].map(
-              (chip) => (
-                <span className="chip" key={chip}>
-                  {chip}
+          <div className="home-coverage" aria-label="Payroll coverage">
+            {COVERAGE.map(({ label, icon: Icon, tone }) => (
+              <span className="coverage-chip" key={label}>
+                <span className="coverage-icon" aria-hidden>
+                  <Icon size={14} className={tone} />
                 </span>
-              ),
-            )}
+                {label}
+              </span>
+            ))}
           </div>
         </div>
       </section>
 
       <section className="section home-section home-demo-section" id="preview">
-        <div className="site-shell">
-          <div className="section-head">
+        <div className="site-shell home-demo-grid">
+          <div className="section-head home-editorial">
             <p className="eyebrow">Interactive payroll demo</p>
             <h2>See the payroll system work before you sign up.</h2>
             <p>
               Switch tabs, open a payslip, acknowledge an exception and release a run. The people are sample data, but the
               contributions and withholding use the same payroll-rule functions as the product.
             </p>
+            <div className="editorial-facts">
+              <span><Check size={14} className="i-green" /> Tabs, payslips and the payroll register are interactive</span>
+              <span><Check size={14} className="i-green" /> Exceptions must be acknowledged before simulated release</span>
+              <span><Check size={14} className="i-green" /> Statutory figures use the product&apos;s payroll-rule functions</span>
+            </div>
           </div>
-          <WorkspacePreview mode="interactive" />
+
+          <div className="demo-surface">
+            <WorkspacePreview mode="interactive" />
+          </div>
         </div>
       </section>
 
       <section className="section alt home-section home-payroll-section" id="payroll">
-        <div className="site-shell">
-          <div className="section-head">
-            <p className="eyebrow">Philippine payroll engine</p>
-            <h2>Check the payroll calculation before it leaves the building.</h2>
-            <p>
-              Hours come from raw punches. Statutory contributions come from versioned rules. Premiums and exemptions are
-              applied in the payroll engine, then exposed so a reviewer can see what changed the net pay.
-            </p>
-          </div>
-
-          <div className="split payroll-showcase">
-            <div>
-              <div className="feature-grid payroll-feature-stack">
-                <article className="feature-card">
-                  <span className="feature-icon" aria-hidden>
-                    <WalletCards size={17} className="i-green" />
-                  </span>
-                  <h3>Statutory deductions and withholding</h3>
-                  <p>
-                    SSS under RA 11199, PhilHealth under RA 11223, Pag-IBIG under RA 9679, and withholding under TRAIN,
-                    including the minimum-wage-earner exemption path used by the engine.
-                  </p>
-                  <span className="status status-verified">Unit-tested</span>
-                </article>
-
-                <article className="feature-card">
-                  <span className="feature-icon" aria-hidden>
-                    <Clock3 size={17} className="i-cyan" />
-                  </span>
-                  <h3>Attendance that does not invent missing hours</h3>
-                  <p>
-                    Tardiness, undertime, overtime and night differential are derived from punch pairs. A missing punch
-                    produces zero derived hours and an exception instead of an assumed time.
-                  </p>
-                  <span className="status status-verified">Unit-tested</span>
-                </article>
-
-                <article className="feature-card">
-                  <span className="feature-icon" aria-hidden>
-                    <ShieldCheck size={17} className="i-green" />
-                  </span>
-                  <h3>Wage orders, holidays and advisories</h3>
-                  <p>
-                    Configured regional wage orders set the floor checked by payroll, the 2026 holiday calendar drives
-                    premium handling, and active calamity advisories can add their premium and reference to the payslip.
-                  </p>
-                  <span className="status status-verified">Unit-tested</span>
-                </article>
-              </div>
+        <div className="site-shell payroll-showcase">
+          <div className="payroll-editorial">
+            <div className="section-head">
+              <p className="eyebrow">Philippine payroll engine</p>
+              <h2>Check the payroll calculation before it leaves the building.</h2>
+              <p>
+                Hours come from raw punches. Statutory contributions come from versioned rules. Premiums and exemptions are
+                applied in the payroll engine, then exposed so a reviewer can see what changed the net pay.
+              </p>
             </div>
 
+            <div className="payroll-feature-stack">
+              <article className="payroll-feature-row">
+                <span className="feature-icon" aria-hidden>
+                  <WalletCards size={17} className="i-green" />
+                </span>
+                <div>
+                  <h3>Statutory deductions</h3>
+                  <p>SSS, PhilHealth and Pag-IBIG use the configured contribution rules.</p>
+                </div>
+              </article>
+
+              <article className="payroll-feature-row">
+                <span className="feature-icon" aria-hidden>
+                  <FileSpreadsheet size={17} className="i-purple" />
+                </span>
+                <div>
+                  <h3>Withholding under TRAIN</h3>
+                  <p>The same semi-monthly withholding function used by payroll runs drives the calculator.</p>
+                </div>
+              </article>
+
+              <article className="payroll-feature-row">
+                <span className="feature-icon" aria-hidden>
+                  <Clock3 size={17} className="i-cyan" />
+                </span>
+                <div>
+                  <h3>Wage orders and attendance rules</h3>
+                  <p>Configured wage floors, punch-derived hours and exceptions stay visible to the reviewer.</p>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <div className="payroll-lab-surface">
             <StatutoryLab />
           </div>
         </div>
       </section>
 
       <section className="section home-section home-workspace-section" id="workspace">
-        <div className="site-shell">
-          <div className="section-head">
+        <div className="site-shell workspace-layout">
+          <div className="section-head home-editorial">
             <p className="eyebrow">HRIS and payroll workspace</p>
             <h2>One payroll system for one company, multiple branches or multiple clients.</h2>
             <p>
@@ -272,7 +284,7 @@ export async function SoftwareHome() {
             </article>
           </div>
 
-          <div className="persona-strip" style={{ marginTop: 22 }}>
+          <div className="persona-strip">
             <div className="persona-chip">
               <strong>Freelancer</strong>
               <span>Tax comparison, voluntary contributions and a simpler workspace.</span>
@@ -294,8 +306,8 @@ export async function SoftwareHome() {
       </section>
 
       <section className="section alt home-section home-proof-section" id="proof">
-        <div className="site-shell">
-          <div className="section-head">
+        <div className="site-shell proof-layout">
+          <div className="section-head home-editorial">
             <p className="eyebrow">Proof before purchase</p>
             <h2>Claims you can inspect, including the gaps.</h2>
             <p>
@@ -305,116 +317,109 @@ export async function SoftwareHome() {
             </p>
           </div>
 
-          <CapabilityGrid capabilities={report.capabilities} counts={report.counts} />
-
-          <div className="section-head" style={{ marginTop: 56, marginBottom: 20 }}>
-            <p className="eyebrow">Market positioning</p>
-            <h2>Where Linaw is different, and where established providers are ahead.</h2>
-            <p>
-              Competitor columns are our reading of public positioning, not independently verified product testing.
-              Certified government filing remains a gap for Linaw and is labelled as such.
-            </p>
-          </div>
-
-          <div className="card table-card">
-            <div className="data-table-wrap slim-scroll">
-              <table className="data-table parity-table">
-                <thead>
-                  <tr>
-                    <th>Vendor</th>
-                    <th>Freelancer product</th>
-                    <th>Pricing</th>
-                    <th>Multi-client</th>
-                    <th>Government filing</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {COMPETITORS.map((row) => (
-                    <tr key={row.name}>
-                      <td>
-                        <strong style={{ color: "var(--ink)", fontWeight: 700 }}>{row.name}</strong>
-                        {row.name === "Linaw" && (
-                          <small style={{ display: "block", marginTop: 2, color: "var(--muted)" }}>code-inspected</small>
-                        )}
-                      </td>
-                      <td>{row.freelancer}</td>
-                      <td>{row.pricing}</td>
-                      <td>{row.multiClient}</td>
-                      <td>{row.filing}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <div className="proof-evidence">
+            <div className="proof-card">
+              <CapabilityGrid capabilities={report.capabilities} counts={report.counts} />
             </div>
-            <div className="pagination">
+
+            <div className="proof-card comparison-card">
+              <div className="proof-card-head">
+                <p className="eyebrow">Market positioning</p>
+                <h3>How we read the alternatives.</h3>
+                <p>
+                  Competitor columns are our reading of public positioning, not independently verified product testing.
+                  Certified government filing remains a gap for Linaw and is labelled as such.
+                </p>
+              </div>
+
+              <div className="card table-card">
+                <div className="data-table-wrap slim-scroll">
+                  <table className="data-table parity-table">
+                    <thead>
+                      <tr>
+                        <th>Vendor</th>
+                        <th>Freelancer product</th>
+                        <th>Pricing</th>
+                        <th>Multi-client</th>
+                        <th>Government filing</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {COMPETITORS.map((row) => (
+                        <tr key={row.name}>
+                          <td>
+                            <strong style={{ color: "var(--ink)", fontWeight: 700 }}>{row.name}</strong>
+                            {row.name === "Linaw" && (
+                              <small style={{ display: "block", marginTop: 2, color: "var(--muted)" }}>code-inspected</small>
+                            )}
+                          </td>
+                          <td>{row.freelancer}</td>
+                          <td>{row.pricing}</td>
+                          <td>{row.multiClient}</td>
+                          <td>{row.filing}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="pagination">
+                  <span>
+                    Sprout, PayrollHero, GreatDay HR and Kazam columns reflect public marketing as we read it and may be out
+                    of date. We do not claim to have tested their products.
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="notice notice-amber proof-readiness" id="status">
+              <ShieldCheck size={16} className="i-green" />
               <span>
-                Sprout, PayrollHero, GreatDay HR and Kazam columns reflect public marketing as we read it and may be out of
-                date. We do not claim to have tested their products.
+                <strong>Production status:</strong> the payroll engine, workspace, approvals, self-service, API and exports
+                run on the request path. External-provider and filing readiness is reported separately at{" "}
+                <a className="link-button" href="/api/readiness">/api/readiness</a> and{" "}
+                <a className="link-button" href="/scorecard">/scorecard</a>.
               </span>
             </div>
-          </div>
-
-          <div className="notice notice-amber" style={{ marginTop: 22 }} id="status">
-            <ShieldCheck size={16} className="i-green" />
-            <span>
-              <strong>Production status:</strong> the payroll engine, workspace, approvals, self-service, API and exports
-              run on the request path. External-provider and filing readiness is reported separately at{" "}
-              <a className="link-button" href="/api/readiness">/api/readiness</a> and{" "}
-              <a className="link-button" href="/scorecard">/scorecard</a>.
-            </span>
           </div>
         </div>
       </section>
 
       <section className="section home-section home-pricing-section" id="pricing">
-        <div className="site-shell">
-          <div className="section-head">
+        <div className="site-shell pricing-layout">
+          <div className="section-head home-editorial">
             <p className="eyebrow">Payroll software pricing</p>
             <h2>See what Linaw costs at your headcount.</h2>
             <p>
-              The cards below read the actual <span className="mono">pricing_plans</span> rows used by the app. Change
-              headcount and the displayed total recalculates from the stored base and per-employee rate.
+              The cards read the actual <span className="mono">pricing_plans</span> rows used by the app. Change headcount
+              and the displayed total recalculates from the stored base and per-employee rate.
             </p>
           </div>
-          <PricingTable plans={plans} />
+
+          <div className="pricing-surface">
+            <PricingTable plans={plans} />
+          </div>
         </div>
       </section>
 
-      <section className="section tight alt home-closing">
+      <section className="home-closing">
         <div className="site-shell">
-          <div className="module-grid three" style={{ marginTop: 0 }}>
-            <article className="feature-card">
-              <span className="feature-icon" aria-hidden>
-                <Building2 size={17} className="i-purple" />
-              </span>
-              <h3>Try the payroll software</h3>
-              <p>Use the interactive preview to inspect payroll runs, calculations and the workspace before creating anything.</p>
-              <a className="primary-button full" href="#preview" style={{ marginTop: 14 }}>
+          <div className="closing-band">
+            <div className="closing-copy">
+              <p className="eyebrow">Ready to run a payroll?</p>
+              <h2>Inspect the product, create a workspace, or talk through your setup.</h2>
+              <p>The demo and calculator above remain available before you create an account.</p>
+            </div>
+            <div className="closing-actions">
+              <a className="closing-button closing-button-light" href="#preview">
                 Try live demo <ArrowUpRight size={14} />
               </a>
-            </article>
-
-            <article className="feature-card">
-              <span className="feature-icon" aria-hidden>
-                <LockKeyhole size={17} className="i-amber" />
-              </span>
-              <h3>Start with your own workspace</h3>
-              <p>First-run setup creates the organization and owner account with the product&apos;s password policy enforced.</p>
-              <a className="primary-button full" href="/signup" style={{ marginTop: 14 }}>
-                Start free <ArrowUpRight size={14} />
+              <a className="closing-button closing-button-outline" href="/signup">
+                Create account
               </a>
-            </article>
-
-            <article className="feature-card">
-              <span className="feature-icon" aria-hidden>
-                <CalendarDays size={17} className="i-cyan" />
-              </span>
-              <h3>Want someone to run payroll with you?</h3>
-              <p>Linaw also has a separate managed payroll service for businesses that want the processing work handled.</p>
-              <a className="secondary-button full" href="/payroll-outsourcing" style={{ marginTop: 14 }}>
-                See payroll outsourcing <ArrowUpRight size={14} />
+              <a className="closing-button closing-button-outline" href="/book-demo">
+                Book a demo <ArrowUpRight size={14} />
               </a>
-            </article>
+            </div>
           </div>
         </div>
       </section>

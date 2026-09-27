@@ -2571,6 +2571,981 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
 }
 
 
+
+/* ==========================================================================
+   Mockup fidelity pass
+   Composition follows the approved Linaw homepage reference while all product
+   surfaces continue to render their existing functional components.
+   ========================================================================== */
+
+.software-home {
+  overflow-x: clip;
+  --home-max: 1340px;
+}
+
+/* Float the nav shell like the reference while keeping SiteNav behavior intact. */
+.software-home .site-nav {
+  padding: 7px 0;
+  background: transparent;
+  border-bottom: 0;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.software-home .site-nav-inner {
+  min-height: 54px;
+  border: 1px solid rgba(84,95,120,.10);
+  border-radius: 14px;
+  background: rgba(255,255,255,.87);
+  box-shadow: 0 8px 26px rgba(16,24,40,.045);
+  backdrop-filter: blur(18px) saturate(1.35);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
+}
+.software-home .site-nav.stuck {
+  background: transparent;
+  box-shadow: none;
+}
+.software-home .site-nav.stuck .site-nav-inner {
+  background: rgba(255,255,255,.94);
+  box-shadow: 0 1px 0 rgba(16,24,40,.045), 0 12px 30px rgba(16,24,40,.07);
+}
+
+.software-home .site-nav {
+  height: 68px;
+  margin: 0;
+  border-bottom: 0;
+}
+.software-home .site-nav.stuck {
+  box-shadow: none;
+}
+.software-home .site-nav-inner {
+  max-width: 1340px;
+  gap: 18px;
+}
+.software-home .site-links {
+  margin-left: auto;
+  margin-right: 8px;
+}
+.software-home .site-links a {
+  padding: 7px 9px;
+  font-size: 12px;
+}
+.software-home .site-nav-cta {
+  margin-left: 0;
+}
+.software-home .site-nav-cta .secondary-button,
+.software-home .site-nav-cta .primary-button {
+  min-height: 36px;
+  height: 36px;
+  padding-inline: 14px;
+  border-radius: 9px;
+  font-size: 12px;
+}
+
+/* Hero closely follows the 40/60 reference composition. */
+.software-home .home-hero {
+  min-height: calc(100vh - 68px);
+  border-bottom: 1px solid rgba(84,95,120,.07);
+  background:
+    radial-gradient(circle at 73% 24%, rgba(0, 87, 184, .095), transparent 25%),
+    radial-gradient(circle at 89% 74%, rgba(0, 135, 90, .055), transparent 23%),
+    radial-gradient(circle at 42% 0%, rgba(119, 51, 184, .04), transparent 18%),
+    linear-gradient(180deg, #ffffff 0%, #fbfcff 70%, #f6f8fc 100%);
+}
+.software-home .home-hero::before {
+  opacity: .26;
+  background-size: 68px 68px;
+}
+.software-home .home-hero::after {
+  width: 680px;
+  height: 680px;
+  right: -180px;
+  top: -230px;
+  background: radial-gradient(circle, rgba(0,87,184,.08), rgba(119,51,184,.025) 48%, transparent 70%);
+  filter: blur(22px);
+}
+.software-home .home-hero-grid {
+  grid-template-columns: minmax(0, 42fr) minmax(0, 58fr);
+  column-gap: clamp(34px, 4vw, 64px);
+  row-gap: 28px;
+  min-height: calc(100vh - 68px);
+  padding-top: 58px;
+  padding-bottom: 32px;
+}
+.software-home .home-hero-copy {
+  max-width: 560px;
+  padding: 0;
+  animation: linaw-hero-copy-in .64s var(--ease) both;
+}
+.software-home .pill {
+  padding: 6px 12px 6px 8px;
+  border-color: rgba(0,87,184,.12);
+  background: rgba(255,255,255,.88);
+  box-shadow: 0 8px 24px rgba(16,24,40,.045);
+}
+.software-home .hero h1 {
+  max-width: 610px;
+  margin-top: 24px;
+  font-size: clamp(60px, 5.2vw, 76px);
+  line-height: .94;
+  letter-spacing: -.068em;
+  font-weight: 790;
+}
+.software-home .hero h1 .accent {
+  color: var(--ink);
+}
+.software-home .hero-sub {
+  max-width: 535px;
+  margin-top: 24px;
+  font-size: 17px;
+  line-height: 1.62;
+  color: #596676;
+}
+.software-home .hero-cta {
+  margin-top: 28px;
+  gap: 10px;
+}
+.software-home .hero-cta .primary-button,
+.software-home .hero-cta .secondary-button {
+  min-height: 46px;
+  height: 46px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+.software-home .hero-cta .primary-button {
+  box-shadow: 0 12px 28px rgba(0,135,90,.18);
+}
+.software-home .hero-facts {
+  gap: 8px;
+  margin-top: 22px;
+  color: #667281;
+  font-size: 12px;
+}
+.software-home .home-hero-stage {
+  align-self: center;
+  min-width: 0;
+  padding: 34px 0 26px;
+  animation: linaw-hero-product-in .72s .12s var(--ease) both;
+}
+.software-home .home-hero-glow {
+  inset: 8% 0 3% 1%;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(0,87,184,.18), transparent 48%),
+    radial-gradient(circle at 73% 68%, rgba(0,135,90,.105), transparent 38%),
+    radial-gradient(circle at 33% 74%, rgba(119,51,184,.08), transparent 35%);
+  filter: blur(58px);
+}
+.software-home .home-hero-visual {
+  transform: perspective(1700px) rotateY(-2.2deg) rotateX(1deg) translateY(-2px);
+}
+.software-home .home-hero-stage:hover .home-hero-visual {
+  transform: perspective(1700px) rotateY(-.35deg) rotateX(.15deg) translateY(-5px);
+}
+.software-home .home-hero-visual .frame {
+  border-radius: 22px;
+  box-shadow:
+    0 44px 96px rgba(17,24,39,.20),
+    0 12px 32px rgba(17,24,39,.09),
+    0 0 0 1px rgba(255,255,255,.72) inset;
+}
+.software-home .home-hero-visual .pv {
+  grid-template-columns: 174px minmax(0, 1fr);
+}
+.software-home .home-hero-visual .pv-side {
+  padding-inline: 9px;
+}
+.software-home .home-hero-badge {
+  min-width: 170px;
+  padding: 9px 11px;
+  border-radius: 12px;
+  box-shadow: 0 14px 34px rgba(16,24,40,.11);
+}
+.software-home .home-hero-badge-top {
+  top: 6px;
+  right: -5px;
+}
+.software-home .home-hero-badge-bottom {
+  bottom: 4px;
+  left: -18px;
+}
+.software-home .home-coverage {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 0;
+}
+.software-home .coverage-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 5px 10px 5px 6px;
+  border: 1px solid rgba(84,95,120,.105);
+  border-radius: 10px;
+  background: rgba(255,255,255,.82);
+  box-shadow: 0 5px 16px rgba(16,24,40,.035);
+  color: var(--ink-secondary);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.software-home .coverage-icon {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--canvas);
+}
+
+@keyframes linaw-hero-copy-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes linaw-hero-product-in {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Shared editorial split language from the reference. */
+.software-home .home-section {
+  padding: 92px 0;
+}
+.software-home .home-editorial,
+.software-home .payroll-editorial > .section-head {
+  margin: 0;
+}
+.software-home .section-head .eyebrow {
+  font-size: 10px;
+  letter-spacing: .13em;
+}
+.software-home .section-head h2 {
+  margin-top: 10px;
+  font-size: clamp(31px, 3.2vw, 43px);
+  line-height: 1.05;
+  letter-spacing: -.05em;
+}
+.software-home .section-head p {
+  margin-top: 14px;
+  font-size: 14.5px;
+  line-height: 1.68;
+}
+.software-home .editorial-facts {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+}
+.software-home .editorial-facts span {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--ink-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.software-home .editorial-facts svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+/* Interactive demo, editorial left and real product right. */
+.software-home .home-demo-section {
+  background:
+    radial-gradient(circle at 78% 34%, rgba(0,87,184,.045), transparent 26%),
+    #fff;
+}
+.software-home .home-demo-grid {
+  display: grid;
+  grid-template-columns: minmax(230px, 30fr) minmax(0, 70fr);
+  gap: clamp(34px, 4vw, 58px);
+  align-items: center;
+}
+.software-home .demo-surface {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(0,87,184,.08);
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at 76% 10%, rgba(119,51,184,.075), transparent 26%),
+    linear-gradient(145deg, #f4f7fd, #eef4fb);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.9);
+}
+.software-home .demo-surface .frame.standalone {
+  border-radius: 20px;
+  border-color: rgba(84,95,120,.13);
+  box-shadow: 0 22px 56px rgba(17,24,39,.12);
+}
+.software-home .demo-surface .frame-body {
+  min-height: 560px;
+}
+
+/* Payroll engine mirrors the 30/70 calculator composition. */
+.software-home .home-payroll-section {
+  background:
+    radial-gradient(circle at 73% 35%, rgba(0,87,184,.05), transparent 27%),
+    linear-gradient(180deg, #f8fafc 0%, #f5f8fc 100%);
+}
+.software-home .payroll-showcase {
+  display: grid;
+  grid-template-columns: minmax(250px, 33fr) minmax(0, 67fr);
+  gap: clamp(34px, 4vw, 60px);
+  align-items: center;
+}
+.software-home .payroll-editorial {
+  min-width: 0;
+}
+.software-home .payroll-feature-stack {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+}
+.software-home .payroll-feature-row {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 12px 0;
+  border-top: 1px solid rgba(84,95,120,.09);
+}
+.software-home .payroll-feature-row:first-child {
+  border-top: 0;
+}
+.software-home .payroll-feature-row .feature-icon {
+  width: 34px;
+  height: 34px;
+  margin: 0;
+  border-radius: 9px;
+}
+.software-home .payroll-feature-row h3 {
+  margin: 0 0 4px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 720;
+  letter-spacing: -.02em;
+}
+.software-home .payroll-feature-row p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+.software-home .payroll-lab-surface {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid rgba(0,87,184,.075);
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at 88% 12%, rgba(0,87,184,.06), transparent 28%),
+    #edf3fb;
+}
+.software-home .payroll-lab-surface .simulator-card {
+  padding: 28px;
+  border-radius: 20px;
+  border-color: rgba(84,95,120,.11);
+  box-shadow: 0 18px 48px rgba(17,24,39,.09);
+}
+
+/* Workspace uses editorial-left plus asymmetric 12-column bento. */
+.software-home .home-workspace-section {
+  background: #fff;
+}
+.software-home .workspace-layout {
+  display: grid;
+  grid-template-columns: minmax(230px, 29fr) minmax(0, 71fr);
+  gap: 36px 46px;
+  align-items: start;
+}
+.software-home .workspace-layout > .home-editorial {
+  position: sticky;
+  top: 98px;
+}
+.software-home .home-workspace-section .bento {
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 12px;
+}
+.software-home .home-workspace-section .bento > .feature-card {
+  grid-column: span 3;
+  min-height: 216px;
+  padding: 21px;
+  border-radius: 18px;
+  border-color: rgba(84,95,120,.105);
+  box-shadow: 0 8px 24px rgba(16,24,40,.04);
+}
+.software-home .home-workspace-section .bento > .feature-card.wide {
+  grid-column: span 6;
+  grid-row: span 2;
+  min-height: 444px;
+  padding: 28px;
+}
+.software-home .home-workspace-section .bento > .feature-card:first-child {
+  background:
+    radial-gradient(circle at 78% 20%, rgba(0,115,234,.18), transparent 28%),
+    radial-gradient(circle at 22% 88%, rgba(119,51,184,.16), transparent 30%),
+    linear-gradient(145deg, #101827 0%, #16233b 100%);
+}
+.software-home .home-workspace-section .bento > .feature-card:first-child h3 {
+  max-width: 440px;
+  margin-top: 20px;
+  font-size: 25px;
+  line-height: 1.08;
+}
+.software-home .home-workspace-section .bento > .feature-card:nth-child(2),
+.software-home .home-workspace-section .bento > .feature-card:nth-child(3),
+.software-home .home-workspace-section .bento > .feature-card:nth-child(5),
+.software-home .home-workspace-section .bento > .feature-card:nth-child(6) {
+  grid-column: span 3;
+}
+.software-home .home-workspace-section .bento > .feature-card:nth-child(4) {
+  grid-column: span 6;
+  min-height: 216px;
+}
+.software-home .workspace-layout > .persona-strip {
+  grid-column: 1 / -1;
+  margin-top: 0 !important;
+}
+
+/* Proof is evidence-led: compact editorial rail, dense verified surfaces. */
+.software-home .home-proof-section {
+  background: #f7f9fc;
+}
+.software-home .proof-layout {
+  display: grid;
+  grid-template-columns: minmax(225px, 27fr) minmax(0, 73fr);
+  gap: clamp(34px, 4vw, 58px);
+  align-items: start;
+}
+.software-home .proof-layout > .home-editorial {
+  position: sticky;
+  top: 98px;
+}
+.software-home .proof-evidence {
+  min-width: 0;
+  display: grid;
+  gap: 16px;
+}
+.software-home .proof-card {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid rgba(84,95,120,.10);
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(16,24,40,.04);
+}
+.software-home .proof-card > div > div:first-child {
+  margin-bottom: 12px !important;
+}
+.software-home .proof-card .card.table-card {
+  margin: 0;
+  border-radius: 14px;
+  box-shadow: none;
+}
+.software-home .proof-card:first-child .data-table-wrap {
+  max-height: 510px;
+  overflow-y: auto;
+}
+.software-home .proof-card:first-child .data-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.software-home .proof-card:first-child .data-table thead th {
+  background: #f5f7fa;
+}
+.software-home .proof-card-head {
+  padding: 4px 4px 14px;
+}
+.software-home .proof-card-head h3 {
+  margin: 6px 0 6px;
+  color: var(--ink);
+  font-size: 21px;
+  font-weight: 750;
+  letter-spacing: -.035em;
+}
+.software-home .proof-card-head p:last-child {
+  max-width: 720px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+.software-home .proof-readiness {
+  margin: 0;
+  border-radius: 14px;
+}
+
+/* Pricing follows the reference: editorial rail beside a contained tray. */
+.software-home .home-pricing-section {
+  background:
+    radial-gradient(circle at 84% 12%, rgba(0,87,184,.035), transparent 22%),
+    #fff;
+}
+.software-home .pricing-layout {
+  display: grid;
+  grid-template-columns: minmax(230px, 27fr) minmax(0, 73fr);
+  gap: clamp(34px, 4vw, 54px);
+  align-items: start;
+}
+.software-home .pricing-layout > .home-editorial {
+  position: sticky;
+  top: 98px;
+}
+.software-home .pricing-surface {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(84,95,120,.09);
+  border-radius: 24px;
+  background: #f4f6fa;
+}
+.software-home .pricing-surface .pricing-calculator {
+  margin: 0 0 10px;
+  padding: 17px 18px;
+  border-color: transparent;
+  border-radius: 15px;
+  box-shadow: none;
+}
+.software-home .pricing-surface .pricing-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.software-home .pricing-surface .price-card {
+  min-width: 0;
+  min-height: 330px;
+  padding: 20px;
+  border: 1px solid rgba(84,95,120,.09);
+  border-radius: 16px;
+  box-shadow: 0 6px 18px rgba(16,24,40,.04);
+}
+.software-home .pricing-surface .price-card.featured {
+  border-color: var(--active-border);
+  box-shadow: 0 14px 34px rgba(0,87,184,.10);
+}
+.software-home .pricing-surface .price strong {
+  font-size: 24px;
+}
+.software-home .pricing-surface .price-card:hover {
+  transform: translateY(-3px);
+}
+
+/* One coherent conversion strip, not three unrelated cards. */
+.software-home .home-closing {
+  padding: 34px 0 46px;
+  background: #fff;
+  border-top: 0;
+}
+.software-home .closing-band {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 34px;
+  padding: 28px 30px;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 10% 20%, rgba(0,200,117,.18), transparent 28%),
+    radial-gradient(circle at 82% 24%, rgba(119,51,184,.24), transparent 33%),
+    linear-gradient(120deg, #004b9d 0%, var(--active) 38%, #3635a7 100%);
+  box-shadow: 0 22px 56px rgba(0,87,184,.16);
+  color: #fff;
+}
+.software-home .closing-copy {
+  max-width: 620px;
+}
+.software-home .closing-copy .eyebrow {
+  margin: 0 0 6px;
+  color: rgba(255,255,255,.72);
+}
+.software-home .closing-copy h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 23px;
+  line-height: 1.15;
+  letter-spacing: -.035em;
+  font-weight: 750;
+}
+.software-home .closing-copy p:last-child {
+  margin: 7px 0 0;
+  color: rgba(255,255,255,.70);
+  font-size: 12px;
+}
+.software-home .closing-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.software-home .closing-button {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 14px;
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 9px;
+  font-size: 11.5px;
+  font-weight: 700;
+  transition: transform .18s var(--ease), background .18s, box-shadow .18s;
+}
+.software-home .closing-button:hover {
+  transform: translateY(-2px);
+}
+.software-home .closing-button-light {
+  border-color: #fff;
+  background: #fff;
+  color: #183467;
+  box-shadow: 0 8px 22px rgba(15,20,25,.12);
+}
+.software-home .closing-button-outline {
+  background: rgba(255,255,255,.07);
+  color: #fff;
+}
+.software-home .closing-button-outline:hover {
+  background: rgba(255,255,255,.13);
+}
+
+/* Compact light footer like the reference. */
+.software-home .site-footer {
+  padding: 34px 0 24px;
+  border-top: 1px solid rgba(84,95,120,.08);
+  background: #fff;
+  color: var(--muted);
+}
+.software-home .site-footer .footer-grid {
+  grid-template-columns: minmax(0, 1.45fr) repeat(3, minmax(130px, .65fr));
+  gap: 28px;
+}
+.software-home .site-footer .site-brand,
+.software-home .site-footer .site-brand strong {
+  color: var(--ink) !important;
+}
+.software-home .site-footer .site-brand small {
+  color: var(--muted) !important;
+}
+.software-home .site-footer .footer-disclosure,
+.software-home .site-footer .footer-note {
+  color: var(--muted);
+}
+.software-home .site-footer .footer-grid h4 {
+  color: var(--ink);
+}
+.software-home .site-footer .footer-grid a {
+  color: var(--muted);
+}
+.software-home .site-footer .footer-grid a:hover {
+  color: var(--ink);
+}
+.software-home .site-footer .footer-note {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top-color: rgba(84,95,120,.09);
+}
+
+/* Scroll reveal and tiny stagger. */
+@supports (animation-timeline: view()) {
+  .software-home .home-demo-section .home-editorial,
+  .software-home .demo-surface,
+  .software-home .payroll-editorial,
+  .software-home .payroll-lab-surface,
+  .software-home .workspace-layout > .home-editorial,
+  .software-home .home-workspace-section .feature-card,
+  .software-home .proof-layout > .home-editorial,
+  .software-home .proof-card,
+  .software-home .pricing-layout > .home-editorial,
+  .software-home .pricing-surface,
+  .software-home .closing-band {
+    animation: linaw-section-in linear both;
+    animation-timeline: view();
+    animation-range: entry 4% cover 24%;
+  }
+  .software-home .home-workspace-section .feature-card:nth-child(2),
+  .software-home .proof-card:nth-child(2) {
+    animation-range: entry 8% cover 28%;
+  }
+  .software-home .home-workspace-section .feature-card:nth-child(3) {
+    animation-range: entry 12% cover 32%;
+  }
+  @keyframes linaw-section-in {
+    from { opacity: .35; transform: translateY(16px); }
+    to { opacity: 1; transform: none; }
+  }
+}
+
+/* Keep desktop composition through 1024. */
+@media (max-width: 1180px) and (min-width: 901px) {
+  .software-home .home-hero-grid {
+    grid-template-columns: minmax(0, 40fr) minmax(0, 60fr);
+    column-gap: 28px;
+    padding-top: 46px;
+  }
+  .software-home .hero h1 {
+    font-size: clamp(50px, 5.4vw, 64px);
+  }
+  .software-home .home-hero-visual .pv {
+    grid-template-columns: 148px minmax(0, 1fr);
+  }
+  .software-home .home-hero-badge {
+    display: none;
+  }
+  .software-home .home-demo-grid,
+  .software-home .payroll-showcase,
+  .software-home .workspace-layout,
+  .software-home .proof-layout,
+  .software-home .pricing-layout {
+    gap: 30px;
+  }
+  .software-home .home-workspace-section .bento > .feature-card.wide {
+    grid-column: span 6;
+  }
+  .software-home .pricing-surface .pricing-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Tablet becomes intentionally stacked rather than squeezed. */
+@media (max-width: 900px) {
+  .software-home .home-hero {
+    min-height: 0;
+  }
+  .software-home .home-hero-grid {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+    padding-top: 50px;
+    padding-bottom: 38px;
+    row-gap: 28px;
+  }
+  .software-home .home-hero-copy {
+    max-width: 700px;
+  }
+  .software-home .hero h1 {
+    max-width: 700px;
+    font-size: clamp(48px, 8vw, 64px);
+  }
+  .software-home .home-hero-stage {
+    width: 100%;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 8px 0 14px;
+  }
+  .software-home .home-hero-visual,
+  .software-home .home-hero-stage:hover .home-hero-visual {
+    transform: none;
+  }
+  .software-home .home-coverage {
+    justify-content: flex-start;
+  }
+  .software-home .home-demo-grid,
+  .software-home .payroll-showcase,
+  .software-home .workspace-layout,
+  .software-home .proof-layout,
+  .software-home .pricing-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
+  .software-home .workspace-layout > .home-editorial,
+  .software-home .proof-layout > .home-editorial,
+  .software-home .pricing-layout > .home-editorial {
+    position: static;
+  }
+  .software-home .home-workspace-section .bento > .feature-card,
+  .software-home .home-workspace-section .bento > .feature-card.wide,
+  .software-home .home-workspace-section .bento > .feature-card:nth-child(2),
+  .software-home .home-workspace-section .bento > .feature-card:nth-child(3),
+  .software-home .home-workspace-section .bento > .feature-card:nth-child(4),
+  .software-home .home-workspace-section .bento > .feature-card:nth-child(5),
+  .software-home .home-workspace-section .bento > .feature-card:nth-child(6) {
+    grid-column: span 6;
+    grid-row: auto;
+    min-height: 220px;
+  }
+  .software-home .home-workspace-section .bento > .feature-card:first-child {
+    grid-column: 1 / -1;
+    min-height: 300px;
+  }
+  .software-home .pricing-surface .pricing-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .software-home .closing-band {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .software-home .closing-actions {
+    justify-content: flex-start;
+  }
+}
+
+/* Mobile gets its own composition. */
+@media (max-width: 680px) {
+  .software-home .site-shell {
+    padding-inline: 18px;
+  }
+  .software-home .home-hero-grid {
+    padding-top: 32px;
+    padding-bottom: 30px;
+  }
+  .software-home .pill {
+    max-width: 100%;
+    font-size: 10px;
+  }
+  .software-home .hero h1 {
+    margin-top: 20px;
+    font-size: clamp(40px, 12.5vw, 52px);
+    line-height: .98;
+    letter-spacing: -.058em;
+  }
+  .software-home .hero-sub {
+    margin-top: 18px;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+  .software-home .hero-cta {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    margin-top: 22px;
+  }
+  .software-home .hero-cta .primary-button,
+  .software-home .hero-cta .secondary-button {
+    width: 100%;
+    justify-content: center;
+  }
+  .software-home .hero-cta .link-button {
+    justify-self: center;
+    margin: 3px 0 0 !important;
+  }
+  .software-home .hero-facts {
+    margin-top: 18px;
+  }
+  .software-home .home-hero-stage {
+    padding-top: 0;
+  }
+  .software-home .home-hero-visual .frame {
+    border-radius: 16px;
+  }
+  .software-home .home-coverage {
+    gap: 6px;
+  }
+  .software-home .coverage-chip {
+    min-height: 31px;
+    padding-right: 8px;
+    font-size: 9.5px;
+  }
+  .software-home .coverage-icon {
+    width: 22px;
+    height: 22px;
+  }
+  .software-home .home-section {
+    padding: 62px 0;
+  }
+  .software-home .section-head h2 {
+    font-size: clamp(30px, 9.4vw, 39px);
+  }
+  .software-home .section-head p {
+    font-size: 13.5px;
+  }
+  .software-home .demo-surface,
+  .software-home .payroll-lab-surface {
+    padding: 8px;
+    border-radius: 18px;
+  }
+  .software-home .demo-surface .frame.standalone,
+  .software-home .payroll-lab-surface .simulator-card {
+    border-radius: 14px;
+  }
+  .software-home .demo-surface .frame {
+    min-width: 0;
+  }
+  .software-home .demo-surface .pv-body {
+    padding-inline: 12px;
+  }
+  .software-home .payroll-lab-surface .simulator-card {
+    padding: 20px 16px;
+  }
+  .software-home .payroll-lab-surface .sim-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .software-home .home-workspace-section .bento {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .software-home .home-workspace-section .bento > .feature-card,
+  .software-home .home-workspace-section .bento > .feature-card.wide,
+  .software-home .home-workspace-section .bento > .feature-card:first-child,
+  .software-home .home-workspace-section .bento > .feature-card:nth-child(2),
+  .software-home .home-workspace-section .bento > .feature-card:nth-child(3),
+  .software-home .home-workspace-section .bento > .feature-card:nth-child(4),
+  .software-home .home-workspace-section .bento > .feature-card:nth-child(5),
+  .software-home .home-workspace-section .bento > .feature-card:nth-child(6) {
+    grid-column: auto;
+    min-height: 0;
+    padding: 20px;
+  }
+  .software-home .home-workspace-section .bento > .feature-card:first-child {
+    min-height: 280px;
+  }
+  .software-home .workspace-layout > .persona-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .software-home .pricing-surface {
+    padding: 8px;
+    border-radius: 18px;
+  }
+  .software-home .pricing-surface .pricing-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .software-home .pricing-surface .price-card {
+    min-height: 0;
+  }
+  .software-home .home-closing {
+    padding: 22px 0 34px;
+  }
+  .software-home .closing-band {
+    padding: 24px 20px;
+    border-radius: 16px;
+  }
+  .software-home .closing-copy h2 {
+    font-size: 21px;
+  }
+  .software-home .closing-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .software-home .closing-button {
+    width: 100%;
+  }
+  .software-home .site-footer {
+    padding-top: 30px;
+  }
+  .software-home .site-footer .footer-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px 18px;
+  }
+  .software-home .site-footer .footer-grid > div:first-child {
+    grid-column: 1 / -1;
+  }
+  .software-home .site-footer .footer-note {
+    display: grid;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .software-home .home-hero-copy,
+  .software-home .home-hero-stage,
+  .software-home .home-hero-visual,
+  .software-home .closing-button,
+  .software-home .feature-card,
+  .software-home .price-card {
+    animation: none !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
+
 /* Payroll outsourcing service page
    Keeps the service funnel visually separate from the software product page. */
 .outsourcing-hero {
