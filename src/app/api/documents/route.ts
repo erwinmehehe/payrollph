@@ -46,7 +46,7 @@ export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const bodyPreview = await request.clone().json().catch(() => ({}));
-  const deniedUpload = await assertPermission(user.id, Number(bodyPreview.organizationId, "hr:manage"));
+  const deniedUpload = await assertPermission(user.id, Number(bodyPreview.organizationId), "hr:manage");
   if (deniedUpload) return deniedUpload;
 
   const form = await request.formData().catch(() => null);

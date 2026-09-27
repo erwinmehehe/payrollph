@@ -31,7 +31,7 @@ import {
   users,
 } from "@/db/schema";
 import { ensureLifecycleProvisioning } from "@/lib/provisioning";
-import { NATIONAL_HOLIDAYS_2026, WAGE_ORDERS } from "@/lib/wage-orders";
+import { HOLIDAYS_2026, WAGE_ORDERS } from "@/lib/wage-orders";
 import { ensureSubscription } from "@/lib/billing";
 import { generateBackupCodes, hashPassword } from "@/lib/crypto";
 import { DEMO_BOOKKEEPER_EMAIL, DEMO_ORGANIZATION_NAMES } from "@/lib/demo";
@@ -349,7 +349,7 @@ async function ensureExtendedSeed() {
 
   const [{ value: holidayCount }] = await db.select({ value: count() }).from(holidays);
   if (holidayCount === 0) {
-    await db.insert(holidays).values(NATIONAL_HOLIDAYS_2026.map((row) => ({
+    await db.insert(holidays).values(HOLIDAYS_2026.map((row) => ({
       holidayDate: row.date,
       name: row.name,
       kind: row.kind,
