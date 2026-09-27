@@ -102,18 +102,27 @@ async function main() {
     console.log("[local] Using existing .env.local.");
   }
 
+  const safeDefaults = parseEnvFile(envExamplePath);
   const localEnv = parseEnvFile(envPath);
+  if (!safeDefaults.DATABASE_URL) {
+    fail("DATABASE_URL is missing from .env.local.example.");
+  }
+
   const childEnv = {
     ...process.env,
     ...localEnv,
-    // npm run local is deliberately safe: live PayMongo disbursements stay off
-    // even if an existing local file accidentally contains a different value.
+    // npm run local is a hard sandbox boundary. Even if an existing
+    // .env.local points elsewhere, this command always uses the Docker DB,
+    // demo mode, and disabled external money/email integrations.
+    DATABASE_URL: safeDefaults.DATABASE_URL,
+    APP_BASE_URL: safeDefaults.APP_BASE_URL ?? "http://localhost:3000",
+    DEMO_MODE: "true",
     PAYMONGO_DISBURSEMENTS_ENABLED: "false",
+    PAYMONGO_SECRET_KEY: "",
+    RESEND_API_KEY: "",
+    POSTMARK_SERVER_TOKEN: "",
+    SMTP_URL: "",
   };
-
-  if (!childEnv.DATABASE_URL) {
-    fail("DATABASE_URL is missing from .env.local.");
-  }
 
   if (!existsSync(path.join(root, "node_modules", ".bin", process.platform === "win32" ? "drizzle-kit.cmd" : "drizzle-kit"))) {
     console.log("[local] Installing npm dependencies...");
