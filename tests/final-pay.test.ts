@@ -138,3 +138,23 @@ test("previous-employer taxable compensation and withholding participate in term
   assert.equal(withPrevious.previousEmployerTaxableCompensation, 250000);
   assert.equal(withPrevious.previousEmployerTaxWithheld, 10000);
 });
+
+
+test("reviewed additional final-pay amounts are included without inventing an entitlement", () => {
+  const result = computeFinalPayDraft({
+    entries: [],
+    monthlyBasic: 30000,
+    annualPayDivisor: 365,
+    unusedLeaveCredits: 0,
+    loanDeductions: 0,
+    mwe: false,
+    additionalTaxablePay: 5000,
+    additionalNonTaxablePay: 3000,
+  });
+
+  assert.equal(result.additionalTaxablePay, 5000);
+  assert.equal(result.additionalNonTaxablePay, 3000);
+  assert.equal(result.grossFinalPayBeforeTaxAndLoans, 8000);
+  assert.equal(result.tax.grossCompensation, 8000);
+  assert.equal(result.tax.otherNonTaxable, 3000);
+});
