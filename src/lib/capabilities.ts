@@ -7,10 +7,12 @@ import {
   auditEvents,
   benefitEnrollments,
   healthSnapshots,
+  outbox,
   payrollRuns,
   webhookEndpoints,
   yearEndAdjustments,
 } from "@/db/schema";
+import { deliveryCapable } from "@/lib/mail-provider";
 
 export type Capability = {
   id: string;
@@ -35,6 +37,12 @@ export const COMPETITORS = ["Sprout", "PayrollHero", "GreatDay HR", "Kazam"] as 
  * behaviour, they are marked as such wherever they appear. The Linaw column is
  * the only one backed by code inspection, so it is never inflated.
  */
+// Read once at module scope rather than duplicating the check inside
+// buildCapabilityReport(): PARITY has no other reader, and the two must
+// agree, since they describe the same deployment's disbursement gap.
+const BANK_DISBURSEMENT_READY =
+  Boolean(process.env.PAYMONGO_SECRET_KEY) && process.env.PAYMONGO_DISBURSEMENTS_ENABLED === "true";
+
 export const PARITY: Array<{
   capability: string;
   linaw: "verified" | "partial" | "absent";
@@ -61,7 +69,7 @@ export const PARITY: Array<{
   { capability: "Transparent published pricing", linaw: "verified", competitors: { Sprout: "no", PayrollHero: "no", "GreatDay HR": "no", Kazam: "no" } },
   { capability: "Public uptime status page", linaw: "verified", competitors: { Sprout: "no", PayrollHero: "no", "GreatDay HR": "no", Kazam: "no" } },
   { capability: "SSO / SAML", linaw: "absent", competitors: { Sprout: "limited", PayrollHero: "limited", "GreatDay HR": "limited", Kazam: "unknown" } },
-  { capability: "Bank host-to-host disbursement", linaw: "absent", competitors: { Sprout: "yes", PayrollHero: "yes", "GreatDay HR": "yes", Kazam: "yes" } },
+  { capability: "Bank host-to-host disbursement", linaw: BANK_DISBURSEMENT_READY ? "partial" : "absent", competitors: { Sprout: "yes", PayrollHero: "yes", "GreatDay HR": "yes", Kazam: "yes" } },
 ];
 
 function codeProof(file: string) {
@@ -78,10 +86,15 @@ export async function buildCapabilityReport() {
     db.select({ value: count() }).from(benefitEnrollments),
     db.select({ value: count() }).from(yearEndAdjustments),
     db.select({ value: count() }).from(healthSnapshots),
+    db.select({ value: count() }).from(outbox).where(eq(outbox.status, "sent")),
   ]);
   const [
-    runs, audits, delegations, keys, hooks, enrollments, annualizations, snapshots,
+    runs, audits, delegations, keys, hooks, enrollments, annualizations, snapshots, mailSent,
   ] = rows.map((row) => Number(row[0].value));
+  // A configured provider that has never actually delivered is the same
+  // "built but unproven" situation as the other partial rows here: the surface
+  // exists, but nothing on this deployment demonstrates it working yet.
+  const emailCapable = deliveryCapable();
 
   const capabilities: Capability[] = [
     { id: "engine", area: "Payroll", label: "Semi-monthly calculation engine", detail: "SSS, PhilHealth, Pag-IBIG, TRAIN brackets, MWE exemption, holiday stacking, night differential.", status: "verified", proof: `${runs} run(s) on record · tests/payroll-rules.test.ts` },
@@ -96,9 +109,34 @@ export async function buildCapabilityReport() {
     { id: "delegation", area: "Enterprise", label: "Approval delegation", detail: "Proxy approvers enforced server-side, cycle-safe.", status: delegations > 0 ? "verified" : "partial", proof: `${delegations} delegation(s)` },
     { id: "status", area: "Trust", label: "Public status page", detail: "Live uptime history from real /api/health snapshots.", status: snapshots > 0 ? "verified" : "partial", proof: `${snapshots} snapshot(s)` },
     { id: "sso", area: "Enterprise", label: "SSO / SAML", detail: "Not built, no identity provider to test against.", status: "absent", proof: "no IdP connected" },
-    { id: "bank", area: "Payouts", label: "Live bank disbursement", detail: "Files are generated and dry-run validated, never submitted to a bank.", status: "absent", proof: "requires bank portal access" },
+    {
+      id: "bank",
+      area: "Payouts",
+      label: "Live bank disbursement",
+      // Mirrors /api/readiness's bank-validation gate, which reads the same
+      // situation from the same env vars. Keep these two in sync: the earlier
+      // wording here ("requires bank portal access") went stale the moment
+      // src/lib/paymongo-disbursements.ts shipped, since that path needs a
+      // verified PayMongo Wallet, not a bank relationship.
+      detail: BANK_DISBURSEMENT_READY
+        ? "PayMongo Disbursements is configured. Payroll can submit a batch transfer via InstaPay/PESONet directly."
+        : "Files are generated and dry-run validated; a bookkeeper uploads them by hand today. PayMongo Disbursements (src/lib/paymongo-disbursements.ts) can submit these live via InstaPay/PESONet with no per-bank negotiation, once the Wallet is verified as a Registered Business and PAYMONGO_DISBURSEMENTS_ENABLED=true is set.",
+      status: BANK_DISBURSEMENT_READY ? "partial" : "absent",
+      proof: BANK_DISBURSEMENT_READY ? "PAYMONGO_DISBURSEMENTS_ENABLED=true" : "requires PayMongo Wallet verification, not a bank relationship",
+    },
     { id: "govfiling", area: "Compliance", label: "Certified government filing", detail: "2316, Alphalist, R-3, RF-1, MCRF generated as DRAFT only.", status: "absent", proof: "requires BIR/SSS portal validation" },
-    { id: "email", area: "Platform", label: "Transactional email", detail: "Provider adapters exist; messages queue in the outbox until a key is set.", status: "partial", proof: "src/lib/mailer.ts" },
+    {
+      id: "email",
+      area: "Platform",
+      label: "Transactional email",
+      detail: emailCapable
+        ? mailSent > 0
+          ? "A provider is configured and has delivered mail from this deployment."
+          : "A provider is configured, but nothing has sent yet, this is the account's first mail."
+        : "Provider adapters exist; messages queue in the outbox until a key is set.",
+      status: emailCapable && mailSent > 0 ? "verified" : "partial",
+      proof: emailCapable ? `${mailSent} sent · src/lib/mailer.ts` : "src/lib/mailer.ts, no provider key set",
+    },
   ];
 
   const counts = {
