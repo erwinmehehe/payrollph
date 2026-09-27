@@ -7,7 +7,7 @@ import { generateGovernmentDraft } from "../src/lib/exporters";
 // Regression test for two real bugs found while cross-checking payroll-rules.ts
 // against an independent PH payroll reference package:
 //   1. EC was hardcoded to ₱10.00 for every employee, regardless of their
-//      actual MSC. Correct EC is ₱30 once MSC reaches ₱15,000 — which is most
+//      actual MSC. Correct EC is ₱30 once MSC reaches ₱15,000, which is most
 //      employees earning above roughly ₱15,000/month basic pay.
 //   2. The exporter read SSS from a single payroll run's stored line item,
 //      which is only half the monthly amount by design (payroll-engine.ts

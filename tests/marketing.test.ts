@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 const read = (path: string) => readFileSync(path, "utf8");
 
 test("the public marketing page exists", () => {
-  assert.ok(existsSync("src/app/welcome/page.tsx"), "/welcome was lost once before — it must exist");
+  assert.ok(existsSync("src/app/welcome/page.tsx"), "/welcome was lost once before. It must exist");
 });
 
 test("pricing is read from the database, never hardcoded", () => {

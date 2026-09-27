@@ -8,7 +8,7 @@ import { generateGovernmentDraft } from "../src/lib/exporters";
 // plus a separate branch code, with no hyphens or spaces (see
 // bir-excel-uploader.com's public field-formatting guide, which follows
 // BIR's own published spec). This is the one part of the ADES layout safe to
-// implement without the full byte-level spec in hand — everything else in
+// implement without the full byte-level spec in hand. Everything else in
 // this draft stays an honest DRAFT rather than a guessed byte layout.
 
 test("Alphalist draft splits a hyphenated TIN into 9-digit TIN + branch code", async () => {

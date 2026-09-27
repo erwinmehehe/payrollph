@@ -14,7 +14,7 @@ import { queueMessage } from "../src/lib/mailer";
 
 test("SMTP provider attempts a real send instead of the old 'not implemented' stub", async () => {
   const previous = process.env.SMTP_URL;
-  // Deliberately unroutable host — the point is not to reach a mailbox here,
+  // Deliberately unroutable host. The point is not to reach a mailbox here,
   // it's to prove nodemailer is actually invoked rather than short-circuited.
   process.env.SMTP_URL = "smtp://user:pass@127.0.0.1:1";
 

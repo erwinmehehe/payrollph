@@ -7,8 +7,8 @@ const read = (p: string) => readFileSync(p, "utf8");
 
 /**
  * The workspace UI is split across the shell/router and the panel module, so
- * these guards read both. What they assert is behaviour — "the audit export
- * links at a real endpoint kind" — not which file it happens to live in.
+ * these guards read both. What they assert is behaviour: "the audit export
+ * links at a real endpoint kind": not which file it happens to live in.
  */
 const readWorkspace = () =>
   read("src/components/linaw-workspace.tsx") + read("src/components/workspace/panels.tsx");

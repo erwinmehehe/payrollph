@@ -1,4 +1,4 @@
-# Linaw — Philippine HR & Payroll Workspace
+# Linaw: Philippine HR & Payroll Workspace
 
 Linaw is a database-backed multi-client Philippine HRIS and payroll workspace. Complexity is opt-in: freelancers and small teams stay simple, while bookkeepers and multi-branch companies can use org hierarchy, scoped payroll, approvals, and exports.
 
@@ -47,8 +47,8 @@ Linaw is a database-backed multi-client Philippine HRIS and payroll workspace. C
 - Cycle-safe resolution (max depth 3)
 
 ### Public API & webhooks
-- `GET /api/v1` — self-describing API reference (auth, scopes, rate limit, events, explicit not-implemented list)
-- `GET /api/v1/employees` and `GET /api/v1/payroll-runs` — API-key auth, scope checks, `limit`/`offset` pagination
+- `GET /api/v1`: self-describing API reference (auth, scopes, rate limit, events, explicit not-implemented list)
+- `GET /api/v1/employees` and `GET /api/v1/payroll-runs`: API-key auth, scope checks, `limit`/`offset` pagination
 - API keys stored as SHA-256 hashes, shown once, prefix-identified, revocable
 - Webhook endpoints with generated signing secrets
 - HMAC-SHA256 signed deliveries: `Linaw-Signature: t=<unix>,v1=<hex>` with 300s replay tolerance
@@ -68,7 +68,7 @@ Run on the sandbox Postgres instance via `npx tsx scripts/benchmark.ts`:
 | 3,000 | 250 | 12 | 5,709 ms | 1.90 ms | 526/sec |
 | 8,000 | 500 | 16 | 13,254 ms | 1.66 ms | 604/sec |
 
-Throughput holds (and slightly improves) as headcount grows — the queue chunks work rather than
+Throughput holds (and slightly improves) as headcount grows. The queue chunks work rather than
 processing one oversized transaction, so an 8,000-employee run completes in ~13 seconds without timing out.
 
 ### Out of demo mode
@@ -86,25 +86,25 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
 
 ### Transactional email (outbox)
 - `outbox` table + provider adapter for Resend / Postmark / SMTP.
-- With no provider, rows stay `queued` and `GET /api/outbox` shows them honestly — nothing is reported as sent.
+- With no provider, rows stay `queued` and `GET /api/outbox` shows them honestly: nothing is reported as sent.
 - Set `RESEND_API_KEY`, `POSTMARK_SERVER_TOKEN`, or `SMTP_URL` to enable real delivery.
 
 ### Document storage
 - `POST /api/documents` content-sniffs magic bytes (PDF/PNG/JPEG); the declared browser MIME type is never trusted.
 - Disguised executables are rejected with 422. 5 MB cap. Filenames are sanitized against traversal.
-- `scannedClean` is always false until an AV engine is wired — the response says exactly which checks ran.
+- `scannedClean` is always false until an AV engine is wired: the response says exactly which checks ran.
 - Currently stored in Postgres; swap the column write for an S3/R2 PUT before production volume.
 
 ### Embedded benefits administration
 - `benefit_plans` + `benefit_enrollments`; the PH catalogue seeds one click (HMO, group life, Pag-IBIG MP2, SSS Flexi-Fund, rice allowance)
 - Enrolments deduct automatically on the next calculated run as `BEN-<planId>` lines with their basis printed on the payslip
-- Voluntary savings respect legal caps — an over-cap contribution is rejected with a specific reason, never silently clamped away
+- Voluntary savings respect legal caps: an over-cap contribution is rejected with a specific reason, never silently clamped away
 - Employer share is tracked separately as cost, never deducted from the employee
 - **This was caught being decorative:** the first wiring accepted `benefits` in the calculation but the engine never queried the tables, so a run produced no `BEN-` line. `tests/benefits-wiring.test.ts` now fails the build if the engine stops loading enrolments.
 
 ### Public capability scorecard
 - `/scorecard` and `GET /api/capabilities` render a 22-row competitive parity grid plus a 15-row capability matrix
-- Every Linaw claim is classified **verified / partial / absent** and carries its evidence (a file path, a test name, or a live row count) — generated from this deployment's code and database
+- Every Linaw claim is classified **verified / partial / absent** and carries its evidence (a file path, a test name, or a live row count), generated from this deployment's code and database
 - Competitor columns are explicitly labelled as our reading of public positioning, **not** independently verified
 - The honest-status block states that the four remaining gaps are all blocked on external access, not code
 
@@ -116,7 +116,7 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
   in `src/lib/access.ts`, which returns **403** unless the user is a member of that workspace.
 - Routes addressed by a resource id (`/api/payroll-runs/[id]/process`, `/release`, `/exports`,
   approvals, delegations, provisioning, data requests) resolve the resource's own organization and
-  check against that — the URL id is never treated as authorization.
+  check against that. The URL id is never treated as authorization.
 - The self-service link no longer accepts `organizationId` from the body at all; it resolves the
   caller's own memberships and constrains the employee lookup with `IN (…)`.
 - Verified with a user scoped to a single workspace: **17/17 cross-tenant attempts return 403**,
@@ -125,9 +125,9 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
 
 ### Employee self-service portal
 - A session with `role="employee"` is linked to exactly one employee record and lands on a personal portal
-- Every query filters by `session.employeeId` — never a client parameter, so a colleague's payslip is unreachable (404, not 403, to avoid confirming existence)
+- Every query filters by `session.employeeId`, never a client parameter, so a colleague's payslip is unreachable (404, not 403, to avoid confirming existence)
 - Shows YTD gross/net/tax, per-period line items, and a downloadable PDF payslip
-- Linking is blocked for `admin`/`bookkeeper` accounts (409) — this guard exists because linking an admin used to demote them to `employee` and lock them out of their own workspace
+- Linking is blocked for `admin`/`bookkeeper` accounts (409). This guard exists because linking an admin used to demote them to `employee` and lock them out of their own workspace
 
 ### CSV bulk import
 - Accepts a customer's existing spreadsheet: column order and extra columns are tolerated and reported
@@ -140,7 +140,7 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
 ### Billing & plan gating (enforced)
 - `subscriptions` + `invoices` tables; every organization gets a row on first boot (14-day Core trial, Enterprise active)
 - `getEntitlements()` is read on the request path; `requireFeature()` returns **402**, not a UI hint
-- Payment state is checked **before** plan features — a cancelled/past-due workspace is blocked even for features its plan includes (a test caught this ordering bug after it shipped)
+- Payment state is checked **before** plan features. A cancelled/past-due workspace is blocked even for features its plan includes (a test caught this ordering bug after it shipped)
 - Seat limits enforced at import and employee creation
 - A billing provider only needs to write to `subscriptions`; entitlements follow automatically
 
@@ -153,14 +153,14 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
 - Tested for structural validity (offsets point at the right objects), WinAnsi sanitization, string escaping, and note wrapping
 
 ### Auth pages are real routes (was broken)
-- `/reset-password?token=…` and `/invite?token=…` now exist — both email templates previously linked to pages that did not exist.
+- `/reset-password?token=…` and `/invite?token=…` now exist: both email templates previously linked to pages that did not exist.
 - Invitation acceptance verifies the token, shows the invited email/role, creates the account, and blocks reuse (400).
 - Reset requires the outbox token, enforces the password policy, and revokes all sessions.
 
 ### Login page no longer leaks credentials
 - The login form previously shipped **pre-filled** with `celine@linaw.ph` / `LinawDemo2026!` and rendered them on screen.
 - Credentials are now empty by default and the demo hint renders only when `DEMO_MODE=true`.
-- The stale "rate limit: single-instance" claim was corrected — limiting is Postgres-distributed.
+- The stale "rate limit: single-instance" claim was corrected. Limiting is Postgres-distributed.
 - `tests/auth-surface.test.ts` asserts none of this regresses.
 
 ### Payslip-ready email on release
@@ -196,14 +196,14 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
 
 ### SMTP delivery was a false-ready gate (fixed)
 - `activeMailProvider()`/`deliveryCapable()` recognized `SMTP_URL` and `/api/readiness` reported the
-  gate as satisfiable, but `deliver()` had no `"smtp"` branch — every SMTP send returned
+  gate as satisfiable, but `deliver()` had no `"smtp"` branch. Every SMTP send returned
   `"Provider smtp is not implemented."` while the UI/API implied it was wired.
 - `src/lib/mailer.ts` now sends via `nodemailer` for the SMTP path, same outbox/error recording as
   Resend/Postmark. `tests/mailer-smtp.test.ts` asserts the delivery attempt is real (fails on an
   unroutable host with an `SMTP:`-prefixed connection error) rather than the old stub message, so this
   can't silently regress.
 
-### Government filing wasn't "accreditation-blocked" — it was mislabeled
+### Government filing wasn't "accreditation-blocked": it was mislabeled
 - BIR and SSS publish their file layouts and give away free validation tools (ADES,
   R3 File Generator) for standard filing; no vendor accreditation is required the way
   an earlier pass through this README implied. The real gap is that our DRAFT exports
@@ -213,17 +213,17 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
   `gov-philhealth-rf1`, `gov-pagibig-mcrf`) instead of one aggregate gate, each set by a
   human confirming that run's output actually validated in the agency's own free tool.
 - `generateGovernmentDraft`'s Alphalist branch now splits the TIN into BIR's documented
-  9-digit-TIN + branch-code convention — the one part of the real layout safe to fix
+  9-digit-TIN + branch-code convention. The one part of the real layout safe to fix
   without the full spec in hand. `tests/government-draft-tin.test.ts` covers it.
 - Checked the other two: PhilHealth also has a file-based path (an "RF-1 Excel Format"
-  template, submitted as a textfile via EPRS or a bank upload facility) — not yet built
+  template, submitted as a textfile via EPRS or a bank upload facility), not yet built
   since the exact column layout isn't confirmed. Pag-IBIG's MCRF, unlike the other three,
-  has no confirmed published batch-file spec — other PH payroll tools only seem to
-  produce a filled PDF for it — so it stays honestly listed as portal data entry.
+  has no confirmed published batch-file spec. Other PH payroll tools only seem to
+  produce a filled PDF for it, so it stays honestly listed as portal data entry.
 
 ### PayMongo Disbursements as a bank-submission path (added)
 - `src/lib/paymongo-disbursements.ts` submits payroll as a PayMongo batch transfer
-  (Transfers V2 — their older Wallet V1 API was already decommissioned by BSP-mandated
+  (Transfers V2: their older Wallet V1 API was already decommissioned by BSP-mandated
   deadline) via the same `PAYMONGO_SECRET_KEY` already used for billing. Bank BICs are
   always resolved against PayMongo's live receiving-institutions list, never hardcoded,
   since a wrong code would misroute real payroll money. `POST /api/payroll-runs/[id]/exports`
@@ -232,16 +232,16 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
 ### SSS R-3 draft was under-reporting EC and half-reporting SSS (fixed)
 - Cross-checked `payroll-rules.ts` against an independent PH payroll reference package
   (`@ph-dev-utils/payroll`, MIT) and found the SSS R-3 exporter had a hardcoded EC of
-  ₱10.00 for every employee — correct EC is ₱30 once MSC reaches ₱15,000, which is most
+  ₱10.00 for every employee. Correct EC is ₱30 once MSC reaches ₱15,000, which is most
   employees earning above roughly ₱15,000/month. It also read SSS from a single payroll
   run's line item, which is only half the monthly amount by design (the engine splits SSS
-  evenly across the two semi-monthly cutoffs) — but SSS R-3 is a monthly filing.
+  evenly across the two semi-monthly cutoffs), but SSS R-3 is a monthly filing.
 - `generateGovernmentDraft`'s `sss-r3` branch now recomputes full monthly figures from
   `computeSss()` directly (single source of truth, shared with actual payroll calculation)
   and reports the regular-vs-MPF sub-account split SSS's own R-3/R-5 forms expect for MSC
   above ₱20,000. `tests/sss-r3-draft.test.ts` covers both fixes.
 - The core SSS/PhilHealth/Pag-IBIG math itself checked out correctly against the reference
-  package — this was an export/reporting bug, not a payroll calculation bug.
+  package. This was an export/reporting bug, not a payroll calculation bug.
 
 ### Status page + opportunistic scheduler
 - `/status` and `GET /api/status` show real `/api/health` snapshot history
@@ -249,7 +249,7 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
 - Honest copy: this is not a third-party status-page vendor and not a dedicated cron
 
 ### Public API writes
-- `PATCH` / `DELETE /api/v1/employees/:id` — delete is a soft offboard (status=Separating + checklist), payroll history is retained
+- `PATCH` / `DELETE /api/v1/employees/:id`: delete is a soft offboard (status=Separating + checklist), payroll history is retained
 
 ### CI
 - `.github/workflows/ci.yml` runs `tsc --noEmit`, the unit tests, and `next build`
@@ -259,10 +259,10 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
 - 13th month / other benefits exempt up to **PHP 90,000**, excess becomes taxable
 - Subtracts employee-share SSS / PhilHealth / Pag-IBIG, applies TRAIN annual brackets
 - Compares tax due vs tax withheld: **refund**, **collect**, or **balanced**
-- MWE is fully exempt — tax due is zero and anything withheld in error is refunded
+- MWE is fully exempt: tax due is zero and anything withheld in error is refunded
 - `POST /api/year-end` computes and stores adjustments (idempotent per org + year)
 - `GET /api/year-end?format=2316` renders a per-employee certificate; `format=alphalist` exports the CSV
-- Both outputs are explicitly labelled DRAFT — not validated against the BIR Alphalist module
+- Both outputs are explicitly labelled DRAFT: not validated against the BIR Alphalist module
 
 ### Webhook retry with exponential backoff
 - Backoff schedule: **1m → 5m → 25m → 125m**, max 5 attempts, then `exhausted`
@@ -346,8 +346,8 @@ npx tsx --test tests/payroll-rules.test.ts tests/security.test.ts tests/integrat
 ## Deliberately not built yet
 
 - CDN/edge rate limiting (Postgres-distributed, not Cloudflare/nginx)
-- Email provider credentials (Resend/Postmark/SMTP) — outbox queues instead of sending
-- Object storage (S3/R2) — uploads persist in Postgres with content validation
+- Email provider credentials (Resend/Postmark/SMTP): outbox queues instead of sending
+- Object storage (S3/R2): uploads persist in Postgres with content validation
 - Malware/AV scanning engine on upload
 - SSO / SAML identity provider integration
 - Mandatory MFA for every role (TOTP is available and enforced for the demo account, not org-wide policy)
@@ -355,7 +355,7 @@ npx tsx --test tests/payroll-rules.test.ts tests/security.test.ts tests/integrat
 - Object storage + malware scanning
 - Subscription billing (PayMongo/Maya/Stripe)
 - Live bank host-to-host / InstaPay / PESONet submission
-- Certified government portal validation — BIR 2316 and Alphalist outputs are generated but labelled DRAFT
+- Certified government portal validation: BIR 2316 and Alphalist outputs are generated but labelled DRAFT
 - OAuth client credentials
 - Dedicated worker/cron process (webhook drain is opportunistic via /api/health)
 - SOC 2 report

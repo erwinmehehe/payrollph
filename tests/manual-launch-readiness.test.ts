@@ -7,7 +7,7 @@ import { GET } from "../src/app/api/readiness/route";
 // invoicing via scripts/manual-activate-subscription.ts, hand-uploading the
 // already-generated bank files, and manually entering the already-generated
 // DRAFT government forms. Others (a live review-account password, seeded
-// demo credentials, no email provider at all) do not — those must still be
+// demo credentials, no email provider at all) do not. Those must still be
 // fixed even for a manual-ops pilot. /api/readiness should say so explicitly
 // rather than reporting one flat pass/fail.
 
@@ -23,7 +23,7 @@ test("readiness reports which launch blockers have a manual workaround", async (
   assert.ok(billing.manualWorkaround?.includes("manual-activate-subscription"));
   assert.ok(bank.manualWorkaround?.toLowerCase().includes("upload"));
   assert.ok(gov.manualWorkaround?.toLowerCase().includes("ades") || gov.manualWorkaround?.toLowerCase().includes("eafs"));
-  // Email has no manual workaround field — an admin manually relaying reset
+  // Email has no manual workaround field. An admin manually relaying reset
   // tokens is not something this readiness check should ever bless.
   assert.equal(email.manualWorkaround, undefined);
 
