@@ -15,8 +15,19 @@ const COMPETITORS = [
   { name: "Kazam", freelancer: "No", pricing: "Quote-only sales wall", multiClient: "No", scale: "SME focus" },
 ];
 
+const PUBLIC_PRICING_FALLBACK = [
+  { id: 1, name: "Solo", monthlyBase: "0", perEmployee: "0", modules: ["Voluntary contributions", "Tax planner"], version: "2026.1" },
+  { id: 2, name: "Core", monthlyBase: "1500", perEmployee: "50", modules: ["Payroll", "Time", "Government drafts"], version: "2026.1" },
+  { id: 3, name: "Scale", monthlyBase: "4499", perEmployee: "79", modules: ["Core", "Multi-branch", "Approvals", "API"], version: "2026.1" },
+  { id: 4, name: "Enterprise", monthlyBase: "12999", perEmployee: "99", modules: ["Scale", "SSO-ready", "BI exports", "Priority SLA"], version: "2026.1" },
+];
+
 export async function PublicHomepage() {
-  const plans = await db.select().from(pricingPlans).orderBy(asc(pricingPlans.id));
+  const databaseConfigured = Boolean(process.env.DATABASE_URL);
+  const plans = databaseConfigured
+    ? await db.select().from(pricingPlans).orderBy(asc(pricingPlans.id))
+    : PUBLIC_PRICING_FALLBACK;
+  const demoAvailable = DEMO_MODE && databaseConfigured;
 
   return (
     <main className="marketing-page">
@@ -27,7 +38,7 @@ export async function PublicHomepage() {
         </div>
         <div className="marketing-nav-actions">
           <a className="link-button" href="/payroll-outsourcing">Payroll Outsourcing</a>
-          {DEMO_MODE && <DemoLaunchButton className="secondary-button" label="Try Live Demo" />}
+          {demoAvailable && <DemoLaunchButton className="secondary-button" label="Try Live Demo" />}
           <a className="secondary-button" href="/book-demo">Book Demo</a>
           <a className="primary-button" href="/signup">Create Account</a>
           <a className="link-button" href="/login">Sign in</a>
@@ -35,7 +46,7 @@ export async function PublicHomepage() {
       </header>
 
       {/* Interactive SaaS Experience */}
-      <InteractiveWelcome plans={plans} competitors={COMPETITORS} demoMode={DEMO_MODE} />
+      <InteractiveWelcome plans={plans} competitors={COMPETITORS} demoMode={demoAvailable} />
 
       {/* Production status — factual, not aspirational */}
       <section className="marketing-section" style={{ marginTop: 44 }}>
