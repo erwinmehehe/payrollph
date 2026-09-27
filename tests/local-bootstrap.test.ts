@@ -35,3 +35,16 @@ test("local bootstrap copies env only when absent, starts postgres, pushes schem
   assert.match(script, /npm[\\s\\S]*run[\\s\\S]*dev/);
   assert.match(script, /PAYMONGO_DISBURSEMENTS_ENABLED/);
 });
+
+test("local runner forces safe local database, demo mode, and payouts-off even when an env file already exists", () => {
+  const script = read("scripts/local.mjs");
+  assert.match(script, /parseEnvFile\(envExamplePath\)/);
+  assert.match(script, /DATABASE_URL:\s*safeDefaults\.DATABASE_URL/);
+  assert.match(script, /DEMO_MODE:\s*"true"/);
+  assert.match(script, /PAYMONGO_DISBURSEMENTS_ENABLED:\s*"false"/);
+});
+
+test("generated local environment is ignored by git", () => {
+  const ignore = read(".gitignore");
+  assert.match(ignore, /^\.env\.local$/m);
+});
