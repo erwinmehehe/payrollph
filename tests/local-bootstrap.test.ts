@@ -32,7 +32,7 @@ test("local bootstrap copies env only when absent, starts postgres, pushes schem
   assert.match(script, /\.env\.local\.example/);
   assert.match(script, /docker-compose\.local\.yml/);
   assert.match(script, /drizzle-kit/);
-  assert.match(script, /npm[\\s\\S]*run[\\s\\S]*dev/);
+  assert.ok(script.includes('spawn(npmCommand, ["run", "dev"]'));
   assert.match(script, /PAYMONGO_DISBURSEMENTS_ENABLED/);
 });
 
