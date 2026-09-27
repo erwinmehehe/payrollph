@@ -3765,6 +3765,36 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
   .software-home .site-nav-inner {
     padding-inline: 28px;
   }
+
+  /* WorkspacePreview has a more specific desktop grid inside the hero.
+     Collapse that grid explicitly so the real product remains readable rather
+     than being visually clipped inside the mobile frame. */
+  .software-home .home-hero-visual .pv,
+  .software-home .demo-surface .pv {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .software-home .home-hero-visual .pv-side,
+  .software-home .demo-surface .pv-side {
+    display: none;
+  }
+  .software-home .home-hero-visual .pv-main,
+  .software-home .demo-surface .pv-main,
+  .software-home .home-hero-visual .frame,
+  .software-home .demo-surface .frame {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .software-home .home-hero-visual .pv {
+    min-height: 0;
+  }
+  .software-home .home-hero-visual .pv-body {
+    max-height: 520px;
+    overflow: hidden;
+  }
+  .software-home .demo-surface .pv-body {
+    max-height: none;
+  }
   .software-home .home-hero-grid {
     padding-top: 66px;
     padding-bottom: 58px;
@@ -3789,6 +3819,28 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
   .software-home .site-shell,
   .software-home .site-nav-inner {
     padding-inline: 20px;
+  }
+  .software-home .home-hero-visual .pv-body {
+    max-height: 470px;
+    padding: 14px;
+  }
+  .software-home .home-hero-visual .console-strip {
+    padding: 16px;
+  }
+  .software-home .home-hero-visual .console-strip-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .software-home .home-hero-visual .console-figures {
+    gap: 16px;
+  }
+  .software-home .home-hero-visual .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .software-home .demo-surface .frame-body,
+  .software-home .demo-surface .pv-main {
+    width: 100%;
+    min-width: 0;
   }
   .software-home .home-hero-grid {
     padding-top: 48px;
