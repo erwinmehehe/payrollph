@@ -2,6 +2,24 @@
 
 Linaw is a database-backed multi-client Philippine HRIS and payroll workspace. Complexity is opt-in: freelancers and small teams stay simple, while bookkeepers and multi-branch companies can use org hierarchy, scoped payroll, approvals, and exports.
 
+## Run locally
+
+Prerequisites: Node.js 22+ and Docker Desktop.
+
+```bash
+git clone https://github.com/erwinmehehe/payrollph.git
+cd payrollph
+npm run local
+```
+
+`npm run local` installs dependencies when needed, creates a safe `.env.local` from the example on first run, starts PostgreSQL 16 in Docker, waits for it to become healthy, applies the Drizzle schema, forces live PayMongo disbursements off, and starts the Next.js app.
+
+Open `http://localhost:3000`. Press `Ctrl+C` to stop the app. The local PostgreSQL container stays running for faster restarts. To fully reset the local database:
+
+```bash
+docker compose -f docker-compose.local.yml down -v
+```
+
 ## What is implemented
 
 ### Core platform
