@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { AlertTriangle, Check, Inbox, Send } from "lucide-react";
 import { Spinner } from "@/components/workspace/ui";
 
@@ -78,8 +79,8 @@ export function PayrollQuoteForm() {
         )}
 
         <div className="quote-actions">
-          <a className="secondary-button" href="/payroll-outsourcing">Back to payroll outsourcing</a>
-          <a className="primary-button" href="/">See payroll software</a>
+          <Link className="secondary-button" href="/payroll-outsourcing">Back to payroll outsourcing</Link>
+          <Link className="primary-button" href="/">See payroll software</Link>
         </div>
       </div>
     );
