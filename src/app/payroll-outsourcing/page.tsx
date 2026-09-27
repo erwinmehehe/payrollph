@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import {
   ArrowRight,
   Check,
@@ -164,9 +165,9 @@ export default function PayrollOutsourcingPage() {
                 payroll engine, approvals, self-service, interactive demo and database-driven software pricing.
               </p>
             </div>
-            <a className="secondary-button" href="/">
+            <Link className="secondary-button" href="/">
               See payroll software <ArrowRight size={14} />
-            </a>
+            </Link>
           </div>
         </div>
       </section>
