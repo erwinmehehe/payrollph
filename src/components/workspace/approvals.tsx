@@ -50,27 +50,27 @@ export function ApprovalsView({
         copy="Every decision is permission-checked on the server against the assigned approver and any active delegation. A decision from outside that chain returns 403, the buttons below cannot bypass it."
         actions={
           <button className="secondary-button" onClick={() => setFormOpen((current) => !current)} aria-expanded={formOpen}>
-            <Settings2 size={15} /> Delegation settings
+            <Settings2 size={15} className="i-slate" /> Delegation settings
           </button>
         }
       />
 
       <section className="stats-grid">
-        <Metric label="Pending" value={String(pendingCount)} hint="awaiting a decision" icon={<ClipboardCheck size={16} />} tone={pendingCount ? "amber" : "mint"} />
-        <Metric label="High priority" value={String(highCount)} hint="flagged for today" icon={<Clock3 size={16} />} tone={highCount ? "red" : "slate"} />
-        <Metric label="Decided" value={String(data.tasks.length - pendingCount)} hint="recorded in the audit trail" icon={<Check size={16} />} tone="mint" />
+        <Metric label="Pending" value={String(pendingCount)} hint="awaiting a decision" icon={<ClipboardCheck size={16} className="i-amber" />} tone={pendingCount ? "amber" : "mint"} />
+        <Metric label="High priority" value={String(highCount)} hint="flagged for today" icon={<Clock3 size={16} className="i-cyan" />} tone={highCount ? "red" : "slate"} />
+        <Metric label="Decided" value={String(data.tasks.length - pendingCount)} hint="recorded in the audit trail" icon={<Check size={16} className="i-green" />} tone="mint" />
         <Metric
           label="Active delegations"
           value={String(activeDelegations.length)}
           hint={activeDelegations.length ? "proxy approvals permitted" : "assigned approver only"}
-          icon={<UserCheck size={16} />}
+          icon={<UserCheck size={16} className="i-purple" />}
           tone={activeDelegations.length ? "purple" : "slate"}
         />
       </section>
 
       {activeDelegations.length > 0 ? (
         <div className="notice notice-purple">
-          <ShieldCheck size={15} />
+          <ShieldCheck size={15} className="i-green" />
           <span>
             <strong>Delegation enforced.</strong>{" "}
             {activeDelegations.map((row) => `${row.fromApprover} → ${row.toApprover}`).join(", ")}. A delegate&apos;s decision
@@ -79,7 +79,7 @@ export function ApprovalsView({
         </div>
       ) : (
         <div className="notice notice-slate">
-          <ShieldCheck size={15} />
+          <ShieldCheck size={15} className="i-green" />
           <span>
             <strong>No active delegation.</strong> Only the assigned approver can decide; anyone else receives a 403 from the
             API.
@@ -115,7 +115,7 @@ export function ApprovalsView({
       <article className="card">
         <div className="approval-list">
           {tasks.length === 0 && (
-            <EmptyState icon={<Check size={20} />} title={filter === "pending" ? "Nothing waiting on you" : "No approval tasks"}>
+            <EmptyState icon={<Check size={20} className="i-green" />} title={filter === "pending" ? "Nothing waiting on you" : "No approval tasks"}>
               {filter === "pending"
                 ? "Every task on this client has a recorded decision."
                 : "Approval tasks are created by payroll runs, leave requests and lifecycle checklists."}
@@ -125,7 +125,7 @@ export function ApprovalsView({
           {tasks.map((task) => (
             <div className="approval-content" key={task.id}>
               <span className={`approval-symbol ${task.priority === "High" ? "" : ""}`} aria-hidden>
-                <ClipboardCheck size={17} />
+                <ClipboardCheck size={17} className="i-amber" />
               </span>
               <div>
                 <div className="card-kicker">{task.priority === "High" ? "Priority review" : "Pending decision"}</div>
@@ -133,10 +133,10 @@ export function ApprovalsView({
                 <p>{task.detail}</p>
                 <div className="approval-meta">
                   <span>
-                    <UserCheck size={12} /> Approver <strong style={{ fontSize: 10.5 }}>{task.approver}</strong>
+                    <UserCheck size={12} className="i-purple" /> Approver <strong style={{ fontSize: 10.5 }}>{task.approver}</strong>
                   </span>
                   <span>
-                    <Clock3 size={12} /> {task.dueLabel}
+                    <Clock3 size={12} className="i-cyan" /> {task.dueLabel}
                   </span>
                   {activeDelegations.some((row) => row.fromApprover === task.approver) && (
                     <span className="status status-delegated">Delegated</span>
@@ -149,7 +149,7 @@ export function ApprovalsView({
                     Decline
                   </button>
                   <button className="primary-button brand" disabled={busy && pendingId === task.id} onClick={() => decide(task, "Approved")}>
-                    {busy && pendingId === task.id ? <Spinner label="Saving" /> : <Check size={14} />} Approve
+                    {busy && pendingId === task.id ? <Spinner label="Saving" /> : <Check size={14} className="i-green" />} Approve
                   </button>
                 </div>
               ) : (
@@ -308,7 +308,7 @@ function DelegationForm({
           Cancel
         </button>
         <button className="primary-button brand" onClick={submit} disabled={saving || !startsOn || !endsOn}>
-          {saving ? <Spinner label="Saving" /> : <ShieldCheck size={14} />} Activate delegation
+          {saving ? <Spinner label="Saving" /> : <ShieldCheck size={14} className="i-green" />} Activate delegation
         </button>
       </div>
     </article>

@@ -42,19 +42,19 @@ export function HeroActions({ demoEnabled }: { demoEnabled: boolean }) {
       <div className="hero-cta">
         {demoEnabled ? (
           <button className="primary-button" onClick={launchDemo} disabled={launching}>
-            {launching ? <Spinner label="Opening the workspace" /> : <Play size={16} />}
+            {launching ? <Spinner label="Opening the workspace" /> : <Play size={16} className="i-blue" />}
             {launching ? "Opening the workspace…" : "Try live demo"}
           </button>
         ) : (
           <a className="primary-button" href="/signup">
-            <UserPlus size={16} /> Create account
+            <UserPlus size={16} className="i-purple" /> Create account
           </a>
         )}
         <a className="secondary-button" href="/signup">
-          <UserPlus size={16} /> Create account
+          <UserPlus size={16} className="i-purple" /> Create account
         </a>
         <a className="secondary-button" href="/book-demo">
-          <CalendarDays size={16} /> Book a demo
+          <CalendarDays size={16} className="i-cyan" /> Book a demo
         </a>
         <a className="link-button" href="#preview" style={{ marginLeft: 4 }}>
           or play with the preview below <ArrowRight size={12} style={{ display: "inline", verticalAlign: "middle" }} />

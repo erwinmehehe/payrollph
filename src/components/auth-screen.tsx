@@ -99,16 +99,16 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
         <p>Bookkeepers, solo freelancers, and multi-branch enterprises share one resilient platform, complexity stays opt-in.</p>
         
         <div className="auth-points">
-          <div><ShieldCheck size={16} /><span>Real password hashing, lockout, and TOTP challenge</span></div>
-          <div><LockKeyhole size={16} /><span>Server-side revocable sessions</span></div>
-          <div><KeyRound size={16} /><span>Rate limiting is distributed across app instances</span></div>
-          <div><ShieldCheck size={16} /><span>TOTP available per account, not mandatory for every role</span></div>
+          <div><ShieldCheck size={16} className="i-green" /><span>Real password hashing, lockout, and TOTP challenge</span></div>
+          <div><LockKeyhole size={16} className="i-amber" /><span>Server-side revocable sessions</span></div>
+          <div><KeyRound size={16} className="i-amber" /><span>Rate limiting is distributed across app instances</span></div>
+          <div><ShieldCheck size={16} className="i-green" /><span>TOTP available per account, not mandatory for every role</span></div>
         </div>
 
         {/* 1-Click Interactive Launchers */}
         <div style={{ marginTop: 36, padding: "18px 20px", borderRadius: 12, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, color: "#50d29d", fontSize: 11.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-            <Sparkles size={14} /> Instant 1-Click Sandbox Sign-In
+            <Sparkles size={14} className="i-blue" /> Instant 1-Click Sandbox Sign-In
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <button
@@ -118,7 +118,7 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
               onClick={() => quickDemo("bookkeeper")}
               disabled={demoLaunching !== null}
             >
-              <UserCheck size={16} /> <strong>Principal Bookkeeper (Celine Yao)</strong>, 4 Clients
+              <UserCheck size={16} className="i-purple" /> <strong>Principal Bookkeeper (Celine Yao)</strong>, 4 Clients
             </button>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
               <button
@@ -128,7 +128,7 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
                 onClick={() => quickDemo("employee")}
                 disabled={demoLaunching !== null}
               >
-                <Wallet size={14} /> Employee Portal
+                <Wallet size={14} className="i-green" /> Employee Portal
               </button>
               <button
                 type="button"
@@ -137,7 +137,7 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
                 onClick={() => quickDemo("freelancer")}
                 disabled={demoLaunching !== null}
               >
-                <Calculator size={14} /> Solo Freelancer
+                <Calculator size={14} className="i-green" /> Solo Freelancer
               </button>
             </div>
           </div>
@@ -154,7 +154,7 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
 
         {setupAvailable && (
           <div className="notice notice-blue" style={{ margin: "0 0 14px" }}>
-            <ShieldCheck size={15} />
+            <ShieldCheck size={15} className="i-green" />
             <span>This workspace has no accounts yet. <a href="/setup" style={{ textDecoration: "underline", fontWeight: 700 }}>Create the owner account</a> to begin.</span>
           </div>
         )}

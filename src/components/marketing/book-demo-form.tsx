@@ -55,7 +55,7 @@ export function BookDemoForm() {
     return (
       <div className="card" style={{ padding: 28 }}>
         <span className="modal-icon" aria-hidden>
-          {result.delivered ? <Check size={18} /> : <Inbox size={18} />}
+          {result.delivered ? <Check size={18} className="i-green" /> : <Inbox size={18} className="i-amber" />}
         </span>
         <h2 style={{ margin: 0, fontSize: 21, fontWeight: 750, letterSpacing: "-0.03em" }}>
           {result.delivered ? "Request sent." : "Request recorded."}
@@ -64,7 +64,7 @@ export function BookDemoForm() {
 
         {!result.delivered && (
           <div className="notice notice-amber">
-            <AlertTriangle size={15} />
+            <AlertTriangle size={15} className="i-red" />
             <span>
               Being straight with you: this deployment has no email provider configured, so your request is sitting in the
               outbox rather than in anyone&apos;s inbox. If you need a reply today, try the live demo or sign in, both work
@@ -88,7 +88,7 @@ export function BookDemoForm() {
   return (
     <form className="card" style={{ padding: 28 }} onSubmit={submit} noValidate>
       <span className="modal-icon" aria-hidden>
-        <CalendarDays size={18} />
+        <CalendarDays size={18} className="i-cyan" />
       </span>
       <h2 style={{ margin: 0, fontSize: 21, fontWeight: 750, letterSpacing: "-0.03em" }}>Tell us about your payroll</h2>
       <p style={{ margin: "8px 0 20px", color: "var(--muted)", fontSize: 13.5, lineHeight: 1.65 }}>
@@ -98,7 +98,7 @@ export function BookDemoForm() {
 
       {problems.length > 0 && (
         <div className="notice notice-red" role="alert">
-          <AlertTriangle size={15} />
+          <AlertTriangle size={15} className="i-red" />
           <div>
             <strong>Please fix the following:</strong>
             <ul style={{ margin: "4px 0 0", paddingLeft: 16 }}>
@@ -112,7 +112,7 @@ export function BookDemoForm() {
 
       {error && (
         <div className="notice notice-red" role="alert">
-          <AlertTriangle size={15} />
+          <AlertTriangle size={15} className="i-red" />
           <span>{error}</span>
         </div>
       )}
@@ -162,7 +162,7 @@ export function BookDemoForm() {
           Back to the site
         </a>
         <button className="primary-button brand" type="submit" disabled={saving}>
-          {saving ? <Spinner label="Submitting" /> : <CalendarDays size={14} />} Request a demo
+          {saving ? <Spinner label="Submitting" /> : <CalendarDays size={14} className="i-cyan" />} Request a demo
         </button>
       </div>
     </form>

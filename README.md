@@ -300,6 +300,16 @@ npx tsx --test tests/payroll-rules.test.ts tests/security.test.ts tests/integrat
 - Every navigation destination carries its own icon hue (green, blue, amber, red, purple, cyan, teal,
   pink, slate) so a row is recognisable by colour before the label is read. The tint sits on the icon
   chip only, so the list still reads as one clean column of text.
+- The same palette runs through every icon in the product, not just the sidebar. `.i-green`,
+  `.i-blue`, `.i-amber`, `.i-red`, `.i-purple`, `.i-cyan`, `.i-teal`, `.i-pink` and `.i-slate` in
+  `globals.css` set colour and nothing else, so they can be dropped straight onto a lucide icon
+  (which forwards `className` to its `<svg>`). The hue follows meaning rather than position: money and
+  verified outcomes green, documents and exports teal, people purple, time cyan, review and security
+  gates amber, exceptions red, messages pink, platform surfaces blue.
+- Pure affordances (chevrons, arrows, menu and panel toggles) stay neutral on purpose. They are
+  controls rather than subjects, and colouring them competes with the content.
+- Icons sitting on a solid fill (primary buttons, toasts, the active sidebar row) fall back to
+  `currentColor`, so the container keeps control of contrast.
 - No em-dashes anywhere in the interface copy.
 - Workspace shell (`src/components/workspace/shell.tsx`): collapsible sidebar with a rail mode, mobile
   drawer, contextual top bar, breadcrumbs, current-client indicator, and a notification tray built from

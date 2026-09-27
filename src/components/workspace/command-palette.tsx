@@ -120,7 +120,7 @@ function PaletteDialog({
         }}
       >
         <div className="palette-input">
-          <Search size={18} />
+          <Search size={18} className="i-slate" />
           <input
             autoFocus
             value={query}
@@ -153,9 +153,9 @@ function PaletteDialog({
                   onClick={() => choose(row)}
                 >
                   {row.kind === "page" && <row.item.icon size={16} />}
-                  {row.kind === "action" && <Zap size={16} />}
-                  {row.kind === "client" && <Building2 size={16} />}
-                  {row.kind === "person" && <UsersRound size={16} />}
+                  {row.kind === "action" && <Zap size={16} className="i-blue" />}
+                  {row.kind === "client" && <Building2 size={16} className="i-purple" />}
+                  {row.kind === "person" && <UsersRound size={16} className="i-purple" />}
                   <span>
                     {row.kind === "page" && row.item.name}
                     {row.kind === "action" && row.action.label}

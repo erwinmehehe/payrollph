@@ -61,7 +61,7 @@ export function NewHireModal({
     <div className="modal-backdrop" role="presentation">
       <section className="modal large" role="dialog" aria-modal="true" aria-label="Add employee">
         <button className="modal-close" onClick={onClose}><X size={18} /></button>
-        <div className="modal-icon"><Layers size={22} /></div>
+        <div className="modal-icon"><Layers size={22} className="i-teal" /></div>
         <div className="card-kicker">NEW HIRE</div>
         <h2>Add employee &amp; start onboarding</h2>
         <p>Creates the record, generates the provisioning checklist, and optionally assigns equipment immediately.</p>

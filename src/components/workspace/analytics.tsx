@@ -99,7 +99,7 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
         copy="Each report runs a real aggregate query against this client's rows. Exporting one writes an audit event, so the CSV you hand an auditor is traceable."
         actions={
           <button className="secondary-button" onClick={reload} disabled={state === "loading"}>
-            <RefreshCw size={15} /> Refresh
+            <RefreshCw size={15} className="i-blue" /> Refresh
           </button>
         }
       />
@@ -109,16 +109,16 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
           label="Runs on record"
           value={String(data.payrollRuns.length)}
           hint={`${data.employees.length} people on this client`}
-          icon={<FileBarChart2 size={16} />}
+          icon={<FileBarChart2 size={16} className="i-teal" />}
           tone="blue"
         />
-        <Metric label="Total gross paid" value={shortMoney(totalCost)} hint="across every stored run" icon={<WalletCards size={16} />} tone="mint" />
-        <Metric label="Total net paid" value={shortMoney(totalNet)} hint="after employee deductions" icon={<WalletCards size={16} />} tone="purple" />
+        <Metric label="Total gross paid" value={shortMoney(totalCost)} hint="across every stored run" icon={<WalletCards size={16} className="i-green" />} tone="mint" />
+        <Metric label="Total net paid" value={shortMoney(totalNet)} hint="after employee deductions" icon={<WalletCards size={16} className="i-green" />} tone="purple" />
         <Metric
           label="Open exceptions"
           value={String(exceptions)}
           hint={exceptions ? "across all runs" : "nothing flagged"}
-          icon={<AlertTriangle size={16} />}
+          icon={<AlertTriangle size={16} className="i-red" />}
           tone={exceptions ? "amber" : "slate"}
         />
       </section>
@@ -184,7 +184,7 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
               notify("Report CSV requested, the export is recorded in the audit trail.", "info");
             }}
           >
-            <Download size={15} /> Export CSV
+            <Download size={15} className="i-teal" /> Export CSV
           </button>
         </div>
 
@@ -195,7 +195,7 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
         {state === "ready" && result && (
           <>
             {result.rows.length === 0 ? (
-              <EmptyState icon={<FileBarChart2 size={20} />} title="No rows matched">
+              <EmptyState icon={<FileBarChart2 size={20} className="i-teal" />} title="No rows matched">
                 This client has no data for that report yet. It fills in as payroll runs and employee records accumulate.
               </EmptyState>
             ) : (

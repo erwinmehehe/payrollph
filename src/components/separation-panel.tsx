@@ -127,31 +127,31 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
           <p className="heading-copy">Prorated 13th month, unused leave monetization, loan deductions, and 30-day final pay release compliance.</p>
         </div>
         <button className="primary-button" onClick={() => setShowModal(true)}>
-          <UserX size={15} /> Initiate Employee Separation
+          <UserX size={15} className="i-red" /> Initiate Employee Separation
         </button>
       </div>
 
       <div className="stats-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
         <article className="stat-card">
-          <div className="stat-icon orange"><UserX size={19} /></div>
+          <div className="stat-icon orange"><UserX size={19} className="i-red" /></div>
           <p>SEPARATING STAFF</p>
           <h3>{separations.filter((s) => s.status !== "released").length}</h3>
           <span>Under active clearance</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon purple"><FileCheck size={19} /></div>
+          <div className="stat-icon purple"><FileCheck size={19} className="i-green" /></div>
           <p>CLEARED FOR FINAL PAY</p>
           <h3>{separations.filter((s) => s.clearanceStatus === "cleared").length}</h3>
           <span>All 4 departments signed</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon mint"><CheckCircle2 size={19} /></div>
+          <div className="stat-icon mint"><CheckCircle2 size={19} className="i-green" /></div>
           <p>COEs GENERATED</p>
           <h3>{separations.filter((s) => s.coeIssued).length}</h3>
           <span>Certificates issued</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon blue"><FileText size={19} /></div>
+          <div className="stat-icon blue"><FileText size={19} className="i-teal" /></div>
           <p>DOLE MANDATE</p>
           <h3>30 Days</h3>
           <span>Statutory release window</span>
@@ -250,7 +250,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
               <strong style={{ display: "block", fontSize: 22, color: "var(--green)" }}>{peso(selectedRecord.netFinalPay)}</strong>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button className="secondary-button" onClick={() => setShowCoeModal(true)}><FileText size={15} /> View COE Draft</button>
+              <button className="secondary-button" onClick={() => setShowCoeModal(true)}><FileText size={15} className="i-teal" /> View COE Draft</button>
               {selectedRecord.status === "draft" && (
                 <button className="primary-button" onClick={() => approveFinalPay(selectedRecord.id)}>Approve Final Pay</button>
               )}
@@ -264,7 +264,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
         <div className="modal-backdrop" role="presentation">
           <section className="modal large" role="dialog" aria-modal="true" aria-label="Certificate of Employment">
             <button className="modal-close" onClick={() => setShowCoeModal(false)}><X size={18} /></button>
-            <div className="modal-icon"><FileCheck size={22} /></div>
+            <div className="modal-icon"><FileCheck size={22} className="i-green" /></div>
             <div className="card-kicker">DOLE COMPLIANCE · LABOR ADVISORY 06-20</div>
             <h2>Certificate of Employment (COE)</h2>
             <p>Mandatory issuance within 3 days of employee request:</p>

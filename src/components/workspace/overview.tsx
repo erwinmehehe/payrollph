@@ -94,10 +94,10 @@ export function OverviewView({
         actions={
           <>
             <button className="secondary-button" onClick={() => onPage("Analytics")}>
-              <FileBarChart2 size={15} /> Analytics
+              <FileBarChart2 size={15} className="i-teal" /> Analytics
             </button>
             <button className="primary-button brand" onClick={onNewRun}>
-              <Plus size={16} /> New payroll
+              <Plus size={16} className="i-green" /> New payroll
             </button>
           </>
         }
@@ -161,7 +161,7 @@ export function OverviewView({
               <p>Create a semi-monthly run when this client&apos;s cutoff closes.</p>
             </div>
             <button className="primary-button brand" onClick={onNewRun}>
-              <Plus size={15} /> New payroll
+              <Plus size={15} className="i-green" /> New payroll
             </button>
           </div>
         </section>
@@ -172,14 +172,14 @@ export function OverviewView({
           label="Active people"
           value={String(activePeople)}
           hint={`of ${data.employees.length} on this client`}
-          icon={<UsersRound size={16} />}
+          icon={<UsersRound size={16} className="i-purple" />}
           tone="mint"
         />
         <Metric
           label="Next payroll"
           value={currentRun?.periodLabel ?? "None"}
           hint={currentRun ? `pay date ${formatDate(currentRun.payDate)}` : "no run in progress"}
-          icon={<WalletCards size={16} />}
+          icon={<WalletCards size={16} className="i-green" />}
           tone="blue"
           compact
         />
@@ -187,7 +187,7 @@ export function OverviewView({
           label="Net pay this run"
           value={currentRun ? shortMoney(currentRun.netPay) : "-"}
           hint={currentRun ? `${shortMoney(currentRun.grossPay)} gross` : "no payroll data"}
-          icon={<CircleDollarSign size={16} />}
+          icon={<CircleDollarSign size={16} className="i-green" />}
           tone="purple"
           trailing={netSeries.length > 1 ? <div className="spark-box"><Sparkline values={netSeries} /></div> : undefined}
         />
@@ -195,7 +195,7 @@ export function OverviewView({
           label="Open approvals"
           value={String(openTasks.length)}
           hint={openTasks.length ? "waiting on a decision" : "queue is clear"}
-          icon={<ClipboardCheck size={16} />}
+          icon={<ClipboardCheck size={16} className="i-amber" />}
           tone={openTasks.length ? "amber" : "mint"}
         />
       </section>
@@ -239,7 +239,7 @@ export function OverviewView({
               openTasks.slice(0, 4).map((task: Task) => (
                 <div className="attention-item" key={task.id}>
                   <div className={`attention-icon ${task.priority === "High" ? "urgent" : ""}`} aria-hidden>
-                    <ClipboardCheck size={16} />
+                    <ClipboardCheck size={16} className="i-amber" />
                   </div>
                   <div>
                     <strong>{task.title}</strong>
@@ -252,7 +252,7 @@ export function OverviewView({
                     aria-label={`Approve ${task.title}`}
                     title="Approve"
                   >
-                    <Check size={15} />
+                    <Check size={15} className="i-green" />
                   </button>
                 </div>
               ))
@@ -272,7 +272,7 @@ export function OverviewView({
           </div>
           <div className="card-body">
             {data.payrollEntries.length === 0 ? (
-              <EmptyState icon={<Clock3 size={20} />} title="No calculated entries yet">
+              <EmptyState icon={<Clock3 size={20} className="i-cyan" />} title="No calculated entries yet">
                 Once the run is calculated, each employee&apos;s entry lands here as ready or flagged.
               </EmptyState>
             ) : (
@@ -317,7 +317,7 @@ export function OverviewView({
               </div>
             ))}
             {data.employees.length === 0 && (
-              <EmptyState icon={<UsersRound size={20} />} title="No people yet">
+              <EmptyState icon={<UsersRound size={20} className="i-purple" />} title="No people yet">
                 Import a roster or add the first employee from the People page.
               </EmptyState>
             )}
@@ -336,7 +336,7 @@ export function OverviewView({
           </div>
           <div className="compliance-row">
             <span className="check-round" aria-hidden>
-              <Check size={13} />
+              <Check size={13} className="i-green" />
             </span>
             <div>
               <strong>SSS, PhilHealth and Pag-IBIG tables are versioned and unit-tested</strong>
@@ -367,7 +367,7 @@ export function OverviewView({
           ) : (
             <div className="compliance-row blue">
               <span className="check-round" style={{ background: "#c3ddf9", color: "var(--active)" }} aria-hidden>
-                <Check size={13} />
+                <Check size={13} className="i-green" />
               </span>
               <div>
                 <strong>No active calamity or hazard advisory</strong>
@@ -404,7 +404,7 @@ export function OverviewView({
               </div>
             ))}
             {data.auditEvents.length === 0 && (
-              <EmptyState icon={<ShieldCheck size={20} />} title="Nothing recorded yet">
+              <EmptyState icon={<ShieldCheck size={20} className="i-green" />} title="Nothing recorded yet">
                 Every payroll, export and approval writes an immutable audit event here.
               </EmptyState>
             )}
@@ -419,7 +419,7 @@ function TrackStep({ label, value, state }: { label: string; value: string; stat
   return (
     <div className={`track-step ${state === "done" ? "done" : state === "now" ? "now" : ""}`}>
       <span>
-        {state === "done" && <Check size={10} />}
+        {state === "done" && <Check size={10} className="i-green" />}
         {label}
       </span>
       <strong>{value}</strong>

@@ -137,7 +137,7 @@ export function AssetsPanel({ organizationId }: { organizationId: number }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Equipment & Assets</h2>
         <button className="primary-button" onClick={() => setShowForm(!showForm)}>
-          {showForm ? <X size={14} /> : <Plus size={14} />}
+          {showForm ? <X size={14} /> : <Plus size={14} className="i-green" />}
           {showForm ? "Cancel" : "Add Asset"}
         </button>
       </div>
@@ -259,7 +259,7 @@ export function AssetsPanel({ organizationId }: { organizationId: number }) {
                     <td style={{ display: "flex", gap: 4 }}>
                       {asset.status === "assigned" && (
                         <button className="icon-button" onClick={() => handleReturn(asset.id)} title="Mark as returned">
-                          <CheckCircle2 size={14} />
+                          <CheckCircle2 size={14} className="i-green" />
                         </button>
                       )}
                       <button className="icon-button" onClick={() => handleDelete(asset.id)} title="Remove">

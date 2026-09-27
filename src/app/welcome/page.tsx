@@ -92,13 +92,13 @@ export default async function WelcomePage() {
 
               <div className="hero-facts">
                 <span>
-                  <Check size={14} /> SSS, PhilHealth, Pag-IBIG and TRAIN computed server-side
+                  <Check size={14} className="i-green" /> SSS, PhilHealth, Pag-IBIG and TRAIN computed server-side
                 </span>
                 <span>
-                  <Check size={14} /> Every figure traceable to the rule that produced it
+                  <Check size={14} className="i-green" /> Every figure traceable to the rule that produced it
                 </span>
                 <span>
-                  <Check size={14} /> Published pricing, no quote wall
+                  <Check size={14} className="i-green" /> Published pricing, no quote wall
                 </span>
               </div>
 
@@ -157,7 +157,7 @@ export default async function WelcomePage() {
               <div className="feature-grid" style={{ gridTemplateColumns: "minmax(0, 1fr)", gap: 14 }}>
                 <article className="feature-card">
                   <span className="feature-icon" aria-hidden>
-                    <WalletCards size={17} />
+                    <WalletCards size={17} className="i-green" />
                   </span>
                   <h3>Statutory computation</h3>
                   <p>
@@ -168,7 +168,7 @@ export default async function WelcomePage() {
                 </article>
                 <article className="feature-card">
                   <span className="feature-icon" aria-hidden>
-                    <Clock3 size={17} />
+                    <Clock3 size={17} className="i-cyan" />
                   </span>
                   <h3>Hours you can defend</h3>
                   <p>
@@ -180,7 +180,7 @@ export default async function WelcomePage() {
                 </article>
                 <article className="feature-card">
                   <span className="feature-icon" aria-hidden>
-                    <ShieldCheck size={17} />
+                    <ShieldCheck size={17} className="i-green" />
                   </span>
                   <h3>Wage orders and advisories</h3>
                   <p>
@@ -212,7 +212,7 @@ export default async function WelcomePage() {
           <div className="bento">
             <article className="feature-card wide">
               <span className="feature-icon" aria-hidden>
-                <Layers size={17} />
+                <Layers size={17} className="i-teal" />
               </span>
               <h3>Multi-client workspaces with real isolation</h3>
               <p>
@@ -229,7 +229,7 @@ export default async function WelcomePage() {
 
             <article className="feature-card">
               <span className="feature-icon" aria-hidden>
-                <ClipboardCheck size={17} />
+                <ClipboardCheck size={17} className="i-amber" />
               </span>
               <h3>Approvals that survive a holiday</h3>
               <p>
@@ -241,7 +241,7 @@ export default async function WelcomePage() {
 
             <article className="feature-card">
               <span className="feature-icon" aria-hidden>
-                <UserCheck size={17} />
+                <UserCheck size={17} className="i-purple" />
               </span>
               <h3>Employee self-service</h3>
               <p>
@@ -254,7 +254,7 @@ export default async function WelcomePage() {
 
             <article className="feature-card">
               <span className="feature-icon" aria-hidden>
-                <UploadCloud size={17} />
+                <UploadCloud size={17} className="i-teal" />
               </span>
               <h3>Bank files and government worksheets</h3>
               <p>
@@ -271,7 +271,7 @@ export default async function WelcomePage() {
 
             <article className="feature-card">
               <span className="feature-icon" aria-hidden>
-                <UploadCloud size={17} />
+                <UploadCloud size={17} className="i-teal" />
               </span>
               <h3>Onboarding from the spreadsheet you already have</h3>
               <p>
@@ -284,7 +284,7 @@ export default async function WelcomePage() {
 
             <article className="feature-card">
               <span className="feature-icon" aria-hidden>
-                <Terminal size={17} />
+                <Terminal size={17} className="i-blue" />
               </span>
               <h3>A platform, not a silo</h3>
               <p>
@@ -381,7 +381,7 @@ export default async function WelcomePage() {
           </div>
 
           <div className="notice notice-amber" style={{ marginTop: 22 }} id="status">
-            <ShieldCheck size={16} />
+            <ShieldCheck size={16} className="i-green" />
             <span>
               <strong>Production status:</strong> the payroll engine, workspace, approvals, self-service, API and exports
               run on the request path. Four gates remain, each blocked on a third-party credential or account rather than
@@ -413,7 +413,7 @@ export default async function WelcomePage() {
           <div className="module-grid three" style={{ marginTop: 0 }}>
             <article className="feature-card">
               <span className="feature-icon" aria-hidden>
-                <Building2 size={17} />
+                <Building2 size={17} className="i-purple" />
               </span>
               <h3>Try the live demo</h3>
               <p>A seeded bookkeeper workspace with several client companies, real payroll runs and a live register.</p>
@@ -423,7 +423,7 @@ export default async function WelcomePage() {
             </article>
             <article className="feature-card">
               <span className="feature-icon" aria-hidden>
-                <LockKeyhole size={17} />
+                <LockKeyhole size={17} className="i-amber" />
               </span>
               <h3>Create an account</h3>
               <p>First-run setup creates your organization and its owner with a policy-checked password.</p>
@@ -433,7 +433,7 @@ export default async function WelcomePage() {
             </article>
             <article className="feature-card">
               <span className="feature-icon" aria-hidden>
-                <CalendarDays size={17} />
+                <CalendarDays size={17} className="i-cyan" />
               </span>
               <h3>Book a demo</h3>
               <p>Tell us your headcount and entity structure and we will walk through your actual setup.</p>
@@ -444,7 +444,7 @@ export default async function WelcomePage() {
           </div>
 
           <div className="notice notice-slate" style={{ marginTop: 22 }}>
-            <FileSpreadsheet size={15} />
+            <FileSpreadsheet size={15} className="i-teal" />
             <span>
               Your data stays portable: employees and payroll registers export as CSV, the whole company exports as JSON,
               and every export is written to the audit trail.

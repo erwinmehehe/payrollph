@@ -153,25 +153,25 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
           <p className="heading-copy">Manage SSS, Pag-IBIG, and company loan schedules with automated payroll cut-off deductions.</p>
         </div>
         <button className="primary-button" onClick={() => setShowAddForm(!showAddForm)}>
-          {showAddForm ? <X size={15} /> : <Plus size={15} />} {showAddForm ? "Cancel" : "Register Loan"}
+          {showAddForm ? <X size={15} /> : <Plus size={15} className="i-green" />} {showAddForm ? "Cancel" : "Register Loan"}
         </button>
       </div>
 
       <div className="stats-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
         <article className="stat-card">
-          <div className="stat-icon mint"><Banknote size={19} /></div>
+          <div className="stat-icon mint"><Banknote size={19} className="i-green" /></div>
           <p>ACTIVE LOANS</p>
           <h3>{summary.totalActiveLoans}</h3>
           <span>Under ongoing deduction</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon orange"><ReceiptText size={19} /></div>
+          <div className="stat-icon orange"><ReceiptText size={19} className="i-teal" /></div>
           <p>TOTAL OUTSTANDING BALANCE</p>
           <h3>{peso(summary.totalOutstanding)}</h3>
           <span>Across all employee portfolios</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon purple"><Check size={19} /></div>
+          <div className="stat-icon purple"><Check size={19} className="i-green" /></div>
           <p>LOANS PAID OFF</p>
           <h3>{summary.totalPaidOff}</h3>
           <span>Fully amortized accounts</span>

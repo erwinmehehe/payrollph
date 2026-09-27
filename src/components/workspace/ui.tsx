@@ -182,7 +182,7 @@ export function Switch({
 export function EmptyState({ icon, title, children }: { icon?: ReactNode; title: string; children?: ReactNode }) {
   return (
     <div className="empty-state">
-      {icon ?? <Inbox size={22} />}
+      {icon ?? <Inbox size={22} className="i-amber" />}
       <strong>{title}</strong>
       {children && <p>{children}</p>}
     </div>
@@ -192,7 +192,7 @@ export function EmptyState({ icon, title, children }: { icon?: ReactNode; title:
 export function ErrorState({ title, detail, onRetry }: { title: string; detail?: string; onRetry?: () => void }) {
   return (
     <div className="empty-state error" role="alert">
-      <AlertTriangle size={22} />
+      <AlertTriangle size={22} className="i-red" />
       <strong>{title}</strong>
       {detail && <p>{detail}</p>}
       {onRetry && (
@@ -272,7 +272,7 @@ function ToastRow({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number) 
 
   return (
     <div className={`toast ${toast.kind}`}>
-      {toast.kind === "err" ? <AlertTriangle size={16} /> : <Check size={16} />}
+      {toast.kind === "err" ? <AlertTriangle size={16} className="i-red" /> : <Check size={16} className="i-green" />}
       <span>{toast.message}</span>
       <button type="button" onClick={() => onDismiss(toast.id)} aria-label="Dismiss notification">
         <X size={15} />
@@ -355,19 +355,16 @@ export function StackedBars({
             );
           })}
         </g>
-        {data.map((row, index) => (
-          <text
-            key={`label-${index}`}
-            className="chart-axis"
-            x={index * slot + slot / 2}
-            y={height - 6}
-            textAnchor="middle"
-            style={{ fontSize: 7 }}
-          >
-            {row.label}
-          </text>
-        ))}
       </svg>
+      {/* Axis labels sit outside the SVG. preserveAspectRatio="none" stretches
+          the viewBox horizontally to fill the card, which distorts glyphs along
+          with the bars, so the labels are laid out as HTML over the empty band
+          the bars already reserve at the bottom. */}
+      <div className="chart-axis-row" aria-hidden>
+        {data.map((row, index) => (
+          <span key={`label-${index}`}>{row.label}</span>
+        ))}
+      </div>
       {hover && (
         <div className="chart-tip" style={{ left: `${hover.x}%`, top: hover.y }}>
           <strong>{formatValue(totals[hover.index])}</strong>

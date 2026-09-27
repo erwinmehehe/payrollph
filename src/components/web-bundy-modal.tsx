@@ -86,7 +86,7 @@ export function WebBundyModal({
     <div className="modal-backdrop" role="presentation">
       <section className="modal" role="dialog" aria-modal="true" aria-label="Web Bundy Time Clock">
         <button className="modal-close" onClick={onClose}><X size={18} /></button>
-        <div className="modal-icon"><Clock size={22} /></div>
+        <div className="modal-icon"><Clock size={22} className="i-cyan" /></div>
         <div className="card-kicker">BUILT-IN WEB BUNDY CLOCK</div>
         <h2>{employeeName ? `${employeeName}'s Time Clock` : "Workforce Web Bundy"}</h2>
         <p>Real-time attendance recording with automatic tardiness, undertime, and night differential classification.</p>
@@ -110,7 +110,7 @@ export function WebBundyModal({
           </div>
         )}
 
-        {message && <div className="notice notice-green" style={{ margin: "10px 0" }}><Check size={16} /><span>{message}</span></div>}
+        {message && <div className="notice notice-green" style={{ margin: "10px 0" }}><Check size={16} className="i-green" /><span>{message}</span></div>}
         {error && <div className="notice notice-amber" style={{ margin: "10px 0" }}><span>{error}</span></div>}
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 16 }}>
@@ -120,7 +120,7 @@ export function WebBundyModal({
             onClick={() => handlePunch("clock_in")}
             style={{ height: 42, background: "var(--green)", fontSize: 13 }}
           >
-            <LogIn size={16} /> Clock IN
+            <LogIn size={16} className="i-slate" /> Clock IN
           </button>
           <button
             className="secondary-button"
@@ -128,12 +128,12 @@ export function WebBundyModal({
             onClick={() => handlePunch("clock_out")}
             style={{ height: 42, fontSize: 13 }}
           >
-            <LogOut size={16} /> Clock OUT
+            <LogOut size={16} className="i-slate" /> Clock OUT
           </button>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, color: "var(--muted)", fontSize: 11 }}>
-          <MapPin size={14} />
+          <MapPin size={14} className="i-blue" />
           <span>Location stamped with client browser IP & workstation source.</span>
         </div>
       </section>

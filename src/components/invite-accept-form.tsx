@@ -80,7 +80,7 @@ export function InviteAcceptForm() {
       ) : (
         <form onSubmit={submit} className="auth-form">
           {checked && (
-            <div className="notice notice-green"><Mail size={15} /><span><strong>{checked.email}</strong> · invited as {checked.role}</span></div>
+            <div className="notice notice-green"><Mail size={15} className="i-pink" /><span><strong>{checked.email}</strong> · invited as {checked.role}</span></div>
           )}
           <label>Your name<input value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" /></label>
           <label>Create a password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" /></label>
@@ -89,7 +89,7 @@ export function InviteAcceptForm() {
           <div className="pw-rules">
             {rules.map((rule) => (
               <span key={rule.label} style={{ color: rule.ok ? "#23735d" : "#8a948f" }}>
-                <Check size={12} /> {rule.label}
+                <Check size={12} className="i-green" /> {rule.label}
               </span>
             ))}
           </div>

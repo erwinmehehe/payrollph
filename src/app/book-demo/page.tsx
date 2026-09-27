@@ -57,7 +57,7 @@ export default function BookDemoPage() {
 
               {canDeliver ? (
                 <div className="notice notice-green" style={{ marginTop: 24 }}>
-                  <ShieldCheck size={15} />
+                  <ShieldCheck size={15} className="i-green" />
                   <span>
                     This deployment sends mail through <span className="mono">{provider}</span>, so your request reaches us
                     directly.
@@ -65,7 +65,7 @@ export default function BookDemoPage() {
                 </div>
               ) : (
                 <div className="notice notice-amber" style={{ marginTop: 24 }}>
-                  <Inbox size={15} />
+                  <Inbox size={15} className="i-amber" />
                   <span>
                     <strong>Before you fill this in:</strong> this deployment has no email provider configured, so a request
                     is recorded in the outbox rather than emailed to anyone. If you want to see the product right now, the{" "}

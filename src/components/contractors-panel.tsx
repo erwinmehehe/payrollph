@@ -110,7 +110,7 @@ export function ContractorsPanel({ organizationId }: { organizationId: number })
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Contractors</h2>
         <button className="primary-button" onClick={() => setShowForm(!showForm)}>
-          {showForm ? <X size={14} /> : <Plus size={14} />}
+          {showForm ? <X size={14} /> : <Plus size={14} className="i-green" />}
           {showForm ? "Cancel" : "Add Contractor"}
         </button>
       </div>

@@ -100,9 +100,9 @@ export function SelfServicePortal() {
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button className="primary-button" style={{ background: "var(--deep)", borderColor: "var(--green)" }} onClick={() => setWebBundyOpen(true)}>
-            <Clock size={15} /> Clock IN / OUT
+            <Clock size={15} className="i-cyan" /> Clock IN / OUT
           </button>
-          <a className="secondary-button" href="/api/auth/logout"><LogOut size={15} /> Sign out</a>
+          <a className="secondary-button" href="/api/auth/logout"><LogOut size={15} className="i-slate" /> Sign out</a>
         </div>
       </header>
 
@@ -123,7 +123,7 @@ export function SelfServicePortal() {
           <form onSubmit={link} className="auth-form" style={{ maxWidth: 360, marginTop: 12 }}>
             <label>Employee number<input value={employeeNo} onChange={(event) => setEmployeeNo(event.target.value)} placeholder="e.g. LL-101" /></label>
             {error && <div className="notice notice-amber"><span>{error}</span></div>}
-            {linked && <div className="notice notice-green"><ShieldCheck size={15} /><span>Linked. Loading your payslips…</span></div>}
+            {linked && <div className="notice notice-green"><ShieldCheck size={15} className="i-green" /><span>Linked. Loading your payslips…</span></div>}
             <button className="primary-button full" disabled={busy || !employeeNo}>Link my record</button>
           </form>
         </div>
@@ -133,19 +133,19 @@ export function SelfServicePortal() {
         <>
           <section className="stats-grid">
             <article className="stat-card">
-              <div className="stat-icon mint"><WalletCards size={19} /></div>
+              <div className="stat-icon mint"><WalletCards size={19} className="i-green" /></div>
               <p>MONTHLY BASIC</p>
               <h3>{peso(data.employee.monthlyBasic)}</h3>
               <span>{data.employee.employmentType} · {data.employee.status}</span>
             </article>
             <article className="stat-card">
-              <div className="stat-icon purple"><FileText size={19} /></div>
+              <div className="stat-icon purple"><FileText size={19} className="i-teal" /></div>
               <p>NET PAID YTD</p>
               <h3>{peso(data.yearToDate.net)}</h3>
               <span>{data.yearToDate.periodsPaid} released period(s)</span>
             </article>
             <article className="stat-card">
-              <div className="stat-icon orange"><FileText size={19} /></div>
+              <div className="stat-icon orange"><FileText size={19} className="i-teal" /></div>
               <p>TAX WITHHELD YTD</p>
               <h3>{peso(data.yearToDate.tax)}</h3>
               <span>Shown on your BIR 2316</span>
@@ -161,7 +161,7 @@ export function SelfServicePortal() {
               {data.payslips.length === 0 && <div className="empty-state">No released payslips yet. Payslips appear here the moment payroll is released.</div>}
               {data.payslips.map((slip) => (
                 <div className="audit-row" key={slip.entryId}>
-                  <span className="audit-dot"><FileText size={14} /></span>
+                  <span className="audit-dot"><FileText size={14} className="i-teal" /></span>
                   <div>
                     <strong>{slip.period}</strong>
                     <p>Net {peso(slip.net)} · gross {peso(slip.gross)} · paid {slip.payDate}</p>
@@ -181,7 +181,7 @@ export function SelfServicePortal() {
                     <button className="secondary-button" onClick={() => setOpen(open === slip.entryId ? null : slip.entryId)}>
                       {open === slip.entryId ? "Hide" : "Details"}
                     </button>
-                    <a className="icon-button" href={`/api/self/payslips/${slip.entryId}`} aria-label="Download payslip"><Download size={16} /></a>
+                    <a className="icon-button" href={`/api/self/payslips/${slip.entryId}`} aria-label="Download payslip"><Download size={16} className="i-teal" /></a>
                   </div>
                 </div>
               ))}
@@ -189,7 +189,7 @@ export function SelfServicePortal() {
           </article>
 
           <div className="notice notice-blue" style={{ marginTop: 14 }}>
-            <ShieldCheck size={17} />
+            <ShieldCheck size={17} className="i-green" />
             <span><strong>Privacy:</strong> this page is scoped to your single employee record in the database query itself. You cannot view another employee&apos;s pay, even by editing the request.</span>
           </div>
         </>

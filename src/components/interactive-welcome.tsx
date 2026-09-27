@@ -106,7 +106,7 @@ export function InteractiveWelcome({
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ width: 34, height: 34, borderRadius: 10, background: "rgba(80, 210, 157, 0.2)", color: "#50d29d", display: "grid", placeItems: "center", fontWeight: 800 }}>
-              <Sparkles size={18} />
+              <Sparkles size={18} className="i-blue" />
             </span>
             <div>
               <strong style={{ fontSize: 13.5, display: "block", color: "white" }}>Explore the Live Interactive Sandbox</strong>
@@ -120,7 +120,7 @@ export function InteractiveWelcome({
               onClick={() => launchDemo("bookkeeper")}
               disabled={launching !== null}
             >
-              <UserCheck size={15} /> {launching === "bookkeeper" ? "Opening…" : "Principal Bookkeeper"}
+              <UserCheck size={15} className="i-purple" /> {launching === "bookkeeper" ? "Opening…" : "Principal Bookkeeper"}
             </button>
             <button
               className="secondary-button"
@@ -128,7 +128,7 @@ export function InteractiveWelcome({
               onClick={() => launchDemo("employee")}
               disabled={launching !== null}
             >
-              <Wallet size={15} /> {launching === "employee" ? "Opening…" : "Employee Portal"}
+              <Wallet size={15} className="i-green" /> {launching === "employee" ? "Opening…" : "Employee Portal"}
             </button>
             <button
               className="secondary-button"
@@ -136,7 +136,7 @@ export function InteractiveWelcome({
               onClick={() => launchDemo("freelancer")}
               disabled={launching !== null}
             >
-              <Calculator size={15} /> {launching === "freelancer" ? "Opening…" : "Freelancer Hub"}
+              <Calculator size={15} className="i-green" /> {launching === "freelancer" ? "Opening…" : "Freelancer Hub"}
             </button>
           </div>
         </div>
@@ -158,39 +158,39 @@ export function InteractiveWelcome({
             {launching === "bookkeeper" ? "Opening workspace…" : "Try the live dashboard, no signup"} <ArrowRight size={16} />
           </button>
           <a className="secondary-button" href="#pricing" style={{ height: 44, padding: "0 18px", fontSize: 13 }}>
-            <CircleDollarSign size={16} /> See transparent pricing
+            <CircleDollarSign size={16} className="i-green" /> See transparent pricing
           </a>
         </div>
 
         <div className="hero-trust">
-          <span><ShieldCheck size={15} /> 94 automated tests passing</span>
-          <span><FileCheck2 size={15} /> BIR / SSS / PhilHealth / Pag-IBIG modeled</span>
-          <span><Lock size={15} /> Tenant-isolated, audit-logged</span>
+          <span><ShieldCheck size={15} className="i-green" /> 94 automated tests passing</span>
+          <span><FileCheck2 size={15} className="i-green" /> BIR / SSS / PhilHealth / Pag-IBIG modeled</span>
+          <span><Lock size={15} className="i-amber" /> Tenant-isolated, audit-logged</span>
         </div>
       </section>
 
       {/* Key Metric Pillars */}
       <section className="stats-grid reveal">
         <article className="stat-card">
-          <div className="stat-icon mint"><Users size={18} /></div>
+          <div className="stat-icon mint"><Users size={18} className="i-purple" /></div>
           <p>PROVEN AT SCALE</p>
           <h3>8,000</h3>
           <span>employees processed in 13.3s, no timeouts</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon purple"><Shield size={18} /></div>
+          <div className="stat-icon purple"><Shield size={18} className="i-green" /></div>
           <p>STATUTORY ACCURACY</p>
           <h3>To the centavo</h3>
           <span>Versioned engine PH-2026.1, unit-tested</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon blue"><Layers size={18} /></div>
+          <div className="stat-icon blue"><Layers size={18} className="i-teal" /></div>
           <p>ONE LOGIN</p>
           <h3>Unlimited clients</h3>
           <span>Built for bookkeepers and BPO groups</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon orange"><CircleDollarSign size={18} /></div>
+          <div className="stat-icon orange"><CircleDollarSign size={18} className="i-green" /></div>
           <p>NO QUOTE WALL</p>
           <h3>Published pricing</h3>
           <span>Every peso live in-product, always</span>
@@ -216,42 +216,42 @@ export function InteractiveWelcome({
         <h2>Everything in one platform.</h2>
         <div className="feature-grid">
           <div className="feature-card">
-            <div className="feature-icon" style={{ background: "var(--green-light)", color: "var(--green)" }}><Flame size={20} /></div>
+            <div className="feature-icon" style={{ background: "var(--green-light)", color: "var(--green)" }}><Flame size={20} className="i-amber" /></div>
             <h3>Auto calamity pay</h3>
             <p>DOLE advisory declared once. Hazard pay (+30%) flows to affected employees automatically.</p>
           </div>
           <div className="feature-card">
-            <div className="feature-icon" style={{ background: "var(--purple-bg)", color: "var(--purple)" }}><Moon size={20} /></div>
+            <div className="feature-icon" style={{ background: "var(--purple-bg)", color: "var(--purple)" }}><Moon size={20} className="i-slate" /></div>
             <h3>Time & attendance</h3>
             <p>Tardiness, overtime, and night differential (10 PM – 6 AM) derived from raw punches. Incomplete punches flagged for review.</p>
           </div>
           <div className="feature-card">
-            <div className="feature-icon" style={{ background: "var(--blue-bg)", color: "var(--blue)" }}><Layers size={20} /></div>
+            <div className="feature-icon" style={{ background: "var(--blue-bg)", color: "var(--blue)" }}><Layers size={20} className="i-teal" /></div>
             <h3>Scalable payroll engine</h3>
             <p>Postgres <code>FOR UPDATE SKIP LOCKED</code> chunked queues. Resumable, idempotent. Load-tested to 8,000 employees.</p>
           </div>
           <div className="feature-card">
-            <div className="feature-icon" style={{ background: "var(--amber-bg)", color: "var(--amber)" }}><FileText size={20} /></div>
+            <div className="feature-icon" style={{ background: "var(--amber-bg)", color: "var(--amber)" }}><FileText size={20} className="i-teal" /></div>
             <h3>Traceable payslips</h3>
             <p>Every line item shows its input, rule version, and statutory basis. Click to see the arithmetic.</p>
           </div>
           <div className="feature-card">
-            <div className="feature-icon" style={{ background: "var(--green-light)", color: "var(--green)" }}><Wallet size={20} /></div>
+            <div className="feature-icon" style={{ background: "var(--green-light)", color: "var(--green)" }}><Wallet size={20} className="i-green" /></div>
             <h3>Benefits administration</h3>
             <p>HMO, group life, Pag-IBIG MP2, and SSS Flexi-Fund. Enroll inside payroll. Statutory caps enforced.</p>
           </div>
           <div className="feature-card">
-            <div className="feature-icon" style={{ background: "var(--blue-bg)", color: "var(--blue)" }}><Globe size={20} /></div>
+            <div className="feature-icon" style={{ background: "var(--blue-bg)", color: "var(--blue)" }}><Globe size={20} className="i-blue" /></div>
             <h3>Multi-currency contractors</h3>
             <p>Track international contractors in USD, EUR, GBP, or any currency. Contract dates, rates, and status in one place.</p>
           </div>
           <div className="feature-card">
-            <div className="feature-icon" style={{ background: "var(--amber-bg)", color: "var(--amber)" }}><Package size={20} /></div>
+            <div className="feature-icon" style={{ background: "var(--amber-bg)", color: "var(--amber)" }}><Package size={20} className="i-teal" /></div>
             <h3>Equipment tracking</h3>
             <p>Laptops, phones, and other assets assigned to employees. Track serial numbers, assignment dates, and returns.</p>
           </div>
           <div className="feature-card">
-            <div className="feature-icon" style={{ background: "var(--purple-bg)", color: "var(--purple)" }}><Shield size={20} /></div>
+            <div className="feature-icon" style={{ background: "var(--purple-bg)", color: "var(--purple)" }}><Shield size={20} className="i-green" /></div>
             <h3>Enterprise security</h3>
             <p>scrypt password hashing, TOTP 2FA, revocable sessions, distributed rate limits, tenant isolation on every route.</p>
           </div>
@@ -528,8 +528,8 @@ export function InteractiveWelcome({
               certified government portal validation, and PayMongo production billing keys.
             </p>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <a className="secondary-button" href="/scorecard" style={{ height: 30, fontSize: 11 }}><FileCheck2 size={14} /> Full 22-Point Scorecard</a>
-              <a className="secondary-button" href="/api/readiness" style={{ height: 30, fontSize: 11 }}><ShieldCheck size={14} /> Live Readiness API JSON</a>
+              <a className="secondary-button" href="/scorecard" style={{ height: 30, fontSize: 11 }}><FileCheck2 size={14} className="i-green" /> Full 22-Point Scorecard</a>
+              <a className="secondary-button" href="/api/readiness" style={{ height: 30, fontSize: 11 }}><ShieldCheck size={14} className="i-green" /> Live Readiness API JSON</a>
             </div>
           </div>
         </div>

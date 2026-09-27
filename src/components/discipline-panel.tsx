@@ -142,31 +142,31 @@ export function DisciplinePanel({ organizationId, setNotice }: { organizationId:
           <p className="heading-copy">Twin-Notice Rule compliance: Notice to Explain (NTE) &rarr; Explanation &rarr; Hearing &rarr; Notice of Decision (NOD).</p>
         </div>
         <button className="primary-button" onClick={() => setShowNteModal(true)}>
-          <Plus size={15} /> Issue Notice to Explain (NTE)
+          <Plus size={15} className="i-green" /> Issue Notice to Explain (NTE)
         </button>
       </div>
 
       <div className="stats-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
         <article className="stat-card">
-          <div className="stat-icon orange"><AlertCircle size={19} /></div>
+          <div className="stat-icon orange"><AlertCircle size={19} className="i-red" /></div>
           <p>NTE ISSUED</p>
           <h3>{cases.filter((c) => c.status === "nte_issued").length}</h3>
           <span>Awaiting response (5d rule)</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon purple"><FileText size={19} /></div>
+          <div className="stat-icon purple"><FileText size={19} className="i-teal" /></div>
           <p>EXPLANATIONS IN</p>
           <h3>{cases.filter((c) => c.status === "explanation_submitted").length}</h3>
           <span>Ready for hearing review</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon blue"><Calendar size={19} /></div>
+          <div className="stat-icon blue"><Calendar size={19} className="i-cyan" /></div>
           <p>HEARINGS SET</p>
           <h3>{cases.filter((c) => c.status === "hearing_scheduled").length}</h3>
           <span>Conferences scheduled</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon mint"><Gavel size={19} /></div>
+          <div className="stat-icon mint"><Gavel size={19} className="i-amber" /></div>
           <p>DECISIONS ISSUED</p>
           <h3>{cases.filter((c) => c.status === "nod_issued" || c.status === "closed").length}</h3>
           <span>Formal NOD rendered</span>

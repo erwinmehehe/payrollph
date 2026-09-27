@@ -72,19 +72,19 @@ export function SetupWizard({ needsSetup }: { needsSetup: boolean }) {
             <div style={{ padding: "0 17px 12px", display: "flex", gap: 12, flexWrap: "wrap" }}>
               {rules.map((rule) => (
                 <span key={rule.label} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, color: rule.ok ? "#23735d" : "#8a948f", fontWeight: 700 }}>
-                  <Check size={12} /> {rule.label}
+                  <Check size={12} className="i-green" /> {rule.label}
                 </span>
               ))}
             </div>
-            {error && <div className="notice notice-amber" style={{ margin: "0 16px 12px" }}><ShieldCheck size={16} /><span><strong>{error}</strong>{problems.length > 0 && <><br />{problems.join(" ")}</>}</span></div>}
+            {error && <div className="notice notice-amber" style={{ margin: "0 16px 12px" }}><ShieldCheck size={16} className="i-green" /><span><strong>{error}</strong>{problems.length > 0 && <><br />{problems.join(" ")}</>}</span></div>}
             <button className="card-action" onClick={submit} disabled={busy}>
               <span>{busy ? "Creating workspace…" : "Create workspace"}</span>
-              <Sparkles size={16} />
+              <Sparkles size={16} className="i-blue" />
             </button>
           </article>
 
           <div className="notice notice-blue" style={{ margin: "16px 0 0" }}>
-            <ShieldCheck size={17} />
+            <ShieldCheck size={17} className="i-green" />
             <span><strong>After setup:</strong> enable TOTP in Settings → Security, then invite your team. Password resets need an email provider (RESEND_API_KEY or POSTMARK_SERVER_TOKEN) to send mail.</span>
           </div>
         </>

@@ -44,7 +44,7 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
           </div>
         </div>
         <div className="calc-note">
-          <Users size={16} />
+          <Users size={16} className="i-purple" />
           <span>
             Every figure below is the plan&apos;s stored base plus its per-employee rate at this headcount. Solo is priced for
             one person, so headcount does not change it.

@@ -71,12 +71,12 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
 
   return (
     <>
-      <PageHeading eyebrow="LEAVE MANAGEMENT" title="Keep leave human and accountable." copy="Requests create a real approval task. Approving it updates the leave record and fires leave.approved webhooks." actions={<button className="primary-button" onClick={() => setOpen(!open)}><Plus size={17} /> New leave request</button>} />
+      <PageHeading eyebrow="LEAVE MANAGEMENT" title="Keep leave human and accountable." copy="Requests create a real approval task. Approving it updates the leave record and fires leave.approved webhooks." actions={<button className="primary-button" onClick={() => setOpen(!open)}><Plus size={17} className="i-green" /> New leave request</button>} />
       <section className="stats-grid">
-        <Metric label="PENDING" value={String(pending.length)} hint="Needs manager review" icon={<CalendarDays size={19} />} tone="amber" />
-        <Metric label="ON LEAVE" value={String(data.employees.filter((e) => e.status === "On leave").length)} hint="Across this client" icon={<UsersRound size={19} />} tone="purple" />
-        <Metric label="APPROVED DAYS" value={String(approvedDays)} hint="On record" icon={<Gauge size={19} />} tone="mint" />
-        <Metric label="POLICIES" value="3" hint="Annual, sick, emergency" icon={<BookOpen size={19} />} tone="blue" />
+        <Metric label="PENDING" value={String(pending.length)} hint="Needs manager review" icon={<CalendarDays size={19} className="i-cyan" />} tone="amber" />
+        <Metric label="ON LEAVE" value={String(data.employees.filter((e) => e.status === "On leave").length)} hint="Across this client" icon={<UsersRound size={19} className="i-purple" />} tone="purple" />
+        <Metric label="APPROVED DAYS" value={String(approvedDays)} hint="On record" icon={<Gauge size={19} className="i-blue" />} tone="mint" />
+        <Metric label="POLICIES" value="3" hint="Annual, sick, emergency" icon={<BookOpen size={19} className="i-teal" />} tone="blue" />
       </section>
       {open && (
         <article className="card" style={{ marginBottom: 16 }}>
@@ -121,27 +121,27 @@ export function CompliancePage({ data, setNotice, onOpenGovModal }: { data: Dash
         copy="Versioned statutory formulas, BIR TRAIN tax brackets, and official Philippine verification seals."
         actions={
           <button className="primary-button" onClick={onOpenGovModal}>
-            <ShieldCheck size={16} /> Run Gov Validation Seal
+            <ShieldCheck size={16} className="i-green" /> Run Gov Validation Seal
           </button>
         }
       />
       <section className="module-grid three">
         <article className="card compliance-tile">
-          <div className="inline-icon mint"><ShieldCheck size={19} /></div>
+          <div className="inline-icon mint"><ShieldCheck size={19} className="i-green" /></div>
           <span>STATUTORY CONTRIBUTIONS</span>
           <h2>Versioned</h2>
           <p>SSS, PhilHealth & Pag-IBIG formulas are executable and unit-tested.</p>
           <Status value="Tested" />
         </article>
         <article className="card compliance-tile">
-          <div className="inline-icon purple"><ReceiptText size={19} /></div>
+          <div className="inline-icon purple"><ReceiptText size={19} className="i-teal" /></div>
           <span>WITHHOLDING TAX</span>
           <h2>TRAIN + MWE</h2>
           <p>Annual tax brackets and MWE full-exemption paths are modeled.</p>
           <Status value="Tested" />
         </article>
         <article className="card compliance-tile">
-          <div className="inline-icon amber"><FileSpreadsheet size={19} /></div>
+          <div className="inline-icon amber"><FileSpreadsheet size={19} className="i-teal" /></div>
           <span>GOVERNMENT OUTPUTS</span>
           <h2>Draft Worksheets</h2>
           <p>2316, 1601-C, Alphalist, SSS R-3, PhilHealth RF-1, Pag-IBIG MCRF.</p>
@@ -232,7 +232,7 @@ function YearEndPanel({ organizationId, setNotice }: { organizationId: number; s
             </table>
           </div>
           <div className="run-actions">
-            <a className="secondary-button" href={`/api/year-end?organizationId=${organizationId}&taxYear=${taxYear}&format=alphalist`}><FileSpreadsheet size={16} /> Alphalist 1604-C CSV</a>
+            <a className="secondary-button" href={`/api/year-end?organizationId=${organizationId}&taxYear=${taxYear}&format=alphalist`}><FileSpreadsheet size={16} className="i-teal" /> Alphalist 1604-C CSV</a>
           </div>
         </>
       ) : (
@@ -254,7 +254,7 @@ export function FreelancerPage({ data, setNotice }: { data: DashboardData; setNo
 
   return (
     <>
-      <PageHeading eyebrow="SELF-EMPLOYED HUB" title="A better solo finance routine." copy="Model voluntary contributions and compare tax approaches without the overhead of a company setup." actions={<button className="secondary-button" onClick={() => setNotice("Solo planner values are session-local in this build.")}><RefreshCw size={16} /> Save planner</button>} />
+      <PageHeading eyebrow="SELF-EMPLOYED HUB" title="A better solo finance routine." copy="Model voluntary contributions and compare tax approaches without the overhead of a company setup." actions={<button className="secondary-button" onClick={() => setNotice("Solo planner values are session-local in this build.")}><RefreshCw size={16} className="i-blue" /> Save planner</button>} />
       <section className="solo-hero" style={{ padding: "28px 32px", borderRadius: 14, background: "linear-gradient(135deg, #0e2e28 0%, #154c41 100%)", color: "white" }}>
         <div className="solo-hero-copy">
           <span className="solo-chip">FOR FREELANCERS & SELF-EMPLOYED</span>
@@ -321,11 +321,11 @@ export function IntegrationsPage({ onOpenOutbox }: { onOpenOutbox: () => void })
 
   return (
     <>
-      <PageHeading eyebrow="INTEGRATIONS" title="Connect without pretending." copy="Integration cards clearly state their current mode: template, credential-required, or live." actions={<button className="primary-button" onClick={onOpenOutbox}><Mail size={16} /> View Email Outbox</button>} />
+      <PageHeading eyebrow="INTEGRATIONS" title="Connect without pretending." copy="Integration cards clearly state their current mode: template, credential-required, or live." actions={<button className="primary-button" onClick={onOpenOutbox}><Mail size={16} className="i-pink" /> View Email Outbox</button>} />
       <section className="integration-grid">
         {entries.map(([type, name, copy, state], index) => (
           <article className="card integration-card" key={name}>
-            <div className={`integration-icon tone-${index % 4}`}><CloudCog size={20} /></div>
+            <div className={`integration-icon tone-${index % 4}`}><CloudCog size={20} className="i-blue" /></div>
             <span>{type}</span>
             <h2>{name}</h2>
             <p>{copy}</p>
@@ -379,25 +379,25 @@ export function DeveloperPage({ organizationId, setNotice }: { organizationId: n
 
   return (
     <>
-      <PageHeading eyebrow="DEVELOPER" title="Two-way integration, not just file exports." copy="Issue scoped API keys and subscribe to HMAC-signed webhook events. Delivery attempts are logged with real response codes and exponential backoff retry." actions={<a className="secondary-button" href="/api/v1"><BookOpen size={16} /> API reference</a>} />
+      <PageHeading eyebrow="DEVELOPER" title="Two-way integration, not just file exports." copy="Issue scoped API keys and subscribe to HMAC-signed webhook events. Delivery attempts are logged with real response codes and exponential backoff retry." actions={<a className="secondary-button" href="/api/v1"><BookOpen size={16} className="i-teal" /> API reference</a>} />
       <section className="module-grid two">
         <article className="card">
-          <div className="card-header"><div><div className="card-kicker">API KEYS</div><h2>Scoped access keys</h2><p>Keys are stored as SHA-256 hashes and shown once.</p></div><button className="primary-button" onClick={async () => { const created = await post({ action: "create-key", name: "ERP Sync Key" }); if (created?.key) { setFreshKey(created.key); setNotice("API key created. Copy it now, it is not retrievable later."); } }}><Plus size={16} /> New key</button></div>
-          {freshKey && <div className="notice notice-green"><Check size={16} /><span><strong>Copy now:</strong> <code>{freshKey}</code></span></div>}
-          <div className="worksheet-list">{(state?.apiKeys ?? []).length === 0 ? <div className="empty-state">No API keys yet.</div> : state?.apiKeys.map((key) => <div key={key.id}><LockKeyhole size={17} /><span>{key.name} · <code>{key.prefix}…</code> {key.revokedAt ? "(revoked)" : ""}</span>{!key.revokedAt && <button className="row-more" onClick={() => post({ action: "revoke-key", keyId: key.id })}><X size={16} /></button>}</div>)}</div>
+          <div className="card-header"><div><div className="card-kicker">API KEYS</div><h2>Scoped access keys</h2><p>Keys are stored as SHA-256 hashes and shown once.</p></div><button className="primary-button" onClick={async () => { const created = await post({ action: "create-key", name: "ERP Sync Key" }); if (created?.key) { setFreshKey(created.key); setNotice("API key created. Copy it now, it is not retrievable later."); } }}><Plus size={16} className="i-green" /> New key</button></div>
+          {freshKey && <div className="notice notice-green"><Check size={16} className="i-green" /><span><strong>Copy now:</strong> <code>{freshKey}</code></span></div>}
+          <div className="worksheet-list">{(state?.apiKeys ?? []).length === 0 ? <div className="empty-state">No API keys yet.</div> : state?.apiKeys.map((key) => <div key={key.id}><LockKeyhole size={17} className="i-amber" /><span>{key.name} · <code>{key.prefix}…</code> {key.revokedAt ? "(revoked)" : ""}</span>{!key.revokedAt && <button className="row-more" onClick={() => post({ action: "revoke-key", keyId: key.id })}><X size={16} /></button>}</div>)}</div>
         </article>
 
         <article className="card">
-          <div className="card-header"><div><div className="card-kicker">WEBHOOKS</div><h2>Event subscriptions</h2><p>Signed with <code>Linaw-Signature</code>.</p></div><button className="secondary-button" onClick={() => post({ action: "test-webhook" }).then(() => setNotice("Test event dispatched. Check the delivery log for the real result."))}><Send size={15} /> Send test event</button></div>
+          <div className="card-header"><div><div className="card-kicker">WEBHOOKS</div><h2>Event subscriptions</h2><p>Signed with <code>Linaw-Signature</code>.</p></div><button className="secondary-button" onClick={() => post({ action: "test-webhook" }).then(() => setNotice("Test event dispatched. Check the delivery log for the real result."))}><Send size={15} className="i-pink" /> Send test event</button></div>
           <label className="input-label" style={{ padding: "0 18px" }}>Endpoint URL<input value={webhookUrl} onChange={(event) => setWebhookUrl(event.target.value)} /></label>
-          <div style={{ padding: "0 18px 14px" }}><button className="primary-button full" onClick={async () => { const created = await post({ action: "create-webhook", url: webhookUrl, events: state?.availableEvents ?? [] }); if (created) setNotice("Webhook endpoint registered with a generated signing secret."); }}><Plus size={16} /> Register endpoint</button></div>
-          <div className="worksheet-list">{(state?.webhookEndpoints ?? []).length === 0 ? <div className="empty-state">No endpoints registered.</div> : state?.webhookEndpoints.map((endpoint) => <div key={endpoint.id}><Webhook size={17} /><span>{endpoint.url}</span><Status value={endpoint.active ? "Active" : "Paused"} /></div>)}</div>
+          <div style={{ padding: "0 18px 14px" }}><button className="primary-button full" onClick={async () => { const created = await post({ action: "create-webhook", url: webhookUrl, events: state?.availableEvents ?? [] }); if (created) setNotice("Webhook endpoint registered with a generated signing secret."); }}><Plus size={16} className="i-green" /> Register endpoint</button></div>
+          <div className="worksheet-list">{(state?.webhookEndpoints ?? []).length === 0 ? <div className="empty-state">No endpoints registered.</div> : state?.webhookEndpoints.map((endpoint) => <div key={endpoint.id}><Webhook size={17} className="i-blue" /><span>{endpoint.url}</span><Status value={endpoint.active ? "Active" : "Paused"} /></div>)}</div>
         </article>
       </section>
 
       <article className="card audit-card" style={{ marginTop: 16 }}>
         <div className="table-toolbar"><div><div className="card-kicker">DELIVERY LOG</div><h2>Real attempts, real outcomes</h2></div><Status value="Honest" /></div>
-        <div className="audit-list">{(state?.deliveries ?? []).length === 0 ? <div className="empty-state">No deliveries attempted yet. Register an endpoint and send a test.</div> : state?.deliveries.map((delivery) => <div className="audit-row" key={delivery.id}><span className="audit-dot"><Webhook size={14} /></span><div><strong>{delivery.event}</strong><p>{delivery.error ? delivery.error : `HTTP ${delivery.responseCode ?? "-"}`}</p></div><div><Status value={delivery.status === "delivered" ? "Approved" : "Failed"} /><time>{formatTime(delivery.createdAt)}</time></div></div>)}</div>
+        <div className="audit-list">{(state?.deliveries ?? []).length === 0 ? <div className="empty-state">No deliveries attempted yet. Register an endpoint and send a test.</div> : state?.deliveries.map((delivery) => <div className="audit-row" key={delivery.id}><span className="audit-dot"><Webhook size={14} className="i-blue" /></span><div><strong>{delivery.event}</strong><p>{delivery.error ? delivery.error : `HTTP ${delivery.responseCode ?? "-"}`}</p></div><div><Status value={delivery.status === "delivered" ? "Approved" : "Failed"} /><time>{formatTime(delivery.createdAt)}</time></div></div>)}</div>
       </article>
     </>
   );
@@ -418,7 +418,7 @@ export function PricingPage({ plans, onSelectPlan }: { plans: PricingPlan[]; onS
             <div><strong>{headcount}</strong><span>employees</span></div>
           </div>
         </div>
-        <div className="calc-note"><CircleDollarSign size={20} /><span>Monthly estimate updates live. Transparent modular pricing read directly from database.</span></div>
+        <div className="calc-note"><CircleDollarSign size={20} className="i-green" /><span>Monthly estimate updates live. Transparent modular pricing read directly from database.</span></div>
       </section>
 
       <section className="pricing-grid">
@@ -451,13 +451,13 @@ export function PricingPage({ plans, onSelectPlan }: { plans: PricingPlan[]; onS
 export function AuditPage({ events, organizationId }: { events: AuditEvent[]; organizationId: number }) {
   return (
     <>
-      <PageHeading eyebrow="AUDIT TRAIL" title="A record you can inspect." copy="Approval, payroll, export and auth-adjacent actions use a shared server-side audit writer." actions={<a className="secondary-button" href={`/api/exports?organizationId=${organizationId}&kind=audit`}><Download size={16} /> Export log</a>} />
+      <PageHeading eyebrow="AUDIT TRAIL" title="A record you can inspect." copy="Approval, payroll, export and auth-adjacent actions use a shared server-side audit writer." actions={<a className="secondary-button" href={`/api/exports?organizationId=${organizationId}&kind=audit`}><Download size={16} className="i-teal" /> Export log</a>} />
       <article className="card audit-card">
-        <div className="table-toolbar"><div className="search-field"><Search size={17} /><input placeholder="Search actions, people, or resources" /></div><button className="filter-button">All activity <ChevronDown size={15} /></button></div>
+        <div className="table-toolbar"><div className="search-field"><Search size={17} className="i-slate" /><input placeholder="Search actions, people, or resources" /></div><button className="filter-button">All activity <ChevronDown size={15} /></button></div>
         <div className="audit-list">
           {events.map((event) => (
             <div className="audit-row" key={event.id}>
-              <span className="audit-dot"><Clock3 size={14} /></span>
+              <span className="audit-dot"><Clock3 size={14} className="i-cyan" /></span>
               <div>
                 <strong>{event.action}</strong>
                 <p><b>{event.actor}</b> · {event.resource}</p>
@@ -480,10 +480,10 @@ export function AuditPage({ events, organizationId }: { events: AuditEvent[]; or
 
 export function SettingsPage({ data, setNotice }: { data: DashboardData; setNotice: (message: string) => void }) {
   const tabs = [
-    { key: "organization", label: "Organization profile", icon: Building2 },
-    { key: "account", label: "My account", icon: UserCheck },
-    { key: "security", label: "Security", icon: LockKeyhole },
-    { key: "privacy", label: "Data & privacy", icon: ShieldCheck },
+    { key: "organization", label: "Organization profile", icon: Building2, tone: "i-blue" },
+    { key: "account", label: "My account", icon: UserCheck, tone: "i-purple" },
+    { key: "security", label: "Security", icon: LockKeyhole, tone: "i-amber" },
+    { key: "privacy", label: "Data & privacy", icon: ShieldCheck, tone: "i-green" },
   ];
   const [tab, setTab] = useState("organization");
   return (
@@ -495,7 +495,7 @@ export function SettingsPage({ data, setNotice }: { data: DashboardData; setNoti
             const Icon = item.icon;
             return (
               <button key={item.key} className={tab === item.key ? "selected" : ""} onClick={() => setTab(item.key)}>
-                <Icon size={17} /> {item.label}
+                <Icon size={17} className={item.tone} /> {item.label}
               </button>
             );
           })}
@@ -547,11 +547,11 @@ function OrganizationSettings({ data, setNotice }: { data: DashboardData; setNot
       {canEdit ? (
         <div className="run-actions">
           <button className="primary-button" disabled={busy || name.trim().length < 2} onClick={save}>
-            <Check size={15} /> {busy ? "Saving…" : "Save changes"}
+            <Check size={15} className="i-green" /> {busy ? "Saving…" : "Save changes"}
           </button>
         </div>
       ) : (
-        <div className="notice notice-blue" style={{ margin: "0 18px 14px" }}><LockKeyhole size={16} /><span>Your role ({data.access?.role}) can view but not edit the organization profile.</span></div>
+        <div className="notice notice-blue" style={{ margin: "0 18px 14px" }}><LockKeyhole size={16} className="i-amber" /><span>Your role ({data.access?.role}) can view but not edit the organization profile.</span></div>
       )}
     </>
   );
@@ -609,12 +609,12 @@ function PrivacySettings({ data, setNotice }: { data: DashboardData; setNotice: 
       <div className="card-header"><div><div className="card-kicker">DATA &amp; PRIVACY</div><h2>Portability and data-subject requests</h2><p>Export everything, and log access / correction / deletion requests with a statutory due date.</p></div></div>
       <div className="worksheet-list">
         <div>
-          <FileSpreadsheet size={16} />
+          <FileSpreadsheet size={16} className="i-teal" />
           <span>Full company export (JSON archive)<small>Every download is audit-logged against your user.</small></span>
           <a className="link-button" href={`/api/exports?organizationId=${orgId}&kind=all`}>Download</a>
         </div>
         <div>
-          <FileSpreadsheet size={16} />
+          <FileSpreadsheet size={16} className="i-teal" />
           <span>Audit trail export (CSV)<small>Actor, action, resource, rule version.</small></span>
           <a className="link-button" href={`/api/exports?organizationId=${orgId}&kind=audit`}>Download</a>
         </div>
@@ -635,11 +635,11 @@ function PrivacySettings({ data, setNotice }: { data: DashboardData; setNotice: 
       </div>
       <div className="run-actions">
         <button className="primary-button" disabled={busy || !subjectEmail.includes("@")} onClick={fileRequest}>
-          <ShieldCheck size={15} /> Log data-subject request
+          <ShieldCheck size={15} className="i-green" /> Log data-subject request
         </button>
       </div>
       <div className="notice notice-blue" style={{ margin: "0 18px 14px" }}>
-        <LockKeyhole size={16} />
+        <LockKeyhole size={16} className="i-amber" />
         <span>Requests are tracked with a 30-day due date (Data Privacy Act). NPC registration and a published DPO contact are organisational steps, not code.</span>
       </div>
     </>
@@ -654,7 +654,7 @@ export function NewPayrollModal({ onClose, onCreate, busy }: { onClose: () => vo
     <div className="modal-backdrop" role="presentation">
       <section className="modal" role="dialog" aria-modal="true" aria-label="Create payroll draft">
         <button className="modal-close" onClick={onClose}><X size={18} /></button>
-        <div className="modal-icon"><WalletCards size={22} /></div>
+        <div className="modal-icon"><WalletCards size={22} className="i-green" /></div>
         <div className="card-kicker">NEW PAYROLL RUN</div>
         <h2>Create and queue a scoped run</h2>
         <p>Draft creation enqueues a Postgres FOR UPDATE SKIP LOCKED job. Calculation uses real punches, statutory tables, and active calamity advisories.</p>
@@ -667,7 +667,7 @@ export function NewPayrollModal({ onClose, onCreate, busy }: { onClose: () => vo
             <option>Operations department</option>
           </select>
         </label>
-        <div className="modal-note"><ShieldCheck size={16} />Chunked, resumable, and idempotent per run, not a fake progress bar.</div>
+        <div className="modal-note"><ShieldCheck size={16} className="i-green" />Chunked, resumable, and idempotent per run, not a fake progress bar.</div>
         <div className="modal-actions">
           <button className="secondary-button" onClick={onClose}>Cancel</button>
           <button className="primary-button" disabled={busy} onClick={() => onCreate({ periodLabel, scopeLabel })}>{busy ? "Processing…" : "Create & process"} <ArrowUpRight size={16} /></button>
@@ -707,7 +707,7 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
     <div className="modal-backdrop" role="presentation">
       <section className="modal large" role="dialog" aria-modal="true" aria-label="Outbox Notification Center">
         <button className="modal-close" onClick={onClose}><X size={18} /></button>
-        <div className="modal-icon"><Mail size={22} /></div>
+        <div className="modal-icon"><Mail size={22} className="i-pink" /></div>
         <div className="card-kicker">NOTIFICATION CENTER & EMAIL OUTBOX</div>
         <h2>Transactional Messages Queue</h2>
         <p>Every invitation, password reset, and payslip-ready notice is recorded in the database outbox. In sandbox mode, view raw rendered messages directly:</p>
@@ -801,7 +801,7 @@ export function CheckoutModal({ organizationId, plan, onClose, onUpgraded }: { o
     <div className="modal-backdrop" role="presentation">
       <section className="modal" role="dialog" aria-modal="true" aria-label="Plan Checkout">
         <button className="modal-close" onClick={onClose}><X size={18} /></button>
-        <div className="modal-icon"><CreditCard size={22} /></div>
+        <div className="modal-icon"><CreditCard size={22} className="i-blue" /></div>
         <div className="card-kicker">SUBSCRIPTION CHECKOUT</div>
         <h2>Upgrade to {plan.name} Plan</h2>
         <p>Creates a hosted PayMongo checkout session. Your plan changes only after PayMongo confirms payment by webhook.</p>
@@ -867,13 +867,13 @@ export function GovValidationModal({ organizationId, onClose, setNotice }: { org
     <div className="modal-backdrop" role="presentation">
       <section className="modal large" role="dialog" aria-modal="true" aria-label="Government Compliance Seal Suite">
         <button className="modal-close" onClick={onClose}><X size={18} /></button>
-        <div className="modal-icon"><ShieldCheck size={22} /></div>
+        <div className="modal-icon"><ShieldCheck size={22} className="i-green" /></div>
         <div className="card-kicker">STATUTORY LOCAL PREFLIGHT</div>
         <h2>Check your draft before portal upload</h2>
         <p>Checks the local inputs and formulas behind BIR, SSS, PhilHealth, and Pag-IBIG draft exports. It does not replace a government portal acknowledgement.</p>
 
         <div className="notice notice-amber" style={{ margin: "0 0 14px" }}>
-          <HelpCircle size={16} />
+          <HelpCircle size={16} className="i-blue" />
           <span><strong>Not a certification.</strong> Upload the generated file to the relevant agency portal and retain its receipt before filing.</span>
         </div>
 

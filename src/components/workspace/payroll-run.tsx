@@ -138,12 +138,12 @@ export function PayrollRunView({
           copy="A run is scoped to this client and calculated by the chunked background queue, so it stays resumable at any headcount."
           actions={
             <button className="primary-button brand" onClick={onNewRun}>
-              <Plus size={16} /> New payroll
+              <Plus size={16} className="i-green" /> New payroll
             </button>
           }
         />
         <article className="card">
-          <EmptyState icon={<FileText size={22} />} title="Start the first run">
+          <EmptyState icon={<FileText size={22} className="i-teal" />} title="Start the first run">
             Create a semi-monthly run for {data.selectedOrganization.name}. Statutory contributions, derived hours and
             holiday premiums are computed server-side by the rule engine.
           </EmptyState>
@@ -176,10 +176,10 @@ export function PayrollRunView({
         actions={
           <>
             <button className="secondary-button" onClick={() => setExportsOpen((current) => !current)} aria-expanded={exportsOpen}>
-              <FileSpreadsheet size={15} /> Exports
+              <FileSpreadsheet size={15} className="i-teal" /> Exports
             </button>
             <button className="primary-button brand" onClick={onNewRun}>
-              <Plus size={16} /> New payroll
+              <Plus size={16} className="i-green" /> New payroll
             </button>
           </>
         }
@@ -217,7 +217,7 @@ export function PayrollRunView({
             </button>
           ))}
           <button className="new-run-line" onClick={onNewRun}>
-            <Plus size={15} /> Start another payroll
+            <Plus size={15} className="i-green" /> Start another payroll
           </button>
         </article>
 
@@ -331,7 +331,7 @@ export function PayrollRunView({
               copy="Derive hours from punches and compute statutory deductions in the resumable queue."
               action={
                 <button className="secondary-button" disabled={busy || released} onClick={() => onProcess(run.id)}>
-                  {busy ? <Spinner label="Processing" /> : <RefreshCw size={14} />}
+                  {busy ? <Spinner label="Processing" /> : <RefreshCw size={14} className="i-blue" />}
                   {calculated ? "Re-calculate" : "Calculate"}
                 </button>
               }
@@ -350,7 +350,7 @@ export function PayrollRunView({
               action={
                 relatedTask && relatedTask.status === "Pending" ? (
                   <button className="secondary-button" disabled={busy} onClick={() => onDecide(relatedTask.id, "Approved")}>
-                    <Check size={14} /> Approve
+                    <Check size={14} className="i-green" /> Approve
                   </button>
                 ) : (
                   <button className="secondary-button" onClick={() => onPage("Approvals")}>
@@ -377,7 +377,7 @@ export function PayrollRunView({
                   </span>
                 ) : (
                   <button className="primary-button brand" disabled={busy || !calculated} onClick={() => setConfirmRelease(true)}>
-                    <Send size={14} /> Release
+                    <Send size={14} className="i-pink" /> Release
                   </button>
                 )
               }
@@ -389,7 +389,7 @@ export function PayrollRunView({
               copy="Bank disbursement files, accounting journals and government worksheet drafts."
               action={
                 <button className="secondary-button" disabled={!calculated} onClick={() => setExportsOpen(true)}>
-                  <Download size={14} /> Open exports
+                  <Download size={14} className="i-teal" /> Open exports
                 </button>
               }
             />
@@ -414,7 +414,7 @@ export function PayrollRunView({
             </div>
           ) : entries.length === 0 ? (
             <div style={{ padding: "0 18px 18px" }}>
-              <EmptyState icon={<FileText size={20} />} title="Nothing calculated yet">
+              <EmptyState icon={<FileText size={20} className="i-teal" />} title="Nothing calculated yet">
                 Run <strong>Prepare</strong> to derive hours from the raw punches and compute this period&apos;s deductions.
               </EmptyState>
             </div>
@@ -422,7 +422,7 @@ export function PayrollRunView({
             <>
               <div className="table-toolbar" style={{ borderTop: "1px solid var(--line-faint)", borderBottom: 0 }}>
                 <div className="search-field">
-                  <Search size={15} />
+                  <Search size={15} className="i-slate" />
                   <input
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
@@ -435,7 +435,7 @@ export function PayrollRunView({
                   onClick={() => setOnlyExceptions((current) => !current)}
                   aria-pressed={onlyExceptions}
                 >
-                  <AlertTriangle size={14} /> Exceptions only
+                  <AlertTriangle size={14} className="i-red" /> Exceptions only
                   {exceptionRows.length > 0 && <span className="mono">({exceptionRows.length})</span>}
                 </button>
               </div>
@@ -483,7 +483,7 @@ export function PayrollRunView({
               </div>
 
               {rows.length === 0 && (
-                <EmptyState icon={<Search size={20} />} title="No entries match">
+                <EmptyState icon={<Search size={20} className="i-slate" />} title="No entries match">
                   Clear the search or the exceptions filter to see the whole register.
                 </EmptyState>
               )}
@@ -532,7 +532,7 @@ function StageCard({
     <div className={`stage ${state}`}>
       <div className="stage-top">
         <span className="stage-no" aria-hidden>
-          {state === "done" ? <Check size={11} /> : no}
+          {state === "done" ? <Check size={11} className="i-green" /> : no}
         </span>
         <h4>{title}</h4>
       </div>
@@ -644,7 +644,7 @@ function PayslipDetail({
 
       {lines.length > 0 && !reconciles && (
         <div className="notice notice-amber" style={{ marginBottom: 0 }}>
-          <AlertTriangle size={15} />
+          <AlertTriangle size={15} className="i-red" />
           <span>
             The stored line items do not account for this entry&apos;s full totals
             {Math.abs(unexplainedEarnings) >= 0.01 && <>, {moneyExact(Math.abs(unexplainedEarnings))} of gross</>}
@@ -680,7 +680,7 @@ function PayslipDetail({
             }
           }}
         >
-          <Download size={14} /> Payslip PDF
+          <Download size={14} className="i-teal" /> Payslip PDF
         </button>
       </div>
     </div>
@@ -726,7 +726,7 @@ function ExportPanel({
           <div className="integration-grid">
             <div className="export-card">
               <span className="inline-icon blue" aria-hidden>
-                <Building2 size={16} />
+                <Building2 size={16} className="i-purple" />
               </span>
               <div>
                 <h3>Bank disbursement</h3>
@@ -756,7 +756,7 @@ function ExportPanel({
                       )
                     }
                   >
-                    <Download size={14} /> {dryRun ? "Run validation" : "Generate file"}
+                    <Download size={14} className="i-teal" /> {dryRun ? "Run validation" : "Generate file"}
                   </button>
                 </div>
               </div>
@@ -764,7 +764,7 @@ function ExportPanel({
 
             <div className="export-card">
               <span className="inline-icon purple" aria-hidden>
-                <BookOpen size={16} />
+                <BookOpen size={16} className="i-teal" />
               </span>
               <div>
                 <h3>Accounting journal</h3>
@@ -774,14 +774,14 @@ function ExportPanel({
                   style={{ marginTop: 10 }}
                   onClick={() => download(`/api/payroll-runs/${run.id}/exports?kind=journal`, "Journal CSV")}
                 >
-                  <Download size={14} /> Journal CSV
+                  <Download size={14} className="i-teal" /> Journal CSV
                 </button>
               </div>
             </div>
 
             <div className="export-card">
               <span className="inline-icon amber" aria-hidden>
-                <ShieldCheck size={16} />
+                <ShieldCheck size={16} className="i-green" />
               </span>
               <div>
                 <h3>
@@ -811,7 +811,7 @@ function ExportPanel({
                       )
                     }
                   >
-                    <Download size={14} /> Download draft
+                    <Download size={14} className="i-teal" /> Download draft
                   </button>
                 </div>
               </div>
@@ -846,7 +846,7 @@ function ReleaseDialog({
           <X size={16} />
         </button>
         <div className="modal-icon">
-          <Send size={18} />
+          <Send size={18} className="i-pink" />
         </div>
         <h2>Release {run.periodLabel}?</h2>
         <p>
@@ -872,7 +872,7 @@ function ReleaseDialog({
 
         {exceptions > 0 && (
           <div className="notice notice-amber" style={{ margin: 0 }}>
-            <AlertTriangle size={15} />
+            <AlertTriangle size={15} className="i-red" />
             <div>
               <strong>
                 {exceptions} exception{exceptions === 1 ? "" : "s"} still flagged.
@@ -895,7 +895,7 @@ function ReleaseDialog({
             Cancel
           </button>
           <button className="primary-button brand" disabled={busy || blocked} onClick={() => onConfirm(acknowledged)}>
-            {busy ? <Spinner label="Releasing" /> : <Send size={14} />} Release payroll
+            {busy ? <Spinner label="Releasing" /> : <Send size={14} className="i-pink" />} Release payroll
           </button>
         </div>
       </div>

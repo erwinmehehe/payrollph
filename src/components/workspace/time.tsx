@@ -55,7 +55,7 @@ export function TimeView({
         actions={
           <>
             <button className="secondary-button" onClick={onOpenBundy}>
-              <Clock size={15} /> Web bundy
+              <Clock size={15} className="i-cyan" /> Web bundy
             </button>
             <button
               className="secondary-button"
@@ -64,7 +64,7 @@ export function TimeView({
                 notify("Punch data is included in the full company export, the download is audit-logged.", "info");
               }}
             >
-              <Download size={15} /> Export data
+              <Download size={15} className="i-teal" /> Export data
             </button>
           </>
         }
@@ -75,28 +75,28 @@ export function TimeView({
           label="Punches on file"
           value={String(punches.length)}
           hint={`${stats.peopleWithPunches} employee${stats.peopleWithPunches === 1 ? "" : "s"} with records`}
-          icon={<Clock3 size={16} />}
+          icon={<Clock3 size={16} className="i-cyan" />}
           tone="blue"
         />
         <Metric
           label="Complete pairs"
           value={String(stats.complete.length)}
           hint={punches.length ? `${Math.round(completionPercent)}% of all punches` : "no punches yet"}
-          icon={<Check size={16} />}
+          icon={<Check size={16} className="i-green" />}
           tone="mint"
         />
         <Metric
           label="Incomplete"
           value={String(stats.incomplete.length)}
           hint="derive zero hours until corrected"
-          icon={<AlertTriangle size={16} />}
+          icon={<AlertTriangle size={16} className="i-red" />}
           tone={stats.incomplete.length ? "amber" : "slate"}
         />
         <Metric
           label="Live run exceptions"
           value={String(data.payrollEntries.filter((entry) => entry.status === "Exception").length)}
           hint="flagged during calculation"
-          icon={<Timer size={16} />}
+          icon={<Timer size={16} className="i-cyan" />}
           tone={data.payrollEntries.some((entry) => entry.status === "Exception") ? "red" : "slate"}
         />
       </section>
@@ -112,7 +112,7 @@ export function TimeView({
           </div>
 
           {punches.length === 0 ? (
-            <EmptyState icon={<Clock3 size={20} />} title="No punches captured">
+            <EmptyState icon={<Clock3 size={20} className="i-cyan" />} title="No punches captured">
               Punches arrive from the web bundy or a biometric device sync. Payroll derives hours only from what is
               actually recorded.
             </EmptyState>
@@ -135,7 +135,7 @@ export function TimeView({
           )}
 
           <div className="notice notice-amber" style={{ margin: "0 18px 16px" }}>
-            <Clock3 size={15} />
+            <Clock3 size={15} className="i-cyan" />
             <span>
               A missing IN or OUT punch derives <strong>zero</strong> hours and raises an exception. No phantom time is ever
               manufactured to fill a gap.
@@ -182,7 +182,7 @@ export function TimeView({
       <article className="card table-card" style={{ marginTop: 16 }}>
         <div className="table-toolbar">
           <div className="search-field">
-            <Search size={15} />
+            <Search size={15} className="i-slate" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -244,7 +244,7 @@ export function TimeView({
           </table>
 
           {rows.length === 0 && (
-            <EmptyState icon={<Search size={20} />} title={punches.length ? "Nothing matches" : "No punches yet"}>
+            <EmptyState icon={<Search size={20} className="i-slate" />} title={punches.length ? "Nothing matches" : "No punches yet"}>
               {punches.length
                 ? "Clear the search or switch back to all punches."
                 : "Capture time through the web bundy or sync a biometric device."}

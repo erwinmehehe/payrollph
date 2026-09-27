@@ -304,6 +304,33 @@ a { color: inherit; text-decoration: none; }
 .t-pink   { --nav-tint: var(--pink-bg);     --nav-ink: var(--pink); }
 .t-slate  { --nav-tint: var(--neutral-bg);  --nav-ink: var(--neutral); }
 
+/* Icon hues outside the sidebar chip.
+
+   lucide-react forwards className onto the <svg>, so any bare icon can take a
+   hue on its own without needing a chip wrapper. Colour is the only thing
+   these set, which keeps them safe to drop onto an existing icon. */
+.i-green  { color: var(--success); }
+.i-blue   { color: var(--active); }
+.i-amber  { color: var(--review); }
+.i-red    { color: var(--danger); }
+.i-purple { color: var(--delegate); }
+.i-cyan   { color: var(--cyan); }
+.i-teal   { color: var(--teal); }
+.i-pink   { color: var(--pink); }
+.i-slate  { color: var(--neutral); }
+.i-brand  { color: var(--brand); }
+
+/* Anywhere the icon sits on a solid fill, the container already guarantees
+   contrast, so the hue would only hurt legibility. */
+:is(.primary-button, .danger-button, .toast, .status, .pill-solid, .nav-item.active)
+  :is(.i-green, .i-blue, .i-amber, .i-red, .i-purple, .i-cyan, .i-teal, .i-pink, .i-slate, .i-brand) {
+  color: currentColor;
+}
+
+/* A selected row states its own colour; let the icon follow it. */
+.settings-nav button.selected > svg,
+.settings-nav button.active > svg { color: currentColor; }
+
 .app-shell.rail .sidebar-brand strong,
 .app-shell.rail .brand-subtitle,
 .app-shell.rail .nav-group > p,
@@ -925,11 +952,11 @@ a { color: inherit; text-decoration: none; }
   padding: 44px 24px; text-align: center;
   color: var(--muted); font-size: 12.5px;
 }
-.empty-state > svg { color: var(--muted-light); }
+.empty-state > svg { color: var(--brand); opacity: .55; }
 .empty-state strong { display: block; color: var(--ink); font-size: 13.5px; font-weight: 650; }
 .empty-state p { margin: 0; max-width: 380px; font-size: 12px; line-height: 1.55; }
 .empty-state.small { padding: 26px 16px; flex-direction: row; gap: 8px; }
-.empty-state.error > svg { color: var(--danger); }
+.empty-state.error > svg { color: var(--danger); opacity: 1; }
 
 .skeleton {
   border-radius: 6px;
@@ -1104,6 +1131,15 @@ a { color: inherit; text-decoration: none; }
 .chart-wrap { position: relative; padding: 4px 18px 14px; }
 .chart-wrap svg { display: block; width: 100%; overflow: visible; }
 .chart-axis { fill: var(--muted-light); font-family: var(--font-mono), monospace; font-size: 9px; }
+.chart-axis-row { display: flex; margin-top: -17px; }
+.chart-axis-row > span {
+  /* Every bar slot is the same width, so equal flex lines each label up under
+     its own bar without repeating the chart geometry here. */
+  flex: 1 1 0%; min-width: 0; text-align: center;
+  color: var(--muted-light);
+  font-family: var(--font-mono), monospace; font-size: 9.5px; letter-spacing: .01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .chart-grid line { stroke: var(--line-faint); stroke-width: 1; }
 .chart-bar { transition: opacity .14s; cursor: pointer; }
 .chart-bar:hover { opacity: .78; }
@@ -2036,7 +2072,18 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
   background: var(--paper);
   font-size: 11.5px;
 }
-.worksheet-list > div > svg { flex: none; color: var(--muted); }
+.worksheet-list > div > svg { flex: none; color: var(--active); }
+/* Row icons cycle through the palette so a long worksheet or export list stays
+   scannable instead of reading as one grey column. */
+.worksheet-list > div:nth-child(8n + 2) > svg { color: var(--delegate); }
+.worksheet-list > div:nth-child(8n + 3) > svg { color: var(--teal); }
+.worksheet-list > div:nth-child(8n + 4) > svg { color: var(--review); }
+.worksheet-list > div:nth-child(8n + 5) > svg { color: var(--cyan); }
+.worksheet-list > div:nth-child(8n + 6) > svg { color: var(--success); }
+.worksheet-list > div:nth-child(8n + 7) > svg { color: var(--pink); }
+.worksheet-list > div:nth-child(8n + 0) > svg { color: var(--neutral); }
+/* An empty-state icon inside the list keeps its muted treatment. */
+.worksheet-list .empty-state > svg { color: var(--muted-light); }
 .worksheet-list > div > span { flex: 1; min-width: 0; color: var(--ink); font-weight: 600; }
 .worksheet-list > div > span > small { display: block; margin-top: 2px; color: var(--muted); font-size: 10.5px; font-weight: 450; line-height: 1.45; }
 .worksheet-list code { padding: 1px 5px; border-radius: 4px; background: var(--canvas-subtle); font-size: 10px; }

@@ -168,7 +168,7 @@ export function WorkspaceShell({
 
         <div className="sidebar-bottom">
           <button className="nav-item" onClick={onSignOut}>
-            <LogOut size={16} />
+            <LogOut size={16} className="i-slate" />
             <span>Sign out</span>
           </button>
           <div className="side-profile">
@@ -236,11 +236,11 @@ export function WorkspaceShell({
                             : `${organization.employeeCount} people · ${organization.plan}`}
                         </small>
                       </span>
-                      {organization.id === data.selectedOrganization.id && <Check size={15} />}
+                      {organization.id === data.selectedOrganization.id && <Check size={15} className="i-green" />}
                     </button>
                   ))}
                   <button className="popover-footer" onClick={() => go("Settings")}>
-                    <Building2 size={14} /> Manage client access
+                    <Building2 size={14} className="i-purple" /> Manage client access
                   </button>
                 </div>
               )}
@@ -257,7 +257,7 @@ export function WorkspaceShell({
 
           <div className="topbar-actions">
             <button className="palette-trigger" onClick={onOpenPalette} aria-label="Open command palette">
-              <Search size={15} />
+              <Search size={15} className="i-slate" />
               <span>Search…</span>
               <kbd>⌘K</kbd>
             </button>
@@ -309,7 +309,7 @@ export function WorkspaceShell({
                 aria-expanded={trayOpen}
                 aria-label={`Notifications${notifications.length ? ` (${notifications.length} unread)` : ""}`}
               >
-                <Bell size={17} />
+                <Bell size={17} className="i-pink" />
                 {notifications.length > 0 && <span className="notification-dot">{notifications.length > 9 ? "9+" : notifications.length}</span>}
               </button>
               {trayOpen && (
@@ -345,7 +345,7 @@ export function WorkspaceShell({
                           }}
                         >
                           <span className={`attention-icon ${item.tone === "review" || item.tone === "danger" ? "urgent" : ""}`} aria-hidden>
-                            <ShieldCheck size={15} />
+                            <ShieldCheck size={15} className="i-green" />
                           </span>
                           <div>
                             <strong>{item.title}</strong>

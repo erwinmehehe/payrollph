@@ -55,8 +55,8 @@ export function ImportPanel({ organizationId, onImported }: { organizationId: nu
           <p>Upload the roster you already have. Unknown columns are ignored, not rejected.</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <a className="secondary-button" href="/api/employees/import/template"><FileSpreadsheet size={15} /> Template</a>
-          <button className="primary-button" onClick={() => setOpen(!open)}><Upload size={15} /> {open ? "Close" : "Import CSV"}</button>
+          <a className="secondary-button" href="/api/employees/import/template"><FileSpreadsheet size={15} className="i-teal" /> Template</a>
+          <button className="primary-button" onClick={() => setOpen(!open)}><Upload size={15} className="i-teal" /> {open ? "Close" : "Import CSV"}</button>
         </div>
       </div>
 
@@ -85,13 +85,13 @@ export function ImportPanel({ organizationId, onImported }: { organizationId: nu
           {result && (
             <div style={{ padding: "0 17px 16px" }}>
               {result.error && !result.errors && (
-                <div className="notice notice-amber"><UsersRound size={16} /><span><strong>{result.error}</strong>{result.plan && <> Current plan: {result.plan}.</>}{result.seatLimit && <> Seats in use: {result.currentlyUsed} of {result.seatLimit}.</>}</span></div>
+                <div className="notice notice-amber"><UsersRound size={16} className="i-purple" /><span><strong>{result.error}</strong>{result.plan && <> Current plan: {result.plan}.</>}{result.seatLimit && <> Seats in use: {result.currentlyUsed} of {result.seatLimit}.</>}</span></div>
               )}
               {result.errorCount === 0 && result.error === undefined && (
-                <div className="notice notice-green"><UsersRound size={16} /><span><strong>{result.dryRun ? "Validation passed" : "Import complete"}.</strong> {result.createdCount ?? 0} created, {result.updatedCount ?? 0} updated, 0 errors.</span></div>
+                <div className="notice notice-green"><UsersRound size={16} className="i-purple" /><span><strong>{result.dryRun ? "Validation passed" : "Import complete"}.</strong> {result.createdCount ?? 0} created, {result.updatedCount ?? 0} updated, 0 errors.</span></div>
               )}
               {(result.errorCount ?? 0) > 0 && (
-                <div className="notice notice-amber"><UsersRound size={16} /><div><strong>{result.errorCount} row(s) need fixing</strong><span>Valid rows import; only the rows below are skipped.</span></div></div>
+                <div className="notice notice-amber"><UsersRound size={16} className="i-purple" /><div><strong>{result.errorCount} row(s) need fixing</strong><span>Valid rows import; only the rows below are skipped.</span></div></div>
               )}
               <div className="audit-list" style={{ marginTop: 8 }}>
                 {(result.errors ?? []).slice(0, 10).map((row, index) => (

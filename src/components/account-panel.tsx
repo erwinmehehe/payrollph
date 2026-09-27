@@ -249,7 +249,7 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
           ))}
         </div>
         <button className="primary-button" disabled={busy || !current || passwordIssues(next).length > 0 || next !== confirm} onClick={save}>
-          <KeyRound size={14} /> {busy ? "Updating…" : "Update password"}
+          <KeyRound size={14} className="i-amber" /> {busy ? "Updating…" : "Update password"}
         </button>
       </div>
       {problems.map((p) => <p key={p} style={{ color: "var(--danger)", fontSize: 11, margin: "4px 0 0" }}>{p}</p>)}
@@ -290,7 +290,7 @@ function TwoFactor({ enabled, backupCodes, onDone }: { enabled: boolean; backupC
     <Section title="Two-factor authentication" copy="Time-based one-time codes. Optional today, not enforced for every role.">
       {enabled ? (
         <div className="notice notice-green" style={{ margin: 0 }}>
-          <ShieldCheck size={16} />
+          <ShieldCheck size={16} className="i-green" />
           <span>
             <strong>Enabled.</strong> {backupCodes} single-use backup codes issued.
           </span>
@@ -300,7 +300,7 @@ function TwoFactor({ enabled, backupCodes, onDone }: { enabled: boolean; backupC
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             {!setup ? (
               <button className="secondary-button" onClick={begin} disabled={busy}>
-                <ShieldCheck size={14} /> {busy ? "Preparing…" : "Enable two-factor"}
+                <ShieldCheck size={14} className="i-green" /> {busy ? "Preparing…" : "Enable two-factor"}
               </button>
             ) : (
               <>
@@ -355,7 +355,7 @@ function SessionsPanel({ sessions, summary, onChanged, onNotice }: {
   }
 
   const Icon = ({ label }: { label: string }) =>
-    /iOS|Android/i.test(label) ? <Laptop size={14} /> : <Monitor size={14} />;
+    /iOS|Android/i.test(label) ? <Laptop size={14} className="i-blue" /> : <Monitor size={14} className="i-blue" />;
 
   return (
     <Section title="Active sessions" copy="Devices signed in to this account. Revoking signs that device out immediately.">
@@ -378,7 +378,7 @@ function SessionsPanel({ sessions, summary, onChanged, onNotice }: {
             </div>
             {!s.current && (
               <button className="icon-button" title="Revoke this session" disabled={busy} onClick={() => revoke(s.id)}>
-                <LogOut size={15} />
+                <LogOut size={15} className="i-slate" />
               </button>
             )}
           </div>
@@ -387,7 +387,7 @@ function SessionsPanel({ sessions, summary, onChanged, onNotice }: {
 
       {summary.otherActive > 0 && (
         <button className="secondary-button" style={{ marginTop: 10 }} disabled={busy} onClick={() => revoke()}>
-          <Trash2 size={14} /> Sign out {summary.otherActive} other device{summary.otherActive > 1 ? "s" : ""}
+          <Trash2 size={14} className="i-red" /> Sign out {summary.otherActive} other device{summary.otherActive > 1 ? "s" : ""}
         </button>
       )}
     </Section>

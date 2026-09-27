@@ -41,7 +41,7 @@ export function StatutoryLab() {
     <div className="simulator-card">
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
         <span className="feature-icon" style={{ width: 32, height: 32, marginBottom: 0, borderRadius: 9 }} aria-hidden>
-          <Calculator size={16} />
+          <Calculator size={16} className="i-green" />
         </span>
         <div>
           <p className="eyebrow" style={{ margin: 0 }}>
@@ -133,7 +133,7 @@ export function StatutoryLab() {
             <strong>{moneyExact(employerCost)}</strong>
           </div>
           <div className="notice notice-blue" style={{ marginBottom: 0 }}>
-            <Info size={14} />
+            <Info size={14} className="i-blue" />
             <span>
               These figures call <span className="mono">computeSss</span>, <span className="mono">computePhilHealth</span>,{" "}
               <span className="mono">computePagIbig</span> and <span className="mono">computeSemiMonthlyWithholdingTax</span>{" "}

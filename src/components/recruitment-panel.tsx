@@ -151,35 +151,35 @@ export function RecruitmentPanel({ organizationId, setNotice }: { organizationId
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button className="secondary-button" onClick={() => setShowAppModal(true)}>
-            <UserPlus size={15} /> Add Candidate
+            <UserPlus size={15} className="i-purple" /> Add Candidate
           </button>
           <button className="primary-button" onClick={() => setShowReqModal(true)}>
-            <Plus size={15} /> Open Requisition
+            <Plus size={15} className="i-green" /> Open Requisition
           </button>
         </div>
       </div>
 
       <div className="stats-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
         <article className="stat-card">
-          <div className="stat-icon mint"><FileText size={19} /></div>
+          <div className="stat-icon mint"><FileText size={19} className="i-teal" /></div>
           <p>ACTIVE REQUISITIONS</p>
           <h3>{requisitions.length}</h3>
           <span>Open hiring slots</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon purple"><Users size={19} /></div>
+          <div className="stat-icon purple"><Users size={19} className="i-purple" /></div>
           <p>TOTAL APPLICANTS</p>
           <h3>{applicants.length}</h3>
           <span>Across all pipelines</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon blue"><Star size={19} /></div>
+          <div className="stat-icon blue"><Star size={19} className="i-amber" /></div>
           <p>IN INTERVIEWS</p>
           <h3>{applicants.filter((a) => a.stage === "interview").length}</h3>
           <span>Screened candidates</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon orange"><CheckCircle2 size={19} /></div>
+          <div className="stat-icon orange"><CheckCircle2 size={19} className="i-green" /></div>
           <p>OFFERS EXTENDED</p>
           <h3>{applicants.filter((a) => a.stage === "offer" || a.stage === "hired").length}</h3>
           <span>Contract stage</span>

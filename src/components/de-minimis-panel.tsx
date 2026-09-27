@@ -64,7 +64,7 @@ export function DeMinimisPanel({ organizationId, setNotice }: { organizationId: 
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>De minimis benefits</h2>
           <p className="heading-copy">RR 29-2025 ceilings effective 6 January 2026. Within-ceiling amounts are tax-exempt; excess enters the annual PHP 90,000 other-benefits pool.</p>
         </div>
-        <button className="primary-button" onClick={() => setOpen(!open)}>{open ? <X size={14} /> : <Plus size={14} />} {open ? "Cancel" : "Grant benefit"}</button>
+        <button className="primary-button" onClick={() => setOpen(!open)}>{open ? <X size={14} /> : <Plus size={14} className="i-green" />} {open ? "Cancel" : "Grant benefit"}</button>
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
@@ -101,7 +101,7 @@ export function DeMinimisPanel({ organizationId, setNotice }: { organizationId: 
           {grants.filter((g) => g.active).length === 0 && <tr><td colSpan={6}><div className="empty-state">No active de minimis grants.</div></td></tr>}
           {grants.filter((g) => g.active).map((grant) => <tr key={grant.id}><td><strong>{grant.employeeName}</strong></td><td>{rules.find((r) => r.type === grant.benefitType)?.label ?? grant.benefitType}</td><td>{peso(grant.amount)} / {grant.frequency}</td><td>{peso(grant.treatment.exempt)}</td><td>{grant.treatment.excess > 0 ? peso(grant.treatment.excess) : "-"}</td><td><button className="icon-button" title="End benefit" onClick={() => end(grant.id)}><X size={14} /></button></td></tr>)}
         </tbody></table></div>
-        <div className="notice notice-green"><Check size={16} /><span>Active grants are included in the next payroll run as <code>DM-&lt;grantId&gt;</code> line items with ceiling and taxable-excess notes.</span></div>
+        <div className="notice notice-green"><Check size={16} className="i-green" /><span>Active grants are included in the next payroll run as <code>DM-&lt;grantId&gt;</code> line items with ceiling and taxable-excess notes.</span></div>
       </div>
     </div>
   );

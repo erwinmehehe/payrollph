@@ -46,7 +46,7 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
       />
 
       <div className="notice notice-blue">
-        <Info size={15} />
+        <Info size={15} className="i-blue" />
         <span>
           Linaw generates these files; it does not submit them. There is no live bank host-to-host or certified government
           filing connection in this deployment, see <a className="link-button" href="/api/readiness">/api/readiness</a> for
@@ -56,7 +56,7 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
 
       {!run ? (
         <article className="card">
-          <EmptyState icon={<FileSpreadsheet size={22} />} title="No payroll runs to export">
+          <EmptyState icon={<FileSpreadsheet size={22} className="i-teal" />} title="No payroll runs to export">
             Bank files, journals and worksheets are all derived from a calculated run. Create and calculate one first.
           </EmptyState>
         </article>
@@ -106,7 +106,7 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
           <section className="integration-grid">
             <article className="export-card">
               <span className="inline-icon blue" aria-hidden>
-                <Building2 size={16} />
+                <Building2 size={16} className="i-purple" />
               </span>
               <div>
                 <h3>
@@ -148,7 +148,7 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
                       )
                     }
                   >
-                    <Download size={14} /> {mode === "dry" ? "Run validation" : `Generate ${template}`}
+                    <Download size={14} className="i-teal" /> {mode === "dry" ? "Run validation" : `Generate ${template}`}
                   </button>
                 </div>
               </div>
@@ -156,7 +156,7 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
 
             <article className="export-card">
               <span className="inline-icon purple" aria-hidden>
-                <BookOpen size={16} />
+                <BookOpen size={16} className="i-teal" />
               </span>
               <div>
                 <h3>
@@ -168,14 +168,14 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
                   style={{ marginTop: 12 }}
                   onClick={() => download(`/api/payroll-runs/${run.id}/exports?kind=journal`, "Journal CSV")}
                 >
-                  <Download size={14} /> Journal CSV
+                  <Download size={14} className="i-teal" /> Journal CSV
                 </button>
               </div>
             </article>
 
             <article className="export-card">
               <span className="inline-icon amber" aria-hidden>
-                <ShieldCheck size={16} />
+                <ShieldCheck size={16} className="i-green" />
               </span>
               <div>
                 <h3>
@@ -202,7 +202,7 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
                           )
                         }
                       >
-                        <Download size={13} /> Draft
+                        <Download size={13} className="i-teal" /> Draft
                       </button>
                     </div>
                   ))}
@@ -212,7 +212,7 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
 
             <article className="export-card">
               <span className="inline-icon green" aria-hidden>
-                <Banknote size={16} />
+                <Banknote size={16} className="i-green" />
               </span>
               <div>
                 <h3>Payslip PDFs</h3>
@@ -226,14 +226,14 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
                   disabled={run.status !== "Released"}
                   onClick={() => download(`/api/payroll-runs/${run.id}/exports?kind=payslip`, "Payslip index")}
                 >
-                  <Download size={14} /> List payslips
+                  <Download size={14} className="i-teal" /> List payslips
                 </button>
               </div>
             </article>
 
             <article className="export-card">
               <span className="inline-icon slate" aria-hidden>
-                <Users size={16} />
+                <Users size={16} className="i-purple" />
               </span>
               <div>
                 <h3>Employee roster</h3>
@@ -243,14 +243,14 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
                   style={{ marginTop: 12 }}
                   onClick={() => download(`/api/exports?organizationId=${organizationId}&kind=employees`, "Employee roster CSV")}
                 >
-                  <Download size={14} /> employees.csv
+                  <Download size={14} className="i-teal" /> employees.csv
                 </button>
               </div>
             </article>
 
             <article className="export-card">
               <span className="inline-icon slate" aria-hidden>
-                <Database size={16} />
+                <Database size={16} className="i-teal" />
               </span>
               <div>
                 <h3>Full company export</h3>
@@ -263,13 +263,13 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
                     className="secondary-button"
                     onClick={() => download(`/api/exports?organizationId=${organizationId}&kind=all`, "Full JSON export")}
                   >
-                    <Download size={14} /> JSON
+                    <Download size={14} className="i-teal" /> JSON
                   </button>
                   <button
                     className="secondary-button"
                     onClick={() => download(`/api/exports?organizationId=${organizationId}&kind=audit`, "Audit trail CSV")}
                   >
-                    <Download size={14} /> Audit CSV
+                    <Download size={14} className="i-teal" /> Audit CSV
                   </button>
                 </div>
               </div>

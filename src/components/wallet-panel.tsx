@@ -80,14 +80,14 @@ export function ExpensesPanel({ organizationId, setNotice }: { organizationId: n
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Expense claims</h2>
         <button className="primary-button" onClick={() => setOpen(!open)}>
-          {open ? <X size={14} /> : <Plus size={14} />} {open ? "Cancel" : "New claim"}
+          {open ? <X size={14} /> : <Plus size={14} className="i-green" />} {open ? "Cancel" : "New claim"}
         </button>
       </div>
 
       <div className="stats-grid" style={{ gridTemplateColumns: "repeat(3,1fr)" }}>
-        <div className="stat-card"><div className="stat-icon mint"><ReceiptText size={18} /></div><p>TOTAL CLAIMS</p><h3>{claims.length}</h3><span>submitted</span></div>
-        <div className="stat-card"><div className="stat-icon amber"><ReceiptText size={18} /></div><p>AWAITING REVIEW</p><h3>{claims.filter((c) => c.status === "pending").length}</h3><span>pending approval</span></div>
-        <div className="stat-card"><div className="stat-icon blue"><ReceiptText size={18} /></div><p>TO REIMBURSE</p><h3>{peso(pendingTotal)}</h3><span>approved, unpaid</span></div>
+        <div className="stat-card"><div className="stat-icon mint"><ReceiptText size={18} className="i-teal" /></div><p>TOTAL CLAIMS</p><h3>{claims.length}</h3><span>submitted</span></div>
+        <div className="stat-card"><div className="stat-icon amber"><ReceiptText size={18} className="i-teal" /></div><p>AWAITING REVIEW</p><h3>{claims.filter((c) => c.status === "pending").length}</h3><span>pending approval</span></div>
+        <div className="stat-card"><div className="stat-icon blue"><ReceiptText size={18} className="i-teal" /></div><p>TO REIMBURSE</p><h3>{peso(pendingTotal)}</h3><span>approved, unpaid</span></div>
       </div>
 
       {open && (
@@ -140,7 +140,7 @@ export function ExpensesPanel({ organizationId, setNotice }: { organizationId: n
                   <td>
                     {c.status === "pending" && (
                       <button className="icon-button" title="Approve" onClick={() => decide(c.id, "approved")}>
-                        <CheckCircle2 size={15} />
+                        <CheckCircle2 size={15} className="i-green" />
                       </button>
                     )}
                   </td>
@@ -256,7 +256,7 @@ export function EwaPanel({ organizationId, setNotice }: { organizationId: number
                   <td>
                     {r.status === "pending" && (
                       <button className="icon-button" title="Approve" onClick={() => decide(r.id, "approved")}>
-                        <Banknote size={15} />
+                        <Banknote size={15} className="i-green" />
                       </button>
                     )}
                   </td>

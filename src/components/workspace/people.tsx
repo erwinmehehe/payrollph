@@ -113,14 +113,14 @@ export function PeopleView({
         copy="Department and branch structure stay optional for small teams and are ready when a client grows into them."
         actions={
           <button className="primary-button brand" onClick={onAddEmployee}>
-            <Plus size={16} /> Add employee
+            <Plus size={16} className="i-green" /> Add employee
           </button>
         }
       />
 
       {data.access && !data.access.companyWide && (
         <div className="notice notice-amber">
-          <LockKeyhole size={15} />
+          <LockKeyhole size={15} className="i-amber" />
           <span>
             Your role is scoped to <strong>{data.access.orgUnitName}</strong>. Employees outside that unit are not loaded,
             this is enforced in the query, not hidden in the UI.
@@ -132,7 +132,7 @@ export function PeopleView({
 
       {openOffboarding > 0 && (
         <div className="notice notice-blue">
-          <ShieldCheck size={15} />
+          <ShieldCheck size={15} className="i-green" />
           <span>
             <strong>{openOffboarding} offboarding item{openOffboarding === 1 ? "" : "s"}</strong> are open. Completing one
             is audit-logged through <span className="mono">PATCH /api/provisioning</span>.
@@ -159,7 +159,7 @@ export function PeopleView({
         <article className="card table-card">
           <div className="table-toolbar">
             <div className="search-field">
-              <Search size={15} />
+              <Search size={15} className="i-slate" />
               <input
                 value={query}
                 onChange={(event) => search(event.target.value)}
@@ -234,7 +234,7 @@ export function PeopleView({
             </table>
 
             {filtered.length === 0 && (
-              <EmptyState icon={<Search size={20} />} title="No people match">
+              <EmptyState icon={<Search size={20} className="i-slate" />} title="No people match">
                 {query ? `Nothing matches “${query}”.` : "This status has no employees on this client yet."}
               </EmptyState>
             )}
@@ -277,7 +277,7 @@ export function PeopleView({
           </div>
           <div className="org-tree">
             <div className="tree-root">
-              <Building2 size={15} />
+              <Building2 size={15} className="i-purple" />
               <span>{data.selectedOrganization.name}</span>
             </div>
             {(data.orgUnits ?? []).length === 0 ? (
@@ -289,7 +289,7 @@ export function PeopleView({
                   <div className="tree-branch" key={unit.id}>
                     <div>
                       <span className="tree-line" aria-hidden />
-                      <BriefcaseBusiness size={14} />
+                      <BriefcaseBusiness size={14} className="i-purple" />
                       <strong>{unit.name}</strong>
                       <b>{headcount}</b>
                     </div>
@@ -300,7 +300,7 @@ export function PeopleView({
             )}
           </div>
           <div className="notice notice-green" style={{ margin: "0 18px 14px" }}>
-            <ShieldCheck size={15} />
+            <ShieldCheck size={15} className="i-green" />
             <span>
               Department-scoped access is stored on the membership row, so a scoped user&apos;s queries are narrowed on the
               server.
@@ -419,7 +419,7 @@ function PersonDrawer({ data, employee, onClose }: { data: DashboardData; employ
         </div>
 
         <div className="modal-note" style={{ marginTop: 18 }}>
-          <UsersRound size={14} />
+          <UsersRound size={14} className="i-purple" />
           <span>
             Everything shown here is scoped to this workspace by the same server-side membership gate that protects the
             API. Editing an employee record is a separate, audited action.

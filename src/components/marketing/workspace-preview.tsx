@@ -75,7 +75,7 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
       </div>
 
       <div className="sim-banner">
-        <FlaskConical size={15} />
+        <FlaskConical size={15} className="i-blue" />
         <span>
           <strong>Simulated workspace.</strong> The people and punches are sample data and nothing you do here is saved,
           but the SSS, PhilHealth, Pag-IBIG and withholding figures are computed by the same rule engine the real payroll
@@ -158,7 +158,7 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
                             {option.people} people · {option.plan}
                           </small>
                         </span>
-                        {option.id === client.id && <Check size={14} />}
+                        {option.id === client.id && <Check size={14} className="i-green" />}
                       </button>
                     ))}
                   </div>
@@ -166,7 +166,7 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
               </div>
               <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
                 <span className="icon-button relative" aria-hidden>
-                  <Bell size={16} />
+                  <Bell size={16} className="i-pink" />
                   <span className="notification-dot">{SAMPLE_APPROVALS.filter((task) => !decided[task.id]).length}</span>
                 </span>
                 <span className="top-avatar" aria-hidden>
@@ -188,7 +188,7 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
             <div className="pv-body slim-scroll">
               {client.id !== 1 ? (
                 <div className="empty-state">
-                  <UsersRound size={22} />
+                  <UsersRound size={22} className="i-purple" />
                   <strong>{client.name} is not part of this simulation</strong>
                   <p>
                     Only Masigla Foods carries sample payroll data. Switching clients here demonstrates how the workspace
@@ -271,13 +271,13 @@ function PreviewDashboard({
         <div className="track">
           <div className="track-step done">
             <span>
-              <Check size={10} /> Cutoff
+              <Check size={10} className="i-green" /> Cutoff
             </span>
             <strong>Punches captured</strong>
           </div>
           <div className="track-step done">
             <span>
-              <Check size={10} /> Calculate
+              <Check size={10} className="i-green" /> Calculate
             </span>
             <strong>100% of queue</strong>
           </div>
@@ -450,7 +450,7 @@ function PreviewPayroll({
               </label>
             )}
             <button className="primary-button brand" disabled={run.exceptions > 0 && !acknowledged} onClick={onRelease}>
-              <Send size={14} /> Release (simulated)
+              <Send size={14} className="i-pink" /> Release (simulated)
             </button>
           </>
         )}
@@ -536,7 +536,7 @@ function PreviewPeople({ query, onQuery }: { query: string; onQuery: (value: str
     <article className="card table-card">
       <div className="table-toolbar">
         <div className="search-field">
-          <Search size={15} />
+          <Search size={15} className="i-slate" />
           <input value={query} onChange={(event) => onQuery(event.target.value)} placeholder="Search people" aria-label="Search sample people" />
         </div>
       </div>
@@ -580,7 +580,7 @@ function PreviewPeople({ query, onQuery }: { query: string; onQuery: (value: str
         </table>
         {rows.length === 0 && (
           <div className="empty-state">
-            <Search size={20} />
+            <Search size={20} className="i-slate" />
             <strong>No sample people match “{query}”</strong>
           </div>
         )}
@@ -665,7 +665,7 @@ function PreviewApprovals({
   return (
     <>
       <div className="notice notice-purple" style={{ marginTop: 0 }}>
-        <ClipboardCheck size={15} />
+        <ClipboardCheck size={15} className="i-amber" />
         <span>
           <strong>Delegation enforced in the product.</strong> Mariel Santos → Celine Yao. In the real workspace a decision
           from outside that chain is refused with a 403 by the server, and a delegate&apos;s decision records who they acted
@@ -679,7 +679,7 @@ function PreviewApprovals({
             return (
               <div className="approval-content" key={task.id}>
                 <span className="approval-symbol" aria-hidden>
-                  <ClipboardCheck size={16} />
+                  <ClipboardCheck size={16} className="i-amber" />
                 </span>
                 <div>
                   <div className="card-kicker">{task.priority === "High" ? "Priority review" : "Pending decision"}</div>
@@ -700,7 +700,7 @@ function PreviewApprovals({
                       Decline
                     </button>
                     <button className="primary-button brand" onClick={() => onDecide(task.id, "Approved")}>
-                      <Check size={14} /> Approve
+                      <Check size={14} className="i-green" /> Approve
                     </button>
                   </div>
                 )}
@@ -717,7 +717,7 @@ function PreviewExports({ run, released }: { run: ReturnType<typeof buildSampleR
   return (
     <>
       <div className="notice notice-blue" style={{ marginTop: 0 }}>
-        <Download size={15} />
+        <Download size={15} className="i-teal" />
         <span>
           In the product these buttons call the server, which generates the file and writes an audit event. Here they are
           inert, the preview never produces a file.
@@ -781,7 +781,7 @@ function MiniStat({ label, value, hint, tone }: { label: string; value: string; 
     <article className="stat-card" style={{ minHeight: 96, padding: "13px 14px" }}>
       <div className="stat-top">
         <span className={`stat-icon ${tone}`} aria-hidden>
-          <WalletCards size={14} />
+          <WalletCards size={14} className="i-green" />
         </span>
       </div>
       <p>{label}</p>

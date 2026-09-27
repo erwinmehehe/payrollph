@@ -67,12 +67,12 @@ export function ResetPasswordForm() {
           <div className="pw-rules">
             {rules.map((rule) => (
               <span key={rule.label} style={{ color: rule.ok ? "#23735d" : "#8a948f" }}>
-                <Check size={12} /> {rule.label}
+                <Check size={12} className="i-green" /> {rule.label}
               </span>
             ))}
           </div>
 
-          {error && <div className="notice notice-amber"><KeyRound size={15} /><span><strong>{error}</strong>{problems.length > 0 && <><br />{problems.join(" ")}</>}</span></div>}
+          {error && <div className="notice notice-amber"><KeyRound size={15} className="i-amber" /><span><strong>{error}</strong>{problems.length > 0 && <><br />{problems.join(" ")}</>}</span></div>}
           <button className="primary-button full" disabled={busy || !token}>Update password</button>
           <Link className="link-button" href="/">Back to sign in</Link>
         </form>

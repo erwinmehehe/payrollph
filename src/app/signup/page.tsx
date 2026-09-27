@@ -45,7 +45,7 @@ export default async function SignupPage() {
               </p>
 
               <div className="notice notice-blue">
-                <ShieldCheck size={15} />
+                <ShieldCheck size={15} className="i-green" />
                 <span>
                   Setup returns <span className="mono">409</span> once any user exists, so this is enforced by the API and
                   not just by this page.
@@ -55,7 +55,7 @@ export default async function SignupPage() {
               <div style={{ display: "grid", gap: 12, marginTop: 24 }}>
                 <a className="export-card" href="/welcome#preview" style={{ textDecoration: "none" }}>
                   <span className="inline-icon green" aria-hidden>
-                    <Check size={16} />
+                    <Check size={16} className="i-green" />
                   </span>
                   <div>
                     <h3>
@@ -67,7 +67,7 @@ export default async function SignupPage() {
 
                 <a className="export-card" href="/book-demo" style={{ textDecoration: "none" }}>
                   <span className="inline-icon blue" aria-hidden>
-                    <Mail size={16} />
+                    <Mail size={16} className="i-pink" />
                   </span>
                   <div>
                     <h3>
@@ -79,7 +79,7 @@ export default async function SignupPage() {
 
                 <a className="export-card" href="/login" style={{ textDecoration: "none" }}>
                   <span className="inline-icon slate" aria-hidden>
-                    <LockKeyhole size={16} />
+                    <LockKeyhole size={16} className="i-amber" />
                   </span>
                   <div>
                     <h3>
@@ -139,7 +139,7 @@ export default async function SignupPage() {
               </div>
 
               <div className="notice notice-amber" style={{ marginBottom: 0 }}>
-                <Mail size={15} />
+                <Mail size={15} className="i-pink" />
                 <span>
                   If this deployment has no mail provider configured, invitation and reset messages stay queued in the
                   outbox instead of being sent. The workspace shows them there honestly rather than reporting them as
