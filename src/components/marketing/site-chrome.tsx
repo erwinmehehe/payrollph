@@ -4,12 +4,12 @@ import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 
 const LINKS = [
-  { href: "/welcome#payroll", label: "Payroll engine" },
-  { href: "/welcome#workspace", label: "Workspace" },
-  { href: "/welcome#proof", label: "Proof" },
-  { href: "/welcome#pricing", label: "Pricing" },
+  { href: "/#payroll", label: "Payroll software" },
+  { href: "/#workspace", label: "HRIS workspace" },
+  { href: "/payroll-outsourcing", label: "Payroll outsourcing" },
+  { href: "/#proof", label: "Proof" },
+  { href: "/#pricing", label: "Pricing" },
   { href: "/scorecard", label: "Scorecard" },
-  { href: "/status", label: "Status" },
 ];
 
 export function BrandMark({ size = 30 }: { size?: number }) {
@@ -39,7 +39,7 @@ export function SiteNav() {
     <>
       <header className={`site-nav ${stuck ? "stuck" : ""}`}>
         <div className="site-nav-inner">
-          <a className="site-brand" href="/welcome">
+          <a className="site-brand" href="/">
             <BrandMark />
             <span>
               <strong>linaw</strong>
@@ -59,7 +59,7 @@ export function SiteNav() {
             <a className="secondary-button" href="/login">
               Sign in
             </a>
-            <a className="primary-button" href="/welcome#preview">
+            <a className="primary-button" href="/#preview">
               Try live demo
             </a>
             <button
@@ -84,7 +84,7 @@ export function SiteNav() {
           <a className="secondary-button" href="/login">
             Sign in
           </a>
-          <a className="primary-button" href="/welcome#preview" onClick={() => setDrawer(false)}>
+          <a className="primary-button" href="/#preview" onClick={() => setDrawer(false)}>
             Try live demo
           </a>
         </div>
@@ -99,7 +99,7 @@ export function SiteFooter() {
       <div className="site-shell">
         <div className="footer-grid">
           <div>
-            <a className="site-brand" href="/welcome" style={{ color: "#fff" }}>
+            <a className="site-brand" href="/" style={{ color: "#fff" }}>
               <BrandMark />
               <span>
                 <strong style={{ color: "#fff" }}>linaw</strong>
@@ -107,69 +107,45 @@ export function SiteFooter() {
               </span>
             </a>
             <p className="footer-disclosure">
-              Philippine payroll and HRIS for one person or ten thousand. Built so that what the product claims and what
-              the code does are the same thing, the capability scorecard classifies every feature as verified, partial or
-              absent, with its evidence.
+              Philippine payroll software and HRIS with a public capability scorecard that separates verified, partial and
+              absent features from marketing claims.
             </p>
           </div>
 
           <div>
             <h4>Product</h4>
             <ul>
-              <li>
-                <a href="/welcome#payroll">Payroll engine</a>
-              </li>
-              <li>
-                <a href="/welcome#workspace">Multi-client workspace</a>
-              </li>
-              <li>
-                <a href="/welcome#preview">Workspace preview</a>
-              </li>
-              <li>
-                <a href="/welcome#pricing">Pricing</a>
-              </li>
+              <li><a href="/#payroll">Payroll software</a></li>
+              <li><a href="/#workspace">HRIS workspace</a></li>
+              <li><a href="/#preview">Interactive demo</a></li>
+              <li><a href="/#pricing">Pricing</a></li>
+              <li><a href="/payroll-outsourcing">Payroll outsourcing</a></li>
             </ul>
           </div>
 
           <div>
             <h4>Proof</h4>
             <ul>
-              <li>
-                <a href="/scorecard">Capability scorecard</a>
-              </li>
-              <li>
-                <a href="/status">System status</a>
-              </li>
-              <li>
-                <a href="/api/readiness">Launch readiness gates</a>
-              </li>
-              <li>
-                <a href="/api/capabilities">Capabilities API</a>
-              </li>
+              <li><a href="/scorecard">Capability scorecard</a></li>
+              <li><a href="/status">System status</a></li>
+              <li><a href="/api/readiness">Launch readiness gates</a></li>
+              <li><a href="/api/capabilities">Capabilities API</a></li>
             </ul>
           </div>
 
           <div>
             <h4>Get started</h4>
             <ul>
-              <li>
-                <a href="/signup">Create account</a>
-              </li>
-              <li>
-                <a href="/book-demo">Book a demo</a>
-              </li>
-              <li>
-                <a href="/login">Sign in</a>
-              </li>
-              <li>
-                <a href="/api/v1">API reference</a>
-              </li>
+              <li><a href="/signup">Start free</a></li>
+              <li><a href="/#preview">Try live demo</a></li>
+              <li><a href="/book-demo">Book a demo</a></li>
+              <li><a href="/login">Sign in</a></li>
             </ul>
           </div>
         </div>
 
         <div className="footer-note">
-          <span>Linaw, Philippine HR &amp; payroll workspace.</span>
+          <span>Linaw, Philippine HR and payroll workspace.</span>
           <span>
             Statutory computations follow RA 11199 (SSS), RA 11223 (PhilHealth), RA 9679 (Pag-IBIG) and RA 10963 (TRAIN).
             Government worksheet output is labelled DRAFT.
