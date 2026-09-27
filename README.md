@@ -363,9 +363,39 @@ npx tsx --test tests/payroll-rules.test.ts tests/security.test.ts tests/integrat
 ## Local development
 
 1. Set `DATABASE_URL` in `.env`
-2. Fresh schema: `npx drizzle-kit push`
+2. Fresh schema: `npm run db:push`, then confirm it created 55 tables. See
+   `drizzle/README.md` if it creates nothing.
 3. `npm run dev`
 4. Sign in with the demo account and complete the TOTP step
+
+## Deploying
+
+`src/db/index.ts` throws when `DATABASE_URL` is missing, and `next build`
+imports every route module to collect page data, so a deploy with no database
+URL configured fails the build rather than starting without one:
+
+```
+Collecting page data ...
+Error: DATABASE_URL is required
+Error: Failed to collect page data for /api/auth/reset-password
+```
+
+Set the environment variables before the first deploy, not after:
+
+| Variable | Value |
+| --- | --- |
+| `DATABASE_URL` | Postgres connection string, required |
+| `APP_BASE_URL` | the deployment's own URL, used in email links |
+| `DEMO_MODE` | `false` for anything reachable publicly |
+| `PG_POOL_MAX` | a low number on serverless, where each instance opens its own pool |
+
+Mail is optional: with no provider the outbox queues and reports honestly rather
+than claiming a send. `DEMO_MODE=true` on a public URL exposes the workspace
+through seeded demo credentials, so it belongs on local and private previews
+only.
+
+Apply the schema (see `drizzle/README.md`) before the first request, then visit
+`/setup` to create the owner account.
 
 ## Validation sequence
 
