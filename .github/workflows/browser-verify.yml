@@ -86,12 +86,7 @@ jobs:
             const slider = payroll.locator("#lab-salary");
             const output = payroll.locator('output[for="lab-salary"]');
             const before = await output.textContent();
-            await slider.evaluate((node) => {
-              const input = node;
-              input.value = "50000";
-              input.dispatchEvent(new Event("input", { bubbles: true }));
-              input.dispatchEvent(new Event("change", { bubbles: true }));
-            });
+            await slider.fill("50000");
             await page.waitForTimeout(150);
             const after = await output.textContent();
             if (!before || !after || before === after || !after.includes("50,000")) {
