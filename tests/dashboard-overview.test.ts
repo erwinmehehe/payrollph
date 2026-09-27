@@ -42,5 +42,5 @@ test("dashboard renders modern operational cockpit with interactive SVG visualiz
   assert.match(html, /Search or jump to/);
   assert.match(html, /aria-label="Net pay trend"/);
   assert.match(html, /aria-label="Net pay versus deductions"/);
-  assert.match(html, /Payroll signal/);
+  assert.match(html, /PAYROLL SIGNAL/i);
 });
