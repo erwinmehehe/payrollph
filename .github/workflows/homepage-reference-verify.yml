@@ -51,6 +51,11 @@ jobs:
             await client.end();
           })().catch((error) => { console.error(error); process.exit(1); });
           NODE
+      - name: Seed repo-owned demo/pricing data for visual QA
+        env:
+          DEMO_MODE: "true"
+        run: |
+          npx tsx -e 'import("./src/db/seed").then(async (m) => { await m.ensureSeedData(); process.exit(0); }).catch((e) => { console.error(e); process.exit(1); })'
       - run: npx tsc --noEmit
       - run: npx eslint src tests
       - run: npx tsx --test tests/marketing.test.ts
@@ -158,6 +163,27 @@ jobs:
               throw new Error("MWE switch did not change withholding");
             }
 
+            await desktop.addStyleTag({ content: `
+              @supports (animation-timeline: view()) {
+                .software-home .home-demo-section .home-editorial,
+                .software-home .demo-surface,
+                .software-home .payroll-editorial,
+                .software-home .payroll-lab-surface,
+                .software-home .workspace-layout > .home-editorial,
+                .software-home .home-workspace-section .feature-card,
+                .software-home .proof-layout > .home-editorial,
+                .software-home .proof-card,
+                .software-home .pricing-layout > .home-editorial,
+                .software-home .pricing-surface,
+                .software-home .closing-band {
+                  animation: none !important;
+                  opacity: 1 !important;
+                  transform: none !important;
+                }
+              }
+            ` });
+            await desktop.evaluate(() => window.scrollTo(0, 0));
+            await desktop.waitForTimeout(200);
             await desktop.screenshot({ path: "homepage-artifacts/home-1440.png", fullPage: true });
 
             for (const width of [1280, 1024, 768]) {
@@ -173,6 +199,26 @@ jobs:
             if (!(await mobile.getByRole("heading", { name: /Philippine payroll software without the guesswork/i }).isVisible())) {
               throw new Error("Mobile homepage H1 is not visible");
             }
+            await mobile.addStyleTag({ content: `
+              @supports (animation-timeline: view()) {
+                .software-home .home-demo-section .home-editorial,
+                .software-home .demo-surface,
+                .software-home .payroll-editorial,
+                .software-home .payroll-lab-surface,
+                .software-home .workspace-layout > .home-editorial,
+                .software-home .home-workspace-section .feature-card,
+                .software-home .proof-layout > .home-editorial,
+                .software-home .proof-card,
+                .software-home .pricing-layout > .home-editorial,
+                .software-home .pricing-surface,
+                .software-home .closing-band {
+                  animation: none !important;
+                  opacity: 1 !important;
+                  transform: none !important;
+                }
+              }
+            ` });
+            await mobile.evaluate(() => window.scrollTo(0, 0));
             await mobile.screenshot({ path: "homepage-artifacts/home-390.png", fullPage: true });
 
             const welcome = await browser.newPage({ viewport: { width: 1280, height: 800 } });
