@@ -93,8 +93,7 @@ jobs:
               throw new Error(`Statutory slider did not update: before=${before} after=${after}`);
             }
 
-            const mwe = payroll.getByRole("checkbox", { name: /minimum-wage earner/i });
-            await mwe.check({ force: true });
+            await payroll.getByText("Treat as a minimum-wage earner (MWE)", { exact: true }).click();
             if (!(await payroll.getByText("MWE, fully exempt").isVisible())) {
               throw new Error("MWE toggle did not update withholding explanation");
             }
@@ -109,8 +108,7 @@ jobs:
             if (!(await release.isDisabled())) {
               throw new Error("Release should be disabled before exception acknowledgement");
             }
-            const acknowledgement = preview.getByRole("checkbox").first();
-            await acknowledgement.check({ force: true });
+            await preview.getByText(/Acknowledge \d+ exception/, { exact: true }).click();
             if (await release.isDisabled()) {
               throw new Error("Release stayed disabled after exception acknowledgement");
             }
