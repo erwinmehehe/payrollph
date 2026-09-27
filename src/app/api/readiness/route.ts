@@ -8,7 +8,14 @@ export const dynamic = "force-dynamic";
 
 type Gate = { key: string; label: string; ready: boolean; detail: string; blocks: "launch" | "scale" | "none"; manualWorkaround?: string };
 
-const flag = (name: string) => process.env[name] === "true" || Boolean(process.env[name]);
+/**
+ * Two different questions were being asked through one helper. A credential or
+ * endpoint is configured when it holds any value at all, but a yes/no gate has
+ * to say "true": treating a non-empty string as true meant SSS_R3_VALIDATED=false
+ * read as validated, and DEMO_MODE=false read as demo mode being on.
+ */
+const configured = (name: string) => Boolean(process.env[name]);
+const enabled = (name: string) => process.env[name] === "true";
 
 export async function GET() {
   const [{ value: userCount }] = await db.select({ value: count() }).from(users);
@@ -31,11 +38,11 @@ export async function GET() {
 
   // Billing provider is considered wired when a live key is present OR real paid
   // invoices exist in the ledger (the checkout path already writes them).
-  const billingConfigured = flag("PAYMONGO_SECRET_KEY") || flag("MAYA_SECRET_KEY") || flag("STRIPE_SECRET_KEY");
+  const billingConfigured = configured("PAYMONGO_SECRET_KEY") || configured("MAYA_SECRET_KEY") || configured("STRIPE_SECRET_KEY");
   const billingProven = billingConfigured && (paidInvoices > 0 || activeSubs > 0);
 
-  const bankConfigured = flag("BANK_HOST_TO_HOST_URL") || flag("INSTAPAY_API_KEY")
-    || (flag("PAYMONGO_SECRET_KEY") && process.env.PAYMONGO_DISBURSEMENTS_ENABLED === "true");
+  const bankConfigured = configured("BANK_HOST_TO_HOST_URL") || configured("INSTAPAY_API_KEY")
+    || (configured("PAYMONGO_SECRET_KEY") && process.env.PAYMONGO_DISBURSEMENTS_ENABLED === "true");
 
   // Government filing does not require vendor accreditation for standard
   // file-based submission, BIR publishes the Alphalist .DAT layout and
@@ -44,11 +51,12 @@ export async function GET() {
   // "has a human run our DRAFT output through the agency's own free
   // validator and confirmed it passes", that's what each flag below
   // records, set by whoever does that check, not by us detecting it.
-  const birAlphalistValidated = flag("BIR_ALPHALIST_VALIDATED");
-  const sssR3Validated = flag("SSS_R3_VALIDATED");
-  const philhealthValidated = flag("PHILHEALTH_RF1_VALIDATED");
-  const pagibigValidated = flag("PAGIBIG_MCRF_VALIDATED");
-  const storageConfigured = flag("S3_BUCKET") || flag("R2_BUCKET");
+  const demoMode = enabled("DEMO_MODE");
+  const birAlphalistValidated = enabled("BIR_ALPHALIST_VALIDATED");
+  const sssR3Validated = enabled("SSS_R3_VALIDATED");
+  const philhealthValidated = enabled("PHILHEALTH_RF1_VALIDATED");
+  const pagibigValidated = enabled("PAGIBIG_MCRF_VALIDATED");
+  const storageConfigured = configured("S3_BUCKET") || configured("R2_BUCKET");
 
   const gates: Gate[] = [
     {
@@ -63,11 +71,11 @@ export async function GET() {
     {
       key: "seeded-credentials",
       label: "No hardcoded demo credentials",
-      ready: !process.env.DEMO_MODE,
-      detail: process.env.DEMO_MODE
+      ready: !demoMode,
+      detail: demoMode
         ? "DEMO_MODE=true is seeding the shared demo account. Disable it before taking real customers."
         : "Demo seeding is off; accounts are created through setup or invitation.",
-      blocks: userCount > 0 && process.env.DEMO_MODE ? "launch" : "none",
+      blocks: userCount > 0 && demoMode ? "launch" : "none",
     },
     {
       key: "email-delivery",
@@ -150,8 +158,8 @@ export async function GET() {
     {
       key: "malware-scanning",
       label: "Malware scanning on upload",
-      ready: flag("MALWARE_SCAN_URL"),
-      detail: flag("MALWARE_SCAN_URL")
+      ready: configured("MALWARE_SCAN_URL"),
+      detail: configured("MALWARE_SCAN_URL")
         ? "Signature/AV scanning endpoint configured."
         : "Content-type, magic-byte and size checks run on the request path. Wire MALWARE_SCAN_URL for a full AV engine.",
       blocks: "scale",
@@ -159,8 +167,8 @@ export async function GET() {
     {
       key: "sso",
       label: "SSO / SAML",
-      ready: flag("SAML_METADATA_URL"),
-      detail: flag("SAML_METADATA_URL")
+      ready: configured("SAML_METADATA_URL"),
+      detail: configured("SAML_METADATA_URL")
         ? "SAML identity provider configured."
         : "Password + TOTP only. Auth is pluggable; add a SAML method when an enterprise IdP is available.",
       blocks: "scale",
@@ -168,8 +176,8 @@ export async function GET() {
     {
       key: "background-worker",
       label: "Dedicated background worker",
-      ready: flag("WORKER_ENABLED"),
-      detail: flag("WORKER_ENABLED")
+      ready: enabled("WORKER_ENABLED"),
+      detail: enabled("WORKER_ENABLED")
         ? "Dedicated worker process draining queues."
         : "Payroll and webhook queues drain opportunistically from requests and a manual tick endpoint. Set WORKER_ENABLED for a standalone worker.",
       blocks: "scale",
