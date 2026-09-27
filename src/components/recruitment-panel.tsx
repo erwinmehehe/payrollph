@@ -161,25 +161,25 @@ export function RecruitmentPanel({ organizationId, setNotice }: { organizationId
 
       <div className="stats-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
         <article className="stat-card">
-          <div className="stat-icon mint"><FileText size={19} className="i-teal" /></div>
+          <div className="stat-icon mint"><FileText size={19} /></div>
           <p>ACTIVE REQUISITIONS</p>
           <h3>{requisitions.length}</h3>
           <span>Open hiring slots</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon purple"><Users size={19} className="i-purple" /></div>
+          <div className="stat-icon purple"><Users size={19} /></div>
           <p>TOTAL APPLICANTS</p>
           <h3>{applicants.length}</h3>
           <span>Across all pipelines</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon blue"><Star size={19} className="i-amber" /></div>
+          <div className="stat-icon blue"><Star size={19} /></div>
           <p>IN INTERVIEWS</p>
           <h3>{applicants.filter((a) => a.stage === "interview").length}</h3>
           <span>Screened candidates</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon orange"><CheckCircle2 size={19} className="i-green" /></div>
+          <div className="stat-icon orange"><CheckCircle2 size={19} /></div>
           <p>OFFERS EXTENDED</p>
           <h3>{applicants.filter((a) => a.stage === "offer" || a.stage === "hired").length}</h3>
           <span>Contract stage</span>

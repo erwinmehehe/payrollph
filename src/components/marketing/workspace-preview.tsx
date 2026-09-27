@@ -7,16 +7,19 @@ import {
   Bell,
   Check,
   ChevronDown,
+  CircleDollarSign,
   ClipboardCheck,
   Clock3,
   Download,
   FlaskConical,
   LayoutDashboard,
+  ReceiptText,
   Search,
   Send,
   UploadCloud,
   UsersRound,
   WalletCards,
+  type LucideIcon,
 } from "lucide-react";
 import {
   SAMPLE_APPROVALS,
@@ -293,10 +296,10 @@ function PreviewDashboard({
       </div>
 
       <div className="stats-grid" style={{ marginBottom: 14 }}>
-        <MiniStat label="Active people" value={String(SAMPLE_EMPLOYEES.filter((person) => person.status === "Active").length)} hint={`of ${SAMPLE_EMPLOYEES.length} on this client`} tone="mint" />
-        <MiniStat label="Net pay" value={shortMoney(run.net)} hint={`${shortMoney(run.gross)} gross`} tone="purple" />
-        <MiniStat label="Deductions" value={shortMoney(run.deductions)} hint="statutory + tax" tone="blue" />
-        <MiniStat label="Open approvals" value={String(open)} hint={open ? "waiting on a decision" : "queue is clear"} tone={open ? "amber" : "mint"} />
+        <MiniStat label="Active people" value={String(SAMPLE_EMPLOYEES.filter((person) => person.status === "Active").length)} hint={`of ${SAMPLE_EMPLOYEES.length} on this client`} tone="mint" icon={UsersRound} />
+        <MiniStat label="Net pay" value={shortMoney(run.net)} hint={`${shortMoney(run.gross)} gross`} tone="purple" icon={CircleDollarSign} />
+        <MiniStat label="Deductions" value={shortMoney(run.deductions)} hint="statutory + tax" tone="blue" icon={ReceiptText} />
+        <MiniStat label="Open approvals" value={String(open)} hint={open ? "waiting on a decision" : "queue is clear"} tone={open ? "amber" : "mint"} icon={ClipboardCheck} />
       </div>
 
       <article className="card">
@@ -776,12 +779,25 @@ function PreviewExports({ run, released }: { run: ReturnType<typeof buildSampleR
   );
 }
 
-function MiniStat({ label, value, hint, tone }: { label: string; value: string; hint: string; tone: string }) {
+function MiniStat({
+  label,
+  value,
+  hint,
+  tone,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  tone: string;
+  icon: LucideIcon;
+}) {
   return (
     <article className="stat-card" style={{ minHeight: 96, padding: "13px 14px" }}>
       <div className="stat-top">
+        {/* The chip owns the colour; the icon only has to say what the figure is. */}
         <span className={`stat-icon ${tone}`} aria-hidden>
-          <WalletCards size={14} className="i-green" />
+          <Icon size={14} />
         </span>
       </div>
       <p>{label}</p>

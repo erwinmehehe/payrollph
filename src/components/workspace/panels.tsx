@@ -127,21 +127,21 @@ export function CompliancePage({ data, setNotice, onOpenGovModal }: { data: Dash
       />
       <section className="module-grid three">
         <article className="card compliance-tile">
-          <div className="inline-icon mint"><ShieldCheck size={19} className="i-green" /></div>
+          <div className="inline-icon mint"><ShieldCheck size={19} /></div>
           <span>STATUTORY CONTRIBUTIONS</span>
           <h2>Versioned</h2>
           <p>SSS, PhilHealth & Pag-IBIG formulas are executable and unit-tested.</p>
           <Status value="Tested" />
         </article>
         <article className="card compliance-tile">
-          <div className="inline-icon purple"><ReceiptText size={19} className="i-teal" /></div>
+          <div className="inline-icon purple"><ReceiptText size={19} /></div>
           <span>WITHHOLDING TAX</span>
           <h2>TRAIN + MWE</h2>
           <p>Annual tax brackets and MWE full-exemption paths are modeled.</p>
           <Status value="Tested" />
         </article>
         <article className="card compliance-tile">
-          <div className="inline-icon amber"><FileSpreadsheet size={19} className="i-teal" /></div>
+          <div className="inline-icon amber"><FileSpreadsheet size={19} /></div>
           <span>GOVERNMENT OUTPUTS</span>
           <h2>Draft Worksheets</h2>
           <p>2316, 1601-C, Alphalist, SSS R-3, PhilHealth RF-1, Pag-IBIG MCRF.</p>

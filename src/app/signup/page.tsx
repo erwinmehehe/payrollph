@@ -55,7 +55,7 @@ export default async function SignupPage() {
               <div style={{ display: "grid", gap: 12, marginTop: 24 }}>
                 <a className="export-card" href="/welcome#preview" style={{ textDecoration: "none" }}>
                   <span className="inline-icon green" aria-hidden>
-                    <Check size={16} className="i-green" />
+                    <Check size={16} />
                   </span>
                   <div>
                     <h3>
@@ -67,7 +67,7 @@ export default async function SignupPage() {
 
                 <a className="export-card" href="/book-demo" style={{ textDecoration: "none" }}>
                   <span className="inline-icon blue" aria-hidden>
-                    <Mail size={16} className="i-pink" />
+                    <Mail size={16} />
                   </span>
                   <div>
                     <h3>
@@ -79,7 +79,7 @@ export default async function SignupPage() {
 
                 <a className="export-card" href="/login" style={{ textDecoration: "none" }}>
                   <span className="inline-icon slate" aria-hidden>
-                    <LockKeyhole size={16} className="i-amber" />
+                    <LockKeyhole size={16} />
                   </span>
                   <div>
                     <h3>

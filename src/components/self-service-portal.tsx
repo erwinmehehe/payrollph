@@ -133,19 +133,19 @@ export function SelfServicePortal() {
         <>
           <section className="stats-grid">
             <article className="stat-card">
-              <div className="stat-icon mint"><WalletCards size={19} className="i-green" /></div>
+              <div className="stat-icon mint"><WalletCards size={19} /></div>
               <p>MONTHLY BASIC</p>
               <h3>{peso(data.employee.monthlyBasic)}</h3>
               <span>{data.employee.employmentType} · {data.employee.status}</span>
             </article>
             <article className="stat-card">
-              <div className="stat-icon purple"><FileText size={19} className="i-teal" /></div>
+              <div className="stat-icon purple"><FileText size={19} /></div>
               <p>NET PAID YTD</p>
               <h3>{peso(data.yearToDate.net)}</h3>
               <span>{data.yearToDate.periodsPaid} released period(s)</span>
             </article>
             <article className="stat-card">
-              <div className="stat-icon orange"><FileText size={19} className="i-teal" /></div>
+              <div className="stat-icon orange"><FileText size={19} /></div>
               <p>TAX WITHHELD YTD</p>
               <h3>{peso(data.yearToDate.tax)}</h3>
               <span>Shown on your BIR 2316</span>

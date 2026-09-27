@@ -85,9 +85,9 @@ export function ExpensesPanel({ organizationId, setNotice }: { organizationId: n
       </div>
 
       <div className="stats-grid" style={{ gridTemplateColumns: "repeat(3,1fr)" }}>
-        <div className="stat-card"><div className="stat-icon mint"><ReceiptText size={18} className="i-teal" /></div><p>TOTAL CLAIMS</p><h3>{claims.length}</h3><span>submitted</span></div>
-        <div className="stat-card"><div className="stat-icon amber"><ReceiptText size={18} className="i-teal" /></div><p>AWAITING REVIEW</p><h3>{claims.filter((c) => c.status === "pending").length}</h3><span>pending approval</span></div>
-        <div className="stat-card"><div className="stat-icon blue"><ReceiptText size={18} className="i-teal" /></div><p>TO REIMBURSE</p><h3>{peso(pendingTotal)}</h3><span>approved, unpaid</span></div>
+        <div className="stat-card"><div className="stat-icon mint"><ReceiptText size={18} /></div><p>TOTAL CLAIMS</p><h3>{claims.length}</h3><span>submitted</span></div>
+        <div className="stat-card"><div className="stat-icon amber"><ReceiptText size={18} /></div><p>AWAITING REVIEW</p><h3>{claims.filter((c) => c.status === "pending").length}</h3><span>pending approval</span></div>
+        <div className="stat-card"><div className="stat-icon blue"><ReceiptText size={18} /></div><p>TO REIMBURSE</p><h3>{peso(pendingTotal)}</h3><span>approved, unpaid</span></div>
       </div>
 
       {open && (

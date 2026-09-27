@@ -159,19 +159,19 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
 
       <div className="stats-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
         <article className="stat-card">
-          <div className="stat-icon mint"><Banknote size={19} className="i-green" /></div>
+          <div className="stat-icon mint"><Banknote size={19} /></div>
           <p>ACTIVE LOANS</p>
           <h3>{summary.totalActiveLoans}</h3>
           <span>Under ongoing deduction</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon orange"><ReceiptText size={19} className="i-teal" /></div>
+          <div className="stat-icon orange"><ReceiptText size={19} /></div>
           <p>TOTAL OUTSTANDING BALANCE</p>
           <h3>{peso(summary.totalOutstanding)}</h3>
           <span>Across all employee portfolios</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon purple"><Check size={19} className="i-green" /></div>
+          <div className="stat-icon purple"><Check size={19} /></div>
           <p>LOANS PAID OFF</p>
           <h3>{summary.totalPaidOff}</h3>
           <span>Fully amortized accounts</span>

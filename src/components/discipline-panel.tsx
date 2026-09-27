@@ -148,25 +148,25 @@ export function DisciplinePanel({ organizationId, setNotice }: { organizationId:
 
       <div className="stats-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
         <article className="stat-card">
-          <div className="stat-icon orange"><AlertCircle size={19} className="i-red" /></div>
+          <div className="stat-icon orange"><AlertCircle size={19} /></div>
           <p>NTE ISSUED</p>
           <h3>{cases.filter((c) => c.status === "nte_issued").length}</h3>
           <span>Awaiting response (5d rule)</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon purple"><FileText size={19} className="i-teal" /></div>
+          <div className="stat-icon purple"><FileText size={19} /></div>
           <p>EXPLANATIONS IN</p>
           <h3>{cases.filter((c) => c.status === "explanation_submitted").length}</h3>
           <span>Ready for hearing review</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon blue"><Calendar size={19} className="i-cyan" /></div>
+          <div className="stat-icon blue"><Calendar size={19} /></div>
           <p>HEARINGS SET</p>
           <h3>{cases.filter((c) => c.status === "hearing_scheduled").length}</h3>
           <span>Conferences scheduled</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon mint"><Gavel size={19} className="i-amber" /></div>
+          <div className="stat-icon mint"><Gavel size={19} /></div>
           <p>DECISIONS ISSUED</p>
           <h3>{cases.filter((c) => c.status === "nod_issued" || c.status === "closed").length}</h3>
           <span>Formal NOD rendered</span>

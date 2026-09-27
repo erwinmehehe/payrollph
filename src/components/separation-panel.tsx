@@ -133,25 +133,25 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
 
       <div className="stats-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
         <article className="stat-card">
-          <div className="stat-icon orange"><UserX size={19} className="i-red" /></div>
+          <div className="stat-icon orange"><UserX size={19} /></div>
           <p>SEPARATING STAFF</p>
           <h3>{separations.filter((s) => s.status !== "released").length}</h3>
           <span>Under active clearance</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon purple"><FileCheck size={19} className="i-green" /></div>
+          <div className="stat-icon purple"><FileCheck size={19} /></div>
           <p>CLEARED FOR FINAL PAY</p>
           <h3>{separations.filter((s) => s.clearanceStatus === "cleared").length}</h3>
           <span>All 4 departments signed</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon mint"><CheckCircle2 size={19} className="i-green" /></div>
+          <div className="stat-icon mint"><CheckCircle2 size={19} /></div>
           <p>COEs GENERATED</p>
           <h3>{separations.filter((s) => s.coeIssued).length}</h3>
           <span>Certificates issued</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon blue"><FileText size={19} className="i-teal" /></div>
+          <div className="stat-icon blue"><FileText size={19} /></div>
           <p>DOLE MANDATE</p>
           <h3>30 Days</h3>
           <span>Statutory release window</span>

@@ -97,9 +97,9 @@ export function BenefitsPanel({ organizationId, setNotice }: { organizationId: n
       />
 
       <section className="stats-grid">
-        <article className="stat-card"><div className="stat-icon mint"><HandCoins size={19} className="i-green" /></div><p>EMPLOYEE SHARE / MO</p><h3>{peso(totalEmployee)}</h3><span>{employees.reduce((sum, e) => sum + e.enrolments.filter((x) => x.status === "active").length, 0)} active enrolment(s)</span></article>
-        <article className="stat-card"><div className="stat-icon blue"><HandCoins size={19} className="i-green" /></div><p>EMPLOYER SHARE / MO</p><h3>{peso(totalEmployer)}</h3><span>cost, not deducted</span></article>
-        <article className="stat-card"><div className="stat-icon purple"><PiggyBank size={19} className="i-green" /></div><p>PLANS</p><h3>{plans.length}</h3><span>available to enrol</span></article>
+        <article className="stat-card"><div className="stat-icon mint"><HandCoins size={19} /></div><p>EMPLOYEE SHARE / MO</p><h3>{peso(totalEmployee)}</h3><span>{employees.reduce((sum, e) => sum + e.enrolments.filter((x) => x.status === "active").length, 0)} active enrolment(s)</span></article>
+        <article className="stat-card"><div className="stat-icon blue"><HandCoins size={19} /></div><p>EMPLOYER SHARE / MO</p><h3>{peso(totalEmployer)}</h3><span>cost, not deducted</span></article>
+        <article className="stat-card"><div className="stat-icon purple"><PiggyBank size={19} /></div><p>PLANS</p><h3>{plans.length}</h3><span>available to enrol</span></article>
       </section>
 
       {!loaded && <div className="empty-state">Loading benefits…</div>}

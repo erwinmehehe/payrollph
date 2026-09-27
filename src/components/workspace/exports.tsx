@@ -106,7 +106,7 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
           <section className="integration-grid">
             <article className="export-card">
               <span className="inline-icon blue" aria-hidden>
-                <Building2 size={16} className="i-purple" />
+                <Building2 size={16} />
               </span>
               <div>
                 <h3>
@@ -156,7 +156,7 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
 
             <article className="export-card">
               <span className="inline-icon purple" aria-hidden>
-                <BookOpen size={16} className="i-teal" />
+                <BookOpen size={16} />
               </span>
               <div>
                 <h3>
@@ -175,7 +175,7 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
 
             <article className="export-card">
               <span className="inline-icon amber" aria-hidden>
-                <ShieldCheck size={16} className="i-green" />
+                <ShieldCheck size={16} />
               </span>
               <div>
                 <h3>
@@ -212,7 +212,7 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
 
             <article className="export-card">
               <span className="inline-icon green" aria-hidden>
-                <Banknote size={16} className="i-green" />
+                <Banknote size={16} />
               </span>
               <div>
                 <h3>Payslip PDFs</h3>
@@ -233,7 +233,7 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
 
             <article className="export-card">
               <span className="inline-icon slate" aria-hidden>
-                <Users size={16} className="i-purple" />
+                <Users size={16} />
               </span>
               <div>
                 <h3>Employee roster</h3>
@@ -250,7 +250,7 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
 
             <article className="export-card">
               <span className="inline-icon slate" aria-hidden>
-                <Database size={16} className="i-teal" />
+                <Database size={16} />
               </span>
               <div>
                 <h3>Full company export</h3>

@@ -726,7 +726,7 @@ function ExportPanel({
           <div className="integration-grid">
             <div className="export-card">
               <span className="inline-icon blue" aria-hidden>
-                <Building2 size={16} className="i-purple" />
+                <Building2 size={16} />
               </span>
               <div>
                 <h3>Bank disbursement</h3>
@@ -764,7 +764,7 @@ function ExportPanel({
 
             <div className="export-card">
               <span className="inline-icon purple" aria-hidden>
-                <BookOpen size={16} className="i-teal" />
+                <BookOpen size={16} />
               </span>
               <div>
                 <h3>Accounting journal</h3>
@@ -781,7 +781,7 @@ function ExportPanel({
 
             <div className="export-card">
               <span className="inline-icon amber" aria-hidden>
-                <ShieldCheck size={16} className="i-green" />
+                <ShieldCheck size={16} />
               </span>
               <div>
                 <h3>

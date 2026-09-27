@@ -172,25 +172,25 @@ export function InteractiveWelcome({
       {/* Key Metric Pillars */}
       <section className="stats-grid reveal">
         <article className="stat-card">
-          <div className="stat-icon mint"><Users size={18} className="i-purple" /></div>
+          <div className="stat-icon mint"><Users size={18} /></div>
           <p>PROVEN AT SCALE</p>
           <h3>8,000</h3>
           <span>employees processed in 13.3s, no timeouts</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon purple"><Shield size={18} className="i-green" /></div>
+          <div className="stat-icon purple"><Shield size={18} /></div>
           <p>STATUTORY ACCURACY</p>
           <h3>To the centavo</h3>
           <span>Versioned engine PH-2026.1, unit-tested</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon blue"><Layers size={18} className="i-teal" /></div>
+          <div className="stat-icon blue"><Layers size={18} /></div>
           <p>ONE LOGIN</p>
           <h3>Unlimited clients</h3>
           <span>Built for bookkeepers and BPO groups</span>
         </article>
         <article className="stat-card">
-          <div className="stat-icon orange"><CircleDollarSign size={18} className="i-green" /></div>
+          <div className="stat-icon orange"><CircleDollarSign size={18} /></div>
           <p>NO QUOTE WALL</p>
           <h3>Published pricing</h3>
           <span>Every peso live in-product, always</span>

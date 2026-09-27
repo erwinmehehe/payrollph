@@ -320,9 +320,11 @@ a { color: inherit; text-decoration: none; }
 .i-slate  { color: var(--neutral); }
 .i-brand  { color: var(--brand); }
 
-/* Anywhere the icon sits on a solid fill, the container already guarantees
-   contrast, so the hue would only hurt legibility. */
-:is(.primary-button, .danger-button, .toast, .status, .pill-solid, .nav-item.active)
+/* Anywhere the icon sits on a solid fill, or inside a chip that already carries
+   its own colour pair, the container owns contrast and the hue would only fight
+   it. .stat-icon and .inline-icon are tinted chips in their own right. */
+:is(.primary-button, .danger-button, .toast, .status, .pill-solid, .nav-item.active,
+    .stat-icon, .inline-icon, .nav-icon)
   :is(.i-green, .i-blue, .i-amber, .i-red, .i-purple, .i-cyan, .i-teal, .i-pink, .i-slate, .i-brand) {
   color: currentColor;
 }
@@ -1795,6 +1797,18 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
 }
 .feature-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--line-strong); }
 .feature-icon { width: 38px; height: 38px; margin-bottom: 16px; display: grid; place-items: center; border-radius: 11px; background: var(--brand-bg); color: var(--brand); }
+/* The icon inside a feature chip already declares its hue, so the chip takes
+   its tint from that instead of repeating the tone on the wrapper. Browsers
+   without :has() keep the brand tint, which is the previous behaviour. */
+.feature-icon:has(.i-green)  { background: var(--success-bg); }
+.feature-icon:has(.i-blue)   { background: var(--active-bg); }
+.feature-icon:has(.i-amber)  { background: var(--review-bg); }
+.feature-icon:has(.i-red)    { background: var(--danger-bg); }
+.feature-icon:has(.i-purple) { background: var(--delegate-bg); }
+.feature-icon:has(.i-cyan)   { background: var(--cyan-bg); }
+.feature-icon:has(.i-teal)   { background: var(--teal-bg); }
+.feature-icon:has(.i-pink)   { background: var(--pink-bg); }
+.feature-icon:has(.i-slate)  { background: var(--neutral-bg); }
 .feature-card h3 { margin: 0 0 8px; font-size: 16px; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
 .feature-card p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.65; }
 .feature-card ul { margin: 12px 0 0; padding-left: 17px; color: var(--ink-secondary); font-size: 12.5px; line-height: 1.8; }
