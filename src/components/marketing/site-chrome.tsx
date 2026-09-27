@@ -59,10 +59,10 @@ export function SiteNav() {
           <div className="site-nav-cta">
             <Link className="secondary-button" href="/login">
               Sign in
-            </a>
+            </Link>
             <Link className="primary-button" href="/#preview">
               Try live demo
-            </a>
+            </Link>
             <button
               className="icon-button site-burger"
               onClick={() => setDrawer((current) => !current)}
@@ -84,10 +84,10 @@ export function SiteNav() {
         <div className="drawer-cta">
           <Link className="secondary-button" href="/login">
             Sign in
-          </a>
+          </Link>
           <Link className="primary-button" href="/#preview" onClick={() => setDrawer(false)}>
             Try live demo
-          </a>
+          </Link>
         </div>
       </div>
     </>
@@ -106,7 +106,7 @@ export function SiteFooter() {
                 <strong style={{ color: "#fff" }}>linaw</strong>
                 <small style={{ color: "var(--console-faint)" }}>HR &amp; Payroll</small>
               </span>
-            </a>
+            </Link>
             <p className="footer-disclosure">
               Philippine payroll software and HRIS with a public capability scorecard that separates verified, partial and
               absent features from marketing claims.
@@ -138,7 +138,7 @@ export function SiteFooter() {
             <h4>Get started</h4>
             <ul>
               <li><Link href="/signup">Start free</Link></li>
-              <li><a href="/#preview">Try live demo</Link></li>
+              <li><Link href="/#preview">Try live demo</Link></li>
               <li><Link href="/book-demo">Book a demo</Link></li>
               <li><Link href="/login">Sign in</Link></li>
             </ul>
