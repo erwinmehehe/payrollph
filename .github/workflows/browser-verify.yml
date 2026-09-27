@@ -94,7 +94,7 @@ jobs:
             }
 
             const mwe = payroll.getByRole("checkbox", { name: /minimum-wage earner/i });
-            await mwe.check();
+            await mwe.check({ force: true });
             if (!(await payroll.getByText("MWE, fully exempt").isVisible())) {
               throw new Error("MWE toggle did not update withholding explanation");
             }
@@ -110,7 +110,7 @@ jobs:
               throw new Error("Release should be disabled before exception acknowledgement");
             }
             const acknowledgement = preview.getByRole("checkbox").first();
-            await acknowledgement.check();
+            await acknowledgement.check({ force: true });
             if (await release.isDisabled()) {
               throw new Error("Release stayed disabled after exception acknowledgement");
             }
