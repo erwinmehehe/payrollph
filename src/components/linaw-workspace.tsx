@@ -997,7 +997,93 @@ function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData; setNot
   return (
     <>
       <PageHeading eyebrow="LEAVE MANAGEMENT" title="Keep leave human and accountable." copy="Requests create a real approval task. Approving it updates the leave record and fires leave.approved webhooks." actions={<button className="primary-button" onClick={() => setOpen(!open)}><Plus size={17} /> New leave request</button>} />
-      <section className="stats-grid">             </div>
+      <section className="stats-grid">
+        <Metric label="PENDING" value={String(pending.length)} hint="Needs manager review" icon={<CalendarDays size={19} />} tone="amber" />
+        <Metric label="ON LEAVE" value={String(data.employees.filter((e) => e.status === "On leave").length)} hint="Across this client" icon={<UsersRound size={19} />} tone="purple" />
+        <Metric label="APPROVED DAYS" value={String(approvedDays)} hint="On record" icon={<Gauge size={19} />} tone="mint" />
+        <Metric label="POLICIES" value="3" hint="Annual, sick, emergency" icon={<BookOpen size={19} />} tone="blue" />
+      </section>
+      {open && (
+        <article className="card" style={{ marginBottom: 16 }}>
+          <div className="card-header"><div><div className="card-kicker">NEW LEAVE</div><h2>Submit leave application</h2></div></div>
+          <div className="setting-form">
+            <label>Employee<select value={employeeId} onChange={(event) => setEmployeeId(Number(event.target.value))}>{data.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.firstName} {employee.lastName}</option>)}</select></label>
+            <label>Leave Type<select value={leaveType} onChange={(event) => setLeaveType(event.target.value)}><option>Annual leave</option><option>Sick leave</option><option>Emergency leave</option></select></label>
+            <label>Start date<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
+            <label>End date<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
+            <label>Days<input type="number" min={0.5} step={0.5} value={days} onChange={(event) => setDays(Number(event.target.value))} /></label>
+          </div>
+          <div className="run-actions"><button className="secondary-button" onClick={() => setOpen(false)}>Cancel</button><button className="primary-button" onClick={submit}>Submit request</button></div>
+        </article>
+      )}
+      <article className="card leave-board">
+        <div className="card-header"><div><div className="card-kicker">REQUESTS</div><h2>Leave register</h2></div></div>
+        {requests.length === 0 && <div className="empty-state">No leave requests yet.</div>}
+        {requests.map((row) => {
+          const employee = data.employees.find((item) => item.id === row.employeeId);
+          const start = new Date(`${row.startDate}T12:00:00`);
+          return (
+            <div className="leave-request" key={row.id}>
+              <span className="date-tile"><small>{start.toLocaleString("en-PH", { month: "short" }).toUpperCase()}</small><b>{start.getDate()}</b></span>
+              <Avatar initials={employee?.avatarInitials ?? "NA"} index={row.employeeId} />
+              <div><strong>{employee ? `${employee.firstName} ${employee.lastName}` : "Employee"}</strong><span>{row.leaveType} · {row.startDate}–{row.endDate} · {row.days} days</span></div>
+              <Status value={row.status === "Pending" ? "Awaiting approval" : row.status} />
+            </div>
+          );
+        })}
+      </article>
+    </>
+  );
+}
+
+function ApprovalsPage({ data, tasks, onDecide, setNotice, onRefresh }: { data: DashboardData; tasks: Task[]; onDecide: (id: number, status: "Approved" | "Declined") => void; setNotice: (message: string) => void; onRefresh: () => Promise<void> }) {
+  const delegations = data.delegations ?? [];
+  const activeDelegations = delegations.filter((row) => row.active);
+  const [showForm, setShowForm] = useState(false);
+  const [from, setFrom] = useState("Mariel Santos");
+  const [to, setTo] = useState(data.user?.name ?? "Celine Yao");
+
+  async function createDelegation() {
+    const response = await fetch("/api/delegations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ organizationId: data.selectedOrganization.id, fromApprover: from, toApprover: to, reason: "Out of office", startsOn: "2026-01-01", endsOn: "2026-12-31" }),
+    });
+    const payload = await response.json();
+    if (!response.ok) { setNotice(payload.error ?? "Could not create delegation."); return; }
+    setShowForm(false);
+    await onRefresh();
+    setNotice(`Delegation active: ${from} → ${to}. Proxy decisions are now permitted and audited.`);
+  }
+
+  return (
+    <>
+      <PageHeading eyebrow="APPROVALS" title="Decisions, with a clear trail." copy="Decisions are permission-checked server-side against the assigned approver and any active delegation." actions={<button className="secondary-button" onClick={() => setShowForm(!showForm)}><Settings2 size={16} /> Delegation settings</button>} />
+      {activeDelegations.length > 0 ? (
+        <div className="notice notice-green"><ShieldCheck size={17} /><span><strong>Delegation enforced.</strong> {activeDelegations.map((row) => `${row.fromApprover} → ${row.toApprover}`).join(", ")}. The API rejects decisions from anyone outside this chain.</span></div>
+      ) : (
+        <div className="notice notice-amber"><ShieldCheck size={17} /><span><strong>No active delegation.</strong> Only the assigned approver can decide; others receive a 403.</span></div>
+      )}
+      {showForm && (
+        <article className="card" style={{ marginBottom: 16 }}>
+          <div className="card-header"><div><div className="card-kicker">NEW DELEGATION</div><h2>Assign a proxy approver</h2><p>Prevents an approval chain from becoming a single point of failure when out-of-office.</p></div></div>
+          <div className="setting-form">
+            <label>Delegate from<input value={from} onChange={(event) => setFrom(event.target.value)} /></label>
+            <label>Delegate to<input value={to} onChange={(event) => setTo(event.target.value)} /></label>
+          </div>
+          <div className="run-actions"><button className="secondary-button" onClick={() => setShowForm(false)}>Cancel</button><button className="primary-button" onClick={createDelegation}>Activate delegation</button></div>
+        </article>
+      )}
+      <section className="approval-list">
+        {tasks.map((task) => (
+          <article className={`card approval-card ${task.status !== "Pending" ? "resolved" : ""}`} key={task.id}>
+            <div className="approval-symbol"><ClipboardCheck size={20} /></div>
+            <div className="approval-content">
+              <div>
+                <div className="card-kicker">{task.priority === "High" ? "PRIORITY REVIEW" : "PENDING DECISION"}</div>
+                <h2>{task.title}</h2>
+                <p>{task.detail}</p>
+              </div>
               <div className="approval-meta"><span>Approver <strong>{task.approver}</strong></span><span>{task.dueLabel}</span></div>
             </div>
             {task.status === "Pending" ? (
