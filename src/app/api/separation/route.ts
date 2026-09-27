@@ -1,10 +1,10 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
 import { db } from "@/db";
 import { employeeLoans, employees, leaveBalances, organizations, payrollEntries, payrollRuns, separationRecords } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertPermission } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
-import { computeThirteenthMonthPay } from "@/lib/ph-compliance";
+import { computeFinalPayDraft } from "@/lib/final-pay";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +64,25 @@ export async function POST(request: Request) {
   const noticeDate = String(body.noticeDate ?? new Date().toISOString().slice(0, 10));
   const lastDay = String(body.lastDay ?? new Date().toISOString().slice(0, 10));
   const unusedLeaveCredits = Number(body.unusedLeaveCredits ?? 0);
+  const previousEmployerTaxableCompensation = Number(body.previousEmployerTaxableCompensation ?? 0);
+  const previousEmployerTaxWithheld = Number(body.previousEmployerTaxWithheld ?? 0);
+  const additionalTaxablePay = Number(body.additionalTaxablePay ?? 0);
+  const additionalNonTaxablePay = Number(body.additionalNonTaxablePay ?? 0);
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(lastDay) || Number.isNaN(Date.parse(`${lastDay}T12:00:00Z`))) {
+    return Response.json({ error: "A valid last day is required." }, { status: 400 });
+  }
+  for (const [label, value] of [
+    ["unused leave credits", unusedLeaveCredits],
+    ["previous-employer taxable compensation", previousEmployerTaxableCompensation],
+    ["previous-employer tax withheld", previousEmployerTaxWithheld],
+    ["additional taxable pay", additionalTaxablePay],
+    ["additional non-taxable pay", additionalNonTaxablePay],
+  ] as const) {
+    if (!Number.isFinite(value) || value < 0) {
+      return Response.json({ error: `${label} must be a non-negative number.` }, { status: 400 });
+    }
+  }
 
   const denied = await assertPermission(user.id, organizationId, "hr:manage");
   if (denied) return denied;
@@ -73,27 +92,55 @@ export async function POST(request: Request) {
     return Response.json({ error: "Employee not found in this organization." }, { status: 404 });
   }
 
-  // Calculate Prorated 13th Month Pay (from Jan 1 to lastDay)
   const lastDate = new Date(`${lastDay}T12:00:00Z`);
-  const monthsWorkedInYear = Math.min(12, Math.max(1, lastDate.getMonth() + 1));
-  const monthlyBasic = Number(employee.basicRate);
-  const basicEarnedThisYear = monthlyBasic * monthsWorkedInYear;
-  const prorated13th = computeThirteenthMonthPay(basicEarnedThisYear);
+  const taxYear = lastDate.getUTCFullYear();
+  const yearStart = `${taxYear}-01-01`;
 
-  // Unused Leave Monetization uses the same company/CBA divisor as payroll.
-  const [organization] = await db.select({ payrollAnnualDivisor: organizations.payrollAnnualDivisor }).from(organizations).where(eq(organizations.id, organizationId)).limit(1);
+  // Termination annualization uses compensation actually paid by this employer
+  // during the calendar year through the employee's last day. Draft-only
+  // adjustments for unpaid salary or reviewed separation/retirement amounts
+  // can be entered explicitly below instead of being inferred from separation type.
+  const releasedEntries = await db.select({
+    grossPay: payrollEntries.grossPay,
+    lineItems: payrollEntries.lineItems,
+  })
+    .from(payrollEntries)
+    .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
+    .where(and(
+      eq(payrollEntries.employeeId, employeeId),
+      eq(payrollRuns.organizationId, organizationId),
+      eq(payrollRuns.status, "Released"),
+      gte(payrollRuns.payDate, yearStart),
+      lte(payrollRuns.payDate, lastDay),
+    ))
+    .orderBy(asc(payrollRuns.payDate));
+
+  const [organization] = await db.select({
+    payrollAnnualDivisor: organizations.payrollAnnualDivisor,
+  }).from(organizations).where(eq(organizations.id, organizationId)).limit(1);
   const annualPayDivisor = Number(organization?.payrollAnnualDivisor ?? 365);
-  const dailyRate = monthlyBasic * 12 / annualPayDivisor;
-  const leaveMonetizationPay = Number((unusedLeaveCredits * dailyRate).toFixed(2));
 
-  // Outstanding Loans to Deduct
   const loans = await db.select().from(employeeLoans).where(
-    and(eq(employeeLoans.organizationId, organizationId), eq(employeeLoans.employeeId, employeeId), eq(employeeLoans.status, "active")),
+    and(
+      eq(employeeLoans.organizationId, organizationId),
+      eq(employeeLoans.employeeId, employeeId),
+      eq(employeeLoans.status, "active"),
+    ),
   );
-  const loanDeductions = Number(loans.reduce((sum, l) => sum + Number(l.remainingBalance), 0).toFixed(2));
+  const loanDeductions = Number(loans.reduce((sum, loan) => sum + Number(loan.remainingBalance), 0).toFixed(2));
 
-  // Final Pay Net Amount
-  const netFinalPay = Math.max(0, Number((prorated13th + leaveMonetizationPay - loanDeductions).toFixed(2)));
+  const finalPay = computeFinalPayDraft({
+    entries: releasedEntries,
+    monthlyBasic: Number(employee.basicRate),
+    annualPayDivisor,
+    unusedLeaveCredits,
+    loanDeductions,
+    mwe: employee.mwe,
+    previousEmployerTaxableCompensation,
+    previousEmployerTaxWithheld,
+    additionalTaxablePay,
+    additionalNonTaxablePay,
+  });
 
   const [created] = await db.insert(separationRecords).values({
     organizationId,
@@ -106,12 +153,13 @@ export async function POST(request: Request) {
     adminCleared: false,
     financeCleared: false,
     hrCleared: false,
-    prorated13thMonth: prorated13th.toFixed(2),
+    prorated13thMonth: finalPay.prorated13thDue.toFixed(2),
     unusedLeaveCredits: unusedLeaveCredits.toFixed(1),
-    leaveMonetizationPay: leaveMonetizationPay.toFixed(2),
-    taxAdjustment: "0.00",
-    loanDeductions: loanDeductions.toFixed(2),
-    netFinalPay: netFinalPay.toFixed(2),
+    leaveMonetizationPay: finalPay.leaveMonetizationPay.toFixed(2),
+    taxAdjustment: finalPay.taxCashEffect.toFixed(2),
+    loanDeductions: finalPay.loanDeductions.toFixed(2),
+    netFinalPay: finalPay.netFinalPay.toFixed(2),
+    finalPayBreakdown: finalPay,
     status: "draft",
     coeIssued: false,
   }).returning();
@@ -123,8 +171,14 @@ export async function POST(request: Request) {
     organizationId,
     actor: user.name,
     action: "Separation and Final Pay computed",
-    resource: `${employee.firstName} ${employee.lastName} (Final Pay: ₱${netFinalPay.toFixed(2)})`,
-    metadata: { separationId: created.id, prorated13th, annualPayDivisor, leaveMonetizationPay, loanDeductions, netFinalPay },
+    resource: `${employee.firstName} ${employee.lastName} (Final Pay: ₱${finalPay.netFinalPay.toFixed(2)})`,
+    metadata: {
+      separationId: created.id,
+      taxYear,
+      releasedPayrollEntries: releasedEntries.length,
+      annualPayDivisor,
+      finalPay,
+    },
   });
 
   return Response.json(created, { status: 201 });
