@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Banknote, Check, DollarSign, Pause, Play, Plus, ReceiptText, ShieldCheck, X } from "lucide-react";
 
 type Loan = {
@@ -56,25 +56,36 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
     notes: "",
   });
 
-  async function load() {
-    const [loanRes, empRes] = await Promise.all([
-      fetch(`/api/loans?organizationId=${organizationId}`, { cache: "no-store" }),
-      fetch(`/api/employees?organizationId=${organizationId}`, { cache: "no-store" }),
-    ]);
-    if (loanRes.ok) {
-      const data = await loanRes.json();
-      setLoans(data.loans ?? []);
-      setSummary(data.summary ?? { totalActiveLoans: 0, totalOutstanding: 0, totalPaidOff: 0 });
-    }
-    if (empRes.ok) {
-      setEmployees(await empRes.json());
-    }
-    setLoaded(true);
-  }
+  const [nonce, setNonce] = useState(0);
+  const reload = useCallback(() => setNonce((current) => current + 1), []);
 
+  // The fetch lives in the effect so every state update happens after an await,
+  // and `alive` stops a slow response for one client overwriting a newer one.
   useEffect(() => {
-    void load();
-  }, [organizationId]);
+    let alive = true;
+    (async () => {
+      const [loanRes, empRes] = await Promise.all([
+        fetch(`/api/loans?organizationId=${organizationId}`, { cache: "no-store" }),
+        fetch(`/api/employees?organizationId=${organizationId}`, { cache: "no-store" }),
+      ]);
+      if (loanRes.ok) {
+        const data = await loanRes.json();
+        if (!alive) return;
+        setLoans(data.loans ?? []);
+        setSummary(data.summary ?? { totalActiveLoans: 0, totalOutstanding: 0, totalPaidOff: 0 });
+      }
+      if (empRes.ok) {
+        const staff = await empRes.json();
+        if (!alive) return;
+        setEmployees(staff);
+      }
+      if (!alive) return;
+      setLoaded(true);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [organizationId, nonce]);
 
   async function createLoan(e: React.FormEvent) {
     e.preventDefault();
@@ -108,7 +119,7 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
       endDate: "",
       notes: "",
     });
-    await load();
+    reload();
   }
 
   async function recordManualPayment(loanId: number) {
@@ -129,7 +140,7 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
     setNotice(`Payment of ${peso(manualPayAmount)} credited. Balance updated.`);
     setManualPayAmount("");
     setSelectedLoan(null);
-    await load();
+    reload();
   }
 
   async function toggleLoanStatus(loanId: number, currentStatus: string) {
@@ -141,7 +152,7 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
     });
     if (res.ok) {
       setNotice(action === "pause" ? "Loan deductions paused." : "Loan deductions resumed.");
-      await load();
+      reload();
     }
   }
 

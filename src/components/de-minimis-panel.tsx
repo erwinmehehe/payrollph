@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Check, Plus, X } from "lucide-react";
 
 const peso = (value: number | string) =>
@@ -17,19 +17,34 @@ export function DeMinimisPanel({ organizationId, setNotice }: { organizationId: 
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ employeeId: "", benefitType: "riceSubsidy", amount: "2500", effectiveOn: new Date().toISOString().slice(0, 10) });
 
-  async function load() {
-    const [grantRes, staffRes] = await Promise.all([
-      fetch(`/api/de-minimis?organizationId=${organizationId}`, { cache: "no-store" }),
-      fetch(`/api/employees?organizationId=${organizationId}`, { cache: "no-store" }),
-    ]);
-    if (grantRes.ok) {
-      const data = await grantRes.json();
-      setRules(data.rules ?? []);
-      setGrants(data.grants ?? []);
-    }
-    if (staffRes.ok) setEmployees(await staffRes.json());
-  }
-  useEffect(() => { void load(); }, [organizationId]);
+  const [nonce, setNonce] = useState(0);
+  const reload = useCallback(() => setNonce((current) => current + 1), []);
+
+  // The fetch lives in the effect so every state update happens after an await,
+  // and `alive` stops a slow response for one client overwriting a newer one.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const [grantRes, staffRes] = await Promise.all([
+        fetch(`/api/de-minimis?organizationId=${organizationId}`, { cache: "no-store" }),
+        fetch(`/api/employees?organizationId=${organizationId}`, { cache: "no-store" }),
+      ]);
+      if (grantRes.ok) {
+        const data = await grantRes.json();
+        if (!alive) return;
+        setRules(data.rules ?? []);
+        setGrants(data.grants ?? []);
+      }
+      if (staffRes.ok) {
+        const staff = await staffRes.json();
+        if (!alive) return;
+        setEmployees(staff);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [organizationId, nonce]);
 
   const selectedRule = rules.find((rule) => rule.type === form.benefitType);
 
@@ -46,14 +61,14 @@ export function DeMinimisPanel({ organizationId, setNotice }: { organizationId: 
     setNotice(data.treatment.excess > 0
       ? `Benefit granted. ${peso(data.treatment.excess)} annual excess enters the PHP 90,000 other-benefits pool.`
       : "De minimis benefit granted as tax-exempt within its ceiling.");
-    await load();
+    reload();
   }
 
   async function end(id: number) {
     const res = await fetch(`/api/de-minimis?id=${id}`, { method: "DELETE" });
     if (res.ok) {
       setNotice("Benefit ended. It will not appear in future payroll runs.");
-      await load();
+      reload();
     }
   }
 

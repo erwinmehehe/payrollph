@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Check, Clock, Laptop, LogIn, LogOut, MapPin, ShieldCheck, X } from "lucide-react";
 
 export function WebBundyModal({
@@ -34,21 +34,28 @@ export function WebBundyModal({
     return () => clearInterval(interval);
   }, []);
 
-  async function loadTodayPunches() {
-    try {
-      const res = await fetch(`/api/web-bundy?organizationId=${organizationId}${employeeId ? `&employeeId=${employeeId}` : ""}`);
-      if (res.ok) {
-        const data = await res.json();
-        setPunches(data.punches ?? []);
-      }
-    } catch {
-      // ignore
-    }
-  }
+  const [nonce, setNonce] = useState(0);
+  const reloadPunches = useCallback(() => setNonce((current) => current + 1), []);
 
+  // The fetch lives in the effect so every state update happens after an await,
+  // and `alive` stops a slow response overwriting a newer one.
   useEffect(() => {
-    loadTodayPunches();
-  }, [organizationId, employeeId]);
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/web-bundy?organizationId=${organizationId}${employeeId ? `&employeeId=${employeeId}` : ""}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!alive) return;
+        setPunches(data.punches ?? []);
+      } catch {
+        // A failed refresh leaves the last known punches on screen.
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [organizationId, employeeId, nonce]);
 
   async function handlePunch(actionType: "clock_in" | "clock_out") {
     setBusy(true);
@@ -71,7 +78,7 @@ export function WebBundyModal({
         return;
       }
       setMessage(actionType === "clock_in" ? "Clock IN recorded successfully!" : "Clock OUT recorded successfully!");
-      await loadTodayPunches();
+      reloadPunches();
       onPunchSuccess();
     } catch {
       setError("Network error recording punch.");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AlertCircle, Calendar, Check, Clock, FileText, Gavel, Plus, Shield, User, X } from "lucide-react";
 
 type DisciplinaryCase = {
@@ -63,24 +63,35 @@ export function DisciplinePanel({ organizationId, setNotice }: { organizationId:
   const [nodDecisionText, setNodDecisionText] = useState("");
   const [selectedPenalty, setSelectedPenalty] = useState("Written Warning");
 
-  async function load() {
-    const [caseRes, empRes] = await Promise.all([
-      fetch(`/api/discipline?organizationId=${organizationId}`, { cache: "no-store" }),
-      fetch(`/api/employees?organizationId=${organizationId}`, { cache: "no-store" }),
-    ]);
-    if (caseRes.ok) {
-      const data = await caseRes.json();
-      setCases(data.cases ?? []);
-    }
-    if (empRes.ok) {
-      setEmployees(await empRes.json());
-    }
-    setLoaded(true);
-  }
+  const [nonce, setNonce] = useState(0);
+  const reload = useCallback(() => setNonce((current) => current + 1), []);
 
+  // The fetch lives in the effect so every state update happens after an await,
+  // and `alive` stops a slow response for one client overwriting a newer one.
   useEffect(() => {
-    void load();
-  }, [organizationId]);
+    let alive = true;
+    (async () => {
+      const [caseRes, empRes] = await Promise.all([
+        fetch(`/api/discipline?organizationId=${organizationId}`, { cache: "no-store" }),
+        fetch(`/api/employees?organizationId=${organizationId}`, { cache: "no-store" }),
+      ]);
+      if (caseRes.ok) {
+        const data = await caseRes.json();
+        if (!alive) return;
+        setCases(data.cases ?? []);
+      }
+      if (empRes.ok) {
+        const staff = await empRes.json();
+        if (!alive) return;
+        setEmployees(staff);
+      }
+      if (!alive) return;
+      setLoaded(true);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [organizationId, nonce]);
 
   async function issueNte(e: React.FormEvent) {
     e.preventDefault();
@@ -101,7 +112,7 @@ export function DisciplinePanel({ organizationId, setNotice }: { organizationId:
     setNotice("Notice to Explain (NTE) formally issued. Employee given minimum 5 calendar days to respond.");
     setShowNteModal(false);
     setFormNte({ employeeId: "", offense: OFFENSES[0], incidentDate: new Date().toISOString().slice(0, 10), nteDetails: "" });
-    await load();
+    reload();
   }
 
   async function submitAction(caseId: number, action: "submit_explanation" | "schedule_hearing" | "issue_nod") {
@@ -131,7 +142,7 @@ export function DisciplinePanel({ organizationId, setNotice }: { organizationId:
     setExplanationText("");
     setHearingDateStr("");
     setNodDecisionText("");
-    await load();
+    reload();
   }
 
   return (

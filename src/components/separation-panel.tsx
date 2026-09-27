@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Check, CheckCircle2, Download, FileCheck, FileText, HelpCircle, Plus, Shield, UserX, X } from "lucide-react";
 
 type SeparationRecord = {
@@ -48,24 +48,35 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
     unusedLeaveCredits: "5.0",
   });
 
-  async function load() {
-    const [sepRes, empRes] = await Promise.all([
-      fetch(`/api/separation?organizationId=${organizationId}`, { cache: "no-store" }),
-      fetch(`/api/employees?organizationId=${organizationId}`, { cache: "no-store" }),
-    ]);
-    if (sepRes.ok) {
-      const data = await sepRes.json();
-      setSeparations(data.separations ?? []);
-    }
-    if (empRes.ok) {
-      setEmployees(await empRes.json());
-    }
-    setLoaded(true);
-  }
+  const [nonce, setNonce] = useState(0);
+  const reload = useCallback(() => setNonce((current) => current + 1), []);
 
+  // The fetch lives in the effect so every state update happens after an await,
+  // and `alive` stops a slow response for one client overwriting a newer one.
   useEffect(() => {
-    void load();
-  }, [organizationId]);
+    let alive = true;
+    (async () => {
+      const [sepRes, empRes] = await Promise.all([
+        fetch(`/api/separation?organizationId=${organizationId}`, { cache: "no-store" }),
+        fetch(`/api/employees?organizationId=${organizationId}`, { cache: "no-store" }),
+      ]);
+      if (sepRes.ok) {
+        const data = await sepRes.json();
+        if (!alive) return;
+        setSeparations(data.separations ?? []);
+      }
+      if (empRes.ok) {
+        const staff = await empRes.json();
+        if (!alive) return;
+        setEmployees(staff);
+      }
+      if (!alive) return;
+      setLoaded(true);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [organizationId, nonce]);
 
   async function initiateSeparation(e: React.FormEvent) {
     e.preventDefault();
@@ -86,7 +97,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
     }
     setNotice("Separation initiated and Final Pay calculated adhering to DOLE 30-day mandate.");
     setShowModal(false);
-    await load();
+    reload();
   }
 
   async function updateClearance(id: number, dept: "it" | "admin" | "finance" | "hr", value: boolean) {
@@ -103,7 +114,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
     });
     if (res.ok) {
       setNotice(`${dept.toUpperCase()} clearance updated.`);
-      await load();
+      reload();
     }
   }
 
@@ -115,7 +126,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
     });
     if (res.ok) {
       setNotice("Final Pay package approved for bank crediting.");
-      await load();
+      reload();
     }
   }
 

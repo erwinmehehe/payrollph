@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ArrowRight, CheckCircle2, ChevronRight, FileText, Mail, Phone, Plus, Star, UserPlus, Users, X } from "lucide-react";
 
 type Requisition = {
@@ -64,21 +64,28 @@ export function RecruitmentPanel({ organizationId, setNotice }: { organizationId
     notes: "",
   });
 
-  async function load() {
-    const res = await fetch(`/api/recruitment?organizationId=${organizationId}${selectedReqId ? `&requisitionId=${selectedReqId}` : ""}`);
-    if (res.ok) {
+  const [nonce, setNonce] = useState(0);
+  const reload = useCallback(() => setNonce((current) => current + 1), []);
+
+  // The fetch lives in the effect so every state update happens after an await,
+  // and `alive` stops a slow response for one client overwriting a newer one.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const res = await fetch(`/api/recruitment?organizationId=${organizationId}${selectedReqId ? `&requisitionId=${selectedReqId}` : ""}`);
+      if (!res.ok) return;
       const data = await res.json();
+      if (!alive) return;
       setRequisitions(data.requisitions ?? []);
       setApplicants(data.applicants ?? []);
       if (!selectedReqId && data.requisitions?.length > 0) {
         setSelectedReqId(data.requisitions[0].id);
       }
-    }
-  }
-
-  useEffect(() => {
-    void load();
-  }, [organizationId, selectedReqId]);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [organizationId, selectedReqId, nonce]);
 
   async function createRequisition(e: React.FormEvent) {
     e.preventDefault();
@@ -101,7 +108,7 @@ export function RecruitmentPanel({ organizationId, setNotice }: { organizationId
     }
     setNotice("Job requisition opened.");
     setShowReqModal(false);
-    await load();
+    reload();
   }
 
   async function createApplicant(e: React.FormEvent) {
@@ -124,7 +131,7 @@ export function RecruitmentPanel({ organizationId, setNotice }: { organizationId
     setNotice("Candidate added to pipeline.");
     setShowAppModal(false);
     setFormApp({ requisitionId: "", fullName: "", email: "", phone: "", notes: "" });
-    await load();
+    reload();
   }
 
   async function updateStage(applicantId: number, nextStage: string) {
@@ -135,7 +142,7 @@ export function RecruitmentPanel({ organizationId, setNotice }: { organizationId
     });
     if (res.ok) {
       setNotice(`Candidate moved to ${nextStage}.`);
-      await load();
+      reload();
     }
   }
 
