@@ -25,6 +25,21 @@ type SeparationRecord = {
   taxAdjustment: string;
   loanDeductions: string;
   netFinalPay: string;
+  finalPayBreakdown?: {
+    basicEarnedYtd?: number;
+    dailyRate?: number;
+    previousEmployerTaxableCompensation?: number;
+    previousEmployerTaxWithheld?: number;
+    additionalTaxablePay?: number;
+    additionalNonTaxablePay?: number;
+    amountDueFromEmployee?: number;
+    tax?: {
+      taxableIncome?: number;
+      taxDue?: number;
+      taxWithheld?: number;
+      outcome?: "refund" | "collect" | "balanced";
+    };
+  };
   status: string;
   coeIssued: boolean;
 };
@@ -46,6 +61,10 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
     noticeDate: new Date().toISOString().slice(0, 10),
     lastDay: new Date().toISOString().slice(0, 10),
     unusedLeaveCredits: "5.0",
+    previousEmployerTaxableCompensation: "0",
+    previousEmployerTaxWithheld: "0",
+    additionalTaxablePay: "0",
+    additionalNonTaxablePay: "0",
   });
 
   async function load() {
@@ -84,7 +103,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
       setNotice(data.error ?? "Failed to calculate final pay.");
       return;
     }
-    setNotice("Separation initiated and Final Pay calculated adhering to DOLE 30-day mandate.");
+    setNotice("Final Pay draft calculated from released YTD payroll and queued for review.");
     setShowModal(false);
     await load();
   }
@@ -177,7 +196,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                   <option value="resignation">Voluntary Resignation (30d notice)</option>
                   <option value="retirement">Retirement (RA 7641)</option>
                   <option value="end_of_contract">End of Fixed-Term Contract</option>
-                  <option value="authorized_cause">Authorized Cause (Retrenchment/Redundancy - 1mo separation pay)</option>
+                  <option value="authorized_cause">Authorized Cause (entitlement requires HR/legal review)</option>
                   <option value="just_cause">Just Cause Termination (Art. 297)</option>
                 </select>
               </label>
@@ -190,9 +209,21 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
               <label>Unused Vacation / Service Incentive Leave Credits (Days)
                 <input required type="number" step="0.5" min="0" max="60" value={form.unusedLeaveCredits} onChange={(e) => setForm({ ...form, unusedLeaveCredits: e.target.value })} />
               </label>
+              <label>Previous Employer Taxable Compensation (This Year)
+                <input type="number" step="0.01" min="0" value={form.previousEmployerTaxableCompensation} onChange={(e) => setForm({ ...form, previousEmployerTaxableCompensation: e.target.value })} />
+              </label>
+              <label>Previous Employer Tax Withheld (This Year)
+                <input type="number" step="0.01" min="0" value={form.previousEmployerTaxWithheld} onChange={(e) => setForm({ ...form, previousEmployerTaxWithheld: e.target.value })} />
+              </label>
+              <label>Reviewed Additional Taxable Final-Pay Earnings
+                <input type="number" step="0.01" min="0" value={form.additionalTaxablePay} onChange={(e) => setForm({ ...form, additionalTaxablePay: e.target.value })} />
+              </label>
+              <label>Reviewed Additional Non-Taxable Final-Pay Amount
+                <input type="number" step="0.01" min="0" value={form.additionalNonTaxablePay} onChange={(e) => setForm({ ...form, additionalNonTaxablePay: e.target.value })} />
+              </label>
             </div>
             <div className="notice notice-blue" style={{ margin: "10px 0" }}>
-              <span><strong>Automated Computation:</strong> Accrues 13th month from Jan 1 to Last Day, monetizes unused leave at daily rate (Basic &divide; 22), deducts active loan balances, and produces legal clearance checklist.</span>
+              <span><strong>Draft computation:</strong> Uses released YTD payroll, actual BASIC earnings for prorated 13th month, the company payroll divisor for leave conversion, and termination annualization. Separation/retirement entitlements are never invented automatically; enter reviewed amounts explicitly.</span>
             </div>
             <div className="run-actions">
               <button type="button" className="secondary-button" onClick={() => setShowModal(false)}>Cancel</button>
@@ -225,10 +256,24 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                 <span>Leave Monetization ({selectedRecord.unusedLeaveCredits} days)</span>
                 <strong>{peso(selectedRecord.leaveMonetizationPay)}</strong>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: 11.5 }}>
-                <span>Tax Withholding Refund</span>
-                <strong>{peso(selectedRecord.taxAdjustment)}</strong>
-              </div>
+              {Number(selectedRecord.finalPayBreakdown?.additionalTaxablePay ?? 0) > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #edf2ee", fontSize: 11.5 }}>
+                  <span>Reviewed Additional Taxable Pay</span>
+                  <strong>{peso(selectedRecord.finalPayBreakdown?.additionalTaxablePay ?? 0)}</strong>
+                </div>
+              )}
+              {Number(selectedRecord.finalPayBreakdown?.additionalNonTaxablePay ?? 0) > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #edf2ee", fontSize: 11.5 }}>
+                  <span>Reviewed Additional Non-Taxable Pay</span>
+                  <strong>{peso(selectedRecord.finalPayBreakdown?.additionalNonTaxablePay ?? 0)}</strong>
+                </div>
+              )}
+              {Number(selectedRecord.taxAdjustment) > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: 11.5 }}>
+                  <span>Tax Withholding Refund</span>
+                  <strong>{peso(selectedRecord.taxAdjustment)}</strong>
+                </div>
+              )}
             </div>
 
             <div style={{ background: "white", padding: 14, borderRadius: 10, border: "1px solid var(--line)" }}>
@@ -237,10 +282,18 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                 <span>Outstanding Employee Loans</span>
                 <strong style={{ color: "var(--danger)" }}>-{peso(selectedRecord.loanDeductions)}</strong>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: 11.5 }}>
-                <span>Other Accounts Due</span>
-                <span>₱0.00</span>
-              </div>
+              {Number(selectedRecord.taxAdjustment) < 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #edf2ee", fontSize: 11.5 }}>
+                  <span>Annualized Tax Collection</span>
+                  <strong style={{ color: "var(--danger)" }}>-{peso(Math.abs(Number(selectedRecord.taxAdjustment)))}</strong>
+                </div>
+              )}
+              {Number(selectedRecord.finalPayBreakdown?.amountDueFromEmployee ?? 0) > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: 11.5 }}>
+                  <span>Uncovered Amount Due From Employee</span>
+                  <strong style={{ color: "var(--danger)" }}>{peso(selectedRecord.finalPayBreakdown?.amountDueFromEmployee ?? 0)}</strong>
+                </div>
+              )}
             </div>
           </div>
 
