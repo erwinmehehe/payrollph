@@ -9,7 +9,7 @@ const read = (path: string) => readFileSync(path, "utf8");
 test("sign-in has its own route so the product page stays previewable", () => {
   assert.ok(existsSync("src/app/login/page.tsx"), "/login must exist");
   const root = read("src/app/page.tsx");
-  assert.ok(root.includes('redirect("/welcome")'), "logged-out visitors must see the product page, not a login wall");
+  assert.ok(root.includes("if (!user) return <SoftwareHome />"), "logged-out visitors must see the product page, not a login wall");
   assert.ok(root.includes('user.role === "employee"'), "employees must still reach self-service");
 });
 

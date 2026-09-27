@@ -1922,6 +1922,361 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
 .interactive-welcome { display: block; }
 .pricing-calculator { display: grid; gap: 14px; }
 
+
+/* Payroll outsourcing service page
+   Keeps the service funnel visually separate from the software product page. */
+.outsourcing-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 96px 0 84px;
+  border-bottom: 1px solid var(--line);
+  background:
+    radial-gradient(circle at 84% 12%, rgba(68, 76, 231, .11), transparent 31%),
+    radial-gradient(circle at 66% 72%, rgba(18, 183, 106, .08), transparent 34%),
+    linear-gradient(180deg, #fff 0%, var(--canvas) 100%);
+}
+.outsourcing-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(15,20,25,.025) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15,20,25,.025) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: linear-gradient(to bottom, #000, transparent 88%);
+  -webkit-mask-image: linear-gradient(to bottom, #000, transparent 88%);
+}
+.outsourcing-hero-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(360px, .72fr);
+  gap: 72px;
+  align-items: center;
+}
+.outsourcing-hero h1 {
+  max-width: 820px;
+  margin: 12px 0 0;
+  color: var(--ink);
+  font-size: clamp(42px, 5.4vw, 70px);
+  font-weight: 780;
+  line-height: .99;
+  letter-spacing: -.055em;
+}
+.outsourcing-lead {
+  max-width: 720px;
+  margin: 24px 0 0;
+  color: var(--ink-secondary);
+  font-size: 17px;
+  line-height: 1.7;
+}
+.outsourcing-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 30px;
+}
+.outsourcing-actions .primary-button,
+.outsourcing-actions .secondary-button {
+  min-height: 46px;
+  padding: 0 20px;
+}
+.outsourcing-trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 24px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.outsourcing-trust span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.outsourcing-scope-card {
+  padding: 30px;
+  border: 1px solid rgba(68, 76, 231, .13);
+  border-radius: 24px;
+  background: rgba(255,255,255,.88);
+  box-shadow: 0 28px 70px rgba(16, 24, 40, .12);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+.outsourcing-scope-card h2 {
+  margin: 8px 0 22px;
+  color: var(--ink);
+  font-size: 24px;
+  font-weight: 750;
+  line-height: 1.15;
+  letter-spacing: -.035em;
+}
+.scope-list {
+  display: grid;
+  gap: 4px;
+}
+.scope-list > div {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 14px 0;
+  border-top: 1px solid var(--line-faint);
+}
+.scope-list > div:first-child { border-top: 0; padding-top: 0; }
+.scope-list svg { margin-top: 2px; }
+.scope-list strong {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--ink);
+  font-size: 13px;
+}
+.scope-list span {
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.service-process-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.service-step {
+  position: relative;
+  min-height: 240px;
+  padding: 26px 24px 28px;
+  border-right: 1px solid var(--line);
+  background: var(--paper);
+  transition: background .2s var(--ease), transform .2s var(--ease);
+}
+.service-step:last-child { border-right: 0; }
+.service-step:hover {
+  z-index: 1;
+  transform: translateY(-3px);
+  background: var(--canvas-subtle);
+}
+.service-step-number {
+  display: inline-flex;
+  margin-bottom: 44px;
+  color: var(--brand);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+.service-step h3 {
+  margin: 0 0 9px;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 720;
+  letter-spacing: -.025em;
+}
+.service-step p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+
+.responsibility-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+}
+.responsibility-card {
+  padding: 30px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
+}
+.responsibility-card h3 {
+  margin: 6px 0 14px;
+  color: var(--ink);
+  font-size: 23px;
+  font-weight: 750;
+  letter-spacing: -.035em;
+}
+.responsibility-card ul {
+  display: grid;
+  gap: 11px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.responsibility-card li {
+  position: relative;
+  padding-left: 22px;
+  color: var(--ink-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.responsibility-card li::before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--success);
+  font-weight: 800;
+}
+
+.service-software-bridge { padding-top: 54px; padding-bottom: 54px; }
+.service-bridge-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 34px;
+  padding: 28px 30px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: linear-gradient(120deg, var(--paper), var(--canvas));
+  box-shadow: var(--shadow-sm);
+}
+.service-bridge-card h2 {
+  margin: 6px 0 8px;
+  color: var(--ink);
+  font-size: 24px;
+  font-weight: 750;
+  letter-spacing: -.035em;
+}
+.service-bridge-card p:last-child {
+  max-width: 760px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+.service-bridge-card > a { flex: none; }
+
+.quote-layout {
+  display: grid;
+  grid-template-columns: minmax(0, .75fr) minmax(0, 1.15fr);
+  gap: 56px;
+  align-items: start;
+}
+.quote-copy {
+  position: sticky;
+  top: 110px;
+}
+.quote-copy h2 {
+  max-width: 520px;
+  margin: 8px 0 12px;
+  color: var(--ink);
+  font-size: clamp(30px, 3.5vw, 44px);
+  font-weight: 760;
+  line-height: 1.08;
+  letter-spacing: -.045em;
+}
+.quote-copy > p:not(.eyebrow) {
+  max-width: 520px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.7;
+}
+.quote-points {
+  display: grid;
+  gap: 11px;
+  margin-top: 24px;
+}
+.quote-points span {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--ink-secondary);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.quote-points svg { flex: none; margin-top: 1px; }
+
+.quote-card {
+  padding: 30px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--paper);
+  box-shadow: 0 22px 56px rgba(16, 24, 40, .09);
+}
+.quote-card h2 {
+  margin: 7px 0 8px;
+  color: var(--ink);
+  font-size: 24px;
+  font-weight: 750;
+  letter-spacing: -.035em;
+}
+.quote-card > p:not(.eyebrow) {
+  margin: 0 0 22px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+.quote-card .notice { margin: 14px 0; }
+.quote-card .notice ul { margin: 5px 0 0; padding-left: 17px; }
+.quote-fields { display: grid; gap: 14px; }
+.quote-submit {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 18px;
+}
+.quote-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+
+/* Gentle public-page motion. View timelines are progressive enhancement only. */
+@supports (animation-timeline: view()) {
+  .site .section-head,
+  .site .feature-card,
+  .site .price-card,
+  .site .service-step,
+  .site .responsibility-card,
+  .site .quote-card {
+    animation: public-reveal linear both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 24%;
+  }
+  @keyframes public-reveal {
+    from { opacity: .2; transform: translateY(16px); }
+    to { opacity: 1; transform: none; }
+  }
+}
+
+@media (max-width: 1180px) {
+  .outsourcing-hero-grid { grid-template-columns: minmax(0, 1fr); gap: 36px; }
+  .outsourcing-scope-card { max-width: 720px; }
+  .service-process-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 0; }
+  .service-step { border-bottom: 1px solid var(--line); }
+  .service-step:nth-child(2n) { border-right: 0; }
+  .service-step:last-child { grid-column: 1 / -1; border-right: 0; }
+}
+
+@media (max-width: 820px) {
+  .outsourcing-hero { padding: 64px 0 54px; }
+  .outsourcing-hero h1 { font-size: clamp(38px, 10vw, 56px); }
+  .responsibility-grid, .quote-layout { grid-template-columns: minmax(0, 1fr); }
+  .quote-copy { position: static; }
+  .service-bridge-card { align-items: flex-start; flex-direction: column; }
+}
+
+@media (max-width: 680px) {
+  .outsourcing-hero { padding-top: 48px; }
+  .outsourcing-hero-grid { gap: 28px; }
+  .outsourcing-scope-card, .responsibility-card, .quote-card { padding: 22px 20px; border-radius: 18px; }
+  .outsourcing-actions { display: grid; }
+  .outsourcing-actions a { width: 100%; justify-content: center; }
+  .outsourcing-trust { display: grid; gap: 10px; }
+  .service-process-grid { grid-template-columns: minmax(0, 1fr); }
+  .service-step, .service-step:nth-child(2n), .service-step:last-child {
+    grid-column: auto;
+    border-right: 0;
+  }
+  .service-step { min-height: 0; }
+  .service-step-number { margin-bottom: 24px; }
+}
+
 /* ==========================================================================
    Auth
    ========================================================================== */
