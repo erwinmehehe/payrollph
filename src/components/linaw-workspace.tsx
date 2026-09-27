@@ -1,0 +1,419 @@
+"use client";
+
+import { useCallback, useMemo, useState } from "react";
+import { Clock, ShieldCheck, Sparkles } from "lucide-react";
+import { AssetsPanel } from "@/components/assets-panel";
+import { BenefitsPanel } from "@/components/benefits-panel";
+import { ContractorsPanel } from "@/components/contractors-panel";
+import { DeMinimisPanel } from "@/components/de-minimis-panel";
+import { DisciplinePanel } from "@/components/discipline-panel";
+import { LoansPanel } from "@/components/loans-panel";
+import { NewHireModal } from "@/components/new-hire-modal";
+import { RecruitmentPanel } from "@/components/recruitment-panel";
+import { SeparationPanel } from "@/components/separation-panel";
+import { EwaPanel, ExpensesPanel } from "@/components/wallet-panel";
+import { WebBundyModal } from "@/components/web-bundy-modal";
+import { AnalyticsView } from "@/components/workspace/analytics";
+import { ApprovalsView } from "@/components/workspace/approvals";
+import { CommandPalette, usePaletteShortcut, type PaletteAction } from "@/components/workspace/command-palette";
+import { ExportsView } from "@/components/workspace/exports";
+import { FREELANCER_HIDDEN, NAVIGATION } from "@/components/workspace/nav";
+import { OverviewView } from "@/components/workspace/overview";
+import {
+  AuditPage,
+  CheckoutModal,
+  CompliancePage,
+  DeveloperPage,
+  FreelancerPage,
+  GovValidationModal,
+  IntegrationsPage,
+  LeavePage,
+  NewPayrollModal,
+  OutboxModal,
+  PricingPage,
+  SettingsPage,
+} from "@/components/workspace/panels";
+import { PayrollRunView } from "@/components/workspace/payroll-run";
+import { PeopleView } from "@/components/workspace/people";
+import { WorkspaceShell, buildNotifications } from "@/components/workspace/shell";
+import { TimeView } from "@/components/workspace/time";
+import type { DashboardData, PricingPlan } from "@/components/workspace/types";
+import { ToastStack, useToasts } from "@/components/workspace/ui";
+
+export function LinawWorkspace({ initialData }: { initialData: DashboardData }) {
+  const [data, setData] = useState(initialData);
+  const [page, setPage] = useState("Overview");
+  const [busy, setBusy] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [focusEmployeeId, setFocusEmployeeId] = useState<number | null>(null);
+
+  // Modals kept from the original build, all still server-authorised.
+  const [newPayrollOpen, setNewPayrollOpen] = useState(false);
+  const [outboxOpen, setOutboxOpen] = useState(false);
+  const [checkoutPlan, setCheckoutPlan] = useState<PricingPlan | null>(null);
+  const [govModalOpen, setGovModalOpen] = useState(false);
+  const [newHireOpen, setNewHireOpen] = useState(false);
+  const [webBundyOpen, setWebBundyOpen] = useState(false);
+
+  const { toasts, notify, dismiss } = useToasts();
+  const noticeAdapter = useCallback((message: string) => notify(message, "info"), [notify]);
+
+  const isFreelancer = data.selectedOrganization.accountType === "freelancer";
+  const currentRun = data.payrollRuns.find((run) => run.status !== "Released") ?? data.payrollRuns[0];
+
+  const availablePages = useMemo(
+    () =>
+      NAVIGATION.flatMap((group) => group.items)
+        .map((item) => item.name)
+        .filter((name) => !(isFreelancer && FREELANCER_HIDDEN.has(name))),
+    [isFreelancer],
+  );
+
+  const notifications = useMemo(() => buildNotifications(data), [data]);
+
+  usePaletteShortcut(() => setPaletteOpen(true));
+
+  /* ------------------------------------------------------------- data ops */
+
+  const refresh = useCallback(
+    async (organizationId = data.selectedOrganization.id) => {
+      const response = await fetch(`/api/dashboard?organizationId=${organizationId}`, { cache: "no-store" });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error ?? `The workspace could not be reloaded (${response.status}).`);
+      }
+      setData((await response.json()) as DashboardData);
+    },
+    [data.selectedOrganization.id],
+  );
+
+  async function changeOrganization(id: number) {
+    try {
+      await refresh(id);
+      setPage("Overview");
+      notify("Switched client. Every query is re-scoped server-side to that workspace.");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Could not switch client.", "err");
+    }
+  }
+
+  async function switchDemoRole(role: "bookkeeper" | "employee" | "freelancer") {
+    try {
+      const response = await fetch("/api/auth/demo-switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      });
+      if (!response.ok) {
+        notify("Role switch failed.", "err");
+        return;
+      }
+      window.location.href = "/";
+    } catch {
+      notify("Role switch failed.", "err");
+    }
+  }
+
+  async function decideTask(id: number, status: "Approved" | "Declined") {
+    setBusy(true);
+    try {
+      const response = await fetch(`/api/approvals/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        // 403 here is the delegation gate doing its job, surface it verbatim.
+        notify(payload.error ?? "That decision could not be saved.", "err");
+        return;
+      }
+      setData((current) => ({
+        ...current,
+        tasks: current.tasks.map((task) => (task.id === id ? { ...task, status } : task)),
+      }));
+      notify(
+        payload.decidedOnBehalfOf
+          ? `Approval ${status.toLowerCase()} on behalf of ${payload.decidedOnBehalfOf}, the delegation chain is in the audit trail.`
+          : `Approval ${status.toLowerCase()} and recorded in the audit trail.`,
+      );
+    } catch {
+      notify("Could not reach the approvals service.", "err");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createPayroll(input: { periodLabel: string; scopeLabel: string }) {
+    setBusy(true);
+    try {
+      const response = await fetch("/api/payroll-runs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...input, organizationId: data.selectedOrganization.id, processNow: true }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        notify(payload.error ?? "The payroll run could not be created.", "err");
+        return;
+      }
+      await refresh();
+      setNewPayrollOpen(false);
+      setPage("Payroll");
+      notify("Run created and queued through the chunked background worker.");
+    } catch {
+      notify("Could not reach the payroll service.", "err");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const processRun = useCallback(async (runId: number) => {
+    setBusy(true);
+    try {
+      const response = await fetch(`/api/payroll-runs/${runId}/process`, { method: "POST" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        notify(payload.error ?? "Payroll processing failed.", "err");
+        return;
+      }
+      await refresh();
+      notify("Calculation finished. The register, payslips and exception flags are up to date.");
+    } catch {
+      notify("Could not reach the payroll worker.", "err");
+    } finally {
+      setBusy(false);
+    }
+  }, [refresh, notify]);
+
+  async function releaseRun(runId: number, acknowledgeExceptions: boolean) {
+    setBusy(true);
+    try {
+      const response = await fetch(`/api/payroll-runs/${runId}/release`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ acknowledgeExceptions }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        notify(payload.error ?? "Release failed.", "err");
+        return;
+      }
+      await refresh();
+      notify(
+        `Payroll released. ${payload.employeesNotified ?? 0} payslip-ready notice(s) queued in the outbox${
+          payload.webhookDeliveries ? `, ${payload.webhookDeliveries} webhook delivery attempt(s) logged` : ""
+        }.`,
+      );
+    } catch {
+      notify("Could not reach the release endpoint.", "err");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function signOut() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.href = "/login";
+  }
+
+  /* ---------------------------------------------------------- palette ops */
+
+  const paletteActions = useMemo<PaletteAction[]>(() => {
+    const actions: PaletteAction[] = [];
+    if (!isFreelancer) {
+      actions.push({ id: "new-payroll", label: "New payroll run", hint: "Create and queue a run for this client", run: () => setNewPayrollOpen(true) });
+      actions.push({ id: "new-hire", label: "Add employee", hint: "Create a record with its onboarding checklist", run: () => setNewHireOpen(true) });
+      actions.push({ id: "bundy", label: "Open web bundy", hint: "Record an attendance punch", run: () => setWebBundyOpen(true) });
+      if (currentRun) {
+        actions.push({
+          id: "recalculate",
+          label: `Re-calculate ${currentRun.periodLabel}`,
+          hint: "Re-run the chunked queue for the live run",
+          run: () => void processRun(currentRun.id),
+        });
+      }
+    }
+    actions.push({ id: "outbox", label: "Email outbox", hint: "See what was queued and whether it was really sent", run: () => setOutboxOpen(true) });
+    actions.push({ id: "gov", label: "Government validation status", hint: "Which agency outputs are still labelled DRAFT", run: () => setGovModalOpen(true) });
+    return actions;
+  }, [isFreelancer, currentRun, processRun]);
+
+  /* --------------------------------------------------------------- render */
+
+  return (
+    <>
+      <WorkspaceShell
+        data={data}
+        page={page}
+        onPage={setPage}
+        notifications={notifications}
+        onOpenPalette={() => setPaletteOpen(true)}
+        onOpenNotification={() => setOutboxOpen(true)}
+        onSwitchClient={(id) => void changeOrganization(id)}
+        onSwitchRole={(role) => void switchDemoRole(role)}
+        onSignOut={() => void signOut()}
+        headerExtras={
+          <>
+            <button className="topbar-link" onClick={() => setGovModalOpen(true)}>
+              <ShieldCheck size={13} style={{ color: "var(--brand)" }} /> Gov status
+            </button>
+            {!isFreelancer && (
+              <button className="topbar-link" onClick={() => setWebBundyOpen(true)}>
+                <Clock size={13} style={{ color: "var(--brand)" }} /> Web bundy
+              </button>
+            )}
+            <button
+              className="topbar-link"
+              onClick={() => setCheckoutPlan(data.plans.find((plan) => plan.name === "Scale") ?? data.plans[0] ?? null)}
+            >
+              <Sparkles size={13} style={{ color: "var(--brand)" }} /> Upgrade
+            </button>
+          </>
+        }
+      >
+        {page === "Overview" && (
+          <OverviewView
+            data={data}
+            currentRun={currentRun}
+            onNewRun={() => setNewPayrollOpen(true)}
+            onPage={setPage}
+            onDecide={(id, status) => void decideTask(id, status)}
+          />
+        )}
+
+        {page === "Payroll" && (
+          <PayrollRunView
+            data={data}
+            busy={busy}
+            onNewRun={() => setNewPayrollOpen(true)}
+            onProcess={processRun}
+            onRelease={releaseRun}
+            onDecide={decideTask}
+            onPage={setPage}
+            notify={notify}
+          />
+        )}
+
+        {page === "People" && (
+          <PeopleView
+            data={data}
+            onRefresh={async () => {
+              await refresh();
+            }}
+            onAddEmployee={() => setNewHireOpen(true)}
+            onPage={setPage}
+            focusEmployeeId={focusEmployeeId}
+            onClearFocus={() => setFocusEmployeeId(null)}
+          />
+        )}
+
+        {page === "Time & attendance" && <TimeView data={data} onOpenBundy={() => setWebBundyOpen(true)} notify={notify} />}
+
+        {page === "Leave" && (
+          <LeavePage
+            data={data}
+            setNotice={noticeAdapter}
+            onRefresh={async () => {
+              await refresh();
+            }}
+          />
+        )}
+
+        {page === "Approvals" && (
+          <ApprovalsView
+            data={data}
+            busy={busy}
+            onDecide={decideTask}
+            onRefresh={async () => {
+              await refresh();
+            }}
+            notify={notify}
+          />
+        )}
+
+        {page === "Analytics" && <AnalyticsView data={data} notify={notify} />}
+        {page === "Exports" && <ExportsView data={data} notify={notify} />}
+
+        {page === "Compliance" && (
+          <CompliancePage data={data} setNotice={noticeAdapter} onOpenGovModal={() => setGovModalOpen(true)} />
+        )}
+        {page === "Loans" && <LoansPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Benefits" && <BenefitsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "De minimis" && <DeMinimisPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Expenses" && <ExpensesPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Earned wage" && <EwaPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Recruitment" && <RecruitmentPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Discipline" && <DisciplinePanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Separation" && <SeparationPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Contractors" && <ContractorsPanel organizationId={data.selectedOrganization.id} />}
+        {page === "Assets" && <AssetsPanel organizationId={data.selectedOrganization.id} />}
+        {page === "Freelancer hub" && <FreelancerPage data={data} setNotice={noticeAdapter} />}
+
+        {page === "Integrations" && <IntegrationsPage onOpenOutbox={() => setOutboxOpen(true)} />}
+        {page === "Developer" && <DeveloperPage organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Pricing" && <PricingPage plans={data.plans} onSelectPlan={(plan) => setCheckoutPlan(plan)} />}
+        {page === "Audit trail" && <AuditPage events={data.auditEvents} organizationId={data.selectedOrganization.id} />}
+        {page === "Settings" && <SettingsPage data={data} setNotice={noticeAdapter} />}
+      </WorkspaceShell>
+
+      <ToastStack toasts={toasts} onDismiss={dismiss} />
+
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        pages={availablePages}
+        organizations={data.organizations}
+        employees={data.employees}
+        actions={paletteActions}
+        onNavigate={setPage}
+        onSwitchClient={(id) => void changeOrganization(id)}
+        onOpenPerson={(employee) => {
+          setFocusEmployeeId(employee.id);
+          setPage("People");
+        }}
+      />
+
+      {newPayrollOpen && <NewPayrollModal onClose={() => setNewPayrollOpen(false)} onCreate={createPayroll} busy={busy} />}
+      {outboxOpen && (
+        <OutboxModal organizationId={data.selectedOrganization.id} onClose={() => setOutboxOpen(false)} setNotice={noticeAdapter} />
+      )}
+      {checkoutPlan && (
+        <CheckoutModal
+          organizationId={data.selectedOrganization.id}
+          plan={checkoutPlan}
+          onClose={() => setCheckoutPlan(null)}
+          onUpgraded={async () => {
+            await refresh();
+            notify(`Plan upgraded to ${checkoutPlan.name}. Entitlements follow the subscription row.`);
+            setCheckoutPlan(null);
+          }}
+        />
+      )}
+      {govModalOpen && (
+        <GovValidationModal organizationId={data.selectedOrganization.id} onClose={() => setGovModalOpen(false)} setNotice={noticeAdapter} />
+      )}
+      {newHireOpen && (
+        <NewHireModal
+          organizationId={data.selectedOrganization.id}
+          onClose={() => setNewHireOpen(false)}
+          onCreated={async () => {
+            await refresh();
+            notify("Employee created with an onboarding checklist.");
+          }}
+        />
+      )}
+      {webBundyOpen && (
+        <WebBundyModal
+          organizationId={data.selectedOrganization.id}
+          employeeName={data.user?.name ?? "Signed-in user"}
+          onClose={() => setWebBundyOpen(false)}
+          onPunchSuccess={() => {
+            void refresh();
+            notify("Punch recorded. Payroll will derive hours from it on the next calculation.");
+          }}
+        />
+      )}
+    </>
+  );
+}

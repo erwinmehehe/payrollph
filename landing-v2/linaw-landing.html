@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Linaw. Philippine payroll, made clear.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800;900&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-soft: #f5f5f7;
+    --surface: #ffffff;
+    --text: #1d1d1f;
+    --text-2: #6e6e73;
+    --text-3: #86868b;
+    --accent: #0a66ff;
+    --accent-deep: #0047b3;
+    --accent-tint: #eaf1ff;
+    --line: #d2d2d7;
+    --line-soft: #e8e8ed;
+    --invert-bg: #0c0d0f;
+    --invert-text: #f5f5f7;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04), 0 6px 20px rgba(0,0,0,0.05);
+    --shadow-lg: 0 10px 30px rgba(0,0,0,0.08), 0 30px 70px rgba(0,0,0,0.10);
+    --radius-s: 12px;
+    --radius-m: 20px;
+    --radius-l: 30px;
+    --maxw: 1180px;
+    color-scheme: light;
+  }
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      --bg: #000000;
+      --bg-soft: #1d1d1f;
+      --surface: #1d1d1f;
+      --text: #f5f5f7;
+      --text-2: #a1a1a6;
+      --text-3: #86868b;
+      --line: #38383d;
+      --line-soft: #2c2c2e;
+      --accent-tint: #0d1b30;
+      --invert-bg: #f5f5f7;
+      --invert-text: #1d1d1f;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.3), 0 6px 20px rgba(0,0,0,0.35);
+      --shadow-lg: 0 10px 30px rgba(0,0,0,0.4), 0 30px 70px rgba(0,0,0,0.5);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #000000; --bg-soft: #1d1d1f; --surface: #1d1d1f;
+    --text: #f5f5f7; --text-2: #a1a1a6; --text-3: #86868b;
+    --line: #38383d; --line-soft: #2c2c2e; --accent-tint: #0d1b30;
+    --invert-bg: #f5f5f7; --invert-text: #1d1d1f;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.3), 0 6px 20px rgba(0,0,0,0.35);
+    --shadow-lg: 0 10px 30px rgba(0,0,0,0.4), 0 30px 70px rgba(0,0,0,0.5);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: calc(64px + env(safe-area-inset-top, 0px)); }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    overflow-x: hidden;
+  }
+  img, svg { max-width: 100%; display: block; }
+  a { color: inherit; }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+  @media (max-width: 640px) { .wrap { padding: 0 20px; } }
+
+  h1, h2, h3, .display { font-family: 'Inter Tight', 'Inter', -apple-system, sans-serif; font-weight: 800; letter-spacing: -0.045em; line-height: 1.02; margin: 0; color: var(--text); }
+  h3 { letter-spacing: -0.03em; font-weight: 700; }
+  p { line-height: 1.6; color: var(--text-2); margin: 0; }
+  .logo { font-family: 'Inter Tight', sans-serif; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.98rem;
+    padding: 13px 26px; border-radius: 999px; border: 1px solid transparent; cursor: pointer;
+    text-decoration: none; transition: transform 0.35s cubic-bezier(.16,1,.3,1), box-shadow 0.35s cubic-bezier(.16,1,.3,1), background 0.25s ease, opacity 0.25s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .btn-fill { background: var(--accent); color: #fff; box-shadow: 0 1px 2px rgba(10,102,255,0.15), 0 8px 20px -4px rgba(10,102,255,0.35); }
+  .btn-fill:hover { background: var(--accent-deep); transform: translateY(-2px); box-shadow: 0 2px 4px rgba(10,102,255,0.2), 0 16px 32px -6px rgba(10,102,255,0.45); }
+  .btn-invert { background: var(--invert-text); color: var(--invert-bg); }
+  .btn-invert:hover { opacity: 0.85; transform: translateY(-1px); }
+  .btn-text { padding: 13px 6px; color: var(--accent); font-weight: 600; }
+  .btn-text:hover { text-decoration: underline; }
+  .btn-outline { border-color: var(--line); color: var(--text); background: transparent; }
+  .btn-outline:hover { border-color: var(--text); background: var(--bg-soft); }
+  .btn-block { width: 100%; }
+
+  .reveal { opacity: 0; transform: translateY(28px) scale(0.96); filter: blur(6px); transition: opacity 0.9s cubic-bezier(.16,1,.3,1), transform 0.9s cubic-bezier(.16,1,.3,1), filter 0.9s cubic-bezier(.16,1,.3,1); }
+  .reveal.in { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  .reveal-stagger > * { opacity: 0; transform: translateY(20px) scale(0.97); filter: blur(4px); transition: opacity 0.7s cubic-bezier(.16,1,.3,1), transform 0.7s cubic-bezier(.16,1,.3,1), filter 0.7s cubic-bezier(.16,1,.3,1); }
+  .reveal-stagger.in > * { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  .reveal-stagger.in > *:nth-child(1) { transition-delay: 0.02s; }
+  .reveal-stagger.in > *:nth-child(2) { transition-delay: 0.09s; }
+  .reveal-stagger.in > *:nth-child(3) { transition-delay: 0.16s; }
+  .reveal-stagger.in > *:nth-child(4) { transition-delay: 0.23s; }
+  .reveal-stagger.in > *:nth-child(5) { transition-delay: 0.30s; }
+  .reveal-stagger.in > *:nth-child(6) { transition-delay: 0.37s; }
+
+  /* ---------- Nav ---------- */
+  .nav { position: sticky; top: 0; z-index: 100; padding-top: env(safe-area-inset-top, 0px);
+    background: color-mix(in srgb, var(--bg) 72%, transparent);
+    backdrop-filter: blur(16px) saturate(160%); -webkit-backdrop-filter: blur(16px) saturate(160%);
+    border-bottom: 1px solid transparent; transition: border-color 0.3s ease; }
+  .nav.scrolled { border-color: var(--line-soft); }
+  .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 52px; }
+  .logo { font-weight: 700; font-size: 1.08rem; letter-spacing: -0.03em; color: var(--text); text-decoration: none; white-space: nowrap; }
+  .nav-links { display: flex; align-items: center; gap: 32px; }
+  .nav-links a { font-size: 0.87rem; font-weight: 500; letter-spacing: -0.005em; text-decoration: none; color: var(--text-2); transition: color 0.2s ease; }
+  .nav-links a:hover { color: var(--text); }
+  .nav-actions { display: flex; align-items: center; gap: 18px; }
+  .nav-actions .btn-fill { padding: 8px 18px; font-size: 0.86rem; }
+  .nav-actions .btn-text { font-size: 0.86rem; padding: 8px 4px; }
+  .nav-toggle { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
+  .nav-toggle span, .nav-toggle span::before, .nav-toggle span::after { content: ""; display: block; width: 20px; height: 1.5px; background: var(--text); position: relative; }
+  .nav-toggle span::before { position: absolute; top: -6px; }
+  .nav-toggle span::after { position: absolute; top: 6px; }
+  .mobile-panel { display: none; }
+  @media (max-width: 860px) {
+    .nav-links { display: none; }
+    .nav-actions .btn-text { display: none; }
+    .nav-toggle { display: block; }
+    .mobile-panel { display: block; max-height: 0; overflow: hidden; transition: max-height 0.35s ease; border-bottom: 1px solid transparent; }
+    .mobile-panel.open { max-height: 320px; border-color: var(--line-soft); }
+    .mobile-panel-inner { padding: 8px 24px 24px; display: flex; flex-direction: column; }
+    .mobile-panel-inner a { padding: 13px 2px; text-decoration: none; color: var(--text); font-weight: 500; border-bottom: 1px solid var(--line-soft); font-size: 0.95rem; }
+    .mobile-panel-inner .btn { margin-top: 16px; }
+  }
+
+  /* ---------- Hero ---------- */
+  .hero { padding: 108px 0 40px; text-align: center; }
+  .hero-kicker { font-size: 0.9rem; color: var(--text-2); font-weight: 500; margin-bottom: 22px; }
+  .hero h1 { font-size: clamp(3.2rem, 9.5vw, 7.4rem); max-width: 15ch; margin: 0 auto; }
+  .hero h1 .soft { color: var(--text-3); font-weight: 700; }
+  .hero .sub { font-size: clamp(1.1rem, 2vw, 1.4rem); max-width: 38ch; margin: 26px auto 0; color: var(--text-2); font-weight: 400; }
+  .hero-cta { display: flex; justify-content: center; gap: 8px; align-items: center; margin-top: 38px; flex-wrap: wrap; }
+
+  .hero-visual { margin-top: 76px; position: relative; }
+  .mesh { position: absolute; left: 50%; top: -8%; width: min(1100px, 100vw); height: 560px; transform: translateX(-50%); pointer-events: none; z-index: 0; will-change: transform; }
+  .mesh span { position: absolute; border-radius: 50%; filter: blur(60px); opacity: 0.55; animation: drift 14s ease-in-out infinite alternate; }
+  .mesh span:nth-child(1) { width: 420px; height: 420px; left: 8%; top: 10%; background: color-mix(in srgb, var(--accent) 55%, transparent); animation-duration: 16s; }
+  .mesh span:nth-child(2) { width: 380px; height: 380px; right: 6%; top: 0; background: color-mix(in srgb, #7c5cff 50%, transparent); animation-duration: 19s; animation-delay: -4s; }
+  .mesh span:nth-child(3) { width: 340px; height: 340px; left: 38%; top: 22%; background: color-mix(in srgb, #00c2b8 40%, transparent); animation-duration: 13s; animation-delay: -8s; }
+  @keyframes drift { from { transform: translate(0, 0) scale(1); } to { transform: translate(24px, -18px) scale(1.08); } }
+  @media (prefers-reduced-motion: reduce) { .mesh span { animation: none; } }
+  :root[data-theme="dark"] .mesh span, :root:not([data-theme="light"]) .mesh span { opacity: 0.35; }
+  .payslip-card { position: relative; z-index: 1; max-width: 640px; margin: 0 auto; background: var(--surface); border: 1px solid var(--line-soft); border-radius: 32px; padding: 38px 38px 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.04), 0 24px 48px -12px rgba(0,0,0,0.18), 0 48px 96px -24px rgba(0,0,0,0.12); text-align: left; }
+  .hero-badge { position: absolute; z-index: 2; top: -18px; right: 6%; background: var(--surface); border: 1px solid var(--line-soft); box-shadow: var(--shadow-lg); border-radius: 999px; padding: 9px 16px 9px 12px; display: flex; align-items: center; gap: 8px; font-size: 0.8rem; font-weight: 600; color: var(--text); }
+  .hero-badge .pip { width: 8px; height: 8px; border-radius: 50%; background: #23c55e; box-shadow: 0 0 0 4px color-mix(in srgb, #23c55e 22%, transparent); }
+  @media (max-width: 640px) { .hero-badge { display: none; } }
+  .payslip-head { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 20px; border-bottom: 1px solid var(--line-soft); }
+  .payslip-head .who { font-weight: 700; font-size: 1.05rem; letter-spacing: -0.01em; }
+  .payslip-head .role { font-size: 0.86rem; color: var(--text-3); margin-top: 2px; }
+  .payslip-head .period { font-size: 0.82rem; color: var(--text-3); text-align: right; }
+  .ps-row { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 0; font-size: 0.96rem; border-bottom: 1px solid var(--line-soft); opacity: 0; transform: translateY(6px); transition: opacity 0.5s ease, transform 0.5s ease; }
+  .ps-row.show { opacity: 1; transform: translateY(0); }
+  .ps-row .label { color: var(--text-2); }
+  .ps-row .amt { font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--text); }
+  .ps-total { display: flex; justify-content: space-between; align-items: baseline; margin-top: 18px; }
+  .ps-total .label { font-size: 1rem; font-weight: 700; color: var(--text); }
+  .ps-total .amt { font-family: 'IBM Plex Mono', monospace; font-size: 1.7rem; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .ps-foot { margin-top: 16px; font-size: 0.78rem; color: var(--text-3); }
+
+  /* ---------- Signals ---------- */
+  .signals { padding: 56px 0; border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); }
+  .signals-inner { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; text-align: center; }
+  @media (max-width: 860px) { .signals-inner { grid-template-columns: repeat(2, 1fr); } }
+  .signal .big { font-size: clamp(1.9rem, 3.4vw, 2.6rem); font-weight: 800; letter-spacing: -0.02em; color: var(--text); }
+  .signal .lbl { font-size: 0.88rem; color: var(--text-2); margin-top: 6px; }
+
+  /* ---------- Section shells ---------- */
+  section { padding: 160px 0; }
+  @media (max-width: 720px) { section { padding: 96px 0; } }
+  .section-soft { background: var(--bg-soft); }
+  .section-invert { background: var(--invert-bg); color: var(--invert-text); }
+  .section-invert p { color: color-mix(in srgb, var(--invert-text) 85%, transparent); }
+  .section-head { max-width: 640px; margin: 0 auto 64px; text-align: center; }
+  .section-head h2 { font-size: clamp(2rem, 4vw, 3rem); }
+  .section-head p { margin-top: 18px; font-size: 1.1rem; }
+  .section-invert h1, .section-invert h2, .section-invert h3 { color: var(--invert-text); }
+
+  /* ---------- Demo ---------- */
+  .demo-tabs { display: flex; justify-content: center; gap: 8px; margin-bottom: 28px; flex-wrap: wrap; }
+  .demo-tab { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--text-2); font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.86rem; padding: 10px 18px; border-radius: 999px; cursor: pointer; transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease; }
+  .demo-tab svg { color: var(--text-3); transition: color 0.25s ease; }
+  .demo-tab[aria-selected="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .demo-tab[aria-selected="true"] svg { color: color-mix(in srgb, var(--bg) 70%, transparent); }
+  .demo-tab:not([aria-selected="true"]):hover { border-color: var(--text-3); }
+
+  .demo-window { border: 1px solid var(--line-soft); border-radius: var(--radius-m); overflow: hidden; box-shadow: var(--shadow-lg); background: var(--surface); }
+  .demo-chrome { display: flex; align-items: center; gap: 12px; padding: 13px 20px; border-bottom: 1px solid var(--line-soft); background: var(--bg-soft); }
+  .demo-dots { display: flex; gap: 6px; flex-shrink: 0; }
+  .demo-dots span { width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
+  .demo-url { font-size: 0.78rem; color: var(--text-3); font-family: 'IBM Plex Mono', monospace; }
+
+  .demo-panel { display: none; }
+  .demo-panel.active { display: block; animation: demoIn 0.5s cubic-bezier(.16,1,.3,1); }
+  @keyframes demoIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  @media (prefers-reduced-motion: reduce) { .demo-panel.active { animation: none; } }
+
+  .demo-register-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; padding: 22px 24px 14px; }
+  .demo-register-head .net { font-size: 0.94rem; color: var(--text); }
+  .demo-register-head .net .amt { font-family: 'IBM Plex Mono', monospace; font-weight: 700; }
+  .demo-register-head .stat { font-size: 0.84rem; color: var(--text-2); }
+  .demo-register-head .stat b { color: var(--accent); font-weight: 600; }
+  .demo-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+  .demo-table thead tr { background: var(--bg-soft); color: var(--text-3); }
+  .demo-table th { text-align: right; font-weight: 600; padding: 10px 20px; font-size: 0.76rem; }
+  .demo-table th:first-child { text-align: left; }
+  .demo-table td { text-align: right; padding: 13px 20px; border-top: 1px solid var(--line-soft); font-family: 'IBM Plex Mono', monospace; color: var(--text-2); }
+  .demo-table td:first-child { text-align: left; font-family: 'Inter', sans-serif; }
+  .demo-table td:first-child .nm { color: var(--text); font-weight: 600; font-family: 'Inter', sans-serif; }
+  .demo-table td:first-child .rl { display: block; font-size: 0.76rem; color: var(--text-3); font-weight: 400; }
+  .demo-table td.net-cell { color: var(--text); font-weight: 600; }
+  .demo-footer-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 24px; border-top: 1px solid var(--line-soft); background: var(--bg-soft); font-size: 0.85rem; color: var(--text-2); }
+
+  .demo-exceptions { padding: 26px; display: grid; gap: 12px; }
+  .exc-card { display: flex; gap: 12px; align-items: flex-start; border: 1px solid var(--line-soft); border-radius: 14px; padding: 16px 18px; }
+  .exc-card.warn { border-color: color-mix(in srgb, #e8a23d 45%, var(--line-soft)); background: color-mix(in srgb, #e8a23d 7%, transparent); }
+  .exc-card .ic { width: 30px; height: 30px; border-radius: 9px; background: color-mix(in srgb, #e8a23d 20%, transparent); color: #b8791f; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .exc-card.ok .ic { background: var(--accent-tint); color: var(--accent); }
+  .exc-card h5 { margin: 0 0 4px; font-size: 0.92rem; font-weight: 700; color: var(--text); }
+  .exc-card p { font-size: 0.86rem; margin: 0; }
+
+  .demo-app-wrap { padding: 40px 26px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; }
+  @media (max-width: 700px) { .demo-app-wrap { grid-template-columns: 1fr; } }
+  .demo-app-wrap ul { list-style: none; padding: 0; margin: 16px 0 0; display: flex; flex-direction: column; gap: 11px; }
+  .demo-app-wrap li { display: flex; gap: 10px; align-items: flex-start; font-size: 0.9rem; color: var(--text-2); }
+  .demo-app-wrap li svg { flex-shrink: 0; margin-top: 3px; color: var(--accent); }
+  .phone-mock { width: 240px; margin: 0 auto; border-radius: 30px; border: 1px solid var(--line-soft); background: var(--bg-soft); padding: 12px; box-shadow: var(--shadow-lg); }
+  .phone-screen { border-radius: 20px; overflow: hidden; background: var(--surface); }
+  .phone-head { padding: 16px 16px 14px; background: var(--accent-tint); }
+  .phone-head .cap { font-size: 0.72rem; color: var(--accent-deep); }
+  .phone-head .amt { font-family: 'IBM Plex Mono', monospace; font-size: 1.4rem; font-weight: 700; color: var(--text); margin-top: 2px; }
+  .phone-head .sub { font-size: 0.74rem; color: var(--text-2); margin-top: 2px; }
+  .phone-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .phone-row { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-2); }
+  .phone-row .v { font-family: 'IBM Plex Mono', monospace; color: var(--text); }
+  .phone-cta { margin-top: 4px; border: 1px solid var(--line-soft); border-radius: 12px; padding: 10px 12px; }
+  .phone-cta .t { font-size: 0.8rem; font-weight: 600; color: var(--text); }
+  .phone-cta .d { font-size: 0.72rem; color: var(--text-3); margin-top: 2px; }
+
+  /* ---------- Feature panel ---------- */
+  .feature-panel { max-width: 760px; margin: 0 auto; text-align: center; }
+  .feature-panel h3 { font-size: clamp(1.7rem, 3.4vw, 2.4rem); }
+  .feature-panel p.big { font-size: 1.15rem; margin-top: 18px; max-width: 52ch; margin-left: auto; margin-right: auto; }
+  .chip-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 40px; }
+  .chip { font-size: 0.86rem; padding: 9px 16px; border-radius: 999px; border: 1px solid var(--line); color: var(--text-2); }
+  .chip.on { border-color: var(--accent); color: var(--accent); background: var(--accent-tint); }
+
+  .icon-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px 32px; margin-top: 96px; }
+  @media (max-width: 780px) { .icon-grid { grid-template-columns: repeat(2, 1fr); gap: 36px 24px; } }
+  @media (max-width: 480px) { .icon-grid { grid-template-columns: 1fr; } }
+  .icon-item { text-align: left; }
+  .icon-item .ic { width: 40px; height: 40px; border-radius: 11px; background: var(--accent-tint); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 16px; transition: transform 0.4s cubic-bezier(.16,1,.3,1); }
+  .icon-item:hover .ic { transform: scale(1.1) rotate(-4deg); }
+  .icon-item h4 { font-size: 1.02rem; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 6px; }
+  .icon-item p { font-size: 0.92rem; }
+
+  /* ---------- Showcase (dark) ---------- */
+  .showcase-grid { display: grid; grid-template-columns: 1fr; gap: 56px; text-align: center; }
+  .showcase-grid h2 { max-width: 18ch; margin: 0 auto; }
+  .showcase-grid > p { max-width: 50ch; margin: 18px auto 0; }
+  .switcher { max-width: 560px; margin: 56px auto 0; background: color-mix(in srgb, var(--invert-text) 6%, transparent); border: 1px solid color-mix(in srgb, var(--invert-text) 14%, transparent); border-radius: var(--radius-m); padding: 22px; text-align: left; backdrop-filter: blur(6px); }
+  .switcher-head { font-size: 0.8rem; color: color-mix(in srgb, var(--invert-text) 72%, transparent); margin-bottom: 14px; }
+  .client-row { display: flex; align-items: center; gap: 14px; padding: 13px 14px; border-radius: 12px; margin-bottom: 6px; transition: background 0.3s ease, transform 0.3s ease; }
+  .client-row:hover { background: color-mix(in srgb, var(--invert-text) 8%, transparent); transform: translateX(3px); }
+  .client-row .avatar { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.86rem; flex-shrink: 0; background: color-mix(in srgb, var(--invert-text) 12%, transparent); }
+  .client-row .meta { flex: 1; min-width: 0; }
+  .client-row .name { font-size: 0.92rem; font-weight: 600; }
+  .client-row .sub { font-size: 0.78rem; color: color-mix(in srgb, var(--invert-text) 72%, transparent); }
+  .client-row .status { font-size: 0.72rem; padding: 4px 10px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 30%, transparent); color: #cfe0ff; white-space: nowrap; }
+
+  /* ---------- Benefits ---------- */
+  .benefit-row { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; padding: 52px 0; border-top: 1px solid var(--line-soft); }
+  .benefit-row:first-of-type { border-top: none; padding-top: 0; }
+  .benefit-row:nth-of-type(even) .b-visual { order: 2; }
+  @media (max-width: 880px) { .benefit-row { grid-template-columns: 1fr; gap: 28px; } .benefit-row:nth-of-type(even) .b-visual { order: 0; } }
+  .b-text .tag { font-size: 0.82rem; color: var(--accent); font-weight: 600; margin-bottom: 10px; display: block; }
+  .b-text h3 { font-size: clamp(1.4rem, 2.6vw, 1.85rem); max-width: 16ch; }
+  .b-text p { margin-top: 14px; font-size: 1.02rem; max-width: 40ch; }
+  .b-visual { background: var(--bg-soft); border-radius: var(--radius-m); padding: 28px; min-height: 190px; display: flex; flex-direction: column; justify-content: center; gap: 12px; }
+  .b-bar { display: flex; align-items: center; gap: 14px; }
+  .b-bar-track { flex: 1; height: 6px; border-radius: 99px; background: var(--line-soft); overflow: hidden; }
+  .b-bar-fill { height: 100%; border-radius: 99px; background: var(--accent); width: 0%; transition: width 1.1s cubic-bezier(.2,.8,.2,1); }
+  .b-bar-fill.animated { width: var(--w); }
+  .b-bar-lbl { font-size: 0.84rem; color: var(--text-2); width: 100px; flex-shrink: 0; }
+  .mini-msg { background: var(--surface); border: 1px solid var(--line-soft); border-radius: 12px; padding: 11px 15px; font-size: 0.88rem; color: var(--text-2); max-width: 80%; margin-bottom: 8px; }
+  .mini-msg.you { align-self: flex-end; background: var(--text); color: var(--bg); border-color: transparent; }
+  .mini-msg.gone { text-decoration: line-through; opacity: 0.45; }
+  .mini-portal { display: flex; flex-direction: column; }
+
+  /* ---------- Quotes ---------- */
+  .quote-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; }
+  @media (max-width: 900px) { .quote-grid { grid-template-columns: 1fr; gap: 48px; } }
+  .quote-card { text-align: center; }
+  .quote-card .mark { font-size: 2.6rem; color: var(--line); line-height: 1; margin-bottom: 4px; font-weight: 800; }
+  .quote-card p.q { font-size: 1.02rem; color: var(--text); line-height: 1.6; }
+  .quote-card .attr { margin-top: 18px; font-size: 0.84rem; color: var(--text-3); }
+  .quote-note { margin-top: 48px; font-size: 0.88rem; color: var(--text-3); text-align: center; max-width: 60ch; margin-left: auto; margin-right: auto; }
+
+  /* ---------- Pricing ---------- */
+  .pricing-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border: 1px solid var(--line-soft); border-radius: var(--radius-m); overflow: hidden; }
+  @media (max-width: 980px) { .pricing-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 600px) { .pricing-grid { grid-template-columns: 1fr; } }
+  .plan { padding: 34px 26px; display: flex; flex-direction: column; border-right: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); position: relative; }
+  .pricing-grid .plan:nth-child(4n) { border-right: none; }
+  @media (max-width: 980px) { .pricing-grid .plan:nth-child(2n) { border-right: none; } .pricing-grid .plan:nth-child(4n) { border-right: 1px solid var(--line-soft); } }
+  @media (max-width: 600px) { .pricing-grid .plan { border-right: none !important; } }
+  .plan.popular { background: var(--bg-soft); }
+  .plan-badge { display: inline-block; font-size: 0.74rem; font-weight: 700; color: var(--accent); border: 1px solid var(--accent); padding: 4px 11px; border-radius: 999px; margin-bottom: 14px; width: fit-content; }
+  .plan-name { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; }
+  .plan-desc { font-size: 0.86rem; color: var(--text-3); margin-top: 6px; min-height: 34px; }
+  .plan-price { margin-top: 22px; display: flex; align-items: baseline; gap: 4px; }
+  .plan-price .amt { font-family: 'IBM Plex Mono', monospace; font-size: 1.9rem; font-weight: 700; color: var(--text); }
+  .plan-price .per { font-size: 0.82rem; color: var(--text-3); }
+  .plan-addon { font-size: 0.8rem; color: var(--text-3); margin-top: 6px; }
+  .plan-cta { margin: 24px 0; }
+  .plan-features { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; }
+  .plan-features li { display: flex; gap: 9px; align-items: flex-start; font-size: 0.88rem; color: var(--text-2); }
+  .plan-features svg { flex-shrink: 0; margin-top: 3px; color: var(--accent); }
+  .pricing-foot { text-align: center; margin-top: 28px; font-size: 0.9rem; color: var(--text-3); max-width: 60ch; margin-left: auto; margin-right: auto; }
+
+  .compare-panel { margin-top: 56px; }
+  .compare-head { text-align: center; margin-bottom: 24px; }
+  .compare-head h3 { font-size: 1.25rem; }
+  .compare-head p { margin-top: 8px; font-size: 0.95rem; max-width: 60ch; margin-left: auto; margin-right: auto; }
+  .compare-table { display: flex; flex-direction: column; border-top: 1px solid var(--line-soft); }
+  .compare-row { display: grid; grid-template-columns: 1.3fr 1.6fr 1fr; gap: 16px; padding: 16px 4px; border-bottom: 1px solid var(--line-soft); align-items: center; font-size: 0.94rem; color: var(--text-2); }
+  .compare-row span:last-child { text-align: right; }
+  .compare-row-head { font-weight: 600; color: var(--text-3); font-size: 0.78rem; }
+  .compare-row-us { border-left: 2px solid var(--accent); padding-left: 14px; }
+  .compare-row-us span:first-child { font-weight: 700; color: var(--text); }
+  .compare-row .amt { font-family: 'IBM Plex Mono', monospace; font-weight: 600; color: var(--text); }
+  .compare-note { margin-top: 20px; font-size: 0.82rem; color: var(--text-3); line-height: 1.65; }
+  @media (max-width: 640px) {
+    .compare-row { grid-template-columns: 1fr; gap: 3px; }
+    .compare-row-head { display: none; }
+    .compare-row span:first-child { font-weight: 600; color: var(--text); }
+    .compare-row span:last-child { text-align: left; font-size: 1.05rem; }
+  }
+
+  /* ---------- FAQ ---------- */
+  .faq-list { max-width: 760px; margin: 0 auto; }
+  .faq-item { border-bottom: 1px solid var(--line-soft); }
+  .faq-q { width: 100%; text-align: left; background: none; border: none; padding: 24px 0; display: flex; justify-content: space-between; align-items: center; gap: 20px; cursor: pointer; font-size: 1.05rem; font-weight: 600; letter-spacing: -0.01em; color: var(--text); }
+  .faq-q .plus { flex-shrink: 0; width: 20px; height: 20px; position: relative; }
+  .faq-q .plus::before, .faq-q .plus::after { content: ""; position: absolute; background: var(--text); border-radius: 2px; top: 50%; left: 50%; transform: translate(-50%, -50%); transition: transform 0.3s ease, opacity 0.3s ease; }
+  .faq-q .plus::before { width: 13px; height: 1.6px; }
+  .faq-q .plus::after { width: 1.6px; height: 13px; }
+  .faq-item.open .plus::after { transform: translate(-50%, -50%) rotate(90deg); opacity: 0; }
+  .faq-a { max-height: 0; overflow: hidden; transition: max-height 0.4s ease; }
+  .faq-a-inner { padding-bottom: 24px; font-size: 0.98rem; color: var(--text-2); max-width: 64ch; line-height: 1.7; }
+
+  /* ---------- CTA ---------- */
+  .cta-band { text-align: center; }
+  .cta-band h2 { max-width: 16ch; margin: 0 auto; font-size: clamp(2.1rem, 4.4vw, 3.2rem); }
+  .cta-band p { margin-top: 18px; max-width: 44ch; margin-left: auto; margin-right: auto; font-size: 1.08rem; }
+  .cta-band .hero-cta { margin-top: 30px; }
+
+  /* ---------- Footer ---------- */
+  footer { padding: 72px 0 36px; background: var(--bg-soft); }
+  .foot-top { display: grid; grid-template-columns: 1.4fr repeat(3, 1fr); gap: 40px; }
+  @media (max-width: 780px) { .foot-top { grid-template-columns: repeat(2, 1fr); } }
+  .foot-brand .logo { display: block; }
+  .foot-brand p { margin-top: 14px; max-width: 30ch; font-size: 0.9rem; }
+  .foot-col h4 { font-size: 0.82rem; color: var(--text); font-weight: 700; margin-bottom: 16px; }
+  .foot-col ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 11px; }
+  .foot-col a { text-decoration: none; color: var(--text-2); font-size: 0.9rem; }
+  .foot-col a:hover { color: var(--text); }
+  .foot-bottom { margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 0.82rem; color: var(--text-3); }
+
+  ::selection { background: var(--accent-tint); color: var(--accent-deep); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+<noscript><style>.reveal,.reveal-stagger,.reveal-stagger>*{opacity:1!important;transform:none!important;}.ps-row{opacity:1!important;transform:none!important;}.b-bar-fill{width:var(--w)!important;}</style></noscript>
+</head>
+<body>
+
+<nav class="nav" id="nav">
+  <div class="wrap nav-inner">
+    <a href="#top" class="logo">Linaw</a>
+    <div class="nav-links">
+      <a href="#demo">Demo</a>
+      <a href="#features">Product</a>
+      <a href="#showcase">Bookkeepers</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+    </div>
+    <div class="nav-actions">
+      <a href="#pricing" class="btn btn-text">See pricing</a>
+      <a href="#cta" class="btn btn-fill">Get started</a>
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="mobilePanel"><span></span></button>
+    </div>
+  </div>
+  <div class="mobile-panel" id="mobilePanel">
+    <div class="mobile-panel-inner">
+      <a href="#demo">Demo</a>
+      <a href="#features">Product</a>
+      <a href="#showcase">Bookkeepers</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+      <a href="#cta" class="btn btn-fill btn-block">Get started</a>
+    </div>
+  </div>
+</nav>
+
+<main id="top">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero-kicker reveal in">Now onboarding a founding cohort of PH bookkeepers &amp; SMEs</div>
+      <h1 class="reveal in">Payroll,<br><span class="soft">made clear.</span></h1>
+      <p class="sub reveal in">Every peso traced. Every rule shown. SSS, PhilHealth, Pag-IBIG, and BIR, all accounted for automatically.</p>
+      <div class="hero-cta reveal in">
+        <a href="#cta" class="btn btn-fill">Get started free</a>
+        <a href="#pricing" class="btn btn-text">See pricing</a>
+      </div>
+
+      <div class="hero-visual reveal in">
+        <div class="mesh" id="heroMesh" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div class="hero-badge"><span class="pip"></span>Calculating in real time</div>
+        <div class="payslip-card" role="img" aria-label="Sample payslip showing gross pay, statutory deductions, and net pay calculated automatically">
+          <div class="payslip-head">
+            <div>
+              <div class="who">Ana Reyes</div>
+              <div class="role">Warehouse Supervisor · NCR</div>
+            </div>
+            <div class="period">Sept 16–30, 2026<br>Semi-monthly run</div>
+          </div>
+          <div id="psRows">
+            <div class="ps-row" data-row><span class="label">Basic pay (worked)</span><span class="amt">₱19,250.00</span></div>
+            <div class="ps-row" data-row><span class="label">SSS contribution</span><span class="amt">−₱1,125.00</span></div>
+            <div class="ps-row" data-row><span class="label">PhilHealth</span><span class="amt">−₱481.25</span></div>
+            <div class="ps-row" data-row><span class="label">Pag-IBIG</span><span class="amt">−₱100.00</span></div>
+            <div class="ps-row" data-row><span class="label">Withholding tax</span><span class="amt">−₱612.40</span></div>
+          </div>
+          <div class="ps-total">
+            <span class="label">Net pay</span>
+            <span class="amt" id="netPayAmt">₱16,931.35</span>
+          </div>
+          <div class="ps-foot">Wage Order NCR-26 · 2026 SSS/PhilHealth/Pag-IBIG/TRAIN tables</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SIGNALS -->
+  <div class="signals">
+    <div class="wrap signals-inner reveal-stagger" id="signalsGrid">
+      <div class="signal"><div class="big">₱0</div><div class="lbl">to start as a self-employed filer</div></div>
+      <div class="signal"><div class="big">160+</div><div class="lbl">automated tests on the payroll engine</div></div>
+      <div class="signal"><div class="big">2026</div><div class="lbl">SSS, PhilHealth, Pag-IBIG &amp; wage tables</div></div>
+      <div class="signal"><div class="big">1</div><div class="lbl">login for a bookkeeper's whole roster</div></div>
+    </div>
+  </div>
+
+  <!-- DEMO -->
+  <section id="demo">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <h2>See it in action</h2>
+        <p>Three screens, and that's most of a payroll month. Illustrative data below, not a live customer's.</p>
+      </div>
+
+      <div class="reveal">
+        <div class="demo-tabs" role="tablist" aria-label="Product demo">
+          <button class="demo-tab" role="tab" aria-selected="true" data-panel="register"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M3 9h18M9 9v11" stroke="currentColor" stroke-width="1.8"/></svg>Payroll register</button>
+          <button class="demo-tab" role="tab" aria-selected="false" data-panel="time"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Time &amp; exceptions</button>
+          <button class="demo-tab" role="tab" aria-selected="false" data-panel="app"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="7" y="3" width="10" height="18" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M11 18h2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Employee app</button>
+        </div>
+
+        <div class="demo-window">
+          <div class="demo-chrome">
+            <div class="demo-dots"><span></span><span></span><span></span></div>
+            <div class="demo-url" id="demoUrl">app.linaw.ph / payroll / Sept 16&ndash;30</div>
+          </div>
+
+          <div class="demo-panel active" data-panel="register">
+            <div class="demo-register-head">
+              <div>
+                <div style="font-size:0.76rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.02em; margin-bottom: 4px;">Payroll register &middot; Loom &amp; Field Co.</div>
+                <div class="net">Net pay this cut-off: <span class="amt">₱286,410.90</span></div>
+              </div>
+              <div class="stat">12 released &middot; <b>2 held for review</b></div>
+            </div>
+            <div style="overflow-x: auto;">
+              <table class="demo-table">
+                <thead><tr><th>Employee</th><th>Days</th><th>OT</th><th>Gross</th><th>Gov't &amp; tax</th><th>Net</th></tr></thead>
+                <tbody>
+                  <tr><td><span class="nm">Ana Reyes</span><span class="rl">Warehouse Supervisor</span></td><td>15</td><td>3.0</td><td>21,750.00</td><td>−2,318.65</td><td class="net-cell">19,431.35</td></tr>
+                  <tr><td><span class="nm">Miguel Santos</span><span class="rl">Line Cook</span></td><td>15</td><td>6.5</td><td>18,940.00</td><td>−1,742.10</td><td class="net-cell">17,197.90</td></tr>
+                  <tr><td><span class="nm">Grace Villanueva</span><span class="rl">Barista Lead</span></td><td>14</td><td>0</td><td>16,200.00</td><td>−1,398.40</td><td class="net-cell">14,801.60</td></tr>
+                  <tr><td><span class="nm">Paolo Tan</span><span class="rl">Delivery Rider</span></td><td>15</td><td>2.0</td><td>15,680.00</td><td>−1,201.80</td><td class="net-cell">14,478.20</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="demo-footer-row">
+              <span>4 of 14 rows shown. Bank file for BDO ready to download.</span>
+              <span style="color: var(--text-3); font-size: 0.8rem;">Illustrative data</span>
+            </div>
+          </div>
+
+          <div class="demo-panel" data-panel="time">
+            <div class="demo-exceptions">
+              <div class="exc-card warn">
+                <div class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 9v4M12 17h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></div>
+                <div><h5>Two missing clock-outs, Sept 24</h5><p>Two riders clocked in but not out at the Marbella branch. Held as a half-day until corrected, and the payroll officer's already been notified.</p></div>
+              </div>
+              <div class="exc-card warn">
+                <div class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 9v4M12 17h.01M10.3 3.9L2.7 17a2 2 0 001.7 3h15.2a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></div>
+                <div><h5>Overtime pending approval, 3 people</h5><p>7.5 combined OT hours filed by the closing shift. Held out of this run until the supervisor signs off.</p></div>
+              </div>
+              <div class="exc-card ok">
+                <div class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                <div><h5>Night differential, already applied</h5><p>Everyone clocked in past 10 PM has the premium calculated automatically. Nobody had to remember to add it.</p></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="demo-panel" data-panel="app">
+            <div class="demo-app-wrap">
+              <div>
+                <div style="font-size:0.76rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.02em;">What employees see</div>
+                <h3 style="font-size: 1.3rem; margin-top: 10px;">The app is why the messages stop.</h3>
+                <ul>
+                  <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Payslip appears the moment a run is released, not days later</li>
+                  <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Leave filing with a visible approval trail</li>
+                  <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>2316 and past payslips, always available</li>
+                </ul>
+              </div>
+              <div class="phone-mock">
+                <div class="phone-screen">
+                  <div class="phone-head">
+                    <div class="cap">Sept 16&ndash;30 payslip</div>
+                    <div class="amt">₱19,431.35</div>
+                    <div class="sub">Ready for bank release</div>
+                  </div>
+                  <div class="phone-body">
+                    <div class="phone-row"><span>Leave balance</span><span class="v">4.5 days</span></div>
+                    <div class="phone-row"><span>SSS loan balance</span><span class="v">₱8,200.00</span></div>
+                    <div class="phone-cta"><div class="t">File a leave</div><div class="d">Goes to your supervisor, then HR</div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section id="features">
+    <div class="wrap">
+      <div class="feature-panel reveal">
+        <h3>A payroll engine that shows its math.</h3>
+        <p class="big">MWE exemption cascading. Holiday and rest-day premium stacking. Night differential. Calamity and hazard pay applied automatically from the active DOLE advisory. Every figure traces back to the rule that produced it.</p>
+        <div class="chip-row">
+          <div class="chip on">NCR ₱695/day · WO-NCR-26</div>
+          <div class="chip on">SSS 2026 table</div>
+          <div class="chip on">PhilHealth 2026</div>
+          <div class="chip">Pag-IBIG</div>
+          <div class="chip">TRAIN withholding</div>
+        </div>
+      </div>
+
+      <div class="icon-grid reveal-stagger">
+        <div class="icon-item">
+          <div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+          <h4>Time, derived honestly</h4>
+          <p>Tardiness, overtime, and night differential calculated straight from raw punches. Never self-reported hours.</p>
+        </div>
+        <div class="icon-item">
+          <div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="7" r="4" stroke="currentColor" stroke-width="1.7"/></svg></div>
+          <h4>Self-service that reduces messages</h4>
+          <p>Payslips, leave, and benefit enrollment live where employees can reach them without pinging HR.</p>
+        </div>
+        <div class="icon-item">
+          <div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/></svg></div>
+          <h4>Payouts &amp; government drafts</h4>
+          <p>Bank-formatted files for BDO, BPI, and GCash, plus Alphalist, SSS, PhilHealth, and Pag-IBIG worksheets.</p>
+        </div>
+        <div class="icon-item">
+          <div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M8 9l-4 3 4 3M16 9l4 3-4 3M13 6l-2 12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <h4>A real API</h4>
+          <p>Scoped keys, signed webhooks, and CSV bulk import for teams who'd rather script it than click it.</p>
+        </div>
+        <div class="icon-item">
+          <div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="4" y="11" width="16" height="9" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M8 11V7a4 4 0 118 0v4" stroke="currentColor" stroke-width="1.7"/></svg></div>
+          <h4>Isolation you can verify</h4>
+          <p>Every client organization is tenant-isolated. Covered by our own automated tests, not just assumed.</p>
+        </div>
+        <div class="icon-item">
+          <div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M3 9h18" stroke="currentColor" stroke-width="1.7"/></svg></div>
+          <h4>Wage orders, versioned</h4>
+          <p>Every payroll run traces back to the exact wage order and contribution table version used.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SHOWCASE -->
+  <section id="showcase" class="section-invert">
+    <div class="wrap showcase-grid reveal">
+      <div>
+        <h2>Built for the person running payroll for twelve businesses, not just one.</h2>
+        <p>Most PH payroll tools assume one company, one admin. Linaw's multi-client hub is built for the bookkeeper actually doing this, with proper isolation between every client. Not a shared spreadsheet with tabs.</p>
+      </div>
+      <div class="switcher">
+        <div class="switcher-head">Your client businesses</div>
+        <div class="client-row"><div class="avatar">LF</div><div class="meta"><div class="name">Loom &amp; Field Co.</div><div class="sub">14 employees · Semi-monthly</div></div><div class="status">Run ready</div></div>
+        <div class="client-row"><div class="avatar">MC</div><div class="meta"><div class="name">Marbella Cafe Group</div><div class="sub">28 employees · 3 branches</div></div><div class="status">Run ready</div></div>
+        <div class="client-row"><div class="avatar">AR</div><div class="meta"><div class="name">Ana Reyes (Self-employed)</div><div class="sub">Voluntary contributions · 8% flat</div></div><div class="status">Filed</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BENEFITS -->
+  <section>
+    <div class="wrap">
+      <div class="section-head reveal"><h2>What changes once payroll stops fighting you</h2></div>
+
+      <div class="benefit-row reveal">
+        <div class="b-text">
+          <span class="tag">Compliance</span>
+          <h3>Stop re-learning wage orders every quarter</h3>
+          <p>Regional minimum wage, SSS/PhilHealth/Pag-IBIG brackets, and TRAIN withholding update on their own. You check the draft figures. You don't chase the circular.</p>
+        </div>
+        <div class="b-visual">
+          <div class="chip-row" style="justify-content: flex-start; margin-top: 0;">
+            <div class="chip on">NCR ₱695/day</div>
+            <div class="chip on">SSS 2026</div>
+            <div class="chip on">PhilHealth 2026</div>
+            <div class="chip">Pag-IBIG</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="benefit-row reveal">
+        <div class="b-text">
+          <span class="tag">Bookkeepers</span>
+          <h3>Run payroll for one client or twelve, the same way</h3>
+          <p>The workspace scales from a single self-employed filer to a full client roster without changing how you work.</p>
+        </div>
+        <div class="b-visual">
+          <div class="b-bar"><span class="b-bar-lbl">1 client</span><div class="b-bar-track"><div class="b-bar-fill" style="--w:22%"></div></div></div>
+          <div class="b-bar"><span class="b-bar-lbl">5 clients</span><div class="b-bar-track"><div class="b-bar-fill" style="--w:55%"></div></div></div>
+          <div class="b-bar"><span class="b-bar-lbl">12+ clients</span><div class="b-bar-track"><div class="b-bar-fill" style="--w:92%"></div></div></div>
+        </div>
+      </div>
+
+      <div class="benefit-row reveal">
+        <div class="b-text">
+          <span class="tag">Self-service</span>
+          <h3>Employees stop messaging you for payslips</h3>
+          <p>Payslips, leave balances, and benefit enrollment live in a portal employees already have access to.</p>
+        </div>
+        <div class="b-visual">
+          <div class="mini-portal">
+            <div class="mini-msg you">"Send me my payslip from March?"</div>
+            <div class="mini-msg gone">"Can I still enroll in HMO?"</div>
+            <div class="mini-msg gone">"How many leave credits do I have left?"</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- QUOTES -->
+  <section class="section-soft">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <h2>What we keep hearing</h2>
+        <p>Linaw is early. These are recurring pain points from real conversations with bookkeepers and SME owners, not verified customer reviews.</p>
+      </div>
+      <div class="quote-grid reveal-stagger">
+        <div class="quote-card">
+          <div class="mark">"</div>
+          <p class="q">I manage payroll for eleven small businesses out of one spreadsheet each. I don't need more dashboards. I need one place that doesn't fall apart at client number six.</p>
+          <div class="attr">Independent bookkeeper, Metro Manila</div>
+        </div>
+        <div class="quote-card">
+          <div class="mark">"</div>
+          <p class="q">Every payroll tool I've tried hides pricing behind a sales call. I just want to know what a 15-person team costs before I talk to anyone.</p>
+          <div class="attr">SME owner, food &amp; beverage, Cebu</div>
+        </div>
+        <div class="quote-card">
+          <div class="mark">"</div>
+          <p class="q">Half my payroll headaches are wage order updates and calamity pay I forgot was in effect. I want the software to remember that, not me.</p>
+          <div class="attr">HR admin, logistics, Pampanga</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <section id="pricing">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <h2>Pricing built to stay affordable as you grow</h2>
+        <p>Most Philippine payroll platforms keep pricing behind a sales call, and the few that publish it charge a flat per-employee rate with no free tier at all. Linaw starts at ₱0 for solo filers, and the per-employee add-on works out to roughly ₱100 per employee per month for a 30-person team on Core.</p>
+      </div>
+
+      <div class="pricing-grid reveal-stagger">
+        <div class="plan">
+          <div class="plan-name">Solo</div>
+          <div class="plan-desc">Freelancers &amp; self-employed filers</div>
+          <div class="plan-price"><span class="amt">₱0</span><span class="per">/month</span></div>
+          <div class="plan-addon">Genuinely free. No card required</div>
+          <div class="plan-cta"><a href="#cta" class="btn btn-outline btn-block">Start free</a></div>
+          <ul class="plan-features">
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Voluntary SSS/PhilHealth/Pag-IBIG contributions</li>
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>8% flat vs. graduated tax comparison</li>
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Self-service filing reminders</li>
+          </ul>
+        </div>
+
+        <div class="plan popular">
+          <div class="plan-badge">Best value</div>
+          <div class="plan-name">Core</div>
+          <div class="plan-desc">Small teams running real payroll</div>
+          <div class="plan-price"><span class="amt">₱1,500</span><span class="per">/month</span></div>
+          <div class="plan-addon">+ ₱50 per employee</div>
+          <div class="plan-cta"><a href="#cta" class="btn btn-fill btn-block">Start with Core</a></div>
+          <ul class="plan-features">
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Everything in Solo</li>
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Full payroll engine &amp; time tracking</li>
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Government filing drafts</li>
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Employee self-service portal</li>
+          </ul>
+        </div>
+
+        <div class="plan">
+          <div class="plan-name">Scale</div>
+          <div class="plan-desc">Multi-branch &amp; bookkeeper hubs</div>
+          <div class="plan-price"><span class="amt">₱4,499</span><span class="per">/month</span></div>
+          <div class="plan-addon">+ ₱79 per employee</div>
+          <div class="plan-cta"><a href="#cta" class="btn btn-outline btn-block">Start with Scale</a></div>
+          <ul class="plan-features">
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Everything in Core</li>
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Multi-branch &amp; approval workflows</li>
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Public API &amp; CSV bulk import</li>
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Multi-client bookkeeper hub</li>
+          </ul>
+        </div>
+
+        <div class="plan">
+          <div class="plan-name">Enterprise</div>
+          <div class="plan-desc">Larger orgs with compliance teams</div>
+          <div class="plan-price"><span class="amt">₱12,999</span><span class="per">/month</span></div>
+          <div class="plan-addon">+ ₱99 per employee</div>
+          <div class="plan-cta"><a href="#cta" class="btn btn-outline btn-block">Talk to us</a></div>
+          <ul class="plan-features">
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Everything in Scale</li>
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Audit export &amp; BI exports</li>
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Priority SLA</li>
+          </ul>
+        </div>
+      </div>
+      <p class="pricing-foot">Government filing today means precise, ready-to-file drafts you check and submit yourself. Certified auto-filing isn't live yet, and we'd rather say so plainly.</p>
+
+      <div class="compare-panel reveal">
+        <div class="compare-head">
+          <h3>How this compares to pricing that's actually public</h3>
+          <p>Most Philippine payroll vendors don't publish pricing. Two that do, compared here at real list price for a 20-person team.</p>
+        </div>
+        <div class="compare-table">
+          <div class="compare-row compare-row-head"><span>Vendor</span><span>Pricing structure</span><span>20 employees</span></div>
+          <div class="compare-row compare-row-us"><span>Linaw (Core)</span><span>₱1,500 base + ₱50/employee</span><span class="amt">₱2,500/mo</span></div>
+          <div class="compare-row"><span>KAMI Workforce (Lite)</span><span>₱2,500 base + ₱120/employee¹</span><span class="amt">₱4,900/mo</span></div>
+          <div class="compare-row"><span>Hier Payroll (Pro)</span><span>₱150/employee, no base²</span><span class="amt">₱3,000/mo</span></div>
+        </div>
+        <p class="compare-note">¹ Per KAMI Workforce's published pricing, billed annually. ² Per Hier Payroll's listed pricing via SoftwareFinder. Both checked September 2026. Pricing pages change, so it's worth re-checking before you decide. Plans differ in included features, so this reflects list price only. Because Hier Payroll charges no base fee, the two plans cost the same at exactly 15 employees. Below that, Hier may be cheaper. Above it, Linaw pulls ahead.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq" class="section-soft">
+    <div class="wrap">
+      <div class="section-head reveal"><h2>Questions worth answering plainly</h2></div>
+      <div class="faq-list reveal">
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false"><span>Does Linaw file taxes and contributions for me automatically?</span><span class="plus"></span></button>
+          <div class="faq-a"><div class="faq-a-inner">Not yet, and we'd rather tell you that plainly than oversell it. Linaw generates precise, ready-to-file drafts for Alphalist/2316, SSS R-3, PhilHealth RF-1, and Pag-IBIG MCRF. You review and submit them yourself through the free government tools (BIR's ADES, SSS's R3 File Generator, EPRS, or Pag-IBIG's portal). No accreditation is required for this today. Direct auto-filing is on the roadmap.</div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false"><span>Can I manage payroll for more than one business?</span><span class="plus"></span></button>
+          <div class="faq-a"><div class="faq-a-inner">Yes. This is exactly what the Scale plan's bookkeeper hub is for. One login, switch between client businesses, each one properly isolated from the others.</div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false"><span>How does payroll actually get paid out to employees?</span><span class="plus"></span></button>
+          <div class="faq-a"><div class="faq-a-inner">Linaw generates bank-ready disbursement files for BDO, BPI, and GCash that you upload directly to your online banking or GCash for Business. Direct automated disbursement is being rolled out progressively.</div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false"><span>Is the per-employee price on top of the base plan?</span><span class="plus"></span></button>
+          <div class="faq-a"><div class="faq-a-inner">Yes. Each paid plan has a monthly base plus a flat per-employee add-on, shown above. No hidden setup fees. No "contact sales" pricing tiers.</div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false"><span>What happens to wage order and contribution table updates?</span><span class="plus"></span></button>
+          <div class="faq-a"><div class="faq-a-inner">They're maintained centrally and versioned. Every payroll run traces back to the exact wage order and contribution table version used to calculate it, so nothing is silently out of date.</div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false"><span>Is my data isolated if I manage multiple client businesses?</span><span class="plus"></span></button>
+          <div class="faq-a"><div class="faq-a-inner">Every client organization is isolated at the data layer. It's covered by our own automated tenancy tests, not just assumed to work.</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section id="cta" class="section-invert">
+    <div class="wrap cta-band reveal">
+      <h2>See your first payroll run calculate itself.</h2>
+      <p>Start free as a solo filer, or bring your whole client roster onto Core or Scale. No sales call needed to see what it costs.</p>
+      <div class="hero-cta">
+        <a href="#top" class="btn btn-invert">Get started free</a>
+        <a href="#pricing" class="btn btn-text" style="color: var(--invert-text);">Compare plans</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-top">
+      <div class="foot-brand">
+        <a href="#top" class="logo">Linaw</a>
+        <p>Philippine payroll and HR built around what semi-monthly compliance actually requires. Priced to stay affordable as you grow.</p>
+      </div>
+      <div class="foot-col">
+        <h4>Product</h4>
+        <ul><li><a href="#features">Features</a></li><li><a href="#showcase">Bookkeeper hub</a></li><li><a href="#pricing">Pricing</a></li></ul>
+      </div>
+      <div class="foot-col">
+        <h4>Company</h4>
+        <ul><li><a href="#faq">FAQ</a></li><li><a href="#cta">Get started</a></li><li><a href="#top">Contact</a></li></ul>
+      </div>
+      <div class="foot-col">
+        <h4>Trust</h4>
+        <ul><li><a href="#faq">How filing works</a></li><li><a href="#faq">How payouts work</a></li><li><a href="#faq">Data isolation</a></li></ul>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 Linaw. Built for Philippine payroll.</span>
+      <span>Currently onboarding a founding cohort. Pricing and terms may evolve.</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  var nav = document.getElementById('nav');
+  var onScroll = function () { if (window.scrollY > 6) nav.classList.add('scrolled'); else nav.classList.remove('scrolled'); };
+  document.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  var toggle = document.getElementById('navToggle');
+  var panel = document.getElementById('mobilePanel');
+  toggle.addEventListener('click', function () {
+    var open = panel.classList.toggle('open');
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  panel.querySelectorAll('a').forEach(function (a) {
+    a.addEventListener('click', function () { panel.classList.remove('open'); toggle.setAttribute('aria-expanded', 'false'); });
+  });
+
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var mesh = document.getElementById('heroMesh');
+  if (mesh && !reduceMotion) {
+    var ticking = false;
+    document.addEventListener('scroll', function () {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(function () {
+        var y = window.scrollY;
+        if (y < 900) mesh.style.transform = 'translateX(-50%) translateY(' + (y * 0.18) + 'px)';
+        ticking = false;
+      });
+    }, { passive: true });
+  }
+
+  var revealables = document.querySelectorAll('.reveal, .reveal-stagger');
+  if (reduceMotion) {
+    revealables.forEach(function (el) { el.classList.add('in'); });
+  } else if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) { entry.target.classList.add('in'); io.unobserve(entry.target); }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    revealables.forEach(function (el) { io.observe(el); });
+  } else {
+    revealables.forEach(function (el) { el.classList.add('in'); });
+  }
+
+  var rows = document.querySelectorAll('#psRows [data-row]');
+  var netEl = document.getElementById('netPayAmt');
+  var netTarget = 16931.35;
+  function formatPeso(n) { return '\u20b1' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function runLedger() {
+    if (reduceMotion) { rows.forEach(function (r) { r.classList.add('show'); }); netEl.textContent = formatPeso(netTarget); return; }
+    netEl.textContent = formatPeso(0);
+    rows.forEach(function (row, i) { setTimeout(function () { row.classList.add('show'); }, 200 * i); });
+    var countStart = 200 * rows.length + 150;
+    setTimeout(function () {
+      var start = null; var duration = 850;
+      function step(ts) {
+        if (!start) start = ts;
+        var p = Math.min(1, (ts - start) / duration);
+        var eased = 1 - Math.pow(1 - p, 3);
+        netEl.textContent = formatPeso(netTarget * eased);
+        if (p < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }, countStart);
+  }
+  runLedger();
+
+  var bars = document.querySelectorAll('.b-bar-fill');
+  if ('IntersectionObserver' in window && !reduceMotion) {
+    var barIo = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) { if (entry.isIntersecting) { entry.target.classList.add('animated'); barIo.unobserve(entry.target); } });
+    }, { threshold: 0.4 });
+    bars.forEach(function (b) { barIo.observe(b); });
+  } else { bars.forEach(function (b) { b.classList.add('animated'); }); }
+
+  var demoUrls = {
+    register: 'app.linaw.ph / payroll / Sept 16\u201330',
+    time: 'app.linaw.ph / timekeeping / exceptions',
+    app: 'Linaw app \u00b7 employee view'
+  };
+  var demoTabs = document.querySelectorAll('.demo-tab');
+  var demoUrlEl = document.getElementById('demoUrl');
+  demoTabs.forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      var target = tab.getAttribute('data-panel');
+      demoTabs.forEach(function (t) { t.setAttribute('aria-selected', t === tab ? 'true' : 'false'); });
+      document.querySelectorAll('.demo-panel').forEach(function (panel) {
+        panel.classList.toggle('active', panel.getAttribute('data-panel') === target);
+      });
+      if (demoUrlEl && demoUrls[target]) demoUrlEl.textContent = demoUrls[target];
+    });
+  });
+
+  document.querySelectorAll('.faq-item').forEach(function (item) {
+    var btn = item.querySelector('.faq-q');
+    var ans = item.querySelector('.faq-a');
+    btn.addEventListener('click', function () {
+      var isOpen = item.classList.contains('open');
+      document.querySelectorAll('.faq-item.open').forEach(function (other) {
+        if (other !== item) {
+          other.classList.remove('open');
+          other.querySelector('.faq-q').setAttribute('aria-expanded', 'false');
+          other.querySelector('.faq-a').style.maxHeight = null;
+        }
+      });
+      if (isOpen) { item.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); ans.style.maxHeight = null; }
+      else { item.classList.add('open'); btn.setAttribute('aria-expanded', 'true'); ans.style.maxHeight = ans.scrollHeight + 'px'; }
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

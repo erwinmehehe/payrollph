@@ -1,0 +1,12 @@
+.env.local
+node_modules/
+.next/
+coverage/
+npm-debug.log*
+.env
+*.tsbuildinfo
+next-env.d.ts
+
+# Local-only demo scaffolding (PGlite stand-in database)
+pg-server.local.mjs
+pgdata/
