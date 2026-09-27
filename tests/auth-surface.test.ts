@@ -6,10 +6,12 @@ import { activeMailProvider, deliveryCapable } from "../src/lib/mail-provider";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("sign-in has its own route so the product page stays previewable", () => {
+test("sign-in has its own route so the payroll-software homepage stays previewable", () => {
   assert.ok(existsSync("src/app/login/page.tsx"), "/login must exist");
   const root = read("src/app/page.tsx");
-  assert.ok(root.includes('redirect("/welcome")'), "logged-out visitors must see the product page, not a login wall");
+  const welcome = read("src/app/welcome/page.tsx");
+  assert.ok(root.includes("<PublicHomepage />"), "logged-out visitors must see the payroll-software homepage, not a login wall");
+  assert.ok(welcome.includes('redirect("/")'), "/welcome must redirect to the canonical homepage");
   assert.ok(root.includes('user.role === "employee"'), "employees must still reach self-service");
 });
 

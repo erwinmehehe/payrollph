@@ -33,11 +33,11 @@ const SELF_SCOPED = [
   "src/app/api/employees/import/template/route.ts",
 ];
 
-test("resource-addressed job status is checked against the run's organization", () => {
+test("resource-addressed job status is permission-checked against the run's organization", () => {
   const source = read("src/app/api/payroll-runs/route.ts");
   const getBody = source.split("export async function GET")[1] ?? "";
-  assert.ok(getBody.includes("deniedJob"), "runId job-status branch must be gated");
-  assert.ok(getBody.includes("deniedRuns"), "run listing branch must be gated");
+  assert.ok(getBody.includes('assertPermission(user.id,target.organizationId,"payroll:read")'), "runId job-status branch must resolve the run tenant before authorizing");
+  assert.ok(getBody.includes('assertPermission(user.id,organizationId,"payroll:read")'), "run listing branch must be permission-gated");
 });
 
 test("self-scoped routes never accept an organizationId parameter", () => {
@@ -47,16 +47,15 @@ test("self-scoped routes never accept an organizationId parameter", () => {
   }
 });
 
-test("every session route calls the shared membership gate", () => {
-  const missing = SESSION_ROUTES.filter((path) => !read(path).includes("assertMembership"));
-  assert.deepEqual(missing, [], `routes without tenant isolation: ${missing.join(", ")}`);
+test("every administrative session route calls the explicit permission gate", () => {
+  const missing = SESSION_ROUTES.filter((path) => !read(path).includes("assertPermission"));
+  assert.deepEqual(missing, [], `routes without RBAC permission enforcement: ${missing.join(", ")}`);
 });
 
-test("no session route trusts a client-supplied organizationId alone", () => {
-  // The gate must compare against the session user's id, not accept the id as-is.
+test("no administrative session route trusts a client-supplied organizationId alone", () => {
   for (const path of SESSION_ROUTES) {
     const source = read(path);
-    assert.ok(/assertMembership\(\w+\.id,/.test(source), `${path} must pass the session user id to the gate`);
+    assert.ok(/assertPermission\(\w+\.id,/.test(source), `${path} must pass the session user id to the permission gate`);
   }
 });
 
@@ -67,10 +66,11 @@ test("the self-service link ignores the request body's organizationId", () => {
   assert.ok(source.includes("inArray(employees.organizationId, myOrganizations)"), "employee lookup must be constrained to the caller's workspaces");
 });
 
-test("the gate returns 403 rather than leaking existence", () => {
+test("the permission gate returns 403 rather than leaking cross-tenant data", () => {
   const access = read("src/lib/access.ts");
   assert.ok(access.includes('status: 403'));
   assert.ok(access.includes("You do not have access to this workspace."));
+  assert.ok(access.includes("roleHasPermission"), "RBAC must be checked after membership");
 });
 
 test("the CSV template is served as CSV, not as JSON", () => {
