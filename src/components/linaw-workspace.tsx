@@ -57,6 +57,13 @@ import {
   Clock,
   UserPlus,
   UserX,
+  Command,
+  PanelLeftOpen,
+  TrendingUp,
+  Activity,
+  Database,
+  Terminal,
+  ArrowRight,
 } from "lucide-react";
 import { ImportPanel } from "@/components/import-panel";
 import { BenefitsPanel } from "@/components/benefits-panel";
@@ -71,6 +78,7 @@ import { LoansPanel } from "@/components/loans-panel";
 import { DisciplinePanel } from "@/components/discipline-panel";
 import { RecruitmentPanel } from "@/components/recruitment-panel";
 import { SeparationPanel } from "@/components/separation-panel";
+import { buildDonutSegments, buildSparklinePoints } from "@/lib/dashboard-viz";
 
 type Organization = { id: number; name: string; legalName: string; accountType: string; plan: string; payrollServiceMode?: string; payrollAnnualDivisor: string; statutoryDeductionMode?: string; employeeCount: number; color: string };
 type Employee = { id: number; employeeNo: string; firstName: string; lastName: string; title: string; employmentType: string; status: string; avatarInitials: string; basicRate: string; mwe: boolean; region?: string };
@@ -178,6 +186,34 @@ export function LinawWorkspace({ initialData, demoMode = false }: { initialData:
   const [webBundyOpen, setWebBundyOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem("linaw:sidebar");
+    if (saved) setSideOpen(saved !== "collapsed");
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("linaw:sidebar", sideOpen ? "expanded" : "collapsed");
+  }, [sideOpen]);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setCommandOpen((open) => !open);
+      }
+      if (event.key === "Escape") setCommandOpen(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(""), 4200);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
   const currentRun = data.payrollRuns.find((run) => !["Released"].includes(run.status)) ?? data.payrollRuns[0];
   const openTasks = data.tasks.filter((task) => task.status === "Pending");
@@ -316,9 +352,11 @@ export function LinawWorkspace({ initialData, demoMode = false }: { initialData:
     <div className={`app-shell ${sideOpen ? "" : "app-shell-collapsed"}`}>
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <div className="brand-mark"><span>sa</span></div>
-          <div><strong>linaw</strong><span className="brand-subtitle">people, paid right</span></div>
-          <button className="sidebar-collapse" onClick={() => setSideOpen(false)} aria-label="Collapse sidebar"><PanelLeftClose size={16} /></button>
+          <div className="brand-mark linaw-symbol"><LinawMark /></div>
+          <div><strong>linaw</strong><span className="brand-subtitle">payroll operating system</span></div>
+          <button className="sidebar-collapse" onClick={() => setSideOpen((open) => !open)} aria-label={sideOpen ? "Collapse sidebar" : "Expand sidebar"}>
+            {sideOpen ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
+          </button>
         </div>
         <div className="workspace-label"><span className="pulse-dot" />BOOKKEEPER WORKSPACE</div>
         <nav className="side-navigation" aria-label="Main navigation">
@@ -394,6 +432,12 @@ export function LinawWorkspace({ initialData, demoMode = false }: { initialData:
               </div>
             )}
           </div>
+
+          <button className="command-search" onClick={() => setCommandOpen(true)} aria-label="Open command menu">
+            <Search size={15} />
+            <span>Search or jump to</span>
+            <kbd>⌘K</kbd>
+          </button>
 
           <div className="topbar-actions">
             {/* Instant Role Switcher is available only inside the public sandbox. */}
@@ -511,6 +555,50 @@ export function LinawWorkspace({ initialData, demoMode = false }: { initialData:
           onPunchSuccess={() => { refresh(); setNotice("Attendance punch recorded via Web Bundy."); }}
         />
       )}
+      {commandOpen && <CommandPalette onClose={() => setCommandOpen(false)} onNavigate={(target) => { setPage(target); setCommandOpen(false); }} />}
+    </div>
+  );
+}
+
+function LinawMark() {
+  return (
+    <svg viewBox="0 0 28 28" width="20" height="20" aria-hidden="true">
+      <rect x="4" y="13" width="4" height="10" rx="2" />
+      <rect x="12" y="7" width="4" height="16" rx="2" />
+      <rect x="20" y="3" width="4" height="20" rx="2" />
+    </svg>
+  );
+}
+
+function CommandPalette({ onClose, onNavigate }: { onClose: () => void; onNavigate: (page: string) => void }) {
+  const [query, setQuery] = useState("");
+  const options = navigation.flatMap((group) => group.items.map((item) => ({ ...item, group: group.label })));
+  const filtered = options.filter((item) => item.name.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 10);
+
+  return (
+    <div className="command-overlay" role="presentation" onMouseDown={onClose}>
+      <div className="command-panel" role="dialog" aria-modal="true" aria-label="Command menu" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="command-input">
+          <Search size={18} />
+          <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search workspace…" />
+          <kbd>ESC</kbd>
+        </div>
+        <div className="command-results">
+          <p>JUMP TO</p>
+          {filtered.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button key={item.name} onClick={() => onNavigate(item.name)}>
+                <span className="command-icon"><Icon size={16} /></span>
+                <span><strong>{item.name}</strong><small>{item.group}</small></span>
+                <ArrowRight size={14} />
+              </button>
+            );
+          })}
+          {filtered.length === 0 && <div className="command-empty">No workspace destination matches “{query}”.</div>}
+        </div>
+        <div className="command-footer"><span><Command size={13} /> K to open anywhere</span><span>↑↓ navigate · ↵ open</span></div>
+      </div>
     </div>
   );
 }
