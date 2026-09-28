@@ -1042,19 +1042,15 @@ function currentStage(run: PayrollRun, task?: Task): Stage {
 }
 
 /**
- * New payroll approvals carry an explicit run id in their detail text.
- * Prefer the newest exact link. The period-label fallback exists only for
- * older seeded tasks and never guesses another generic payroll approval.
+ * Payroll approvals are linked to an exact run id in task detail. Do not fall
+ * back to period-title matching: repeated labels and historical seed tasks can
+ * otherwise attach the wrong approval to a live run.
  */
 function findRunApproval(tasks: Task[], run?: PayrollRun) {
   if (!run) return undefined;
-  const exact = tasks
+  return tasks
     .filter((task) => task.detail.includes(`Payroll run #${run.id}`))
     .sort((a, b) => b.id - a.id)[0];
-  if (exact) return exact;
-
-  const period = run.periodLabel.toLowerCase();
-  return tasks.find((task) => task.title.toLowerCase().includes(period));
 }
 
 const monthOf = (date: string) => {
