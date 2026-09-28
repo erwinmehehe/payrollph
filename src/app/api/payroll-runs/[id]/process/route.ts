@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { payrollRuns } from "@/db/schema";
+import { approvalTasks, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { drainPayrollQueue, enqueuePayrollRun } from "@/lib/payroll-engine";
@@ -23,6 +23,22 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   );
   if (deniedOrg) return deniedOrg;
 
+  if (run.status === "Released") {
+    return Response.json({ error: "Released payroll is immutable and cannot be recalculated." }, { status: 409 });
+  }
+
+  const approvalRows = await db
+    .select()
+    .from(approvalTasks)
+    .where(eq(approvalTasks.organizationId, run.organizationId));
+  const linkedApprovals = approvalRows.filter((task) => task.detail.includes(`Payroll run #${run.id}`));
+  for (const task of linkedApprovals) {
+    if (task.status !== "Pending" && task.status !== "Approved") continue;
+    await db.update(approvalTasks)
+      .set({ status: "Superseded", decidedBy: "System", decidedAt: new Date() })
+      .where(eq(approvalTasks.id, task.id));
+  }
+
   const queue = await enqueuePayrollRun(runId);
   const processResult = await drainPayrollQueue(50);
   const [fresh] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
@@ -32,7 +48,12 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     actor: user.name,
     action: "Payroll processing requested",
     resource: run.periodLabel,
-    metadata: { runId, ruleVersion: "PH-2026.01", chunks: processResult.length },
+    metadata: {
+      runId,
+      ruleVersion: "PH-2026.01",
+      chunks: processResult.length,
+      approvalsSuperseded: linkedApprovals.filter((task) => task.status === "Pending" || task.status === "Approved").map((task) => task.id),
+    },
   });
 
   return Response.json({ run: fresh, queue, processResult });
