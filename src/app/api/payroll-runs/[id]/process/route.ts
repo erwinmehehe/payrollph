@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { payrollRuns } from "@/db/schema";
+import { approvalTasks, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { drainPayrollQueue, enqueuePayrollRun } from "@/lib/payroll-engine";
@@ -21,6 +21,28 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   if (!canOperatePayroll(access)) {
     return Response.json({ error: "Payroll access requires an owner, admin, bookkeeper, or payroll role." }, { status: 403 });
   }
+  if (run.status === "Released") {
+    return Response.json({ error: "Released payroll cannot be recalculated." }, { status: 409 });
+  }
+
+  const approvalTitle = `Payroll approval · ${run.periodLabel}`;
+  const approvals = await db
+    .select()
+    .from(approvalTasks)
+    .where(
+      and(
+        eq(approvalTasks.organizationId, run.organizationId),
+        eq(approvalTasks.title, approvalTitle),
+        inArray(approvalTasks.status, ["Pending", "Approved"]),
+      ),
+    );
+  const supersededApprovalIds = approvals.map((task) => task.id);
+  if (supersededApprovalIds.length) {
+    await db
+      .update(approvalTasks)
+      .set({ status: "Superseded" })
+      .where(inArray(approvalTasks.id, supersededApprovalIds));
+  }
 
   const queue = await enqueuePayrollRun(runId);
   const processResult = await drainPayrollQueue(50);
@@ -31,7 +53,12 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     actor: user.name,
     action: "Payroll processing requested",
     resource: run.periodLabel,
-    metadata: { runId, ruleVersion: "PH-2026.01", chunks: processResult.length },
+    metadata: {
+      runId,
+      ruleVersion: "PH-2026.01",
+      chunks: processResult.length,
+      supersededApprovalIds,
+    },
   });
 
   return Response.json({ run: fresh, queue, processResult });
