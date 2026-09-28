@@ -166,28 +166,28 @@ export async function GET() {
     {
       key: "object-storage",
       label: "Object storage for documents",
-      ready: storageConfigured,
+      ready: storageIntegrated,
       detail: storageConfigured
-        ? "External object storage configured."
-        : "Uploads are validated and stored in Postgres. Move to S3/R2 before production document volume.",
+        ? "S3/R2 bucket configuration is present, but the document request path still stores file content in Postgres. Object storage is not integrated yet."
+        : "Uploads are validated and stored in Postgres. S3/R2 integration remains a scale task.",
       blocks: "scale",
     },
     {
       key: "malware-scanning",
       label: "Malware scanning on upload",
-      ready: configured("MALWARE_SCAN_URL"),
-      detail: configured("MALWARE_SCAN_URL")
-        ? "Signature/AV scanning endpoint configured."
-        : "Content-type, magic-byte and size checks run on the request path. Wire MALWARE_SCAN_URL for a full AV engine.",
+      ready: malwareIntegrated,
+      detail: malwareEndpointConfigured
+        ? "MALWARE_SCAN_URL is configured, but the upload request path does not call it yet. Files are not AV-cleared."
+        : "Content-type, magic-byte and size checks run on upload. No malware engine is integrated.",
       blocks: "scale",
     },
     {
       key: "sso",
       label: "SSO / SAML",
-      ready: configured("SAML_METADATA_URL"),
+      ready: samlIntegrated,
       detail: configured("SAML_METADATA_URL")
-        ? "SAML identity provider configured."
-        : "Password + TOTP only. Auth is pluggable; add a SAML method when an enterprise IdP is available.",
+        ? "SAML metadata is configured, but no SAML callback/session implementation exists yet. Keep this disabled until an enterprise IdP is actually required."
+        : "Deferred by design. Password + TOTP is the supported auth path until an enterprise customer requires SSO/SAML.",
       blocks: "scale",
     },
     {
@@ -195,8 +195,8 @@ export async function GET() {
       label: "Dedicated background worker",
       ready: enabled("WORKER_ENABLED"),
       detail: enabled("WORKER_ENABLED")
-        ? "Dedicated worker process draining queues."
-        : "Payroll and webhook queues drain opportunistically from requests and a manual tick endpoint. Set WORKER_ENABLED for a standalone worker.",
+        ? "Dedicated worker is enabled; scripts/worker.ts drains payroll jobs and webhook retries."
+        : "Dedicated worker code exists at scripts/worker.ts. Set WORKER_ENABLED=true and run npm run worker in a persistent worker service to activate it.",
       blocks: "scale",
     },
   ];
@@ -212,7 +212,7 @@ export async function GET() {
     summary:
       launchBlockers.length === 0
         ? "All launch-blocking gates are green. Remaining items only affect enterprise scale."
-        : `${launchBlockers.length} launch blocker(s) remain, each needs an external credential or portal validation, not more code.`,
+        : `${launchBlockers.length} launch blocker(s) remain. Review each gate separately: some need external proof and some still require implementation work.`,
     manualLaunch: {
       ready: unworkaroundableBlockers.length === 0,
       summary:
@@ -221,7 +221,7 @@ export async function GET() {
           : `${unworkaroundableBlockers.length} blocker(s) have no manual workaround and must be fixed even for a manual-ops pilot: ${unworkaroundableBlockers.map((g) => g.label).join(", ")}.`,
     },
     gates,
-    counts: { users: userCount, queuedMail, paidInvoices, activeSubs },
+    counts: { users: userCount, queuedMail, sentMail, paidInvoices, activeSubs, paymongoPreflightPasses },
     generatedAt: new Date().toISOString(),
   });
 }
