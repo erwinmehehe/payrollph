@@ -17,6 +17,19 @@ test("13th month pay is exempt up to the 90,000 cap", () => {
   assert.equal(over.taxableThirteenthMonth, 40_000);
 });
 
+test("13th-month taxable excess is not counted twice when gross already includes it", () => {
+  const result = annualize({
+    grossCompensation: 730_000,
+    thirteenthMonth: 130_000,
+    statutoryContributions: 0,
+    taxWithheld: 0,
+    mwe: false,
+  });
+  // 730,000 total gross less the 90,000 exempt portion = 640,000 taxable.
+  assert.equal(result.taxableIncome, 640_000);
+  assert.equal(result.taxableThirteenthMonth, 40_000);
+});
+
 test("annualization computes taxable income net of contributions and exemptions", () => {
   const result = annualize({
     grossCompensation: 600_000,
