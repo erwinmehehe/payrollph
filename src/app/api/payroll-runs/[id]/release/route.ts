@@ -5,7 +5,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { queueMessage } from "@/lib/mailer";
 import { dispatchWebhook } from "@/lib/webhooks";
-import { assertOrganizationRole, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
+import { assertOrganizationRole, PAYROLL_RELEASE_ROLES } from "@/lib/access";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
 import { settlePayrollRun } from "@/lib/payroll-settlement";
 
@@ -24,8 +24,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const deniedOrg = await assertOrganizationRole(
     user.id,
     run.organizationId,
-    PAYROLL_OPERATOR_ROLES,
-    "Only payroll operators can release payroll.",
+    PAYROLL_RELEASE_ROLES,
+    "Only an owner or administrator can release payroll.",
   );
   if (deniedOrg) return deniedOrg;
 
