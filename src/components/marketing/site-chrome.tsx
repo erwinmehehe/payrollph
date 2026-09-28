@@ -5,12 +5,11 @@ import Link from "next/link";
 import { Menu, X } from "lucide-react";
 
 const LINKS = [
-  { href: "/#payroll", label: "Payroll software" },
-  { href: "/#workspace", label: "HRIS workspace" },
-  { href: "/payroll-outsourcing", label: "Payroll outsourcing" },
-  { href: "/#proof", label: "Proof" },
+  { href: "/#preview", label: "Product" },
+  { href: "/#payroll", label: "Payroll" },
   { href: "/#pricing", label: "Pricing" },
-  { href: "/scorecard", label: "Scorecard" },
+  { href: "/#proof", label: "Proof" },
+  { href: "/payroll-outsourcing", label: "Outsourcing" },
 ];
 
 export function BrandMark({ size = 30 }: { size?: number }) {
