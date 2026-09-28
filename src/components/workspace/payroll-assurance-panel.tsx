@@ -13,6 +13,12 @@ import {
 } from "lucide-react";
 import type { Employee } from "@/components/workspace/types";
 import type { AssuranceFinding, EmployeeVariance } from "@/lib/payroll-assurance";
+import {
+  buildParallelPayrollComparison,
+  parallelComponentLabel,
+  type ParallelComponentKey,
+  type ParallelPayrollRow,
+} from "@/lib/parallel-payroll";
 import { money } from "@/components/workspace/ui";
 
 type AssurancePayload = {
@@ -36,16 +42,6 @@ type AssurancePayload = {
   };
 };
 
-type ParallelRow = {
-  employeeId: number;
-  employeeNo: string;
-  name: string;
-  existingNet: number;
-  linawNet: number;
-  delta: number;
-  percent: number | null;
-};
-
 export function PayrollAssurancePanel({
   runId,
   employees,
@@ -58,7 +54,11 @@ export function PayrollAssurancePanel({
   const [failed, setFailed] = useState(false);
   const [expandedEmployee, setExpandedEmployee] = useState<number | null>(null);
   const [parallelOpen, setParallelOpen] = useState(false);
-  const [parallelRows, setParallelRows] = useState<ParallelRow[]>([]);
+  const [parallelRows, setParallelRows] = useState<ParallelPayrollRow[]>([]);
+  const [parallelDetected, setParallelDetected] = useState<ParallelComponentKey[]>([]);
+  const [parallelUnmatched, setParallelUnmatched] = useState<string[]>([]);
+  const [parallelSkipped, setParallelSkipped] = useState(0);
+  const [parallelExpandedEmployee, setParallelExpandedEmployee] = useState<number | null>(null);
   const [parallelError, setParallelError] = useState("");
 
   useEffect(() => {
@@ -68,6 +68,10 @@ export function PayrollAssurancePanel({
     setPayload(null);
     setExpandedEmployee(null);
     setParallelRows([]);
+    setParallelDetected([]);
+    setParallelUnmatched([]);
+    setParallelSkipped(0);
+    setParallelExpandedEmployee(null);
     setParallelError("");
 
     void fetch(`/api/payroll-runs/${runId}/assurance`, { cache: "no-store" })
@@ -99,6 +103,10 @@ export function PayrollAssurancePanel({
   async function loadParallelFile(file: File) {
     setParallelError("");
     setParallelRows([]);
+    setParallelDetected([]);
+    setParallelUnmatched([]);
+    setParallelSkipped(0);
+    setParallelExpandedEmployee(null);
 
     try {
       const text = await file.text();
@@ -108,62 +116,29 @@ export function PayrollAssurancePanel({
         return;
       }
 
-      const employeeColumn = findColumn(Object.keys(records[0]), [
-        "employee_no",
-        "employee_number",
-        "employee id",
-        "employee_id",
-        "employee",
-      ]);
-      const netColumn = findColumn(Object.keys(records[0]), [
-        "existing_net_pay",
-        "existing net pay",
-        "net_pay",
-        "net pay",
-        "net",
-      ]);
+      const result = buildParallelPayrollComparison({
+        records,
+        employees,
+        comparisons: payload?.comparisons ?? [],
+      });
 
-      if (!employeeColumn || !netColumn) {
-        setParallelError("CSV needs an employee number column and a net pay column.");
+      if (result.rows.length === 0) {
+        setParallelError(
+          result.unmatchedEmployeeNumbers.length > 0
+            ? "Employee numbers were found, but none matched employees in this payroll run."
+            : "No comparable payroll amounts were found for matched employees.",
+        );
+        setParallelUnmatched(result.unmatchedEmployeeNumbers);
+        setParallelSkipped(result.skippedRows);
         return;
       }
 
-      const byEmployeeNo = new Map(employees.map((employee) => [employee.employeeNo.trim().toLowerCase(), employee]));
-      const currentByEmployee = new Map((payload?.comparisons ?? []).map((comparison) => [comparison.employeeId, comparison]));
-      const next: ParallelRow[] = [];
-
-      for (const record of records) {
-        const employeeNo = String(record[employeeColumn] ?? "").trim();
-        const employee = byEmployeeNo.get(employeeNo.toLowerCase());
-        if (!employee) continue;
-        const comparison = currentByEmployee.get(employee.id);
-        if (!comparison) continue;
-
-        const existingNet = parseMoney(record[netColumn]);
-        if (existingNet == null) continue;
-        const delta = round(comparison.currentNet - existingNet);
-        const percent = existingNet === 0 ? null : round((delta / Math.abs(existingNet)) * 100);
-
-        next.push({
-          employeeId: employee.id,
-          employeeNo: employee.employeeNo,
-          name: `${employee.firstName} ${employee.lastName}`,
-          existingNet,
-          linawNet: comparison.currentNet,
-          delta,
-          percent,
-        });
-      }
-
-      if (next.length === 0) {
-        setParallelError("None of the employee numbers in the CSV matched this payroll run.");
-        return;
-      }
-
-      next.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
-      setParallelRows(next);
-    } catch {
-      setParallelError("Could not read that CSV.");
+      setParallelRows(result.rows);
+      setParallelDetected(result.detected);
+      setParallelUnmatched(result.unmatchedEmployeeNumbers);
+      setParallelSkipped(result.skippedRows);
+    } catch (error) {
+      setParallelError(error instanceof Error ? error.message : "Could not read that CSV.");
     }
   }
 
@@ -338,9 +313,10 @@ export function PayrollAssurancePanel({
           <div className="card-header">
             <div>
               <div className="card-kicker">Parallel payroll</div>
-              <h2 style={{ fontSize: 16 }}>Compare an existing payroll file with Linaw</h2>
+              <h2 style={{ fontSize: 16 }}>Reconcile your existing payroll against Linaw</h2>
               <p>
-                Upload a CSV containing employee number and existing net pay. The comparison stays in this browser and does not change the payroll run.
+                Compare gross pay, SSS, PhilHealth, Pag-IBIG, withholding tax, other deductions, and net pay employee by employee.
+                The file stays in this browser and never changes the payroll run.
               </p>
             </div>
             <button className="icon-button" onClick={() => setParallelOpen(false)} aria-label="Close parallel payroll">
@@ -349,11 +325,13 @@ export function PayrollAssurancePanel({
           </div>
 
           <div className="card-body" style={{ paddingTop: 0 }}>
-            <label className="parallel-upload" style={{ display: "flex", alignItems: "center", gap: 10, padding: 14, border: "1px dashed var(--line)", borderRadius: 12, cursor: "pointer" }}>
+            <label className="parallel-upload" style={{ display: "flex", alignItems: "center", gap: 10, padding: 14, border: "1px dashed var(--line)", borderRadius: 10, cursor: "pointer" }}>
               <UploadCloud size={18} className="i-teal" />
-              <span style={{ display: "grid", gap: 2 }}>
+              <span style={{ display: "grid", gap: 3 }}>
                 <strong style={{ fontSize: 12 }}>Upload existing payroll CSV</strong>
-                <small style={{ color: "var(--muted)" }}>Columns: employee_no + existing_net_pay (net_pay also accepted)</small>
+                <small style={{ color: "var(--muted)", lineHeight: 1.5 }}>
+                  Use employee_no plus any of: gross_pay, sss, philhealth, pagibig, withholding_tax, other_deductions, total_deductions, net_pay.
+                </small>
               </span>
               <input
                 type="file"
@@ -376,41 +354,126 @@ export function PayrollAssurancePanel({
 
             {parallelRows.length > 0 && (
               <>
-                <div className="line-title">
-                  <strong>{parallelRows.length} matched employees</strong>
-                  <span>{parallelRows.filter((row) => Math.abs(row.delta) >= 1).length} with a difference</span>
+                <div className="stats-grid" style={{ marginTop: 14 }}>
+                  <AssuranceMetric
+                    label="Matched"
+                    value={String(parallelRows.length)}
+                    detail="employees reconciled"
+                    tone="active"
+                  />
+                  <AssuranceMetric
+                    label="Differences"
+                    value={String(parallelRows.filter((row) => row.differenceCount > 0).length)}
+                    detail="employees with ≥ ₱1 variance"
+                    tone={parallelRows.some((row) => row.differenceCount > 0) ? "review" : "success"}
+                  />
+                  <AssuranceMetric
+                    label="Components"
+                    value={String(parallelDetected.length)}
+                    detail="payroll fields detected"
+                    tone="active"
+                  />
+                  <AssuranceMetric
+                    label="Unmatched"
+                    value={String(parallelUnmatched.length + parallelSkipped)}
+                    detail="rows not reconciled"
+                    tone={parallelUnmatched.length + parallelSkipped > 0 ? "review" : "success"}
+                  />
                 </div>
-                <div className="data-table-wrap slim-scroll">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Employee</th>
-                        <th className="right">Existing net</th>
-                        <th className="right">Linaw net</th>
-                        <th className="right">Variance</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {parallelRows.slice(0, 50).map((row) => (
-                        <tr key={row.employeeId}>
-                          <td>
+
+                <div className="line-title" style={{ marginTop: 16 }}>
+                  <div>
+                    <strong>Component coverage</strong>
+                    <span>{parallelDetected.map(parallelComponentLabel).join(" · ")}</span>
+                  </div>
+                  <span>Click an employee to explain each difference</span>
+                </div>
+
+                {(parallelUnmatched.length > 0 || parallelSkipped > 0) && (
+                  <div className="notice notice-amber" style={{ marginTop: 10 }}>
+                    <AlertTriangle size={14} className="i-amber" />
+                    <span>
+                      {parallelUnmatched.length > 0
+                        ? `${parallelUnmatched.length} employee number(s) did not match this run`
+                        : ""}
+                      {parallelUnmatched.length > 0 && parallelSkipped > 0 ? " · " : ""}
+                      {parallelSkipped > 0 ? `${parallelSkipped} row(s) had no comparable amount` : ""}
+                    </span>
+                  </div>
+                )}
+
+                <div className="audit-list" style={{ marginTop: 8 }}>
+                  {parallelRows.slice(0, 50).map((row) => {
+                    const open = parallelExpandedEmployee === row.employeeId;
+                    const net = row.components.find((component) => component.key === "net");
+                    const largest = [...row.components].sort(
+                      (a, b) => Math.abs(b.delta ?? 0) - Math.abs(a.delta ?? 0),
+                    )[0];
+
+                    return (
+                      <div key={row.employeeId}>
+                        <button
+                          className="audit-row"
+                          style={{ width: "100%", border: 0, background: "transparent", textAlign: "left", cursor: "pointer" }}
+                          onClick={() => setParallelExpandedEmployee(open ? null : row.employeeId)}
+                          aria-expanded={open}
+                        >
+                          <span className="audit-dot"><FileSearch size={14} className="i-purple" /></span>
+                          <div style={{ minWidth: 0 }}>
                             <strong>{row.name}</strong>
-                            <span className="id" style={{ display: "block" }}>{row.employeeNo}</span>
-                          </td>
-                          <td className="right num">{money(row.existingNet)}</td>
-                          <td className="right num">{money(row.linawNet)}</td>
-                          <td className="right num">
-                            <strong className={Math.abs(row.delta) < 1 ? "green-number" : "red-number"}>
-                              {row.delta > 0 ? "+" : ""}{money(row.delta)}
+                            <p>
+                              {row.employeeNo} ·{" "}
+                              {row.differenceCount === 0
+                                ? "all compared components match"
+                                : `${row.differenceCount} component difference${row.differenceCount === 1 ? "" : "s"}`}
+                            </p>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <strong className={row.differenceCount === 0 ? "green-number" : "red-number"}>
+                              {net?.delta != null
+                                ? `${net.delta > 0 ? "+" : ""}${money(net.delta)} net`
+                                : largest?.delta != null
+                                  ? `${largest.delta > 0 ? "+" : ""}${money(largest.delta)}`
+                                  : "Matched"}
                             </strong>
-                            <small style={{ display: "block", color: "var(--muted)" }}>
-                              {row.percent == null ? "—" : `${row.percent > 0 ? "+" : ""}${row.percent.toFixed(1)}%`}
+                            <small style={{ display: "block", marginTop: 2, color: "var(--muted)" }}>
+                              {net?.percent == null ? largest?.label ?? "No variance" : `${net.percent > 0 ? "+" : ""}${net.percent.toFixed(1)}%`}
                             </small>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </div>
+                          <ChevronDown size={14} style={{ transform: open ? "rotate(180deg)" : undefined }} />
+                        </button>
+
+                        {open && (
+                          <div className="trace-box" style={{ margin: "0 18px 14px" }}>
+                            <p>Existing payroll → Linaw</p>
+                            {row.components.map((component) => (
+                              <span
+                                className="trace-line"
+                                key={component.key}
+                                style={{ display: "grid", gridTemplateColumns: "minmax(120px, 1fr) auto auto", gap: 14, alignItems: "center" }}
+                              >
+                                <span>
+                                  <span className="k">{component.label}</span>
+                                  <small style={{ display: "block", color: "var(--muted)" }}>
+                                    {money(component.existing ?? 0)} → {money(component.linaw)}
+                                  </small>
+                                </span>
+                                <strong className={component.different ? "red-number" : "green-number"}>
+                                  {component.delta != null && component.delta > 0 ? "+" : ""}
+                                  {money(component.delta ?? 0)}
+                                </strong>
+                                <small style={{ minWidth: 56, textAlign: "right", color: "var(--muted)" }}>
+                                  {component.percent == null
+                                    ? "—"
+                                    : `${component.percent > 0 ? "+" : ""}${component.percent.toFixed(1)}%`}
+                                </small>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </>
             )}
@@ -452,30 +515,6 @@ function AssuranceMetric({
       <span>{detail}</span>
     </article>
   );
-}
-
-function findColumn(columns: string[], candidates: string[]) {
-  const normalized = new Map(columns.map((column) => [normalizeHeader(column), column]));
-  for (const candidate of candidates) {
-    const found = normalized.get(normalizeHeader(candidate));
-    if (found) return found;
-  }
-  return null;
-}
-
-function normalizeHeader(value: string) {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
-}
-
-function parseMoney(value: unknown) {
-  const cleaned = String(value ?? "").replace(/[₱,$\s]/g, "").replace(/,/g, "");
-  if (!cleaned) return null;
-  const parsed = Number(cleaned);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function round(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
 function parseCsv(text: string): Array<Record<string, string>> {
