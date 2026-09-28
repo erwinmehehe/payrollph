@@ -2,17 +2,19 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, timePunches } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { assertMembership } from "@/lib/access";
+import { assertMembership, assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { clientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
 function manilaToday() {
-  const d = new Date();
-  const utc = d.getTime() + d.getTimezoneOffset() * 60000;
-  const manila = new Date(utc + 3600000 * 8); // UTC+8
-  return manila.toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 }
 
 export async function GET(request: Request) {
@@ -20,11 +22,26 @@ export async function GET(request: Request) {
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
   const url = new URL(request.url);
-  const organizationId = Number(url.searchParams.get("organizationId") ?? 1);
-  const employeeId = Number(url.searchParams.get("employeeId") ?? (user.role === "employee" ? user.employeeId : 0));
+  const organizationId = Number(url.searchParams.get("organizationId"));
+  let employeeId = Number(url.searchParams.get("employeeId") ?? 0);
+  if (!Number.isInteger(organizationId)) {
+    return Response.json({ error: "organizationId is required." }, { status: 400 });
+  }
 
-  const denied = await assertMembership(user.id, organizationId);
-  if (denied) return denied;
+  if (user.role === "employee") {
+    if (!user.employeeId) return Response.json({ error: "Employee profile is not linked." }, { status: 403 });
+    const denied = await assertMembership(user.id, organizationId);
+    if (denied) return denied;
+    employeeId = user.employeeId;
+  } else {
+    const denied = await assertOrganizationRole(
+      user.id,
+      organizationId,
+      PEOPLE_ADMIN_ROLES,
+      "Only People administrators can view team attendance.",
+    );
+    if (denied) return denied;
+  }
 
   const todayStr = manilaToday();
   const filter = employeeId > 0
@@ -55,23 +72,37 @@ export async function POST(request: Request) {
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
   const body = await request.json().catch(() => ({}));
-  const organizationId = Number(body.organizationId ?? 1);
+  const organizationId = Number(body.organizationId);
   let employeeId = Number(body.employeeId);
-  const actionType = String(body.actionType ?? "clock_in"); // "clock_in" | "clock_out"
-  const location = String(body.location ?? "Web Bundy Clock (Browser)");
+  const actionType = String(body.actionType ?? "");
+  const location = String(body.location ?? "Web Bundy Clock (Browser)").slice(0, 160);
   const ip = clientIp(request);
 
-  if (user.role === "employee" && user.employeeId) {
+  if (!Number.isInteger(organizationId) || !["clock_in", "clock_out"].includes(actionType)) {
+    return Response.json({ error: "organizationId and actionType clock_in/clock_out are required." }, { status: 400 });
+  }
+
+  if (user.role === "employee") {
+    if (!user.employeeId) return Response.json({ error: "Employee profile is not linked." }, { status: 403 });
+    const denied = await assertMembership(user.id, organizationId);
+    if (denied) return denied;
     employeeId = user.employeeId;
+  } else {
+    const denied = await assertOrganizationRole(
+      user.id,
+      organizationId,
+      PEOPLE_ADMIN_ROLES,
+      "Only People administrators can record attendance for another employee.",
+    );
+    if (denied) return denied;
   }
 
-  const denied = await assertMembership(user.id, organizationId);
-  if (denied) return denied;
+  if (!Number.isInteger(employeeId)) return Response.json({ error: "employeeId is required." }, { status: 400 });
 
-  const [employee] = await db.select().from(employees).where(eq(employees.id, employeeId)).limit(1);
-  if (!employee || employee.organizationId !== organizationId) {
-    return Response.json({ error: "Employee not found in this organization." }, { status: 404 });
-  }
+  const [employee] = await db.select().from(employees)
+    .where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId)))
+    .limit(1);
+  if (!employee) return Response.json({ error: "Employee not found in this organization." }, { status: 404 });
 
   const todayStr = manilaToday();
   const now = new Date();
@@ -85,54 +116,48 @@ export async function POST(request: Request) {
   ).limit(1);
 
   if (actionType === "clock_in") {
-    if (existingPunch && existingPunch.timeIn) {
+    if (existingPunch?.timeIn) {
       return Response.json({
-        error: `Already clocked in today at ${new Date(existingPunch.timeIn).toLocaleTimeString("en-PH")}.`,
+        error: `Already clocked in today at ${new Date(existingPunch.timeIn).toLocaleTimeString("en-PH", { timeZone: "Asia/Manila" })}.`,
         punch: existingPunch,
       }, { status: 409 });
     }
 
-    if (existingPunch) {
-      const [updated] = await db.update(timePunches).set({
-        timeIn: now,
-        source: "web_bundy",
-        ipAddress: ip,
-        location,
-        status: existingPunch.timeOut ? "Complete" : "Incomplete",
-      }).where(eq(timePunches.id, existingPunch.id)).returning();
-
-      return Response.json({ ok: true, action: "clock_in", punch: updated });
-    }
-
-    const [created] = await db.insert(timePunches).values({
-      organizationId,
-      employeeId,
-      workDate: todayStr,
-      timeIn: now,
-      timeOut: null,
-      shiftStart: "09:00",
-      shiftEnd: "18:00",
-      source: "web_bundy",
-      ipAddress: ip,
-      location,
-      status: "Incomplete",
-      notes: "Clocked in via Web Bundy",
-    }).returning();
+    const [punch] = existingPunch
+      ? await db.update(timePunches).set({
+          timeIn: now,
+          source: "web_bundy",
+          ipAddress: ip,
+          location,
+          status: existingPunch.timeOut ? "Complete" : "Incomplete",
+        }).where(eq(timePunches.id, existingPunch.id)).returning()
+      : await db.insert(timePunches).values({
+          organizationId,
+          employeeId,
+          workDate: todayStr,
+          timeIn: now,
+          timeOut: null,
+          shiftStart: "09:00",
+          shiftEnd: "18:00",
+          source: "web_bundy",
+          ipAddress: ip,
+          location,
+          status: "Incomplete",
+          notes: "Clocked in via Web Bundy",
+        }).returning();
 
     await recordAuditEvent({
       organizationId,
       actor: user.name,
       action: "Web Bundy Clock IN",
       resource: `${employee.firstName} ${employee.lastName}`,
-      metadata: { workDate: todayStr, timeIn: now.toISOString(), ip },
+      metadata: { employeeId, workDate: todayStr, timeIn: now.toISOString(), ip },
     });
 
-    return Response.json({ ok: true, action: "clock_in", punch: created }, { status: 201 });
+    return Response.json({ ok: true, action: "clock_in", punch }, { status: existingPunch ? 200 : 201 });
   }
 
-  // clock_out
   if (!existingPunch || !existingPunch.timeIn) {
-    // Punch in first or record clock out with exception flag
     const [created] = await db.insert(timePunches).values({
       organizationId,
       employeeId,
@@ -148,7 +173,27 @@ export async function POST(request: Request) {
       notes: "Clocked out without Clock IN punch",
     }).returning();
 
-    return Response.json({ ok: true, action: "clock_out", punch: created, warning: "Clock out recorded without prior clock-in." }, { status: 201 });
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "Web Bundy Clock OUT without IN",
+      resource: `${employee.firstName} ${employee.lastName}`,
+      metadata: { employeeId, workDate: todayStr, timeOut: now.toISOString(), ip },
+    });
+
+    return Response.json({
+      ok: true,
+      action: "clock_out",
+      punch: created,
+      warning: "Clock out recorded without prior clock-in.",
+    }, { status: 201 });
+  }
+
+  if (existingPunch.timeOut) {
+    return Response.json({
+      error: `Already clocked out today at ${new Date(existingPunch.timeOut).toLocaleTimeString("en-PH", { timeZone: "Asia/Manila" })}.`,
+      punch: existingPunch,
+    }, { status: 409 });
   }
 
   const [updated] = await db.update(timePunches).set({
@@ -162,7 +207,7 @@ export async function POST(request: Request) {
     actor: user.name,
     action: "Web Bundy Clock OUT",
     resource: `${employee.firstName} ${employee.lastName}`,
-    metadata: { workDate: todayStr, timeOut: now.toISOString(), ip },
+    metadata: { employeeId, workDate: todayStr, timeOut: now.toISOString(), ip },
   });
 
   return Response.json({ ok: true, action: "clock_out", punch: updated });
