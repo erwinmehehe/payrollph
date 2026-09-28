@@ -6,6 +6,7 @@ import { getSessionUser } from "@/lib/auth";
 import { queueMessage } from "@/lib/mailer";
 import { dispatchWebhook } from "@/lib/webhooks";
 import { assertMembership } from "@/lib/access";
+import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
 
 const RELEASABLE = ["Ready for release", "Needs review", "Processed"];
 
@@ -38,6 +39,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return Response.json({ error: `Run must be processed before release (currently ${run.status}).` }, { status: 409 });
   }
 
+  const assuranceResult = await buildPayrollAssurance(runId);
+  const blockingFindings = assuranceResult?.assurance.findings.filter((finding) => finding.blocking) ?? [];
+  if (blockingFindings.length > 0) {
+    return Response.json({
+      error: `Payroll assurance found ${blockingFindings.length} blocking issue(s). Resolve them before release.`,
+      blockingFindings,
+    }, { status: 409 });
+  }
+
   const body = await request.json().catch(() => ({}));
   if (run.exceptions > 0 && !body.acknowledgeExceptions) {
     return Response.json({
@@ -62,6 +72,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       netPay: run.netPay,
       employees: entryCount,
       exceptionsAcknowledged: run.exceptions > 0 ? run.exceptions : 0,
+      assurance: assuranceResult?.assurance.summary ?? null,
     },
   });
 
