@@ -107,8 +107,7 @@ export function SiteFooter() {
               </span>
             </Link>
             <p className="footer-disclosure">
-              Philippine payroll software and HRIS with a public capability scorecard that separates verified, partial and
-              absent features from marketing claims.
+              Philippine payroll software and HRIS for payroll, attendance, statutory deductions, approvals, payslips and reporting.
             </p>
           </div>
 
@@ -123,12 +122,10 @@ export function SiteFooter() {
           </div>
 
           <div>
-            <h4>Proof</h4>
+            <h4>Trust</h4>
             <ul>
               <li><Link href="/scorecard">Capability scorecard</Link></li>
               <li><Link href="/status">System status</Link></li>
-              <li><Link href="/api/readiness">Launch readiness gates</Link></li>
-              <li><Link href="/api/capabilities">Capabilities API</Link></li>
             </ul>
           </div>
 
