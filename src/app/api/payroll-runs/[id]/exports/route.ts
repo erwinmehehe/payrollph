@@ -4,7 +4,7 @@ import { payslips, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { generateBankFile, generateGovernmentDraft, generateJournalCsv } from "@/lib/exporters";
-import { assertMembership, getAccess } from "@/lib/access";
+import { assertOrganizationRole, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { createPaymongoPayrollDisbursement } from "@/lib/paymongo-disbursements";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +25,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) return Response.json({ error: "Payroll run not found" }, { status: 404 });
-  const deniedExports = await assertMembership(user.id, run.organizationId);
+  const deniedExports = await assertOrganizationRole(
+    user.id,
+    run.organizationId,
+    PAYROLL_OPERATOR_ROLES,
+    "Only payroll operators can export payroll data.",
+  );
   if (deniedExports) return deniedExports;
 
   const actor = user.name;
@@ -96,13 +101,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) return Response.json({ error: "Payroll run not found" }, { status: 404 });
-  const denied = await assertMembership(user.id, run.organizationId);
+  const denied = await assertOrganizationRole(
+    user.id,
+    run.organizationId,
+    PAYROLL_OPERATOR_ROLES,
+    "Only payroll operators can trigger a payroll disbursement.",
+  );
   if (denied) return denied;
-
-  const access = await getAccess(user.id, run.organizationId);
-  if (!access || access.role === "employee") {
-    return Response.json({ error: "Only an owner, admin, or bookkeeper can trigger a payroll disbursement." }, { status: 403 });
-  }
 
   if (!process.env.PAYMONGO_SECRET_KEY || process.env.PAYMONGO_DISBURSEMENTS_ENABLED !== "true") {
     return Response.json({
