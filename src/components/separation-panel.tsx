@@ -284,10 +284,14 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
             </div>
           </div>
 
-          <div style={{ marginTop: 14, padding: "12px 16px", borderRadius: 10, background: "var(--green-light)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ marginTop: 14, padding: "12px 16px", borderRadius: 10, background: Number(selectedRecord.netFinalPay) < 0 ? "#fff6f5" : "var(--green-light)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
-              <span style={{ fontSize: 10, textTransform: "uppercase", fontWeight: 800, color: "#0e3e34" }}>NET FINAL PAY DUE</span>
-              <strong style={{ display: "block", fontSize: 22, color: "var(--green)" }}>{peso(selectedRecord.netFinalPay)}</strong>
+              <span style={{ fontSize: 10, textTransform: "uppercase", fontWeight: 800, color: Number(selectedRecord.netFinalPay) < 0 ? "var(--danger)" : "#0e3e34" }}>
+                {Number(selectedRecord.netFinalPay) < 0 ? "BALANCE DUE FROM EMPLOYEE" : "NET FINAL PAY DUE"}
+              </span>
+              <strong style={{ display: "block", fontSize: 22, color: Number(selectedRecord.netFinalPay) < 0 ? "var(--danger)" : "var(--green)" }}>
+                {peso(Math.abs(Number(selectedRecord.netFinalPay)))}
+              </strong>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button className="secondary-button" onClick={() => setShowCoeModal(true)}><FileText size={15} className="i-teal" /> View COE Draft</button>
@@ -378,7 +382,11 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                       </button>
                     </div>
                   </td>
-                  <td><strong style={{ color: "var(--green)" }}>{peso(sep.netFinalPay)}</strong></td>
+                  <td>
+                    <strong style={{ color: Number(sep.netFinalPay) < 0 ? "var(--danger)" : "var(--green)" }}>
+                      {Number(sep.netFinalPay) < 0 ? "Due " : ""}{peso(Math.abs(Number(sep.netFinalPay)))}
+                    </strong>
+                  </td>
                   <td><span className={`status status-${sep.status === "approved" ? "verified" : sep.status === "draft" ? "needs-review" : "released"}`}>{sep.status}</span></td>
                   <td>
                     <button className="primary-button" style={{ height: 26, fontSize: 10, padding: "0 8px" }} onClick={() => setSelectedRecord(sep)}>
