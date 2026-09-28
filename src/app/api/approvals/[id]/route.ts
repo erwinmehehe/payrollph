@@ -44,7 +44,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       .orderBy(desc(auditEvents.createdAt))
       .limit(1);
 
-    if (submission?.actor?.toLowerCase() === actor.toLowerCase()) {
+    const submissionMeta =
+      submission?.metadata && typeof submission.metadata === "object"
+        ? (submission.metadata as Record<string, unknown>)
+        : null;
+    const makerUserId = Number(submissionMeta?.makerUserId ?? 0);
+    const sameMaker =
+      makerUserId > 0
+        ? makerUserId === sessionUser.id
+        : submission?.actor?.toLowerCase() === actor.toLowerCase();
+
+    if (sameMaker) {
       return Response.json({
         error: "Maker-checker control: the person who submitted this payroll cannot approve it.",
       }, { status: 403 });
