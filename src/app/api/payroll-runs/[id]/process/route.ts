@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { approvalTasks, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
@@ -26,21 +26,67 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   if (run.status === "Released" || run.status === "Releasing") {
     return Response.json({ error: "Released or releasing payroll is immutable and cannot be recalculated." }, { status: 409 });
   }
-
-  const approvalRows = await db
-    .select()
-    .from(approvalTasks)
-    .where(eq(approvalTasks.organizationId, run.organizationId));
-  const linkedApprovals = approvalRows.filter((task) => task.detail.includes(`Payroll run #${run.id}`));
-  for (const task of linkedApprovals) {
-    if (task.status !== "Pending" && task.status !== "Approved") continue;
-    await db.update(approvalTasks)
-      .set({ status: "Superseded", decidedBy: "System", decidedAt: new Date() })
-      .where(eq(approvalTasks.id, task.id));
+  if (["Queued", "Processing", "Recalculating"].includes(run.status)) {
+    return Response.json({ error: `Payroll calculation is already in progress (currently ${run.status}).` }, { status: 409 });
   }
 
-  const queue = await enqueuePayrollRun(runId);
-  const processResult = await drainPayrollQueue(50, runId);
+  // Claim the recalculation state before invalidating approvals. Submit-for-
+  // review uses its own conditional state claim, so the two operations cannot
+  // both win from the same source state under concurrent requests.
+  const recalculation = await db.transaction(async (tx) => {
+    const [claimed] = await tx.update(payrollRuns)
+      .set({ status: "Recalculating" })
+      .where(and(
+        eq(payrollRuns.id, runId),
+        eq(payrollRuns.status, run.status),
+      ))
+      .returning();
+
+    if (!claimed) return null;
+
+    const approvalRows = await tx
+      .select()
+      .from(approvalTasks)
+      .where(eq(approvalTasks.organizationId, run.organizationId));
+    const linkedApprovals = approvalRows
+      .filter((task) => task.detail.includes(`Payroll run #${run.id}`))
+      .filter((task) => task.status === "Pending" || task.status === "Approved");
+
+    const superseded: number[] = [];
+    for (const task of linkedApprovals) {
+      const [updated] = await tx.update(approvalTasks)
+        .set({ status: "Superseded", decidedBy: "System", decidedAt: new Date() })
+        .where(and(
+          eq(approvalTasks.id, task.id),
+          eq(approvalTasks.status, task.status),
+        ))
+        .returning();
+      if (updated) superseded.push(updated.id);
+    }
+
+    return { claimed, superseded };
+  });
+
+  if (!recalculation) {
+    return Response.json({
+      error: "Payroll state changed while recalculation was starting. Refresh and retry.",
+    }, { status: 409 });
+  }
+
+  let queue;
+  let processResult;
+  try {
+    queue = await enqueuePayrollRun(runId);
+    processResult = await drainPayrollQueue(50, runId);
+  } catch (error) {
+    await db.update(payrollRuns)
+      .set({ status: "Failed" })
+      .where(and(eq(payrollRuns.id, runId), eq(payrollRuns.status, "Recalculating")));
+    return Response.json({
+      error: error instanceof Error ? error.message : "Payroll recalculation could not be queued.",
+    }, { status: 500 });
+  }
+
   const [fresh] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
 
   await recordAuditEvent({
@@ -52,7 +98,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       runId,
       ruleVersion: "PH-2026.01",
       chunks: processResult.length,
-      approvalsSuperseded: linkedApprovals.filter((task) => task.status === "Pending" || task.status === "Approved").map((task) => task.id),
+      approvalsSuperseded: recalculation.superseded,
     },
   });
 
