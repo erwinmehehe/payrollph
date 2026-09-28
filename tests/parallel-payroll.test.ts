@@ -83,7 +83,7 @@ test("parallel payroll compares all supported components using common header ali
     "withholdingTax",
   ].sort());
   assert.equal(result.rows.length, 1);
-  assert.equal(result.rows[0].differenceCount, 4);
+  assert.equal(result.rows[0].differenceCount, 5);
 
   const byKey = new Map(result.rows[0].components.map((component) => [component.key, component]));
   assert.equal(byKey.get("gross")?.delta, 500);
