@@ -8,7 +8,7 @@ import { dispatchWebhook } from "@/lib/webhooks";
 import { assertOrganizationRole, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
 
-const RELEASABLE = ["Ready for release", "Needs review", "Processed"];
+const RELEASABLE = ["Ready for release"];
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -45,10 +45,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const approvalRows = await db.select().from(approvalTasks).where(eq(approvalTasks.organizationId, run.organizationId));
-  const payrollApproval =
-    approvalRows.find((task) => task.detail.includes(`Payroll run #${run.id}`)) ??
-    approvalRows.find((task) => task.title.toLowerCase().includes(run.periodLabel.toLowerCase())) ??
-    approvalRows.find((task) => task.title.toLowerCase().includes("payroll"));
+  const payrollApproval = approvalRows
+    .filter((task) => task.detail.includes(`Payroll run #${run.id}`))
+    .sort((a, b) => b.id - a.id)[0];
 
   if (!payrollApproval || payrollApproval.status !== "Approved") {
     return Response.json({
@@ -100,7 +99,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // provider is configured, never silently reported as sent.
   const [organization] = await db.select().from(organizations).where(eq(organizations.id, run.organizationId));
   const staff = await db.select().from(employees).where(eq(employees.organizationId, run.organizationId));
-  const notified = staff.filter((person) => person.status === "Active").length;
+  const notified = staff.filter((person) => person.status === "Active" && Boolean(person.email)).length;
   for (const person of staff) {
     if (person.status !== "Active" || !person.email) continue;
     await queueMessage({
