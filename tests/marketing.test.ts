@@ -23,19 +23,22 @@ test("pricing is read from the database, never hardcoded in the homepage UI", ()
   assert.ok(!/₱\s?1,499|₱\s?4,499|₱\s?12,999/.test(page), "prices must not be hardcoded in the page");
 });
 
-test("the software homepage keeps the real interactive product surfaces", () => {
+test("the redesigned homepage keeps the interactive payroll simulation", () => {
   const page = read("src/components/marketing/software-home.tsx");
-  assert.ok(page.includes('<WorkspacePreview mode="interactive" />'), "interactive workspace preview must remain mounted");
-  assert.ok(page.includes("<StatutoryLab />"), "live statutory calculator must remain mounted");
+  assert.ok(page.includes('<WorkspacePreview mode="interactive" />'), "interactive payroll simulation must remain mounted");
+  assert.ok(page.includes('id="simulation"'), "simulation must have a direct anchor");
+  assert.ok(page.includes("Try a payroll run before you sign up."), "simulation must be introduced as a real product experience");
 });
 
-test("the software page names competitors and carries the honest-status block", () => {
+test("the redesigned homepage stays customer-facing instead of restoring the old comparison wall", () => {
   const page = read("src/components/marketing/software-home.tsx");
+  assert.ok(page.includes("Philippine payroll, without the guesswork."), "homepage must keep the simplified payroll proposition");
+  assert.ok(page.includes("Prepare") && page.includes("Calculate") && page.includes("Review") && page.includes("Approve") && page.includes("Release"),
+    "homepage must explain the payroll workflow");
   for (const competitor of ["Sprout", "PayrollHero", "GreatDay HR", "Kazam"]) {
-    assert.ok(page.includes(competitor), `comparison table must name ${competitor}`);
+    assert.ok(!page.includes(competitor), `homepage should not restore the old ${competitor} comparison table`);
   }
-  assert.ok(/Production status:/i.test(page), "must disclose readiness honestly");
-  assert.ok(page.includes("/api/readiness"), "must link to the live gate list");
+  assert.ok(existsSync("src/app/demo/page.tsx"), "role-based demo page must exist");
 });
 
 test("payroll outsourcing has its own service route and conversion path", () => {
