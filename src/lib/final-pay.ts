@@ -30,6 +30,7 @@ export type FinalPayResult = {
   otherDeductions: number;
   grossFinalPay: number;
   netFinalPay: number;
+  amountDueFromEmployee: number;
   warnings: string[];
 };
 
@@ -173,7 +174,8 @@ export function calculateFinalPay(input: {
 
   const otherDeductions = round2(Math.max(0, amountOf(input.otherDeductions)));
   const grossFinalPay = round2(currentTaxable + currentNonTaxable);
-  const netFinalPay = round2(Math.max(0, grossFinalPay + taxSettlement - otherDeductions));
+  const netFinalPay = round2(grossFinalPay + taxSettlement - otherDeductions);
+  const amountDueFromEmployee = round2(Math.max(0, -netFinalPay));
 
   return {
     releasedPeriods: history.periods,
@@ -198,6 +200,7 @@ export function calculateFinalPay(input: {
     otherDeductions,
     grossFinalPay,
     netFinalPay,
+    amountDueFromEmployee,
     warnings,
   };
 }
