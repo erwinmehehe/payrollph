@@ -4078,6 +4078,182 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
   }
 }
 
+
+/* ==========================================================================
+   Calculator clarity fixes
+   ========================================================================== */
+
+.software-home .payroll-lab-surface .statutory-result-stats {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  border-color: rgba(84,95,120,.12);
+  border-radius: 12px;
+  background: #f7f9fc;
+}
+.software-home .payroll-lab-surface .statutory-result-stats > div {
+  min-width: 0;
+  padding: 14px 12px;
+}
+.software-home .payroll-lab-surface .statutory-result-stats span {
+  font-size: 8.5px;
+  letter-spacing: .09em;
+}
+.software-home .payroll-lab-surface .statutory-result-stats strong {
+  margin-top: 6px;
+  font-size: clamp(14px, 1.15vw, 18px);
+  line-height: 1.1;
+  letter-spacing: -.045em;
+  white-space: nowrap;
+}
+.software-home .payroll-lab-surface .statutory-result-stats .green-number {
+  font-weight: 700;
+}
+
+/* Make the pricing section obviously interactive instead of looking like
+   static pricing copy. The same headcount state still drives the real
+   pricingPlans calculation. */
+.software-home .pricing-surface .pricing-calculator {
+  display: block;
+}
+.software-home .pricing-surface .pricing-calculator h2 {
+  margin: 5px 0 20px;
+  font-size: 19px;
+  line-height: 1.25;
+  letter-spacing: -.025em;
+}
+.software-home .pricing-headcount-control {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 22px;
+  align-items: center;
+}
+.software-home .pricing-headcount-value {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 38px;
+  align-items: stretch;
+  min-height: 58px;
+  overflow: hidden;
+  border: 1px solid rgba(84,95,120,.16);
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: 0 5px 16px rgba(16,24,40,.04);
+}
+.software-home .pricing-stepper {
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: #f7f9fc;
+  color: var(--ink-secondary);
+  cursor: pointer;
+  transition: background .14s, color .14s;
+}
+.software-home .pricing-stepper:first-child {
+  border-right: 1px solid rgba(84,95,120,.10);
+}
+.software-home .pricing-stepper:last-child {
+  border-left: 1px solid rgba(84,95,120,.10);
+}
+.software-home .pricing-stepper:hover:not(:disabled) {
+  background: var(--active-bg);
+  color: var(--active);
+}
+.software-home .pricing-stepper:disabled {
+  opacity: .35;
+  cursor: not-allowed;
+}
+.software-home .pricing-stepper:focus-visible,
+.software-home .pricing-headcount-value input:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+.software-home .pricing-headcount-value label {
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  gap: 1px;
+  padding: 5px 6px;
+}
+.software-home .pricing-headcount-value label span {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+.software-home .pricing-headcount-value input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-mono), monospace;
+  font-size: 21px;
+  font-weight: 650;
+  line-height: 1;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield;
+}
+.software-home .pricing-headcount-value input::-webkit-inner-spin-button,
+.software-home .pricing-headcount-value input::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+.software-home .pricing-headcount-slider {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+.software-home .pricing-headcount-slider input[type="range"] {
+  height: 7px;
+}
+.software-home .pricing-range-labels {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted-light);
+  font-family: var(--font-mono), monospace;
+  font-size: 9px;
+}
+.software-home .pricing-surface .calc-note {
+  margin-top: 18px;
+}
+.software-home .pricing-surface .price {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.software-home .pricing-surface .price strong {
+  min-width: 0;
+  font-size: clamp(19px, 1.55vw, 24px);
+  line-height: 1.05;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .software-home .pricing-headcount-control {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+  .software-home .pricing-headcount-value {
+    width: min(240px, 100%);
+  }
+}
+
+@media (max-width: 680px) {
+  .software-home .payroll-lab-surface .statutory-result-stats strong {
+    font-size: 14px;
+  }
+  .software-home .pricing-headcount-value {
+    width: 100%;
+  }
+  .software-home .pricing-surface .pricing-calculator h2 {
+    font-size: 17px;
+  }
+}
+
 /* Payroll outsourcing service page
    Keeps the service funnel visually separate from the software product page. */
 .outsourcing-hero {
