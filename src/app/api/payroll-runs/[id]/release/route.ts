@@ -1,6 +1,6 @@
 import { count, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
+import { approvalTasks, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { queueMessage } from "@/lib/mailer";
@@ -39,6 +39,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return Response.json({ error: `Run must be processed before release (currently ${run.status}).` }, { status: 409 });
   }
 
+  const approvalRows = await db.select().from(approvalTasks).where(eq(approvalTasks.organizationId, run.organizationId));
+  const payrollApproval =
+    approvalRows.find((task) => task.detail.includes(`Payroll run #${run.id}`)) ??
+    approvalRows.find((task) => task.title.toLowerCase().includes(run.periodLabel.toLowerCase())) ??
+    approvalRows.find((task) => task.title.toLowerCase().includes("payroll"));
+
+  if (!payrollApproval || payrollApproval.status !== "Approved") {
+    return Response.json({
+      error: "Payroll must be approved by a checker before release.",
+      approvalStatus: payrollApproval?.status ?? "Not submitted",
+    }, { status: 409 });
+  }
+
   const assuranceResult = await buildPayrollAssurance(runId);
   const blockingFindings = assuranceResult?.assurance.findings.filter((finding) => finding.blocking) ?? [];
   if (blockingFindings.length > 0) {
@@ -73,6 +86,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       employees: entryCount,
       exceptionsAcknowledged: run.exceptions > 0 ? run.exceptions : 0,
       assurance: assuranceResult?.assurance.summary ?? null,
+      approvalTaskId: payrollApproval.id,
+      approvedBy: payrollApproval.decidedBy ?? payrollApproval.approver,
     },
   });
 
