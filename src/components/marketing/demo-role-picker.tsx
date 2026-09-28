@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ElementType } from "react";
+import { useMemo, useState, type ElementType } from "react";
 import {
   ArrowRight,
   BriefcaseBusiness,
@@ -27,19 +27,16 @@ const ICONS: Record<DemoRoleId, ElementType> = {
   freelancer: WalletCards,
 };
 
-const ACCENTS: Record<DemoRoleId, string> = {
-  owner: "navy",
-  bookkeeper: "blue",
-  payroll: "green",
-  hr: "violet",
-  manager: "amber",
-  employee: "cyan",
-  freelancer: "teal",
-};
-
 export function DemoRolePicker() {
+  const [selectedRole, setSelectedRole] = useState<DemoRoleId>("payroll");
   const [launching, setLaunching] = useState<DemoRoleId | null>(null);
   const [error, setError] = useState("");
+
+  const selected = useMemo(
+    () => DEMO_ROLES.find((role) => role.id === selectedRole) ?? DEMO_ROLES[0],
+    [selectedRole],
+  );
+  const SelectedIcon = ICONS[selected.id];
 
   async function openDemo(role: DemoRoleId) {
     setLaunching(role);
@@ -70,36 +67,26 @@ export function DemoRolePicker() {
     <main className={styles.page}>
       <section className={styles.hero}>
         <div className={styles.shell}>
-          <div className={styles.heroCopy}>
+          <div className={styles.heroInner}>
             <span className={styles.eyebrow}>
               <ShieldCheck size={14} aria-hidden />
               No signup required
             </span>
-            <h1>Explore Linaw from every seat.</h1>
+            <h1>See Linaw from the seat you actually use.</h1>
             <p>
-              Choose a role and enter a sample Philippine payroll workspace with the navigation and workflow focused on
-              that person&apos;s job.
+              Open the sample payroll workspace as an owner, payroll administrator, HR team member, manager, employee,
+              bookkeeper or freelancer. Each demo starts with the navigation and work that matter to that role.
             </p>
-          </div>
-
-          <div className={styles.heroTrust}>
-            <span><Check size={14} aria-hidden /> Sample company and employee data</span>
-            <span><Check size={14} aria-hidden /> Role-focused navigation</span>
-            <span><Check size={14} aria-hidden /> Employee self-service included</span>
           </div>
         </div>
       </section>
 
-      <section className={styles.rolesSection}>
+      <section className={styles.demoSection}>
         <div className={styles.shell}>
-          <div className={styles.sectionHead}>
-            <div>
-              <span className={styles.kicker}>Choose a demo account</span>
-              <h2>What do you want to see?</h2>
-            </div>
-            <p>
-              Start with the role closest to yours. You can return to this page any time and switch to another demo.
-            </p>
+          <div className={styles.sectionIntro}>
+            <span className={styles.kicker}>Role-based product demo</span>
+            <h2>Choose a seat.</h2>
+            <p>You can switch roles inside the demo at any time.</p>
           </div>
 
           {error && (
@@ -108,71 +95,111 @@ export function DemoRolePicker() {
             </div>
           )}
 
-          <div className={styles.roleGrid}>
-            {DEMO_ROLES.map((role) => {
-              const Icon = ICONS[role.id];
-              const busy = launching === role.id;
-              const featured = role.id === "payroll";
+          <div className={styles.demoLayout}>
+            <div className={styles.roleList} role="tablist" aria-label="Demo roles">
+              {DEMO_ROLES.map((role) => {
+                const Icon = ICONS[role.id];
+                const active = role.id === selected.id;
 
-              return (
-                <article
-                  className={`${styles.roleCard} ${featured ? styles.featured : ""}`}
-                  data-accent={ACCENTS[role.id]}
-                  key={role.id}
-                >
-                  {featured && <span className={styles.recommended}>Best place to start</span>}
-
-                  <div className={styles.cardTop}>
-                    <span className={styles.iconWrap} aria-hidden>
-                      <Icon size={20} />
+                return (
+                  <button
+                    className={`${styles.roleRow} ${active ? styles.active : ""}`}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    key={role.id}
+                    onClick={() => setSelectedRole(role.id)}
+                  >
+                    <span className={styles.roleIcon} aria-hidden>
+                      <Icon size={16} />
                     </span>
-                    <div>
-                      <span className={styles.person}>{role.person}</span>
-                      <h3>{role.label}</h3>
-                    </div>
-                  </div>
-
-                  <p className={styles.description}>{role.description}</p>
-
-                  <ul className={styles.accessList}>
-                    {role.access.map((item) => (
-                      <li key={item}>
-                        <Check size={13} aria-hidden />
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <div className={styles.cardFooter}>
-                    <span>
-                      Opens in <strong>{role.landingPage}</strong>
+                    <span className={styles.roleText}>
+                      <strong>{role.label}</strong>
+                      <small>{role.person}</small>
                     </span>
-                    <button type="button" onClick={() => void openDemo(role.id)} disabled={Boolean(launching)}>
-                      {busy ? (
-                        <>
-                          <LoaderCircle className={styles.spin} size={15} aria-hidden />
-                          Opening…
-                        </>
-                      ) : (
-                        <>
-                          Open demo <ArrowRight size={15} aria-hidden />
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-
-          <div className={styles.note}>
-            <ShieldCheck size={16} aria-hidden />
-            <div>
-              <strong>These are demo experiences.</strong>
-              <span>
-                They use sample payroll data so you can explore the product without creating a real company account.
-              </span>
+                    {role.id === "payroll" && <span className={styles.suggested}>Start here</span>}
+                    <ArrowRight size={14} aria-hidden />
+                  </button>
+                );
+              })}
             </div>
+
+            <article className={styles.roleDetail} role="tabpanel">
+              <div className={styles.detailTop}>
+                <span className={styles.detailIcon} aria-hidden>
+                  <SelectedIcon size={20} />
+                </span>
+                <div>
+                  <span className={styles.personLabel}>{selected.person}</span>
+                  <h3>{selected.label}</h3>
+                </div>
+              </div>
+
+              <p className={styles.description}>{selected.description}</p>
+
+              <div className={styles.detailMeta}>
+                <div>
+                  <span>Starts in</span>
+                  <strong>{selected.landingPage}</strong>
+                </div>
+                <div>
+                  <span>Workspace</span>
+                  <strong>Sample Philippine payroll</strong>
+                </div>
+              </div>
+
+              <div className={styles.accessBlock}>
+                <span className={styles.accessLabel}>What you can explore</span>
+                <div className={styles.accessList}>
+                  {selected.access.map((item) => (
+                    <span key={item}>
+                      <Check size={13} aria-hidden />
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className={styles.previewPanel}>
+                <div className={styles.previewBar}>
+                  <span>linaw</span>
+                  <span>{selected.shortLabel} workspace</span>
+                </div>
+                <div className={styles.previewBody}>
+                  <span className={styles.previewNav}>Overview</span>
+                  <span className={styles.previewNavActive}>{selected.landingPage}</span>
+                  <span className={styles.previewNav}>Approvals</span>
+                  <div className={styles.previewContent}>
+                    <span>{selected.shortLabel}</span>
+                    <strong>{selected.landingPage}</strong>
+                    <p>{selected.access[0]}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className={styles.detailFooter}>
+                <div>
+                  <strong>Sample data only</strong>
+                  <span>Nothing in the demo changes a real company payroll.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void openDemo(selected.id)}
+                  disabled={Boolean(launching)}
+                >
+                  {launching === selected.id ? (
+                    <>
+                      <LoaderCircle className={styles.spin} size={15} aria-hidden />
+                      Opening…
+                    </>
+                  ) : (
+                    <>
+                      Open {selected.shortLabel} demo <ArrowRight size={15} aria-hidden />
+                    </>
+                  )}
+                </button>
+              </div>
+            </article>
           </div>
         </div>
       </section>
