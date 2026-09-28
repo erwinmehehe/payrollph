@@ -46,6 +46,7 @@ export function PayrollRunView({
   onRelease,
   onDecide,
   onPage,
+  onRefresh,
   notify,
 }: {
   data: DashboardData;
@@ -55,6 +56,7 @@ export function PayrollRunView({
   onRelease: (runId: number, acknowledgeExceptions: boolean) => Promise<void>;
   onDecide: (taskId: number, status: "Approved" | "Declined") => Promise<void>;
   onPage: (page: string) => void;
+  onRefresh: () => Promise<void>;
   notify: Notify;
 }) {
   const [selectedId, setSelectedId] = useState<number | undefined>(data.payrollRuns[0]?.id);
@@ -63,6 +65,7 @@ export function PayrollRunView({
   const [onlyExceptions, setOnlyExceptions] = useState(false);
   const [confirmRelease, setConfirmRelease] = useState(false);
   const [exportsOpen, setExportsOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [controlSummary, setControlSummary] = useState<PayrollControlSummary>({
     blocked: false,
     reviewRequired: false,
@@ -365,22 +368,42 @@ export function PayrollRunView({
             <StageCard
               no={2}
               title="Approve"
-              state={relatedTask ? (relatedTask.status === "Pending" ? "now" : "done") : calculated ? "done" : "locked"}
+              state={
+                relatedTask
+                  ? relatedTask.status === "Pending"
+                    ? "now"
+                    : relatedTask.status === "Approved"
+                      ? "done"
+                      : "now"
+                  : calculated
+                    ? "now"
+                    : "locked"
+              }
               copy={
                 relatedTask
                   ? relatedTask.status === "Pending"
                     ? `${relatedTask.detail}, approver ${relatedTask.approver}.`
                     : `Decision recorded: ${relatedTask.status.toLowerCase()}.`
-                  : "No approval task is open against this run."
+                  : calculated
+                    ? "Submit this calculated payroll to a different workspace member for maker-checker approval."
+                    : "Calculate the payroll before sending it for approval."
               }
               action={
                 relatedTask && relatedTask.status === "Pending" ? (
-                  <button className="secondary-button" disabled={busy} onClick={() => onDecide(relatedTask.id, "Approved")}>
-                    <Check size={14} className="i-green" /> Approve
+                  <button className="secondary-button" disabled={busy} onClick={() => onPage("Approvals")}>
+                    <ArrowRight size={14} /> Review approval
+                  </button>
+                ) : relatedTask?.status === "Approved" ? (
+                  <span className="status status-approved" style={{ height: 30, padding: "0 12px" }}>
+                    Approved
+                  </span>
+                ) : calculated ? (
+                  <button className="secondary-button" disabled={busy || controlSummary.blocked} onClick={() => setReviewOpen(true)}>
+                    <ShieldCheck size={14} className="i-green" /> Submit for approval
                   </button>
                 ) : (
-                  <button className="secondary-button" onClick={() => onPage("Approvals")}>
-                    <ArrowRight size={14} /> Approvals
+                  <button className="secondary-button" disabled>
+                    <ShieldCheck size={14} /> Submit for approval
                   </button>
                 )
               }
@@ -528,6 +551,18 @@ export function PayrollRunView({
           )}
         </article>
       </section>
+
+      {reviewOpen && (
+        <SubmitReviewDialog
+          run={run}
+          notify={notify}
+          onClose={() => setReviewOpen(false)}
+          onSubmitted={async () => {
+            await onRefresh();
+            setReviewOpen(false);
+          }}
+        />
+      )}
 
       {confirmRelease && (
         <ReleaseDialog
@@ -847,6 +882,135 @@ function ExportPanel({
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SubmitReviewDialog({
+  run,
+  notify,
+  onClose,
+  onSubmitted,
+}: {
+  run: PayrollRun;
+  notify: Notify;
+  onClose: () => void;
+  onSubmitted: () => Promise<void>;
+}) {
+  const [approvers, setApprovers] = useState<Array<{ userId: number; name: string; email: string; role: string }>>([]);
+  const [selected, setSelected] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const response = await fetch(`/api/payroll-runs/${run.id}/review`, { cache: "no-store" });
+        const payload = (await response.json().catch(() => ({}))) as {
+          approvers?: Array<{ userId: number; name: string; email: string; role: string }>;
+          error?: string;
+        };
+        if (!alive) return;
+        if (!response.ok) {
+          setError(payload.error ?? "Approvers could not be loaded.");
+          return;
+        }
+        const rows = payload.approvers ?? [];
+        setApprovers(rows);
+        setSelected(rows[0]?.userId ?? null);
+      } catch {
+        if (alive) setError("Could not reach the payroll approval service.");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [run.id]);
+
+  async function submit() {
+    if (!selected) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/payroll-runs/${run.id}/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ approverUserId: selected }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; approver?: { name?: string } };
+      if (!response.ok) {
+        setError(payload.error ?? "Payroll could not be submitted for approval.");
+        return;
+      }
+      notify(`Payroll submitted to ${payload.approver?.name ?? "the selected approver"} for maker-checker review.`, "ok");
+      await onSubmitted();
+    } catch {
+      setError("Could not reach the payroll approval service.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Submit payroll for approval">
+      <div className="modal">
+        <button className="modal-close" onClick={onClose} aria-label="Close">
+          <X size={16} />
+        </button>
+        <div className="modal-icon">
+          <ShieldCheck size={18} className="i-green" />
+        </div>
+        <h2>Submit {run.periodLabel} for approval</h2>
+        <p>
+          Choose a different workspace member to act as checker. Linaw records who submitted the run and the approval API
+          rejects an approval attempt from that same person.
+        </p>
+
+        {loading ? (
+          <div style={{ padding: "8px 0 18px" }}>
+            <Spinner label="Loading approvers" />
+          </div>
+        ) : approvers.length ? (
+          <label className="field" style={{ marginTop: 14 }}>
+            <span>Checker / approver</span>
+            <select value={selected ?? ""} onChange={(event) => setSelected(Number(event.target.value))}>
+              {approvers.map((approver) => (
+                <option key={approver.userId} value={approver.userId}>
+                  {approver.name} · {approver.role}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <div className="notice notice-amber" style={{ margin: "14px 0 0" }}>
+            <AlertTriangle size={15} className="i-red" />
+            <span>
+              No second workspace member is available. Invite another payroll user before enabling maker-checker approval.
+            </span>
+          </div>
+        )}
+
+        {error && (
+          <div className="notice notice-red" style={{ margin: "14px 0 0" }}>
+            <AlertTriangle size={15} className="i-red" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        <div className="modal-actions">
+          <button className="secondary-button" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="primary-button brand" disabled={loading || submitting || !selected} onClick={submit}>
+            {submitting ? <Spinner label="Submitting" /> : <ShieldCheck size={14} className="i-green" />} Submit for approval
+          </button>
         </div>
       </div>
     </div>
