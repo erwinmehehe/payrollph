@@ -161,15 +161,19 @@ export async function POST(request: Request) {
     ? and(
         eq(employees.organizationId, organizationId),
         eq(employees.orgUnitId, scopeOrgUnitId),
+        eq(employees.status, "Active"),
       )
-    : eq(employees.organizationId, organizationId);
+    : and(
+        eq(employees.organizationId, organizationId),
+        eq(employees.status, "Active"),
+      );
   const [employeeInScope] = await db
     .select({ id: employees.id })
     .from(employees)
     .where(employeeScope)
     .limit(1);
   if (!employeeInScope) {
-    return Response.json({ error: "The selected payroll scope has no employees." }, { status: 400 });
+    return Response.json({ error: "The selected payroll scope has no active employees." }, { status: 400 });
   }
 
   const periodLabel = periodLabelFromDates(periodStart, periodEnd);
