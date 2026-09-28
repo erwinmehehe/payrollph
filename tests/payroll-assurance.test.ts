@@ -71,7 +71,26 @@ test("hard payroll integrity failures block release", () => {
   assert.ok(result.summary.blocking >= 2);
   assert.ok(result.findings.some((finding) => finding.code === "NONPOSITIVE_NET" && finding.blocking));
   assert.ok(result.findings.some((finding) => finding.code === "DEDUCTIONS_EXCEED_GROSS" && finding.blocking));
-  assert.ok(result.findings.some((finding) => finding.code === "MISSING_STATUTORY" && finding.blocking));
+  assert.ok(result.findings.some((finding) =>
+    finding.code === "MISSING_STATUTORY" &&
+    finding.severity === "medium" &&
+    !finding.blocking
+  ));
+});
+
+test("reimbursements alone do not create a false statutory blocker", () => {
+  const reimbursementOnly = entry({
+    grossPay: "2500",
+    deductions: "0",
+    netPay: "2500",
+    lineItems: [
+      { code: "EXP-44", label: "Expense, Transport", amount: "2500" },
+    ],
+  });
+
+  const result = evaluatePayrollAssurance([reimbursementOnly], []);
+  assert.equal(result.summary.blocking, 0);
+  assert.ok(!result.findings.some((finding) => finding.code === "MISSING_STATUTORY"));
 });
 
 test("engine exceptions require review but do not become hard blockers", () => {
