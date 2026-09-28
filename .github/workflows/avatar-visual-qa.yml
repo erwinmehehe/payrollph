@@ -1,0 +1,119 @@
+name: Avatar visual QA
+
+on:
+  push:
+    branches:
+      - fix/person-cell-avatar-alignment
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      DEMO_MODE: "false"
+      APP_BASE_URL: http://127.0.0.1:3000
+      PG_POOL_MAX: "2"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Apply schema
+        run: |
+          node <<'NODE'
+          const fs = require("node:fs");
+          const { Client } = require("pg");
+          (async () => {
+            const client = new Client({ connectionString: process.env.DATABASE_URL });
+            await client.connect();
+            await client.query(fs.readFileSync("drizzle/baseline.sql", "utf8"));
+            await client.end();
+          })().catch((error) => { console.error(error); process.exit(1); });
+          NODE
+      - run: npx tsc --noEmit
+      - run: npx eslint src tests
+      - run: npm run build
+      - name: Start app
+        run: |
+          npm start > /tmp/linaw-next.log 2>&1 &
+          for i in {1..40}; do
+            if curl -fsS http://127.0.0.1:3000/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/linaw-next.log
+          exit 1
+      - name: Install browser
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Verify avatars
+        run: |
+          mkdir -p avatar-qa
+          node <<'NODE'
+          const { chromium } = require("playwright");
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage({ viewport: { width: 1270, height: 830 } });
+            await page.goto("http://127.0.0.1:3000/", { waitUntil: "networkidle" });
+            const preview = page.locator("#preview");
+            await preview.getByRole("button", { name: "Time", exact: true }).click();
+
+            const avatars = preview.locator(".person-cell > .avatar");
+            const count = await avatars.count();
+            if (count < 6) throw new Error(`Expected punch avatars, got ${count}`);
+
+            for (let i = 0; i < count; i++) {
+              const box = await avatars.nth(i).boundingBox();
+              const text = await avatars.nth(i).textContent();
+              const styles = await avatars.nth(i).evaluate((el) => {
+                const s = getComputedStyle(el);
+                return {
+                  display: s.display,
+                  overflow: s.overflow,
+                  textAlign: s.textAlign,
+                  lineHeight: s.lineHeight,
+                  width: s.width,
+                  height: s.height,
+                };
+              });
+              if (!box || box.width < 29 || box.height < 29) throw new Error(`Avatar too small: ${JSON.stringify({text,box,styles})}`);
+              if (styles.display !== "grid" || styles.overflow === "hidden") {
+                throw new Error(`Avatar CSS regression: ${JSON.stringify({text,styles})}`);
+              }
+            }
+
+            await preview.screenshot({ path: "avatar-qa/time-desktop.png" });
+
+            const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } });
+            await mobile.goto("http://127.0.0.1:3000/", { waitUntil: "networkidle" });
+            const mobilePreview = mobile.locator("#preview");
+            await mobilePreview.getByRole("button", { name: "Time", exact: true }).click();
+            const width = await mobile.evaluate(() => Math.max(document.body.scrollWidth, document.documentElement.scrollWidth));
+            if (width > 392) throw new Error(`Mobile overflow: ${width}`);
+            await mobilePreview.screenshot({ path: "avatar-qa/time-mobile.png" });
+
+            await browser.close();
+          })().catch((error) => { console.error(error); process.exit(1); });
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: avatar-visual-qa
+          path: avatar-qa/
+          retention-days: 1
