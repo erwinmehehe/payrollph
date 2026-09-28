@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowUpRight, Users } from "lucide-react";
+import { ArrowUpRight, Minus, Plus, Users } from "lucide-react";
 import { money } from "@/components/workspace/ui";
 
 export type PublicPlan = { id: number; name: string; monthlyBase: string; perEmployee: string; modules: unknown; version: string };
@@ -21,6 +21,10 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
   const [headcount, setHeadcount] = useState(24);
   const fill = ((headcount - 1) / (500 - 1)) * 100;
 
+  function updateHeadcount(value: number) {
+    setHeadcount(Math.min(500, Math.max(1, Math.round(value) || 1)));
+  }
+
   return (
     <>
       <div className="pricing-calculator">
@@ -28,19 +32,53 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
           Headcount calculator
         </p>
         <h2>How many people are you paying in the Philippines?</h2>
-        <div className="range-row">
-          <input
-            type="range"
-            min={1}
-            max={500}
-            value={headcount}
-            aria-label="Headcount"
-            style={{ ["--range-fill" as string]: `${fill}%` }}
-            onChange={(event) => setHeadcount(Number(event.target.value))}
-          />
-          <div>
-            <strong>{headcount}</strong>
-            <span>employees</span>
+        <div className="pricing-headcount-control">
+          <div className="pricing-headcount-value">
+            <button
+              type="button"
+              className="pricing-stepper"
+              aria-label="Decrease headcount"
+              onClick={() => updateHeadcount(headcount - 1)}
+              disabled={headcount <= 1}
+            >
+              <Minus size={14} />
+            </button>
+            <label>
+              <span>Employees</span>
+              <input
+                type="number"
+                min={1}
+                max={500}
+                inputMode="numeric"
+                value={headcount}
+                aria-label="Employee headcount"
+                onChange={(event) => updateHeadcount(Number(event.target.value))}
+              />
+            </label>
+            <button
+              type="button"
+              className="pricing-stepper"
+              aria-label="Increase headcount"
+              onClick={() => updateHeadcount(headcount + 1)}
+              disabled={headcount >= 500}
+            >
+              <Plus size={14} />
+            </button>
+          </div>
+          <div className="pricing-headcount-slider">
+            <input
+              type="range"
+              min={1}
+              max={500}
+              value={headcount}
+              aria-label="Headcount slider"
+              style={{ ["--range-fill" as string]: `${fill}%` }}
+              onChange={(event) => updateHeadcount(Number(event.target.value))}
+            />
+            <div className="pricing-range-labels" aria-hidden>
+              <span>1</span>
+              <span>500</span>
+            </div>
           </div>
         </div>
         <div className="calc-note">
@@ -69,7 +107,7 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
                   ))}
                 </ul>
               )}
-              <div className="price">
+              <div className="price" aria-live="polite">
                 <strong>{money(total)}</strong>
                 <span>/ month</span>
               </div>
