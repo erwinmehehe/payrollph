@@ -12,10 +12,14 @@ test("the root route owns the public payroll software landing page", () => {
   assert.ok(welcome.includes("permanentRedirect(\"/\")"), "/welcome must redirect to the canonical root");
 });
 
-test("pricing is read from the database, never hardcoded", () => {
+test("pricing is read from the database, never hardcoded in the homepage UI", () => {
   const page = read("src/components/marketing/software-home.tsx");
-  assert.ok(page.includes("from \"@/db/schema\""), "pricing must come from the database");
-  assert.ok(page.includes("pricingPlans"), "pricing must read the pricingPlans table");
+  const catalog = read("src/lib/pricing-catalog.ts");
+
+  assert.ok(page.includes("getPublicPricingPlans"), "homepage must load pricing through the database pricing helper");
+  assert.ok(catalog.includes("from \"@/db/schema\""), "pricing helper must use the database schema");
+  assert.ok(catalog.includes("pricingPlans"), "pricing helper must read the pricingPlans table");
+  assert.ok(catalog.includes(".select()"), "pricing helper must select persisted pricing rows");
   assert.ok(!/₱\s?1,499|₱\s?4,499|₱\s?12,999/.test(page), "prices must not be hardcoded in the page");
 });
 

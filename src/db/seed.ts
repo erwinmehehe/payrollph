@@ -33,6 +33,7 @@ import {
 import { ensureLifecycleProvisioning } from "@/lib/provisioning";
 import { NATIONAL_HOLIDAYS_2026, WAGE_ORDERS } from "@/lib/wage-orders";
 import { ensureSubscription } from "@/lib/billing";
+import { DEFAULT_PRICING_PLANS } from "@/lib/pricing-catalog";
 import { generateBackupCodes, hashPassword } from "@/lib/crypto";
 
 const people = [
@@ -175,12 +176,7 @@ export async function ensureSeedData() {
     trace: { ruleVersion: "PH-2026.01", inputs: ["approved timesheet", "SSS 2026", "semi-monthly table"] },
   })));
 
-  await db.insert(pricingPlans).values([
-    { name: "Solo", monthlyBase: "0", perEmployee: "0", modules: ["Voluntary contributions", "Tax planner"], version: "2026.1" },
-    { name: "Core", monthlyBase: "1500", perEmployee: "50", modules: ["Payroll", "Time", "Government drafts"], version: "2026.1" },
-    { name: "Scale", monthlyBase: "4499", perEmployee: "79", modules: ["Core", "Multi-branch", "Approvals", "API"], version: "2026.1" },
-    { name: "Enterprise", monthlyBase: "12999", perEmployee: "99", modules: ["Scale", "SSO-ready", "BI exports", "Priority SLA"], version: "2026.1" },
-  ]);
+  await db.insert(pricingPlans).values(DEFAULT_PRICING_PLANS.map((plan) => ({ ...plan })));
 
   await db.insert(freelancerProfiles).values({
     organizationId: freelance.id,

@@ -1,4 +1,3 @@
-import { asc } from "drizzle-orm";
 import {
   ArrowUpRight,
   CalendarDays,
@@ -13,10 +12,9 @@ import {
   UploadCloud,
   WalletCards,
 } from "lucide-react";
-import { db } from "@/db";
-import { pricingPlans } from "@/db/schema";
 import { buildCapabilityReport } from "@/lib/capabilities";
 import { wageOrderFor } from "@/lib/wage-orders";
+import { getPublicPricingPlans } from "@/lib/pricing-catalog";
 import { CapabilityGrid } from "@/components/marketing/capability-grid";
 import { HeroActions } from "@/components/marketing/hero-actions";
 import { PricingTable } from "@/components/marketing/pricing-table";
@@ -45,7 +43,7 @@ const COVERAGE = [
 
 export async function SoftwareHome() {
   const [plans, report] = await Promise.all([
-    db.select().from(pricingPlans).orderBy(asc(pricingPlans.id)),
+    getPublicPricingPlans(),
     buildCapabilityReport(),
   ]);
   const demoEnabled = process.env.DEMO_MODE === "true";
