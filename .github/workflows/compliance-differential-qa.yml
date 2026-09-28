@@ -19,15 +19,6 @@ jobs:
           cache: npm
       - name: Refresh lockfile for pinned compliance reference
         run: npm install --package-lock-only --ignore-scripts
-      - name: Commit refreshed lockfile
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          if ! git diff --cached --quiet; then
-            git commit -m "chore: pin payroll compliance reference [skip ci]"
-            git push
-          fi
       - name: Install exactly from refreshed lockfile
         run: npm ci
       - name: Differential compliance tests
