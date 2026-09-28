@@ -1036,22 +1036,25 @@ function ReleaseDialog({
 
 function currentStage(run: PayrollRun, task?: Task): Stage {
   if (run.status === "Released") return "export";
-  if (task && task.status === "Pending") return "approve";
-  if (Number(run.grossPay) > 0) return "release";
+  if (run.status === "Ready for release" && task?.status === "Approved") return "release";
+  if (Number(run.grossPay) > 0) return "approve";
   return "prepare";
 }
 
 /**
- * Links a run to its approval task by period label, then by the generic
- * "payroll" wording the seed uses. Returns undefined rather than guessing.
+ * New payroll approvals carry an explicit run id in their detail text.
+ * Prefer the newest exact link. The period-label fallback exists only for
+ * older seeded tasks and never guesses another generic payroll approval.
  */
 function findRunApproval(tasks: Task[], run?: PayrollRun) {
   if (!run) return undefined;
+  const exact = tasks
+    .filter((task) => task.detail.includes(`Payroll run #${run.id}`))
+    .sort((a, b) => b.id - a.id)[0];
+  if (exact) return exact;
+
   const period = run.periodLabel.toLowerCase();
-  return (
-    tasks.find((task) => task.title.toLowerCase().includes(period)) ??
-    tasks.find((task) => task.title.toLowerCase().includes("payroll") && task.status === "Pending")
-  );
+  return tasks.find((task) => task.title.toLowerCase().includes(period));
 }
 
 const monthOf = (date: string) => {
