@@ -90,3 +90,15 @@ export async function assertMembership(userId: number, organizationId: number): 
 export async function assertResourceAccess(userId: number, resourceOrganizationId: number): Promise<Response | null> {
   return assertMembership(userId, resourceOrganizationId);
 }
+
+
+const PAYROLL_OPERATOR_ROLES = new Set(["admin", "owner", "bookkeeper", "payroll"]);
+const PEOPLE_ADMIN_ROLES = new Set(["admin", "owner", "bookkeeper", "hr", "payroll"]);
+
+export function canOperatePayroll(access: AccessScope | null) {
+  return Boolean(access && PAYROLL_OPERATOR_ROLES.has(access.role.toLowerCase()));
+}
+
+export function canManageSeparation(access: AccessScope | null) {
+  return Boolean(access && PEOPLE_ADMIN_ROLES.has(access.role.toLowerCase()));
+}
