@@ -126,6 +126,8 @@ jobs:
             const details = proof.locator("details").first();
             await details.locator("summary").click();
             if (!(await details.locator(".proof-details-body").isVisible())) throw new Error("Capability evidence did not open");
+            await details.locator("summary").click();
+            if (await details.locator(".proof-details-body").isVisible()) throw new Error("Capability evidence did not close");
 
             const client = new Client({ connectionString: process.env.DATABASE_URL });
             await client.connect();
