@@ -104,8 +104,8 @@ export function CapabilityGrid({
         </div>
         <div className="pagination">
           <span>
-            Generated from this deployment&apos;s code and database. &ldquo;Not built&rdquo; rows are listed on purpose, the
-            four remaining gaps are blocked on third-party access, not on code.
+            Status reflects implementation evidence from this deployment&apos;s code and automated tests. Live external
+            readiness, such as provider credentials or government portal validation, is tracked separately.
           </span>
         </div>
       </div>
