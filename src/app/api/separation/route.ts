@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { employeeLoans, employees, leaveBalances, payrollEntries, payrollRuns, separationRecords } from "@/db/schema";
+import { employeeLoans, employees, payrollEntries, payrollRuns, separationRecords } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertMembership, getAccess } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
@@ -49,13 +49,12 @@ export async function GET(request: Request) {
 }
 
 /**
- * Creates or computes Final Pay for a separating employee.
- * Strictly adheres to DOLE Labor Advisory No. 06-20 (30-day final pay release mandate):
- * 1. Prorated 13th month pay = Basic earned from Jan 1 to Last Day / 12
- * 2. Unused leave credit monetization = Unused days * (Basic / 22)
- * 3. Withholding tax adjustment (refund/collection)
- * 4. Less: Active loan balances
- * 5. Computes net final pay
+ * Computes a reviewable final-pay package from released payroll history:
+ * 1. Prorated 13th month from actual BASIC lines already released in the tax year.
+ * 2. Explicit leave conversion with a selected tax treatment.
+ * 3. Annualized withholding settlement (additional withholding or refund).
+ * 4. Outstanding active loan balances.
+ * 5. A trace in the audit event so HR/payroll can review the basis before approval.
  */
 export async function POST(request: Request) {
   const user = await getSessionUser();
