@@ -251,15 +251,26 @@ export function evaluatePayrollAssurance(
       });
     }
 
-    const codes = new Set(lineItemsOf(entry).map((line) => line.code));
+    const payrollLines = lineItemsOf(entry);
+    const codes = new Set(payrollLines.map((line) => line.code.toUpperCase()));
+    const statutoryCompensation = payrollLines.reduce((sum, line) => {
+      const code = line.code.toUpperCase();
+      const isCompensation =
+        code === "BASIC" ||
+        code === "OT" ||
+        code === "ND" ||
+        code === "HOLIDAY" ||
+        code === "CALAMITY" ||
+        code.startsWith("LEAVE_CONV-");
+      return isCompensation ? sum + Math.max(0, numberOf(line.amount)) : sum;
+    }, 0);
     const missingStatutory = ["SSS", "PHIC", "HDMF"].filter((code) => !codes.has(code));
-    if (gross > 0 && missingStatutory.length > 0) {
+    if (statutoryCompensation > 0.01 && missingStatutory.length > 0) {
       findings.push({
         code: "MISSING_STATUTORY",
-        severity: "high",
-        blocking: true,
-        title: "Statutory deduction is missing",
-        detail: `Missing line item(s): ${missingStatutory.join(", ")}. Confirm the employee's statutory treatment before release.`,
+        severity: "medium",
+        title: "Statutory treatment needs review",
+        detail: `The stored payroll breakdown has no ${missingStatutory.join(", ")} line item(s). This can be valid when the contribution is zero or excluded, so confirm the employee's statutory treatment before approval.`,
         employeeId: entry.employeeId,
       });
     }
