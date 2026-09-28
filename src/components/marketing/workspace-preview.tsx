@@ -11,7 +11,6 @@ import {
   ClipboardCheck,
   Clock3,
   Download,
-  FlaskConical,
   LayoutDashboard,
   ReceiptText,
   Search,
@@ -75,15 +74,6 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
           <span>linaw.ph/workspace</span>
         </span>
         <span className="frame-tag">Simulation</span>
-      </div>
-
-      <div className="sim-banner">
-        <FlaskConical size={15} className="i-blue" />
-        <span>
-          <strong>Simulated workspace.</strong> The people and punches are sample data and nothing you do here is saved,
-          but the SSS, PhilHealth, Pag-IBIG and withholding figures are computed by the same rule engine the real payroll
-          uses.
-        </span>
       </div>
 
       <div className="frame-body">

@@ -118,8 +118,8 @@ export async function SoftwareHome() {
       </section>
 
       <section className="section home-section home-demo-section" id="preview">
-        <div className="site-shell home-demo-grid">
-          <div className="section-head home-editorial">
+        <div className="site-shell home-demo-stack">
+          <div className="section-head home-editorial home-demo-heading">
             <p className="eyebrow">Interactive payroll demo</p>
             <h2>See the payroll system work before you sign up.</h2>
             <p>
