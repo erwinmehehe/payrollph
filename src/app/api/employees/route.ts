@@ -41,6 +41,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
   const firstName = String(body.firstName ?? "").trim();
+  const middleName = String(body.middleName ?? "").trim();
   const lastName = String(body.lastName ?? "").trim();
   const email = String(body.email ?? "").trim().toLowerCase();
   const title = String(body.title ?? "").trim();
@@ -67,6 +68,7 @@ export async function POST(request: Request) {
     organizationId,
     employeeNo,
     firstName,
+    middleName: middleName || null,
     lastName,
     title: title || "Staff",
     employmentType: String(body.employmentType ?? "Regular"),
@@ -77,6 +79,11 @@ export async function POST(request: Request) {
     region: String(body.region ?? "NCR"),
     email: email || null,
     mobile: String(body.mobile ?? "").trim() || null,
+    tin: String(body.tin ?? "").trim() || null,
+    sssNo: String(body.sssNo ?? "").trim() || null,
+    philHealthNo: String(body.philHealthNo ?? "").trim() || null,
+    pagIbigNo: String(body.pagIbigNo ?? "").trim() || null,
+    nationality: String(body.nationality ?? "Filipino").trim() || "Filipino",
     startDate,
   }).returning();
 
