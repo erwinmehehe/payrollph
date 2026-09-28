@@ -1,4 +1,4 @@
-import { count, eq } from "drizzle-orm";
+import { count, eq, inArray } from "drizzle-orm";
 import { asc } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -66,7 +66,18 @@ export async function ensureSeedData() {
 
   if (value > 0) {
     await ensureReferenceData();
-    await ensureDemoUser();
+
+    const demoOrgs = await db
+      .select()
+      .from(organizations)
+      .where(inArray(organizations.name, ["Loom & Local", "Mantra Studio", "Santos Retail Group", "Mika, self-employed"]));
+
+    // Never graft demo fixtures onto an existing customer database. If this
+    // deployment did not start as a demo database, the public demo endpoint
+    // stays unavailable until a dedicated demo database is provisioned.
+    if (!demoOrgs.some((org) => org.name === "Loom & Local")) return;
+
+    await ensureDemoUser(demoOrgs.map((org) => org.id));
     await ensureExtendedSeed();
     return;
   }
@@ -241,7 +252,10 @@ export async function ensureSeedData() {
 }
 
 async function ensureReferenceData() {
-  const orgs = await db.select().from(organizations);
+  const orgs = await db
+    .select()
+    .from(organizations)
+    .where(inArray(organizations.name, ["Loom & Local", "Mantra Studio", "Santos Retail Group", "Mika, self-employed"]));
   for (const org of orgs) {
     await ensureSubscription(org.id);
   }
@@ -297,7 +311,14 @@ async function ensureDemoUser(organizationIds?: number[]) {
     backupCodes: generateBackupCodes(),
   }).returning();
 
-  const orgIds = organizationIds ?? (await db.select().from(organizations)).map((org) => org.id);
+  const orgIds =
+    organizationIds ??
+    (
+      await db
+        .select()
+        .from(organizations)
+        .where(inArray(organizations.name, ["Loom & Local", "Mantra Studio", "Santos Retail Group", "Mika, self-employed"]))
+    ).map((org) => org.id);
   if (orgIds.length) {
     await db.insert(userOrganizations).values(orgIds.map((organizationId) => ({
       userId: user.id,
@@ -349,7 +370,11 @@ async function ensureExtendedSeed() {
     })));
   }
 
-  const [loom] = await db.select().from(organizations).orderBy(asc(organizations.id)).limit(1);
+  const [loom] = await db
+    .select()
+    .from(organizations)
+    .where(eq(organizations.name, "Loom & Local"))
+    .limit(1);
   if (!loom) return;
 
   await ensureLifecycleProvisioning(loom.id);
