@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalTasks, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
+import { approvalTasks, employees, organizations, parallelPayrollRows, payrollEntries, payrollRuns } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { queueMessage } from "@/lib/mailer";
@@ -42,9 +42,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const staffForAudit = await db.select().from(employees).where(eq(employees.organizationId, run.organizationId));
+  const parallel = await db.select().from(parallelPayrollRows).where(eq(parallelPayrollRows.payrollRunId, runId));
   const payrollAudit = auditPayrollControl({
     entries: entryRows,
     employees: staffForAudit,
+    parallelRows: parallel.map((row) => ({
+      employeeNo: row.employeeNo,
+      name: row.employeeName ?? undefined,
+      netPay: Number(row.netPay),
+      withholdingTax: row.withholdingTax == null ? null : Number(row.withholdingTax),
+    })),
   });
 
   if (payrollAudit.readiness.highCount > 0) {
@@ -117,6 +124,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         medium: payrollAudit.readiness.mediumCount,
       },
       approvalTaskId: approval?.id ?? null,
+      parallelPayrollRows: parallel.length,
     },
   });
 
