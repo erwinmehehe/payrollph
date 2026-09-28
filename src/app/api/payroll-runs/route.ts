@@ -1,6 +1,6 @@
 import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { orgUnits, payrollEntries, payrollRuns } from "@/db/schema";
+import { employees, orgUnits, payrollEntries, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { drainPayrollQueue, enqueuePayrollRun, getPayrollJobStatus } from "@/lib/payroll-engine";
@@ -135,6 +135,21 @@ export async function POST(request: Request) {
     }
     scopeOrgUnitId = scope.id;
     scopeLabel = scope.name;
+  }
+
+  const employeeScope = scopeOrgUnitId
+    ? and(
+        eq(employees.organizationId, organizationId),
+        eq(employees.orgUnitId, scopeOrgUnitId),
+      )
+    : eq(employees.organizationId, organizationId);
+  const [employeeInScope] = await db
+    .select({ id: employees.id })
+    .from(employees)
+    .where(employeeScope)
+    .limit(1);
+  if (!employeeInScope) {
+    return Response.json({ error: "The selected payroll scope has no employees." }, { status: 400 });
   }
 
   const periodLabel = periodLabelFromDates(periodStart, periodEnd);
