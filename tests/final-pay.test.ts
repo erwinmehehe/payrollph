@@ -152,3 +152,26 @@ test("separation API refuses to guess final pay from incomplete released history
   assert.ok(source.includes("lack the stored taxable-compensation trace"));
   assert.ok(source.includes("no BASIC line items"));
 });
+
+
+test("central role helpers define the payroll boundary once", () => {
+  const source = readFileSync("src/lib/access.ts", "utf8");
+  assert.ok(source.includes('["admin", "owner", "bookkeeper", "payroll"]'));
+  assert.ok(source.includes("isPayrollOperatorRole"));
+  assert.ok(source.includes("canOperatePayroll"));
+  assert.ok(source.includes("canManageSeparation"));
+});
+
+test("company payroll exports cannot fall back to the employee self-service boundary", () => {
+  for (const path of [
+    "src/app/api/payroll-runs/[id]/exports/route.ts",
+    "src/app/api/exports/route.ts",
+    "src/app/api/year-end/route.ts",
+  ]) {
+    const source = readFileSync(path, "utf8");
+    assert.ok(source.includes("canOperatePayroll"), `${path} must require a payroll operator role`);
+  }
+
+  const selfService = readFileSync("src/app/api/self/payslips/route.ts", "utf8");
+  assert.ok(selfService.includes("employeeId"), "employee access should remain on the employee-scoped payslip API");
+});
