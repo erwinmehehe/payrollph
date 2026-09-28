@@ -4,7 +4,7 @@ import { payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { drainPayrollQueue, enqueuePayrollRun } from "@/lib/payroll-engine";
-import { assertMembership } from "@/lib/access";
+import { assertOrganizationRole, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -15,7 +15,12 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   if (!run) return Response.json({ error: "Payroll run not found" }, { status: 404 });
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
-  const deniedOrg = await assertMembership(user.id, run.organizationId);
+  const deniedOrg = await assertOrganizationRole(
+    user.id,
+    run.organizationId,
+    PAYROLL_OPERATOR_ROLES,
+    "Only payroll operators can calculate payroll.",
+  );
   if (deniedOrg) return deniedOrg;
 
   const queue = await enqueuePayrollRun(runId);
