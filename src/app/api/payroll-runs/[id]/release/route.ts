@@ -5,7 +5,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { queueMessage } from "@/lib/mailer";
 import { dispatchWebhook } from "@/lib/webhooks";
-import { assertMembership, getAccess } from "@/lib/access";
+import { assertMembership, canOperatePayroll, getAccess } from "@/lib/access";
 import { auditPayrollControl } from "@/lib/payroll-control";
 
 const RELEASABLE = ["Ready for release", "Needs review", "Processed"];
@@ -23,8 +23,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const deniedOrg = await assertMembership(user.id, run.organizationId);
   if (deniedOrg) return deniedOrg;
   const access = await getAccess(user.id, run.organizationId);
-  if (!access || access.role === "employee") {
-    return Response.json({ error: "Payroll operations require a payroll or administrative workspace role." }, { status: 403 });
+  if (!canOperatePayroll(access)) {
+    return Response.json({ error: "Payroll access requires an owner, admin, bookkeeper, or payroll role." }, { status: 403 });
   }
 
   if (run.status === "Released") {
