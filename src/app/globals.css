@@ -5580,3 +5580,47 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
 
 /* Payslip note block inside the legacy modals */
 .trace-box code { color: #cdd5e0; }
+
+
+/* ==========================================================================
+   Hero without product mockup
+   Keep the first viewport focused on the payroll proposition and proof points.
+   ========================================================================== */
+.software-home .home-hero-grid {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+  row-gap: 30px;
+  padding-top: clamp(64px, 8vh, 96px);
+  padding-bottom: clamp(54px, 7vh, 82px);
+}
+
+.software-home .home-hero-copy {
+  max-width: 780px;
+}
+
+.software-home .hero h1 {
+  max-width: 760px;
+}
+
+.software-home .hero-sub {
+  max-width: 660px;
+}
+
+.software-home .home-coverage {
+  justify-content: flex-start;
+  margin-top: 8px;
+}
+
+@media (max-width: 900px) {
+  .software-home .home-hero-grid {
+    padding-top: 52px;
+    padding-bottom: 46px;
+  }
+}
+
+@media (max-width: 680px) {
+  .software-home .home-hero-grid {
+    padding-top: 38px;
+    padding-bottom: 38px;
+  }
+}
