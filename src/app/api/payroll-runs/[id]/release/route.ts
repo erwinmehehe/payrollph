@@ -1,7 +1,6 @@
 import { and, count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { approvalTasks, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
-import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { queueMessage } from "@/lib/mailer";
 import { dispatchWebhook } from "@/lib/webhooks";
@@ -88,7 +87,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   let settlement;
   let updated;
   try {
-    const released = await settlePayrollRun(runId);
+    const released = await settlePayrollRun(runId, {
+      actor: user.name,
+      resource: run.periodLabel,
+      metadata: {
+        runId,
+        ruleVersion: run.ruleVersion,
+        netPay: run.netPay,
+        employees: entryCount,
+        exceptionsAcknowledged: run.exceptions > 0 ? run.exceptions : 0,
+        assurance: assuranceResult?.assurance.summary ?? null,
+        approvalTaskId: payrollApproval.id,
+        approvedBy: payrollApproval.decidedBy ?? payrollApproval.approver,
+      },
+    });
     settlement = released.settlement;
     updated = released.run;
   } catch (error) {
@@ -102,24 +114,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       error: error instanceof Error ? error.message : "Payroll settlement failed; recalculate before release.",
     }, { status: 409 });
   }
-
-  await recordAuditEvent({
-    organizationId: run.organizationId,
-    actor: user.name,
-    action: "Payroll released",
-    resource: run.periodLabel,
-    metadata: {
-      runId,
-      ruleVersion: run.ruleVersion,
-      netPay: run.netPay,
-      employees: entryCount,
-      exceptionsAcknowledged: run.exceptions > 0 ? run.exceptions : 0,
-      assurance: assuranceResult?.assurance.summary ?? null,
-      approvalTaskId: payrollApproval.id,
-      approvedBy: payrollApproval.decidedBy ?? payrollApproval.approver,
-      settlement,
-    },
-  });
 
   // Notify staff that payslips are ready. Queued in the outbox when no mail
   // provider is configured, never silently reported as sent.
@@ -135,36 +129,58 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         inArray(employees.id, releasedEmployeeIds),
       ))
     : [];
-  const notified = staff.filter((person) => person.status === "Active" && Boolean(person.email)).length;
+
+  // Payroll is already atomically released at this point. Notification or
+  // webhook failures must not turn a successful financial commit into a 500
+  // response that invites the operator to retry the release.
+  const postReleaseWarnings: string[] = [];
+  let notified = 0;
   for (const person of staff) {
     if (person.status !== "Active" || !person.email) continue;
-    await queueMessage({
-      organizationId: run.organizationId,
-      recipient: person.email,
-      subject: `Your payslip for ${run.periodLabel} is ready`,
-      purpose: "payslip-ready",
-      body: [
-        `Hi ${person.firstName},`,
-        "",
-        `${organization?.name ?? "Your employer"} released payroll for ${run.periodLabel}.`,
-        "",
-        "Sign in to Linaw to view and download your payslip.",
-      ].join("\n"),
-    });
+    try {
+      await queueMessage({
+        organizationId: run.organizationId,
+        recipient: person.email,
+        subject: `Your payslip for ${run.periodLabel} is ready`,
+        purpose: "payslip-ready",
+        body: [
+          `Hi ${person.firstName},`,
+          "",
+          `${organization?.name ?? "Your employer"} released payroll for ${run.periodLabel}.`,
+          "",
+          "Sign in to Linaw to view and download your payslip.",
+        ].join("\n"),
+      });
+      notified += 1;
+    } catch {
+      postReleaseWarnings.push(`Could not queue payslip notice for employee #${person.id}.`);
+    }
   }
 
-  const deliveries = await dispatchWebhook({
-    organizationId: run.organizationId,
-    event: "payroll.released",
-    data: {
-      runId,
-      period: run.periodLabel,
-      payDate: run.payDate,
-      employees: entryCount,
-      grossPay: run.grossPay,
-      netPay: run.netPay,
-    },
-  });
+  let webhookDeliveries = 0;
+  try {
+    const deliveries = await dispatchWebhook({
+      organizationId: run.organizationId,
+      event: "payroll.released",
+      data: {
+        runId,
+        period: run.periodLabel,
+        payDate: run.payDate,
+        employees: entryCount,
+        grossPay: run.grossPay,
+        netPay: run.netPay,
+      },
+    });
+    webhookDeliveries = deliveries.length;
+  } catch {
+    postReleaseWarnings.push("Payroll was released, but webhook delivery could not be queued.");
+  }
 
-  return Response.json({ run: updated, webhookDeliveries: deliveries.length, employeesNotified: notified });
+  return Response.json({
+    run: updated,
+    settlement,
+    webhookDeliveries,
+    employeesNotified: notified,
+    postReleaseWarnings,
+  });
 }
