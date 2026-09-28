@@ -1,4 +1,4 @@
-import { count, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { approvalTasks, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
@@ -7,6 +7,7 @@ import { queueMessage } from "@/lib/mailer";
 import { dispatchWebhook } from "@/lib/webhooks";
 import { assertOrganizationRole, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
+import { settlePayrollRun } from "@/lib/payroll-settlement";
 
 const RELEASABLE = ["Ready for release"];
 
@@ -73,10 +74,37 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }, { status: 409 });
   }
 
+  // Claim the release transition atomically so two concurrent requests cannot
+  // settle the same ledgers twice.
+  const [claimed] = await db.update(payrollRuns)
+    .set({ status: "Releasing" })
+    .where(and(eq(payrollRuns.id, runId), eq(payrollRuns.status, "Ready for release")))
+    .returning();
+
+  if (!claimed) {
+    return Response.json({ error: "Payroll is no longer ready for release. Refresh and review its current status." }, { status: 409 });
+  }
+
+  let settlement;
+  try {
+    settlement = await settlePayrollRun(runId);
+  } catch (error) {
+    await db.update(payrollRuns)
+      .set({ status: "Ready for release" })
+      .where(and(eq(payrollRuns.id, runId), eq(payrollRuns.status, "Releasing")));
+    return Response.json({
+      error: error instanceof Error ? error.message : "Payroll settlement failed; recalculate before release.",
+    }, { status: 409 });
+  }
+
   const [updated] = await db.update(payrollRuns)
     .set({ status: "Released" })
-    .where(eq(payrollRuns.id, runId))
+    .where(and(eq(payrollRuns.id, runId), eq(payrollRuns.status, "Releasing")))
     .returning();
+
+  if (!updated) {
+    return Response.json({ error: "Payroll release state changed unexpectedly. Refresh before retrying." }, { status: 409 });
+  }
 
   await recordAuditEvent({
     organizationId: run.organizationId,
@@ -92,6 +120,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       assurance: assuranceResult?.assurance.summary ?? null,
       approvalTaskId: payrollApproval.id,
       approvedBy: payrollApproval.decidedBy ?? payrollApproval.approver,
+      settlement,
     },
   });
 
