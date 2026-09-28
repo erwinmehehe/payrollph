@@ -56,8 +56,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const tasks = await db.select().from(approvalTasks).where(eq(approvalTasks.organizationId, run.organizationId));
   const period = run.periodLabel.toLowerCase();
+  const exactApprovals = tasks
+    .filter((task) => task.title.toLowerCase().includes(period))
+    .sort((a, b) => b.id - a.id);
   const approval =
-    tasks.find((task) => task.title.toLowerCase().includes(period)) ??
+    exactApprovals[0] ??
     tasks.find((task) => task.title.toLowerCase().includes("payroll") && task.status === "Pending");
 
   if (approval && approval.status !== "Approved") {
