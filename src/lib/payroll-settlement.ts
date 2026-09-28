@@ -1,9 +1,10 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
   auditEvents,
   earnedWageRequests,
   employeeLoans,
+  employees,
   expenseClaims,
   leaveConversions,
   loanPayments,
@@ -31,6 +32,36 @@ function numericId(code: string, prefix: string) {
   if (!code.startsWith(prefix)) return null;
   const id = Number(code.slice(prefix.length));
   return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+type PaymentSnapshot = {
+  employeeName: string;
+  employeeNo: string;
+  bankAccount: string | null;
+  bankCode: string | null;
+  mobile: string | null;
+};
+
+function readPaymentSnapshot(value: unknown): PaymentSnapshot | null {
+  if (!value || typeof value !== "object") return null;
+  const payment = (value as Record<string, unknown>).payment;
+  if (!payment || typeof payment !== "object") return null;
+  const row = payment as Record<string, unknown>;
+  const employeeName = typeof row.employeeName === "string" ? row.employeeName.trim() : "";
+  const employeeNo = typeof row.employeeNo === "string" ? row.employeeNo.trim() : "";
+  if (!employeeName || !employeeNo) return null;
+  const nullable = (field: unknown) => typeof field === "string" && field.trim() ? field.trim() : null;
+  return {
+    employeeName,
+    employeeNo,
+    bankAccount: nullable(row.bankAccount),
+    bankCode: nullable(row.bankCode),
+    mobile: nullable(row.mobile),
+  };
+}
+
+function samePaymentValue(left: string | null | undefined, right: string | null | undefined) {
+  return (left ?? "").trim() === (right ?? "").trim();
 }
 
 /**
@@ -61,6 +92,52 @@ export async function settlePayrollRun(
       .select()
       .from(payrollEntries)
       .where(eq(payrollEntries.payrollRunId, run.id));
+
+    if (entries.length !== run.employeeCount) {
+      throw new Error("Payroll register no longer matches the calculated employee count; recalculate before release.");
+    }
+
+    const employeeIds = [...new Set(entries.map((entry) => entry.employeeId))];
+    const currentEmployees = employeeIds.length
+      ? await tx.select().from(employees).where(and(
+          eq(employees.organizationId, run.organizationId),
+          inArray(employees.id, employeeIds),
+        ))
+      : [];
+    const employeeById = new Map(currentEmployees.map((employee) => [employee.id, employee]));
+
+    for (const entry of entries) {
+      const employee = employeeById.get(entry.employeeId);
+      if (!employee) {
+        throw new Error(`Employee #${entry.employeeId} no longer belongs to this payroll workspace; recalculate before release.`);
+      }
+      if (employee.status !== "Active") {
+        throw new Error(
+          `${employee.firstName} ${employee.lastName} is now ${employee.status}; recalculate before release so non-active employees are excluded.`,
+        );
+      }
+
+      const snapshot = readPaymentSnapshot(entry.trace);
+      if (!snapshot) {
+        throw new Error(
+          `Payroll entry for ${employee.firstName} ${employee.lastName} lacks an immutable payment snapshot; recalculate before release.`,
+        );
+      }
+
+      const currentName = `${employee.firstName} ${employee.lastName}`.trim();
+      const paymentChanged =
+        !samePaymentValue(snapshot.employeeName, currentName) ||
+        !samePaymentValue(snapshot.employeeNo, employee.employeeNo) ||
+        !samePaymentValue(snapshot.bankAccount, employee.bankAccount) ||
+        !samePaymentValue(snapshot.bankCode, employee.bankCode) ||
+        !samePaymentValue(snapshot.mobile, employee.mobile);
+
+      if (paymentChanged) {
+        throw new Error(
+          `Payment instructions for ${currentName} changed after calculation; recalculate before release so the approved register and payout file stay aligned.`,
+        );
+      }
+    }
 
     let expensesSettled = 0;
     let advancesSettled = 0;
