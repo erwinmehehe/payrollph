@@ -35,8 +35,9 @@ export default async function ScorecardPage() {
         <p className="eyebrow">CAPABILITY SCORECARD</p>
         <h1>Verified claims only.</h1>
         <p className="heading-copy">
-          Every row below is generated from this deployment&apos;s code and database, not a marketing claim.
-          &ldquo;Verified&rdquo; means an executing test or a code path on the request path proves it.
+          Every row below is generated from this deployment&apos;s code and automated evidence, not a marketing claim.
+          &ldquo;Verified&rdquo; means the implementation is proven by an executing test or request-path code. External
+          provider readiness is reported separately.
         </p>
         <div className="stats-grid" style={{ marginBottom: 0, marginTop: 20 }}>
           <article className="stat-card">
@@ -117,9 +118,10 @@ export default async function ScorecardPage() {
       <section className="marketing-section">
         <div className="notice notice-amber marketing-notice">
           <span>
-            <strong>Read this honestly.</strong> The four biggest gaps are all blocked on external access, not code:
-            certified BIR/SSS filing, live bank submission, a transactional email key, and subscription billing.
-            The live gate list is at <a className="link-button" href="/api/readiness">/api/readiness</a> and the
+            <strong>Implementation and live readiness are different checks.</strong> SSO / SAML is not built.
+            Certified government filing still needs portal validation, and live bank submission still needs the
+            external payout account enabled. Email adapters can be code-verified while live delivery configuration is
+            reported separately. The deployment gate list is at <a className="link-button" href="/api/readiness">/api/readiness</a> and the
             JSON version of this scorecard at <a className="link-button" href="/api/capabilities">/api/capabilities</a>.
           </span>
         </div>
