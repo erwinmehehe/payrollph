@@ -4,7 +4,7 @@ import { payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { drainPayrollQueue, enqueuePayrollRun } from "@/lib/payroll-engine";
-import { assertMembership } from "@/lib/access";
+import { assertMembership, getAccess } from "@/lib/access";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -17,6 +17,10 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const deniedOrg = await assertMembership(user.id, run.organizationId);
   if (deniedOrg) return deniedOrg;
+  const access = await getAccess(user.id, run.organizationId);
+  if (!access || access.role === "employee") {
+    return Response.json({ error: "Payroll operations require a payroll or administrative workspace role." }, { status: 403 });
+  }
 
   const queue = await enqueuePayrollRun(runId);
   const processResult = await drainPayrollQueue(50);
