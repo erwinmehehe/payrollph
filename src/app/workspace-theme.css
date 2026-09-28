@@ -1045,3 +1045,331 @@
     border-left: 0;
   }
 }
+
+
+/* ---------------------------------------------------------------- overview */
+
+.app-shell .overview-grid {
+  gap: 12px;
+}
+
+.app-shell .lower-grid {
+  margin-top: 12px;
+}
+
+.app-shell .module-grid {
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.app-shell .console-strip {
+  margin-bottom: 14px;
+  padding: 18px 18px 16px;
+  border: 1px solid #e2e3e6;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  box-shadow: none;
+}
+
+.app-shell .console-strip::after {
+  display: none;
+}
+
+.app-shell .console-strip .kicker {
+  color: #777c86;
+  font-size: 8.5px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+}
+
+.app-shell .console-strip .pulse-dot {
+  width: 5px;
+  height: 5px;
+  background: var(--brand);
+  box-shadow: none;
+  animation: none;
+}
+
+.app-shell .console-strip h2 {
+  margin: 7px 0 3px;
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 640;
+  letter-spacing: -0.03em;
+}
+
+.app-shell .console-strip p {
+  color: #858a94;
+  font-size: 11px;
+}
+
+.app-shell .console-figures {
+  gap: 22px;
+}
+
+.app-shell .console-figures > div span {
+  color: #969aa3;
+  font-size: 8px;
+  letter-spacing: 0.07em;
+}
+
+.app-shell .console-figures > div strong {
+  margin-top: 3px;
+  color: #31343a;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.app-shell .track {
+  gap: 0;
+  margin-top: 17px;
+  border-top: 1px solid #e8e9ec;
+}
+
+.app-shell .track-step {
+  min-height: 58px;
+  padding: 11px 13px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.app-shell .track-step + .track-step {
+  border-left: 1px solid #ededf0;
+}
+
+.app-shell .track-step span {
+  color: #9a9ea6;
+  font-size: 8px;
+  letter-spacing: 0.06em;
+}
+
+.app-shell .track-step strong {
+  margin-top: 4px;
+  color: #767b85;
+  font-size: 10.5px;
+  font-weight: 570;
+}
+
+.app-shell .track-step.done,
+.app-shell .track-step.now {
+  border-top: 2px solid transparent;
+  background: transparent;
+}
+
+.app-shell .track-step.done {
+  border-top-color: #76baa8;
+}
+
+.app-shell .track-step.done span,
+.app-shell .track-step.done strong {
+  color: #4f776d;
+}
+
+.app-shell .track-step.now {
+  border-top-color: var(--brand);
+}
+
+.app-shell .track-step.now span,
+.app-shell .track-step.now strong {
+  color: #454bc9;
+}
+
+.app-shell .approve-mini {
+  border-color: #dedfe3;
+  background: #fff;
+  color: #666b75;
+}
+
+.app-shell .approve-mini:hover {
+  border-color: #d5d6ff;
+  background: #f2f2ff;
+  color: var(--brand);
+}
+
+.app-shell .compliance-row,
+.app-shell .compliance-row.amber,
+.app-shell .compliance-row.blue {
+  margin-inline: 16px;
+  padding: 10px;
+  border: 0;
+  border-radius: 7px;
+}
+
+.app-shell .compliance-row {
+  background: #f4f8f6;
+}
+
+.app-shell .compliance-row.amber {
+  background: #fff8ed;
+}
+
+.app-shell .compliance-row.blue {
+  background: #f3f3ff;
+}
+
+.app-shell .check-round,
+.app-shell .alert-round {
+  background: transparent;
+}
+
+/* ---------------------------------------------------------------- payroll workspace */
+
+.app-shell .payroll-workspace {
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.app-shell .run-list {
+  top: calc(var(--topbar-h) + 14px);
+}
+
+.app-shell .run-item {
+  gap: 9px;
+  padding: 10px 11px;
+}
+
+.app-shell .run-item:hover {
+  background: #fafafa;
+}
+
+.app-shell .run-item.selected {
+  background: #f1f1ff;
+  box-shadow: inset 2px 0 0 var(--brand);
+}
+
+.app-shell .run-calendar {
+  width: 29px;
+  height: 33px;
+  border-color: #e2e3e6;
+  border-radius: 6px;
+  background: #fafafa;
+}
+
+.app-shell .run-calendar small {
+  color: #969aa3;
+  font-size: 7px;
+}
+
+.app-shell .run-calendar b {
+  margin-top: 3px;
+  color: #484b53;
+  font-size: 12px;
+}
+
+.app-shell .run-item strong {
+  font-size: 10.5px;
+  font-weight: 620;
+}
+
+.app-shell .run-item small {
+  color: #92969f;
+  font-size: 9px;
+}
+
+.app-shell .new-run-line {
+  min-height: 38px;
+  padding-inline: 13px;
+  border-top-style: solid;
+  border-top-color: #ececef;
+  color: var(--brand);
+  font-size: 10.5px;
+}
+
+.app-shell .payroll-detail {
+  min-height: 440px;
+}
+
+.app-shell .progress-track {
+  height: 5px;
+  background: #ececef;
+}
+
+.app-shell .battery {
+  height: 6px;
+  background: #ececef;
+}
+
+.app-shell .battery > span.ok {
+  background: #77b8a8;
+}
+
+.app-shell .battery > span.review {
+  background: #d0a156;
+}
+
+.app-shell .green-number {
+  color: #16715d !important;
+}
+
+.app-shell .red-number {
+  color: #b94a59 !important;
+}
+
+.app-shell .table-toolbar {
+  gap: 7px;
+  padding: 10px 16px;
+}
+
+.app-shell .search-field {
+  height: 30px;
+  max-width: 310px;
+  border-color: #dedfe3;
+  border-radius: 7px;
+  color: #9a9da5;
+  box-shadow: none;
+}
+
+.app-shell .search-field:focus-within {
+  border-color: #aaaefe;
+  box-shadow: var(--ring);
+}
+
+.app-shell .search-field input {
+  font-size: 11px;
+}
+
+/* ---------------------------------------------------------------- people and avatars */
+
+.app-shell .avatar,
+.app-shell .avatar-0,
+.app-shell .avatar-1,
+.app-shell .avatar-2,
+.app-shell .avatar-3,
+.app-shell .avatar-4,
+.app-shell .avatar-mint {
+  border-color: transparent;
+  background: #eeeeef;
+  color: #686d76;
+  box-shadow: none;
+}
+
+.app-shell .person-cell > .avatar {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.app-shell .person-cell strong {
+  font-size: 11px;
+  font-weight: 620;
+}
+
+.app-shell .person-cell > div > span {
+  color: #8e929b;
+  font-size: 9.5px;
+}
+
+/* ---------------------------------------------------------------- empty states */
+
+.app-shell .empty-state {
+  gap: 7px;
+  padding: 36px 22px;
+  color: #858a94;
+  font-size: 11.5px;
+}
+
+.app-shell .empty-state > svg {
+  color: #9296a0;
+  opacity: 0.8;
+}
