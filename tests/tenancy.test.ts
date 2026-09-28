@@ -47,16 +47,22 @@ test("self-scoped routes never accept an organizationId parameter", () => {
   }
 });
 
-test("every session route calls the shared membership gate", () => {
-  const missing = SESSION_ROUTES.filter((path) => !read(path).includes("assertMembership"));
+test("every session route calls a shared tenant or role gate", () => {
+  const missing = SESSION_ROUTES.filter((path) => {
+    const source = read(path);
+    return !source.includes("assertMembership") && !source.includes("assertOrganizationRole");
+  });
   assert.deepEqual(missing, [], `routes without tenant isolation: ${missing.join(", ")}`);
 });
 
 test("no session route trusts a client-supplied organizationId alone", () => {
-  // The gate must compare against the session user's id, not accept the id as-is.
+  // Both membership and role gates must receive the authenticated user's id.
   for (const path of SESSION_ROUTES) {
     const source = read(path);
-    assert.ok(/assertMembership\(\w+\.id,/.test(source), `${path} must pass the session user id to the gate`);
+    assert.ok(
+      /assert(?:Membership|OrganizationRole)\(\s*\w+\.id,/.test(source),
+      `${path} must pass the session user id to the gate`,
+    );
   }
 });
 
