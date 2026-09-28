@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { parallelPayrollRows, payrollRuns } from "@/db/schema";
-import { assertMembership, getAccess } from "@/lib/access";
+import { assertMembership, canOperatePayroll, getAccess } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 
@@ -18,10 +18,10 @@ async function context(id: string, userId: number) {
   if (denied) return { error: denied };
 
   const access = await getAccess(userId, run.organizationId);
-  if (!access || access.role === "employee") {
+  if (!canOperatePayroll(access)) {
     return {
       error: Response.json(
-        { error: "Parallel Payroll requires a payroll or administrative workspace role." },
+        { error: "Parallel Payroll requires an owner, admin, bookkeeper, or payroll role." },
         { status: 403 },
       ),
     };
@@ -74,8 +74,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!inputRows.length) {
     return Response.json({ error: "At least one reference payroll row is required." }, { status: 400 });
   }
-  if (inputRows.length > 5_000) {
-    return Response.json({ error: "Parallel Payroll accepts up to 5,000 rows per import." }, { status: 413 });
+  if (inputRows.length > 10_000) {
+    return Response.json({ error: "Parallel Payroll accepts up to 10,000 rows per import." }, { status: 413 });
   }
 
   let rows: Array<typeof parallelPayrollRows.$inferInsert>;
@@ -115,16 +115,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     );
   }
 
-  try {
-    await db.transaction(async (tx) => {
-      await tx.delete(parallelPayrollRows).where(eq(parallelPayrollRows.payrollRunId, resolved.runId));
-      for (let offset = 0; offset < rows.length; offset += 500) {
-        await tx.insert(parallelPayrollRows).values(rows.slice(offset, offset + 500));
-      }
-    });
-  } catch (error) {
-    throw error;
-  }
+  await db.transaction(async (tx) => {
+    await tx.delete(parallelPayrollRows).where(eq(parallelPayrollRows.payrollRunId, resolved.runId));
+    for (let offset = 0; offset < rows.length; offset += 500) {
+      await tx.insert(parallelPayrollRows).values(rows.slice(offset, offset + 500));
+    }
+  });
 
   await recordAuditEvent({
     organizationId: resolved.run.organizationId,
