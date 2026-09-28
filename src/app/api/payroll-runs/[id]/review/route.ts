@@ -3,6 +3,7 @@ import { db } from "@/db";
 import {
   approvalTasks,
   employees,
+  parallelPayrollRows,
   payrollEntries,
   payrollRuns,
   userOrganizations,
@@ -101,7 +102,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const staff = await db.select().from(employees).where(eq(employees.organizationId, run.organizationId));
-  const audit = auditPayrollControl({ entries: entryRows, employees: staff });
+  const parallel = await db.select().from(parallelPayrollRows).where(eq(parallelPayrollRows.payrollRunId, runId));
+  const audit = auditPayrollControl({
+    entries: entryRows,
+    employees: staff,
+    parallelRows: parallel.map((row) => ({
+      employeeNo: row.employeeNo,
+      name: row.employeeName ?? undefined,
+      netPay: Number(row.netPay),
+      withholdingTax: row.withholdingTax == null ? null : Number(row.withholdingTax),
+    })),
+  });
   if (audit.readiness.highCount > 0) {
     return Response.json({
       error: `Resolve ${audit.readiness.highCount} blocking Payroll Control Center issue(s) before submitting for approval.`,
