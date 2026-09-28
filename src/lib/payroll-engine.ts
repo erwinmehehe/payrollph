@@ -104,25 +104,46 @@ export async function enqueuePayrollRun(runId: number, chunkSize = DEFAULT_CHUNK
   return { runId, totalChunks, employeeCount: employeeRows.length };
 }
 
-export async function processNextPayrollJob(workerId = `worker-${process.pid}`) {
+export async function processNextPayrollJob(
+  workerId = `worker-${process.pid}`,
+  targetRunId?: number,
+) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const claim = await client.query<{
-      id: number;
-      payroll_run_id: number;
-      organization_id: number;
-      chunk_index: number;
-      chunk_size: number;
-      attempts: number;
-    }>(
-      `SELECT id, payroll_run_id, organization_id, chunk_index, chunk_size, attempts
-       FROM payroll_jobs
-       WHERE status IN ('queued', 'failed')
-       ORDER BY id
-       FOR UPDATE SKIP LOCKED
-       LIMIT 1`,
-    );
+    const claim = targetRunId
+      ? await client.query<{
+          id: number;
+          payroll_run_id: number;
+          organization_id: number;
+          chunk_index: number;
+          chunk_size: number;
+          attempts: number;
+        }>(
+          `SELECT id, payroll_run_id, organization_id, chunk_index, chunk_size, attempts
+           FROM payroll_jobs
+           WHERE status IN ('queued', 'failed')
+             AND payroll_run_id = $1
+           ORDER BY id
+           FOR UPDATE SKIP LOCKED
+           LIMIT 1`,
+          [targetRunId],
+        )
+      : await client.query<{
+          id: number;
+          payroll_run_id: number;
+          organization_id: number;
+          chunk_index: number;
+          chunk_size: number;
+          attempts: number;
+        }>(
+          `SELECT id, payroll_run_id, organization_id, chunk_index, chunk_size, attempts
+           FROM payroll_jobs
+           WHERE status IN ('queued', 'failed')
+           ORDER BY id
+           FOR UPDATE SKIP LOCKED
+           LIMIT 1`,
+        );
 
     if (claim.rowCount === 0) {
       await client.query("COMMIT");
@@ -185,13 +206,17 @@ export async function processNextPayrollJob(workerId = `worker-${process.pid}`) 
   }
 }
 
-export async function drainPayrollQueue(maxJobs = 50) {
+export async function drainPayrollQueue(maxJobs = 50, targetRunId?: number) {
   const results = [];
   for (let i = 0; i < maxJobs; i += 1) {
-    const result = await processNextPayrollJob();
+    const result = await processNextPayrollJob(undefined, targetRunId);
     if (!result.processed) break;
     results.push(result);
-    if (result.done) break;
+
+    // Synchronous API callers drain one requested run to completion. A global
+    // background worker should keep moving through other queued runs instead
+    // of stopping merely because one run finished.
+    if (targetRunId && result.done) break;
   }
   return results;
 }
