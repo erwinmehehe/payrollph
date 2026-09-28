@@ -35,7 +35,10 @@ export type Employee = {
 export type PayrollRun = {
   id: number;
   periodLabel: string;
+  periodStart: string;
+  periodEnd: string;
   scopeLabel: string;
+  scopeOrgUnitId?: number | null;
   status: string;
   payDate: string;
   employeeCount: number;
