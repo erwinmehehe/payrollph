@@ -61,6 +61,29 @@ export function PayrollControlCenter({
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [issueFilter, setIssueFilter] = useState<"all" | "high" | "medium">("all");
 
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const response = await fetch(`/api/payroll-runs/${run.id}/parallel`, { cache: "no-store" });
+        if (!alive || !response.ok) return;
+        const payload = (await response.json()) as {
+          sourceName?: string | null;
+          rows?: ParallelPayrollRow[];
+        };
+        if (!alive) return;
+        setParallelRows(payload.rows ?? []);
+        setParallelName(payload.sourceName ?? "");
+      } catch {
+        // Parallel Payroll is optional. A load failure must not hide the base payroll controls.
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [run.id]);
+
   const audit = useMemo(
     () =>
       auditPayrollControl({
@@ -119,16 +142,44 @@ export function PayrollControlCenter({
         notify(parsed.errors[0] ?? "No usable payroll rows were found in that CSV.", "err");
         return;
       }
+
+      const response = await fetch(`/api/payroll-runs/${run.id}/parallel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceName: file.name, rows: parsed.rows }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        notify(payload.error ?? "Parallel Payroll could not be saved.", "err");
+        return;
+      }
+
       setParallelRows(parsed.rows);
       setParallelName(file.name);
       const suffix = parsed.errors.length
         ? ` ${parsed.errors.length} row${parsed.errors.length === 1 ? "" : "s"} were skipped.`
         : "";
-      notify(`Parallel Payroll loaded ${parsed.rows.length} reference row${parsed.rows.length === 1 ? "" : "s"}.${suffix}`, "ok");
+      notify(`Parallel Payroll saved ${parsed.rows.length} reference row${parsed.rows.length === 1 ? "" : "s"}.${suffix}`, "ok");
     } catch {
-      notify("The payroll reference CSV could not be read.", "err");
+      notify("The payroll reference CSV could not be read or saved.", "err");
     } finally {
       if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  async function clearParallel() {
+    try {
+      const response = await fetch(`/api/payroll-runs/${run.id}/parallel`, { method: "DELETE" });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        notify(payload.error ?? "Parallel Payroll reference could not be cleared.", "err");
+        return;
+      }
+      setParallelRows([]);
+      setParallelName("");
+      notify("Parallel Payroll reference cleared.", "info");
+    } catch {
+      notify("Could not reach the Parallel Payroll service.", "err");
     }
   }
 
@@ -313,7 +364,7 @@ export function PayrollControlCenter({
             <strong>Parallel Payroll</strong>
             <p>
               Export the payroll from your current system, then upload a CSV with <code>employee_no</code> and{" "}
-              <code>net_pay</code>. Linaw compares every matched employee against its own calculation.
+              <code>net_pay</code>. Linaw stores the reference against this run and re-checks it at release.
             </p>
           </div>
         </div>
@@ -323,11 +374,7 @@ export function PayrollControlCenter({
             <button
               type="button"
               className={styles.clearButton}
-              onClick={() => {
-                setParallelRows([]);
-                setParallelName("");
-                notify("Parallel Payroll reference cleared.", "info");
-              }}
+              onClick={() => void clearParallel()}
             >
               <X size={14} /> Clear
             </button>
