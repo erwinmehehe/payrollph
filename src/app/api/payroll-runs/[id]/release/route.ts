@@ -5,7 +5,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { queueMessage } from "@/lib/mailer";
 import { dispatchWebhook } from "@/lib/webhooks";
-import { assertMembership } from "@/lib/access";
+import { assertOrganizationRole, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
 
 const RELEASABLE = ["Ready for release", "Needs review", "Processed"];
@@ -20,7 +20,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) return Response.json({ error: "Payroll run not found." }, { status: 404 });
-  const deniedOrg = await assertMembership(user.id, run.organizationId);
+  const deniedOrg = await assertOrganizationRole(
+    user.id,
+    run.organizationId,
+    PAYROLL_OPERATOR_ROLES,
+    "Only payroll operators can release payroll.",
+  );
   if (deniedOrg) return deniedOrg;
 
   if (run.status === "Released") {
