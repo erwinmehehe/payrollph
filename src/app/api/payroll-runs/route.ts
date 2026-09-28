@@ -61,6 +61,20 @@ export async function GET(request: Request) {
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const DAY_MS = 86_400_000;
+const MAX_PAYROLL_PERIOD_DAYS = 16;
+
+function validIsoDate(value: string) {
+  if (!ISO_DATE.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+function inclusivePeriodDays(periodStart: string, periodEnd: string) {
+  const start = Date.parse(`${periodStart}T00:00:00Z`);
+  const end = Date.parse(`${periodEnd}T00:00:00Z`);
+  return Math.floor((end - start) / DAY_MS) + 1;
+}
 
 function periodLabelFromDates(periodStart: string, periodEnd: string) {
   const start = new Date(`${periodStart}T12:00:00Z`);
@@ -92,9 +106,9 @@ export async function POST(request: Request) {
 
   if (
     !Number.isInteger(organizationId) ||
-    !ISO_DATE.test(periodStart) ||
-    !ISO_DATE.test(periodEnd) ||
-    !ISO_DATE.test(payDate)
+    !validIsoDate(periodStart) ||
+    !validIsoDate(periodEnd) ||
+    !validIsoDate(payDate)
   ) {
     return Response.json({
       error: "Organization, period start, period end, and pay date are required.",
@@ -103,6 +117,12 @@ export async function POST(request: Request) {
 
   if (periodStart > periodEnd) {
     return Response.json({ error: "Payroll period start cannot be after period end." }, { status: 400 });
+  }
+  const periodDays = inclusivePeriodDays(periodStart, periodEnd);
+  if (periodDays > MAX_PAYROLL_PERIOD_DAYS) {
+    return Response.json({
+      error: `Payroll periods are limited to ${MAX_PAYROLL_PERIOD_DAYS} calendar days. Split this into separate cutoffs.`,
+    }, { status: 400 });
   }
   if (payDate < periodEnd) {
     return Response.json({ error: "Pay date cannot be before the payroll period ends." }, { status: 400 });
