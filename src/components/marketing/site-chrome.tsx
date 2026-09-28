@@ -6,7 +6,7 @@ import { Menu, X } from "lucide-react";
 
 const LINKS = [
   { href: "/#workflow", label: "How it works" },
-  { href: "/#simulation", label: "Simulation" },
+  { href: "/demo", label: "Demo" },
   { href: "/#pricing", label: "Pricing" },
   { href: "/payroll-outsourcing", label: "Payroll outsourcing" },
   { href: "/scorecard", label: "Scorecard" },
@@ -115,6 +115,7 @@ export function SiteFooter() {
             <h4>Product</h4>
             <ul>
               <li><Link href="/#workflow">How it works</Link></li>
+              <li><Link href="/demo">Role-based demo</Link></li>
               <li><Link href="/#simulation">Payroll simulation</Link></li>
               <li><Link href="/#pricing">Pricing</Link></li>
               <li><Link href="/payroll-outsourcing">Payroll outsourcing</Link></li>
