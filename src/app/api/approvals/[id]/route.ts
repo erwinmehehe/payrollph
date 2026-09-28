@@ -32,14 +32,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const payrollRunMatch = task.detail.match(/Payroll run #(\d+)/);
   const payrollRunId = payrollRunMatch ? Number(payrollRunMatch[1]) : null;
+  let payrollSubmission: { actor: string; metadata: Record<string, unknown> } | null = null;
 
-  if (payrollRunId && status === "Approved") {
-    const assuranceResult = await buildPayrollAssurance(payrollRunId);
-    const blockers = assuranceResult?.assurance.findings.filter((finding) => finding.blocking) ?? [];
-    if (blockers.length > 0) {
+  if (payrollRunId) {
+    const [payrollRun] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, payrollRunId)).limit(1);
+    if (!payrollRun || payrollRun.organizationId !== task.organizationId) {
+      return Response.json({ error: "The payroll approval is not linked to a valid run in this workspace." }, { status: 409 });
+    }
+    if (status === "Approved" && payrollRun.status !== "Pending approval") {
       return Response.json({
-        error: `Payroll assurance found ${blockers.length} blocking issue(s). Resolve them before approval.`,
-        blockingFindings: blockers,
+        error: `This payroll is not awaiting approval (currently ${payrollRun.status}). Recalculate or submit it for review again.`,
       }, { status: 409 });
     }
 
@@ -47,13 +49,43 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const submission = events.find((event) => {
       if (event.action !== "Payroll submitted for review") return false;
       if (!event.metadata || typeof event.metadata !== "object") return false;
-      return Number((event.metadata as Record<string, unknown>).runId) === payrollRunId;
+      const metadata = event.metadata as Record<string, unknown>;
+      return Number(metadata.taskId) === taskId && Number(metadata.runId) === payrollRunId;
     });
-    if (submission && submission.actor.toLowerCase() === actor.toLowerCase()) {
+
+    if (!submission || !submission.metadata || typeof submission.metadata !== "object") {
+      return Response.json({ error: "Payroll review submission audit record is missing; approval is blocked." }, { status: 409 });
+    }
+
+    const metadata = submission.metadata as Record<string, unknown>;
+    payrollSubmission = { actor: submission.actor, metadata };
+    const makerUserId = Number(metadata.makerUserId);
+    const assignedApproverUserId = Number(metadata.approverUserId);
+
+    if (Number.isInteger(makerUserId) && makerUserId === sessionUser.id) {
       return Response.json({
         error: "Maker-checker control: the person who submitted this payroll cannot approve it.",
         maker: submission.actor,
       }, { status: 403 });
+    }
+
+    if (
+      actor.toLowerCase() === task.approver.toLowerCase() &&
+      Number.isInteger(assignedApproverUserId) &&
+      assignedApproverUserId !== sessionUser.id
+    ) {
+      return Response.json({ error: "This approval is assigned to a different authenticated user." }, { status: 403 });
+    }
+
+    if (status === "Approved") {
+      const assuranceResult = await buildPayrollAssurance(payrollRunId);
+      const blockers = assuranceResult?.assurance.findings.filter((finding) => finding.blocking) ?? [];
+      if (blockers.length > 0) {
+        return Response.json({
+          error: `Payroll assurance found ${blockers.length} blocking issue(s). Resolve them before approval.`,
+          blockingFindings: blockers,
+        }, { status: 409 });
+      }
     }
   }
 
@@ -96,6 +128,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       delegationChain: decision.chain,
       ruleVersion: "PH-2026.01",
       payrollRunId,
+      makerUserId: payrollSubmission ? Number(payrollSubmission.metadata.makerUserId) || null : null,
+      approverUserId: payrollSubmission ? Number(payrollSubmission.metadata.approverUserId) || null : null,
     },
   });
 
