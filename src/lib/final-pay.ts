@@ -13,6 +13,7 @@ export type FinalPayResult = {
   ytdTaxable: number;
   ytdTaxWithheld: number;
   basicSalaryEarnedYtd: number;
+  thirteenthPaidYtd: number;
   thirteenthMonth: {
     gross: number;
     exempt: number;
@@ -66,6 +67,11 @@ function isBasic(item: LineItem) {
   return text.includes("basic");
 }
 
+function isThirteenthMonth(item: LineItem) {
+  const text = `${item.code ?? ""} ${item.label ?? ""}`.toLowerCase();
+  return text.includes("13th") || text.includes("thirteenth");
+}
+
 function isWithholding(item: LineItem) {
   const text = `${item.code ?? ""} ${item.label ?? ""}`.toLowerCase();
   return item.code?.toUpperCase() === "WHT" || text.includes("withholding");
@@ -76,6 +82,7 @@ export function summarizeFinalPayHistory(entries: FinalPayHistoryEntry[]) {
   let taxable = 0;
   let taxWithheld = 0;
   let basic = 0;
+  let thirteenthPaid = 0;
   let missingTaxableTrace = 0;
 
   for (const entry of entries) {
@@ -89,6 +96,10 @@ export function summarizeFinalPayHistory(entries: FinalPayHistoryEntry[]) {
     taxWithheld += items
       .filter(isWithholding)
       .reduce((sum, item) => sum + Math.abs(amountOf(item.amount)), 0);
+
+    thirteenthPaid += items
+      .filter(isThirteenthMonth)
+      .reduce((sum, item) => sum + Math.max(0, amountOf(item.amount)), 0);
 
     const traced = taxableFromTrace(entry.trace);
     if (traced === null) {
@@ -104,6 +115,7 @@ export function summarizeFinalPayHistory(entries: FinalPayHistoryEntry[]) {
     taxable: round2(taxable),
     taxWithheld: round2(taxWithheld),
     basicSalaryEarned: round2(basic),
+    thirteenthPaid: round2(thirteenthPaid),
     missingTaxableTrace,
   };
 }
@@ -146,8 +158,11 @@ export function calculateFinalPay(input: {
   }
 
   const otherBenefitsUsingExemption = Math.max(0, amountOf(input.otherBenefitsUsingExemption));
-  const gross13th = round2(history.basicSalaryEarned / 12);
-  const remaining13thExemption = Math.max(0, THIRTEENTH_MONTH_EXEMPTION_CAP - otherBenefitsUsingExemption);
+  const accrued13th = round2(history.basicSalaryEarned / 12);
+  const gross13th = round2(Math.max(0, accrued13th - history.thirteenthPaid));
+  const exemptionAlreadyUsed =
+    otherBenefitsUsingExemption + Math.min(history.thirteenthPaid, THIRTEENTH_MONTH_EXEMPTION_CAP);
+  const remaining13thExemption = Math.max(0, THIRTEENTH_MONTH_EXEMPTION_CAP - exemptionAlreadyUsed);
   const exempt13th = round2(Math.min(gross13th, remaining13thExemption));
   const taxable13th = round2(Math.max(0, gross13th - exempt13th));
 
@@ -183,6 +198,7 @@ export function calculateFinalPay(input: {
     ytdTaxable: history.taxable,
     ytdTaxWithheld: history.taxWithheld,
     basicSalaryEarnedYtd: history.basicSalaryEarned,
+    thirteenthPaidYtd: history.thirteenthPaid,
     thirteenthMonth: {
       gross: gross13th,
       exempt: exempt13th,
