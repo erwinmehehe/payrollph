@@ -37,6 +37,7 @@ export type Employee = {
   orgUnitId?: number | null;
   email?: string | null;
   tin?: string | null;
+  tinBranchCode?: string | null;
   sssNo?: string | null;
   philHealthNo?: string | null;
   pagIbigNo?: string | null;
