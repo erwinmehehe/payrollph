@@ -1,13 +1,12 @@
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalTasks, payrollEntries, payrollRuns, userOrganizations, users } from "@/db/schema";
+import { approvalTasks, auditEvents, payrollEntries, payrollRuns, userOrganizations, users } from "@/db/schema";
 import {
   assertOrganizationRole,
   PAYROLL_CHECKER_ROLES,
   PAYROLL_OPERATOR_ROLES,
   roleAllowed,
 } from "@/lib/access";
-import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
 
@@ -105,37 +104,57 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const reviewCount = assuranceResult?.assurance.summary.medium ?? run.exceptions;
-  const [task] = await db.insert(approvalTasks).values({
-    organizationId: run.organizationId,
-    title: `Review ${run.periodLabel} payroll`,
-    detail: `Payroll run #${run.id} · ${reviewCount} review item(s)`,
-    approver: checker.name,
-    dueLabel: "Required before release",
-    priority: reviewCount > 0 ? "High" : "Normal",
-  }).returning();
 
-  await db.update(payrollRuns)
-    .set({ status: "Pending approval" })
-    .where(eq(payrollRuns.id, run.id));
+  // Claim a submittable run and create its approval task in the same
+  // transaction. Concurrent submit/recalculate requests can no longer both
+  // succeed from the same payroll state.
+  const submission = await db.transaction(async (tx) => {
+    const [claimed] = await tx.update(payrollRuns)
+      .set({ status: "Pending approval" })
+      .where(and(
+        eq(payrollRuns.id, run.id),
+        inArray(payrollRuns.status, SUBMITTABLE),
+      ))
+      .returning();
 
-  await recordAuditEvent({
-    organizationId: run.organizationId,
-    actor: user.name,
-    action: "Payroll submitted for review",
-    resource: run.periodLabel,
-    metadata: {
-      runId: run.id,
-      taskId: task.id,
-      makerUserId: user.id,
-      approverUserId: checker.id,
+    if (!claimed) return null;
+
+    const [task] = await tx.insert(approvalTasks).values({
+      organizationId: run.organizationId,
+      title: `Review ${run.periodLabel} payroll`,
+      detail: `Payroll run #${run.id} · ${reviewCount} review item(s)`,
       approver: checker.name,
-      assurance: assuranceResult?.assurance.summary ?? null,
-      ruleVersion: run.ruleVersion,
-    },
+      dueLabel: "Required before release",
+      priority: reviewCount > 0 ? "High" : "Normal",
+    }).returning();
+
+    await tx.insert(auditEvents).values({
+      organizationId: run.organizationId,
+      actor: user.name,
+      action: "Payroll submitted for review",
+      resource: run.periodLabel,
+      metadata: {
+        runId: run.id,
+        taskId: task.id,
+        makerUserId: user.id,
+        approverUserId: checker.id,
+        approver: checker.name,
+        assurance: assuranceResult?.assurance.summary ?? null,
+        ruleVersion: run.ruleVersion,
+      },
+    });
+
+    return { task };
   });
 
+  if (!submission) {
+    return Response.json({
+      error: "Payroll state changed while review submission was starting. Refresh and retry.",
+    }, { status: 409 });
+  }
+
   return Response.json({
-    task,
+    task: submission.task,
     maker: { id: user.id, name: user.name },
     approver: { id: checker.id, name: checker.name, role: checker.role },
   }, { status: 201 });
