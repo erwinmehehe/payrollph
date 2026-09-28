@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, organizations, orgUnits, userOrganizations, users } from "@/db/schema";
 import { createSession, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth";
@@ -88,10 +88,9 @@ export async function POST(request: Request) {
   }
 
   const orgs = await db.select().from(organizations);
-  const loom =
-    orgs.find((org) => org.name === "Loom & Local") ??
-    orgs.find((org) => org.accountType !== "freelancer");
-  const freelancer = orgs.find((org) => org.accountType === "freelancer");
+  const loom = orgs.find((org) => org.name === "Loom & Local");
+  const freelancer = orgs.find((org) => org.name === "Mika, self-employed");
+  const demoBusinessNames = new Set(["Loom & Local", "Mantra Studio", "Santos Retail Group"]);
 
   if (!loom) {
     return Response.json({ error: "Demo company data is unavailable." }, { status: 503 });
@@ -147,7 +146,7 @@ export async function POST(request: Request) {
 
     let targetOrganizations = [];
     if (account.target === "businesses") {
-      targetOrganizations = orgs.filter((org) => org.accountType !== "freelancer");
+      targetOrganizations = orgs.filter((org) => demoBusinessNames.has(org.name));
     } else if (account.target === "freelancer") {
       if (!freelancer) {
         return Response.json({ error: "Demo freelancer data is unavailable." }, { status: 503 });
