@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { approvalTasks, payrollRuns } from "@/db/schema";
-import { assertMembership } from "@/lib/access";
+import { assertOrganizationRole, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
@@ -19,7 +19,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
   if (!run) return Response.json({ error: "Payroll run not found." }, { status: 404 });
 
-  const denied = await assertMembership(user.id, run.organizationId);
+  const denied = await assertOrganizationRole(
+    user.id,
+    run.organizationId,
+    PAYROLL_OPERATOR_ROLES,
+    "Only payroll operators can submit payroll for review.",
+  );
   if (denied) return denied;
 
   if (run.status === "Released") {
