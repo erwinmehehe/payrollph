@@ -93,3 +93,42 @@ export function isDemoRole(value: string): value is DemoRoleId {
 export function demoRoleInfo(role: string | null | undefined) {
   return DEMO_ROLES.find((item) => item.id === role);
 }
+
+
+export const DEMO_ROLE_PAGES: Partial<Record<DemoRoleId, readonly string[]>> = {
+  payroll: [
+    "Overview",
+    "Payroll",
+    "People",
+    "Time & attendance",
+    "Approvals",
+    "Analytics",
+    "Exports",
+    "Compliance",
+    "Audit trail",
+  ],
+  hr: [
+    "People",
+    "Time & attendance",
+    "Leave",
+    "Approvals",
+    "Analytics",
+    "Benefits",
+    "Expenses",
+    "Recruitment",
+    "Discipline",
+    "Separation",
+    "Assets",
+  ],
+  manager: [
+    "People",
+    "Time & attendance",
+    "Leave",
+    "Approvals",
+  ],
+};
+
+export function demoRolePages(role: DemoRoleId | null | undefined) {
+  if (!role) return null;
+  return DEMO_ROLE_PAGES[role] ?? null;
+}
