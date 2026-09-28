@@ -16,8 +16,12 @@ export async function buildPayrollAssurance(runId: number) {
   const [previousRun] = await db
     .select()
     .from(payrollRuns)
-    .where(and(eq(payrollRuns.organizationId, run.organizationId), lt(payrollRuns.id, run.id)))
-    .orderBy(desc(payrollRuns.id))
+    .where(and(
+      eq(payrollRuns.organizationId, run.organizationId),
+      eq(payrollRuns.status, "Released"),
+      lt(payrollRuns.payDate, run.payDate),
+    ))
+    .orderBy(desc(payrollRuns.payDate), desc(payrollRuns.id))
     .limit(1);
 
   const previousEntries = previousRun
