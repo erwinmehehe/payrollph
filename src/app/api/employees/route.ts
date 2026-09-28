@@ -1,7 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { assets, employees } from "@/db/schema";
-import { assertMembership } from "@/lib/access";
+import { assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { seedProvisioning } from "@/lib/provisioning";
@@ -12,8 +12,14 @@ export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const organizationId = Number(new URL(request.url).searchParams.get("organizationId") ?? 1);
-  const denied = await assertMembership(user.id, organizationId);
+  const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
+  if (!Number.isInteger(organizationId)) return Response.json({ error: "organizationId is required." }, { status: 400 });
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_ADMIN_ROLES,
+    "Only People administrators can view the employee directory.",
+  );
   if (denied) return denied;
 
   const rows = await db.select().from(employees)
@@ -41,14 +47,20 @@ export async function POST(request: Request) {
   const basicRate = Number(body.basicRate);
   const startDate = String(body.startDate ?? "").trim();
 
-  const denied = await assertMembership(user.id, organizationId);
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_ADMIN_ROLES,
+    "Only People administrators can create employee records.",
+  );
   if (denied) return denied;
 
   if (!firstName || !lastName || !Number.isFinite(basicRate) || basicRate <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
     return Response.json({ error: "firstName, lastName, a positive basicRate and YYYY-MM-DD startDate are required." }, { status: 400 });
   }
 
-  const [{ value: existing }] = await db.select({ value: employees.id }).from(employees);
+  const existingRows = await db.select({ id: employees.id }).from(employees).where(eq(employees.organizationId, organizationId));
+  const existing = existingRows.length;
   const employeeNo = String(body.employeeNo ?? `EMP-${String(existing + 1).padStart(4, "0")}`).trim();
 
   const [created] = await db.insert(employees).values({
