@@ -114,7 +114,7 @@ export async function POST(request: Request) {
     .filter((row) =>
       row.status !== "rejected" &&
       row.leaveType.toLowerCase() === leaveType.toLowerCase() &&
-      Number(String(row.createdAt).slice(0, 4)) === year,
+      new Date(row.createdAt).getFullYear() === year,
     )
     .reduce((sum, row) => sum + Number(row.daysConverted), 0);
 
