@@ -1,10 +1,17 @@
-import { eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalTasks, payrollRuns } from "@/db/schema";
-import { assertOrganizationRole, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
+import { approvalTasks, payrollEntries, payrollRuns, userOrganizations, users } from "@/db/schema";
+import {
+  assertOrganizationRole,
+  PAYROLL_CHECKER_ROLES,
+  PAYROLL_OPERATOR_ROLES,
+  roleAllowed,
+} from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
+
+const SUBMITTABLE = ["Needs review", "Processed"];
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -30,14 +37,46 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (run.status === "Released") {
     return Response.json({ error: "Released payroll cannot be submitted again." }, { status: 409 });
   }
+  if (!SUBMITTABLE.includes(run.status)) {
+    return Response.json({
+      error: `Payroll must be fully calculated before review submission (currently ${run.status}).`,
+    }, { status: 409 });
+  }
+
+  const [{ value: entryCount }] = await db
+    .select({ value: count() })
+    .from(payrollEntries)
+    .where(eq(payrollEntries.payrollRunId, run.id));
+  if (entryCount === 0) {
+    return Response.json({ error: "Payroll has no calculated entries yet." }, { status: 409 });
+  }
 
   const body = await request.json().catch(() => ({}));
-  const approver = typeof body.approver === "string" ? body.approver.trim() : "";
-  if (!approver) {
-    return Response.json({ error: "Choose an approver before submitting payroll for review." }, { status: 400 });
+  const approverUserId = Number(body.approverUserId);
+  if (!Number.isInteger(approverUserId)) {
+    return Response.json({ error: "Choose a valid checker before submitting payroll for review." }, { status: 400 });
   }
-  if (approver.toLowerCase() === user.name.toLowerCase()) {
+  if (approverUserId === user.id) {
     return Response.json({ error: "Maker and checker must be different people." }, { status: 409 });
+  }
+
+  const [checker] = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      role: userOrganizations.role,
+    })
+    .from(userOrganizations)
+    .innerJoin(users, eq(userOrganizations.userId, users.id))
+    .where(and(
+      eq(userOrganizations.organizationId, run.organizationId),
+      eq(users.id, approverUserId),
+    ))
+    .limit(1);
+
+  if (!checker || !roleAllowed(checker.role, PAYROLL_CHECKER_ROLES)) {
+    return Response.json({ error: "That account is not an authorized payroll checker for this workspace." }, { status: 422 });
   }
 
   const assuranceResult = await buildPayrollAssurance(runId);
@@ -49,12 +88,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }, { status: 409 });
   }
 
-  const tasks = await db.select().from(approvalTasks).where(eq(approvalTasks.organizationId, run.organizationId));
-  const existing = tasks.find((task) =>
-    task.detail.includes(`Payroll run #${run.id}`) && task.status === "Pending",
-  );
-  if (existing) {
-    return Response.json({ error: "This payroll run is already awaiting approval.", task: existing }, { status: 409 });
+  const tasks = await db
+    .select()
+    .from(approvalTasks)
+    .where(eq(approvalTasks.organizationId, run.organizationId));
+  const linkedTasks = tasks
+    .filter((task) => task.detail.includes(`Payroll run #${run.id}`))
+    .sort((a, b) => b.id - a.id);
+  const latest = linkedTasks[0];
+
+  if (latest?.status === "Pending") {
+    return Response.json({ error: "This payroll run is already awaiting approval.", task: latest }, { status: 409 });
+  }
+  if (latest?.status === "Approved") {
+    return Response.json({ error: "This payroll run is already approved and ready for release.", task: latest }, { status: 409 });
   }
 
   const reviewCount = assuranceResult?.assurance.summary.medium ?? run.exceptions;
@@ -62,7 +109,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     organizationId: run.organizationId,
     title: `Review ${run.periodLabel} payroll`,
     detail: `Payroll run #${run.id} · ${reviewCount} review item(s)`,
-    approver,
+    approver: checker.name,
     dueLabel: "Required before release",
     priority: reviewCount > 0 ? "High" : "Normal",
   }).returning();
@@ -79,11 +126,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     metadata: {
       runId: run.id,
       taskId: task.id,
-      approver,
+      makerUserId: user.id,
+      approverUserId: checker.id,
+      approver: checker.name,
       assurance: assuranceResult?.assurance.summary ?? null,
       ruleVersion: run.ruleVersion,
     },
   });
 
-  return Response.json({ task, maker: user.name, approver }, { status: 201 });
+  return Response.json({
+    task,
+    maker: { id: user.id, name: user.name },
+    approver: { id: checker.id, name: checker.name, role: checker.role },
+  }, { status: 201 });
 }
