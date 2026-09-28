@@ -109,6 +109,7 @@ export const employees = pgTable("employees", {
   email: varchar("email", { length: 200 }),
   region: varchar("region", { length: 32 }).notNull().default("NCR"),
   tin: varchar("tin", { length: 32 }),
+  tinBranchCode: varchar("tin_branch_code", { length: 4 }),
   sssNo: varchar("sss_no", { length: 32 }),
   philHealthNo: varchar("philhealth_no", { length: 32 }),
   pagIbigNo: varchar("pagibig_no", { length: 32 }),
