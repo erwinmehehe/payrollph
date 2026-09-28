@@ -128,8 +128,8 @@ export async function GET() {
       label: "BIR Alphalist / 2316 validated in ADES",
       ready: birAlphalistValidated,
       detail: birAlphalistValidated
-        ? "Output has been run through BIR's free Alphalist Data Entry and Validation Module (ADES) and passed."
-        : "No BIR accreditation is required for standard filing, BIR publishes the Alphalist .DAT layout and provides ADES free. Our DRAFT export is a plain CSV of the right figures, not yet the exact ADES-importable layout (it's missing a middle-name field and precise TIN/branch-code splitting). Someone needs to enter the DRAFT figures into ADES by hand (or finish matching the exact layout) and confirm it validates clean, then set BIR_ALPHALIST_VALIDATED=true.",
+        ? "A generated annual extract has been validated in the current BIR Alphalist module."
+        : "Employee middle name, employee TIN, and employer TIN/branch fields are now modeled and preflighted. Exact current 1604-C/ADES DAT generation and an actual ADES acceptance result are still required before filing-ready status.",
       blocks: birAlphalistValidated ? "none" : "launch",
       manualWorkaround: birAlphalistValidated ? undefined : "Enter the DRAFT figures into BIR's free ADES tool by hand and file via eAFS once it validates.",
     },
@@ -138,8 +138,8 @@ export async function GET() {
       label: "SSS R-3 validated",
       ready: sssR3Validated,
       detail: sssR3Validated
-        ? "Output has been run through SSS's own R3 File Generator / My.SSS upload and confirmed accepted."
-        : "No SSS accreditation is required either, SSS publishes the R-3 electronic format and provides a free R3 File Generator. Enter the DRAFT figures there, confirm it's accepted, then set SSS_R3_VALIDATED=true.",
+        ? "A generated R-3 dataset has been accepted by the SSS employer workflow."
+        : "The R-3 draft now uses each employee's real SSS number and full monthly employee/employer/EC amounts. Acceptance in the official R3 File Generator / My.SSS employer workflow is still pending.",
       blocks: sssR3Validated ? "none" : "launch",
       manualWorkaround: sssR3Validated ? undefined : "Enter the DRAFT figures into SSS's free R3 File Generator or My.SSS upload by hand.",
     },
@@ -148,8 +148,8 @@ export async function GET() {
       label: "PhilHealth RF-1 validated",
       ready: philhealthValidated,
       detail: philhealthValidated
-        ? "Output has been confirmed accepted through PhilHealth's electronic remittance system."
-        : "PhilHealth also has a file-based path: an \"RF-1 Excel Format\" template they provide, filled in and saved as a delimited textfile, submitted through EPRS or a partner bank's upload facility, not just manual UI entry. We haven't built a generator for that exact template (haven't confirmed its column layout), so for now enter the DRAFT figures directly into EPRS by hand, confirm accepted, then set PHILHEALTH_RF1_VALIDATED=true.",
+        ? "A generated remittance dataset has been accepted through PhilHealth's employer reporting workflow."
+        : "The draft now uses each employee's real PhilHealth PIN and recomputes full monthly employee/employer premium shares. PhilHealth EPRS acknowledgement is still required; the current CSV is a portal-entry aid, not a claimed EPRS import file.",
       blocks: philhealthValidated ? "none" : "launch",
       manualWorkaround: philhealthValidated ? undefined : "Enter the DRAFT figures into PhilHealth's EPRS by hand (or their RF-1 Excel template, if you obtain the current column spec from PhilHealth directly).",
     },
@@ -158,8 +158,8 @@ export async function GET() {
       label: "Pag-IBIG MCRF validated",
       ready: pagibigValidated,
       detail: pagibigValidated
-        ? "Output has been confirmed accepted through Pag-IBIG's employer e-services portal."
-        : "Unlike BIR/SSS/PhilHealth, I could not confirm a published batch-file upload spec for Pag-IBIG's MCRF, other PH payroll tools appear to only generate a filled PDF form for this one, not a machine-importable file. Pag-IBIG does run eSRS (Electronic Submission of Remittance Schedule) for online submission, but it is open only to employers with at most 30 employees, and whether it accepts a bulk file or requires manual encoding is still unconfirmed. Treat this as portal data entry (eSRS or Virtual Pag-IBIG employer e-services) until someone confirms otherwise directly with Pag-IBIG.",
+        ? "A generated remittance schedule has been accepted through Pag-IBIG employer e-services."
+        : "The draft now uses each employee's real Pag-IBIG MID and full monthly employee/employer contribution. It remains an eSRS/employer-portal entry aid until a real employer acknowledgement is recorded.",
       blocks: pagibigValidated ? "none" : "launch",
       manualWorkaround: pagibigValidated ? undefined : "Enter the DRAFT figures by hand into eSRS (employers with at most 30 employees) or Pag-IBIG's Virtual employer e-services portal.",
     },
