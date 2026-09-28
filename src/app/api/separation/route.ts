@@ -177,6 +177,7 @@ export async function POST(request: Request) {
       ytdTaxable: finalPay.ytdTaxable,
       ytdTaxWithheld: finalPay.ytdTaxWithheld,
       basicSalaryEarnedYtd: finalPay.basicSalaryEarnedYtd,
+      thirteenthPaidYtd: finalPay.thirteenthPaidYtd,
       prorated13th,
       taxable13th: finalPay.thirteenthMonth.taxable,
       leaveMonetizationPay,
