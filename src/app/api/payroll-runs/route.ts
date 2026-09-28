@@ -188,7 +188,7 @@ export async function POST(request: Request) {
   let processResult = null;
   if (processNow) {
     queueMeta = await enqueuePayrollRun(run.id);
-    processResult = await drainPayrollQueue(20);
+    processResult = await drainPayrollQueue(20, run.id);
   }
 
   const [fresh] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, run.id));
