@@ -45,7 +45,12 @@ import { demoRoleInfo, demoRolePages, isDemoRole, type DemoRoleId } from "@/lib/
 export function LinawWorkspace({ initialData }: { initialData: DashboardData }) {
   const searchParams = useSearchParams();
   const requestedDemoRole = searchParams.get("demoRole");
-  const demoRole: DemoRoleId | null = requestedDemoRole && isDemoRole(requestedDemoRole) ? requestedDemoRole : null;
+  const demoRole: DemoRoleId | null =
+    requestedDemoRole &&
+    isDemoRole(requestedDemoRole) &&
+    initialData.user?.role === requestedDemoRole
+      ? requestedDemoRole
+      : null;
   const demoInfo = demoRoleInfo(demoRole);
   const initialPage = demoRole === "freelancer" ? "Overview" : demoInfo?.landingPage ?? "Overview";
 
@@ -129,17 +134,17 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
 
   async function switchDemoRole(role: DemoRoleId) {
     try {
-      const sessionRole = role === "employee" ? "employee" : "bookkeeper";
       const response = await fetch("/api/auth/demo-switch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: sessionRole }),
+        body: JSON.stringify({ role }),
       });
       if (!response.ok) {
         notify("Role switch failed.", "err");
         return;
       }
-      window.location.href = role === "employee" ? "/?demoRole=employee" : `/?demoRole=${role}`;
+      const payload = await response.json().catch(() => ({}));
+      window.location.href = typeof payload.redirectTo === "string" ? payload.redirectTo : `/?demoRole=${role}`;
     } catch {
       notify("Role switch failed.", "err");
     }
