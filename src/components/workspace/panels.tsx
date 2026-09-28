@@ -519,6 +519,11 @@ export function SettingsPage({ data, setNotice }: { data: DashboardData; setNoti
 function OrganizationSettings({ data, setNotice }: { data: DashboardData; setNotice: (message: string) => void }) {
   const [name, setName] = useState(data.selectedOrganization.name);
   const [legalName, setLegalName] = useState(data.selectedOrganization.legalName);
+  const [birTin, setBirTin] = useState(data.selectedOrganization.birTin ?? "");
+  const [birBranchCode, setBirBranchCode] = useState(data.selectedOrganization.birBranchCode ?? "");
+  const [sssEmployerNo, setSssEmployerNo] = useState(data.selectedOrganization.sssEmployerNo ?? "");
+  const [philHealthEmployerNo, setPhilHealthEmployerNo] = useState(data.selectedOrganization.philHealthEmployerNo ?? "");
+  const [pagIbigEmployerNo, setPagIbigEmployerNo] = useState(data.selectedOrganization.pagIbigEmployerNo ?? "");
   const [busy, setBusy] = useState(false);
   const canEdit = ["admin", "owner", "bookkeeper"].includes(data.access?.role ?? "");
 
@@ -527,7 +532,16 @@ function OrganizationSettings({ data, setNotice }: { data: DashboardData; setNot
     const res = await fetch("/api/organizations", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ organizationId: data.selectedOrganization.id, name, legalName }),
+      body: JSON.stringify({
+        organizationId: data.selectedOrganization.id,
+        name,
+        legalName,
+        birTin,
+        birBranchCode,
+        sssEmployerNo,
+        philHealthEmployerNo,
+        pagIbigEmployerNo,
+      }),
     });
     const data2 = await res.json().catch(() => ({}));
     setBusy(false);
@@ -543,6 +557,31 @@ function OrganizationSettings({ data, setNotice }: { data: DashboardData; setNot
         <label>Legal entity name<input value={legalName} disabled={!canEdit} onChange={(e) => setLegalName(e.target.value)} /></label>
         <label>Plan<input value={data.selectedOrganization.plan} readOnly /><small style={{ color: "var(--muted)", fontWeight: 500 }}>Changed through Pricing, not here.</small></label>
         <label>Payroll cycle<input value="Semi-monthly (15th / end of month)" readOnly /><small style={{ color: "var(--muted)", fontWeight: 500 }}>Fixed by the statutory engine.</small></label>
+      </div>
+
+      <div className="card-header" style={{ paddingTop: 6 }}>
+        <div>
+          <div className="card-kicker">GOVERNMENT REGISTRATIONS</div>
+          <h2>Employer filing identifiers</h2>
+          <p>Used by local filing preflight. Saving an ID does not mark a government portal as validated.</p>
+        </div>
+      </div>
+      <div className="setting-form">
+        <label>BIR TIN
+          <input value={birTin} disabled={!canEdit} onChange={(e) => setBirTin(e.target.value)} placeholder="9 digits" inputMode="numeric" />
+        </label>
+        <label>BIR branch code
+          <input value={birBranchCode} disabled={!canEdit} onChange={(e) => setBirBranchCode(e.target.value)} placeholder="0000" inputMode="numeric" />
+        </label>
+        <label>SSS employer number
+          <input value={sssEmployerNo} disabled={!canEdit} onChange={(e) => setSssEmployerNo(e.target.value)} />
+        </label>
+        <label>PhilHealth employer number
+          <input value={philHealthEmployerNo} disabled={!canEdit} onChange={(e) => setPhilHealthEmployerNo(e.target.value)} />
+        </label>
+        <label>Pag-IBIG employer number
+          <input value={pagIbigEmployerNo} disabled={!canEdit} onChange={(e) => setPagIbigEmployerNo(e.target.value)} />
+        </label>
       </div>
       {canEdit ? (
         <div className="run-actions">
