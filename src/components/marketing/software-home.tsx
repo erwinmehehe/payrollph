@@ -59,9 +59,7 @@ export async function SoftwareHome() {
             <p className="eyebrow home-hero-eyebrow">Philippine payroll software</p>
 
             <h1>
-              Philippine payroll software
-              <br />
-              without the <span className="accent">guesswork.</span>
+              Philippine payroll software without the <span className="accent">guesswork.</span>
             </h1>
 
             <p className="hero-sub">
