@@ -4,7 +4,11 @@ import { payslips, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { generateBankFile, generateGovernmentDraft, generateJournalCsv } from "@/lib/exporters";
-import { assertOrganizationRole, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
+import {
+  assertOrganizationRole,
+  PAYROLL_DISBURSEMENT_ROLES,
+  PAYROLL_OPERATOR_ROLES,
+} from "@/lib/access";
 import {
   createPaymongoPayrollDisbursement,
   preflightPaymongoPayrollDisbursement,
@@ -111,16 +115,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) return Response.json({ error: "Payroll run not found" }, { status: 404 });
+  const body = await request.json().catch(() => ({}));
+  const mode = body.mode === "preflight" ? "preflight" : "disburse";
+
   const denied = await assertOrganizationRole(
     user.id,
     run.organizationId,
-    PAYROLL_OPERATOR_ROLES,
-    "Only payroll operators can trigger a payroll disbursement.",
+    mode === "preflight" ? PAYROLL_OPERATOR_ROLES : PAYROLL_DISBURSEMENT_ROLES,
+    mode === "preflight"
+      ? "Only payroll operators can run a payout preflight."
+      : "Only the workspace owner can trigger a live payroll disbursement.",
   );
   if (denied) return denied;
-
-  const body = await request.json().catch(() => ({}));
-  const mode = body.mode === "preflight" ? "preflight" : "disburse";
 
   if (run.status !== "Released") {
     return Response.json({
