@@ -64,9 +64,12 @@ export function annualize(input: AnnualizationInput): AnnualizationResult {
   const taxableThirteenthMonth = round2(Math.max(0, thirteenthMonth - THIRTEENTH_MONTH_EXEMPTION_CAP));
   const nonTaxable = round2(exemptThirteenthMonth + deMinimis + statutoryContributions);
 
+  // grossCompensation is total gross compensation, including any 13th-month
+  // amount already paid. The taxable excess stays taxable simply by not being
+  // subtracted. Adding taxableThirteenthMonth again would double-count it.
   const taxableIncome = input.mwe
     ? 0
-    : round2(Math.max(0, grossCompensation + taxableThirteenthMonth - nonTaxable));
+    : round2(Math.max(0, grossCompensation - nonTaxable));
 
   const taxDue = input.mwe ? 0 : round2(computeAnnualWithholdingTax(taxableIncome, false));
   const adjustment = round2(taxDue - taxWithheld);
