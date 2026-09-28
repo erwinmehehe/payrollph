@@ -2,7 +2,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { jobApplicants, jobRequisitions } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { assertMembership } from "@/lib/access";
+import { assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +15,12 @@ export async function GET(request: Request) {
   const organizationId = Number(url.searchParams.get("organizationId") ?? 1);
   const requisitionId = Number(url.searchParams.get("requisitionId") ?? 0);
 
-  const denied = await assertMembership(user.id, organizationId);
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_ADMIN_ROLES,
+    "Your role is not allowed to manage this HR workflow.",
+  );
   if (denied) return denied;
 
   const reqs = await db.select().from(jobRequisitions)
@@ -58,7 +63,12 @@ export async function POST(request: Request) {
   const entityType = String(body.entityType ?? "requisition"); // "requisition" | "applicant"
   const organizationId = Number(body.organizationId ?? 1);
 
-  const denied = await assertMembership(user.id, organizationId);
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_ADMIN_ROLES,
+    "Your role is not allowed to manage this HR workflow.",
+  );
   if (denied) return denied;
 
   if (entityType === "requisition") {
@@ -152,7 +162,12 @@ export async function PATCH(request: Request) {
   const [applicant] = await db.select().from(jobApplicants).where(eq(jobApplicants.id, applicantId)).limit(1);
   if (!applicant) return Response.json({ error: "Applicant not found." }, { status: 404 });
 
-  const denied = await assertMembership(user.id, applicant.organizationId);
+  const denied = await assertOrganizationRole(
+    user.id,
+    applicant.organizationId,
+    PEOPLE_ADMIN_ROLES,
+    "Your role is not allowed to manage recruitment.",
+  );
   if (denied) return denied;
 
   const updateData: Record<string, unknown> = {};
