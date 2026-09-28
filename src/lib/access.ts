@@ -90,3 +90,27 @@ export async function assertMembership(userId: number, organizationId: number): 
 export async function assertResourceAccess(userId: number, resourceOrganizationId: number): Promise<Response | null> {
   return assertMembership(userId, resourceOrganizationId);
 }
+
+
+export const PAYROLL_OPERATOR_ROLES = ["owner", "admin", "bookkeeper", "payroll"] as const;
+export const PAYROLL_CHECKER_ROLES = ["owner", "admin", "bookkeeper", "payroll", "manager", "hr"] as const;
+
+export function roleAllowed(role: string, allowedRoles: readonly string[]) {
+  return allowedRoles.includes(role);
+}
+
+export async function assertOrganizationRole(
+  userId: number,
+  organizationId: number,
+  allowedRoles: readonly string[],
+  message = "You do not have permission to perform this action.",
+): Promise<Response | null> {
+  const access = await getAccess(userId, organizationId);
+  if (!access) {
+    return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  }
+  if (!roleAllowed(access.role, allowedRoles)) {
+    return Response.json({ error: message, role: access.role }, { status: 403 });
+  }
+  return null;
+}
