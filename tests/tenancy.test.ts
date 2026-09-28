@@ -88,3 +88,32 @@ test("the CSV template is served as CSV, not as JSON", () => {
   assert.ok(ui.includes("/api/employees/import/template"));
   assert.ok(!ui.includes('href="/api/employees/import?organizationId='), "template button must not point at the JSON endpoint");
 });
+
+test("payroll authority separates preparation, approval, release and live disbursement", () => {
+  const access = read("src/lib/access.ts");
+  assert.ok(access.includes('PAYROLL_OPERATOR_ROLES = ["owner", "admin", "bookkeeper", "payroll"]'));
+  assert.ok(access.includes('PAYROLL_CHECKER_ROLES = ["owner", "admin", "manager"]'));
+  assert.ok(access.includes('PAYROLL_RELEASE_ROLES = ["owner", "admin"]'));
+  assert.ok(access.includes('PAYROLL_DISBURSEMENT_ROLES = ["owner"]'));
+
+  const release = read("src/app/api/payroll-runs/[id]/release/route.ts");
+  assert.ok(release.includes("PAYROLL_RELEASE_ROLES"));
+
+  const exportsRoute = read("src/app/api/payroll-runs/[id]/exports/route.ts");
+  assert.ok(exportsRoute.includes("PAYROLL_DISBURSEMENT_ROLES"));
+  assert.ok(exportsRoute.includes('mode === "preflight" ? PAYROLL_OPERATOR_ROLES : PAYROLL_DISBURSEMENT_ROLES'));
+});
+
+test("payroll creation validates real dates and caps a cutoff at 16 days", () => {
+  const source = read("src/app/api/payroll-runs/route.ts");
+  assert.ok(source.includes("validIsoDate"));
+  assert.ok(source.includes("MAX_PAYROLL_PERIOD_DAYS = 16"));
+  assert.ok(source.includes("inclusivePeriodDays"));
+});
+
+test("payslip exports are bound to the exact payroll run, not only its period label", () => {
+  const source = read("src/app/api/payroll-runs/[id]/exports/route.ts");
+  assert.ok(source.includes("innerJoin(payrollEntries"));
+  assert.ok(source.includes("eq(payrollEntries.payrollRunId, run.id)"));
+  assert.ok(!source.includes("rows.filter((row) => row.periodLabel === run.periodLabel)"));
+});
