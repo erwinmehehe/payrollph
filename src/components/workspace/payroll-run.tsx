@@ -394,9 +394,7 @@ export function PayrollRunView({
                     <ArrowRight size={14} /> Review approval
                   </button>
                 ) : relatedTask?.status === "Approved" ? (
-                  <span className="status status-approved" style={{ height: 30, padding: "0 12px" }}>
-                    Approved
-                  </span>
+                  <Status value="Approved" />
                 ) : calculated ? (
                   <button className="secondary-button" disabled={busy || controlSummary.blocked} onClick={() => setReviewOpen(true)}>
                     <ShieldCheck size={14} className="i-green" /> Submit for approval
@@ -998,7 +996,7 @@ function SubmitReviewDialog({
         )}
 
         {error && (
-          <div className="notice notice-red" style={{ margin: "14px 0 0" }}>
+          <div className="notice notice-amber" style={{ margin: "14px 0 0" }}>
             <AlertTriangle size={15} className="i-red" />
             <span>{error}</span>
           </div>
@@ -1113,8 +1111,9 @@ function currentStage(run: PayrollRun, task?: Task): Stage {
 function findRunApproval(tasks: Task[], run?: PayrollRun) {
   if (!run) return undefined;
   const period = run.periodLabel.toLowerCase();
+  const exact = tasks.filter((task) => task.title.toLowerCase().includes(period));
   return (
-    tasks.find((task) => task.title.toLowerCase().includes(period)) ??
+    exact[exact.length - 1] ??
     tasks.find((task) => task.title.toLowerCase().includes("payroll") && task.status === "Pending")
   );
 }
