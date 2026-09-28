@@ -32,7 +32,9 @@ test("Alphalist draft splits a hyphenated TIN into 9-digit TIN + branch code", a
 
   const [run] = await db.insert(payrollRuns).values({
     organizationId: org.id,
-    periodLabel: "Test Period",
+    periodLabel: "Sep 16–30, 2026",
+    periodStart: "2026-09-16",
+    periodEnd: "2026-09-30",
     payDate: "2026-09-30",
   }).returning();
 
