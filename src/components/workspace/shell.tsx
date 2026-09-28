@@ -72,6 +72,7 @@ export function WorkspaceShell({
   const userName = data.user?.name ?? "Signed-in user";
   const roleInfo = demoRoleInfo(displayRole);
   const roleLabel = roleInfo?.shortLabel ?? (data.user?.role === "employee" ? "Employee" : data.user?.role ?? "Member");
+  const defaultPage = visiblePages?.[0] ?? "Overview";
 
   function closeOverlays() {
     setDrawer(false);
@@ -261,7 +262,7 @@ export function WorkspaceShell({
             {/* Breadcrumbs */}
             <nav className="crumbs" aria-label="Breadcrumb">
               <ChevronRight size={14} />
-              <button onClick={() => go("Overview")}>{groupOf(page)}</button>
+              <button onClick={() => go(defaultPage)}>{groupOf(page)}</button>
               <ChevronRight size={14} />
               <span aria-current="page">{page}</span>
             </nav>
@@ -370,7 +371,12 @@ export function WorkspaceShell({
               )}
             </div>
 
-            <button className="top-avatar" onClick={() => go("Settings")} title="Account settings" aria-label="Account settings">
+            <button
+              className="top-avatar"
+              onClick={() => go(visiblePages?.includes("Settings") ? "Settings" : defaultPage)}
+              title={visiblePages?.includes("Settings") ? "Account settings" : `Return to ${defaultPage}`}
+              aria-label={visiblePages?.includes("Settings") ? "Account settings" : `Return to ${defaultPage}`}
+            >
               {initialsOf(userName)}
             </button>
           </div>
