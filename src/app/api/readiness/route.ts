@@ -1,6 +1,6 @@
 import { count, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { invoices, outbox, subscriptions, users } from "@/db/schema";
+import { auditEvents, invoices, outbox, subscriptions, users } from "@/db/schema";
 import { activeMailProvider, deliveryCapable } from "@/lib/mail-provider";
 import { hashPassword } from "@/lib/crypto";
 
@@ -20,8 +20,11 @@ const enabled = (name: string) => process.env[name] === "true";
 export async function GET() {
   const [{ value: userCount }] = await db.select({ value: count() }).from(users);
   const [{ value: queuedMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "queued"));
+  const [{ value: sentMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "sent"));
   const [{ value: paidInvoices }] = await db.select({ value: count() }).from(invoices).where(eq(invoices.status, "paid"));
   const [{ value: activeSubs }] = await db.select({ value: count() }).from(subscriptions).where(eq(subscriptions.status, "active"));
+  const [{ value: paymongoPreflightPasses }] = await db.select({ value: count() }).from(auditEvents)
+    .where(eq(auditEvents.action, "PayMongo payroll preflight passed"));
 
   const provider = activeMailProvider();
 
@@ -36,13 +39,17 @@ export async function GET() {
   }).from(users).where(eq(users.email, reviewEmail)).limit(1);
   const reviewCredentialLive = Boolean(reviewAccount) && reviewAccount!.passwordHash === reviewHash;
 
-  // Billing provider is considered wired when a live key is present OR real paid
-  // invoices exist in the ledger (the checkout path already writes them).
+  // Billing is proven by ledger state, regardless of whether the customer paid
+  // through a processor or the operator recorded a confirmed bank/GCash payment.
+  // Provider configuration answers "can we charge online?", while paid invoices
+  // and active subscriptions answer "does billing actually enforce entitlements?"
   const billingConfigured = configured("PAYMONGO_SECRET_KEY") || configured("MAYA_SECRET_KEY") || configured("STRIPE_SECRET_KEY");
-  const billingProven = billingConfigured && (paidInvoices > 0 || activeSubs > 0);
+  const billingProven = paidInvoices > 0 || activeSubs > 0;
 
-  const bankConfigured = configured("BANK_HOST_TO_HOST_URL") || configured("INSTAPAY_API_KEY")
-    || (configured("PAYMONGO_SECRET_KEY") && process.env.PAYMONGO_DISBURSEMENTS_ENABLED === "true");
+  const directBankConfigured = configured("BANK_HOST_TO_HOST_URL") || configured("INSTAPAY_API_KEY");
+  const paymongoDisbursementEnabled = configured("PAYMONGO_SECRET_KEY") && enabled("PAYMONGO_DISBURSEMENTS_ENABLED");
+  const paymongoPreflightProven = Number(paymongoPreflightPasses) > 0;
+  const bankReady = directBankConfigured || (paymongoDisbursementEnabled && paymongoPreflightProven);
 
   // Government filing does not require vendor accreditation for standard
   // file-based submission, BIR publishes the Alphalist .DAT layout and
@@ -57,6 +64,10 @@ export async function GET() {
   const philhealthValidated = enabled("PHILHEALTH_RF1_VALIDATED");
   const pagibigValidated = enabled("PAGIBIG_MCRF_VALIDATED");
   const storageConfigured = configured("S3_BUCKET") || configured("R2_BUCKET");
+  const storageIntegrated = false;
+  const malwareEndpointConfigured = configured("MALWARE_SCAN_URL");
+  const malwareIntegrated = false;
+  const samlIntegrated = false;
 
   const gates: Gate[] = [
     {
@@ -80,39 +91,45 @@ export async function GET() {
     {
       key: "email-delivery",
       label: "Transactional email provider",
-      ready: deliveryCapable(),
+      ready: deliveryCapable() && Number(sentMail) > 0,
       detail: deliveryCapable()
-        ? `Active provider: ${provider}. Password resets and invitations send immediately.`
-        : "No provider configured. Set RESEND_API_KEY, POSTMARK_SERVER_TOKEN, or SMTP_URL, the adapter is already wired; messages queue in the outbox until then.",
-      blocks: deliveryCapable() ? "none" : "launch",
+        ? Number(sentMail) > 0
+          ? `Active provider: ${provider}. ${sentMail} successful delivery record(s) exist on this deployment.`
+          : `Provider ${provider} is configured, but this deployment has not recorded a successful delivery yet.`
+        : "No provider configured. Messages remain queued until a transactional email provider is connected.",
+      blocks: deliveryCapable() && Number(sentMail) > 0 ? "none" : "launch",
     },
     {
       key: "billing",
       label: "Subscription billing",
       ready: billingProven,
       detail: billingProven
-        ? `Billing live via configured provider. ${paidInvoices} paid invoice(s), ${activeSubs} active subscription(s) on record.`
-        : "Checkout flow, subscriptions, and invoice ledger are built and enforce plan entitlements. Set PAYMONGO_SECRET_KEY / MAYA_SECRET_KEY to charge real cards, or use `scripts/manual-activate-subscription.ts` to record an off-platform payment (GCash/bank transfer), entitlements behave identically either way.",
+        ? `Billing ledger proven: ${paidInvoices} paid invoice(s), ${activeSubs} active subscription(s). Online processor configured: ${billingConfigured ? "yes" : "no, current proof is manual/off-platform"}.`
+        : "Checkout flow, subscriptions, and invoice ledger are built and enforce plan entitlements. Complete one real checkout, or use scripts/manual-activate-subscription.ts only after confirming an actual GCash/bank transfer.",
       blocks: billingProven ? "none" : "launch",
       manualWorkaround: billingProven ? undefined : "Run scripts/manual-activate-subscription.ts after confirming payment yourself (GCash/bank transfer).",
     },
     {
       key: "bank-validation",
-      label: "Bank file validation with live banks",
-      ready: bankConfigured,
-      detail: bankConfigured
-        ? "Host-to-host / InstaPay / PayMongo Disbursements endpoint configured."
-        : "BDO/BPI/GCash files are generated and dry-run validated. A bookkeeper can upload these by hand to online banking / GCash for Business today. Or: PayMongo Disbursements (already integrated for billing) can submit payroll via InstaPay/PESONet with no per-bank negotiation, see src/lib/paymongo-disbursements.ts, once the Wallet is verified as a Registered Business and PAYMONGO_DISBURSEMENTS_ENABLED=true is set.",
-      blocks: bankConfigured ? "none" : "launch",
-      manualWorkaround: bankConfigured ? undefined : "Download the generated bank file from a payroll run and upload it by hand to online banking / GCash for Business.",
+      label: "Payroll disbursement validation",
+      ready: bankReady,
+      detail: bankReady
+        ? directBankConfigured
+          ? "A direct bank payout endpoint is configured."
+          : `PayMongo Disbursements is enabled and a no-money payroll preflight has passed (${paymongoPreflightPasses} recorded pass(es)).`
+        : paymongoDisbursementEnabled
+          ? "PayMongo Disbursements is enabled, but no no-money payroll preflight has proven credentials and employee bank mappings yet."
+          : "Bank files remain available for manual upload. PayMongo batch-transfer code and a no-money preflight are implemented, but live disbursement is not enabled.",
+      blocks: bankReady ? "none" : "launch",
+      manualWorkaround: bankReady ? undefined : "Download the bank file from a released payroll run and upload it manually through the bank or e-wallet business portal.",
     },
     {
       key: "gov-bir-alphalist",
       label: "BIR Alphalist / 2316 validated in ADES",
       ready: birAlphalistValidated,
       detail: birAlphalistValidated
-        ? "Output has been run through BIR's free Alphalist Data Entry and Validation Module (ADES) and passed."
-        : "No BIR accreditation is required for standard filing, BIR publishes the Alphalist .DAT layout and provides ADES free. Our DRAFT export is a plain CSV of the right figures, not yet the exact ADES-importable layout (it's missing a middle-name field and precise TIN/branch-code splitting). Someone needs to enter the DRAFT figures into ADES by hand (or finish matching the exact layout) and confirm it validates clean, then set BIR_ALPHALIST_VALIDATED=true.",
+        ? "A generated annual extract has been validated in the current BIR Alphalist module."
+        : "Employee middle name, employee TIN, and employer TIN/branch fields are now modeled and preflighted. Exact current 1604-C/ADES DAT generation and an actual ADES acceptance result are still required before filing-ready status.",
       blocks: birAlphalistValidated ? "none" : "launch",
       manualWorkaround: birAlphalistValidated ? undefined : "Enter the DRAFT figures into BIR's free ADES tool by hand and file via eAFS once it validates.",
     },
@@ -121,8 +138,8 @@ export async function GET() {
       label: "SSS R-3 validated",
       ready: sssR3Validated,
       detail: sssR3Validated
-        ? "Output has been run through SSS's own R3 File Generator / My.SSS upload and confirmed accepted."
-        : "No SSS accreditation is required either, SSS publishes the R-3 electronic format and provides a free R3 File Generator. Enter the DRAFT figures there, confirm it's accepted, then set SSS_R3_VALIDATED=true.",
+        ? "A generated R-3 dataset has been accepted by the SSS employer workflow."
+        : "The R-3 draft now uses each employee's real SSS number and full monthly employee/employer/EC amounts. Acceptance in the official R3 File Generator / My.SSS employer workflow is still pending.",
       blocks: sssR3Validated ? "none" : "launch",
       manualWorkaround: sssR3Validated ? undefined : "Enter the DRAFT figures into SSS's free R3 File Generator or My.SSS upload by hand.",
     },
@@ -131,8 +148,8 @@ export async function GET() {
       label: "PhilHealth RF-1 validated",
       ready: philhealthValidated,
       detail: philhealthValidated
-        ? "Output has been confirmed accepted through PhilHealth's electronic remittance system."
-        : "PhilHealth also has a file-based path: an \"RF-1 Excel Format\" template they provide, filled in and saved as a delimited textfile, submitted through EPRS or a partner bank's upload facility, not just manual UI entry. We haven't built a generator for that exact template (haven't confirmed its column layout), so for now enter the DRAFT figures directly into EPRS by hand, confirm accepted, then set PHILHEALTH_RF1_VALIDATED=true.",
+        ? "A generated remittance dataset has been accepted through PhilHealth's employer reporting workflow."
+        : "The draft now uses each employee's real PhilHealth PIN and recomputes full monthly employee/employer premium shares. PhilHealth EPRS acknowledgement is still required; the current CSV is a portal-entry aid, not a claimed EPRS import file.",
       blocks: philhealthValidated ? "none" : "launch",
       manualWorkaround: philhealthValidated ? undefined : "Enter the DRAFT figures into PhilHealth's EPRS by hand (or their RF-1 Excel template, if you obtain the current column spec from PhilHealth directly).",
     },
@@ -141,36 +158,36 @@ export async function GET() {
       label: "Pag-IBIG MCRF validated",
       ready: pagibigValidated,
       detail: pagibigValidated
-        ? "Output has been confirmed accepted through Pag-IBIG's employer e-services portal."
-        : "Unlike BIR/SSS/PhilHealth, I could not confirm a published batch-file upload spec for Pag-IBIG's MCRF, other PH payroll tools appear to only generate a filled PDF form for this one, not a machine-importable file. Pag-IBIG does run eSRS (Electronic Submission of Remittance Schedule) for online submission, but it is open only to employers with at most 30 employees, and whether it accepts a bulk file or requires manual encoding is still unconfirmed. Treat this as portal data entry (eSRS or Virtual Pag-IBIG employer e-services) until someone confirms otherwise directly with Pag-IBIG.",
+        ? "A generated remittance schedule has been accepted through Pag-IBIG employer e-services."
+        : "The draft now uses each employee's real Pag-IBIG MID and full monthly employee/employer contribution. It remains an eSRS/employer-portal entry aid until a real employer acknowledgement is recorded.",
       blocks: pagibigValidated ? "none" : "launch",
       manualWorkaround: pagibigValidated ? undefined : "Enter the DRAFT figures by hand into eSRS (employers with at most 30 employees) or Pag-IBIG's Virtual employer e-services portal.",
     },
     {
       key: "object-storage",
       label: "Object storage for documents",
-      ready: storageConfigured,
+      ready: storageIntegrated,
       detail: storageConfigured
-        ? "External object storage configured."
-        : "Uploads are validated and stored in Postgres. Move to S3/R2 before production document volume.",
+        ? "S3/R2 bucket configuration is present, but the document request path still stores file content in Postgres. Object storage is not integrated yet."
+        : "Uploads are validated and stored in Postgres. S3/R2 integration remains a scale task.",
       blocks: "scale",
     },
     {
       key: "malware-scanning",
       label: "Malware scanning on upload",
-      ready: configured("MALWARE_SCAN_URL"),
-      detail: configured("MALWARE_SCAN_URL")
-        ? "Signature/AV scanning endpoint configured."
-        : "Content-type, magic-byte and size checks run on the request path. Wire MALWARE_SCAN_URL for a full AV engine.",
+      ready: malwareIntegrated,
+      detail: malwareEndpointConfigured
+        ? "MALWARE_SCAN_URL is configured, but the upload request path does not call it yet. Files are not AV-cleared."
+        : "Content-type, magic-byte and size checks run on upload. No malware engine is integrated.",
       blocks: "scale",
     },
     {
       key: "sso",
       label: "SSO / SAML",
-      ready: configured("SAML_METADATA_URL"),
+      ready: samlIntegrated,
       detail: configured("SAML_METADATA_URL")
-        ? "SAML identity provider configured."
-        : "Password + TOTP only. Auth is pluggable; add a SAML method when an enterprise IdP is available.",
+        ? "SAML metadata is configured, but no SAML callback/session implementation exists yet. Keep this disabled until an enterprise IdP is actually required."
+        : "Deferred by design. Password + TOTP is the supported auth path until an enterprise customer requires SSO/SAML.",
       blocks: "scale",
     },
     {
@@ -178,8 +195,8 @@ export async function GET() {
       label: "Dedicated background worker",
       ready: enabled("WORKER_ENABLED"),
       detail: enabled("WORKER_ENABLED")
-        ? "Dedicated worker process draining queues."
-        : "Payroll and webhook queues drain opportunistically from requests and a manual tick endpoint. Set WORKER_ENABLED for a standalone worker.",
+        ? "Dedicated worker is enabled; scripts/worker.ts drains payroll jobs and webhook retries."
+        : "Dedicated worker code exists at scripts/worker.ts. Set WORKER_ENABLED=true and run npm run worker in a persistent worker service to activate it.",
       blocks: "scale",
     },
   ];
@@ -195,7 +212,7 @@ export async function GET() {
     summary:
       launchBlockers.length === 0
         ? "All launch-blocking gates are green. Remaining items only affect enterprise scale."
-        : `${launchBlockers.length} launch blocker(s) remain, each needs an external credential or portal validation, not more code.`,
+        : `${launchBlockers.length} launch blocker(s) remain. Review each gate separately: some need external proof and some still require implementation work.`,
     manualLaunch: {
       ready: unworkaroundableBlockers.length === 0,
       summary:
@@ -204,7 +221,7 @@ export async function GET() {
           : `${unworkaroundableBlockers.length} blocker(s) have no manual workaround and must be fixed even for a manual-ops pilot: ${unworkaroundableBlockers.map((g) => g.label).join(", ")}.`,
     },
     gates,
-    counts: { users: userCount, queuedMail, paidInvoices, activeSubs },
+    counts: { users: userCount, queuedMail, sentMail, paidInvoices, activeSubs, paymongoPreflightPasses },
     generatedAt: new Date().toISOString(),
   });
 }

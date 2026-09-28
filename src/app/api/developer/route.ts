@@ -1,12 +1,12 @@
 import { randomBytes } from "node:crypto";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { apiKeys, webhookDeliveries, webhookEndpoints } from "@/db/schema";
 import { mintApiKey } from "@/lib/api-auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { dispatchWebhook, WEBHOOK_EVENTS } from "@/lib/webhooks";
-import { assertMembership } from "@/lib/access";
+import { assertOrganizationRole, DEVELOPER_ADMIN_ROLES } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,12 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const organizationId = Number(searchParams.get("organizationId") ?? "1");
-  const deniedOrg = await assertMembership(user.id, organizationId);
+  const deniedOrg = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    DEVELOPER_ADMIN_ROLES,
+    "Only workspace administrators can manage API keys and webhooks.",
+  );
   if (deniedOrg) return deniedOrg;
 
   const [keys, endpoints, deliveries] = await Promise.all([
@@ -55,7 +60,12 @@ export async function POST(request: Request) {
   if (!Number.isInteger(organizationId)) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
   }
-  const deniedDev = await assertMembership(user.id, organizationId);
+  const deniedDev = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    DEVELOPER_ADMIN_ROLES,
+    "Only workspace administrators can manage API keys and webhooks.",
+  );
   if (deniedDev) return deniedDev;
 
   if (action === "create-key") {
@@ -65,7 +75,7 @@ export async function POST(request: Request) {
       name: String(body.name ?? "Untitled key").slice(0, 120),
       prefix: minted.prefix,
       keyHash: minted.keyHash,
-      scopes: Array.isArray(body.scopes) && body.scopes.length ? body.scopes : ["employees:read", "payroll:read"],
+      scopes: normalizeScopes(body.scopes),
     }).returning();
 
     await recordAuditEvent({
@@ -88,8 +98,11 @@ export async function POST(request: Request) {
   if (action === "revoke-key") {
     const keyId = Number(body.keyId);
     if (!Number.isInteger(keyId)) return Response.json({ error: "keyId is required." }, { status: 400 });
-    const [row] = await db.update(apiKeys).set({ revokedAt: new Date() }).where(eq(apiKeys.id, keyId)).returning();
-    if (!row) return Response.json({ error: "Key not found." }, { status: 404 });
+    const [row] = await db.update(apiKeys)
+      .set({ revokedAt: new Date() })
+      .where(and(eq(apiKeys.id, keyId), eq(apiKeys.organizationId, organizationId)))
+      .returning();
+    if (!row) return Response.json({ error: "Key not found in this workspace." }, { status: 404 });
     await recordAuditEvent({ organizationId, actor: user.name, action: "API key revoked", resource: row.name, metadata: { prefix: row.prefix } });
     return Response.json({ ok: true });
   }
@@ -97,7 +110,12 @@ export async function POST(request: Request) {
   if (action === "create-webhook") {
     const url = String(body.url ?? "").trim();
     if (!/^https?:\/\//i.test(url)) return Response.json({ error: "A valid http(s) URL is required." }, { status: 400 });
-    const events = Array.isArray(body.events) ? body.events : [];
+    const events = Array.isArray(body.events)
+      ? body.events.filter((event: unknown): event is string => typeof event === "string" && (WEBHOOK_EVENTS as readonly string[]).includes(event))
+      : [];
+    if (events.length === 0) {
+      return Response.json({ error: "Choose at least one supported webhook event." }, { status: 422 });
+    }
     const [row] = await db.insert(webhookEndpoints).values({
       organizationId,
       url,
@@ -119,4 +137,13 @@ export async function POST(request: Request) {
   }
 
   return Response.json({ error: "Unknown action." }, { status: 400 });
+}
+
+
+const ALLOWED_API_SCOPES = new Set(["employees:read", "employees:write", "payroll:read", "*"]);
+
+function normalizeScopes(value: unknown) {
+  if (!Array.isArray(value) || value.length === 0) return ["employees:read", "payroll:read"];
+  const scopes = value.filter((scope): scope is string => typeof scope === "string" && ALLOWED_API_SCOPES.has(scope));
+  return scopes.length ? [...new Set(scopes)] : ["employees:read", "payroll:read"];
 }

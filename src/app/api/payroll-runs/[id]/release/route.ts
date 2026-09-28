@@ -1,13 +1,14 @@
-import { count, eq } from "drizzle-orm";
+import { and, count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
-import { recordAuditEvent } from "@/lib/audit";
+import { approvalTasks, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { queueMessage } from "@/lib/mailer";
 import { dispatchWebhook } from "@/lib/webhooks";
-import { assertMembership } from "@/lib/access";
+import { assertOrganizationRole, PAYROLL_RELEASE_ROLES } from "@/lib/access";
+import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
+import { settlePayrollRun } from "@/lib/payroll-settlement";
 
-const RELEASABLE = ["Ready for release", "Needs review", "Processed"];
+const RELEASABLE = ["Ready for release"];
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -19,7 +20,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) return Response.json({ error: "Payroll run not found." }, { status: 404 });
-  const deniedOrg = await assertMembership(user.id, run.organizationId);
+  const deniedOrg = await assertOrganizationRole(
+    user.id,
+    run.organizationId,
+    PAYROLL_RELEASE_ROLES,
+    "Only an owner or administrator can release payroll.",
+  );
   if (deniedOrg) return deniedOrg;
 
   if (run.status === "Released") {
@@ -38,6 +44,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return Response.json({ error: `Run must be processed before release (currently ${run.status}).` }, { status: 409 });
   }
 
+  const approvalRows = await db.select().from(approvalTasks).where(eq(approvalTasks.organizationId, run.organizationId));
+  const payrollApproval = approvalRows
+    .filter((task) => task.detail.includes(`Payroll run #${run.id}`))
+    .sort((a, b) => b.id - a.id)[0];
+
+  if (!payrollApproval || payrollApproval.status !== "Approved") {
+    return Response.json({
+      error: "Payroll must be approved by a checker before release.",
+      approvalStatus: payrollApproval?.status ?? "Not submitted",
+    }, { status: 409 });
+  }
+
+  const assuranceResult = await buildPayrollAssurance(runId);
+  const blockingFindings = assuranceResult?.assurance.findings.filter((finding) => finding.blocking) ?? [];
+  if (blockingFindings.length > 0) {
+    return Response.json({
+      error: `Payroll assurance found ${blockingFindings.length} blocking issue(s). Resolve them before release.`,
+      blockingFindings,
+    }, { status: 409 });
+  }
+
   const body = await request.json().catch(() => ({}));
   if (run.exceptions > 0 && !body.acknowledgeExceptions) {
     return Response.json({
@@ -46,59 +73,114 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }, { status: 409 });
   }
 
-  const [updated] = await db.update(payrollRuns)
-    .set({ status: "Released" })
-    .where(eq(payrollRuns.id, runId))
+  // Claim the release transition atomically so two concurrent requests cannot
+  // settle the same ledgers twice.
+  const [claimed] = await db.update(payrollRuns)
+    .set({ status: "Releasing" })
+    .where(and(eq(payrollRuns.id, runId), eq(payrollRuns.status, "Ready for release")))
     .returning();
 
-  await recordAuditEvent({
-    organizationId: run.organizationId,
-    actor: user.name,
-    action: "Payroll released",
-    resource: run.periodLabel,
-    metadata: {
-      runId,
-      ruleVersion: run.ruleVersion,
-      netPay: run.netPay,
-      employees: entryCount,
-      exceptionsAcknowledged: run.exceptions > 0 ? run.exceptions : 0,
-    },
-  });
+  if (!claimed) {
+    return Response.json({ error: "Payroll is no longer ready for release. Refresh and review its current status." }, { status: 409 });
+  }
+
+  let settlement;
+  let updated;
+  try {
+    const released = await settlePayrollRun(runId, {
+      actor: user.name,
+      resource: run.periodLabel,
+      metadata: {
+        runId,
+        ruleVersion: run.ruleVersion,
+        netPay: run.netPay,
+        employees: entryCount,
+        exceptionsAcknowledged: run.exceptions > 0 ? run.exceptions : 0,
+        assurance: assuranceResult?.assurance.summary ?? null,
+        approvalTaskId: payrollApproval.id,
+        approvedBy: payrollApproval.decidedBy ?? payrollApproval.approver,
+      },
+    });
+    settlement = released.settlement;
+    updated = released.run;
+  } catch (error) {
+    // The settlement transaction rolled back every ledger mutation. Only the
+    // earlier release claim lives outside that transaction, so restore it for a
+    // safe recalculation/retry.
+    await db.update(payrollRuns)
+      .set({ status: "Ready for release" })
+      .where(and(eq(payrollRuns.id, runId), eq(payrollRuns.status, "Releasing")));
+    return Response.json({
+      error: error instanceof Error ? error.message : "Payroll settlement failed; recalculate before release.",
+    }, { status: 409 });
+  }
 
   // Notify staff that payslips are ready. Queued in the outbox when no mail
   // provider is configured, never silently reported as sent.
   const [organization] = await db.select().from(organizations).where(eq(organizations.id, run.organizationId));
-  const staff = await db.select().from(employees).where(eq(employees.organizationId, run.organizationId));
-  const notified = staff.filter((person) => person.status === "Active").length;
+  const releasedEntries = await db
+    .select({ employeeId: payrollEntries.employeeId })
+    .from(payrollEntries)
+    .where(eq(payrollEntries.payrollRunId, runId));
+  const releasedEmployeeIds = [...new Set(releasedEntries.map((entry) => entry.employeeId))];
+  const staff = releasedEmployeeIds.length
+    ? await db.select().from(employees).where(and(
+        eq(employees.organizationId, run.organizationId),
+        inArray(employees.id, releasedEmployeeIds),
+      ))
+    : [];
+
+  // Payroll is already atomically released at this point. Notification or
+  // webhook failures must not turn a successful financial commit into a 500
+  // response that invites the operator to retry the release.
+  const postReleaseWarnings: string[] = [];
+  let notified = 0;
   for (const person of staff) {
     if (person.status !== "Active" || !person.email) continue;
-    await queueMessage({
-      organizationId: run.organizationId,
-      recipient: person.email,
-      subject: `Your payslip for ${run.periodLabel} is ready`,
-      purpose: "payslip-ready",
-      body: [
-        `Hi ${person.firstName},`,
-        "",
-        `${organization?.name ?? "Your employer"} released payroll for ${run.periodLabel}.`,
-        "",
-        "Sign in to Linaw to view and download your payslip.",
-      ].join("\n"),
-    });
+    try {
+      await queueMessage({
+        organizationId: run.organizationId,
+        recipient: person.email,
+        subject: `Your payslip for ${run.periodLabel} is ready`,
+        purpose: "payslip-ready",
+        body: [
+          `Hi ${person.firstName},`,
+          "",
+          `${organization?.name ?? "Your employer"} released payroll for ${run.periodLabel}.`,
+          "",
+          "Sign in to Linaw to view and download your payslip.",
+        ].join("\n"),
+      });
+      notified += 1;
+    } catch {
+      postReleaseWarnings.push(`Could not queue payslip notice for employee #${person.id}.`);
+    }
   }
 
-  const deliveries = await dispatchWebhook({
-    organizationId: run.organizationId,
-    event: "payroll.released",
-    data: {
-      runId,
-      period: run.periodLabel,
-      payDate: run.payDate,
-      employees: entryCount,
-      grossPay: run.grossPay,
-      netPay: run.netPay,
-    },
-  });
+  let webhookDeliveries = 0;
+  try {
+    const deliveries = await dispatchWebhook({
+      organizationId: run.organizationId,
+      event: "payroll.released",
+      data: {
+        runId,
+        period: run.periodLabel,
+        payDate: run.payDate,
+        employees: entryCount,
+        grossPay: run.grossPay,
+        netPay: run.netPay,
+      },
+    });
+    webhookDeliveries = deliveries.length;
+  } catch {
+    postReleaseWarnings.push("Payroll was released, but webhook delivery could not be queued.");
+  }
 
-  return Response.json({ run: updated, webhookDeliveries: deliveries.length, employeesNotified: notified });
+  return Response.json({
+    run: updated,
+    settlement,
+    webhookDeliveries,
+    employeesNotified: notified,
+    postReleaseWarnings,
+  });
 }

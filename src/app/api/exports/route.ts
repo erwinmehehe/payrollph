@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { auditEvents, employees, organizations, payrollRuns } from "@/db/schema";
 import { ensureSeedData } from "@/db/seed";
 import { recordAuditEvent } from "@/lib/audit";
-import { assertMembership } from "@/lib/access";
+import { assertOrganizationRole, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -16,9 +16,20 @@ export async function GET(request: Request) {
   const organizationId = Number(searchParams.get("organizationId") ?? "1");
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
-  const deniedOrg = await assertMembership(user.id, organizationId);
-  if (deniedOrg) return deniedOrg;
   const kind = searchParams.get("kind") ?? "all";
+  const allowedRoles =
+    kind === "employees"
+      ? ["owner", "admin", "bookkeeper", "hr"]
+      : kind === "payroll"
+        ? [...PAYROLL_OPERATOR_ROLES]
+        : ["owner", "admin", "bookkeeper"];
+  const deniedOrg = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    allowedRoles,
+    "You do not have permission to export this company data.",
+  );
+  if (deniedOrg) return deniedOrg;
   const [organization] = await db.select().from(organizations).where(eq(organizations.id, organizationId));
   if (!organization) return Response.json({ error: "Organization not found" }, { status: 404 });
 

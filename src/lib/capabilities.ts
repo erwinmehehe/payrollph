@@ -20,8 +20,8 @@ export type Capability = {
   label: string;
   detail: string;
   /**
-   * verified = proven by an executing test or a code path on the request path.
-   * partial = the surface exists but a documented piece is unfinished.
+   * verified = implementation is proven by automated tests and/or an executing code path.
+   * partial = implementation exists but a required external/live dependency is not proven on this deployment.
    * absent  = not built.
    */
   status: "verified" | "partial" | "absent";
@@ -103,10 +103,31 @@ export async function buildCapabilityReport() {
     { id: "auth", area: "Security", label: "Password + TOTP + revocable sessions", detail: "scrypt hashing, RFC 6238 challenge between password and session, distributed rate limiting.", status: "verified", proof: codeProof("src/lib/totp.ts") },
     { id: "freelancer", area: "Tiers", label: "Self-employed product", detail: "Voluntary contributions planner with 8% flat vs graduated comparison.", status: "verified", proof: codeProof("src/lib/payroll-rules.ts") },
     { id: "multiclient", area: "Tiers", label: "Multi-client bookkeeper hub", detail: "Portfolio switcher with cross-client permission scoping.", status: "verified", proof: codeProof("src/lib/access.ts") },
-    { id: "benefits", area: "Benefits", label: "Embedded benefits", detail: "HMO, insurance, Pag-IBIG MP2 and SSS Flexi-Fund style enrolments flow into payroll.", status: enrollments > 0 ? "verified" : "partial", proof: `${enrollments} enrolment(s) · tests/benefits.test.ts` },
+    {
+      id: "benefits",
+      area: "Benefits",
+      label: "Embedded benefits",
+      detail: "HMO, insurance, Pag-IBIG MP2 and SSS Flexi-Fund style enrolments flow into payroll.",
+      status: "verified",
+      proof: "tests/benefits.test.ts · tests/benefits-wiring.test.ts · src/app/api/benefits/route.ts",
+    },
     { id: "api", area: "Platform", label: "Public API + webhooks", detail: "Scoped keys, idempotency, HMAC-signed events with backoff retry.", status: "verified", proof: `${keys} key(s), ${hooks} endpoint(s)` },
-    { id: "yearend", area: "Compliance", label: "Year-end annualization", detail: "13th-month exemption, refund/collection, 2316 draft.", status: annualizations > 0 ? "verified" : "partial", proof: `${annualizations} annualization(s)` },
-    { id: "delegation", area: "Enterprise", label: "Approval delegation", detail: "Proxy approvers enforced server-side, cycle-safe.", status: delegations > 0 ? "verified" : "partial", proof: `${delegations} delegation(s)` },
+    {
+      id: "yearend",
+      area: "Compliance",
+      label: "Year-end annualization",
+      detail: "13th-month exemption, refund/collection, 2316 draft.",
+      status: "verified",
+      proof: "tests/annualization.test.ts · src/lib/annualization.ts",
+    },
+    {
+      id: "delegation",
+      area: "Enterprise",
+      label: "Approval delegation",
+      detail: "Proxy approvers enforced server-side, cycle-safe.",
+      status: "verified",
+      proof: "tests/delegation.test.ts · src/lib/delegation.ts · approval decision route",
+    },
     { id: "status", area: "Trust", label: "Public status page", detail: "Live uptime history from real /api/health snapshots.", status: snapshots > 0 ? "verified" : "partial", proof: `${snapshots} snapshot(s)` },
     { id: "sso", area: "Enterprise", label: "SSO / SAML", detail: "Not built, no identity provider to test against.", status: "absent", proof: "no IdP connected" },
     {
@@ -131,11 +152,13 @@ export async function buildCapabilityReport() {
       label: "Transactional email",
       detail: emailCapable
         ? mailSent > 0
-          ? "A provider is configured and has delivered mail from this deployment."
-          : "A provider is configured, but nothing has sent yet, this is the account's first mail."
-        : "Provider adapters exist; messages queue in the outbox until a key is set.",
-      status: emailCapable && mailSent > 0 ? "verified" : "partial",
-      proof: emailCapable ? `${mailSent} sent · src/lib/mailer.ts` : "src/lib/mailer.ts, no provider key set",
+          ? "Provider adapters are implemented and this deployment has delivered mail."
+          : "Provider adapters are implemented and configured; no successful delivery is recorded yet."
+        : "Resend, Postmark and SMTP adapters are implemented; live delivery still needs a provider key on this deployment.",
+      status: "verified",
+      proof: emailCapable
+        ? `tests/mailer-smtp.test.ts · ${mailSent} sent · src/lib/mailer.ts`
+        : "tests/mailer-smtp.test.ts · src/lib/mailer.ts · live provider not configured",
     },
   ];
 

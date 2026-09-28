@@ -11,11 +11,13 @@ import { generateGovernmentDraft } from "../src/lib/exporters";
 // implement without the full byte-level spec in hand. Everything else in
 // this draft stays an honest DRAFT rather than a guessed byte layout.
 
-test("Alphalist draft splits a hyphenated TIN into 9-digit TIN + branch code", async () => {
+test("Alphalist draft keeps employer and employee TIN/branch fields separate", async () => {
   const [org] = await db.insert(organizations).values({
     name: "Gov Draft Test Co",
     legalName: "Gov Draft Test Corp",
     plan: "Core",
+    birTin: "987654321",
+    birBranchCode: "0000",
   }).returning();
 
   const [employee] = await db.insert(employees).values({
@@ -27,12 +29,15 @@ test("Alphalist draft splits a hyphenated TIN into 9-digit TIN + branch code", a
     avatarInitials: "AR",
     basicRate: "30000",
     startDate: "2026-01-01",
-    tin: "123-456-789-0001",
+    tin: "123456789",
+    tinBranchCode: "0001",
   }).returning();
 
   const [run] = await db.insert(payrollRuns).values({
     organizationId: org.id,
-    periodLabel: "Test Period",
+    periodLabel: "Sep 16–30, 2026",
+    periodStart: "2026-09-16",
+    periodEnd: "2026-09-30",
     payDate: "2026-09-30",
   }).returning();
 
@@ -49,5 +54,8 @@ test("Alphalist draft splits a hyphenated TIN into 9-digit TIN + branch code", a
   const dataLine = file.body.split("\n").find((line) => line.includes("Reyes"));
 
   assert.ok(dataLine, "expected a data row for the seeded employee");
-  assert.ok(dataLine!.startsWith('"123456789","0001"'), `expected split TIN/branch code, got: ${dataLine}`);
+  assert.ok(
+    dataLine!.startsWith('"987654321","0000","123456789","0001"'),
+    `expected explicit employer and employee TIN/branch fields, got: ${dataLine}`,
+  );
 });

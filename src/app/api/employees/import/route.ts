@@ -5,7 +5,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { getEntitlements, requireFeature, seatUsage } from "@/lib/billing";
 import { parseEmployeeCsv } from "@/lib/csv-import";
-import { assertMembership } from "@/lib/access";
+import { assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +23,12 @@ export async function POST(request: Request) {
     return Response.json({ error: "organizationId and csv content are required." }, { status: 400 });
   }
 
-  const deniedImport = await assertMembership(user.id, organizationId);
+  const deniedImport = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_ADMIN_ROLES,
+    "Only People administrators can import employee records.",
+  );
   if (deniedImport) return deniedImport;
 
   const entitlements = await getEntitlements(organizationId);
@@ -160,7 +165,12 @@ export async function GET(request: Request) {
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const { searchParams } = new URL(request.url);
   const organizationId = Number(searchParams.get("organizationId") ?? "1");
-  const deniedList = await assertMembership(user.id, organizationId);
+  const deniedList = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_ADMIN_ROLES,
+    "Only People administrators can view import history.",
+  );
   if (deniedList) return deniedList;
   const batches = await db.select().from(importBatches).where(eq(importBatches.organizationId, organizationId));
   return Response.json({ batches: batches.slice(-10).reverse() });

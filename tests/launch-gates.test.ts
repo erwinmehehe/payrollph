@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { passwordIssues, validEmail } from "../src/lib/validation";
 import { MAX_UPLOAD_BYTES, safeFileName, validateUpload } from "../src/lib/storage";
 import { activeMailProvider } from "../src/lib/mail-provider";
@@ -61,4 +62,30 @@ test("mail provider reports honestly when unconfigured", () => {
   } else {
     assert.ok(["resend", "postmark", "smtp"].includes(activeMailProvider()));
   }
+});
+
+
+test("readiness cannot treat credentials alone as proof of external integrations", () => {
+  const source = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  assert.ok(source.includes("const storageIntegrated = false"), "bucket configuration alone must not make object storage green");
+  assert.ok(source.includes("const malwareIntegrated = false"), "scanner URL alone must not claim files were scanned");
+  assert.ok(source.includes("const samlIntegrated = false"), "SAML metadata alone must not claim SSO exists");
+  assert.ok(source.includes("paymongoPreflightProven"), "PayMongo readiness must require a recorded no-money preflight");
+});
+
+test("manual confirmed payments can prove billing without pretending an online processor was used", () => {
+  const source = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  assert.ok(
+    source.includes("const billingProven = paidInvoices > 0 || activeSubs > 0"),
+    "paid ledger state must be sufficient proof for a legitimate manual payment",
+  );
+  assert.ok(source.includes("current proof is manual/off-platform"));
+});
+
+test("dedicated worker drains payroll and webhook queues from a persistent process", () => {
+  const worker = readFileSync("scripts/worker.ts", "utf8");
+  const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+  assert.ok(worker.includes("processNextPayrollJob"));
+  assert.ok(worker.includes("drainWebhookRetries"));
+  assert.equal(pkg.scripts.worker, "tsx scripts/worker.ts");
 });

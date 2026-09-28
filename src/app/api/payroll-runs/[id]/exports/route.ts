@@ -1,11 +1,18 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { payslips, payrollRuns } from "@/db/schema";
+import { payslips, payrollEntries, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { generateBankFile, generateGovernmentDraft, generateJournalCsv } from "@/lib/exporters";
-import { assertMembership, getAccess } from "@/lib/access";
-import { createPaymongoPayrollDisbursement } from "@/lib/paymongo-disbursements";
+import {
+  assertOrganizationRole,
+  PAYROLL_DISBURSEMENT_ROLES,
+  PAYROLL_OPERATOR_ROLES,
+} from "@/lib/access";
+import {
+  createPaymongoPayrollDisbursement,
+  preflightPaymongoPayrollDisbursement,
+} from "@/lib/paymongo-disbursements";
 
 export const dynamic = "force-dynamic";
 
@@ -25,24 +32,47 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) return Response.json({ error: "Payroll run not found" }, { status: 404 });
-  const deniedExports = await assertMembership(user.id, run.organizationId);
+  const deniedExports = await assertOrganizationRole(
+    user.id,
+    run.organizationId,
+    PAYROLL_OPERATOR_ROLES,
+    "Only payroll operators can export payroll data.",
+  );
   if (deniedExports) return deniedExports;
 
   const actor = user.name;
 
   if (kind === "payslip") {
     if (!payslipId) {
-      const rows = await db.select().from(payslips).where(eq(payslips.organizationId, run.organizationId));
-      return Response.json({ payslips: rows.filter((row) => row.periodLabel === run.periodLabel) });
+      const rows = await db
+        .select({ slip: payslips })
+        .from(payslips)
+        .innerJoin(payrollEntries, eq(payslips.payrollEntryId, payrollEntries.id))
+        .where(and(
+          eq(payslips.organizationId, run.organizationId),
+          eq(payrollEntries.payrollRunId, run.id),
+        ));
+      return Response.json({ payslips: rows.map((row) => row.slip) });
     }
-    const [slip] = await db.select().from(payslips).where(eq(payslips.id, payslipId));
-    if (!slip) return Response.json({ error: "Payslip not found" }, { status: 404 });
+
+    const [row] = await db
+      .select({ slip: payslips })
+      .from(payslips)
+      .innerJoin(payrollEntries, eq(payslips.payrollEntryId, payrollEntries.id))
+      .where(and(
+        eq(payslips.id, payslipId),
+        eq(payslips.organizationId, run.organizationId),
+        eq(payrollEntries.payrollRunId, run.id),
+      ))
+      .limit(1);
+    const slip = row?.slip;
+    if (!slip) return Response.json({ error: "Payslip not found for this payroll run" }, { status: 404 });
     await recordAuditEvent({
       organizationId: run.organizationId,
       actor,
       action: "Payslip downloaded",
       resource: `${run.periodLabel} #${slip.id}`,
-      metadata: { ruleVersion: slip.ruleVersion },
+      metadata: { runId: run.id, ruleVersion: slip.ruleVersion },
     });
     return new Response(slip.content, {
       headers: {
@@ -96,12 +126,67 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) return Response.json({ error: "Payroll run not found" }, { status: 404 });
-  const denied = await assertMembership(user.id, run.organizationId);
+  const body = await request.json().catch(() => ({}));
+  const mode = body.mode === "preflight" ? "preflight" : "disburse";
+
+  const denied = await assertOrganizationRole(
+    user.id,
+    run.organizationId,
+    mode === "preflight" ? PAYROLL_OPERATOR_ROLES : PAYROLL_DISBURSEMENT_ROLES,
+    mode === "preflight"
+      ? "Only payroll operators can run a payout preflight."
+      : "Only the workspace owner can trigger a live payroll disbursement.",
+  );
   if (denied) return denied;
 
-  const access = await getAccess(user.id, run.organizationId);
-  if (!access || access.role === "employee") {
-    return Response.json({ error: "Only an owner, admin, or bookkeeper can trigger a payroll disbursement." }, { status: 403 });
+  if (run.status !== "Released") {
+    return Response.json({
+      error: mode === "preflight"
+        ? "PayMongo preflight is allowed only for a released payroll run so it checks the exact final payout rows."
+        : "Live payroll disbursement is allowed only after the payroll run has been approved and released.",
+      status: run.status,
+    }, { status: 409 });
+  }
+
+  if (mode === "preflight") {
+    if (!process.env.PAYMONGO_SECRET_KEY) {
+      return Response.json({
+        error: "PayMongo credentials are not configured, so receiving-institution access cannot be verified.",
+        readiness: "/api/readiness",
+      }, { status: 501 });
+    }
+
+    try {
+      const result = await preflightPaymongoPayrollDisbursement(runId);
+      await recordAuditEvent({
+        organizationId: run.organizationId,
+        actor: user.name,
+        action: "PayMongo payroll preflight passed",
+        resource: run.periodLabel,
+        metadata: {
+          provider: result.provider,
+          employeeCount: result.employeeCount,
+          totalAmountCents: result.totalAmountCents,
+          banks: result.banks,
+          moneyMoved: false,
+        },
+      });
+      return Response.json({
+        ...result,
+        moneyMoved: false,
+        message: "PayMongo credentials and bank mappings were verified without creating a transfer.",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "PayMongo preflight failed.";
+      await recordAuditEvent({
+        organizationId: run.organizationId,
+        actor: user.name,
+        action: "PayMongo payroll preflight failed",
+        resource: run.periodLabel,
+        metadata: { error: message, moneyMoved: false },
+      });
+      return Response.json({ error: message, moneyMoved: false }, { status: 502 });
+    }
   }
 
   if (!process.env.PAYMONGO_SECRET_KEY || process.env.PAYMONGO_DISBURSEMENTS_ENABLED !== "true") {

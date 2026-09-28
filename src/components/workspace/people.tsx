@@ -34,6 +34,7 @@ export function PeopleView({
   onRefresh,
   onAddEmployee,
   onPage,
+  canManage = true,
   focusEmployeeId,
   onClearFocus,
 }: {
@@ -41,6 +42,7 @@ export function PeopleView({
   onRefresh: () => Promise<void>;
   onAddEmployee: () => void;
   onPage: (page: string) => void;
+  canManage?: boolean;
   focusEmployeeId?: number | null;
   onClearFocus?: () => void;
 }) {
@@ -112,9 +114,11 @@ export function PeopleView({
         title="Your people, in context."
         copy="Department and branch structure stay optional for small teams and are ready when a client grows into them."
         actions={
-          <button className="primary-button brand" onClick={onAddEmployee}>
-            <Plus size={16} className="i-green" /> Add employee
-          </button>
+          canManage ? (
+            <button className="primary-button brand" onClick={onAddEmployee}>
+              <Plus size={16} className="i-green" /> Add employee
+            </button>
+          ) : undefined
         }
       />
 
@@ -128,7 +132,7 @@ export function PeopleView({
         </div>
       )}
 
-      <ImportPanel organizationId={data.selectedOrganization.id} onImported={onRefresh} />
+      {canManage && <ImportPanel organizationId={data.selectedOrganization.id} onImported={onRefresh} />}
 
       {openOffboarding > 0 && (
         <div className="notice notice-blue">
@@ -306,18 +310,82 @@ export function PeopleView({
               server.
             </span>
           </div>
-          <button className="card-action" onClick={() => onPage("Settings")}>
-            Manage structure
-          </button>
+          {canManage && (
+            <button className="card-action" onClick={() => onPage("Settings")}>
+              Manage structure
+            </button>
+          )}
         </aside>
       </section>
 
-      {selected && <PersonDrawer data={data} employee={selected} onClose={closeDrawer} />}
+      {selected && (
+        <PersonDrawer
+          data={data}
+          employee={selected}
+          canManage={canManage}
+          onRefresh={onRefresh}
+          onClose={closeDrawer}
+        />
+      )}
     </>
   );
 }
 
-function PersonDrawer({ data, employee, onClose }: { data: DashboardData; employee: Employee; onClose: () => void }) {
+function PersonDrawer({
+  data,
+  employee,
+  canManage,
+  onRefresh,
+  onClose,
+}: {
+  data: DashboardData;
+  employee: Employee;
+  canManage: boolean;
+  onRefresh: () => Promise<void>;
+  onClose: () => void;
+}) {
+  const [editingGovernment, setEditingGovernment] = useState(false);
+  const [savingGovernment, setSavingGovernment] = useState(false);
+  const [middleName, setMiddleName] = useState(employee.middleName ?? "");
+  const [tin, setTin] = useState(employee.tin ?? "");
+  const [tinBranchCode, setTinBranchCode] = useState(employee.tinBranchCode ?? "");
+  const [sssNo, setSssNo] = useState(employee.sssNo ?? "");
+  const [philHealthNo, setPhilHealthNo] = useState(employee.philHealthNo ?? "");
+  const [pagIbigNo, setPagIbigNo] = useState(employee.pagIbigNo ?? "");
+  const [nationality, setNationality] = useState(employee.nationality ?? "Filipino");
+  const [governmentError, setGovernmentError] = useState("");
+
+  async function saveGovernmentIdentity() {
+    setSavingGovernment(true);
+    setGovernmentError("");
+    try {
+      const response = await fetch("/api/employees", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId: data.selectedOrganization.id,
+          employeeId: employee.id,
+          middleName,
+          tin,
+          tinBranchCode,
+          sssNo,
+          philHealthNo,
+          pagIbigNo,
+          nationality,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setGovernmentError(payload.error ?? "Could not save government IDs.");
+        return;
+      }
+      await onRefresh();
+      onClose();
+    } finally {
+      setSavingGovernment(false);
+    }
+  }
+
   const punches = (data.punches ?? []).filter((punch) => punch.employeeId === employee.id).slice(0, 6);
   const leave = (data.leaveRequests ?? []).filter((request) => request.employeeId === employee.id);
   const checklist = (data.provisioning ?? []).filter((item) => item.employeeId === employee.id);
@@ -362,6 +430,50 @@ function PersonDrawer({ data, employee, onClose }: { data: DashboardData; employ
             <small>{entry ? `after ${money(entry.deductions)} deductions` : "-"}</small>
           </div>
         </div>
+
+        <section className="card" style={{ margin: "0 0 16px", boxShadow: "none" }}>
+          <div className="card-header">
+            <div>
+              <div className="card-kicker">GOVERNMENT IDENTITY</div>
+              <h2 style={{ fontSize: 14 }}>Filing identifiers</h2>
+              <p>BIR, SSS, PhilHealth and Pag-IBIG exports fail closed rather than substituting the internal employee number.</p>
+            </div>
+            {canManage && (
+              <button className="secondary-button" onClick={() => setEditingGovernment((value) => !value)}>
+                {editingGovernment ? "Cancel" : "Edit IDs"}
+              </button>
+            )}
+          </div>
+
+          {editingGovernment ? (
+            <>
+              <div className="setting-form">
+                <label>Middle name<input value={middleName} onChange={(event) => setMiddleName(event.target.value)} /></label>
+                <label>BIR TIN<input value={tin} onChange={(event) => setTin(event.target.value)} placeholder="9-digit employee TIN" /></label>
+                <label>BIR branch code<input value={tinBranchCode} onChange={(event) => setTinBranchCode(event.target.value)} placeholder="0000" /></label>
+                <label>SSS number<input value={sssNo} onChange={(event) => setSssNo(event.target.value)} /></label>
+                <label>PhilHealth PIN<input value={philHealthNo} onChange={(event) => setPhilHealthNo(event.target.value)} /></label>
+                <label>Pag-IBIG MID<input value={pagIbigNo} onChange={(event) => setPagIbigNo(event.target.value)} /></label>
+                <label>Nationality<input value={nationality} onChange={(event) => setNationality(event.target.value)} /></label>
+              </div>
+              {governmentError && <div className="notice notice-amber" style={{ margin: "0 16px 10px" }}><span>{governmentError}</span></div>}
+              <div className="run-actions">
+                <button className="primary-button" disabled={savingGovernment} onClick={() => void saveGovernmentIdentity()}>
+                  <Check size={14} /> {savingGovernment ? "Saving…" : "Save government IDs"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="card-body">
+              <div className="run-stats" style={{ margin: 0 }}>
+                <div><span>BIR TIN</span><strong style={{ fontSize: 12 }}>{employee.tin ? `${employee.tin}-${employee.tinBranchCode || "0000"}` : "Missing"}</strong><small>{employee.middleName ? `middle: ${employee.middleName}` : "middle name not recorded"}</small></div>
+                <div><span>SSS</span><strong style={{ fontSize: 12 }}>{employee.sssNo || "Missing"}</strong><small>R-3 member number</small></div>
+                <div><span>PhilHealth</span><strong style={{ fontSize: 12 }}>{employee.philHealthNo || "Missing"}</strong><small>EPRS / RF-1 PIN</small></div>
+                <div><span>Pag-IBIG</span><strong style={{ fontSize: 12 }}>{employee.pagIbigNo || "Missing"}</strong><small>MID for remittance</small></div>
+              </div>
+            </div>
+          )}
+        </section>
 
         <div className="payslip-grid">
           <div>

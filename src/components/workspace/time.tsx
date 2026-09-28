@@ -12,10 +12,12 @@ export function TimeView({
   data,
   onOpenBundy,
   notify,
+  canManage = true,
 }: {
   data: DashboardData;
   onOpenBundy: () => void;
   notify: Notify;
+  canManage?: boolean;
 }) {
   const punches = useMemo(() => data.punches ?? [], [data.punches]);
   const [view, setView] = useState<"all" | "incomplete">("all");
@@ -53,20 +55,22 @@ export function TimeView({
         title="Time that stands up to payroll."
         copy="Raw punches are classified against the shift policy on the server. Tardiness, undertime, overtime and night differential are derived, never entered by hand."
         actions={
-          <>
-            <button className="secondary-button" onClick={onOpenBundy}>
-              <Clock size={15} className="i-cyan" /> Web bundy
-            </button>
-            <button
-              className="secondary-button"
-              onClick={() => {
-                window.open(`/api/exports?organizationId=${data.selectedOrganization.id}&kind=all`, "_blank", "noopener");
-                notify("Punch data is included in the full company export, the download is audit-logged.", "info");
-              }}
-            >
-              <Download size={15} className="i-teal" /> Export data
-            </button>
-          </>
+          canManage ? (
+            <>
+              <button className="secondary-button" onClick={onOpenBundy}>
+                <Clock size={15} className="i-cyan" /> Web bundy
+              </button>
+              <button
+                className="secondary-button"
+                onClick={() => {
+                  window.open(`/api/exports?organizationId=${data.selectedOrganization.id}&kind=all`, "_blank", "noopener");
+                  notify("Punch data is included in the full company export, the download is audit-logged.", "info");
+                }}
+              >
+                <Download size={15} className="i-teal" /> Export data
+              </button>
+            </>
+          ) : undefined
         }
       />
 

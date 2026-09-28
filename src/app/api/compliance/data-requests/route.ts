@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { dataRequests } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
-import { assertMembership } from "@/lib/access";
+import { assertOrganizationRole } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,12 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const organizationId = Number(searchParams.get("organizationId") ?? "1");
-  const deniedList = await assertMembership(session.id, organizationId);
+  const deniedList = await assertOrganizationRole(
+    session.id,
+    organizationId,
+    ["owner", "admin", "hr"],
+    "Only privacy administrators can view data-subject requests.",
+  );
   if (deniedList) return deniedList;
 
   const rows = await db.select().from(dataRequests).where(eq(dataRequests.organizationId, organizationId)).orderBy(desc(dataRequests.id));
@@ -53,7 +58,12 @@ export async function POST(request: Request) {
     return Response.json({ error: `organizationId, subjectEmail and a requestType of ${types.join("/")} are required.` }, { status: 400 });
   }
 
-  const denied = await assertMembership(session.id, organizationId);
+  const denied = await assertOrganizationRole(
+    session.id,
+    organizationId,
+    ["owner", "admin", "hr"],
+    "Only privacy administrators can create data-subject requests.",
+  );
   if (denied) return denied;
 
   const [row] = await db.insert(dataRequests).values({
@@ -88,7 +98,12 @@ export async function PATCH(request: Request) {
 
   const [existing] = await db.select({ organizationId: dataRequests.organizationId }).from(dataRequests).where(eq(dataRequests.id, id)).limit(1);
   if (!existing) return Response.json({ error: "Request not found." }, { status: 404 });
-  const deniedPatch = await assertMembership(session.id, existing.organizationId ?? 0);
+  const deniedPatch = await assertOrganizationRole(
+    session.id,
+    existing.organizationId ?? 0,
+    ["owner", "admin", "hr"],
+    "Only privacy administrators can update data-subject requests.",
+  );
   if (deniedPatch) return deniedPatch;
 
   const [row] = await db.update(dataRequests).set({

@@ -1,10 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowUpRight, Minus, Plus, Users } from "lucide-react";
+import { ArrowUpRight, Check, Minus, Plus } from "lucide-react";
 import { money } from "@/components/workspace/ui";
 
-export type PublicPlan = { id: number; name: string; monthlyBase: string; perEmployee: string; modules: unknown; version: string };
+export type PublicPlan = {
+  id: number;
+  name: string;
+  monthlyBase: string;
+  perEmployee: string;
+  modules: unknown;
+  version: string;
+};
 
 const BLURB: Record<string, string> = {
   Solo: "For independent and self-employed work",
@@ -14,8 +21,7 @@ const BLURB: Record<string, string> = {
 };
 
 /**
- * Pricing read from the `pricing_plans` table, the same rows the in-app
- * checkout uses. Nothing here is a marketing number.
+ * Pricing is read from the same persisted pricing rows used by checkout.
  */
 export function PricingTable({ plans }: { plans: PublicPlan[] }) {
   const [headcount, setHeadcount] = useState(24);
@@ -28,10 +34,12 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
   return (
     <>
       <div className="pricing-calculator">
-        <p className="eyebrow" style={{ margin: 0 }}>
-          Headcount calculator
-        </p>
-        <h2>How many people are you paying in the Philippines?</h2>
+        <div className="pricing-calculator-copy">
+          <p className="eyebrow">Headcount</p>
+          <h2>How many people are you paying?</h2>
+          <p>Adjust the headcount and the monthly pricing updates automatically.</p>
+        </div>
+
         <div className="pricing-headcount-control">
           <div className="pricing-headcount-value">
             <button
@@ -65,6 +73,7 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
               <Plus size={14} />
             </button>
           </div>
+
           <div className="pricing-headcount-slider">
             <input
               type="range"
@@ -81,13 +90,6 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
             </div>
           </div>
         </div>
-        <div className="calc-note">
-          <Users size={16} className="i-purple" />
-          <span>
-            Every figure below is the plan&apos;s stored base plus its per-employee rate at this headcount. Solo is priced for
-            one person, so headcount does not change it.
-          </span>
-        </div>
       </div>
 
       <div className="pricing-grid">
@@ -95,28 +97,41 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
           const perSeat = plan.name === "Solo" ? 0 : headcount;
           const total = Number(plan.monthlyBase) + Number(plan.perEmployee) * perSeat;
           const modules = Array.isArray(plan.modules) ? (plan.modules as string[]) : [];
+          const featured = plan.name === "Scale";
+
           return (
-            <article className={`price-card ${plan.name === "Scale" ? "featured" : ""}`} key={plan.id}>
-              {plan.name === "Scale" && <div className="popular-label">Most chosen</div>}
-              <span className="price-plan">{plan.name}</span>
-              <h2>{BLURB[plan.name] ?? "Philippine payroll and HRIS"}</h2>
-              {modules.length > 0 && (
-                <ul style={{ margin: 0, paddingLeft: 16, color: "var(--muted)", fontSize: 11.5, lineHeight: 1.75 }}>
-                  {modules.slice(0, 5).map((module) => (
-                    <li key={module}>{module}</li>
-                  ))}
-                </ul>
-              )}
-              <div className="price" aria-live="polite">
+            <article className={`price-card ${featured ? "featured" : ""}`} key={plan.id}>
+              <div className="price-card-top">
+                <div>
+                  <span className="price-plan">{plan.name}</span>
+                  <h2>{BLURB[plan.name] ?? "Philippine payroll and HRIS"}</h2>
+                </div>
+                {featured && <span className="popular-label">Most chosen</span>}
+              </div>
+
+              <div className="price">
                 <strong>{money(total)}</strong>
                 <span>/ month</span>
               </div>
-              <small>
+
+              <small className="price-formula">
                 Base {money(plan.monthlyBase)}
-                {plan.name === "Solo" ? "" : ` + ${money(plan.perEmployee)} per employee`} · pricing table v{plan.version}
+                {plan.name === "Solo" ? "" : ` + ${money(plan.perEmployee)} per employee`}
               </small>
-              <a className={plan.name === "Scale" ? "primary-button full" : "secondary-button full"} href="/signup">
-                Create account <ArrowUpRight size={14} />
+
+              {modules.length > 0 && (
+                <ul className="price-features">
+                  {modules.slice(0, 4).map((module) => (
+                    <li key={module}>
+                      <Check size={12} aria-hidden />
+                      <span>{module}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <a className={featured ? "primary-button full" : "secondary-button full"} href="/signup">
+                Start free <ArrowUpRight size={13} />
               </a>
             </article>
           );

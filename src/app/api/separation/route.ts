@@ -2,7 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employeeLoans, employees, leaveBalances, payrollEntries, payrollRuns, separationRecords } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { assertMembership } from "@/lib/access";
+import { assertOrganizationRole, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { computeThirteenthMonthPay } from "@/lib/ph-compliance";
 
@@ -16,7 +16,12 @@ export async function GET(request: Request) {
   const organizationId = Number(url.searchParams.get("organizationId") ?? 1);
   const employeeId = Number(url.searchParams.get("employeeId") ?? 0);
 
-  const denied = await assertMembership(user.id, organizationId);
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_PAYROLL_ROLES,
+    "Your role is not allowed to manage this HR workflow.",
+  );
   if (denied) return denied;
 
   const filter = employeeId > 0
@@ -65,7 +70,12 @@ export async function POST(request: Request) {
   const lastDay = String(body.lastDay ?? new Date().toISOString().slice(0, 10));
   const unusedLeaveCredits = Number(body.unusedLeaveCredits ?? 0);
 
-  const denied = await assertMembership(user.id, organizationId);
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_PAYROLL_ROLES,
+    "Your role is not allowed to manage this HR workflow.",
+  );
   if (denied) return denied;
 
   const [employee] = await db.select().from(employees).where(eq(employees.id, employeeId)).limit(1);
@@ -141,7 +151,12 @@ export async function PATCH(request: Request) {
   const [sep] = await db.select().from(separationRecords).where(eq(separationRecords.id, id)).limit(1);
   if (!sep) return Response.json({ error: "Separation record not found." }, { status: 404 });
 
-  const denied = await assertMembership(user.id, sep.organizationId);
+  const denied = await assertOrganizationRole(
+    user.id,
+    sep.organizationId,
+    PEOPLE_PAYROLL_ROLES,
+    "Your role is not allowed to manage separation and final pay.",
+  );
   if (denied) return denied;
 
   if (action === "clearance") {

@@ -4,7 +4,7 @@ import { employees, provisioningTasks } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { ensureLifecycleProvisioning } from "@/lib/provisioning";
-import { assertMembership } from "@/lib/access";
+import { assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,12 @@ export async function GET(request: Request) {
   const organizationId = Number(searchParams.get("organizationId") ?? "1");
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
-  const deniedOrg = await assertMembership(user.id, organizationId);
+  const deniedOrg = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_ADMIN_ROLES,
+    "Your role is not allowed to view this HR workflow.",
+  );
   if (deniedOrg) return deniedOrg;
   await ensureLifecycleProvisioning(organizationId);
 
@@ -48,7 +53,12 @@ export async function PATCH(request: Request) {
 
   const [target] = await db.select({ organizationId: provisioningTasks.organizationId }).from(provisioningTasks).where(eq(provisioningTasks.id, id)).limit(1);
   if (!target) return Response.json({ error: "Task not found." }, { status: 404 });
-  const deniedTask = await assertMembership(user.id, target.organizationId);
+  const deniedTask = await assertOrganizationRole(
+    user.id,
+    target.organizationId,
+    PEOPLE_ADMIN_ROLES,
+    "Your role is not allowed to update provisioning tasks.",
+  );
   if (deniedTask) return deniedTask;
 
   const [row] = await db.update(provisioningTasks).set({

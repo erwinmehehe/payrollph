@@ -71,7 +71,7 @@ export function OverviewView({
         sublabel: `${run.periodLabel} · ${run.employeeCount} people`,
         segments: [
           { key: "net", value: net, color: "var(--brand)" },
-          { key: "deductions", value: Math.max(gross - net, 0), color: "var(--active-bright)" },
+          { key: "deductions", value: Math.max(gross - net, 0), color: "#c5c7ce" },
         ],
       };
     });
@@ -128,7 +128,7 @@ export function OverviewView({
               </div>
               <div>
                 <span>Exceptions</span>
-                <strong style={{ color: currentRun.exceptions ? "#ffc46b" : undefined }}>{currentRun.exceptions}</strong>
+                <strong style={{ color: currentRun.exceptions ? "var(--review)" : undefined }}>{currentRun.exceptions}</strong>
               </div>
             </div>
           </div>

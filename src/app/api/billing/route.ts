@@ -2,7 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { invoices, organizations, subscriptions } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { assertMembership } from "@/lib/access";
+import { assertOrganizationRole, BILLING_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getEntitlements, type PlanId } from "@/lib/billing";
 import { createPaymongoCheckout } from "@/lib/paymongo";
@@ -24,7 +24,12 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const organizationId = Number(searchParams.get("organizationId") ?? "1");
-  const denied = await assertMembership(user.id, organizationId);
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    BILLING_ADMIN_ROLES,
+    "Only billing administrators can view or change subscription billing.",
+  );
   if (denied) return denied;
 
   const [entitlements, invoiceList, [org]] = await Promise.all([
@@ -61,7 +66,12 @@ export async function POST(request: Request) {
   if (!isPlan(targetPlan)) return Response.json({ error: "Unknown plan." }, { status: 422 });
   if (targetPlan === "Solo") return Response.json({ error: "Solo is self-service and does not require checkout." }, { status: 422 });
 
-  const denied = await assertMembership(user.id, organizationId);
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    BILLING_ADMIN_ROLES,
+    "Only billing administrators can view or change subscription billing.",
+  );
   if (denied) return denied;
 
   if (!process.env.PAYMONGO_SECRET_KEY) {

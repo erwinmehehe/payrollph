@@ -1,7 +1,7 @@
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { REPORT_DEFINITIONS, reportToCsv, runReport, type ReportKey } from "@/lib/reports";
-import { assertMembership } from "@/lib/access";
+import { assertOrganizationRole, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -12,8 +12,16 @@ export async function GET(request: Request) {
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
   const { searchParams } = new URL(request.url);
-  const organizationId = Number(searchParams.get("organizationId") ?? "1");
-  const deniedOrg = await assertMembership(user.id, organizationId);
+  const organizationId = Number(searchParams.get("organizationId"));
+  if (!Number.isInteger(organizationId)) {
+    return Response.json({ error: "organizationId is required." }, { status: 400 });
+  }
+  const deniedOrg = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_PAYROLL_ROLES,
+    "Only People or payroll administrators can view company analytics.",
+  );
   if (deniedOrg) return deniedOrg;
   const key = (searchParams.get("key") ?? "") as ReportKey;
   const format = searchParams.get("format") ?? "json";

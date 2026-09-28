@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, lte } from "drizzle-orm";
 import { db, pool } from "@/db";
 import {
   calamityAdvisories,
@@ -8,7 +8,6 @@ import {
   employees,
   expenseClaims,
   leaveConversions,
-  loanPayments,
   orgUnits,
   payrollEntries,
   payrollJobs,
@@ -54,7 +53,13 @@ export async function enqueuePayrollRun(runId: number, chunkSize = DEFAULT_CHUNK
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) throw new Error("Payroll run not found");
 
-  const employeeRows = await db.select().from(employees).where(eq(employees.organizationId, run.organizationId)).orderBy(asc(employees.id));
+  const employeeWhere = run.scopeOrgUnitId
+    ? and(
+        eq(employees.organizationId, run.organizationId),
+        eq(employees.orgUnitId, run.scopeOrgUnitId),
+      )
+    : eq(employees.organizationId, run.organizationId);
+  const employeeRows = await db.select().from(employees).where(employeeWhere).orderBy(asc(employees.id));
   const totalChunks = Math.max(1, Math.ceil(employeeRows.length / chunkSize));
 
   await db.delete(payrollJobs).where(eq(payrollJobs.payrollRunId, runId));
@@ -85,31 +90,60 @@ export async function enqueuePayrollRun(runId: number, chunkSize = DEFAULT_CHUNK
     actor: "System",
     action: "Payroll job queued",
     resource: run.periodLabel,
-    metadata: { runId, totalChunks, chunkSize, ruleVersion: RULE_VERSION },
+    metadata: {
+      runId,
+      totalChunks,
+      chunkSize,
+      ruleVersion: RULE_VERSION,
+      periodStart: run.periodStart,
+      periodEnd: run.periodEnd,
+      scopeOrgUnitId: run.scopeOrgUnitId,
+    },
   });
 
   return { runId, totalChunks, employeeCount: employeeRows.length };
 }
 
-export async function processNextPayrollJob(workerId = `worker-${process.pid}`) {
+export async function processNextPayrollJob(
+  workerId = `worker-${process.pid}`,
+  targetRunId?: number,
+) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const claim = await client.query<{
-      id: number;
-      payroll_run_id: number;
-      organization_id: number;
-      chunk_index: number;
-      chunk_size: number;
-      attempts: number;
-    }>(
-      `SELECT id, payroll_run_id, organization_id, chunk_index, chunk_size, attempts
-       FROM payroll_jobs
-       WHERE status IN ('queued', 'failed')
-       ORDER BY id
-       FOR UPDATE SKIP LOCKED
-       LIMIT 1`,
-    );
+    const claim = targetRunId
+      ? await client.query<{
+          id: number;
+          payroll_run_id: number;
+          organization_id: number;
+          chunk_index: number;
+          chunk_size: number;
+          attempts: number;
+        }>(
+          `SELECT id, payroll_run_id, organization_id, chunk_index, chunk_size, attempts
+           FROM payroll_jobs
+           WHERE status IN ('queued', 'failed')
+             AND payroll_run_id = $1
+           ORDER BY id
+           FOR UPDATE SKIP LOCKED
+           LIMIT 1`,
+          [targetRunId],
+        )
+      : await client.query<{
+          id: number;
+          payroll_run_id: number;
+          organization_id: number;
+          chunk_index: number;
+          chunk_size: number;
+          attempts: number;
+        }>(
+          `SELECT id, payroll_run_id, organization_id, chunk_index, chunk_size, attempts
+           FROM payroll_jobs
+           WHERE status IN ('queued', 'failed')
+           ORDER BY id
+           FOR UPDATE SKIP LOCKED
+           LIMIT 1`,
+        );
 
     if (claim.rowCount === 0) {
       await client.query("COMMIT");
@@ -172,13 +206,17 @@ export async function processNextPayrollJob(workerId = `worker-${process.pid}`) 
   }
 }
 
-export async function drainPayrollQueue(maxJobs = 50) {
+export async function drainPayrollQueue(maxJobs = 50, targetRunId?: number) {
   const results = [];
   for (let i = 0; i < maxJobs; i += 1) {
-    const result = await processNextPayrollJob();
+    const result = await processNextPayrollJob(undefined, targetRunId);
     if (!result.processed) break;
     results.push(result);
-    if (result.done) break;
+
+    // Synchronous API callers drain one requested run to completion. A global
+    // background worker should keep moving through other queued runs instead
+    // of stopping merely because one run finished.
+    if (targetRunId && result.done) break;
   }
   return results;
 }
@@ -192,8 +230,14 @@ async function processPayrollChunk(input: {
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, input.runId));
   if (!run) throw new Error("Payroll run missing");
 
+  const employeeWhere = run.scopeOrgUnitId
+    ? and(
+        eq(employees.organizationId, input.organizationId),
+        eq(employees.orgUnitId, run.scopeOrgUnitId),
+      )
+    : eq(employees.organizationId, input.organizationId);
   const allEmployees = await db.select().from(employees)
-    .where(eq(employees.organizationId, input.organizationId))
+    .where(employeeWhere)
     .orderBy(asc(employees.id));
   const chunk = allEmployees.slice(input.chunkIndex * input.chunkSize, (input.chunkIndex + 1) * input.chunkSize);
   if (chunk.length === 0) {
@@ -204,6 +248,8 @@ async function processPayrollChunk(input: {
   const advisories = await db.select().from(calamityAdvisories).where(and(
     eq(calamityAdvisories.organizationId, input.organizationId),
     eq(calamityAdvisories.active, true),
+    lte(calamityAdvisories.startDate, run.periodEnd),
+    gte(calamityAdvisories.endDate, run.periodStart),
   ));
   const units = await db.select().from(orgUnits).where(eq(orgUnits.organizationId, input.organizationId));
   const unitMap = new Map(units.map((unit) => [unit.id, unit]));
@@ -309,7 +355,12 @@ async function processPayrollChunk(input: {
   let chunkExceptions = 0;
 
   for (const employee of chunk) {
-    const punches = await db.select().from(timePunches).where(eq(timePunches.employeeId, employee.id));
+    const punches = await db.select().from(timePunches).where(and(
+      eq(timePunches.organizationId, input.organizationId),
+      eq(timePunches.employeeId, employee.id),
+      gte(timePunches.workDate, run.periodStart),
+      lte(timePunches.workDate, run.periodEnd),
+    ));
     const unit = employee.orgUnitId ? unitMap.get(employee.orgUnitId) : null;
     const calc = calculateEmployeePay({
       employee,
@@ -378,51 +429,6 @@ async function processPayrollChunk(input: {
       ruleVersion: RULE_VERSION,
     });
 
-    // Mark the included items as settled against this run so a re-run cannot
-    // pay the same claim or recover the same advance twice.
-    const paidClaimIds = (claimsByEmployee.get(employee.id) ?? []).map((c) => c.id);
-    if (paidClaimIds.length) {
-      await db.update(expenseClaims)
-        .set({ status: "paid", payrollRunId: input.runId })
-        .where(inArray(expenseClaims.id, paidClaimIds));
-    }
-    const repaidAdvanceIds = (advancesByEmployee.get(employee.id) ?? []).map((a) => a.id);
-    if (repaidAdvanceIds.length) {
-      await db.update(earnedWageRequests)
-        .set({ status: "repaid", payrollRunId: input.runId })
-        .where(inArray(earnedWageRequests.id, repaidAdvanceIds));
-    }
-
-    // Record loan payments and deduct from remaining balance
-    for (const l of calc.appliedLoans ?? []) {
-      if (l.deductAmount > 0) {
-        await db.insert(loanPayments).values({
-          loanId: l.loanId,
-          payrollRunId: input.runId,
-          amount: money(l.deductAmount),
-          paymentDate: run.payDate,
-          reference: `Auto-deduct ${run.periodLabel}`,
-        });
-        const [loanRec] = await db.select().from(employeeLoans).where(eq(employeeLoans.id, l.loanId));
-        if (loanRec) {
-          const newBal = Math.max(0, Number(loanRec.remainingBalance) - l.deductAmount);
-          const newPaid = Number(loanRec.totalPaid) + l.deductAmount;
-          await db.update(employeeLoans).set({
-            remainingBalance: money(newBal),
-            totalPaid: money(newPaid),
-            status: newBal <= 0 ? "paid_off" : "active",
-          }).where(eq(employeeLoans.id, l.loanId));
-        }
-      }
-    }
-
-    // Settle leave cash conversions
-    const paidConvIds = (conversionsByEmployee.get(employee.id) ?? []).map((c) => c.id);
-    if (paidConvIds.length) {
-      await db.update(leaveConversions)
-        .set({ status: "paid", payrollRunId: input.runId })
-        .where(inArray(leaveConversions.id, paidConvIds));
-    }
   }
 
   const processedChunks = input.chunkIndex + 1;
@@ -614,10 +620,8 @@ function calculateEmployeePay(input: {
   const conversionTotal = conversionLines.reduce((sum, c) => sum + c.amountNum, 0);
 
   // Employee Loans (SSS Salary Loan, Pag-IBIG MPL/Calamity, Company Loan)
-  const appliedLoans: Array<{ loanId: number; deductAmount: number; loanType: string }> = [];
   const loanLines = (input.loans ?? []).map((loan) => {
     const deductAmount = Math.min(Number(loan.cutoffDeduction), Number(loan.remainingBalance));
-    appliedLoans.push({ loanId: loan.id, deductAmount, loanType: loan.loanType });
     return {
       code: `LOAN-${loan.id}`,
       label: `Loan, ${loan.loanType}`,
@@ -708,7 +712,7 @@ function calculateEmployeePay(input: {
     notes: [...holidayNotes, ...calamityNotes, ...punchNotes],
   });
 
-  return { gross, deductions, net, status, lineItems, trace, payslipText, appliedLoans };
+  return { gross, deductions, net, status, lineItems, trace, payslipText };
 }
 
 function buildPayslipText(input: {

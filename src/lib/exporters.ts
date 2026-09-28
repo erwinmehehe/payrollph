@@ -1,7 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { bankTemplates, employees, payrollEntries, payrollRuns } from "@/db/schema";
-import { computeSss } from "@/lib/payroll-rules";
+import { bankTemplates, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
+import { computePagIbig, computePhilHealth, computeSss } from "@/lib/payroll-rules";
 
 const csv = (value: unknown) => `"${String(value ?? "").replaceAll('"', '""')}"`;
 const round2 = (value: number) => Math.round(value * 100) / 100;
@@ -191,26 +191,34 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     // ₱30 at MSC ≥ ₱15,000, most employees above roughly ₱15,000/month basic
     // pay were being under-reported).
     const REGULAR_SS_CAP = 20_000;
+    const missingSss = entries.filter(({ employee }) => !employee.sssNo);
+    if (missingSss.length > 0) {
+      throw new Error(
+        `SSS R-3 cannot be generated: ${missingSss.length} employee(s) are missing an SSS number: ${missingSss.map(({ employee }) => employee.employeeNo).join(", ")}.`,
+      );
+    }
+
     const body = [
-      "SSSNo,Name,MSC,SS_Regular,SS_MPF,SS_Employee,EC_Employer,Total_Employee_Plus_EC",
+      "SSSNo,LastName,FirstName,MiddleName,MSC,SS_Regular,SS_MPF,SS_Employee,SS_Employer,EC_Employer,Total_Contribution",
       ...entries.map(({ employee, entry }) => {
         const monthlyBasic = Number(employee.basicRate ?? entry.grossPay ?? 0);
         const sss = computeSss(monthlyBasic);
         const regularMsc = Math.min(sss.monthlySalaryCredit, REGULAR_SS_CAP);
         const mpfMsc = Math.max(0, sss.monthlySalaryCredit - REGULAR_SS_CAP);
-        // Employee's 5% share, split proportionally between the regular and
-        // MPF sub-accounts by their share of the total MSC.
         const employeeRegular = round2(sss.employee * (regularMsc / sss.monthlySalaryCredit));
         const employeeMpf = round2(sss.employee - employeeRegular);
         return [
-          employee.employeeNo,
-          `${employee.lastName}, ${employee.firstName}`,
+          employee.sssNo,
+          employee.lastName,
+          employee.firstName,
+          employee.middleName ?? "",
           sss.monthlySalaryCredit.toFixed(2),
           employeeRegular.toFixed(2),
           employeeMpf.toFixed(2),
           sss.employee.toFixed(2),
+          sss.employer.toFixed(2),
           sss.employerEC.toFixed(2),
-          (sss.employee + sss.employerEC).toFixed(2),
+          sss.total.toFixed(2),
         ].map(csv).join(",");
       }),
     ].join("\n");
@@ -218,25 +226,67 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
   }
 
   if (kind === "philhealth-rf1") {
+    const missingPins = entries.filter(({ employee }) => !employee.philHealthNo);
+    if (missingPins.length > 0) {
+      throw new Error(
+        `PhilHealth RF-1 cannot be generated: ${missingPins.length} employee(s) are missing a PhilHealth PIN: ${missingPins.map(({ employee }) => employee.employeeNo).join(", ")}.`,
+      );
+    }
+
     const body = [
-      "PIN,Name,EmployeeShare,EmployerShare",
+      "PIN,LastName,FirstName,MiddleName,MonthlySalaryBase,EmployeeShare,EmployerShare,TotalPremium",
       ...entries.map(({ employee, entry }) => {
-        const ph = Math.abs(Number((entry.lineItems as Array<{ code: string; amount: string }> | undefined)?.find?.((item) => item.code === "PHIC")?.amount ?? 0));
-        return [employee.employeeNo, `${employee.lastName}, ${employee.firstName}`, ph.toFixed(2), ph.toFixed(2)].map(csv).join(",");
+        const monthlyBasic = Number(employee.basicRate ?? entry.grossPay ?? 0);
+        const ph = computePhilHealth(monthlyBasic);
+        return [
+          employee.philHealthNo,
+          employee.lastName,
+          employee.firstName,
+          employee.middleName ?? "",
+          ph.base.toFixed(2),
+          ph.employee.toFixed(2),
+          ph.employer.toFixed(2),
+          (ph.employee + ph.employer).toFixed(2),
+        ].map(csv).join(",");
       }),
     ].join("\n");
-    return { filename: `philhealth-rf1-draft-${run.id}.csv`, contentType: "text/csv", body: `${headerNote}\n${body}` };
+    return {
+      filename: `philhealth-rf1-draft-${run.id}.csv`,
+      contentType: "text/csv",
+      body: `${headerNote}\n# Full monthly premium amounts are recomputed from monthly basic salary; this file is a portal-entry aid, not an EPRS acknowledgement.\n${body}`,
+    };
   }
 
   if (kind === "pagibig-mcrf") {
+    const missingMids = entries.filter(({ employee }) => !employee.pagIbigNo);
+    if (missingMids.length > 0) {
+      throw new Error(
+        `Pag-IBIG MCRF cannot be generated: ${missingMids.length} employee(s) are missing a Pag-IBIG MID: ${missingMids.map(({ employee }) => employee.employeeNo).join(", ")}.`,
+      );
+    }
+
     const body = [
-      "PagIBIGNo,Name,EE,ER",
+      "PagIBIGMID,LastName,FirstName,MiddleName,FundSalary,EmployeeShare,EmployerShare,TotalContribution",
       ...entries.map(({ employee, entry }) => {
-        const hd = Math.abs(Number((entry.lineItems as Array<{ code: string; amount: string }> | undefined)?.find?.((item) => item.code === "HDMF")?.amount ?? 0));
-        return [employee.employeeNo, `${employee.lastName}, ${employee.firstName}`, hd.toFixed(2), hd.toFixed(2)].map(csv).join(",");
+        const monthlyBasic = Number(employee.basicRate ?? entry.grossPay ?? 0);
+        const hd = computePagIbig(monthlyBasic);
+        return [
+          employee.pagIbigNo,
+          employee.lastName,
+          employee.firstName,
+          employee.middleName ?? "",
+          hd.fundSalary.toFixed(2),
+          hd.employee.toFixed(2),
+          hd.employer.toFixed(2),
+          hd.total.toFixed(2),
+        ].map(csv).join(",");
       }),
     ].join("\n");
-    return { filename: `pagibig-mcrf-draft-${run.id}.csv`, contentType: "text/csv", body: `${headerNote}\n${body}` };
+    return {
+      filename: `pagibig-mcrf-draft-${run.id}.csv`,
+      contentType: "text/csv",
+      body: `${headerNote}\n# Full monthly Pag-IBIG mandatory contributions are recomputed from monthly basic salary; use as an eSRS/portal-entry aid until portal acceptance is recorded.\n${body}`,
+    };
   }
 
   if (kind === "bir-1601c") {
@@ -251,36 +301,53 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     return { filename: `bir-1601c-draft-${run.id}.csv`, contentType: "text/csv", body: `${headerNote}\n${body}` };
   }
 
-  // Alphalist / 2316 style summary draft.
-  //
-  // This is NOT yet the exact ADES-importable .DAT layout, BIR publishes
-  // that layout and it's reproducible, but doing it correctly needs two
-  // things this codebase doesn't have yet: a separate middle-name field on
-  // the employee record (BIR's layout wants last/first/middle as distinct
-  // columns) and the actual field-position spec transcribed carefully rather
-  // than guessed. Shipping a fabricated byte layout for a tax filing would
-  // be worse than this honest DRAFT. What IS safe to fix without the full
-  // spec: BIR's TIN convention is 9 digits + a separate branch code, with no
-  // hyphens, so normalize that much correctly.
-  const splitTin = (raw: string | null) => {
-    const digits = (raw ?? "").replace(/\D/g, "");
-    return { tin: digits.slice(0, 9), branchCode: digits.slice(9) || "0000" };
-  };
+  // BIR annual summary input. This remains a DRAFT source extract, not the
+  // exact ADES .DAT contract. Unlike the older implementation, it never
+  // substitutes an internal employee number for a government TIN.
+  const [organization] = await db.select().from(organizations)
+    .where(eq(organizations.id, run.organizationId))
+    .limit(1);
+  const employerTin = (organization?.birTin ?? "").replace(/\D/g, "");
+  const employerBranchCode = (organization?.birBranchCode ?? "").replace(/\D/g, "").padStart(4, "0");
+
+  if (employerTin.length !== 9 || employerBranchCode.length !== 4) {
+    throw new Error("BIR annual draft cannot be generated: employer BIR TIN and 4-digit branch code are required.");
+  }
+
+  const missingTin = entries.filter(({ employee }) => (employee.tin ?? "").replace(/\D/g, "").length !== 9);
+  const missingBranch = entries.filter(({ employee }) => (employee.tinBranchCode ?? "").replace(/\D/g, "").length !== 4);
+  if (missingTin.length > 0) {
+    throw new Error(
+      `BIR annual draft cannot be generated: ${missingTin.length} employee(s) are missing a valid 9-digit TIN: ${missingTin.map(({ employee }) => employee.employeeNo).join(", ")}.`,
+    );
+  }
+  if (missingBranch.length > 0) {
+    throw new Error(
+      `BIR annual draft cannot be generated: ${missingBranch.length} employee(s) are missing a 4-digit BIR branch code: ${missingBranch.map(({ employee }) => employee.employeeNo).join(", ")}.`,
+    );
+  }
+
   const body = [
-    "TIN,BranchCode,LastName,FirstName,GrossCompensation,TaxWithheld,MWE,Status",
-    ...entries.map(({ employee, entry }) => {
-      const { tin, branchCode } = splitTin(employee.tin);
-      return [
-        tin || employee.employeeNo,
-        branchCode,
-        employee.lastName,
-        employee.firstName,
-        entry.grossPay,
-        Math.abs(Number((entry.lineItems as Array<{ code: string; amount: string }> | undefined)?.find?.((item) => item.code === "WHT")?.amount ?? 0)).toFixed(2),
-        employee.mwe ? "Y" : "N",
-        "DRAFT",
-      ].map(csv).join(",");
-    }),
+    "EmployerTIN,EmployerBranchCode,EmployeeTIN,EmployeeBranchCode,LastName,FirstName,MiddleName,Nationality,GrossCompensation,TaxWithheld,MWE,Status",
+    ...entries.map(({ employee, entry }) => [
+      employerTin,
+      employerBranchCode,
+      (employee.tin ?? "").replace(/\D/g, ""),
+      (employee.tinBranchCode ?? "").replace(/\D/g, ""),
+      employee.lastName,
+      employee.firstName,
+      employee.middleName ?? "",
+      employee.nationality ?? "Filipino",
+      entry.grossPay,
+      Math.abs(Number((entry.lineItems as Array<{ code: string; amount: string }> | undefined)?.find?.((item) => item.code === "WHT")?.amount ?? 0)).toFixed(2),
+      employee.mwe ? "Y" : "N",
+      "DRAFT",
+    ].map(csv).join(",")),
   ].join("\n");
-  return { filename: `bir-alphalist-2316-draft-${run.id}.csv`, contentType: "text/csv", body: `${headerNote}\n${body}` };
+
+  return {
+    filename: `bir-alphalist-2316-draft-${run.id}.csv`,
+    contentType: "text/csv",
+    body: `${headerNote}\n# Source extract only. Validate and transform to the exact current BIR 1604-C/ADES DAT contract before filing.\n${body}`,
+  };
 }

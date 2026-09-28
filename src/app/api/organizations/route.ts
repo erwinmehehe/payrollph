@@ -27,13 +27,48 @@ export async function PUT(request: Request) {
     return Response.json({ error: `Your role (${role || "member"}) cannot edit the organization profile.` }, { status: 403 });
   }
 
-  const name = String(body.name ?? "").trim();
-  const legalName = String(body.legalName ?? "").trim();
+  const [existing] = await db.select().from(organizations)
+    .where(eq(organizations.id, organizationId))
+    .limit(1);
+  if (!existing) return Response.json({ error: "Organization not found." }, { status: 404 });
+
+  const name = body.name === undefined ? existing.name : String(body.name ?? "").trim();
+  const legalName = body.legalName === undefined ? existing.legalName : String(body.legalName ?? "").trim();
   if (name.length < 2) return Response.json({ error: "Company name must be at least 2 characters." }, { status: 422 });
+
+  const clean = (value: unknown) => {
+    if (value === undefined) return undefined;
+    const text = String(value ?? "").trim();
+    return text || null;
+  };
+  const birTinRaw = clean(body.birTin);
+  const birTin = birTinRaw === undefined || birTinRaw === null ? birTinRaw : birTinRaw.replace(/\D/g, "");
+  if (typeof birTin === "string" && birTin.length !== 9) {
+    return Response.json({ error: "BIR employer TIN must contain exactly 9 digits." }, { status: 422 });
+  }
+  const birBranchRaw = clean(body.birBranchCode);
+  const birBranchCode = birBranchRaw === undefined || birBranchRaw === null
+    ? birBranchRaw
+    : birBranchRaw.replace(/\D/g, "").padStart(4, "0");
+  if (typeof birBranchCode === "string" && birBranchCode.length !== 4) {
+    return Response.json({ error: "BIR branch code must contain at most 4 digits." }, { status: 422 });
+  }
+
+  const governmentFields = {
+    birTin,
+    birBranchCode,
+    sssEmployerNo: clean(body.sssEmployerNo),
+    philHealthEmployerNo: clean(body.philHealthEmployerNo),
+    pagIbigEmployerNo: clean(body.pagIbigEmployerNo),
+  };
+  const governmentPatch = Object.fromEntries(
+    Object.entries(governmentFields).filter(([, value]) => value !== undefined),
+  );
 
   const [updated] = await db.update(organizations).set({
     name,
     legalName: legalName || name,
+    ...governmentPatch,
   }).where(eq(organizations.id, organizationId)).returning();
 
   await recordAuditEvent({
@@ -41,7 +76,10 @@ export async function PUT(request: Request) {
     actor: user.name,
     action: "Organization profile updated",
     resource: updated.name,
-    metadata: { legalName: updated.legalName },
+    metadata: {
+      legalName: updated.legalName,
+      governmentFieldsUpdated: Object.keys(governmentPatch),
+    },
   });
 
   return Response.json({ ok: true, organization: updated });

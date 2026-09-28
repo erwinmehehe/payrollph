@@ -1,4 +1,4 @@
-import { count, eq } from "drizzle-orm";
+import { count, eq, inArray } from "drizzle-orm";
 import { asc } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -55,9 +55,29 @@ export const DEMO_MODE = process.env.DEMO_MODE === "true";
 
 export async function ensureSeedData() {
   const [{ value }] = await db.select({ value: count() }).from(organizations);
-  if (value === 0 && !DEMO_MODE) return;
+
+  // Production may bootstrap global reference data, but it must never seed
+  // fictional employees, loans, disciplinary cases, devices, or demo payrolls
+  // into a real customer workspace.
+  if (!DEMO_MODE) {
+    await ensureReferenceData();
+    return;
+  }
+
   if (value > 0) {
-    if (DEMO_MODE) await ensureDemoUser();
+    await ensureReferenceData();
+
+    const demoOrgs = await db
+      .select()
+      .from(organizations)
+      .where(inArray(organizations.name, ["Loom & Local", "Mantra Studio", "Santos Retail Group", "Mika, self-employed"]));
+
+    // Never graft demo fixtures onto an existing customer database. If this
+    // deployment did not start as a demo database, the public demo endpoint
+    // stays unavailable until a dedicated demo database is provisioned.
+    if (!demoOrgs.some((org) => org.name === "Loom & Local")) return;
+
+    await ensureDemoUser(demoOrgs.map((org) => org.id));
     await ensureExtendedSeed();
     return;
   }
@@ -83,10 +103,13 @@ export async function ensureSeedData() {
 
   for (const [orgIndex, org] of [loom, mantra, santos].entries()) {
     const orgPeople = people.slice(0, orgIndex === 1 ? 7 : 8);
-    const unit = units[orgIndex === 0 ? 2 : orgIndex === 1 ? 4 : 6];
+    const defaultUnit = units[orgIndex === 0 ? 2 : orgIndex === 1 ? 4 : 6];
     await db.insert(employees).values(orgPeople.map((person, index) => ({
       organizationId: org.id,
-      orgUnitId: unit.id,
+      orgUnitId:
+        orgIndex === 0
+          ? (index < 3 ? units[0].id : index < 5 ? units[1].id : units[2].id)
+          : defaultUnit.id,
       employeeNo: `${orgIndex === 0 ? "LL" : orgIndex === 1 ? "MS" : "SR"}-${String(index + 101).padStart(3, "0")}`,
       firstName: person[0],
       lastName: person[1],
@@ -157,9 +180,9 @@ export async function ensureSeedData() {
   await db.insert(timePunches).values(punchRows);
 
   const [processingRun, draftRun, releasedRun] = await db.insert(payrollRuns).values([
-    { organizationId: loom.id, periodLabel: "Mar 1–15, 2026", scopeLabel: "All locations", status: "Needs review", payDate: "2026-03-18", employeeCount: 8, grossPay: "346820.00", netPay: "285614.42", exceptions: 2, ruleVersion: "PH-2026.01", processedChunks: 1, totalChunks: 1 },
-    { organizationId: loom.id, periodLabel: "Feb 16–28, 2026", scopeLabel: "Makati HQ", status: "Draft", payDate: "2026-03-05", employeeCount: 6, grossPay: "261400.00", netPay: "218909.88", exceptions: 0, ruleVersion: "PH-2026.01" },
-    { organizationId: loom.id, periodLabel: "Feb 1–15, 2026", scopeLabel: "All locations", status: "Released", payDate: "2026-02-18", employeeCount: 8, grossPay: "341200.00", netPay: "281950.37", exceptions: 0, ruleVersion: "PH-2026.01" },
+    { organizationId: loom.id, periodLabel: "Mar 1–15, 2026", periodStart: "2026-03-01", periodEnd: "2026-03-15", scopeLabel: "All locations", scopeOrgUnitId: null, status: "Needs review", payDate: "2026-03-18", employeeCount: 8, grossPay: "346820.00", netPay: "285614.42", exceptions: 2, ruleVersion: "PH-2026.01", processedChunks: 1, totalChunks: 1 },
+    { organizationId: loom.id, periodLabel: "Feb 16–28, 2026", periodStart: "2026-02-16", periodEnd: "2026-02-28", scopeLabel: "Makati HQ", scopeOrgUnitId: units[0].id, status: "Draft", payDate: "2026-03-05", employeeCount: 3, grossPay: "261400.00", netPay: "218909.88", exceptions: 0, ruleVersion: "PH-2026.01" },
+    { organizationId: loom.id, periodLabel: "Feb 1–15, 2026", periodStart: "2026-02-01", periodEnd: "2026-02-15", scopeLabel: "All locations", scopeOrgUnitId: null, status: "Released", payDate: "2026-02-18", employeeCount: 8, grossPay: "341200.00", netPay: "281950.37", exceptions: 0, ruleVersion: "PH-2026.01" },
   ]).returning();
 
   await db.insert(payrollEntries).values(loomPeople.map((employee, index) => ({
@@ -231,6 +254,49 @@ export async function ensureSeedData() {
   void releasedRun;
 }
 
+async function ensureReferenceData() {
+  const orgs = await db
+    .select()
+    .from(organizations)
+    .where(inArray(organizations.name, ["Loom & Local", "Mantra Studio", "Santos Retail Group", "Mika, self-employed"]));
+  for (const org of orgs) {
+    await ensureSubscription(org.id);
+  }
+
+  const [{ value: pricingCount }] = await db.select({ value: count() }).from(pricingPlans);
+  if (pricingCount === 0) {
+    await db.insert(pricingPlans).values(DEFAULT_PRICING_PLANS.map((plan) => ({ ...plan })));
+  }
+
+  const [{ value: wageCount }] = await db.select({ value: count() }).from(minWageOrders);
+  if (wageCount === 0) {
+    await db.insert(minWageOrders).values(WAGE_ORDERS.map((row) => ({
+      region: row.region,
+      dailyRate: row.dailyRate.toFixed(2),
+      wageOrder: row.wageOrder,
+      effectiveOn: row.effectiveOn,
+    })));
+  }
+
+  const [{ value: holidayCount }] = await db.select({ value: count() }).from(holidays);
+  if (holidayCount === 0) {
+    await db.insert(holidays).values(NATIONAL_HOLIDAYS_2026.map((row) => ({
+      holidayDate: row.date,
+      name: row.name,
+      kind: row.kind,
+    })));
+  }
+
+  const [{ value: templateCount }] = await db.select({ value: count() }).from(bankTemplates);
+  if (templateCount === 0) {
+    await db.insert(bankTemplates).values([
+      { name: "BDO DAT", version: "2026.01", format: "DAT", mappings: { account: "column_3", amount: "column_8", name: "column_5" } },
+      { name: "BPI / UnionBank", version: "2026.01", format: "CSV", mappings: { account: "account_number", amount: "net_pay", name: "employee_name" } },
+      { name: "GCash Disbursement", version: "2026.01", format: "CSV", mappings: { account: "mobile", amount: "net_pay", name: "employee_name" } },
+    ]);
+  }
+}
+
 async function ensureDemoUser(organizationIds?: number[]) {
   if (!DEMO_MODE) return;
   const existing = await db.select().from(users).where(eq(users.email, "celine@linaw.ph")).limit(1);
@@ -248,7 +314,14 @@ async function ensureDemoUser(organizationIds?: number[]) {
     backupCodes: generateBackupCodes(),
   }).returning();
 
-  const orgIds = organizationIds ?? (await db.select().from(organizations)).map((org) => org.id);
+  const orgIds =
+    organizationIds ??
+    (
+      await db
+        .select()
+        .from(organizations)
+        .where(inArray(organizations.name, ["Loom & Local", "Mantra Studio", "Santos Retail Group", "Mika, self-employed"]))
+    ).map((org) => org.id);
   if (orgIds.length) {
     await db.insert(userOrganizations).values(orgIds.map((organizationId) => ({
       userId: user.id,
@@ -300,7 +373,11 @@ async function ensureExtendedSeed() {
     })));
   }
 
-  const [loom] = await db.select().from(organizations).orderBy(asc(organizations.id)).limit(1);
+  const [loom] = await db
+    .select()
+    .from(organizations)
+    .where(eq(organizations.name, "Loom & Local"))
+    .limit(1);
   if (!loom) return;
 
   await ensureLifecycleProvisioning(loom.id);

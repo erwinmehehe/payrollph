@@ -5,7 +5,7 @@ import { renderForm2316 } from "@/lib/annualization";
 import { getSessionUser } from "@/lib/auth";
 import { toCsv } from "@/lib/csv";
 import { runYearEndAnnualization } from "@/lib/year-end";
-import { assertMembership } from "@/lib/access";
+import { assertOrganizationRole, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,12 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const organizationId = Number(searchParams.get("organizationId") ?? "1");
-  const deniedOrg = await assertMembership(user.id, organizationId);
+  const deniedOrg = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PAYROLL_OPERATOR_ROLES,
+    "Only payroll operators can view year-end tax annualization.",
+  );
   if (deniedOrg) return deniedOrg;
   const taxYear = Number(searchParams.get("taxYear") ?? new Date().getFullYear());
   const format = searchParams.get("format") ?? "json";
@@ -31,15 +36,35 @@ export async function GET(request: Request) {
     ))
     .orderBy(desc(yearEndAdjustments.adjustment));
 
+  const [organization] = await db.select().from(organizations)
+    .where(eq(organizations.id, organizationId))
+    .limit(1);
+
+  const digits = (value: string | null | undefined) => (value ?? "").replace(/\D/g, "");
+  const employerTin = digits(organization?.birTin);
+  const employerBranch = digits(organization?.birBranchCode).padStart(4, "0");
+  const missingBirIdentity = rows.filter((row) =>
+    digits(row.employee.tin).length !== 9 ||
+    digits(row.employee.tinBranchCode).length !== 4
+  );
+
   if (format === "2316") {
     const match = rows.find((row) => row.employee.id === employeeId) ?? rows[0];
     if (!match) return Response.json({ error: "No annualization on record. Run it first." }, { status: 404 });
-    const [organization] = await db.select().from(organizations).where(eq(organizations.id, organizationId));
+    if (employerTin.length !== 9 || employerBranch.length !== 4) {
+      return Response.json({ error: "Employer BIR TIN and 4-digit branch code are required before generating Form 2316." }, { status: 422 });
+    }
+    if (digits(match.employee.tin).length !== 9 || digits(match.employee.tinBranchCode).length !== 4) {
+      return Response.json({ error: "Employee BIR TIN and 4-digit branch code are required before generating Form 2316." }, { status: 422 });
+    }
+
     const body = renderForm2316({
       taxYear,
       employerName: organization?.legalName ?? organization?.name ?? "Employer",
-      employeeName: `${match.employee.firstName} ${match.employee.lastName}`,
+      employerTin: `${employerTin}-${employerBranch}`,
+      employeeName: [match.employee.firstName, match.employee.middleName, match.employee.lastName].filter(Boolean).join(" "),
       employeeNo: match.employee.employeeNo,
+      employeeTin: `${digits(match.employee.tin)}-${digits(match.employee.tinBranchCode)}`,
       result: match.adjustment.breakdown as never,
     });
     return new Response(body, {
@@ -51,12 +76,44 @@ export async function GET(request: Request) {
   }
 
   if (format === "alphalist") {
+    if (employerTin.length !== 9 || employerBranch.length !== 4) {
+      return Response.json({ error: "Employer BIR TIN and 4-digit branch code are required before generating an Alphalist source extract." }, { status: 422 });
+    }
+    if (missingBirIdentity.length > 0) {
+      return Response.json({
+        error: "Every employee in the annualization needs a 9-digit BIR TIN and 4-digit branch code.",
+        employees: missingBirIdentity.map((row) => row.employee.employeeNo),
+      }, { status: 422 });
+    }
+
     const csv = toCsv({
-      columns: ["Employee No", "Last Name", "First Name", "MWE", "Gross Compensation", "Non-Taxable", "Taxable Income", "Tax Due", "Tax Withheld", "Adjustment", "Outcome"],
+      columns: [
+        "Employer TIN",
+        "Employer Branch",
+        "Employee TIN",
+        "Employee Branch",
+        "Last Name",
+        "First Name",
+        "Middle Name",
+        "Nationality",
+        "MWE",
+        "Gross Compensation",
+        "Non-Taxable",
+        "Taxable Income",
+        "Tax Due",
+        "Tax Withheld",
+        "Adjustment",
+        "Outcome",
+      ],
       rows: rows.map((row) => [
-        row.employee.employeeNo,
+        employerTin,
+        employerBranch,
+        digits(row.employee.tin),
+        digits(row.employee.tinBranchCode),
         row.employee.lastName,
         row.employee.firstName,
+        row.employee.middleName ?? "",
+        row.employee.nationality ?? "Filipino",
         row.adjustment.mwe ? "Y" : "N",
         row.adjustment.grossCompensation,
         row.adjustment.nonTaxable,
@@ -67,12 +124,15 @@ export async function GET(request: Request) {
         row.adjustment.outcome,
       ]),
     });
-    return new Response(`DRAFT ALPHALIST ${taxYear} - not validated against the BIR Alphalist module\n${csv}`, {
-      headers: {
-        "Content-Type": "text/csv",
-        "Content-Disposition": `attachment; filename=alphalist-draft-${taxYear}.csv`,
+    return new Response(
+      `DRAFT ALPHALIST SOURCE EXTRACT ${taxYear} - not an ADES .DAT file and not portal validated\n${csv}`,
+      {
+        headers: {
+          "Content-Type": "text/csv",
+          "Content-Disposition": `attachment; filename=alphalist-source-draft-${taxYear}.csv`,
+        },
       },
-    });
+    );
   }
 
   return Response.json({
@@ -107,7 +167,12 @@ export async function POST(request: Request) {
     return Response.json({ error: "organizationId and taxYear are required." }, { status: 400 });
   }
 
-  const deniedWrite = await assertMembership(user.id, organizationId);
+  const deniedWrite = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PAYROLL_OPERATOR_ROLES,
+    "Only payroll operators can run year-end tax annualization.",
+  );
   if (deniedWrite) return deniedWrite;
 
   const summary = await runYearEndAnnualization(organizationId, taxYear, user.name);

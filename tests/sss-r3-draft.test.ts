@@ -27,16 +27,20 @@ test("SSS R-3 draft reports correct EC and full monthly SSS for an employee abov
     organizationId: org.id,
     employeeNo: "SS-001",
     firstName: "Rico",
+    middleName: "M",
     lastName: "Bautista",
     title: "Staff",
     avatarInitials: "RB",
+    sssNo: "34-1234567-8",
     basicRate: "30000", // MSC clamps to 30,000 -> EC must be ₱30, not the old hardcoded ₱10
     startDate: "2026-01-01",
   }).returning();
 
   const [run] = await db.insert(payrollRuns).values({
     organizationId: org.id,
-    periodLabel: "Test Period",
+    periodLabel: "Sep 16–30, 2026",
+    periodStart: "2026-09-16",
+    periodEnd: "2026-09-30",
     payDate: "2026-09-30",
   }).returning();
 
@@ -57,6 +61,7 @@ test("SSS R-3 draft reports correct EC and full monthly SSS for an employee abov
   assert.ok(dataLine, "expected a data row for the seeded employee");
 
   // MSC 30,000 -> employee 5% = 1,500.00 (full month, not the stored 750 half-month figure).
+  assert.ok(dataLine!.includes("34-1234567-8"), "expected the real SSS number, not the internal employee number");
   assert.ok(dataLine!.includes("1500.00"), `expected full monthly SSS employee share of 1500.00, got: ${dataLine}`);
   // MSC 30,000 >= 15,000 -> EC must be 30.00, not the old hardcoded 10.00.
   assert.ok(dataLine!.includes("30.00"), `expected EC of 30.00 at this MSC, got: ${dataLine}`);

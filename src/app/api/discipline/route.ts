@@ -2,7 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { disciplinaryCases, employees } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { assertMembership } from "@/lib/access";
+import { assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +15,12 @@ export async function GET(request: Request) {
   const organizationId = Number(url.searchParams.get("organizationId") ?? 1);
   const employeeId = Number(url.searchParams.get("employeeId") ?? 0);
 
-  const denied = await assertMembership(user.id, organizationId);
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_ADMIN_ROLES,
+    "Your role is not allowed to manage this HR workflow.",
+  );
   if (denied) return denied;
 
   const filter = employeeId > 0
@@ -52,7 +57,12 @@ export async function POST(request: Request) {
   const incidentDate = String(body.incidentDate ?? new Date().toISOString().slice(0, 10));
   const nteDetails = String(body.nteDetails ?? "").trim();
 
-  const denied = await assertMembership(user.id, organizationId);
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_ADMIN_ROLES,
+    "Your role is not allowed to manage this HR workflow.",
+  );
   if (denied) return denied;
 
   if (!employeeId || !offense || !nteDetails) {
@@ -102,7 +112,12 @@ export async function PATCH(request: Request) {
   const [discCase] = await db.select().from(disciplinaryCases).where(eq(disciplinaryCases.id, id)).limit(1);
   if (!discCase) return Response.json({ error: "Disciplinary case not found." }, { status: 404 });
 
-  const denied = await assertMembership(user.id, discCase.organizationId);
+  const denied = await assertOrganizationRole(
+    user.id,
+    discCase.organizationId,
+    PEOPLE_ADMIN_ROLES,
+    "Your role is not allowed to manage disciplinary cases.",
+  );
   if (denied) return denied;
 
   if (action === "submit_explanation") {

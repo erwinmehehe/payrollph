@@ -5,12 +5,10 @@ import Link from "next/link";
 import { Menu, X } from "lucide-react";
 
 const LINKS = [
-  { href: "/#payroll", label: "Payroll software" },
-  { href: "/#workspace", label: "HRIS workspace" },
-  { href: "/payroll-outsourcing", label: "Payroll outsourcing" },
-  { href: "/#proof", label: "Proof" },
+  { href: "/#workflow", label: "Product" },
+  { href: "/demo", label: "Demo" },
   { href: "/#pricing", label: "Pricing" },
-  { href: "/scorecard", label: "Scorecard" },
+  { href: "/payroll-outsourcing", label: "Payroll outsourcing" },
 ];
 
 export function BrandMark({ size = 30 }: { size?: number }) {
@@ -60,8 +58,8 @@ export function SiteNav() {
             <Link className="secondary-button" href="/login">
               Sign in
             </Link>
-            <Link className="primary-button" href="/#preview">
-              Try live demo
+            <Link className="primary-button" href="/signup">
+              Start free
             </Link>
             <button
               className="icon-button site-burger"
@@ -85,8 +83,8 @@ export function SiteNav() {
           <Link className="secondary-button" href="/login">
             Sign in
           </Link>
-          <Link className="primary-button" href="/#preview" onClick={() => setDrawer(false)}>
-            Try live demo
+          <Link className="primary-button" href="/signup" onClick={() => setDrawer(false)}>
+            Start free
           </Link>
         </div>
       </div>
@@ -108,29 +106,26 @@ export function SiteFooter() {
               </span>
             </Link>
             <p className="footer-disclosure">
-              Philippine payroll software and HRIS with a public capability scorecard that separates verified, partial and
-              absent features from marketing claims.
+              Philippine payroll software and HRIS for payroll, attendance, statutory deductions, approvals, payslips and reporting.
             </p>
           </div>
 
           <div>
             <h4>Product</h4>
             <ul>
-              <li><Link href="/#payroll">Payroll software</Link></li>
-              <li><Link href="/#workspace">HRIS workspace</Link></li>
-              <li><Link href="/#preview">Interactive demo</Link></li>
+              <li><Link href="/#workflow">How it works</Link></li>
+              <li><Link href="/demo">Role-based demo</Link></li>
+              <li><Link href="/#simulation">Payroll simulation</Link></li>
               <li><Link href="/#pricing">Pricing</Link></li>
               <li><Link href="/payroll-outsourcing">Payroll outsourcing</Link></li>
             </ul>
           </div>
 
           <div>
-            <h4>Proof</h4>
+            <h4>Trust</h4>
             <ul>
               <li><Link href="/scorecard">Capability scorecard</Link></li>
               <li><Link href="/status">System status</Link></li>
-              <li><Link href="/api/readiness">Launch readiness gates</Link></li>
-              <li><Link href="/api/capabilities">Capabilities API</Link></li>
             </ul>
           </div>
 
@@ -138,7 +133,6 @@ export function SiteFooter() {
             <h4>Get started</h4>
             <ul>
               <li><Link href="/signup">Start free</Link></li>
-              <li><Link href="/#preview">Try live demo</Link></li>
               <li><Link href="/book-demo">Book a demo</Link></li>
               <li><Link href="/login">Sign in</Link></li>
             </ul>

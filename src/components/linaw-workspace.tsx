@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Clock, ShieldCheck, Sparkles } from "lucide-react";
 import { AssetsPanel } from "@/components/assets-panel";
 import { BenefitsPanel } from "@/components/benefits-panel";
@@ -39,10 +40,22 @@ import { WorkspaceShell, buildNotifications } from "@/components/workspace/shell
 import { TimeView } from "@/components/workspace/time";
 import type { DashboardData, PricingPlan } from "@/components/workspace/types";
 import { ToastStack, useToasts } from "@/components/workspace/ui";
+import { demoRoleInfo, demoRolePages, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
 
 export function LinawWorkspace({ initialData }: { initialData: DashboardData }) {
+  const searchParams = useSearchParams();
+  const requestedDemoRole = searchParams.get("demoRole");
+  const demoRole: DemoRoleId | null =
+    requestedDemoRole &&
+    isDemoRole(requestedDemoRole) &&
+    initialData.user?.role === requestedDemoRole
+      ? requestedDemoRole
+      : null;
+  const demoInfo = demoRoleInfo(demoRole);
+  const initialPage = demoRole === "freelancer" ? "Overview" : demoInfo?.landingPage ?? "Overview";
+
   const [data, setData] = useState(initialData);
-  const [page, setPage] = useState("Overview");
+  const [page, setPage] = useState(initialPage);
   const [busy, setBusy] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [focusEmployeeId, setFocusEmployeeId] = useState<number | null>(null);
@@ -61,15 +74,27 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
   const isFreelancer = data.selectedOrganization.accountType === "freelancer";
   const currentRun = data.payrollRuns.find((run) => run.status !== "Released") ?? data.payrollRuns[0];
 
+  const rolePages = demoRolePages(demoRole);
   const availablePages = useMemo(
     () =>
       NAVIGATION.flatMap((group) => group.items)
         .map((item) => item.name)
-        .filter((name) => !(isFreelancer && FREELANCER_HIDDEN.has(name))),
-    [isFreelancer],
+        .filter((name) => !(isFreelancer && FREELANCER_HIDDEN.has(name)))
+        .filter((name) => !rolePages || rolePages.includes(name)),
+    [isFreelancer, rolePages],
   );
 
-  const notifications = useMemo(() => buildNotifications(data), [data]);
+  const notifications = useMemo(
+    () => buildNotifications(data).filter((item) => !item.page || availablePages.includes(item.page)),
+    [data, availablePages],
+  );
+
+  const allowClientSwitch = !demoRole || demoRole === "bookkeeper";
+  const canManagePayroll = !demoRole || ["owner", "bookkeeper", "payroll"].includes(demoRole);
+  const canManagePeople = !demoRole || ["owner", "bookkeeper", "hr"].includes(demoRole);
+  const canManageTime = !demoRole || ["owner", "bookkeeper", "hr"].includes(demoRole);
+  const canUsePayrollOps = canManagePayroll && availablePages.includes("Payroll");
+  const canUsePeopleOps = canManagePeople && availablePages.includes("People");
 
   usePaletteShortcut(() => setPaletteOpen(true));
 
@@ -87,6 +112,16 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
     [data.selectedOrganization.id],
   );
 
+  useEffect(() => {
+    if (demoRole !== "freelancer" || isFreelancer) return;
+    const solo = data.organizations.find((organization) => organization.accountType === "freelancer");
+    if (!solo) return;
+
+    void refresh(solo.id)
+      .then(() => setPage("Freelancer hub"))
+      .catch(() => notify("Could not open the freelancer demo.", "err"));
+  }, [demoRole, isFreelancer, data.organizations, refresh, notify]);
+
   async function changeOrganization(id: number) {
     try {
       await refresh(id);
@@ -97,7 +132,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
     }
   }
 
-  async function switchDemoRole(role: "bookkeeper" | "employee" | "freelancer") {
+  async function switchDemoRole(role: DemoRoleId) {
     try {
       const response = await fetch("/api/auth/demo-switch", {
         method: "POST",
@@ -108,7 +143,8 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         notify("Role switch failed.", "err");
         return;
       }
-      window.location.href = "/";
+      const payload = await response.json().catch(() => ({}));
+      window.location.href = typeof payload.redirectTo === "string" ? payload.redirectTo : `/?demoRole=${role}`;
     } catch {
       notify("Role switch failed.", "err");
     }
@@ -128,10 +164,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         notify(payload.error ?? "That decision could not be saved.", "err");
         return;
       }
-      setData((current) => ({
-        ...current,
-        tasks: current.tasks.map((task) => (task.id === id ? { ...task, status } : task)),
-      }));
+      await refresh();
       notify(
         payload.decidedOnBehalfOf
           ? `Approval ${status.toLowerCase()} on behalf of ${payload.decidedOnBehalfOf}, the delegation chain is in the audit trail.`
@@ -144,7 +177,12 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
     }
   }
 
-  async function createPayroll(input: { periodLabel: string; scopeLabel: string }) {
+  async function createPayroll(input: {
+    periodStart: string;
+    periodEnd: string;
+    payDate: string;
+    scopeOrgUnitId: number | null;
+  }) {
     setBusy(true);
     try {
       const response = await fetch("/api/payroll-runs", {
@@ -221,10 +259,8 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
 
   const paletteActions = useMemo<PaletteAction[]>(() => {
     const actions: PaletteAction[] = [];
-    if (!isFreelancer) {
+    if (canUsePayrollOps) {
       actions.push({ id: "new-payroll", label: "New payroll run", hint: "Create and queue a run for this client", run: () => setNewPayrollOpen(true) });
-      actions.push({ id: "new-hire", label: "Add employee", hint: "Create a record with its onboarding checklist", run: () => setNewHireOpen(true) });
-      actions.push({ id: "bundy", label: "Open web bundy", hint: "Record an attendance punch", run: () => setWebBundyOpen(true) });
       if (currentRun) {
         actions.push({
           id: "recalculate",
@@ -234,10 +270,20 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         });
       }
     }
-    actions.push({ id: "outbox", label: "Email outbox", hint: "See what was queued and whether it was really sent", run: () => setOutboxOpen(true) });
-    actions.push({ id: "gov", label: "Government validation status", hint: "Which agency outputs are still labelled DRAFT", run: () => setGovModalOpen(true) });
+    if (canUsePeopleOps) {
+      actions.push({ id: "new-hire", label: "Add employee", hint: "Create a record with its onboarding checklist", run: () => setNewHireOpen(true) });
+    }
+    if (canManageTime && availablePages.includes("Time & attendance")) {
+      actions.push({ id: "bundy", label: "Open web bundy", hint: "Record an attendance punch", run: () => setWebBundyOpen(true) });
+    }
+    if (availablePages.includes("Exports")) {
+      actions.push({ id: "outbox", label: "Email outbox", hint: "See what was queued and whether it was really sent", run: () => setOutboxOpen(true) });
+    }
+    if (availablePages.includes("Compliance")) {
+      actions.push({ id: "gov", label: "Government validation status", hint: "Which agency outputs are still labelled DRAFT", run: () => setGovModalOpen(true) });
+    }
     return actions;
-  }, [isFreelancer, currentRun, processRun]);
+  }, [availablePages, canManageTime, canUsePayrollOps, canUsePeopleOps, currentRun, processRun]);
 
   /* --------------------------------------------------------------- render */
 
@@ -249,26 +295,33 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         onPage={setPage}
         notifications={notifications}
         onOpenPalette={() => setPaletteOpen(true)}
-        onOpenNotification={() => setOutboxOpen(true)}
+        onOpenNotification={availablePages.includes("Exports") ? () => setOutboxOpen(true) : undefined}
         onSwitchClient={(id) => void changeOrganization(id)}
         onSwitchRole={(role) => void switchDemoRole(role)}
         onSignOut={() => void signOut()}
+        visiblePages={availablePages}
+        displayRole={demoRole}
+        allowClientSwitch={allowClientSwitch}
         headerExtras={
           <>
-            <button className="topbar-link" onClick={() => setGovModalOpen(true)}>
-              <ShieldCheck size={13} style={{ color: "var(--brand)" }} /> Gov status
-            </button>
-            {!isFreelancer && (
+            {availablePages.includes("Compliance") && (
+              <button className="topbar-link" onClick={() => setGovModalOpen(true)}>
+                <ShieldCheck size={13} style={{ color: "var(--brand)" }} /> Gov status
+              </button>
+            )}
+            {canManageTime && availablePages.includes("Time & attendance") && (
               <button className="topbar-link" onClick={() => setWebBundyOpen(true)}>
                 <Clock size={13} style={{ color: "var(--brand)" }} /> Web bundy
               </button>
             )}
-            <button
-              className="topbar-link"
-              onClick={() => setCheckoutPlan(data.plans.find((plan) => plan.name === "Scale") ?? data.plans[0] ?? null)}
-            >
-              <Sparkles size={13} style={{ color: "var(--brand)" }} /> Upgrade
-            </button>
+            {!demoRole && (
+              <button
+                className="topbar-link"
+                onClick={() => setCheckoutPlan(data.plans.find((plan) => plan.name === "Scale") ?? data.plans[0] ?? null)}
+              >
+                <Sparkles size={13} style={{ color: "var(--brand)" }} /> Upgrade
+              </button>
+            )}
           </>
         }
       >
@@ -291,6 +344,9 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
             onRelease={releaseRun}
             onDecide={decideTask}
             onPage={setPage}
+            onRefresh={async () => {
+              await refresh();
+            }}
             notify={notify}
           />
         )}
@@ -303,12 +359,20 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
             }}
             onAddEmployee={() => setNewHireOpen(true)}
             onPage={setPage}
+            canManage={canManagePeople}
             focusEmployeeId={focusEmployeeId}
             onClearFocus={() => setFocusEmployeeId(null)}
           />
         )}
 
-        {page === "Time & attendance" && <TimeView data={data} onOpenBundy={() => setWebBundyOpen(true)} notify={notify} />}
+        {page === "Time & attendance" && (
+          <TimeView
+            data={data}
+            onOpenBundy={() => setWebBundyOpen(true)}
+            notify={notify}
+            canManage={canManageTime}
+          />
+        )}
 
         {page === "Leave" && (
           <LeavePage
@@ -363,7 +427,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         pages={availablePages}
-        organizations={data.organizations}
+        organizations={allowClientSwitch ? data.organizations : [data.selectedOrganization]}
         employees={data.employees}
         actions={paletteActions}
         onNavigate={setPage}
@@ -374,7 +438,14 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         }}
       />
 
-      {newPayrollOpen && <NewPayrollModal onClose={() => setNewPayrollOpen(false)} onCreate={createPayroll} busy={busy} />}
+      {newPayrollOpen && (
+        <NewPayrollModal
+          onClose={() => setNewPayrollOpen(false)}
+          onCreate={createPayroll}
+          busy={busy}
+          orgUnits={data.orgUnits ?? []}
+        />
+      )}
       {outboxOpen && (
         <OutboxModal organizationId={data.selectedOrganization.id} onClose={() => setOutboxOpen(false)} setNotice={noticeAdapter} />
       )}

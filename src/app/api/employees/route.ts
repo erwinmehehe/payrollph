@@ -1,7 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { assets, employees } from "@/db/schema";
-import { assertMembership } from "@/lib/access";
+import { assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { seedProvisioning } from "@/lib/provisioning";
@@ -12,8 +12,14 @@ export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  const organizationId = Number(new URL(request.url).searchParams.get("organizationId") ?? 1);
-  const denied = await assertMembership(user.id, organizationId);
+  const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
+  if (!Number.isInteger(organizationId)) return Response.json({ error: "organizationId is required." }, { status: 400 });
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_ADMIN_ROLES,
+    "Only People administrators can view the employee directory.",
+  );
   if (denied) return denied;
 
   const rows = await db.select().from(employees)
@@ -35,26 +41,34 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
   const firstName = String(body.firstName ?? "").trim();
+  const middleName = String(body.middleName ?? "").trim();
   const lastName = String(body.lastName ?? "").trim();
   const email = String(body.email ?? "").trim().toLowerCase();
   const title = String(body.title ?? "").trim();
   const basicRate = Number(body.basicRate);
   const startDate = String(body.startDate ?? "").trim();
 
-  const denied = await assertMembership(user.id, organizationId);
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_ADMIN_ROLES,
+    "Only People administrators can create employee records.",
+  );
   if (denied) return denied;
 
   if (!firstName || !lastName || !Number.isFinite(basicRate) || basicRate <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
     return Response.json({ error: "firstName, lastName, a positive basicRate and YYYY-MM-DD startDate are required." }, { status: 400 });
   }
 
-  const [{ value: existing }] = await db.select({ value: employees.id }).from(employees);
+  const existingRows = await db.select({ id: employees.id }).from(employees).where(eq(employees.organizationId, organizationId));
+  const existing = existingRows.length;
   const employeeNo = String(body.employeeNo ?? `EMP-${String(existing + 1).padStart(4, "0")}`).trim();
 
   const [created] = await db.insert(employees).values({
     organizationId,
     employeeNo,
     firstName,
+    middleName: middleName || null,
     lastName,
     title: title || "Staff",
     employmentType: String(body.employmentType ?? "Regular"),
@@ -65,6 +79,12 @@ export async function POST(request: Request) {
     region: String(body.region ?? "NCR"),
     email: email || null,
     mobile: String(body.mobile ?? "").trim() || null,
+    tin: String(body.tin ?? "").trim() || null,
+    tinBranchCode: String(body.tinBranchCode ?? "").replace(/\D/g, "").padStart(4, "0").slice(-4) || null,
+    sssNo: String(body.sssNo ?? "").trim() || null,
+    philHealthNo: String(body.philHealthNo ?? "").trim() || null,
+    pagIbigNo: String(body.pagIbigNo ?? "").trim() || null,
+    nationality: String(body.nationality ?? "Filipino").trim() || "Filipino",
     startDate,
   }).returning();
 
@@ -93,4 +113,86 @@ export async function POST(request: Request) {
   });
 
   return Response.json({ employee: created, onboarding, asset: assignedAsset }, { status: 201 });
+}
+
+
+/**
+ * Updates government identity fields for an existing employee. These values are
+ * deliberately editable after onboarding because real employer records are
+ * often completed after the employee account itself is created.
+ */
+export async function PATCH(request: Request) {
+  const user = await getSessionUser();
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  const body = await request.json().catch(() => ({}));
+  const organizationId = Number(body.organizationId);
+  const employeeId = Number(body.employeeId);
+
+  if (!Number.isInteger(organizationId) || !Number.isInteger(employeeId)) {
+    return Response.json({ error: "organizationId and employeeId are required." }, { status: 400 });
+  }
+
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_ADMIN_ROLES,
+    "Only People administrators can update government identity records.",
+  );
+  if (denied) return denied;
+
+  const [employee] = await db.select().from(employees)
+    .where(and(
+      eq(employees.id, employeeId),
+      eq(employees.organizationId, organizationId),
+    ))
+    .limit(1);
+  if (!employee) return Response.json({ error: "Employee not found in this organization." }, { status: 404 });
+
+  const clean = (value: unknown) => {
+    if (value === undefined) return undefined;
+    const text = String(value ?? "").trim();
+    return text || null;
+  };
+
+  const updates = {
+    middleName: clean(body.middleName),
+    tin: clean(body.tin),
+    tinBranchCode: body.tinBranchCode === undefined
+      ? undefined
+      : String(body.tinBranchCode ?? "").replace(/\D/g, "").padStart(4, "0").slice(-4) || null,
+    sssNo: clean(body.sssNo),
+    philHealthNo: clean(body.philHealthNo),
+    pagIbigNo: clean(body.pagIbigNo),
+    nationality: body.nationality === undefined ? undefined : String(body.nationality ?? "").trim() || "Filipino",
+  };
+
+  const patch = Object.fromEntries(
+    Object.entries(updates).filter(([, value]) => value !== undefined),
+  ) as Partial<typeof employees.$inferInsert>;
+
+  if (Object.keys(patch).length === 0) {
+    return Response.json({ error: "No government identity fields were supplied." }, { status: 400 });
+  }
+
+  const [updated] = await db.update(employees)
+    .set(patch)
+    .where(and(
+      eq(employees.id, employeeId),
+      eq(employees.organizationId, organizationId),
+    ))
+    .returning();
+
+  await recordAuditEvent({
+    organizationId,
+    actor: user.name,
+    action: "Employee government identity updated",
+    resource: `${employee.firstName} ${employee.lastName} (${employee.employeeNo})`,
+    metadata: {
+      employeeId,
+      fields: Object.keys(patch),
+    },
+  });
+
+  return Response.json({ employee: updated });
 }

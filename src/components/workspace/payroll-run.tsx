@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { readLineItems, readTrace, type BankTemplate, type DashboardData, type Notify, type PayrollEntry, type PayrollLineItem, type PayrollRun, type Task } from "./types";
+import { PayrollAssurancePanel } from "./payroll-assurance-panel";
 import {
   Battery,
   EmptyState,
@@ -45,6 +46,7 @@ export function PayrollRunView({
   onRelease,
   onDecide,
   onPage,
+  onRefresh,
   notify,
 }: {
   data: DashboardData;
@@ -54,6 +56,7 @@ export function PayrollRunView({
   onRelease: (runId: number, acknowledgeExceptions: boolean) => Promise<void>;
   onDecide: (taskId: number, status: "Approved" | "Declined") => Promise<void>;
   onPage: (page: string) => void;
+  onRefresh: () => Promise<void>;
   notify: Notify;
 }) {
   const [selectedId, setSelectedId] = useState<number | undefined>(data.payrollRuns[0]?.id);
@@ -62,6 +65,11 @@ export function PayrollRunView({
   const [onlyExceptions, setOnlyExceptions] = useState(false);
   const [confirmRelease, setConfirmRelease] = useState(false);
   const [exportsOpen, setExportsOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewApprovers, setReviewApprovers] = useState<Array<{ id: number; name: string; email: string; role: string }>>([]);
+  const [reviewApproverId, setReviewApproverId] = useState<number | null>(null);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewLoading, setReviewLoading] = useState(false);
 
   // Derived, not synced: if the selected run disappears (client switch, new
   // run) the first run takes over without an effect round-trip.
@@ -128,6 +136,57 @@ export function PayrollRunView({
 
   const exceptionRows = entries.filter((entry) => entry.status === "Exception");
   const relatedTask = useMemo(() => findRunApproval(data.tasks, run), [data.tasks, run]);
+  async function openReviewSubmission() {
+    if (!run) return;
+    setReviewLoading(true);
+    try {
+      const response = await fetch(
+        `/api/organizations/${data.selectedOrganization.id}/payroll-approvers`,
+        { cache: "no-store" },
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        notify(payload.error ?? "Could not load payroll checkers.", "err");
+        return;
+      }
+      const approvers = Array.isArray(payload.approvers) ? payload.approvers : [];
+      setReviewApprovers(approvers);
+      setReviewApproverId(approvers[0]?.id ?? null);
+      setReviewOpen(true);
+    } catch {
+      notify("Could not load payroll checkers.", "err");
+    } finally {
+      setReviewLoading(false);
+    }
+  }
+
+  async function submitForReview() {
+    if (!run || !reviewApproverId) {
+      notify("Choose a checker before submitting payroll for review.", "err");
+      return;
+    }
+    const checker = reviewApprovers.find((approver) => approver.id === reviewApproverId);
+    setReviewBusy(true);
+    try {
+      const response = await fetch(`/api/payroll-runs/${run.id}/submit-review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ approverUserId: reviewApproverId }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        notify(payload.error ?? "Payroll could not be submitted for review.", "err");
+        return;
+      }
+      setReviewOpen(false);
+      await onRefresh();
+      notify(`Payroll submitted to ${checker?.name ?? "the selected checker"} for checker approval.`);
+    } catch {
+      notify("Could not reach the payroll review service.", "err");
+    } finally {
+      setReviewBusy(false);
+    }
+  }
 
   if (!run) {
     return (
@@ -279,6 +338,8 @@ export function PayrollRunView({
             )}
           </div>
 
+          <PayrollAssurancePanel runId={run.id} employees={data.employees} />
+
           {/* Exceptions */}
           {exceptionRows.length > 0 && (
             <div className="card-body" style={{ paddingTop: 0 }}>
@@ -339,22 +400,44 @@ export function PayrollRunView({
             <StageCard
               no={2}
               title="Approve"
-              state={relatedTask ? (relatedTask.status === "Pending" ? "now" : "done") : calculated ? "done" : "locked"}
+              state={
+                relatedTask
+                  ? relatedTask.status === "Pending"
+                    ? "now"
+                    : relatedTask.status === "Approved"
+                      ? "done"
+                      : "locked"
+                  : calculated
+                    ? "now"
+                    : "locked"
+              }
               copy={
                 relatedTask
                   ? relatedTask.status === "Pending"
-                    ? `${relatedTask.detail}, approver ${relatedTask.approver}.`
-                    : `Decision recorded: ${relatedTask.status.toLowerCase()}.`
-                  : "No approval task is open against this run."
+                    ? `${relatedTask.detail}, checker ${relatedTask.approver}.`
+                    : relatedTask.status === "Approved"
+                      ? `Approved by ${relatedTask.approver}. Maker-checker control is satisfied.`
+                      : "The review was declined. Resolve the issue and submit again."
+                  : calculated
+                    ? "Submit this calculated payroll to a different person for checker approval."
+                    : "Calculate payroll before submitting it for review."
               }
               action={
                 relatedTask && relatedTask.status === "Pending" ? (
-                  <button className="secondary-button" disabled={busy} onClick={() => onDecide(relatedTask.id, "Approved")}>
-                    <Check size={14} className="i-green" /> Approve
-                  </button>
-                ) : (
                   <button className="secondary-button" onClick={() => onPage("Approvals")}>
-                    <ArrowRight size={14} /> Approvals
+                    <ArrowRight size={14} /> Open approval
+                  </button>
+                ) : relatedTask?.status === "Approved" ? (
+                  <span className="status status-approved" style={{ height: 30, padding: "0 12px" }}>
+                    <Check size={12} /> Approved
+                  </span>
+                ) : (
+                  <button
+                    className="secondary-button"
+                    disabled={!calculated || released}
+                    onClick={() => void openReviewSubmission()}
+                  >
+                    {reviewLoading ? <Spinner label="Loading" /> : <ShieldCheck size={14} className="i-purple" />} Submit for review
                   </button>
                 )
               }
@@ -362,13 +445,15 @@ export function PayrollRunView({
             <StageCard
               no={3}
               title="Release"
-              state={released ? "done" : calculated ? "now" : "locked"}
+              state={released ? "done" : relatedTask?.status === "Approved" ? "now" : "locked"}
               copy={
                 released
                   ? "Released. Payslip-ready notices were queued for every active employee with an email on file."
-                  : exceptionRows.length > 0
-                    ? `${exceptionRows.length} exception${exceptionRows.length === 1 ? "" : "s"} must be acknowledged explicitly.`
-                    : "Locks the register, generates payslips and fires the payroll.released webhook."
+                  : relatedTask?.status !== "Approved"
+                    ? "A checker must approve this payroll before release is available."
+                    : exceptionRows.length > 0
+                      ? `${exceptionRows.length} exception${exceptionRows.length === 1 ? "" : "s"} must be acknowledged explicitly.`
+                      : "Locks the register, generates payslips and fires the payroll.released webhook."
               }
               action={
                 released ? (
@@ -376,7 +461,7 @@ export function PayrollRunView({
                     Released
                   </span>
                 ) : (
-                  <button className="primary-button brand" disabled={busy || !calculated} onClick={() => setConfirmRelease(true)}>
+                  <button className="primary-button brand" disabled={busy || !calculated || relatedTask?.status !== "Approved"} onClick={() => setConfirmRelease(true)}>
                     <Send size={14} className="i-pink" /> Release
                   </button>
                 )
@@ -395,10 +480,54 @@ export function PayrollRunView({
             />
           </div>
 
+          {reviewOpen && (
+            <article className="card" style={{ margin: "0 18px 16px", boxShadow: "none" }}>
+              <div className="card-header">
+                <div>
+                  <div className="card-kicker">Maker-checker review</div>
+                  <h2 style={{ fontSize: 16 }}>Choose the checker for this payroll</h2>
+                  <p>The person submitting this run cannot approve it. Linaw enforces that rule on the server.</p>
+                </div>
+                <button className="icon-button" onClick={() => setReviewOpen(false)} aria-label="Close review submission">
+                  <X size={15} />
+                </button>
+              </div>
+              <div className="setting-form">
+                <label>
+                  Checker
+                  <select
+                    value={reviewApproverId ?? ""}
+                    onChange={(event) => setReviewApproverId(event.target.value ? Number(event.target.value) : null)}
+                  >
+                    <option value="">Choose a checker</option>
+                    {reviewApprovers.map((approver) => (
+                      <option key={approver.id} value={approver.id}>
+                        {approver.name} · {approver.role}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="notice notice-blue" style={{ margin: 0 }}>
+                  <ShieldCheck size={15} className="i-purple" />
+                  <span>
+                    <strong>Maker:</strong> {data.user?.name ?? "Signed-in user"} · <strong>Checker:</strong>{" "}
+                    {reviewApprovers.find((approver) => approver.id === reviewApproverId)?.name ?? "not selected"}
+                  </span>
+                </div>
+              </div>
+              <div className="run-actions">
+                <button className="secondary-button" onClick={() => setReviewOpen(false)}>Cancel</button>
+                <button className="primary-button brand" disabled={reviewBusy || !reviewApproverId} onClick={() => void submitForReview()}>
+                  {reviewBusy ? <Spinner label="Submitting" /> : <ShieldCheck size={14} className="i-green" />} Submit for review
+                </button>
+              </div>
+            </article>
+          )}
+
           {exportsOpen && <ExportPanel run={run} templates={data.templates} notify={notify} onClose={() => setExportsOpen(false)} />}
 
           {/* Register */}
-          <div className="line-title">
+          <div className="line-title" id="payroll-register">
             <strong>Register &amp; payslip breakdown</strong>
             <span>Open a row for the full arithmetic trace</span>
           </div>
@@ -907,22 +1036,21 @@ function ReleaseDialog({
 
 function currentStage(run: PayrollRun, task?: Task): Stage {
   if (run.status === "Released") return "export";
-  if (task && task.status === "Pending") return "approve";
-  if (Number(run.grossPay) > 0) return "release";
+  if (run.status === "Ready for release" && task?.status === "Approved") return "release";
+  if (Number(run.grossPay) > 0) return "approve";
   return "prepare";
 }
 
 /**
- * Links a run to its approval task by period label, then by the generic
- * "payroll" wording the seed uses. Returns undefined rather than guessing.
+ * Payroll approvals are linked to an exact run id in task detail. Do not fall
+ * back to period-title matching: repeated labels and historical seed tasks can
+ * otherwise attach the wrong approval to a live run.
  */
 function findRunApproval(tasks: Task[], run?: PayrollRun) {
   if (!run) return undefined;
-  const period = run.periodLabel.toLowerCase();
-  return (
-    tasks.find((task) => task.title.toLowerCase().includes(period)) ??
-    tasks.find((task) => task.title.toLowerCase().includes("payroll") && task.status === "Pending")
-  );
+  return tasks
+    .filter((task) => task.detail.includes(`Payroll run #${run.id}`))
+    .sort((a, b) => b.id - a.id)[0];
 }
 
 const monthOf = (date: string) => {

@@ -43,7 +43,7 @@ import {
   X,
 } from "lucide-react";
 import { AccountPanel } from "@/components/account-panel";
-import type { AuditEvent, DashboardData, Employee, PayrollEntry, PayrollRun, PricingPlan } from "./types";
+import type { AuditEvent, DashboardData, Employee, OrgUnit, PayrollEntry, PayrollRun, PricingPlan } from "./types";
 import { Avatar, Metric, PageHeading, Status, formatDate, formatDateTime as formatTime, money } from "./ui";
 export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData; setNotice: (message: string) => void; onRefresh: () => Promise<void> }) {
   const requests = data.leaveRequests ?? [];
@@ -519,6 +519,11 @@ export function SettingsPage({ data, setNotice }: { data: DashboardData; setNoti
 function OrganizationSettings({ data, setNotice }: { data: DashboardData; setNotice: (message: string) => void }) {
   const [name, setName] = useState(data.selectedOrganization.name);
   const [legalName, setLegalName] = useState(data.selectedOrganization.legalName);
+  const [birTin, setBirTin] = useState(data.selectedOrganization.birTin ?? "");
+  const [birBranchCode, setBirBranchCode] = useState(data.selectedOrganization.birBranchCode ?? "");
+  const [sssEmployerNo, setSssEmployerNo] = useState(data.selectedOrganization.sssEmployerNo ?? "");
+  const [philHealthEmployerNo, setPhilHealthEmployerNo] = useState(data.selectedOrganization.philHealthEmployerNo ?? "");
+  const [pagIbigEmployerNo, setPagIbigEmployerNo] = useState(data.selectedOrganization.pagIbigEmployerNo ?? "");
   const [busy, setBusy] = useState(false);
   const canEdit = ["admin", "owner", "bookkeeper"].includes(data.access?.role ?? "");
 
@@ -527,7 +532,16 @@ function OrganizationSettings({ data, setNotice }: { data: DashboardData; setNot
     const res = await fetch("/api/organizations", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ organizationId: data.selectedOrganization.id, name, legalName }),
+      body: JSON.stringify({
+        organizationId: data.selectedOrganization.id,
+        name,
+        legalName,
+        birTin,
+        birBranchCode,
+        sssEmployerNo,
+        philHealthEmployerNo,
+        pagIbigEmployerNo,
+      }),
     });
     const data2 = await res.json().catch(() => ({}));
     setBusy(false);
@@ -543,6 +557,31 @@ function OrganizationSettings({ data, setNotice }: { data: DashboardData; setNot
         <label>Legal entity name<input value={legalName} disabled={!canEdit} onChange={(e) => setLegalName(e.target.value)} /></label>
         <label>Plan<input value={data.selectedOrganization.plan} readOnly /><small style={{ color: "var(--muted)", fontWeight: 500 }}>Changed through Pricing, not here.</small></label>
         <label>Payroll cycle<input value="Semi-monthly (15th / end of month)" readOnly /><small style={{ color: "var(--muted)", fontWeight: 500 }}>Fixed by the statutory engine.</small></label>
+      </div>
+
+      <div className="card-header" style={{ paddingTop: 6 }}>
+        <div>
+          <div className="card-kicker">GOVERNMENT REGISTRATIONS</div>
+          <h2>Employer filing identifiers</h2>
+          <p>Used by local filing preflight. Saving an ID does not mark a government portal as validated.</p>
+        </div>
+      </div>
+      <div className="setting-form">
+        <label>BIR TIN
+          <input value={birTin} disabled={!canEdit} onChange={(e) => setBirTin(e.target.value)} placeholder="9 digits" inputMode="numeric" />
+        </label>
+        <label>BIR branch code
+          <input value={birBranchCode} disabled={!canEdit} onChange={(e) => setBirBranchCode(e.target.value)} placeholder="0000" inputMode="numeric" />
+        </label>
+        <label>SSS employer number
+          <input value={sssEmployerNo} disabled={!canEdit} onChange={(e) => setSssEmployerNo(e.target.value)} />
+        </label>
+        <label>PhilHealth employer number
+          <input value={philHealthEmployerNo} disabled={!canEdit} onChange={(e) => setPhilHealthEmployerNo(e.target.value)} />
+        </label>
+        <label>Pag-IBIG employer number
+          <input value={pagIbigEmployerNo} disabled={!canEdit} onChange={(e) => setPagIbigEmployerNo(e.target.value)} />
+        </label>
       </div>
       {canEdit ? (
         <div className="run-actions">
@@ -646,9 +685,39 @@ function PrivacySettings({ data, setNotice }: { data: DashboardData; setNotice: 
   );
 }
 
-export function NewPayrollModal({ onClose, onCreate, busy }: { onClose: () => void; onCreate: (input: { periodLabel: string; scopeLabel: string }) => void; busy: boolean }) {
-  const [periodLabel, setPeriodLabel] = useState("Mar 16–30, 2026");
-  const [scopeLabel, setScopeLabel] = useState("All locations");
+export function NewPayrollModal({
+  onClose,
+  onCreate,
+  busy,
+  orgUnits = [],
+}: {
+  onClose: () => void;
+  onCreate: (input: {
+    periodStart: string;
+    periodEnd: string;
+    payDate: string;
+    scopeOrgUnitId: number | null;
+  }) => void;
+  busy: boolean;
+  orgUnits?: OrgUnit[];
+}) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const day = now.getDate();
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const iso = (y: number, m: number, d: number) => `${y}-${pad(m + 1)}-${pad(d)}`;
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const [periodStart, setPeriodStart] = useState(day <= 15 ? iso(year, month, 1) : iso(year, month, 16));
+  const [periodEnd, setPeriodEnd] = useState(day <= 15 ? iso(year, month, 15) : iso(year, month, lastDay));
+  const [payDate, setPayDate] = useState(day <= 15 ? iso(year, month, 15) : iso(year, month, lastDay));
+  const [scopeOrgUnitId, setScopeOrgUnitId] = useState<number | null>(null);
+
+  const periodDays = periodStart && periodEnd
+    ? Math.floor((Date.parse(`${periodEnd}T00:00:00Z`) - Date.parse(`${periodStart}T00:00:00Z`)) / 86_400_000) + 1
+    : 0;
+  const periodTooLong = periodDays > 16;
+  const invalidDates = !periodStart || !periodEnd || !payDate || periodStart > periodEnd || payDate < periodEnd || periodTooLong;
 
   return (
     <div className="modal-backdrop" role="presentation">
@@ -656,21 +725,59 @@ export function NewPayrollModal({ onClose, onCreate, busy }: { onClose: () => vo
         <button className="modal-close" onClick={onClose}><X size={18} /></button>
         <div className="modal-icon"><WalletCards size={22} className="i-green" /></div>
         <div className="card-kicker">NEW PAYROLL RUN</div>
-        <h2>Create and queue a scoped run</h2>
-        <p>Draft creation enqueues a Postgres FOR UPDATE SKIP LOCKED job. Calculation uses real punches, statutory tables, and active calamity advisories.</p>
-        <label className="input-label">Payroll period<input value={periodLabel} onChange={(event) => setPeriodLabel(event.target.value)} /></label>
-        <label className="input-label">Run scope
-          <select value={scopeLabel} onChange={(event) => setScopeLabel(event.target.value)}>
-            <option>All locations</option>
-            <option>Makati HQ</option>
-            <option>Cebu Hub</option>
-            <option>Operations department</option>
-          </select>
-        </label>
-        <div className="modal-note"><ShieldCheck size={16} className="i-green" />Chunked, resumable, and idempotent per run, not a fake progress bar.</div>
+        <h2>Create a payroll cutoff</h2>
+        <p>Choose the exact attendance period, pay date, and employee scope. Linaw will calculate only punches and people inside this run.</p>
+
+        <div className="setting-form">
+          <label>Period start
+            <input type="date" value={periodStart} onChange={(event) => setPeriodStart(event.target.value)} />
+          </label>
+          <label>Period end
+            <input type="date" value={periodEnd} min={periodStart} onChange={(event) => {
+              const next = event.target.value;
+              setPeriodEnd(next);
+              if (payDate < next) setPayDate(next);
+            }} />
+          </label>
+          <label>Pay date
+            <input type="date" value={payDate} min={periodEnd} onChange={(event) => setPayDate(event.target.value)} />
+          </label>
+          <label>Run scope
+            <select
+              value={scopeOrgUnitId ?? ""}
+              onChange={(event) => setScopeOrgUnitId(event.target.value ? Number(event.target.value) : null)}
+            >
+              <option value="">All locations</option>
+              {orgUnits.map((unit) => (
+                <option key={unit.id} value={unit.id}>{unit.name} · {unit.type}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        {invalidDates && (
+          <div className="notice notice-amber" style={{ margin: "10px 0 0" }}>
+            <span>
+              {periodTooLong
+                ? "Payroll cutoffs can cover at most 16 calendar days. Split a longer range into separate runs."
+                : "Period start must be on or before period end, and pay date cannot be before the cutoff ends."}
+            </span>
+          </div>
+        )}
+
+        <div className="modal-note">
+          <ShieldCheck size={16} className="i-green" />
+          Scope is stored by organization-unit ID, and attendance is restricted to the selected cutoff dates.
+        </div>
         <div className="modal-actions">
           <button className="secondary-button" onClick={onClose}>Cancel</button>
-          <button className="primary-button" disabled={busy} onClick={() => onCreate({ periodLabel, scopeLabel })}>{busy ? "Processing…" : "Create & process"} <ArrowUpRight size={16} /></button>
+          <button
+            className="primary-button"
+            disabled={busy || invalidDates}
+            onClick={() => onCreate({ periodStart, periodEnd, payDate, scopeOrgUnitId })}
+          >
+            {busy ? "Processing…" : "Create & process"} <ArrowUpRight size={16} />
+          </button>
         </div>
       </section>
     </div>
@@ -891,13 +998,17 @@ export function GovValidationModal({ organizationId, onClose, setNotice }: { org
               <div key={i} style={{ border: "1px solid var(--line)", padding: 12, borderRadius: 10, background: "white" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                   <strong>{v.document}</strong>
-                  <span className="status status-tested">Local pass · portal pending</span>
+                  <span className={`status ${v.status === "LOCAL_PASS" ? "status-tested" : v.status === "LOCAL_FAIL" ? "status-not-certified" : "status-awaiting-approval"}`}>
+                    {v.status === "LOCAL_PASS" ? "Local checks pass · portal pending" : v.status === "LOCAL_FAIL" ? "Local data blocked" : "Local review needed"}
+                  </span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {v.checks.map((c: any, ci: number) => (
+                  {v.checks.map((check: any, ci: number) => (
                     <div key={ci} style={{ fontSize: 11, color: "var(--ink-secondary)", display: "flex", alignItems: "flex-start", gap: 6 }}>
-                      <Check size={13} style={{ color: "var(--green)", marginTop: 2, flex: "none" }} />
-                      <div><strong>{c.rule}:</strong> {c.message}</div>
+                      {check.passed
+                        ? <Check size={13} style={{ color: "var(--green)", marginTop: 2, flex: "none" }} />
+                        : <HelpCircle size={13} style={{ color: "var(--review)", marginTop: 2, flex: "none" }} />}
+                      <div><strong>{check.rule}:</strong> {check.message}</div>
                     </div>
                   ))}
                 </div>

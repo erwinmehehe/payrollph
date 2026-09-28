@@ -1,7 +1,7 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { expenseClaims } from "@/db/schema";
-import { assertMembership } from "@/lib/access";
+import { employees, expenseClaims } from "@/db/schema";
+import { assertMembership, assertOrganizationRole, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 
@@ -12,24 +12,44 @@ export async function GET(request: Request) {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const url = new URL(request.url);
-  const organizationId = Number(url.searchParams.get("organizationId") ?? 1);
+  const organizationId = Number(url.searchParams.get("organizationId"));
   const status = url.searchParams.get("status");
+  if (!Number.isInteger(organizationId)) {
+    return Response.json({ error: "organizationId is required." }, { status: 400 });
+  }
 
-  const denied = await assertMembership(user.id, organizationId);
-  if (denied) return denied;
+  let employeeId: number | null = null;
+  if (user.role === "employee") {
+    if (!user.employeeId) return Response.json({ error: "Employee profile is not linked." }, { status: 403 });
+    const denied = await assertMembership(user.id, organizationId);
+    if (denied) return denied;
+    employeeId = user.employeeId;
+  } else {
+    const denied = await assertOrganizationRole(
+      user.id,
+      organizationId,
+      PEOPLE_PAYROLL_ROLES,
+      "Only People or payroll administrators can view expense claims.",
+    );
+    if (denied) return denied;
+  }
 
   const rows = await db.select().from(expenseClaims)
     .where(
-      status
-        ? and(eq(expenseClaims.organizationId, organizationId), eq(expenseClaims.status, status))
-        : eq(expenseClaims.organizationId, organizationId),
+      employeeId != null
+        ? and(eq(expenseClaims.organizationId, organizationId), eq(expenseClaims.employeeId, employeeId))
+        : status
+          ? and(eq(expenseClaims.organizationId, organizationId), eq(expenseClaims.status, status))
+          : eq(expenseClaims.organizationId, organizationId),
     )
     .orderBy(desc(expenseClaims.createdAt));
 
-  const approved = rows.filter((r) => r.status === "approved" && r.payrollRunId == null);
+  const visibleRows = employeeId != null && status ? rows.filter((row) => row.status === status) : rows;
+  const approved = visibleRows.filter((row) => row.status === "approved" && row.payrollRunId == null);
+
   return Response.json({
-    claims: rows,
-    pendingReimbursement: Number(approved.reduce((s, r) => s + Number(r.amount), 0).toFixed(2)),
+    claims: visibleRows,
+    pendingReimbursement: Number(approved.reduce((sum, row) => sum + Number(row.amount), 0).toFixed(2)),
   });
 }
 
@@ -39,24 +59,51 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
-  const employeeId = Number(body.employeeId);
+  let employeeId = Number(body.employeeId);
   const amount = Number(body.amount);
   const description = String(body.description ?? "").trim();
   const category = String(body.category ?? "Other").trim();
   const incurredOn = String(body.incurredOn ?? "").trim();
 
-  const denied = await assertMembership(user.id, organizationId);
-  if (denied) return denied;
+  if (!Number.isInteger(organizationId)) return Response.json({ error: "organizationId is required." }, { status: 400 });
 
-  if (!employeeId || !Number.isFinite(amount) || amount <= 0 || !description || !/^\d{4}-\d{2}-\d{2}$/.test(incurredOn)) {
-    return Response.json({ error: "employeeId, positive amount, description and YYYY-MM-DD incurredOn are required." }, { status: 400 });
+  if (user.role === "employee") {
+    if (!user.employeeId) return Response.json({ error: "Employee profile is not linked." }, { status: 403 });
+    const denied = await assertMembership(user.id, organizationId);
+    if (denied) return denied;
+    employeeId = user.employeeId;
+  } else {
+    const denied = await assertOrganizationRole(
+      user.id,
+      organizationId,
+      PEOPLE_PAYROLL_ROLES,
+      "Only People or payroll administrators can submit claims for another employee.",
+    );
+    if (denied) return denied;
   }
+
+  if (
+    !Number.isInteger(employeeId) ||
+    !Number.isFinite(amount) ||
+    amount <= 0 ||
+    !description ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(incurredOn)
+  ) {
+    return Response.json({
+      error: "employeeId, positive amount, description and YYYY-MM-DD incurredOn are required.",
+    }, { status: 400 });
+  }
+
+  const [employee] = await db.select({ id: employees.id }).from(employees)
+    .where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId)))
+    .limit(1);
+  if (!employee) return Response.json({ error: "Employee not found in this workspace." }, { status: 404 });
 
   const [row] = await db.insert(expenseClaims).values({
     organizationId,
     employeeId,
-    category,
-    description,
+    category: category.slice(0, 60),
+    description: description.slice(0, 240),
     amount: amount.toFixed(2),
     incurredOn,
     status: "pending",
@@ -66,7 +113,7 @@ export async function POST(request: Request) {
     organizationId,
     actor: user.name,
     action: "Expense claim submitted",
-    resource: `${category} ${amount.toFixed(2)}`,
+    resource: `${category.slice(0, 60)} ${amount.toFixed(2)}`,
     metadata: { claimId: row.id, employeeId },
   });
 
@@ -80,17 +127,29 @@ export async function PATCH(request: Request) {
   const body = await request.json().catch(() => ({}));
   const id = Number(body.id);
   const status = String(body.status ?? "");
-  if (!id || !["approved", "rejected"].includes(status)) {
+  if (!Number.isInteger(id) || !["approved", "rejected"].includes(status)) {
     return Response.json({ error: "id and status of approved/rejected are required." }, { status: 400 });
   }
 
-  const [existing] = await db.select().from(expenseClaims).where(eq(expenseClaims.id, id));
+  const [existing] = await db.select().from(expenseClaims).where(eq(expenseClaims.id, id)).limit(1);
   if (!existing) return Response.json({ error: "Claim not found." }, { status: 404 });
-  const denied = await assertMembership(user.id, existing.organizationId);
-  if (denied) return denied;
 
-  const [row] = await db.update(expenseClaims).set({ status, decidedBy: user.name })
-    .where(eq(expenseClaims.id, id)).returning();
+  const denied = await assertOrganizationRole(
+    user.id,
+    existing.organizationId,
+    PEOPLE_PAYROLL_ROLES,
+    "Only People or payroll administrators can decide expense claims.",
+  );
+  if (denied) return denied;
+  if (existing.status !== "pending") {
+    return Response.json({ error: `This claim is already ${existing.status} and cannot be decided again.` }, { status: 409 });
+  }
+
+  const [row] = await db.update(expenseClaims)
+    .set({ status, decidedBy: user.name })
+    .where(and(eq(expenseClaims.id, id), eq(expenseClaims.status, "pending")))
+    .returning();
+  if (!row) return Response.json({ error: "Claim changed before the decision was saved. Refresh and retry." }, { status: 409 });
 
   await recordAuditEvent({
     organizationId: existing.organizationId,

@@ -112,6 +112,14 @@ async function deliver(provider: MailProvider, row: typeof outbox.$inferSelect) 
   return { ok: false, error: `Provider ${provider} is not implemented.` };
 }
 
-export async function recentOutbox(limit = 25) {
+export async function recentOutbox(limit = 25, organizationId?: number) {
+  if (Number.isInteger(organizationId)) {
+    return db
+      .select()
+      .from(outbox)
+      .where(eq(outbox.organizationId, organizationId as number))
+      .orderBy(desc(outbox.id))
+      .limit(limit);
+  }
   return db.select().from(outbox).orderBy(desc(outbox.id)).limit(limit);
 }

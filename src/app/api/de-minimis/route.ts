@@ -1,7 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { deMinimisGrants, employees } from "@/db/schema";
-import { assertMembership } from "@/lib/access";
+import { assertOrganizationRole, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { DE_MINIMIS_2026, deMinimisTreatment, type DeMinimisType } from "@/lib/ph-compliance";
@@ -14,7 +14,12 @@ export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const organizationId = Number(new URL(request.url).searchParams.get("organizationId") ?? 1);
-  const denied = await assertMembership(user.id, organizationId);
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_PAYROLL_ROLES,
+    "Only People or payroll administrators can manage de minimis benefits.",
+  );
   if (denied) return denied;
 
   const grants = await db.select().from(deMinimisGrants)
@@ -44,7 +49,12 @@ export async function POST(request: Request) {
   const amount = Number(body.amount);
   const effectiveOn = String(body.effectiveOn ?? "");
 
-  const denied = await assertMembership(user.id, organizationId);
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_PAYROLL_ROLES,
+    "Only People or payroll administrators can manage de minimis benefits.",
+  );
   if (denied) return denied;
   if (!types.includes(benefitType) || !Number.isFinite(amount) || amount <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(effectiveOn)) {
     return Response.json({ error: "Employee, valid RR 29-2025 benefit type, positive amount, and effective date are required." }, { status: 422 });
@@ -81,7 +91,12 @@ export async function DELETE(request: Request) {
   const id = Number(new URL(request.url).searchParams.get("id") ?? 0);
   const [grant] = await db.select().from(deMinimisGrants).where(eq(deMinimisGrants.id, id));
   if (!grant) return Response.json({ error: "Grant not found." }, { status: 404 });
-  const denied = await assertMembership(user.id, grant.organizationId);
+  const denied = await assertOrganizationRole(
+    user.id,
+    grant.organizationId,
+    PEOPLE_PAYROLL_ROLES,
+    "Only People or payroll administrators can end de minimis benefits.",
+  );
   if (denied) return denied;
 
   await db.update(deMinimisGrants).set({ active: false, endedOn: new Date().toISOString().slice(0, 10) })
