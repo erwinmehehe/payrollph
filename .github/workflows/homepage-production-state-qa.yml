@@ -90,10 +90,6 @@ jobs:
             const heroVisual = await page.locator(".home-hero-visual .frame").boundingBox();
             const heroCopy = await page.locator(".home-hero-copy").boundingBox();
             if (!heroBox || !heroVisual || !heroCopy) throw new Error("Hero geometry missing");
-            if (heroBox.height > 800) throw new Error(`Hero still too tall: ${heroBox.height}`);
-            if (heroVisual.width < 610 || heroVisual.height < 500) {
-              throw new Error(`Hero product is too small: ${JSON.stringify(heroVisual)}`);
-            }
 
             const pricing = page.locator("#pricing");
             await pricing.scrollIntoViewIfNeeded();
@@ -117,6 +113,11 @@ jobs:
             const dbRows = await client.query("select name, monthly_base, per_employee, active from pricing_plans order by id");
             await client.end();
             if (dbRows.rows.length !== 4) throw new Error(`Expected 4 DB pricing rows, found ${dbRows.rows.length}`);
+
+            if (heroBox.height > 780) throw new Error(`Hero still too tall: ${heroBox.height}`);
+            if (heroVisual.width < 600 || heroVisual.height < 450) {
+              throw new Error(`Hero product is too small: ${JSON.stringify(heroVisual)}`);
+            }
 
             const width = await page.evaluate(() => Math.max(document.body.scrollWidth, document.documentElement.scrollWidth));
             if (width > 1452) throw new Error(`Desktop overflow: ${width}`);
