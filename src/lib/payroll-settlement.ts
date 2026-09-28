@@ -1,6 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  auditEvents,
   earnedWageRequests,
   employeeLoans,
   expenseClaims,
@@ -41,7 +42,14 @@ function numericId(code: string, prefix: string) {
  * function. That outer claim prevents concurrent release requests; this
  * transaction makes the financial mutations and final state atomic.
  */
-export async function settlePayrollRun(runId: number) {
+export async function settlePayrollRun(
+  runId: number,
+  releaseAudit?: {
+    actor: string;
+    resource: string;
+    metadata?: Record<string, unknown>;
+  },
+) {
   return db.transaction(async (tx) => {
     const [run] = await tx.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
     if (!run) throw new Error("Payroll run not found.");
@@ -247,14 +255,31 @@ export async function settlePayrollRun(runId: number) {
       throw new Error("Payroll release state changed during settlement.");
     }
 
+    const settlement = {
+      expensesSettled,
+      advancesSettled,
+      loanPaymentsSettled,
+      leaveConversionsSettled,
+    };
+
+    // The release audit is part of the same transaction as the ledger changes.
+    // A release is not considered committed if its audit record cannot be written.
+    if (releaseAudit) {
+      await tx.insert(auditEvents).values({
+        organizationId: run.organizationId,
+        actor: releaseAudit.actor,
+        action: "Payroll released",
+        resource: releaseAudit.resource,
+        metadata: {
+          ...(releaseAudit.metadata ?? {}),
+          settlement,
+        },
+      });
+    }
+
     return {
       run: released,
-      settlement: {
-        expensesSettled,
-        advancesSettled,
-        loanPaymentsSettled,
-        leaveConversionsSettled,
-      },
+      settlement,
     };
   });
 }
