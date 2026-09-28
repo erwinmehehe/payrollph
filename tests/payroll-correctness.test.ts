@@ -99,7 +99,7 @@ test("payroll calculation uses only employees in scope and punches inside the cu
     }).returning();
 
     await enqueuePayrollRun(run.id, 25);
-    await drainPayrollQueue(10);
+    await drainPayrollQueue(10, run.id);
 
     const entries = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
     assert.equal(entries.length, 1);
@@ -195,5 +195,79 @@ test("failed settlement rolls back every earlier ledger mutation", async () => {
     assert.equal(runAfter.status, "Releasing");
   } finally {
     await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});
+
+
+test("targeted queue drain never processes an older unrelated payroll run", async () => {
+  const [orgA, orgB] = await db.insert(organizations).values([
+    { name: "Queue Target A", legalName: "Queue Target A Inc.", plan: "Core" },
+    { name: "Queue Target B", legalName: "Queue Target B Inc.", plan: "Core" },
+  ]).returning();
+
+  try {
+    const [employeeA] = await db.insert(employees).values({
+      organizationId: orgA.id,
+      employeeNo: "QUEUE-A-001",
+      firstName: "Target",
+      lastName: "A",
+      title: "Associate",
+      avatarInitials: "TA",
+      basicRate: "30000.00",
+      startDate: "2025-01-01",
+    }).returning();
+    const [employeeB] = await db.insert(employees).values({
+      organizationId: orgB.id,
+      employeeNo: "QUEUE-B-001",
+      firstName: "Older",
+      lastName: "B",
+      title: "Associate",
+      avatarInitials: "OB",
+      basicRate: "30000.00",
+      startDate: "2025-01-01",
+    }).returning();
+
+    const [runB] = await db.insert(payrollRuns).values({
+      organizationId: orgB.id,
+      periodLabel: "Sep 1–15, 2026",
+      periodStart: "2026-09-01",
+      periodEnd: "2026-09-15",
+      scopeLabel: "All locations",
+      status: "Draft",
+      payDate: "2026-09-15",
+    }).returning();
+    const [runA] = await db.insert(payrollRuns).values({
+      organizationId: orgA.id,
+      periodLabel: "Sep 16–30, 2026",
+      periodStart: "2026-09-16",
+      periodEnd: "2026-09-30",
+      scopeLabel: "All locations",
+      status: "Draft",
+      payDate: "2026-09-30",
+    }).returning();
+
+    // Queue B first so the old global worker would have processed it before A.
+    await enqueuePayrollRun(runB.id, 25);
+    await enqueuePayrollRun(runA.id, 25);
+
+    const drained = await drainPayrollQueue(10, runA.id);
+    assert.ok(drained.length > 0);
+    assert.ok(drained.every((result) => result.processed));
+
+    const entriesA = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, runA.id));
+    const entriesB = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, runB.id));
+    assert.equal(entriesA.length, 1);
+    assert.equal(entriesA[0].employeeId, employeeA.id);
+    assert.equal(entriesB.length, 0, "unrelated older run must remain untouched");
+
+    const [freshA] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runA.id));
+    const [freshB] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runB.id));
+    assert.equal(freshA.status, "Needs review");
+    assert.equal(freshB.status, "Queued");
+    assert.equal(freshB.employeeCount, 1);
+    void employeeB;
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, orgA.id));
+    await db.delete(organizations).where(eq(organizations.id, orgB.id));
   }
 });
