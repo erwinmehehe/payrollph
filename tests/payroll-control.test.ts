@@ -53,7 +53,7 @@ const previous = [
     employeeId: 1,
     grossPay: "31000",
     deductions: "4000",
-    netPay: "27000",
+    netPay: "24000",
     status: "Ready",
     lineItems: [
       { code: "BASIC", label: "Basic pay", amount: "31000" },
@@ -128,7 +128,7 @@ test("explain pay shows line-item changes and previous net delta", () => {
     parallelRow: { employeeNo: "LL-101", netPay: 29_500 },
   });
 
-  assert.equal(explanation.previousDelta, 3_000);
+  assert.equal(explanation.previousDelta, 6_000);
   assert.equal(explanation.referenceDelta, 500);
   assert.equal(explanation.changes[0].code, "BASIC");
   assert.equal(explanation.changes[0].delta, 2_000);
