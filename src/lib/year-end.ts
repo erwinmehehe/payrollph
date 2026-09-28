@@ -79,8 +79,13 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
       ? bucket.thirteenth
       : Number(employee.basicRate) * Math.min(1, bucket.periods / 24);
 
+    // If 13th month was not already paid as a payroll line, add the accrued
+    // amount to gross compensation before annualization. annualize() expects
+    // gross compensation to include the full 13th-month amount.
+    const annualGross = bucket.gross + (bucket.thirteenth > 0 ? 0 : accrued13th);
+
     const result = annualize({
-      grossCompensation: bucket.gross,
+      grossCompensation: annualGross,
       thirteenthMonth: accrued13th,
       statutoryContributions: bucket.contributions,
       taxWithheld: bucket.tax,
