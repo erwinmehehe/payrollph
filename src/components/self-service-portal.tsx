@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Clock, Download, FileText, LogOut, ShieldCheck, WalletCards } from "lucide-react";
 import { WebBundyModal } from "@/components/web-bundy-modal";
 
@@ -26,6 +27,8 @@ const peso = (value: string | number) =>
   new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 2 }).format(Number(value));
 
 export function SelfServicePortal() {
+  const searchParams = useSearchParams();
+  const isDemo = searchParams.get("demoRole") === "employee";
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState("");
   const [open, setOpen] = useState<number | null>(null);
@@ -98,7 +101,8 @@ export function SelfServicePortal() {
             {data?.employer?.name ?? "Your employer"} · you can only ever see your own records here.
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {isDemo && <a className="secondary-button" href="/demo">Switch demo role</a>}
           <button className="primary-button" style={{ background: "var(--deep)", borderColor: "var(--green)" }} onClick={() => setWebBundyOpen(true)}>
             <Clock size={15} className="i-cyan" /> Clock IN / OUT
           </button>
