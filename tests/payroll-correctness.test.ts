@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../src/db";
 import {
+  approvalTasks,
   employeeLoans,
   employees,
   expenseClaims,
@@ -269,5 +270,138 @@ test("targeted queue drain never processes an older unrelated payroll run", asyn
   } finally {
     await db.delete(organizations).where(eq(organizations.id, orgA.id));
     await db.delete(organizations).where(eq(organizations.id, orgB.id));
+  }
+});
+
+
+test("concurrent payroll review submissions create only one pending approval", async () => {
+  const [org] = await db.insert(organizations).values({
+    name: "Payroll Submit Race Test",
+    legalName: "Payroll Submit Race Test Inc.",
+    plan: "Core",
+  }).returning();
+
+  try {
+    const [run] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      periodLabel: "Sep 16–30, 2026",
+      periodStart: "2026-09-16",
+      periodEnd: "2026-09-30",
+      scopeLabel: "All locations",
+      status: "Needs review",
+      payDate: "2026-09-30",
+    }).returning();
+
+    const submit = async (approver: string) => db.transaction(async (tx) => {
+      const [claimed] = await tx.update(payrollRuns)
+        .set({ status: "Pending approval" })
+        .where(and(
+          eq(payrollRuns.id, run.id),
+          eq(payrollRuns.status, "Needs review"),
+        ))
+        .returning();
+
+      if (!claimed) return null;
+
+      const [task] = await tx.insert(approvalTasks).values({
+        organizationId: org.id,
+        title: "Review payroll",
+        detail: `Payroll run #${run.id} · concurrency test`,
+        approver,
+        dueLabel: "Required before release",
+        priority: "Normal",
+      }).returning();
+      return task;
+    });
+
+    const results = await Promise.all([
+      submit("Checker A"),
+      submit("Checker B"),
+    ]);
+
+    assert.equal(results.filter(Boolean).length, 1, "only one submission may claim the run");
+    const tasks = await db.select().from(approvalTasks).where(eq(approvalTasks.organizationId, org.id));
+    assert.equal(tasks.filter((task) => task.detail.includes(`Payroll run #${run.id}`)).length, 1);
+
+    const [fresh] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, run.id));
+    assert.equal(fresh.status, "Pending approval");
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});
+
+test("concurrent payroll approval decisions allow only one final decision", async () => {
+  const [org] = await db.insert(organizations).values({
+    name: "Payroll Decision Race Test",
+    legalName: "Payroll Decision Race Test Inc.",
+    plan: "Core",
+  }).returning();
+
+  try {
+    const [run] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      periodLabel: "Sep 16–30, 2026",
+      periodStart: "2026-09-16",
+      periodEnd: "2026-09-30",
+      scopeLabel: "All locations",
+      status: "Pending approval",
+      payDate: "2026-09-30",
+    }).returning();
+
+    const [task] = await db.insert(approvalTasks).values({
+      organizationId: org.id,
+      title: "Review payroll",
+      detail: `Payroll run #${run.id} · concurrency test`,
+      approver: "Checker",
+      dueLabel: "Required before release",
+      priority: "Normal",
+    }).returning();
+
+    const decide = async (decision: "Approved" | "Declined") => {
+      try {
+        return await db.transaction(async (tx) => {
+          const [updatedRun] = await tx.update(payrollRuns)
+            .set({ status: decision === "Approved" ? "Ready for release" : "Needs review" })
+            .where(and(
+              eq(payrollRuns.id, run.id),
+              eq(payrollRuns.status, "Pending approval"),
+            ))
+            .returning();
+          if (!updatedRun) return null;
+
+          const [updatedTask] = await tx.update(approvalTasks)
+            .set({ status: decision, decidedBy: "Checker", decidedAt: new Date() })
+            .where(and(
+              eq(approvalTasks.id, task.id),
+              eq(approvalTasks.status, "Pending"),
+            ))
+            .returning();
+          if (!updatedTask) throw new Error("task conflict");
+
+          return { decision, updatedRun, updatedTask };
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message === "task conflict") return null;
+        throw error;
+      }
+    };
+
+    const results = await Promise.all([
+      decide("Approved"),
+      decide("Declined"),
+    ]);
+    const winner = results.find(Boolean);
+    assert.ok(winner, "one decision must win");
+    assert.equal(results.filter(Boolean).length, 1, "a second simultaneous decision must lose");
+
+    const [freshRun] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, run.id));
+    const [freshTask] = await db.select().from(approvalTasks).where(eq(approvalTasks.id, task.id));
+    assert.equal(freshTask.status, winner!.decision);
+    assert.equal(
+      freshRun.status,
+      winner!.decision === "Approved" ? "Ready for release" : "Needs review",
+    );
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
   }
 });
