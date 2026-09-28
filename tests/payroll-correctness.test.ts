@@ -132,6 +132,8 @@ test("failed settlement rolls back every earlier ledger mutation", async () => {
       title: "Associate",
       avatarInitials: "RT",
       basicRate: "30000.00",
+      bankAccount: "1234567890",
+      bankCode: "BDO",
       startDate: "2025-01-01",
     }).returning();
 
@@ -143,6 +145,7 @@ test("failed settlement rolls back every earlier ledger mutation", async () => {
       scopeLabel: "All locations",
       status: "Releasing",
       payDate: "2026-09-30",
+      employeeCount: 1,
     }).returning();
 
     const [claim] = await db.insert(expenseClaims).values({
@@ -180,7 +183,15 @@ test("failed settlement rolls back every earlier ledger mutation", async () => {
         { code: `EXP-${claim.id}`, label: "Expense reimbursement", amount: "500.00" },
         { code: `LOAN-${loan.id}`, label: "Loan deduction", amount: "-500.00" },
       ],
-      trace: {},
+      trace: {
+        payment: {
+          employeeName: "Rollback Tester",
+          employeeNo: "ROLL-001",
+          bankAccount: "1234567890",
+          bankCode: "BDO",
+          mobile: null,
+        },
+      },
     });
 
     await assert.rejects(() => settlePayrollRun(run.id), /no longer active/);
@@ -422,6 +433,8 @@ test("two releases cannot settle the same expense claim into different payroll r
       title: "Associate",
       avatarInitials: "SR",
       basicRate: "30000.00",
+      bankAccount: "2234567890",
+      bankCode: "BPI",
       startDate: "2025-01-01",
     }).returning();
 
@@ -444,6 +457,7 @@ test("two releases cannot settle the same expense claim into different payroll r
         scopeLabel: "All locations",
         status: "Releasing",
         payDate: "2026-09-30",
+        employeeCount: 1,
       },
       {
         organizationId: org.id,
@@ -453,6 +467,7 @@ test("two releases cannot settle the same expense claim into different payroll r
         scopeLabel: "All locations",
         status: "Releasing",
         payDate: "2026-09-30",
+        employeeCount: 1,
       },
     ]).returning();
 
@@ -467,7 +482,15 @@ test("two releases cannot settle the same expense claim into different payroll r
         lineItems: [
           { code: `EXP-${claim.id}`, label: "Expense reimbursement", amount: "500.00" },
         ],
-        trace: {},
+        trace: {
+          payment: {
+            employeeName: "Settlement Race",
+            employeeNo: "SETTLE-RACE-001",
+            bankAccount: "2234567890",
+            bankCode: "BPI",
+            mobile: null,
+          },
+        },
       });
     }
 
