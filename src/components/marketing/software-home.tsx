@@ -87,21 +87,6 @@ export async function SoftwareHome() {
             </div>
           </div>
 
-          <div className="home-hero-stage" aria-label="Linaw payroll workspace preview">
-            <div className="home-hero-glow" aria-hidden />
-            <div className="home-hero-badge home-hero-badge-top">
-              <span className="status status-verified">Live rules</span>
-              <small>Philippine statutory engine</small>
-            </div>
-            <div className="home-hero-visual">
-              <WorkspacePreview mode="showcase" />
-            </div>
-            <div className="home-hero-badge home-hero-badge-bottom">
-              <span className="mono">{ncr.wageOrder}</span>
-              <small>Current NCR rule in this build</small>
-            </div>
-          </div>
-
           <div className="home-coverage" aria-label="Payroll coverage">
             {COVERAGE.map(({ label, icon: Icon, tone }) => (
               <span className="coverage-chip" key={label}>
