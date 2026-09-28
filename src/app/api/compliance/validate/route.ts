@@ -51,6 +51,7 @@ export async function POST(request: Request) {
   const birTin = digits(org.birTin);
   const birBranchCode = digits(org.birBranchCode).padStart(4, "0").slice(-4);
   const missingEmployeeTin = staff.filter((employee) => digits(employee.tin).length !== 9);
+  const missingEmployeeTinBranch = staff.filter((employee) => digits(employee.tinBranchCode).length !== 4);
   const missingMiddleName = staff.filter((employee) => !employee.middleName?.trim());
   const missingSss = staff.filter((employee) => !employee.sssNo?.trim());
   const missingPhilHealth = staff.filter((employee) => !employee.philHealthNo?.trim());
@@ -73,6 +74,13 @@ export async function POST(request: Request) {
       message: missingEmployeeTin.length === 0
         ? `All ${staff.length} employee TINs are present as 9 digits.`
         : `${missingEmployeeTin.length} employee(s) are missing a valid 9-digit TIN: ${missingEmployeeTin.slice(0, 8).map((employee) => employee.employeeNo).join(", ")}.`,
+    },
+    {
+      rule: "Employee BIR branch codes",
+      passed: missingEmployeeTinBranch.length === 0,
+      message: missingEmployeeTinBranch.length === 0
+        ? "All employee BIR branch codes are stored separately as 4 digits."
+        : `${missingEmployeeTinBranch.length} employee(s) are missing a 4-digit BIR branch code: ${missingEmployeeTinBranch.slice(0, 8).map((employee) => employee.employeeNo).join(", ")}.`,
     },
     {
       rule: "1604-C name fields",
@@ -289,6 +297,7 @@ export async function POST(request: Request) {
     dataCompleteness: {
       employees: staff.length,
       missingEmployeeTin: missingEmployeeTin.length,
+      missingEmployeeTinBranch: missingEmployeeTinBranch.length,
       missingMiddleName: missingMiddleName.length,
       missingSss: missingSss.length,
       missingPhilHealth: missingPhilHealth.length,
