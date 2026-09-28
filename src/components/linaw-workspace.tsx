@@ -85,6 +85,11 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
   );
 
   const allowClientSwitch = !demoRole || demoRole === "bookkeeper";
+  const canManagePayroll = !demoRole || ["owner", "bookkeeper", "payroll"].includes(demoRole);
+  const canManagePeople = !demoRole || ["owner", "bookkeeper", "hr"].includes(demoRole);
+  const canManageTime = !demoRole || ["owner", "bookkeeper", "hr"].includes(demoRole);
+  const canUsePayrollOps = canManagePayroll && availablePages.includes("Payroll");
+  const canUsePeopleOps = canManagePeople && availablePages.includes("People");
 
   usePaletteShortcut(() => setPaletteOpen(true));
 
@@ -247,7 +252,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
 
   const paletteActions = useMemo<PaletteAction[]>(() => {
     const actions: PaletteAction[] = [];
-    if (availablePages.includes("Payroll")) {
+    if (canUsePayrollOps) {
       actions.push({ id: "new-payroll", label: "New payroll run", hint: "Create and queue a run for this client", run: () => setNewPayrollOpen(true) });
       if (currentRun) {
         actions.push({
@@ -258,10 +263,10 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         });
       }
     }
-    if (availablePages.includes("People")) {
+    if (canUsePeopleOps) {
       actions.push({ id: "new-hire", label: "Add employee", hint: "Create a record with its onboarding checklist", run: () => setNewHireOpen(true) });
     }
-    if (availablePages.includes("Time & attendance")) {
+    if (canManageTime && availablePages.includes("Time & attendance")) {
       actions.push({ id: "bundy", label: "Open web bundy", hint: "Record an attendance punch", run: () => setWebBundyOpen(true) });
     }
     if (availablePages.includes("Exports")) {
@@ -271,7 +276,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
       actions.push({ id: "gov", label: "Government validation status", hint: "Which agency outputs are still labelled DRAFT", run: () => setGovModalOpen(true) });
     }
     return actions;
-  }, [availablePages, currentRun, processRun]);
+  }, [availablePages, canManageTime, canUsePayrollOps, canUsePeopleOps, currentRun, processRun]);
 
   /* --------------------------------------------------------------- render */
 
@@ -297,7 +302,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
                 <ShieldCheck size={13} style={{ color: "var(--brand)" }} /> Gov status
               </button>
             )}
-            {availablePages.includes("Time & attendance") && (
+            {canManageTime && availablePages.includes("Time & attendance") && (
               <button className="topbar-link" onClick={() => setWebBundyOpen(true)}>
                 <Clock size={13} style={{ color: "var(--brand)" }} /> Web bundy
               </button>
@@ -344,6 +349,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
             }}
             onAddEmployee={() => setNewHireOpen(true)}
             onPage={setPage}
+            canManage={canManagePeople}
             focusEmployeeId={focusEmployeeId}
             onClearFocus={() => setFocusEmployeeId(null)}
           />
