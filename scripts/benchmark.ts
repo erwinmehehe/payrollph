@@ -79,6 +79,8 @@ async function main() {
       const [run] = await db.insert(payrollRuns).values({
         organizationId: org.id,
         periodLabel: `Benchmark ${size}`,
+        periodStart: "2026-03-16",
+        periodEnd: "2026-03-30",
         scopeLabel: "All locations",
         status: "Draft",
         payDate: "2026-03-30",
