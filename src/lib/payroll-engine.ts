@@ -57,9 +57,16 @@ export async function enqueuePayrollRun(runId: number, chunkSize = DEFAULT_CHUNK
     ? and(
         eq(employees.organizationId, run.organizationId),
         eq(employees.orgUnitId, run.scopeOrgUnitId),
+        eq(employees.status, "Active"),
       )
-    : eq(employees.organizationId, run.organizationId);
+    : and(
+        eq(employees.organizationId, run.organizationId),
+        eq(employees.status, "Active"),
+      );
   const employeeRows = await db.select().from(employees).where(employeeWhere).orderBy(asc(employees.id));
+  if (employeeRows.length === 0) {
+    throw new Error("Payroll scope has no active employees. Add or reactivate an employee before calculating.");
+  }
   const totalChunks = Math.max(1, Math.ceil(employeeRows.length / chunkSize));
 
   await db.delete(payrollJobs).where(eq(payrollJobs.payrollRunId, runId));
@@ -234,11 +241,21 @@ async function processPayrollChunk(input: {
     ? and(
         eq(employees.organizationId, input.organizationId),
         eq(employees.orgUnitId, run.scopeOrgUnitId),
+        eq(employees.status, "Active"),
       )
-    : eq(employees.organizationId, input.organizationId);
+    : and(
+        eq(employees.organizationId, input.organizationId),
+        eq(employees.status, "Active"),
+      );
   const allEmployees = await db.select().from(employees)
     .where(employeeWhere)
     .orderBy(asc(employees.id));
+
+  if (allEmployees.length !== run.employeeCount) {
+    throw new Error(
+      "Payroll employee scope changed after calculation was queued. Recalculate so the run uses one consistent active-employee cohort.",
+    );
+  }
   const chunk = allEmployees.slice(input.chunkIndex * input.chunkSize, (input.chunkIndex + 1) * input.chunkSize);
   if (chunk.length === 0) {
     await finalizeRun(input.runId);
@@ -417,7 +434,16 @@ async function processPayrollChunk(input: {
       netPay: money(calc.net),
       status: calc.status,
       lineItems: calc.lineItems,
-      trace: calc.trace,
+      trace: {
+        ...calc.trace,
+        payment: {
+          employeeName: `${employee.firstName} ${employee.lastName}`,
+          employeeNo: employee.employeeNo,
+          bankAccount: employee.bankAccount,
+          bankCode: employee.bankCode,
+          mobile: employee.mobile,
+        },
+      },
     }).returning();
 
     await db.insert(payslips).values({
