@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, organizations, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { assertMembership } from "@/lib/access";
+import { assertOrganizationRole, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { DE_MINIMIS_2026, PH_COMPLIANCE_RULE_VERSION, statutoryDueDate, thirteenthMonthDeadline } from "@/lib/ph-compliance";
 import { WAGE_ORDERS } from "@/lib/wage-orders";
@@ -22,7 +22,12 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId ?? 1);
-  const denied = await assertMembership(user.id, organizationId);
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_PAYROLL_ROLES,
+    "Only People or payroll administrators can run government filing preflight.",
+  );
   if (denied) return denied;
 
   const [org] = await db.select().from(organizations).where(eq(organizations.id, organizationId));
