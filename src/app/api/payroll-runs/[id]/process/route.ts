@@ -40,7 +40,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   }
 
   const queue = await enqueuePayrollRun(runId);
-  const processResult = await drainPayrollQueue(50);
+  const processResult = await drainPayrollQueue(50, runId);
   const [fresh] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
 
   await recordAuditEvent({
