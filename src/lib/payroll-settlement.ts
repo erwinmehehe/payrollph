@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
   earnedWageRequests,
@@ -81,13 +81,18 @@ export async function settlePayrollRun(runId: number) {
           if (claim.status !== "approved") {
             throw new Error(`Expense claim ${expenseId} is no longer approved for payment.`);
           }
-          await tx.update(expenseClaims)
+          const [settledClaim] = await tx.update(expenseClaims)
             .set({ status: "paid", payrollRunId: run.id })
             .where(and(
               eq(expenseClaims.id, expenseId),
               eq(expenseClaims.organizationId, run.organizationId),
               eq(expenseClaims.status, "approved"),
-            ));
+              isNull(expenseClaims.payrollRunId),
+            ))
+            .returning({ id: expenseClaims.id });
+          if (!settledClaim) {
+            throw new Error(`Expense claim ${expenseId} changed while payroll was being released; recalculate before release.`);
+          }
           expensesSettled += 1;
           continue;
         }
@@ -112,13 +117,18 @@ export async function settlePayrollRun(runId: number) {
           if (advance.status !== "approved") {
             throw new Error(`Earned-wage advance ${advanceId} is no longer approved for recovery.`);
           }
-          await tx.update(earnedWageRequests)
+          const [settledAdvance] = await tx.update(earnedWageRequests)
             .set({ status: "repaid", payrollRunId: run.id })
             .where(and(
               eq(earnedWageRequests.id, advanceId),
               eq(earnedWageRequests.organizationId, run.organizationId),
               eq(earnedWageRequests.status, "approved"),
-            ));
+              isNull(earnedWageRequests.payrollRunId),
+            ))
+            .returning({ id: earnedWageRequests.id });
+          if (!settledAdvance) {
+            throw new Error(`Earned-wage advance ${advanceId} changed while payroll was being released; recalculate before release.`);
+          }
           advancesSettled += 1;
           continue;
         }
@@ -143,13 +153,18 @@ export async function settlePayrollRun(runId: number) {
           if (conversion.status !== "approved") {
             throw new Error(`Leave conversion ${conversionId} is no longer approved for payment.`);
           }
-          await tx.update(leaveConversions)
+          const [settledConversion] = await tx.update(leaveConversions)
             .set({ status: "paid", payrollRunId: run.id })
             .where(and(
               eq(leaveConversions.id, conversionId),
               eq(leaveConversions.organizationId, run.organizationId),
               eq(leaveConversions.status, "approved"),
-            ));
+              isNull(leaveConversions.payrollRunId),
+            ))
+            .returning({ id: leaveConversions.id });
+          if (!settledConversion) {
+            throw new Error(`Leave conversion ${conversionId} changed while payroll was being released; recalculate before release.`);
+          }
           leaveConversionsSettled += 1;
           continue;
         }
@@ -199,7 +214,7 @@ export async function settlePayrollRun(runId: number) {
 
           const newBalance = Math.max(0, remaining - plannedDeduction);
           const newPaid = Number(loan.totalPaid) + plannedDeduction;
-          await tx.update(employeeLoans)
+          const [updatedLoan] = await tx.update(employeeLoans)
             .set({
               remainingBalance: money(newBalance),
               totalPaid: money(newPaid),
@@ -209,7 +224,12 @@ export async function settlePayrollRun(runId: number) {
               eq(employeeLoans.id, loanId),
               eq(employeeLoans.organizationId, run.organizationId),
               eq(employeeLoans.status, "active"),
-            ));
+              eq(employeeLoans.remainingBalance, loan.remainingBalance),
+            ))
+            .returning({ id: employeeLoans.id });
+          if (!updatedLoan) {
+            throw new Error(`Loan ${loanId} balance changed while payroll was being released; recalculate before release.`);
+          }
           loanPaymentsSettled += 1;
         }
       }
