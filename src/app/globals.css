@@ -4820,6 +4820,126 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
   }
 }
 
+
+/* ==========================================================================
+   Homepage typography simplification
+   Keep Inter, but remove the overly compressed/heavy SaaS-heading treatment.
+   ========================================================================== */
+
+.software-home {
+  font-family: Inter, var(--font-sans), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.software-home .hero h1,
+.software-home .section-head h2,
+.software-home .pricing-layout > .home-editorial h2,
+.software-home .closing-copy h2,
+.software-home .feature-card h3,
+.software-home .price-card h2 {
+  font-family: Inter, var(--font-sans), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+}
+
+.software-home .hero h1 {
+  max-width: 620px;
+  font-size: clamp(48px, 4.25vw, 62px);
+  line-height: 1.02;
+  letter-spacing: -.038em;
+  font-weight: 700;
+}
+
+.software-home .hero-sub {
+  max-width: 540px;
+  color: #5f6b7a;
+  font-size: 16px;
+  line-height: 1.68;
+  font-weight: 400;
+}
+
+.software-home .section-head h2 {
+  max-width: 720px;
+  font-size: clamp(34px, 3.4vw, 46px);
+  line-height: 1.08;
+  letter-spacing: -.034em;
+  font-weight: 700;
+}
+
+.software-home .section-head p,
+.software-home .home-editorial > p:not(.eyebrow),
+.software-home .feature-card p,
+.software-home .price-card ul,
+.software-home .site-footer p {
+  font-weight: 400;
+}
+
+.software-home .pricing-layout > .home-editorial h2 {
+  max-width: 330px;
+  font-size: clamp(38px, 3.65vw, 50px);
+  line-height: 1.04;
+  letter-spacing: -.035em;
+  font-weight: 700;
+}
+
+.software-home .feature-card h3,
+.software-home .price-card h2 {
+  letter-spacing: -.018em;
+  font-weight: 650;
+}
+
+.software-home .site-brand strong {
+  font-weight: 700;
+  letter-spacing: -.025em;
+}
+
+.software-home .site-links a,
+.software-home .primary-button,
+.software-home .secondary-button,
+.software-home .link-button {
+  font-weight: 600;
+  letter-spacing: -.01em;
+}
+
+.software-home .eyebrow,
+.software-home .price-plan,
+.software-home .coverage-chip,
+.software-home .status {
+  letter-spacing: .08em;
+}
+
+@media (max-width: 900px) {
+  .software-home .hero h1 {
+    font-size: clamp(44px, 7.8vw, 58px);
+    line-height: 1.03;
+    letter-spacing: -.034em;
+  }
+
+  .software-home .section-head h2,
+  .software-home .pricing-layout > .home-editorial h2 {
+    font-size: clamp(34px, 6.5vw, 44px);
+    line-height: 1.08;
+  }
+}
+
+@media (max-width: 680px) {
+  .software-home .hero h1 {
+    font-size: clamp(38px, 10.5vw, 46px);
+    line-height: 1.05;
+    letter-spacing: -.03em;
+  }
+
+  .software-home .hero-sub {
+    font-size: 15px;
+    line-height: 1.62;
+  }
+
+  .software-home .section-head h2,
+  .software-home .pricing-layout > .home-editorial h2 {
+    font-size: clamp(31px, 8.8vw, 38px);
+    line-height: 1.1;
+    letter-spacing: -.028em;
+  }
+}
+
 /* Payroll outsourcing service page
    Keeps the service funnel visually separate from the software product page. */
 .outsourcing-hero {
