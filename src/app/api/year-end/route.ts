@@ -36,15 +36,35 @@ export async function GET(request: Request) {
     ))
     .orderBy(desc(yearEndAdjustments.adjustment));
 
+  const [organization] = await db.select().from(organizations)
+    .where(eq(organizations.id, organizationId))
+    .limit(1);
+
+  const digits = (value: string | null | undefined) => (value ?? "").replace(/\D/g, "");
+  const employerTin = digits(organization?.birTin);
+  const employerBranch = digits(organization?.birBranchCode).padStart(4, "0");
+  const missingBirIdentity = rows.filter((row) =>
+    digits(row.employee.tin).length !== 9 ||
+    digits(row.employee.tinBranchCode).length !== 4
+  );
+
   if (format === "2316") {
     const match = rows.find((row) => row.employee.id === employeeId) ?? rows[0];
     if (!match) return Response.json({ error: "No annualization on record. Run it first." }, { status: 404 });
-    const [organization] = await db.select().from(organizations).where(eq(organizations.id, organizationId));
+    if (employerTin.length !== 9 || employerBranch.length !== 4) {
+      return Response.json({ error: "Employer BIR TIN and 4-digit branch code are required before generating Form 2316." }, { status: 422 });
+    }
+    if (digits(match.employee.tin).length !== 9 || digits(match.employee.tinBranchCode).length !== 4) {
+      return Response.json({ error: "Employee BIR TIN and 4-digit branch code are required before generating Form 2316." }, { status: 422 });
+    }
+
     const body = renderForm2316({
       taxYear,
       employerName: organization?.legalName ?? organization?.name ?? "Employer",
-      employeeName: `${match.employee.firstName} ${match.employee.lastName}`,
+      employerTin: `${employerTin}-${employerBranch}`,
+      employeeName: [match.employee.firstName, match.employee.middleName, match.employee.lastName].filter(Boolean).join(" "),
       employeeNo: match.employee.employeeNo,
+      employeeTin: `${digits(match.employee.tin)}-${digits(match.employee.tinBranchCode)}`,
       result: match.adjustment.breakdown as never,
     });
     return new Response(body, {
@@ -56,12 +76,44 @@ export async function GET(request: Request) {
   }
 
   if (format === "alphalist") {
+    if (employerTin.length !== 9 || employerBranch.length !== 4) {
+      return Response.json({ error: "Employer BIR TIN and 4-digit branch code are required before generating an Alphalist source extract." }, { status: 422 });
+    }
+    if (missingBirIdentity.length > 0) {
+      return Response.json({
+        error: "Every employee in the annualization needs a 9-digit BIR TIN and 4-digit branch code.",
+        employees: missingBirIdentity.map((row) => row.employee.employeeNo),
+      }, { status: 422 });
+    }
+
     const csv = toCsv({
-      columns: ["Employee No", "Last Name", "First Name", "MWE", "Gross Compensation", "Non-Taxable", "Taxable Income", "Tax Due", "Tax Withheld", "Adjustment", "Outcome"],
+      columns: [
+        "Employer TIN",
+        "Employer Branch",
+        "Employee TIN",
+        "Employee Branch",
+        "Last Name",
+        "First Name",
+        "Middle Name",
+        "Nationality",
+        "MWE",
+        "Gross Compensation",
+        "Non-Taxable",
+        "Taxable Income",
+        "Tax Due",
+        "Tax Withheld",
+        "Adjustment",
+        "Outcome",
+      ],
       rows: rows.map((row) => [
-        row.employee.employeeNo,
+        employerTin,
+        employerBranch,
+        digits(row.employee.tin),
+        digits(row.employee.tinBranchCode),
         row.employee.lastName,
         row.employee.firstName,
+        row.employee.middleName ?? "",
+        row.employee.nationality ?? "Filipino",
         row.adjustment.mwe ? "Y" : "N",
         row.adjustment.grossCompensation,
         row.adjustment.nonTaxable,
@@ -72,12 +124,15 @@ export async function GET(request: Request) {
         row.adjustment.outcome,
       ]),
     });
-    return new Response(`DRAFT ALPHALIST ${taxYear} - not validated against the BIR Alphalist module\n${csv}`, {
-      headers: {
-        "Content-Type": "text/csv",
-        "Content-Disposition": `attachment; filename=alphalist-draft-${taxYear}.csv`,
+    return new Response(
+      `DRAFT ALPHALIST SOURCE EXTRACT ${taxYear} - not an ADES .DAT file and not portal validated\n${csv}`,
+      {
+        headers: {
+          "Content-Type": "text/csv",
+          "Content-Disposition": `attachment; filename=alphalist-source-draft-${taxYear}.csv`,
+        },
       },
-    });
+    );
   }
 
   return Response.json({
