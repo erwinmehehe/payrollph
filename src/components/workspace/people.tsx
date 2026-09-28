@@ -348,6 +348,7 @@ function PersonDrawer({
   const [savingGovernment, setSavingGovernment] = useState(false);
   const [middleName, setMiddleName] = useState(employee.middleName ?? "");
   const [tin, setTin] = useState(employee.tin ?? "");
+  const [tinBranchCode, setTinBranchCode] = useState(employee.tinBranchCode ?? "");
   const [sssNo, setSssNo] = useState(employee.sssNo ?? "");
   const [philHealthNo, setPhilHealthNo] = useState(employee.philHealthNo ?? "");
   const [pagIbigNo, setPagIbigNo] = useState(employee.pagIbigNo ?? "");
@@ -366,6 +367,7 @@ function PersonDrawer({
           employeeId: employee.id,
           middleName,
           tin,
+          tinBranchCode,
           sssNo,
           philHealthNo,
           pagIbigNo,
@@ -448,6 +450,7 @@ function PersonDrawer({
               <div className="setting-form">
                 <label>Middle name<input value={middleName} onChange={(event) => setMiddleName(event.target.value)} /></label>
                 <label>BIR TIN<input value={tin} onChange={(event) => setTin(event.target.value)} placeholder="9-digit employee TIN" /></label>
+                <label>BIR branch code<input value={tinBranchCode} onChange={(event) => setTinBranchCode(event.target.value)} placeholder="0000" /></label>
                 <label>SSS number<input value={sssNo} onChange={(event) => setSssNo(event.target.value)} /></label>
                 <label>PhilHealth PIN<input value={philHealthNo} onChange={(event) => setPhilHealthNo(event.target.value)} /></label>
                 <label>Pag-IBIG MID<input value={pagIbigNo} onChange={(event) => setPagIbigNo(event.target.value)} /></label>
@@ -463,7 +466,7 @@ function PersonDrawer({
           ) : (
             <div className="card-body">
               <div className="run-stats" style={{ margin: 0 }}>
-                <div><span>BIR TIN</span><strong style={{ fontSize: 12 }}>{employee.tin || "Missing"}</strong><small>{employee.middleName ? `middle: ${employee.middleName}` : "middle name not recorded"}</small></div>
+                <div><span>BIR TIN</span><strong style={{ fontSize: 12 }}>{employee.tin ? `${employee.tin}-${employee.tinBranchCode || "0000"}` : "Missing"}</strong><small>{employee.middleName ? `middle: ${employee.middleName}` : "middle name not recorded"}</small></div>
                 <div><span>SSS</span><strong style={{ fontSize: 12 }}>{employee.sssNo || "Missing"}</strong><small>R-3 member number</small></div>
                 <div><span>PhilHealth</span><strong style={{ fontSize: 12 }}>{employee.philHealthNo || "Missing"}</strong><small>EPRS / RF-1 PIN</small></div>
                 <div><span>Pag-IBIG</span><strong style={{ fontSize: 12 }}>{employee.pagIbigNo || "Missing"}</strong><small>MID for remittance</small></div>
