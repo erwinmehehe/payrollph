@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { payslips, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
@@ -40,7 +40,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       const rows = await db.select().from(payslips).where(eq(payslips.organizationId, run.organizationId));
       return Response.json({ payslips: rows.filter((row) => row.periodLabel === run.periodLabel) });
     }
-    const [slip] = await db.select().from(payslips).where(eq(payslips.id, payslipId));
+    const [slip] = await db
+      .select()
+      .from(payslips)
+      .where(and(
+        eq(payslips.id, payslipId),
+        eq(payslips.organizationId, run.organizationId),
+      ))
+      .limit(1);
     if (!slip) return Response.json({ error: "Payslip not found" }, { status: 404 });
     await recordAuditEvent({
       organizationId: run.organizationId,
