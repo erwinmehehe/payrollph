@@ -8,7 +8,6 @@ import {
   employees,
   expenseClaims,
   leaveConversions,
-  loanPayments,
   orgUnits,
   payrollEntries,
   payrollJobs,
@@ -378,51 +377,6 @@ async function processPayrollChunk(input: {
       ruleVersion: RULE_VERSION,
     });
 
-    // Mark the included items as settled against this run so a re-run cannot
-    // pay the same claim or recover the same advance twice.
-    const paidClaimIds = (claimsByEmployee.get(employee.id) ?? []).map((c) => c.id);
-    if (paidClaimIds.length) {
-      await db.update(expenseClaims)
-        .set({ status: "paid", payrollRunId: input.runId })
-        .where(inArray(expenseClaims.id, paidClaimIds));
-    }
-    const repaidAdvanceIds = (advancesByEmployee.get(employee.id) ?? []).map((a) => a.id);
-    if (repaidAdvanceIds.length) {
-      await db.update(earnedWageRequests)
-        .set({ status: "repaid", payrollRunId: input.runId })
-        .where(inArray(earnedWageRequests.id, repaidAdvanceIds));
-    }
-
-    // Record loan payments and deduct from remaining balance
-    for (const l of calc.appliedLoans ?? []) {
-      if (l.deductAmount > 0) {
-        await db.insert(loanPayments).values({
-          loanId: l.loanId,
-          payrollRunId: input.runId,
-          amount: money(l.deductAmount),
-          paymentDate: run.payDate,
-          reference: `Auto-deduct ${run.periodLabel}`,
-        });
-        const [loanRec] = await db.select().from(employeeLoans).where(eq(employeeLoans.id, l.loanId));
-        if (loanRec) {
-          const newBal = Math.max(0, Number(loanRec.remainingBalance) - l.deductAmount);
-          const newPaid = Number(loanRec.totalPaid) + l.deductAmount;
-          await db.update(employeeLoans).set({
-            remainingBalance: money(newBal),
-            totalPaid: money(newPaid),
-            status: newBal <= 0 ? "paid_off" : "active",
-          }).where(eq(employeeLoans.id, l.loanId));
-        }
-      }
-    }
-
-    // Settle leave cash conversions
-    const paidConvIds = (conversionsByEmployee.get(employee.id) ?? []).map((c) => c.id);
-    if (paidConvIds.length) {
-      await db.update(leaveConversions)
-        .set({ status: "paid", payrollRunId: input.runId })
-        .where(inArray(leaveConversions.id, paidConvIds));
-    }
   }
 
   const processedChunks = input.chunkIndex + 1;
@@ -614,10 +568,8 @@ function calculateEmployeePay(input: {
   const conversionTotal = conversionLines.reduce((sum, c) => sum + c.amountNum, 0);
 
   // Employee Loans (SSS Salary Loan, Pag-IBIG MPL/Calamity, Company Loan)
-  const appliedLoans: Array<{ loanId: number; deductAmount: number; loanType: string }> = [];
   const loanLines = (input.loans ?? []).map((loan) => {
     const deductAmount = Math.min(Number(loan.cutoffDeduction), Number(loan.remainingBalance));
-    appliedLoans.push({ loanId: loan.id, deductAmount, loanType: loan.loanType });
     return {
       code: `LOAN-${loan.id}`,
       label: `Loan, ${loan.loanType}`,
@@ -708,7 +660,7 @@ function calculateEmployeePay(input: {
     notes: [...holidayNotes, ...calamityNotes, ...punchNotes],
   });
 
-  return { gross, deductions, net, status, lineItems, trace, payslipText, appliedLoans };
+  return { gross, deductions, net, status, lineItems, trace, payslipText };
 }
 
 function buildPayslipText(input: {
