@@ -137,6 +137,18 @@ export async function POST(request: Request) {
     }, { status: 409 });
   }
 
+  const blockingHistoryWarnings = finalPay.warnings.filter(
+    (warning) =>
+      warning.includes("lack the stored taxable-compensation trace") ||
+      warning.includes("no BASIC line items"),
+  );
+  if (blockingHistoryWarnings.length) {
+    return Response.json({
+      error: "Released payroll history is incomplete, so Linaw will not guess the final-pay tax or 13th-month basis.",
+      details: blockingHistoryWarnings,
+    }, { status: 409 });
+  }
+
   const prorated13th = finalPay.thirteenthMonth.gross;
   const netFinalPay = finalPay.netFinalPay;
 
