@@ -14,12 +14,18 @@ export type Organization = {
   plan: string;
   employeeCount: number;
   color: string;
+  birTin?: string | null;
+  birBranchCode?: string | null;
+  sssEmployerNo?: string | null;
+  philHealthEmployerNo?: string | null;
+  pagIbigEmployerNo?: string | null;
 };
 
 export type Employee = {
   id: number;
   employeeNo: string;
   firstName: string;
+  middleName?: string | null;
   lastName: string;
   title: string;
   employmentType: string;
@@ -30,6 +36,11 @@ export type Employee = {
   region?: string | null;
   orgUnitId?: number | null;
   email?: string | null;
+  tin?: string | null;
+  sssNo?: string | null;
+  philHealthNo?: string | null;
+  pagIbigNo?: string | null;
+  nationality?: string | null;
 };
 
 export type PayrollRun = {
