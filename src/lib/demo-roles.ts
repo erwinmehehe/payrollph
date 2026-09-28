@@ -63,7 +63,7 @@ export const DEMO_ROLES: DemoRoleInfo[] = [
     shortLabel: "Manager",
     person: "Mariel Santos",
     description: "Review the team and handle the decisions assigned to a department manager.",
-    access: ["Department-scoped people", "Team attendance", "Approvals"],
+    access: ["Team people view", "Team attendance", "Approvals"],
     landingPage: "Approvals",
   },
   {
