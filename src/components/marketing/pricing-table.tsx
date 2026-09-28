@@ -84,8 +84,7 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
         <div className="calc-note">
           <Users size={16} className="i-purple" />
           <span>
-            Every figure below is the plan&apos;s stored base plus its per-employee rate at this headcount. Solo is priced for
-            one person, so headcount does not change it.
+            Plan totals update as headcount changes. Solo stays priced for one person.
           </span>
         </div>
       </div>
@@ -97,7 +96,6 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
           const modules = Array.isArray(plan.modules) ? (plan.modules as string[]) : [];
           return (
             <article className={`price-card ${plan.name === "Scale" ? "featured" : ""}`} key={plan.id}>
-              {plan.name === "Scale" && <div className="popular-label">Most chosen</div>}
               <span className="price-plan">{plan.name}</span>
               <h2>{BLURB[plan.name] ?? "Philippine payroll and HRIS"}</h2>
               {modules.length > 0 && (
@@ -113,7 +111,7 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
               </div>
               <small>
                 Base {money(plan.monthlyBase)}
-                {plan.name === "Solo" ? "" : ` + ${money(plan.perEmployee)} per employee`} · pricing table v{plan.version}
+                {plan.name === "Solo" ? "" : ` + ${money(plan.perEmployee)} per employee`}
               </small>
               <a className={plan.name === "Scale" ? "primary-button full" : "secondary-button full"} href="/signup">
                 Create account <ArrowUpRight size={14} />
