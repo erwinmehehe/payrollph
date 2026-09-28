@@ -548,7 +548,7 @@ function PreviewPeople({ query, onQuery }: { query: string; onQuery: (value: str
               <tr key={person.id}>
                 <td>
                   <div className="person-cell">
-                    <span className={`avatar avatar-${person.id % 5}`}>{person.initials}</span>
+                    <div className={`avatar avatar-${person.id % 5}`} aria-hidden>{person.initials}</div>
                     <div>
                       <strong>
                         {person.firstName} {person.lastName}
@@ -623,7 +623,7 @@ function PreviewTime() {
                   <tr key={punch.id}>
                     <td>
                       <div className="person-cell">
-                        <span className={`avatar avatar-${punch.employeeId % 5}`}>{person?.initials}</span>
+                        <div className={`avatar avatar-${punch.employeeId % 5}`} aria-hidden>{person?.initials}</div>
                         <div>
                           <strong>
                             {person?.firstName} {person?.lastName}
