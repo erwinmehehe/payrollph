@@ -1,4 +1,4 @@
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { approvalTasks, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
@@ -86,24 +86,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   let settlement;
+  let updated;
   try {
-    settlement = await settlePayrollRun(runId);
+    const released = await settlePayrollRun(runId);
+    settlement = released.settlement;
+    updated = released.run;
   } catch (error) {
+    // The settlement transaction rolled back every ledger mutation. Only the
+    // earlier release claim lives outside that transaction, so restore it for a
+    // safe recalculation/retry.
     await db.update(payrollRuns)
       .set({ status: "Ready for release" })
       .where(and(eq(payrollRuns.id, runId), eq(payrollRuns.status, "Releasing")));
     return Response.json({
       error: error instanceof Error ? error.message : "Payroll settlement failed; recalculate before release.",
     }, { status: 409 });
-  }
-
-  const [updated] = await db.update(payrollRuns)
-    .set({ status: "Released" })
-    .where(and(eq(payrollRuns.id, runId), eq(payrollRuns.status, "Releasing")))
-    .returning();
-
-  if (!updated) {
-    return Response.json({ error: "Payroll release state changed unexpectedly. Refresh before retrying." }, { status: 409 });
   }
 
   await recordAuditEvent({
@@ -127,7 +124,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // Notify staff that payslips are ready. Queued in the outbox when no mail
   // provider is configured, never silently reported as sent.
   const [organization] = await db.select().from(organizations).where(eq(organizations.id, run.organizationId));
-  const staff = await db.select().from(employees).where(eq(employees.organizationId, run.organizationId));
+  const releasedEntries = await db
+    .select({ employeeId: payrollEntries.employeeId })
+    .from(payrollEntries)
+    .where(eq(payrollEntries.payrollRunId, runId));
+  const releasedEmployeeIds = [...new Set(releasedEntries.map((entry) => entry.employeeId))];
+  const staff = releasedEmployeeIds.length
+    ? await db.select().from(employees).where(and(
+        eq(employees.organizationId, run.organizationId),
+        inArray(employees.id, releasedEmployeeIds),
+      ))
+    : [];
   const notified = staff.filter((person) => person.status === "Active" && Boolean(person.email)).length;
   for (const person of staff) {
     if (person.status !== "Active" || !person.email) continue;
