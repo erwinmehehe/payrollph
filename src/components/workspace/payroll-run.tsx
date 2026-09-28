@@ -234,7 +234,12 @@ export function PayrollRunView({
         copy="Prepare, approve, release and export are deliberately separate steps. Each one is authorised on the server against your role and this client's workspace."
         actions={
           <>
-            <button className="secondary-button" onClick={() => setExportsOpen((current) => !current)} aria-expanded={exportsOpen}>
+            <button
+              className="secondary-button"
+              disabled={!calculated}
+              onClick={() => setExportsOpen((current) => !current)}
+              aria-expanded={exportsOpen}
+            >
               <FileSpreadsheet size={15} className="i-teal" /> Exports
             </button>
             <button className="primary-button brand" onClick={onNewRun}>
@@ -453,7 +458,7 @@ export function PayrollRunView({
                     ? "A checker must approve this payroll before release is available."
                     : exceptionRows.length > 0
                       ? `${exceptionRows.length} exception${exceptionRows.length === 1 ? "" : "s"} must be acknowledged explicitly.`
-                      : "Locks the register, generates payslips and fires the payroll.released webhook."
+                      : "Locks the register, makes the stored payslips available and fires the payroll.released webhook."
               }
               action={
                 released ? (
@@ -469,12 +474,16 @@ export function PayrollRunView({
             />
             <StageCard
               no={4}
-              title="Export"
-              state={released ? "now" : "locked"}
-              copy="Bank disbursement files, accounting journals and government worksheet drafts."
+              title="Validate / Export"
+              state={released ? "now" : calculated ? "now" : "locked"}
+              copy={
+                released
+                  ? "Final bank files, payslips, accounting journals and government worksheet drafts are available."
+                  : "Run payout validation before release. Final bank files and payslip downloads stay locked until release."
+              }
               action={
                 <button className="secondary-button" disabled={!calculated} onClick={() => setExportsOpen(true)}>
-                  <Download size={14} className="i-teal" /> Open exports
+                  <Download size={14} className="i-teal" /> {released ? "Open exports" : "Validate payout"}
                 </button>
               }
             />
@@ -604,7 +613,15 @@ export function PayrollRunView({
                             <ChevronDown size={15} />
                           </span>
                         </button>
-                        {open && <PayslipDetail entry={entry} runId={run.id} periodLabel={run.periodLabel} notify={notify} />}
+                        {open && (
+                          <PayslipDetail
+                            entry={entry}
+                            runId={run.id}
+                            periodLabel={run.periodLabel}
+                            released={released}
+                            notify={notify}
+                          />
+                        )}
                       </div>
                     );
                   })}
@@ -676,11 +693,13 @@ function PayslipDetail({
   entry,
   runId,
   periodLabel,
+  released,
   notify,
 }: {
   entry: PayrollEntry;
   runId: number;
   periodLabel: string;
+  released: boolean;
   notify: Notify;
 }) {
   const lines: PayrollLineItem[] = readLineItems(entry);
@@ -790,6 +809,8 @@ function PayslipDetail({
       <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
         <button
           className="secondary-button"
+          disabled={!released}
+          title={released ? "Download released payslip" : "Payslip download unlocks after payroll release"}
           onClick={async () => {
             try {
               const response = await fetch(`/api/payroll-runs/${runId}/exports?kind=payslip`);
@@ -831,6 +852,7 @@ function ExportPanel({
   const [template, setTemplate] = useState(templates[0]?.name ?? "BDO DAT");
   const [dryRun, setDryRun] = useState(true);
   const [draft, setDraft] = useState(GOVERNMENT_DRAFTS[0]);
+  const released = run.status === "Released";
 
   function download(url: string, label: string) {
     window.open(url, "_blank", "noopener");
@@ -872,9 +894,14 @@ function ExportPanel({
                     </select>
                   </label>
                   <label className="switch">
-                    <input type="checkbox" checked={dryRun} onChange={(event) => setDryRun(event.target.checked)} />
+                    <input
+                      type="checkbox"
+                      checked={dryRun}
+                      disabled={!released}
+                      onChange={(event) => setDryRun(event.target.checked)}
+                    />
                     <i aria-hidden />
-                    <span>Validate only (dry run)</span>
+                    <span>{released ? "Validate only (dry run)" : "Dry run only until payroll is released"}</span>
                   </label>
                   <button
                     className="secondary-button"
@@ -885,7 +912,7 @@ function ExportPanel({
                       )
                     }
                   >
-                    <Download size={14} className="i-teal" /> {dryRun ? "Run validation" : "Generate file"}
+                    <Download size={14} className="i-teal" /> {dryRun ? "Run validation" : "Generate released file"}
                   </button>
                 </div>
               </div>
