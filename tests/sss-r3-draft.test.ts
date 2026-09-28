@@ -36,7 +36,9 @@ test("SSS R-3 draft reports correct EC and full monthly SSS for an employee abov
 
   const [run] = await db.insert(payrollRuns).values({
     organizationId: org.id,
-    periodLabel: "Test Period",
+    periodLabel: "Sep 16–30, 2026",
+    periodStart: "2026-09-16",
+    periodEnd: "2026-09-30",
     payDate: "2026-09-30",
   }).returning();
 
