@@ -1,11 +1,12 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalTasks, leaveRequests } from "@/db/schema";
+import { approvalTasks, auditEvents, leaveRequests, payrollRuns } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { canDecide } from "@/lib/delegation";
 import { dispatchWebhook } from "@/lib/webhooks";
 import { assertMembership } from "@/lib/access";
+import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -29,6 +30,33 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (deniedOrg) return deniedOrg;
   const actor = sessionUser.name;
 
+  const payrollRunMatch = task.detail.match(/Payroll run #(\d+)/);
+  const payrollRunId = payrollRunMatch ? Number(payrollRunMatch[1]) : null;
+
+  if (payrollRunId && status === "Approved") {
+    const assuranceResult = await buildPayrollAssurance(payrollRunId);
+    const blockers = assuranceResult?.assurance.findings.filter((finding) => finding.blocking) ?? [];
+    if (blockers.length > 0) {
+      return Response.json({
+        error: `Payroll assurance found ${blockers.length} blocking issue(s). Resolve them before approval.`,
+        blockingFindings: blockers,
+      }, { status: 409 });
+    }
+
+    const events = await db.select().from(auditEvents).where(eq(auditEvents.organizationId, task.organizationId));
+    const submission = events.find((event) => {
+      if (event.action !== "Payroll submitted for review") return false;
+      if (!event.metadata || typeof event.metadata !== "object") return false;
+      return Number((event.metadata as Record<string, unknown>).runId) === payrollRunId;
+    });
+    if (submission && submission.actor.toLowerCase() === actor.toLowerCase()) {
+      return Response.json({
+        error: "Maker-checker control: the person who submitted this payroll cannot approve it.",
+        maker: submission.actor,
+      }, { status: 403 });
+    }
+  }
+
   const decision = await canDecide(task.organizationId, task.approver, actor);
   if (!decision.permitted) {
     return Response.json({
@@ -50,6 +78,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     .where(eq(approvalTasks.id, taskId))
     .returning();
 
+  if (payrollRunId) {
+    await db.update(payrollRuns)
+      .set({ status: status === "Approved" ? "Ready for release" : "Needs review" })
+      .where(eq(payrollRuns.id, payrollRunId));
+  }
+
   await recordAuditEvent({
     organizationId: task.organizationId,
     actor,
@@ -61,6 +95,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       onBehalfOf: onBehalf,
       delegationChain: decision.chain,
       ruleVersion: "PH-2026.01",
+      payrollRunId,
     },
   });
 
