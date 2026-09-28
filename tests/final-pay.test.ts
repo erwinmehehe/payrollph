@@ -84,24 +84,47 @@ test("missing taxable trace is explicit rather than guessed", () => {
   assert.ok(result.warnings.some((warning) => warning.includes("lack the stored taxable-compensation trace")));
 });
 
-test("payroll and final-pay mutation routes explicitly reject employee-only memberships", () => {
+test("all company-level payroll routes use the centralized payroll role gate", () => {
   for (const path of [
+    "src/app/api/payroll-runs/route.ts",
     "src/app/api/payroll-runs/[id]/process/route.ts",
     "src/app/api/payroll-runs/[id]/release/route.ts",
     "src/app/api/payroll-runs/[id]/review/route.ts",
-    "src/app/api/separation/route.ts",
+    "src/app/api/payroll-runs/[id]/parallel/route.ts",
+    "src/app/api/payroll-runs/[id]/exports/route.ts",
+    "src/app/api/year-end/route.ts",
+    "src/app/api/exports/route.ts",
   ]) {
     const source = readFileSync(path, "utf8");
     assert.ok(source.includes("getAccess"), `${path} must resolve the member's access role`);
-    assert.ok(source.includes('access.role === "employee"'), `${path} must reject employee-only payroll access`);
+    assert.ok(source.includes("canOperatePayroll"), `${path} must enforce the centralized payroll role gate`);
   }
+
+  const separation = readFileSync("src/app/api/separation/route.ts", "utf8");
+  assert.ok(separation.includes("getAccess"));
+  assert.ok(separation.includes("canManageSeparation"));
 });
 
 test("payroll approval route enforces maker-checker separation", () => {
   const source = readFileSync("src/app/api/approvals/[id]/route.ts", "utf8");
+  const review = readFileSync("src/app/api/payroll-runs/[id]/review/route.ts", "utf8");
   assert.ok(source.includes("Payroll submitted for approval"));
   assert.ok(source.includes("Maker-checker control"));
   assert.ok(source.includes("submission?.actor"));
+  assert.ok(review.includes("isPayrollOperatorRole(approver.role)"), "checker must also be a payroll operator");
+});
+
+test("Parallel Payroll is persisted and re-checked by review and release APIs", () => {
+  const schema = readFileSync("src/db/schema.ts", "utf8");
+  const parallel = readFileSync("src/app/api/payroll-runs/[id]/parallel/route.ts", "utf8");
+  const review = readFileSync("src/app/api/payroll-runs/[id]/review/route.ts", "utf8");
+  const release = readFileSync("src/app/api/payroll-runs/[id]/release/route.ts", "utf8");
+
+  assert.ok(schema.includes('parallel_payroll_rows'));
+  assert.ok(parallel.includes("Parallel Payroll imported"));
+  assert.ok(parallel.includes("10_000"));
+  assert.ok(review.includes("parallelPayrollRows"));
+  assert.ok(release.includes("parallelPayrollRows"));
 });
 
 
@@ -120,4 +143,12 @@ test("final pay subtracts 13th-month amounts already paid during the year", () =
   // BASIC history earns 4,166.67 of 13th month; 3,000 was already paid.
   assert.equal(result.thirteenthPaidYtd, 3_000);
   assert.equal(result.thirteenthMonth.gross, 1_166.67);
+});
+
+
+test("separation API refuses to guess final pay from incomplete released history", () => {
+  const source = readFileSync("src/app/api/separation/route.ts", "utf8");
+  assert.ok(source.includes("Released payroll history is incomplete"));
+  assert.ok(source.includes("lack the stored taxable-compensation trace"));
+  assert.ok(source.includes("no BASIC line items"));
 });
