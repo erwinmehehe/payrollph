@@ -405,3 +405,87 @@ test("concurrent payroll approval decisions allow only one final decision", asyn
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
 });
+
+test("two releases cannot settle the same expense claim into different payroll runs", async () => {
+  const [org] = await db.insert(organizations).values({
+    name: "Payroll Concurrent Settlement Test",
+    legalName: "Payroll Concurrent Settlement Test Inc.",
+    plan: "Core",
+  }).returning();
+
+  try {
+    const [employee] = await db.insert(employees).values({
+      organizationId: org.id,
+      employeeNo: "SETTLE-RACE-001",
+      firstName: "Settlement",
+      lastName: "Race",
+      title: "Associate",
+      avatarInitials: "SR",
+      basicRate: "30000.00",
+      startDate: "2025-01-01",
+    }).returning();
+
+    const [claim] = await db.insert(expenseClaims).values({
+      organizationId: org.id,
+      employeeId: employee.id,
+      category: "Transport",
+      description: "Shared stale claim",
+      amount: "500.00",
+      incurredOn: "2026-09-20",
+      status: "approved",
+    }).returning();
+
+    const [runA, runB] = await db.insert(payrollRuns).values([
+      {
+        organizationId: org.id,
+        periodLabel: "Sep 16–30, 2026 A",
+        periodStart: "2026-09-16",
+        periodEnd: "2026-09-30",
+        scopeLabel: "All locations",
+        status: "Releasing",
+        payDate: "2026-09-30",
+      },
+      {
+        organizationId: org.id,
+        periodLabel: "Sep 16–30, 2026 B",
+        periodStart: "2026-09-16",
+        periodEnd: "2026-09-30",
+        scopeLabel: "All locations",
+        status: "Releasing",
+        payDate: "2026-09-30",
+      },
+    ]).returning();
+
+    for (const run of [runA, runB]) {
+      await db.insert(payrollEntries).values({
+        payrollRunId: run.id,
+        employeeId: employee.id,
+        grossPay: "15500.00",
+        deductions: "0.00",
+        netPay: "15500.00",
+        status: "Ready",
+        lineItems: [
+          { code: `EXP-${claim.id}`, label: "Expense reimbursement", amount: "500.00" },
+        ],
+        trace: {},
+      });
+    }
+
+    const results = await Promise.allSettled([
+      settlePayrollRun(runA.id),
+      settlePayrollRun(runB.id),
+    ]);
+    assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
+    assert.equal(results.filter((result) => result.status === "rejected").length, 1);
+
+    const [claimAfter] = await db.select().from(expenseClaims).where(eq(expenseClaims.id, claim.id));
+    assert.ok(claimAfter.payrollRunId === runA.id || claimAfter.payrollRunId === runB.id);
+    assert.equal(claimAfter.status, "paid");
+
+    const freshRuns = await db.select().from(payrollRuns).where(eq(payrollRuns.organizationId, org.id));
+    assert.equal(freshRuns.filter((run) => run.status === "Released").length, 1);
+    assert.equal(freshRuns.filter((run) => run.status === "Releasing").length, 1);
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});
