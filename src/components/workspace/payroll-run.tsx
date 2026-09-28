@@ -429,13 +429,15 @@ export function PayrollRunView({
             <StageCard
               no={3}
               title="Release"
-              state={released ? "done" : calculated ? "now" : "locked"}
+              state={released ? "done" : relatedTask?.status === "Approved" ? "now" : "locked"}
               copy={
                 released
                   ? "Released. Payslip-ready notices were queued for every active employee with an email on file."
-                  : exceptionRows.length > 0
-                    ? `${exceptionRows.length} exception${exceptionRows.length === 1 ? "" : "s"} must be acknowledged explicitly.`
-                    : "Locks the register, generates payslips and fires the payroll.released webhook."
+                  : relatedTask?.status !== "Approved"
+                    ? "A checker must approve this payroll before release is available."
+                    : exceptionRows.length > 0
+                      ? `${exceptionRows.length} exception${exceptionRows.length === 1 ? "" : "s"} must be acknowledged explicitly.`
+                      : "Locks the register, generates payslips and fires the payroll.released webhook."
               }
               action={
                 released ? (
@@ -443,7 +445,7 @@ export function PayrollRunView({
                     Released
                   </span>
                 ) : (
-                  <button className="primary-button brand" disabled={busy || !calculated} onClick={() => setConfirmRelease(true)}>
+                  <button className="primary-button brand" disabled={busy || !calculated || relatedTask?.status !== "Approved"} onClick={() => setConfirmRelease(true)}>
                     <Send size={14} className="i-pink" /> Release
                   </button>
                 )
