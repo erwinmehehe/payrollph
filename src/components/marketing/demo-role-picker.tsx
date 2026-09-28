@@ -46,11 +46,10 @@ export function DemoRolePicker() {
     setError("");
 
     try {
-      const sessionRole = role === "employee" ? "employee" : "bookkeeper";
       const response = await fetch("/api/auth/demo-switch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: sessionRole }),
+        body: JSON.stringify({ role }),
       });
 
       const payload = await response.json().catch(() => ({}));
@@ -59,7 +58,7 @@ export function DemoRolePicker() {
         return;
       }
 
-      window.location.href = role === "employee" ? "/?demoRole=employee" : `/?demoRole=${role}`;
+      window.location.href = typeof payload.redirectTo === "string" ? payload.redirectTo : `/?demoRole=${role}`;
     } catch {
       setError("Could not open the demo workspace. Please try again.");
     } finally {
