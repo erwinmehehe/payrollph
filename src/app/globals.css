@@ -4617,6 +4617,19 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
   }
 }
 
+
+/* Pricing cards should never depend on viewport animation state for legibility. */
+.software-home .pricing-surface,
+.software-home .pricing-surface .price-card {
+  opacity: 1;
+}
+@supports (animation-timeline: view()) {
+  .software-home .pricing-surface,
+  .software-home .pricing-surface .price-card {
+    animation: none !important;
+  }
+}
+
 /* Payroll outsourcing service page
    Keeps the service funnel visually separate from the software product page. */
 .outsourcing-hero {
