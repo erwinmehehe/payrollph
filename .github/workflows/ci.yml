@@ -8,6 +8,22 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -15,8 +31,7 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - run: npm run db:push
       - run: npx tsc --noEmit
       - run: npx tsx --test tests/payroll-rules.test.ts tests/security.test.ts tests/integrations.test.ts tests/annualization.test.ts tests/wage-orders.test.ts tests/launch-gates.test.ts tests/auth-surface.test.ts tests/self-service.test.ts tests/payslip-pdf.test.ts tests/csv-import.test.ts tests/billing.test.ts tests/benefits.test.ts tests/benefits-wiring.test.ts tests/tenancy.test.ts tests/marketing.test.ts tests/mailer-smtp.test.ts tests/manual-launch-readiness.test.ts tests/paymongo-disbursements.test.ts tests/government-draft-tin.test.ts tests/sss-r3-draft.test.ts tests/payroll-assurance.test.ts
       - run: npx next build
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
