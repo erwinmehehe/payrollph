@@ -4254,6 +4254,91 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
   }
 }
 
+
+/* Interactive demo: centered editorial heading, full-width real workspace. */
+.software-home .home-demo-stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 42px;
+}
+.software-home .home-demo-heading {
+  max-width: 820px;
+  margin: 0 auto;
+  text-align: center;
+}
+.software-home .home-demo-heading .eyebrow {
+  margin-inline: auto;
+}
+.software-home .home-demo-heading h2,
+.software-home .home-demo-heading p {
+  margin-inline: auto;
+}
+.software-home .home-demo-heading .editorial-facts {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  max-width: 900px;
+  margin: 28px auto 0;
+  text-align: left;
+}
+.software-home .home-demo-heading .editorial-facts span {
+  padding: 12px 14px;
+  border: 1px solid rgba(84,95,120,.09);
+  border-radius: 12px;
+  background: rgba(255,255,255,.72);
+}
+.software-home .home-demo-section .demo-surface {
+  width: 100%;
+  padding: 20px;
+}
+.software-home .home-demo-section .demo-surface .frame.standalone {
+  width: 100%;
+  max-width: none;
+}
+.software-home .home-demo-section .demo-surface .pv,
+.software-home .home-demo-section .demo-surface .pv-main,
+.software-home .home-demo-section .demo-surface .frame-body {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+}
+.software-home .home-demo-section .demo-surface .frame-body {
+  min-height: 640px;
+}
+
+@media (max-width: 900px) {
+  .software-home .home-demo-stack {
+    gap: 32px;
+  }
+  .software-home .home-demo-heading {
+    text-align: left;
+    margin: 0;
+  }
+  .software-home .home-demo-heading .eyebrow,
+  .software-home .home-demo-heading h2,
+  .software-home .home-demo-heading p {
+    margin-inline: 0;
+  }
+  .software-home .home-demo-heading .editorial-facts {
+    grid-template-columns: minmax(0, 1fr);
+    margin-top: 22px;
+  }
+  .software-home .home-demo-section .demo-surface .frame-body {
+    min-height: 560px;
+  }
+}
+
+@media (max-width: 680px) {
+  .software-home .home-demo-stack {
+    gap: 26px;
+  }
+  .software-home .home-demo-section .demo-surface {
+    padding: 8px;
+  }
+  .software-home .home-demo-section .demo-surface .frame-body {
+    min-height: 520px;
+  }
+}
+
 /* Payroll outsourcing service page
    Keeps the service funnel visually separate from the software product page. */
 .outsourcing-hero {
