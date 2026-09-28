@@ -45,7 +45,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     .orderBy(asc(users.name));
 
   return Response.json({
-    approvers: members.filter((member) => member.userId !== user.id && member.role !== "employee"),
+    approvers: members.filter((member) => member.userId !== user.id && isPayrollOperatorRole(member.role)),
     maker: { userId: user.id, name: user.name },
   });
 }
