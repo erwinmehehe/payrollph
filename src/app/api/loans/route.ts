@@ -2,7 +2,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { employeeLoans, employees, loanPayments } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { assertMembership } from "@/lib/access";
+import { assertOrganizationRole, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
@@ -12,10 +12,16 @@ export async function GET(request: Request) {
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
   const url = new URL(request.url);
-  const organizationId = Number(url.searchParams.get("organizationId") ?? 1);
+  const organizationId = Number(url.searchParams.get("organizationId"));
   const employeeId = Number(url.searchParams.get("employeeId") ?? 0);
 
-  const denied = await assertMembership(user.id, organizationId);
+  if (!Number.isInteger(organizationId)) return Response.json({ error: "organizationId is required." }, { status: 400 });
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_PAYROLL_ROLES,
+    "Only People or payroll administrators can manage employee loans.",
+  );
   if (denied) return denied;
 
   const filter = employeeId > 0
@@ -65,7 +71,7 @@ export async function POST(request: Request) {
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
   const body = await request.json().catch(() => ({}));
-  const organizationId = Number(body.organizationId ?? 1);
+  const organizationId = Number(body.organizationId);
   const employeeId = Number(body.employeeId);
   const loanType = String(body.loanType ?? "SSS Salary Loan").trim();
   const referenceNo = String(body.referenceNo ?? "").trim();
@@ -130,7 +136,12 @@ export async function PATCH(request: Request) {
   const [loan] = await db.select().from(employeeLoans).where(eq(employeeLoans.id, id)).limit(1);
   if (!loan) return Response.json({ error: "Loan not found." }, { status: 404 });
 
-  const denied = await assertMembership(user.id, loan.organizationId);
+  const denied = await assertOrganizationRole(
+    user.id,
+    loan.organizationId,
+    PEOPLE_PAYROLL_ROLES,
+    "Only People or payroll administrators can manage employee loans.",
+  );
   if (denied) return denied;
 
   if (action === "record_payment") {
@@ -138,7 +149,11 @@ export async function PATCH(request: Request) {
       return Response.json({ error: "A positive payment amount is required." }, { status: 400 });
     }
 
-    const newBal = Math.max(0, Number(loan.remainingBalance) - manualAmount);
+    const remaining = Number(loan.remainingBalance);
+    if (manualAmount > remaining + 0.01) {
+      return Response.json({ error: "Payment cannot exceed the remaining loan balance." }, { status: 422 });
+    }
+    const newBal = Math.max(0, remaining - manualAmount);
     const newPaid = Number(loan.totalPaid) + manualAmount;
     const newStatus = newBal <= 0 ? "paid_off" : loan.status;
 
