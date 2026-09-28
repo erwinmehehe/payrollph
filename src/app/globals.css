@@ -4339,6 +4339,284 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
   }
 }
 
+
+/* ==========================================================================
+   Homepage pricing reference match
+   Mirrors the approved pricing composition while preserving real pricingPlans
+   data and the existing live headcount calculator.
+   ========================================================================== */
+
+.software-home .home-pricing-section {
+  padding-block: 112px 118px;
+  background:
+    radial-gradient(circle at 92% 4%, rgba(0,87,184,.035), transparent 24%),
+    #fff;
+}
+
+.software-home .pricing-layout {
+  grid-template-columns: minmax(260px, 27fr) minmax(0, 73fr);
+  gap: clamp(54px, 5vw, 78px);
+  align-items: start;
+}
+
+.software-home .pricing-layout > .home-editorial {
+  position: static;
+  max-width: 320px;
+  padding-top: 18px;
+}
+
+.software-home .pricing-layout > .home-editorial h2 {
+  max-width: 300px;
+  margin-top: 15px;
+  font-size: clamp(42px, 4.25vw, 58px);
+  line-height: .99;
+  letter-spacing: -.058em;
+}
+
+.software-home .pricing-layout > .home-editorial p:last-child {
+  max-width: 292px;
+  margin-top: 24px;
+  font-size: 14.5px;
+  line-height: 1.72;
+}
+
+.software-home .pricing-surface {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid rgba(84,95,120,.10);
+  border-radius: 26px;
+  background: #f3f5f9;
+  box-shadow: 0 12px 32px rgba(16,24,40,.035);
+}
+
+.software-home .pricing-surface .pricing-calculator {
+  margin: 0 0 18px;
+  padding: 24px 26px 22px;
+  border: 0;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: none;
+}
+
+.software-home .pricing-surface .pricing-calculator .eyebrow {
+  font-size: 9px;
+  letter-spacing: .12em;
+}
+
+.software-home .pricing-surface .pricing-calculator h2 {
+  margin: 8px 0 22px;
+  font-size: 18px;
+  line-height: 1.25;
+  letter-spacing: -.025em;
+}
+
+.software-home .pricing-headcount-control {
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 22px;
+  align-items: center;
+}
+
+.software-home .pricing-headcount-value {
+  min-height: 58px;
+  border-radius: 13px;
+}
+
+.software-home .pricing-headcount-value input {
+  font-size: 22px;
+}
+
+.software-home .pricing-headcount-slider input[type="range"] {
+  height: 6px;
+}
+
+.software-home .pricing-surface .calc-note {
+  margin-top: 18px;
+  padding: 12px 14px;
+  border-radius: 11px;
+  background: #f7f8fa;
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.software-home .pricing-surface .pricing-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.software-home .pricing-surface .price-card {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 420px;
+  flex-direction: column;
+  padding: 24px 22px 22px;
+  border: 1px solid rgba(84,95,120,.09);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 5px 14px rgba(16,24,40,.025);
+}
+
+.software-home .pricing-surface .price-card.featured {
+  border-color: rgba(0,87,184,.26);
+  box-shadow: 0 0 0 1px rgba(0,87,184,.035), 0 12px 28px rgba(0,87,184,.075);
+}
+
+.software-home .pricing-surface .popular-label {
+  top: 0;
+  right: 0;
+  padding: 5px 12px;
+  border-radius: 0 17px 0 10px;
+  font-size: 8px;
+  letter-spacing: .06em;
+}
+
+.software-home .pricing-surface .price-plan {
+  margin-bottom: 12px;
+  color: var(--brand);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.software-home .pricing-surface .price-card h2 {
+  min-height: 66px;
+  margin: 0 0 10px;
+  font-size: 15px;
+  line-height: 1.28;
+  letter-spacing: -.025em;
+}
+
+.software-home .pricing-surface .price-card ul {
+  min-height: 104px;
+  margin: 0 !important;
+  padding-left: 16px !important;
+  color: var(--muted) !important;
+  font-size: 11px !important;
+  line-height: 1.7 !important;
+}
+
+.software-home .pricing-surface .price {
+  margin-top: auto;
+  padding-top: 18px;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.software-home .pricing-surface .price strong {
+  font-size: clamp(22px, 1.65vw, 28px);
+  line-height: 1;
+  letter-spacing: -.045em;
+}
+
+.software-home .pricing-surface .price span {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.software-home .pricing-surface .price-card > small {
+  display: block;
+  min-height: 42px;
+  margin-top: 11px;
+  color: var(--muted);
+  font-size: 9.5px;
+  line-height: 1.45;
+}
+
+.software-home .pricing-surface .price-card > a {
+  margin-top: 12px;
+  min-height: 37px;
+  border-radius: 8px;
+  font-size: 11px;
+}
+
+.software-home .pricing-surface .price-card:hover {
+  transform: translateY(-2px);
+}
+
+@media (max-width: 1180px) and (min-width: 901px) {
+  .software-home .pricing-layout {
+    grid-template-columns: minmax(230px, 30fr) minmax(0, 70fr);
+    gap: 38px;
+  }
+  .software-home .pricing-layout > .home-editorial h2 {
+    font-size: clamp(38px, 4.6vw, 48px);
+  }
+  .software-home .pricing-surface .pricing-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .software-home .pricing-surface .price-card {
+    min-height: 390px;
+  }
+}
+
+@media (max-width: 900px) {
+  .software-home .home-pricing-section {
+    padding-block: 92px;
+  }
+  .software-home .pricing-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 34px;
+  }
+  .software-home .pricing-layout > .home-editorial {
+    max-width: 620px;
+    padding-top: 0;
+  }
+  .software-home .pricing-layout > .home-editorial h2,
+  .software-home .pricing-layout > .home-editorial p:last-child {
+    max-width: 620px;
+  }
+  .software-home .pricing-surface {
+    padding: 12px;
+    border-radius: 22px;
+  }
+  .software-home .pricing-surface .pricing-calculator {
+    padding: 22px 20px;
+  }
+  .software-home .pricing-surface .pricing-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .software-home .home-pricing-section {
+    padding-block: 74px;
+  }
+  .software-home .pricing-layout {
+    gap: 28px;
+  }
+  .software-home .pricing-layout > .home-editorial h2 {
+    font-size: clamp(38px, 11vw, 46px);
+  }
+  .software-home .pricing-surface {
+    padding: 8px;
+    border-radius: 18px;
+  }
+  .software-home .pricing-surface .pricing-calculator {
+    padding: 20px 16px;
+    border-radius: 14px;
+  }
+  .software-home .pricing-headcount-control {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+  .software-home .pricing-surface .pricing-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .software-home .pricing-surface .price-card {
+    min-height: 0;
+    padding: 22px 20px;
+  }
+  .software-home .pricing-surface .price-card h2,
+  .software-home .pricing-surface .price-card ul {
+    min-height: 0;
+  }
+}
+
 /* Payroll outsourcing service page
    Keeps the service funnel visually separate from the software product page. */
 .outsourcing-hero {
