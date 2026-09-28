@@ -4645,7 +4645,7 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
 }
 
 .software-home .home-hero-grid {
-  grid-template-columns: minmax(0, 43fr) minmax(0, 57fr);
+  grid-template-columns: minmax(0, 45fr) minmax(0, 55fr);
   min-height: 590px;
   column-gap: clamp(42px, 5vw, 72px);
   row-gap: 16px;
@@ -4660,9 +4660,9 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
 }
 
 .software-home .hero h1 {
-  max-width: 560px;
+  max-width: 590px;
   margin-top: 24px;
-  font-size: clamp(52px, 4.45vw, 64px);
+  font-size: clamp(50px, 4.15vw, 60px);
   line-height: .96;
   letter-spacing: -.062em;
 }
@@ -4700,8 +4700,8 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
 }
 
 .software-home .home-hero-visual {
-  width: 104%;
-  margin-left: -1%;
+  width: 102%;
+  margin-left: 0;
   transform: perspective(1800px) rotateY(-1.4deg) rotateX(.5deg);
 }
 
@@ -4711,6 +4711,11 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
 
 .software-home .home-hero-visual .frame {
   border-radius: 20px;
+}
+.software-home .home-hero-visual .frame-tag {
+  display: none;
+}
+.software-home .home-hero-visual .frame {
   box-shadow:
     0 34px 76px rgba(17,24,39,.16),
     0 10px 26px rgba(17,24,39,.07),
