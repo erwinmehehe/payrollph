@@ -62,12 +62,17 @@ export async function POST(request: Request) {
   const monthlyContribution = Number(body.monthlyContribution ?? 0);
   const startedOn = String(body.startedOn ?? "").trim();
 
-  const denied = await assertMembership(user.id, organizationId);
-  if (denied) return denied;
-  if (!Number.isInteger(employeeId) || !Number.isInteger(planId) || !/^\d{4}-\d{2}-\d{2}$/.test(startedOn)) {
+  if (!Number.isInteger(organizationId) || organizationId <= 0 || !Number.isInteger(employeeId) || !Number.isInteger(planId) || !/^\d{4}-\d{2}-\d{2}$/.test(startedOn)) {
     return Response.json({ error: "organizationId, employeeId, planId and a YYYY-MM-DD startedOn are required." }, { status: 400 });
   }
 
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_PAYROLL_ROLES,
+    "Only People or payroll administrators can manage benefit enrolments.",
+  );
+  if (denied) return denied;
   const [plan] = await db.select().from(benefitPlans).where(and(
     eq(benefitPlans.id, planId),
     or(isNull(benefitPlans.organizationId), eq(benefitPlans.organizationId, organizationId)),
