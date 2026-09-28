@@ -78,34 +78,42 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return Response.json({ error: "Parallel Payroll accepts up to 5,000 rows per import." }, { status: 413 });
   }
 
-  const rows = inputRows.map((raw: unknown, index: number) => {
-    const row = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-    const employeeNo = String(row.employeeNo ?? "").trim().slice(0, 64);
-    const employeeName = String(row.name ?? "").trim().slice(0, 180);
-    const netPay = Number(row.netPay);
-    const withholding = row.withholdingTax == null || row.withholdingTax === "" ? null : Number(row.withholdingTax);
+  let rows: Array<typeof parallelPayrollRows.$inferInsert>;
+  try {
+    rows = inputRows.map((raw: unknown, index: number) => {
+      const row = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+      const employeeNo = String(row.employeeNo ?? "").trim().slice(0, 64);
+      const employeeName = String(row.name ?? "").trim().slice(0, 180);
+      const netPay = Number(row.netPay);
+      const withholding = row.withholdingTax == null || row.withholdingTax === "" ? null : Number(row.withholdingTax);
 
-    if (!employeeNo && !employeeName) {
-      throw new Error(`Row ${index + 1} is missing employeeNo/name.`);
-    }
-    if (!Number.isFinite(netPay)) {
-      throw new Error(`Row ${index + 1} has an invalid netPay.`);
-    }
-    if (withholding !== null && !Number.isFinite(withholding)) {
-      throw new Error(`Row ${index + 1} has an invalid withholdingTax.`);
-    }
+      if (!employeeNo && !employeeName) {
+        throw new Error(`Row ${index + 1} is missing employeeNo/name.`);
+      }
+      if (!Number.isFinite(netPay)) {
+        throw new Error(`Row ${index + 1} has an invalid netPay.`);
+      }
+      if (withholding !== null && !Number.isFinite(withholding)) {
+        throw new Error(`Row ${index + 1} has an invalid withholdingTax.`);
+      }
 
-    return {
-      organizationId: resolved.run.organizationId,
-      payrollRunId: resolved.runId,
-      sourceName,
-      employeeNo,
-      employeeName: employeeName || null,
-      netPay: netPay.toFixed(2),
-      withholdingTax: withholding === null ? null : withholding.toFixed(2),
-      importedBy: user.name,
-    };
-  });
+      return {
+        organizationId: resolved.run.organizationId,
+        payrollRunId: resolved.runId,
+        sourceName,
+        employeeNo,
+        employeeName: employeeName || null,
+        netPay: netPay.toFixed(2),
+        withholdingTax: withholding === null ? null : withholding.toFixed(2),
+        importedBy: user.name,
+      };
+    });
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Invalid Parallel Payroll rows." },
+      { status: 400 },
+    );
+  }
 
   try {
     await db.transaction(async (tx) => {
@@ -115,9 +123,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       }
     });
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith("Row ")) {
-      return Response.json({ error: error.message }, { status: 400 });
-    }
     throw error;
   }
 
