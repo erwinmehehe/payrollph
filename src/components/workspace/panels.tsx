@@ -990,13 +990,17 @@ export function GovValidationModal({ organizationId, onClose, setNotice }: { org
               <div key={i} style={{ border: "1px solid var(--line)", padding: 12, borderRadius: 10, background: "white" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                   <strong>{v.document}</strong>
-                  <span className="status status-tested">Local pass · portal pending</span>
+                  <span className={`status ${v.status === "LOCAL_PASS" ? "status-tested" : v.status === "LOCAL_FAIL" ? "status-not-certified" : "status-awaiting-approval"}`}>
+                    {v.status === "LOCAL_PASS" ? "Local checks pass · portal pending" : v.status === "LOCAL_FAIL" ? "Local data blocked" : "Local review needed"}
+                  </span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {v.checks.map((c: any, ci: number) => (
+                  {v.checks.map((check: any, ci: number) => (
                     <div key={ci} style={{ fontSize: 11, color: "var(--ink-secondary)", display: "flex", alignItems: "flex-start", gap: 6 }}>
-                      <Check size={13} style={{ color: "var(--green)", marginTop: 2, flex: "none" }} />
-                      <div><strong>{c.rule}:</strong> {c.message}</div>
+                      {check.passed
+                        ? <Check size={13} style={{ color: "var(--green)", marginTop: 2, flex: "none" }} />
+                        : <HelpCircle size={13} style={{ color: "var(--review)", marginTop: 2, flex: "none" }} />}
+                      <div><strong>{check.rule}:</strong> {check.message}</div>
                     </div>
                   ))}
                 </div>
