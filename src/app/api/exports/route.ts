@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { auditEvents, employees, organizations, payrollRuns } from "@/db/schema";
 import { ensureSeedData } from "@/db/seed";
 import { recordAuditEvent } from "@/lib/audit";
-import { assertMembership } from "@/lib/access";
+import { assertMembership, canOperatePayroll, getAccess } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +18,10 @@ export async function GET(request: Request) {
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const deniedOrg = await assertMembership(user.id, organizationId);
   if (deniedOrg) return deniedOrg;
+  const access = await getAccess(user.id, organizationId);
+  if (!canOperatePayroll(access)) {
+    return Response.json({ error: "Company payroll exports require an owner, admin, bookkeeper, or payroll role." }, { status: 403 });
+  }
   const kind = searchParams.get("kind") ?? "all";
   const [organization] = await db.select().from(organizations).where(eq(organizations.id, organizationId));
   if (!organization) return Response.json({ error: "Organization not found" }, { status: 404 });
