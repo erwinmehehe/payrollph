@@ -43,7 +43,7 @@ import {
   X,
 } from "lucide-react";
 import { AccountPanel } from "@/components/account-panel";
-import type { AuditEvent, DashboardData, Employee, PayrollEntry, PayrollRun, PricingPlan } from "./types";
+import type { AuditEvent, DashboardData, Employee, OrgUnit, PayrollEntry, PayrollRun, PricingPlan } from "./types";
 import { Avatar, Metric, PageHeading, Status, formatDate, formatDateTime as formatTime, money } from "./ui";
 export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData; setNotice: (message: string) => void; onRefresh: () => Promise<void> }) {
   const requests = data.leaveRequests ?? [];
@@ -646,9 +646,35 @@ function PrivacySettings({ data, setNotice }: { data: DashboardData; setNotice: 
   );
 }
 
-export function NewPayrollModal({ onClose, onCreate, busy }: { onClose: () => void; onCreate: (input: { periodLabel: string; scopeLabel: string }) => void; busy: boolean }) {
-  const [periodLabel, setPeriodLabel] = useState("Mar 16–30, 2026");
-  const [scopeLabel, setScopeLabel] = useState("All locations");
+export function NewPayrollModal({
+  onClose,
+  onCreate,
+  busy,
+  orgUnits = [],
+}: {
+  onClose: () => void;
+  onCreate: (input: {
+    periodStart: string;
+    periodEnd: string;
+    payDate: string;
+    scopeOrgUnitId: number | null;
+  }) => void;
+  busy: boolean;
+  orgUnits?: OrgUnit[];
+}) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const day = now.getDate();
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const iso = (y: number, m: number, d: number) => `${y}-${pad(m + 1)}-${pad(d)}`;
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const [periodStart, setPeriodStart] = useState(day <= 15 ? iso(year, month, 1) : iso(year, month, 16));
+  const [periodEnd, setPeriodEnd] = useState(day <= 15 ? iso(year, month, 15) : iso(year, month, lastDay));
+  const [payDate, setPayDate] = useState(day <= 15 ? iso(year, month, 15) : iso(year, month, lastDay));
+  const [scopeOrgUnitId, setScopeOrgUnitId] = useState<number | null>(null);
+
+  const invalidDates = !periodStart || !periodEnd || !payDate || periodStart > periodEnd || payDate < periodEnd;
 
   return (
     <div className="modal-backdrop" role="presentation">
@@ -656,21 +682,55 @@ export function NewPayrollModal({ onClose, onCreate, busy }: { onClose: () => vo
         <button className="modal-close" onClick={onClose}><X size={18} /></button>
         <div className="modal-icon"><WalletCards size={22} className="i-green" /></div>
         <div className="card-kicker">NEW PAYROLL RUN</div>
-        <h2>Create and queue a scoped run</h2>
-        <p>Draft creation enqueues a Postgres FOR UPDATE SKIP LOCKED job. Calculation uses real punches, statutory tables, and active calamity advisories.</p>
-        <label className="input-label">Payroll period<input value={periodLabel} onChange={(event) => setPeriodLabel(event.target.value)} /></label>
-        <label className="input-label">Run scope
-          <select value={scopeLabel} onChange={(event) => setScopeLabel(event.target.value)}>
-            <option>All locations</option>
-            <option>Makati HQ</option>
-            <option>Cebu Hub</option>
-            <option>Operations department</option>
-          </select>
-        </label>
-        <div className="modal-note"><ShieldCheck size={16} className="i-green" />Chunked, resumable, and idempotent per run, not a fake progress bar.</div>
+        <h2>Create a payroll cutoff</h2>
+        <p>Choose the exact attendance period, pay date, and employee scope. Linaw will calculate only punches and people inside this run.</p>
+
+        <div className="setting-form">
+          <label>Period start
+            <input type="date" value={periodStart} onChange={(event) => setPeriodStart(event.target.value)} />
+          </label>
+          <label>Period end
+            <input type="date" value={periodEnd} min={periodStart} onChange={(event) => {
+              const next = event.target.value;
+              setPeriodEnd(next);
+              if (payDate < next) setPayDate(next);
+            }} />
+          </label>
+          <label>Pay date
+            <input type="date" value={payDate} min={periodEnd} onChange={(event) => setPayDate(event.target.value)} />
+          </label>
+          <label>Run scope
+            <select
+              value={scopeOrgUnitId ?? ""}
+              onChange={(event) => setScopeOrgUnitId(event.target.value ? Number(event.target.value) : null)}
+            >
+              <option value="">All locations</option>
+              {orgUnits.map((unit) => (
+                <option key={unit.id} value={unit.id}>{unit.name} · {unit.type}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        {invalidDates && (
+          <div className="notice notice-amber" style={{ margin: "10px 0 0" }}>
+            <span>Period start must be on or before period end, and pay date cannot be before the cutoff ends.</span>
+          </div>
+        )}
+
+        <div className="modal-note">
+          <ShieldCheck size={16} className="i-green" />
+          Scope is stored by organization-unit ID, and attendance is restricted to the selected cutoff dates.
+        </div>
         <div className="modal-actions">
           <button className="secondary-button" onClick={onClose}>Cancel</button>
-          <button className="primary-button" disabled={busy} onClick={() => onCreate({ periodLabel, scopeLabel })}>{busy ? "Processing…" : "Create & process"} <ArrowUpRight size={16} /></button>
+          <button
+            className="primary-button"
+            disabled={busy || invalidDates}
+            onClick={() => onCreate({ periodStart, periodEnd, payDate, scopeOrgUnitId })}
+          >
+            {busy ? "Processing…" : "Create & process"} <ArrowUpRight size={16} />
+          </button>
         </div>
       </section>
     </div>
