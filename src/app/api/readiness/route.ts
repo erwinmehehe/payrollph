@@ -1,6 +1,6 @@
 import { count, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { invoices, outbox, subscriptions, users } from "@/db/schema";
+import { auditEvents, invoices, outbox, subscriptions, users } from "@/db/schema";
 import { activeMailProvider, deliveryCapable } from "@/lib/mail-provider";
 import { hashPassword } from "@/lib/crypto";
 
@@ -20,8 +20,11 @@ const enabled = (name: string) => process.env[name] === "true";
 export async function GET() {
   const [{ value: userCount }] = await db.select({ value: count() }).from(users);
   const [{ value: queuedMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "queued"));
+  const [{ value: sentMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "sent"));
   const [{ value: paidInvoices }] = await db.select({ value: count() }).from(invoices).where(eq(invoices.status, "paid"));
   const [{ value: activeSubs }] = await db.select({ value: count() }).from(subscriptions).where(eq(subscriptions.status, "active"));
+  const [{ value: paymongoPreflightPasses }] = await db.select({ value: count() }).from(auditEvents)
+    .where(eq(auditEvents.action, "PayMongo payroll preflight passed"));
 
   const provider = activeMailProvider();
 
