@@ -59,9 +59,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const exactApprovals = tasks
     .filter((task) => task.title.toLowerCase().includes(period))
     .sort((a, b) => b.id - a.id);
-  const approval =
-    exactApprovals[0] ??
-    tasks.find((task) => task.title.toLowerCase().includes("payroll") && task.status === "Pending");
+  const month = new Date(`${run.payDate}T12:00:00`)
+    .toLocaleDateString("en-PH", { month: "long" })
+    .toLowerCase();
+  const monthApprovals = tasks
+    .filter((task) => {
+      const title = task.title.toLowerCase();
+      return title.includes("payroll") && title.includes(month);
+    })
+    .sort((a, b) => b.id - a.id);
+  const approval = exactApprovals[0] ?? monthApprovals[0];
 
   if (approval && approval.status !== "Approved") {
     return Response.json({
