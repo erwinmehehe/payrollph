@@ -96,107 +96,104 @@ export async function POST(request: Request) {
     return Response.json({ error: "Demo company data is unavailable." }, { status: 503 });
   }
 
-  // Create/repair every persona together. The role picker therefore always
-  // has a real checker/manager identity available instead of several buttons
-  // secretly sharing the bookkeeper account.
-  const accounts = new Map<DemoRoleId, typeof users.$inferSelect>();
-  for (const role of Object.keys(DEMO_ACCOUNTS) as DemoRoleId[]) {
-    const account = DEMO_ACCOUNTS[role];
+  // Repair only the persona being opened. Demo identities are dedicated
+  // accounts, so a role switch must never rewrite memberships for every other
+  // persona. That avoids cross-session races when several people use the demo
+  // at the same time.
+  const account = DEMO_ACCOUNTS[requestedRole];
 
-    let employeeId: number | null = null;
-    if (account.employeeEmail) {
-      const [employee] = await db
-        .select()
-        .from(employees)
-        .where(and(eq(employees.organizationId, loom.id), eq(employees.email, account.employeeEmail)))
-        .limit(1);
-      employeeId = employee?.id ?? null;
-      if (!employeeId) {
-        return Response.json({ error: `Demo employee for ${role} is unavailable.` }, { status: 503 });
-      }
+  let employeeId: number | null = null;
+  if (account.employeeEmail) {
+    const [employee] = await db
+      .select()
+      .from(employees)
+      .where(and(eq(employees.organizationId, loom.id), eq(employees.email, account.employeeEmail)))
+      .limit(1);
+    employeeId = employee?.id ?? null;
+    if (!employeeId) {
+      return Response.json({ error: `Demo employee for ${requestedRole} is unavailable.` }, { status: 503 });
     }
-
-    let [user] = await db.select().from(users).where(eq(users.email, account.email)).limit(1);
-    if (!user) {
-      [user] = await db
-        .insert(users)
-        .values({
-          email: account.email,
-          name: account.name,
-          passwordHash: hashPassword("LinawDemo2026!"),
-          role: account.userRole,
-          totpEnabled: false,
-          backupCodes: [],
-          employeeId,
-        })
-        .returning();
-    } else {
-      [user] = await db
-        .update(users)
-        .set({
-          name: account.name,
-          role: account.userRole,
-          employeeId,
-        })
-        .where(eq(users.id, user.id))
-        .returning();
-    }
-
-    await db.delete(userOrganizations).where(eq(userOrganizations.userId, user.id));
-
-    let targetOrganizations = [];
-    if (account.target === "businesses") {
-      targetOrganizations = orgs.filter((org) => demoBusinessNames.has(org.name));
-    } else if (account.target === "freelancer") {
-      if (!freelancer) {
-        return Response.json({ error: "Demo freelancer data is unavailable." }, { status: 503 });
-      }
-      targetOrganizations = [freelancer];
-    } else {
-      targetOrganizations = [loom];
-    }
-
-    let orgUnitId: number | null = null;
-    if (account.orgUnitCode) {
-      const [unit] = await db
-        .select()
-        .from(orgUnits)
-        .where(and(eq(orgUnits.organizationId, loom.id), eq(orgUnits.code, account.orgUnitCode)))
-        .limit(1);
-      orgUnitId = unit?.id ?? null;
-    }
-
-    if (targetOrganizations.length > 0) {
-      await db.insert(userOrganizations).values(
-        targetOrganizations.map((organization) => ({
-          userId: user.id,
-          organizationId: organization.id,
-          role: account.membershipRole,
-          orgUnitId: organization.id === loom.id ? orgUnitId : null,
-        })),
-      );
-    }
-
-    accounts.set(role, user);
   }
 
-  const user = accounts.get(requestedRole);
+  let [user] = await db.select().from(users).where(eq(users.email, account.email)).limit(1);
   if (!user) {
-    return Response.json({ error: "Demo account is unavailable." }, { status: 503 });
-  }
-
-  // Defensive check: no non-employee demo identity may carry an employee
-  // self-service link left over from an older seed.
-  if (requestedRole !== "employee" && user.employeeId != null) {
-    const [cleaned] = await db
+    [user] = await db
+      .insert(users)
+      .values({
+        email: account.email,
+        name: account.name,
+        passwordHash: hashPassword("LinawDemo2026!"),
+        role: account.userRole,
+        totpEnabled: false,
+        backupCodes: [],
+        employeeId,
+      })
+      .returning();
+  } else {
+    [user] = await db
       .update(users)
-      .set({ employeeId: null })
+      .set({
+        name: account.name,
+        role: account.userRole,
+        employeeId,
+      })
       .where(eq(users.id, user.id))
       .returning();
-    accounts.set(requestedRole, cleaned);
   }
 
-  const activeUser = accounts.get(requestedRole)!;
+  let targetOrganizations = [];
+  if (account.target === "businesses") {
+    targetOrganizations = orgs.filter((org) => demoBusinessNames.has(org.name));
+  } else if (account.target === "freelancer") {
+    if (!freelancer) {
+      return Response.json({ error: "Demo freelancer data is unavailable." }, { status: 503 });
+    }
+    targetOrganizations = [freelancer];
+  } else {
+    targetOrganizations = [loom];
+  }
+
+  let orgUnitId: number | null = null;
+  if (account.orgUnitCode) {
+    const [unit] = await db
+      .select()
+      .from(orgUnits)
+      .where(and(eq(orgUnits.organizationId, loom.id), eq(orgUnits.code, account.orgUnitCode)))
+      .limit(1);
+    orgUnitId = unit?.id ?? null;
+  }
+
+  const desiredOrganizationIds = new Set(targetOrganizations.map((organization) => organization.id));
+  for (const organization of targetOrganizations) {
+    await db
+      .insert(userOrganizations)
+      .values({
+        userId: user.id,
+        organizationId: organization.id,
+        role: account.membershipRole,
+        orgUnitId: organization.id === loom.id ? orgUnitId : null,
+      })
+      .onConflictDoUpdate({
+        target: [userOrganizations.userId, userOrganizations.organizationId],
+        set: {
+          role: account.membershipRole,
+          orgUnitId: organization.id === loom.id ? orgUnitId : null,
+        },
+      });
+  }
+
+  // Remove only stale memberships belonging to this dedicated demo identity.
+  // Other personas are untouched.
+  const memberships = await db
+    .select()
+    .from(userOrganizations)
+    .where(eq(userOrganizations.userId, user.id));
+  for (const membership of memberships) {
+    if (desiredOrganizationIds.has(membership.organizationId)) continue;
+    await db.delete(userOrganizations).where(eq(userOrganizations.id, membership.id));
+  }
+
+  const activeUser = user;
   const { token, expiresAt } = await createSession(activeUser.id, requestMeta(request));
   const jar = await cookies();
   jar.set(SESSION_COOKIE, token, sessionCookieOptions(expiresAt));
