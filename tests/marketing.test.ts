@@ -27,14 +27,14 @@ test("the software homepage keeps the interactive payroll simulation", () => {
   const page = read("src/components/marketing/software-home.tsx");
   assert.ok(page.includes('<WorkspacePreview mode="interactive" />'), "interactive payroll simulation must remain mounted");
   assert.ok(page.includes('id="simulation"'), "homepage must expose a stable simulation section anchor");
-  assert.ok(page.includes("Try a payroll run before you sign up."), "simulation section must explain what visitors can do");
+  assert.ok(page.includes("Try the payroll workspace yourself."), "simulation section must explain what visitors can do");
 });
 
 test("the homepage stays customer-facing instead of restoring engineering-heavy proof blocks", () => {
   const page = read("src/components/marketing/software-home.tsx");
 
   assert.ok(page.includes("Philippine payroll, without the guesswork."), "homepage must keep the simplified payroll positioning");
-  assert.ok(page.includes("From cutoff to release, every step stays visible."), "homepage must keep the clear payroll workflow");
+  assert.ok(page.includes("One flow from cutoff to release."), "homepage must keep the clear payroll workflow");
   assert.ok(!page.includes("Sprout"), "competitor comparison should not return to the homepage");
   assert.ok(!page.includes("PayrollHero"), "competitor comparison should not return to the homepage");
   assert.ok(!page.includes("<StatutoryLab"), "the removed statutory lab must not be required by the homepage contract");
@@ -46,7 +46,7 @@ test("a dedicated role-based demo page exists", () => {
 
   const demo = read("src/components/marketing/demo-role-picker.tsx");
   const roles = read("src/lib/demo-roles.ts");
-  assert.ok(demo.includes("Explore Linaw from every seat."), "demo page must explain the role-based experience");
+  assert.ok(demo.includes("See Linaw from the seat you actually use."), "demo page must explain the role-based experience");
   for (const role of ["owner", "bookkeeper", "payroll", "hr", "manager", "employee", "freelancer"]) {
     assert.ok(roles.includes(`"${role}"`), `demo roles must include ${role}`);
   }
