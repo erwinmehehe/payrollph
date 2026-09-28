@@ -23,8 +23,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   );
   if (deniedOrg) return deniedOrg;
 
-  if (run.status === "Released") {
-    return Response.json({ error: "Released payroll is immutable and cannot be recalculated." }, { status: 409 });
+  if (run.status === "Released" || run.status === "Releasing") {
+    return Response.json({ error: "Released or releasing payroll is immutable and cannot be recalculated." }, { status: 409 });
   }
 
   const approvalRows = await db
