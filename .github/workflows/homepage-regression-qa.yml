@@ -118,6 +118,14 @@ jobs:
             await mobile.goto("http://127.0.0.1:3000/", { waitUntil: "networkidle" });
             const mobileWidth = await mobile.evaluate(() => Math.max(document.body.scrollWidth, document.documentElement.scrollWidth));
             if (mobileWidth > 392) throw new Error(`Mobile overflow: ${mobileWidth}`);
+            const mobileBento = await mobile.locator("#workspace .bento").boundingBox();
+            const mobileCards = mobile.locator("#workspace .bento > .feature-card");
+            const mobileFirst = await mobileCards.first().boundingBox();
+            const mobileLast = await mobileCards.last().boundingBox();
+            if (!mobileBento || !mobileFirst || !mobileLast) throw new Error("Mobile workspace cards missing");
+            if (mobileFirst.width < mobileBento.width * .95 || mobileLast.width < mobileBento.width * .95) {
+              throw new Error(`Mobile cards not full width: bento=${mobileBento.width}, first=${mobileFirst.width}, last=${mobileLast.width}`);
+            }
             await mobile.locator("#workspace").screenshot({ path: "regression-artifacts/workspace-mobile.png" });
 
             console.log(JSON.stringify({heroFrame,heroBody,payrollEditorial,payrollLab,bentoWidth:bentoBox.width,fifthWidth:fifth.width,sixthWidth:sixth.width,bodyWidth,mobileWidth}, null, 2));
