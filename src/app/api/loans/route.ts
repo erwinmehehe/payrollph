@@ -82,7 +82,12 @@ export async function POST(request: Request) {
   const endDate = String(body.endDate ?? "");
   const notes = String(body.notes ?? "");
 
-  const denied = await assertMembership(user.id, organizationId);
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_PAYROLL_ROLES,
+    "Only People or payroll administrators can manage employee loans.",
+  );
   if (denied) return denied;
 
   if (!employeeId || !referenceNo || !Number.isFinite(principal) || principal <= 0 || !Number.isFinite(monthlyAmortization) || monthlyAmortization <= 0) {
