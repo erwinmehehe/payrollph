@@ -161,6 +161,19 @@ export const payrollEntries = pgTable("payroll_entries", {
   trace: jsonb("trace").notNull().default({}),
 });
 
+export const parallelPayrollRows = pgTable("parallel_payroll_rows", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "cascade" }),
+  sourceName: varchar("source_name", { length: 180 }).notNull().default("Imported payroll"),
+  employeeNo: varchar("employee_no", { length: 64 }).notNull().default(""),
+  employeeName: varchar("employee_name", { length: 180 }),
+  netPay: numeric("net_pay", { precision: 14, scale: 2 }).notNull(),
+  withholdingTax: numeric("withholding_tax", { precision: 14, scale: 2 }),
+  importedBy: varchar("imported_by", { length: 120 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const payrollJobs = pgTable("payroll_jobs", {
   id: serial("id").primaryKey(),
   payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "cascade" }),
