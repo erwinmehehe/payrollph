@@ -1,0 +1,105 @@
+name: Typography preview
+
+on:
+  push:
+    branches:
+      - design/homepage-simple-typography
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      DEMO_MODE: "false"
+      APP_BASE_URL: http://127.0.0.1:3000
+      PG_POOL_MAX: "2"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Apply schema
+        run: |
+          node <<'NODE'
+          const fs = require("node:fs");
+          const { Client } = require("pg");
+          (async () => {
+            const client = new Client({ connectionString: process.env.DATABASE_URL });
+            await client.connect();
+            await client.query(fs.readFileSync("drizzle/baseline.sql", "utf8"));
+            await client.end();
+          })().catch((error) => { console.error(error); process.exit(1); });
+          NODE
+      - run: npx tsc --noEmit
+      - run: npx eslint src tests
+      - run: npm run build
+      - name: Start app
+        run: |
+          npm start > /tmp/linaw-next.log 2>&1 &
+          for i in {1..40}; do
+            if curl -fsS http://127.0.0.1:3000/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/linaw-next.log
+          exit 1
+      - name: Install browser
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Capture typography
+        run: |
+          mkdir -p typography-preview
+          node <<'NODE'
+          const { chromium } = require("playwright");
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+            await page.goto("http://127.0.0.1:3000/", { waitUntil: "networkidle" });
+            await page.addStyleTag({ content: `
+              @supports (animation-timeline: view()) {
+                .software-home * { animation: none !important; opacity: 1 !important; transform: none !important; }
+              }
+              .software-home .site-nav { position: static !important; }
+            `});
+            const h1 = page.locator(".hero h1");
+            const h1Style = await h1.evaluate((el) => {
+              const s = getComputedStyle(el);
+              return {fontFamily:s.fontFamily,fontSize:s.fontSize,fontWeight:s.fontWeight,lineHeight:s.lineHeight,letterSpacing:s.letterSpacing};
+            });
+            if (Number(h1Style.fontWeight) > 700) throw new Error(`Hero still too heavy: ${JSON.stringify(h1Style)}`);
+            const width = await page.evaluate(() => Math.max(document.body.scrollWidth, document.documentElement.scrollWidth));
+            if (width > 1442) throw new Error(`Desktop overflow: ${width}`);
+            await page.locator(".home-hero").screenshot({ path: "typography-preview/hero-1440.png" });
+            await page.locator("#pricing").screenshot({ path: "typography-preview/pricing-1440.png" });
+
+            const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } });
+            await mobile.goto("http://127.0.0.1:3000/", { waitUntil: "networkidle" });
+            const mobileWidth = await mobile.evaluate(() => Math.max(document.body.scrollWidth, document.documentElement.scrollWidth));
+            if (mobileWidth > 392) throw new Error(`Mobile overflow: ${mobileWidth}`);
+            await mobile.locator(".home-hero").screenshot({ path: "typography-preview/hero-390.png" });
+            await browser.close();
+            console.log(JSON.stringify({h1Style,width,mobileWidth},null,2));
+          })().catch((error) => { console.error(error); process.exit(1); });
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: typography-preview
+          path: typography-preview/
+          retention-days: 1
