@@ -1,7 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { approvalTasks, auditEvents, leaveRequests, payrollRuns } from "@/db/schema";
-import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { canDecide } from "@/lib/delegation";
 import { dispatchWebhook } from "@/lib/webhooks";
@@ -39,7 +38,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!payrollRun || payrollRun.organizationId !== task.organizationId) {
       return Response.json({ error: "The payroll approval is not linked to a valid run in this workspace." }, { status: 409 });
     }
-    if (status === "Approved" && payrollRun.status !== "Pending approval") {
+    if (payrollRun.status !== "Pending approval") {
       return Response.json({
         error: `This payroll is not awaiting approval (currently ${payrollRun.status}). Recalculate or submit it for review again.`,
       }, { status: 409 });
@@ -100,38 +99,73 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const onBehalf = actor.toLowerCase() !== task.approver.toLowerCase() ? task.approver : null;
 
-  const [updated] = await db.update(approvalTasks)
-    .set({
-      status,
-      decidedBy: actor,
-      decidedOnBehalfOf: onBehalf,
-      decidedAt: new Date(),
-    })
-    .where(eq(approvalTasks.id, taskId))
-    .returning();
+  let updated;
+  try {
+    updated = await db.transaction(async (tx) => {
+      // Payroll decisions claim the payroll state first. Recalculation uses the
+      // same lock order, which avoids an approval/recalculation deadlock and
+      // guarantees that only one concurrent decision can win.
+      if (payrollRunId) {
+        const [updatedRun] = await tx.update(payrollRuns)
+          .set({ status: status === "Approved" ? "Ready for release" : "Needs review" })
+          .where(and(
+            eq(payrollRuns.id, payrollRunId),
+            eq(payrollRuns.status, "Pending approval"),
+          ))
+          .returning();
 
-  if (payrollRunId) {
-    await db.update(payrollRuns)
-      .set({ status: status === "Approved" ? "Ready for release" : "Needs review" })
-      .where(eq(payrollRuns.id, payrollRunId));
+        if (!updatedRun) {
+          throw new Error("PAYROLL_APPROVAL_CONFLICT");
+        }
+      }
+
+      const [updatedTask] = await tx.update(approvalTasks)
+        .set({
+          status,
+          decidedBy: actor,
+          decidedOnBehalfOf: onBehalf,
+          decidedAt: new Date(),
+        })
+        .where(and(
+          eq(approvalTasks.id, taskId),
+          eq(approvalTasks.status, "Pending"),
+        ))
+        .returning();
+
+      if (!updatedTask) {
+        throw new Error("APPROVAL_TASK_CONFLICT");
+      }
+
+      await tx.insert(auditEvents).values({
+        organizationId: task.organizationId,
+        actor,
+        action: onBehalf ? `Approval ${status.toLowerCase()} by delegate` : `Approval ${status.toLowerCase()}`,
+        resource: task.title,
+        metadata: {
+          taskId,
+          previousStatus: task.status,
+          onBehalfOf: onBehalf,
+          delegationChain: decision.chain,
+          ruleVersion: "PH-2026.01",
+          payrollRunId,
+          makerUserId: payrollSubmission ? Number(payrollSubmission.metadata.makerUserId) || null : null,
+          approverUserId: payrollSubmission ? Number(payrollSubmission.metadata.approverUserId) || null : null,
+        },
+      });
+
+      return updatedTask;
+    });
+  } catch (error) {
+    if (error instanceof Error && (
+      error.message === "PAYROLL_APPROVAL_CONFLICT" ||
+      error.message === "APPROVAL_TASK_CONFLICT"
+    )) {
+      return Response.json({
+        error: "This approval changed while your decision was being saved. Refresh to see the current state.",
+      }, { status: 409 });
+    }
+    throw error;
   }
-
-  await recordAuditEvent({
-    organizationId: task.organizationId,
-    actor,
-    action: onBehalf ? `Approval ${status.toLowerCase()} by delegate` : `Approval ${status.toLowerCase()}`,
-    resource: task.title,
-    metadata: {
-      taskId,
-      previousStatus: task.status,
-      onBehalfOf: onBehalf,
-      delegationChain: decision.chain,
-      ruleVersion: "PH-2026.01",
-      payrollRunId,
-      makerUserId: payrollSubmission ? Number(payrollSubmission.metadata.makerUserId) || null : null,
-      approverUserId: payrollSubmission ? Number(payrollSubmission.metadata.approverUserId) || null : null,
-    },
-  });
 
   const deliveries = await dispatchWebhook({
     organizationId: task.organizationId,
