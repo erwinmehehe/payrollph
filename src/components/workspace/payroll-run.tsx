@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { readLineItems, readTrace, type BankTemplate, type DashboardData, type Notify, type PayrollEntry, type PayrollLineItem, type PayrollRun, type Task } from "./types";
+import { PayrollControlCenter, type PayrollControlSummary } from "./payroll-control-center";
 import {
   Battery,
   EmptyState,
@@ -62,6 +63,13 @@ export function PayrollRunView({
   const [onlyExceptions, setOnlyExceptions] = useState(false);
   const [confirmRelease, setConfirmRelease] = useState(false);
   const [exportsOpen, setExportsOpen] = useState(false);
+  const [controlSummary, setControlSummary] = useState<PayrollControlSummary>({
+    blocked: false,
+    reviewRequired: false,
+    highCount: 0,
+    mediumCount: 0,
+    parallelRows: 0,
+  });
 
   // Derived, not synced: if the selected run disappears (client switch, new
   // run) the first run takes over without an effect round-trip.
@@ -76,6 +84,41 @@ export function PayrollRunView({
   const [fetched, setFetched] = useState<{ runId: number; entries: PayrollEntry[] } | null>(null);
   const [failedRunId, setFailedRunId] = useState<number | null>(null);
   const runId = run?.id;
+  const previousRun = useMemo(() => {
+    if (!run) return undefined;
+    const currentDate = new Date(`${run.payDate}T12:00:00`).getTime();
+    return data.payrollRuns
+      .filter((item) => item.id !== run.id)
+      .filter((item) => new Date(`${item.payDate}T12:00:00`).getTime() < currentDate)
+      .sort(
+        (a, b) =>
+          new Date(`${b.payDate}T12:00:00`).getTime() - new Date(`${a.payDate}T12:00:00`).getTime(),
+      )[0];
+  }, [data.payrollRuns, run]);
+  const [previousFetched, setPreviousFetched] = useState<{ runId: number; entries: PayrollEntry[] } | null>(null);
+
+  useEffect(() => {
+    if (!previousRun?.id) {
+      setPreviousFetched(null);
+      return;
+    }
+
+    let alive = true;
+    (async () => {
+      try {
+        const response = await fetch(`/api/payroll-runs?runId=${previousRun.id}&include=entries`, { cache: "no-store" });
+        if (!alive || !response.ok) return;
+        const payload = (await response.json()) as { entries?: PayrollEntry[] };
+        if (alive) setPreviousFetched({ runId: previousRun.id, entries: payload.entries ?? [] });
+      } catch {
+        if (alive) setPreviousFetched({ runId: previousRun.id, entries: [] });
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [previousRun?.id]);
 
   useEffect(() => {
     if (!runId) return;
@@ -128,6 +171,10 @@ export function PayrollRunView({
 
   const exceptionRows = entries.filter((entry) => entry.status === "Exception");
   const relatedTask = useMemo(() => findRunApproval(data.tasks, run), [data.tasks, run]);
+  const previousEntries =
+    previousRun && previousFetched?.runId === previousRun.id ? previousFetched.entries : [];
+  const approvalBlocksRelease = Boolean(relatedTask && relatedTask.status !== "Approved");
+  const releaseBlocked = controlSummary.blocked || approvalBlocksRelease;
 
   if (!run) {
     return (
@@ -279,46 +326,25 @@ export function PayrollRunView({
             )}
           </div>
 
-          {/* Exceptions */}
-          {exceptionRows.length > 0 && (
+          {calculated && !entriesLoading && !entriesFailed && (
             <div className="card-body" style={{ paddingTop: 0 }}>
-              <div className="line-title" style={{ margin: 0 }}>
-                <strong>Exceptions requiring sign-off</strong>
-                <span>{exceptionRows.length} of {entries.length} entries</span>
-              </div>
-              {exceptionRows.slice(0, 4).map((entry) => {
-                const employee = data.employees.find((person) => person.id === entry.employeeId);
-                const flags = readTrace(entry).flags;
-                return (
-                  <div className="exception-row" key={entry.id}>
-                    <AlertTriangle size={16} style={{ color: "var(--review)", flex: "none", marginTop: 1 }} />
-                    <div>
-                      <strong>
-                        {employee ? `${employee.firstName} ${employee.lastName}` : `Entry #${entry.id}`}{" "}
-                        <span className="mono" style={{ fontWeight: 500, opacity: 0.7 }}>
-                          {employee?.employeeNo}
-                        </span>
-                      </strong>
-                      <p>{flags.length ? flags.join(" · ") : "Flagged by the payroll engine, open the payslip for the full trace."}</p>
-                    </div>
-                    <button
-                      className="secondary-button"
-                      style={{ height: 28, fontSize: 11 }}
-                      onClick={() => {
-                        setOnlyExceptions(true);
-                        setExpanded(entry.id);
-                      }}
-                    >
-                      Inspect
-                    </button>
-                  </div>
-                );
-              })}
-              {exceptionRows.length > 4 && (
-                <button className="link-button" onClick={() => setOnlyExceptions(true)}>
-                  Show all {exceptionRows.length} exceptions in the register
-                </button>
-              )}
+              <PayrollControlCenter
+                run={run}
+                entries={entries}
+                previousEntries={previousEntries}
+                previousRun={previousRun}
+                employees={data.employees}
+                approvalTask={relatedTask}
+                notify={notify}
+                onControlChange={setControlSummary}
+                onInspectEntry={(entryId) => {
+                  setExpanded(entryId);
+                  setOnlyExceptions(false);
+                  requestAnimationFrame(() => {
+                    document.querySelector(".register")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  });
+                }}
+              />
             </div>
           )}
 
@@ -366,9 +392,13 @@ export function PayrollRunView({
               copy={
                 released
                   ? "Released. Payslip-ready notices were queued for every active employee with an email on file."
-                  : exceptionRows.length > 0
-                    ? `${exceptionRows.length} exception${exceptionRows.length === 1 ? "" : "s"} must be acknowledged explicitly.`
-                    : "Locks the register, generates payslips and fires the payroll.released webhook."
+                  : controlSummary.blocked
+                    ? `${controlSummary.highCount} blocking payroll audit issue${controlSummary.highCount === 1 ? "" : "s"} must be resolved first.`
+                    : approvalBlocksRelease
+                      ? "The configured payroll approval must be approved before release."
+                      : exceptionRows.length > 0
+                        ? `${exceptionRows.length} exception${exceptionRows.length === 1 ? "" : "s"} must be acknowledged explicitly.`
+                        : "Locks the register, generates payslips and fires the payroll.released webhook."
               }
               action={
                 released ? (
@@ -376,7 +406,7 @@ export function PayrollRunView({
                     Released
                   </span>
                 ) : (
-                  <button className="primary-button brand" disabled={busy || !calculated} onClick={() => setConfirmRelease(true)}>
+                  <button className="primary-button brand" disabled={busy || !calculated || releaseBlocked} onClick={() => setConfirmRelease(true)}>
                     <Send size={14} className="i-pink" /> Release
                   </button>
                 )
