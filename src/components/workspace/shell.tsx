@@ -69,8 +69,8 @@ export function WorkspaceShell({
 
   const isFreelancer = data.selectedOrganization.accountType === "freelancer";
   const openApprovals = data.tasks.filter((task) => task.status === "Pending").length;
-  const userName = data.user?.name ?? "Signed-in user";
   const roleInfo = demoRoleInfo(displayRole);
+  const userName = roleInfo?.person ?? data.user?.name ?? "Signed-in user";
   const roleLabel = roleInfo?.shortLabel ?? (data.user?.role === "employee" ? "Employee" : data.user?.role ?? "Member");
   const defaultPage = visiblePages?.[0] ?? "Overview";
 
