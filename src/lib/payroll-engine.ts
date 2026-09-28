@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, lte } from "drizzle-orm";
 import { db, pool } from "@/db";
 import {
   calamityAdvisories,
@@ -53,7 +53,13 @@ export async function enqueuePayrollRun(runId: number, chunkSize = DEFAULT_CHUNK
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) throw new Error("Payroll run not found");
 
-  const employeeRows = await db.select().from(employees).where(eq(employees.organizationId, run.organizationId)).orderBy(asc(employees.id));
+  const employeeWhere = run.scopeOrgUnitId
+    ? and(
+        eq(employees.organizationId, run.organizationId),
+        eq(employees.orgUnitId, run.scopeOrgUnitId),
+      )
+    : eq(employees.organizationId, run.organizationId);
+  const employeeRows = await db.select().from(employees).where(employeeWhere).orderBy(asc(employees.id));
   const totalChunks = Math.max(1, Math.ceil(employeeRows.length / chunkSize));
 
   await db.delete(payrollJobs).where(eq(payrollJobs.payrollRunId, runId));
@@ -84,7 +90,15 @@ export async function enqueuePayrollRun(runId: number, chunkSize = DEFAULT_CHUNK
     actor: "System",
     action: "Payroll job queued",
     resource: run.periodLabel,
-    metadata: { runId, totalChunks, chunkSize, ruleVersion: RULE_VERSION },
+    metadata: {
+      runId,
+      totalChunks,
+      chunkSize,
+      ruleVersion: RULE_VERSION,
+      periodStart: run.periodStart,
+      periodEnd: run.periodEnd,
+      scopeOrgUnitId: run.scopeOrgUnitId,
+    },
   });
 
   return { runId, totalChunks, employeeCount: employeeRows.length };
@@ -191,8 +205,14 @@ async function processPayrollChunk(input: {
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, input.runId));
   if (!run) throw new Error("Payroll run missing");
 
+  const employeeWhere = run.scopeOrgUnitId
+    ? and(
+        eq(employees.organizationId, input.organizationId),
+        eq(employees.orgUnitId, run.scopeOrgUnitId),
+      )
+    : eq(employees.organizationId, input.organizationId);
   const allEmployees = await db.select().from(employees)
-    .where(eq(employees.organizationId, input.organizationId))
+    .where(employeeWhere)
     .orderBy(asc(employees.id));
   const chunk = allEmployees.slice(input.chunkIndex * input.chunkSize, (input.chunkIndex + 1) * input.chunkSize);
   if (chunk.length === 0) {
@@ -203,6 +223,8 @@ async function processPayrollChunk(input: {
   const advisories = await db.select().from(calamityAdvisories).where(and(
     eq(calamityAdvisories.organizationId, input.organizationId),
     eq(calamityAdvisories.active, true),
+    lte(calamityAdvisories.startDate, run.periodEnd),
+    gte(calamityAdvisories.endDate, run.periodStart),
   ));
   const units = await db.select().from(orgUnits).where(eq(orgUnits.organizationId, input.organizationId));
   const unitMap = new Map(units.map((unit) => [unit.id, unit]));
@@ -308,7 +330,12 @@ async function processPayrollChunk(input: {
   let chunkExceptions = 0;
 
   for (const employee of chunk) {
-    const punches = await db.select().from(timePunches).where(eq(timePunches.employeeId, employee.id));
+    const punches = await db.select().from(timePunches).where(and(
+      eq(timePunches.organizationId, input.organizationId),
+      eq(timePunches.employeeId, employee.id),
+      gte(timePunches.workDate, run.periodStart),
+      lte(timePunches.workDate, run.periodEnd),
+    ));
     const unit = employee.orgUnitId ? unitMap.get(employee.orgUnitId) : null;
     const calc = calculateEmployeePay({
       employee,
