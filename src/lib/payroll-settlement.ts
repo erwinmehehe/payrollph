@@ -124,6 +124,12 @@ export async function settlePayrollRun(
         );
       }
 
+      if (!snapshot.bankAccount && !snapshot.mobile) {
+        throw new Error(
+          `${snapshot.employeeName} has no captured bank account or mobile payout destination; add one and recalculate before release.`,
+        );
+      }
+
       const currentName = `${employee.firstName} ${employee.lastName}`.trim();
       const paymentChanged =
         !samePaymentValue(snapshot.employeeName, currentName) ||
