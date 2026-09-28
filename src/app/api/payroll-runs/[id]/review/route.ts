@@ -8,7 +8,7 @@ import {
   userOrganizations,
   users,
 } from "@/db/schema";
-import { assertMembership } from "@/lib/access";
+import { assertMembership, getAccess } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { auditPayrollControl } from "@/lib/payroll-control";
@@ -26,6 +26,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   const denied = await assertMembership(user.id, run.organizationId);
   if (denied) return denied;
+  const access = await getAccess(user.id, run.organizationId);
+  if (!access || access.role === "employee") {
+    return Response.json({ error: "Payroll operations require a payroll or administrative workspace role." }, { status: 403 });
+  }
 
   const members = await db
     .select({
@@ -58,6 +62,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const denied = await assertMembership(user.id, run.organizationId);
   if (denied) return denied;
+  const access = await getAccess(user.id, run.organizationId);
+  if (!access || access.role === "employee") {
+    return Response.json({ error: "Payroll operations require a payroll or administrative workspace role." }, { status: 403 });
+  }
   if (run.status === "Released") {
     return Response.json({ error: "Released payroll cannot be submitted for approval." }, { status: 409 });
   }
