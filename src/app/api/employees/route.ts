@@ -80,6 +80,7 @@ export async function POST(request: Request) {
     email: email || null,
     mobile: String(body.mobile ?? "").trim() || null,
     tin: String(body.tin ?? "").trim() || null,
+    tinBranchCode: String(body.tinBranchCode ?? "").replace(/\D/g, "").padStart(4, "0").slice(-4) || null,
     sssNo: String(body.sssNo ?? "").trim() || null,
     philHealthNo: String(body.philHealthNo ?? "").trim() || null,
     pagIbigNo: String(body.pagIbigNo ?? "").trim() || null,
@@ -157,6 +158,9 @@ export async function PATCH(request: Request) {
   const updates = {
     middleName: clean(body.middleName),
     tin: clean(body.tin),
+    tinBranchCode: body.tinBranchCode === undefined
+      ? undefined
+      : String(body.tinBranchCode ?? "").replace(/\D/g, "").padStart(4, "0").slice(-4) || null,
     sssNo: clean(body.sssNo),
     philHealthNo: clean(body.philHealthNo),
     pagIbigNo: clean(body.pagIbigNo),
