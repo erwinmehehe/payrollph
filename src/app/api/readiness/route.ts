@@ -111,13 +111,17 @@ export async function GET() {
     },
     {
       key: "bank-validation",
-      label: "Bank file validation with live banks",
-      ready: bankConfigured,
-      detail: bankConfigured
-        ? "Host-to-host / InstaPay / PayMongo Disbursements endpoint configured."
-        : "BDO/BPI/GCash files are generated and dry-run validated. A bookkeeper can upload these by hand to online banking / GCash for Business today. Or: PayMongo Disbursements (already integrated for billing) can submit payroll via InstaPay/PESONet with no per-bank negotiation, see src/lib/paymongo-disbursements.ts, once the Wallet is verified as a Registered Business and PAYMONGO_DISBURSEMENTS_ENABLED=true is set.",
-      blocks: bankConfigured ? "none" : "launch",
-      manualWorkaround: bankConfigured ? undefined : "Download the generated bank file from a payroll run and upload it by hand to online banking / GCash for Business.",
+      label: "Payroll disbursement validation",
+      ready: bankReady,
+      detail: bankReady
+        ? directBankConfigured
+          ? "A direct bank payout endpoint is configured."
+          : `PayMongo Disbursements is enabled and a no-money payroll preflight has passed (${paymongoPreflightPasses} recorded pass(es)).`
+        : paymongoDisbursementEnabled
+          ? "PayMongo Disbursements is enabled, but no no-money payroll preflight has proven credentials and employee bank mappings yet."
+          : "Bank files remain available for manual upload. PayMongo batch-transfer code and a no-money preflight are implemented, but live disbursement is not enabled.",
+      blocks: bankReady ? "none" : "launch",
+      manualWorkaround: bankReady ? undefined : "Download the bank file from a released payroll run and upload it manually through the bank or e-wallet business portal.",
     },
     {
       key: "gov-bir-alphalist",
