@@ -161,7 +161,7 @@ export function buildParallelPayrollComparison(input: {
     .filter((component) => columnByComponent.has(component.key))
     .map((component) => component.key);
 
-  if (detected.length === 0 && !totalDeductionsColumn) {
+  if (detected.length === 0) {
     throw new Error(
       "CSV needs at least one payroll amount column such as gross_pay, sss, philhealth, pagibig, withholding_tax, other_deductions, or net_pay.",
     );
@@ -215,13 +215,13 @@ export function buildParallelPayrollComparison(input: {
       existingValues.get("otherDeductions") == null &&
       totalDeductionsColumn
     ) {
+      const standardDeductionKeys = ["sss", "philHealth", "pagIbig", "withholdingTax"] as ParallelComponentKey[];
+      const standardDeductions = standardDeductionKeys.map((key) => existingValues.get(key));
+      const canDeriveOther = standardDeductions.every((value): value is number => value != null);
       const totalDeductions = parseParallelMoney(record[totalDeductionsColumn]);
-      const statutoryAndTax = (["sss", "philHealth", "pagIbig", "withholdingTax"] as ParallelComponentKey[])
-        .map((key) => existingValues.get(key))
-        .filter((value): value is number => value != null)
-        .reduce((sum, value) => sum + Math.abs(value), 0);
 
-      if (totalDeductions != null) {
+      if (canDeriveOther && totalDeductions != null) {
+        const statutoryAndTax = standardDeductions.reduce((sum, value) => sum + Math.abs(value), 0);
         existingValues.set(
           "otherDeductions",
           round(Math.max(0, Math.abs(totalDeductions) - statutoryAndTax)),
