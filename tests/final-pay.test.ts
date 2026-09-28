@@ -29,6 +29,7 @@ test("final-pay history reads BASIC, WHT and taxable compensation from released 
   assert.equal(summary.periods, 2);
   assert.equal(summary.gross, 60_000);
   assert.equal(summary.basicSalaryEarned, 50_000);
+  assert.equal(summary.thirteenthPaid, 0);
   assert.equal(summary.taxable, 54_000);
   assert.equal(summary.taxWithheld, 2_000);
   assert.equal(summary.missingTaxableTrace, 0);
@@ -101,4 +102,22 @@ test("payroll approval route enforces maker-checker separation", () => {
   assert.ok(source.includes("Payroll submitted for approval"));
   assert.ok(source.includes("Maker-checker control"));
   assert.ok(source.includes("submission?.actor"));
+});
+
+
+test("final pay subtracts 13th-month amounts already paid during the year", () => {
+  const result = calculateFinalPay({
+    history: [
+      ...history,
+      {
+        grossPay: "5000",
+        lineItems: [{ code: "13TH", label: "13th month pay", amount: "3000" }],
+        trace: { inputs: ["taxableCompensation=0"] },
+      },
+    ],
+  });
+
+  // BASIC history earns 4,166.67 of 13th month; 3,000 was already paid.
+  assert.equal(result.thirteenthPaidYtd, 3_000);
+  assert.equal(result.thirteenthMonth.gross, 1_166.67);
 });
