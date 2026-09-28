@@ -315,7 +315,7 @@
 
 /* Simulation */
 .simulationSection {
-  padding: 116px 0 118px;
+  padding: 108px 0 116px;
   background: #fff;
 }
 
@@ -329,18 +329,19 @@
 }
 
 .simulationHead > p {
-  max-width: 500px;
-  margin-bottom: 6px;
+  max-width: 480px;
+  margin: 0 0 4px;
+  font-size: 15px;
 }
 
 .simulationHints {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 22px;
+  gap: 8px 20px;
   width: min(1160px, calc(100% - 8px));
-  margin: 36px auto 16px;
-  color: #848a95;
-  font-size: 11px;
+  margin: 30px auto 13px;
+  color: #9096a0;
+  font-size: 10.5px;
   font-weight: 560;
 }
 
@@ -349,20 +350,20 @@
 }
 
 .simulationHints span + span::before {
-  content: "/";
+  content: "·";
   position: absolute;
-  left: -14px;
+  left: -12px;
   color: #c7cbd2;
 }
 
 .simulationSurface {
   overflow: hidden;
-  border: 1px solid #dfe2e7;
-  border-radius: 16px;
+  border: 1px solid #e0e3e7;
+  border-radius: 13px;
   background: #fff;
   box-shadow:
-    0 1px 2px rgba(22, 24, 29, 0.03),
-    0 24px 60px rgba(22, 24, 29, 0.08);
+    0 1px 2px rgba(22, 24, 29, 0.025),
+    0 18px 48px rgba(22, 24, 29, 0.055);
 }
 
 .simulationSurface :global(.frame.standalone) {
@@ -379,28 +380,111 @@
 
 .simulationSurface :global(.frame-body),
 .simulationSurface :global(.pv) {
-  min-height: 680px;
+  min-height: 660px;
   border-radius: 0;
 }
 
+.simulationSurface :global(.pv) {
+  background: #fff;
+}
+
 .simulationSurface :global(.pv-side) {
-  width: 178px;
-  border-right-color: #eceef1;
+  width: 176px;
+  border-right: 1px solid #eceef1;
   background: #fafafa;
+}
+
+.simulationSurface :global(.sidebar-brand) {
+  margin-bottom: 16px !important;
+}
+
+.simulationSurface :global(.brand-mark) {
+  background: #1b1d21;
+}
+
+.simulationSurface :global(.nav-item) {
+  min-height: 34px;
+  margin: 1px 8px;
+  border-radius: 7px;
+  color: #747b86;
+  font-size: 11.5px;
+  font-weight: 560;
+}
+
+.simulationSurface :global(.nav-item.active) {
+  background: #f0f0f2;
+  color: #1f2228;
+  box-shadow: none;
+}
+
+.simulationSurface :global(.nav-icon),
+.simulationSurface :global(.nav-icon.t-blue),
+.simulationSurface :global(.nav-icon.t-green),
+.simulationSurface :global(.nav-icon.t-purple),
+.simulationSurface :global(.nav-icon.t-cyan),
+.simulationSurface :global(.nav-icon.t-amber),
+.simulationSurface :global(.nav-icon.t-teal) {
+  background: transparent;
+  color: #8d939d;
+}
+
+.simulationSurface :global(.nav-item.active .nav-icon) {
+  color: var(--accent);
+}
+
+.simulationSurface :global(.pv-top) {
+  min-height: 56px;
+  border-bottom: 1px solid #eceef1;
+  background: #fff;
+}
+
+.simulationSurface :global(.company-switcher) {
+  border-color: #e6e8eb;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.simulationSurface :global(.notification-dot) {
+  background: var(--accent);
+}
+
+.simulationSurface :global(.pv-pillnav) {
+  margin: 0;
+  border-bottom-color: #eceef1;
+  background: #fff;
+}
+
+.simulationSurface :global(.pv-pillnav button) {
+  color: #7a818c;
+}
+
+.simulationSurface :global(.pv-pillnav button.on) {
+  color: #202329;
 }
 
 .simulationSurface :global(.pv-body) {
   min-height: 0;
   max-height: none;
-  padding: 20px;
+  padding: 18px;
   background: #fff;
 }
 
-.simulationSurface :global(.pv-pillnav) {
-  margin: 0;
+.simulationSurface :global(.card),
+.simulationSurface :global(.console-strip),
+.simulationSurface :global(.stat-card) {
+  border-color: #e7e9ec;
+  border-radius: 10px;
+  box-shadow: none;
 }
 
-.simulationSurface :global(.card) {
+.simulationSurface :global(.status) {
+  border-radius: 999px;
+}
+
+.simulationSurface :global(.primary-button),
+.simulationSurface :global(.secondary-button),
+.simulationSurface :global(.icon-button) {
+  border-radius: 8px;
   box-shadow: none;
 }
 
@@ -410,9 +494,9 @@
   justify-content: flex-end;
   gap: 12px;
   width: min(1160px, calc(100% - 8px));
-  margin: 15px auto 0;
-  color: #9298a2;
-  font-size: 11.5px;
+  margin: 14px auto 0;
+  color: #969ca5;
+  font-size: 11px;
 }
 
 .simulationFooter a {
@@ -724,52 +808,69 @@
 
 /* Pricing */
 .pricingSection {
-  padding: 118px 0;
+  padding: 112px 0 118px;
   background: #fff;
 }
 
 .pricingSurface {
-  margin-top: 8px;
+  margin-top: 2px;
 }
 
 .pricingSurface :global(.pricing-calculator) {
-  margin: 0 0 20px;
-  padding: 0 0 28px;
+  display: grid;
+  grid-template-columns: minmax(280px, 0.75fr) minmax(420px, 1.25fr);
+  gap: 56px;
+  align-items: end;
+  margin: 0 0 36px;
+  padding: 0 0 30px;
   border: 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--line-strong);
   border-radius: 0;
   background: transparent;
   box-shadow: none;
 }
 
+.pricingSurface :global(.pricing-calculator-copy) {
+  max-width: 430px;
+}
+
 .pricingSurface :global(.pricing-calculator .eyebrow) {
+  margin: 0;
   color: var(--accent);
   font-size: 10px;
   letter-spacing: 0.07em;
 }
 
 .pricingSurface :global(.pricing-calculator h2) {
-  margin: 6px 0 18px;
+  margin: 7px 0 0;
   color: var(--ink);
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 650;
-  letter-spacing: -0.02em;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+}
+
+.pricingSurface :global(.pricing-calculator-copy > p:last-child) {
+  margin: 8px 0 0;
+  color: #8a909a;
+  font-size: 11.5px;
+  line-height: 1.55;
 }
 
 .pricingSurface :global(.pricing-headcount-control) {
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
-  gap: 24px;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 22px;
   align-items: center;
 }
 
 .pricingSurface :global(.pricing-headcount-value) {
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) 40px;
-  min-height: 54px;
+  grid-template-columns: 38px minmax(0, 1fr) 38px;
+  min-height: 50px;
   overflow: hidden;
   border: 1px solid var(--line-strong);
-  border-radius: 10px;
+  border-radius: 9px;
   background: #fff;
 }
 
@@ -778,8 +879,12 @@
   place-items: center;
   border: 0;
   background: #fafafa;
-  color: #555c67;
+  color: #5c626d;
   cursor: pointer;
+}
+
+.pricingSurface :global(.pricing-stepper:hover:not(:disabled)) {
+  background: #f3f4f5;
 }
 
 .pricingSurface :global(.pricing-headcount-value label) {
@@ -789,8 +894,8 @@
 }
 
 .pricingSurface :global(.pricing-headcount-value label span) {
-  color: #9da2ab;
-  font-size: 8px;
+  color: #a1a6ae;
+  font-size: 7.5px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -803,58 +908,61 @@
   background: transparent;
   color: var(--ink);
   font-family: var(--font-mono), monospace;
-  font-size: 21px;
+  font-size: 20px;
   font-weight: 650;
   text-align: center;
 }
 
 .pricingSurface :global(.pricing-headcount-slider) {
   display: grid;
-  gap: 8px;
+  gap: 7px;
 }
 
 .pricingSurface :global(.pricing-range-labels) {
   display: flex;
   justify-content: space-between;
-  color: #a0a5ad;
-  font-size: 9px;
-}
-
-.pricingSurface :global(.calc-note) {
-  margin-top: 13px;
-  color: #8a909a;
-  font-size: 10.5px;
+  color: #a5aab2;
+  font-size: 8.5px;
 }
 
 .pricingSurface :global(.pricing-grid) {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  border-top: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line-strong);
 }
 
 .pricingSurface :global(.price-card) {
   position: relative;
   display: flex;
   min-width: 0;
-  min-height: 370px;
+  min-height: 392px;
   flex-direction: column;
-  padding: 24px 22px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #fff;
+  padding: 24px 24px 26px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   box-shadow: none;
 }
 
+.pricingSurface :global(.price-card + .price-card) {
+  border-left: 1px solid var(--line);
+}
+
 .pricingSurface :global(.price-card.featured) {
-  border-color: #bebaf9;
-  box-shadow: inset 0 0 0 1px rgba(79, 70, 229, 0.05);
+  background: #fafaff;
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.pricingSurface :global(.price-card-top) {
+  min-height: 76px;
 }
 
 .pricingSurface :global(.popular-label) {
   position: absolute;
-  top: 14px;
-  right: 14px;
-  padding: 5px 8px;
+  top: 20px;
+  right: 18px;
+  padding: 4px 7px;
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent);
@@ -863,65 +971,82 @@
 }
 
 .pricingSurface :global(.price-plan) {
-  color: #737985;
-  font-size: 9.5px;
+  color: #727984;
+  font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.075em;
   text-transform: uppercase;
 }
 
 .pricingSurface :global(.price-card h2) {
-  min-height: 52px;
-  margin: 13px 0 9px;
+  max-width: 210px;
+  margin: 11px 0 0;
   color: var(--ink);
-  font-size: 16px;
-  font-weight: 650;
-  line-height: 1.35;
-}
-
-.pricingSurface :global(.price-card ul) {
-  margin: 0;
-  padding-left: 16px;
-  color: #777e89;
-  font-size: 11px;
-  line-height: 1.62;
+  font-size: 14px;
+  font-weight: 620;
+  line-height: 1.45;
+  letter-spacing: -0.015em;
 }
 
 .pricingSurface :global(.price) {
   display: flex;
   align-items: baseline;
   gap: 4px;
-  margin-top: auto;
-  padding-top: 20px;
+  margin-top: 23px;
+  padding: 0;
 }
 
 .pricingSurface :global(.price strong) {
   color: var(--ink);
-  font-size: 26px;
+  font-size: 29px;
   font-weight: 650;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.045em;
 }
 
-.pricingSurface :global(.price span),
-.pricingSurface :global(.price-card > small) {
-  color: #989da6;
+.pricingSurface :global(.price span) {
+  color: #9aa0a9;
   font-size: 9.5px;
 }
 
-.pricingSurface :global(.price-card > small) {
+.pricingSurface :global(.price-formula) {
   display: block;
-  min-height: 32px;
-  margin-top: 6px;
+  min-height: 30px;
+  margin-top: 5px;
+  color: #a0a5ae;
+  font-size: 9px;
   line-height: 1.45;
+}
+
+.pricingSurface :global(.price-features) {
+  display: grid;
+  gap: 9px;
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pricingSurface :global(.price-features li) {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  color: #707782;
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.pricingSurface :global(.price-features svg) {
+  flex: none;
+  margin-top: 2px;
+  color: var(--success);
 }
 
 .pricingSurface :global(.price-card .primary-button),
 .pricingSurface :global(.price-card .secondary-button) {
-  min-height: 40px;
-  margin-top: 14px;
+  min-height: 39px;
+  margin-top: auto;
   border-radius: 8px;
   box-shadow: none;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 650;
 }
 
@@ -1053,12 +1178,26 @@
     border-left: 0;
   }
 
+  .pricingSurface :global(.pricing-calculator) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 22px;
+  }
+
   .pricingSurface :global(.pricing-grid) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .pricingSurface :global(.price-card:nth-child(3)) {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .pricingSurface :global(.price-card:nth-child(4)) {
+    border-top: 1px solid var(--line);
+  }
+
   .pricingSurface :global(.price-card) {
-    min-height: 330px;
+    min-height: 340px;
   }
 }
 
@@ -1223,12 +1362,20 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .pricingSurface :global(.price-card) {
+  .pricingSurface :global(.price-card),
+  .pricingSurface :global(.price-card + .price-card),
+  .pricingSurface :global(.price-card:nth-child(3)),
+  .pricingSurface :global(.price-card:nth-child(4)) {
     min-height: 0;
+    border-top: 1px solid var(--line);
+    border-left: 0;
   }
 
-  .pricingSurface :global(.price-card h2),
-  .pricingSurface :global(.price-card > small) {
+  .pricingSurface :global(.price-card:first-child) {
+    border-top: 0;
+  }
+
+  .pricingSurface :global(.price-card-top) {
     min-height: 0;
   }
 
