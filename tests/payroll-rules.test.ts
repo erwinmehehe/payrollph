@@ -6,6 +6,8 @@ import {
   computePagIbig,
   computePhilHealth,
   computeSss,
+  computeMonthlyWithholdingTax,
+  computeSemiMonthlyWithholdingTax,
   deriveClockHours,
   holidayMultiplier,
 } from "../src/lib/payroll-rules";
@@ -88,4 +90,22 @@ test("freelancer comparison recommends the lower modeled option", () => {
   assert.equal(result.flatEightPercent, 58_720);
   assert.equal(result.graduated, 103_500);
   assert.equal(result.recommended, "8% flat");
+});
+
+test("BIR monthly and semi-monthly 2023+ boundary tables are explicit", () => {
+  assert.equal(computeMonthlyWithholdingTax(20_833), 0);
+  assert.equal(computeMonthlyWithholdingTax(20_834), 0.15);
+  assert.equal(computeMonthlyWithholdingTax(33_333), 1_875);
+  assert.equal(computeMonthlyWithholdingTax(66_667), 8_541.8);
+  assert.equal(computeMonthlyWithholdingTax(166_667), 33_541.8);
+  assert.equal(computeMonthlyWithholdingTax(666_667), 183_541.8);
+
+  assert.equal(computeSemiMonthlyWithholdingTax(10_417), 0);
+  assert.equal(computeSemiMonthlyWithholdingTax(10_418), 0.15);
+  assert.equal(computeSemiMonthlyWithholdingTax(16_667), 937.5);
+  assert.equal(computeSemiMonthlyWithholdingTax(33_333), 4_270.7);
+  assert.equal(computeSemiMonthlyWithholdingTax(83_333), 16_770.7);
+  assert.equal(computeSemiMonthlyWithholdingTax(333_333), 91_770.7);
+  assert.equal(computeSemiMonthlyWithholdingTax(500_000), 150_104.15);
+  assert.equal(computeSemiMonthlyWithholdingTax(500_000, true), 0);
 });
