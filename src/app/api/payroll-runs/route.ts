@@ -4,7 +4,7 @@ import { payrollEntries, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { drainPayrollQueue, enqueuePayrollRun, getPayrollJobStatus } from "@/lib/payroll-engine";
-import { assertMembership } from "@/lib/access";
+import { assertMembership, canOperatePayroll, getAccess } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +23,10 @@ export async function GET(request: Request) {
     if (!target) return Response.json({ error: "Payroll run not found" }, { status: 404 });
     const deniedJob = await assertMembership(sessionUser.id, target.organizationId);
     if (deniedJob) return deniedJob;
+    const access = await getAccess(sessionUser.id, target.organizationId);
+    if (!canOperatePayroll(access)) {
+      return Response.json({ error: "Payroll access requires an owner, admin, bookkeeper, or payroll role." }, { status: 403 });
+    }
 
     // The workspace loads one run's register at a time, so it asks for the run
     // it is actually showing instead of relying on the dashboard's single set.
@@ -43,6 +47,10 @@ export async function GET(request: Request) {
 
   const deniedRuns = await assertMembership(sessionUser.id, organizationId);
   if (deniedRuns) return deniedRuns;
+  const access = await getAccess(sessionUser.id, organizationId);
+  if (!canOperatePayroll(access)) {
+    return Response.json({ error: "Payroll access requires an owner, admin, bookkeeper, or payroll role." }, { status: 403 });
+  }
 
   const runs = await db.select().from(payrollRuns)
     .where(eq(payrollRuns.organizationId, organizationId))
@@ -67,6 +75,10 @@ export async function POST(request: Request) {
 
   const denied = await assertMembership(user.id, organizationId);
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!canOperatePayroll(access)) {
+    return Response.json({ error: "Payroll access requires an owner, admin, bookkeeper, or payroll role." }, { status: 403 });
+  }
 
   const [run] = await db.insert(payrollRuns).values({
     organizationId,
