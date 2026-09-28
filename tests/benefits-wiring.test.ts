@@ -21,7 +21,10 @@ test("benefit lines are capped and traceable on the payslip", () => {
   assert.ok(benefits.includes("basis"), "every line must carry a basis");
 });
 
-test("the scorecard refuses to claim a capability the code does not have", () => {
+test("the scorecard verifies embedded benefits from executable code and tests, not sample row count", () => {
   const caps = read("src/lib/capabilities.ts");
-  assert.ok(caps.includes("enrollments > 0 ? \"verified\" : \"partial\""), "benefits may only read verified once enrolments exist");
+  assert.ok(caps.includes('id: "benefits"'));
+  assert.ok(caps.includes('status: "verified"'));
+  assert.ok(caps.includes("tests/benefits-wiring.test.ts"));
+  assert.ok(!caps.includes('enrollments > 0 ? "verified" : "partial"'), "zero demo enrolments must not downgrade built functionality");
 });
