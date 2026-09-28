@@ -5,7 +5,7 @@ import { renderForm2316 } from "@/lib/annualization";
 import { getSessionUser } from "@/lib/auth";
 import { toCsv } from "@/lib/csv";
 import { runYearEndAnnualization } from "@/lib/year-end";
-import { assertMembership } from "@/lib/access";
+import { assertMembership, canOperatePayroll, getAccess } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +17,10 @@ export async function GET(request: Request) {
   const organizationId = Number(searchParams.get("organizationId") ?? "1");
   const deniedOrg = await assertMembership(user.id, organizationId);
   if (deniedOrg) return deniedOrg;
+  const access = await getAccess(user.id, organizationId);
+  if (!canOperatePayroll(access)) {
+    return Response.json({ error: "Year-end payroll data requires an owner, admin, bookkeeper, or payroll role." }, { status: 403 });
+  }
   const taxYear = Number(searchParams.get("taxYear") ?? new Date().getFullYear());
   const format = searchParams.get("format") ?? "json";
   const employeeId = Number(searchParams.get("employeeId") ?? 0);
@@ -109,6 +113,10 @@ export async function POST(request: Request) {
 
   const deniedWrite = await assertMembership(user.id, organizationId);
   if (deniedWrite) return deniedWrite;
+  const access = await getAccess(user.id, organizationId);
+  if (!canOperatePayroll(access)) {
+    return Response.json({ error: "Year-end payroll calculations require an owner, admin, bookkeeper, or payroll role." }, { status: 403 });
+  }
 
   const summary = await runYearEndAnnualization(organizationId, taxYear, user.name);
   if (summary.employees === 0) {
