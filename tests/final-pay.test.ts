@@ -110,7 +110,8 @@ test("payroll approval route enforces maker-checker separation", () => {
   const review = readFileSync("src/app/api/payroll-runs/[id]/review/route.ts", "utf8");
   assert.ok(source.includes("Payroll submitted for approval"));
   assert.ok(source.includes("Maker-checker control"));
-  assert.ok(source.includes("submission?.actor"));
+  assert.ok(source.includes("makerUserId"), "maker-checker must use the stored user id when available");
+  assert.ok(source.includes("sessionUser.id"));
   assert.ok(review.includes("isPayrollOperatorRole(approver.role)"), "checker must also be a payroll operator");
 });
 
@@ -174,4 +175,17 @@ test("company payroll exports cannot fall back to the employee self-service boun
 
   const selfService = readFileSync("src/app/api/self/payslips/route.ts", "utf8");
   assert.ok(selfService.includes("employeeId"), "employee access should remain on the employee-scoped payslip API");
+});
+
+
+test("recalculation supersedes prior checker approval for the exact payroll run", () => {
+  const process = readFileSync("src/app/api/payroll-runs/[id]/process/route.ts", "utf8");
+  const release = readFileSync("src/app/api/payroll-runs/[id]/release/route.ts", "utf8");
+  const view = readFileSync("src/components/workspace/payroll-run.tsx", "utf8");
+
+  assert.ok(process.includes('status: "Superseded"'));
+  assert.ok(process.includes("supersededApprovalIds"));
+  assert.ok(process.includes('Payroll approval · ${run.periodLabel}'));
+  assert.ok(release.includes('Payroll approval · ${run.periodLabel}'));
+  assert.ok(view.includes('Payroll approval · ${run.periodLabel}'));
 });
