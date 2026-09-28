@@ -337,6 +337,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
             onRelease={releaseRun}
             onDecide={decideTask}
             onPage={setPage}
+            onRefresh={refresh}
             notify={notify}
           />
         )}
