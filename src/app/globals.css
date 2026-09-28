@@ -4064,7 +4064,7 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
     min-height: 0;
   }
   .software-home .home-hero-visual .pv-body {
-    max-height: 430px;
+    max-height: 500px;
   }
   .software-home .payroll-editorial .section-head h2 {
     font-size: clamp(32px, 9.2vw, 40px);
