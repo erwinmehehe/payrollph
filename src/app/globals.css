@@ -3909,6 +3909,175 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
   }
 }
 
+
+/* ==========================================================================
+   Homepage layout regression fixes
+   Keep the generous spacing pass, but prevent sparse/awkward compositions.
+   ========================================================================== */
+
+/* Hero: keep the product visible in the first viewport instead of pushing the
+   useful dashboard content below a large decorative gap. */
+.software-home .home-hero-stage {
+  padding-block: 18px 14px;
+}
+.software-home .home-hero-badge-top {
+  top: -8px;
+  right: 16px;
+}
+.software-home .home-hero-badge-bottom {
+  bottom: -8px;
+  left: 16px;
+}
+.software-home .home-hero-visual .pv {
+  min-height: 510px;
+}
+.software-home .home-hero-visual .pv-body {
+  max-height: 510px;
+}
+.software-home .home-hero-visual .frame {
+  box-shadow:
+    0 34px 82px rgba(17,24,39,.17),
+    0 10px 28px rgba(17,24,39,.08),
+    0 0 0 1px rgba(255,255,255,.72) inset;
+}
+
+/* Payroll: the editorial rail was too narrow and created an awkward tall
+   headline. Give the copy enough measure while keeping the live calculator the
+   dominant surface. */
+.software-home .payroll-showcase {
+  grid-template-columns: minmax(360px, 37fr) minmax(0, 63fr);
+  gap: clamp(58px, 6vw, 88px);
+  align-items: center;
+}
+.software-home .payroll-editorial {
+  max-width: 470px;
+}
+.software-home .payroll-editorial .section-head h2 {
+  max-width: 460px;
+  font-size: clamp(38px, 3.6vw, 50px);
+  line-height: 1.02;
+}
+.software-home .payroll-editorial .section-head p {
+  max-width: 445px;
+}
+
+/* Workspace: fill every row. The previous final pair each used 3/12 columns,
+   leaving half of the feature area blank. Also keep the persona row out of the
+   editorial column so it cannot visually collide with the left-hand copy. */
+.software-home .workspace-layout {
+  grid-template-columns: minmax(300px, 30fr) minmax(0, 70fr);
+  gap: 56px 72px;
+  align-items: start;
+}
+.software-home .workspace-layout > .home-editorial {
+  position: static;
+  max-width: 360px;
+}
+.software-home .home-workspace-section .bento {
+  width: 100%;
+  align-items: stretch;
+}
+.software-home .home-workspace-section .bento > .feature-card:nth-child(5),
+.software-home .home-workspace-section .bento > .feature-card:nth-child(6) {
+  grid-column: span 6;
+  min-height: 220px;
+}
+.software-home .workspace-layout > .persona-strip {
+  grid-column: 2;
+  width: 100%;
+  margin-top: 0 !important;
+}
+.software-home .home-workspace-section .persona-strip {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.software-home .home-workspace-section .persona-chip {
+  padding: 20px 22px;
+}
+.software-home .home-workspace-section .persona-chip:nth-child(3) {
+  border-left: 0;
+  border-top: 1px solid rgba(84,95,120,.10);
+}
+.software-home .home-workspace-section .persona-chip:nth-child(4) {
+  border-top: 1px solid rgba(84,95,120,.10);
+}
+
+/* Mid-size desktop: preserve useful width instead of squeezing the editorial
+   rail and cards simultaneously. */
+@media (max-width: 1180px) and (min-width: 901px) {
+  .software-home .payroll-showcase {
+    grid-template-columns: minmax(320px, 36fr) minmax(0, 64fr);
+    gap: 42px;
+  }
+  .software-home .workspace-layout {
+    grid-template-columns: minmax(270px, 31fr) minmax(0, 69fr);
+    gap: 44px;
+  }
+}
+
+/* Once stacked, reset the desktop-only grid placement. */
+@media (max-width: 900px) {
+  .software-home .payroll-showcase,
+  .software-home .workspace-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .software-home .payroll-editorial,
+  .software-home .workspace-layout > .home-editorial {
+    max-width: 680px;
+  }
+  .software-home .payroll-editorial .section-head h2,
+  .software-home .payroll-editorial .section-head p {
+    max-width: 680px;
+  }
+  .software-home .workspace-layout > .persona-strip {
+    grid-column: 1;
+  }
+  .software-home .home-hero-stage {
+    padding-block: 10px 4px;
+  }
+}
+
+@media (max-width: 680px) {
+  .software-home .home-workspace-section .bento {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .software-home .home-workspace-section .bento > .feature-card,
+  .software-home .home-workspace-section .bento > .feature-card.wide,
+  .software-home .home-workspace-section .bento > .feature-card:first-child,
+  .software-home .home-workspace-section .bento > .feature-card:nth-child(2),
+  .software-home .home-workspace-section .bento > .feature-card:nth-child(3),
+  .software-home .home-workspace-section .bento > .feature-card:nth-child(4),
+  .software-home .home-workspace-section .bento > .feature-card:nth-child(5),
+  .software-home .home-workspace-section .bento > .feature-card:nth-child(6) {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+  }
+  .software-home .home-workspace-section .bento > .feature-card:first-child {
+    min-height: 300px;
+  }
+  .software-home .home-hero-visual .pv {
+    min-height: 0;
+  }
+  .software-home .home-hero-visual .pv-body {
+    max-height: 430px;
+  }
+  .software-home .payroll-editorial .section-head h2 {
+    font-size: clamp(32px, 9.2vw, 40px);
+  }
+  .software-home .home-workspace-section .persona-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .software-home .home-workspace-section .persona-chip + .persona-chip {
+    border-left: 0;
+    border-top: 1px solid rgba(84,95,120,.10);
+  }
+}
+
 /* Payroll outsourcing service page
    Keeps the service funnel visually separate from the software product page. */
 .outsourcing-hero {
