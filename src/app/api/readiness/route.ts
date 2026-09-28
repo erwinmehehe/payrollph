@@ -36,10 +36,12 @@ export async function GET() {
   }).from(users).where(eq(users.email, reviewEmail)).limit(1);
   const reviewCredentialLive = Boolean(reviewAccount) && reviewAccount!.passwordHash === reviewHash;
 
-  // Billing provider is considered wired when a live key is present OR real paid
-  // invoices exist in the ledger (the checkout path already writes them).
+  // Billing is proven by ledger state, regardless of whether the customer paid
+  // through a processor or the operator recorded a confirmed bank/GCash payment.
+  // Provider configuration answers "can we charge online?", while paid invoices
+  // and active subscriptions answer "does billing actually enforce entitlements?"
   const billingConfigured = configured("PAYMONGO_SECRET_KEY") || configured("MAYA_SECRET_KEY") || configured("STRIPE_SECRET_KEY");
-  const billingProven = billingConfigured && (paidInvoices > 0 || activeSubs > 0);
+  const billingProven = paidInvoices > 0 || activeSubs > 0;
 
   const bankConfigured = configured("BANK_HOST_TO_HOST_URL") || configured("INSTAPAY_API_KEY")
     || (configured("PAYMONGO_SECRET_KEY") && process.env.PAYMONGO_DISBURSEMENTS_ENABLED === "true");
@@ -91,8 +93,8 @@ export async function GET() {
       label: "Subscription billing",
       ready: billingProven,
       detail: billingProven
-        ? `Billing live via configured provider. ${paidInvoices} paid invoice(s), ${activeSubs} active subscription(s) on record.`
-        : "Checkout flow, subscriptions, and invoice ledger are built and enforce plan entitlements. Set PAYMONGO_SECRET_KEY / MAYA_SECRET_KEY to charge real cards, or use `scripts/manual-activate-subscription.ts` to record an off-platform payment (GCash/bank transfer), entitlements behave identically either way.",
+        ? `Billing ledger proven: ${paidInvoices} paid invoice(s), ${activeSubs} active subscription(s). Online processor configured: ${billingConfigured ? "yes" : "no, current proof is manual/off-platform"}.`
+        : "Checkout flow, subscriptions, and invoice ledger are built and enforce plan entitlements. Complete one real checkout, or use scripts/manual-activate-subscription.ts only after confirming an actual GCash/bank transfer.",
       blocks: billingProven ? "none" : "launch",
       manualWorkaround: billingProven ? undefined : "Run scripts/manual-activate-subscription.ts after confirming payment yourself (GCash/bank transfer).",
     },
