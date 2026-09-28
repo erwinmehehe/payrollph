@@ -113,3 +113,82 @@ export async function POST(request: Request) {
 
   return Response.json({ employee: created, onboarding, asset: assignedAsset }, { status: 201 });
 }
+
+
+/**
+ * Updates government identity fields for an existing employee. These values are
+ * deliberately editable after onboarding because real employer records are
+ * often completed after the employee account itself is created.
+ */
+export async function PATCH(request: Request) {
+  const user = await getSessionUser();
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  const body = await request.json().catch(() => ({}));
+  const organizationId = Number(body.organizationId);
+  const employeeId = Number(body.employeeId);
+
+  if (!Number.isInteger(organizationId) || !Number.isInteger(employeeId)) {
+    return Response.json({ error: "organizationId and employeeId are required." }, { status: 400 });
+  }
+
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_ADMIN_ROLES,
+    "Only People administrators can update government identity records.",
+  );
+  if (denied) return denied;
+
+  const [employee] = await db.select().from(employees)
+    .where(and(
+      eq(employees.id, employeeId),
+      eq(employees.organizationId, organizationId),
+    ))
+    .limit(1);
+  if (!employee) return Response.json({ error: "Employee not found in this organization." }, { status: 404 });
+
+  const clean = (value: unknown) => {
+    if (value === undefined) return undefined;
+    const text = String(value ?? "").trim();
+    return text || null;
+  };
+
+  const updates = {
+    middleName: clean(body.middleName),
+    tin: clean(body.tin),
+    sssNo: clean(body.sssNo),
+    philHealthNo: clean(body.philHealthNo),
+    pagIbigNo: clean(body.pagIbigNo),
+    nationality: body.nationality === undefined ? undefined : String(body.nationality ?? "").trim() || "Filipino",
+  };
+
+  const patch = Object.fromEntries(
+    Object.entries(updates).filter(([, value]) => value !== undefined),
+  ) as Partial<typeof employees.$inferInsert>;
+
+  if (Object.keys(patch).length === 0) {
+    return Response.json({ error: "No government identity fields were supplied." }, { status: 400 });
+  }
+
+  const [updated] = await db.update(employees)
+    .set(patch)
+    .where(and(
+      eq(employees.id, employeeId),
+      eq(employees.organizationId, organizationId),
+    ))
+    .returning();
+
+  await recordAuditEvent({
+    organizationId,
+    actor: user.name,
+    action: "Employee government identity updated",
+    resource: `${employee.firstName} ${employee.lastName} (${employee.employeeNo})`,
+    metadata: {
+      employeeId,
+      fields: Object.keys(patch),
+    },
+  });
+
+  return Response.json({ employee: updated });
+}
