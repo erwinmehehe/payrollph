@@ -46,6 +46,12 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
     noticeDate: new Date().toISOString().slice(0, 10),
     lastDay: new Date().toISOString().slice(0, 10),
     unusedLeaveCredits: "5.0",
+    unusedLeaveTaxTreatment: "taxable",
+    unpaidBasic: "0",
+    otherTaxableEarnings: "0",
+    nonTaxableEarnings: "0",
+    priorEmployerTaxable: "0",
+    priorEmployerTaxWithheld: "0",
   });
 
   const [nonce, setNonce] = useState(0);
@@ -95,7 +101,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
       setNotice(data.error ?? "Failed to calculate final pay.");
       return;
     }
-    setNotice("Separation initiated and Final Pay calculated adhering to DOLE 30-day mandate.");
+    setNotice("Separation initiated. Final Pay was recalculated from released payroll history and annualized withholding.");
     setShowModal(false);
     reload();
   }
@@ -134,8 +140,8 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Separation, Clearance &amp; Final Pay (DOLE Advisory 06-20)</h2>
-          <p className="heading-copy">Prorated 13th month, unused leave monetization, loan deductions, and 30-day final pay release compliance.</p>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Separation, Clearance &amp; Final Pay</h2>
+          <p className="heading-copy">Prorated 13th month, leave conversion, annualized withholding, loan deductions and clearance in one reviewable package.</p>
         </div>
         <button className="primary-button" onClick={() => setShowModal(true)}>
           <UserX size={15} className="i-red" /> Initiate Employee Separation
@@ -163,9 +169,9 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
         </article>
         <article className="stat-card">
           <div className="stat-icon blue"><FileText size={19} /></div>
-          <p>DOLE MANDATE</p>
+          <p>FINAL PAY TARGET</p>
           <h3>30 Days</h3>
-          <span>Statutory release window</span>
+          <span>Track the release timeline</span>
         </article>
       </div>
 
@@ -201,9 +207,30 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
               <label>Unused Vacation / Service Incentive Leave Credits (Days)
                 <input required type="number" step="0.5" min="0" max="60" value={form.unusedLeaveCredits} onChange={(e) => setForm({ ...form, unusedLeaveCredits: e.target.value })} />
               </label>
+              <label>Leave Conversion Tax Treatment
+                <select value={form.unusedLeaveTaxTreatment} onChange={(e) => setForm({ ...form, unusedLeaveTaxTreatment: e.target.value })}>
+                  <option value="taxable">Taxable, conservative default</option>
+                  <option value="non_taxable">Non-taxable, only when supported by policy / tax treatment</option>
+                </select>
+              </label>
+              <label>Unpaid Basic Pay in Final Package
+                <input type="number" step="0.01" min="0" value={form.unpaidBasic} onChange={(e) => setForm({ ...form, unpaidBasic: e.target.value })} />
+              </label>
+              <label>Other Taxable Final-Pay Earnings
+                <input type="number" step="0.01" min="0" value={form.otherTaxableEarnings} onChange={(e) => setForm({ ...form, otherTaxableEarnings: e.target.value })} />
+              </label>
+              <label>Other Non-Taxable Final-Pay Earnings
+                <input type="number" step="0.01" min="0" value={form.nonTaxableEarnings} onChange={(e) => setForm({ ...form, nonTaxableEarnings: e.target.value })} />
+              </label>
+              <label>Prior Employer Taxable Compensation (Optional)
+                <input type="number" step="0.01" min="0" value={form.priorEmployerTaxable} onChange={(e) => setForm({ ...form, priorEmployerTaxable: e.target.value })} />
+              </label>
+              <label>Prior Employer Tax Withheld (Optional)
+                <input type="number" step="0.01" min="0" value={form.priorEmployerTaxWithheld} onChange={(e) => setForm({ ...form, priorEmployerTaxWithheld: e.target.value })} />
+              </label>
             </div>
             <div className="notice notice-blue" style={{ margin: "10px 0" }}>
-              <span><strong>Automated Computation:</strong> Accrues 13th month from Jan 1 to Last Day, monetizes unused leave at daily rate (Basic &divide; 22), deducts active loan balances, and produces legal clearance checklist.</span>
+              <span><strong>Calculation basis:</strong> Linaw reads released payroll history up to the employee&apos;s last day, derives BASIC earnings and prior tax withheld, annualizes the final tax settlement, adds the selected leave conversion, and deducts active loan balances. Review tax treatment and prior-employer inputs before approval.</span>
             </div>
             <div className="run-actions">
               <button type="button" className="secondary-button" onClick={() => setShowModal(false)}>Cancel</button>
@@ -237,8 +264,10 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                 <strong>{peso(selectedRecord.leaveMonetizationPay)}</strong>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: 11.5 }}>
-                <span>Tax Withholding Refund</span>
-                <strong>{peso(selectedRecord.taxAdjustment)}</strong>
+                <span>Annualized Tax Settlement</span>
+                <strong style={{ color: Number(selectedRecord.taxAdjustment) >= 0 ? "var(--success)" : "var(--danger)" }}>
+                  {Number(selectedRecord.taxAdjustment) >= 0 ? "+" : "−"}{peso(Math.abs(Number(selectedRecord.taxAdjustment)))}
+                </strong>
               </div>
             </div>
 
