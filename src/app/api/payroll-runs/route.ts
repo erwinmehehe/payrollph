@@ -1,6 +1,6 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { payrollEntries, payrollRuns } from "@/db/schema";
+import { orgUnits, payrollEntries, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { drainPayrollQueue, enqueuePayrollRun, getPayrollJobStatus } from "@/lib/payroll-engine";
@@ -60,15 +60,55 @@ export async function GET(request: Request) {
   return Response.json({ runs });
 }
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+function periodLabelFromDates(periodStart: string, periodEnd: string) {
+  const start = new Date(`${periodStart}T12:00:00Z`);
+  const end = new Date(`${periodEnd}T12:00:00Z`);
+  const sameMonth = start.getUTCFullYear() === end.getUTCFullYear() && start.getUTCMonth() === end.getUTCMonth();
+  const startLabel = start.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    ...(sameMonth ? {} : { year: "numeric" as const }),
+    timeZone: "UTC",
+  });
+  const endLabel = end.toLocaleDateString("en-US", {
+    month: sameMonth ? undefined : "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+  return `${startLabel}–${endLabel}`;
+}
+
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
-  const periodLabel = typeof body.periodLabel === "string" ? body.periodLabel.trim() : "";
-  const scopeLabel = typeof body.scopeLabel === "string" ? body.scopeLabel.trim() : "";
+  const periodStart = typeof body.periodStart === "string" ? body.periodStart.trim() : "";
+  const periodEnd = typeof body.periodEnd === "string" ? body.periodEnd.trim() : "";
+  const payDate = typeof body.payDate === "string" ? body.payDate.trim() : "";
+  const rawScopeOrgUnitId = body.scopeOrgUnitId == null || body.scopeOrgUnitId === "" ? null : Number(body.scopeOrgUnitId);
   const processNow = body.processNow !== false;
 
-  if (!Number.isInteger(organizationId) || !periodLabel || !scopeLabel) {
-    return Response.json({ error: "Organization, period, and scope are required." }, { status: 400 });
+  if (
+    !Number.isInteger(organizationId) ||
+    !ISO_DATE.test(periodStart) ||
+    !ISO_DATE.test(periodEnd) ||
+    !ISO_DATE.test(payDate)
+  ) {
+    return Response.json({
+      error: "Organization, period start, period end, and pay date are required.",
+    }, { status: 400 });
+  }
+
+  if (periodStart > periodEnd) {
+    return Response.json({ error: "Payroll period start cannot be after period end." }, { status: 400 });
+  }
+  if (payDate < periodEnd) {
+    return Response.json({ error: "Pay date cannot be before the payroll period ends." }, { status: 400 });
+  }
+  if (rawScopeOrgUnitId !== null && (!Number.isInteger(rawScopeOrgUnitId) || rawScopeOrgUnitId <= 0)) {
+    return Response.json({ error: "Invalid payroll scope." }, { status: 400 });
   }
 
   const user = await getSessionUser();
@@ -83,12 +123,30 @@ export async function POST(request: Request) {
   );
   if (denied) return denied;
 
+  let scopeOrgUnitId: number | null = null;
+  let scopeLabel = "All locations";
+  if (rawScopeOrgUnitId !== null) {
+    const [scope] = await db.select().from(orgUnits).where(and(
+      eq(orgUnits.id, rawScopeOrgUnitId),
+      eq(orgUnits.organizationId, organizationId),
+    )).limit(1);
+    if (!scope) {
+      return Response.json({ error: "The selected payroll scope does not belong to this organization." }, { status: 400 });
+    }
+    scopeOrgUnitId = scope.id;
+    scopeLabel = scope.name;
+  }
+
+  const periodLabel = periodLabelFromDates(periodStart, periodEnd);
   const [run] = await db.insert(payrollRuns).values({
     organizationId,
     periodLabel,
+    periodStart,
+    periodEnd,
     scopeLabel,
+    scopeOrgUnitId,
     status: "Draft",
-    payDate: "2026-03-30",
+    payDate,
     employeeCount: 0,
     grossPay: "0",
     netPay: "0",
@@ -101,7 +159,14 @@ export async function POST(request: Request) {
     actor,
     action: "Payroll draft created",
     resource: periodLabel,
-    metadata: { scope: scopeLabel, ruleVersion: "PH-2026.01" },
+    metadata: {
+      periodStart,
+      periodEnd,
+      payDate,
+      scope: scopeLabel,
+      scopeOrgUnitId,
+      ruleVersion: "PH-2026.01",
+    },
   });
 
   let queueMeta = null;
@@ -114,3 +179,4 @@ export async function POST(request: Request) {
   const [fresh] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, run.id));
   return Response.json({ run: fresh, queue: queueMeta, processResult }, { status: 201 });
 }
+
