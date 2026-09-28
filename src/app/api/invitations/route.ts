@@ -5,7 +5,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { deliveryCapable, queueMessage } from "@/lib/mailer";
 import { createInvitation } from "@/lib/tokens";
-import { assertMembership } from "@/lib/access";
+import { assertOrganizationRole, getAccess, ORG_ADMIN_ROLES } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,12 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const organizationId = Number(searchParams.get("organizationId") ?? "1");
-  const deniedInviteList = await assertMembership(user.id, organizationId);
+  const deniedInviteList = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    ORG_ADMIN_ROLES,
+    "Only workspace administrators can view invitations.",
+  );
   if (deniedInviteList) return deniedInviteList;
   const rows = await db.select().from(invitations)
     .where(eq(invitations.organizationId, organizationId))
@@ -44,11 +49,27 @@ export async function POST(request: Request) {
   const role = ["owner", "admin", "hr", "bookkeeper", "employee"].includes(String(body.role)) ? String(body.role) : "admin";
 
   if (!Number.isInteger(organizationId)) return Response.json({ error: "organizationId is required." }, { status: 400 });
-  const deniedInvite = await assertMembership(user.id, organizationId);
+  const deniedInvite = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    ORG_ADMIN_ROLES,
+    "Only workspace administrators can invite users.",
+  );
   if (deniedInvite) return deniedInvite;
+
+  const access = await getAccess(user.id, organizationId);
+  if (role === "owner" && access?.role !== "owner") {
+    return Response.json({ error: "Only an owner can invite another owner." }, { status: 403 });
+  }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return Response.json({ error: "A valid email is required." }, { status: 422 });
 
   const [alreadyUser] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  if (alreadyUser) {
+    return Response.json({
+      error: "That email already belongs to a Linaw account. Add existing-user membership through an administrator workflow instead of issuing a password invitation.",
+    }, { status: 409 });
+  }
+
   const [alreadyInvited] = await db.select().from(invitations).where(and(
     eq(invitations.organizationId, organizationId),
     eq(invitations.email, email),
