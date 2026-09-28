@@ -125,6 +125,47 @@ export type BatchDisbursementResult = {
   transfers: Array<{ id: string; referenceNumber: string; status: string; amountCents: number }>;
 };
 
+
+export type PayrollDisbursementPreflight = {
+  provider: "instapay" | "pesonet";
+  employeeCount: number;
+  totalAmountCents: number;
+  banks: Array<{ bankName: string; bic: string }>;
+  ready: true;
+};
+
+/**
+ * Safe live preflight: verifies credentials can read PayMongo's current
+ * receiving-institution list and that every employee bank name resolves.
+ * It never calls the batch-transfer endpoint and therefore cannot move money.
+ */
+export async function preflightPaymongoPayrollDisbursement(runId: number): Promise<PayrollDisbursementPreflight> {
+  const rows = await loadPayrollPayoutRows(runId);
+  if (rows.length === 0) throw new Error("No payroll payout rows found for this run.");
+
+  const missingAccounts = rows.filter((row) => !row.accountNumber || !row.bankName);
+  if (missingAccounts.length > 0) {
+    throw new Error(
+      `${missingAccounts.length} employee(s) are missing a bank account or bank name: ${missingAccounts.map((row) => row.employeeNo).join(", ")}.`,
+    );
+  }
+
+  const provider = choosePayrollRail(rows);
+  const institutions = await listReceivingInstitutions(provider);
+  const banks = [...new Set(rows.map((row) => row.bankName))].map((bankName) => {
+    const institution = matchReceivingInstitution(bankName, institutions);
+    return { bankName, bic: institution.bic };
+  });
+
+  return {
+    provider,
+    employeeCount: rows.length,
+    totalAmountCents: rows.reduce((sum, row) => sum + row.amountCents, 0),
+    banks,
+    ready: true,
+  };
+}
+
 /**
  * Submits one PayMongo batch transfer for a set of payroll payout rows.
  * Caller is responsible for idempotencyKey, reuse the same key on retry of
