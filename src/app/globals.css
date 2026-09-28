@@ -4803,6 +4803,825 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
   }
 }
 
+
+/* ==========================================================================
+   Homepage storytelling pass
+   Product-first marketing hierarchy. Existing product components and data stay
+   untouched; this layer changes composition, density, and presentation only.
+   ========================================================================== */
+
+.software-home {
+  --home-max: 1240px;
+  background: #fff;
+}
+
+.software-home .site-shell,
+.software-home .site-nav-inner,
+.software-home .site-footer .site-shell {
+  max-width: var(--home-max);
+}
+
+/* Navigation */
+.software-home .site-nav {
+  height: 68px;
+  padding: 7px 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.software-home .site-nav-inner {
+  min-height: 54px;
+  padding-inline: 22px;
+  border: 1px solid rgba(84,95,120,.09);
+  border-radius: 14px;
+  background: rgba(255,255,255,.90);
+  box-shadow: 0 8px 28px rgba(16,24,40,.045);
+  backdrop-filter: blur(18px) saturate(1.25);
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
+}
+.software-home .site-nav.stuck {
+  background: transparent;
+  box-shadow: none;
+}
+.software-home .site-nav.stuck .site-nav-inner {
+  background: rgba(255,255,255,.96);
+  box-shadow: 0 10px 30px rgba(16,24,40,.075);
+}
+.software-home .site-links {
+  gap: 2px;
+  margin-left: auto;
+}
+.software-home .site-links a {
+  padding: 7px 9px;
+  font-size: 11.5px;
+}
+.software-home .site-nav-cta {
+  margin-left: 8px;
+}
+.software-home .site-nav-cta .secondary-button,
+.software-home .site-nav-cta .primary-button {
+  height: 36px;
+  min-height: 36px;
+  padding-inline: 14px;
+  border-radius: 9px;
+  font-size: 11.5px;
+}
+
+/* Hero */
+.software-home .home-hero {
+  min-height: 0;
+  border: 0;
+  background:
+    radial-gradient(circle at 77% 25%, rgba(68,76,231,.07), transparent 27%),
+    radial-gradient(circle at 87% 70%, rgba(18,183,106,.045), transparent 25%),
+    linear-gradient(180deg, #fff 0%, #fbfcff 74%, #f7f9fc 100%);
+}
+.software-home .home-hero::before {
+  opacity: .12;
+}
+.software-home .home-hero::after {
+  display: none;
+}
+.software-home .home-hero-grid {
+  grid-template-columns: minmax(0, 45fr) minmax(0, 55fr);
+  min-height: 680px;
+  column-gap: clamp(46px, 5vw, 72px);
+  row-gap: 22px;
+  align-items: center;
+  padding-top: 52px;
+  padding-bottom: 44px;
+}
+.software-home .home-hero-copy {
+  max-width: 535px;
+  padding: 0;
+}
+.software-home .home-hero-eyebrow {
+  margin: 0;
+  color: var(--brand);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+.software-home .hero h1 {
+  max-width: 570px;
+  margin: 18px 0 0;
+  font-size: clamp(52px, 4.45vw, 64px);
+  line-height: .96;
+  letter-spacing: -.062em;
+  font-weight: 790;
+}
+.software-home .hero-sub {
+  max-width: 510px;
+  margin-top: 22px;
+  color: #5d6979;
+  font-size: 16px;
+  line-height: 1.68;
+}
+.software-home .hero-cta {
+  margin-top: 28px;
+  gap: 10px;
+}
+.software-home .hero-cta .primary-button,
+.software-home .hero-cta .secondary-button {
+  min-height: 46px;
+  height: 46px;
+  padding-inline: 17px;
+  border-radius: 10px;
+  font-size: 12.5px;
+}
+.software-home .hero-cta .link-button {
+  align-self: center;
+  color: var(--ink-secondary);
+  font-size: 12px;
+}
+.software-home .hero-proof-row {
+  display: grid;
+  gap: 9px;
+  margin-top: 24px;
+  color: #667281;
+  font-size: 11.5px;
+}
+.software-home .hero-proof-row > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.45;
+}
+.software-home .hero-rule-chip {
+  width: fit-content;
+  padding: 7px 10px;
+  border: 1px solid rgba(18,183,106,.16);
+  border-radius: 9px;
+  background: rgba(255,255,255,.72);
+  box-shadow: 0 4px 16px rgba(16,24,40,.03);
+}
+.software-home .hero-rule-chip > i {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 99px;
+  background: var(--success);
+}
+.software-home .home-hero-stage {
+  min-width: 0;
+  padding: 0;
+  align-self: center;
+}
+.software-home .home-hero-glow {
+  inset: 4% -3% 1% 0;
+  opacity: .8;
+  background:
+    radial-gradient(circle at 50% 40%, rgba(68,76,231,.14), transparent 48%),
+    radial-gradient(circle at 75% 68%, rgba(18,183,106,.08), transparent 38%);
+  filter: blur(52px);
+}
+.software-home .home-hero-visual {
+  width: 103%;
+  margin-left: -1%;
+  transform: perspective(1700px) rotateY(-1.4deg) rotateX(.4deg);
+}
+.software-home .home-hero-stage:hover .home-hero-visual {
+  transform: perspective(1700px) rotateY(-.15deg) rotateX(0deg) translateY(-3px);
+}
+.software-home .home-hero-visual .frame {
+  border-radius: 20px;
+  box-shadow:
+    0 34px 78px rgba(17,24,39,.15),
+    0 10px 28px rgba(17,24,39,.07),
+    0 0 0 1px rgba(255,255,255,.76) inset;
+}
+.software-home .home-hero-visual .frame-tag {
+  display: none;
+}
+.software-home .home-hero-visual .pv {
+  min-height: 470px;
+}
+.software-home .home-hero-visual .pv-body {
+  max-height: 470px;
+}
+.software-home .home-coverage {
+  grid-column: 1 / -1;
+  justify-content: center;
+  gap: 7px;
+  padding-top: 2px;
+  margin-top: 2px;
+}
+.software-home .coverage-chip {
+  min-height: 31px;
+  padding: 4px 9px 4px 5px;
+  border-color: rgba(84,95,120,.09);
+  border-radius: 9px;
+  background: rgba(255,255,255,.80);
+  box-shadow: none;
+  font-size: 10px;
+}
+.software-home .coverage-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+}
+
+/* Shared section rhythm */
+.software-home .home-section {
+  padding-block: 118px;
+}
+.software-home .section-head h2 {
+  margin-top: 12px;
+  font-size: clamp(36px, 3.6vw, 48px);
+  line-height: 1.04;
+  letter-spacing: -.052em;
+}
+.software-home .section-head p {
+  margin-top: 16px;
+  font-size: 14px;
+  line-height: 1.72;
+}
+
+/* Interactive demo */
+.software-home .home-demo-section {
+  background: #fff;
+}
+.software-home .home-demo-stack {
+  gap: 38px;
+}
+.software-home .home-demo-heading {
+  max-width: 790px;
+  margin-inline: auto;
+  text-align: center;
+}
+.software-home .home-demo-heading h2 {
+  max-width: 700px;
+  margin-inline: auto;
+}
+.software-home .home-demo-heading > p:not(.eyebrow) {
+  max-width: 660px;
+  margin-inline: auto;
+}
+.software-home .home-demo-heading .editorial-facts {
+  max-width: 860px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 24px;
+}
+.software-home .home-demo-heading .editorial-facts span {
+  padding: 11px 12px;
+  border: 1px solid rgba(84,95,120,.08);
+  border-radius: 11px;
+  background: #fafbfd;
+  font-size: 10.5px;
+}
+.software-home .demo-surface {
+  padding: 14px;
+  border-radius: 25px;
+  background:
+    radial-gradient(circle at 80% 5%, rgba(68,76,231,.05), transparent 26%),
+    #f1f5fb;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.9);
+}
+.software-home .demo-surface .frame.standalone {
+  border-radius: 18px;
+  box-shadow: 0 20px 52px rgba(17,24,39,.10);
+}
+.software-home .demo-surface .frame-body {
+  min-height: 620px;
+}
+
+/* Payroll calculator */
+.software-home .home-payroll-section {
+  background:
+    radial-gradient(circle at 76% 32%, rgba(68,76,231,.045), transparent 28%),
+    linear-gradient(180deg, #f8fafc 0%, #f5f8fc 100%);
+}
+.software-home .payroll-showcase {
+  grid-template-columns: minmax(330px, 35fr) minmax(0, 65fr);
+  gap: clamp(52px, 6vw, 82px);
+  align-items: center;
+}
+.software-home .payroll-editorial {
+  max-width: 430px;
+}
+.software-home .payroll-feature-stack {
+  margin-top: 28px;
+}
+.software-home .payroll-feature-row {
+  padding-block: 13px;
+}
+.software-home .payroll-lab-surface {
+  padding: 18px;
+  border-radius: 26px;
+  background: #edf3fb;
+}
+.software-home .payroll-lab-surface .simulator-card {
+  padding: 28px;
+  border-radius: 20px;
+  box-shadow: 0 18px 44px rgba(17,24,39,.08);
+}
+
+/* Workspace bento */
+.software-home .home-workspace-section {
+  background: #fff;
+}
+.software-home .workspace-layout {
+  grid-template-columns: minmax(270px, 29fr) minmax(0, 71fr);
+  gap: 46px 62px;
+  align-items: start;
+}
+.software-home .workspace-layout > .home-editorial {
+  position: sticky;
+  top: 98px;
+  max-width: 330px;
+}
+.software-home .home-workspace-section .bento {
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 14px;
+}
+.software-home .home-workspace-section .bento > .feature-card {
+  grid-column: span 3;
+  min-height: 214px;
+  padding: 22px;
+  border-radius: 18px;
+  box-shadow: 0 7px 22px rgba(16,24,40,.035);
+}
+.software-home .home-workspace-section .bento > .feature-card.wide {
+  grid-column: span 6;
+  grid-row: span 2;
+  min-height: 442px;
+  padding: 28px;
+}
+.software-home .home-workspace-section .bento > .feature-card:first-child {
+  background:
+    radial-gradient(circle at 80% 20%, rgba(68,76,231,.20), transparent 30%),
+    radial-gradient(circle at 20% 90%, rgba(18,183,106,.12), transparent 30%),
+    linear-gradient(145deg, #101827 0%, #17243b 100%);
+}
+.software-home .home-workspace-section .bento > .feature-card:nth-child(4),
+.software-home .home-workspace-section .bento > .feature-card:nth-child(5),
+.software-home .home-workspace-section .bento > .feature-card:nth-child(6) {
+  grid-column: span 6;
+}
+.software-home .workspace-layout > .persona-strip {
+  grid-column: 2;
+  margin-top: 0 !important;
+}
+
+/* Proof: summary first, technical evidence on demand */
+.software-home .home-proof-section {
+  background: #f7f9fc;
+}
+.software-home .proof-story {
+  display: grid;
+  grid-template-columns: minmax(250px, 31fr) minmax(0, 69fr);
+  gap: 26px 62px;
+  align-items: start;
+}
+.software-home .proof-story-head {
+  grid-row: 1 / span 4;
+  position: sticky;
+  top: 98px;
+  max-width: 350px;
+}
+.software-home .proof-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.software-home .proof-summary-card {
+  min-height: 190px;
+  padding: 22px;
+  border: 1px solid rgba(84,95,120,.09);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(16,24,40,.035);
+}
+.software-home .proof-summary-card.proof-summary-verified {
+  border-color: rgba(18,183,106,.18);
+  background: linear-gradient(180deg, rgba(18,183,106,.045), #fff 46%);
+}
+.software-home .proof-summary-number {
+  display: block;
+  color: var(--ink);
+  font-family: var(--font-mono), monospace;
+  font-size: 34px;
+  font-weight: 650;
+  letter-spacing: -.05em;
+  line-height: 1;
+}
+.software-home .proof-summary-card strong {
+  display: block;
+  margin-top: 16px;
+  color: var(--ink);
+  font-size: 13px;
+}
+.software-home .proof-summary-card p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+.software-home .proof-actions-row {
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.software-home .proof-actions-row a {
+  min-height: 40px;
+  height: 40px;
+  border-radius: 9px;
+  font-size: 11.5px;
+}
+.software-home .proof-details {
+  overflow: hidden;
+  border: 1px solid rgba(84,95,120,.10);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 7px 22px rgba(16,24,40,.03);
+}
+.software-home .proof-details summary {
+  min-height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 18px;
+  cursor: pointer;
+  list-style: none;
+}
+.software-home .proof-details summary::-webkit-details-marker {
+  display: none;
+}
+.software-home .proof-details summary > span {
+  display: grid;
+  gap: 4px;
+}
+.software-home .proof-details summary strong {
+  color: var(--ink);
+  font-size: 12.5px;
+}
+.software-home .proof-details summary small {
+  color: var(--muted);
+  font-size: 10.5px;
+}
+.software-home .proof-details summary svg {
+  flex: none;
+  color: var(--muted);
+  transition: transform .18s var(--ease);
+}
+.software-home .proof-details[open] summary svg {
+  transform: rotate(90deg);
+}
+.software-home .proof-details-body {
+  padding: 0 14px 14px;
+  border-top: 1px solid rgba(84,95,120,.07);
+}
+.software-home .proof-details .proof-card-head {
+  padding: 16px 4px 12px;
+}
+.software-home .proof-details .card.table-card {
+  margin: 0;
+  box-shadow: none;
+}
+
+/* Pricing: buyer-facing, compact, real values */
+.software-home .home-pricing-section {
+  padding-block: 118px;
+  background: #fff;
+}
+.software-home .pricing-layout {
+  grid-template-columns: minmax(250px, 28fr) minmax(0, 72fr);
+  gap: 52px;
+  align-items: start;
+}
+.software-home .pricing-layout > .home-editorial {
+  position: sticky;
+  top: 98px;
+  max-width: 320px;
+  padding-top: 16px;
+}
+.software-home .pricing-layout > .home-editorial h2 {
+  max-width: 310px;
+  font-size: clamp(42px, 4vw, 54px);
+}
+.software-home .pricing-layout > .home-editorial p:last-child {
+  max-width: 300px;
+}
+.software-home .pricing-surface {
+  padding: 14px;
+  border-radius: 24px;
+  background: #f3f5f9;
+}
+.software-home .pricing-surface .pricing-calculator {
+  margin: 0 0 12px;
+  padding: 22px 22px 20px;
+  border: 0;
+  border-radius: 16px;
+  box-shadow: none;
+}
+.software-home .pricing-surface .pricing-calculator h2 {
+  margin: 6px 0 18px;
+  font-size: 17px;
+}
+.software-home .pricing-surface .calc-note {
+  margin-top: 14px;
+  padding: 10px 12px;
+  font-size: 10px;
+}
+.software-home .pricing-surface .pricing-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.software-home .pricing-surface .price-card {
+  min-height: 360px;
+  padding: 20px;
+  border-radius: 16px;
+  box-shadow: 0 5px 16px rgba(16,24,40,.03);
+}
+.software-home .pricing-surface .price-card.featured {
+  border-color: rgba(68,76,231,.22);
+  box-shadow: 0 9px 24px rgba(68,76,231,.07);
+}
+.software-home .pricing-surface .price-card h2 {
+  min-height: 58px;
+  font-size: 14px;
+}
+.software-home .pricing-surface .price-card ul {
+  min-height: 94px;
+  font-size: 10.5px !important;
+  line-height: 1.65 !important;
+}
+.software-home .pricing-surface .price {
+  margin-top: auto;
+  padding-top: 14px;
+}
+.software-home .pricing-surface .price strong {
+  font-size: clamp(20px, 1.5vw, 25px);
+}
+.software-home .pricing-surface .price-card > small {
+  min-height: 34px;
+  margin-top: 9px;
+  font-size: 9px;
+}
+.software-home .pricing-surface .price-card > a {
+  margin-top: 11px;
+}
+
+/* Closing + footer */
+.software-home .home-closing {
+  padding: 54px 0 68px;
+  background: #fff;
+}
+.software-home .closing-band {
+  padding: 34px 36px;
+  border-radius: 20px;
+}
+.software-home .site-footer {
+  padding-top: 42px;
+}
+
+/* Motion */
+@supports (animation-timeline: view()) {
+  .software-home .proof-summary-card,
+  .software-home .proof-details,
+  .software-home .pricing-surface .price-card {
+    animation: homepage-story-in linear both;
+    animation-timeline: view();
+    animation-range: entry 5% cover 24%;
+  }
+  @keyframes homepage-story-in {
+    from { opacity: .55; transform: translateY(12px); }
+    to { opacity: 1; transform: none; }
+  }
+}
+
+@media (max-width: 1180px) and (min-width: 901px) {
+  .software-home .home-hero-grid {
+    grid-template-columns: minmax(0, 42fr) minmax(0, 58fr);
+    min-height: 620px;
+    column-gap: 32px;
+  }
+  .software-home .hero h1 {
+    font-size: clamp(48px, 5.1vw, 58px);
+  }
+  .software-home .home-hero-visual .pv,
+  .software-home .home-hero-visual .pv-body {
+    min-height: 440px;
+    max-height: 440px;
+  }
+  .software-home .proof-story,
+  .software-home .pricing-layout {
+    gap: 38px;
+  }
+  .software-home .pricing-surface .pricing-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .software-home .site-shell,
+  .software-home .site-nav-inner {
+    padding-inline: 24px;
+  }
+  .software-home .home-hero-grid {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+    row-gap: 34px;
+    padding-top: 48px;
+    padding-bottom: 44px;
+  }
+  .software-home .home-hero-copy {
+    max-width: 720px;
+  }
+  .software-home .hero h1 {
+    max-width: 700px;
+    font-size: clamp(46px, 8vw, 62px);
+  }
+  .software-home .home-hero-visual,
+  .software-home .home-hero-stage:hover .home-hero-visual {
+    width: 100%;
+    margin-left: 0;
+    transform: none;
+  }
+  .software-home .home-hero-visual .pv,
+  .software-home .home-hero-visual .pv-body {
+    min-height: 0;
+    max-height: 520px;
+  }
+  .software-home .home-coverage {
+    justify-content: flex-start;
+  }
+  .software-home .home-section {
+    padding-block: 94px;
+  }
+  .software-home .home-demo-heading {
+    text-align: left;
+    margin-inline: 0;
+  }
+  .software-home .home-demo-heading h2,
+  .software-home .home-demo-heading > p:not(.eyebrow) {
+    margin-inline: 0;
+  }
+  .software-home .home-demo-heading .editorial-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .software-home .payroll-showcase,
+  .software-home .workspace-layout,
+  .software-home .proof-story,
+  .software-home .pricing-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 34px;
+  }
+  .software-home .payroll-editorial,
+  .software-home .workspace-layout > .home-editorial,
+  .software-home .proof-story-head,
+  .software-home .pricing-layout > .home-editorial {
+    position: static;
+    max-width: 680px;
+  }
+  .software-home .home-workspace-section .bento > .feature-card,
+  .software-home .home-workspace-section .bento > .feature-card.wide,
+  .software-home .home-workspace-section .bento > .feature-card:nth-child(4),
+  .software-home .home-workspace-section .bento > .feature-card:nth-child(5),
+  .software-home .home-workspace-section .bento > .feature-card:nth-child(6) {
+    grid-column: span 6;
+    grid-row: auto;
+    min-height: 220px;
+  }
+  .software-home .home-workspace-section .bento > .feature-card:first-child {
+    grid-column: 1 / -1;
+    min-height: 300px;
+  }
+  .software-home .workspace-layout > .persona-strip {
+    grid-column: 1;
+  }
+  .software-home .proof-story-head {
+    grid-row: auto;
+  }
+  .software-home .pricing-layout > .home-editorial h2,
+  .software-home .pricing-layout > .home-editorial p:last-child {
+    max-width: 620px;
+  }
+}
+
+@media (max-width: 680px) {
+  .software-home .site-shell,
+  .software-home .site-nav-inner {
+    padding-inline: 18px;
+  }
+  .software-home .home-hero-grid {
+    row-gap: 28px;
+    padding-top: 36px;
+    padding-bottom: 34px;
+  }
+  .software-home .hero h1 {
+    font-size: clamp(40px, 11.4vw, 50px);
+  }
+  .software-home .hero-sub {
+    margin-top: 18px;
+    font-size: 15px;
+  }
+  .software-home .hero-cta {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    margin-top: 24px;
+  }
+  .software-home .hero-cta .primary-button,
+  .software-home .hero-cta .secondary-button {
+    width: 100%;
+    justify-content: center;
+  }
+  .software-home .hero-cta .link-button {
+    justify-self: center;
+    margin: 4px 0 0 !important;
+  }
+  .software-home .hero-proof-row {
+    margin-top: 20px;
+  }
+  .software-home .home-hero-visual .pv-body {
+    max-height: 430px;
+  }
+  .software-home .home-section {
+    padding-block: 74px;
+  }
+  .software-home .section-head h2 {
+    font-size: clamp(32px, 9.5vw, 40px);
+  }
+  .software-home .demo-surface {
+    padding: 8px;
+    border-radius: 18px;
+  }
+  .software-home .demo-surface .frame-body {
+    min-height: 520px;
+  }
+  .software-home .payroll-lab-surface {
+    padding: 8px;
+    border-radius: 18px;
+  }
+  .software-home .home-workspace-section .bento {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .software-home .home-workspace-section .bento > .feature-card,
+  .software-home .home-workspace-section .bento > .feature-card.wide,
+  .software-home .home-workspace-section .bento > .feature-card:first-child,
+  .software-home .home-workspace-section .bento > .feature-card:nth-child(4),
+  .software-home .home-workspace-section .bento > .feature-card:nth-child(5),
+  .software-home .home-workspace-section .bento > .feature-card:nth-child(6) {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-height: 0;
+  }
+  .software-home .proof-summary-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .software-home .proof-summary-card {
+    min-height: 0;
+  }
+  .software-home .proof-actions-row {
+    display: grid;
+  }
+  .software-home .proof-actions-row a {
+    width: 100%;
+    justify-content: center;
+  }
+  .software-home .proof-details summary {
+    min-height: 64px;
+    padding: 14px;
+  }
+  .software-home .pricing-surface {
+    padding: 8px;
+    border-radius: 18px;
+  }
+  .software-home .pricing-surface .pricing-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .software-home .pricing-surface .price-card {
+    min-height: 0;
+  }
+  .software-home .pricing-surface .price-card h2,
+  .software-home .pricing-surface .price-card ul {
+    min-height: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .software-home .home-hero-copy,
+  .software-home .home-hero-stage,
+  .software-home .home-hero-visual,
+  .software-home .proof-summary-card,
+  .software-home .proof-details,
+  .software-home .pricing-surface .price-card {
+    animation: none !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
+
 /* Payroll outsourcing service page
    Keeps the service funnel visually separate from the software product page. */
 .outsourcing-hero {
