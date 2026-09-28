@@ -56,10 +56,7 @@ export async function SoftwareHome() {
       <section className="hero home-hero">
         <div className="site-shell home-hero-grid">
           <div className="hero-copy home-hero-copy">
-            <span className="pill">
-              <i aria-hidden />
-              NCR wage order <span className="mono">{ncr.wageOrder}</span> · ₱{ncr.dailyRate}/day is in the payroll rules
-            </span>
+            <p className="eyebrow home-hero-eyebrow">Philippine payroll software</p>
 
             <h1>
               Philippine payroll software
@@ -74,31 +71,21 @@ export async function SoftwareHome() {
 
             <HeroActions demoEnabled={demoEnabled} />
 
-            <div className="hero-facts">
-              <span>
-                <Check size={14} className="i-green" /> SSS, PhilHealth, Pag-IBIG and TRAIN computed server-side
+            <div className="hero-proof-row">
+              <span className="hero-rule-chip">
+                <i aria-hidden />
+                <span className="mono">{ncr.wageOrder}</span>
+                <span>₱{ncr.dailyRate}/day in the NCR rule set</span>
               </span>
-              <span>
-                <Check size={14} className="i-green" /> Attendance exceptions stay visible instead of being guessed
-              </span>
-              <span>
-                <Check size={14} className="i-green" /> Published pricing from the same table the app uses
-              </span>
+              <span><Check size={14} className="i-green" /> Statutory deductions calculated in the payroll engine</span>
+              <span><Check size={14} className="i-green" /> Exceptions stay visible before release</span>
             </div>
           </div>
 
           <div className="home-hero-stage" aria-label="Linaw payroll workspace preview">
             <div className="home-hero-glow" aria-hidden />
-            <div className="home-hero-badge home-hero-badge-top">
-              <span className="status status-verified">Live rules</span>
-              <small>Philippine statutory engine</small>
-            </div>
             <div className="home-hero-visual">
               <WorkspacePreview mode="showcase" />
-            </div>
-            <div className="home-hero-badge home-hero-badge-bottom">
-              <span className="mono">{ncr.wageOrder}</span>
-              <small>Current NCR rule in this build</small>
             </div>
           </div>
 
@@ -121,12 +108,12 @@ export async function SoftwareHome() {
             <p className="eyebrow">Interactive payroll demo</p>
             <h2>See the payroll system work before you sign up.</h2>
             <p>
-              Switch tabs, open a payslip, acknowledge an exception and release a run. The people are sample data, but the
-              contributions and withholding use the same payroll-rule functions as the product.
+              Switch tabs, open a payslip, acknowledge an exception and release a sample run. The people are sample data;
+              the statutory calculations use the same payroll-rule functions as the product.
             </p>
             <div className="editorial-facts">
               <span><Check size={14} className="i-green" /> Tabs, payslips and the payroll register are interactive</span>
-              <span><Check size={14} className="i-green" /> Exceptions must be acknowledged before simulated release</span>
+              <span><Check size={14} className="i-green" /> Exceptions must be acknowledged before release</span>
               <span><Check size={14} className="i-green" /> Statutory figures use the product&apos;s payroll-rule functions</span>
             </div>
           </div>
@@ -304,32 +291,71 @@ export async function SoftwareHome() {
       </section>
 
       <section className="section alt home-section home-proof-section" id="proof">
-        <div className="site-shell proof-layout">
-          <div className="section-head home-editorial">
+        <div className="site-shell proof-story">
+          <div className="section-head home-editorial proof-story-head">
             <p className="eyebrow">Proof before purchase</p>
-            <h2>Claims you can inspect, including the gaps.</h2>
+            <h2>See what works today, and what still has limits.</h2>
             <p>
-              The capability report is generated from this deployment&apos;s code and database. It currently lists{" "}
-              <strong>{report.counts.verified} verified</strong>, <strong>{report.counts.partial} partial</strong> and{" "}
-              <strong>{report.counts.absent} not built</strong> capabilities.
+              Linaw&apos;s public scorecard separates verified capabilities from partial work and features that are not built
+              yet. The counts below come from this deployment&apos;s capability report.
             </p>
           </div>
 
-          <div className="proof-evidence">
-            <div className="proof-card">
+          <div className="proof-summary-grid" aria-label="Capability summary">
+            <article className="proof-summary-card proof-summary-verified">
+              <span className="proof-summary-number">{report.counts.verified}</span>
+              <strong>Verified</strong>
+              <p>Capabilities backed by the current application and evidence in the scorecard.</p>
+            </article>
+            <article className="proof-summary-card">
+              <span className="proof-summary-number">{report.counts.partial}</span>
+              <strong>Partial</strong>
+              <p>Working areas with an explicit limitation still called out.</p>
+            </article>
+            <article className="proof-summary-card">
+              <span className="proof-summary-number">{report.counts.absent}</span>
+              <strong>Not built</strong>
+              <p>Known gaps that are not presented as finished product features.</p>
+            </article>
+          </div>
+
+          <div className="proof-actions-row">
+            <a className="primary-button" href="/scorecard">
+              Open full scorecard <ArrowUpRight size={14} />
+            </a>
+            <a className="secondary-button" href="/api/readiness">
+              View launch readiness
+            </a>
+          </div>
+
+          <details className="proof-details">
+            <summary>
+              <span>
+                <strong>Inspect the capability evidence</strong>
+                <small>Full verified, partial and not-built capability table</small>
+              </span>
+              <ArrowUpRight size={15} />
+            </summary>
+            <div className="proof-details-body">
               <CapabilityGrid capabilities={report.capabilities} counts={report.counts} />
             </div>
+          </details>
 
-            <div className="proof-card comparison-card">
+          <details className="proof-details comparison-details">
+            <summary>
+              <span>
+                <strong>View the competitor comparison</strong>
+                <small>Our reading of public positioning, with disclosure</small>
+              </span>
+              <ArrowUpRight size={15} />
+            </summary>
+            <div className="proof-details-body">
               <div className="proof-card-head">
-                <p className="eyebrow">Market positioning</p>
-                <h3>How we read the alternatives.</h3>
                 <p>
                   Competitor columns are our reading of public positioning, not independently verified product testing.
                   Certified government filing remains a gap for Linaw and is labelled as such.
                 </p>
               </div>
-
               <div className="card table-card">
                 <div className="data-table-wrap slim-scroll">
                   <table className="data-table parity-table">
@@ -368,17 +394,7 @@ export async function SoftwareHome() {
                 </div>
               </div>
             </div>
-
-            <div className="notice notice-amber proof-readiness" id="status">
-              <ShieldCheck size={16} className="i-green" />
-              <span>
-                <strong>Production status:</strong> the payroll engine, workspace, approvals, self-service, API and exports
-                run on the request path. External-provider and filing readiness is reported separately at{" "}
-                <a className="link-button" href="/api/readiness">/api/readiness</a> and{" "}
-                <a className="link-button" href="/scorecard">/scorecard</a>.
-              </span>
-            </div>
-          </div>
+          </details>
         </div>
       </section>
 
@@ -388,8 +404,8 @@ export async function SoftwareHome() {
             <p className="eyebrow">Payroll software pricing</p>
             <h2>See what Linaw costs at your headcount.</h2>
             <p>
-              The cards read the actual <span className="mono">pricing_plans</span> rows used by the app. Change headcount
-              and the displayed total recalculates from the stored base and per-employee rate.
+              Set your employee count and the monthly plan totals update instantly. Pricing stays transparent before you
+              create an account.
             </p>
           </div>
 
