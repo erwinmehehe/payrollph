@@ -1,6 +1,6 @@
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { bankTemplates, employees, payrollEntries, payrollRuns } from "@/db/schema";
+import { bankTemplates, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
 import { computePagIbig, computePhilHealth, computeSss } from "@/lib/payroll-rules";
 
 const csv = (value: unknown) => `"${String(value ?? "").replaceAll('"', '""')}"`;
@@ -301,36 +301,46 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     return { filename: `bir-1601c-draft-${run.id}.csv`, contentType: "text/csv", body: `${headerNote}\n${body}` };
   }
 
-  // Alphalist / 2316 style summary draft.
-  //
-  // This is NOT yet the exact ADES-importable .DAT layout, BIR publishes
-  // that layout and it's reproducible, but doing it correctly needs two
-  // things this codebase doesn't have yet: a separate middle-name field on
-  // the employee record (BIR's layout wants last/first/middle as distinct
-  // columns) and the actual field-position spec transcribed carefully rather
-  // than guessed. Shipping a fabricated byte layout for a tax filing would
-  // be worse than this honest DRAFT. What IS safe to fix without the full
-  // spec: BIR's TIN convention is 9 digits + a separate branch code, with no
-  // hyphens, so normalize that much correctly.
-  const splitTin = (raw: string | null) => {
-    const digits = (raw ?? "").replace(/\D/g, "");
-    return { tin: digits.slice(0, 9), branchCode: digits.slice(9) || "0000" };
-  };
+  // BIR annual summary input. This remains a DRAFT source extract, not the
+  // exact ADES .DAT contract. Unlike the older implementation, it never
+  // substitutes an internal employee number for a government TIN.
+  const [organization] = await db.select().from(organizations)
+    .where(eq(organizations.id, run.organizationId))
+    .limit(1);
+  const employerTin = (organization?.birTin ?? "").replace(/\D/g, "");
+  const employerBranchCode = (organization?.birBranchCode ?? "").replace(/\D/g, "").padStart(4, "0");
+
+  if (employerTin.length !== 9 || employerBranchCode.length !== 4) {
+    throw new Error("BIR annual draft cannot be generated: employer BIR TIN and 4-digit branch code are required.");
+  }
+
+  const missingTin = entries.filter(({ employee }) => (employee.tin ?? "").replace(/\D/g, "").length !== 9);
+  if (missingTin.length > 0) {
+    throw new Error(
+      `BIR annual draft cannot be generated: ${missingTin.length} employee(s) are missing a valid 9-digit TIN: ${missingTin.map(({ employee }) => employee.employeeNo).join(", ")}.`,
+    );
+  }
+
   const body = [
-    "TIN,BranchCode,LastName,FirstName,GrossCompensation,TaxWithheld,MWE,Status",
-    ...entries.map(({ employee, entry }) => {
-      const { tin, branchCode } = splitTin(employee.tin);
-      return [
-        tin || employee.employeeNo,
-        branchCode,
-        employee.lastName,
-        employee.firstName,
-        entry.grossPay,
-        Math.abs(Number((entry.lineItems as Array<{ code: string; amount: string }> | undefined)?.find?.((item) => item.code === "WHT")?.amount ?? 0)).toFixed(2),
-        employee.mwe ? "Y" : "N",
-        "DRAFT",
-      ].map(csv).join(",");
-    }),
+    "EmployerTIN,EmployerBranchCode,EmployeeTIN,LastName,FirstName,MiddleName,Nationality,GrossCompensation,TaxWithheld,MWE,Status",
+    ...entries.map(({ employee, entry }) => [
+      employerTin,
+      employerBranchCode,
+      (employee.tin ?? "").replace(/\D/g, ""),
+      employee.lastName,
+      employee.firstName,
+      employee.middleName ?? "",
+      employee.nationality ?? "Filipino",
+      entry.grossPay,
+      Math.abs(Number((entry.lineItems as Array<{ code: string; amount: string }> | undefined)?.find?.((item) => item.code === "WHT")?.amount ?? 0)).toFixed(2),
+      employee.mwe ? "Y" : "N",
+      "DRAFT",
+    ].map(csv).join(",")),
   ].join("\n");
-  return { filename: `bir-alphalist-2316-draft-${run.id}.csv`, contentType: "text/csv", body: `${headerNote}\n${body}` };
+
+  return {
+    filename: `bir-alphalist-2316-draft-${run.id}.csv`,
+    contentType: "text/csv",
+    body: `${headerNote}\n# Source extract only. Validate and transform to the exact current BIR 1604-C/ADES DAT contract before filing.\n${body}`,
+  };
 }
