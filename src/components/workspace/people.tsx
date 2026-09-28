@@ -34,6 +34,7 @@ export function PeopleView({
   onRefresh,
   onAddEmployee,
   onPage,
+  canManage = true,
   focusEmployeeId,
   onClearFocus,
 }: {
@@ -41,6 +42,7 @@ export function PeopleView({
   onRefresh: () => Promise<void>;
   onAddEmployee: () => void;
   onPage: (page: string) => void;
+  canManage?: boolean;
   focusEmployeeId?: number | null;
   onClearFocus?: () => void;
 }) {
@@ -112,9 +114,11 @@ export function PeopleView({
         title="Your people, in context."
         copy="Department and branch structure stay optional for small teams and are ready when a client grows into them."
         actions={
-          <button className="primary-button brand" onClick={onAddEmployee}>
-            <Plus size={16} className="i-green" /> Add employee
-          </button>
+          canManage ? (
+            <button className="primary-button brand" onClick={onAddEmployee}>
+              <Plus size={16} className="i-green" /> Add employee
+            </button>
+          ) : undefined
         }
       />
 
@@ -128,7 +132,7 @@ export function PeopleView({
         </div>
       )}
 
-      <ImportPanel organizationId={data.selectedOrganization.id} onImported={onRefresh} />
+      {canManage && <ImportPanel organizationId={data.selectedOrganization.id} onImported={onRefresh} />}
 
       {openOffboarding > 0 && (
         <div className="notice notice-blue">
@@ -306,9 +310,11 @@ export function PeopleView({
               server.
             </span>
           </div>
-          <button className="card-action" onClick={() => onPage("Settings")}>
-            Manage structure
-          </button>
+          {canManage && (
+            <button className="card-action" onClick={() => onPage("Settings")}>
+              Manage structure
+            </button>
+          )}
         </aside>
       </section>
 
