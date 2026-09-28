@@ -55,9 +55,18 @@ export const DEMO_MODE = process.env.DEMO_MODE === "true";
 
 export async function ensureSeedData() {
   const [{ value }] = await db.select({ value: count() }).from(organizations);
-  if (value === 0 && !DEMO_MODE) return;
+
+  // Production may bootstrap global reference data, but it must never seed
+  // fictional employees, loans, disciplinary cases, devices, or demo payrolls
+  // into a real customer workspace.
+  if (!DEMO_MODE) {
+    await ensureReferenceData();
+    return;
+  }
+
   if (value > 0) {
-    if (DEMO_MODE) await ensureDemoUser();
+    await ensureReferenceData();
+    await ensureDemoUser();
     await ensureExtendedSeed();
     return;
   }
@@ -229,6 +238,46 @@ export async function ensureSeedData() {
   await ensureExtendedSeed();
   void draftRun;
   void releasedRun;
+}
+
+async function ensureReferenceData() {
+  const orgs = await db.select().from(organizations);
+  for (const org of orgs) {
+    await ensureSubscription(org.id);
+  }
+
+  const [{ value: pricingCount }] = await db.select({ value: count() }).from(pricingPlans);
+  if (pricingCount === 0) {
+    await db.insert(pricingPlans).values(DEFAULT_PRICING_PLANS.map((plan) => ({ ...plan })));
+  }
+
+  const [{ value: wageCount }] = await db.select({ value: count() }).from(minWageOrders);
+  if (wageCount === 0) {
+    await db.insert(minWageOrders).values(WAGE_ORDERS.map((row) => ({
+      region: row.region,
+      dailyRate: row.dailyRate.toFixed(2),
+      wageOrder: row.wageOrder,
+      effectiveOn: row.effectiveOn,
+    })));
+  }
+
+  const [{ value: holidayCount }] = await db.select({ value: count() }).from(holidays);
+  if (holidayCount === 0) {
+    await db.insert(holidays).values(NATIONAL_HOLIDAYS_2026.map((row) => ({
+      holidayDate: row.date,
+      name: row.name,
+      kind: row.kind,
+    })));
+  }
+
+  const [{ value: templateCount }] = await db.select({ value: count() }).from(bankTemplates);
+  if (templateCount === 0) {
+    await db.insert(bankTemplates).values([
+      { name: "BDO DAT", version: "2026.01", format: "DAT", mappings: { account: "column_3", amount: "column_8", name: "column_5" } },
+      { name: "BPI / UnionBank", version: "2026.01", format: "CSV", mappings: { account: "account_number", amount: "net_pay", name: "employee_name" } },
+      { name: "GCash Disbursement", version: "2026.01", format: "CSV", mappings: { account: "mobile", amount: "net_pay", name: "employee_name" } },
+    ]);
+  }
 }
 
 async function ensureDemoUser(organizationIds?: number[]) {
