@@ -288,7 +288,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         onPage={setPage}
         notifications={notifications}
         onOpenPalette={() => setPaletteOpen(true)}
-        onOpenNotification={() => setOutboxOpen(true)}
+        onOpenNotification={availablePages.includes("Exports") ? () => setOutboxOpen(true) : undefined}
         onSwitchClient={(id) => void changeOrganization(id)}
         onSwitchRole={(role) => void switchDemoRole(role)}
         onSignOut={() => void signOut()}
@@ -355,7 +355,14 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
           />
         )}
 
-        {page === "Time & attendance" && <TimeView data={data} onOpenBundy={() => setWebBundyOpen(true)} notify={notify} />}
+        {page === "Time & attendance" && (
+          <TimeView
+            data={data}
+            onOpenBundy={() => setWebBundyOpen(true)}
+            notify={notify}
+            canManage={canManageTime}
+          />
+        )}
 
         {page === "Leave" && (
           <LeavePage
