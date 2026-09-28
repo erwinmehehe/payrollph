@@ -1,0 +1,76 @@
+name: Live production avatar check
+
+on:
+  push:
+    branches:
+      - qa/live-production-avatar-check
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --no-save playwright@1.55.0
+      - run: npx playwright install --with-deps chromium
+      - name: Inspect live production
+        run: |
+          mkdir -p live-avatar
+          node <<'NODE'
+          const { chromium } = require("playwright");
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage({ viewport: { width: 1270, height: 830 } });
+            await page.goto("https://erwinmehehe-payrollph.vercel.app/", { waitUntil: "networkidle", timeout: 90000 });
+
+            const preview = page.locator("#preview");
+            if (!(await preview.count())) throw new Error("Live page has no #preview section");
+
+            await preview.getByRole("button", { name: "Time", exact: true }).click();
+            const avatars = preview.locator(".person-cell > .avatar");
+            const count = await avatars.count();
+            if (!count) throw new Error("No live avatars found");
+
+            const samples = [];
+            for (let i = 0; i < Math.min(count, 6); i++) {
+              const el = avatars.nth(i);
+              samples.push({
+                text: await el.textContent(),
+                box: await el.boundingBox(),
+                styles: await el.evaluate((node) => {
+                  const s = getComputedStyle(node);
+                  return {
+                    display: s.display,
+                    width: s.width,
+                    height: s.height,
+                    overflow: s.overflow,
+                    whiteSpace: s.whiteSpace,
+                    textOverflow: s.textOverflow,
+                    placeItems: s.placeItems,
+                    textAlign: s.textAlign,
+                    fontSize: s.fontSize,
+                    lineHeight: s.lineHeight,
+                  };
+                }),
+              });
+            }
+
+            const cssText = await page.locator("style").allTextContents().catch(() => []);
+            const bodyWidth = await page.evaluate(() => ({ body: document.body.scrollWidth, html: document.documentElement.scrollWidth, vw: innerWidth }));
+
+            await preview.screenshot({ path: "live-avatar/live-time.png" });
+            await page.screenshot({ path: "live-avatar/live-full.png", fullPage: true });
+
+            console.log("LIVE_AVATAR_STATE=" + JSON.stringify({ count, samples, bodyWidth }));
+            console.log("LIVE_URL=" + page.url());
+            await browser.close();
+          })().catch((error) => { console.error(error); process.exit(1); });
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-production-avatar-check
+          path: live-avatar/
+          retention-days: 1
