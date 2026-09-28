@@ -91,11 +91,13 @@ export async function GET() {
     {
       key: "email-delivery",
       label: "Transactional email provider",
-      ready: deliveryCapable(),
+      ready: deliveryCapable() && Number(sentMail) > 0,
       detail: deliveryCapable()
-        ? `Active provider: ${provider}. Password resets and invitations send immediately.`
-        : "No provider configured. Set RESEND_API_KEY, POSTMARK_SERVER_TOKEN, or SMTP_URL, the adapter is already wired; messages queue in the outbox until then.",
-      blocks: deliveryCapable() ? "none" : "launch",
+        ? Number(sentMail) > 0
+          ? `Active provider: ${provider}. ${sentMail} successful delivery record(s) exist on this deployment.`
+          : `Provider ${provider} is configured, but this deployment has not recorded a successful delivery yet.`
+        : "No provider configured. Messages remain queued until a transactional email provider is connected.",
+      blocks: deliveryCapable() && Number(sentMail) > 0 ? "none" : "launch",
     },
     {
       key: "billing",
