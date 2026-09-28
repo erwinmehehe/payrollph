@@ -115,7 +115,7 @@ export function StatutoryLab() {
 
         <div>
           <p className="eyebrow">Result</p>
-          <div className="run-stats" style={{ margin: 0 }}>
+          <div className="run-stats statutory-result-stats" style={{ margin: 0 }}>
             <div>
               <span>Gross this cutoff</span>
               <strong>{moneyExact(halfGross)}</strong>
