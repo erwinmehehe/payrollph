@@ -38,6 +38,16 @@ export type LineVariance = {
   delta: number;
 };
 
+export type PayrollComponentBreakdown = {
+  gross: number;
+  sss: number;
+  philHealth: number;
+  pagIbig: number;
+  withholdingTax: number;
+  otherDeductions: number;
+  net: number;
+};
+
 export type EmployeeVariance = {
   employeeId: number;
   currentGross: number;
@@ -49,6 +59,8 @@ export type EmployeeVariance = {
   netPercent: number | null;
   currentDeductions: number;
   previousDeductions: number | null;
+  currentComponents: PayrollComponentBreakdown;
+  previousComponents: PayrollComponentBreakdown | null;
   lineChanges: LineVariance[];
   hasMaterialChange: boolean;
 };
@@ -97,6 +109,34 @@ function traceFlagsOf(entry: AssuranceEntry) {
   return Array.isArray(flags) ? flags.filter((flag): flag is string => typeof flag === "string") : [];
 }
 
+
+function lineAmountByCodes(entry: AssuranceEntry, codes: string[]) {
+  const wanted = new Set(codes.map((code) => code.toUpperCase()));
+  return cents(lineItemsOf(entry).reduce((sum, line) => {
+    if (!wanted.has(line.code.toUpperCase())) return sum;
+    return sum + Math.abs(numberOf(line.amount));
+  }, 0));
+}
+
+export function payrollComponentsOf(entry: AssuranceEntry): PayrollComponentBreakdown {
+  const deductions = Math.abs(numberOf(entry.deductions));
+  const sss = lineAmountByCodes(entry, ["SSS"]);
+  const philHealth = lineAmountByCodes(entry, ["PHIC", "PHILHEALTH"]);
+  const pagIbig = lineAmountByCodes(entry, ["HDMF", "PAGIBIG", "PAG-IBIG"]);
+  const withholdingTax = lineAmountByCodes(entry, ["WHT", "WITHHOLDING_TAX", "TAX"]);
+  const knownDeductions = sss + philHealth + pagIbig + withholdingTax;
+
+  return {
+    gross: cents(numberOf(entry.grossPay)),
+    sss,
+    philHealth,
+    pagIbig,
+    withholdingTax,
+    otherDeductions: cents(Math.max(0, deductions - knownDeductions)),
+    net: cents(numberOf(entry.netPay)),
+  };
+}
+
 function compareLines(current: AssuranceEntry, previous: AssuranceEntry | null): LineVariance[] {
   const currentLines = lineItemsOf(current);
   const previousLines = previous ? lineItemsOf(previous) : [];
@@ -141,6 +181,8 @@ export function evaluatePayrollAssurance(
     const netDelta = previousNet == null ? null : cents(net - previousNet);
     const grossDelta = previousGross == null ? null : cents(gross - previousGross);
     const netPercent = previousNet == null ? null : percentChange(net, previousNet);
+    const currentComponents = payrollComponentsOf(entry);
+    const previousComponents = previous ? payrollComponentsOf(previous) : null;
     const lineChanges = compareLines(entry, previous);
     const materialChange =
       previousNet != null &&
@@ -158,6 +200,8 @@ export function evaluatePayrollAssurance(
       netPercent: netPercent == null ? null : cents(netPercent),
       currentDeductions: cents(deductions),
       previousDeductions: previousDeductions == null ? null : cents(previousDeductions),
+      currentComponents,
+      previousComponents,
       lineChanges,
       hasMaterialChange: materialChange,
     });
