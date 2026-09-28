@@ -66,7 +66,12 @@ export async function POST(request: Request) {
   if (!isPlan(targetPlan)) return Response.json({ error: "Unknown plan." }, { status: 422 });
   if (targetPlan === "Solo") return Response.json({ error: "Solo is self-service and does not require checkout." }, { status: 422 });
 
-  const denied = await assertMembership(user.id, organizationId);
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    BILLING_ADMIN_ROLES,
+    "Only billing administrators can view or change subscription billing.",
+  );
   if (denied) return denied;
 
   if (!process.env.PAYMONGO_SECRET_KEY) {
