@@ -9,7 +9,7 @@ import {
   userOrganizations,
   users,
 } from "@/db/schema";
-import { assertMembership, getAccess } from "@/lib/access";
+import { assertMembership, canOperatePayroll, getAccess, isPayrollOperatorRole } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { auditPayrollControl } from "@/lib/payroll-control";
@@ -28,8 +28,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const denied = await assertMembership(user.id, run.organizationId);
   if (denied) return denied;
   const access = await getAccess(user.id, run.organizationId);
-  if (!access || access.role === "employee") {
-    return Response.json({ error: "Payroll operations require a payroll or administrative workspace role." }, { status: 403 });
+  if (!canOperatePayroll(access)) {
+    return Response.json({ error: "Payroll access requires an owner, admin, bookkeeper, or payroll role." }, { status: 403 });
   }
 
   const members = await db
@@ -94,6 +94,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (!approver) {
     return Response.json({ error: "That approver is not a member of this payroll workspace." }, { status: 403 });
+  }
+  if (!isPayrollOperatorRole(approver.role)) {
+    return Response.json({ error: "The checker must have an owner, admin, bookkeeper, or payroll role." }, { status: 403 });
   }
 
   const entryRows = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, runId));
