@@ -29,13 +29,16 @@ test("the software homepage keeps the real interactive product surfaces", () => 
   assert.ok(page.includes("<StatutoryLab />"), "live statutory calculator must remain mounted");
 });
 
-test("the software page names competitors and carries the honest-status block", () => {
+test("the software page names competitors and keeps readiness transparent", () => {
   const page = read("src/components/marketing/software-home.tsx");
   for (const competitor of ["Sprout", "PayrollHero", "GreatDay HR", "Kazam"]) {
     assert.ok(page.includes(competitor), `comparison table must name ${competitor}`);
   }
-  assert.ok(/Production status:/i.test(page), "must disclose readiness honestly");
+  assert.ok(page.includes("report.counts.verified"), "homepage must expose verified capability count");
+  assert.ok(page.includes("report.counts.partial"), "homepage must expose partial capability count");
+  assert.ok(page.includes("report.counts.absent"), "homepage must expose not-built capability count");
   assert.ok(page.includes("/api/readiness"), "must link to the live gate list");
+  assert.ok(page.includes("/scorecard"), "must link to the full capability scorecard");
 });
 
 test("payroll outsourcing has its own service route and conversion path", () => {
