@@ -2,7 +2,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { employeeLoans, employees, payrollEntries, payrollRuns, separationRecords } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { assertMembership, getAccess } from "@/lib/access";
+import { assertMembership, canManageSeparation, getAccess } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { calculateFinalPay } from "@/lib/final-pay";
 
@@ -19,8 +19,8 @@ export async function GET(request: Request) {
   const denied = await assertMembership(user.id, organizationId);
   if (denied) return denied;
   const access = await getAccess(user.id, organizationId);
-  if (!access || access.role === "employee") {
-    return Response.json({ error: "Separation and final-pay operations require an HR or administrative workspace role." }, { status: 403 });
+  if (!canManageSeparation(access)) {
+    return Response.json({ error: "Separation and final-pay operations require an owner, admin, bookkeeper, HR, or payroll role." }, { status: 403 });
   }
 
   const filter = employeeId > 0
@@ -78,8 +78,8 @@ export async function POST(request: Request) {
   const denied = await assertMembership(user.id, organizationId);
   if (denied) return denied;
   const access = await getAccess(user.id, organizationId);
-  if (!access || access.role === "employee") {
-    return Response.json({ error: "Separation and final-pay operations require an HR or administrative workspace role." }, { status: 403 });
+  if (!canManageSeparation(access)) {
+    return Response.json({ error: "Separation and final-pay operations require an owner, admin, bookkeeper, HR, or payroll role." }, { status: 403 });
   }
 
   const [employee] = await db.select().from(employees).where(eq(employees.id, employeeId)).limit(1);
@@ -213,8 +213,8 @@ export async function PATCH(request: Request) {
   const denied = await assertMembership(user.id, sep.organizationId);
   if (denied) return denied;
   const access = await getAccess(user.id, sep.organizationId);
-  if (!access || access.role === "employee") {
-    return Response.json({ error: "Separation and final-pay operations require an HR or administrative workspace role." }, { status: 403 });
+  if (!canManageSeparation(access)) {
+    return Response.json({ error: "Separation and final-pay operations require an owner, admin, bookkeeper, HR, or payroll role." }, { status: 403 });
   }
 
   if (action === "clearance") {
