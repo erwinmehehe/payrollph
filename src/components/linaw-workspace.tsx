@@ -177,7 +177,12 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
     }
   }
 
-  async function createPayroll(input: { periodLabel: string; scopeLabel: string }) {
+  async function createPayroll(input: {
+    periodStart: string;
+    periodEnd: string;
+    payDate: string;
+    scopeOrgUnitId: number | null;
+  }) {
     setBusy(true);
     try {
       const response = await fetch("/api/payroll-runs", {
@@ -433,7 +438,14 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         }}
       />
 
-      {newPayrollOpen && <NewPayrollModal onClose={() => setNewPayrollOpen(false)} onCreate={createPayroll} busy={busy} />}
+      {newPayrollOpen && (
+        <NewPayrollModal
+          onClose={() => setNewPayrollOpen(false)}
+          onCreate={createPayroll}
+          busy={busy}
+          orgUnits={data.orgUnits ?? []}
+        />
+      )}
       {outboxOpen && (
         <OutboxModal organizationId={data.selectedOrganization.id} onClose={() => setOutboxOpen(false)} setNotice={noticeAdapter} />
       )}
