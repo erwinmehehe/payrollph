@@ -46,8 +46,10 @@ export async function GET() {
   const billingConfigured = configured("PAYMONGO_SECRET_KEY") || configured("MAYA_SECRET_KEY") || configured("STRIPE_SECRET_KEY");
   const billingProven = paidInvoices > 0 || activeSubs > 0;
 
-  const bankConfigured = configured("BANK_HOST_TO_HOST_URL") || configured("INSTAPAY_API_KEY")
-    || (configured("PAYMONGO_SECRET_KEY") && process.env.PAYMONGO_DISBURSEMENTS_ENABLED === "true");
+  const directBankConfigured = configured("BANK_HOST_TO_HOST_URL") || configured("INSTAPAY_API_KEY");
+  const paymongoDisbursementEnabled = configured("PAYMONGO_SECRET_KEY") && enabled("PAYMONGO_DISBURSEMENTS_ENABLED");
+  const paymongoPreflightProven = Number(paymongoPreflightPasses) > 0;
+  const bankReady = directBankConfigured || (paymongoDisbursementEnabled && paymongoPreflightProven);
 
   // Government filing does not require vendor accreditation for standard
   // file-based submission, BIR publishes the Alphalist .DAT layout and
@@ -62,6 +64,10 @@ export async function GET() {
   const philhealthValidated = enabled("PHILHEALTH_RF1_VALIDATED");
   const pagibigValidated = enabled("PAGIBIG_MCRF_VALIDATED");
   const storageConfigured = configured("S3_BUCKET") || configured("R2_BUCKET");
+  const storageIntegrated = false;
+  const malwareEndpointConfigured = configured("MALWARE_SCAN_URL");
+  const malwareIntegrated = false;
+  const samlIntegrated = false;
 
   const gates: Gate[] = [
     {
