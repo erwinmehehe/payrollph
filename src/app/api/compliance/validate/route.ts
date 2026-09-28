@@ -55,6 +55,9 @@ export async function POST(request: Request) {
   const missingSss = staff.filter((employee) => !employee.sssNo?.trim());
   const missingPhilHealth = staff.filter((employee) => !employee.philHealthNo?.trim());
   const missingPagIbig = staff.filter((employee) => !employee.pagIbigNo?.trim());
+  const employerSssReady = Boolean(org.sssEmployerNo?.trim());
+  const employerPhilHealthReady = Boolean(org.philHealthEmployerNo?.trim());
+  const employerPagIbigReady = Boolean(org.pagIbigEmployerNo?.trim());
 
   const bir2316Checks: LocalCheck[] = [
     {
@@ -121,6 +124,11 @@ export async function POST(request: Request) {
 
   const sssChecks: LocalCheck[] = [
     {
+      rule: "Employer SSS number",
+      passed: employerSssReady,
+      message: employerSssReady ? "Employer SSS number is on file." : "Employer SSS number is missing from the organization profile.",
+    },
+    {
       rule: "Employee SSS numbers",
       passed: missingSss.length === 0,
       message: missingSss.length === 0
@@ -146,6 +154,11 @@ export async function POST(request: Request) {
 
   const philHealthChecks: LocalCheck[] = [
     {
+      rule: "Employer PhilHealth number",
+      passed: employerPhilHealthReady,
+      message: employerPhilHealthReady ? "Employer PhilHealth number is on file." : "Employer PhilHealth number is missing from the organization profile.",
+    },
+    {
       rule: "PhilHealth PIN completeness",
       passed: missingPhilHealth.length === 0,
       message: missingPhilHealth.length === 0
@@ -170,6 +183,11 @@ export async function POST(request: Request) {
   ];
 
   const pagIbigChecks: LocalCheck[] = [
+    {
+      rule: "Employer Pag-IBIG number",
+      passed: employerPagIbigReady,
+      message: employerPagIbigReady ? "Employer Pag-IBIG number is on file." : "Employer Pag-IBIG employer ID is missing from the organization profile.",
+    },
     {
       rule: "Pag-IBIG MID completeness",
       passed: missingPagIbig.length === 0,
@@ -275,6 +293,9 @@ export async function POST(request: Request) {
       missingSss: missingSss.length,
       missingPhilHealth: missingPhilHealth.length,
       missingPagIbig: missingPagIbig.length,
+      employerSssReady,
+      employerPhilHealthReady,
+      employerPagIbigReady,
     },
     validations,
     disclaimer: "Local checks only. This result is not a government portal acknowledgement, filing receipt, or certification.",
