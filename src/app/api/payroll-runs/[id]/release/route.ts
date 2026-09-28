@@ -62,20 +62,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const tasks = await db.select().from(approvalTasks).where(eq(approvalTasks.organizationId, run.organizationId));
-  const period = run.periodLabel.toLowerCase();
-  const exactApprovals = tasks
-    .filter((task) => task.title.toLowerCase().includes(period))
-    .sort((a, b) => b.id - a.id);
-  const month = new Date(`${run.payDate}T12:00:00`)
-    .toLocaleDateString("en-PH", { month: "long" })
-    .toLowerCase();
-  const monthApprovals = tasks
-    .filter((task) => {
-      const title = task.title.toLowerCase();
-      return title.includes("payroll") && title.includes(month);
-    })
-    .sort((a, b) => b.id - a.id);
-  const approval = exactApprovals[0] ?? monthApprovals[0];
+  const approvalTitle = `Payroll approval · ${run.periodLabel}`;
+  const approval = tasks
+    .filter((task) => task.title === approvalTitle)
+    .sort((a, b) => b.id - a.id)[0];
 
   if (approval && approval.status !== "Approved") {
     return Response.json({
