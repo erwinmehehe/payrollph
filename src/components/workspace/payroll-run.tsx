@@ -1112,10 +1112,14 @@ function findRunApproval(tasks: Task[], run?: PayrollRun) {
   if (!run) return undefined;
   const period = run.periodLabel.toLowerCase();
   const exact = tasks.filter((task) => task.title.toLowerCase().includes(period));
-  return (
-    exact[exact.length - 1] ??
-    tasks.find((task) => task.title.toLowerCase().includes("payroll") && task.status === "Pending")
-  );
+  const month = new Date(`${run.payDate}T12:00:00`)
+    .toLocaleDateString("en-PH", { month: "long" })
+    .toLowerCase();
+  const monthMatches = tasks.filter((task) => {
+    const title = task.title.toLowerCase();
+    return title.includes("payroll") && title.includes(month);
+  });
+  return exact[exact.length - 1] ?? monthMatches[monthMatches.length - 1];
 }
 
 const monthOf = (date: string) => {
