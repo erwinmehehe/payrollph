@@ -159,10 +159,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         notify(payload.error ?? "That decision could not be saved.", "err");
         return;
       }
-      setData((current) => ({
-        ...current,
-        tasks: current.tasks.map((task) => (task.id === id ? { ...task, status } : task)),
-      }));
+      await refresh();
       notify(
         payload.decidedOnBehalfOf
           ? `Approval ${status.toLowerCase()} on behalf of ${payload.decidedOnBehalfOf}, the delegation chain is in the audit trail.`
@@ -337,6 +334,9 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
             onRelease={releaseRun}
             onDecide={decideTask}
             onPage={setPage}
+            onRefresh={async () => {
+              await refresh();
+            }}
             notify={notify}
           />
         )}
