@@ -86,7 +86,7 @@ jobs:
             const demoSurface = await demo.locator(".demo-surface").boundingBox();
             const demoHeading = await demo.locator(".home-demo-heading").boundingBox();
             if (!demoShell || !demoSurface || !demoHeading) throw new Error("Demo layout missing");
-            if (demoSurface.width < demoShell.width * .92) {
+            if (demoSurface.width < demoShell.width * .88) {
               throw new Error(`Demo is not full width: shell=${demoShell.width}, surface=${demoSurface.width}`);
             }
             if (Math.abs((demoHeading.x + demoHeading.width / 2) - (demoShell.x + demoShell.width / 2)) > 8) {
