@@ -5,7 +5,10 @@ import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { generateBankFile, generateGovernmentDraft, generateJournalCsv } from "@/lib/exporters";
 import { assertOrganizationRole, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
-import { createPaymongoPayrollDisbursement } from "@/lib/paymongo-disbursements";
+import {
+  createPaymongoPayrollDisbursement,
+  preflightPaymongoPayrollDisbursement,
+} from "@/lib/paymongo-disbursements";
 
 export const dynamic = "force-dynamic";
 
@@ -116,11 +119,57 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   );
   if (denied) return denied;
 
+  const body = await request.json().catch(() => ({}));
+  const mode = body.mode === "preflight" ? "preflight" : "disburse";
+
   if (run.status !== "Released") {
     return Response.json({
-      error: "Live payroll disbursement is allowed only after the payroll run has been approved and released.",
+      error: mode === "preflight"
+        ? "PayMongo preflight is allowed only for a released payroll run so it checks the exact final payout rows."
+        : "Live payroll disbursement is allowed only after the payroll run has been approved and released.",
       status: run.status,
     }, { status: 409 });
+  }
+
+  if (mode === "preflight") {
+    if (!process.env.PAYMONGO_SECRET_KEY) {
+      return Response.json({
+        error: "PayMongo credentials are not configured, so receiving-institution access cannot be verified.",
+        readiness: "/api/readiness",
+      }, { status: 501 });
+    }
+
+    try {
+      const result = await preflightPaymongoPayrollDisbursement(runId);
+      await recordAuditEvent({
+        organizationId: run.organizationId,
+        actor: user.name,
+        action: "PayMongo payroll preflight passed",
+        resource: run.periodLabel,
+        metadata: {
+          provider: result.provider,
+          employeeCount: result.employeeCount,
+          totalAmountCents: result.totalAmountCents,
+          banks: result.banks,
+          moneyMoved: false,
+        },
+      });
+      return Response.json({
+        ...result,
+        moneyMoved: false,
+        message: "PayMongo credentials and bank mappings were verified without creating a transfer.",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "PayMongo preflight failed.";
+      await recordAuditEvent({
+        organizationId: run.organizationId,
+        actor: user.name,
+        action: "PayMongo payroll preflight failed",
+        resource: run.periodLabel,
+        metadata: { error: message, moneyMoved: false },
+      });
+      return Response.json({ error: message, moneyMoved: false }, { status: 502 });
+    }
   }
 
   if (!process.env.PAYMONGO_SECRET_KEY || process.env.PAYMONGO_DISBURSEMENTS_ENABLED !== "true") {
