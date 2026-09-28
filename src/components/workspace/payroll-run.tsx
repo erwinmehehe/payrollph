@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { readLineItems, readTrace, type BankTemplate, type DashboardData, type Notify, type PayrollEntry, type PayrollLineItem, type PayrollRun, type Task } from "./types";
+import { PayrollAssurancePanel } from "./payroll-assurance-panel";
 import {
   Battery,
   EmptyState,
@@ -279,6 +280,8 @@ export function PayrollRunView({
             )}
           </div>
 
+          <PayrollAssurancePanel runId={run.id} employees={data.employees} />
+
           {/* Exceptions */}
           {exceptionRows.length > 0 && (
             <div className="card-body" style={{ paddingTop: 0 }}>
@@ -398,7 +401,7 @@ export function PayrollRunView({
           {exportsOpen && <ExportPanel run={run} templates={data.templates} notify={notify} onClose={() => setExportsOpen(false)} />}
 
           {/* Register */}
-          <div className="line-title">
+          <div className="line-title" id="payroll-register">
             <strong>Register &amp; payslip breakdown</strong>
             <span>Open a row for the full arithmetic trace</span>
           </div>
