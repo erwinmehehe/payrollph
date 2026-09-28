@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { eq } from "drizzle-orm";
+import { db } from "../src/db";
+import { employees, organizations, payrollEntries, payrollRuns } from "../src/db/schema";
 import {
   buildBatchTransferPayload,
   choosePayrollRail,
   matchReceivingInstitution,
+  preflightPaymongoPayrollDisbursement,
   type PayrollPayoutRow,
 } from "../src/lib/paymongo-disbursements";
 
@@ -87,4 +91,72 @@ test("buildBatchTransferPayload produces the documented Transfer V2 field shape"
 test("buildBatchTransferPayload refuses to silently omit a BIC it couldn't resolve", () => {
   const rows = [row({ bankName: "Unmapped Bank" })];
   assert.throws(() => buildBatchTransferPayload(rows, "pesonet", new Map()), /No resolved BIC/);
+});
+
+
+test("PayMongo payroll preflight validates live bank mapping without creating a transfer", async () => {
+  const [org] = await db.insert(organizations).values({
+    name: "PayMongo Preflight Test",
+    legalName: "PayMongo Preflight Test Inc.",
+  }).returning();
+
+  const previousSecret = process.env.PAYMONGO_SECRET_KEY;
+  const previousFetch = globalThis.fetch;
+  const requestedUrls: string[] = [];
+
+  try {
+    const [employee] = await db.insert(employees).values({
+      organizationId: org.id,
+      employeeNo: "PAY-001",
+      firstName: "Juan",
+      lastName: "Dela Cruz",
+      title: "Staff",
+      avatarInitials: "JD",
+      basicRate: "30000",
+      bankAccount: "1234567890",
+      bankCode: "BDO",
+      startDate: "2026-01-01",
+    }).returning();
+
+    const [run] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      periodLabel: "Sep 16–30, 2026",
+      periodStart: "2026-09-16",
+      periodEnd: "2026-09-30",
+      payDate: "2026-09-30",
+      status: "Released",
+    }).returning();
+
+    await db.insert(payrollEntries).values({
+      payrollRunId: run.id,
+      employeeId: employee.id,
+      grossPay: "30000",
+      deductions: "5000",
+      netPay: "25000",
+    });
+
+    process.env.PAYMONGO_SECRET_KEY = "sk_test_preflight_only";
+    globalThis.fetch = async (input) => {
+      const url = String(input);
+      requestedUrls.push(url);
+      assert.ok(url.includes("/v2/transfers/receiving_institutions"), "preflight must only read receiving institutions");
+      assert.ok(!url.includes("/v2/batch_transfers"), "preflight must never create a batch transfer");
+      return new Response(JSON.stringify({
+        data: [{ attributes: { name: "BDO Unibank", bic: "BNORPHMM" } }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    };
+
+    const result = await preflightPaymongoPayrollDisbursement(run.id);
+    assert.equal(result.ready, true);
+    assert.equal(result.employeeCount, 1);
+    assert.equal(result.totalAmountCents, 2_500_000);
+    assert.equal(result.provider, "instapay");
+    assert.deepEqual(result.banks, [{ bankName: "BDO", bic: "BNORPHMM" }]);
+    assert.equal(requestedUrls.length, 1);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousSecret === undefined) delete process.env.PAYMONGO_SECRET_KEY;
+    else process.env.PAYMONGO_SECRET_KEY = previousSecret;
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
 });
