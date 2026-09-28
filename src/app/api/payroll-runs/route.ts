@@ -4,7 +4,7 @@ import { payrollEntries, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { drainPayrollQueue, enqueuePayrollRun, getPayrollJobStatus } from "@/lib/payroll-engine";
-import { assertMembership } from "@/lib/access";
+import { assertOrganizationRole, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,12 @@ export async function GET(request: Request) {
     const [target] = await db.select({ organizationId: payrollRuns.organizationId })
       .from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
     if (!target) return Response.json({ error: "Payroll run not found" }, { status: 404 });
-    const deniedJob = await assertMembership(sessionUser.id, target.organizationId);
+    const deniedJob = await assertOrganizationRole(
+      sessionUser.id,
+      target.organizationId,
+      PAYROLL_OPERATOR_ROLES,
+      "Only payroll operators can view payroll runs.",
+    );
     if (deniedJob) return deniedJob;
 
     // The workspace loads one run's register at a time, so it asks for the run
@@ -41,7 +46,12 @@ export async function GET(request: Request) {
     return Response.json({ error: "organizationId is required" }, { status: 400 });
   }
 
-  const deniedRuns = await assertMembership(sessionUser.id, organizationId);
+  const deniedRuns = await assertOrganizationRole(
+    sessionUser.id,
+    organizationId,
+    PAYROLL_OPERATOR_ROLES,
+    "Only payroll operators can view payroll runs.",
+  );
   if (deniedRuns) return deniedRuns;
 
   const runs = await db.select().from(payrollRuns)
@@ -65,7 +75,12 @@ export async function POST(request: Request) {
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const actor = user.name;
 
-  const denied = await assertMembership(user.id, organizationId);
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PAYROLL_OPERATOR_ROLES,
+    "Only payroll operators can create payroll runs.",
+  );
   if (denied) return denied;
 
   const [run] = await db.insert(payrollRuns).values({
