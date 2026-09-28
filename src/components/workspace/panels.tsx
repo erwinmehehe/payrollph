@@ -713,7 +713,11 @@ export function NewPayrollModal({
   const [payDate, setPayDate] = useState(day <= 15 ? iso(year, month, 15) : iso(year, month, lastDay));
   const [scopeOrgUnitId, setScopeOrgUnitId] = useState<number | null>(null);
 
-  const invalidDates = !periodStart || !periodEnd || !payDate || periodStart > periodEnd || payDate < periodEnd;
+  const periodDays = periodStart && periodEnd
+    ? Math.floor((Date.parse(`${periodEnd}T00:00:00Z`) - Date.parse(`${periodStart}T00:00:00Z`)) / 86_400_000) + 1
+    : 0;
+  const periodTooLong = periodDays > 16;
+  const invalidDates = !periodStart || !periodEnd || !payDate || periodStart > periodEnd || payDate < periodEnd || periodTooLong;
 
   return (
     <div className="modal-backdrop" role="presentation">
@@ -753,7 +757,11 @@ export function NewPayrollModal({
 
         {invalidDates && (
           <div className="notice notice-amber" style={{ margin: "10px 0 0" }}>
-            <span>Period start must be on or before period end, and pay date cannot be before the cutoff ends.</span>
+            <span>
+              {periodTooLong
+                ? "Payroll cutoffs can cover at most 16 calendar days. Split a longer range into separate runs."
+                : "Period start must be on or before period end, and pay date cannot be before the cutoff ends."}
+            </span>
           </div>
         )}
 
