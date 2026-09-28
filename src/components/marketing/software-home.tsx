@@ -13,6 +13,7 @@ import {
 import { getPublicPricingPlans } from "@/lib/pricing-catalog";
 import { PricingTable } from "@/components/marketing/pricing-table";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
+import { WorkspacePreview } from "@/components/marketing/workspace-preview";
 import styles from "./software-home.module.css";
 
 const HERO_PROOF = [
@@ -134,8 +135,8 @@ export async function SoftwareHome() {
                 <a className={styles.primaryAction} href="/signup">
                   Start free <ArrowRight size={16} aria-hidden />
                 </a>
-                <a className={styles.secondaryAction} href="#workflow">
-                  See how it works
+                <a className={styles.secondaryAction} href="#simulation">
+                  Try payroll simulation
                 </a>
               </div>
 
@@ -177,6 +178,37 @@ export async function SoftwareHome() {
                 </li>
               ))}
             </ol>
+          </div>
+        </section>
+
+        <section className={styles.simulationSection} id="simulation">
+          <div className={styles.shell}>
+            <div className={styles.simulationHeader}>
+              <div>
+                <span className={styles.kicker}>Interactive payroll simulation</span>
+                <h2>Try a payroll run before you sign up.</h2>
+              </div>
+              <p>
+                Explore the sample workspace, open the payroll register, inspect an exception, review a payslip and
+                simulate releasing the run. Nothing here changes real payroll data.
+              </p>
+            </div>
+
+            <div className={styles.simulationGuide} aria-label="Things to try in the payroll simulation">
+              <span><strong>1</strong> Open Payroll</span>
+              <span><strong>2</strong> Expand a payslip</span>
+              <span><strong>3</strong> Acknowledge the exception</span>
+              <span><strong>4</strong> Release the sample run</span>
+            </div>
+
+            <div className={styles.simulationSurface}>
+              <WorkspacePreview mode="interactive" />
+            </div>
+
+            <p className={styles.simulationNote}>
+              Sample people and payroll data are used for the simulation. Statutory calculations use the same payroll-rule
+              functions as the product.
+            </p>
           </div>
         </section>
 
