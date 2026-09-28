@@ -5,7 +5,7 @@ import { renderForm2316 } from "@/lib/annualization";
 import { getSessionUser } from "@/lib/auth";
 import { toCsv } from "@/lib/csv";
 import { runYearEndAnnualization } from "@/lib/year-end";
-import { assertMembership } from "@/lib/access";
+import { assertOrganizationRole, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,12 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const organizationId = Number(searchParams.get("organizationId") ?? "1");
-  const deniedOrg = await assertMembership(user.id, organizationId);
+  const deniedOrg = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PAYROLL_OPERATOR_ROLES,
+    "Only payroll operators can view year-end tax annualization.",
+  );
   if (deniedOrg) return deniedOrg;
   const taxYear = Number(searchParams.get("taxYear") ?? new Date().getFullYear());
   const format = searchParams.get("format") ?? "json";
@@ -107,7 +112,12 @@ export async function POST(request: Request) {
     return Response.json({ error: "organizationId and taxYear are required." }, { status: 400 });
   }
 
-  const deniedWrite = await assertMembership(user.id, organizationId);
+  const deniedWrite = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PAYROLL_OPERATOR_ROLES,
+    "Only payroll operators can run year-end tax annualization.",
+  );
   if (deniedWrite) return deniedWrite;
 
   const summary = await runYearEndAnnualization(organizationId, taxYear, user.name);
