@@ -1,11 +1,12 @@
-import { count, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
+import { approvalTasks, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { queueMessage } from "@/lib/mailer";
 import { dispatchWebhook } from "@/lib/webhooks";
 import { assertMembership } from "@/lib/access";
+import { auditPayrollControl } from "@/lib/payroll-control";
 
 const RELEASABLE = ["Ready for release", "Needs review", "Processed"];
 
@@ -26,13 +27,48 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return Response.json({ error: "This run is already released." }, { status: 409 });
   }
 
-  const [{ value: entryCount }] = await db
-    .select({ value: count() })
+  const entryRows = await db
+    .select()
     .from(payrollEntries)
     .where(eq(payrollEntries.payrollRunId, runId));
 
+  const entryCount = entryRows.length;
   if (entryCount === 0) {
     return Response.json({ error: "Run has no calculated entries, process the payroll first." }, { status: 409 });
+  }
+
+  const staffForAudit = await db.select().from(employees).where(eq(employees.organizationId, run.organizationId));
+  const payrollAudit = auditPayrollControl({
+    entries: entryRows,
+    employees: staffForAudit,
+  });
+
+  if (payrollAudit.readiness.highCount > 0) {
+    return Response.json({
+      error: `Payroll Control Center found ${payrollAudit.readiness.highCount} blocking issue(s). Resolve them before release.`,
+      blockingIssues: payrollAudit.issues.filter((issue) => issue.severity === "high"),
+    }, { status: 409 });
+  }
+
+  const tasks = await db.select().from(approvalTasks).where(eq(approvalTasks.organizationId, run.organizationId));
+  const period = run.periodLabel.toLowerCase();
+  const approval =
+    tasks.find((task) => task.title.toLowerCase().includes(period)) ??
+    tasks.find((task) => task.title.toLowerCase().includes("payroll") && task.status === "Pending");
+
+  if (approval && approval.status !== "Approved") {
+    return Response.json({
+      error:
+        approval.status === "Declined"
+          ? "The configured payroll approval was declined. Resolve the approval before release."
+          : `Payroll is still waiting for approval from ${approval.approver}.`,
+      approval: {
+        id: approval.id,
+        title: approval.title,
+        status: approval.status,
+        approver: approval.approver,
+      },
+    }, { status: 409 });
   }
   if (!RELEASABLE.includes(run.status)) {
     return Response.json({ error: `Run must be processed before release (currently ${run.status}).` }, { status: 409 });
@@ -62,13 +98,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       netPay: run.netPay,
       employees: entryCount,
       exceptionsAcknowledged: run.exceptions > 0 ? run.exceptions : 0,
+      payrollAudit: {
+        high: payrollAudit.readiness.highCount,
+        medium: payrollAudit.readiness.mediumCount,
+      },
+      approvalTaskId: approval?.id ?? null,
     },
   });
 
   // Notify staff that payslips are ready. Queued in the outbox when no mail
   // provider is configured, never silently reported as sent.
   const [organization] = await db.select().from(organizations).where(eq(organizations.id, run.organizationId));
-  const staff = await db.select().from(employees).where(eq(employees.organizationId, run.organizationId));
+  const staff = staffForAudit;
   const notified = staff.filter((person) => person.status === "Active").length;
   for (const person of staff) {
     if (person.status !== "Active" || !person.email) continue;
