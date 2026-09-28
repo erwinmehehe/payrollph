@@ -84,8 +84,7 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
         <div className="calc-note">
           <Users size={16} className="i-purple" />
           <span>
-            Every figure below is the plan&apos;s stored base plus its per-employee rate at this headcount. Solo is priced for
-            one person, so headcount does not change it.
+            Prices update automatically for this headcount. Solo is priced for one person, so headcount does not change it.
           </span>
         </div>
       </div>
@@ -113,10 +112,10 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
               </div>
               <small>
                 Base {money(plan.monthlyBase)}
-                {plan.name === "Solo" ? "" : ` + ${money(plan.perEmployee)} per employee`} · pricing table v{plan.version}
+                {plan.name === "Solo" ? "" : ` + ${money(plan.perEmployee)} per employee`}
               </small>
               <a className={plan.name === "Scale" ? "primary-button full" : "secondary-button full"} href="/signup">
-                Create account <ArrowUpRight size={14} />
+                Start free <ArrowUpRight size={14} />
               </a>
             </article>
           );
