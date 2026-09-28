@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { payslips, payrollRuns } from "@/db/schema";
+import { payslips, payrollEntries, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { generateBankFile, generateGovernmentDraft, generateJournalCsv } from "@/lib/exporters";
@@ -44,24 +44,35 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   if (kind === "payslip") {
     if (!payslipId) {
-      const rows = await db.select().from(payslips).where(eq(payslips.organizationId, run.organizationId));
-      return Response.json({ payslips: rows.filter((row) => row.periodLabel === run.periodLabel) });
+      const rows = await db
+        .select({ slip: payslips })
+        .from(payslips)
+        .innerJoin(payrollEntries, eq(payslips.payrollEntryId, payrollEntries.id))
+        .where(and(
+          eq(payslips.organizationId, run.organizationId),
+          eq(payrollEntries.payrollRunId, run.id),
+        ));
+      return Response.json({ payslips: rows.map((row) => row.slip) });
     }
-    const [slip] = await db
-      .select()
+
+    const [row] = await db
+      .select({ slip: payslips })
       .from(payslips)
+      .innerJoin(payrollEntries, eq(payslips.payrollEntryId, payrollEntries.id))
       .where(and(
         eq(payslips.id, payslipId),
         eq(payslips.organizationId, run.organizationId),
+        eq(payrollEntries.payrollRunId, run.id),
       ))
       .limit(1);
-    if (!slip) return Response.json({ error: "Payslip not found" }, { status: 404 });
+    const slip = row?.slip;
+    if (!slip) return Response.json({ error: "Payslip not found for this payroll run" }, { status: 404 });
     await recordAuditEvent({
       organizationId: run.organizationId,
       actor,
       action: "Payslip downloaded",
       resource: `${run.periodLabel} #${slip.id}`,
-      metadata: { ruleVersion: slip.ruleVersion },
+      metadata: { runId: run.id, ruleVersion: slip.ruleVersion },
     });
     return new Response(slip.content, {
       headers: {
