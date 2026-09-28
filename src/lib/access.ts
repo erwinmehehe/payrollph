@@ -95,8 +95,12 @@ export async function assertResourceAccess(userId: number, resourceOrganizationI
 const PAYROLL_OPERATOR_ROLES = new Set(["admin", "owner", "bookkeeper", "payroll"]);
 const PEOPLE_ADMIN_ROLES = new Set(["admin", "owner", "bookkeeper", "hr", "payroll"]);
 
+export function isPayrollOperatorRole(role: string | null | undefined) {
+  return Boolean(role && PAYROLL_OPERATOR_ROLES.has(role.toLowerCase()));
+}
+
 export function canOperatePayroll(access: AccessScope | null) {
-  return Boolean(access && PAYROLL_OPERATOR_ROLES.has(access.role.toLowerCase()));
+  return Boolean(access && isPayrollOperatorRole(access.role));
 }
 
 export function canManageSeparation(access: AccessScope | null) {
