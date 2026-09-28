@@ -315,18 +315,25 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
   }
 
   const missingTin = entries.filter(({ employee }) => (employee.tin ?? "").replace(/\D/g, "").length !== 9);
+  const missingBranch = entries.filter(({ employee }) => (employee.tinBranchCode ?? "").replace(/\D/g, "").length !== 4);
   if (missingTin.length > 0) {
     throw new Error(
       `BIR annual draft cannot be generated: ${missingTin.length} employee(s) are missing a valid 9-digit TIN: ${missingTin.map(({ employee }) => employee.employeeNo).join(", ")}.`,
     );
   }
+  if (missingBranch.length > 0) {
+    throw new Error(
+      `BIR annual draft cannot be generated: ${missingBranch.length} employee(s) are missing a 4-digit BIR branch code: ${missingBranch.map(({ employee }) => employee.employeeNo).join(", ")}.`,
+    );
+  }
 
   const body = [
-    "EmployerTIN,EmployerBranchCode,EmployeeTIN,LastName,FirstName,MiddleName,Nationality,GrossCompensation,TaxWithheld,MWE,Status",
+    "EmployerTIN,EmployerBranchCode,EmployeeTIN,EmployeeBranchCode,LastName,FirstName,MiddleName,Nationality,GrossCompensation,TaxWithheld,MWE,Status",
     ...entries.map(({ employee, entry }) => [
       employerTin,
       employerBranchCode,
       (employee.tin ?? "").replace(/\D/g, ""),
+      (employee.tinBranchCode ?? "").replace(/\D/g, ""),
       employee.lastName,
       employee.firstName,
       employee.middleName ?? "",
