@@ -66,8 +66,10 @@ export function PayrollRunView({
   const [confirmRelease, setConfirmRelease] = useState(false);
   const [exportsOpen, setExportsOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
-  const [reviewApprover, setReviewApprover] = useState("");
+  const [reviewApprovers, setReviewApprovers] = useState<Array<{ id: number; name: string; email: string; role: string }>>([]);
+  const [reviewApproverId, setReviewApproverId] = useState<number | null>(null);
   const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewLoading, setReviewLoading] = useState(false);
 
   // Derived, not synced: if the selected run disappears (client switch, new
   // run) the first run takes over without an effect round-trip.
@@ -134,25 +136,42 @@ export function PayrollRunView({
 
   const exceptionRows = entries.filter((entry) => entry.status === "Exception");
   const relatedTask = useMemo(() => findRunApproval(data.tasks, run), [data.tasks, run]);
-  const approverOptions = useMemo(() => {
-    const people = data.employees
-      .map((employee) => `${employee.firstName} ${employee.lastName}`)
-      .filter((name) => name.toLowerCase() !== (data.user?.name ?? "").toLowerCase());
-    const taskApprovers = data.tasks.map((task) => task.approver);
-    return [...new Set([...taskApprovers, ...people])].filter(Boolean);
-  }, [data.employees, data.tasks, data.user?.name]);
+  async function openReviewSubmission() {
+    if (!run) return;
+    setReviewLoading(true);
+    try {
+      const response = await fetch(
+        `/api/organizations/${data.selectedOrganization.id}/payroll-approvers`,
+        { cache: "no-store" },
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        notify(payload.error ?? "Could not load payroll checkers.", "err");
+        return;
+      }
+      const approvers = Array.isArray(payload.approvers) ? payload.approvers : [];
+      setReviewApprovers(approvers);
+      setReviewApproverId(approvers[0]?.id ?? null);
+      setReviewOpen(true);
+    } catch {
+      notify("Could not load payroll checkers.", "err");
+    } finally {
+      setReviewLoading(false);
+    }
+  }
 
   async function submitForReview() {
-    if (!run || !reviewApprover.trim()) {
+    if (!run || !reviewApproverId) {
       notify("Choose a checker before submitting payroll for review.", "err");
       return;
     }
+    const checker = reviewApprovers.find((approver) => approver.id === reviewApproverId);
     setReviewBusy(true);
     try {
       const response = await fetch(`/api/payroll-runs/${run.id}/submit-review`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ approver: reviewApprover.trim() }),
+        body: JSON.stringify({ approverUserId: reviewApproverId }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -161,7 +180,7 @@ export function PayrollRunView({
       }
       setReviewOpen(false);
       await onRefresh();
-      notify(`Payroll submitted to ${reviewApprover} for checker approval.`);
+      notify(`Payroll submitted to ${checker?.name ?? "the selected checker"} for checker approval.`);
     } catch {
       notify("Could not reach the payroll review service.", "err");
     } finally {
@@ -416,12 +435,9 @@ export function PayrollRunView({
                   <button
                     className="secondary-button"
                     disabled={!calculated || released}
-                    onClick={() => {
-                      if (!reviewApprover && approverOptions[0]) setReviewApprover(approverOptions[0]);
-                      setReviewOpen(true);
-                    }}
+                    onClick={() => void openReviewSubmission()}
                   >
-                    <ShieldCheck size={14} className="i-purple" /> Submit for review
+                    {reviewLoading ? <Spinner label="Loading" /> : <ShieldCheck size={14} className="i-purple" />} Submit for review
                   </button>
                 )
               }
@@ -479,23 +495,29 @@ export function PayrollRunView({
               <div className="setting-form">
                 <label>
                   Checker
-                  <select value={reviewApprover} onChange={(event) => setReviewApprover(event.target.value)}>
+                  <select
+                    value={reviewApproverId ?? ""}
+                    onChange={(event) => setReviewApproverId(event.target.value ? Number(event.target.value) : null)}
+                  >
                     <option value="">Choose a checker</option>
-                    {approverOptions.map((name) => (
-                      <option key={name} value={name}>{name}</option>
+                    {reviewApprovers.map((approver) => (
+                      <option key={approver.id} value={approver.id}>
+                        {approver.name} · {approver.role}
+                      </option>
                     ))}
                   </select>
                 </label>
                 <div className="notice notice-blue" style={{ margin: 0 }}>
                   <ShieldCheck size={15} className="i-purple" />
                   <span>
-                    <strong>Maker:</strong> {data.user?.name ?? "Signed-in user"} · <strong>Checker:</strong> {reviewApprover || "not selected"}
+                    <strong>Maker:</strong> {data.user?.name ?? "Signed-in user"} · <strong>Checker:</strong>{" "}
+                    {reviewApprovers.find((approver) => approver.id === reviewApproverId)?.name ?? "not selected"}
                   </span>
                 </div>
               </div>
               <div className="run-actions">
                 <button className="secondary-button" onClick={() => setReviewOpen(false)}>Cancel</button>
-                <button className="primary-button brand" disabled={reviewBusy || !reviewApprover} onClick={() => void submitForReview()}>
+                <button className="primary-button brand" disabled={reviewBusy || !reviewApproverId} onClick={() => void submitForReview()}>
                   {reviewBusy ? <Spinner label="Submitting" /> : <ShieldCheck size={14} className="i-green" />} Submit for review
                 </button>
               </div>
