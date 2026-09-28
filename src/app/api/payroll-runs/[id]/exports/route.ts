@@ -109,6 +109,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   );
   if (denied) return denied;
 
+  if (run.status !== "Released") {
+    return Response.json({
+      error: "Live payroll disbursement is allowed only after the payroll run has been approved and released.",
+      status: run.status,
+    }, { status: 409 });
+  }
+
   if (!process.env.PAYMONGO_SECRET_KEY || process.env.PAYMONGO_DISBURSEMENTS_ENABLED !== "true") {
     return Response.json({
       error: "Live disbursement is not configured.",
