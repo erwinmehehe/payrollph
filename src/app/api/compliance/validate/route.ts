@@ -11,6 +11,15 @@ export const dynamic = "force-dynamic";
 
 type LocalCheck = { rule: string; passed: boolean; message: string };
 
+function statusOf(checks: LocalCheck[]): "LOCAL_PASS" | "LOCAL_WARNING" | "LOCAL_FAIL" {
+  if (checks.every((check) => check.passed)) return "LOCAL_PASS";
+  return checks.some((check) => check.passed) ? "LOCAL_WARNING" : "LOCAL_FAIL";
+}
+
+function digits(value: string | null | undefined) {
+  return (value ?? "").replace(/\D/g, "");
+}
+
 /**
  * Local preflight only. It checks the data and rules used to generate drafts;
  * it never claims portal acceptance. A real BIR/SSS/PhilHealth/Pag-IBIG portal
@@ -31,75 +40,205 @@ export async function POST(request: Request) {
   if (denied) return denied;
 
   const [org] = await db.select().from(organizations).where(eq(organizations.id, organizationId));
+  if (!org) return Response.json({ error: "Organization not found." }, { status: 404 });
+
   const staff = await db.select().from(employees).where(eq(employees.organizationId, organizationId));
   const runs = await db.select().from(payrollRuns).where(eq(payrollRuns.organizationId, organizationId));
-  const mweCount = staff.filter((s) => s.mwe).length;
-  const requiredRegions = [...new Set(staff.map((s) => s.region))];
+  const mweCount = staff.filter((employee) => employee.mwe).length;
+  const requiredRegions = [...new Set(staff.map((employee) => employee.region))];
   const mappedRegions = requiredRegions.filter((region) => WAGE_ORDERS.some((order) => order.region === region));
 
-  const validations: Array<{
-    document: string;
-    agency: "BIR" | "SSS" | "PhilHealth" | "Pag-IBIG";
-    status: "LOCAL_PASS" | "LOCAL_WARNING" | "LOCAL_FAIL";
-    portalValidated: false;
-    checks: LocalCheck[];
-    nextStep: string;
-  }> = [
+  const birTin = digits(org.birTin);
+  const birBranchCode = digits(org.birBranchCode).padStart(4, "0").slice(-4);
+  const missingEmployeeTin = staff.filter((employee) => digits(employee.tin).length !== 9);
+  const missingMiddleName = staff.filter((employee) => !employee.middleName?.trim());
+  const missingSss = staff.filter((employee) => !employee.sssNo?.trim());
+  const missingPhilHealth = staff.filter((employee) => !employee.philHealthNo?.trim());
+  const missingPagIbig = staff.filter((employee) => !employee.pagIbigNo?.trim());
+
+  const bir2316Checks: LocalCheck[] = [
+    {
+      rule: "Employer BIR identity",
+      passed: birTin.length === 9 && birBranchCode.length === 4,
+      message: birTin.length === 9
+        ? `Employer TIN/branch is structurally ready (${birTin}-${birBranchCode}).`
+        : "BIR Alphalist needs a 9-digit employer TIN and 4-digit branch code before an ADES file can be generated.",
+    },
+    {
+      rule: "Employee TIN completeness",
+      passed: missingEmployeeTin.length === 0,
+      message: missingEmployeeTin.length === 0
+        ? `All ${staff.length} employee TINs are present as 9 digits.`
+        : `${missingEmployeeTin.length} employee(s) are missing a valid 9-digit TIN: ${missingEmployeeTin.slice(0, 8).map((employee) => employee.employeeNo).join(", ")}.`,
+    },
+    {
+      rule: "1604-C name fields",
+      passed: missingMiddleName.length === 0,
+      message: missingMiddleName.length === 0
+        ? "First, middle, and last name fields are available for all employees."
+        : `${missingMiddleName.length} employee(s) have no middle-name value. BIR 1604-C Annex A defines a separate middle-name field; confirm whether blank is valid for each person before filing.`,
+    },
+    {
+      rule: "TRAIN annual brackets",
+      passed: true,
+      message: "Local engine applies annual TRAIN brackets and MWE zero-tax treatment.",
+    },
+    {
+      rule: "13th month / other-benefits pool",
+      passed: true,
+      message: "PHP 90,000 shared exemption is modeled in year-end annualization.",
+    },
+    {
+      rule: "De minimis ceilings",
+      passed: true,
+      message: `RR 29-2025 values are modeled, including rice PHP ${DE_MINIMIS_2026.riceSubsidy.ceiling}/month.`,
+    },
+    {
+      rule: "Minimum wage earner treatment",
+      passed: true,
+      message: `${mweCount} MWE employee(s) use the exemption cascade in local calculations.`,
+    },
+  ];
+
+  const birAlphalistChecks: LocalCheck[] = [
+    ...bir2316Checks.slice(0, 3),
+    {
+      rule: "Official 1604-C file contract",
+      passed: true,
+      message: "Local preflight uses the BIR-published 1604-C contract: employer TIN 9 digits, branch code 4 digits, return period MM/DD/YYYY, and distinct employee TIN/name fields.",
+    },
+    {
+      rule: "Run reconciliation",
+      passed: runs.length > 0,
+      message: `${runs.length} payroll run(s) found for reconciliation.`,
+    },
+    {
+      rule: "ADES portal acceptance",
+      passed: false,
+      message: "Not yet proven. A generated annual file must still pass the current BIR Alphalist Data Entry and Validation Module before this can be called filing-ready.",
+    },
+  ];
+
+  const sssChecks: LocalCheck[] = [
+    {
+      rule: "Employee SSS numbers",
+      passed: missingSss.length === 0,
+      message: missingSss.length === 0
+        ? `All ${staff.length} employees have an SSS number.`
+        : `${missingSss.length} employee(s) are missing an SSS number: ${missingSss.slice(0, 8).map((employee) => employee.employeeNo).join(", ")}.`,
+    },
+    {
+      rule: "Monthly contribution basis",
+      passed: true,
+      message: "R-3 draft recomputes the full monthly SSS contribution and EC from monthly basic salary instead of reusing one semi-monthly deduction.",
+    },
+    {
+      rule: "2026 contribution engine",
+      passed: true,
+      message: "15% MSC total is modeled as 5% employee / 10% employer, plus employer-only EC.",
+    },
+    {
+      rule: "My.SSS / R3 File Generator acceptance",
+      passed: false,
+      message: "Not yet proven. SSS currently provides R3 File Generator 2023 and My.SSS R-3 upload; a real employer account must accept the generated data before filing-ready status.",
+    },
+  ];
+
+  const philHealthChecks: LocalCheck[] = [
+    {
+      rule: "PhilHealth PIN completeness",
+      passed: missingPhilHealth.length === 0,
+      message: missingPhilHealth.length === 0
+        ? `All ${staff.length} employees have a PhilHealth PIN.`
+        : `${missingPhilHealth.length} employee(s) are missing a PhilHealth PIN: ${missingPhilHealth.slice(0, 8).map((employee) => employee.employeeNo).join(", ")}.`,
+    },
+    {
+      rule: "Monthly premium basis",
+      passed: true,
+      message: "RF-1 draft recomputes full monthly employee and employer shares rather than exporting one cutoff amount.",
+    },
+    {
+      rule: "5% premium engine",
+      passed: true,
+      message: "PHP 10,000 floor, PHP 100,000 ceiling; employee and employer split equally.",
+    },
+    {
+      rule: "EPRS acceptance",
+      passed: false,
+      message: "Not yet proven. PhilHealth requires EPRS for employer premium reporting; portal acknowledgement is still required.",
+    },
+  ];
+
+  const pagIbigChecks: LocalCheck[] = [
+    {
+      rule: "Pag-IBIG MID completeness",
+      passed: missingPagIbig.length === 0,
+      message: missingPagIbig.length === 0
+        ? `All ${staff.length} employees have a Pag-IBIG MID.`
+        : `${missingPagIbig.length} employee(s) are missing a Pag-IBIG MID: ${missingPagIbig.slice(0, 8).map((employee) => employee.employeeNo).join(", ")}.`,
+    },
+    {
+      rule: "Monthly contribution basis",
+      passed: true,
+      message: "MCRF/eSRS draft recomputes the full monthly employee and employer contribution from monthly basic salary.",
+    },
+    {
+      rule: "Mandatory contribution engine",
+      passed: true,
+      message: "Employee 1% at/below PHP 1,500 then 2%; employer 2%; PHP 10,000 fund-salary cap.",
+    },
+    {
+      rule: "Regional wage matrix",
+      passed: mappedRegions.length === requiredRegions.length,
+      message: `${mappedRegions.length}/${requiredRegions.length} employee region(s) mapped to versioned wage orders.`,
+    },
+    {
+      rule: "eSRS / employer portal acceptance",
+      passed: false,
+      message: "Not yet proven. Pag-IBIG officially supports electronic submission of remittance schedules, but a real employer portal acknowledgement is still required.",
+    },
+  ];
+
+  const validations = [
     {
       document: "BIR Form 2316 (Annual Tax Certificate)",
-      agency: "BIR",
-      status: "LOCAL_PASS",
+      agency: "BIR" as const,
+      status: statusOf(bir2316Checks),
       portalValidated: false,
-      checks: [
-        { rule: "TRAIN 2026 annual brackets", passed: true, message: "Local engine applies current annual TRAIN brackets and MWE zero-tax treatment." },
-        { rule: "13th month / other-benefits pool", passed: true, message: "PHP 90,000 shared exemption is modeled in year-end annualization." },
-        { rule: "De minimis ceilings", passed: true, message: `RR 29-2025: rice PHP ${DE_MINIMIS_2026.riceSubsidy.ceiling}/month, uniform PHP ${DE_MINIMIS_2026.uniformClothing.ceiling}/year, medical cash PHP ${DE_MINIMIS_2026.medicalCashDependents.ceiling}/semester.` },
-        { rule: "Minimum wage earner treatment", passed: true, message: `${mweCount} MWE employee(s) use the exemption cascade in local calculations.` },
-      ],
-      nextStep: "Open the BIR Alphalist Data Entry and Validation Module and validate the generated 2316/Alphalist output before filing.",
+      checks: bir2316Checks,
+      nextStep: "Complete any missing BIR identity fields, generate year-end data, then validate the resulting Alphalist/2316 data in the current BIR module.",
     },
     {
       document: "BIR Form 1601-C / 1604-C Alphalist",
-      agency: "BIR",
-      status: "LOCAL_PASS",
+      agency: "BIR" as const,
+      status: statusOf(birAlphalistChecks),
       portalValidated: false,
-      checks: [
-        { rule: "Run reconciliation", passed: runs.length > 0, message: `${runs.length} payroll run(s) found for local reconciliation.` },
-        { rule: "Withholding source lines", passed: true, message: "Withholding tax is calculated from period taxable compensation after employee statutory contributions." },
-      ],
-      nextStep: "Validate the export using BIR's current Alphalist module; confirm the module version and filing period with your tax adviser.",
+      checks: birAlphalistChecks,
+      nextStep: "Run the current BIR Alphalist module against a generated annual extract and retain its validation report.",
     },
     {
       document: "SSS R-3 (Contribution Collection List)",
-      agency: "SSS",
-      status: "LOCAL_PASS",
+      agency: "SSS" as const,
+      status: statusOf(sssChecks),
       portalValidated: false,
-      checks: [
-        { rule: "2025/2026 contribution rate", passed: true, message: "15% MSC, 5% employee / 10% employer, MSC PHP 5,000–35,000." },
-        { rule: "EC employer premium", passed: true, message: "Employer-only EC PHP 10 below MSC 15,000 and PHP 30 at/above it is included in employer cost trace." },
-      ],
-      nextStep: "Test-upload the generated R-3 file to your My.SSS employer portal before calling it submission-ready.",
+      checks: sssChecks,
+      nextStep: "Use the official R3 File Generator / My.SSS employer upload with a test applicable month and retain the acceptance result.",
     },
     {
-      document: "PhilHealth RF-1 (Employer Remittance Report)",
-      agency: "PhilHealth",
-      status: "LOCAL_PASS",
+      document: "PhilHealth RF-1 / EPRS remittance report",
+      agency: "PhilHealth" as const,
+      status: statusOf(philHealthChecks),
       portalValidated: false,
-      checks: [
-        { rule: "5% premium rate", passed: true, message: "PHP 10,000 floor, PHP 100,000 ceiling; 2.5% employer and 2.5% employee." },
-      ],
-      nextStep: "Upload to EPRS / your PhilHealth employer workflow and retain the acknowledgement receipt.",
+      checks: philHealthChecks,
+      nextStep: "Use an employer EPRS account to encode/upload one test remittance report and retain the acknowledgement.",
     },
     {
-      document: "Pag-IBIG MCRF", 
-      agency: "Pag-IBIG",
-      status: "LOCAL_PASS",
+      document: "Pag-IBIG MCRF / eSRS",
+      agency: "Pag-IBIG" as const,
+      status: statusOf(pagIbigChecks),
       portalValidated: false,
-      checks: [
-        { rule: "Mandatory contribution", passed: true, message: "Employee 1% at/below PHP 1,500 then 2%; employer 2%; PHP 10,000 fund-salary cap, PHP 200 maximum each." },
-        { rule: "Regional wage matrix", passed: mappedRegions.length === requiredRegions.length, message: `${mappedRegions.length}/${requiredRegions.length} employee region(s) mapped to versioned wage orders.` },
-      ],
-      nextStep: "Validate the generated MCRF against Virtual Pag-IBIG / Employer Services before remitting.",
+      checks: pagIbigChecks,
+      nextStep: "Use the employer eSRS / Pag-IBIG employer service with one test remittance schedule and retain the acknowledgement.",
     },
   ];
 
@@ -107,10 +246,12 @@ export async function POST(request: Request) {
     organizationId,
     actor: user.name,
     action: "Government filing local preflight executed",
-    resource: org?.name ?? "Government reports",
+    resource: org.name,
     metadata: {
       formsChecked: validations.length,
-      localPasses: validations.filter((v) => v.status === "LOCAL_PASS").length,
+      localPasses: validations.filter((validation) => validation.status === "LOCAL_PASS").length,
+      localWarnings: validations.filter((validation) => validation.status === "LOCAL_WARNING").length,
+      localFailures: validations.filter((validation) => validation.status === "LOCAL_FAIL").length,
       portalValidated: false,
       ruleVersion: PH_COMPLIANCE_RULE_VERSION,
     },
@@ -118,7 +259,7 @@ export async function POST(request: Request) {
 
   return Response.json({
     ok: true,
-    organizationName: org?.name,
+    organizationName: org.name,
     checkedAt: new Date().toISOString(),
     engineRuleVersion: PH_COMPLIANCE_RULE_VERSION,
     overallStatus: "LOCAL_PREFLIGHT_COMPLETE_NOT_PORTAL_VALIDATED",
@@ -126,6 +267,14 @@ export async function POST(request: Request) {
     statutoryDeadlines: {
       nextMonthlyRemittanceExample: statutoryDueDate(2026, 3),
       thirteenthMonth2026: thirteenthMonthDeadline(2026),
+    },
+    dataCompleteness: {
+      employees: staff.length,
+      missingEmployeeTin: missingEmployeeTin.length,
+      missingMiddleName: missingMiddleName.length,
+      missingSss: missingSss.length,
+      missingPhilHealth: missingPhilHealth.length,
+      missingPagIbig: missingPagIbig.length,
     },
     validations,
     disclaimer: "Local checks only. This result is not a government portal acknowledgement, filing receipt, or certification.",
