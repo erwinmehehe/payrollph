@@ -6,6 +6,32 @@ import { computePagIbig, computePhilHealth, computeSss } from "@/lib/payroll-rul
 const csv = (value: unknown) => `"${String(value ?? "").replaceAll('"', '""')}"`;
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
+type PaymentSnapshot = {
+  employeeName: string;
+  employeeNo: string;
+  bankAccount: string | null;
+  bankCode: string | null;
+  mobile: string | null;
+};
+
+function readPaymentSnapshot(value: unknown): PaymentSnapshot | null {
+  if (!value || typeof value !== "object") return null;
+  const payment = (value as Record<string, unknown>).payment;
+  if (!payment || typeof payment !== "object") return null;
+  const row = payment as Record<string, unknown>;
+  const employeeName = typeof row.employeeName === "string" ? row.employeeName.trim() : "";
+  const employeeNo = typeof row.employeeNo === "string" ? row.employeeNo.trim() : "";
+  if (!employeeName || !employeeNo) return null;
+  const nullable = (field: unknown) => typeof field === "string" && field.trim() ? field.trim() : null;
+  return {
+    employeeName,
+    employeeNo,
+    bankAccount: nullable(row.bankAccount),
+    bankCode: nullable(row.bankCode),
+    mobile: nullable(row.mobile),
+  };
+}
+
 export async function generateBankFile(runId: number, templateName: string, dryRun = true) {
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) throw new Error("Payroll run not found");
@@ -21,16 +47,30 @@ export async function generateBankFile(runId: number, templateName: string, dryR
     .where(eq(payrollEntries.payrollRunId, runId))
     .orderBy(asc(employees.id));
 
-  const rows = entries.map(({ entry, employee }) => ({
-    employee_name: `${employee.firstName} ${employee.lastName}`,
-    employee_no: employee.employeeNo,
-    account_number: employee.bankAccount ?? "0000000000",
-    bank_code: employee.bankCode ?? "BDO",
-    mobile: employee.mobile ?? "09000000000",
-    net_pay: entry.netPay,
-    amount: entry.netPay,
-  }));
+  const rows = entries.map(({ entry, employee }) => {
+    const snapshot = readPaymentSnapshot(entry.trace);
+    const payment = snapshot ?? {
+      employeeName: `${employee.firstName} ${employee.lastName}`,
+      employeeNo: employee.employeeNo,
+      bankAccount: employee.bankAccount,
+      bankCode: employee.bankCode,
+      mobile: employee.mobile,
+    };
 
+    return {
+      employee_name: payment.employeeName,
+      employee_no: payment.employeeNo,
+      account_number: payment.bankAccount ?? "0000000000",
+      bank_code: payment.bankCode ?? "",
+      mobile: payment.mobile ?? "09000000000",
+      net_pay: entry.netPay,
+      amount: entry.netPay,
+      paymentSnapshotPresent: Boolean(snapshot),
+    };
+  });
+
+  const tName = template.name.toLowerCase();
+  const usesMobileDestination = tName.includes("gcash") || tName.includes("maya") || tName.includes("paymaya");
   const validation = {
     dryRun,
     template: template.name,
@@ -39,10 +79,39 @@ export async function generateBankFile(runId: number, templateName: string, dryR
     totalNet: rows.reduce((sum, row) => sum + Number(row.net_pay), 0).toFixed(2),
     missingAccounts: rows.filter((row) => row.account_number === "0000000000").length,
     missingMobiles: rows.filter((row) => row.mobile === "09000000000").length,
+    missingPaymentSnapshots: rows.filter((row) => !row.paymentSnapshotPresent).length,
   };
 
+  if (!dryRun) {
+    if (run.status !== "Released") {
+      throw new Error(`Final bank files require a Released payroll run (currently ${run.status}).`);
+    }
+    if (validation.missingPaymentSnapshots > 0) {
+      throw new Error(
+        `Final bank file cannot be generated: ${validation.missingPaymentSnapshots} payroll entr${validation.missingPaymentSnapshots === 1 ? "y lacks" : "ies lack"} an immutable payment snapshot. Recalculate before release.`,
+      );
+    }
+    if (rows.length !== run.employeeCount) {
+      throw new Error(
+        `Final bank file cannot be generated: register has ${rows.length} rows but the released run records ${run.employeeCount} employees.`,
+      );
+    }
+    if (Math.abs(Number(validation.totalNet) - Number(run.netPay)) > 0.01) {
+      throw new Error("Final bank file total does not match the released payroll net pay.");
+    }
+    if (usesMobileDestination && validation.missingMobiles > 0) {
+      throw new Error(
+        `Final mobile-wallet file cannot be generated: ${validation.missingMobiles} employee(s) are missing a captured mobile number.`,
+      );
+    }
+    if (!usesMobileDestination && validation.missingAccounts > 0) {
+      throw new Error(
+        `Final bank file cannot be generated: ${validation.missingAccounts} employee(s) are missing a captured bank account.`,
+      );
+    }
+  }
+
   let body = "";
-  const tName = template.name.toLowerCase();
 
   if (tName.includes("bdo") && template.format === "DAT") {
     body = rows.map((row, index) => [
@@ -133,7 +202,7 @@ export async function generateBankFile(runId: number, templateName: string, dryR
     filename: `${template.name.replaceAll(" ", "-").toLowerCase()}-${run.id}.${template.format.toLowerCase()}`,
     contentType: template.format === "CSV" ? "text/csv" : "text/plain",
     body: dryRun
-      ? `# DRY-RUN VALIDATION\n# template=${template.name} version=${template.version}\n# rows=${validation.rowCount} totalNet=${validation.totalNet}\n# missingAccounts=${validation.missingAccounts}\n# This is a preview. Pass dryRun=false to generate the disbursement file.\n${body}`
+      ? `# DRY-RUN VALIDATION\n# template=${template.name} version=${template.version}\n# rows=${validation.rowCount} totalNet=${validation.totalNet}\n# missingAccounts=${validation.missingAccounts} missingMobiles=${validation.missingMobiles} missingPaymentSnapshots=${validation.missingPaymentSnapshots}\n# This is a preview. Final files require a released run and immutable payment snapshots.\n${body}`
       : body,
     validation,
   };
