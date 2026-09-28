@@ -1,4 +1,4 @@
-import { asc, desc, eq, lt } from "drizzle-orm";
+import { and, asc, desc, eq, lt } from "drizzle-orm";
 import { db } from "@/db";
 import { payrollEntries, payrollRuns } from "@/db/schema";
 import { evaluatePayrollAssurance } from "@/lib/payroll-assurance";
@@ -16,8 +16,7 @@ export async function buildPayrollAssurance(runId: number) {
   const [previousRun] = await db
     .select()
     .from(payrollRuns)
-    .where(eq(payrollRuns.organizationId, run.organizationId))
-    .where(lt(payrollRuns.id, run.id))
+    .where(and(eq(payrollRuns.organizationId, run.organizationId), lt(payrollRuns.id, run.id)))
     .orderBy(desc(payrollRuns.id))
     .limit(1);
 
