@@ -1,0 +1,140 @@
+name: Pricing and calculator QA
+
+on:
+  push:
+    branches:
+      - fix/remove-simulated-workspace-banner
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      DEMO_MODE: "false"
+      APP_BASE_URL: http://127.0.0.1:3000
+      PG_POOL_MAX: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Apply baseline schema
+        run: |
+          node <<'NODE'
+          const fs = require("node:fs");
+          const { Client } = require("pg");
+          (async () => {
+            const client = new Client({ connectionString: process.env.DATABASE_URL });
+            await client.connect();
+            await client.query(fs.readFileSync("drizzle/baseline.sql", "utf8"));
+            await client.end();
+          })().catch((error) => { console.error(error); process.exit(1); });
+          NODE
+      - name: Seed repo-owned pricing data
+        env:
+          DEMO_MODE: "true"
+        run: npx tsx -e 'import("./src/db/seed").then(async (m) => { await m.ensureSeedData(); process.exit(0); }).catch((e) => { console.error(e); process.exit(1); })'
+      - run: npx tsc --noEmit
+      - run: npx eslint src tests
+      - run: npx tsx --test tests/marketing.test.ts
+      - run: npm run build
+      - name: Start server
+        run: |
+          npm start > /tmp/linaw-next.log 2>&1 &
+          for i in {1..40}; do
+            if curl -fsS http://127.0.0.1:3000/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/linaw-next.log
+          exit 1
+      - name: Install browser
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Browser QA
+        run: |
+          mkdir -p qa-artifacts
+          node <<'NODE'
+          const { chromium } = require("playwright");
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage({ viewport: { width: 1450, height: 900 } });
+            await page.goto("http://127.0.0.1:3000/", { waitUntil: "networkidle" });
+
+            if (await page.getByText("Simulated workspace.", { exact: true }).count()) {
+              throw new Error("Simulation banner still exists");
+            }
+
+            const payroll = page.locator("#payroll");
+            const net = payroll.getByText("Net take-home", { exact: true }).locator("..").locator("strong");
+            const netText = await net.textContent();
+            const netBox = await net.boundingBox();
+            const statsBox = await payroll.locator(".statutory-result-stats").boundingBox();
+            if (!netText || !netText.includes("16,630.80")) throw new Error(`Unexpected net: ${netText}`);
+            if (!netBox || !statsBox || netBox.x + netBox.width > statsBox.x + statsBox.width + 1) {
+              throw new Error(`Net value overflows result card: net=${JSON.stringify(netBox)} stats=${JSON.stringify(statsBox)}`);
+            }
+
+            const pricing = page.locator("#pricing");
+            const prices = pricing.locator(".price strong");
+            if (await prices.count() < 2) throw new Error("Pricing cards missing");
+            const before = await prices.allTextContents();
+
+            const input = pricing.getByLabel("Employee headcount");
+            await input.fill("50");
+            await input.blur();
+            if ((await input.inputValue()) !== "50") throw new Error("Headcount number field did not update");
+            const afterInput = await prices.allTextContents();
+            if (JSON.stringify(before) === JSON.stringify(afterInput)) throw new Error("Plan prices did not update from number input");
+
+            await pricing.getByRole("button", { name: "Increase headcount" }).click();
+            if ((await input.inputValue()) !== "51") throw new Error("Headcount plus control failed");
+            const afterPlus = await prices.allTextContents();
+            if (JSON.stringify(afterInput) === JSON.stringify(afterPlus)) throw new Error("Plan prices did not update from plus control");
+
+            const slider = pricing.getByLabel("Headcount slider");
+            await slider.fill("100");
+            if ((await input.inputValue()) !== "100") throw new Error("Slider did not sync number field");
+            const afterSlider = await prices.allTextContents();
+            if (JSON.stringify(afterPlus) === JSON.stringify(afterSlider)) throw new Error("Plan prices did not update from slider");
+
+            await payroll.screenshot({ path: "qa-artifacts/payroll-result.png" });
+            await pricing.screenshot({ path: "qa-artifacts/pricing.png" });
+
+            const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } });
+            await mobile.goto("http://127.0.0.1:3000/", { waitUntil: "networkidle" });
+            const width = await mobile.evaluate(() => Math.max(document.body.scrollWidth, document.documentElement.scrollWidth));
+            if (width > 392) throw new Error(`Mobile overflow: ${width}`);
+            const mobilePricing = mobile.locator("#pricing");
+            await mobilePricing.getByLabel("Employee headcount").fill("75");
+            if ((await mobilePricing.getByLabel("Employee headcount").inputValue()) !== "75") {
+              throw new Error("Mobile pricing input failed");
+            }
+            await mobilePricing.screenshot({ path: "qa-artifacts/pricing-mobile.png" });
+
+            console.log(JSON.stringify({ netText, before, afterInput, afterPlus, afterSlider, width }, null, 2));
+            await browser.close();
+          })().catch((error) => { console.error(error); process.exit(1); });
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pricing-calculator-qa
+          path: qa-artifacts/
+          retention-days: 1
