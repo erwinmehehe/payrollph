@@ -103,10 +103,13 @@ export async function ensureSeedData() {
 
   for (const [orgIndex, org] of [loom, mantra, santos].entries()) {
     const orgPeople = people.slice(0, orgIndex === 1 ? 7 : 8);
-    const unit = units[orgIndex === 0 ? 2 : orgIndex === 1 ? 4 : 6];
+    const defaultUnit = units[orgIndex === 0 ? 2 : orgIndex === 1 ? 4 : 6];
     await db.insert(employees).values(orgPeople.map((person, index) => ({
       organizationId: org.id,
-      orgUnitId: unit.id,
+      orgUnitId:
+        orgIndex === 0
+          ? (index < 3 ? units[0].id : index < 5 ? units[1].id : units[2].id)
+          : defaultUnit.id,
       employeeNo: `${orgIndex === 0 ? "LL" : orgIndex === 1 ? "MS" : "SR"}-${String(index + 101).padStart(3, "0")}`,
       firstName: person[0],
       lastName: person[1],
@@ -177,9 +180,9 @@ export async function ensureSeedData() {
   await db.insert(timePunches).values(punchRows);
 
   const [processingRun, draftRun, releasedRun] = await db.insert(payrollRuns).values([
-    { organizationId: loom.id, periodLabel: "Mar 1–15, 2026", scopeLabel: "All locations", status: "Needs review", payDate: "2026-03-18", employeeCount: 8, grossPay: "346820.00", netPay: "285614.42", exceptions: 2, ruleVersion: "PH-2026.01", processedChunks: 1, totalChunks: 1 },
-    { organizationId: loom.id, periodLabel: "Feb 16–28, 2026", scopeLabel: "Makati HQ", status: "Draft", payDate: "2026-03-05", employeeCount: 6, grossPay: "261400.00", netPay: "218909.88", exceptions: 0, ruleVersion: "PH-2026.01" },
-    { organizationId: loom.id, periodLabel: "Feb 1–15, 2026", scopeLabel: "All locations", status: "Released", payDate: "2026-02-18", employeeCount: 8, grossPay: "341200.00", netPay: "281950.37", exceptions: 0, ruleVersion: "PH-2026.01" },
+    { organizationId: loom.id, periodLabel: "Mar 1–15, 2026", periodStart: "2026-03-01", periodEnd: "2026-03-15", scopeLabel: "All locations", scopeOrgUnitId: null, status: "Needs review", payDate: "2026-03-18", employeeCount: 8, grossPay: "346820.00", netPay: "285614.42", exceptions: 2, ruleVersion: "PH-2026.01", processedChunks: 1, totalChunks: 1 },
+    { organizationId: loom.id, periodLabel: "Feb 16–28, 2026", periodStart: "2026-02-16", periodEnd: "2026-02-28", scopeLabel: "Makati HQ", scopeOrgUnitId: units[0].id, status: "Draft", payDate: "2026-03-05", employeeCount: 3, grossPay: "261400.00", netPay: "218909.88", exceptions: 0, ruleVersion: "PH-2026.01" },
+    { organizationId: loom.id, periodLabel: "Feb 1–15, 2026", periodStart: "2026-02-01", periodEnd: "2026-02-15", scopeLabel: "All locations", scopeOrgUnitId: null, status: "Released", payDate: "2026-02-18", employeeCount: 8, grossPay: "341200.00", netPay: "281950.37", exceptions: 0, ruleVersion: "PH-2026.01" },
   ]).returning();
 
   await db.insert(payrollEntries).values(loomPeople.map((employee, index) => ({
