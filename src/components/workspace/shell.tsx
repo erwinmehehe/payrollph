@@ -19,6 +19,7 @@ import {
 import { FREELANCER_HIDDEN, NAVIGATION, groupOf } from "./nav";
 import type { DashboardData, Organization } from "./types";
 import { Avatar, initialsOf, relativeTime } from "./ui";
+import { DEMO_ROLES, demoRoleInfo, type DemoRoleId } from "@/lib/demo-roles";
 
 export type Notification = {
   id: string;
@@ -39,6 +40,9 @@ export function WorkspaceShell({
   onSwitchClient,
   onSwitchRole,
   onSignOut,
+  visiblePages,
+  displayRole,
+  allowClientSwitch = true,
   headerExtras,
   children,
 }: {
@@ -49,8 +53,11 @@ export function WorkspaceShell({
   onOpenPalette: () => void;
   onOpenNotification?: () => void;
   onSwitchClient: (id: number) => void;
-  onSwitchRole?: (role: "bookkeeper" | "employee" | "freelancer") => void;
+  onSwitchRole?: (role: DemoRoleId) => void;
   onSignOut: () => void;
+  visiblePages?: readonly string[];
+  displayRole?: DemoRoleId | null;
+  allowClientSwitch?: boolean;
   headerExtras?: ReactNode;
   children: ReactNode;
 }) {
@@ -63,6 +70,8 @@ export function WorkspaceShell({
   const isFreelancer = data.selectedOrganization.accountType === "freelancer";
   const openApprovals = data.tasks.filter((task) => task.status === "Pending").length;
   const userName = data.user?.name ?? "Signed-in user";
+  const roleInfo = demoRoleInfo(displayRole);
+  const roleLabel = roleInfo?.shortLabel ?? (data.user?.role === "employee" ? "Employee" : data.user?.role ?? "Member");
 
   function closeOverlays() {
     setDrawer(false);
@@ -131,12 +140,14 @@ export function WorkspaceShell({
 
         <div className="workspace-label">
           <span className="pulse-dot" aria-hidden />
-          <span>{isFreelancer ? "Solo workspace" : `${data.user?.role ?? "member"} workspace`}</span>
+          <span>{isFreelancer ? "Solo workspace" : `${roleLabel} workspace`}</span>
         </div>
 
         <nav className="side-navigation slim-scroll">
           {NAVIGATION.map((group) => {
-            const items = group.items.filter((item) => !(isFreelancer && FREELANCER_HIDDEN.has(item.name)));
+            const items = group.items
+              .filter((item) => !(isFreelancer && FREELANCER_HIDDEN.has(item.name)))
+              .filter((item) => !visiblePages || visiblePages.includes(item.name));
             if (!items.length) return null;
             return (
               <div className="nav-group" key={group.label}>
@@ -175,7 +186,7 @@ export function WorkspaceShell({
             <Avatar initials={initialsOf(userName)} index={0} />
             <div>
               <strong>{userName}</strong>
-              <span>{data.user?.role ?? "member"}</span>
+              <span>{roleLabel}</span>
             </div>
             <MoreHorizontal size={16} />
           </div>
@@ -193,9 +204,10 @@ export function WorkspaceShell({
             <div className="company-switcher-wrap">
               <button
                 className="company-switcher"
-                onClick={() => setClientOpen((current) => !current)}
-                aria-expanded={clientOpen}
-                aria-haspopup="menu"
+                onClick={() => allowClientSwitch && setClientOpen((current) => !current)}
+                aria-expanded={allowClientSwitch ? clientOpen : false}
+                aria-haspopup={allowClientSwitch ? "menu" : undefined}
+                disabled={!allowClientSwitch}
               >
                 <span className="company-logo" style={{ backgroundColor: data.selectedOrganization.color }} aria-hidden>
                   {data.selectedOrganization.name.slice(0, 1)}
@@ -207,9 +219,9 @@ export function WorkspaceShell({
                     {isFreelancer ? "self-employed" : `${data.employees.length} people`}
                   </small>
                 </span>
-                <ChevronDown size={15} />
+                {allowClientSwitch && <ChevronDown size={15} />}
               </button>
-              {clientOpen && (
+              {clientOpen && allowClientSwitch && (
                 <div className="company-popover" role="menu">
                   <p>
                     Client portfolio <span>{data.organizations.length} accounts</span>
@@ -268,35 +280,33 @@ export function WorkspaceShell({
               <div className="company-switcher-wrap">
                 <button className="role-pill-btn" onClick={() => setRoleOpen((current) => !current)} aria-expanded={roleOpen} aria-haspopup="menu">
                   <UserCheck size={14} style={{ color: "var(--brand)" }} />
-                  <span>{data.user?.role === "employee" ? "Employee" : "Bookkeeper"}</span>
+                  <span>{displayRole ? `Demo: ${roleLabel}` : roleLabel}</span>
                   <ChevronDown size={13} />
                 </button>
                 {roleOpen && (
-                  <div className="company-popover" role="menu" style={{ width: 288, right: 0, left: "auto" }}>
+                  <div className="company-popover" role="menu" style={{ width: 300, right: 0, left: "auto" }}>
                     <p>
-                      Demo role <span>seeded accounts only</span>
+                      Switch demo role <span>sample workspace</span>
                     </p>
-                    <button role="menuitem" onClick={() => onSwitchRole("bookkeeper")}>
-                      <span className="avatar avatar-0">CY</span>
-                      <span>
-                        <strong>Principal bookkeeper</strong>
-                        <small>Multi-client workspace and payroll admin</small>
-                      </span>
-                    </button>
-                    <button role="menuitem" onClick={() => onSwitchRole("employee")}>
-                      <span className="avatar avatar-3">JR</span>
-                      <span>
-                        <strong>Employee self-service</strong>
-                        <small>Own payslips and leave only</small>
-                      </span>
-                    </button>
-                    <button role="menuitem" onClick={() => onSwitchRole("freelancer")}>
-                      <span className="avatar avatar-1">MR</span>
-                      <span>
-                        <strong>Solo freelancer</strong>
-                        <small>8% flat vs graduated tax planner</small>
-                      </span>
-                    </button>
+                    {DEMO_ROLES.map((role, index) => (
+                      <button
+                        key={role.id}
+                        role="menuitem"
+                        onClick={() => {
+                          setRoleOpen(false);
+                          onSwitchRole(role.id);
+                        }}
+                      >
+                        <span className={`avatar avatar-${index % 5}`}>{role.person.split(" ").map((part) => part[0]).join("").slice(0, 2)}</span>
+                        <span>
+                          <strong>{role.label}</strong>
+                          <small>{role.description}</small>
+                        </span>
+                      </button>
+                    ))}
+                    <a className="popover-footer" href="/demo">
+                      <UserCheck size={14} className="i-purple" /> View all demo roles
+                    </a>
                   </div>
                 )}
               </div>
