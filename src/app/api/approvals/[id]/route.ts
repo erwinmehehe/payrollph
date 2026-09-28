@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalTasks, leaveRequests } from "@/db/schema";
+import { approvalTasks, auditEvents, leaveRequests } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { canDecide } from "@/lib/delegation";
@@ -28,6 +28,28 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const deniedOrg = await assertMembership(sessionUser.id, task.organizationId);
   if (deniedOrg) return deniedOrg;
   const actor = sessionUser.name;
+
+  if (task.title.startsWith("Payroll approval · ")) {
+    const periodLabel = task.title.slice("Payroll approval · ".length).trim();
+    const [submission] = await db
+      .select()
+      .from(auditEvents)
+      .where(
+        and(
+          eq(auditEvents.organizationId, task.organizationId),
+          eq(auditEvents.action, "Payroll submitted for approval"),
+          eq(auditEvents.resource, periodLabel),
+        ),
+      )
+      .orderBy(desc(auditEvents.createdAt))
+      .limit(1);
+
+    if (submission?.actor?.toLowerCase() === actor.toLowerCase()) {
+      return Response.json({
+        error: "Maker-checker control: the person who submitted this payroll cannot approve it.",
+      }, { status: 403 });
+    }
+  }
 
   const decision = await canDecide(task.organizationId, task.approver, actor);
   if (!decision.permitted) {
