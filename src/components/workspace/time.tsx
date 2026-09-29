@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, CalendarDays, Check, Clock3, Clock, Download, Search, Timer } from "lucide-react";
+import { AlertTriangle, CalendarDays, Check, Clock3, Clock, Download, PencilLine, Search, Timer, X } from "lucide-react";
 import type { DashboardData, Notify, Punch } from "./types";
 import { Avatar, EmptyState, Metric, PageHeading, Progress, Segmented, Status, formatDate, formatTimeOnly } from "./ui";
 
@@ -12,16 +12,23 @@ export function TimeView({
   data,
   onOpenBundy,
   notify,
+  onRefresh,
   canManage = true,
 }: {
   data: DashboardData;
   onOpenBundy: () => void;
   notify: Notify;
+  onRefresh: () => Promise<void>;
   canManage?: boolean;
 }) {
   const punches = useMemo(() => data.punches ?? [], [data.punches]);
   const [view, setView] = useState<"all" | "incomplete">("all");
   const [query, setQuery] = useState("");
+  const [correction, setCorrection] = useState<Punch | null>(null);
+  const [correctedTimeIn, setCorrectedTimeIn] = useState("");
+  const [correctedTimeOut, setCorrectedTimeOut] = useState("");
+  const [correctionReason, setCorrectionReason] = useState("");
+  const [correctionBusy, setCorrectionBusy] = useState(false);
 
   const stats = useMemo(() => {
     const complete = punches.filter(isComplete);
@@ -47,6 +54,43 @@ export function TimeView({
   }, [punches, data.employees, view, query]);
 
   const completionPercent = punches.length ? (stats.complete.length / punches.length) * 100 : 0;
+
+  function openCorrection(punch: Punch) {
+    setCorrection(punch);
+    setCorrectedTimeIn("");
+    setCorrectedTimeOut("");
+    setCorrectionReason("");
+  }
+
+  async function saveCorrection() {
+    if (!correction) return;
+    setCorrectionBusy(true);
+    try {
+      const response = await fetch("/api/web-bundy", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId: data.selectedOrganization.id,
+          punchId: correction.id,
+          timeIn: correction.timeIn ? "" : correctedTimeIn,
+          timeOut: correction.timeOut ? "" : correctedTimeOut,
+          reason: correctionReason,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        notify(payload.error ?? "Attendance correction could not be saved.", "err");
+        return;
+      }
+      setCorrection(null);
+      await onRefresh();
+      notify(payload.message ?? "Attendance correction saved.", "ok");
+    } catch {
+      notify("Could not reach the attendance correction service.", "err");
+    } finally {
+      setCorrectionBusy(false);
+    }
+  }
 
   return (
     <>
@@ -215,6 +259,7 @@ export function TimeView({
                 <th>Time in</th>
                 <th>Time out</th>
                 <th>Status</th>
+                {canManage && <th aria-label="Actions" />}
               </tr>
             </thead>
             <tbody>
@@ -242,6 +287,15 @@ export function TimeView({
                   <td>
                     <Status value={isComplete(punch) ? punch.status : "Incomplete punch"} />
                   </td>
+                  {canManage && (
+                    <td className="row-actions">
+                      {!isComplete(punch) && (
+                        <button className="table-action" onClick={() => openCorrection(punch)}>
+                          <PencilLine size={13} /> Fix punch
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -265,6 +319,69 @@ export function TimeView({
           </div>
         )}
       </article>
+
+      {correction && (
+        <div className="modal-backdrop" role="presentation">
+          <section className="modal" role="dialog" aria-modal="true" aria-label="Correct incomplete attendance">
+            <button className="modal-close" onClick={() => setCorrection(null)} aria-label="Close correction">
+              <X size={18} />
+            </button>
+            <div className="card-kicker">ATTENDANCE CORRECTION</div>
+            <h2>Complete the missing punch.</h2>
+            <p>
+              This writes an audit event. If payroll already used this work date, Payroll must recalculate the run before checker review.
+            </p>
+
+            <div className="setting-form">
+              {!correction.timeIn && (
+                <label>
+                  Missing clock-in
+                  <input
+                    type="time"
+                    value={correctedTimeIn}
+                    onChange={(event) => setCorrectedTimeIn(event.target.value)}
+                  />
+                </label>
+              )}
+              {!correction.timeOut && (
+                <label>
+                  Missing clock-out
+                  <input
+                    type="time"
+                    value={correctedTimeOut}
+                    onChange={(event) => setCorrectedTimeOut(event.target.value)}
+                  />
+                </label>
+              )}
+              <label>
+                Reason for correction
+                <input
+                  value={correctionReason}
+                  onChange={(event) => setCorrectionReason(event.target.value)}
+                  placeholder="e.g. employee forgot to clock out"
+                  maxLength={240}
+                />
+              </label>
+            </div>
+
+            <div className="modal-actions">
+              <button className="secondary-button" onClick={() => setCorrection(null)}>Cancel</button>
+              <button
+                className="primary-button brand"
+                disabled={
+                  correctionBusy ||
+                  correctionReason.trim().length < 4 ||
+                  (!correction.timeIn && !correctedTimeIn) ||
+                  (!correction.timeOut && !correctedTimeOut)
+                }
+                onClick={() => void saveCorrection()}
+              >
+                <Check size={14} /> {correctionBusy ? "Saving…" : "Save correction"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </>
   );
 }
