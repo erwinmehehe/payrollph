@@ -451,6 +451,7 @@ export async function POST(request: Request) {
         philHealthEmployee: cents(row.philHealthEmployee),
         pagIbigEmployee: cents(row.pagIbigEmployee),
         thirteenthMonth: cents(row.thirteenthMonth),
+        basicSalaryEarned: row.basicSalaryEarned == null ? null : cents(row.basicSalaryEarned),
       };
       await db.insert(historicalPayrollEntries).values({
         organizationId,
