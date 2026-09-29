@@ -254,3 +254,29 @@ export function payTimelineTrace(timeline: PayTimelineSegment[]) {
     `${segment.startDate}..${segment.endDate}:${segment.profile.payBasis}@${segment.profile.rateAmount.toFixed(2)}`
   );
 }
+
+
+export function monthlyRetroForReleasedCutoff(input: {
+  previousMonthlyRate: number;
+  newMonthlyRate: number;
+  effectiveDate: string;
+  periodStart: string;
+  periodEnd: string;
+}) {
+  if (!Number.isFinite(input.previousMonthlyRate) || !Number.isFinite(input.newMonthlyRate)) {
+    throw new Error("Retro pay rates must be valid numbers.");
+  }
+  if (dateValue(input.periodEnd) < dateValue(input.periodStart)) {
+    throw new Error("Retro payroll period is invalid.");
+  }
+  if (dateValue(input.effectiveDate) > dateValue(input.periodEnd)) return 0;
+
+  const affectedStart =
+    dateValue(input.effectiveDate) > dateValue(input.periodStart)
+      ? input.effectiveDate
+      : input.periodStart;
+  const totalDays = daysInclusive(input.periodStart, input.periodEnd);
+  const affectedDays = daysInclusive(affectedStart, input.periodEnd);
+  const fullCutoffDelta = (input.newMonthlyRate - input.previousMonthlyRate) / 2;
+  return Math.round((fullCutoffDelta * (affectedDays / totalDays) + Number.EPSILON) * 100) / 100;
+}
