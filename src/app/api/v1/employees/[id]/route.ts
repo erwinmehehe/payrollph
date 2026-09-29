@@ -120,6 +120,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return Response.json({ error: "Validation failed.", problems: [error instanceof Error ? error.message : "Pay profile is invalid."] }, { status: 422 });
     }
   }
+  if (typeof body.thirteenthMonthEligible === "boolean") {
+    patch.thirteenthMonthEligible = body.thirteenthMonthEligible;
+    patch.thirteenthMonthExclusionReason = body.thirteenthMonthEligible
+      ? null
+      : String(body.thirteenthMonthExclusionReason ?? "").trim() || null;
+  }
   if (typeof body.mwe === "boolean") patch.mwe = body.mwe;
   if (typeof body.region === "string") patch.region = body.region;
   if (typeof body.email === "string") patch.email = body.email.trim().toLowerCase() || null;
