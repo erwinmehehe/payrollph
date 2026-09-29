@@ -70,14 +70,14 @@ jobs:
           const send=(method,params={})=>new Promise((resolve,reject)=>{const call=id++;pending.set(call,{resolve,reject});ws.send(JSON.stringify({id:call,method,params}))});
           const once=(method)=>new Promise(resolve=>{const set=listeners.get(method)??new Set();const fn=p=>{set.delete(fn);resolve(p)};set.add(fn);listeners.set(method,set)});
           const wait=async(expr,timeout=15000)=>{const start=Date.now();while(Date.now()-start<timeout){const r=await send("Runtime.evaluate",{expression:expr,returnByValue:true});if(r.result.value)return r.result.value;await new Promise(r=>setTimeout(r,200))}throw new Error("timeout "+expr)};
-          const click=async(text)=>{const r=await send("Runtime.evaluate",{expression:`(()=>{const root=document.querySelector('[aria-label="Linaw payroll workspace"]');const el=Array.from(root?.querySelectorAll('button')||[]).find(x=>x.textContent?.trim()===${JSON.stringify(text)});if(!el)return false;el.click();return true})()`,returnByValue:true});if(!r.result.value)throw new Error("missing "+text)};
+          const click=async(text)=>{const r=await send("Runtime.evaluate",{expression:`(()=>{const root=document.getElementById('hero-product-preview');const el=Array.from(root?.querySelectorAll('button')||[]).find(x=>x.textContent?.trim()===${JSON.stringify(text)});if(!el)return false;el.click();return true})()`,returnByValue:true});if(!r.result.value)throw new Error("missing "+text)};
           await send("Page.enable"); await send("Runtime.enable");
           await send("Emulation.setDeviceMetricsOverride",{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
           const loaded=once("Page.loadEventFired"); await send("Page.navigate",{url:"http://127.0.0.1:3000/"}); await loaded;
           await wait("document.body.innerText.includes('Run Philippine payroll with a clear path from draft to release.')");
           const heroVisible=await send("Runtime.evaluate",{expression:`(()=>{const h=document.querySelector('h1');const r=h.getBoundingClientRect();return r.top>=0 && r.bottom<=window.innerHeight && getComputedStyle(h).visibility!=='hidden' && getComputedStyle(h).opacity!=='0'})()`,returnByValue:true});
           if(!heroVisible.result.value) throw new Error("Hero is not visible in initial viewport");
-          await send("Runtime.evaluate",{expression:"document.querySelector('[aria-label="Linaw payroll workspace"]').scrollIntoView({block:'center'})"});
+          await send("Runtime.evaluate",{expression:"document.getElementById('hero-product-preview').scrollIntoView({block:'center'})"});
           await new Promise(r=>setTimeout(r,300));
           await click("People");
           await wait("document.body.innerText.includes('Employee directory')");
