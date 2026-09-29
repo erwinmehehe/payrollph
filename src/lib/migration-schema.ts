@@ -37,6 +37,8 @@ export async function ensureMigrationSchema() {
           period_label varchar(120) NOT NULL,
           pay_date date NOT NULL,
           gross_pay numeric(14,2) NOT NULL,
+          basic_salary_earned numeric(14,2) NOT NULL DEFAULT 0,
+          other_non_taxable numeric(14,2) NOT NULL DEFAULT 0,
           net_pay numeric(14,2) NOT NULL,
           tax_withheld numeric(14,2) NOT NULL DEFAULT 0,
           sss_employee numeric(14,2) NOT NULL DEFAULT 0,
@@ -45,6 +47,12 @@ export async function ensureMigrationSchema() {
           thirteenth_month numeric(14,2) NOT NULL DEFAULT 0,
           created_at timestamptz NOT NULL DEFAULT now()
         )
+      `);
+
+      await client.query(`
+        ALTER TABLE historical_payroll_entries
+          ADD COLUMN IF NOT EXISTS basic_salary_earned numeric(14,2) NOT NULL DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS other_non_taxable numeric(14,2) NOT NULL DEFAULT 0
       `);
 
       await client.query(`
