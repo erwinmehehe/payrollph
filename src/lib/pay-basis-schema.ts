@@ -180,12 +180,17 @@ export async function ensureEmployeePayHistory(organizationId: number) {
       SELECT
         e.id,
         e.organization_id,
-        e.start_date,
+        CASE
+          WHEN EXISTS (SELECT 1 FROM payroll_entries pe WHERE pe.employee_id = e.id)
+            OR EXISTS (SELECT 1 FROM historical_payroll_entries hp WHERE hp.employee_id = e.id)
+          THEN CURRENT_DATE
+          ELSE e.start_date
+        END,
         p.pay_basis,
         p.rate_amount,
         p.standard_work_days_per_month,
         p.standard_hours_per_day,
-        'Opening pay profile migrated from existing employee record',
+        'Opening pay baseline migrated from existing employee record',
         'System'
       FROM employees e
       INNER JOIN employee_pay_profiles p ON p.employee_id = e.id
