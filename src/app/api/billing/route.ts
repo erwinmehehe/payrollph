@@ -7,6 +7,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { getEntitlements, type PlanId } from "@/lib/billing";
 import { createPaymongoCheckout } from "@/lib/paymongo";
 
+import { denyPublicDemoSideEffect } from "@/lib/public-demo-guard";
 export const dynamic = "force-dynamic";
 
 const PLAN_BASE_PRICES: Record<PlanId, number> = {
@@ -73,6 +74,8 @@ export async function POST(request: Request) {
     "Only billing administrators can view or change subscription billing.",
   );
   if (denied) return denied;
+  const demoDenied = await denyPublicDemoSideEffect(organizationId, "Billing changes");
+  if (demoDenied) return demoDenied;
 
   if (!process.env.PAYMONGO_SECRET_KEY) {
     return Response.json({
