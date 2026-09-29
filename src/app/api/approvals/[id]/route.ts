@@ -1,11 +1,12 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalTasks, auditEvents, leaveRequests, payrollRuns } from "@/db/schema";
+import { approvalTasks, auditEvents, leaveRequests, payrollRuns, userOrganizations, users } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { canDecide } from "@/lib/delegation";
 import { dispatchWebhook } from "@/lib/webhooks";
 import { assertMembership } from "@/lib/access";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
+import { queueMessage } from "@/lib/mailer";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -173,6 +174,43 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     data: { taskId, title: task.title, status, decidedBy: actor, onBehalfOf: onBehalf },
   });
 
+  let releaseNotificationsQueued = 0;
+  const releaseNotificationWarnings: string[] = [];
+  if (payrollRunId && status === "Approved") {
+    const [approvedRun] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, payrollRunId)).limit(1);
+    const members = await db
+      .select({
+        name: users.name,
+        email: users.email,
+        role: userOrganizations.role,
+      })
+      .from(userOrganizations)
+      .innerJoin(users, eq(userOrganizations.userId, users.id))
+      .where(eq(userOrganizations.organizationId, task.organizationId));
+
+    const releaseOwners = members.filter((member) => member.role === "owner" || member.role === "admin");
+    for (const owner of releaseOwners) {
+      try {
+        await queueMessage({
+          organizationId: task.organizationId,
+          recipient: owner.email,
+          subject: `Payroll approved and ready to release: ${approvedRun?.periodLabel ?? task.title}`,
+          purpose: "payroll-release-ready",
+          body: [
+            `Hi ${owner.name},`,
+            "",
+            `${actor} approved ${approvedRun?.periodLabel ?? task.title}.`,
+            "",
+            "Sign in to Linaw and open Payroll to complete the owner release control.",
+          ].join("\n"),
+        });
+        releaseNotificationsQueued += 1;
+      } catch {
+        releaseNotificationWarnings.push(`Could not queue the release-ready notice for ${owner.email}.`);
+      }
+    }
+  }
+
   const [linkedLeave] = await db.select().from(leaveRequests).where(eq(leaveRequests.approvalTaskId, taskId)).limit(1);
   if (linkedLeave) {
     await db.update(leaveRequests).set({
@@ -188,5 +226,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
   }
 
-  return Response.json({ ...updated, delegation: decision, webhookDeliveries: deliveries.length, leaveUpdated: Boolean(linkedLeave) });
+  return Response.json({
+    ...updated,
+    delegation: decision,
+    webhookDeliveries: deliveries.length,
+    leaveUpdated: Boolean(linkedLeave),
+    releaseNotificationsQueued,
+    releaseNotificationWarnings,
+  });
 }
