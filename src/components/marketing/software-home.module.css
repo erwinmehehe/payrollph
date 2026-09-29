@@ -1713,3 +1713,49 @@
     gap: 12px;
   }
 }
+
+
+/* Final pricing contrast lock. Marketing pricing must remain fully legible at rest. */
+.pricingSurface :global(.business-pricing-grid .price-card),
+.pricingSurface :global(.business-pricing-grid .price-card *) {
+  opacity: 1 !important;
+  animation: none !important;
+}
+
+.pricingSurface :global(.business-pricing-grid .price-card) {
+  color: #22262d;
+  transform: none;
+}
+
+.pricingSurface :global(.business-pricing-grid .price-card .price-plan) {
+  color: #596170;
+}
+
+.pricingSurface :global(.business-pricing-grid .price-card h2) {
+  color: #252931;
+}
+
+.pricingSurface :global(.business-pricing-grid .price-card .price strong) {
+  color: #17191e;
+}
+
+.pricingSurface :global(.business-pricing-grid .price-card .price span),
+.pricingSurface :global(.business-pricing-grid .price-card .price-formula),
+.pricingSurface :global(.business-pricing-grid .price-card .price-best-for) {
+  color: #7b838f;
+}
+
+.pricingSurface :global(.business-pricing-grid .price-card .price-features li) {
+  color: #59616d;
+}
+
+.pricingSurface :global(.business-pricing-grid .price-card.featured .primary-button) {
+  border-color: #444ce7;
+  background: #444ce7;
+  color: #fff;
+}
+
+.pricingSurface :global(.business-pricing-grid .price-card.featured .primary-button:hover) {
+  border-color: #3538cd;
+  background: #3538cd;
+}
