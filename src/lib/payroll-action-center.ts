@@ -20,13 +20,10 @@ export function getPayrollActions(data: DashboardData, explicitRole?: string | n
   const role = actionableRole(explicitRole ?? data.access?.role ?? data.user?.role);
   if (!role) return [];
 
-  const run = liveRun(data);
-  const task = run ? latestRunTask(data.tasks, run.id) : null;
-
   if (role === "hr") return hrActions(data);
-  if (role === "payroll") return payrollActions(run, task);
-  if (role === "checker") return checkerActions(run, task);
-  return ownerActions(run, task);
+  if (role === "payroll") return payrollActions(data);
+  if (role === "checker") return checkerActions(data);
+  return ownerActions(data);
 }
 
 function hrActions(data: DashboardData): PayrollActionItem[] {
@@ -83,8 +80,11 @@ function hrActions(data: DashboardData): PayrollActionItem[] {
   return actions;
 }
 
-function payrollActions(run: PayrollRun | null, task: Task | null): PayrollActionItem[] {
-  if (!run || run.status === "Released") return [];
+function payrollActions(data: DashboardData): PayrollActionItem[] {
+  const makerStatuses = new Set(["Failed", "Needs review", "Draft", "Calculated", "Ready"]);
+  const run = data.payrollRuns.find((candidate) => makerStatuses.has(candidate.status)) ?? null;
+  if (!run) return [];
+  const task = latestRunTask(data.tasks, run.id);
 
   if (run.status === "Failed") {
     return [{
@@ -136,32 +136,44 @@ function payrollActions(run: PayrollRun | null, task: Task | null): PayrollActio
   return [];
 }
 
-function checkerActions(run: PayrollRun | null, task: Task | null): PayrollActionItem[] {
-  if (!run || run.status !== "Pending approval" || !task || task.status !== "Pending") return [];
-  return [{
-    id: `checker-review-${task.id}`,
-    title: `${run.periodLabel} is waiting for your review`,
-    detail: `${task.title}. Inspect payroll context and assurance before approving or declining.`,
-    actionLabel: "Review payroll",
-    page: "Approvals",
-    tone: task.priority === "High" ? "danger" : "review",
-  }];
+function checkerActions(data: DashboardData): PayrollActionItem[] {
+  const pendingTasks = data.tasks
+    .filter((task) => task.status === "Pending")
+    .sort((a, b) => (a.priority === "High" ? -1 : 1) - (b.priority === "High" ? -1 : 1));
+
+  for (const task of pendingTasks) {
+    const match = task.detail.match(/Payroll run #(\d+)/);
+    if (!match) continue;
+    const run = data.payrollRuns.find((candidate) => candidate.id === Number(match[1]));
+    if (!run || run.status !== "Pending approval") continue;
+    return [{
+      id: `checker-review-${task.id}`,
+      title: `${run.periodLabel} is waiting for your review`,
+      detail: `${task.title}. Inspect payroll context and assurance before approving or declining.`,
+      actionLabel: "Review payroll",
+      page: "Approvals",
+      tone: task.priority === "High" ? "danger" : "review",
+    }];
+  }
+
+  return [];
 }
 
-function ownerActions(run: PayrollRun | null, task: Task | null): PayrollActionItem[] {
-  if (!run || run.status !== "Ready for release" || task?.status !== "Approved") return [];
-  return [{
-    id: `owner-release-${run.id}`,
-    title: `${run.periodLabel} is approved and ready to release`,
-    detail: "Independent checker approval is complete. Review the release checklist and confirm the payroll release.",
-    actionLabel: "Release payroll",
-    page: "Payroll",
-    tone: "success",
-  }];
-}
+function ownerActions(data: DashboardData): PayrollActionItem[] {
+  for (const run of data.payrollRuns.filter((candidate) => candidate.status === "Ready for release")) {
+    const task = latestRunTask(data.tasks, run.id);
+    if (task?.status !== "Approved") continue;
+    return [{
+      id: `owner-release-${run.id}`,
+      title: `${run.periodLabel} is approved and ready to release`,
+      detail: "Independent checker approval is complete. Review the release checklist and confirm the payroll release.",
+      actionLabel: "Release payroll",
+      page: "Payroll",
+      tone: "success",
+    }];
+  }
 
-function liveRun(data: DashboardData): PayrollRun | null {
-  return data.payrollRuns.find((run) => run.status !== "Released") ?? data.payrollRuns[0] ?? null;
+  return [];
 }
 
 function latestRunTask(tasks: Task[], runId: number): Task | null {
