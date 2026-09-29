@@ -27,6 +27,7 @@ import {
   parseMigrationCsv,
 } from "@/lib/migration-import";
 
+import { denyPublicDemoSideEffect } from "@/lib/public-demo-guard";
 export const dynamic = "force-dynamic";
 
 const VALID_KINDS = new Set<MigrationKind>(["employees", "payroll_history", "leave_balances", "loans"]);
@@ -184,6 +185,9 @@ export async function POST(request: Request) {
     "Only organization administrators and bookkeepers can migrate payroll or HR data.",
   );
   if (denied) return denied;
+
+  const demoDenied = await denyPublicDemoSideEffect(organizationId, "Data migrations");
+  if (demoDenied) return demoDenied;
 
   await ensureMigrationSchema();
   await ensureEmployeePayProfiles(organizationId);
