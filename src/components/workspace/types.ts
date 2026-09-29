@@ -32,6 +32,10 @@ export type Employee = {
   status: string;
   avatarInitials: string;
   basicRate: string;
+  payBasis?: "monthly" | "daily" | "hourly" | string;
+  payRate?: string;
+  standardWorkDaysPerMonth?: string;
+  standardHoursPerDay?: string;
   mwe: boolean;
   region?: string | null;
   orgUnitId?: number | null;
