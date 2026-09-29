@@ -109,7 +109,15 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
     eq(yearEndAdjustments.taxYear, taxYear),
   ));
 
-  const rows: Array<{ employee: typeof staff[number]; result: AnnualizationResult; periods: number }> = [];
+  const rows: Array<{
+    employee: typeof staff[number];
+    result: AnnualizationResult;
+    periods: number;
+    importedPeriods: number;
+    basicSalaryEarned: number;
+    thirteenthEntitlement: number;
+    thirteenthAlreadyPaid: number;
+  }> = [];
 
   for (const employee of staff) {
     const bucket = totals.get(employee.id);
@@ -130,11 +138,27 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
       mwe: employee.mwe,
     });
 
-    rows.push({ employee, result, periods: bucket.periods });
+    rows.push({
+      employee,
+      result,
+      periods: bucket.periods,
+      importedPeriods: bucket.importedPeriods,
+      basicSalaryEarned: bucket.basic,
+      thirteenthEntitlement,
+      thirteenthAlreadyPaid: bucket.thirteenthPaid,
+    });
   }
 
   if (rows.length) {
-    await db.insert(yearEndAdjustments).values(rows.map(({ employee, result, periods }) => ({
+    await db.insert(yearEndAdjustments).values(rows.map(({
+      employee,
+      result,
+      periods,
+      importedPeriods,
+      basicSalaryEarned,
+      thirteenthEntitlement,
+      thirteenthAlreadyPaid,
+    }) => ({
       organizationId,
       employeeId: employee.id,
       taxYear,
@@ -152,11 +176,11 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
         ...result,
         periodsIncluded: periods,
         runsIncluded: runIds.length,
-        importedHistoryRows: totals.get(employee.id)?.importedPeriods ?? 0,
-        basicSalaryEarned: bucket.basic,
+        importedHistoryRows: importedPeriods,
+        basicSalaryEarned,
         thirteenthEntitlement,
-        thirteenthAlreadyPaid: bucket.thirteenthPaid,
-        thirteenthStillDue: Math.max(0, thirteenthEntitlement - bucket.thirteenthPaid),
+        thirteenthAlreadyPaid,
+        thirteenthStillDue: Math.max(0, thirteenthEntitlement - thirteenthAlreadyPaid),
       },
       ruleVersion: ANNUALIZATION_RULE_VERSION,
     })));
