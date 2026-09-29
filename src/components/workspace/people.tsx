@@ -434,6 +434,10 @@ function PersonDrawer({
   const punches = (data.punches ?? []).filter((punch) => punch.employeeId === employee.id).slice(0, 6);
   const leave = (data.leaveRequests ?? []).filter((request) => request.employeeId === employee.id);
   const checklist = (data.provisioning ?? []).filter((item) => item.employeeId === employee.id);
+  const payRevisions = (data.payRevisions ?? []).filter((revision) => revision.employeeId === employee.id).slice(0, 5);
+  const retroAdjustments = (data.retroAdjustments ?? []).filter((retro) => retro.employeeId === employee.id);
+  const pendingRetro = retroAdjustments.filter((retro) => retro.status === "pending");
+  const pendingRetroTotal = pendingRetro.reduce((sum, retro) => sum + Number(retro.amount), 0);
   const entry = data.payrollEntries.find((item) => item.employeeId === employee.id);
 
   return (
@@ -551,6 +555,44 @@ function PersonDrawer({
               </div>
             </div>
           )}
+        </section>
+
+        <section className="card" style={{ margin: "0 0 16px", boxShadow: "none" }}>
+          <div className="card-header">
+            <div>
+              <div className="card-kicker">PAY HISTORY</div>
+              <h2 style={{ fontSize: 14 }}>Effective changes &amp; retro</h2>
+              <p>Released payroll is never rewritten. Backdated monthly corrections are carried forward as explicit retro-pay lines.</p>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <strong style={{ display: "block", fontSize: 14 }}>{money(pendingRetroTotal)}</strong>
+              <small style={{ color: "var(--muted)" }}>{pendingRetro.length} pending retro item{pendingRetro.length === 1 ? "" : "s"}</small>
+            </div>
+          </div>
+          <div className="card-body">
+            {payRevisions.length === 0 ? (
+              <p style={{ color: "var(--muted)", fontSize: 11.5, margin: 0 }}>No effective-dated pay changes yet.</p>
+            ) : (
+              payRevisions.map((revision) => (
+                <div className="payslip-line" key={revision.id} style={{ gridTemplateColumns: "1fr auto" }}>
+                  <span>
+                    {revision.reason}
+                    <em>
+                      effective {formatDate(revision.effectiveDate)} · {revision.previousPayBasis} {money(revision.previousRateAmount)} → {revision.newPayBasis} {money(revision.newRateAmount)}
+                    </em>
+                  </span>
+                  <b>{revision.createdBy}</b>
+                </div>
+              ))
+            )}
+            {pendingRetro.length > 0 && (
+              <div className="notice notice-amber" style={{ marginTop: 12 }}>
+                <span>
+                  Pending retro will be included in the next payroll calculation and marked settled only when that payroll is released.
+                </span>
+              </div>
+            )}
+          </div>
         </section>
 
         <section className="card" style={{ margin: "0 0 16px", boxShadow: "none" }}>
