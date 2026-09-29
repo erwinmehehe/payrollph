@@ -29,6 +29,39 @@ const people = [
   { firstName: "Eli", lastName: "Tan", title: "Implementation Analyst", initials: "ET", status: "Active", basicRate: "34800.00", bankAccount: "8234567890", bankCode: "UB", mobile: "09171230008" },
 ] as const;
 
+const periods = {
+  released: {
+    periodLabel: "Aug 16–31, 2026",
+    periodStart: "2026-08-16",
+    periodEnd: "2026-08-31",
+    status: "Released",
+    payDate: "2026-09-05",
+    grossPay: "176300.00",
+    netPay: "145645.00",
+    exceptions: 0,
+  },
+  checker: {
+    periodLabel: "Sep 1–15, 2026",
+    periodStart: "2026-09-01",
+    periodEnd: "2026-09-15",
+    status: "Pending approval",
+    payDate: "2026-09-18",
+    grossPay: "181250.00",
+    netPay: "149768.00",
+    exceptions: 0,
+  },
+  work: {
+    periodLabel: "Sep 16–30, 2026",
+    periodStart: "2026-09-16",
+    periodEnd: "2026-09-30",
+    status: "Needs review",
+    payDate: "2026-10-05",
+    grossPay: "183400.00",
+    netPay: "151524.00",
+    exceptions: 2,
+  },
+} as const;
+
 function employeeEmail(firstName: string, lastName: string) {
   return `${firstName}.${lastName}`.toLowerCase().replace(/[^a-z.]/g, "") + "@linaw.ph";
 }
@@ -60,17 +93,196 @@ function lineItems(gross: number, deductions: number) {
   ];
 }
 
+async function optionalSeed(label: string, work: () => Promise<unknown>) {
+  try {
+    await work();
+  } catch (error) {
+    // Optional product-tour enrichment must never make the public sandbox
+    // unavailable. The core tenant/payroll/session data is provisioned first.
+    console.warn(`Public demo optional seed skipped: ${label}`, error);
+  }
+}
+
+async function ensureOptionalDemoData(organizationId: number) {
+  const staff = await db.select().from(employees).where(eq(employees.organizationId, organizationId));
+
+  await optionalSeed("subscription", async () => {
+    await ensureSubscription(organizationId);
+    await db
+      .update(subscriptions)
+      .set({ plan: "Scale", seatLimit: 50, status: "trialing" })
+      .where(eq(subscriptions.organizationId, organizationId));
+  });
+
+  await optionalSeed("attendance", async () => {
+    const [{ value }] = await db
+      .select({ value: count() })
+      .from(timePunches)
+      .where(eq(timePunches.organizationId, organizationId));
+    if (value > 0) return;
+
+    await db.insert(timePunches).values(
+      staff.flatMap((employee, index) => [
+        {
+          organizationId,
+          employeeId: employee.id,
+          workDate: "2026-09-25",
+          timeIn: new Date("2026-09-25T01:00:00.000Z"),
+          timeOut: new Date("2026-09-25T10:00:00.000Z"),
+          shiftStart: "09:00",
+          shiftEnd: "18:00",
+          status: "Complete",
+        },
+        {
+          organizationId,
+          employeeId: employee.id,
+          workDate: "2026-09-26",
+          timeIn: new Date("2026-09-26T01:00:00.000Z"),
+          timeOut: index === 5 ? null : new Date("2026-09-26T10:15:00.000Z"),
+          shiftStart: "09:00",
+          shiftEnd: "18:00",
+          status: index === 5 ? "Incomplete" : "Complete",
+        },
+      ]),
+    );
+  });
+
+  await optionalSeed("leave", async () => {
+    const [{ value: policyCount }] = await db
+      .select({ value: count() })
+      .from(leavePolicies)
+      .where(eq(leavePolicies.organizationId, organizationId));
+
+    if (policyCount === 0) {
+      await db.insert(leavePolicies).values([
+        {
+          organizationId,
+          leaveType: "Vacation",
+          annualDays: "15.0",
+          carryOverMax: "5.0",
+          maxBalance: "20.0",
+          payTreatment: "paid",
+          paidPercentage: "100",
+        },
+        {
+          organizationId,
+          leaveType: "Sick",
+          annualDays: "10.0",
+          carryOverMax: "0.0",
+          maxBalance: "10.0",
+          payTreatment: "paid",
+          paidPercentage: "100",
+        },
+      ]);
+    }
+
+    const [aira] = staff.filter((employee) => employee.firstName === "Aira" && employee.lastName === "Villanueva");
+    const [jonas] = staff.filter((employee) => employee.firstName === "Jonas" && employee.lastName === "Reyes");
+
+    const [{ value: requestCount }] = await db
+      .select({ value: count() })
+      .from(leaveRequests)
+      .where(eq(leaveRequests.organizationId, organizationId));
+
+    if (requestCount === 0 && aira) {
+      await db.insert(leaveRequests).values({
+        organizationId,
+        employeeId: aira.id,
+        leaveType: "Vacation",
+        startDate: "2026-10-08",
+        endDate: "2026-10-09",
+        days: "2.0",
+        reason: "Family appointment",
+        status: "Pending",
+      });
+    }
+
+    const [{ value: balanceCount }] = await db
+      .select({ value: count() })
+      .from(leaveBalances)
+      .where(eq(leaveBalances.organizationId, organizationId));
+
+    if (balanceCount === 0) {
+      const balances = [
+        aira
+          ? {
+              organizationId,
+              employeeId: aira.id,
+              leaveType: "Vacation",
+              year: 2026,
+              opening: "10.0",
+              accrued: "5.0",
+              used: "6.0",
+              pending: "2.0",
+            }
+          : null,
+        jonas
+          ? {
+              organizationId,
+              employeeId: jonas.id,
+              leaveType: "Vacation",
+              year: 2026,
+              opening: "10.0",
+              accrued: "5.0",
+              used: "4.0",
+              pending: "0.0",
+            }
+          : null,
+      ].filter((row): row is NonNullable<typeof row> => Boolean(row));
+
+      if (balances.length) await db.insert(leaveBalances).values(balances);
+    }
+  });
+
+  await optionalSeed("audit", async () => {
+    const [{ value }] = await db
+      .select({ value: count() })
+      .from(auditEvents)
+      .where(eq(auditEvents.organizationId, organizationId));
+    if (value > 0) return;
+
+    const runs = await db
+      .select()
+      .from(payrollRuns)
+      .where(eq(payrollRuns.organizationId, organizationId));
+    const workRun = runs.find((run) => run.periodLabel === periods.work.periodLabel);
+    const checkerRun = runs.find((run) => run.periodLabel === periods.checker.periodLabel);
+
+    await db.insert(auditEvents).values([
+      {
+        organizationId,
+        actor: "Andrea Lim",
+        action: "Payroll run created",
+        resource: workRun?.periodLabel ?? periods.work.periodLabel,
+        metadata: { runId: workRun?.id ?? null, ruleVersion: "PH-2026.01" },
+      },
+      {
+        organizationId,
+        actor: "Paolo Cruz",
+        action: "Payroll submitted for review",
+        resource: checkerRun?.periodLabel ?? periods.checker.periodLabel,
+        metadata: { runId: checkerRun?.id ?? null, approver: "Mariel Santos" },
+      },
+      {
+        organizationId,
+        actor: "System",
+        action: "Payroll assurance completed",
+        resource: workRun?.periodLabel ?? periods.work.periodLabel,
+        metadata: { findings: 2, ruleVersion: "PH-2026.01" },
+      },
+    ]);
+  });
+}
+
 /**
  * Creates one isolated public demo tenant on the official hosted application.
- * This never runs for normal customer/self-hosted deployments; the route that
- * calls it first validates the public demo hostname.
- *
- * The transaction uses an advisory lock so concurrent first clicks cannot
- * create duplicate Loom & Local tenants.
+ * The caller validates the hostname first. Core session/payroll data is atomic;
+ * optional HR-tour data is best-effort so an older production schema cannot
+ * make every persona launch fail.
  */
 export async function ensurePublicDemoTenant() {
   const organizationId = await db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('linaw-public-demo-tenant'))`);
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('linaw-public-demo-tenant-v2'))`);
 
     let [organization] = await tx
       .select()
@@ -92,27 +304,34 @@ export async function ensurePublicDemoTenant() {
         .returning();
     }
 
-    const [{ value: employeeCount }] = await tx
-      .select({ value: count() })
+    let staff = await tx
+      .select()
       .from(employees)
       .where(eq(employees.organizationId, organization.id));
 
-    if (employeeCount === 0) {
-      const units = await tx
-        .insert(orgUnits)
-        .values([
-          { organizationId: organization.id, type: "Branch", name: "Makati HQ", code: "MKT" },
-          { organizationId: organization.id, type: "Branch", name: "Cebu Hub", code: "CEB" },
-          { organizationId: organization.id, type: "Department", name: "Operations", code: "OPS" },
-        ])
-        .returning();
+    if (staff.length === 0) {
+      let units = await tx
+        .select()
+        .from(orgUnits)
+        .where(eq(orgUnits.organizationId, organization.id));
 
-      const staff = await tx
+      if (units.length === 0) {
+        units = await tx
+          .insert(orgUnits)
+          .values([
+            { organizationId: organization.id, type: "Branch", name: "Makati HQ", code: "MKT" },
+            { organizationId: organization.id, type: "Branch", name: "Cebu Hub", code: "CEB" },
+            { organizationId: organization.id, type: "Department", name: "Operations", code: "OPS" },
+          ])
+          .returning();
+      }
+
+      staff = await tx
         .insert(employees)
         .values(
           people.map((person, index) => ({
             organizationId: organization.id,
-            orgUnitId: index < 3 ? units[0].id : index < 5 ? units[1].id : units[2].id,
+            orgUnitId: index < 3 ? units[0]?.id ?? null : index < 5 ? units[1]?.id ?? null : units[2]?.id ?? null,
             employeeNo: `LL-${String(index + 101).padStart(3, "0")}`,
             firstName: person.firstName,
             lastName: person.lastName,
@@ -131,229 +350,108 @@ export async function ensurePublicDemoTenant() {
           })),
         )
         .returning();
+    }
 
-      const activeStaff = staff.filter((employee) => employee.status === "Active");
+    const activeStaff = staff.filter((employee) => employee.status === "Active");
+    const existingRuns = await tx
+      .select()
+      .from(payrollRuns)
+      .where(eq(payrollRuns.organizationId, organization.id));
 
-      await tx.insert(timePunches).values(
-        staff.flatMap((employee, index) => [
-          {
-            organizationId: organization.id,
-            employeeId: employee.id,
-            workDate: "2026-09-25",
-            timeIn: new Date("2026-09-25T01:00:00.000Z"),
-            timeOut: new Date("2026-09-25T10:00:00.000Z"),
-            shiftStart: "09:00",
-            shiftEnd: "18:00",
-            status: "Complete",
-          },
-          {
-            organizationId: organization.id,
-            employeeId: employee.id,
-            workDate: "2026-09-26",
-            timeIn: new Date("2026-09-26T01:00:00.000Z"),
-            timeOut: index === 5 ? null : new Date("2026-09-26T10:15:00.000Z"),
-            shiftStart: "09:00",
-            shiftEnd: "18:00",
-            status: index === 5 ? "Incomplete" : "Complete",
-          },
-        ]),
-      );
+    async function ensureRun(key: keyof typeof periods) {
+      const definition = periods[key];
+      const existing = existingRuns.find((run) => run.periodLabel === definition.periodLabel);
+      if (existing) return existing;
 
-      const [releasedRun, checkerRun, workRun] = await tx
+      const [created] = await tx
         .insert(payrollRuns)
-        .values([
-          {
-            organizationId: organization.id,
-            periodLabel: "Aug 16–31, 2026",
-            periodStart: "2026-08-16",
-            periodEnd: "2026-08-31",
-            scopeLabel: "All locations",
-            status: "Released",
-            payDate: "2026-09-05",
-            employeeCount: activeStaff.length,
-            grossPay: "176300.00",
-            netPay: "145645.00",
-            exceptions: 0,
-            ruleVersion: "PH-2026.01",
-            processedChunks: 1,
-            totalChunks: 1,
-          },
-          {
-            organizationId: organization.id,
-            periodLabel: "Sep 1–15, 2026",
-            periodStart: "2026-09-01",
-            periodEnd: "2026-09-15",
-            scopeLabel: "All locations",
-            status: "Pending approval",
-            payDate: "2026-09-18",
-            employeeCount: activeStaff.length,
-            grossPay: "181250.00",
-            netPay: "149768.00",
-            exceptions: 0,
-            ruleVersion: "PH-2026.01",
-            processedChunks: 1,
-            totalChunks: 1,
-          },
-          {
-            organizationId: organization.id,
-            periodLabel: "Sep 16–30, 2026",
-            periodStart: "2026-09-16",
-            periodEnd: "2026-09-30",
-            scopeLabel: "All locations",
-            status: "Needs review",
-            payDate: "2026-10-05",
-            employeeCount: activeStaff.length,
-            grossPay: "183400.00",
-            netPay: "151524.00",
-            exceptions: 2,
-            ruleVersion: "PH-2026.01",
-            processedChunks: 1,
-            totalChunks: 1,
-          },
-        ])
+        .values({
+          organizationId: organization.id,
+          periodLabel: definition.periodLabel,
+          periodStart: definition.periodStart,
+          periodEnd: definition.periodEnd,
+          scopeLabel: "All locations",
+          status: definition.status,
+          payDate: definition.payDate,
+          employeeCount: activeStaff.length,
+          grossPay: definition.grossPay,
+          netPay: definition.netPay,
+          exceptions: definition.exceptions,
+          ruleVersion: "PH-2026.01",
+          processedChunks: 1,
+          totalChunks: 1,
+        })
         .returning();
+      existingRuns.push(created);
+      return created;
+    }
 
-      const grossValues = [38500, 29200, 32500, 24500, 21800, 34800];
-      const deductionValues = [7200, 5400, 6100, 4600, 4100, 6500];
+    const releasedRun = await ensureRun("released");
+    const checkerRun = await ensureRun("checker");
+    const workRun = await ensureRun("work");
 
-      for (const [runIndex, run] of [releasedRun, checkerRun, workRun].entries()) {
-        await tx.insert(payrollEntries).values(
-          activeStaff.map((employee, index) => {
-            const gross = grossValues[index] + runIndex * 250;
-            const deductions = deductionValues[index] + runIndex * 50;
-            return {
-              payrollRunId: run.id,
-              employeeId: employee.id,
-              grossPay: gross.toFixed(2),
-              deductions: deductions.toFixed(2),
-              netPay: (gross - deductions).toFixed(2),
-              status: run === workRun && (index === 1 || index === 4) ? "Exception" : "Ready",
-              lineItems: lineItems(gross, deductions),
-              trace: {
-                ruleVersion: "PH-2026.01",
-                inputs: ["approved attendance", "statutory tables", "semi-monthly payroll"],
-                payment: paymentSnapshot(employee),
-              },
-            };
-          }),
-        );
-      }
+    const grossValues = [38500, 29200, 32500, 24500, 21800, 34800];
+    const deductionValues = [7200, 5400, 6100, 4600, 4100, 6500];
 
-      const checkerEmployee = staff.find((employee) => employee.firstName === "Mariel" && employee.lastName === "Santos");
-      const leaveEmployee = staff.find((employee) => employee.firstName === "Aira" && employee.lastName === "Villanueva");
-      const jonas = staff.find((employee) => employee.firstName === "Jonas" && employee.lastName === "Reyes");
+    for (const [runIndex, run] of [releasedRun, checkerRun, workRun].entries()) {
+      const [{ value: entryCount }] = await tx
+        .select({ value: count() })
+        .from(payrollEntries)
+        .where(eq(payrollEntries.payrollRunId, run.id));
+      if (entryCount > 0) continue;
 
-      await tx.insert(approvalTasks).values([
-        {
-          organizationId: organization.id,
-          title: "Review Sep 1–15 payroll",
-          detail: `Payroll run #${checkerRun.id} · 0 review item(s)`,
-          approver: "Mariel Santos",
-          dueLabel: "Required before release",
-          priority: "Normal",
-        },
-        {
-          organizationId: organization.id,
-          title: "Approve leave request",
-          detail: "Aira Villanueva · Oct 8–9",
-          approver: "Mariel Santos",
-          dueLabel: "Due in 2 days",
-          priority: "Normal",
-        },
-      ]);
+      await tx.insert(payrollEntries).values(
+        activeStaff.map((employee, index) => {
+          const gross = grossValues[index] + runIndex * 250;
+          const deductions = deductionValues[index] + runIndex * 50;
+          return {
+            payrollRunId: run.id,
+            employeeId: employee.id,
+            grossPay: gross.toFixed(2),
+            deductions: deductions.toFixed(2),
+            netPay: (gross - deductions).toFixed(2),
+            status: run.id === workRun.id && (index === 1 || index === 4) ? "Exception" : "Ready",
+            lineItems: lineItems(gross, deductions),
+            trace: {
+              ruleVersion: "PH-2026.01",
+              inputs: ["approved attendance", "statutory tables", "semi-monthly payroll"],
+              payment: paymentSnapshot(employee),
+            },
+          };
+        }),
+      );
+    }
 
-      await tx.insert(leavePolicies).values([
-        {
-          organizationId: organization.id,
-          leaveType: "Vacation",
-          annualDays: "15.0",
-          carryOverMax: "5.0",
-          maxBalance: "20.0",
-          payTreatment: "paid",
-          paidPercentage: "100",
-        },
-        {
-          organizationId: organization.id,
-          leaveType: "Sick",
-          annualDays: "10.0",
-          carryOverMax: "0.0",
-          maxBalance: "10.0",
-          payTreatment: "paid",
-          paidPercentage: "100",
-        },
-      ]);
+    const tasks = await tx
+      .select()
+      .from(approvalTasks)
+      .where(eq(approvalTasks.organizationId, organization.id));
 
-      if (leaveEmployee) {
-        await tx.insert(leaveRequests).values({
-          organizationId: organization.id,
-          employeeId: leaveEmployee.id,
-          leaveType: "Vacation",
-          startDate: "2026-10-08",
-          endDate: "2026-10-09",
-          days: "2.0",
-          reason: "Family appointment",
-          status: "Pending",
-        });
-        await tx.insert(leaveBalances).values({
-          organizationId: organization.id,
-          employeeId: leaveEmployee.id,
-          leaveType: "Vacation",
-          year: 2026,
-          opening: "10.0",
-          accrued: "5.0",
-          used: "6.0",
-          pending: "2.0",
-        });
-      }
+    if (!tasks.some((task) => task.detail.includes(`Payroll run #${checkerRun.id}`))) {
+      await tx.insert(approvalTasks).values({
+        organizationId: organization.id,
+        title: "Review Sep 1–15 payroll",
+        detail: `Payroll run #${checkerRun.id} · 0 review item(s)`,
+        approver: "Mariel Santos",
+        dueLabel: "Required before release",
+        priority: "Normal",
+      });
+    }
 
-      if (jonas) {
-        await tx.insert(leaveBalances).values({
-          organizationId: organization.id,
-          employeeId: jonas.id,
-          leaveType: "Vacation",
-          year: 2026,
-          opening: "10.0",
-          accrued: "5.0",
-          used: "4.0",
-          pending: "0.0",
-        });
-      }
-
-      await tx.insert(auditEvents).values([
-        {
-          organizationId: organization.id,
-          actor: "Andrea Lim",
-          action: "Payroll run created",
-          resource: workRun.periodLabel,
-          metadata: { runId: workRun.id, ruleVersion: "PH-2026.01" },
-        },
-        {
-          organizationId: organization.id,
-          actor: "Paolo Cruz",
-          action: "Payroll submitted for review",
-          resource: checkerRun.periodLabel,
-          metadata: { runId: checkerRun.id, approver: "Mariel Santos" },
-        },
-        {
-          organizationId: organization.id,
-          actor: "System",
-          action: "Payroll assurance completed",
-          resource: workRun.periodLabel,
-          metadata: { findings: 2, ruleVersion: "PH-2026.01" },
-        },
-      ]);
-
-      void checkerEmployee;
+    if (!tasks.some((task) => task.title === "Approve leave request")) {
+      await tx.insert(approvalTasks).values({
+        organizationId: organization.id,
+        title: "Approve leave request",
+        detail: "Aira Villanueva · Oct 8–9",
+        approver: "Mariel Santos",
+        dueLabel: "Due in 2 days",
+        priority: "Normal",
+      });
     }
 
     return organization.id;
   });
 
-  await ensureSubscription(organizationId);
-  await db
-    .update(subscriptions)
-    .set({ plan: "Scale", seatLimit: 50, status: "trialing" })
-    .where(eq(subscriptions.organizationId, organizationId));
-
+  await ensureOptionalDemoData(organizationId);
   return organizationId;
 }
