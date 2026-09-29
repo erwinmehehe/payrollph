@@ -47,6 +47,23 @@ export async function ensureEmployeePayProfileSchema() {
       `);
       await client.query("CREATE INDEX IF NOT EXISTS employee_pay_revisions_org_employee_idx ON employee_pay_revisions(organization_id, employee_id)");
       await client.query("CREATE UNIQUE INDEX IF NOT EXISTS employee_pay_revisions_employee_effective_idx ON employee_pay_revisions(employee_id, effective_date)");
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS employee_pay_retro_adjustments (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          employee_id integer NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+          revision_id integer NOT NULL REFERENCES employee_pay_revisions(id) ON DELETE CASCADE,
+          source_payroll_run_id integer NOT NULL REFERENCES payroll_runs(id) ON DELETE CASCADE,
+          source_period_label varchar(80) NOT NULL,
+          amount numeric(12,2) NOT NULL,
+          status varchar(24) NOT NULL DEFAULT 'pending',
+          settled_payroll_run_id integer REFERENCES payroll_runs(id) ON DELETE SET NULL,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          settled_at timestamptz
+        )
+      `);
+      await client.query("CREATE INDEX IF NOT EXISTS employee_pay_retro_org_employee_idx ON employee_pay_retro_adjustments(organization_id, employee_id)");
+      await client.query("CREATE UNIQUE INDEX IF NOT EXISTS employee_pay_retro_revision_run_idx ON employee_pay_retro_adjustments(revision_id, source_payroll_run_id)");
       await client.query("COMMIT");
       schemaReady = true;
     } catch (error) {
