@@ -88,6 +88,11 @@ export async function POST(request: Request) {
   const session = await getSessionUser();
   if (!session) return Response.json({ error: "Authentication required." }, { status: 401 });
 
+  if (session.role === "owner" || session.role === "admin" || session.role === "bookkeeper" || session.role === "hr" || session.role === "payroll" || session.role === "checker" || session.role === "manager") {
+    return Response.json({
+      error: "Privileged workspace accounts cannot be converted into employee self-service accounts. Invite a separate employee login instead.",
+    }, { status: 409 });
+  }
   if (session.role !== "employee") {
     return Response.json({
       error: "Only a dedicated employee self-service account can link an employee record.",
