@@ -103,3 +103,64 @@ test("engine exceptions require review but do not become hard blockers", () => {
   assert.equal(result.summary.blocking, 0);
   assert.ok(result.findings.some((finding) => finding.code === "ENGINE_EXCEPTION" && finding.severity === "medium"));
 });
+
+
+test("operational payroll exceptions surface before checker approval", () => {
+  const current = entry({
+    grossPay: "39000",
+    deductions: "6000",
+    netPay: "33000",
+    lineItems: [
+      { code: "BASIC", label: "Basic", amount: "30000" },
+      { code: "OT", label: "Overtime", amount: "9000" },
+      { code: "ALLOW", label: "Allowance", amount: "1000" },
+      { code: "ALLOW", label: "Allowance", amount: "1000" },
+      { code: "SSS", label: "SSS", amount: "-875" },
+      { code: "PHIC", label: "PhilHealth", amount: "-750" },
+      { code: "HDMF", label: "Pag-IBIG", amount: "-100" },
+      { code: "WHT", label: "Tax", amount: "-4275" },
+    ],
+    trace: { flags: [], inputs: ["punches=0"] },
+  });
+  const previous = entry({
+    id: 2,
+    grossPay: "26000",
+    netPay: "22000",
+    lineItems: [
+      { code: "BASIC", label: "Basic", amount: "25000" },
+      { code: "SSS", label: "SSS", amount: "-500" },
+      { code: "PHIC", label: "PhilHealth", amount: "-400" },
+      { code: "HDMF", label: "Pag-IBIG", amount: "-100" },
+      { code: "WHT", label: "Tax", amount: "-3000" },
+    ],
+  });
+
+  const result = evaluatePayrollAssurance([current], [previous], {
+    periodStart: "2026-09-16",
+    periodEnd: "2026-09-30",
+    employees: [{
+      id: 10,
+      employeeNo: "EMP-010",
+      startDate: "2026-09-20",
+      status: "Separating",
+      bankAccount: null,
+      bankCode: null,
+      minimumWageIssue: true,
+    }],
+  });
+
+  for (const code of [
+    "MISSING_ATTENDANCE",
+    "UNUSUAL_OVERTIME",
+    "SALARY_CHANGE",
+    "DUPLICATE_EARNING",
+    "MISSING_BANK_DETAILS",
+    "NEW_EMPLOYEE",
+    "SEPARATING_EMPLOYEE",
+    "WAGE_FLOOR",
+  ]) {
+    assert.ok(result.findings.some((finding) => finding.code === code), `expected ${code}`);
+  }
+  assert.ok(result.findings.some((finding) => finding.code === "MISSING_BANK_DETAILS" && finding.blocking));
+  assert.ok(result.summary.blocking >= 1);
+});
