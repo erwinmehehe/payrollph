@@ -8,6 +8,8 @@ import {
   employees,
   expenseClaims,
   leaveConversions,
+  leavePolicies,
+  leaveRequests,
   orgUnits,
   payrollEntries,
   payrollJobs,
@@ -28,6 +30,12 @@ import { holidayOn, isBelowMinimum } from "@/lib/wage-orders";
 import { deMinimisPerSemiMonthlyPeriod, deMinimisTreatment, type DeMinimisType } from "@/lib/ph-compliance";
 import { calculateBenefits, type EnrollmentInput } from "@/lib/benefits";
 import { benefitEnrollments, benefitPlans } from "@/db/schema";
+import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
+import {
+  leaveRangeContainsDate,
+  resolveApprovedLeaveForPayroll,
+  type ResolvedPayrollLeave,
+} from "@/lib/leave-payroll";
 
 const RULE_VERSION = "PH-2026.01";
 const DEFAULT_CHUNK = 25;
@@ -244,6 +252,7 @@ async function processPayrollChunk(input: {
   chunkIndex: number;
   chunkSize: number;
 }) {
+  await ensureLeavePayrollSchema();
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, input.runId));
   if (!run) throw new Error("Payroll run missing");
 
@@ -315,6 +324,48 @@ async function processPayrollChunk(input: {
   // Approved-but-unpaid expense claims and approved-but-unrecovered advances
   // are pulled per chunk only, so a large run never loads the whole ledger.
   const chunkIds = chunk.map((e) => e.id);
+
+  const [leavePolicyRows, approvedLeaveRows] = await Promise.all([
+    db.select().from(leavePolicies).where(and(
+      eq(leavePolicies.organizationId, input.organizationId),
+      eq(leavePolicies.active, true),
+    )),
+    chunkIds.length
+      ? db.select().from(leaveRequests).where(and(
+          eq(leaveRequests.organizationId, input.organizationId),
+          eq(leaveRequests.status, "Approved"),
+          inArray(leaveRequests.employeeId, chunkIds),
+          lte(leaveRequests.startDate, run.periodEnd),
+          gte(leaveRequests.endDate, run.periodStart),
+        ))
+      : Promise.resolve([]),
+  ]);
+  const approvedLeaveByEmployee = new Map<number, ResolvedPayrollLeave[]>();
+  for (const employeeId of chunkIds) {
+    const requests = approvedLeaveRows
+      .filter((row) => row.employeeId === employeeId)
+      .map((row) => ({
+        id: row.id,
+        leaveType: row.leaveType,
+        startDate: String(row.startDate),
+        endDate: String(row.endDate),
+        days: Number(row.days),
+      }));
+    if (requests.length === 0) continue;
+
+    const resolved = resolveApprovedLeaveForPayroll({
+      requests,
+      policies: leavePolicyRows.map((policy) => ({
+        leaveType: policy.leaveType,
+        payTreatment: policy.payTreatment,
+        paidPercentage: Number(policy.paidPercentage),
+      })),
+      periodStart: String(run.periodStart),
+      periodEnd: String(run.periodEnd),
+    });
+    approvedLeaveByEmployee.set(employeeId, resolved);
+  }
+
   const openClaims = chunkIds.length
     ? await db.select().from(expenseClaims).where(and(
         eq(expenseClaims.organizationId, input.organizationId),
@@ -431,6 +482,7 @@ async function processPayrollChunk(input: {
         cashAmount: Number(c.cashAmount),
         taxExempt: c.taxExempt,
       })),
+      approvedLeave: approvedLeaveByEmployee.get(employee.id) ?? [],
     });
 
     chunkGross += calc.gross;
@@ -525,6 +577,7 @@ function calculateEmployeePay(input: {
   deMinimis?: Array<{ id: number; benefitType: DeMinimisType; amount: number; frequency: "month" | "semester" | "year" }>;
   loans?: Array<{ id: number; loanType: string; referenceNo: string; cutoffDeduction: number; remainingBalance: number }>;
   leaveConversions?: Array<{ id: number; leaveType: string; daysConverted: number; dailyRate: number; cashAmount: number; taxExempt: boolean }>;
+  approvedLeave?: ResolvedPayrollLeave[];
 }) {
   const monthly = Number(input.employee.basicRate);
   const semiMonthlyBasic = monthly / 2;
@@ -576,11 +629,66 @@ function calculateEmployeePay(input: {
     }
   }
 
-  // If no punches exist, fall back to full semi-monthly basic for demo continuity.
+  // If no punches exist, retain the existing salaried fallback to full
+  // semi-monthly basic. Approved leave then adjusts that baseline according to
+  // the policy's explicit pay treatment. With punches, approved paid leave
+  // fills otherwise-unworked time instead of disappearing from basic pay.
   const hasPunches = input.punches.length > 0;
-  const workedHoursPay = hasPunches
+  const baseBasicPay = hasPunches
     ? (regularMinutes / 60) * hourlyRate
     : semiMonthlyBasic;
+
+  const approvedLeave = input.approvedLeave ?? [];
+  const leaveNotes: string[] = [];
+  for (const leave of approvedLeave) {
+    leaveNotes.push(
+      `Leave #${leave.id} ${leave.leaveType}: ${leave.overlapDays}d in cutoff · ${leave.paidPercentage}% paid`,
+    );
+    const overlappingPunches = input.punches.filter((punch) =>
+      leaveRangeContainsDate(leave, String(punch.workDate)),
+    );
+    if (overlappingPunches.length > 0) {
+      flags.push(
+        `Attendance overlaps approved ${leave.leaveType} leave #${leave.id} on ${overlappingPunches.map((punch) => punch.workDate).join(", ")}`,
+      );
+    }
+  }
+
+  const desiredLeaveAmounts = approvedLeave.map((leave) => ({
+    leave,
+    desiredAmount: hasPunches
+      ? leave.paidDays * dailyRate
+      : -(leave.unpaidDays * dailyRate),
+  }));
+  const desiredLeaveAdjustment = desiredLeaveAmounts.reduce((sum, item) => sum + item.desiredAmount, 0);
+  const cappedLeaveAdjustment = hasPunches
+    ? Math.min(Math.max(0, desiredLeaveAdjustment), Math.max(0, semiMonthlyBasic - baseBasicPay))
+    : Math.max(-semiMonthlyBasic, Math.min(0, desiredLeaveAdjustment));
+  const leaveScale =
+    Math.abs(desiredLeaveAdjustment) > 0.000001
+      ? cappedLeaveAdjustment / desiredLeaveAdjustment
+      : 1;
+
+  if (Math.abs(cappedLeaveAdjustment - desiredLeaveAdjustment) > 0.01) {
+    flags.push("Leave pay adjustment was capped to the semi-monthly basic-pay boundary.");
+  }
+
+  const leaveLines = desiredLeaveAmounts.map(({ leave, desiredAmount }) => ({
+    code: `LEAVE-${leave.id}`,
+    label:
+      leave.payTreatment === "paid"
+        ? `Paid leave, ${leave.leaveType}`
+        : leave.payTreatment === "unpaid"
+          ? `Unpaid leave, ${leave.leaveType}`
+          : `Partially paid leave, ${leave.leaveType}`,
+    amount: money(desiredAmount * leaveScale),
+    notes: [
+      `${leave.overlapDays} day(s) in this cutoff`,
+      `${leave.paidPercentage}% paid · ${leave.paidDays} paid day(s) · ${leave.unpaidDays} unpaid day(s)`,
+    ],
+  }));
+  const leaveAdjustmentTotal = leaveLines.reduce((sum, line) => sum + Number(line.amount), 0);
+
   const overtimePay = (overtimeMinutes / 60) * hourlyRate * 1.25;
   const nightDiffPay = (nightMinutes / 60) * hourlyRate * 0.1;
   const tardinessDeduction = (tardinessMinutes / 60) * hourlyRate;
@@ -677,7 +785,7 @@ function calculateEmployeePay(input: {
   });
   const loanTotal = loanLines.reduce((sum, l) => sum + l.deductAmount, 0);
 
-  const gross = Math.max(0, workedHoursPay + overtimePay + nightDiffPay + calamityPay + holidayPremium + expenseTotal + deMinimisTotal + conversionTotal);
+  const gross = Math.max(0, baseBasicPay + leaveAdjustmentTotal + overtimePay + nightDiffPay + calamityPay + holidayPremium + expenseTotal + deMinimisTotal + conversionTotal);
   const sssRule = computeSss(monthly);
   const philHealthRule = computePhilHealth(monthly);
   const pagIbigRule = computePagIbig(monthly);
@@ -699,7 +807,8 @@ function calculateEmployeePay(input: {
   const status = flags.length > 0 ? "Exception" : "Ready";
 
   const lineItems = [
-    { code: "BASIC", label: "Basic / worked pay", amount: money(workedHoursPay) },
+    { code: "BASIC", label: "Basic / worked pay", amount: money(baseBasicPay) },
+    ...leaveLines,
     { code: "OT", label: "Overtime (25%)", amount: money(overtimePay) },
     { code: "ND", label: "Night differential (10%)", amount: money(nightDiffPay) },
     { code: "HOLIDAY", label: "Holiday / rest-day premium", amount: money(holidayPremium), notes: holidayNotes },
@@ -731,6 +840,10 @@ function calculateEmployeePay(input: {
       `deMinimisPaid=${money(deMinimisTotal)}`,
       `deMinimisTaxableExcess=${money(deMinimisTaxable)}`,
       `leaveConversionTaxExempt=${money(conversionTaxExemptTotal)}`,
+      `approvedLeaveDays=${money(approvedLeave.reduce((sum, leave) => sum + leave.overlapDays, 0))}`,
+      `paidLeaveDays=${money(approvedLeave.reduce((sum, leave) => sum + leave.paidDays, 0))}`,
+      `unpaidLeaveDays=${money(approvedLeave.reduce((sum, leave) => sum + leave.unpaidDays, 0))}`,
+      `leavePayAdjustment=${money(leaveAdjustmentTotal)}`,
       `punches=${input.punches.length}`,
       `regularMinutes=${regularMinutes}`,
       `overtimeMinutes=${overtimeMinutes}`,
@@ -740,6 +853,7 @@ function calculateEmployeePay(input: {
       `employerStatutoryCost=${money((sssRule.employerTotal + philHealthRule.employer + pagIbigRule.employer) / 2)}`,
       ...holidayNotes,
       ...calamityNotes,
+      ...leaveNotes,
       ...punchNotes,
     ],
     flags,
@@ -755,7 +869,7 @@ function calculateEmployeePay(input: {
     net,
     lineItems,
     ruleVersion: RULE_VERSION,
-    notes: [...holidayNotes, ...calamityNotes, ...punchNotes],
+    notes: [...holidayNotes, ...calamityNotes, ...leaveNotes, ...punchNotes],
   });
 
   return { gross, deductions, net, status, lineItems, trace, payslipText };
