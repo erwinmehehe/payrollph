@@ -1237,7 +1237,7 @@ a { color: inherit; text-decoration: none; }
 .red-number { color: var(--danger) !important; }
 .text-amber { color: var(--review) !important; }
 
-.stage-rail { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 0 18px 16px; }
+.stage-rail { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; padding: 0 18px 16px; }
 .stage {
   padding: 12px 13px;
   border: 1px solid var(--line); border-radius: var(--r-md);
