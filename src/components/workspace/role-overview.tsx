@@ -54,10 +54,9 @@ export function RoleOverviewView({
   const openProvisioning = (data.provisioning ?? []).filter((task) => !task.done);
   const payrollExceptions = data.payrollEntries.filter((entry) => entry.status === "Exception");
   const pendingRetro = (data.retroAdjustments ?? []).filter((item) => item.status === "pending");
-  const attendanceIssues = (data.punches ?? []).filter((punch) => {
-    const status = punch.status.toLowerCase();
-    return !["complete", "present", "ok", "approved"].includes(status);
-  });
+  const attendanceIssues = (data.punches ?? []).filter(
+    (punch) => !punch.timeIn || !punch.timeOut,
+  );
   const peopleMissingGovernmentIds = data.employees.filter(
     (employee) =>
       employee.status === "Active" &&
