@@ -181,6 +181,17 @@ export type LeaveRequest = {
   status: string;
 };
 
+export type LeavePolicy = {
+  id: number;
+  leaveType: string;
+  annualDays: string;
+  carryOverMax?: string | null;
+  maxBalance?: string | null;
+  payTreatment: "paid" | "unpaid" | "partial" | "unconfigured" | string;
+  paidPercentage: string;
+  active: boolean;
+};
+
 export type ProvisioningTask = {
   id: number;
   employeeId: number;
@@ -217,6 +228,7 @@ export type DashboardData = {
   punches?: Punch[];
   delegations?: Delegation[];
   leaveRequests?: LeaveRequest[];
+  leavePolicies?: LeavePolicy[];
   orgUnits?: OrgUnit[];
   access?: { companyWide: boolean; orgUnitName: string | null; role: string } | null;
   capabilities?: {
