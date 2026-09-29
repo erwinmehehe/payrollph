@@ -62,3 +62,26 @@ test("payroll outsourcing has its own service route and conversion path", () => 
   assert.ok(page.includes("Get a payroll quote"), "service page must use a quote CTA");
   assert.ok(!page.includes("PricingTable"), "outsourcing page must not reuse product pricing");
 });
+
+
+test("homepage simulation uses the real workspace navigation and no dead client states", () => {
+  const preview = read("src/components/marketing/workspace-preview.tsx");
+  assert.ok(preview.includes('from "@/components/workspace/nav"'), "homepage preview must consume the workspace navigation contract");
+  assert.ok(preview.includes("NAVIGATION"), "homepage preview must derive its navigation from the real app");
+  assert.ok(!preview.includes("not part of this simulation"), "homepage preview must not expose dead client switch states");
+  assert.ok(!preview.includes("client.id !== 1"), "homepage preview must not branch into disconnected client datasets");
+});
+
+test("homepage pricing uses the compact business pricing composition", () => {
+  const pricing = read("src/components/marketing/pricing-table.tsx");
+  assert.ok(pricing.includes("business-pricing-grid"), "business tiers must use the compact pricing grid");
+  assert.ok(pricing.includes("pricing-estimator"), "pricing must keep a simple headcount estimator");
+  assert.ok(!pricing.includes('type="range"'), "pricing must not restore the oversized headcount slider");
+});
+
+test("role demo launches the same product instead of rendering a second fake app", () => {
+  const demo = read("src/components/marketing/demo-role-picker.tsx");
+  assert.ok(demo.includes("Connected product demo"), "role page must explain the connected product handoff");
+  assert.ok(!demo.includes("previewSidebar"), "role page must not maintain a second fake app navigation");
+  assert.ok(!demo.includes("PreviewRow"), "role page must not maintain a separate fake payroll table");
+});
