@@ -250,6 +250,13 @@ export async function POST(request: Request) {
       lastDay,
     }, { status: 422 });
   }
+  if (!requiresUnpaidBasicSalary && hasUnpaidBasicSalary && unpaidBasicSalary > 0) {
+    return Response.json({
+      error: "Released payroll already covers the employee through the last day, so unpaid basic salary must be zero.",
+      latestReleasedPayrollThrough: coveredThrough,
+      lastDay,
+    }, { status: 409 });
+  }
 
   const payProfile = await effectivePayProfile({ organizationId, employeeId, lastDay });
   const basicSalaryEarnedYtd = round2(ledger.basicSalaryEarned + unpaidBasicSalary);
