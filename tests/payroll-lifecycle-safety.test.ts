@@ -152,3 +152,21 @@ test("outbox UI hides internal payroll notification dedupe keys", () => {
   assert.ok(panels.includes('return "Payslip ready"'));
   assert.ok(panels.includes("outboxPurposeLabel(String(msg.purpose ?? \"\"))"));
 });
+
+
+test("failed handoff mail can be retried without replaying payroll actions", () => {
+  const outboxRoute = read("src/app/api/outbox/route.ts");
+  const mailer = read("src/lib/mailer.ts");
+  const panels = read("src/components/workspace/panels.tsx");
+
+  assert.ok(outboxRoute.includes("export async function POST"));
+  assert.ok(outboxRoute.includes("PAYROLL_OPERATOR_ROLES"));
+  assert.ok(outboxRoute.includes("retryOutboxMessage({ organizationId, messageId })"));
+  assert.ok(outboxRoute.includes('return Response.json({ error: "This outbox message was already sent."'));
+  assert.ok(mailer.includes("export async function retryOutboxMessage"));
+  assert.ok(mailer.includes('row.status === "sent"'));
+  assert.ok(panels.includes('selectedMsg.status === "failed" || selectedMsg.status === "queued"'));
+  assert.ok(panels.includes("Retry delivery"));
+  assert.ok(panels.includes('method: "POST"'));
+  assert.ok(panels.includes('body: JSON.stringify({ organizationId, messageId: selectedMsg.id })'));
+});
