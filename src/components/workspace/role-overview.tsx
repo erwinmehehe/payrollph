@@ -36,12 +36,14 @@ export function RoleOverviewView({
   currentRun,
   role,
   onPage,
+  onOpenEmployee,
   onNewRun,
 }: {
   data: DashboardData;
   currentRun?: PayrollRun;
   role: WorkspaceDashboardRole;
   onPage: (page: string) => void;
+  onOpenEmployee?: (employeeId: number) => void;
   onNewRun: () => void;
 }) {
   const firstName = (data.user?.name ?? "there").split(" ")[0];
@@ -93,6 +95,7 @@ export function RoleOverviewView({
     handoffStages,
     roleAction,
     onPage,
+    onOpenEmployee,
     onNewRun,
   };
 
@@ -124,6 +127,7 @@ type RoleDashboardProps = {
   handoffStages: PayrollHandoffStage[];
   roleAction: RoleHandoffAction;
   onPage: (page: string) => void;
+  onOpenEmployee?: (employeeId: number) => void;
   onNewRun: () => void;
 };
 
@@ -141,6 +145,7 @@ function OwnerDashboard(props: RoleDashboardProps) {
     handoffStages,
     roleAction,
     onPage,
+    onOpenEmployee,
     onNewRun,
   } = props;
 
@@ -189,7 +194,7 @@ function OwnerDashboard(props: RoleDashboardProps) {
         viewerRole="owner"
       />
 
-      <NextActionCard action={roleAction} onPage={onPage} />
+      <NextActionCard action={roleAction} onPage={onPage} onOpenEmployee={onOpenEmployee} />
 
       <section className="stats-grid">
         <Metric
@@ -297,6 +302,7 @@ function HrDashboard(props: RoleDashboardProps) {
     handoffStages,
     roleAction,
     onPage,
+    onOpenEmployee,
   } = props;
 
   return (
@@ -333,7 +339,7 @@ function HrDashboard(props: RoleDashboardProps) {
         viewerRole="hr"
       />
 
-      <NextActionCard action={roleAction} onPage={onPage} />
+      <NextActionCard action={roleAction} onPage={onPage} onOpenEmployee={onOpenEmployee} />
 
       <section className="stats-grid">
         <Metric label="Active people" value={String(activePeople.length)} hint={"of " + String(data.employees.length) + " employee records"} icon={<UsersRound size={16} />} tone="purple" />
@@ -422,6 +428,7 @@ function PayrollDashboard(props: RoleDashboardProps) {
     handoffStages,
     roleAction,
     onPage,
+    onOpenEmployee,
     onNewRun,
   } = props;
 
@@ -473,7 +480,7 @@ function PayrollDashboard(props: RoleDashboardProps) {
         viewerRole="payroll"
       />
 
-      <NextActionCard action={roleAction} onPage={onPage} />
+      <NextActionCard action={roleAction} onPage={onPage} onOpenEmployee={onOpenEmployee} />
 
       <section className="stats-grid">
         <Metric label="Run status" value={currentRun?.status ?? "No run"} hint={queueDone ? "calculation queue complete" : "calculation still in progress"} icon={<WalletCards size={16} />} tone={currentRun ? "blue" : "slate"} compact />
@@ -547,6 +554,7 @@ function CheckerDashboard(props: RoleDashboardProps) {
     handoffStages,
     roleAction,
     onPage,
+    onOpenEmployee,
   } = props;
 
   return (
@@ -583,7 +591,7 @@ function CheckerDashboard(props: RoleDashboardProps) {
         viewerRole="checker"
       />
 
-      <NextActionCard action={roleAction} onPage={onPage} />
+      <NextActionCard action={roleAction} onPage={onPage} onOpenEmployee={onOpenEmployee} />
 
       <section className="stats-grid">
         <Metric label="Assigned reviews" value={String(pendingTasks.length)} hint={pendingTasks.length ? "awaiting your decision" : "queue clear"} icon={<ClipboardCheck size={16} />} tone={pendingTasks.length ? "amber" : "mint"} />
@@ -619,9 +627,11 @@ function CheckerDashboard(props: RoleDashboardProps) {
 function NextActionCard({
   action,
   onPage,
+  onOpenEmployee,
 }: {
   action: RoleHandoffAction;
   onPage: (page: string) => void;
+  onOpenEmployee?: (employeeId: number) => void;
 }) {
   const actionable = action.state === "action";
 
@@ -643,7 +653,13 @@ function NextActionCard({
               type="button"
               className="handoff-blocker-row"
               key={item.id}
-              onClick={() => onPage(item.page)}
+              onClick={() => {
+                if (item.employeeId && item.page === "People" && onOpenEmployee) {
+                  onOpenEmployee(item.employeeId);
+                  return;
+                }
+                onPage(item.page);
+              }}
             >
               <span className={"role-gate-icon " + (item.tone === "danger" ? "warning" : "neutral")}>
                 {item.tone === "danger" ? <AlertTriangle size={14} /> : <ArrowRight size={14} />}
