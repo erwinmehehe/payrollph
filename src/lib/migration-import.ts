@@ -58,6 +58,7 @@ export type MigratedPayrollHistory = {
   philHealthEmployee: number;
   pagIbigEmployee: number;
   thirteenthMonth: number;
+  basicSalaryEarned: number | null;
 };
 
 export type MigratedLeaveBalance = {
@@ -129,6 +130,7 @@ const COMMON_ALIASES: Record<string, string[]> = {
   philHealthEmployee: ["philhealth employee", "philhealth ee", "employee philhealth", "philhealth contribution"],
   pagIbigEmployee: ["pagibig employee", "pag-ibig employee", "hdmf employee", "pagibig ee", "pag-ibig contribution", "hdmf contribution"],
   thirteenthMonth: ["13th month", "13th month pay", "thirteenth month", "thirteenth month pay"],
+  basicSalaryEarned: ["basic salary earned", "basic pay earned", "year to date basic", "ytd basic salary", "basic earnings"],
   leaveType: ["leave type", "leave", "leave name", "leave category"],
   year: ["year", "leave year", "calendar year"],
   opening: ["opening", "opening balance", "beginning balance", "brought forward"],
@@ -372,6 +374,12 @@ function parsePayrollHistory(
   if (!Number.isFinite(grossPay) || grossPay < 0) problems.push("gross pay must be zero or greater");
   if (!Number.isFinite(netPay) || netPay < 0) problems.push("net pay must be zero or greater");
 
+  const basicSalaryRaw = get("basicSalaryEarned").trim();
+  const basicSalaryEarned = basicSalaryRaw ? numberValue(basicSalaryRaw) : null;
+  if (basicSalaryEarned != null && (!Number.isFinite(basicSalaryEarned) || basicSalaryEarned < 0)) {
+    problems.push("basicSalaryEarned must be zero or greater when supplied");
+  }
+
   const optional = {
     taxWithheld: numberValue(get("taxWithheld")),
     sssEmployee: numberValue(get("sssEmployee")),
@@ -394,6 +402,7 @@ function parsePayrollHistory(
       sourceReference: get("sourceReference").trim() || `${payDate}:${periodLabel}`,
       grossPay,
       netPay,
+      basicSalaryEarned,
       ...optional,
     },
   };
@@ -478,7 +487,7 @@ export const MIGRATION_TEMPLATE_HEADERS: Record<MigrationKind, string[]> = {
   ],
   payroll_history: [
     "Employee ID", "Pay Date", "Payroll Period", "Reference", "Gross Pay", "Net Pay", "Withholding Tax",
-    "SSS Contribution", "PhilHealth Contribution", "Pag-IBIG Contribution", "13th Month Pay",
+    "SSS Contribution", "PhilHealth Contribution", "Pag-IBIG Contribution", "13th Month Pay", "Basic Salary Earned",
   ],
   leave_balances: ["Employee ID", "Leave Type", "Year", "Opening Balance", "Accrued", "Used", "Pending"],
   loans: [
@@ -495,7 +504,7 @@ const KIND_FIELDS: Record<MigrationKind, TargetField[]> = {
   ],
   payroll_history: [
     "employeeNo", "payDate", "periodLabel", "sourceReference", "grossPay", "netPay", "taxWithheld",
-    "sssEmployee", "philHealthEmployee", "pagIbigEmployee", "thirteenthMonth",
+    "sssEmployee", "philHealthEmployee", "pagIbigEmployee", "thirteenthMonth", "basicSalaryEarned",
   ],
   leave_balances: ["employeeNo", "leaveType", "year", "opening", "accrued", "used", "pending"],
   loans: [
