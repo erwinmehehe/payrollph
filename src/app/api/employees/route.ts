@@ -14,7 +14,7 @@ import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { seedProvisioning } from "@/lib/provisioning";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
-import { monthlyRetroForReleasedCutoff, resolvePayProfile } from "@/lib/pay-basis";
+import { fixedMonthlyBasicForTimeline, resolvePayProfile, resolvePayTimeline } from "@/lib/pay-basis";
 
 export const dynamic = "force-dynamic";
 
@@ -382,6 +382,7 @@ export async function PATCH(request: Request) {
           periodLabel: payrollRuns.periodLabel,
           periodStart: payrollRuns.periodStart,
           periodEnd: payrollRuns.periodEnd,
+          lineItems: payrollEntries.lineItems,
         })
           .from(payrollRuns)
           .innerJoin(payrollEntries, and(
@@ -394,14 +395,50 @@ export async function PATCH(request: Request) {
             gte(payrollRuns.periodEnd, payEffectiveDate),
           ));
 
+        const revisionRows = await tx.select().from(employeePayRevisions)
+          .where(and(
+            eq(employeePayRevisions.organizationId, organizationId),
+            eq(employeePayRevisions.employeeId, employeeId),
+          ))
+          .orderBy(asc(employeePayRevisions.effectiveDate), asc(employeePayRevisions.id));
+
         for (const released of impacted) {
-          const amount = monthlyRetroForReleasedCutoff({
-            previousMonthlyRate: previousRateAmount,
-            newMonthlyRate: nextPayProfile.rateAmount,
-            effectiveDate: payEffectiveDate,
+          const timeline = resolvePayTimeline({
+            currentProfile: {
+              payBasis: nextPayProfile.payBasis,
+              rateAmount: nextPayProfile.rateAmount,
+              standardWorkDaysPerMonth: nextPayProfile.standardWorkDaysPerMonth,
+              standardHoursPerDay: nextPayProfile.standardHoursPerDay,
+            },
+            revisions: revisionRows.map((row) => ({
+              effectiveDate: String(row.effectiveDate),
+              previousPayBasis: row.previousPayBasis,
+              previousRateAmount: row.previousRateAmount,
+              previousStandardWorkDaysPerMonth: row.previousStandardWorkDaysPerMonth,
+              previousStandardHoursPerDay: row.previousStandardHoursPerDay,
+              newPayBasis: row.newPayBasis,
+              newRateAmount: row.newRateAmount,
+              newStandardWorkDaysPerMonth: row.newStandardWorkDaysPerMonth,
+              newStandardHoursPerDay: row.newStandardHoursPerDay,
+              reason: row.reason,
+            })),
             periodStart: String(released.periodStart),
             periodEnd: String(released.periodEnd),
           });
+          if (timeline.some((segment) => segment.profile.payBasis !== "monthly")) {
+            continue;
+          }
+          const expectedBasic = fixedMonthlyBasicForTimeline(
+            timeline,
+            String(released.periodStart),
+            String(released.periodEnd),
+          );
+          const releasedLines = Array.isArray(released.lineItems)
+            ? released.lineItems as Array<Record<string, unknown>>
+            : [];
+          const releasedBasic = Number(releasedLines.find((line) => line.code === "BASIC")?.amount ?? NaN);
+          if (!Number.isFinite(releasedBasic)) continue;
+          const amount = Math.round((expectedBasic - releasedBasic + Number.EPSILON) * 100) / 100;
           if (Math.abs(amount) < 0.005) continue;
           await tx.insert(employeePayRetroAdjustments).values({
             organizationId,
