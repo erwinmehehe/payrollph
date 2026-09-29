@@ -92,7 +92,7 @@ test("the CSV template is served as CSV, not as JSON", () => {
 test("payroll authority separates preparation, approval, release and live disbursement", () => {
   const access = read("src/lib/access.ts");
   assert.ok(access.includes('PAYROLL_OPERATOR_ROLES = ["owner", "admin", "bookkeeper", "payroll"]'));
-  assert.ok(access.includes('PAYROLL_CHECKER_ROLES = ["owner", "admin", "manager"]'));
+  assert.ok(access.includes('PAYROLL_CHECKER_ROLES = ["owner", "admin", "manager", "checker"]'));
   assert.ok(access.includes('PAYROLL_RELEASE_ROLES = ["owner", "admin"]'));
   assert.ok(access.includes('PAYROLL_DISBURSEMENT_ROLES = ["owner"]'));
 
