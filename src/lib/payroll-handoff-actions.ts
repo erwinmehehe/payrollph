@@ -110,7 +110,7 @@ export function getPayrollHandoffContext(
     attendanceIssues,
     pendingLeave,
     missingGovernmentIds,
-    hrBlockers: attendanceIssues + pendingLeave + missingGovernmentIds,
+    hrBlockers: attendanceIssues + pendingLeave,
     payrollExceptions,
   };
 }
@@ -218,14 +218,22 @@ function buildHrAction(
   }
 
   if (items.length) {
+    const blockerLabel = context.hrBlockers
+      ? `${context.hrBlockers} cutoff blocker${context.hrBlockers === 1 ? "" : "s"}`
+      : "";
+    const filingLabel = context.missingGovernmentIds
+      ? `${context.missingGovernmentIds} filing record${context.missingGovernmentIds === 1 ? "" : "s"}`
+      : "";
     return {
       state: "action",
       kicker: "Your next action",
-      title: `Clear ${context.hrBlockers} cutoff blocker${context.hrBlockers === 1 ? "" : "s"}`,
-      detail: "These are the remaining HR inputs that can affect the next payroll. Open a blocker below to resolve it at the source.",
+      title: [blockerLabel, filingLabel].filter(Boolean).join(" · "),
+      detail: context.hrBlockers
+        ? "Clear cutoff inputs before Payroll recalculates. Filing-ID items are shown separately because they affect compliance exports, not the payroll calculation itself."
+        : "Payroll inputs are clear. Complete the remaining filing identifiers for compliance readiness.",
       page: items[0].page,
-      cta: "Open first blocker",
-      tone: "danger",
+      cta: "Open first item",
+      tone: context.hrBlockers ? "danger" : "review",
       items,
     };
   }
@@ -267,10 +275,10 @@ function buildPayrollAction(context: PayrollHandoffContext, rank: number): RoleH
     );
   }
 
-  if (rank === 0 && context.hrBlockers > 0) {
+  if (rank <= 1 && context.hrBlockers > 0) {
     return waiting(
       "Waiting on HR",
-      `${context.hrBlockers} cutoff blocker${context.hrBlockers === 1 ? "" : "s"} still need HR attention before Payroll prepares the run.`,
+      `${context.hrBlockers} cutoff blocker${context.hrBlockers === 1 ? "" : "s"} still need HR attention before Payroll recalculates or submits this run.`,
     );
   }
 
