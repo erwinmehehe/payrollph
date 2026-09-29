@@ -604,7 +604,7 @@ export async function PATCH(request: Request) {
             paymentDate: String(fresh.lastDay),
             reference: `Final pay separation #${fresh.id}`,
           });
-          await tx.update(employeeLoans).set({
+          const [settledLoan] = await tx.update(employeeLoans).set({
             totalPaid: money(Number(loan.totalPaid) + amount),
             remainingBalance: "0.00",
             status: "paid_off",
@@ -612,7 +612,10 @@ export async function PATCH(request: Request) {
             eq(employeeLoans.id, loan.id),
             eq(employeeLoans.status, "active"),
             eq(employeeLoans.remainingBalance, loan.remainingBalance),
-          ));
+          )).returning({ id: employeeLoans.id });
+          if (!settledLoan) {
+            throw new Error(`Loan ${loan.id} changed during final-pay release. Recompute the package before release.`);
+          }
         }
       }
 
