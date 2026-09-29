@@ -233,7 +233,8 @@ jobs:
                 check(nextActionText.includes("Waiting on Checker"), "Owner: should wait for checker while no run is ready for release");
               }
               if (persona.id === "hr") {
-                check(nextActionText.includes("HR handoff is complete"), "HR: current cycle should show that the handoff already moved to Payroll");
+                check(nextActionText.includes("attendance issue"), "HR: incomplete cutoff attendance should be surfaced as an actionable blocker");
+                check(!nextActionText.includes("Oct 8"), "HR: future leave outside this cutoff leaked into the action card");
               }
             }
             if (persona.id === "employee") {
@@ -248,14 +249,16 @@ jobs:
               const notificationButton = page.getByRole("button", { name: /^Notifications/ }).first();
               check((await notificationButton.count()) === 1, `${persona.label}: notification bell is missing`);
 
-              if (persona.id === "payroll" || persona.id === "checker") {
+              if (persona.id === "payroll" || persona.id === "checker" || persona.id === "hr") {
                 await notificationButton.click();
                 const tray = page.getByRole("dialog", { name: "Notifications" });
                 check((await tray.count()) === 1, `${persona.label}: notification tray did not open`);
                 const trayText = (await tray.innerText()).trim();
                 const expected = persona.id === "payroll"
                   ? "Resolve 2 payroll exceptions"
-                  : "Payroll is ready for independent review";
+                  : persona.id === "checker"
+                    ? "Payroll is ready for independent review"
+                    : "attendance issue";
                 check(trayText.includes(expected), `${persona.label}: handoff notification is missing`);
                 check(!trayText.includes("Active advisory"), `${persona.label}: generic advisory noise leaked into handoff notifications`);
                 check(!trayText.includes("lifecycle checklist items open"), `${persona.label}: lifecycle noise leaked into handoff notifications`);
@@ -305,6 +308,13 @@ jobs:
               await page.waitForTimeout(150);
               check((await page.locator("[data-attendance-correction]").count()) === 0, "HR: correction form did not close after save");
               check((await page.getByRole("button", { name: /Correct/i }).count()) === 0, "HR: corrected incomplete punch still appears actionable");
+
+              const notificationButtonAfter = page.getByRole("button", { name: /^Notifications/ }).first();
+              await notificationButtonAfter.click();
+              const trayAfter = page.getByRole("dialog", { name: "Notifications" });
+              const trayAfterText = (await trayAfter.innerText()).trim();
+              check(!trayAfterText.includes("attendance issue"), "HR: resolved attendance blocker remained in notifications");
+              await page.keyboard.press("Escape");
 
               const overviewNav = sidebar.locator(".nav-item").filter({ hasText: /^Overview$/ }).first();
               await overviewNav.click();
