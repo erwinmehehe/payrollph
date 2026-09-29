@@ -1,0 +1,90 @@
+name: Resilient public demo integration
+
+on:
+  push:
+    branches:
+      - fix/live-demo-provisioning-sep29
+    paths:
+      - ".github/workflows/public-demo-resilience.yml"
+
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run db:push
+
+      - name: Simulate an older production schema and an existing customer
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" <<'SQL'
+          insert into organizations (name, legal_name, account_type, plan, employee_count, color)
+          values ('Existing Customer', 'Existing Customer Inc.', 'business', 'Core', 0, '#176B5D');
+
+          alter table leave_policies drop column if exists pay_treatment;
+          alter table leave_policies drop column if exists paid_percentage;
+          SQL
+
+      - name: Start app with DEMO_MODE disabled
+        run: |
+          npm run dev -- --hostname 127.0.0.1 >/tmp/app.log 2>&1 &
+          for i in {1..60}; do
+            curl -fsS http://127.0.0.1:3000/demo >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/app.log
+          exit 1
+
+      - name: Launch every persona
+        run: |
+          set -euo pipefail
+          for role in owner hr payroll checker employee; do
+            code="$(curl -sS -o "/tmp/${role}.json" -w '%{http_code}' -c "/tmp/${role}.cookies"               -H 'Content-Type: application/json'               -d "{\"role\":\"${role}\"}"               http://127.0.0.1:3000/api/auth/demo-switch)"
+            cat "/tmp/${role}.json"
+            test "$code" = "200"
+            grep -q "\"redirectTo\":\"/?demoRole=${role}\"" "/tmp/${role}.json"
+          done
+
+      - name: Verify customer isolation and core demo data
+        run: |
+          set -euo pipefail
+          test "$(psql "$DATABASE_URL" -Atc "select count(*) from organizations")" = "2"
+          test "$(psql "$DATABASE_URL" -Atc "select count(*) from organizations where name='Existing Customer'")" = "1"
+          test "$(psql "$DATABASE_URL" -Atc "select count(*) from organizations where name='Loom & Local'")" = "1"
+          test "$(psql "$DATABASE_URL" -Atc "select count(*) from employees e join organizations o on o.id=e.organization_id where o.name='Loom & Local'")" = "8"
+          test "$(psql "$DATABASE_URL" -Atc "select count(*) from payroll_runs r join organizations o on o.id=r.organization_id where o.name='Loom & Local'")" = "3"
+          test "$(psql "$DATABASE_URL" -Atc "select count(*) from employees e join organizations o on o.id=e.organization_id where o.name='Existing Customer'")" = "0"
+
+      - name: Verify authenticated pages recover runtime leave schema
+        run: |
+          set -euo pipefail
+          for role in owner hr payroll checker; do
+            curl -fsS -b "/tmp/${role}.cookies" "http://127.0.0.1:3000/?demoRole=${role}" | grep -q 'ROLE SANDBOX'
+          done
+
+          curl -fsS -b /tmp/employee.cookies http://127.0.0.1:3000/api/self/payslips >/tmp/employee-pay.json
+          node -e 'const p=require("/tmp/employee-pay.json"); if(!p.employee || !Array.isArray(p.payslips) || p.payslips.length<1) process.exit(1)'
+
+          test "$(psql "$DATABASE_URL" -Atc "select count(*) from information_schema.columns where table_name='leave_policies' and column_name in ('pay_treatment','paid_percentage')")" = "2"
