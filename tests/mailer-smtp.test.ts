@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { db } from "../src/db";
 import { outbox } from "../src/db/schema";
-import { eq } from "drizzle-orm";
-import { queueMessage } from "../src/lib/mailer";
+import { and, eq } from "drizzle-orm";
+import { queueMessage, queueMessageOnce } from "../src/lib/mailer";
 
 // Regression test for a real gap: activeMailProvider() and deliveryCapable()
 // both recognized SMTP_URL and reported the provider as ready, but the actual
@@ -36,5 +36,67 @@ test("SMTP provider attempts a real send instead of the old 'not implemented' st
   } finally {
     if (previous === undefined) delete process.env.SMTP_URL;
     else process.env.SMTP_URL = previous;
+  }
+});
+
+
+test("queueMessageOnce keeps one outbox row per organization, recipient and purpose", async () => {
+  const previous = {
+    resend: process.env.RESEND_API_KEY,
+    postmark: process.env.POSTMARK_SERVER_TOKEN,
+    smtp: process.env.SMTP_URL,
+  };
+  delete process.env.RESEND_API_KEY;
+  delete process.env.POSTMARK_SERVER_TOKEN;
+  delete process.env.SMTP_URL;
+
+  const organizationId = 987654;
+  const recipient = "handoff-once@example.com";
+  const purpose = "payroll-review-test";
+
+  try {
+    await db.delete(outbox).where(and(
+      eq(outbox.organizationId, organizationId),
+      eq(outbox.recipient, recipient),
+      eq(outbox.purpose, purpose),
+    ));
+
+    const first = await queueMessageOnce({
+      organizationId,
+      recipient,
+      subject: "Payroll review needed",
+      body: "Review this payroll.",
+      purpose,
+    });
+    const second = await queueMessageOnce({
+      organizationId,
+      recipient,
+      subject: "Payroll review needed",
+      body: "Review this payroll.",
+      purpose,
+    });
+
+    assert.equal(first.duplicate, false);
+    assert.equal(second.duplicate, true);
+    assert.equal(second.id, first.id);
+
+    const rows = await db.select().from(outbox).where(and(
+      eq(outbox.organizationId, organizationId),
+      eq(outbox.recipient, recipient),
+      eq(outbox.purpose, purpose),
+    ));
+    assert.equal(rows.length, 1);
+  } finally {
+    await db.delete(outbox).where(and(
+      eq(outbox.organizationId, organizationId),
+      eq(outbox.recipient, recipient),
+      eq(outbox.purpose, purpose),
+    ));
+    if (previous.resend === undefined) delete process.env.RESEND_API_KEY;
+    else process.env.RESEND_API_KEY = previous.resend;
+    if (previous.postmark === undefined) delete process.env.POSTMARK_SERVER_TOKEN;
+    else process.env.POSTMARK_SERVER_TOKEN = previous.postmark;
+    if (previous.smtp === undefined) delete process.env.SMTP_URL;
+    else process.env.SMTP_URL = previous.smtp;
   }
 });
