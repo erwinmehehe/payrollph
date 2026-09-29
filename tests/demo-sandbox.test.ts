@@ -3,6 +3,14 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { OFFICIAL_PUBLIC_DEMO_HOST, publicDemoHostAllowed } from "../src/lib/demo-host";
 import { DEMO_ROLE_PAGES } from "../src/lib/demo-roles";
+import {
+  REAL_ROLE_PAGE_ACCESS,
+  roleCanDecideApprovals,
+  roleCanManageDelegations,
+  roleCanManagePayroll,
+  roleCanManagePeople,
+  roleCanManageTime,
+} from "../src/lib/workspace-role-ui";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -51,6 +59,51 @@ test("hr and payroll demos expose the broader workspaces their server roles supp
   assert.ok(!payrollPages.includes("Migration"), "payroll demo must not imply migration-admin access");
   assert.ok(!hrPages.includes("Payroll"), "HR demo must not imply payroll-operator access");
   assert.ok(!hrPages.includes("Migration"), "HR demo must not imply migration-admin access");
+});
+
+test("real HR, payroll and checker navigation is role-scoped too", () => {
+  for (const role of ["hr", "payroll", "checker"] as const) {
+    assert.deepEqual(
+      REAL_ROLE_PAGE_ACCESS[role],
+      DEMO_ROLE_PAGES[role],
+      `real ${role} navigation should match the proven demo scope`,
+    );
+  }
+
+  assert.ok(!REAL_ROLE_PAGE_ACCESS.hr?.includes("Payroll"), "real HR must not be shown payroll-operator navigation");
+  assert.ok(!REAL_ROLE_PAGE_ACCESS.payroll?.includes("Leave"), "real payroll must not be shown leave-admin navigation");
+  assert.ok(!REAL_ROLE_PAGE_ACCESS.checker?.includes("People"), "real checker must stay out of people administration");
+  assert.ok(!REAL_ROLE_PAGE_ACCESS.checker?.includes("Payroll"), "checker payroll review remains in approvals until the payroll page supports a safe read-only mode");
+});
+
+test("real workspace action controls follow server role families", () => {
+  assert.equal(roleCanManagePayroll("payroll"), true);
+  assert.equal(roleCanManagePayroll("checker"), false);
+  assert.equal(roleCanManagePayroll("hr"), false);
+
+  assert.equal(roleCanManagePeople("hr"), true);
+  assert.equal(roleCanManagePeople("payroll"), false);
+  assert.equal(roleCanManageTime("hr"), true);
+  assert.equal(roleCanManageTime("payroll"), false);
+
+  assert.equal(roleCanDecideApprovals("checker"), true);
+  assert.equal(roleCanDecideApprovals("hr"), true);
+  assert.equal(roleCanDecideApprovals("payroll"), false);
+
+  assert.equal(roleCanManageDelegations("checker"), true);
+  assert.equal(roleCanManageDelegations("hr"), false);
+  assert.equal(roleCanManageDelegations("payroll"), false);
+});
+
+test("payroll approvals render as review-only instead of exposing forbidden decision controls", () => {
+  const approvals = read("src/components/workspace/approvals.tsx");
+  const workspace = read("src/components/linaw-workspace.tsx");
+
+  assert.ok(approvals.includes("canDecide"), "approvals view needs an explicit decision capability");
+  assert.ok(approvals.includes("canManageDelegations"), "delegation controls need a separate capability");
+  assert.ok(approvals.includes('task.status === "Pending" && canDecide'), "pending decision buttons must be capability-gated");
+  assert.ok(workspace.includes("roleCanDecideApprovals(effectiveRole)"), "workspace must derive approval controls from the real role");
+  assert.ok(workspace.includes("workspacePagesForRole(effectiveRole)"), "real user navigation must be role-scoped");
 });
 
 test("expanded payroll-input demo pages match the existing server authorization model", () => {
