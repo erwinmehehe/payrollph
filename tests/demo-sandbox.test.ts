@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { OFFICIAL_PUBLIC_DEMO_HOST, publicDemoHostAllowed } from "../src/lib/demo-host";
+import { DEMO_ROLE_PAGES } from "../src/lib/demo-roles";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -32,6 +33,57 @@ test("every sandbox persona has a landing page and realistic tasks", () => {
   for (const task of ["owner-release", "hr-leave", "payroll-submit", "checker-decide", "employee-punch"]) {
     assert.ok(roles.includes(task), `missing sandbox task ${task}`);
   }
+});
+
+test("hr and payroll demos expose the broader workspaces their server roles support", () => {
+  const payrollPages = DEMO_ROLE_PAGES.payroll ?? [];
+  const hrPages = DEMO_ROLE_PAGES.hr ?? [];
+
+  for (const page of ["Loans", "Benefits", "De minimis", "Expenses"]) {
+    assert.ok(payrollPages.includes(page), `payroll demo should expose ${page}`);
+  }
+
+  for (const page of ["Overview", "Loans", "De minimis", "Compliance", "Audit trail"]) {
+    assert.ok(hrPages.includes(page), `HR demo should expose ${page}`);
+  }
+
+  assert.ok(!payrollPages.includes("Leave"), "payroll demo must not imply leave-administration access");
+  assert.ok(!payrollPages.includes("Migration"), "payroll demo must not imply migration-admin access");
+  assert.ok(!hrPages.includes("Payroll"), "HR demo must not imply payroll-operator access");
+  assert.ok(!hrPages.includes("Migration"), "HR demo must not imply migration-admin access");
+});
+
+test("expanded payroll-input demo pages match the existing server authorization model", () => {
+  const access = read("src/lib/access.ts");
+  const benefits = read("src/app/api/benefits/route.ts");
+  const loans = read("src/app/api/loans/route.ts");
+  const deMinimis = read("src/app/api/de-minimis/route.ts");
+  const expenses = read("src/app/api/expenses/route.ts");
+  const migrations = read("src/app/api/migrations/route.ts");
+  const leave = read("src/app/api/leave/route.ts");
+
+  assert.ok(
+    access.includes('PEOPLE_PAYROLL_ROLES = ["owner", "admin", "bookkeeper", "hr", "payroll"]'),
+    "HR and payroll must remain inside the shared payroll-input role set",
+  );
+  for (const [name, route] of [
+    ["benefits", benefits],
+    ["loans", loans],
+    ["de minimis", deMinimis],
+    ["expenses", expenses],
+  ] as const) {
+    assert.ok(route.includes("PEOPLE_PAYROLL_ROLES"), `${name} must use the shared payroll-input server gate`);
+  }
+
+  assert.ok(migrations.includes("ORG_ADMIN_ROLES"), "migration must remain an organization-admin-only workflow");
+  assert.ok(!leave.includes('"payroll"'), "leave administration must not be widened to payroll");
+});
+
+test("role sandbox explains that navigation changes by persona", () => {
+  const bar = read("src/components/demo-sandbox-bar.tsx");
+  assert.ok(bar.includes("THIS ROLE CAN SEE"), "sandbox must label the current role scope");
+  assert.ok(bar.includes("Navigation is scoped to the selected persona"), "sandbox must explain why the nav changes");
+  assert.ok(bar.includes("every write action is still checked by the server"), "sandbox must preserve authorization expectations");
 });
 
 test("demo switch provisions all personas into one populated sample workspace", () => {
