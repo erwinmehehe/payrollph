@@ -88,6 +88,12 @@ export async function POST(request: Request) {
   const session = await getSessionUser();
   if (!session) return Response.json({ error: "Authentication required." }, { status: 401 });
 
+  if (session.role !== "employee") {
+    return Response.json({
+      error: "Only a dedicated employee self-service account can link an employee record.",
+    }, { status: 403 });
+  }
+
   const body = await request.json().catch(() => ({}));
   const employeeNo = String(body.employeeNo ?? "").trim();
   if (!employeeNo) return Response.json({ error: "employeeNo is required." }, { status: 400 });
@@ -121,16 +127,7 @@ export async function POST(request: Request) {
     return Response.json({ error: `This employee record is already linked to ${claimed[0].email}.` }, { status: 409 });
   }
 
-  // Never demote a privileged account. Linking is for dedicated employee
-  // logins; an admin following this path would otherwise lose workspace access.
-  if (session.role === "admin" || session.role === "bookkeeper") {
-    return Response.json({
-      error: "This account has administrator access and cannot be converted to a self-service login. Invite a separate employee account instead.",
-      hint: "POST /api/invitations with role=employee",
-    }, { status: 409 });
-  }
-
-  await db.update(users).set({ employeeId: employee.id, role: "employee" }).where(eq(users.id, session.id));
+  await db.update(users).set({ employeeId: employee.id }).where(eq(users.id, session.id));
 
   return Response.json({ ok: true, employeeId: employee.id, employeeNo: employee.employeeNo });
 }
