@@ -100,7 +100,7 @@ export function buildPaySegments(input: {
       .map((change) => change.effectiveFrom),
   ].filter((value, index, all) => all.indexOf(value) === index);
 
-  return starts.map((start, index): PaySegment => {
+  const rawSegments = starts.map((start, index): PaySegment => {
     const nextStart = starts[index + 1];
     const end = nextStart ? previousDay(nextStart) : input.periodEnd;
     const applicable = changes
@@ -114,6 +114,25 @@ export function buildPaySegments(input: {
       rateChangeId: selected?.id,
     };
   });
+
+  const sameProfile = (left: ResolvedPayProfile, right: ResolvedPayProfile) =>
+    left.payBasis === right.payBasis &&
+    Math.abs(left.rateAmount - right.rateAmount) < 0.005 &&
+    Math.abs(left.standardWorkDaysPerMonth - right.standardWorkDaysPerMonth) < 0.005 &&
+    Math.abs(left.standardHoursPerDay - right.standardHoursPerDay) < 0.005;
+
+  // A legacy baseline or duplicate effective-date record with identical values
+  // is not a real pay change. Collapse adjacent identical segments so it does
+  // not create fake proration, stale-release failures, or leave review blocks.
+  return rawSegments.reduce<PaySegment[]>((segments, segment) => {
+    const previous = segments.at(-1);
+    if (previous && sameProfile(previous.profile, segment.profile)) {
+      previous.end = segment.end;
+      return segments;
+    }
+    segments.push({ ...segment });
+    return segments;
+  }, []);
 }
 
 export function regularMinutesForPunch(punch: PunchLike) {
