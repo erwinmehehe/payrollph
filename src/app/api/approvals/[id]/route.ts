@@ -1,11 +1,12 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalTasks, auditEvents, leaveRequests, payrollRuns } from "@/db/schema";
+import { approvalTasks, auditEvents, leaveRequests, payrollRuns, userOrganizations, users } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { canDecide } from "@/lib/delegation";
 import { dispatchWebhook } from "@/lib/webhooks";
-import { assertMembership } from "@/lib/access";
+import { assertMembership, PAYROLL_RELEASE_ROLES, roleAllowed } from "@/lib/access";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
+import { queueMessage } from "@/lib/mailer";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -173,6 +174,72 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     data: { taskId, title: task.title, status, decidedBy: actor, onBehalfOf: onBehalf },
   });
 
+  const notificationWarnings: string[] = [];
+  let handoffNotificationsQueued = 0;
+
+  if (payrollRunId && payrollSubmission) {
+    const makerUserId = Number(payrollSubmission.metadata.makerUserId);
+    if (status === "Approved") {
+      const releaseMembers = await db
+        .select({
+          userId: users.id,
+          name: users.name,
+          email: users.email,
+          role: userOrganizations.role,
+        })
+        .from(userOrganizations)
+        .innerJoin(users, eq(userOrganizations.userId, users.id))
+        .where(eq(userOrganizations.organizationId, task.organizationId));
+
+      for (const recipient of releaseMembers.filter((member) => roleAllowed(member.role, PAYROLL_RELEASE_ROLES))) {
+        try {
+          const delivery = await queueMessage({
+            organizationId: task.organizationId,
+            recipient: recipient.email,
+            subject: `Payroll ready for release: ${task.title.replace(/^Review /, "").replace(/ payroll$/, "")}`,
+            purpose: "payroll-ready-for-release",
+            body: [
+              `Hi ${recipient.name},`,
+              "",
+              `${actor} approved ${task.title.replace(/^Review /, "")}.`,
+              "The payroll is now ready for Owner/Admin release.",
+              "",
+              "Sign in to Linaw and open Payroll to review the release checklist and complete the final release.",
+            ].join("\n"),
+          });
+          if (delivery.queued || delivery.delivered) handoffNotificationsQueued += 1;
+          else if (delivery.reason) notificationWarnings.push(delivery.reason);
+        } catch {
+          notificationWarnings.push(`Could not queue release notice for ${recipient.name}.`);
+        }
+      }
+    } else if (Number.isInteger(makerUserId)) {
+      const [maker] = await db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, makerUserId)).limit(1);
+      if (maker) {
+        try {
+          const delivery = await queueMessage({
+            organizationId: task.organizationId,
+            recipient: maker.email,
+            subject: `Payroll needs rework: ${task.title.replace(/^Review /, "").replace(/ payroll$/, "")}`,
+            purpose: "payroll-needs-rework",
+            body: [
+              `Hi ${maker.name},`,
+              "",
+              `${actor} declined ${task.title.replace(/^Review /, "")}.`,
+              "The run has returned to Needs review.",
+              "",
+              "Sign in to Linaw and open Payroll to resolve the issues before submitting it again.",
+            ].join("\n"),
+          });
+          if (delivery.queued || delivery.delivered) handoffNotificationsQueued += 1;
+          else if (delivery.reason) notificationWarnings.push(delivery.reason);
+        } catch {
+          notificationWarnings.push("The payroll was returned for rework, but the maker notification could not be queued.");
+        }
+      }
+    }
+  }
+
   const [linkedLeave] = await db.select().from(leaveRequests).where(eq(leaveRequests.approvalTaskId, taskId)).limit(1);
   if (linkedLeave) {
     await db.update(leaveRequests).set({
@@ -188,5 +255,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
   }
 
-  return Response.json({ ...updated, delegation: decision, webhookDeliveries: deliveries.length, leaveUpdated: Boolean(linkedLeave) });
+  return Response.json({
+    ...updated,
+    delegation: decision,
+    webhookDeliveries: deliveries.length,
+    leaveUpdated: Boolean(linkedLeave),
+    handoffNotificationsQueued,
+    notificationWarnings,
+  });
 }
