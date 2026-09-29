@@ -102,9 +102,19 @@ function reasonFor(line: StoredLine, values: Map<string, string>, narrative: str
   if (code === "BASIC") {
     const regular = hours(numeric(values, "regularMinutes"));
     const punches = numeric(values, "punches");
-    return punches === 0
-      ? "No attendance punches were stored, so payroll used the semi-monthly basic-pay fallback."
-      : `Based on ${regular ?? 0} regular hour(s) from ${punches ?? 0} attendance record(s)${hourly == null ? "" : ` at ${peso(hourly)} per hour`}.`;
+    const payBasis = values.get("payBasis");
+    if (payBasis === "monthly") {
+      return punches === 0
+        ? "Monthly salaried basis keeps the configured cutoff salary even when no attendance punches are stored; attendance still needs review for exceptions."
+        : "Monthly salaried basis keeps the configured cutoff salary. Attendance is used separately for overtime, night differential, tardiness, undertime and exceptions.";
+    }
+    if (payBasis === "daily") {
+      return `Daily-paid basic is based on ${regular ?? 0} regular hour(s) converted through the employee's configured standard hours per day.`;
+    }
+    if (payBasis === "hourly") {
+      return `Hourly-paid basic is based on ${regular ?? 0} regular hour(s)${hourly == null ? "" : ` at ${peso(hourly)} per hour`}.`;
+    }
+    return "Basic pay comes from the stored employee pay profile and attendance for this cutoff.";
   }
   if (code.startsWith("LEAVE-") && !code.startsWith("LEAVE_CONV-")) {
     return note || "Approved leave was applied using the configured Paid, Unpaid, or Partially paid policy for this cutoff.";
@@ -169,6 +179,11 @@ export function buildPayExplanation(current: ExplainPayEntryInput, previous: Exp
     netPercent: previousNet == null || previousNet === 0 ? null : cents((netDelta! / Math.abs(previousNet)) * 100),
     ruleVersion: currentTrace.ruleVersion,
     context: {
+      payBasis: currentTrace.values.get("payBasis") ?? null,
+      rateAmount: numeric(currentTrace.values, "rateAmount"),
+      standardWorkDaysPerMonth: numeric(currentTrace.values, "standardWorkDaysPerMonth"),
+      standardHoursPerDay: numeric(currentTrace.values, "standardHoursPerDay"),
+      monthlyEquivalent: numeric(currentTrace.values, "monthlyEquivalent"),
       basicRate: numeric(currentTrace.values, "basicRate"),
       taxableCompensation: numeric(currentTrace.values, "taxableCompensation"),
       punches: numeric(currentTrace.values, "punches"),

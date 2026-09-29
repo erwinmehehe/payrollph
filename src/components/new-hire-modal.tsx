@@ -22,7 +22,10 @@ export function NewHireModal({
     lastName: "",
     email: "",
     title: "",
-    basicRate: "",
+    payBasis: "monthly",
+    rateAmount: "",
+    standardWorkDaysPerMonth: "22",
+    standardHoursPerDay: "8",
     startDate: new Date().toISOString().slice(0, 10),
     region: "NCR",
     mwe: false,
@@ -41,7 +44,13 @@ export function NewHireModal({
       const res = await fetch("/api/employees", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, organizationId, basicRate: Number(form.basicRate) }),
+        body: JSON.stringify({
+          ...form,
+          organizationId,
+          rateAmount: Number(form.rateAmount),
+          standardWorkDaysPerMonth: Number(form.standardWorkDaysPerMonth),
+          standardHoursPerDay: Number(form.standardHoursPerDay),
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -74,7 +83,22 @@ export function NewHireModal({
             <label>Last name<input required value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} /></label>
             <label>Work email<input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="for payslip delivery" /></label>
             <label>Job title<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label>
-            <label>Monthly basic rate<input type="number" min="0" step="0.01" required value={form.basicRate} onChange={(e) => setForm({ ...form, basicRate: e.target.value })} /></label>
+            <label>Pay basis
+              <select value={form.payBasis} onChange={(e) => setForm({ ...form, payBasis: e.target.value })}>
+                <option value="monthly">Monthly salaried</option>
+                <option value="daily">Daily paid</option>
+                <option value="hourly">Hourly paid</option>
+              </select>
+            </label>
+            <label>{form.payBasis === "monthly" ? "Monthly rate" : form.payBasis === "daily" ? "Daily rate" : "Hourly rate"}
+              <input type="number" min="0.01" step="0.01" required value={form.rateAmount} onChange={(e) => setForm({ ...form, rateAmount: e.target.value })} />
+            </label>
+            <label>Standard work days / month
+              <input type="number" min="1" max="31" step="0.5" required value={form.standardWorkDaysPerMonth} onChange={(e) => setForm({ ...form, standardWorkDaysPerMonth: e.target.value })} />
+            </label>
+            <label>Standard hours / day
+              <input type="number" min="1" max="24" step="0.25" required value={form.standardHoursPerDay} onChange={(e) => setForm({ ...form, standardHoursPerDay: e.target.value })} />
+            </label>
             <label>Start date<input type="date" required value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} /></label>
             <label>Region
               <select value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })}>
@@ -94,7 +118,7 @@ export function NewHireModal({
             <label>Serial number<input value={form.serialNumber} onChange={(e) => setForm({ ...form, serialNumber: e.target.value })} /></label>
           </div>
           <div className="modal-note" style={{ marginTop: 12 }}>
-            Onboarding tasks are generated server-side, so IT and HR items are tracked from day one.
+            Payroll uses the selected pay basis directly. Monthly staff keep a fixed cutoff salary, while daily/hourly staff are paid from worked regular time. Workdays and hours also define the traceable daily/hourly equivalents used by payroll.
           </div>
           <div className="modal-actions">
             <button type="button" className="secondary-button" onClick={onClose}>Cancel</button>

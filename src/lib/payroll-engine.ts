@@ -5,6 +5,7 @@ import {
   deMinimisGrants,
   earnedWageRequests,
   employeeLoans,
+  employeePayProfiles,
   employees,
   expenseClaims,
   leaveConversions,
@@ -36,6 +37,14 @@ import {
   resolveApprovedLeaveForPayroll,
   type ResolvedPayrollLeave,
 } from "@/lib/leave-payroll";
+import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
+import {
+  attendanceDeductionsForCutoff,
+  basicPayForCutoff,
+  leaveAdjustmentForCutoff,
+  resolvePayProfile,
+  type EmployeePayProfileInput,
+} from "@/lib/pay-basis";
 
 const RULE_VERSION = "PH-2026.01";
 const DEFAULT_CHUNK = 25;
@@ -253,6 +262,7 @@ async function processPayrollChunk(input: {
   chunkSize: number;
 }) {
   await ensureLeavePayrollSchema();
+  await ensureEmployeePayProfiles(input.organizationId);
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, input.runId));
   if (!run) throw new Error("Payroll run missing");
 
@@ -276,6 +286,11 @@ async function processPayrollChunk(input: {
     );
   }
   const chunk = allEmployees.slice(input.chunkIndex * input.chunkSize, (input.chunkIndex + 1) * input.chunkSize);
+  const chunkIds = chunk.map((employee) => employee.id);
+  const payProfileRows = chunkIds.length
+    ? await db.select().from(employeePayProfiles).where(inArray(employeePayProfiles.employeeId, chunkIds))
+    : [];
+  const payProfileByEmployee = new Map(payProfileRows.map((profile) => [profile.employeeId, profile]));
   if (chunk.length === 0) {
     await finalizeRun(input.runId);
     return { done: true, chunkIndex: input.chunkIndex, processedEmployees: 0 };
@@ -323,8 +338,6 @@ async function processPayrollChunk(input: {
 
   // Approved-but-unpaid expense claims and approved-but-unrecovered advances
   // are pulled per chunk only, so a large run never loads the whole ledger.
-  const chunkIds = chunk.map((e) => e.id);
-
   const [leavePolicyRows, approvedLeaveRows] = await Promise.all([
     db.select().from(leavePolicies).where(and(
       eq(leavePolicies.organizationId, input.organizationId),
@@ -483,6 +496,16 @@ async function processPayrollChunk(input: {
         taxExempt: c.taxExempt,
       })),
       approvedLeave: approvedLeaveByEmployee.get(employee.id) ?? [],
+      payProfile: (() => {
+        const profile = payProfileByEmployee.get(employee.id);
+        if (!profile) throw new Error(`Employee #${employee.id} has no pay profile.`);
+        return {
+          payBasis: profile.payBasis,
+          rateAmount: profile.rateAmount,
+          standardWorkDaysPerMonth: profile.standardWorkDaysPerMonth,
+          standardHoursPerDay: profile.standardHoursPerDay,
+        };
+      })(),
     });
 
     chunkGross += calc.gross;
@@ -505,6 +528,13 @@ async function processPayrollChunk(input: {
           bankAccount: employee.bankAccount,
           bankCode: employee.bankCode,
           mobile: employee.mobile,
+        },
+        payProfile: {
+          payBasis: payProfileByEmployee.get(employee.id)!.payBasis,
+          rateAmount: Number(payProfileByEmployee.get(employee.id)!.rateAmount),
+          standardWorkDaysPerMonth: Number(payProfileByEmployee.get(employee.id)!.standardWorkDaysPerMonth),
+          standardHoursPerDay: Number(payProfileByEmployee.get(employee.id)!.standardHoursPerDay),
+          monthlyEquivalent: Number(employee.basicRate),
         },
       },
     }).returning();
@@ -578,11 +608,13 @@ function calculateEmployeePay(input: {
   loans?: Array<{ id: number; loanType: string; referenceNo: string; cutoffDeduction: number; remainingBalance: number }>;
   leaveConversions?: Array<{ id: number; leaveType: string; daysConverted: number; dailyRate: number; cashAmount: number; taxExempt: boolean }>;
   approvedLeave?: ResolvedPayrollLeave[];
+  payProfile: EmployeePayProfileInput;
 }) {
-  const monthly = Number(input.employee.basicRate);
-  const semiMonthlyBasic = monthly / 2;
-  const dailyRate = monthly / 22;
-  const hourlyRate = dailyRate / 8;
+  const payProfile = resolvePayProfile(input.payProfile);
+  const monthly = payProfile.monthlyEquivalent;
+  const semiMonthlyBasic = payProfile.payBasis === "monthly" ? payProfile.rateAmount / 2 : 0;
+  const dailyRate = payProfile.dailyRate;
+  const hourlyRate = payProfile.hourlyRate;
 
   let regularMinutes = 0;
   let overtimeMinutes = 0;
@@ -629,14 +661,11 @@ function calculateEmployeePay(input: {
     }
   }
 
-  // If no punches exist, retain the existing salaried fallback to full
-  // semi-monthly basic. Approved leave then adjusts that baseline according to
-  // the policy's explicit pay treatment. With punches, approved paid leave
-  // fills otherwise-unworked time instead of disappearing from basic pay.
-  const hasPunches = input.punches.length > 0;
-  const baseBasicPay = hasPunches
-    ? (regularMinutes / 60) * hourlyRate
-    : semiMonthlyBasic;
+  // The employee's configured pay basis determines basic pay. Monthly staff
+  // receive their cutoff salary independent of punch presence; daily/hourly
+  // staff are paid from actual regular worked time. Attendance never changes
+  // which model is used.
+  const baseBasicPay = basicPayForCutoff(payProfile, regularMinutes);
 
   const approvedLeave = input.approvedLeave ?? [];
   const leaveNotes: string[] = [];
@@ -656,21 +685,24 @@ function calculateEmployeePay(input: {
 
   const desiredLeaveAmounts = approvedLeave.map((leave) => ({
     leave,
-    desiredAmount: hasPunches
-      ? leave.paidDays * dailyRate
-      : -(leave.unpaidDays * dailyRate),
+    desiredAmount: leaveAdjustmentForCutoff({
+      profile: payProfile,
+      paidDays: leave.paidDays,
+      unpaidDays: leave.unpaidDays,
+    }),
   }));
   const desiredLeaveAdjustment = desiredLeaveAmounts.reduce((sum, item) => sum + item.desiredAmount, 0);
-  const cappedLeaveAdjustment = hasPunches
-    ? Math.min(Math.max(0, desiredLeaveAdjustment), Math.max(0, semiMonthlyBasic - baseBasicPay))
-    : Math.max(-semiMonthlyBasic, Math.min(0, desiredLeaveAdjustment));
+  const cappedLeaveAdjustment =
+    payProfile.payBasis === "monthly"
+      ? Math.max(-semiMonthlyBasic, Math.min(0, desiredLeaveAdjustment))
+      : Math.max(0, desiredLeaveAdjustment);
   const leaveScale =
     Math.abs(desiredLeaveAdjustment) > 0.000001
       ? cappedLeaveAdjustment / desiredLeaveAdjustment
       : 1;
 
   if (Math.abs(cappedLeaveAdjustment - desiredLeaveAdjustment) > 0.01) {
-    flags.push("Leave pay adjustment was capped to the semi-monthly basic-pay boundary.");
+    flags.push("Leave pay adjustment was capped to the configured cutoff pay boundary.");
   }
 
   const leaveLines = desiredLeaveAmounts.map(({ leave, desiredAmount }) => ({
@@ -691,10 +723,13 @@ function calculateEmployeePay(input: {
 
   const overtimePay = (overtimeMinutes / 60) * hourlyRate * 1.25;
   const nightDiffPay = (nightMinutes / 60) * hourlyRate * 0.1;
-  const tardinessDeduction = (tardinessMinutes / 60) * hourlyRate;
-  const undertimeDeduction = (undertimeMinutes / 60) * hourlyRate;
+  const { tardinessDeduction, undertimeDeduction } = attendanceDeductionsForCutoff(
+    payProfile,
+    tardinessMinutes,
+    undertimeMinutes,
+  );
 
-  const wageCheck = isBelowMinimum(monthly, input.employee.region ?? "NCR");
+  const wageCheck = isBelowMinimum(monthly, input.employee.region ?? "NCR", payProfile.standardWorkDaysPerMonth);
   const treatAsMwe = input.employee.mwe || wageCheck.below;
 
   let calamityPay = 0;
@@ -706,7 +741,7 @@ function calculateEmployeePay(input: {
       || advisory.affectedUnit.toLowerCase().includes(input.unitName.toLowerCase());
     // Apply to Cebu Hub employees or when unit is unknown but advisory is active for demo org.
     if (unitMatch || input.unitName === "Operations") {
-      const premium = semiMonthlyBasic * (advisory.premiumPercent / 100);
+      const premium = baseBasicPay * (advisory.premiumPercent / 100);
       calamityPay += premium;
       calamityNotes.push(`${advisory.advisoryNumber}: ${advisory.policy} applied (+${advisory.premiumPercent}%)`);
     }
@@ -835,7 +870,13 @@ function calculateEmployeePay(input: {
   const trace = {
     ruleVersion: RULE_VERSION,
     inputs: [
+      `payBasis=${payProfile.payBasis}`,
+      `rateAmount=${money(payProfile.rateAmount)}`,
+      `standardWorkDaysPerMonth=${payProfile.standardWorkDaysPerMonth}`,
+      `standardHoursPerDay=${payProfile.standardHoursPerDay}`,
+      `monthlyEquivalent=${money(monthly)}`,
       `basicRate=${monthly}`,
+      `dailyRate=${money(dailyRate)}`,
       `hourlyRate=${money(hourlyRate)}`,
       `taxableCompensation=${money(taxableCompensation)}`,
       `deMinimisPaid=${money(deMinimisTotal)}`,

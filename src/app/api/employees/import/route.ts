@@ -1,12 +1,13 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, importBatches } from "@/db/schema";
+import { employeePayProfiles, employees, importBatches } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { getEntitlements, requireFeature, seatUsage } from "@/lib/billing";
 import { parseEmployeeCsv } from "@/lib/csv-import";
 import { assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
+import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
   if (deniedImport) return deniedImport;
 
   await ensureMigrationSchema();
+  await ensureEmployeePayProfiles(organizationId);
 
   const entitlements = await getEntitlements(organizationId);
   const gate = requireFeature(entitlements, "imports");
@@ -78,21 +80,44 @@ export async function POST(request: Request) {
     seen.add(row.employeeNo);
 
     if (knownNumbers.has(row.employeeNo)) {
-      // Update-in-place keeps re-uploading a corrected roster safe.
-      await db.update(employees).set({
-        firstName: row.firstName,
-        lastName: row.lastName,
-        title: row.title,
-        employmentType: row.employmentType,
-        status: row.status,
-        basicRate: row.monthlyBasic.toFixed(2),
-        mwe: row.mwe,
-        region: row.region,
-        email: row.email,
-        mobile: row.mobile,
-        bankAccount: row.bankAccount,
-        bankCode: row.bankCode,
-      }).where(and(eq(employees.organizationId, organizationId), eq(employees.employeeNo, row.employeeNo)));
+      // This bulk template is explicitly monthly-basic, so its pay basis is
+      // deterministic. Validation is read-only; writes happen only on import.
+      if (!dryRun) {
+        const [updated] = await db.update(employees).set({
+          firstName: row.firstName,
+          lastName: row.lastName,
+          title: row.title,
+          employmentType: row.employmentType,
+          status: row.status,
+          basicRate: row.monthlyBasic.toFixed(2),
+          mwe: row.mwe,
+          region: row.region,
+          email: row.email,
+          mobile: row.mobile,
+          bankAccount: row.bankAccount,
+          bankCode: row.bankCode,
+        }).where(and(eq(employees.organizationId, organizationId), eq(employees.employeeNo, row.employeeNo)))
+          .returning({ id: employees.id });
+        if (updated) {
+          await db.insert(employeePayProfiles).values({
+            employeeId: updated.id,
+            organizationId,
+            payBasis: "monthly",
+            rateAmount: row.monthlyBasic.toFixed(2),
+            standardWorkDaysPerMonth: "22.00",
+            standardHoursPerDay: "8.00",
+          }).onConflictDoUpdate({
+            target: employeePayProfiles.employeeId,
+            set: {
+              payBasis: "monthly",
+              rateAmount: row.monthlyBasic.toFixed(2),
+              standardWorkDaysPerMonth: "22.00",
+              standardHoursPerDay: "8.00",
+              updatedAt: new Date(),
+            },
+          });
+        }
+      }
       updatedCount += 1;
       continue;
     }
@@ -119,8 +144,22 @@ export async function POST(request: Request) {
 
   let createdCount = 0;
   if (!dryRun && toInsert.length > 0) {
-    const inserted = await db.insert(employees).values(toInsert).returning({ id: employees.id });
+    const inserted = await db.insert(employees).values(toInsert).returning({
+      id: employees.id,
+      employeeNo: employees.employeeNo,
+      basicRate: employees.basicRate,
+    });
     createdCount = inserted.length;
+    if (inserted.length > 0) {
+      await db.insert(employeePayProfiles).values(inserted.map((employee) => ({
+        employeeId: employee.id,
+        organizationId,
+        payBasis: "monthly",
+        rateAmount: employee.basicRate,
+        standardWorkDaysPerMonth: "22.00",
+        standardHoursPerDay: "8.00",
+      })));
+    }
   }
 
   const [batch] = await db.insert(importBatches).values({

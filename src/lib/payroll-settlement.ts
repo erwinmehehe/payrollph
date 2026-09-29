@@ -1,9 +1,11 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db";
+import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import {
   auditEvents,
   earnedWageRequests,
   employeeLoans,
+  employeePayProfiles,
   employees,
   expenseClaims,
   leaveConversions,
@@ -64,6 +66,40 @@ function samePaymentValue(left: string | null | undefined, right: string | null 
   return (left ?? "").trim() === (right ?? "").trim();
 }
 
+type PayProfileSnapshot = {
+  payBasis: string;
+  rateAmount: number;
+  standardWorkDaysPerMonth: number;
+  standardHoursPerDay: number;
+  monthlyEquivalent: number;
+};
+
+function readPayProfileSnapshot(value: unknown): PayProfileSnapshot | null {
+  if (!value || typeof value !== "object") return null;
+  const payProfile = (value as Record<string, unknown>).payProfile;
+  if (!payProfile || typeof payProfile !== "object") return null;
+  const row = payProfile as Record<string, unknown>;
+  const payBasis = typeof row.payBasis === "string" ? row.payBasis.trim() : "";
+  const rateAmount = Number(row.rateAmount);
+  const standardWorkDaysPerMonth = Number(row.standardWorkDaysPerMonth);
+  const standardHoursPerDay = Number(row.standardHoursPerDay);
+  const monthlyEquivalent = Number(row.monthlyEquivalent);
+  if (
+    !payBasis ||
+    !Number.isFinite(rateAmount) ||
+    !Number.isFinite(standardWorkDaysPerMonth) ||
+    !Number.isFinite(standardHoursPerDay) ||
+    !Number.isFinite(monthlyEquivalent)
+  ) return null;
+  return { payBasis, rateAmount, standardWorkDaysPerMonth, standardHoursPerDay, monthlyEquivalent };
+}
+
+function samePayrollNumber(left: string | number | null | undefined, right: string | number | null | undefined) {
+  const a = Number(left);
+  const b = Number(right);
+  return Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) < 0.005;
+}
+
 /**
  * Settles every payroll-linked sub-ledger and flips the run to Released in one
  * database transaction. Any stale expense, advance, leave conversion, or loan
@@ -81,6 +117,10 @@ export async function settlePayrollRun(
     metadata?: Record<string, unknown>;
   },
 ) {
+  const [preflightRun] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
+  if (!preflightRun) throw new Error("Payroll run not found.");
+  await ensureEmployeePayProfiles(preflightRun.organizationId);
+
   return db.transaction(async (tx) => {
     const [run] = await tx.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
     if (!run) throw new Error("Payroll run not found.");
@@ -105,6 +145,13 @@ export async function settlePayrollRun(
         ))
       : [];
     const employeeById = new Map(currentEmployees.map((employee) => [employee.id, employee]));
+    const currentPayProfiles = employeeIds.length
+      ? await tx.select().from(employeePayProfiles).where(and(
+          eq(employeePayProfiles.organizationId, run.organizationId),
+          inArray(employeePayProfiles.employeeId, employeeIds),
+        ))
+      : [];
+    const payProfileByEmployee = new Map(currentPayProfiles.map((profile) => [profile.employeeId, profile]));
 
     for (const entry of entries) {
       const employee = employeeById.get(entry.employeeId);
@@ -141,6 +188,31 @@ export async function settlePayrollRun(
       if (paymentChanged) {
         throw new Error(
           `Payment instructions for ${currentName} changed after calculation; recalculate before release so the approved register and payout file stay aligned.`,
+        );
+      }
+
+      const paySnapshot = readPayProfileSnapshot(entry.trace);
+      if (!paySnapshot) {
+        throw new Error(
+          `Payroll entry for ${currentName} lacks an immutable pay-profile snapshot; recalculate before release.`,
+        );
+      }
+      const currentPayProfile = payProfileByEmployee.get(entry.employeeId);
+      if (!currentPayProfile) {
+        throw new Error(
+          `Pay profile for ${currentName} is missing; configure it and recalculate before release.`,
+        );
+      }
+      const payProfileChanged =
+        paySnapshot.payBasis !== currentPayProfile.payBasis ||
+        !samePayrollNumber(paySnapshot.rateAmount, currentPayProfile.rateAmount) ||
+        !samePayrollNumber(paySnapshot.standardWorkDaysPerMonth, currentPayProfile.standardWorkDaysPerMonth) ||
+        !samePayrollNumber(paySnapshot.standardHoursPerDay, currentPayProfile.standardHoursPerDay) ||
+        !samePayrollNumber(paySnapshot.monthlyEquivalent, employee.basicRate);
+
+      if (payProfileChanged) {
+        throw new Error(
+          `Pay profile for ${currentName} changed after calculation; recalculate before release so the approved register uses the current pay basis and rate.`,
         );
       }
     }

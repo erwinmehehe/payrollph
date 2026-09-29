@@ -6,6 +6,7 @@ import {
   auditEvents,
   bankTemplates,
   calamityAdvisories,
+  employeePayProfiles,
   employees,
   freelancerProfiles,
   leavePolicies,
@@ -25,6 +26,7 @@ import { ensureSeedData } from "@/db/seed";
 import { getAccess, PAYROLL_VIEW_ROLES, roleAllowed } from "@/lib/access";
 import { getSessionUser, publicUser } from "@/lib/auth";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
+import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 
 export async function getDashboardData(organizationId?: number) {
   await ensureSeedData();
@@ -64,6 +66,8 @@ export async function getDashboardData(organizationId?: number) {
     throw new Error("The requested workspace is not available to this account.");
   }
 
+  await ensureEmployeePayProfiles(selectedOrganization.id);
+
   const canViewPayroll = roleAllowed(access.role, PAYROLL_VIEW_ROLES);
   const canViewAudit = ["owner", "admin", "bookkeeper", "payroll", "checker"].includes(access.role);
 
@@ -71,8 +75,9 @@ export async function getDashboardData(organizationId?: number) {
     ? and(eq(employees.organizationId, selectedOrganization.id), eq(employees.orgUnitId, access.orgUnitId))
     : eq(employees.organizationId, selectedOrganization.id);
 
-  const [employeeRows, runRows, taskRowsRaw, auditRows, plans, templates, advisories, freelancer, punchRowsRaw, delegationRows, leaveRowsRaw, leavePolicyRows, units, wages, provisionRowsRaw] = await Promise.all([
+  const [employeeRows, payProfileRows, runRows, taskRowsRaw, auditRows, plans, templates, advisories, freelancer, punchRowsRaw, delegationRows, leaveRowsRaw, leavePolicyRows, units, wages, provisionRowsRaw] = await Promise.all([
     db.select().from(employees).where(employeeFilter).orderBy(asc(employees.id)),
+    db.select().from(employeePayProfiles).where(eq(employeePayProfiles.organizationId, selectedOrganization.id)),
     canViewPayroll
       ? db.select().from(payrollRuns).where(eq(payrollRuns.organizationId, selectedOrganization.id)).orderBy(desc(payrollRuns.id))
       : Promise.resolve([]),
@@ -137,13 +142,25 @@ export async function getDashboardData(organizationId?: number) {
     developer: accountType !== "freelancer",
   };
 
+  const payProfileByEmployee = new Map(payProfileRows.map((profile) => [profile.employeeId, profile]));
+  const employeesWithPayBasis = employeeRows.map((employee) => {
+    const profile = payProfileByEmployee.get(employee.id);
+    return {
+      ...employee,
+      payBasis: profile?.payBasis ?? "monthly",
+      payRate: profile?.rateAmount ?? employee.basicRate,
+      standardWorkDaysPerMonth: profile?.standardWorkDaysPerMonth ?? "22.00",
+      standardHoursPerDay: profile?.standardHoursPerDay ?? "8.00",
+    };
+  });
+
   return {
     user: sessionUser ? publicUser(sessionUser) : null,
     access,
     capabilities,
     organizations: orgs,
     selectedOrganization,
-    employees: employeeRows,
+    employees: employeesWithPayBasis,
     orgUnits: units,
     payrollRuns: runRows,
     payrollEntries: entries,
