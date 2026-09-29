@@ -138,3 +138,17 @@ test("handoff mail failure cannot turn a committed payroll transition into a fai
   assert.ok(approval.includes("Payroll was returned for changes, but the maker notification could not be queued."));
   assert.ok(release.includes("postReleaseWarnings"));
 });
+
+
+test("outbox UI hides internal payroll notification dedupe keys", () => {
+  const panels = read("src/components/workspace/panels.tsx");
+  assert.ok(panels.includes('purpose.startsWith("payroll-review-")'));
+  assert.ok(panels.includes('return "Payroll review"'));
+  assert.ok(panels.includes('purpose.startsWith("payroll-release-")'));
+  assert.ok(panels.includes('return "Ready for release"'));
+  assert.ok(panels.includes('purpose.startsWith("payroll-returned-")'));
+  assert.ok(panels.includes('return "Payroll returned"'));
+  assert.ok(panels.includes('purpose.startsWith("payslip-ready-")'));
+  assert.ok(panels.includes('return "Payslip ready"'));
+  assert.ok(panels.includes("outboxPurposeLabel(String(msg.purpose ?? \"\"))"));
+});
