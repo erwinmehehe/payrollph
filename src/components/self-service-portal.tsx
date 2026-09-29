@@ -36,6 +36,9 @@ const payDateLabel = (value: string) =>
     new Date(value + "T00:00:00+08:00"),
   );
 
+const payDateHasPassed = (value: string) =>
+  new Date(value + "T23:59:59+08:00").getTime() < Date.now();
+
 export function SelfServicePortal() {
   const searchParams = useSearchParams();
   const isDemo = searchParams.get("demoRole") === "employee";
@@ -185,11 +188,15 @@ export function SelfServicePortal() {
         <>
           <section className="employee-pay-next">
             <div className="employee-pay-next-copy">
-              <span className="card-kicker">UPCOMING PAY</span>
+              <span className="card-kicker">NEXT PAY STATUS</span>
               {data.nextPay ? (
                 <>
                   <h2>{data.nextPay.period}</h2>
-                  <p>{data.nextPay.label}. Your pay amount stays private and hidden until payroll is released.</p>
+                  <p>
+                    {data.nextPay.label}.
+                    {payDateHasPassed(data.nextPay.payDate) ? " The scheduled pay date has passed, so this stays visible until release." : ""}
+                    {" "}Your pay amount stays private and hidden until payroll is released.
+                  </p>
                 </>
               ) : (
                 <>
@@ -201,7 +208,7 @@ export function SelfServicePortal() {
             <div className="employee-pay-next-meta">
               <CalendarDays size={17} />
               <div>
-                <span>Scheduled pay date</span>
+                <span>{data.nextPay && payDateHasPassed(data.nextPay.payDate) ? "Scheduled date passed" : "Scheduled pay date"}</span>
                 <strong>{data.nextPay ? payDateLabel(data.nextPay.payDate) : "Not scheduled"}</strong>
               </div>
             </div>
