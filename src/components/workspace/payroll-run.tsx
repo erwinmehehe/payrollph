@@ -66,6 +66,7 @@ export function PayrollRunView({
   onPage,
   onRefresh,
   notify,
+  focusExceptionsToken = 0,
 }: {
   data: DashboardData;
   busy: boolean;
@@ -76,6 +77,7 @@ export function PayrollRunView({
   onPage: (page: string) => void;
   onRefresh: () => Promise<void>;
   notify: Notify;
+  focusExceptionsToken?: number;
 }) {
   const [selectedId, setSelectedId] = useState<number | undefined>(data.payrollRuns[0]?.id);
   const [query, setQuery] = useState("");
@@ -83,6 +85,10 @@ export function PayrollRunView({
   const [explainEmployeeId, setExplainEmployeeId] = useState<number | null>(null);
   const [onlyExceptions, setOnlyExceptions] = useState(false);
   const [confirmRelease, setConfirmRelease] = useState(false);
+
+  useEffect(() => {
+    if (focusExceptionsToken > 0) setOnlyExceptions(true);
+  }, [focusExceptionsToken]);
   const [exportsOpen, setExportsOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewApprovers, setReviewApprovers] = useState<Array<{ id: number; name: string; email: string; role: string }>>([]);
