@@ -22,6 +22,7 @@ import { CommandPalette, usePaletteShortcut, type PaletteAction } from "@/compon
 import { ExportsView } from "@/components/workspace/exports";
 import { FREELANCER_HIDDEN, NAVIGATION } from "@/components/workspace/nav";
 import { OverviewView } from "@/components/workspace/overview";
+import { RoleOverviewView, type WorkspaceDashboardRole } from "@/components/workspace/role-overview";
 import {
   AuditPage,
   CheckoutModal,
@@ -55,6 +56,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
       : null;
   const demoInfo = demoRoleInfo(demoRole);
   const initialPage = demoInfo?.landingPage ?? "Overview";
+  const dashboardRole = normalizeDashboardRole(demoRole ?? initialData.access?.role ?? initialData.user?.role);
 
   const [data, setData] = useState(initialData);
   const [page, setPage] = useState(initialPage);
@@ -337,13 +339,23 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         )}
 
         {page === "Overview" && (
-          <OverviewView
-            data={data}
-            currentRun={currentRun}
-            onNewRun={() => setNewPayrollOpen(true)}
-            onPage={setPage}
-            onDecide={(id, status) => void decideTask(id, status)}
-          />
+          dashboardRole ? (
+            <RoleOverviewView
+              data={data}
+              currentRun={currentRun}
+              role={dashboardRole}
+              onNewRun={() => setNewPayrollOpen(true)}
+              onPage={setPage}
+            />
+          ) : (
+            <OverviewView
+              data={data}
+              currentRun={currentRun}
+              onNewRun={() => setNewPayrollOpen(true)}
+              onPage={setPage}
+              onDecide={(id, status) => void decideTask(id, status)}
+            />
+          )
         )}
 
         {page === "Payroll" && (
@@ -507,4 +519,10 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
       )}
     </>
   );
+}
+
+
+function normalizeDashboardRole(role: string | null | undefined): WorkspaceDashboardRole | null {
+  if (role === "owner" || role === "hr" || role === "payroll" || role === "checker") return role;
+  return null;
 }
