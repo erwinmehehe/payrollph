@@ -79,7 +79,7 @@ export async function buildEmployeeYearLedger(input: {
     eq(payrollRuns.organizationId, input.organizationId),
     eq(payrollRuns.status, "Released"),
     gte(payrollRuns.periodEnd, yearStart),
-    lte(payrollRuns.periodStart, yearEnd),
+    lte(payrollRuns.periodEnd, yearEnd),
   ));
   const runIds = runs.map((run) => run.id);
   const runById = new Map(runs.map((run) => [run.id, run]));
