@@ -60,6 +60,8 @@ export async function GET(request: Request) {
       standardWorkDaysPerMonth: profile?.standardWorkDaysPerMonth ?? "22.00",
       standardHoursPerDay: profile?.standardHoursPerDay ?? "8.00",
       mwe: row.mwe,
+      thirteenthMonthEligible: row.thirteenthMonthEligible,
+      thirteenthMonthExclusionReason: row.thirteenthMonthExclusionReason,
       startDate: row.startDate,
     };
     }),
@@ -133,6 +135,10 @@ export async function POST(request: Request) {
     status: String(body.status ?? "Active"),
     avatarInitials: `${firstName[0] ?? "?"}${lastName[0] ?? "?"}`.toUpperCase(),
     basicRate: payProfile!.monthlyEquivalent.toFixed(2),
+    thirteenthMonthEligible: body.thirteenthMonthEligible !== false,
+    thirteenthMonthExclusionReason: body.thirteenthMonthEligible === false
+      ? String(body.thirteenthMonthExclusionReason ?? "").trim() || null
+      : null,
     mwe: Boolean(body.mwe),
     email,
     startDate,
@@ -168,6 +174,8 @@ export async function POST(request: Request) {
     payRate: payProfile!.rateAmount.toFixed(2),
     standardWorkDaysPerMonth: payProfile!.standardWorkDaysPerMonth.toFixed(2),
     standardHoursPerDay: payProfile!.standardHoursPerDay.toFixed(2),
+    thirteenthMonthEligible: created.thirteenthMonthEligible,
+    thirteenthMonthExclusionReason: created.thirteenthMonthExclusionReason,
     startDate: created.startDate,
   };
 
