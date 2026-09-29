@@ -6141,3 +6141,143 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
     min-width: 0;
   }
 }
+
+
+/* ==========================================================================
+   Actionable payroll handoffs
+   ========================================================================== */
+
+.role-next-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  margin: 0 0 18px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
+}
+.role-next-action.action {
+  border-color: rgba(68, 76, 231, .18);
+  background:
+    linear-gradient(90deg, rgba(68, 76, 231, .045), transparent 46%),
+    var(--paper);
+}
+.role-next-action.tone-danger {
+  border-color: rgba(217, 119, 6, .2);
+  background:
+    linear-gradient(90deg, rgba(217, 119, 6, .05), transparent 46%),
+    var(--paper);
+}
+.role-next-action.complete {
+  border-color: rgba(18, 183, 106, .16);
+}
+.role-next-action-main {
+  min-width: 0;
+}
+.role-next-action-main h2 {
+  margin: 5px 0 4px;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 720;
+  letter-spacing: -.02em;
+}
+.role-next-action-main p {
+  max-width: 720px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.55;
+}
+.role-next-action-cta {
+  white-space: nowrap;
+}
+.role-next-action-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: end;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: var(--neutral-bg);
+  color: var(--neutral);
+  font-size: 9.5px;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.role-next-action-state.complete {
+  background: var(--success-bg);
+  color: var(--success);
+}
+.handoff-blocker-list {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 7px;
+}
+.handoff-blocker-row {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--line-faint);
+  border-radius: 10px;
+  background: var(--canvas);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .14s, background .14s, transform .14s;
+}
+.handoff-blocker-row:hover {
+  border-color: var(--brand-border);
+  background: var(--paper);
+  transform: translateY(-1px);
+}
+.handoff-blocker-copy {
+  min-width: 0;
+}
+.handoff-blocker-copy strong {
+  display: block;
+  color: var(--ink);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.handoff-blocker-copy small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 9.5px;
+  line-height: 1.45;
+}
+.handoff-blocker-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--active);
+  font-size: 9.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .role-next-action {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px;
+  }
+  .role-next-action-cta,
+  .role-next-action-state {
+    justify-self: start;
+  }
+  .handoff-blocker-row {
+    grid-template-columns: 28px minmax(0, 1fr);
+  }
+  .handoff-blocker-open {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
