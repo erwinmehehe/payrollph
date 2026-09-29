@@ -1,0 +1,113 @@
+name: Interactive homepage demo visual QA
+
+on:
+  push:
+    branches:
+      - feat/interactive-home-demo-polish-sep29
+    paths:
+      - ".github/workflows/interactive-home-demo-qa.yml"
+
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      DEMO_MODE: "true"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run db:push
+      - name: Start app
+        run: |
+          npm run dev -- --hostname 127.0.0.1 >/tmp/app.log 2>&1 &
+          for i in {1..60}; do
+            curl -fsS http://127.0.0.1:3000/ >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/app.log
+          exit 1
+      - name: Start Chrome
+        run: |
+          google-chrome --headless=new --no-sandbox --disable-dev-shm-usage --hide-scrollbars             --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222             --user-data-dir=/tmp/chrome about:blank >/tmp/chrome.log 2>&1 &
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:9222/json/version >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/chrome.log
+          exit 1
+      - name: Capture and exercise simulation
+        run: |
+          cat >/tmp/capture.mjs <<'EOF'
+          import fs from "node:fs/promises";
+          const targets=await (await fetch("http://127.0.0.1:9222/json")).json();
+          const page=targets.find(x=>x.type==="page");
+          if(!page) throw new Error("No Chrome target");
+          const ws=new WebSocket(page.webSocketDebuggerUrl);
+          await new Promise((resolve,reject)=>{ws.addEventListener("open",resolve,{once:true});ws.addEventListener("error",reject,{once:true})});
+          let id=1; const pending=new Map(); const listeners=new Map();
+          ws.addEventListener("message",event=>{
+            const m=JSON.parse(String(event.data));
+            if(m.id&&pending.has(m.id)){const p=pending.get(m.id);pending.delete(m.id);m.error?p.reject(new Error(m.error.message)):p.resolve(m.result);return;}
+            if(m.method&&listeners.has(m.method)) for(const fn of listeners.get(m.method)) fn(m.params);
+          });
+          const send=(method,params={})=>new Promise((resolve,reject)=>{const call=id++;pending.set(call,{resolve,reject});ws.send(JSON.stringify({id:call,method,params}))});
+          const once=(method)=>new Promise(resolve=>{const set=listeners.get(method)??new Set();const fn=p=>{set.delete(fn);resolve(p)};set.add(fn);listeners.set(method,set)});
+          const wait=async(expr,timeout=15000)=>{const start=Date.now();while(Date.now()-start<timeout){const r=await send("Runtime.evaluate",{expression:expr,returnByValue:true});if(r.result.value)return r.result.value;await new Promise(r=>setTimeout(r,200));}throw new Error("timeout "+expr)};
+          const rect=async(sel)=>{const r=await send("Runtime.evaluate",{expression:`(()=>{const e=document.querySelector(${JSON.stringify(sel)});if(!e)return null;const b=e.getBoundingClientRect();return{x:b.left+scrollX,y:b.top+scrollY,width:b.width,height:b.height}})()`,returnByValue:true});return r.result.value;};
+          const shot=async(name,clip)=>{const r=await send("Page.captureScreenshot",{format:"png",captureBeyondViewport:true,clip:{...clip,scale:1}});await fs.writeFile(name,Buffer.from(r.data,"base64"));};
+          const clickText=async(scope,text)=>{const r=await send("Runtime.evaluate",{expression:`(()=>{const root=document.querySelector(${JSON.stringify(scope)})||document;const el=Array.from(root.querySelectorAll('button')).find(x=>x.textContent?.trim().includes(${JSON.stringify(text)}));if(!el)return false;el.click();return true})()`,returnByValue:true});if(!r.result.value)throw new Error("missing button "+text);};
+
+          await send("Page.enable"); await send("Runtime.enable");
+          await send("Emulation.setDeviceMetricsOverride",{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+          const loaded=once("Page.loadEventFired"); await send("Page.navigate",{url:"http://127.0.0.1:3000/"}); await loaded;
+          await wait("document.readyState==='complete'");
+          await send("Runtime.evaluate",{expression:"document.querySelector('#simulation')?.scrollIntoView({block:'start'})"});
+          await new Promise(r=>setTimeout(r,500));
+
+          await clickText("#simulation","Leave");
+          await wait("document.body.innerText.includes('Try the sample workflow')");
+          let b=await rect("#simulation .frame");
+          await shot("leave-before.png",{x:b.x,y:b.y,width:b.width,height:Math.min(760,b.height)});
+
+          await clickText("#simulation","New request");
+          await clickText("#simulation","Add request");
+          await wait("document.body.innerText.includes('Nina Garcia')");
+          await clickText("#simulation","Approve");
+          b=await rect("#simulation .frame");
+          await shot("leave-after-action.png",{x:b.x,y:b.y,width:b.width,height:Math.min(760,b.height)});
+
+          await clickText("#simulation","Migration");
+          await wait("document.body.innerText.includes('Switch payroll software')");
+          await clickText("#simulation","Load sample");
+          await wait("document.body.innerText.includes('Employee ID')");
+          b=await rect("#simulation .frame");
+          await shot("migration-interactive.png",{x:b.x,y:b.y,width:b.width,height:Math.min(760,b.height)});
+          ws.close();
+          EOF
+          node /tmp/capture.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: interactive-home-demo-visuals
+          path: |
+            leave-before.png
+            leave-after-action.png
+            migration-interactive.png
+          retention-days: 3
