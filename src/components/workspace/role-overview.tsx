@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { buildPayrollHandoff, type PayrollHandoffStage } from "@/lib/payroll-handoff";
-import { buildPayrollAttention, type PayrollAttentionItem } from "@/lib/payroll-attention";
+import { buildPayrollAttention, selectPayrollHandoffRun, type PayrollAttentionItem } from "@/lib/payroll-attention";
 import type { DashboardData, PayrollHandoffRunSummary, PayrollRun, Task } from "./types";
 import {
   Avatar,
@@ -65,7 +65,10 @@ export function RoleOverviewView({
   );
   const activeAdvisories = data.advisories.filter((advisory) => advisory.active);
   const attentionItems = buildPayrollAttention(data, role);
-  const handoffRun = currentRun ?? data.payrollHandoffRun ?? undefined;
+  const handoffRun = selectPayrollHandoffRun(data, role) ?? currentRun ?? data.payrollHandoffRun ?? undefined;
+  const dashboardRun = handoffRun
+    ? data.payrollRuns.find((run) => run.id === handoffRun.id) ?? currentRun
+    : currentRun;
   const payrollApproval = handoffRun
     ? data.tasks
         .filter((task) => task.detail.includes(`Payroll run #${handoffRun.id}`))
@@ -79,7 +82,7 @@ export function RoleOverviewView({
 
   const common = {
     data,
-    currentRun,
+    currentRun: dashboardRun,
     handoffRun,
     firstName,
     activePeople,
