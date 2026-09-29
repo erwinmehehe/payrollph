@@ -58,7 +58,10 @@ export function buildPayrollHandoff(
   const hrIssues = Math.max(0, context.hrIssues ?? 0);
   const payrollExceptions = Math.max(0, context.payrollExceptions ?? Number(run?.exceptions ?? 0));
   const approver = context.approvalTask?.approver;
-  const effectiveRank = rank <= 1 ? (hrIssues > 0 ? 0 : 1) : rank;
+  const effectiveRank =
+    context.hrIssues !== undefined && rank <= 1
+      ? (hrIssues > 0 ? 0 : 1)
+      : rank;
 
   const details: Record<PayrollHandoffKey, string> = {
     hr:
