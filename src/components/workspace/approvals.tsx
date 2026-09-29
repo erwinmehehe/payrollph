@@ -8,12 +8,16 @@ import { EmptyState, Metric, PageHeading, Segmented, Spinner, Status } from "./u
 export function ApprovalsView({
   data,
   busy,
+  canDecide,
+  canManageDelegations,
   onDecide,
   onRefresh,
   notify,
 }: {
   data: DashboardData;
   busy: boolean;
+  canDecide: boolean;
+  canManageDelegations: boolean;
   onDecide: (id: number, status: "Approved" | "Declined") => Promise<void>;
   onRefresh: () => Promise<void>;
   notify: Notify;
@@ -47,11 +51,17 @@ export function ApprovalsView({
       <PageHeading
         eyebrow="Approvals"
         title="Decisions, with a clear trail."
-        copy="Every decision is permission-checked on the server against the assigned approver and any active delegation. A decision from outside that chain returns 403, the buttons below cannot bypass it."
+        copy={
+          canDecide
+            ? "Every decision is permission-checked on the server against the assigned approver and any active delegation."
+            : "This role can review approval status and history, but decision controls stay with an assigned approver or checker."
+        }
         actions={
-          <button className="secondary-button" onClick={() => setFormOpen((current) => !current)} aria-expanded={formOpen}>
-            <Settings2 size={15} className="i-slate" /> Delegation settings
-          </button>
+          canManageDelegations ? (
+            <button className="secondary-button" onClick={() => setFormOpen((current) => !current)} aria-expanded={formOpen}>
+              <Settings2 size={15} className="i-slate" /> Delegation settings
+            </button>
+          ) : undefined
         }
       />
 
@@ -87,7 +97,7 @@ export function ApprovalsView({
         </div>
       )}
 
-      {formOpen && (
+      {formOpen && canManageDelegations && (
         <DelegationForm
           data={data}
           onClose={() => setFormOpen(false)}
@@ -143,7 +153,7 @@ export function ApprovalsView({
                   )}
                 </div>
               </div>
-              {task.status === "Pending" ? (
+              {task.status === "Pending" && canDecide ? (
                 <div className="approval-actions">
                   <button className="decline-button" disabled={busy && pendingId === task.id} onClick={() => decide(task, "Declined")}>
                     Decline
@@ -160,7 +170,7 @@ export function ApprovalsView({
         </div>
       </article>
 
-      {delegations.length > 0 && (
+      {canManageDelegations && delegations.length > 0 && (
         <article className="card" style={{ marginTop: 16 }}>
           <div className="card-header">
             <div>

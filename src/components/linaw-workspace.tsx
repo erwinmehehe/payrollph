@@ -22,6 +22,7 @@ import { CommandPalette, usePaletteShortcut, type PaletteAction } from "@/compon
 import { ExportsView } from "@/components/workspace/exports";
 import { FREELANCER_HIDDEN, NAVIGATION } from "@/components/workspace/nav";
 import { OverviewView } from "@/components/workspace/overview";
+import { RoleOverviewView, type WorkspaceDashboardRole } from "@/components/workspace/role-overview";
 import {
   AuditPage,
   CheckoutModal,
@@ -43,6 +44,7 @@ import { TimeView } from "@/components/workspace/time";
 import type { DashboardData, PricingPlan } from "@/components/workspace/types";
 import { ToastStack, useToasts } from "@/components/workspace/ui";
 import { demoRoleInfo, demoRolePages, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
+import { roleCanDecideApprovals, roleCanManageDelegations, roleCanManagePayroll, roleCanManagePeople, roleCanManageTime, workspacePagesForRole } from "@/lib/workspace-role-ui";
 
 export function LinawWorkspace({ initialData }: { initialData: DashboardData }) {
   const searchParams = useSearchParams();
@@ -55,6 +57,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
       : null;
   const demoInfo = demoRoleInfo(demoRole);
   const initialPage = demoInfo?.landingPage ?? "Overview";
+  const dashboardRole = normalizeDashboardRole(demoRole ?? initialData.access?.role ?? initialData.user?.role);
 
   const [data, setData] = useState(initialData);
   const [page, setPage] = useState(initialPage);
@@ -77,7 +80,8 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
   const isFreelancer = data.selectedOrganization.accountType === "freelancer";
   const currentRun = data.payrollRuns.find((run) => run.status !== "Released") ?? data.payrollRuns[0];
 
-  const rolePages = demoRolePages(demoRole);
+  const effectiveRole = demoRole ?? data.access?.role ?? data.user?.role ?? null;
+  const rolePages = demoRole ? demoRolePages(demoRole) : workspacePagesForRole(effectiveRole);
   const availablePages = useMemo(
     () =>
       NAVIGATION.flatMap((group) => group.items)
@@ -93,9 +97,11 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
   );
 
   const allowClientSwitch = !demoRole;
-  const canManagePayroll = !demoRole || ["owner", "payroll"].includes(demoRole);
-  const canManagePeople = !demoRole || ["owner", "hr"].includes(demoRole);
-  const canManageTime = !demoRole || ["owner", "hr"].includes(demoRole);
+  const canManagePayroll = roleCanManagePayroll(effectiveRole);
+  const canManagePeople = roleCanManagePeople(effectiveRole);
+  const canManageTime = roleCanManageTime(effectiveRole);
+  const canDecideApprovals = roleCanDecideApprovals(effectiveRole);
+  const canManageDelegations = roleCanManageDelegations(effectiveRole);
   const canUsePayrollOps = canManagePayroll && availablePages.includes("Payroll");
   const canUsePeopleOps = canManagePeople && availablePages.includes("People");
 
@@ -337,13 +343,23 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         )}
 
         {page === "Overview" && (
-          <OverviewView
-            data={data}
-            currentRun={currentRun}
-            onNewRun={() => setNewPayrollOpen(true)}
-            onPage={setPage}
-            onDecide={(id, status) => void decideTask(id, status)}
-          />
+          dashboardRole ? (
+            <RoleOverviewView
+              data={data}
+              currentRun={currentRun}
+              role={dashboardRole}
+              onNewRun={() => setNewPayrollOpen(true)}
+              onPage={setPage}
+            />
+          ) : (
+            <OverviewView
+              data={data}
+              currentRun={currentRun}
+              onNewRun={() => setNewPayrollOpen(true)}
+              onPage={setPage}
+              onDecide={(id, status) => void decideTask(id, status)}
+            />
+          )
         )}
 
         {page === "Payroll" && (
@@ -408,6 +424,8 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
           <ApprovalsView
             data={data}
             busy={busy}
+            canDecide={canDecideApprovals}
+            canManageDelegations={canManageDelegations}
             onDecide={decideTask}
             onRefresh={async () => {
               await refresh();
@@ -507,4 +525,10 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
       )}
     </>
   );
+}
+
+
+function normalizeDashboardRole(role: string | null | undefined): WorkspaceDashboardRole | null {
+  if (role === "owner" || role === "hr" || role === "payroll" || role === "checker") return role;
+  return null;
 }

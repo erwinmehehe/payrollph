@@ -6,9 +6,14 @@ on:
       - main
     paths:
       - "src/components/marketing/**"
+      - "src/components/workspace/**"
+      - "src/components/linaw-workspace.tsx"
+      - "src/components/demo-sandbox-bar.tsx"
       - "src/app/page.tsx"
       - "src/lib/pricing-catalog.ts"
+      - "src/lib/demo-roles.ts"
       - "tests/marketing.test.ts"
+      - "tests/demo-sandbox.test.ts"
       - ".github/workflows/preview-browser-qa.yml"
   workflow_dispatch:
 
@@ -165,11 +170,11 @@ jobs:
           }
 
           const personas = [
-            { id: "owner", label: "Owner", short: "Owner", person: "Andrea Lim", landing: "Overview", taskPage: "Overview" },
-            { id: "hr", label: "HR Admin", short: "HR Admin", person: "Aira Villanueva", landing: "People", taskPage: "People" },
-            { id: "payroll", label: "Payroll Officer", short: "Payroll", person: "Paolo Cruz", landing: "Payroll", taskPage: "Payroll" },
-            { id: "checker", label: "Checker", short: "Checker", person: "Mariel Santos", landing: "Approvals", taskPage: "Approvals" },
-            { id: "employee", label: "Employee", short: "Employee", person: "Jonas Reyes", landing: "My pay", taskPage: "My pay" },
+            { id: "owner", label: "Owner", short: "Owner", person: "Andrea Lim", landing: "Company control center", taskPage: "Overview", dashboardRole: "owner" },
+            { id: "hr", label: "HR Admin", short: "HR Admin", person: "Aira Villanueva", landing: "People operations today", taskPage: "People", dashboardRole: "hr" },
+            { id: "payroll", label: "Payroll Officer", short: "Payroll", person: "Paolo Cruz", landing: "Cutoff control center", taskPage: "Payroll", dashboardRole: "payroll" },
+            { id: "checker", label: "Checker", short: "Checker", person: "Mariel Santos", landing: "Independent review queue", taskPage: "Approvals", dashboardRole: "checker" },
+            { id: "employee", label: "Employee", short: "Employee", person: "Jonas Reyes", landing: "My pay", taskPage: "My pay", dashboardRole: null },
           ];
 
           async function qaPersona(browser, persona) {
@@ -208,11 +213,62 @@ jobs:
             check(body.includes("ROLE SANDBOX"), `${persona.label}: role sandbox did not render after launch`);
             check(body.includes(persona.person), `${persona.label}: expected persona identity ${persona.person} is missing`);
             check(body.toLowerCase().includes(persona.landing.toLowerCase()), `${persona.label}: expected landing context ${persona.landing} is missing`);
+            if (persona.dashboardRole) {
+              const dashboard = page.locator(`[data-role-dashboard="${persona.dashboardRole}"]`);
+              check((await dashboard.count()) === 1, `${persona.label}: role-specific dashboard did not render`);
+            }
 
             const alert = page.getByRole("alert");
             if (await alert.count()) {
               const alertText = (await alert.first().innerText()).trim();
               check(!alertText, `${persona.label}: launch alert: ${alertText}`);
+            }
+
+            await page.screenshot({
+              path: `${outDir}/persona-${persona.id}-landing.png`,
+              fullPage: true,
+            });
+
+            const sidebar = page.locator("aside");
+            if (persona.id === "hr") {
+              check((await sidebar.locator(".nav-item").filter({ hasText: /^Payroll$/ }).count()) === 0, "HR: payroll operator navigation must stay hidden");
+              check((await sidebar.locator(".nav-item").filter({ hasText: /^Migration$/ }).count()) === 0, "HR: migration admin navigation must stay hidden");
+            }
+            if (persona.id === "checker") {
+              check((await sidebar.locator(".nav-item").filter({ hasText: /^People$/ }).count()) === 0, "Checker: people administration must stay hidden");
+              check((await sidebar.locator(".nav-item").filter({ hasText: /^Payroll$/ }).count()) === 0, "Checker: unsafe payroll-maker page must stay hidden");
+            }
+            if (persona.id === "payroll") {
+              check((await sidebar.locator(".nav-item").filter({ hasText: /^Leave$/ }).count()) === 0, "Payroll: leave administration must stay hidden");
+              const approvalsNav = sidebar.locator(".nav-item").filter({ hasText: /^Approvals/ }).first();
+              check((await approvalsNav.count()) === 1, "Payroll: approvals status page should remain visible");
+              await approvalsNav.click();
+              await page.waitForTimeout(100);
+              check((await page.getByRole("button", { name: /^Approve$/ }).count()) === 0, "Payroll: Approve action must be hidden");
+              check((await page.getByRole("button", { name: /^Decline$/ }).count()) === 0, "Payroll: Decline action must be hidden");
+              check((await page.getByRole("button", { name: /Delegation settings/i }).count()) === 0, "Payroll: delegation controls must be hidden");
+              const overviewNav = sidebar.locator(".nav-item").filter({ hasText: /^Overview$/ }).first();
+              await overviewNav.click();
+              await page.waitForTimeout(100);
+            }
+
+            if (persona.dashboardRole) {
+              await page.setViewportSize({ width: 390, height: 844 });
+              await page.waitForTimeout(100);
+              const mobileOverflow = await page.evaluate(() => ({
+                scrollWidth: document.documentElement.scrollWidth,
+                innerWidth: window.innerWidth,
+              }));
+              check(
+                mobileOverflow.scrollWidth <= mobileOverflow.innerWidth + 1,
+                `${persona.label}: mobile dashboard horizontal overflow ${mobileOverflow.scrollWidth}px > ${mobileOverflow.innerWidth}px`,
+              );
+              await page.screenshot({
+                path: `${outDir}/persona-${persona.id}-landing-mobile-390.png`,
+                fullPage: true,
+              });
+              await page.setViewportSize({ width: 1440, height: 1000 });
+              await page.waitForTimeout(100);
             }
 
             const sandbox = page.locator("section.card").filter({ hasText: "ROLE SANDBOX" }).first();

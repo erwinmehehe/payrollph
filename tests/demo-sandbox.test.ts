@@ -3,6 +3,14 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { OFFICIAL_PUBLIC_DEMO_HOST, publicDemoHostAllowed } from "../src/lib/demo-host";
 import { DEMO_ROLE_PAGES } from "../src/lib/demo-roles";
+import {
+  REAL_ROLE_PAGE_ACCESS,
+  roleCanDecideApprovals,
+  roleCanManageDelegations,
+  roleCanManagePayroll,
+  roleCanManagePeople,
+  roleCanManageTime,
+} from "../src/lib/workspace-role-ui";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -25,11 +33,11 @@ test("role sandbox exposes exactly the five product personas", () => {
   assert.ok(!roles.includes('"manager"'), "manager should not replace one of the five sandbox personas");
 });
 
-test("every sandbox persona has a landing page and realistic tasks", () => {
+test("company sandbox personas land on role-specific dashboards before opening tasks", () => {
   const roles = read("src/lib/demo-roles.ts");
-  for (const landing of ['landingPage: "Overview"', 'landingPage: "People"', 'landingPage: "Payroll"', 'landingPage: "Approvals"', 'landingPage: "My pay"']) {
-    assert.ok(roles.includes(landing), `missing ${landing}`);
-  }
+  const overviewLandings = (roles.match(/landingPage: "Overview"/g) ?? []).length;
+  assert.equal(overviewLandings, 4, "owner, HR, payroll and checker should all land on Overview");
+  assert.ok(roles.includes('landingPage: "My pay"'), "employee must still land in self-service");
   for (const task of ["owner-release", "hr-leave", "payroll-submit", "checker-decide", "employee-punch"]) {
     assert.ok(roles.includes(task), `missing sandbox task ${task}`);
   }
@@ -43,7 +51,7 @@ test("hr and payroll demos expose the broader workspaces their server roles supp
     assert.ok(payrollPages.includes(page), `payroll demo should expose ${page}`);
   }
 
-  for (const page of ["Overview", "Loans", "De minimis", "Compliance", "Audit trail"]) {
+  for (const page of ["Overview", "Loans", "De minimis", "Compliance"]) {
     assert.ok(hrPages.includes(page), `HR demo should expose ${page}`);
   }
 
@@ -51,6 +59,62 @@ test("hr and payroll demos expose the broader workspaces their server roles supp
   assert.ok(!payrollPages.includes("Migration"), "payroll demo must not imply migration-admin access");
   assert.ok(!hrPages.includes("Payroll"), "HR demo must not imply payroll-operator access");
   assert.ok(!hrPages.includes("Migration"), "HR demo must not imply migration-admin access");
+  assert.ok(!hrPages.includes("Audit trail"), "HR demo must not expose audit data the dashboard server withholds");
+});
+
+test("real HR, payroll and checker navigation is role-scoped too", () => {
+  for (const role of ["hr", "payroll", "checker"] as const) {
+    assert.deepEqual(
+      REAL_ROLE_PAGE_ACCESS[role],
+      DEMO_ROLE_PAGES[role],
+      `real ${role} navigation should match the proven demo scope`,
+    );
+  }
+
+  assert.ok(!REAL_ROLE_PAGE_ACCESS.hr?.includes("Payroll"), "real HR must not be shown payroll-operator navigation");
+  assert.ok(!REAL_ROLE_PAGE_ACCESS.payroll?.includes("Leave"), "real payroll must not be shown leave-admin navigation");
+  assert.ok(!REAL_ROLE_PAGE_ACCESS.checker?.includes("People"), "real checker must stay out of people administration");
+  assert.ok(!REAL_ROLE_PAGE_ACCESS.checker?.includes("Payroll"), "checker payroll review remains in approvals until the payroll page supports a safe read-only mode");
+});
+
+test("real workspace action controls follow server role families", () => {
+  assert.equal(roleCanManagePayroll("payroll"), true);
+  assert.equal(roleCanManagePayroll("checker"), false);
+  assert.equal(roleCanManagePayroll("hr"), false);
+
+  assert.equal(roleCanManagePeople("hr"), true);
+  assert.equal(roleCanManagePeople("payroll"), false);
+  assert.equal(roleCanManageTime("hr"), true);
+  assert.equal(roleCanManageTime("payroll"), false);
+
+  assert.equal(roleCanDecideApprovals("checker"), true);
+  assert.equal(roleCanDecideApprovals("hr"), true);
+  assert.equal(roleCanDecideApprovals("payroll"), false);
+
+  assert.equal(roleCanManageDelegations("checker"), true);
+  assert.equal(roleCanManageDelegations("hr"), false);
+  assert.equal(roleCanManageDelegations("payroll"), false);
+});
+
+test("payroll approvals render as review-only instead of exposing forbidden decision controls", () => {
+  const approvals = read("src/components/workspace/approvals.tsx");
+  const workspace = read("src/components/linaw-workspace.tsx");
+
+  assert.ok(approvals.includes("canDecide"), "approvals view needs an explicit decision capability");
+  assert.ok(approvals.includes("canManageDelegations"), "delegation controls need a separate capability");
+  assert.ok(approvals.includes('task.status === "Pending" && canDecide'), "pending decision buttons must be capability-gated");
+  assert.ok(workspace.includes("roleCanDecideApprovals(effectiveRole)"), "workspace must derive approval controls from the real role");
+  assert.ok(workspace.includes("workspacePagesForRole(effectiveRole)"), "real user navigation must be role-scoped");
+});
+
+test("dashboard payload withholds approval delegation rows from HR and payroll", () => {
+  const dashboard = read("src/lib/dashboard-data.ts");
+  assert.ok(dashboard.includes("PAYROLL_CHECKER_ROLES"), "dashboard must reuse the checker role family for delegation visibility");
+  assert.ok(dashboard.includes("const canViewDelegations = roleAllowed(access.role, PAYROLL_CHECKER_ROLES)"));
+  assert.ok(
+    dashboard.includes("canViewDelegations\n      ? db.select().from(approvalDelegations)"),
+    "delegation rows must be conditionally queried",
+  );
 });
 
 test("expanded payroll-input demo pages match the existing server authorization model", () => {
@@ -91,6 +155,39 @@ test("demo switch provisions all personas into one populated sample workspace", 
   assert.ok(route.includes("for (const role of DEMO_ROLE_IDS)"), "all personas must be provisioned together");
   assert.ok(route.includes('organizations.name, "Loom & Local"'), "sandbox must use the populated sample company");
   assert.ok(route.includes("createSession"), "persona launch must create a real authenticated session");
+});
+
+test("workspace renders distinct owner, HR, payroll and checker dashboards", () => {
+  const workspace = read("src/components/linaw-workspace.tsx");
+  const dashboard = read("src/components/workspace/role-overview.tsx");
+
+  assert.ok(workspace.includes("normalizeDashboardRole"), "workspace must normalize the real/demo role");
+  assert.ok(workspace.includes("<RoleOverviewView"), "workspace must render the role-specific overview");
+  for (const marker of [
+    'data-role-dashboard={role}',
+    "Company control center",
+    "People operations today",
+    "Cutoff control center",
+    "Independent review queue",
+  ]) {
+    assert.ok(dashboard.includes(marker), `role dashboard missing ${marker}`);
+  }
+});
+
+test("role dashboards use workspace data rather than hardcoded KPI totals", () => {
+  const dashboard = read("src/components/workspace/role-overview.tsx");
+  for (const source of [
+    "data.employees.filter",
+    "data.tasks.filter",
+    "data.leaveRequests",
+    "data.provisioning",
+    "data.payrollEntries.filter",
+    "data.retroAdjustments",
+    "data.punches",
+    "data.advisories.filter",
+  ]) {
+    assert.ok(dashboard.includes(source), `role dashboard must derive its state from ${source}`);
+  }
 });
 
 test("workspace and employee self-service share the same persona sandbox control", () => {

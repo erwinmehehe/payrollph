@@ -25,7 +25,7 @@ import {
   userOrganizations,
 } from "@/db/schema";
 import { ensureSeedData } from "@/db/seed";
-import { getAccess, PAYROLL_VIEW_ROLES, PEOPLE_PAYROLL_ROLES, roleAllowed } from "@/lib/access";
+import { getAccess, PAYROLL_CHECKER_ROLES, PAYROLL_VIEW_ROLES, PEOPLE_PAYROLL_ROLES, roleAllowed } from "@/lib/access";
 import { getSessionUser, publicUser } from "@/lib/auth";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
@@ -75,6 +75,7 @@ export async function getDashboardData(organizationId?: number) {
   const canViewPayroll = roleAllowed(access.role, PAYROLL_VIEW_ROLES);
   const canViewPeoplePay = roleAllowed(access.role, PEOPLE_PAYROLL_ROLES);
   const canViewAudit = ["owner", "admin", "bookkeeper", "payroll", "checker"].includes(access.role);
+  const canViewDelegations = roleAllowed(access.role, PAYROLL_CHECKER_ROLES);
 
   const employeeFilter = access && !access.companyWide && access.orgUnitId
     ? and(eq(employees.organizationId, selectedOrganization.id), eq(employees.orgUnitId, access.orgUnitId))
@@ -103,7 +104,9 @@ export async function getDashboardData(organizationId?: number) {
     db.select().from(calamityAdvisories).where(eq(calamityAdvisories.organizationId, selectedOrganization.id)),
     db.select().from(freelancerProfiles).where(eq(freelancerProfiles.organizationId, selectedOrganization.id)),
     db.select().from(timePunches).where(eq(timePunches.organizationId, selectedOrganization.id)).orderBy(desc(timePunches.workDate)),
-    db.select().from(approvalDelegations).where(eq(approvalDelegations.organizationId, selectedOrganization.id)).orderBy(desc(approvalDelegations.id)),
+    canViewDelegations
+      ? db.select().from(approvalDelegations).where(eq(approvalDelegations.organizationId, selectedOrganization.id)).orderBy(desc(approvalDelegations.id))
+      : Promise.resolve([]),
     db.select().from(leaveRequests).where(eq(leaveRequests.organizationId, selectedOrganization.id)).orderBy(desc(leaveRequests.id)),
     db.select().from(leavePolicies).where(eq(leavePolicies.organizationId, selectedOrganization.id)).orderBy(asc(leavePolicies.id)),
     db.select().from(orgUnits).where(eq(orgUnits.organizationId, selectedOrganization.id)),
