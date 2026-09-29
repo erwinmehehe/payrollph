@@ -1,9 +1,13 @@
 import { pool } from "@/db";
+import { ensureMigrationSchema } from "@/lib/migration-schema";
+import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 
 let ready = false;
 let inFlight: Promise<void> | null = null;
 
-export async function ensureFinalPaySchema() {
+export async function ensureFinalPaySchema(organizationId?: number) {
+  if (organizationId != null) await ensureEmployeePayProfiles(organizationId);
+  await ensureMigrationSchema();
   if (ready) return;
   if (inFlight) return inFlight;
 
