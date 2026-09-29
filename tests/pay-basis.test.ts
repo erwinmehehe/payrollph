@@ -188,7 +188,7 @@ test("payroll engine uses explicit pay basis and avoids double tardiness deducti
 
     const lines = (entry: typeof monthlyEntry) => entry.lineItems as Array<{ code: string; amount: string }>;
     assert.equal(Number(lines(monthlyEntry).find((line) => line.code === "BASIC")?.amount), 11000);
-    assert.equal(Number(lines(monthlyEntry).find((line) => line.code === "LATE")?.amount), -62.5);
+    assert.equal(Number(lines(monthlyEntry).find((line) => line.code === "LATE")?.amount), -52.08, "5-minute grace makes 09:30 equal 25 deductible late minutes");
 
     assert.equal(Number(lines(dailyEntry).find((line) => line.code === "BASIC")?.amount), 937.5);
     assert.equal(lines(dailyEntry).some((line) => line.code === "LATE"), false, "daily basic already reflects late worked time");
