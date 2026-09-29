@@ -633,6 +633,8 @@ test("seeded payroll lifecycle recalculates cleanly and releases overtime, leave
     assert.ok(firstOt && Number(firstOt.amount) > 0, "overtime must be present in the calculated register");
     assert.equal(Number(firstLoan?.amount), -600);
     assert.equal(Number(firstLeave?.amount), 2000);
+    const firstTrace = entries[0].trace as { inputs?: string[] };
+    assert.ok(firstTrace.inputs?.includes("leaveConversionTaxExempt=2000.00"));
 
     const firstPayslips = await db.select().from(payslips).where(eq(payslips.payrollEntryId, firstEntryId));
     assert.equal(firstPayslips.length, 1);
