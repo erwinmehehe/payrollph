@@ -7,6 +7,7 @@ import { dispatchWebhook } from "@/lib/webhooks";
 import { assertOrganizationRole, PAYROLL_RELEASE_ROLES } from "@/lib/access";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
 import { settlePayrollRun } from "@/lib/payroll-settlement";
+import { buildPayrollReleaseChecklist } from "@/lib/payroll-release-checklist";
 
 const RELEASABLE = ["Ready for release"];
 
@@ -70,6 +71,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return Response.json({
       error: `${run.exceptions} exception(s) need sign-off. Re-send with acknowledgeExceptions: true to release anyway.`,
       exceptions: run.exceptions,
+    }, { status: 409 });
+  }
+
+  const releaseChecklist = await buildPayrollReleaseChecklist(runId, {
+    acknowledgeExceptions: Boolean(body.acknowledgeExceptions),
+  });
+  if (!releaseChecklist?.ready) {
+    const failedItems = releaseChecklist?.items.filter((item) => item.blocking && !item.passed) ?? [];
+    return Response.json({
+      error: failedItems.length
+        ? `Payroll release checklist has ${failedItems.length} blocking item(s). Resolve them before release.`
+        : "Payroll release checklist could not be completed.",
+      checklist: releaseChecklist?.items ?? [],
     }, { status: 409 });
   }
 
