@@ -51,7 +51,10 @@ test("webhook network guard blocks private and metadata ranges", () => {
     "172.16.0.1",
     "192.168.1.5",
     "::1",
+    "::ffff:7f00:1",
+    "::ffff:127.0.0.1",
     "fc00::1",
+    "fec0::1",
   ]) {
     assert.equal(isForbiddenIp(address), true, `${address} must be blocked`);
   }
