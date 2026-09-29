@@ -275,6 +275,7 @@ function OwnerDashboard(props: RoleDashboardProps) {
 function HrDashboard(props: RoleDashboardProps) {
   const {
     data,
+    currentRun,
     firstName,
     activePeople,
     pendingLeave,
