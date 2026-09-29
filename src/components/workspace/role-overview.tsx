@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { buildPayrollHandoff, type PayrollHandoffStage } from "@/lib/payroll-handoff";
+import { buildRoleHandoffAction, type RoleHandoffAction } from "@/lib/payroll-handoff-actions";
 import type { DashboardData, PayrollHandoffRunSummary, PayrollRun, Task } from "./types";
 import {
   Avatar,
@@ -72,6 +73,7 @@ export function RoleOverviewView({
     payrollExceptions: payrollExceptions.length,
     approvalTask: payrollApproval,
   });
+  const roleAction = buildRoleHandoffAction(data, role);
 
   const common = {
     data,
@@ -89,6 +91,7 @@ export function RoleOverviewView({
     peopleMissingGovernmentIds,
     activeAdvisories,
     handoffStages,
+    roleAction,
     onPage,
     onNewRun,
   };
@@ -119,6 +122,7 @@ type RoleDashboardProps = {
   peopleMissingGovernmentIds: DashboardData["employees"];
   activeAdvisories: DashboardData["advisories"];
   handoffStages: PayrollHandoffStage[];
+  roleAction: RoleHandoffAction;
   onPage: (page: string) => void;
   onNewRun: () => void;
 };
@@ -135,6 +139,7 @@ function OwnerDashboard(props: RoleDashboardProps) {
     peopleMissingGovernmentIds,
     activeAdvisories,
     handoffStages,
+    roleAction,
     onPage,
     onNewRun,
   } = props;
@@ -183,6 +188,8 @@ function OwnerDashboard(props: RoleDashboardProps) {
         payDate={handoffRun?.payDate}
         viewerRole="owner"
       />
+
+      <NextActionCard action={roleAction} onPage={onPage} />
 
       <section className="stats-grid">
         <Metric
@@ -288,6 +295,7 @@ function HrDashboard(props: RoleDashboardProps) {
     attendanceIssues,
     peopleMissingGovernmentIds,
     handoffStages,
+    roleAction,
     onPage,
   } = props;
 
@@ -324,6 +332,8 @@ function HrDashboard(props: RoleDashboardProps) {
         payDate={handoffRun?.payDate}
         viewerRole="hr"
       />
+
+      <NextActionCard action={roleAction} onPage={onPage} />
 
       <section className="stats-grid">
         <Metric label="Active people" value={String(activePeople.length)} hint={"of " + String(data.employees.length) + " employee records"} icon={<UsersRound size={16} />} tone="purple" />
@@ -410,6 +420,7 @@ function PayrollDashboard(props: RoleDashboardProps) {
     pendingRetro,
     attendanceIssues,
     handoffStages,
+    roleAction,
     onPage,
     onNewRun,
   } = props;
@@ -461,6 +472,8 @@ function PayrollDashboard(props: RoleDashboardProps) {
         payDate={handoffRun?.payDate}
         viewerRole="payroll"
       />
+
+      <NextActionCard action={roleAction} onPage={onPage} />
 
       <section className="stats-grid">
         <Metric label="Run status" value={currentRun?.status ?? "No run"} hint={queueDone ? "calculation queue complete" : "calculation still in progress"} icon={<WalletCards size={16} />} tone={currentRun ? "blue" : "slate"} compact />
@@ -532,6 +545,7 @@ function CheckerDashboard(props: RoleDashboardProps) {
     highPriorityTasks,
     activeAdvisories,
     handoffStages,
+    roleAction,
     onPage,
   } = props;
 
@@ -569,6 +583,8 @@ function CheckerDashboard(props: RoleDashboardProps) {
         viewerRole="checker"
       />
 
+      <NextActionCard action={roleAction} onPage={onPage} />
+
       <section className="stats-grid">
         <Metric label="Assigned reviews" value={String(pendingTasks.length)} hint={pendingTasks.length ? "awaiting your decision" : "queue clear"} icon={<ClipboardCheck size={16} />} tone={pendingTasks.length ? "amber" : "mint"} />
         <Metric label="High priority" value={String(highPriorityTasks.length)} hint={highPriorityTasks.length ? "review these first" : "no urgent item"} icon={<AlertTriangle size={16} />} tone={highPriorityTasks.length ? "amber" : "mint"} />
@@ -597,6 +613,60 @@ function CheckerDashboard(props: RoleDashboardProps) {
         </RoleCard>
       </section>
     </>
+  );
+}
+
+function NextActionCard({
+  action,
+  onPage,
+}: {
+  action: RoleHandoffAction;
+  onPage: (page: string) => void;
+}) {
+  const actionable = action.state === "action";
+
+  return (
+    <section
+      className={"role-next-action " + action.state + " tone-" + action.tone}
+      data-handoff-action={action.state}
+    >
+      <div className="role-next-action-main">
+        <span className="card-kicker">{action.kicker}</span>
+        <h2>{action.title}</h2>
+        <p>{action.detail}</p>
+      </div>
+
+      {action.items.length > 0 ? (
+        <div className="handoff-blocker-list">
+          {action.items.map((item) => (
+            <button
+              type="button"
+              className="handoff-blocker-row"
+              key={item.id}
+              onClick={() => onPage(item.page)}
+            >
+              <span className={"role-gate-icon " + (item.tone === "danger" ? "warning" : "neutral")}>
+                {item.tone === "danger" ? <AlertTriangle size={14} /> : <ArrowRight size={14} />}
+              </span>
+              <span className="handoff-blocker-copy">
+                <strong>{item.title}</strong>
+                <small>{item.detail}</small>
+              </span>
+              <span className="handoff-blocker-open">Open <ArrowRight size={12} /></span>
+            </button>
+          ))}
+        </div>
+      ) : actionable && action.page && action.cta ? (
+        <button className="primary-button brand role-next-action-cta" onClick={() => onPage(action.page!)}>
+          {action.cta} <ArrowRight size={14} />
+        </button>
+      ) : (
+        <span className={"role-next-action-state " + action.state}>
+          {action.state === "complete" ? <Check size={13} /> : <Clock3 size={13} />}
+          {action.state === "complete" ? "Complete" : "Waiting"}
+        </span>
+      )}
+    </section>
   );
 }
 
