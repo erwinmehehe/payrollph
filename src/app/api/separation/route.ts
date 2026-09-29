@@ -394,10 +394,19 @@ export async function POST(request: Request) {
 
       let record: typeof separationRecords.$inferSelect;
       if (existingOpen && existingOpen.status !== "released") {
+        const separationFactsChanged =
+          String(existingOpen.lastDay) !== lastDay
+          || existingOpen.separationType !== separationType;
         const [updated] = await tx.update(separationRecords).set({
           ...financialValues,
-          // Financial data changed, so Finance must re-clear the recomputed package.
+          // Every recomputation invalidates Finance approval. A changed last
+          // day/category also invalidates operational clearance and any COE
+          // already marked issued from the previous separation facts.
           financeCleared: false,
+          itCleared: separationFactsChanged ? false : existingOpen.itCleared,
+          adminCleared: separationFactsChanged ? false : existingOpen.adminCleared,
+          hrCleared: separationFactsChanged ? false : existingOpen.hrCleared,
+          coeIssued: separationFactsChanged ? false : existingOpen.coeIssued,
           clearanceStatus: "in_progress",
         }).where(and(
           eq(separationRecords.id, existingOpen.id),
