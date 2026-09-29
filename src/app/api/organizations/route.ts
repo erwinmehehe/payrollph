@@ -4,6 +4,7 @@ import { organizations, userOrganizations } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { assertMembership } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
+import { publicDemoMutationDenied } from "@/lib/demo-security";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,8 @@ const ADMINS = new Set(["admin", "owner", "bookkeeper"]);
 export async function PUT(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+  const demoDenied = publicDemoMutationDenied(user.email, "Organization settings");
+  if (demoDenied) return demoDenied;
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
