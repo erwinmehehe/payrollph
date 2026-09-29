@@ -5,8 +5,10 @@ import {
   AlertTriangle,
   ArrowUpRight,
   Bell,
+  CalendarDays,
   Check,
   ChevronDown,
+  ChevronRight,
   CircleDollarSign,
   ClipboardCheck,
   Download,
@@ -15,7 +17,9 @@ import {
   RefreshCcw,
   Search,
   Send,
+  UploadCloud,
   UsersRound,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -44,7 +48,9 @@ const CORE_INTERACTIVE_TABS = new Set<Tab>([
   "Overview",
   "Payroll",
   "People",
+  "Migration",
   "Time & attendance",
+  "Leave",
   "Approvals",
   "Exports",
 ]);
@@ -66,6 +72,7 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
   const [acknowledged, setAcknowledged] = useState(false);
   const [decided, setDecided] = useState<Record<number, "Approved" | "Declined">>({});
   const [query, setQuery] = useState("");
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({ Manage: true });
 
   const interactive = mode === "interactive";
   const activeTab: Tab = interactive ? tab : "Overview";
@@ -99,38 +106,47 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
                 <strong style={{ fontSize: 14 }}>linaw</strong>
               </div>
             </div>
-            {PREVIEW_GROUPS.map((group) => (
-              <div key={group.label}>
-                <div
-                  style={{
-                    padding: group.label === "Workspace" ? "2px 10px 5px" : "14px 10px 5px",
-                    color: "var(--muted)",
-                    fontSize: 8.5,
-                    fontWeight: 700,
-                    letterSpacing: ".08em",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {group.label}
-                </div>
-                {group.items.map(({ name, icon: Icon, tone }) => (
+            {PREVIEW_GROUPS.map((group) => {
+              const collapsed = interactive && Boolean(collapsedGroups[group.label]);
+              return (
+                <div className="pv-nav-group" key={group.label}>
                   <button
-                    key={name}
-                    className={`nav-item ${activeTab === name ? "active" : ""}`}
-                    onClick={() => interactive && setTab(name)}
-                    tabIndex={interactive ? 0 : -1}
-                    aria-current={activeTab === name ? "page" : undefined}
+                    className="pv-nav-group-toggle"
+                    type="button"
+                    disabled={!interactive}
+                    onClick={() =>
+                      interactive &&
+                      setCollapsedGroups((current) => ({
+                        ...current,
+                        [group.label]: !current[group.label],
+                      }))
+                    }
+                    aria-expanded={!collapsed}
                   >
-                    <span className={`nav-icon t-${tone}`} aria-hidden>
-                      <Icon size={13} strokeWidth={2} />
-                    </span>
-                    <span>{name}</span>
-                    {name === "Approvals" && <b>{SAMPLE_APPROVALS.filter((task) => !decided[task.id]).length}</b>}
-                    {name === "People" && <b>{SAMPLE_EMPLOYEES.length}</b>}
+                    <span>{group.label}</span>
+                    {interactive && (collapsed ? <ChevronRight size={11} /> : <ChevronDown size={11} />)}
                   </button>
-                ))}
-              </div>
-            ))}
+                  {!collapsed && group.items.map(({ name, icon: Icon, tone }) => (
+                    <button
+                      key={name}
+                      className={`nav-item ${activeTab === name ? "active" : ""}`}
+                      data-tone={tone}
+                      onClick={() => interactive && setTab(name)}
+                      tabIndex={interactive ? 0 : -1}
+                      aria-current={activeTab === name ? "page" : undefined}
+                      title={name}
+                    >
+                      <span className={`nav-icon t-${tone}`} aria-hidden>
+                        <Icon size={13} strokeWidth={2.1} />
+                      </span>
+                      <span>{name}</span>
+                      {name === "Approvals" && <b>{SAMPLE_APPROVALS.filter((task) => !decided[task.id]).length}</b>}
+                      {name === "People" && <b>{SAMPLE_EMPLOYEES.length}</b>}
+                    </button>
+                  ))}
+                </div>
+              );
+            })}
           </aside>
 
           <div className="pv-main">
@@ -182,7 +198,9 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
                   />
                 )}
                 {activeTab === "People" && <PreviewPeople query={query} onQuery={setQuery} />}
+                {activeTab === "Migration" && <PreviewMigration run={run} />}
                 {activeTab === "Time & attendance" && <PreviewTime />}
+                {activeTab === "Leave" && <PreviewLeave />}
                 {activeTab === "Approvals" && (
                   <PreviewApprovals
                     decided={decided}
@@ -966,6 +984,200 @@ const FEATURE_PREVIEWS: Partial<Record<Tab, PreviewFeatureSpec>> = {
     ],
   },
 };
+
+type PreviewLeaveRow = {
+  id: number;
+  person: string;
+  initials: string;
+  type: string;
+  dates: string;
+  balance: string;
+  status: "Pending" | "Approved" | "Declined" | "Review";
+};
+
+const BASE_LEAVE_ROWS: PreviewLeaveRow[] = [
+  { id: 1, person: "Aira Villanueva", initials: "AV", type: "Emergency leave", dates: "Mar 17–18", balance: "7.0 days left", status: "Pending" },
+  { id: 2, person: "Jonas Reyes", initials: "JR", type: "Vacation leave", dates: "Mar 24", balance: "6.5 days left", status: "Approved" },
+  { id: 3, person: "Trish Dela Cruz", initials: "TD", type: "Leave conversion", dates: "Final pay", balance: "4.0 days convertible", status: "Review" },
+];
+
+function PreviewLeave() {
+  const [rows, setRows] = useState<PreviewLeaveRow[]>(BASE_LEAVE_ROWS);
+  const [filter, setFilter] = useState<"All" | "Pending">("All");
+  const [newOpen, setNewOpen] = useState(false);
+  const pending = rows.filter((row) => row.status === "Pending").length;
+  const approved = rows.filter((row) => row.status === "Approved").length;
+  const visible = filter === "Pending" ? rows.filter((row) => row.status === "Pending") : rows;
+
+  function decide(id: number, status: "Approved" | "Declined") {
+    setRows((current) => current.map((row) => (row.id === id ? { ...row, status } : row)));
+  }
+
+  function addSampleRequest() {
+    setRows((current) => [
+      {
+        id: Math.max(...current.map((row) => row.id), 0) + 1,
+        person: "Nina Garcia",
+        initials: "NG",
+        type: "Annual leave",
+        dates: "Apr 6–7",
+        balance: "9.0 days left",
+        status: "Pending",
+      },
+      ...current,
+    ]);
+    setNewOpen(false);
+    setFilter("Pending");
+  }
+
+  return (
+    <>
+      <div className="preview-feature-hero tone-purple">
+        <div>
+          <span className="kicker">Leave</span>
+          <h2>Balances and approvals stay attached to the employee.</h2>
+          <p>Try the sample workflow: add a request, filter pending items, then approve or decline it.</p>
+        </div>
+        <button className="secondary-button preview-hero-action" type="button" onClick={() => setNewOpen((value) => !value)}>
+          <CalendarDays size={14} /> {newOpen ? "Close form" : "New request"}
+        </button>
+      </div>
+
+      <div className="stats-grid preview-stat-grid">
+        <MiniStat label="Pending" value={String(pending)} hint="requests awaiting review" tone="amber" icon={CalendarDays} />
+        <MiniStat label="Approved" value={String(approved)} hint="sample decisions" tone="mint" icon={Check} />
+        <MiniStat label="Payroll link" value="On" hint="approved leave follows cutoff" tone="purple" icon={RefreshCcw} />
+      </div>
+
+      {newOpen && (
+        <article className="card preview-inline-form">
+          <div>
+            <span className="card-kicker">NEW SAMPLE REQUEST</span>
+            <strong>Nina Garcia · Annual leave · Apr 6–7</strong>
+            <small>This writes only to local demo state and resets on refresh.</small>
+          </div>
+          <div className="preview-inline-form-actions">
+            <button className="secondary-button" type="button" onClick={() => setNewOpen(false)}><X size={13} /> Cancel</button>
+            <button className="primary-button brand" type="button" onClick={addSampleRequest}><Check size={13} /> Add request</button>
+          </div>
+        </article>
+      )}
+
+      <article className="card preview-feature-card">
+        <div className="card-header">
+          <div>
+            <div className="card-kicker">LEAVE REGISTER</div>
+            <h2>Review requests</h2>
+            <p>Decisions update the counters immediately so the demo behaves like a real workflow.</p>
+          </div>
+          <div className="preview-segmented" role="group" aria-label="Filter leave requests">
+            {(["All", "Pending"] as const).map((value) => (
+              <button key={value} className={filter === value ? "active" : ""} type="button" onClick={() => setFilter(value)}>
+                {value}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="preview-feature-list">
+          {visible.map((row, index) => (
+            <div className="preview-feature-row" key={row.id}>
+              <span className={`avatar avatar-${index % 5}`} aria-hidden>{row.initials}</span>
+              <div className="preview-feature-copy">
+                <strong>{row.person}</strong>
+                <span>{row.type} · {row.dates}</span>
+                <small>{row.balance}</small>
+              </div>
+              <Status value={row.status === "Pending" ? "Awaiting approval" : row.status} />
+              {row.status === "Pending" && (
+                <div className="preview-row-actions">
+                  <button type="button" className="icon-button preview-decline" aria-label={`Decline ${row.person}`} onClick={() => decide(row.id, "Declined")}>
+                    <X size={13} />
+                  </button>
+                  <button type="button" className="icon-button preview-approve" aria-label={`Approve ${row.person}`} onClick={() => decide(row.id, "Approved")}>
+                    <Check size={13} />
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+          {visible.length === 0 && <div className="empty-state">No pending leave requests. Try adding a sample request.</div>}
+        </div>
+      </article>
+    </>
+  );
+}
+
+function PreviewMigration({ run }: { run: ReturnType<typeof buildSampleRun> }) {
+  const [source, setSource] = useState("Sprout");
+  const [stage, setStage] = useState<"choose" | "mapped" | "validated">("choose");
+
+  return (
+    <>
+      <div className="preview-feature-hero tone-teal">
+        <div>
+          <span className="kicker">Migration</span>
+          <h2>Switch payroll software without rebuilding your data.</h2>
+          <p>Try a sample import: choose a source, load an export, then validate the detected mappings.</p>
+        </div>
+        <span className="status status-simulation">Local demo</span>
+      </div>
+
+      <article className="card preview-migration-card">
+        <div className="preview-migration-step">
+          <span>1</span>
+          <div>
+            <strong>Choose current system</strong>
+            <p>Header aliases adapt to common payroll and HRIS exports.</p>
+          </div>
+          <select value={source} onChange={(event) => { setSource(event.target.value); setStage("choose"); }}>
+            <option>Sprout</option>
+            <option>Salarium</option>
+            <option>PayrollHero</option>
+            <option>GreatDay HR</option>
+            <option>Other CSV</option>
+          </select>
+        </div>
+        <div className="preview-migration-step">
+          <span>2</span>
+          <div>
+            <strong>Load sample export</strong>
+            <p>Employee ID, salary, statutory IDs and payout fields are detected automatically.</p>
+          </div>
+          <button className="secondary-button" type="button" onClick={() => setStage("mapped")}>
+            <UploadCloud size={14} /> Load sample
+          </button>
+        </div>
+        {stage !== "choose" && (
+          <div className="preview-mapping-grid">
+            {[
+              ["Employee ID", "Employee No"],
+              ["Basic Salary", "Monthly Basic"],
+              ["PhilHealth PIN", "PhilHealth No"],
+              ["Bank Account", "Bank Account"],
+            ].map(([from, to]) => (
+              <div key={from}><span>{from}</span><ArrowUpRight size={12} /><strong>{to}</strong></div>
+            ))}
+          </div>
+        )}
+        {stage === "mapped" && (
+          <div className="run-actions">
+            <span className="preview-validation-copy">42 rows · 40 ready · 2 warnings · no data written yet</span>
+            <button className="primary-button brand" type="button" onClick={() => setStage("validated")}>
+              <Check size={14} /> Validate import
+            </button>
+          </div>
+        )}
+        {stage === "validated" && (
+          <div className="notice notice-green" style={{ margin: 14 }}>
+            <Check size={15} />
+            <span><strong>Validation passed.</strong> Historical payroll stays preserved and the current sample run remains {money(run.net)} net.</span>
+          </div>
+        )}
+      </article>
+    </>
+  );
+}
 
 function PreviewFeature({ tab, run }: { tab: Tab; run: ReturnType<typeof buildSampleRun> }) {
   const navItem = TABS.find((item) => item.name === tab);
