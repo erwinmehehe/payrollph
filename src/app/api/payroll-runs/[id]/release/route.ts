@@ -165,7 +165,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           "Sign in to Linaw to view and download your payslip.",
         ].join("\n"),
       });
-      if (notice.delivered || notice.queued || notice.duplicate) {
+      if (notice.delivered || notice.queued) {
         notified += 1;
       } else {
         postReleaseWarnings.push(
