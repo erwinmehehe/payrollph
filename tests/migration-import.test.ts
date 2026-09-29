@@ -52,8 +52,8 @@ test("historical payroll imports preserve YTD components instead of recalculatin
     source: "sprout",
     kind: "payroll_history",
     csv: [
-      "Employee ID,Pay Date,Payroll Period,Gross Pay,Net Pay,Withholding Tax,SSS Contribution,PhilHealth Contribution,Pag-IBIG Contribution,13th Month Pay",
-      "SP-001,2026-06-30,June 2,40000,33500,2500,900,500,100,0",
+      "Employee ID,Pay Date,Payroll Period,Gross Pay,Basic Salary Earned,Other Non-Taxable Compensation,Net Pay,Withholding Tax,SSS Contribution,PhilHealth Contribution,Pag-IBIG Contribution,13th Month Pay",
+      "SP-001,2026-06-30,June 2,40000,30000,1500,33500,2500,900,500,100,0",
     ].join("\n"),
   });
 
@@ -62,6 +62,8 @@ test("historical payroll imports preserve YTD components instead of recalculatin
     employeeNo: string;
     payDate: string;
     grossPay: number;
+    basicSalaryEarned: number;
+    otherNonTaxable: number;
     taxWithheld: number;
     sssEmployee: number;
     philHealthEmployee: number;
@@ -70,6 +72,8 @@ test("historical payroll imports preserve YTD components instead of recalculatin
   assert.equal(row.employeeNo, "SP-001");
   assert.equal(row.payDate, "2026-06-30");
   assert.equal(row.grossPay, 40000);
+  assert.equal(row.basicSalaryEarned, 30000);
+  assert.equal(row.otherNonTaxable, 1500);
   assert.equal(row.taxWithheld, 2500);
   assert.equal(row.sssEmployee, 900);
   assert.equal(row.philHealthEmployee, 500);
@@ -230,6 +234,8 @@ test("modern XLSX migration exports are converted from the first worksheet, incl
 test("migration templates expose canonical headers for every supported dataset", () => {
   assert.ok(MIGRATION_TEMPLATE_HEADERS.employees.includes("Employee ID"));
   assert.ok(MIGRATION_TEMPLATE_HEADERS.payroll_history.includes("Withholding Tax"));
+  assert.ok(MIGRATION_TEMPLATE_HEADERS.payroll_history.includes("Basic Salary Earned"));
+  assert.ok(MIGRATION_TEMPLATE_HEADERS.payroll_history.includes("Other Non-Taxable Compensation"));
   assert.ok(MIGRATION_TEMPLATE_HEADERS.leave_balances.includes("Opening Balance"));
   assert.ok(MIGRATION_TEMPLATE_HEADERS.loans.includes("Outstanding Balance"));
 });
