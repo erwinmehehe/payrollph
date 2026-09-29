@@ -10,6 +10,8 @@ type SeparationRecord = {
   employeeNo: string;
   employeeTitle: string;
   basicRate: string;
+  payBasis?: string;
+  payRate?: string;
   hireDate: string;
   separationType: string;
   noticeDate: string;
@@ -20,6 +22,11 @@ type SeparationRecord = {
   financeCleared: boolean;
   hrCleared: boolean;
   prorated13thMonth: string;
+  unpaidSalary: string;
+  basicSalaryEarnedYtd: string;
+  thirteenthMonthPreviouslyPaid: string;
+  finalPayDueDate?: string | null;
+  finalPayBreakdown?: Record<string, unknown>;
   unusedLeaveCredits: string;
   leaveMonetizationPay: string;
   taxAdjustment: string;
@@ -39,13 +46,18 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
   const [showModal, setShowModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<SeparationRecord | null>(null);
   const [showCoeModal, setShowCoeModal] = useState(false);
+  const [taxAdjustmentDraft, setTaxAdjustmentDraft] = useState("0");
 
   const [form, setForm] = useState({
     employeeId: "",
     separationType: "resignation",
     noticeDate: new Date().toISOString().slice(0, 10),
     lastDay: new Date().toISOString().slice(0, 10),
-    unusedLeaveCredits: "5.0",
+    unusedLeaveCredits: "0",
+    unpaidBasicSalary: "",
+    taxAdjustment: "0",
+    taxReviewed: false,
+    deductOutstandingLoans: false,
   });
 
   const [nonce, setNonce] = useState(0);
@@ -88,6 +100,10 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
         organizationId,
         employeeId: Number(form.employeeId),
         unusedLeaveCredits: Number(form.unusedLeaveCredits),
+        unpaidBasicSalary: form.unpaidBasicSalary.trim() === "" ? undefined : Number(form.unpaidBasicSalary),
+        taxAdjustment: Number(form.taxAdjustment),
+        taxReviewed: form.taxReviewed,
+        deductOutstandingLoans: form.deductOutstandingLoans,
       }),
     });
     const data = await res.json();
@@ -95,7 +111,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
       setNotice(data.error ?? "Failed to calculate final pay.");
       return;
     }
-    setNotice("Separation initiated and Final Pay calculated adhering to DOLE 30-day mandate.");
+    setNotice("Final-pay package computed from the employee compensation ledger.");
     setShowModal(false);
     reload();
   }
@@ -122,20 +138,67 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
     const res = await fetch("/api/separation", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, action: "approve" }),
+      body: JSON.stringify({
+        id,
+        action: "approve",
+        taxReviewed: true,
+        taxAdjustment: Number(taxAdjustmentDraft || 0),
+      }),
     });
-    if (res.ok) {
-      setNotice("Final Pay package approved for bank crediting.");
-      reload();
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setNotice(payload.error ?? "Final pay could not be approved.");
+      return;
     }
+    setNotice("Final-pay package approved after tax review.");
+    setSelectedRecord(payload);
+    setTaxAdjustmentDraft(String(payload.taxAdjustment ?? taxAdjustmentDraft));
+    reload();
+  }
+
+  async function releaseFinalPay(id: number) {
+    const res = await fetch("/api/separation", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, action: "release" }),
+    });
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setNotice(payload.error ?? "Final pay could not be released.");
+      return;
+    }
+    setNotice(payload.warning || "Final pay marked released.");
+    setSelectedRecord(payload);
+    reload();
+  }
+
+  async function issueCoe(id: number) {
+    const res = await fetch("/api/separation", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, action: "issue_coe" }),
+    });
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setNotice(payload.error ?? "COE could not be marked issued.");
+      return;
+    }
+    setNotice("COE marked issued.");
+    setShowCoeModal(false);
+    reload();
+  }
+
+  function openBreakdown(record: SeparationRecord) {
+    setSelectedRecord(record);
+    setTaxAdjustmentDraft(String(record.taxAdjustment ?? "0"));
   }
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Separation, Clearance &amp; Final Pay (DOLE Advisory 06-20)</h2>
-          <p className="heading-copy">Prorated 13th month, unused leave monetization, loan deductions, and 30-day final pay release compliance.</p>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Separation, Clearance &amp; Final Pay</h2>
+          <p className="heading-copy">Actual basic-salary ledger, outstanding 13th month, unpaid salary, leave conversion, reviewed tax adjustment, and release tracking.</p>
         </div>
         <button className="primary-button" onClick={() => setShowModal(true)}>
           <UserX size={15} className="i-red" /> Initiate Employee Separation
@@ -163,9 +226,9 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
         </article>
         <article className="stat-card">
           <div className="stat-icon blue"><FileText size={19} /></div>
-          <p>DOLE MANDATE</p>
+          <p>FINAL PAY TARGET</p>
           <h3>30 Days</h3>
-          <span>Statutory release window</span>
+          <span>tracked from the employee&apos;s last day</span>
         </article>
       </div>
 
@@ -201,9 +264,24 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
               <label>Unused Vacation / Service Incentive Leave Credits (Days)
                 <input required type="number" step="0.5" min="0" max="60" value={form.unusedLeaveCredits} onChange={(e) => setForm({ ...form, unusedLeaveCredits: e.target.value })} />
               </label>
+              <label>Unpaid Basic Salary Still Due
+                <input type="number" min="0" step="0.01" placeholder="Required when released payroll does not reach the last day" value={form.unpaidBasicSalary} onChange={(e) => setForm({ ...form, unpaidBasicSalary: e.target.value })} />
+              </label>
+              <label>Reviewed Tax Adjustment
+                <input type="number" step="0.01" value={form.taxAdjustment} onChange={(e) => setForm({ ...form, taxAdjustment: e.target.value })} />
+                <small>Positive = refund to employee. Negative = collection.</small>
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input type="checkbox" checked={form.taxReviewed} onChange={(e) => setForm({ ...form, taxReviewed: e.target.checked })} />
+                Tax adjustment reviewed
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input type="checkbox" checked={form.deductOutstandingLoans} onChange={(e) => setForm({ ...form, deductOutstandingLoans: e.target.checked })} />
+                Deduct authorized outstanding employee loans
+              </label>
             </div>
             <div className="notice notice-blue" style={{ margin: "10px 0" }}>
-              <span><strong>Automated Computation:</strong> Accrues 13th month from Jan 1 to Last Day, monetizes unused leave at daily rate (Basic &divide; 22), deducts active loan balances, and produces legal clearance checklist.</span>
+              <span><strong>Ledger-based computation:</strong> Uses actual basic salary earned for 13th-month accrual, subtracts 13th month already paid, values leave using the pay rate effective on the last day, and fails closed when migrated payroll history is incomplete.</span>
             </div>
             <div className="run-actions">
               <button type="button" className="secondary-button" onClick={() => setShowModal(false)}>Cancel</button>
@@ -220,7 +298,10 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
             <div>
               <div className="card-kicker">FINAL PAY COMPUTATION SHEET</div>
               <h3 style={{ margin: 0, fontSize: 16 }}>{selectedRecord.employeeName} ({selectedRecord.employeeNo})</h3>
-              <p style={{ margin: "2px 0 0", color: "var(--muted)", fontSize: 11 }}>Position: {selectedRecord.employeeTitle} · Monthly Basic: {peso(selectedRecord.basicRate)} · Last Day: {selectedRecord.lastDay}</p>
+              <p style={{ margin: "2px 0 0", color: "var(--muted)", fontSize: 11 }}>
+                Position: {selectedRecord.employeeTitle} · {selectedRecord.payBasis === "daily" ? "Daily" : selectedRecord.payBasis === "hourly" ? "Hourly" : "Monthly"} rate: {peso(selectedRecord.payRate ?? selectedRecord.basicRate)} · Last Day: {selectedRecord.lastDay}
+                {selectedRecord.finalPayDueDate ? ` · Target release by ${selectedRecord.finalPayDueDate}` : ""}
+              </p>
             </div>
             <button className="icon-button" onClick={() => setSelectedRecord(null)}><X size={16} /></button>
           </div>
@@ -229,16 +310,34 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
             <div style={{ background: "white", padding: 14, borderRadius: 10, border: "1px solid var(--line)" }}>
               <span style={{ fontSize: 10, fontWeight: 800, color: "var(--green)", textTransform: "uppercase" }}>ADDITIONS (EARNINGS)</span>
               <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #edf2ee", fontSize: 11.5, marginTop: 6 }}>
-                <span>Prorated 13th Month Pay</span>
+                <span>Unpaid basic salary</span>
+                <strong>{peso(selectedRecord.unpaidSalary)}</strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #edf2ee", fontSize: 11.5 }}>
+                <span>13th Month Still Due</span>
                 <strong>{peso(selectedRecord.prorated13thMonth)}</strong>
+              </div>
+              <div style={{ padding: "5px 0", fontSize: 10.5, color: "var(--muted)" }}>
+                Actual basic earned YTD: {peso(selectedRecord.basicSalaryEarnedYtd)} · 13th already paid: {peso(selectedRecord.thirteenthMonthPreviouslyPaid)}
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #edf2ee", fontSize: 11.5 }}>
                 <span>Leave Monetization ({selectedRecord.unusedLeaveCredits} days)</span>
                 <strong>{peso(selectedRecord.leaveMonetizationPay)}</strong>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: 11.5 }}>
-                <span>Tax Withholding Refund</span>
-                <strong>{peso(selectedRecord.taxAdjustment)}</strong>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: 11.5, gap: 10, alignItems: "center" }}>
+                <span>Tax adjustment</span>
+                {selectedRecord.status === "draft" ? (
+                  <input
+                    type="number"
+                    step="0.01"
+                    style={{ width: 130 }}
+                    value={taxAdjustmentDraft}
+                    onChange={(event) => setTaxAdjustmentDraft(event.target.value)}
+                    aria-label="Reviewed tax adjustment"
+                  />
+                ) : (
+                  <strong>{peso(selectedRecord.taxAdjustment)}</strong>
+                )}
               </div>
             </div>
 
@@ -263,7 +362,10 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
             <div style={{ display: "flex", gap: 8 }}>
               <button className="secondary-button" onClick={() => setShowCoeModal(true)}><FileText size={15} className="i-teal" /> View COE Draft</button>
               {selectedRecord.status === "draft" && (
-                <button className="primary-button" onClick={() => approveFinalPay(selectedRecord.id)}>Approve Final Pay</button>
+                <button className="primary-button" onClick={() => approveFinalPay(selectedRecord.id)}>Approve After Tax Review</button>
+              )}
+              {selectedRecord.status === "approved" && (
+                <button className="primary-button" onClick={() => releaseFinalPay(selectedRecord.id)}>Mark Final Pay Released</button>
               )}
             </div>
           </div>
@@ -276,7 +378,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
           <section className="modal large" role="dialog" aria-modal="true" aria-label="Certificate of Employment">
             <button className="modal-close" onClick={() => setShowCoeModal(false)}><X size={18} /></button>
             <div className="modal-icon"><FileCheck size={22} className="i-green" /></div>
-            <div className="card-kicker">DOLE COMPLIANCE · LABOR ADVISORY 06-20</div>
+            <div className="card-kicker">CERTIFICATE OF EMPLOYMENT</div>
             <h2>Certificate of Employment (COE)</h2>
             <p>Mandatory issuance within 3 days of employee request:</p>
             <div style={{ background: "white", padding: 24, border: "1px solid var(--line)", borderRadius: 10, fontFamily: "serif", fontSize: 13, lineHeight: 1.8, color: "#222" }}>
@@ -290,8 +392,8 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                 <strong>{selectedRecord.employeeTitle}</strong>.
               </p>
               <p>
-                During the period of tenure, the employee was compensated at a monthly basic rate of{" "}
-                <strong>{peso(selectedRecord.basicRate)}</strong>.
+                During the period of tenure, the employee&apos;s latest recorded {selectedRecord.payBasis === "daily" ? "daily" : selectedRecord.payBasis === "hourly" ? "hourly" : "monthly"} rate was{" "}
+                <strong>{peso(selectedRecord.payRate ?? selectedRecord.basicRate)}</strong>.
               </p>
               <p>
                 This certification is issued upon the request of the above-named employee for whatever legal purpose it may serve.
@@ -303,7 +405,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
             </div>
             <div className="modal-actions">
               <button className="secondary-button" onClick={() => setShowCoeModal(false)}>Close</button>
-              <button className="primary-button" onClick={() => { setNotice("COE generated and marked issued."); setShowCoeModal(false); }}>Print / Download COE</button>
+              <button className="primary-button" onClick={() => void issueCoe(selectedRecord.id)}>Mark Issued</button>
             </div>
           </section>
         </div>
@@ -352,7 +454,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                   <td><strong style={{ color: "var(--green)" }}>{peso(sep.netFinalPay)}</strong></td>
                   <td><span className={`status status-${sep.status === "approved" ? "verified" : sep.status === "draft" ? "needs-review" : "released"}`}>{sep.status}</span></td>
                   <td>
-                    <button className="primary-button" style={{ height: 26, fontSize: 10, padding: "0 8px" }} onClick={() => setSelectedRecord(sep)}>
+                    <button className="primary-button" style={{ height: 26, fontSize: 10, padding: "0 8px" }} onClick={() => openBreakdown(sep)}>
                       Breakdown
                     </button>
                   </td>
