@@ -359,6 +359,11 @@ function PersonDrawer({
   });
   const [payChangeReason, setPayChangeReason] = useState("Salary adjustment");
   const [payError, setPayError] = useState("");
+  const [editingThirteenth, setEditingThirteenth] = useState(false);
+  const [savingThirteenth, setSavingThirteenth] = useState(false);
+  const [thirteenthMonthEligible, setThirteenthMonthEligible] = useState(employee.thirteenthMonthEligible !== false);
+  const [thirteenthMonthExclusionReason, setThirteenthMonthExclusionReason] = useState(employee.thirteenthMonthExclusionReason ?? "");
+  const [thirteenthError, setThirteenthError] = useState("");
   const [editingGovernment, setEditingGovernment] = useState(false);
   const [savingGovernment, setSavingGovernment] = useState(false);
   const [middleName, setMiddleName] = useState(employee.middleName ?? "");
@@ -397,6 +402,36 @@ function PersonDrawer({
       onClose();
     } finally {
       setSavingPay(false);
+    }
+  }
+
+  async function saveThirteenthEligibility() {
+    setSavingThirteenth(true);
+    setThirteenthError("");
+    try {
+      if (!thirteenthMonthEligible && !thirteenthMonthExclusionReason.trim()) {
+        setThirteenthError("Record the exclusion basis before marking an employee ineligible for statutory 13th-month pay.");
+        return;
+      }
+      const response = await fetch("/api/employees", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId: data.selectedOrganization.id,
+          employeeId: employee.id,
+          thirteenthMonthEligible,
+          thirteenthMonthExclusionReason: thirteenthMonthEligible ? null : thirteenthMonthExclusionReason.trim(),
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setThirteenthError(payload.error ?? "Could not save 13th-month eligibility.");
+        return;
+      }
+      await onRefresh();
+      setEditingThirteenth(false);
+    } finally {
+      setSavingThirteenth(false);
     }
   }
 
@@ -593,6 +628,75 @@ function PersonDrawer({
               </div>
             )}
           </div>
+        </section>
+
+        <section className="card" style={{ margin: "0 0 16px", boxShadow: "none" }}>
+          <div className="card-header">
+            <div>
+              <div className="card-kicker">13TH-MONTH ELIGIBILITY</div>
+              <h2 style={{ fontSize: 14 }}>Statutory coverage</h2>
+              <p>Eligible employees accrue 13th-month pay from actual qualifying basic salary earned. Exclusions stay explicit and auditable instead of being inferred from job title or pay method.</p>
+            </div>
+            {canManage && (
+              <button className="secondary-button" onClick={() => setEditingThirteenth((value) => !value)}>
+                {editingThirteenth ? "Cancel" : "Edit eligibility"}
+              </button>
+            )}
+          </div>
+          {editingThirteenth ? (
+            <>
+              <div className="setting-form">
+                <label style={{ display: "flex", alignItems: "center", gap: 8, flexDirection: "row" }}>
+                  <input
+                    type="checkbox"
+                    checked={thirteenthMonthEligible}
+                    onChange={(event) => setThirteenthMonthEligible(event.target.checked)}
+                    style={{ width: 16, height: 16 }}
+                  />
+                  Covered by statutory 13th-month pay
+                </label>
+                {!thirteenthMonthEligible && (
+                  <label>
+                    Exclusion basis
+                    <input
+                      value={thirteenthMonthExclusionReason}
+                      onChange={(event) => setThirteenthMonthExclusionReason(event.target.value)}
+                      placeholder="Document the legal, contractual, or employee-classification basis"
+                    />
+                  </label>
+                )}
+              </div>
+              {thirteenthError && (
+                <div className="notice notice-amber" style={{ margin: "0 16px 10px" }}>
+                  <span>{thirteenthError}</span>
+                </div>
+              )}
+              <div className="run-actions">
+                <button className="primary-button" disabled={savingThirteenth} onClick={() => void saveThirteenthEligibility()}>
+                  <Check size={14} /> {savingThirteenth ? "Saving…" : "Save eligibility"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="card-body">
+              <div className="run-stats" style={{ margin: 0 }}>
+                <div>
+                  <span>Status</span>
+                  <strong style={{ fontSize: 13 }}>{employee.thirteenthMonthEligible === false ? "Excluded" : "Eligible"}</strong>
+                  <small>{employee.thirteenthMonthEligible === false ? "explicit exclusion recorded" : "actual basic salary earned ÷ 12"}</small>
+                </div>
+                <div style={{ gridColumn: "span 3" }}>
+                  <span>Recorded basis</span>
+                  <strong style={{ fontSize: 12 }}>
+                    {employee.thirteenthMonthEligible === false
+                      ? employee.thirteenthMonthExclusionReason || "Missing exclusion basis"
+                      : "Statutory 13th-month coverage"}
+                  </strong>
+                  <small>pay method alone does not change this setting</small>
+                </div>
+              </div>
+            </div>
+          )}
         </section>
 
         <section className="card" style={{ margin: "0 0 16px", boxShadow: "none" }}>
