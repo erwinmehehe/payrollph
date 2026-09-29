@@ -9,6 +9,7 @@ import {
 } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
+import { queueMessageOnce } from "@/lib/mailer";
 
 const SUBMITTABLE = ["Needs review", "Processed"];
 
@@ -153,9 +154,44 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }, { status: 409 });
   }
 
+  let handoffNotification: {
+    ok: boolean;
+    duplicate?: boolean;
+    warning?: string;
+  } = { ok: false };
+
+  try {
+    const notice = await queueMessageOnce({
+      organizationId: run.organizationId,
+      recipient: checker.email,
+      subject: `Payroll review needed: ${run.periodLabel}`,
+      purpose: `payroll-review-${run.id}-${checker.id}`,
+      body: [
+        `Hi ${checker.name},`,
+        "",
+        `${user.name} submitted ${run.periodLabel} payroll for your independent review.`,
+        `Review items: ${reviewCount}`,
+        "",
+        "Sign in to Linaw and open Approvals to approve or decline the run.",
+        "Payroll cannot be released until an independent checker has decided.",
+      ].join("\n"),
+    });
+    handoffNotification = {
+      ok: notice.delivered || notice.queued || notice.duplicate,
+      duplicate: notice.duplicate,
+      warning: notice.reason ?? undefined,
+    };
+  } catch {
+    handoffNotification = {
+      ok: false,
+      warning: "The review was submitted, but the checker notification could not be queued.",
+    };
+  }
+
   return Response.json({
     task: submission.task,
     maker: { id: user.id, name: user.name },
     approver: { id: checker.id, name: checker.name, role: checker.role },
+    handoffNotification,
   }, { status: 201 });
 }
