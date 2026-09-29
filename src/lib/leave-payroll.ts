@@ -90,6 +90,21 @@ export function resolveApprovedLeaveForPayroll(input: {
     input.policies.map((policy) => [policy.leaveType.trim().toLowerCase(), policy]),
   );
 
+  const inCutoff = input.requests.filter(
+    (request) => allocateLeaveDaysToPeriod(request, input.periodStart, input.periodEnd) > 0,
+  );
+  for (let i = 0; i < inCutoff.length; i += 1) {
+    for (let j = i + 1; j < inCutoff.length; j += 1) {
+      const left = inCutoff[i];
+      const right = inCutoff[j];
+      if (left.startDate <= right.endDate && right.startDate <= left.endDate) {
+        throw new Error(
+          `Approved leave requests #${left.id} and #${right.id} overlap in this payroll cutoff. Resolve the duplicate leave coverage before calculating payroll.`,
+        );
+      }
+    }
+  }
+
   return input.requests.flatMap<ResolvedPayrollLeave>((request) => {
     const overlapDays = allocateLeaveDaysToPeriod(request, input.periodStart, input.periodEnd);
     if (overlapDays <= 0) return [];
