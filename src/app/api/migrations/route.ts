@@ -184,13 +184,14 @@ export async function POST(request: Request) {
 
   const parsed = parseMigrationCsv({ csv, source, kind });
   const rowErrors = [...parsed.errors];
-  const lineByRow = new Map(parsed.rows.map((row, index) => [row, parsed.rowLines[index] ?? 0]));
+  const rowLines = parsed.rowLines ?? [];
+  const lineByRow = new Map(parsed.rows.map((row, index) => [row, rowLines[index] ?? 0]));
   const duplicateIndexes = new Set<number>();
   const firstSeen = new Map<string, number>();
 
   parsed.rows.forEach((row, index) => {
     const key = migrationRowKey(kind, row);
-    const line = parsed.rowLines[index] ?? 0;
+    const line = rowLines[index] ?? 0;
     const firstLine = firstSeen.get(key);
     if (firstLine != null) {
       duplicateIndexes.add(index);
