@@ -53,7 +53,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
       ? requestedDemoRole
       : null;
   const demoInfo = demoRoleInfo(demoRole);
-  const initialPage = demoRole === "freelancer" ? "Overview" : demoInfo?.landingPage ?? "Overview";
+  const initialPage = demoInfo?.landingPage ?? "Overview";
 
   const [data, setData] = useState(initialData);
   const [page, setPage] = useState(initialPage);
@@ -90,10 +90,10 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
     [data, availablePages],
   );
 
-  const allowClientSwitch = !demoRole || demoRole === "bookkeeper";
-  const canManagePayroll = !demoRole || ["owner", "bookkeeper", "payroll"].includes(demoRole);
-  const canManagePeople = !demoRole || ["owner", "bookkeeper", "hr"].includes(demoRole);
-  const canManageTime = !demoRole || ["owner", "bookkeeper", "hr"].includes(demoRole);
+  const allowClientSwitch = !demoRole;
+  const canManagePayroll = !demoRole || ["owner", "payroll"].includes(demoRole);
+  const canManagePeople = !demoRole || ["owner", "hr"].includes(demoRole);
+  const canManageTime = !demoRole || ["owner", "hr"].includes(demoRole);
   const canUsePayrollOps = canManagePayroll && availablePages.includes("Payroll");
   const canUsePeopleOps = canManagePeople && availablePages.includes("People");
 
@@ -113,15 +113,6 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
     [data.selectedOrganization.id],
   );
 
-  useEffect(() => {
-    if (demoRole !== "freelancer" || isFreelancer) return;
-    const solo = data.organizations.find((organization) => organization.accountType === "freelancer");
-    if (!solo) return;
-
-    void refresh(solo.id)
-      .then(() => setPage("Freelancer hub"))
-      .catch(() => notify("Could not open the freelancer demo.", "err"));
-  }, [demoRole, isFreelancer, data.organizations, refresh, notify]);
 
   async function changeOrganization(id: number) {
     try {
