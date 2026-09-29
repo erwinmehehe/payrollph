@@ -11,6 +11,7 @@ import {
 import { ORG_ADMIN_ROLES, assertOrganizationRole } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { getEntitlements, requireFeature, seatUsage } from "@/lib/billing";
@@ -62,6 +63,7 @@ const cents = (value: number) => value.toFixed(2);
 const oneDecimal = (value: number) => value.toFixed(1);
 
 export async function GET(request: Request) {
+  await ensureCoreCompatibilitySchema();
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
@@ -103,6 +105,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  await ensureCoreCompatibilitySchema();
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
