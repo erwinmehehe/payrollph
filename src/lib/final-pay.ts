@@ -19,7 +19,13 @@ export function readBasicAndThirteenth(lineItems: unknown) {
 
     // Effective-dated RETRO entries are corrections to BASIC salary from a
     // previously released cutoff, so they belong in the 13th-month base.
-    if (code === "BASIC" || code.startsWith("RETRO-")) basic += amount;
+    if (
+      code === "BASIC"
+      || code.startsWith("RETRO-")
+      || (code.startsWith("LEAVE-") && !code.startsWith("LEAVE_CONV-"))
+      || code === "LATE"
+      || code === "UT"
+    ) basic += amount;
     if (code.includes("13TH") || code.includes("THIRTEENTH") || label.includes("13th month") || label.includes("thirteenth month")) {
       thirteenthPaid += Math.max(0, amount);
     }
