@@ -292,7 +292,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenNotification={availablePages.includes("Exports") ? () => setOutboxOpen(true) : undefined}
         onSwitchClient={(id) => void changeOrganization(id)}
-        onSwitchRole={(role) => void switchDemoRole(role)}
+        onSwitchRole={demoRole ? (role) => void switchDemoRole(role) : undefined}
         onSignOut={() => void signOut()}
         visiblePages={availablePages}
         displayRole={demoRole}
@@ -320,6 +320,15 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
           </>
         }
       >
+        {demoRole && demoInfo && (
+          <div className="notice notice-purple" style={{ marginBottom: 16 }}>
+            <ShieldCheck size={16} className="i-purple" />
+            <span>
+              <strong>{demoInfo.shortLabel} sandbox:</strong> {demoInfo.actions.join(" · ")}
+            </span>
+          </div>
+        )}
+
         {page === "Overview" && (
           <OverviewView
             data={data}
