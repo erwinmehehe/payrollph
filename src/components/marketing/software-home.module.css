@@ -2047,11 +2047,23 @@
   gap: 5px;
 }
 
-.simulationSurface :global(.preview-row-actions .icon-button) {
-  width: 29px;
-  height: 29px;
+.simulationSurface :global(.preview-decision) {
+  min-height: 29px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
   border: 1px solid #eaecf0;
+  border-radius: 7px;
   background: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color .14s ease, background .14s ease, transform .14s ease;
+}
+
+.simulationSurface :global(.preview-decision:hover) {
+  transform: translateY(-1px);
 }
 
 .simulationSurface :global(.preview-row-actions .preview-approve) {
