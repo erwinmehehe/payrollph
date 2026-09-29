@@ -320,8 +320,6 @@ export async function POST(request: Request) {
       releasedBasicYtd: sources.totals.releasedBasicYtd,
       historicalBasicYtd: historicalBasicSalaryEarned,
       unpaidBasicSalary,
-      finalStatutoryDeductions,
-      finalStatutoryReviewed,
       thirteenthPaidYtd: sources.totals.thirteenthPaidYtd,
       grossCompensationYtd: sources.totals.ordinaryGrossYtd,
       statutoryContributionsYtd: sources.totals.statutoryContributionsYtd,
