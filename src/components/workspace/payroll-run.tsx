@@ -949,7 +949,7 @@ function ExportPanel({
 }) {
   const [template, setTemplate] = useState(templates[0]?.name ?? "BDO DAT");
   const [dryRun, setDryRun] = useState(true);
-  const [draft, setDraft] = useState(GOVERNMENT_DRAFTS[0].value);
+  const [draft, setDraft] = useState<string>(GOVERNMENT_DRAFTS[0].value);
   const released = run.status === "Released";
 
   function download(url: string, label: string) {
