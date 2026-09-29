@@ -40,6 +40,7 @@ type SeparationRecord = {
   coeIssued: boolean;
   approvedAt?: string | null;
   releasedAt?: string | null;
+  releaseReference?: string | null;
 };
 
 const peso = (value: string | number) =>
@@ -52,6 +53,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
   const [showModal, setShowModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<SeparationRecord | null>(null);
   const [showCoeModal, setShowCoeModal] = useState(false);
+  const [releaseReference, setReleaseReference] = useState("");
 
   const [form, setForm] = useState({
     employeeId: "",
@@ -171,14 +173,15 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
     const res = await fetch("/api/separation", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, action }),
+      body: JSON.stringify({ id, action, ...(action === "release" ? { releaseReference } : {}) }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       setNotice(data.error ?? `Could not ${action} Final Pay.`);
       return;
     }
-    setNotice(action === "approve" ? "Final Pay package approved." : "Final Pay released and employee marked separated.");
+    setNotice(action === "approve" ? "Final Pay package approved." : "Final Pay marked released and employee marked separated.");
+    if (action === "release") setReleaseReference("");
     setSelectedRecord(null);
     reload();
   }
@@ -396,7 +399,20 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                 <button className="primary-button" onClick={() => transitionFinalPay(selectedRecord.id, "approve")}>Approve Final Pay</button>
               )}
               {selectedRecord.status === "approved" && (
-                <button className="primary-button" onClick={() => transitionFinalPay(selectedRecord.id, "release")}>Release Final Pay</button>
+                <div style={{ display: "grid", gap: 8, minWidth: 240 }}>
+                  <input
+                    value={releaseReference}
+                    onChange={(event) => setReleaseReference(event.target.value)}
+                    placeholder="Bank / payout reference"
+                    aria-label="Final pay payout reference"
+                  />
+                  <button className="primary-button" disabled={!releaseReference.trim()} onClick={() => transitionFinalPay(selectedRecord.id, "release")}>
+                    Mark Final Pay Released
+                  </button>
+                </div>
+              )}
+              {selectedRecord.status === "released" && selectedRecord.releaseReference && (
+                <span className="mono" style={{ fontSize: 11 }}>Payout ref: {selectedRecord.releaseReference}</span>
               )}
             </div>
           </div>
