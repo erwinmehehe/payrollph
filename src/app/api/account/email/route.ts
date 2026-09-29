@@ -8,6 +8,7 @@ import { verifyPassword } from "@/lib/crypto";
 import { emailChangeIssues } from "@/lib/account";
 import { clientIp, rateLimitDistributed } from "@/lib/rate-limit";
 import { normalizeEmail } from "@/lib/tokens";
+import { publicDemoMutationDenied } from "@/lib/demo-security";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,8 @@ export async function POST(request: Request) {
 
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+  const demoDenied = publicDemoMutationDenied(user.email, "Email changes");
+  if (demoDenied) return demoDenied;
 
   const body = await request.json().catch(() => ({}));
   const email = normalizeEmail(body.email);
