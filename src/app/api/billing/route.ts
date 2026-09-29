@@ -6,6 +6,7 @@ import { assertOrganizationRole, BILLING_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getEntitlements, type PlanId } from "@/lib/billing";
 import { createPaymongoCheckout } from "@/lib/paymongo";
+import { publicDemoMutationDenied } from "@/lib/demo-security";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +58,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+  const demoDenied = publicDemoMutationDenied(user.email, "Billing checkout");
+  if (demoDenied) return demoDenied;
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
