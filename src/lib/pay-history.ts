@@ -261,6 +261,25 @@ export function basicSalaryEarnedFromLineItems(lineItems: unknown, serviceYear?:
   return round2(Math.max(0, total));
 }
 
+export function basicSalaryEarnedForYear(lineItems: unknown, runServiceYear: number, targetYear: number) {
+  const rows = Array.isArray(lineItems) ? lineItems as PayrollLineLike[] : [];
+  let total = 0;
+  for (const row of rows) {
+    const code = String(row.code ?? "");
+    const amount = Number(row.amount ?? 0);
+    if (!Number.isFinite(amount)) continue;
+
+    if (runServiceYear === targetYear && (code === "BASIC" || (code.startsWith("LEAVE-") && !code.startsWith("LEAVE_CONV-")))) {
+      total += amount;
+      continue;
+    }
+    if (code.startsWith("RETRO_BASIC-") && row.thirteenthMonthEligible !== false && row.serviceYear === targetYear) {
+      total += amount;
+    }
+  }
+  return round2(Math.max(0, total));
+}
+
 export function thirteenthMonthPaidFromLineItems(lineItems: unknown) {
   const rows = Array.isArray(lineItems) ? lineItems as PayrollLineLike[] : [];
   return round2(rows.reduce((sum, row) => {
