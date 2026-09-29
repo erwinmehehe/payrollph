@@ -65,6 +65,8 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
     otherBenefits: "0",
     deductOutstandingLoans: false,
     specialPayTaxReviewed: false,
+    separationPayTaxExempt: false,
+    retirementPayTaxExempt: false,
   });
 
   const [nonce, setNonce] = useState(0);
@@ -254,6 +256,18 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                 <input type="checkbox" checked={form.specialPayTaxReviewed} onChange={(e) => setForm({ ...form, specialPayTaxReviewed: e.target.checked })} />
                 Tax treatment reviewed for separation / retirement pay
               </label>
+              {Number(form.separationPay) > 0 && (
+                <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input type="checkbox" checked={form.separationPayTaxExempt} onChange={(e) => setForm({ ...form, separationPayTaxExempt: e.target.checked })} />
+                  Reviewed separation pay is tax-exempt
+                </label>
+              )}
+              {Number(form.retirementPay) > 0 && (
+                <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input type="checkbox" checked={form.retirementPayTaxExempt} onChange={(e) => setForm({ ...form, retirementPayTaxExempt: e.target.checked })} />
+                  Reviewed retirement pay is tax-exempt
+                </label>
+              )}
             </div>
             <div className="notice notice-blue" style={{ margin: "10px 0" }}>
               <span><strong>Ledger-based computation:</strong> 13th month uses actual basic salary earned in the calendar year, subtracts any 13th month already paid, and keeps released payroll immutable. Linaw does not guess imported basic salary or special separation/retirement entitlements.</span>
