@@ -4,12 +4,9 @@ import { db } from "../src/db";
 import { employees, organizations, payrollEntries, payrollRuns } from "../src/db/schema";
 import { generateGovernmentDraft } from "../src/lib/exporters";
 
-// BIR's documented convention for the Alphalist/RELIEF TIN field is 9 digits
-// plus a separate branch code, with no hyphens or spaces (see
-// bir-excel-uploader.com's public field-formatting guide, which follows
-// BIR's own published spec). This is the one part of the ADES layout safe to
-// implement without the full byte-level spec in hand. Everything else in
-// this draft stays an honest DRAFT rather than a guessed byte layout.
+// Annual BIR exports stay fail-closed: this test covers the source extract
+// fields Linaw can verify without pretending a cutoff CSV is an exact
+// submission file accepted by the current validation workflow.
 
 test("Alphalist draft keeps employer and employee TIN/branch fields separate", async () => {
   const [org] = await db.insert(organizations).values({
@@ -50,12 +47,20 @@ test("Alphalist draft keeps employer and employee TIN/branch fields separate", a
     lineItems: [{ code: "WHT", amount: "-500.00" }],
   });
 
-  const file = await generateGovernmentDraft(run.id, "bir-alphalist-2316");
+  const file = await generateGovernmentDraft(run.id, "bir-1604c-source");
   const dataLine = file.body.split("\n").find((line) => line.includes("Reyes"));
 
   assert.ok(dataLine, "expected a data row for the seeded employee");
   assert.ok(
     dataLine!.startsWith('"987654321","0000","123456789","0001"'),
     `expected explicit employer and employee TIN/branch fields, got: ${dataLine}`,
+  );
+});
+
+
+test("government exporter refuses unknown display labels instead of guessing a filing format", async () => {
+  await assert.rejects(
+    () => generateGovernmentDraft(1, "Alphalist/2316"),
+    /Unsupported government export/,
   );
 });
