@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, lt, lte } from "drizzle-orm";
 import { db, pool } from "@/db";
 import {
   calamityAdvisories,
@@ -306,6 +306,7 @@ async function processPayrollChunk(input: {
           eq(employeePayAdjustments.organizationId, input.organizationId),
           inArray(employeePayAdjustments.employeeId, chunkIds),
           eq(employeePayAdjustments.status, "pending"),
+          lt(employeePayAdjustments.serviceThrough, run.periodStart),
         )),
       ])
     : [[], [], []] as const;
