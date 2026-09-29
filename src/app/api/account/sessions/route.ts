@@ -6,6 +6,7 @@ import { primaryOrganizationId } from "@/lib/access";
 import { getSessionUser, revokeSessionsByIds } from "@/lib/auth";
 import { canRevoke, sessionsSummary, toSessionViews } from "@/lib/account";
 import { safeSessionSelect } from "@/lib/session-select";
+import { publicDemoMutationDenied } from "@/lib/demo-security";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,8 @@ export async function GET() {
 export async function DELETE(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+  const demoDenied = publicDemoMutationDenied(user.email, "Session revocation");
+  if (demoDenied) return demoDenied;
 
   const body = await request.json().catch(() => ({}));
   const revokeAllOthers = Boolean(body.all);
