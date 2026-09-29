@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { buildPayrollHandoff, employeePayStatusLabel } from "../src/lib/payroll-handoff";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -63,4 +64,32 @@ test("recalculation invalidates linked approvals and replaces derived register d
   assert.ok(engine.includes("db.delete(payrollEntries)"));
   assert.ok(engine.includes("db.delete(payrollJobs)"));
   assert.ok(schema.includes('references(() => payrollEntries.id, { onDelete: "cascade" })'));
+});
+
+
+test("payroll handoff maps lifecycle states to the next responsible role", () => {
+  const cases = [
+    ["Draft", "hr"],
+    ["Needs review", "payroll"],
+    ["Pending approval", "checker"],
+    ["Ready for release", "owner"],
+    ["Released", "employee"],
+  ] as const;
+
+  for (const [status, expected] of cases) {
+    const stages = buildPayrollHandoff({
+      status,
+      periodLabel: "Sep 16–30, 2026",
+      payDate: "2026-10-05",
+    });
+    assert.equal(stages.find((stage) => stage.state === "current")?.key, expected, `${status} should hand off to ${expected}`);
+  }
+});
+
+test("employee-facing payroll labels never imply unreleased pay is available", () => {
+  assert.equal(employeePayStatusLabel("Draft"), "Inputs are being prepared");
+  assert.equal(employeePayStatusLabel("Needs review"), "Payroll is being finalized");
+  assert.equal(employeePayStatusLabel("Pending approval"), "With an independent checker");
+  assert.equal(employeePayStatusLabel("Ready for release"), "Approved, waiting for release");
+  assert.equal(employeePayStatusLabel("Released"), "Payslip available");
 });
