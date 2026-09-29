@@ -93,3 +93,48 @@ test("employee-facing payroll labels never imply unreleased pay is available", (
   assert.equal(employeePayStatusLabel("Ready for release"), "Approved, waiting for release");
   assert.equal(employeePayStatusLabel("Released"), "Payslip available");
 });
+
+
+test("payroll handoff notifications target the next authorized role after commit", () => {
+  const submit = read("src/app/api/payroll-runs/[id]/submit-review/route.ts");
+  const approval = read("src/app/api/approvals/[id]/route.ts");
+  const release = read("src/app/api/payroll-runs/[id]/release/route.ts");
+  const mailer = read("src/lib/mailer.ts");
+
+  assert.ok(mailer.includes("export async function queueMessageOnce"));
+  assert.ok(mailer.includes("eq(outbox.purpose, input.purpose)"));
+
+  assert.ok(submit.includes("recipient: checker.email"));
+  assert.ok(submit.includes('purpose: `payroll-review-${run.id}-${checker.id}`'));
+  assert.ok(
+    submit.indexOf("queueMessageOnce({") > submit.indexOf("if (!submission)"),
+    "checker mail must happen only after the review transaction succeeds",
+  );
+
+  assert.ok(approval.includes("PAYROLL_RELEASE_ROLES"));
+  assert.ok(approval.includes("roleAllowed(member.role, PAYROLL_RELEASE_ROLES)"));
+  assert.ok(approval.includes('subject: `Payroll ready for release: ${payrollRunForNotification.periodLabel}`'));
+  assert.ok(approval.includes('purpose: `payroll-returned-${payrollRunId}-${maker.id}`'));
+  assert.ok(
+    approval.indexOf("let handoffNotification") > approval.indexOf("updated = await db.transaction"),
+    "approval mail must not run inside the decision transaction",
+  );
+
+  assert.ok(release.includes("queueMessageOnce({"));
+  assert.ok(release.includes('purpose: `payslip-ready-${runId}-${person.id}`'));
+  assert.ok(
+    release.indexOf("queueMessageOnce({") > release.indexOf("settlePayrollRun"),
+    "employee mail must happen only after payroll settlement succeeds",
+  );
+});
+
+test("handoff mail failure cannot turn a committed payroll transition into a failed response", () => {
+  const submit = read("src/app/api/payroll-runs/[id]/submit-review/route.ts");
+  const approval = read("src/app/api/approvals/[id]/route.ts");
+  const release = read("src/app/api/payroll-runs/[id]/release/route.ts");
+
+  assert.ok(submit.includes("The review was submitted, but the checker notification could not be queued."));
+  assert.ok(approval.includes("Payroll was approved, but the release-authority notification could not be queued."));
+  assert.ok(approval.includes("Payroll was returned for changes, but the maker notification could not be queued."));
+  assert.ok(release.includes("postReleaseWarnings"));
+});
