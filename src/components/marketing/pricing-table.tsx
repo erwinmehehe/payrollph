@@ -28,6 +28,24 @@ const BEST_FOR: Record<string, string> = {
 
 const HEADCOUNT_PRESETS = [10, 25, 50, 100];
 
+const BUYER_POINTS: Record<string, string[]> = {
+  Core: [
+    "One Philippine payroll workspace",
+    "Employee records, attendance and payslips",
+    "SSS, PhilHealth, Pag-IBIG and TRAIN calculations",
+  ],
+  Scale: [
+    "Everything in Core",
+    "Checker approvals, audit trail and stronger controls",
+    "Built for growing teams and multi-branch operations",
+  ],
+  Enterprise: [
+    "Everything in Scale",
+    "Advanced controls, migration and integration support",
+    "For larger or more complex payroll operations",
+  ],
+};
+
 export function PricingTable({ plans }: { plans: PublicPlan[] }) {
   const [headcount, setHeadcount] = useState(25);
   const solo = plans.find((plan) => plan.name === "Solo");
@@ -95,8 +113,8 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
       <div className="pricing-grid business-pricing-grid">
         {businessPlans.map((plan) => {
           const total = Number(plan.monthlyBase) + Number(plan.perEmployee) * headcount;
-          const modules = Array.isArray(plan.modules) ? (plan.modules as string[]) : [];
           const featured = plan.name === "Scale";
+          const buyerPoints = BUYER_POINTS[plan.name] ?? [];
 
           return (
             <article className={`price-card ${featured ? "featured" : ""}`} key={plan.id}>
@@ -119,10 +137,10 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
               </small>
 
               <ul className="price-features">
-                {modules.map((module) => (
-                  <li key={module}>
+                {buyerPoints.map((point) => (
+                  <li key={point}>
                     <Check size={13} aria-hidden />
-                    <span>{module}</span>
+                    <span>{point}</span>
                   </li>
                 ))}
               </ul>
