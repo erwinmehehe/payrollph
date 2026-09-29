@@ -6,6 +6,8 @@ on:
       - feat/interactive-home-demo-polish-sep29
     paths:
       - ".github/workflows/interactive-home-demo-qa.yml"
+      - "src/components/marketing/workspace-preview.tsx"
+      - "src/components/marketing/software-home.module.css"
 
 jobs:
   visual:
