@@ -81,6 +81,11 @@ export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
+  const declaredLength = Number(request.headers.get("content-length") ?? 0);
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_UPLOAD_BYTES + 1024 * 1024) {
+    return Response.json({ error: "Upload request is too large." }, { status: 413 });
+  }
+
   // This endpoint is multipart. Parse the form first, never clone it as JSON.
   const form = await request.formData().catch(() => null);
   if (!form) return Response.json({ error: "Multipart form data is required." }, { status: 400 });
