@@ -184,6 +184,26 @@ function OwnerDashboard(props: RoleDashboardProps) {
         viewerRole="owner"
       />
 
+      <HandoffAction
+        title={
+          currentRun && ["Ready for release", "Approved"].includes(currentRun.status)
+            ? "Checker is done. Release is waiting on you."
+            : pendingTasks.length
+              ? "There are still decisions before release."
+              : "No owner action is required right now."
+        }
+        detail={
+          currentRun && ["Ready for release", "Approved"].includes(currentRun.status)
+            ? "Open the payroll run, review the final release checklist, then release payslips to employees."
+            : pendingTasks.length
+              ? "Open the decision queue and clear the assigned approvals before payroll can move forward."
+              : "This card will become actionable when the checker hands an approved run to Owner."
+        }
+        action={currentRun && ["Ready for release", "Approved"].includes(currentRun.status) ? "Release payroll" : pendingTasks.length ? "Review decisions" : undefined}
+        onAction={currentRun && ["Ready for release", "Approved"].includes(currentRun.status) ? () => onPage("Payroll") : pendingTasks.length ? () => onPage("Approvals") : undefined}
+        tone={currentRun && ["Ready for release", "Approved"].includes(currentRun.status) ? "ready" : pendingTasks.length ? "attention" : "clear"}
+      />
+
       <section className="stats-grid">
         <Metric
           label="Release status"
@@ -325,6 +345,30 @@ function HrDashboard(props: RoleDashboardProps) {
         viewerRole="hr"
       />
 
+      <HandoffAction
+        title={
+          attendanceIssues.length
+            ? attendanceIssues.length + " attendance item(s) are blocking a clean handoff."
+            : pendingLeave.length
+              ? pendingLeave.length + " leave request(s) still need HR review."
+              : peopleMissingGovernmentIds.length
+                ? peopleMissingGovernmentIds.length + " employee record(s) are missing filing IDs."
+                : "HR inputs are clear for Payroll."
+        }
+        detail={
+          attendanceIssues.length
+            ? "Resolve incomplete or non-standard punches first. Payroll can see the blocker count but cannot change HR attendance decisions."
+            : pendingLeave.length
+              ? "Approve or decline the pending leave requests so Payroll receives a stable cutoff."
+              : peopleMissingGovernmentIds.length
+                ? "Complete TIN, SSS, PhilHealth or Pag-IBIG identifiers before filing/export work."
+                : "No leave, attendance or filing-ID blocker is visible in the current workspace."
+        }
+        action={attendanceIssues.length ? "Fix attendance" : pendingLeave.length ? "Review leave" : peopleMissingGovernmentIds.length ? "Fix records" : undefined}
+        onAction={attendanceIssues.length ? () => onPage("Time & attendance") : pendingLeave.length ? () => onPage("Leave") : peopleMissingGovernmentIds.length ? () => onPage("People") : undefined}
+        tone={attendanceIssues.length || pendingLeave.length || peopleMissingGovernmentIds.length ? "attention" : "clear"}
+      />
+
       <section className="stats-grid">
         <Metric label="Active people" value={String(activePeople.length)} hint={"of " + String(data.employees.length) + " employee records"} icon={<UsersRound size={16} />} tone="purple" />
         <Metric label="Pending leave" value={String(pendingLeave.length)} hint={pendingLeave.length ? "needs HR review" : "leave queue clear"} icon={<CalendarClock size={16} />} tone={pendingLeave.length ? "amber" : "mint"} />
@@ -408,7 +452,9 @@ function PayrollDashboard(props: RoleDashboardProps) {
     pendingTasks,
     payrollExceptions,
     pendingRetro,
+    pendingLeave,
     attendanceIssues,
+    peopleMissingGovernmentIds,
     handoffStages,
     onPage,
     onNewRun,
@@ -460,6 +506,46 @@ function PayrollDashboard(props: RoleDashboardProps) {
         status={handoffRun?.status ?? "Waiting for inputs"}
         payDate={handoffRun?.payDate}
         viewerRole="payroll"
+      />
+
+      <HandoffAction
+        title={
+          attendanceIssues.length || pendingLeave.length || peopleMissingGovernmentIds.length
+            ? "Upstream cutoff inputs still need attention."
+            : payrollExceptions.length
+              ? payrollExceptions.length + " payroll exception(s) must be resolved."
+              : currentRun && ["Draft", "Processing", "Needs review", "Calculated"].includes(currentRun.status)
+                ? "The register is ready for Payroll review."
+                : "Payroll is waiting on the next handoff."
+        }
+        detail={
+          attendanceIssues.length || pendingLeave.length || peopleMissingGovernmentIds.length
+            ? attendanceIssues.length + " attendance · " + pendingLeave.length + " leave · " + peopleMissingGovernmentIds.length + " filing-ID issue(s). Review the source before finalizing the run."
+            : payrollExceptions.length
+              ? "Open the register, inspect the flagged employees and recalculate before sending the run to Checker."
+              : currentRun && ["Draft", "Processing", "Needs review", "Calculated"].includes(currentRun.status)
+                ? "Confirm the cutoff inputs and submit the prepared register to the independent checker."
+                : "The next actionable item will appear here when the payroll state changes."
+        }
+        action={
+          attendanceIssues.length
+            ? "Review attendance"
+            : pendingLeave.length || peopleMissingGovernmentIds.length
+              ? "Review people inputs"
+              : payrollExceptions.length || currentRun
+                ? "Open payroll"
+                : undefined
+        }
+        onAction={
+          attendanceIssues.length
+            ? () => onPage("Time & attendance")
+            : pendingLeave.length || peopleMissingGovernmentIds.length
+              ? () => onPage("People")
+              : payrollExceptions.length || currentRun
+                ? () => onPage("Payroll")
+                : undefined
+        }
+        tone={attendanceIssues.length || pendingLeave.length || peopleMissingGovernmentIds.length || payrollExceptions.length ? "attention" : currentRun ? "ready" : "clear"}
       />
 
       <section className="stats-grid">
@@ -569,6 +655,14 @@ function CheckerDashboard(props: RoleDashboardProps) {
         viewerRole="checker"
       />
 
+      <HandoffAction
+        title={pendingTasks.length ? pendingTasks.length + " independent review item(s) are waiting." : "Checker queue is clear."}
+        detail={pendingTasks.length ? "Review the submitted evidence and record an approve or decline decision. The maker cannot approve their own run." : "You will be notified again when Payroll submits a new run for independent review."}
+        action={pendingTasks.length ? "Review now" : undefined}
+        onAction={pendingTasks.length ? () => onPage("Approvals") : undefined}
+        tone={pendingTasks.length ? "attention" : "clear"}
+      />
+
       <section className="stats-grid">
         <Metric label="Assigned reviews" value={String(pendingTasks.length)} hint={pendingTasks.length ? "awaiting your decision" : "queue clear"} icon={<ClipboardCheck size={16} />} tone={pendingTasks.length ? "amber" : "mint"} />
         <Metric label="High priority" value={String(highPriorityTasks.length)} hint={highPriorityTasks.length ? "review these first" : "no urgent item"} icon={<AlertTriangle size={16} />} tone={highPriorityTasks.length ? "amber" : "mint"} />
@@ -597,6 +691,35 @@ function CheckerDashboard(props: RoleDashboardProps) {
         </RoleCard>
       </section>
     </>
+  );
+}
+
+function HandoffAction({
+  title,
+  detail,
+  action,
+  onAction,
+  tone,
+}: {
+  title: string;
+  detail: string;
+  action?: string;
+  onAction?: () => void;
+  tone: "attention" | "ready" | "clear";
+}) {
+  return (
+    <section className={"handoff-action " + tone} data-handoff-action>
+      <div>
+        <span className="card-kicker">NEXT ACTION</span>
+        <strong>{title}</strong>
+        <p>{detail}</p>
+      </div>
+      {action && onAction && (
+        <button className={tone === "ready" ? "primary-button brand" : "secondary-button"} onClick={onAction}>
+          {action} <ArrowRight size={13} />
+        </button>
+      )}
+    </section>
   );
 }
 
