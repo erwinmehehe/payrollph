@@ -39,7 +39,7 @@ import {
 } from "@/components/workspace/panels";
 import { PayrollRunView } from "@/components/workspace/payroll-run";
 import { PeopleView } from "@/components/workspace/people";
-import { WorkspaceShell, buildNotifications } from "@/components/workspace/shell";
+import { WorkspaceShell, buildNotifications, type Notification } from "@/components/workspace/shell";
 import { TimeView } from "@/components/workspace/time";
 import type { DashboardData, PricingPlan } from "@/components/workspace/types";
 import { ToastStack, useToasts } from "@/components/workspace/ui";
@@ -92,8 +92,8 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
   );
 
   const notifications = useMemo(
-    () => buildNotifications(data).filter((item) => !item.page || availablePages.includes(item.page)),
-    [data, availablePages],
+    () => buildNotifications(data, effectiveRole).filter((item) => !item.page || availablePages.includes(item.page)),
+    [data, effectiveRole, availablePages],
   );
 
   const allowClientSwitch = !demoRole;
@@ -121,6 +121,11 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
     [data.selectedOrganization.id],
   );
 
+
+  function openNotificationItem(item: Notification) {
+    if (item.employeeId) setFocusEmployeeId(item.employeeId);
+    if (item.page && availablePages.includes(item.page)) setPage(item.page);
+  }
 
   async function changeOrganization(id: number) {
     try {
@@ -302,6 +307,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         notifications={notifications}
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenNotification={availablePages.includes("Exports") ? () => setOutboxOpen(true) : undefined}
+        onOpenNotificationItem={openNotificationItem}
         onSwitchClient={(id) => void changeOrganization(id)}
         onSwitchRole={demoRole ? (role) => void switchDemoRole(role) : undefined}
         onSignOut={() => void signOut()}
@@ -350,6 +356,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
               role={dashboardRole}
               onNewRun={() => setNewPayrollOpen(true)}
               onPage={setPage}
+              onAttentionAction={openNotificationItem}
             />
           ) : (
             <OverviewView
