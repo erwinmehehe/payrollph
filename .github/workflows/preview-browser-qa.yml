@@ -9,14 +9,29 @@ on:
 permissions:
   contents: read
 
-env:
-  PREVIEW_URL: https://erwinmehehe-payrollph-git-design-homepage-abov-15bcb9-payrollph.vercel.app
-  FEEDBACK_URL: https://vercel.live/open-feedback/erwinmehehe-payrollph-git-design-homepage-abov-15bcb9-payrollph.vercel.app?via=pr-comment-feedback-link
-
 jobs:
   browser-qa:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      DEMO_MODE: "true"
+      QA_URL: http://127.0.0.1:3000
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
 
@@ -26,27 +41,27 @@ jobs:
           cache: npm
 
       - run: npm ci
+      - run: npm run db:push
+      - run: npx next build
 
-      - name: Install Playwright for QA
+      - name: Install Playwright for browser QA
         run: |
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps chromium
 
-      - name: Wait for Vercel preview
+      - name: Start production build
         shell: bash
         run: |
-          set -euo pipefail
-          curl -L -sS -c /tmp/vercel-cookies.txt -b /tmp/vercel-cookies.txt "$FEEDBACK_URL" -o /tmp/feedback.html || true
+          nohup npm start -- -H 127.0.0.1 > /tmp/payrollph-next.log 2>&1 &
+          echo $! > /tmp/payrollph-next.pid
           for attempt in {1..40}; do
-            code="$(curl -L -sS -c /tmp/vercel-cookies.txt -b /tmp/vercel-cookies.txt -o /tmp/preview.html -w "%{http_code}" "$PREVIEW_URL" || true)"
-            if [ "$code" = "200" ] && grep -q "Run Philippine payroll with a clear path" /tmp/preview.html; then
-              echo "Preview is reachable and serving the current homepage."
+            if curl -fsS "$QA_URL" >/tmp/homepage.html; then
+              echo "Production build is reachable."
               exit 0
             fi
-            echo "Attempt $attempt: HTTP $code, waiting for current PR deployment"
-            sleep 5
+            sleep 2
           done
-          echo "Preview did not become reachable."
+          cat /tmp/payrollph-next.log
           exit 1
 
       - name: Run Chromium homepage and persona QA
@@ -56,8 +71,7 @@ jobs:
           const fs = require("node:fs");
           const { chromium } = require("playwright");
 
-          const base = process.env.PREVIEW_URL;
-          const feedback = process.env.FEEDBACK_URL;
+          const base = process.env.QA_URL;
           const outDir = "qa-artifacts";
           fs.mkdirSync(outDir, { recursive: true });
 
@@ -73,7 +87,7 @@ jobs:
             if (!condition) throw new Error(message);
           }
 
-          async function collectPageErrors(page, bucket) {
+          function attachErrorCollection(page, bucket) {
             page.on("pageerror", (error) => bucket.push(`pageerror: ${error.message}`));
             page.on("console", (message) => {
               if (message.type() === "error") bucket.push(`console: ${message.text()}`);
@@ -84,16 +98,13 @@ jobs:
             const context = await browser.newContext({ viewport });
             const page = await context.newPage();
             const errors = [];
-            await collectPageErrors(page, errors);
+            attachErrorCollection(page, errors);
 
-            if (feedback) {
-              await page.goto(feedback, { waitUntil: "domcontentloaded", timeout: 90000 }).catch(() => null);
-            }
             const response = await page.goto(base, { waitUntil: "networkidle", timeout: 90000 });
             check(response && response.ok(), `${name}: homepage did not return 2xx`);
 
             const h1 = (await page.locator("h1").first().innerText()).trim();
-            check(h1.includes("Run Philippine payroll"), `${name}: expected payroll hero heading not found`);
+            check(h1.includes("Run Philippine payroll"), `${name}: expected payroll hero heading not found; saw "${h1}"`);
 
             const overflow = await page.evaluate(() => ({
               scrollWidth: document.documentElement.scrollWidth,
@@ -109,15 +120,15 @@ jobs:
               fullPage: true,
             });
 
-            report.homepage.push({ name, viewport, h1, overflow, errors });
+            report.homepage.push({ name, viewport, h1, overflow, errors: [...errors] });
 
             if (name === "desktop") {
               const stage = page.locator("#hero-product-preview");
-              check(await stage.count(), "desktop: focused hero product preview is missing");
+              check((await stage.count()) === 1, "desktop: focused hero product preview is missing");
 
               for (const moduleName of ["Payroll", "People", "Migration", "Approvals", "Compliance"]) {
                 const button = stage.locator("button.nav-item").filter({ hasText: moduleName }).first();
-                check(await button.count(), `desktop: missing hero module ${moduleName}`);
+                check((await button.count()) === 1, `desktop: missing hero module ${moduleName}`);
                 await button.click();
                 await page.waitForTimeout(150);
                 const current = await button.getAttribute("aria-current");
@@ -142,20 +153,17 @@ jobs:
             const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
             const page = await context.newPage();
             const errors = [];
-            await collectPageErrors(page, errors);
+            attachErrorCollection(page, errors);
 
-            if (feedback) {
-              await page.goto(feedback, { waitUntil: "domcontentloaded", timeout: 90000 }).catch(() => null);
-            }
             const demoResponse = await page.goto(`${base}/demo`, { waitUntil: "networkidle", timeout: 90000 });
             check(demoResponse && demoResponse.ok(), `${persona.label}: /demo did not return 2xx`);
 
             const roleTab = page.getByRole("tab").filter({ hasText: persona.label }).first();
-            check(await roleTab.count(), `${persona.label}: role tab is missing`);
+            check((await roleTab.count()) === 1, `${persona.label}: role tab is missing`);
             await roleTab.click();
 
             const openButton = page.getByRole("button", { name: new RegExp(`^Open ${persona.short} demo`, "i") });
-            check(await openButton.count(), `${persona.label}: launch button is missing`);
+            check((await openButton.count()) === 1, `${persona.label}: launch button is missing`);
 
             await openButton.click();
             await page.waitForURL(new RegExp(`[?&]demoRole=${persona.id}(?:&|$)`), { timeout: 90000 });
@@ -210,6 +218,10 @@ jobs:
           JS
 
           node preview-qa.cjs
+
+      - name: Show server log on failure
+        if: failure()
+        run: cat /tmp/payrollph-next.log || true
 
       - name: Upload browser QA artifacts
         if: always()
