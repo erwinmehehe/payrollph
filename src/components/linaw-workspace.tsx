@@ -42,7 +42,15 @@ import type { DashboardData, PricingPlan } from "@/components/workspace/types";
 import { ToastStack, useToasts } from "@/components/workspace/ui";
 import { demoRoleInfo, demoRolePages, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
 
-export function LinawWorkspace({ initialData }: { initialData: DashboardData }) {
+export function LinawWorkspace({
+  initialData,
+  initialPage: requestedInitialPage,
+  initialPayrollRunId,
+}: {
+  initialData: DashboardData;
+  initialPage?: string;
+  initialPayrollRunId?: number;
+}) {
   const searchParams = useSearchParams();
   const requestedDemoRole = searchParams.get("demoRole");
   const demoRole: DemoRoleId | null =
@@ -52,7 +60,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
       ? requestedDemoRole
       : null;
   const demoInfo = demoRoleInfo(demoRole);
-  const initialPage = demoRole === "freelancer" ? "Overview" : demoInfo?.landingPage ?? "Overview";
+  const initialPage = requestedInitialPage ?? (demoRole === "freelancer" ? "Overview" : demoInfo?.landingPage ?? "Overview");
 
   const [data, setData] = useState(initialData);
   const [page, setPage] = useState(initialPage);
@@ -338,6 +346,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         {page === "Payroll" && (
           <PayrollRunView
             data={data}
+            initialRunId={initialPayrollRunId}
             busy={busy}
             onNewRun={() => setNewPayrollOpen(true)}
             onProcess={processRun}
