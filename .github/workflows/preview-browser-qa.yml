@@ -12,6 +12,7 @@ on:
       - "src/app/page.tsx"
       - "src/lib/pricing-catalog.ts"
       - "src/lib/demo-roles.ts"
+      - "src/lib/handoff-attention.ts"
       - "tests/marketing.test.ts"
       - "tests/demo-sandbox.test.ts"
       - ".github/workflows/preview-browser-qa.yml"
@@ -219,6 +220,7 @@ jobs:
               const handoff = dashboard.locator("[data-payroll-handoff]").first();
               check((await handoff.count()) === 1, `${persona.label}: payroll handoff is missing from the role dashboard`);
               check((await handoff.locator(".handoff-step").count()) === 5, `${persona.label}: payroll handoff must show all five owners`);
+              check((await dashboard.locator("[data-handoff-actions]").count()) === 1, `${persona.label}: actionable handoff panel is missing`);
             }
             if (persona.id === "employee") {
               check(body.includes("NEXT PAY STATUS"), "Employee: next pay status section is missing");
@@ -226,6 +228,19 @@ jobs:
               const handoff = page.locator("[data-payroll-handoff]").first();
               check((await handoff.count()) === 1, "Employee: payroll handoff is missing");
               check((await handoff.locator(".handoff-step").count()) === 5, "Employee: payroll handoff must show all five owners");
+            }
+
+            if (persona.dashboardRole) {
+              const bell = page.getByRole("button", { name: /^Notifications/ }).first();
+              check((await bell.count()) === 1, `${persona.label}: notification bell is missing`);
+              await bell.click();
+              const tray = page.getByRole("dialog", { name: "Notifications" });
+              check((await tray.count()) === 1, `${persona.label}: notification tray did not open`);
+              const trayItems = tray.locator(".tray-item");
+              if (await trayItems.count()) {
+                check((await trayItems.first().locator(".tray-action").count()) === 1, `${persona.label}: handoff notification has no direct action label`);
+              }
+              await page.keyboard.press("Escape");
             }
 
             const alert = page.getByRole("alert");
