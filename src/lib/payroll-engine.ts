@@ -657,10 +657,25 @@ function calculateEmployeePay(input: {
   loans?: Array<{ id: number; loanType: string; referenceNo: string; cutoffDeduction: number; remainingBalance: number }>;
   leaveConversions?: Array<{ id: number; leaveType: string; daysConverted: number; dailyRate: number; cashAmount: number; taxExempt: boolean }>;
   approvedLeave?: ResolvedPayrollLeave[];
-  payProfile: EmployeePayProfileInput;
+  paySegments: PaySegment[];
+  payAdjustments?: Array<{ id: number; amount: number; serviceYear: number; serviceFrom: string; serviceThrough: string }>;
+  periodStart: string;
+  periodEnd: string;
 }) {
-  const payProfile = resolvePayProfile(input.payProfile);
-  const monthly = payProfile.monthlyEquivalent;
+  const segmentedPay = calculateSegmentedBasicPay({
+    segments: input.paySegments,
+    punches: input.punches.map((punch) => ({
+      workDate: String(punch.workDate),
+      timeIn: punch.timeIn,
+      timeOut: punch.timeOut,
+      shiftStart: punch.shiftStart,
+      shiftEnd: punch.shiftEnd,
+    })),
+    periodStart: input.periodStart,
+    periodEnd: input.periodEnd,
+  });
+  const payProfile = segmentedPay.endingProfile;
+  const monthly = segmentedPay.weightedMonthlyEquivalent;
   const semiMonthlyBasic = payProfile.payBasis === "monthly" ? payProfile.rateAmount / 2 : 0;
   const dailyRate = payProfile.dailyRate;
   const hourlyRate = payProfile.hourlyRate;
@@ -670,6 +685,10 @@ function calculateEmployeePay(input: {
   let nightMinutes = 0;
   let tardinessMinutes = 0;
   let undertimeMinutes = 0;
+  let overtimePay = 0;
+  let nightDiffPay = 0;
+  let tardinessDeduction = 0;
+  let undertimeDeduction = 0;
   let holidayPremium = 0;
   const flags: string[] = [];
   const punchNotes: string[] = [];
@@ -689,11 +708,25 @@ function calculateEmployeePay(input: {
       },
     );
     const workedRegular = Math.max(0, derived.workedMinutes - derived.overtimeMinutes);
+    const punchSegment = input.paySegments.find((segment) =>
+      String(punch.workDate) >= segment.start && String(punch.workDate) <= segment.end
+    );
+    if (!punchSegment) throw new Error(`No effective pay rate covers attendance on ${punch.workDate}.`);
+    const punchProfile = punchSegment.profile;
     regularMinutes += workedRegular;
     overtimeMinutes += derived.overtimeMinutes;
     nightMinutes += derived.nightDifferentialMinutes;
     tardinessMinutes += derived.tardinessMinutes;
     undertimeMinutes += derived.undertimeMinutes;
+    overtimePay += (derived.overtimeMinutes / 60) * punchProfile.hourlyRate * 1.25;
+    nightDiffPay += (derived.nightDifferentialMinutes / 60) * punchProfile.hourlyRate * 0.1;
+    const attendanceDeductions = attendanceDeductionsForCutoff(
+      punchProfile,
+      derived.tardinessMinutes,
+      derived.undertimeMinutes,
+    );
+    tardinessDeduction += attendanceDeductions.tardinessDeduction;
+    undertimeDeduction += attendanceDeductions.undertimeDeduction;
     flags.push(...derived.flags);
     if (derived.flags.length) punchNotes.push(`${punch.workDate}: ${derived.flags.join("; ")}`);
 
@@ -704,19 +737,20 @@ function calculateEmployeePay(input: {
         worked: true,
         overtime: derived.overtimeMinutes > 0,
       });
-      const extra = ((workedRegular / 60) * hourlyRate) * (multiplier - 1);
+      const extra = ((workedRegular / 60) * punchProfile.hourlyRate) * (multiplier - 1);
       holidayPremium += extra;
       holidayNotes.push(`${punch.workDate} ${holiday.name} (${holiday.kind}) ×${multiplier} → +${money(extra)}`);
     }
   }
 
-  // The employee's configured pay basis determines basic pay. Monthly staff
-  // receive their cutoff salary independent of punch presence; daily/hourly
-  // staff are paid from actual regular worked time. Attendance never changes
-  // which model is used.
-  const baseBasicPay = basicPayForCutoff(payProfile, regularMinutes);
+  const baseBasicPay = segmentedPay.basicPay;
 
   const approvedLeave = input.approvedLeave ?? [];
+  if (segmentedPay.changedWithinCutoff && approvedLeave.length > 0) {
+    throw new Error(
+      "Approved leave overlaps an effective-dated pay change inside this cutoff. Split the leave/pay review before calculation so leave is not valued at the wrong rate.",
+    );
+  }
   const leaveNotes: string[] = [];
   for (const leave of approvedLeave) {
     leaveNotes.push(
@@ -769,14 +803,6 @@ function calculateEmployeePay(input: {
     ],
   }));
   const leaveAdjustmentTotal = leaveLines.reduce((sum, line) => sum + Number(line.amount), 0);
-
-  const overtimePay = (overtimeMinutes / 60) * hourlyRate * 1.25;
-  const nightDiffPay = (nightMinutes / 60) * hourlyRate * 0.1;
-  const { tardinessDeduction, undertimeDeduction } = attendanceDeductionsForCutoff(
-    payProfile,
-    tardinessMinutes,
-    undertimeMinutes,
-  );
 
   const wageCheck = isBelowMinimum(monthly, input.employee.region ?? "NCR", payProfile.standardWorkDaysPerMonth);
   const treatAsMwe = input.employee.mwe || wageCheck.below;
@@ -869,7 +895,20 @@ function calculateEmployeePay(input: {
   });
   const loanTotal = loanLines.reduce((sum, l) => sum + l.deductAmount, 0);
 
-  const gross = Math.max(0, baseBasicPay + leaveAdjustmentTotal + overtimePay + nightDiffPay + calamityPay + holidayPremium + expenseTotal + deMinimisTotal + conversionTotal);
+  const retroLines = (input.payAdjustments ?? []).map((adjustment) => ({
+    code: `RETRO_BASIC-${adjustment.id}`,
+    label: "Retroactive basic pay adjustment",
+    amount: money(adjustment.amount),
+    notes: [`Service ${adjustment.serviceFrom} to ${adjustment.serviceThrough}`],
+    serviceYear: adjustment.serviceYear,
+    thirteenthMonthEligible: true,
+  }));
+  const retroTotal = retroLines.reduce((sum, line) => sum + Number(line.amount), 0);
+  if (retroTotal > 0) {
+    flags.push("Retro basic pay is included; verify whether prior-period statutory remittance amendments are required.");
+  }
+
+  const gross = Math.max(0, baseBasicPay + leaveAdjustmentTotal + retroTotal + overtimePay + nightDiffPay + calamityPay + holidayPremium + expenseTotal + deMinimisTotal + conversionTotal);
   const sssRule = computeSss(monthly);
   const philHealthRule = computePhilHealth(monthly);
   const pagIbigRule = computePagIbig(monthly);
@@ -893,6 +932,7 @@ function calculateEmployeePay(input: {
   const lineItems = [
     { code: "BASIC", label: "Basic / worked pay", amount: money(baseBasicPay) },
     ...leaveLines,
+    ...retroLines,
     { code: "OT", label: "Overtime (25%)", amount: money(overtimePay) },
     { code: "ND", label: "Night differential (10%)", amount: money(nightDiffPay) },
     { code: "HOLIDAY", label: "Holiday / rest-day premium", amount: money(holidayPremium), notes: holidayNotes },
@@ -918,12 +958,19 @@ function calculateEmployeePay(input: {
 
   const trace = {
     ruleVersion: RULE_VERSION,
+    payBasis: payProfile.payBasis,
+    endingRateAmount: payProfile.rateAmount,
+    endingStandardWorkDaysPerMonth: payProfile.standardWorkDaysPerMonth,
+    endingStandardHoursPerDay: payProfile.standardHoursPerDay,
+    weightedMonthlyEquivalent: monthly,
+    paySegments: segmentedPay.detail,
     inputs: [
       `payBasis=${payProfile.payBasis}`,
       `rateAmount=${money(payProfile.rateAmount)}`,
       `standardWorkDaysPerMonth=${payProfile.standardWorkDaysPerMonth}`,
       `standardHoursPerDay=${payProfile.standardHoursPerDay}`,
       `monthlyEquivalent=${money(monthly)}`,
+      `paySegments=${segmentedPay.detail.length}`,
       `basicRate=${monthly}`,
       `dailyRate=${money(dailyRate)}`,
       `hourlyRate=${money(hourlyRate)}`,
@@ -935,6 +982,7 @@ function calculateEmployeePay(input: {
       `paidLeaveDays=${money(approvedLeave.reduce((sum, leave) => sum + leave.paidDays, 0))}`,
       `unpaidLeaveDays=${money(approvedLeave.reduce((sum, leave) => sum + leave.unpaidDays, 0))}`,
       `leavePayAdjustment=${money(leaveAdjustmentTotal)}`,
+      `retroBasicPay=${money(retroTotal)}`,
       `punches=${input.punches.length}`,
       `regularMinutes=${regularMinutes}`,
       `overtimeMinutes=${overtimeMinutes}`,
