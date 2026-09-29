@@ -147,7 +147,7 @@ test("homepage hero uses a focused payroll showcase before the full interactive 
   const preview = read("src/components/marketing/workspace-preview.tsx");
   assert.ok(page.includes('<WorkspacePreview mode="focused" />'), "hero product frame must be a focused interactive preview");
   assert.ok(preview.includes('mode !== "showcase"'), "focused mode must remain interactive");
-  assert.ok(preview.includes('"Overview", "Payroll", "People", "Migration", "Approvals"'), "showcase nav must stay focused");
+  assert.ok(preview.includes('"Payroll", "People", "Migration", "Approvals", "Compliance"'), "showcase nav must stay focused on high-value modules");
 });
 
 test("pricing explains who each plan is for instead of dumping internal module names", () => {

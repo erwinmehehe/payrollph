@@ -5,7 +5,7 @@ import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 export const metadata: Metadata = {
   title: "Product Demo by Role | Linaw Philippine Payroll",
   description:
-    "Explore Linaw from the perspective of an owner, bookkeeper, payroll administrator, HR administrator, manager, employee or freelancer.",
+    "Explore Linaw as an Owner, HR Admin, Payroll Officer, Checker or Employee in a populated Philippine payroll sandbox.",
   alternates: { canonical: "/demo" },
 };
 

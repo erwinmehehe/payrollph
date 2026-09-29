@@ -2918,3 +2918,665 @@
     gap: 5px;
   }
 }
+
+
+/* ==========================================================================
+   Above-the-fold design pass 2
+   Keep the homepage editorial first; the product remains interactive but
+   no longer dominates the first viewport.
+   ========================================================================== */
+
+.hero {
+  padding: 96px 0 146px;
+  background:
+    radial-gradient(circle at 10% 6%, rgba(0, 135, 90, .09), transparent 28%),
+    radial-gradient(circle at 86% 10%, rgba(68, 76, 231, .10), transparent 31%),
+    #fff;
+}
+
+.heroLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.16fr) minmax(320px, .84fr);
+  gap: clamp(56px, 7vw, 92px);
+  align-items: center;
+}
+
+.heroInner {
+  max-width: 720px;
+  margin: 0;
+  text-align: left;
+}
+
+.hero h1 {
+  max-width: 720px;
+  margin: 22px 0 0;
+  font-size: clamp(52px, 5.4vw, 70px);
+}
+
+.heroLead {
+  max-width: 630px;
+  margin-inline: 0;
+}
+
+.heroActions {
+  justify-content: flex-start;
+}
+
+.hero .primaryAction {
+  border-color: #087a5b;
+  background: #087a5b;
+}
+
+.hero .primaryAction:hover {
+  border-color: #06694e;
+  background: #06694e;
+}
+
+.hero .secondaryAction {
+  border-color: #d9d6fe;
+  color: #444ce7;
+}
+
+.hero .secondaryAction:hover {
+  border-color: #c7c3fb;
+  background: #f7f6ff;
+}
+
+.heroTrust {
+  justify-content: flex-start;
+  margin-top: 30px;
+  color: #6f7784;
+}
+
+.heroTrust span {
+  font-weight: 650;
+}
+
+.heroProof {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #e1e5ea;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, .86);
+  box-shadow: 0 24px 70px rgba(16, 24, 40, .08);
+  backdrop-filter: blur(12px);
+}
+
+.heroProof::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, #087a5b 0 46%, #444ce7 46% 100%);
+}
+
+.heroProofTop {
+  display: grid;
+  gap: 7px;
+  padding: 26px 26px 22px;
+  border-bottom: 1px solid #eaecf0;
+}
+
+.heroProofTop span {
+  color: #667085;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .065em;
+  text-transform: uppercase;
+}
+
+.heroProofTop strong {
+  max-width: 330px;
+  color: #1d2939;
+  font-size: 22px;
+  font-weight: 680;
+  line-height: 1.15;
+  letter-spacing: -.035em;
+}
+
+.heroProofGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.heroProofGrid > div {
+  min-width: 0;
+  padding: 20px 22px;
+}
+
+.heroProofGrid > div:nth-child(even) {
+  border-left: 1px solid #eaecf0;
+}
+
+.heroProofGrid > div:nth-child(n+3) {
+  border-top: 1px solid #eaecf0;
+}
+
+.heroProofGrid b,
+.heroProofGrid span {
+  display: block;
+}
+
+.heroProofGrid b {
+  color: #344054;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.heroProofGrid span {
+  margin-top: 4px;
+  color: #8a929f;
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+.heroProofFoot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 15px 22px;
+  border-top: 1px solid #eaecf0;
+  background: #fbfcfd;
+  color: #667085;
+  font-size: 10.5px;
+  font-weight: 620;
+}
+
+.heroProofFoot svg {
+  flex: none;
+  color: #087a5b;
+}
+
+.heroProduct {
+  margin-top: -78px;
+  padding-bottom: 108px;
+}
+
+.productStage {
+  width: min(1040px, calc(100% - 64px));
+  transform: translateX(34px);
+  border-radius: 18px;
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, .03),
+    0 24px 60px rgba(16, 24, 40, .09);
+}
+
+.productStage::before {
+  content: "";
+  display: block;
+  height: 3px;
+  background: linear-gradient(90deg, #087a5b 0 44%, #444ce7 44% 100%);
+}
+
+.productStageMeta {
+  min-height: 64px;
+  grid-template-columns: minmax(0, 1.9fr) repeat(3, minmax(105px, .55fr));
+}
+
+.productStageMeta > div {
+  padding: 10px 15px;
+}
+
+.productStageScreen :global(.frame-body),
+.productStageScreen :global(.pv) {
+  min-height: 448px;
+}
+
+.productStageScreen :global(.pv) {
+  grid-template-columns: 176px minmax(0, 1fr);
+}
+
+.productStageScreen :global(.pv-side) {
+  width: 176px;
+  max-height: 448px;
+}
+
+.productStageScreen :global(.pv-body) {
+  min-height: 386px;
+  max-height: 386px;
+  overflow: auto;
+}
+
+.productStageScreen::after {
+  content: "Try Payroll, People, Migration, Approvals or Compliance";
+  right: 14px;
+  bottom: 12px;
+}
+
+@media (max-width: 1180px) {
+  .productStage {
+    transform: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .hero {
+    padding: 82px 0 132px;
+  }
+
+  .heroLayout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 38px;
+  }
+
+  .heroInner {
+    max-width: 760px;
+  }
+
+  .heroProof {
+    max-width: 620px;
+  }
+
+  .productStage {
+    width: min(100% - 32px, 1040px);
+  }
+}
+
+@media (max-width: 720px) {
+  .hero {
+    padding: 72px 0 118px;
+  }
+
+  .hero h1 {
+    font-size: clamp(42px, 11.5vw, 56px);
+  }
+
+  .heroProof {
+    display: none;
+  }
+
+  .heroProduct {
+    margin-top: -58px;
+    padding-bottom: 82px;
+  }
+
+  .productStage {
+    width: min(100% - 20px, 1040px);
+  }
+
+  .productStageMeta {
+    min-height: 0;
+  }
+
+  .productStageScreen :global(.pv) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .productStageScreen :global(.pv-body) {
+    min-height: 430px;
+    max-height: 430px;
+  }
+}
+
+@media (max-width: 560px) {
+  .heroInner {
+    text-align: left;
+  }
+
+  .heroActions {
+    align-items: stretch;
+  }
+
+  .heroTrust {
+    display: flex;
+    justify-content: flex-start;
+    gap: 8px 16px;
+  }
+
+  .heroTrust span + span::before {
+    display: block;
+    left: -10px;
+  }
+}
+
+
+/* ==========================================================================
+   Focused homepage workspace repair
+   The first product preview is a compact teaser, not the full app squeezed
+   into a short frame. Keep it visually balanced and impossible to drift into
+   unrelated generic modules.
+   ========================================================================== */
+
+.productStage {
+  width: min(1180px, calc(100% - 48px));
+  transform: none;
+}
+
+.productStageScreen :global(.pv) {
+  grid-template-columns: 158px minmax(0, 1fr);
+  min-height: 430px;
+}
+
+.productStageScreen :global(.pv-side) {
+  width: 158px;
+  max-height: 430px;
+  padding-top: 14px;
+  border-right: 1px solid #eceef2;
+  background: #fafbfc;
+}
+
+.productStageScreen :global(.sidebar-brand) {
+  margin: 0 12px 14px !important;
+}
+
+.productStageScreen :global(.pv-nav-group-toggle) {
+  width: auto;
+  min-height: 18px;
+  margin: 8px 12px 4px;
+  padding: 0;
+  color: #98a2b3;
+  font-size: 7.5px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.productStageScreen :global(.nav-item) {
+  min-height: 34px;
+  margin: 2px 8px;
+  padding: 0 9px;
+  border-radius: 8px;
+  color: #667085;
+  font-size: 10.5px;
+  font-weight: 650;
+}
+
+.productStageScreen :global(.nav-item.active) {
+  background: #eef2ff;
+  color: #3538cd;
+  box-shadow: inset 0 0 0 1px rgba(68, 76, 231, .08);
+}
+
+.productStageScreen :global(.nav-item:hover) {
+  transform: none;
+  background: #f2f4f7;
+}
+
+.productStageScreen :global(.nav-item.active:hover) {
+  background: #eef2ff;
+}
+
+.productStageScreen :global(.pv-main) {
+  min-width: 0;
+  background: #fff;
+}
+
+.productStageScreen :global(.pv-top) {
+  min-height: 52px;
+  padding: 0 16px;
+  border-bottom: 1px solid #eef0f3;
+  background: #fff;
+}
+
+.productStageScreen :global(.company-switcher) {
+  min-height: 36px;
+}
+
+.productStageScreen :global(.pv-body) {
+  min-height: 378px;
+  max-height: 378px;
+  padding: 20px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, #fbfcfe 0, #fff 92px);
+}
+
+.productStageScreen :global(.focused-preview) {
+  display: grid;
+  gap: 14px;
+  height: 100%;
+  align-content: start;
+}
+
+.productStageScreen :global(.focused-preview-head) {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  min-width: 0;
+}
+
+.productStageScreen :global(.focused-preview-head > div) {
+  min-width: 0;
+}
+
+.productStageScreen :global(.focused-preview-head > div > span) {
+  display: block;
+  color: #667085;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .10em;
+  text-transform: uppercase;
+}
+
+.productStageScreen :global(.focused-preview-head h2) {
+  margin: 5px 0 0;
+  color: #1d2939;
+  font-size: 18px;
+  font-weight: 720;
+  letter-spacing: -.025em;
+}
+
+.productStageScreen :global(.focused-preview-head p) {
+  max-width: 590px;
+  margin: 5px 0 0;
+  color: #7b8492;
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.productStageScreen :global(.focused-metrics) {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid #e7eaf0;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.productStageScreen :global(.focused-metrics > div) {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 13px 14px;
+}
+
+.productStageScreen :global(.focused-metrics > div + div) {
+  border-left: 1px solid #edf0f3;
+}
+
+.productStageScreen :global(.focused-metrics span) {
+  color: #98a2b3;
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: .065em;
+  text-transform: uppercase;
+}
+
+.productStageScreen :global(.focused-metrics strong) {
+  color: #344054;
+  font-size: 15px;
+  font-weight: 740;
+  letter-spacing: -.02em;
+}
+
+.productStageScreen :global(.focused-list),
+.productStageScreen :global(.focused-compliance),
+.productStageScreen :global(.focused-steps) {
+  overflow: hidden;
+  border: 1px solid #e7eaf0;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.productStageScreen :global(.focused-row),
+.productStageScreen :global(.focused-compliance > div),
+.productStageScreen :global(.focused-steps > div) {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  min-height: 58px;
+  padding: 9px 12px;
+}
+
+.productStageScreen :global(.focused-row + .focused-row),
+.productStageScreen :global(.focused-compliance > div + div),
+.productStageScreen :global(.focused-steps > div + div) {
+  border-top: 1px solid #edf0f3;
+}
+
+.productStageScreen :global(.focused-avatar),
+.productStageScreen :global(.focused-check),
+.productStageScreen :global(.focused-steps > div > span:first-child) {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: #f2f4f7;
+  color: #475467;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.productStageScreen :global(.focused-check) {
+  background: #ecfdf3;
+  color: #067647;
+}
+
+.productStageScreen :global(.focused-steps > div > span:first-child) {
+  background: #eef4ff;
+  color: #3538cd;
+}
+
+.productStageScreen :global(.focused-row strong),
+.productStageScreen :global(.focused-compliance strong),
+.productStageScreen :global(.focused-steps strong) {
+  display: block;
+  color: #344054;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.productStageScreen :global(.focused-row p),
+.productStageScreen :global(.focused-compliance p),
+.productStageScreen :global(.focused-steps p) {
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: #8b93a1;
+  font-size: 9px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.productStageScreen :global(.focused-approval button) {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 7px;
+  background: #fff;
+  color: #475467;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.productStageScreen :global(.focused-approval button:hover) {
+  border-color: #a4bcfd;
+  background: #f5f8ff;
+  color: #3538cd;
+}
+
+.productStageScreen :global(.focused-footer) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid #fedf89;
+  border-radius: 10px;
+  background: #fffaeb;
+  color: #b54708;
+  font-size: 9px;
+}
+
+.productStageScreen :global(.focused-footer span) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.productStageScreen :global(.focused-footer strong) {
+  color: #7a2e0e;
+  font-size: 9px;
+}
+
+.productStageScreen::after {
+  bottom: 10px;
+  padding: 6px 9px;
+  font-size: 8px;
+  box-shadow: 0 4px 14px rgba(16, 24, 40, .06);
+}
+
+@media (max-width: 900px) {
+  .productStage {
+    width: min(100% - 28px, 1180px);
+  }
+
+  .productStageScreen :global(.pv) {
+    grid-template-columns: 142px minmax(0, 1fr);
+  }
+
+  .productStageScreen :global(.pv-side) {
+    width: 142px;
+  }
+}
+
+@media (max-width: 720px) {
+  .productStage {
+    width: min(100% - 18px, 1180px);
+  }
+
+  .productStageScreen :global(.pv) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .productStageScreen :global(.pv-body) {
+    min-height: 410px;
+    max-height: 410px;
+    padding: 14px;
+    overflow: auto;
+  }
+
+  .productStageScreen :global(.focused-metrics) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .productStageScreen :global(.focused-metrics > div + div) {
+    border-top: 1px solid #edf0f3;
+    border-left: 0;
+  }
+
+  .productStageScreen :global(.focused-row),
+  .productStageScreen :global(.focused-compliance > div),
+  .productStageScreen :global(.focused-steps > div) {
+    grid-template-columns: 32px minmax(0, 1fr);
+  }
+
+  .productStageScreen :global(.focused-row > :last-child),
+  .productStageScreen :global(.focused-compliance > div > :last-child),
+  .productStageScreen :global(.focused-steps > div > :last-child) {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .productStageScreen :global(.focused-footer) {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 10px 12px;
+  }
+}

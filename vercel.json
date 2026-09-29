@@ -5,7 +5,8 @@
       "**": false,
       "main": true,
       "staging": true,
-      "preview": true
+      "preview": true,
+      "design/homepage-above-fold-pass-2": true
     }
   }
 }
