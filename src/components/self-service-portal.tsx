@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Clock, Download, FileText, LogOut, ShieldCheck, WalletCards } from "lucide-react";
+import { Clock, Download, FileText, LogOut, ShieldCheck, UserCheck, WalletCards } from "lucide-react";
 import { WebBundyModal } from "@/components/web-bundy-modal";
+import { DEMO_ROLES, type DemoRoleId } from "@/lib/demo-roles";
 
 type Payslip = {
   entryId: number;
@@ -36,6 +37,7 @@ export function SelfServicePortal() {
   const [linked, setLinked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [webBundyOpen, setWebBundyOpen] = useState(false);
+  const [switchingRole, setSwitchingRole] = useState<DemoRoleId | null>(null);
 
   async function load() {
     const response = await fetch("/api/self/payslips", { cache: "no-store" });
@@ -73,6 +75,27 @@ export function SelfServicePortal() {
     return () => { alive = false; };
   }, [nonce]);
 
+  async function switchDemoRole(role: DemoRoleId) {
+    setSwitchingRole(role);
+    try {
+      const response = await fetch("/api/auth/demo-switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(payload.error ?? "Could not switch demo persona.");
+        return;
+      }
+      window.location.href = typeof payload.redirectTo === "string" ? payload.redirectTo : `/?demoRole=${role}`;
+    } catch {
+      setError("Could not switch demo persona.");
+    } finally {
+      setSwitchingRole(null);
+    }
+  }
+
   async function link(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -102,7 +125,26 @@ export function SelfServicePortal() {
           </p>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          {isDemo && <a className="secondary-button" href="/demo">Switch demo role</a>}
+          {isDemo && (
+            <div className="company-switcher-wrap">
+              <button className="secondary-button" type="button">
+                <UserCheck size={14} className="i-purple" /> Employee demo
+              </button>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {DEMO_ROLES.filter((role) => role.id !== "employee").map((role) => (
+                  <button
+                    key={role.id}
+                    className="secondary-button"
+                    type="button"
+                    disabled={Boolean(switchingRole)}
+                    onClick={() => void switchDemoRole(role.id)}
+                  >
+                    {switchingRole === role.id ? "Opening…" : role.shortLabel}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <button className="primary-button" style={{ background: "var(--deep)", borderColor: "var(--green)" }} onClick={() => setWebBundyOpen(true)}>
             <Clock size={15} className="i-cyan" /> Clock IN / OUT
           </button>
