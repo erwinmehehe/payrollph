@@ -58,12 +58,12 @@ export function buildRoleInbox(data: DashboardData, role: RoleInboxRole): RoleIn
   const current = stages.find((stage) => stage.state === "current") ?? stages[0];
   const items: RoleInboxItem[] = [];
 
-  if (role === "hr" && current.key === "hr") {
+  if (role === "hr") {
     if (attendanceIssues > 0) {
       items.push({
         id: "hr-attendance",
         title: `${attendanceIssues} attendance issue${attendanceIssues === 1 ? "" : "s"} need context`,
-        detail: "Resolve incomplete or non-standard punches before payroll takes the cutoff.",
+        detail: "Resolve incomplete or non-standard punches so the next payroll calculation has clean time inputs.",
         page: "Time & attendance",
         tone: "danger",
         cta: "Review attendance",
@@ -73,7 +73,7 @@ export function buildRoleInbox(data: DashboardData, role: RoleInboxRole): RoleIn
       items.push({
         id: "hr-leave",
         title: `${pendingLeave} leave request${pendingLeave === 1 ? "" : "s"} still pending`,
-        detail: "Clear leave decisions so paid days and balances are settled before payroll.",
+        detail: "Clear leave decisions so paid days and balances stay current for payroll.",
         page: "Leave",
         tone: "review",
         cta: "Review leave",
@@ -89,7 +89,7 @@ export function buildRoleInbox(data: DashboardData, role: RoleInboxRole): RoleIn
         cta: "Open people",
       });
     }
-    if (items.length === 0) {
+    if (items.length === 0 && current.key === "hr") {
       items.push({
         id: "hr-ready",
         title: "Cutoff inputs look ready for Payroll",
@@ -126,19 +126,20 @@ export function buildRoleInbox(data: DashboardData, role: RoleInboxRole): RoleIn
     }
   }
 
-  if (role === "checker" && current.key === "checker") {
+  if (role === "checker") {
     const pending = data.tasks.filter((task) => task.status === "Pending");
     if (pending.length > 0) {
-      const task = pending[0];
-      items.push({
-        id: `checker-${task.id}`,
-        title: task.title,
-        detail: `${task.detail} · ${task.dueLabel}`,
-        page: "Approvals",
-        tone: task.priority === "High" ? "danger" : "review",
-        cta: "Review payroll",
-      });
-    } else {
+      for (const task of pending.slice(0, 3)) {
+        items.push({
+          id: `checker-${task.id}`,
+          title: task.title,
+          detail: `${task.detail} · ${task.dueLabel}`,
+          page: "Approvals",
+          tone: task.priority === "High" ? "danger" : "review",
+          cta: task.detail.includes("Payroll run #") ? "Review payroll" : "Review request",
+        });
+      }
+    } else if (current.key === "checker") {
       items.push({
         id: "checker-review",
         title: run ? `Review ${run.periodLabel} independently` : "Open checker review",
