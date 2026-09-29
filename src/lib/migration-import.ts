@@ -52,6 +52,7 @@ export type MigratedPayrollHistory = {
   periodLabel: string;
   sourceReference: string;
   grossPay: number;
+  basicSalary: number;
   netPay: number;
   taxWithheld: number;
   sssEmployee: number;
@@ -123,6 +124,7 @@ const COMMON_ALIASES: Record<string, string[]> = {
   periodLabel: ["period", "payroll period", "cutoff", "cut-off", "pay period", "period label"],
   sourceReference: ["reference", "reference no", "payroll run id", "run id", "payroll id", "batch id"],
   grossPay: ["gross", "gross pay", "gross salary", "gross compensation", "total gross", "gross earnings"],
+  basicSalary: ["basic salary", "basic pay", "basic earned", "basic salary earned", "base pay", "base salary"],
   netPay: ["net", "net pay", "net salary", "take home pay", "take-home pay", "amount paid"],
   taxWithheld: ["withholding tax", "tax withheld", "wht", "bir tax", "income tax", "withholding"],
   sssEmployee: ["sss employee", "sss ee", "employee sss", "sss contribution"],
@@ -365,11 +367,13 @@ function parsePayrollHistory(
   const rawPayDate = get("payDate").trim();
   const payDate = dateValue(rawPayDate);
   const grossPay = numberValue(get("grossPay"));
+  const basicSalary = numberValue(get("basicSalary"), Number.NaN);
   const netPay = numberValue(get("netPay"));
 
   if (!employeeNo) problems.push("employee number / ID is required");
   if (!payDate) problems.push(`pay date "${rawPayDate || "(blank)"}" is not valid`);
   if (!Number.isFinite(grossPay) || grossPay < 0) problems.push("gross pay must be zero or greater");
+  if (!Number.isFinite(basicSalary) || basicSalary < 0) problems.push("basic salary earned is required and must be zero or greater");
   if (!Number.isFinite(netPay) || netPay < 0) problems.push("net pay must be zero or greater");
 
   const optional = {
@@ -393,6 +397,7 @@ function parsePayrollHistory(
       periodLabel,
       sourceReference: get("sourceReference").trim() || `${payDate}:${periodLabel}`,
       grossPay,
+      basicSalary,
       netPay,
       ...optional,
     },
@@ -477,7 +482,7 @@ export const MIGRATION_TEMPLATE_HEADERS: Record<MigrationKind, string[]> = {
     "SSS Number", "PhilHealth PIN", "Pag-IBIG No", "Hire Date",
   ],
   payroll_history: [
-    "Employee ID", "Pay Date", "Payroll Period", "Reference", "Gross Pay", "Net Pay", "Withholding Tax",
+    "Employee ID", "Pay Date", "Payroll Period", "Reference", "Gross Pay", "Basic Salary Earned", "Net Pay", "Withholding Tax",
     "SSS Contribution", "PhilHealth Contribution", "Pag-IBIG Contribution", "13th Month Pay",
   ],
   leave_balances: ["Employee ID", "Leave Type", "Year", "Opening Balance", "Accrued", "Used", "Pending"],
@@ -494,7 +499,7 @@ const KIND_FIELDS: Record<MigrationKind, TargetField[]> = {
     "sssNo", "philHealthNo", "pagIbigNo", "startDate",
   ],
   payroll_history: [
-    "employeeNo", "payDate", "periodLabel", "sourceReference", "grossPay", "netPay", "taxWithheld",
+    "employeeNo", "payDate", "periodLabel", "sourceReference", "grossPay", "basicSalary", "netPay", "taxWithheld",
     "sssEmployee", "philHealthEmployee", "pagIbigEmployee", "thirteenthMonth",
   ],
   leave_balances: ["employeeNo", "leaveType", "year", "opening", "accrued", "used", "pending"],
