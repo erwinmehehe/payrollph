@@ -75,7 +75,16 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({ Manage: true });
 
   const interactive = mode === "interactive";
-  const activeTab: Tab = interactive ? tab : "Overview";
+  const activeTab: Tab = interactive ? tab : "Payroll";
+  const showcaseNames = new Set(["Overview", "Payroll", "People", "Migration", "Approvals"]);
+  const displayedGroups = interactive
+    ? PREVIEW_GROUPS
+    : PREVIEW_GROUPS
+        .map((group) => ({
+          ...group,
+          items: group.items.filter((item) => showcaseNames.has(item.name)),
+        }))
+        .filter((group) => group.items.length > 0);
 
   return (
     <div className={`frame ${interactive ? "standalone" : ""}`}>
@@ -106,7 +115,7 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
                 <strong style={{ fontSize: 14 }}>linaw</strong>
               </div>
             </div>
-            {PREVIEW_GROUPS.map((group) => {
+            {displayedGroups.map((group) => {
               const collapsed = interactive && Boolean(collapsedGroups[group.label]);
               return (
                 <div className="pv-nav-group" key={group.label}>
