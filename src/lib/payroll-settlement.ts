@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, lte } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt, lte } from "drizzle-orm";
 import { db } from "@/db";
 import { ensureEmployeePayHistory } from "@/lib/pay-basis-schema";
 import { buildPaySegments } from "@/lib/pay-history";
@@ -207,6 +207,7 @@ export async function settlePayrollRun(
             eq(employeePayAdjustments.organizationId, run.organizationId),
             inArray(employeePayAdjustments.employeeId, employeeIds),
             eq(employeePayAdjustments.status, "pending"),
+            lt(employeePayAdjustments.serviceThrough, run.periodStart),
           )),
         ])
       : [[], [], []] as const;
