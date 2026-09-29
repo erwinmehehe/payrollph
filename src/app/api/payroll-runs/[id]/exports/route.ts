@@ -54,6 +54,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     }, { status: 409 });
   }
 
+  if (kind === "journal" && run.status !== "Released") {
+    return Response.json({
+      error: `Final accounting journals are available only after payroll release (currently ${run.status}).`,
+    }, { status: 409 });
+  }
+
   if (kind === "payslip") {
     if (!payslipId) {
       const rows = await db
