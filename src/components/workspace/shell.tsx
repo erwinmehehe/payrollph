@@ -20,6 +20,7 @@ import { FREELANCER_HIDDEN, NAVIGATION, groupOf } from "./nav";
 import type { DashboardData, Organization } from "./types";
 import { Avatar, initialsOf, relativeTime } from "./ui";
 import { DEMO_ROLES, demoRoleInfo, type DemoRoleId } from "@/lib/demo-roles";
+import { buildRoleInbox, isRoleInboxRole } from "@/lib/role-inbox";
 
 export type Notification = {
   id: string;
@@ -394,10 +395,33 @@ export function WorkspaceShell({
  * Derives the notification tray from real workspace rows. Nothing here is
  * invented, each entry points at a record the user can open.
  */
-export function buildNotifications(data: DashboardData): Notification[] {
+export function buildNotifications(data: DashboardData, role = data.access?.role ?? data.user?.role ?? null): Notification[] {
   const items: Notification[] = [];
 
-  for (const task of data.tasks.filter((task) => task.status === "Pending").slice(0, 5)) {
+  if (isRoleInboxRole(role)) {
+    const inbox = buildRoleInbox(data, role);
+    for (const item of inbox.items) {
+      items.push({
+        id: `handoff-${item.id}`,
+        title: item.title,
+        detail: item.detail,
+        tone: item.tone,
+        page: item.page,
+      });
+    }
+  }
+
+  const pendingTasks = data.tasks.filter((task) => task.status === "Pending");
+  const visibleTasks =
+    role === "payroll"
+      ? []
+      : role === "hr"
+        ? pendingTasks.filter((task) => !task.detail.includes("Payroll run #"))
+        : pendingTasks;
+
+  for (const task of visibleTasks.slice(0, 5)) {
+    const duplicate = items.some((item) => item.title === task.title);
+    if (duplicate) continue;
     items.push({
       id: `task-${task.id}`,
       title: task.title,
