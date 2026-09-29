@@ -25,7 +25,7 @@ import {
   userOrganizations,
 } from "@/db/schema";
 import { ensureSeedData } from "@/db/seed";
-import { getAccess, PAYROLL_VIEW_ROLES, roleAllowed } from "@/lib/access";
+import { getAccess, PAYROLL_VIEW_ROLES, PEOPLE_PAYROLL_ROLES, roleAllowed } from "@/lib/access";
 import { getSessionUser, publicUser } from "@/lib/auth";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
@@ -71,6 +71,7 @@ export async function getDashboardData(organizationId?: number) {
   await ensureEmployeePayProfiles(selectedOrganization.id);
 
   const canViewPayroll = roleAllowed(access.role, PAYROLL_VIEW_ROLES);
+  const canViewPeoplePay = roleAllowed(access.role, PEOPLE_PAYROLL_ROLES);
   const canViewAudit = ["owner", "admin", "bookkeeper", "payroll", "checker"].includes(access.role);
 
   const employeeFilter = access && !access.companyWide && access.orgUnitId
@@ -80,8 +81,12 @@ export async function getDashboardData(organizationId?: number) {
   const [employeeRows, payProfileRows, payRevisionRowsRaw, retroRowsRaw, runRows, taskRowsRaw, auditRows, plans, templates, advisories, freelancer, punchRowsRaw, delegationRows, leaveRowsRaw, leavePolicyRows, units, wages, provisionRowsRaw] = await Promise.all([
     db.select().from(employees).where(employeeFilter).orderBy(asc(employees.id)),
     db.select().from(employeePayProfiles).where(eq(employeePayProfiles.organizationId, selectedOrganization.id)),
-    db.select().from(employeePayRevisions).where(eq(employeePayRevisions.organizationId, selectedOrganization.id)).orderBy(desc(employeePayRevisions.effectiveDate), desc(employeePayRevisions.id)),
-    db.select().from(employeePayRetroAdjustments).where(eq(employeePayRetroAdjustments.organizationId, selectedOrganization.id)).orderBy(desc(employeePayRetroAdjustments.id)),
+    canViewPeoplePay
+      ? db.select().from(employeePayRevisions).where(eq(employeePayRevisions.organizationId, selectedOrganization.id)).orderBy(desc(employeePayRevisions.effectiveDate), desc(employeePayRevisions.id))
+      : Promise.resolve([]),
+    canViewPeoplePay
+      ? db.select().from(employeePayRetroAdjustments).where(eq(employeePayRetroAdjustments.organizationId, selectedOrganization.id)).orderBy(desc(employeePayRetroAdjustments.id))
+      : Promise.resolve([]),
     canViewPayroll
       ? db.select().from(payrollRuns).where(eq(payrollRuns.organizationId, selectedOrganization.id)).orderBy(desc(payrollRuns.id))
       : Promise.resolve([]),
