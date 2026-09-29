@@ -50,7 +50,7 @@ jobs:
       - name: Run Chromium homepage and persona QA
         shell: bash
         run: |
-          cat > /tmp/preview-qa.cjs <<'JS'
+          cat > preview-qa.cjs <<'JS'
           const fs = require("node:fs");
           const { chromium } = require("playwright");
 
@@ -200,7 +200,7 @@ jobs:
           })();
           JS
 
-          node /tmp/preview-qa.cjs
+          node preview-qa.cjs
 
       - name: Upload browser QA artifacts
         if: always()
