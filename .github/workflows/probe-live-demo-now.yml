@@ -1,0 +1,22 @@
+name: Probe live demo now
+
+on:
+  push:
+    branches:
+      - qa/live-demo-clicks-sep29
+    paths:
+      - ".github/workflows/probe-live-demo-now.yml"
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: POST owner demo
+        run: |
+          set -euo pipefail
+          code="$(curl -sS -D /tmp/headers.txt -o /tmp/body.json -w '%{http_code}'             -X POST             -H 'Content-Type: application/json'             -d '{"role":"owner"}'             https://erwinmehehe-payrollph.vercel.app/api/auth/demo-switch || true)"
+          echo "STATUS=$code"
+          cat /tmp/headers.txt
+          cat /tmp/body.json
+          echo
