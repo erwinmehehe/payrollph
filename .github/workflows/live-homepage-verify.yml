@@ -1,0 +1,31 @@
+name: Live homepage verify
+
+on:
+  push:
+    branches:
+      - qa/homepage-live-check-sep29
+    paths:
+      - ".github/workflows/live-homepage-verify.yml"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify live homepage content
+        run: |
+          set -euo pipefail
+          url="https://erwinmehehe-payrollph.vercel.app/"
+          curl -fsSL --retry 3 --retry-delay 2 "$url" -o /tmp/home.html
+          grep -Fq "Run Philippine payroll with a clear path from draft to release." /tmp/home.html
+          grep -Fq "Know what changed before anyone presses release." /tmp/home.html
+          grep -Fq "Bring your payroll history with you." /tmp/home.html
+          echo "Live homepage contains redesigned content"
+      - name: Capture live homepage
+        run: |
+          google-chrome --headless=new --no-sandbox --disable-dev-shm-usage --hide-scrollbars             --window-size=1440,1000             --screenshot=live-homepage.png             --virtual-time-budget=5000             https://erwinmehehe-payrollph.vercel.app/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: live-homepage
+          path: live-homepage.png
+          retention-days: 3
