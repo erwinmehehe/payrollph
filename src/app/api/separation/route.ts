@@ -314,6 +314,13 @@ export async function POST(request: Request) {
     }
 
     const leaveMonetizationPay = Number(money(unusedLeaveCredits * sources.resolvedPayProfile.dailyRate));
+    const leaveTaxReviewed = Boolean(body.leaveTaxReviewed);
+    const leaveMonetizationTaxExempt = Boolean(body.leaveMonetizationTaxExempt);
+    if (leaveMonetizationPay > 0 && !leaveTaxReviewed) {
+      return Response.json({
+        error: "Leave monetization tax treatment must be reviewed before computing final pay. Confirm whether the convertible leave cash amount is taxable or exempt.",
+      }, { status: 422 });
+    }
     const loanDeductions = deductOutstandingLoans ? sources.totals.activeLoanBalance : 0;
 
     const result = computeFinalPay({
@@ -326,6 +333,7 @@ export async function POST(request: Request) {
       taxWithheldYtd: sources.totals.taxWithheldYtd,
       mwe: sources.employee.mwe,
       leaveMonetizationPay,
+      taxableLeaveMonetizationPay: leaveMonetizationTaxExempt ? 0 : leaveMonetizationPay,
       separationPay,
       retirementPay,
       taxableSeparationPay: separationPayTaxExempt ? 0 : separationPay,
@@ -358,6 +366,8 @@ export async function POST(request: Request) {
       releasedPayrollEntries: sources.released.length,
       payBasis: sources.resolvedPayProfile.payBasis,
       dailyRate: sources.resolvedPayProfile.dailyRate,
+      leaveTaxReviewed,
+      leaveMonetizationTaxExempt,
     };
 
     const created = await db.transaction(async (tx) => {
@@ -416,6 +426,8 @@ export async function POST(request: Request) {
         thirteenthDue: result.thirteenthDue,
         unpaidBasicSalary,
         leaveMonetizationPay,
+        leaveTaxReviewed,
+        leaveMonetizationTaxExempt,
         separationPay,
         retirementPay,
         separationPayTaxExempt,
