@@ -1,13 +1,14 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { employeePayProfiles, employees, importBatches } from "@/db/schema";
+import { employees, importBatches } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { getEntitlements, requireFeature, seatUsage } from "@/lib/billing";
 import { parseEmployeeCsv } from "@/lib/csv-import";
 import { assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
-import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
+import { ensureEmployeePayHistory } from "@/lib/pay-basis-schema";
+import { philippinesToday, recordEffectivePayChange } from "@/lib/pay-history-server";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
   if (deniedImport) return deniedImport;
 
   await ensureMigrationSchema();
-  await ensureEmployeePayProfiles(organizationId);
+  await ensureEmployeePayHistory(organizationId);
 
   const entitlements = await getEntitlements(organizationId);
   const gate = requireFeature(entitlements, "imports");
@@ -99,22 +100,18 @@ export async function POST(request: Request) {
         }).where(and(eq(employees.organizationId, organizationId), eq(employees.employeeNo, row.employeeNo)))
           .returning({ id: employees.id });
         if (updated) {
-          await db.insert(employeePayProfiles).values({
-            employeeId: updated.id,
+          await recordEffectivePayChange({
             organizationId,
-            payBasis: "monthly",
-            rateAmount: row.monthlyBasic.toFixed(2),
-            standardWorkDaysPerMonth: "22.00",
-            standardHoursPerDay: "8.00",
-          }).onConflictDoUpdate({
-            target: employeePayProfiles.employeeId,
-            set: {
+            employeeId: updated.id,
+            effectiveFrom: philippinesToday(),
+            payProfile: {
               payBasis: "monthly",
-              rateAmount: row.monthlyBasic.toFixed(2),
-              standardWorkDaysPerMonth: "22.00",
-              standardHoursPerDay: "8.00",
-              updatedAt: new Date(),
+              rateAmount: row.monthlyBasic,
+              standardWorkDaysPerMonth: 22,
+              standardHoursPerDay: 8,
             },
+            reason: `Employee CSV import: ${fileName}`,
+            actor: user.name,
           });
         }
       }
@@ -150,15 +147,20 @@ export async function POST(request: Request) {
       basicRate: employees.basicRate,
     });
     createdCount = inserted.length;
-    if (inserted.length > 0) {
-      await db.insert(employeePayProfiles).values(inserted.map((employee) => ({
-        employeeId: employee.id,
+    for (const employee of inserted) {
+      await recordEffectivePayChange({
         organizationId,
-        payBasis: "monthly",
-        rateAmount: employee.basicRate,
-        standardWorkDaysPerMonth: "22.00",
-        standardHoursPerDay: "8.00",
-      })));
+        employeeId: employee.id,
+        effectiveFrom: philippinesToday(),
+        payProfile: {
+          payBasis: "monthly",
+          rateAmount: employee.basicRate,
+          standardWorkDaysPerMonth: 22,
+          standardHoursPerDay: 8,
+        },
+        reason: `Employee CSV import: ${fileName}`,
+        actor: user.name,
+      });
     }
   }
 
