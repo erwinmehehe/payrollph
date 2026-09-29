@@ -28,19 +28,14 @@ export function getPayrollActions(data: DashboardData, explicitRole?: string | n
 
 function hrActions(data: DashboardData): PayrollActionItem[] {
   const actions: PayrollActionItem[] = [];
-  const pendingLeave = (data.leaveRequests ?? []).filter((request) => request.status === "Pending");
-  const incompletePunches = (data.punches ?? []).filter((punch) => !punch.timeIn || !punch.timeOut);
-  const missingIds = data.employees.filter(
-    (employee) =>
-      employee.status === "Active" &&
-      (!employee.tin || !employee.sssNo || !employee.philHealthNo || !employee.pagIbigNo),
-  );
+  const run = currentCutoffRun(data);
+  const { pendingLeave, incompletePunches, missingIds } = cutoffBlockers(data, run);
 
   if (pendingLeave.length) {
     actions.push({
       id: "hr-leave",
       title: `${pendingLeave.length} leave request${pendingLeave.length === 1 ? "" : "s"} still need a decision`,
-      detail: "Pending leave can change payable days. Review the linked approval before Payroll closes the cutoff.",
+      detail: `Pending leave can change payable days${run ? ` in ${run.periodLabel}` : ""}. Review the linked approval before Payroll closes the cutoff.`,
       actionLabel: "Review leave approvals",
       page: "Approvals",
       tone: "review",
@@ -53,7 +48,7 @@ function hrActions(data: DashboardData): PayrollActionItem[] {
     actions.push({
       id: "hr-attendance",
       title: `${incompletePunches.length} incomplete punch${incompletePunches.length === 1 ? "" : "es"} across ${affected} employee${affected === 1 ? "" : "s"}`,
-      detail: "Incomplete time records derive zero hours during payroll calculation until the attendance record is corrected.",
+      detail: `Incomplete time records${run ? ` inside ${run.periodLabel}` : ""} derive zero hours during payroll calculation until corrected.`,
       actionLabel: "Review attendance",
       page: "Time & attendance",
       tone: "danger",
@@ -85,6 +80,7 @@ function payrollActions(data: DashboardData): PayrollActionItem[] {
   const run = data.payrollRuns.find((candidate) => makerStatuses.has(candidate.status)) ?? null;
   if (!run) return [];
   const task = latestRunTask(data.tasks, run.id);
+  const { pendingLeave, incompletePunches, missingIds } = cutoffBlockers(data, run);
 
   if (run.status === "Failed") {
     return [{
@@ -97,6 +93,43 @@ function payrollActions(data: DashboardData): PayrollActionItem[] {
       blocking: true,
     }];
   }
+
+  const hrBlockers: PayrollActionItem[] = [];
+  if (pendingLeave.length) {
+    hrBlockers.push({
+      id: `payroll-wait-leave-${run.id}`,
+      title: `Waiting on HR: ${pendingLeave.length} leave request${pendingLeave.length === 1 ? "" : "s"} are still pending`,
+      detail: `These requests overlap ${run.periodLabel} and can change payable days.`,
+      actionLabel: "View approval status",
+      page: "Approvals",
+      tone: "review",
+      blocking: true,
+    });
+  }
+  if (incompletePunches.length) {
+    const affected = new Set(incompletePunches.map((punch) => punch.employeeId)).size;
+    hrBlockers.push({
+      id: `payroll-wait-attendance-${run.id}`,
+      title: `Waiting on HR: ${incompletePunches.length} incomplete punch${incompletePunches.length === 1 ? "" : "es"}`,
+      detail: `${affected} employee${affected === 1 ? "" : "s"} in ${run.periodLabel} still have incomplete time records.`,
+      actionLabel: "Inspect attendance",
+      page: "Time & attendance",
+      tone: "danger",
+      blocking: true,
+    });
+  }
+  if (missingIds.length) {
+    hrBlockers.push({
+      id: `payroll-wait-ids-${run.id}`,
+      title: `Waiting on HR: ${missingIds.length} employee filing profile${missingIds.length === 1 ? "" : "s"} are incomplete`,
+      detail: "Payroll can inspect the affected people records, but HR owns the government-ID cleanup.",
+      actionLabel: "Inspect people records",
+      page: "People",
+      tone: "review",
+      blocking: true,
+    });
+  }
+  if (hrBlockers.length) return hrBlockers;
 
   if (run.status === "Needs review" || run.status === "Draft" || run.status === "Calculated" || run.status === "Ready") {
     if (run.exceptions > 0) {
@@ -174,6 +207,35 @@ function ownerActions(data: DashboardData): PayrollActionItem[] {
   }
 
   return [];
+}
+
+function currentCutoffRun(data: DashboardData) {
+  return data.payrollRuns.find((run) => run.status !== "Released") ?? data.payrollHandoffRun ?? null;
+}
+
+function cutoffBlockers(
+  data: DashboardData,
+  run: { periodStart?: string; periodEnd?: string } | null,
+) {
+  const start = run?.periodStart;
+  const end = run?.periodEnd;
+  const within = (date: string) => !start || !end || (date >= start && date <= end);
+  const overlaps = (startDate: string, endDate: string) =>
+    !start || !end || (startDate <= end && endDate >= start);
+
+  const pendingLeave = (data.leaveRequests ?? []).filter(
+    (request) => request.status === "Pending" && overlaps(request.startDate, request.endDate),
+  );
+  const incompletePunches = (data.punches ?? []).filter(
+    (punch) => (!punch.timeIn || !punch.timeOut) && within(punch.workDate),
+  );
+  const missingIds = data.employees.filter(
+    (employee) =>
+      employee.status === "Active" &&
+      (!employee.tin || !employee.sssNo || !employee.philHealthNo || !employee.pagIbigNo),
+  );
+
+  return { pendingLeave, incompletePunches, missingIds };
 }
 
 function latestRunTask(tasks: Task[], runId: number): Task | null {
