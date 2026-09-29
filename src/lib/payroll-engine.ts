@@ -5,7 +5,9 @@ import {
   deMinimisGrants,
   earnedWageRequests,
   employeeLoans,
+  employeePayAdjustments,
   employeePayProfiles,
+  employeePayRateChanges,
   employees,
   expenseClaims,
   leaveConversions,
@@ -37,7 +39,7 @@ import {
   resolveApprovedLeaveForPayroll,
   type ResolvedPayrollLeave,
 } from "@/lib/leave-payroll";
-import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
+import { ensureEmployeePayHistory } from "@/lib/pay-basis-schema";
 import {
   attendanceDeductionsForCutoff,
   basicPayForCutoff,
@@ -45,6 +47,11 @@ import {
   resolvePayProfile,
   type EmployeePayProfileInput,
 } from "@/lib/pay-basis";
+import {
+  buildPaySegments,
+  calculateSegmentedBasicPay,
+  type PaySegment,
+} from "@/lib/pay-history";
 
 const RULE_VERSION = "PH-2026.01";
 const DEFAULT_CHUNK = 25;
@@ -262,7 +269,7 @@ async function processPayrollChunk(input: {
   chunkSize: number;
 }) {
   await ensureLeavePayrollSchema();
-  await ensureEmployeePayProfiles(input.organizationId);
+  await ensureEmployeePayHistory(input.organizationId);
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, input.runId));
   if (!run) throw new Error("Payroll run missing");
 
@@ -287,10 +294,30 @@ async function processPayrollChunk(input: {
   }
   const chunk = allEmployees.slice(input.chunkIndex * input.chunkSize, (input.chunkIndex + 1) * input.chunkSize);
   const chunkIds = chunk.map((employee) => employee.id);
-  const payProfileRows = chunkIds.length
-    ? await db.select().from(employeePayProfiles).where(inArray(employeePayProfiles.employeeId, chunkIds))
-    : [];
+  const [payProfileRows, payHistoryRows, pendingPayAdjustments] = chunkIds.length
+    ? await Promise.all([
+        db.select().from(employeePayProfiles).where(inArray(employeePayProfiles.employeeId, chunkIds)),
+        db.select().from(employeePayRateChanges).where(and(
+          eq(employeePayRateChanges.organizationId, input.organizationId),
+          inArray(employeePayRateChanges.employeeId, chunkIds),
+          lte(employeePayRateChanges.effectiveFrom, run.periodEnd),
+        )).orderBy(asc(employeePayRateChanges.effectiveFrom)),
+        db.select().from(employeePayAdjustments).where(and(
+          eq(employeePayAdjustments.organizationId, input.organizationId),
+          inArray(employeePayAdjustments.employeeId, chunkIds),
+          eq(employeePayAdjustments.status, "pending"),
+        )),
+      ])
+    : [[], [], []] as const;
   const payProfileByEmployee = new Map(payProfileRows.map((profile) => [profile.employeeId, profile]));
+  const payHistoryByEmployee = new Map<number, typeof payHistoryRows>();
+  for (const change of payHistoryRows) {
+    payHistoryByEmployee.set(change.employeeId, [...(payHistoryByEmployee.get(change.employeeId) ?? []), change]);
+  }
+  const payAdjustmentsByEmployee = new Map<number, typeof pendingPayAdjustments>();
+  for (const adjustment of pendingPayAdjustments) {
+    payAdjustmentsByEmployee.set(adjustment.employeeId, [...(payAdjustmentsByEmployee.get(adjustment.employeeId) ?? []), adjustment]);
+  }
   if (chunk.length === 0) {
     await finalizeRun(input.runId);
     return { done: true, chunkIndex: input.chunkIndex, processedEmployees: 0 };
@@ -496,16 +523,37 @@ async function processPayrollChunk(input: {
         taxExempt: c.taxExempt,
       })),
       approvedLeave: approvedLeaveByEmployee.get(employee.id) ?? [],
-      payProfile: (() => {
+      paySegments: (() => {
         const profile = payProfileByEmployee.get(employee.id);
         if (!profile) throw new Error(`Employee #${employee.id} has no pay profile.`);
-        return {
-          payBasis: profile.payBasis,
-          rateAmount: profile.rateAmount,
-          standardWorkDaysPerMonth: profile.standardWorkDaysPerMonth,
-          standardHoursPerDay: profile.standardHoursPerDay,
-        };
+        return buildPaySegments({
+          fallback: {
+            payBasis: profile.payBasis,
+            rateAmount: profile.rateAmount,
+            standardWorkDaysPerMonth: profile.standardWorkDaysPerMonth,
+            standardHoursPerDay: profile.standardHoursPerDay,
+          },
+          changes: (payHistoryByEmployee.get(employee.id) ?? []).map((change) => ({
+            id: change.id,
+            effectiveFrom: String(change.effectiveFrom),
+            payBasis: change.payBasis,
+            rateAmount: change.rateAmount,
+            standardWorkDaysPerMonth: change.standardWorkDaysPerMonth,
+            standardHoursPerDay: change.standardHoursPerDay,
+          })),
+          periodStart: String(run.periodStart),
+          periodEnd: String(run.periodEnd),
+        });
       })(),
+      payAdjustments: (payAdjustmentsByEmployee.get(employee.id) ?? []).map((adjustment) => ({
+        id: adjustment.id,
+        amount: Number(adjustment.amount),
+        serviceYear: adjustment.serviceYear,
+        serviceFrom: String(adjustment.serviceFrom),
+        serviceThrough: String(adjustment.serviceThrough),
+      })),
+      periodStart: String(run.periodStart),
+      periodEnd: String(run.periodEnd),
     });
 
     chunkGross += calc.gross;
@@ -530,12 +578,13 @@ async function processPayrollChunk(input: {
           mobile: employee.mobile,
         },
         payProfile: {
-          payBasis: payProfileByEmployee.get(employee.id)!.payBasis,
-          rateAmount: Number(payProfileByEmployee.get(employee.id)!.rateAmount),
-          standardWorkDaysPerMonth: Number(payProfileByEmployee.get(employee.id)!.standardWorkDaysPerMonth),
-          standardHoursPerDay: Number(payProfileByEmployee.get(employee.id)!.standardHoursPerDay),
-          monthlyEquivalent: Number(employee.basicRate),
+          payBasis: calc.trace.payBasis,
+          rateAmount: calc.trace.endingRateAmount,
+          standardWorkDaysPerMonth: calc.trace.endingStandardWorkDaysPerMonth,
+          standardHoursPerDay: calc.trace.endingStandardHoursPerDay,
+          monthlyEquivalent: calc.trace.weightedMonthlyEquivalent,
         },
+        paySegments: calc.trace.paySegments,
       },
     }).returning();
 
