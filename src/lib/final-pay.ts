@@ -271,6 +271,7 @@ export type FinalPayTaxInputs = {
   otherNonTaxable: number;
   finalUnpaidBasicSalary: number;
   finalOtherTaxableEarnings: number;
+  finalOtherNonTaxableEarnings: number;
   thirteenthMonthBalance: number;
   leaveMonetization: number;
   statutorySeparationPay: number;
@@ -285,6 +286,7 @@ export function computeFinalPayTaxAdjustment(input: FinalPayTaxInputs): Annualiz
     Math.max(0, input.grossCompensationBeforeFinalPay)
     + Math.max(0, input.finalUnpaidBasicSalary)
     + Math.max(0, input.finalOtherTaxableEarnings)
+    + Math.max(0, input.finalOtherNonTaxableEarnings)
     + Math.max(0, input.thirteenthMonthBalance)
     + Math.max(0, input.leaveMonetization)
     + Math.max(0, input.statutorySeparationPay)
@@ -292,6 +294,7 @@ export function computeFinalPayTaxAdjustment(input: FinalPayTaxInputs): Annualiz
 
   const otherNonTaxable =
     Math.max(0, input.otherNonTaxable)
+    + Math.max(0, input.finalOtherNonTaxableEarnings)
     + (input.separationPayTaxExempt ? Math.max(0, input.statutorySeparationPay) : 0)
     + (input.retirementPayTaxExempt ? Math.max(0, input.statutoryRetirementPay) : 0);
 
