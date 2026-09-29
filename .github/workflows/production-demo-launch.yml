@@ -6,6 +6,9 @@ on:
       - fix/live-demo-launch-sep29
     paths:
       - ".github/workflows/production-demo-launch.yml"
+      - "src/app/api/auth/demo-switch/route.ts"
+      - "src/db/public-demo.ts"
+      - "src/lib/demo-host.ts"
 
 jobs:
   demo:
