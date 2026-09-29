@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { auditEvents, invoices, outbox, subscriptions, users } from "@/db/schema";
 import { activeMailProvider, deliveryCapable } from "@/lib/mail-provider";
 import { verifyPassword } from "@/lib/crypto";
+import { getSessionUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,12 @@ const configured = (name: string) => Boolean(process.env[name]);
 const enabled = (name: string) => process.env[name] === "true";
 
 export async function GET() {
+  const user = await getSessionUser();
+  if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+  if (!["owner", "admin", "bookkeeper"].includes(user.role)) {
+    return Response.json({ error: "Only workspace administrators can view deployment readiness." }, { status: 403 });
+  }
+
   const [{ value: userCount }] = await db.select({ value: count() }).from(users);
   const [{ value: queuedMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "queued"));
   const [{ value: sentMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "sent"));
