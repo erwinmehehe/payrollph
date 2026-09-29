@@ -7,6 +7,7 @@ import { deliveryCapable, queueMessage } from "@/lib/mailer";
 import { createInvitation } from "@/lib/tokens";
 import { assertOrganizationRole, getAccess, ORG_ADMIN_ROLES } from "@/lib/access";
 
+import { denyPublicDemoSideEffect } from "@/lib/public-demo-guard";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
@@ -56,6 +57,8 @@ export async function POST(request: Request) {
     "Only workspace administrators can invite users.",
   );
   if (deniedInvite) return deniedInvite;
+  const demoDenied = await denyPublicDemoSideEffect(organizationId, "Invitations");
+  if (demoDenied) return demoDenied;
 
   const access = await getAccess(user.id, organizationId);
   if (role === "owner" && access?.role !== "owner") {
