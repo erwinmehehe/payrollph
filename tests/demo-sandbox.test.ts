@@ -90,3 +90,13 @@ test("demo switch returns a controlled response when provisioning fails", () => 
   assert.ok(route.includes("The demo workspace could not be prepared. Please try again in a moment."), "browser must receive a useful retry message");
   assert.ok(route.includes("{ status: 503 }"), "provisioning failures must be service-unavailable, not an empty 500");
 });
+
+
+test("public demo provisioning retries transient failures without exposing diagnostics", () => {
+  const route = read("src/app/api/auth/demo-switch/route.ts");
+  assert.ok(route.includes("async function preparePublicDemoTenant()"), "public demo must use a retryable provisioning wrapper");
+  assert.ok(route.includes("attempt <= 3"), "public demo provisioning must retry transient failures");
+  assert.ok(route.includes("await preparePublicDemoTenant()"), "production demo launch must use the retry wrapper");
+  assert.ok(!route.includes("safeProvisioningDiagnostic"), "temporary production diagnostics must be removed");
+  assert.ok(!route.includes("diagnostic:"), "demo launch responses must not expose schema diagnostics");
+});
