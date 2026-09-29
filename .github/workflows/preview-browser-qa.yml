@@ -219,6 +219,22 @@ jobs:
               const handoff = dashboard.locator("[data-payroll-handoff]").first();
               check((await handoff.count()) === 1, `${persona.label}: payroll handoff is missing from the role dashboard`);
               check((await handoff.locator(".handoff-step").count()) === 5, `${persona.label}: payroll handoff must show all five owners`);
+              const nextAction = dashboard.locator("[data-handoff-action]").first();
+              check((await nextAction.count()) === 1, `${persona.label}: actionable handoff card is missing`);
+
+              const nextActionText = (await nextAction.innerText()).trim();
+              if (persona.id === "payroll") {
+                check(nextActionText.includes("Resolve 2 payroll exceptions"), "Payroll: exception handoff action is missing");
+              }
+              if (persona.id === "checker") {
+                check(nextActionText.includes("Payroll is ready for independent review"), "Checker: pending-review handoff action is missing");
+              }
+              if (persona.id === "owner") {
+                check(nextActionText.includes("Waiting on Checker"), "Owner: should wait for checker while no run is ready for release");
+              }
+              if (persona.id === "hr") {
+                check(nextActionText.includes("HR handoff is complete"), "HR: current cycle should show that the handoff already moved to Payroll");
+              }
             }
             if (persona.id === "employee") {
               check(body.includes("NEXT PAY STATUS"), "Employee: next pay status section is missing");
@@ -226,6 +242,27 @@ jobs:
               const handoff = page.locator("[data-payroll-handoff]").first();
               check((await handoff.count()) === 1, "Employee: payroll handoff is missing");
               check((await handoff.locator(".handoff-step").count()) === 5, "Employee: payroll handoff must show all five owners");
+            }
+
+            if (persona.dashboardRole) {
+              const notificationButton = page.getByRole("button", { name: /^Notifications/ }).first();
+              check((await notificationButton.count()) === 1, `${persona.label}: notification bell is missing`);
+
+              if (persona.id === "payroll" || persona.id === "checker") {
+                await notificationButton.click();
+                const tray = page.getByRole("dialog", { name: "Notifications" });
+                check((await tray.count()) === 1, `${persona.label}: notification tray did not open`);
+                const trayText = (await tray.innerText()).trim();
+                const expected = persona.id === "payroll"
+                  ? "Resolve 2 payroll exceptions"
+                  : "Payroll is ready for independent review";
+                check(trayText.includes(expected), `${persona.label}: handoff notification is missing`);
+                check(!trayText.includes("Active advisory"), `${persona.label}: generic advisory noise leaked into handoff notifications`);
+                check(!trayText.includes("lifecycle checklist items open"), `${persona.label}: lifecycle noise leaked into handoff notifications`);
+                await page.keyboard.press("Escape");
+              } else {
+                check((await page.locator(".notification-dot").count()) === 0, `${persona.label}: waiting/complete state should not have a handoff notification badge`);
+              }
             }
 
             const alert = page.getByRole("alert");
@@ -243,6 +280,35 @@ jobs:
             if (persona.id === "hr") {
               check((await sidebar.locator(".nav-item").filter({ hasText: /^Payroll$/ }).count()) === 0, "HR: payroll operator navigation must stay hidden");
               check((await sidebar.locator(".nav-item").filter({ hasText: /^Migration$/ }).count()) === 0, "HR: migration admin navigation must stay hidden");
+
+              const attendanceNav = sidebar.locator(".nav-item").filter({ hasText: /^Time & attendance$/ }).first();
+              check((await attendanceNav.count()) === 1, "HR: attendance navigation is missing");
+              await attendanceNav.click();
+              await page.waitForTimeout(100);
+
+              const correctButton = page.getByRole("button", { name: /Correct/i }).first();
+              check((await correctButton.count()) === 1, "HR: incomplete punch does not expose a correction action");
+              await correctButton.click();
+              check((await page.locator("[data-attendance-correction]").count()) === 1, "HR: attendance correction form did not open");
+
+              const reason = page.getByPlaceholder("Explain why this punch needs correction");
+              await reason.fill("Verified missing clock-out against the supervisor attendance record.");
+
+              const [correctionResponse] = await Promise.all([
+                page.waitForResponse(
+                  (response) => response.url().includes("/api/web-bundy") && response.request().method() === "PATCH",
+                  { timeout: 30000 },
+                ),
+                page.getByRole("button", { name: "Save correction" }).click(),
+              ]);
+              check(correctionResponse.ok(), `HR: attendance correction returned ${correctionResponse.status()}`);
+              await page.waitForTimeout(150);
+              check((await page.locator("[data-attendance-correction]").count()) === 0, "HR: correction form did not close after save");
+              check((await page.getByRole("button", { name: /Correct/i }).count()) === 0, "HR: corrected incomplete punch still appears actionable");
+
+              const overviewNav = sidebar.locator(".nav-item").filter({ hasText: /^Overview$/ }).first();
+              await overviewNav.click();
+              await page.waitForTimeout(100);
             }
             if (persona.id === "checker") {
               check((await sidebar.locator(".nav-item").filter({ hasText: /^People$/ }).count()) === 0, "Checker: people administration must stay hidden");
