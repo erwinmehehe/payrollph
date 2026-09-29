@@ -210,7 +210,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
               "Only an owner or administrator can complete release.",
             ].join("\n"),
           });
-          if (notice.delivered || notice.queued || notice.duplicate) okCount += 1;
+          if (notice.delivered || notice.queued) okCount += 1;
           if (notice.duplicate) duplicateCount += 1;
         }
 
@@ -244,7 +244,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
             ].join("\n"),
           });
           handoffNotification = {
-            ok: notice.delivered || notice.queued || notice.duplicate,
+            ok: notice.delivered || notice.queued,
             recipients: 1,
             duplicateCount: notice.duplicate ? 1 : 0,
             ...(notice.reason ? { warning: notice.reason } : {}),
