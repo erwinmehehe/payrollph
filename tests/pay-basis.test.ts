@@ -17,6 +17,7 @@ import {
   resolvePayProfile,
 } from "../src/lib/pay-basis";
 import { drainPayrollQueue, enqueuePayrollRun } from "../src/lib/payroll-engine";
+import { settlePayrollRun } from "../src/lib/payroll-settlement";
 
 test("pay basis helper keeps monthly, daily and hourly behavior explicit", () => {
   const monthly = resolvePayProfile({
@@ -201,6 +202,67 @@ test("payroll engine uses explicit pay basis and avoids double tardiness deducti
     assert.ok(monthlyTrace.inputs?.includes("payBasis=monthly"));
     assert.ok(dailyTrace.inputs?.includes("payBasis=daily"));
     assert.ok(hourlyTrace.inputs?.includes("payBasis=hourly"));
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});
+
+
+test("release refuses a pay profile changed after payroll calculation", async () => {
+  const [org] = await db.insert(organizations).values({
+    name: "Pay Basis Freshness Test",
+    legalName: "Pay Basis Freshness Test Inc.",
+    plan: "Core",
+  }).returning();
+
+  try {
+    const [employee] = await db.insert(employees).values({
+      organizationId: org.id,
+      employeeNo: "PB-STALE",
+      firstName: "Stale",
+      lastName: "Profile",
+      title: "Staff",
+      avatarInitials: "SP",
+      basicRate: "22000.00",
+      bankAccount: "1234567890",
+      bankCode: "BDO",
+      startDate: "2025-01-01",
+    }).returning();
+
+    await db.insert(employeePayProfiles).values({
+      employeeId: employee.id,
+      organizationId: org.id,
+      payBasis: "monthly",
+      rateAmount: "22000.00",
+      standardWorkDaysPerMonth: "22.00",
+      standardHoursPerDay: "8.00",
+    });
+
+    const [run] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      periodLabel: "Sep 16–30, 2026 stale pay profile",
+      periodStart: "2026-09-16",
+      periodEnd: "2026-09-30",
+      scopeLabel: "All locations",
+      status: "Draft",
+      payDate: "2026-09-30",
+    }).returning();
+
+    await enqueuePayrollRun(run.id, 25);
+    await drainPayrollQueue(10, run.id);
+
+    await db.update(employeePayProfiles)
+      .set({ payBasis: "daily", rateAmount: "1000.00", updatedAt: new Date() })
+      .where(eq(employeePayProfiles.employeeId, employee.id));
+    await db.update(payrollRuns).set({ status: "Releasing" }).where(eq(payrollRuns.id, run.id));
+
+    await assert.rejects(
+      () => settlePayrollRun(run.id),
+      /Pay profile for Stale Profile changed after calculation/,
+    );
+
+    const [freshRun] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, run.id));
+    assert.equal(freshRun.status, "Releasing", "failed settlement must not silently release stale payroll");
   } finally {
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
