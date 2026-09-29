@@ -9,6 +9,7 @@ import { ContractorsPanel } from "@/components/contractors-panel";
 import { DeMinimisPanel } from "@/components/de-minimis-panel";
 import { DisciplinePanel } from "@/components/discipline-panel";
 import { LoansPanel } from "@/components/loans-panel";
+import { MigrationCenter } from "@/components/migration-center";
 import { NewHireModal } from "@/components/new-hire-modal";
 import { RecruitmentPanel } from "@/components/recruitment-panel";
 import { SeparationPanel } from "@/components/separation-panel";
@@ -272,6 +273,9 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
     }
     if (canUsePeopleOps) {
       actions.push({ id: "new-hire", label: "Add employee", hint: "Create a record with its onboarding checklist", run: () => setNewHireOpen(true) });
+      if (availablePages.includes("Migration")) {
+        actions.push({ id: "migration", label: "Open migration center", hint: "Switch from another payroll or HRIS", run: () => setPage("Migration") });
+      }
     }
     if (canManageTime && availablePages.includes("Time & attendance")) {
       actions.push({ id: "bundy", label: "Open web bundy", hint: "Record an attendance punch", run: () => setWebBundyOpen(true) });
@@ -362,6 +366,15 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
             canManage={canManagePeople}
             focusEmployeeId={focusEmployeeId}
             onClearFocus={() => setFocusEmployeeId(null)}
+          />
+        )}
+
+        {page === "Migration" && (
+          <MigrationCenter
+            organizationId={data.selectedOrganization.id}
+            onImported={async () => {
+              await refresh();
+            }}
           />
         )}
 
