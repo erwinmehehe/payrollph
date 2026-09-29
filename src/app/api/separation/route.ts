@@ -286,6 +286,13 @@ export async function POST(request: Request) {
     const historicalBasicSalaryEarned = Number(money(storedHistoricalBasic + historicalBasicOverride));
 
     const unpaidBasicSalary = nonNegative(body.unpaidBasicSalary, "Unpaid basic salary");
+    const finalStatutoryDeductions = nonNegative(body.finalStatutoryDeductions, "Final statutory deductions");
+    const finalStatutoryReviewed = Boolean(body.finalStatutoryReviewed);
+    if (unpaidBasicSalary > 0 && !finalStatutoryReviewed) {
+      return Response.json({
+        error: "Unpaid basic salary needs a reviewed final SSS/PhilHealth/Pag-IBIG adjustment. Confirm the review and enter the employee statutory deductions due in final pay, using zero only when payroll review confirms none is due.",
+      }, { status: 422 });
+    }
     const unusedLeaveCredits = nonNegative(body.unusedLeaveCredits, "Convertible unused leave credits");
     const separationPay = nonNegative(body.separationPay, "Separation pay");
     const retirementPay = nonNegative(body.retirementPay, "Retirement pay");
@@ -308,6 +315,8 @@ export async function POST(request: Request) {
       releasedBasicYtd: sources.totals.releasedBasicYtd,
       historicalBasicYtd: historicalBasicSalaryEarned,
       unpaidBasicSalary,
+      finalStatutoryDeductions,
+      finalStatutoryReviewed,
       thirteenthPaidYtd: sources.totals.thirteenthPaidYtd,
       grossCompensationYtd: sources.totals.ordinaryGrossYtd,
       statutoryContributionsYtd: sources.totals.statutoryContributionsYtd,
@@ -319,6 +328,7 @@ export async function POST(request: Request) {
       taxableSeparationPay: separationPayTaxExempt ? 0 : separationPay,
       taxableRetirementPay: retirementPayTaxExempt ? 0 : retirementPay,
       otherBenefits,
+      finalStatutoryDeductions,
       loanDeductions,
     });
 
@@ -371,6 +381,7 @@ export async function POST(request: Request) {
         retirementPay: money(result.retirementPay),
         otherBenefits: money(result.otherBenefits),
         taxAdjustment: money(result.taxAdjustment),
+        finalStatutoryDeductions: money(result.finalStatutoryDeductions),
         loanDeductions: money(result.loanDeductions),
         grossFinalPay: money(result.grossFinalPay),
         netFinalPay: money(result.netFinalPay),
@@ -407,6 +418,8 @@ export async function POST(request: Request) {
         separationPayTaxExempt,
         retirementPayTaxExempt,
         otherBenefits,
+        finalStatutoryDeductions,
+        finalStatutoryReviewed,
         taxAdjustment: result.taxAdjustment,
         loanDeductions,
         netFinalPay: result.netFinalPay,
