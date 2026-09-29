@@ -15,7 +15,6 @@ export const REAL_ROLE_PAGE_ACCESS: Partial<Record<string, readonly string[]>> =
     "Discipline",
     "Separation",
     "Assets",
-    "Audit trail",
   ],
   payroll: [
     "Overview",
