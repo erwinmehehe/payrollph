@@ -650,6 +650,7 @@ function ActionCenter({
               type="button"
               className={`payroll-action-item ${action.tone} ${action.blocking ? "blocking" : ""}`}
               key={action.id}
+              data-action-page={action.page}
               onClick={() => onPage(action.page)}
             >
               <span className="payroll-action-icon" aria-hidden>
