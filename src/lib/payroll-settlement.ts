@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, lte } from "drizzle-orm";
 import { db } from "@/db";
 import { ensureEmployeePayHistory } from "@/lib/pay-basis-schema";
 import { buildPaySegments } from "@/lib/pay-history";
