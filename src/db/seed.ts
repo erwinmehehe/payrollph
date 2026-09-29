@@ -197,7 +197,34 @@ export async function ensureSeedData() {
       { code: "SSS", label: "SSS contribution", amount: (-[7284, 5540, 6942, 6175, 4655, 4142, 7790, 6608][index] * 0.25).toFixed(2) },
     ],
     trace: { ruleVersion: "PH-2026.01", inputs: ["approved timesheet", "SSS 2026", "semi-monthly table"] },
-  })));
+  })))
+
+  // Released history keeps the Employee sandbox populated with a real pay
+  // period. Self-service reads released payroll entries directly and the PDF
+  // download is generated from the same stored line items.
+  await db.insert(payrollEntries).values(loomPeople.map((employee, index) => {
+    const gross = [37400, 28400, 35200, 31600, 23800, 21000, 39800, 33600][index];
+    const deductions = [7100, 5380, 6680, 6000, 4520, 3990, 7560, 6380][index];
+    const net = gross - deductions;
+    return {
+      payrollRunId: releasedRun.id,
+      employeeId: employee.id,
+      grossPay: gross.toFixed(2),
+      deductions: deductions.toFixed(2),
+      netPay: net.toFixed(2),
+      status: "Ready",
+      lineItems: [
+        { code: "BASIC", label: "Basic / worked pay", amount: gross.toFixed(2) },
+        { code: "SSS", label: "SSS contribution", amount: (-(deductions * 0.24)).toFixed(2) },
+        { code: "PHIC", label: "PhilHealth contribution", amount: (-(deductions * 0.18)).toFixed(2) },
+        { code: "HDMF", label: "Pag-IBIG contribution", amount: (-(deductions * 0.06)).toFixed(2) },
+        { code: "WHT", label: "Withholding tax", amount: (-(deductions * 0.52)).toFixed(2) },
+      ],
+      trace: { ruleVersion: "PH-2026.01", inputs: ["approved timesheet", "released demo payroll"] },
+    };
+  }));
+
+;
 
   await db.insert(pricingPlans).values(DEFAULT_PRICING_PLANS.map((plan) => ({ ...plan })));
 
