@@ -2,7 +2,7 @@ import { count, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, invoices, outbox, subscriptions, users } from "@/db/schema";
 import { activeMailProvider, deliveryCapable } from "@/lib/mail-provider";
-import { hashPassword } from "@/lib/crypto";
+import { verifyPassword } from "@/lib/crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -32,12 +32,11 @@ export async function GET() {
   // customer deployment. Detect it by hashing the known value rather than
   // storing the plaintext anywhere.
   const reviewEmail = "celine@linaw.ph";
-  const reviewHash = hashPassword("LinawDemo2026!");
   const [reviewAccount] = await db.select({
     id: users.id,
     passwordHash: users.passwordHash,
   }).from(users).where(eq(users.email, reviewEmail)).limit(1);
-  const reviewCredentialLive = Boolean(reviewAccount) && reviewAccount!.passwordHash === reviewHash;
+  const reviewCredentialLive = Boolean(reviewAccount) && verifyPassword("LinawDemo2026!", reviewAccount!.passwordHash);
 
   // Billing is proven by ledger state, regardless of whether the customer paid
   // through a processor or the operator recorded a confirmed bank/GCash payment.
