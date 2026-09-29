@@ -6,7 +6,8 @@ import { randomToken, sha256 } from "@/lib/crypto";
 import { shouldRevokeOnCredentialChange } from "@/lib/account";
 
 export const SESSION_COOKIE = "linaw_session";
-const SESSION_DAYS = 14;
+const SESSION_DAYS = 7;
+const SESSION_IDLE_MS = 12 * 60 * 60 * 1000;
 // Only write a "last seen" timestamp if it is older than this, so the read path
 // does not issue a database write on every single request.
 const LAST_SEEN_WRITE_INTERVAL_MS = 5 * 60 * 1000;
@@ -100,7 +101,13 @@ export async function getSessionUser() {
     return null;
   }
 
-  const lastSeen = row.session.lastSeenAt ? new Date(row.session.lastSeenAt).getTime() : 0;
+  const lastSeen = row.session.lastSeenAt
+    ? new Date(row.session.lastSeenAt).getTime()
+    : new Date(row.session.createdAt).getTime();
+  if (Date.now() - lastSeen > SESSION_IDLE_MS) {
+    await db.update(sessions).set({ revokedAt: new Date() }).where(eq(sessions.id, row.session.id));
+    return null;
+  }
   if (Date.now() - lastSeen > LAST_SEEN_WRITE_INTERVAL_MS) {
     await db.update(sessions).set({ lastSeenAt: new Date() }).where(eq(sessions.id, row.session.id));
   }
@@ -126,6 +133,7 @@ export function sessionCookieOptions(expiresAt: Date) {
     secure: process.env.NODE_ENV === "production",
     path: "/",
     expires: expiresAt,
+    priority: "high" as const,
   };
 }
 
