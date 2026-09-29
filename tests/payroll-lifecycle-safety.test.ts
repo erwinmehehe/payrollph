@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { buildPayrollHandoff, employeePayStatusLabel } from "../src/lib/payroll-handoff";
+import { getPayrollActions } from "../src/lib/payroll-action-center";
+import type { DashboardData } from "../src/components/workspace/types";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -92,4 +94,159 @@ test("employee-facing payroll labels never imply unreleased pay is available", (
   assert.equal(employeePayStatusLabel("Pending approval"), "With an independent checker");
   assert.equal(employeePayStatusLabel("Ready for release"), "Approved, waiting for release");
   assert.equal(employeePayStatusLabel("Released"), "Payslip available");
+});
+
+
+function actionData(overrides: Partial<DashboardData> = {}): DashboardData {
+  return {
+    user: { id: 1, email: "user@example.com", name: "Test User", role: "owner", totpEnabled: false },
+    organizations: [],
+    selectedOrganization: {
+      id: 1,
+      name: "Test Co",
+      legalName: "Test Co Inc.",
+      accountType: "company",
+      plan: "Scale",
+      employeeCount: 0,
+      color: "#000000",
+    },
+    employees: [],
+    payrollRuns: [],
+    payrollEntries: [],
+    tasks: [],
+    auditEvents: [],
+    plans: [],
+    templates: [],
+    advisories: [],
+    punches: [],
+    leaveRequests: [],
+    provisioning: [],
+    freelancer: null,
+    ...overrides,
+  };
+}
+
+test("HR action center exposes only unresolved cutoff inputs", () => {
+  const data = actionData({
+    employees: [{
+      id: 10,
+      employeeNo: "E-10",
+      firstName: "Ana",
+      lastName: "Reyes",
+      title: "Coordinator",
+      employmentType: "Regular",
+      status: "Active",
+      avatarInitials: "AR",
+      basicRate: "30000",
+      mwe: false,
+      tin: null,
+      sssNo: null,
+      philHealthNo: null,
+      pagIbigNo: null,
+    }],
+    leaveRequests: [{
+      id: 1,
+      employeeId: 10,
+      leaveType: "Annual leave",
+      startDate: "2026-09-29",
+      endDate: "2026-09-29",
+      days: "1",
+      status: "Pending",
+    }],
+    punches: [{
+      id: 1,
+      employeeId: 10,
+      workDate: "2026-09-29",
+      status: "Incomplete",
+      timeIn: new Date("2026-09-29T01:00:00Z"),
+      timeOut: null,
+    }],
+  });
+
+  assert.deepEqual(
+    getPayrollActions(data, "hr").map((item) => item.id),
+    ["hr-leave", "hr-attendance", "hr-government-ids"],
+  );
+
+  const resolved = actionData({
+    employees: data.employees.map((employee) => ({
+      ...employee,
+      tin: "123",
+      sssNo: "123",
+      philHealthNo: "123",
+      pagIbigNo: "123",
+    })),
+    leaveRequests: data.leaveRequests?.map((request) => ({ ...request, status: "Approved" })),
+    punches: data.punches?.map((punch) => ({ ...punch, status: "Complete", timeOut: new Date("2026-09-29T09:00:00Z") })),
+  });
+  assert.deepEqual(getPayrollActions(resolved, "hr"), []);
+});
+
+test("Payroll action center moves from exceptions to checker handoff and then clears", () => {
+  const run = {
+    id: 9,
+    periodLabel: "Sep 16-30",
+    periodStart: "2026-09-16",
+    periodEnd: "2026-09-30",
+    scopeLabel: "All employees",
+    status: "Needs review",
+    payDate: "2026-10-05",
+    employeeCount: 10,
+    grossPay: "100000",
+    netPay: "80000",
+    exceptions: 2,
+    ruleVersion: "PH-2026.01",
+  };
+
+  const withExceptions = actionData({ payrollRuns: [run] });
+  assert.equal(getPayrollActions(withExceptions, "payroll")[0]?.id, "payroll-exceptions-9");
+
+  const clean = actionData({ payrollRuns: [{ ...run, exceptions: 0 }] });
+  assert.equal(getPayrollActions(clean, "payroll")[0]?.id, "payroll-submit-9");
+
+  const submitted = actionData({ payrollRuns: [{ ...run, exceptions: 0, status: "Pending approval" }] });
+  assert.deepEqual(getPayrollActions(submitted, "payroll"), []);
+});
+
+test("Checker and Owner attention follows the maker-checker transition", () => {
+  const run = {
+    id: 12,
+    periodLabel: "Sep 16-30",
+    periodStart: "2026-09-16",
+    periodEnd: "2026-09-30",
+    scopeLabel: "All employees",
+    status: "Pending approval",
+    payDate: "2026-10-05",
+    employeeCount: 10,
+    grossPay: "100000",
+    netPay: "80000",
+    exceptions: 0,
+    ruleVersion: "PH-2026.01",
+  };
+  const pendingTask = {
+    id: 77,
+    title: "Payroll review",
+    detail: "Payroll run #12",
+    approver: "Checker",
+    dueLabel: "Today",
+    priority: "High",
+    status: "Pending",
+  };
+
+  const pending = actionData({ payrollRuns: [run], tasks: [pendingTask] });
+  assert.equal(getPayrollActions(pending, "checker")[0]?.id, "checker-review-77");
+  assert.deepEqual(getPayrollActions(pending, "owner"), []);
+
+  const approved = actionData({
+    payrollRuns: [{ ...run, status: "Ready for release" }],
+    tasks: [{ ...pendingTask, status: "Approved" }],
+  });
+  assert.deepEqual(getPayrollActions(approved, "checker"), []);
+  assert.equal(getPayrollActions(approved, "owner")[0]?.id, "owner-release-12");
+
+  const released = actionData({
+    payrollRuns: [{ ...run, status: "Released" }],
+    tasks: [{ ...pendingTask, status: "Approved" }],
+  });
+  assert.deepEqual(getPayrollActions(released, "owner"), []);
 });
