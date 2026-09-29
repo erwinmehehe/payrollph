@@ -844,6 +844,7 @@ export const separationRecords = pgTable("separation_records", {
   coeIssued: boolean("coe_issued").notNull().default(false),
   approvedAt: timestamp("approved_at", { withTimezone: true }),
   releasedAt: timestamp("released_at", { withTimezone: true }),
+  releaseReference: varchar("release_reference", { length: 160 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
