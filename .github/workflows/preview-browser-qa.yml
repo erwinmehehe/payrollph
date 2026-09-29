@@ -219,6 +219,9 @@ jobs:
               const handoff = dashboard.locator("[data-payroll-handoff]").first();
               check((await handoff.count()) === 1, `${persona.label}: payroll handoff is missing from the role dashboard`);
               check((await handoff.locator(".handoff-step").count()) === 5, `${persona.label}: payroll handoff must show all five owners`);
+              const actionCard = dashboard.locator("[data-handoff-action]").first();
+              check((await actionCard.count()) === 1, `${persona.label}: actionable handoff card is missing`);
+              check((await actionCard.innerText()).includes("NEXT ACTION"), `${persona.label}: actionable handoff card is missing its label`);
             }
             if (persona.id === "employee") {
               check(body.includes("NEXT PAY STATUS"), "Employee: next pay status section is missing");
