@@ -26,6 +26,27 @@ export async function ensureEmployeePayProfileSchema() {
         )
       `);
       await client.query("CREATE INDEX IF NOT EXISTS employee_pay_profiles_org_idx ON employee_pay_profiles(organization_id)");
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS employee_pay_revisions (
+          id serial PRIMARY KEY,
+          employee_id integer NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          effective_date date NOT NULL,
+          previous_pay_basis varchar(16) NOT NULL,
+          previous_rate_amount numeric(12,2) NOT NULL,
+          previous_standard_work_days_per_month numeric(6,2) NOT NULL,
+          previous_standard_hours_per_day numeric(5,2) NOT NULL,
+          new_pay_basis varchar(16) NOT NULL,
+          new_rate_amount numeric(12,2) NOT NULL,
+          new_standard_work_days_per_month numeric(6,2) NOT NULL,
+          new_standard_hours_per_day numeric(5,2) NOT NULL,
+          reason varchar(240) NOT NULL DEFAULT 'Pay change',
+          created_by varchar(120) NOT NULL DEFAULT 'System',
+          created_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query("CREATE INDEX IF NOT EXISTS employee_pay_revisions_org_employee_idx ON employee_pay_revisions(organization_id, employee_id)");
+      await client.query("CREATE UNIQUE INDEX IF NOT EXISTS employee_pay_revisions_employee_effective_idx ON employee_pay_revisions(employee_id, effective_date)");
       await client.query("COMMIT");
       schemaReady = true;
     } catch (error) {
