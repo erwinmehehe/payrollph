@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { buildPayrollHandoff, employeePayStatusLabel } from "../src/lib/payroll-handoff";
+import { buildPayrollAttention } from "../src/lib/payroll-attention";
+import type { DashboardData } from "../src/components/workspace/types";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -92,4 +94,139 @@ test("employee-facing payroll labels never imply unreleased pay is available", (
   assert.equal(employeePayStatusLabel("Pending approval"), "With an independent checker");
   assert.equal(employeePayStatusLabel("Ready for release"), "Approved, waiting for release");
   assert.equal(employeePayStatusLabel("Released"), "Payslip available");
+});
+
+
+function attentionData(status: string): DashboardData {
+  return {
+    user: { id: 1, name: "Test User", email: "test@example.com", role: "owner" },
+    organizations: [],
+    selectedOrganization: {
+      id: 1,
+      name: "Test Co",
+      legalName: "Test Co Inc.",
+      shortName: "Test",
+      plan: "Scale",
+      accountType: "employer",
+      billingEmail: "billing@example.com",
+      employeeCount: 1,
+    },
+    employees: [
+      {
+        id: 7,
+        employeeNo: "EMP-007",
+        firstName: "Ada",
+        lastName: "Santos",
+        title: "Analyst",
+        employmentType: "Regular",
+        status: "Active",
+        avatarInitials: "AS",
+        basicRate: "30000",
+        mwe: false,
+        tin: null,
+        sssNo: null,
+        philHealthNo: null,
+        pagIbigNo: null,
+      },
+    ],
+    payrollRuns: [
+      {
+        id: 41,
+        periodLabel: "Sep 16–30, 2026",
+        periodStart: "2026-09-16",
+        periodEnd: "2026-09-30",
+        scopeLabel: "All employees",
+        status,
+        payDate: "2026-10-05",
+        employeeCount: 1,
+        grossPay: "30000",
+        netPay: "27000",
+        exceptions: 0,
+        ruleVersion: "PH-2026.01",
+      },
+    ],
+    payrollHandoffRun: null,
+    payrollEntries: [],
+    payrollJobs: [],
+    tasks: [],
+    auditEvents: [],
+    plans: [],
+    templates: [],
+    advisories: [],
+    punches: [],
+    delegations: [],
+    leaveRequests: [],
+    leavePolicies: [],
+    orgUnits: [],
+    access: { companyWide: true, orgUnitName: null, role: "owner" },
+    capabilities: { orgStructure: true, payroll: true, approvals: true, multiBranch: true, developer: false },
+    provisioning: [],
+    payRevisions: [],
+    retroAdjustments: [],
+    freelancer: null,
+  } as DashboardData;
+}
+
+test("HR payroll attention points directly at unresolved cutoff inputs", () => {
+  const data = attentionData("Draft");
+  data.punches = [{ id: 1, employeeId: 7, workDate: "2026-09-30", status: "Incomplete", timeIn: new Date(), timeOut: null }];
+  data.leaveRequests = [{ id: 2, employeeId: 7, leaveType: "Annual leave", startDate: "2026-09-29", endDate: "2026-09-29", days: "1", status: "Pending" }];
+
+  const items = buildPayrollAttention(data, "hr");
+  assert.deepEqual(items.map((item) => item.page), ["Time & attendance", "Leave", "People"]);
+  assert.equal(items.find((item) => item.page === "People")?.employeeId, 7);
+  assert.equal(items.find((item) => item.page === "Time & attendance")?.actionLabel, "Fix attendance");
+});
+
+test("payroll attention changes from exceptions to checker handoff when blockers clear", () => {
+  const data = attentionData("Needs review");
+  data.payrollEntries = [{ id: 1, employeeId: 7, grossPay: "30000", deductions: "3000", netPay: "27000", status: "Exception", trace: {} }];
+
+  const blocked = buildPayrollAttention(data, "payroll");
+  assert.equal(blocked.length, 1);
+  assert.match(blocked[0].title, /payroll exception/i);
+  assert.equal(blocked[0].actionLabel, "Review exceptions");
+
+  data.payrollEntries = [];
+  const ready = buildPayrollAttention(data, "payroll");
+  assert.equal(ready.length, 1);
+  assert.equal(ready[0].actionLabel, "Submit for review");
+});
+
+test("checker and owner notifications exist only while they own the handoff", () => {
+  const data = attentionData("Pending approval");
+  data.tasks = [{
+    id: 9,
+    title: "Review payroll",
+    detail: "Payroll run #41 · Sep 16–30, 2026",
+    approver: "Mariel Santos",
+    dueLabel: "Today",
+    priority: "High",
+    status: "Pending",
+  }];
+
+  const checker = buildPayrollAttention(data, "checker");
+  assert.equal(checker.length, 1);
+  assert.equal(checker[0].actionLabel, "Review payroll");
+  assert.equal(buildPayrollAttention(data, "owner").length, 0);
+
+  data.payrollRuns[0].status = "Ready for release";
+  data.tasks[0].status = "Approved";
+  assert.equal(buildPayrollAttention(data, "checker").length, 0);
+  const owner = buildPayrollAttention(data, "owner");
+  assert.equal(owner.length, 1);
+  assert.equal(owner[0].actionLabel, "Release payroll");
+
+  data.payrollRuns[0].status = "Released";
+  assert.equal(buildPayrollAttention(data, "owner").length, 0);
+});
+
+test("generic provisioning and advisory rows do not create payroll handoff noise", () => {
+  const data = attentionData("Released");
+  data.provisioning = [{ id: 3, employeeId: 7, kind: "onboarding", title: "Issue laptop", owner: "HR", done: false }];
+  data.advisories = [{ id: 4, advisoryNumber: "ADV-1", policy: "Calamity", startDate: "2026-09-01", endDate: "2026-09-30", affectedUnit: "All", active: true }];
+
+  for (const role of ["owner", "hr", "payroll", "checker"]) {
+    assert.deepEqual(buildPayrollAttention(data, role), []);
+  }
 });
