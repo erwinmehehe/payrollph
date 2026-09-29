@@ -11,7 +11,12 @@ import {
   separationRecords,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { assertOrganizationRole, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
+import {
+  APPROVAL_ADMIN_ROLES,
+  assertOrganizationRole,
+  PAYROLL_RELEASE_ROLES,
+  PEOPLE_PAYROLL_ROLES,
+} from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { resolvePayProfile } from "@/lib/pay-basis";
@@ -453,6 +458,25 @@ export async function PATCH(request: Request) {
     "Your role is not allowed to manage separation and final pay.",
   );
   if (denied) return denied;
+
+  if (action === "approve") {
+    const approvalDenied = await assertOrganizationRole(
+      user.id,
+      sep.organizationId,
+      APPROVAL_ADMIN_ROLES,
+      "Only an authorized HR/administrative approver can approve final pay.",
+    );
+    if (approvalDenied) return approvalDenied;
+  }
+  if (action === "release") {
+    const releaseDenied = await assertOrganizationRole(
+      user.id,
+      sep.organizationId,
+      PAYROLL_RELEASE_ROLES,
+      "Only payroll release roles can release final pay.",
+    );
+    if (releaseDenied) return releaseDenied;
+  }
 
   if (action === "clearance") {
     if (sep.status === "released") return Response.json({ error: "Released final pay is immutable." }, { status: 409 });
