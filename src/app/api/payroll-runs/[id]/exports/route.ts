@@ -5,6 +5,7 @@ import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { generateBankFile, generateGovernmentDraft, generateJournalCsv } from "@/lib/exporters";
 import {
+import { denyPublicDemoSideEffect } from "@/lib/public-demo-guard";
   assertOrganizationRole,
   PAYROLL_DISBURSEMENT_ROLES,
   PAYROLL_OPERATOR_ROLES,
@@ -162,6 +163,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       : "Only the workspace owner can trigger a live payroll disbursement.",
   );
   if (denied) return denied;
+
+  const demoDenied = await denyPublicDemoSideEffect(run.organizationId, mode === "preflight" ? "External payout preflight" : "Live payroll disbursement");
+  if (demoDenied) return demoDenied;
 
   if (run.status !== "Released") {
     return Response.json({
