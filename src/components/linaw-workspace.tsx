@@ -168,10 +168,13 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         return;
       }
       await refresh();
+      const handoffNotice = payload.handoffNotificationsQueued
+        ? ` ${payload.handoffNotificationsQueued} handoff notice${payload.handoffNotificationsQueued === 1 ? "" : "s"} queued.`
+        : "";
       notify(
-        payload.decidedOnBehalfOf
+        (payload.decidedOnBehalfOf
           ? `Approval ${status.toLowerCase()} on behalf of ${payload.decidedOnBehalfOf}, the delegation chain is in the audit trail.`
-          : `Approval ${status.toLowerCase()} and recorded in the audit trail.`,
+          : `Approval ${status.toLowerCase()} and recorded in the audit trail.`) + handoffNotice,
       );
     } catch {
       notify("Could not reach the approvals service.", "err");
