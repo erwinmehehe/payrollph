@@ -419,6 +419,7 @@ async function processPayrollChunk(input: {
         daysConverted: Number(c.daysConverted),
         dailyRate: Number(c.dailyRate),
         cashAmount: Number(c.cashAmount),
+        taxExempt: c.taxExempt,
       })),
     });
 
@@ -513,7 +514,7 @@ function calculateEmployeePay(input: {
   advances?: Array<{ id: number; requestedAmount: number; fee: number }>;
   deMinimis?: Array<{ id: number; benefitType: DeMinimisType; amount: number; frequency: "month" | "semester" | "year" }>;
   loans?: Array<{ id: number; loanType: string; referenceNo: string; cutoffDeduction: number; remainingBalance: number }>;
-  leaveConversions?: Array<{ id: number; leaveType: string; daysConverted: number; dailyRate: number; cashAmount: number }>;
+  leaveConversions?: Array<{ id: number; leaveType: string; daysConverted: number; dailyRate: number; cashAmount: number; taxExempt: boolean }>;
 }) {
   const monthly = Number(input.employee.basicRate);
   const semiMonthlyBasic = monthly / 2;
@@ -640,10 +641,18 @@ function calculateEmployeePay(input: {
     code: `LEAVE_CONV-${conv.id}`,
     label: `Leave Conversion (${conv.leaveType} ${conv.daysConverted}d)`,
     amount: money(conv.cashAmount),
-    notes: [`${conv.daysConverted} days @ daily rate ₱${conv.dailyRate}`],
+    notes: [
+      `${conv.daysConverted} days @ daily rate ₱${conv.dailyRate}`,
+      conv.taxExempt ? "Tax treatment: exempt" : "Tax treatment: taxable",
+    ],
     amountNum: conv.cashAmount,
+    taxExempt: conv.taxExempt,
   }));
   const conversionTotal = conversionLines.reduce((sum, c) => sum + c.amountNum, 0);
+  const conversionTaxExemptTotal = conversionLines.reduce(
+    (sum, c) => sum + (c.taxExempt ? c.amountNum : 0),
+    0,
+  );
 
   // Employee Loans (SSS Salary Loan, Pag-IBIG MPL/Calamity, Company Loan)
   const loanLines = (input.loans ?? []).map((loan) => {
@@ -670,7 +679,7 @@ function calculateEmployeePay(input: {
   // shares. Expense reimbursement is a non-taxable pass-through, not salary.
   const taxableCompensation = Math.max(
     0,
-    gross - expenseTotal - deMinimisTotal + deMinimisTaxable - sss - philhealth - pagibig,
+    gross - expenseTotal - deMinimisTotal - conversionTaxExemptTotal + deMinimisTaxable - sss - philhealth - pagibig,
   );
   const withholding = computeSemiMonthlyWithholdingTax(taxableCompensation, treatAsMwe);
   const benefitLines = calculateBenefits(input.benefits ?? []);
@@ -685,7 +694,7 @@ function calculateEmployeePay(input: {
     { code: "ND", label: "Night differential (10%)", amount: money(nightDiffPay) },
     { code: "HOLIDAY", label: "Holiday / rest-day premium", amount: money(holidayPremium), notes: holidayNotes },
     { code: "CALAMITY", label: "Calamity / hazard premium", amount: money(calamityPay), notes: calamityNotes },
-    ...conversionLines.map(({ amountNum: _amountNum, ...c }) => c),
+    ...conversionLines.map(({ amountNum: _amountNum, taxExempt: _taxExempt, ...c }) => c),
     { code: "SSS", label: "SSS contribution", amount: money(-sss) },
     { code: "PHIC", label: "PhilHealth contribution", amount: money(-philhealth) },
     { code: "HDMF", label: "Pag-IBIG contribution", amount: money(-pagibig) },
@@ -711,6 +720,7 @@ function calculateEmployeePay(input: {
       `taxableCompensation=${money(taxableCompensation)}`,
       `deMinimisPaid=${money(deMinimisTotal)}`,
       `deMinimisTaxableExcess=${money(deMinimisTaxable)}`,
+      `leaveConversionTaxExempt=${money(conversionTaxExemptTotal)}`,
       `punches=${input.punches.length}`,
       `regularMinutes=${regularMinutes}`,
       `overtimeMinutes=${overtimeMinutes}`,
