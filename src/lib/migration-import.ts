@@ -470,6 +470,23 @@ function parseLoan(
       };
 }
 
+export const MIGRATION_TEMPLATE_HEADERS: Record<MigrationKind, string[]> = {
+  employees: [
+    "Employee ID", "First Name", "Middle Name", "Last Name", "Job Title", "Employment Type", "Employment Status",
+    "Monthly Basic", "MWE", "Region", "Email", "Mobile", "Bank Account", "Bank Code", "TIN", "TIN Branch Code",
+    "SSS Number", "PhilHealth PIN", "Pag-IBIG No", "Hire Date",
+  ],
+  payroll_history: [
+    "Employee ID", "Pay Date", "Payroll Period", "Reference", "Gross Pay", "Net Pay", "Withholding Tax",
+    "SSS Contribution", "PhilHealth Contribution", "Pag-IBIG Contribution", "13th Month Pay",
+  ],
+  leave_balances: ["Employee ID", "Leave Type", "Year", "Opening Balance", "Accrued", "Used", "Pending"],
+  loans: [
+    "Employee ID", "Loan Type", "Loan Number", "Original Amount", "Monthly Amortization", "Per Cutoff",
+    "Outstanding Balance", "Total Paid", "Status", "Start Date", "End Date",
+  ],
+};
+
 const KIND_FIELDS: Record<MigrationKind, TargetField[]> = {
   employees: [
     "employeeNo", "firstName", "middleName", "lastName", "fullName", "title", "employmentType", "status",
@@ -507,6 +524,7 @@ export function parseMigrationCsv(input: { csv: string; source: MigrationSource;
   const mappings = Object.fromEntries(Array.from(mapping.entries()).map(([field, index]) => [field, headers[index]]));
 
   const valid: MigrationRow[] = [];
+  const rowLines: number[] = [];
   const errors: MigrationError[] = [];
 
   for (let index = 1; index < rows.length; index += 1) {
@@ -527,9 +545,13 @@ export function parseMigrationCsv(input: { csv: string; source: MigrationSource;
             ? parseLeaveBalance(get)
             : parseLoan(get);
 
-    if (parsed.value) valid.push(parsed.value);
-    else errors.push({ line: index + 1, problems: parsed.problems });
+    if (parsed.value) {
+      valid.push(parsed.value);
+      rowLines.push(index + 1);
+    } else {
+      errors.push({ line: index + 1, problems: parsed.problems });
+    }
   }
 
-  return { headers, rows: valid, errors, unmappedColumns, mappings };
+  return { headers, rows: valid, rowLines, errors, unmappedColumns, mappings };
 }
