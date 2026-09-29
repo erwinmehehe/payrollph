@@ -7,6 +7,7 @@ import { getSessionUser } from "@/lib/auth";
 import { MAX_UPLOAD_BYTES, safeFileName, scanStatus, validateUpload } from "@/lib/storage";
 import { assertMembership, assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 
+import { denyPublicDemoSideEffect } from "@/lib/public-demo-guard";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
@@ -97,6 +98,9 @@ export async function POST(request: Request) {
 
   if (!Number.isInteger(organizationId)) return Response.json({ error: "organizationId is required." }, { status: 400 });
   if (!(file instanceof File)) return Response.json({ error: "A file is required." }, { status: 400 });
+
+  const demoDenied = await denyPublicDemoSideEffect(organizationId, "Document uploads");
+  if (demoDenied) return demoDenied;
 
   let employeeId: number | null = null;
   if (user.role === "employee") {
