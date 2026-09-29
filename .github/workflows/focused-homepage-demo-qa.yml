@@ -80,7 +80,7 @@ jobs:
           await send("Runtime.evaluate",{expression:"document.getElementById('hero-product-preview').scrollIntoView({block:'center'})"});
           await new Promise(r=>setTimeout(r,300));
           await click("People");
-          await wait("document.querySelector('#hero-product-preview input[placeholder=\"Search people\"]')");
+          await wait("Boolean(document.querySelector('#hero-product-preview input[placeholder=\"Search people\"]'))");
           await click("Migration");
           await wait("document.body.innerText.includes('Switch payroll software without rebuilding your data.')");
           await click("Payroll");
