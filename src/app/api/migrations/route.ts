@@ -163,6 +163,10 @@ export async function POST(request: Request) {
     dryRun = body.dryRun !== false;
   }
 
+  if (Buffer.byteLength(csv, "utf8") > MAX_MIGRATION_FILE_BYTES) {
+    return Response.json({ error: "Migration content must be 15 MB or smaller after decoding." }, { status: 413 });
+  }
+
   if (!Number.isInteger(organizationId) || !csv.trim()) {
     return Response.json({ error: "organizationId and migration file content are required." }, { status: 400 });
   }
