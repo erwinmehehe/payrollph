@@ -15,6 +15,7 @@ import {
   PEOPLE_PAYROLL_ROLES,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
+import { seedProvisioning } from "@/lib/provisioning";
 import { ensureFinalPaySchema } from "@/lib/final-pay-schema";
 import {
   computeFinalPayPackage,
@@ -228,6 +229,8 @@ export async function POST(request: Request) {
     status: "draft",
     coeIssued: false,
   }).returning();
+
+  await seedProvisioning(input.organizationId, input.employeeId, "offboarding");
 
   // The employee remains payroll-active until the final package is released.
   // The separation record itself tracks the offboarding workflow; marking the
