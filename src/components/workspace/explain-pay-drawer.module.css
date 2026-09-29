@@ -1,0 +1,330 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(15, 23, 42, 0.34);
+  backdrop-filter: blur(4px);
+}
+
+.drawer {
+  width: min(680px, 100%);
+  height: 100%;
+  overflow-y: auto;
+  background: var(--surface, #fff);
+  border-left: 1px solid var(--line);
+  box-shadow: -24px 0 60px rgba(15, 23, 42, 0.15);
+  animation: explainPayIn 180ms ease-out;
+}
+
+@keyframes explainPayIn {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface, #fff) 94%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.kicker {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--brand);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+
+.header h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 22px;
+  letter-spacing: -.03em;
+}
+
+.header p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.close {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  color: var(--ink-secondary);
+  cursor: pointer;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 18px 24px 0;
+}
+
+.summary > div {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--canvas);
+}
+
+.summary span,
+.inputGrid span {
+  display: block;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.summary strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--ink);
+  font-family: var(--font-mono), monospace;
+  font-size: 18px;
+  letter-spacing: -.03em;
+}
+
+.summary small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted-light);
+  font-size: 9.5px;
+}
+
+.section {
+  padding: 20px 24px 0;
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.sectionTitle strong {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.sectionTitle span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.inputGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.inputGrid > div {
+  padding: 11px 12px;
+  border: 1px solid var(--line-faint);
+  border-radius: 10px;
+  background: var(--canvas-subtle);
+}
+
+.inputGrid strong {
+  display: block;
+  margin-top: 5px;
+  color: var(--ink-secondary);
+  font-size: 12px;
+}
+
+.lines {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.line {
+  padding: 13px 14px;
+  border-top: 1px solid var(--line-faint);
+  background: var(--surface, #fff);
+}
+
+.line:first-child {
+  border-top: 0;
+}
+
+.lineTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.lineTop > div:first-child {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.line code {
+  flex: none;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--canvas-sunken);
+  color: var(--ink-secondary);
+  font-size: 9px;
+}
+
+.line strong {
+  color: var(--ink);
+  font-size: 11.5px;
+}
+
+.line p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.55;
+}
+
+.amounts {
+  flex: none;
+  text-align: right;
+}
+
+.amounts > span {
+  display: block;
+  color: var(--ink-secondary);
+  font-family: var(--font-mono), monospace;
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.amounts b {
+  padding: 0 4px;
+  color: var(--muted-light);
+  font-weight: 500;
+}
+
+.amounts small {
+  display: block;
+  margin-top: 3px;
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+.positive {
+  color: var(--success) !important;
+}
+
+.negative {
+  color: var(--danger) !important;
+}
+
+.neutral {
+  color: var(--ink-secondary) !important;
+}
+
+.ruleBox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 20px 24px 28px;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--canvas-subtle);
+  color: var(--ink-secondary);
+}
+
+.ruleBox svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--brand);
+}
+
+.ruleBox strong {
+  font-size: 11px;
+}
+
+.ruleBox p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.state,
+.error {
+  margin: 22px 24px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.error {
+  display: flex;
+  gap: 9px;
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 25%, var(--line));
+  background: color-mix(in srgb, var(--danger) 5%, var(--surface, #fff));
+}
+
+@media (max-width: 640px) {
+  .drawer {
+    width: 100%;
+  }
+
+  .header,
+  .section {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .summary {
+    grid-template-columns: 1fr;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .inputGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .lineTop {
+    gap: 10px;
+  }
+
+  .lineTop > div:first-child {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .ruleBox {
+    margin-left: 16px;
+    margin-right: 16px;
+  }
+}
