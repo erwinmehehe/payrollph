@@ -353,7 +353,14 @@ function PersonDrawer({
   const [payRate, setPayRate] = useState(employee.payRate ?? employee.basicRate);
   const [standardWorkDaysPerMonth, setStandardWorkDaysPerMonth] = useState(employee.standardWorkDaysPerMonth ?? "22");
   const [standardHoursPerDay, setStandardHoursPerDay] = useState(employee.standardHoursPerDay ?? "8");
-  const [effectiveFrom, setEffectiveFrom] = useState(new Date().toISOString().slice(0, 10));
+  const [effectiveFrom, setEffectiveFrom] = useState(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date()),
+  );
   const [payChangeReason, setPayChangeReason] = useState("");
   const [payError, setPayError] = useState("");
   const [editingGovernment, setEditingGovernment] = useState(false);
