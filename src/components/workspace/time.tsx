@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CalendarDays, Check, Clock3, Clock, Download, Search, Timer } from "lucide-react";
 import type { DashboardData, Notify, Punch } from "./types";
 import { Avatar, EmptyState, Metric, PageHeading, Progress, Segmented, Status, formatDate, formatTimeOnly } from "./ui";
@@ -13,15 +13,21 @@ export function TimeView({
   onOpenBundy,
   notify,
   canManage = true,
+  focusIncompleteToken = 0,
 }: {
   data: DashboardData;
   onOpenBundy: () => void;
   notify: Notify;
   canManage?: boolean;
+  focusIncompleteToken?: number;
 }) {
   const punches = useMemo(() => data.punches ?? [], [data.punches]);
   const [view, setView] = useState<"all" | "incomplete">("all");
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    if (focusIncompleteToken > 0) setView("incomplete");
+  }, [focusIncompleteToken]);
 
   const stats = useMemo(() => {
     const complete = punches.filter(isComplete);
