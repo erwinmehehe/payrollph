@@ -1,4 +1,4 @@
-import type { DashboardData, PayrollRun, Task } from "@/components/workspace/types";
+import type { DashboardData, Task } from "@/components/workspace/types";
 
 export type ActionRole = "owner" | "hr" | "payroll" | "checker";
 
