@@ -143,9 +143,9 @@ export function CompliancePage({ data, setNotice, onOpenGovModal }: { data: Dash
         <article className="card compliance-tile">
           <div className="inline-icon amber"><FileSpreadsheet size={19} /></div>
           <span>GOVERNMENT OUTPUTS</span>
-          <h2>Draft Worksheets</h2>
-          <p>2316, 1601-C, Alphalist, SSS R-3, PhilHealth RF-1, Pag-IBIG MCRF.</p>
-          <Status value="Draft only" />
+          <h2>Workflow-verified</h2>
+          <p>BIR Alphalist v7.4, My.SSS e-CL/PRN and PhilHealth EPRS are treated as portal workflows; Pag-IBIG remains assisted until its exact electronic contract is proven.</p>
+          <Status value="Portal proof required" />
         </article>
       </section>
 
@@ -976,8 +976,8 @@ export function GovValidationModal({ organizationId, onClose, setNotice }: { org
         <button className="modal-close" onClick={onClose}><X size={18} /></button>
         <div className="modal-icon"><ShieldCheck size={22} className="i-green" /></div>
         <div className="card-kicker">STATUTORY LOCAL PREFLIGHT</div>
-        <h2>Check your draft before portal upload</h2>
-        <p>Checks the local inputs and formulas behind BIR, SSS, PhilHealth, and Pag-IBIG draft exports. It does not replace a government portal acknowledgement.</p>
+        <h2>Check local data against the current filing workflow</h2>
+        <p>Checks the inputs and formulas Linaw can prove, and names the real next system: BIR Alphalist validation, My.SSS e-CL/PRN, PhilHealth EPRS, or Pag-IBIG&apos;s assisted employer workflow. It never treats a local file as a portal acknowledgement.</p>
 
         <div className="notice notice-amber" style={{ margin: "0 0 14px" }}>
           <HelpCircle size={16} className="i-blue" />
