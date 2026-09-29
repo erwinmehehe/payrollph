@@ -9,6 +9,7 @@ import {
 } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
+import { queueMessage } from "@/lib/mailer";
 
 const SUBMITTABLE = ["Needs review", "Processed"];
 
@@ -153,9 +154,34 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }, { status: 409 });
   }
 
+  const notificationWarnings: string[] = [];
+  let checkerNotificationQueued = false;
+  try {
+    const delivery = await queueMessage({
+      organizationId: run.organizationId,
+      recipient: checker.email,
+      subject: `Payroll review needed: ${run.periodLabel}`,
+      purpose: "payroll-review-required",
+      body: [
+        `Hi ${checker.name},`,
+        "",
+        `${user.name} submitted ${run.periodLabel} payroll for your independent review.`,
+        reviewCount > 0 ? `${reviewCount} review item(s) are flagged for attention.` : "No review items are currently flagged.",
+        "",
+        "Sign in to Linaw and open Approvals to review the payroll before release.",
+      ].join("\n"),
+    });
+    checkerNotificationQueued = delivery.queued || delivery.delivered;
+    if (!checkerNotificationQueued && delivery.reason) notificationWarnings.push(delivery.reason);
+  } catch {
+    notificationWarnings.push("Payroll was submitted, but the checker notification could not be queued.");
+  }
+
   return Response.json({
     task: submission.task,
     maker: { id: user.id, name: user.name },
     approver: { id: checker.id, name: checker.name, role: checker.role },
+    checkerNotificationQueued,
+    notificationWarnings,
   }, { status: 201 });
 }
