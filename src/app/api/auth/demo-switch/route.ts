@@ -20,7 +20,24 @@ function safeProvisioningDiagnostic(error: unknown) {
   const table = typeof value.table === "string" ? value.table : "";
   const column = typeof value.column === "string" ? value.column : "";
   const constraint = typeof value.constraint === "string" ? value.constraint : "";
-  return [code, table && `table:${table}`, column && `column:${column}`, constraint && `constraint:${constraint}`]
+  const message = typeof value.message === "string" ? value.message : "";
+
+  // PostgreSQL does not populate table/column fields for every error class.
+  // Extract only quoted schema identifiers from a few known-safe messages.
+  const identifier =
+    message.match(/column "([A-Za-z0-9_]+)" does not exist/i)?.[1] ??
+    message.match(/relation "([A-Za-z0-9_]+)" does not exist/i)?.[1] ??
+    message.match(/null value in column "([A-Za-z0-9_]+)"/i)?.[1] ??
+    message.match(/constraint "([A-Za-z0-9_]+)"/i)?.[1] ??
+    "";
+
+  return [
+    code,
+    table && `table:${table}`,
+    column && `column:${column}`,
+    constraint && `constraint:${constraint}`,
+    identifier && `identifier:${identifier}`,
+  ]
     .filter(Boolean)
     .join("|");
 }
