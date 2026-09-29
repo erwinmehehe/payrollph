@@ -7,14 +7,8 @@ import {
   Calculator,
   Check,
   CircleDollarSign,
-  Clock3,
-  FileBarChart2,
-  LayoutDashboard,
   LoaderCircle,
-  MoreHorizontal,
-  Search,
   ShieldCheck,
-  SlidersHorizontal,
   UserRound,
   UserRoundCheck,
   UsersRound,
@@ -33,108 +27,6 @@ const ICONS: Record<DemoRoleId, ElementType> = {
   freelancer: WalletCards,
 };
 
-type PreviewMetric = {
-  label: string;
-  value: string;
-  hint: string;
-  tone?: "good" | "review";
-};
-
-type PreviewConfig = {
-  nav: string[];
-  metrics: PreviewMetric[];
-  tabLabels: string[];
-  primaryAction: string;
-  tableTitle: string;
-};
-
-const PREVIEWS: Record<DemoRoleId, PreviewConfig> = {
-  owner: {
-    nav: ["Overview", "Payroll", "People", "Analytics", "Settings"],
-    metrics: [
-      { label: "Net payroll", value: "₱936K", hint: "Current cutoff" },
-      { label: "Headcount", value: "42", hint: "Active people" },
-      { label: "Approvals", value: "2", hint: "Waiting on decision", tone: "review" },
-      { label: "Exceptions", value: "3", hint: "Needs review", tone: "review" },
-    ],
-    tabLabels: ["Company", "Payroll", "Approvals"],
-    primaryAction: "Open overview",
-    tableTitle: "Recent payroll activity",
-  },
-  bookkeeper: {
-    nav: ["Overview", "Clients", "Payroll", "Exports", "Approvals"],
-    metrics: [
-      { label: "Client payrolls", value: "6", hint: "This cutoff" },
-      { label: "Total net pay", value: "₱2.8M", hint: "Across clients" },
-      { label: "Ready to export", value: "4", hint: "Bank files" },
-      { label: "Exceptions", value: "5", hint: "Across 2 clients", tone: "review" },
-    ],
-    tabLabels: ["Clients", "Payroll", "Exports"],
-    primaryAction: "Open client workspace",
-    tableTitle: "Client payrolls",
-  },
-  payroll: {
-    nav: ["Overview", "Payroll", "People", "Time & attendance", "Approvals", "Exports"],
-    metrics: [
-      { label: "Total gross pay", value: "₱1.25M", hint: "2.4% vs last cutoff", tone: "good" },
-      { label: "Total deductions", value: "₱312K", hint: "Statutory + tax" },
-      { label: "Employees", value: "42", hint: "Active in this run" },
-      { label: "Exceptions", value: "3", hint: "Needs review", tone: "review" },
-    ],
-    tabLabels: ["Employees (42)", "Exceptions (3)", "Approvals (2)"],
-    primaryAction: "Prepare payroll",
-    tableTitle: "Payroll register",
-  },
-  hr: {
-    nav: ["People", "Time & attendance", "Leave", "Benefits", "Recruitment"],
-    metrics: [
-      { label: "Active people", value: "42", hint: "Company-wide" },
-      { label: "On leave", value: "3", hint: "Today" },
-      { label: "New hires", value: "4", hint: "This month", tone: "good" },
-      { label: "Exceptions", value: "6", hint: "Attendance", tone: "review" },
-    ],
-    tabLabels: ["People", "Attendance", "Leave"],
-    primaryAction: "Add employee",
-    tableTitle: "People directory",
-  },
-  manager: {
-    nav: ["People", "Time & attendance", "Leave", "Approvals"],
-    metrics: [
-      { label: "Team members", value: "12", hint: "Operations" },
-      { label: "Present today", value: "10", hint: "2 on leave" },
-      { label: "Approvals", value: "3", hint: "Assigned to you", tone: "review" },
-      { label: "Overtime", value: "18.5h", hint: "This cutoff" },
-    ],
-    tabLabels: ["Team", "Attendance", "Approvals"],
-    primaryAction: "Review approvals",
-    tableTitle: "Team activity",
-  },
-  employee: {
-    nav: ["My pay", "Payslips", "Time", "Leave"],
-    metrics: [
-      { label: "Latest net pay", value: "₱27,818", hint: "Sep 15 cutoff" },
-      { label: "YTD gross", value: "₱420K", hint: "Current year" },
-      { label: "Leave balance", value: "8.5", hint: "Days available" },
-      { label: "Time today", value: "7h 41m", hint: "Clocked" },
-    ],
-    tabLabels: ["Payslips", "Time", "Leave"],
-    primaryAction: "View payslip",
-    tableTitle: "Pay history",
-  },
-  freelancer: {
-    nav: ["Overview", "Income", "Expenses", "Tax planning"],
-    metrics: [
-      { label: "Income", value: "₱148K", hint: "This month", tone: "good" },
-      { label: "Expenses", value: "₱24K", hint: "Tracked" },
-      { label: "Tax reserve", value: "₱18K", hint: "Suggested" },
-      { label: "Receivables", value: "₱35K", hint: "Outstanding", tone: "review" },
-    ],
-    tabLabels: ["Income", "Expenses", "Tax"],
-    primaryAction: "Add income",
-    tableTitle: "Recent transactions",
-  },
-};
-
 export function DemoRolePicker() {
   const [selectedRole, setSelectedRole] = useState<DemoRoleId>("payroll");
   const [launching, setLaunching] = useState<DemoRoleId | null>(null);
@@ -144,7 +36,6 @@ export function DemoRolePicker() {
     () => DEMO_ROLES.find((role) => role.id === selectedRole) ?? DEMO_ROLES[0],
     [selectedRole],
   );
-  const preview = PREVIEWS[selected.id];
   const SelectedIcon = ICONS[selected.id];
 
   async function openDemo(role: DemoRoleId) {
@@ -268,68 +159,21 @@ export function DemoRolePicker() {
                 </div>
               </div>
 
-              <div className={styles.productPreview} aria-label={`${selected.label} product preview`}>
-                <aside className={styles.previewSidebar}>
-                  <div className={styles.previewBrand}>
-                    <span>L</span>
-                    <strong>linaw</strong>
-                  </div>
-                  <div className={styles.previewNavList}>
-                    {preview.nav.map((item, index) => (
-                      <span
-                        className={item === selected.landingPage || index === 1 ? styles.previewNavActive : styles.previewNav}
-                        key={item}
-                      >
-                        {index === 0 ? <LayoutDashboard size={11} /> : index === 2 ? <UsersRound size={11} /> : index === 3 ? <Clock3 size={11} /> : <CircleDollarSign size={11} />}
-                        {item}
-                      </span>
-                    ))}
-                  </div>
-                </aside>
-
-                <div className={styles.previewMain}>
-                  <div className={styles.previewToolbar}>
-                    <div>
-                      <strong>{selected.landingPage}</strong>
-                      <span>{selected.shortLabel} workspace</span>
-                    </div>
-                    <button type="button" tabIndex={-1}>{preview.primaryAction}</button>
-                  </div>
-
-                  <div className={styles.previewMetrics}>
-                    {preview.metrics.map((metric) => (
-                      <div key={metric.label}>
-                        <span>{metric.label}</span>
-                        <strong>{metric.value}</strong>
-                        <small className={metric.tone === "review" ? styles.metricReview : metric.tone === "good" ? styles.metricGood : undefined}>
-                          {metric.hint}
-                        </small>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className={styles.previewTabs}>
-                    {preview.tabLabels.map((tab, index) => (
-                      <span className={index === 0 ? styles.previewTabActive : undefined} key={tab}>{tab}</span>
-                    ))}
-                    <div className={styles.previewSearch}>
-                      <Search size={11} />
-                      <span>Search</span>
-                    </div>
-                    <span className={styles.previewFilter}><SlidersHorizontal size={11} /> Filters</span>
-                  </div>
-
-                  <div className={styles.previewTable}>
-                    <div className={styles.previewTableHead}>
-                      <span>{preview.tableTitle}</span>
-                      <span>Amount</span>
-                      <span>Status</span>
-                      <span />
-                    </div>
-                    <PreviewRow initials="JD" name="Juan Dela Cruz" detail="Marketing" amount="₱27,818" />
-                    <PreviewRow initials="MS" name="Maria Santos" detail="Operations" amount="₱32,844" />
-                    <PreviewRow initials="AV" name="Aira Villanueva" detail="People" amount="₱29,620" />
-                  </div>
+              <div className={styles.connectedDemo}>
+                <div>
+                  <span className={styles.accessLabel}>Connected product demo</span>
+                  <strong>Open the same Linaw workspace used by the product.</strong>
+                  <p>
+                    We no longer render a second fake dashboard here. Choosing a role creates that role in the sample
+                    workspace and opens the actual application with its real navigation and permissions.
+                  </p>
+                </div>
+                <div className={styles.connectedFlow}>
+                  <span>{selected.label}</span>
+                  <ArrowRight size={13} aria-hidden />
+                  <span>{selected.landingPage}</span>
+                  <ArrowRight size={13} aria-hidden />
+                  <span>Real workspace</span>
                 </div>
               </div>
 
@@ -360,30 +204,5 @@ export function DemoRolePicker() {
         </div>
       </section>
     </main>
-  );
-}
-
-function PreviewRow({
-  initials,
-  name,
-  detail,
-  amount,
-}: {
-  initials: string;
-  name: string;
-  detail: string;
-  amount: string;
-}) {
-  return (
-    <div className={styles.previewRow}>
-      <span className={styles.previewAvatar}>{initials}</span>
-      <span className={styles.previewPerson}>
-        <strong>{name}</strong>
-        <small>{detail}</small>
-      </span>
-      <span className={styles.previewAmount}>{amount}</span>
-      <span className={styles.previewStatus}>Ready</span>
-      <MoreHorizontal size={12} aria-hidden />
-    </div>
   );
 }
