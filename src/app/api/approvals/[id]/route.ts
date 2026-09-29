@@ -194,6 +194,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         const releaseAuthorities = members.filter((member) => roleAllowed(member.role, PAYROLL_RELEASE_ROLES));
         let okCount = 0;
         let duplicateCount = 0;
+        let failedCount = 0;
 
         for (const recipient of releaseAuthorities) {
           const notice = await queueMessageOnce({
@@ -211,16 +212,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
             ].join("\n"),
           });
           if (notice.delivered || notice.queued) okCount += 1;
+          else failedCount += 1;
           if (notice.duplicate) duplicateCount += 1;
         }
 
         handoffNotification = {
-          ok: releaseAuthorities.length === 0 || okCount === releaseAuthorities.length,
+          ok: releaseAuthorities.length > 0 && okCount === releaseAuthorities.length,
           recipients: releaseAuthorities.length,
           duplicateCount,
           ...(releaseAuthorities.length === 0
             ? { warning: "Payroll was approved, but no owner/admin release authority has an email target in this workspace." }
-            : {}),
+            : failedCount > 0
+              ? { warning: `Payroll was approved, but ${failedCount} release-authority notification(s) could not be queued.` }
+              : {}),
         };
       } else if (payrollMakerUserId) {
         const [maker] = await db
