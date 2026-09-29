@@ -86,6 +86,21 @@ test("queueMessageOnce keeps one outbox row per organization, recipient and purp
       eq(outbox.purpose, purpose),
     ));
     assert.equal(rows.length, 1);
+
+    await db.update(outbox)
+      .set({ status: "failed", error: "simulated failure" })
+      .where(eq(outbox.id, first.id));
+    const failedDuplicate = await queueMessageOnce({
+      organizationId,
+      recipient,
+      subject: "Payroll review needed",
+      body: "Review this payroll.",
+      purpose,
+    });
+    assert.equal(failedDuplicate.duplicate, true);
+    assert.equal(failedDuplicate.delivered, false);
+    assert.equal(failedDuplicate.queued, false);
+    assert.match(failedDuplicate.reason ?? "", /previous notification attempt failed/i);
   } finally {
     await db.delete(outbox).where(and(
       eq(outbox.organizationId, organizationId),
