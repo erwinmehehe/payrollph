@@ -1,0 +1,96 @@
+name: Role sandbox smoke
+
+on:
+  push:
+    branches:
+      - feat/role-sandbox-sep29
+    paths:
+      - ".github/workflows/role-sandbox-smoke.yml"
+
+jobs:
+  sandbox:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      DEMO_MODE: "true"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run db:push
+      - name: Start app
+        run: |
+          npm run dev -- --hostname 127.0.0.1 >/tmp/app.log 2>&1 &
+          for i in {1..60}; do
+            curl -fsS http://127.0.0.1:3000/demo >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/app.log
+          exit 1
+      - name: Launch all five personas
+        run: |
+          set -euo pipefail
+          for role in owner hr payroll checker employee; do
+            curl -fsS -c "/tmp/${role}.cookies"               -H 'Content-Type: application/json'               -d "{\"role\":\"${role}\"}"               http://127.0.0.1:3000/api/auth/demo-switch               | tee "/tmp/${role}.json"               | grep -q "\"redirectTo\":\"/?demoRole=${role}\""
+          done
+      - name: Verify role-scoped workspaces
+        run: |
+          set -euo pipefail
+          ORG_ID="$(psql "$DATABASE_URL" -Atc "select id from organizations where name='Loom & Local' limit 1")"
+          test -n "$ORG_ID"
+
+          for role in owner hr payroll checker; do
+            code="$(curl -sS -o "/tmp/${role}-dashboard.json" -w '%{http_code}'               -b "/tmp/${role}.cookies"               "http://127.0.0.1:3000/api/dashboard?organizationId=${ORG_ID}")"
+            test "$code" = "200"
+          done
+
+          employee_dashboard="$(curl -sS -o /tmp/employee-dashboard.json -w '%{http_code}'             -b /tmp/employee.cookies             "http://127.0.0.1:3000/api/dashboard?organizationId=${ORG_ID}")"
+          test "$employee_dashboard" = "403"
+
+          employee_pay="$(curl -sS -o /tmp/employee-pay.json -w '%{http_code}'             -b /tmp/employee.cookies             http://127.0.0.1:3000/api/self/payslips)"
+          test "$employee_pay" = "200"
+          node -e 'const p=require("/tmp/employee-pay.json"); if(!p.employee || !Array.isArray(p.payslips) || p.payslips.length<1) process.exit(1)'
+      - name: Payroll Officer recalculates real demo payroll
+        run: |
+          set -euo pipefail
+          ORG_ID="$(psql "$DATABASE_URL" -Atc "select id from organizations where name='Loom & Local' limit 1")"
+          RUN_ID="$(psql "$DATABASE_URL" -Atc "select id from payroll_runs where organization_id=${ORG_ID} and status not in ('Released','Releasing') order by id desc limit 1")"
+          test -n "$RUN_ID"
+          code="$(curl -sS -o /tmp/recalc.json -w '%{http_code}'             -X POST -b /tmp/payroll.cookies             "http://127.0.0.1:3000/api/payroll-runs/${RUN_ID}/process")"
+          cat /tmp/recalc.json
+          test "$code" = "200"
+      - name: Checker completes a real assigned approval
+        run: |
+          set -euo pipefail
+          ORG_ID="$(psql "$DATABASE_URL" -Atc "select id from organizations where name='Loom & Local' limit 1")"
+          TASK_ID="$(psql "$DATABASE_URL" -Atc "select id from approval_tasks where organization_id=${ORG_ID} and approver='Mariel Santos' and status='Pending' and detail not like 'Payroll run #%'
+            order by id asc limit 1")"
+          test -n "$TASK_ID"
+          code="$(curl -sS -o /tmp/checker.json -w '%{http_code}'             -X PATCH -b /tmp/checker.cookies             -H 'Content-Type: application/json'             -d '{"status":"Approved"}'             "http://127.0.0.1:3000/api/approvals/${TASK_ID}")"
+          cat /tmp/checker.json
+          test "$code" = "200"
+      - name: Verify rendered sandbox surfaces
+        run: |
+          set -euo pipefail
+          curl -fsS -b /tmp/owner.cookies 'http://127.0.0.1:3000/?demoRole=owner' | grep -q 'ROLE SANDBOX'
+          curl -fsS -b /tmp/hr.cookies 'http://127.0.0.1:3000/?demoRole=hr' | grep -q 'HR Admin'
+          curl -fsS -b /tmp/payroll.cookies 'http://127.0.0.1:3000/?demoRole=payroll' | grep -q 'Payroll Officer'
+          curl -fsS -b /tmp/checker.cookies 'http://127.0.0.1:3000/?demoRole=checker' | grep -q 'Checker'
+          curl -fsS -b /tmp/employee.cookies 'http://127.0.0.1:3000/?demoRole=employee' | grep -q 'MY PAY'
