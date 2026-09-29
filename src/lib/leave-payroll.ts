@@ -108,10 +108,11 @@ export function resolveApprovedLeaveForPayroll(input: {
       );
     }
 
+    const configuredTreatment = treatment as Exclude<LeavePayTreatment, "unconfigured">;
     const paidPercentage =
-      treatment === "paid"
+      configuredTreatment === "paid"
         ? 100
-        : treatment === "unpaid"
+        : configuredTreatment === "unpaid"
           ? 0
           : Number(policy.paidPercentage);
 
@@ -119,10 +120,10 @@ export function resolveApprovedLeaveForPayroll(input: {
       !Number.isFinite(paidPercentage) ||
       paidPercentage < 0 ||
       paidPercentage > 100 ||
-      (treatment === "partial" && (paidPercentage <= 0 || paidPercentage >= 100))
+      (configuredTreatment === "partial" && (paidPercentage <= 0 || paidPercentage >= 100))
     ) {
       throw new Error(
-        `Leave policy "${policy.leaveType}" has an invalid paid percentage for ${treatment} leave.`,
+        `Leave policy "${policy.leaveType}" has an invalid paid percentage for ${configuredTreatment} leave.`,
       );
     }
 
@@ -135,7 +136,7 @@ export function resolveApprovedLeaveForPayroll(input: {
       paidPercentage,
       paidDays,
       unpaidDays,
-      payTreatment: treatment,
+      payTreatment: configuredTreatment,
     }];
   });
 }
