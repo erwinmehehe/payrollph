@@ -44,7 +44,11 @@ export function payrollHandoffRank(status: string | null | undefined) {
 }
 
 export function buildPayrollHandoff(
-  run: Pick<PayrollRun, "status" | "periodLabel" | "payDate" | "exceptions"> | null | undefined,
+  run:
+    | Pick<PayrollRun, "status" | "periodLabel" | "payDate">
+    & { exceptions?: number | null }
+    | null
+    | undefined,
   context: HandoffContext = {},
 ): PayrollHandoffStage[] {
   const rank = payrollHandoffRank(run?.status);
