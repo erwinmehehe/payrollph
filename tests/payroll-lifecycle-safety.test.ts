@@ -266,8 +266,11 @@ test("attendance corrections are audited and locked after payroll release", () =
 
   assert.ok(route.includes("export async function PATCH"));
   assert.ok(route.includes("PEOPLE_ADMIN_ROLES"));
-  assert.ok(route.includes('eq(payrollRuns.status, "Released")'));
+  assert.ok(route.includes('run.status === "Released"'));
   assert.ok(route.includes("Attendance inside a released payroll period is immutable"));
+  assert.ok(route.includes('["Pending approval", "Ready for release"].includes(run.status)'));
+  assert.ok(route.includes("Payroll must return the run for recalculation before HR can change attendance"));
+  assert.ok(route.includes('["Queued", "Processing", "Recalculating", "Releasing"].includes(run.status)'));
   assert.ok(route.includes('action: "Attendance punch corrected"'));
   assert.ok(route.includes("reason.length < 10"));
 
@@ -301,4 +304,37 @@ test("operational admin roles keep relevant handoff notifications", () => {
 
   const release = handoffData({ runs: [makeRun(12, "Ready for release")], tasks: [makeTask(12, "Approved")] });
   assert.match(buildHandoffNotifications(release, "admin")[0]?.title ?? "", /ready to release/i);
+});
+
+
+test("HR leave notifications are scoped to the active payroll cutoff", () => {
+  const data = handoffData({ runs: [makeRun(20, "Draft")] });
+  data.leaveRequests = [{
+    id: 9,
+    employeeId: 1,
+    leaveType: "Vacation",
+    startDate: "2026-10-08",
+    endDate: "2026-10-09",
+    days: "2",
+    status: "Pending",
+  }];
+  const notifications = buildHandoffNotifications(data, "hr");
+  assert.ok(!notifications.some((item) => item.page === "Leave"), "future leave outside the cutoff must not block this payroll");
+});
+
+test("HR can act on cutoff blockers through Needs review but not after checker handoff", () => {
+  const needsReview = handoffData({
+    runs: [makeRun(21, "Needs review")],
+    incompletePunch: true,
+  });
+  assert.equal(buildRoleHandoffAction(needsReview, "hr").state, "action");
+
+  const pending = handoffData({
+    runs: [makeRun(22, "Pending approval")],
+    tasks: [makeTask(22, "Pending")],
+    incompletePunch: true,
+  });
+  const action = buildRoleHandoffAction(pending, "hr");
+  assert.equal(action.state, "waiting");
+  assert.match(action.title, /locked/i);
 });
