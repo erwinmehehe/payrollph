@@ -5,11 +5,11 @@ import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { generateBankFile, generateGovernmentDraft, generateJournalCsv } from "@/lib/exporters";
 import {
-import { denyPublicDemoSideEffect } from "@/lib/public-demo-guard";
   assertOrganizationRole,
   PAYROLL_DISBURSEMENT_ROLES,
   PAYROLL_OPERATOR_ROLES,
 } from "@/lib/access";
+import { denyPublicDemoSideEffect } from "@/lib/public-demo-guard";
 import {
   createPaymongoPayrollDisbursement,
   preflightPaymongoPayrollDisbursement,
