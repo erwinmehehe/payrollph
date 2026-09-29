@@ -36,6 +36,25 @@ export type Employee = {
   payRate?: string;
   standardWorkDaysPerMonth?: string;
   standardHoursPerDay?: string;
+  payHistory?: Array<{
+    id: number;
+    effectiveFrom: string;
+    payBasis: string;
+    rateAmount: string;
+    standardWorkDaysPerMonth: string;
+    standardHoursPerDay: string;
+    reason?: string | null;
+    createdBy?: string | null;
+  }>;
+  nextPayChange?: {
+    id: number;
+    effectiveFrom: string;
+    payBasis: string;
+    rateAmount: string;
+    standardWorkDaysPerMonth: string;
+    standardHoursPerDay: string;
+    reason?: string | null;
+  } | null;
   mwe: boolean;
   region?: string | null;
   orgUnitId?: number | null;
