@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GET } from "../src/app/api/readiness/route";
+import { buildReadinessResponse } from "../src/app/api/readiness/route";
 
 // Some launch-blocking gates (billing, bank submission, government filing)
 // have a legitimate manual workaround for a pilot SME launch: manual
@@ -12,7 +12,7 @@ import { GET } from "../src/app/api/readiness/route";
 // rather than reporting one flat pass/fail.
 
 test("readiness reports which launch blockers have a manual workaround", async () => {
-  const response = await GET();
+  const response = await buildReadinessResponse();
   const body = await response.json();
 
   const billing = body.gates.find((g: { key: string }) => g.key === "billing");
