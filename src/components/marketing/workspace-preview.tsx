@@ -77,8 +77,15 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
   const interactive = mode !== "showcase";
   const fullNavigation = mode === "interactive";
   const focusedNavigation = mode !== "interactive";
-  const activeTab: Tab = interactive ? tab : "Payroll";
   const showcaseNames = new Set(["Payroll", "People", "Migration", "Approvals", "Compliance"]);
+  const activeTab: Tab =
+    mode === "focused"
+      ? showcaseNames.has(tab)
+        ? tab
+        : "Payroll"
+      : interactive
+        ? tab
+        : "Payroll";
   const displayedGroups = focusedNavigation
     ? PREVIEW_GROUPS
         .map((group) => ({
@@ -195,36 +202,199 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
             )}
 
             <div className="pv-body slim-scroll">
-              <>
-                {activeTab === "Overview" && <PreviewDashboard run={run} released={released} decided={decided} />}
-                {activeTab === "Payroll" && (
-                  <PreviewPayroll
-                    run={run}
-                    released={released}
-                    acknowledged={acknowledged}
-                    onAcknowledge={setAcknowledged}
-                    onRelease={() => setReleased(true)}
-                    expanded={expanded}
-                    onExpand={setExpanded}
-                  />
-                )}
-                {activeTab === "People" && <PreviewPeople query={query} onQuery={setQuery} />}
-                {activeTab === "Migration" && <PreviewMigration run={run} />}
-                {activeTab === "Time & attendance" && <PreviewTime />}
-                {activeTab === "Leave" && <PreviewLeave />}
-                {activeTab === "Approvals" && (
-                  <PreviewApprovals
-                    decided={decided}
-                    onDecide={(id, status) => setDecided((current) => ({ ...current, [id]: status }))}
-                  />
-                )}
-                {activeTab === "Exports" && <PreviewExports run={run} released={released} />}
-                {!CORE_INTERACTIVE_TABS.has(activeTab) && <PreviewFeature tab={activeTab} run={run} />}
-              </>
+              {mode === "focused" ? (
+                <FocusedWorkspacePanel
+                  tab={activeTab}
+                  run={run}
+                  decided={decided}
+                  onDecide={(id, status) => setDecided((current) => ({ ...current, [id]: status }))}
+                />
+              ) : (
+                <>
+                  {activeTab === "Overview" && <PreviewDashboard run={run} released={released} decided={decided} />}
+                  {activeTab === "Payroll" && (
+                    <PreviewPayroll
+                      run={run}
+                      released={released}
+                      acknowledged={acknowledged}
+                      onAcknowledge={setAcknowledged}
+                      onRelease={() => setReleased(true)}
+                      expanded={expanded}
+                      onExpand={setExpanded}
+                    />
+                  )}
+                  {activeTab === "People" && <PreviewPeople query={query} onQuery={setQuery} />}
+                  {activeTab === "Migration" && <PreviewMigration run={run} />}
+                  {activeTab === "Time & attendance" && <PreviewTime />}
+                  {activeTab === "Leave" && <PreviewLeave />}
+                  {activeTab === "Approvals" && (
+                    <PreviewApprovals
+                      decided={decided}
+                      onDecide={(id, status) => setDecided((current) => ({ ...current, [id]: status }))}
+                    />
+                  )}
+                  {activeTab === "Exports" && <PreviewExports run={run} released={released} />}
+                  {!CORE_INTERACTIVE_TABS.has(activeTab) && <PreviewFeature tab={activeTab} run={run} />}
+                </>
+              )}
             </div>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ focused homepage preview */
+
+function FocusedWorkspacePanel({
+  tab,
+  run,
+  decided,
+  onDecide,
+}: {
+  tab: Tab;
+  run: ReturnType<typeof buildSampleRun>;
+  decided: Record<number, "Approved" | "Declined">;
+  onDecide: (id: number, status: "Approved" | "Declined") => void;
+}) {
+  const activePeople = SAMPLE_EMPLOYEES.filter((person) => person.status === "Active");
+  const openApprovals = SAMPLE_APPROVALS.filter((task) => !decided[task.id]);
+
+  const titles: Record<string, { eyebrow: string; title: string; copy: string }> = {
+    Payroll: {
+      eyebrow: "Current payroll",
+      title: run.periodLabel,
+      copy: "Review the two exceptions before this run can move to checker approval.",
+    },
+    People: {
+      eyebrow: "People",
+      title: `${activePeople.length} active employees`,
+      copy: "Employee records, pay basis and payroll-impacting changes stay together.",
+    },
+    Migration: {
+      eyebrow: "Migration",
+      title: "Bring payroll history with you",
+      copy: "Map, validate and import employees and year-to-date payroll without rewriting history.",
+    },
+    Approvals: {
+      eyebrow: "Approvals",
+      title: `${openApprovals.length} decisions waiting`,
+      copy: "Maker and checker remain separate, with every decision written to the audit trail.",
+    },
+    Compliance: {
+      eyebrow: "Compliance",
+      title: "Philippine rules inside the run",
+      copy: "Contribution and withholding rules stay visible before release.",
+    },
+  };
+
+  const heading = titles[tab] ?? titles.Payroll;
+
+  return (
+    <div className="focused-preview">
+      <div className="focused-preview-head">
+        <div>
+          <span>{heading.eyebrow}</span>
+          <h2>{heading.title}</h2>
+          <p>{heading.copy}</p>
+        </div>
+        <Status value={tab === "Payroll" ? "Needs review" : "Ready"} />
+      </div>
+
+      {tab === "Payroll" && (
+        <>
+          <div className="focused-metrics">
+            <div><span>Gross</span><strong>{money(run.gross)}</strong></div>
+            <div><span>Deductions</span><strong>{money(run.deductions)}</strong></div>
+            <div><span>Net pay</span><strong>{money(run.net)}</strong></div>
+          </div>
+          <div className="focused-list">
+            {run.entries.filter((entry) => entry.status === "Exception").slice(0, 2).map((entry) => (
+              <div className="focused-row" key={entry.employee.id}>
+                <span className="focused-avatar">{entry.employee.firstName[0]}{entry.employee.lastName[0]}</span>
+                <div>
+                  <strong>{entry.employee.firstName} {entry.employee.lastName}</strong>
+                  <p>{entry.flags[0] ?? "Payroll item needs review"}</p>
+                </div>
+                <Status value="Review" />
+              </div>
+            ))}
+          </div>
+          <div className="focused-footer">
+            <span><AlertTriangle size={13} /> {run.exceptions} exceptions block release</span>
+            <strong>Checker approval comes next</strong>
+          </div>
+        </>
+      )}
+
+      {tab === "People" && (
+        <div className="focused-list focused-people">
+          {SAMPLE_EMPLOYEES.slice(0, 4).map((person) => (
+            <div className="focused-row" key={person.employeeNo}>
+              <span className="focused-avatar">{person.firstName[0]}{person.lastName[0]}</span>
+              <div>
+                <strong>{person.firstName} {person.lastName}</strong>
+                <p>{person.employeeNo} · {person.title}</p>
+              </div>
+              <Status value={person.status} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === "Migration" && (
+        <div className="focused-steps">
+          {[
+            ["01", "Upload exports", "Employees, payroll history, leave and loans"],
+            ["02", "Map columns", "Review detected fields before anything is written"],
+            ["03", "Validate", "Errors and warnings stay visible in a dry run"],
+            ["04", "Import", "Preserve YTD values for annualization"],
+          ].map(([step, title, copy], index) => (
+            <div key={step}>
+              <span>{step}</span>
+              <div><strong>{title}</strong><p>{copy}</p></div>
+              <Status value={index < 2 ? "Ready" : "Pending"} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === "Approvals" && (
+        <div className="focused-list">
+          {SAMPLE_APPROVALS.slice(0, 3).map((task) => {
+            const result = decided[task.id];
+            return (
+              <div className="focused-row focused-approval" key={task.id}>
+                <span className="focused-avatar"><ClipboardCheck size={14} /></span>
+                <div><strong>{task.title}</strong><p>{task.detail}</p></div>
+                {result ? (
+                  <Status value={result} />
+                ) : (
+                  <button type="button" onClick={() => onDecide(task.id, "Approved")}>Approve</button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {tab === "Compliance" && (
+        <div className="focused-compliance">
+          {[
+            ["SSS", "Contribution basis", "Current"],
+            ["PhilHealth", "Employee + employer share", "Current"],
+            ["Pag-IBIG", "Mandatory + voluntary", "Current"],
+            ["BIR TRAIN", "Withholding + annualization", "Current"],
+          ].map(([title, copy, status]) => (
+            <div key={title}>
+              <span className="focused-check"><Check size={13} /></span>
+              <div><strong>{title}</strong><p>{copy}</p></div>
+              <Status value={status} />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
