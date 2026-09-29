@@ -146,16 +146,17 @@ export function buildHandoffNotifications(
   data: DashboardData,
   role: string | null | undefined,
 ): HandoffActionItem[] {
-  if (role !== "owner" && role !== "hr" && role !== "payroll" && role !== "checker") return [];
-  const action = buildRoleHandoffAction(data, role);
+  const handoffRole = notificationRoleFor(data, role);
+  if (!handoffRole) return [];
+  const action = buildRoleHandoffAction(data, handoffRole);
   if (action.state !== "action") return [];
 
   if (action.items.length) return action.items;
 
   if (!action.page) return [];
-  const context = getPayrollHandoffContext(data, role);
+  const context = getPayrollHandoffContext(data, handoffRole);
   return [{
-    id: `handoff-${role}-${context.run?.id ?? "none"}-${slug(action.title)}`,
+    id: `handoff-${handoffRole}-${context.run?.id ?? "none"}-${slug(action.title)}`,
     title: action.title,
     detail: action.detail,
     page: action.page,
@@ -432,4 +433,21 @@ function currentOwner(rank: number) {
 
 function slug(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48);
+}
+
+
+function notificationRoleFor(
+  data: DashboardData,
+  role: string | null | undefined,
+): CompanyHandoffRole | null {
+  if (role === "owner" || role === "hr" || role === "payroll" || role === "checker") return role;
+  if (role === "bookkeeper") return "payroll";
+  if (role === "manager") return "checker";
+  if (role === "admin") {
+    const hasRelease = data.payrollRuns.some(
+      (run) => run.status === "Ready for release" || run.status === "Releasing",
+    );
+    return hasRelease ? "owner" : "payroll";
+  }
+  return null;
 }
