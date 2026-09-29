@@ -4,6 +4,8 @@ import { employees, leaveBalances, leavePolicies, leaveRequests } from "@/db/sch
 import { assertMembership, assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { computeBalance } from "@/lib/leave-accrual";
+import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
+import { recordAuditEvent } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +20,7 @@ const today = () =>
 export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  await ensureLeavePayrollSchema();
 
   const url = new URL(request.url);
   const organizationId = Number(url.searchParams.get("organizationId"));
@@ -94,6 +97,9 @@ export async function GET(request: Request) {
       annualDays: policy.annualDays,
       carryOverMax: policy.carryOverMax,
       maxBalance: policy.maxBalance,
+      payTreatment: policy.payTreatment,
+      paidPercentage: policy.paidPercentage,
+      active: policy.active,
     })),
     balances,
     employees: staff.map((employee) => ({ id: employee.id, name: `${employee.firstName} ${employee.lastName}` })),
@@ -103,6 +109,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  await ensureLeavePayrollSchema();
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
@@ -120,17 +127,67 @@ export async function POST(request: Request) {
 
   const leaveType = String(body.leaveType ?? "").trim();
   const annualDays = Number(body.annualDays);
+  const payTreatment = String(body.payTreatment ?? "").trim().toLowerCase();
+  const allowedTreatments = new Set(["paid", "unpaid", "partial"]);
+  const paidPercentage =
+    payTreatment === "paid"
+      ? 100
+      : payTreatment === "unpaid"
+        ? 0
+        : Number(body.paidPercentage);
+
   if (!leaveType || !Number.isFinite(annualDays) || annualDays <= 0) {
     return Response.json({ error: "leaveType and a positive annualDays are required." }, { status: 400 });
   }
+  if (!allowedTreatments.has(payTreatment)) {
+    return Response.json({
+      error: "payTreatment is required and must be paid, unpaid, or partial.",
+    }, { status: 400 });
+  }
+  if (
+    !Number.isFinite(paidPercentage) ||
+    paidPercentage < 0 ||
+    paidPercentage > 100 ||
+    (payTreatment === "partial" && (paidPercentage <= 0 || paidPercentage >= 100))
+  ) {
+    return Response.json({
+      error: "Partially paid leave requires a paidPercentage greater than 0 and less than 100.",
+    }, { status: 400 });
+  }
 
-  const [row] = await db.insert(leavePolicies).values({
+  const existingPolicies = await db.select().from(leavePolicies)
+    .where(eq(leavePolicies.organizationId, organizationId));
+  const existing = existingPolicies.find(
+    (policy) => policy.leaveType.trim().toLowerCase() === leaveType.toLowerCase(),
+  );
+
+  const values = {
     organizationId,
     leaveType: leaveType.slice(0, 40),
     annualDays: annualDays.toFixed(1),
     carryOverMax: body.carryOverMax == null ? null : Number(body.carryOverMax).toFixed(1),
     maxBalance: body.maxBalance == null ? null : Number(body.maxBalance).toFixed(1),
-  }).returning();
+    payTreatment,
+    paidPercentage: paidPercentage.toFixed(2),
+    active: body.active == null ? true : Boolean(body.active),
+  };
 
-  return Response.json(row, { status: 201 });
+  const [row] = existing
+    ? await db.update(leavePolicies).set(values).where(eq(leavePolicies.id, existing.id)).returning()
+    : await db.insert(leavePolicies).values(values).returning();
+
+  await recordAuditEvent({
+    organizationId,
+    actor: user.name,
+    action: existing ? "Leave policy updated" : "Leave policy created",
+    resource: row.leaveType,
+    metadata: {
+      policyId: row.id,
+      payTreatment: row.payTreatment,
+      paidPercentage: row.paidPercentage,
+      annualDays: row.annualDays,
+    },
+  });
+
+  return Response.json(row, { status: existing ? 200 : 201 });
 }

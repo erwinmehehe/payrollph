@@ -9,6 +9,8 @@ import {
   employees,
   expenseClaims,
   leaveConversions,
+  leavePolicies,
+  leaveRequests,
   loanPayments,
   organizations,
   orgUnits,
@@ -21,6 +23,7 @@ import { drainPayrollQueue, enqueuePayrollRun } from "../src/lib/payroll-engine"
 import { settlePayrollRun } from "../src/lib/payroll-settlement";
 import { buildPayrollAssurance } from "../src/lib/payroll-assurance-server";
 import { generateBankFile } from "../src/lib/exporters";
+import { allocateLeaveDaysToPeriod } from "../src/lib/leave-payroll";
 
 test("payroll calculation uses only employees in scope and punches inside the cutoff", async () => {
   const [org] = await db.insert(organizations).values({
@@ -705,6 +708,243 @@ test("seeded payroll lifecycle recalculates cleanly and releases overtime, leave
     assert.equal(bank.body.includes(inactiveEmployee.employeeNo), false);
   } finally {
     if (templateId) await db.delete(bankTemplates).where(eq(bankTemplates.id, templateId));
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});
+
+
+test("leave days crossing a cutoff are allocated deterministically", () => {
+  const request = {
+    id: 1,
+    leaveType: "Annual leave",
+    startDate: "2026-09-14",
+    endDate: "2026-09-18",
+    days: 5,
+  };
+  assert.equal(allocateLeaveDaysToPeriod(request, "2026-09-01", "2026-09-15"), 2);
+  assert.equal(allocateLeaveDaysToPeriod(request, "2026-09-16", "2026-09-30"), 3);
+});
+
+test("approved paid, unpaid and partially paid leave flows into payroll without double deduction", async () => {
+  const [org] = await db.insert(organizations).values({
+    name: "Leave Payroll Treatment Test",
+    legalName: "Leave Payroll Treatment Test Inc.",
+    plan: "Core",
+  }).returning();
+
+  try {
+    const [paidEmployee, unpaidEmployee, partialEmployee] = await db.insert(employees).values([
+      {
+        organizationId: org.id,
+        employeeNo: "LEAVE-PAID",
+        firstName: "Paid",
+        lastName: "Leave",
+        title: "Associate",
+        avatarInitials: "PL",
+        basicRate: "22000.00",
+        startDate: "2025-01-01",
+      },
+      {
+        organizationId: org.id,
+        employeeNo: "LEAVE-UNPAID",
+        firstName: "Unpaid",
+        lastName: "Leave",
+        title: "Associate",
+        avatarInitials: "UL",
+        basicRate: "22000.00",
+        startDate: "2025-01-01",
+      },
+      {
+        organizationId: org.id,
+        employeeNo: "LEAVE-PARTIAL",
+        firstName: "Partial",
+        lastName: "Leave",
+        title: "Associate",
+        avatarInitials: "HL",
+        basicRate: "22000.00",
+        startDate: "2025-01-01",
+      },
+    ]).returning();
+
+    await db.insert(leavePolicies).values([
+      {
+        organizationId: org.id,
+        leaveType: "Annual leave",
+        annualDays: "15.0",
+        payTreatment: "paid",
+        paidPercentage: "100.00",
+      },
+      {
+        organizationId: org.id,
+        leaveType: "Unpaid leave",
+        annualDays: "365.0",
+        payTreatment: "unpaid",
+        paidPercentage: "0.00",
+      },
+      {
+        organizationId: org.id,
+        leaveType: "Study leave",
+        annualDays: "10.0",
+        payTreatment: "partial",
+        paidPercentage: "50.00",
+      },
+    ]);
+
+    const [paidLeave, unpaidLeave, partialLeave] = await db.insert(leaveRequests).values([
+      {
+        organizationId: org.id,
+        employeeId: paidEmployee.id,
+        leaveType: "Annual leave",
+        startDate: "2026-09-14",
+        endDate: "2026-09-18",
+        days: "5.0",
+        reason: "Cross-cutoff paid leave",
+        status: "Approved",
+      },
+      {
+        organizationId: org.id,
+        employeeId: unpaidEmployee.id,
+        leaveType: "Unpaid leave",
+        startDate: "2026-09-21",
+        endDate: "2026-09-21",
+        days: "1.0",
+        reason: "Personal",
+        status: "Approved",
+      },
+      {
+        organizationId: org.id,
+        employeeId: partialEmployee.id,
+        leaveType: "Study leave",
+        startDate: "2026-09-22",
+        endDate: "2026-09-22",
+        days: "1.0",
+        reason: "Exam",
+        status: "Approved",
+      },
+    ]).returning();
+
+    await db.insert(timePunches).values({
+      organizationId: org.id,
+      employeeId: paidEmployee.id,
+      workDate: "2026-09-21",
+      timeIn: new Date("2026-09-21T09:00:00+08:00"),
+      timeOut: new Date("2026-09-21T18:00:00+08:00"),
+      shiftStart: "09:00",
+      shiftEnd: "18:00",
+      status: "Complete",
+    });
+
+    const [run] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      periodLabel: "Sep 16–30, 2026 leave treatment",
+      periodStart: "2026-09-16",
+      periodEnd: "2026-09-30",
+      scopeLabel: "All locations",
+      status: "Draft",
+      payDate: "2026-09-30",
+    }).returning();
+
+    await enqueuePayrollRun(run.id, 25);
+    await drainPayrollQueue(10, run.id);
+
+    const entries = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
+    assert.equal(entries.length, 3);
+
+    const paidEntry = entries.find((entry) => entry.employeeId === paidEmployee.id)!;
+    const unpaidEntry = entries.find((entry) => entry.employeeId === unpaidEmployee.id)!;
+    const partialEntry = entries.find((entry) => entry.employeeId === partialEmployee.id)!;
+
+    const paidLines = paidEntry.lineItems as Array<{ code: string; amount: string }>;
+    const unpaidLines = unpaidEntry.lineItems as Array<{ code: string; amount: string }>;
+    const partialLines = partialEntry.lineItems as Array<{ code: string; amount: string }>;
+
+    assert.equal(
+      Number(paidLines.find((line) => line.code === `LEAVE-${paidLeave.id}`)?.amount),
+      3000,
+      "three of five paid leave days belong to the Sep 16–30 cutoff",
+    );
+    assert.equal(Number(paidEntry.grossPay), 4000, "worked day plus three paid leave days should be gross earnings");
+
+    assert.equal(
+      Number(unpaidLines.find((line) => line.code === `LEAVE-${unpaidLeave.id}`)?.amount),
+      -1000,
+    );
+    assert.equal(Number(unpaidEntry.grossPay), 10000, "one unpaid day reduces the full semi-monthly basic");
+
+    assert.equal(
+      Number(partialLines.find((line) => line.code === `LEAVE-${partialLeave.id}`)?.amount),
+      -500,
+    );
+    assert.equal(Number(partialEntry.grossPay), 10500, "50% paid leave only reduces the unpaid half-day value");
+
+    const paidTrace = paidEntry.trace as { inputs?: string[]; flags?: string[] };
+    assert.ok(paidTrace.inputs?.includes("approvedLeaveDays=3.00"));
+    assert.ok(paidTrace.inputs?.includes("paidLeaveDays=3.00"));
+    assert.equal((paidTrace.flags ?? []).some((flag) => flag.includes("Attendance overlaps")), false);
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});
+
+test("payroll fails closed when approved leave has no configured payroll treatment", async () => {
+  const [org] = await db.insert(organizations).values({
+    name: "Leave Payroll Fail Closed",
+    legalName: "Leave Payroll Fail Closed Inc.",
+    plan: "Core",
+  }).returning();
+
+  try {
+    const [employee] = await db.insert(employees).values({
+      organizationId: org.id,
+      employeeNo: "LEAVE-UNCONFIGURED",
+      firstName: "Needs",
+      lastName: "Policy",
+      title: "Associate",
+      avatarInitials: "NP",
+      basicRate: "22000.00",
+      startDate: "2025-01-01",
+    }).returning();
+
+    await db.insert(leavePolicies).values({
+      organizationId: org.id,
+      leaveType: "Special leave",
+      annualDays: "5.0",
+      payTreatment: "unconfigured",
+      paidPercentage: "100.00",
+    });
+
+    await db.insert(leaveRequests).values({
+      organizationId: org.id,
+      employeeId: employee.id,
+      leaveType: "Special leave",
+      startDate: "2026-09-21",
+      endDate: "2026-09-21",
+      days: "1.0",
+      reason: "Needs policy decision",
+      status: "Approved",
+    });
+
+    const [run] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      periodLabel: "Sep 16–30, 2026 leave fail closed",
+      periodStart: "2026-09-16",
+      periodEnd: "2026-09-30",
+      scopeLabel: "All locations",
+      status: "Draft",
+      payDate: "2026-09-30",
+    }).returning();
+
+    await enqueuePayrollRun(run.id, 25);
+    await assert.rejects(
+      () => drainPayrollQueue(10, run.id),
+      /has no configured payroll treatment/,
+    );
+
+    const [failed] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, run.id));
+    assert.equal(failed.status, "Failed");
+    const entries = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
+    assert.equal(entries.length, 0, "an ambiguous approved leave must not produce a guessed payroll entry");
+  } finally {
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
 });

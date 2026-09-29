@@ -377,6 +377,8 @@ export const leavePolicies = pgTable("leave_policies", {
   annualDays: numeric("annual_days", { precision: 6, scale: 1 }).notNull(),
   carryOverMax: numeric("carry_over_max", { precision: 6, scale: 1 }),
   maxBalance: numeric("max_balance", { precision: 6, scale: 1 }),
+  payTreatment: varchar("pay_treatment", { length: 24 }).notNull().default("unconfigured"),
+  paidPercentage: numeric("paid_percentage", { precision: 5, scale: 2 }).notNull().default("100"),
   active: boolean("active").notNull().default(true),
 });
 

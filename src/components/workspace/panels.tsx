@@ -47,16 +47,41 @@ import type { AuditEvent, DashboardData, Employee, OrgUnit, PayrollEntry, Payrol
 import { Avatar, Metric, PageHeading, Status, formatDate, formatDateTime as formatTime, money } from "./ui";
 export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData; setNotice: (message: string) => void; onRefresh: () => Promise<void> }) {
   const requests = data.leaveRequests ?? [];
+  const policies = data.leavePolicies ?? [];
+  const configuredPolicies = policies.filter(
+    (policy) => policy.active && ["paid", "unpaid", "partial"].includes(policy.payTreatment),
+  );
   const pending = requests.filter((row) => row.status === "Pending");
   const approvedDays = requests.filter((row) => row.status === "Approved").reduce((sum, row) => sum + Number(row.days), 0);
+  const canManagePolicies = ["owner", "admin", "bookkeeper", "hr", "manager"].includes(data.access?.role ?? "");
+
   const [open, setOpen] = useState(false);
+  const [policyOpen, setPolicyOpen] = useState(false);
   const [employeeId, setEmployeeId] = useState(data.employees[0]?.id ?? 0);
   const [leaveType, setLeaveType] = useState("Annual leave");
   const [startDate, setStartDate] = useState("2026-03-24");
   const [endDate, setEndDate] = useState("2026-03-24");
   const [days, setDays] = useState(1);
 
+  const [policyLeaveType, setPolicyLeaveType] = useState("Annual leave");
+  const [annualDays, setAnnualDays] = useState(15);
+  const [payTreatment, setPayTreatment] = useState<"paid" | "unpaid" | "partial">("paid");
+  const [paidPercentage, setPaidPercentage] = useState(50);
+
+  useEffect(() => {
+    if (
+      configuredPolicies.length > 0 &&
+      !configuredPolicies.some((policy) => policy.leaveType === leaveType)
+    ) {
+      setLeaveType(configuredPolicies[0].leaveType);
+    }
+  }, [configuredPolicies, leaveType]);
+
   async function submit() {
+    if (configuredPolicies.length === 0) {
+      setNotice("Configure at least one leave payroll treatment before submitting leave.");
+      return;
+    }
     const response = await fetch("/api/leave", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -69,39 +94,149 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
     setNotice("Leave request submitted and queued for approval.");
   }
 
+  function editPolicy(policy: NonNullable<DashboardData["leavePolicies"]>[number]) {
+    setPolicyLeaveType(policy.leaveType);
+    setAnnualDays(Number(policy.annualDays));
+    const treatment = ["paid", "unpaid", "partial"].includes(policy.payTreatment)
+      ? policy.payTreatment as "paid" | "unpaid" | "partial"
+      : "paid";
+    setPayTreatment(treatment);
+    setPaidPercentage(
+      treatment === "partial" ? Number(policy.paidPercentage || 50) : treatment === "paid" ? 100 : 0,
+    );
+    setPolicyOpen(true);
+  }
+
+  async function savePolicy() {
+    const response = await fetch("/api/leave/balances", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        organizationId: data.selectedOrganization.id,
+        leaveType: policyLeaveType,
+        annualDays,
+        payTreatment,
+        paidPercentage: payTreatment === "partial" ? paidPercentage : payTreatment === "paid" ? 100 : 0,
+      }),
+    });
+    const payload = await response.json();
+    if (!response.ok) { setNotice(payload.error ?? "Could not save leave policy."); return; }
+    setPolicyOpen(false);
+    await onRefresh();
+    setNotice(`${policyLeaveType} payroll treatment saved.`);
+  }
+
   return (
     <>
-      <PageHeading eyebrow="LEAVE MANAGEMENT" title="Keep leave human and accountable." copy="Requests create a real approval task. Approving it updates the leave record and fires leave.approved webhooks." actions={<button className="primary-button" onClick={() => setOpen(!open)}><Plus size={17} className="i-green" /> New leave request</button>} />
+      <PageHeading
+        eyebrow="LEAVE MANAGEMENT"
+        title="Keep leave human and payroll-safe."
+        copy="Every leave type has an explicit pay treatment. Approved leave flows into the payroll cutoff instead of silently disappearing from pay."
+        actions={<button className="primary-button" onClick={() => setOpen(!open)}><Plus size={17} className="i-green" /> New leave request</button>}
+      />
       <section className="stats-grid">
         <Metric label="PENDING" value={String(pending.length)} hint="Needs manager review" icon={<CalendarDays size={19} className="i-cyan" />} tone="amber" />
         <Metric label="ON LEAVE" value={String(data.employees.filter((e) => e.status === "On leave").length)} hint="Across this client" icon={<UsersRound size={19} className="i-purple" />} tone="purple" />
         <Metric label="APPROVED DAYS" value={String(approvedDays)} hint="On record" icon={<Gauge size={19} className="i-blue" />} tone="mint" />
-        <Metric label="POLICIES" value="3" hint="Annual, sick, emergency" icon={<BookOpen size={19} className="i-teal" />} tone="blue" />
+        <Metric label="PAY POLICIES" value={String(configuredPolicies.length)} hint={policies.some((policy) => policy.payTreatment === "unconfigured") ? "Some need payroll setup" : "Explicit treatment"} icon={<BookOpen size={19} className="i-teal" />} tone="blue" />
       </section>
+
+      <article className="card" style={{ marginBottom: 16 }}>
+        <div className="card-header">
+          <div>
+            <div className="card-kicker">PAYROLL TREATMENT</div>
+            <h2>Paid, unpaid, or partially paid</h2>
+            <p>Payroll refuses to guess when an approved leave type has no configured treatment.</p>
+          </div>
+          {canManagePolicies && <button className="secondary-button" onClick={() => setPolicyOpen(!policyOpen)}><Plus size={16} /> Configure policy</button>}
+        </div>
+
+        {policyOpen && canManagePolicies && (
+          <div className="setting-form" style={{ marginBottom: 16 }}>
+            <label>Leave type<input value={policyLeaveType} onChange={(event) => setPolicyLeaveType(event.target.value)} placeholder="Annual leave" /></label>
+            <label>Annual days<input type="number" min={0.5} step={0.5} value={annualDays} onChange={(event) => setAnnualDays(Number(event.target.value))} /></label>
+            <label>Payroll treatment
+              <select value={payTreatment} onChange={(event) => setPayTreatment(event.target.value as "paid" | "unpaid" | "partial")}>
+                <option value="paid">Paid</option>
+                <option value="unpaid">Unpaid</option>
+                <option value="partial">Partially paid</option>
+              </select>
+            </label>
+            {payTreatment === "partial" && (
+              <label>Paid percentage<input type="number" min={1} max={99} step={1} value={paidPercentage} onChange={(event) => setPaidPercentage(Number(event.target.value))} /></label>
+            )}
+            <div className="run-actions">
+              <button className="secondary-button" onClick={() => setPolicyOpen(false)}>Cancel</button>
+              <button className="primary-button" onClick={savePolicy}>Save treatment</button>
+            </div>
+          </div>
+        )}
+
+        {policies.length === 0 && <div className="empty-state">No leave policies configured yet. Add one before approving leave for payroll.</div>}
+        {policies.map((policy) => (
+          <div className="leave-request" key={policy.id}>
+            <div className="inline-icon mint"><BookOpen size={17} /></div>
+            <div style={{ flex: 1 }}>
+              <strong>{policy.leaveType}</strong>
+              <span>
+                {policy.annualDays} days/year · {
+                  policy.payTreatment === "paid"
+                    ? "Paid 100%"
+                    : policy.payTreatment === "unpaid"
+                      ? "Unpaid"
+                      : policy.payTreatment === "partial"
+                        ? `Paid ${policy.paidPercentage}%`
+                        : "Payroll treatment not configured"
+                }
+              </span>
+            </div>
+            <Status value={policy.payTreatment === "unconfigured" ? "Needs setup" : policy.payTreatment} />
+            {canManagePolicies && <button className="secondary-button" onClick={() => editPolicy(policy)}>Edit</button>}
+          </div>
+        ))}
+      </article>
+
       {open && (
         <article className="card" style={{ marginBottom: 16 }}>
           <div className="card-header"><div><div className="card-kicker">NEW LEAVE</div><h2>Submit leave application</h2></div></div>
           <div className="setting-form">
             <label>Employee<select value={employeeId} onChange={(event) => setEmployeeId(Number(event.target.value))}>{data.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.firstName} {employee.lastName}</option>)}</select></label>
-            <label>Leave Type<select value={leaveType} onChange={(event) => setLeaveType(event.target.value)}><option>Annual leave</option><option>Sick leave</option><option>Emergency leave</option></select></label>
+            <label>Leave Type
+              <select value={leaveType} onChange={(event) => setLeaveType(event.target.value)} disabled={configuredPolicies.length === 0}>
+                {configuredPolicies.length === 0
+                  ? <option>No configured leave policy</option>
+                  : configuredPolicies.map((policy) => <option key={policy.id} value={policy.leaveType}>{policy.leaveType}</option>)}
+              </select>
+            </label>
             <label>Start date<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
             <label>End date<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
             <label>Days<input type="number" min={0.5} step={0.5} value={days} onChange={(event) => setDays(Number(event.target.value))} /></label>
           </div>
-          <div className="run-actions"><button className="secondary-button" onClick={() => setOpen(false)}>Cancel</button><button className="primary-button" onClick={submit}>Submit request</button></div>
+          <div className="run-actions">
+            <button className="secondary-button" onClick={() => setOpen(false)}>Cancel</button>
+            <button className="primary-button" onClick={submit} disabled={configuredPolicies.length === 0}>Submit request</button>
+          </div>
         </article>
       )}
+
       <article className="card leave-board">
         <div className="card-header"><div><div className="card-kicker">REQUESTS</div><h2>Leave register</h2></div></div>
         {requests.length === 0 && <div className="empty-state">No leave requests yet.</div>}
         {requests.map((row) => {
           const employee = data.employees.find((item) => item.id === row.employeeId);
           const start = new Date(`${row.startDate}T12:00:00`);
+          const policy = policies.find((item) => item.leaveType.toLowerCase() === row.leaveType.toLowerCase());
           return (
             <div className="leave-request" key={row.id}>
               <span className="date-tile"><small>{start.toLocaleString("en-PH", { month: "short" }).toUpperCase()}</small><b>{start.getDate()}</b></span>
               <Avatar initials={employee?.avatarInitials ?? "NA"} index={row.employeeId} />
-              <div><strong>{employee ? `${employee.firstName} ${employee.lastName}` : "Employee"}</strong><span>{row.leaveType} · {row.startDate}–{row.endDate} · {row.days} days</span></div>
+              <div style={{ flex: 1 }}>
+                <strong>{employee ? `${employee.firstName} ${employee.lastName}` : "Employee"}</strong>
+                <span>
+                  {row.leaveType} · {row.startDate}–{row.endDate} · {row.days} days
+                  {policy ? ` · ${policy.payTreatment === "partial" ? `${policy.paidPercentage}% paid` : policy.payTreatment}` : " · payroll treatment missing"}
+                </span>
+              </div>
               <Status value={row.status === "Pending" ? "Awaiting approval" : row.status} />
             </div>
           );
@@ -110,7 +245,6 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
     </>
   );
 }
-
 
 export function CompliancePage({ data, setNotice, onOpenGovModal }: { data: DashboardData; setNotice: (message: string) => void; onOpenGovModal: () => void }) {
   return (

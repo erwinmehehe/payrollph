@@ -1,9 +1,10 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalTasks, employees, leaveRequests, userOrganizations, users } from "@/db/schema";
+import { approvalTasks, employees, leavePolicies, leaveRequests, userOrganizations, users } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { assertMembership, getAccess, roleAllowed } from "@/lib/access";
+import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,7 @@ export async function GET(request: Request) {
   const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+  await ensureLeavePayrollSchema();
   if (!Number.isInteger(organizationId)) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
   }
@@ -58,6 +60,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+  await ensureLeavePayrollSchema();
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
@@ -110,6 +113,17 @@ export async function POST(request: Request) {
     employee.orgUnitId !== access.orgUnitId
   ) {
     return Response.json({ error: "Managers can submit leave only for employees in their assigned unit." }, { status: 403 });
+  }
+
+  const policies = await db.select().from(leavePolicies)
+    .where(and(eq(leavePolicies.organizationId, organizationId), eq(leavePolicies.active, true)));
+  const policy = policies.find(
+    (item) => item.leaveType.trim().toLowerCase() === leaveType.toLowerCase(),
+  );
+  if (!policy || !["paid", "unpaid", "partial"].includes(policy.payTreatment.toLowerCase())) {
+    return Response.json({
+      error: `Configure the payroll treatment for ${leaveType} before submitting this leave request.`,
+    }, { status: 422 });
   }
 
   const members = await db
