@@ -4,6 +4,7 @@ import { employees, historicalPayrollEntries, payrollEntries, payrollRuns, yearE
 import { recordAuditEvent } from "@/lib/audit";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { annualize, ANNUALIZATION_RULE_VERSION, type AnnualizationResult } from "@/lib/annualization";
+import { buildEmployeeYearLedger } from "@/lib/compensation-ledger";
 
 type LineItem = { code?: string; label?: string; amount?: number | string };
 
@@ -92,27 +93,37 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
     eq(yearEndAdjustments.taxYear, taxYear),
   ));
 
-  const rows: Array<{ employee: typeof staff[number]; result: AnnualizationResult; periods: number }> = [];
+  const rows: Array<{ employee: typeof staff[number]; result: AnnualizationResult; periods: number; ledger: Awaited<ReturnType<typeof buildEmployeeYearLedger>> }> = [];
+  const blockedEmployees: Array<{ employeeId: number; employeeNo: string; missingImportedBasicRows: number }> = [];
 
   for (const employee of staff) {
     const bucket = totals.get(employee.id);
     if (!bucket || bucket.periods === 0) continue;
 
-    // 13th month accrual: one month of basic pay, pro-rated by periods worked
-    // against a 24-period semi-monthly year, unless already paid as a line item.
-    const accrued13th = bucket.thirteenth > 0
-      ? bucket.thirteenth
-      : Number(employee.basicRate) * Math.min(1, bucket.periods / 24);
+    const ledger = await buildEmployeeYearLedger({
+      organizationId,
+      employeeId: employee.id,
+      taxYear,
+    });
+    if (!ledger.dataComplete) {
+      blockedEmployees.push({
+        employeeId: employee.id,
+        employeeNo: employee.employeeNo,
+        missingImportedBasicRows: ledger.importedBasicSalaryMissing,
+      });
+      continue;
+    }
 
     const result = annualize({
-      grossCompensation: bucket.gross,
-      thirteenthMonth: accrued13th,
-      statutoryContributions: bucket.contributions,
-      taxWithheld: bucket.tax,
+      grossCompensation: ledger.grossCompensation,
+      thirteenthMonth: ledger.thirteenthMonthAccrued,
+      statutoryContributions: ledger.statutoryContributions,
+      taxWithheld: ledger.taxWithheld,
+      deMinimis: ledger.deMinimis,
       mwe: employee.mwe,
     });
 
-    rows.push({ employee, result, periods: bucket.periods });
+    rows.push({ employee, result, periods: ledger.releasedPeriods + ledger.importedPeriods, ledger });
   }
 
   if (rows.length) {
@@ -132,9 +143,14 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
       mwe: result.mwe,
       breakdown: {
         ...result,
+        basicSalaryEarned: ledger.basicSalaryEarned,
+        thirteenthMonthAccrued: ledger.thirteenthMonthAccrued,
+        thirteenthMonthPreviouslyPaid: ledger.thirteenthMonthPreviouslyPaid,
+        thirteenthMonthOutstanding: ledger.thirteenthMonthOutstanding,
         periodsIncluded: periods,
         runsIncluded: runIds.length,
-        importedHistoryRows: totals.get(employee.id)?.importedPeriods ?? 0,
+        importedHistoryRows: ledger.importedPeriods,
+        sourceDataComplete: ledger.dataComplete,
       },
       ruleVersion: ANNUALIZATION_RULE_VERSION,
     })));
@@ -155,6 +171,7 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
       importedHistoryRows: importedHistory.length,
       refunds: refunds.length,
       collections: collections.length,
+      blockedEmployees: blockedEmployees.length,
     },
   });
 
@@ -163,6 +180,7 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
     runsIncluded: runIds.length,
     importedHistoryRows: importedHistory.length,
     employees: rows.length,
+    blockedEmployees,
     refunds: refunds.length,
     collections: collections.length,
     totalRefund: Number(refunds.reduce((sum, row) => sum + Math.abs(row.result.adjustment), 0).toFixed(2)),
