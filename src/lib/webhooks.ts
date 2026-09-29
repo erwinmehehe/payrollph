@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { webhookDeliveries, webhookEndpoints } from "@/db/schema";
 import { signWebhookPayload, type WebhookEvent } from "@/lib/webhook-signing";
 import { nextBackoffMs } from "@/lib/webhook-backoff";
+import { validateWebhookTarget } from "@/lib/security-network";
 
 export { signWebhookPayload, verifyWebhookSignature, WEBHOOK_EVENTS } from "@/lib/webhook-signing";
 export type { WebhookEvent } from "@/lib/webhook-signing";
@@ -22,9 +23,12 @@ async function attemptDelivery(delivery: {
   const attempts = delivery.attempts + 1;
 
   try {
+    // Re-validate at send time as well as creation time. DNS and endpoint
+    // configuration can change after the webhook is stored.
+    const targetUrl = await validateWebhookTarget(endpoint.url);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5000);
-    const response = await fetch(endpoint.url, {
+    const response = await fetch(targetUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -34,6 +38,7 @@ async function attemptDelivery(delivery: {
       },
       body,
       signal: controller.signal,
+      redirect: "manual",
     });
     clearTimeout(timer);
 
