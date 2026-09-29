@@ -5,6 +5,16 @@ import { OFFICIAL_PUBLIC_DEMO_HOST, publicDemoHostAllowed } from "../src/lib/dem
 
 const read = (path: string) => readFileSync(path, "utf8");
 
+test("demo page metadata advertises only the current five personas", () => {
+  const page = read("src/app/demo/page.tsx");
+  for (const role of ["Owner", "HR Admin", "Payroll Officer", "Checker", "Employee"]) {
+    assert.ok(page.includes(role), `demo metadata must mention ${role}`);
+  }
+  for (const removed of ["bookkeeper", "manager", "freelancer"]) {
+    assert.ok(!page.toLowerCase().includes(removed), `demo metadata must not advertise legacy role ${removed}`);
+  }
+});
+
 test("role sandbox exposes exactly the five product personas", () => {
   const roles = read("src/lib/demo-roles.ts");
   for (const role of ["owner", "hr", "payroll", "checker", "employee"]) {
@@ -51,6 +61,7 @@ test("official public Vercel hostname can launch the sandbox without enabling de
   assert.equal(OFFICIAL_PUBLIC_DEMO_HOST, "erwinmehehe-payrollph.vercel.app");
   assert.equal(publicDemoHostAllowed("erwinmehehe-payrollph.vercel.app"), true);
   assert.equal(publicDemoHostAllowed("ERWINMEHEHE-PAYROLLPH.VERCEL.APP"), true);
+  assert.equal(publicDemoHostAllowed("payrollph-three.vercel.app"), true);
 });
 
 test("arbitrary customer and self-hosted domains cannot provision the public demo tenant", () => {
