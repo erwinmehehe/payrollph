@@ -353,6 +353,8 @@ function PersonDrawer({
   const [payRate, setPayRate] = useState(employee.payRate ?? employee.basicRate);
   const [standardWorkDaysPerMonth, setStandardWorkDaysPerMonth] = useState(employee.standardWorkDaysPerMonth ?? "22");
   const [standardHoursPerDay, setStandardHoursPerDay] = useState(employee.standardHoursPerDay ?? "8");
+  const [effectiveFrom, setEffectiveFrom] = useState(new Date().toISOString().slice(0, 10));
+  const [payChangeReason, setPayChangeReason] = useState("");
   const [payError, setPayError] = useState("");
   const [editingGovernment, setEditingGovernment] = useState(false);
   const [savingGovernment, setSavingGovernment] = useState(false);
@@ -379,6 +381,8 @@ function PersonDrawer({
           rateAmount: Number(payRate),
           standardWorkDaysPerMonth: Number(standardWorkDaysPerMonth),
           standardHoursPerDay: Number(standardHoursPerDay),
+          effectiveFrom,
+          payChangeReason,
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -501,6 +505,15 @@ function PersonDrawer({
                 <label>Standard hours / day
                   <input type="number" min="1" max="24" step="0.25" value={standardHoursPerDay} onChange={(event) => setStandardHoursPerDay(event.target.value)} />
                 </label>
+                <label>Effective from
+                  <input type="date" value={effectiveFrom} onChange={(event) => setEffectiveFrom(event.target.value)} />
+                </label>
+                <label>Reason
+                  <input value={payChangeReason} onChange={(event) => setPayChangeReason(event.target.value)} placeholder="Promotion, annual increase, correction…" />
+                </label>
+              </div>
+              <div className="notice notice-blue" style={{ margin: "0 16px 10px" }}>
+                <span>Same-basis rate changes may take effect during a cutoff. Switching Monthly, Daily, or Hourly basis should start on a cutoff boundary. Past effective dates can create reviewed retro pay.</span>
               </div>
               {payError && <div className="notice notice-amber" style={{ margin: "0 16px 10px" }}><span>{payError}</span></div>}
               <div className="run-actions">
@@ -533,6 +546,28 @@ function PersonDrawer({
                   <small>used by existing monthly statutory engines</small>
                 </div>
               </div>
+              {employee.nextPayChange && (
+                <div className="notice notice-blue" style={{ marginTop: 12 }}>
+                  <span>
+                    <strong>Scheduled change:</strong> {employee.nextPayChange.effectiveFrom} · {employee.nextPayChange.payBasis} · {money(employee.nextPayChange.rateAmount)}
+                    {employee.nextPayChange.reason ? ` · ${employee.nextPayChange.reason}` : ""}
+                  </span>
+                </div>
+              )}
+              {(employee.payHistory?.length ?? 0) > 1 && (
+                <div style={{ marginTop: 12 }}>
+                  <p className="card-kicker">Recent pay history</p>
+                  {employee.payHistory!.slice(-4).reverse().map((change) => (
+                    <div className="payslip-line" key={change.id} style={{ gridTemplateColumns: "1fr auto" }}>
+                      <span>
+                        {change.effectiveFrom}
+                        <em>{change.reason || "Effective-dated pay change"}</em>
+                      </span>
+                      <b>{money(change.rateAmount)} / {change.payBasis}</b>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </section>
