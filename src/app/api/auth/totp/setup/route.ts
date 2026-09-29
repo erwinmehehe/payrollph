@@ -4,12 +4,15 @@ import { users } from "@/db/schema";
 import { getSessionUser, publicUser } from "@/lib/auth";
 import { generateBackupCodes, sha256 } from "@/lib/crypto";
 import { buildOtpAuthUri, generateTotpSecret, verifyTotp } from "@/lib/totp";
+import { publicDemoMutationDenied } from "@/lib/demo-security";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const sessionUser = await getSessionUser();
   if (!sessionUser) return Response.json({ error: "Authentication required." }, { status: 401 });
+  const demoDenied = publicDemoMutationDenied(sessionUser.email, "Authenticator setup");
+  if (demoDenied) return demoDenied;
 
   const [user] = await db.select().from(users).where(eq(users.id, sessionUser.id)).limit(1);
   if (!user) return Response.json({ error: "User not found." }, { status: 404 });
@@ -38,6 +41,8 @@ export async function GET() {
 export async function POST(request: Request) {
   const sessionUser = await getSessionUser();
   if (!sessionUser) return Response.json({ error: "Authentication required." }, { status: 401 });
+  const demoDenied = publicDemoMutationDenied(sessionUser.email, "Authenticator setup");
+  if (demoDenied) return demoDenied;
 
   const body = await request.json().catch(() => ({}));
   const code = typeof body.code === "string" ? body.code.trim() : "";
