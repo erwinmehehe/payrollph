@@ -63,6 +63,8 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
     finalStatutoryDeductions: "0",
     finalStatutoryReviewed: false,
     unusedLeaveCredits: "0",
+    leaveTaxReviewed: false,
+    leaveMonetizationTaxExempt: false,
     separationPay: "0",
     retirementPay: "0",
     otherBenefits: "0",
@@ -272,6 +274,18 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
               <label>Convertible unused leave credits (days)
                 <input type="number" step="0.5" min="0" max="365" value={form.unusedLeaveCredits} onChange={(e) => setForm({ ...form, unusedLeaveCredits: e.target.value })} />
               </label>
+              {Number(form.unusedLeaveCredits) > 0 && (
+                <>
+                  <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <input type="checkbox" checked={form.leaveTaxReviewed} onChange={(e) => setForm({ ...form, leaveTaxReviewed: e.target.checked })} />
+                    Leave monetization tax treatment reviewed
+                  </label>
+                  <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <input type="checkbox" checked={form.leaveMonetizationTaxExempt} onChange={(e) => setForm({ ...form, leaveMonetizationTaxExempt: e.target.checked })} />
+                    Reviewed leave monetization is tax-exempt
+                  </label>
+                </>
+              )}
               <label>Separation pay, if applicable
                 <input type="number" step="0.01" min="0" value={form.separationPay} onChange={(e) => setForm({ ...form, separationPay: e.target.value })} />
               </label>
