@@ -44,6 +44,7 @@ import { TimeView } from "@/components/workspace/time";
 import type { DashboardData, PricingPlan } from "@/components/workspace/types";
 import { ToastStack, useToasts } from "@/components/workspace/ui";
 import { demoRoleInfo, demoRolePages, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
+import { roleCanDecideApprovals, roleCanManageDelegations, roleCanManagePayroll, roleCanManagePeople, roleCanManageTime, workspacePagesForRole } from "@/lib/workspace-role-ui";
 
 export function LinawWorkspace({ initialData }: { initialData: DashboardData }) {
   const searchParams = useSearchParams();
@@ -79,7 +80,8 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
   const isFreelancer = data.selectedOrganization.accountType === "freelancer";
   const currentRun = data.payrollRuns.find((run) => run.status !== "Released") ?? data.payrollRuns[0];
 
-  const rolePages = demoRolePages(demoRole);
+  const effectiveRole = demoRole ?? data.access?.role ?? data.user?.role ?? null;
+  const rolePages = demoRole ? demoRolePages(demoRole) : workspacePagesForRole(effectiveRole);
   const availablePages = useMemo(
     () =>
       NAVIGATION.flatMap((group) => group.items)
@@ -95,9 +97,11 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
   );
 
   const allowClientSwitch = !demoRole;
-  const canManagePayroll = !demoRole || ["owner", "payroll"].includes(demoRole);
-  const canManagePeople = !demoRole || ["owner", "hr"].includes(demoRole);
-  const canManageTime = !demoRole || ["owner", "hr"].includes(demoRole);
+  const canManagePayroll = roleCanManagePayroll(effectiveRole);
+  const canManagePeople = roleCanManagePeople(effectiveRole);
+  const canManageTime = roleCanManageTime(effectiveRole);
+  const canDecideApprovals = roleCanDecideApprovals(effectiveRole);
+  const canManageDelegations = roleCanManageDelegations(effectiveRole);
   const canUsePayrollOps = canManagePayroll && availablePages.includes("Payroll");
   const canUsePeopleOps = canManagePeople && availablePages.includes("People");
 
@@ -420,6 +424,8 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
           <ApprovalsView
             data={data}
             busy={busy}
+            canDecide={canDecideApprovals}
+            canManageDelegations={canManageDelegations}
             onDecide={decideTask}
             onRefresh={async () => {
               await refresh();
