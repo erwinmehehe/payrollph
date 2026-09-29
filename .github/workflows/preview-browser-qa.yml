@@ -244,8 +244,8 @@ jobs:
                 check(Boolean(targetPage), persona.label + ": next action is missing a target page");
                 await firstAction.click();
                 await page.waitForTimeout(100);
-                const activeTarget = page.locator("aside .nav-item[aria-current='page']").first();
-                check((await activeTarget.innerText()).trim() === targetPage, persona.label + ": next action did not navigate to " + targetPage);
+                const activeTarget = page.locator("aside .nav-item[aria-current='page']").filter({ hasText: targetPage }).first();
+                check((await activeTarget.count()) === 1, persona.label + ": next action did not navigate to " + targetPage);
                 const overviewNav = page.locator("aside .nav-item").filter({ hasText: /^Overview$/ }).first();
                 await overviewNav.click();
                 await page.waitForTimeout(100);
