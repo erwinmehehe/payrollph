@@ -92,13 +92,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return Response.json({ error: "No updatable fields provided." }, { status: 422 });
   }
 
-  const [updated] = await db.update(employees).set(patch).where(eq(employees.id, id)).returning();
-
   let payChange = null;
   if (nextPayProfile) {
     try {
       payChange = await recordEffectivePayChange({
-        organizationId: updated.organizationId,
+        organizationId: existing.organizationId,
         employeeId: id,
         effectiveFrom: String(body.effectiveFrom ?? philippinesToday()),
         payProfile: nextPayProfile,
@@ -111,6 +109,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         problems: [error instanceof Error ? error.message : "Could not record the effective-dated pay change."],
       }, { status: 422 });
     }
+  }
+
+  let updated = existing;
+  if (Object.keys(patch).length > 0) {
+    const [patchedEmployee] = await db.update(employees).set(patch).where(eq(employees.id, id)).returning();
+    updated = patchedEmployee ?? existing;
   }
 
   const [freshEmployee] = await db.select().from(employees).where(eq(employees.id, id)).limit(1);
