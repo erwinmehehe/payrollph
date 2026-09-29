@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Clock, Download, FileText, LogOut, ShieldCheck, UserCheck, WalletCards } from "lucide-react";
+import { Clock, Download, FileText, LogOut, ShieldCheck, WalletCards } from "lucide-react";
 import { WebBundyModal } from "@/components/web-bundy-modal";
-import { DEMO_ROLES, type DemoRoleId } from "@/lib/demo-roles";
+import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
+import { type DemoRoleId } from "@/lib/demo-roles";
 
 type Payslip = {
   entryId: number;
@@ -125,32 +126,29 @@ export function SelfServicePortal() {
           </p>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          {isDemo && (
-            <div className="company-switcher-wrap">
-              <button className="secondary-button" type="button">
-                <UserCheck size={14} className="i-purple" /> Employee demo
-              </button>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {DEMO_ROLES.filter((role) => role.id !== "employee").map((role) => (
-                  <button
-                    key={role.id}
-                    className="secondary-button"
-                    type="button"
-                    disabled={Boolean(switchingRole)}
-                    onClick={() => void switchDemoRole(role.id)}
-                  >
-                    {switchingRole === role.id ? "Opening…" : role.shortLabel}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+
           <button className="primary-button" style={{ background: "var(--deep)", borderColor: "var(--green)" }} onClick={() => setWebBundyOpen(true)}>
             <Clock size={15} className="i-cyan" /> Clock IN / OUT
           </button>
           <a className="secondary-button" href="/api/auth/logout"><LogOut size={15} className="i-slate" /> Sign out</a>
         </div>
       </header>
+
+      {isDemo && (
+        <DemoSandboxBar
+          role="employee"
+          busyRole={switchingRole}
+          onSwitch={(role) => void switchDemoRole(role)}
+          onTask={(taskId) => {
+            if (taskId === "employee-punch") {
+              setWebBundyOpen(true);
+              return;
+            }
+            const first = data?.payslips[0];
+            if (first) setOpen(first.entryId);
+          }}
+        />
+      )}
 
       {webBundyOpen && (
         <WebBundyModal
