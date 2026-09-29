@@ -343,6 +343,26 @@ export async function computeFinalPayPackage(input: FinalPayInputs) {
   const netFinalPay = money(Math.max(0, earnings - loanDeductions - taxAdjustment));
 
   const snapshot = {
+    inputs: {
+      organizationId: input.organizationId,
+      employeeId: input.employeeId,
+      separationType: input.separationType,
+      noticeDate,
+      lastDay,
+      unusedLeaveCredits,
+      leaveBasisNote: input.leaveBasisNote.trim(),
+      finalPayrollVerified: input.finalPayrollVerified,
+      unpaidBasicSalary,
+      otherUnpaidTaxableEarnings,
+      additionalThirteenthMonthBasic,
+      deductOutstandingLoans: input.deductOutstandingLoans,
+      separationPayTaxExemptConfirmed: input.separationPayTaxExemptConfirmed,
+      retirementPlanBenefit,
+      retirementPlanReference: input.retirementPlanReference.trim(),
+      retirementTaxExemptConfirmed: input.retirementTaxExemptConfirmed,
+      additionalCompanyBenefit,
+      additionalCompanyBenefitTaxable: input.additionalCompanyBenefitTaxable,
+    },
     employeeId: employee.id,
     employeeNo: employee.employeeNo,
     separationType: input.separationType,
