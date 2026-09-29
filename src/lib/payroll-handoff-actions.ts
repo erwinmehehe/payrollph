@@ -90,9 +90,13 @@ export function getPayrollHandoffContext(
     : null;
 
   const attendanceIssues = (data.punches ?? []).filter(
-    (punch) => !punch.timeIn || !punch.timeOut,
+    (punch) => inRunPeriod(punch.workDate, run) && (!punch.timeIn || !punch.timeOut),
   ).length;
-  const pendingLeave = (data.leaveRequests ?? []).filter((request) => request.status === "Pending").length;
+  const pendingLeave = (data.leaveRequests ?? []).filter(
+    (request) =>
+      request.status === "Pending" &&
+      overlapsRunPeriod(request.startDate, request.endDate, run),
+  ).length;
   const missingGovernmentIds = data.employees.filter(
     (employee) =>
       employee.status === "Active" &&
@@ -169,16 +173,16 @@ function buildHrAction(
   context: PayrollHandoffContext,
   rank: number,
 ): RoleHandoffAction {
-  if (rank > 0) {
+  if (rank > 1) {
     return waiting(
-      "HR handoff is complete",
-      `${context.run?.periodLabel ?? "This payroll"} has already moved to ${currentOwner(rank)}.`,
+      "HR handoff is locked",
+      `${context.run?.periodLabel ?? "This payroll"} has already moved to ${currentOwner(rank)}. Return it for changes before editing cutoff inputs.`,
     );
   }
 
   const items: HandoffActionItem[] = [];
   if (context.attendanceIssues > 0) {
-    const names = namesForPunchIssues(data);
+    const names = namesForPunchIssues(data, context.run);
     items.push({
       id: `hr-attendance-${context.run?.id ?? "none"}`,
       title: `${context.attendanceIssues} attendance issue${context.attendanceIssues === 1 ? "" : "s"} block payroll`,
@@ -189,7 +193,7 @@ function buildHrAction(
   }
 
   if (context.pendingLeave > 0) {
-    const names = namesForPendingLeave(data);
+    const names = namesForPendingLeave(data, context.run);
     items.push({
       id: `hr-leave-${context.run?.id ?? "none"}`,
       title: `${context.pendingLeave} leave request${context.pendingLeave === 1 ? "" : "s"} still pending`,
@@ -384,10 +388,13 @@ function waiting(title: string, detail: string): RoleHandoffAction {
   };
 }
 
-function namesForPunchIssues(data: DashboardData) {
+function namesForPunchIssues(
+  data: DashboardData,
+  run: PayrollRun | PayrollHandoffRunSummary | null,
+) {
   const ids = new Set(
     (data.punches ?? [])
-      .filter((punch) => !punch.timeIn || !punch.timeOut)
+      .filter((punch) => inRunPeriod(punch.workDate, run) && (!punch.timeIn || !punch.timeOut))
       .map((punch) => punch.employeeId),
   );
   return data.employees
@@ -396,10 +403,17 @@ function namesForPunchIssues(data: DashboardData) {
     .map((employee) => `${employee.firstName} ${employee.lastName}`);
 }
 
-function namesForPendingLeave(data: DashboardData) {
+function namesForPendingLeave(
+  data: DashboardData,
+  run: PayrollRun | PayrollHandoffRunSummary | null,
+) {
   const ids = new Set(
     (data.leaveRequests ?? [])
-      .filter((request) => request.status === "Pending")
+      .filter(
+        (request) =>
+          request.status === "Pending" &&
+          overlapsRunPeriod(request.startDate, request.endDate, run),
+      )
       .map((request) => request.employeeId),
   );
   return data.employees
@@ -450,4 +464,22 @@ function notificationRoleFor(
     return hasRelease ? "owner" : "payroll";
   }
   return null;
+}
+
+
+function inRunPeriod(
+  date: string,
+  run: PayrollRun | PayrollHandoffRunSummary | null,
+) {
+  if (!run?.periodStart || !run?.periodEnd) return true;
+  return date >= run.periodStart && date <= run.periodEnd;
+}
+
+function overlapsRunPeriod(
+  startDate: string,
+  endDate: string,
+  run: PayrollRun | PayrollHandoffRunSummary | null,
+) {
+  if (!run?.periodStart || !run?.periodEnd) return true;
+  return startDate <= run.periodEnd && endDate >= run.periodStart;
 }
