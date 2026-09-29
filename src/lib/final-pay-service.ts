@@ -12,8 +12,6 @@ import {
   payrollEntries,
   payrollRuns,
 } from "@/db/schema";
-import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
-import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { ensureFinalPaySchema } from "@/lib/final-pay-schema";
 import { profileForDate, resolvePayTimeline } from "@/lib/pay-basis";
 import {
@@ -69,9 +67,9 @@ function money(value: number) {
 }
 
 export async function computeFinalPayPackage(input: FinalPayInputs) {
-  await ensureMigrationSchema();
-  await ensureFinalPaySchema();
-  await ensureEmployeePayProfiles(input.organizationId);
+  // Keep runtime-schema lock ordering deterministic across payroll workers:
+  // pay-basis schema -> migration schema -> final-pay schema/backfill.
+  await ensureFinalPaySchema(input.organizationId);
 
   const noticeDate = iso(input.noticeDate, "Notice date");
   const lastDay = iso(input.lastDay, "Last day");
