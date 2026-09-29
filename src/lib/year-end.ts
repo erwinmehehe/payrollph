@@ -153,7 +153,7 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
   }
 
   if (rows.length) {
-    await db.insert(yearEndAdjustments).values(rows.map(({ employee, result, periods }) => ({
+    await db.insert(yearEndAdjustments).values(rows.map(({ employee, result, periods, thirteenthBalance }) => ({
       organizationId,
       employeeId: employee.id,
       taxYear,
