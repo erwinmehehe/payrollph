@@ -510,6 +510,7 @@ export function parseMigrationCsv(input: { csv: string; source: MigrationSource;
     return {
       headers: rows[0] ?? [],
       rows: [] as MigrationRow[],
+      rowLines: [] as number[],
       errors: [{ line: 1, problems: ["CSV needs a header row and at least one data row"] }] as MigrationError[],
       unmappedColumns: rows[0] ?? [],
       mappings: {} as Record<string, string>,
