@@ -1,8 +1,6 @@
 import {
   ArrowRight,
-  Check,
   CheckCircle2,
-  RefreshCcw,
   ShieldCheck,
   UsersRound,
 } from "lucide-react";
