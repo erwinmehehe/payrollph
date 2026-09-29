@@ -37,11 +37,11 @@ jobs:
           set -euo pipefail
           for attempt in {1..40}; do
             code="$(curl -L -sS -o /tmp/preview.html -w "%{http_code}" "$PREVIEW_URL" || true)"
-            if [ "$code" = "200" ]; then
-              echo "Preview is reachable."
+            if [ "$code" = "200" ] && grep -q "Run Philippine payroll with a clear path" /tmp/preview.html; then
+              echo "Preview is reachable and serving the current homepage."
               exit 0
             fi
-            echo "Attempt $attempt: HTTP $code"
+            echo "Attempt $attempt: HTTP $code, waiting for current PR deployment"
             sleep 5
           done
           echo "Preview did not become reachable."
