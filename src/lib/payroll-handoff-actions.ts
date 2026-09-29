@@ -36,12 +36,54 @@ export type PayrollHandoffContext = {
 
 const CLEAR_ATTENDANCE = new Set(["complete", "present", "ok", "approved"]);
 
-export function getPayrollHandoffContext(data: DashboardData): PayrollHandoffContext {
-  const run =
-    data.payrollRuns.find((item) => item.status !== "Released") ??
+export function selectHandoffRunForRole(
+  data: DashboardData,
+  role: CompanyHandoffRole,
+): PayrollRun | PayrollHandoffRunSummary | null {
+  const active = data.payrollRuns.filter((run) => run.status !== "Released");
+
+  if (role === "checker") {
+    return (
+      active.find((run) => run.status === "Pending approval") ??
+      active.find((run) => run.status === "Ready for release") ??
+      active[0] ??
+      data.payrollHandoffRun ??
+      data.payrollRuns[0] ??
+      null
+    );
+  }
+
+  if (role === "owner") {
+    return (
+      active.find((run) => run.status === "Ready for release" || run.status === "Releasing") ??
+      active.find((run) => run.status === "Pending approval") ??
+      active[0] ??
+      data.payrollHandoffRun ??
+      data.payrollRuns[0] ??
+      null
+    );
+  }
+
+  if (role === "hr") {
+    return data.payrollHandoffRun ?? active[0] ?? data.payrollRuns[0] ?? null;
+  }
+
+  return (
+    active.find((run) =>
+      ["Failed", "Needs review", "Recalculating", "Processing", "Queued", "Calculating", "Calculated", "Draft"].includes(run.status),
+    ) ??
+    active[0] ??
     data.payrollHandoffRun ??
     data.payrollRuns[0] ??
-    null;
+    null
+  );
+}
+
+export function getPayrollHandoffContext(
+  data: DashboardData,
+  role: CompanyHandoffRole,
+): PayrollHandoffContext {
+  const run = selectHandoffRunForRole(data, role);
 
   const approval = run
     ? data.tasks
@@ -75,7 +117,7 @@ export function buildRoleHandoffAction(
   data: DashboardData,
   role: CompanyHandoffRole,
 ): RoleHandoffAction {
-  const context = getPayrollHandoffContext(data);
+  const context = getPayrollHandoffContext(data, role);
   const { run, approval } = context;
 
   if (!run) {
@@ -113,7 +155,7 @@ export function buildHandoffNotifications(
   if (action.items.length) return action.items;
 
   if (!action.page) return [];
-  const context = getPayrollHandoffContext(data);
+  const context = getPayrollHandoffContext(data, role);
   return [{
     id: `handoff-${role}-${context.run?.id ?? "none"}-${slug(action.title)}`,
     title: action.title,
