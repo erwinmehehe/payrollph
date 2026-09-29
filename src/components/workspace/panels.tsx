@@ -918,6 +918,18 @@ export function NewPayrollModal({
   );
 }
 
+function outboxPurposeLabel(purpose: string) {
+  if (purpose.startsWith("payroll-review-")) return "Payroll review";
+  if (purpose.startsWith("payroll-release-")) return "Ready for release";
+  if (purpose.startsWith("payroll-returned-")) return "Payroll returned";
+  if (purpose.startsWith("payslip-ready-")) return "Payslip ready";
+  return purpose
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 export function OutboxModal({ organizationId, onClose, setNotice }: { organizationId: number; onClose: () => void; setNotice: (message: string) => void }) {
   const [messages, setMessages] = useState<any[]>([]);
   const [selectedMsg, setSelectedMsg] = useState<any>(null);
@@ -968,7 +980,7 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--muted)", marginBottom: 2 }}>
-                  <span>{msg.purpose}</span>
+                  <span>{outboxPurposeLabel(String(msg.purpose ?? ""))}</span>
                   <span className={`status status-${msg.status}`}>{msg.status}</span>
                 </div>
                 <strong style={{ display: "block", fontSize: 11.5 }}>{msg.recipient}</strong>
