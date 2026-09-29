@@ -1,0 +1,211 @@
+name: Preview Browser QA
+
+on:
+  push:
+    branches:
+      - design/homepage-above-fold-pass-2
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PREVIEW_URL: https://erwinmehehe-payrollph-git-design-homepage-abov-15bcb9-payrollph.vercel.app
+
+jobs:
+  browser-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Playwright for QA
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Wait for Vercel preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..40}; do
+            code="$(curl -L -sS -o /tmp/preview.html -w "%{http_code}" "$PREVIEW_URL" || true)"
+            if [ "$code" = "200" ]; then
+              echo "Preview is reachable."
+              exit 0
+            fi
+            echo "Attempt $attempt: HTTP $code"
+            sleep 5
+          done
+          echo "Preview did not become reachable."
+          exit 1
+
+      - name: Run Chromium homepage and persona QA
+        shell: bash
+        run: |
+          cat > /tmp/preview-qa.cjs <<'JS'
+          const fs = require("node:fs");
+          const { chromium } = require("playwright");
+
+          const base = process.env.PREVIEW_URL;
+          const outDir = "qa-artifacts";
+          fs.mkdirSync(outDir, { recursive: true });
+
+          const report = {
+            base,
+            homepage: [],
+            modules: [],
+            personas: [],
+            errors: [],
+          };
+
+          function check(condition, message) {
+            if (!condition) throw new Error(message);
+          }
+
+          async function collectPageErrors(page, bucket) {
+            page.on("pageerror", (error) => bucket.push(`pageerror: ${error.message}`));
+            page.on("console", (message) => {
+              if (message.type() === "error") bucket.push(`console: ${message.text()}`);
+            });
+          }
+
+          async function qaHomepage(browser, name, viewport) {
+            const context = await browser.newContext({ viewport });
+            const page = await context.newPage();
+            const errors = [];
+            await collectPageErrors(page, errors);
+
+            const response = await page.goto(base, { waitUntil: "networkidle", timeout: 90000 });
+            check(response && response.ok(), `${name}: homepage did not return 2xx`);
+
+            const h1 = (await page.locator("h1").first().innerText()).trim();
+            check(h1.includes("Run Philippine payroll"), `${name}: expected payroll hero heading not found`);
+
+            const overflow = await page.evaluate(() => ({
+              scrollWidth: document.documentElement.scrollWidth,
+              innerWidth: window.innerWidth,
+            }));
+            check(
+              overflow.scrollWidth <= overflow.innerWidth + 1,
+              `${name}: horizontal overflow ${overflow.scrollWidth}px > ${overflow.innerWidth}px`,
+            );
+
+            await page.screenshot({
+              path: `${outDir}/homepage-${name}.png`,
+              fullPage: true,
+            });
+
+            report.homepage.push({ name, viewport, h1, overflow, errors });
+
+            if (name === "desktop") {
+              const stage = page.locator("#hero-product-preview");
+              check(await stage.count(), "desktop: focused hero product preview is missing");
+
+              for (const moduleName of ["Payroll", "People", "Migration", "Approvals", "Compliance"]) {
+                const button = stage.locator("button.nav-item").filter({ hasText: moduleName }).first();
+                check(await button.count(), `desktop: missing hero module ${moduleName}`);
+                await button.click();
+                await page.waitForTimeout(150);
+                const current = await button.getAttribute("aria-current");
+                check(current === "page", `desktop: ${moduleName} did not become active after click`);
+                report.modules.push({ module: moduleName, active: true });
+              }
+            }
+
+            check(errors.length === 0, `${name}: browser console/page errors: ${errors.join(" | ")}`);
+            await context.close();
+          }
+
+          const personas = [
+            { id: "owner", label: "Owner", short: "Owner", person: "Andrea Lim", landing: "Overview" },
+            { id: "hr", label: "HR Admin", short: "HR Admin", person: "Aira Villanueva", landing: "People" },
+            { id: "payroll", label: "Payroll Officer", short: "Payroll", person: "Paolo Cruz", landing: "Payroll" },
+            { id: "checker", label: "Checker", short: "Checker", person: "Mariel Santos", landing: "Approvals" },
+            { id: "employee", label: "Employee", short: "Employee", person: "Jonas Reyes", landing: "My pay" },
+          ];
+
+          async function qaPersona(browser, persona) {
+            const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+            const page = await context.newPage();
+            const errors = [];
+            await collectPageErrors(page, errors);
+
+            const demoResponse = await page.goto(`${base}/demo`, { waitUntil: "networkidle", timeout: 90000 });
+            check(demoResponse && demoResponse.ok(), `${persona.label}: /demo did not return 2xx`);
+
+            const roleTab = page.getByRole("tab").filter({ hasText: persona.label }).first();
+            check(await roleTab.count(), `${persona.label}: role tab is missing`);
+            await roleTab.click();
+
+            const openButton = page.getByRole("button", { name: new RegExp(`^Open ${persona.short} demo`, "i") });
+            check(await openButton.count(), `${persona.label}: launch button is missing`);
+
+            await openButton.click();
+            await page.waitForURL(new RegExp(`[?&]demoRole=${persona.id}(?:&|$)`), { timeout: 90000 });
+            await page.waitForLoadState("networkidle");
+
+            const body = await page.locator("body").innerText();
+            check(body.includes("ROLE SANDBOX"), `${persona.label}: role sandbox did not render after launch`);
+            check(body.includes(persona.person), `${persona.label}: expected persona identity ${persona.person} is missing`);
+            check(body.includes(persona.landing), `${persona.label}: expected landing context ${persona.landing} is missing`);
+
+            const alert = page.getByRole("alert");
+            if (await alert.count()) {
+              const alertText = (await alert.first().innerText()).trim();
+              check(!alertText, `${persona.label}: launch alert: ${alertText}`);
+            }
+
+            await page.screenshot({
+              path: `${outDir}/persona-${persona.id}.png`,
+              fullPage: true,
+            });
+
+            check(errors.length === 0, `${persona.label}: browser console/page errors: ${errors.join(" | ")}`);
+
+            report.personas.push({
+              id: persona.id,
+              label: persona.label,
+              url: page.url(),
+              person: persona.person,
+              landing: persona.landing,
+              errors,
+            });
+            await context.close();
+          }
+
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            try {
+              await qaHomepage(browser, "desktop", { width: 1440, height: 1000 });
+              await qaHomepage(browser, "mobile-390", { width: 390, height: 844 });
+
+              for (const persona of personas) {
+                await qaPersona(browser, persona);
+              }
+            } catch (error) {
+              report.errors.push(error instanceof Error ? error.message : String(error));
+              throw error;
+            } finally {
+              fs.writeFileSync(`${outDir}/report.json`, JSON.stringify(report, null, 2));
+              await browser.close();
+            }
+          })();
+          JS
+
+          node /tmp/preview-qa.cjs
+
+      - name: Upload browser QA artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: payrollph-preview-browser-qa
+          path: qa-artifacts/
+          retention-days: 3
