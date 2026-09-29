@@ -1,4 +1,4 @@
-import { count, eq } from "drizzle-orm";
+import { count, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { organizations, userOrganizations, users } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
@@ -45,29 +45,50 @@ export async function POST(request: Request) {
   problems.push(...passwordIssues(password));
   if (problems.length) return Response.json({ error: "Validation failed.", problems }, { status: 422 });
 
-  const [organization] = await db.insert(organizations).values({
-    name: companyName,
-    legalName,
-    accountType: "business",
-    plan: "Core",
-    employeeCount: 0,
-    color: "#176B5D",
-  }).returning();
+  let organization;
+  let user;
+  try {
+    const created = await db.transaction(async (tx) => {
+      // Serialize first-run ownership so two concurrent setup requests cannot
+      // both become owner accounts on a fresh deployment.
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('linaw-first-run-setup-v1'))`);
+      const [{ value: existingUsers }] = await tx.select({ value: count() }).from(users);
+      if (Number(existingUsers) > 0) throw new Error("SETUP_ALREADY_COMPLETE");
 
-  const [user] = await db.insert(users).values({
-    email,
-    name,
-    passwordHash: hashPassword(password),
-    role: "owner",
-    totpEnabled: false,
-    backupCodes: [],
-  }).returning();
+      const [createdOrganization] = await tx.insert(organizations).values({
+        name: companyName,
+        legalName,
+        accountType: "business",
+        plan: "Core",
+        employeeCount: 0,
+        color: "#176B5D",
+      }).returning();
 
-  await db.insert(userOrganizations).values({
-    userId: user.id,
-    organizationId: organization.id,
-    role: "owner",
-  });
+      const [createdUser] = await tx.insert(users).values({
+        email,
+        name,
+        passwordHash: hashPassword(password),
+        role: "owner",
+        totpEnabled: false,
+        backupCodes: [],
+      }).returning();
+
+      await tx.insert(userOrganizations).values({
+        userId: createdUser.id,
+        organizationId: createdOrganization.id,
+        role: "owner",
+      });
+
+      return { organization: createdOrganization, user: createdUser };
+    });
+    organization = created.organization;
+    user = created.user;
+  } catch (error) {
+    if (error instanceof Error && error.message === "SETUP_ALREADY_COMPLETE") {
+      return Response.json({ error: "Setup is already complete. Sign in instead." }, { status: 409 });
+    }
+    throw error;
+  }
 
   await recordAuditEvent({
     organizationId: organization.id,
