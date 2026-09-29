@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { buildPayrollHandoff, type PayrollHandoffStage } from "@/lib/payroll-handoff";
-import { buildRoleHandoffAction, selectHandoffRunForRole, type RoleHandoffAction } from "@/lib/payroll-handoff-actions";
+import { buildRoleHandoffAction, getPayrollHandoffContext, selectHandoffRunForRole, type RoleHandoffAction } from "@/lib/payroll-handoff-actions";
 import type { DashboardData, PayrollHandoffRunSummary, PayrollRun, Task } from "./types";
 import {
   Avatar,
@@ -67,15 +67,11 @@ export function RoleOverviewView({
   const roleCurrentRun = handoffRun
     ? data.payrollRuns.find((run) => run.id === handoffRun.id) ?? currentRun
     : currentRun;
-  const payrollApproval = handoffRun
-    ? data.tasks
-        .filter((task) => task.detail.includes(`Payroll run #${handoffRun.id}`))
-        .sort((a, b) => b.id - a.id)[0] ?? null
-    : null;
+  const handoffContext = getPayrollHandoffContext(data, role);
   const handoffStages = buildPayrollHandoff(handoffRun, {
-    hrIssues: pendingLeave.length + attendanceIssues.length + peopleMissingGovernmentIds.length,
-    payrollExceptions: payrollExceptions.length,
-    approvalTask: payrollApproval,
+    hrIssues: handoffContext.hrBlockers,
+    payrollExceptions: handoffContext.payrollExceptions,
+    approvalTask: handoffContext.approval,
   });
   const roleAction = buildRoleHandoffAction(data, role);
 
