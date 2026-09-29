@@ -55,10 +55,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          ORG_ID="$(psql "$DATABASE_URL" -Atc "select id from organizations where name='Loom & Local' limit 1")"
-          test -n "$ORG_ID"
-          echo "Loom & Local organization: $ORG_ID"
-
           launch_role() {
             role="$1"
             jar="/tmp/$role.cookies"
@@ -84,6 +80,10 @@ jobs:
           for role in owner hr payroll checker employee; do
             launch_role "$role"
           done
+
+          ORG_ID="$(psql "$DATABASE_URL" -Atc "select id from organizations where name='Loom & Local' limit 1")"
+          test -n "$ORG_ID"
+          echo "Loom & Local organization: $ORG_ID"
 
           curl -fsS             -b /tmp/owner.cookies             "http://127.0.0.1:3000/api/dashboard?organizationId=$ORG_ID"             > /tmp/owner-dashboard.json
 
