@@ -66,6 +66,8 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
   const [focusEmployeeId, setFocusEmployeeId] = useState<number | null>(null);
   const [attendanceFocusToken, setAttendanceFocusToken] = useState(0);
   const [payrollExceptionFocusToken, setPayrollExceptionFocusToken] = useState(0);
+  const [payrollReviewFocusToken, setPayrollReviewFocusToken] = useState(0);
+  const [payrollReleaseFocusToken, setPayrollReleaseFocusToken] = useState(0);
 
   // Modals kept from the original build, all still server-authorised.
   const [newPayrollOpen, setNewPayrollOpen] = useState(false);
@@ -116,6 +118,12 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
     }
     if (item.focus === "payroll-exceptions") {
       setPayrollExceptionFocusToken((current) => current + 1);
+    }
+    if (item.focus === "submit-review") {
+      setPayrollReviewFocusToken((current) => current + 1);
+    }
+    if (item.focus === "release-payroll") {
+      setPayrollReleaseFocusToken((current) => current + 1);
     }
     setPage(item.page);
   }, []);
@@ -391,6 +399,8 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
             }}
             notify={notify}
             focusExceptionsToken={payrollExceptionFocusToken}
+            focusReviewToken={payrollReviewFocusToken}
+            focusReleaseToken={payrollReleaseFocusToken}
           />
         )}
 
