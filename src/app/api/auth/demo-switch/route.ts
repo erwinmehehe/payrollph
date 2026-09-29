@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { employees, organizations, userOrganizations, users } from "@/db/schema";
 import { createSession, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth";
 import { requestMeta } from "@/lib/rate-limit";
-import { hashPassword } from "@/lib/crypto";
+import { hashPassword, randomToken } from "@/lib/crypto";
 import { DEMO_MODE, ensureSeedData } from "@/db/seed";
 import { ensurePublicDemoTenant } from "@/db/public-demo";
 import { DEMO_ROLE_IDS, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
@@ -93,7 +93,7 @@ async function ensureDemoAccount(role: DemoRoleId, organizationId: number) {
       .values({
         email: account.email,
         name: account.name,
-        passwordHash: hashPassword("LinawDemo2026!"),
+        passwordHash: hashPassword(randomToken(32)),
         role: account.userRole,
         totpEnabled: false,
         backupCodes: [],
@@ -107,6 +107,9 @@ async function ensureDemoAccount(role: DemoRoleId, organizationId: number) {
         name: account.name,
         role: account.userRole,
         employeeId,
+        // Public demo access is session-provisioned, never password-based.
+        // Rotate to an unknowable password so source-visible demo credentials cannot log in normally.
+        passwordHash: hashPassword(randomToken(32)),
       })
       .where(eq(users.id, user.id))
       .returning();
