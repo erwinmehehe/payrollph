@@ -6,7 +6,8 @@ import { recordAuditEvent } from "@/lib/audit";
 import { findReplay, storeReplay } from "@/lib/idempotency";
 import { clientIp, rateLimitDistributed } from "@/lib/rate-limit";
 import { dispatchWebhook } from "@/lib/webhooks";
-import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
+import { ensureEmployeePayHistory } from "@/lib/pay-basis-schema";
+import { recordEffectivePayChange } from "@/lib/pay-history-server";
 import { resolvePayProfile } from "@/lib/pay-basis";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +26,7 @@ export async function GET(request: Request) {
     return Response.json({ error: "API key is missing the employees:read scope." }, { status: 403 });
   }
 
-  await ensureEmployeePayProfiles(auth.organizationId);
+  await ensureEmployeePayHistory(auth.organizationId);
 
   const { searchParams } = new URL(request.url);
   const limit = Math.min(200, Math.max(1, Number(searchParams.get("limit") ?? 50)));
@@ -114,7 +115,7 @@ export async function POST(request: Request) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) problems.push("startDate must be YYYY-MM-DD.");
   if (problems.length) return Response.json({ error: "Validation failed.", problems }, { status: 422 });
 
-  await ensureEmployeePayProfiles(auth.organizationId);
+  await ensureEmployeePayHistory(auth.organizationId);
   const [{ value: existing }] = await db.select({ value: count() }).from(employees).where(eq(employees.organizationId, auth.organizationId));
   const employeeNo = String(body.employeeNo ?? `API-${String(existing + 1).padStart(4, "0")}`).trim();
 
@@ -138,22 +139,13 @@ export async function POST(request: Request) {
     startDate,
   }).returning();
 
-  await db.insert(employeePayProfiles).values({
-    employeeId: created.id,
+  await recordEffectivePayChange({
     organizationId: auth.organizationId,
-    payBasis: payProfile!.payBasis,
-    rateAmount: payProfile!.rateAmount.toFixed(2),
-    standardWorkDaysPerMonth: payProfile!.standardWorkDaysPerMonth.toFixed(2),
-    standardHoursPerDay: payProfile!.standardHoursPerDay.toFixed(2),
-  }).onConflictDoUpdate({
-    target: employeePayProfiles.employeeId,
-    set: {
-      payBasis: payProfile!.payBasis,
-      rateAmount: payProfile!.rateAmount.toFixed(2),
-      standardWorkDaysPerMonth: payProfile!.standardWorkDaysPerMonth.toFixed(2),
-      standardHoursPerDay: payProfile!.standardHoursPerDay.toFixed(2),
-      updatedAt: new Date(),
-    },
+    employeeId: created.id,
+    effectiveFrom: startDate,
+    payProfile: payProfile!,
+    reason: "Opening pay profile via API",
+    actor: `api_key:${auth.keyId}`,
   });
 
   const payload = {
