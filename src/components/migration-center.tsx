@@ -5,13 +5,19 @@ import {
   ArrowRight,
   CheckCircle2,
   Database,
+  Download,
   FileSpreadsheet,
   History,
   RefreshCw,
   ShieldCheck,
   UploadCloud,
 } from "lucide-react";
-import { MIGRATION_SOURCES, type MigrationKind, type MigrationSource } from "@/lib/migration-import";
+import {
+  MIGRATION_SOURCES,
+  MIGRATION_TEMPLATE_HEADERS,
+  type MigrationKind,
+  type MigrationSource,
+} from "@/lib/migration-import";
 import { PageHeading } from "@/components/workspace/ui";
 
 type MigrationResult = {
@@ -21,6 +27,9 @@ type MigrationResult = {
   kind?: MigrationKind;
   fileName?: string;
   totalRows?: number;
+  readyCount?: number;
+  attentionCount?: number;
+  duplicateCount?: number;
   createdCount?: number;
   updatedCount?: number;
   errorCount?: number;
@@ -73,7 +82,7 @@ export function MigrationCenter({
 }) {
   const [source, setSource] = useState<MigrationSource>("sprout");
   const [kind, setKind] = useState<MigrationKind>("employees");
-  const [csv, setCsv] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState("");
   const [preview, setPreview] = useState<MigrationResult | null>(null);
   const [history, setHistory] = useState<Batch[]>([]);
@@ -96,14 +105,20 @@ export function MigrationCenter({
   }, [organizationId]);
 
   async function submit(dryRun: boolean) {
-    if (!csv) return;
+    if (!file) return;
     setBusy(true);
     if (dryRun) setPreview(null);
     try {
+      const form = new FormData();
+      form.set("organizationId", String(organizationId));
+      form.set("source", source);
+      form.set("kind", kind);
+      form.set("dryRun", String(dryRun));
+      form.set("file", file, file.name);
+
       const response = await fetch("/api/migrations", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ organizationId, source, kind, csv, fileName, dryRun }),
+        body: form,
       });
       const payload = (await response.json().catch(() => ({}))) as MigrationResult;
       setPreview(payload);
@@ -117,9 +132,20 @@ export function MigrationCenter({
   }
 
   function resetFile() {
-    setCsv("");
+    setFile(null);
     setFileName("");
     setPreview(null);
+  }
+
+  function downloadTemplate() {
+    const escape = (value: string) => `"${value.replaceAll('"', '""')}"`;
+    const csv = `${MIGRATION_TEMPLATE_HEADERS[kind].map(escape).join(",")}\n`;
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `linaw-${kind.replaceAll("_", "-")}-migration-template.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 
   const validPreview = preview && !preview.error && preview.dryRun === true;
@@ -137,7 +163,7 @@ export function MigrationCenter({
           <div>
             <div className="card-kicker">1 · CURRENT SYSTEM</div>
             <h2>Where are you switching from?</h2>
-            <p>Presets recognize common headings, while the generic option handles other CSV exports.</p>
+            <p>Presets recognize common headings, while the generic option handles other CSV or Excel exports.</p>
           </div>
           <Database size={20} className="i-purple" />
         </div>
@@ -200,35 +226,45 @@ export function MigrationCenter({
         </div>
 
         <div style={{ padding: "0 17px 17px" }}>
+          <div className="run-actions" style={{ paddingLeft: 0, paddingRight: 0, paddingTop: 0 }}>
+            <button className="secondary-button" type="button" onClick={downloadTemplate}>
+              <Download size={14} className="i-teal" /> Download {kindLabel(kind)} template
+            </button>
+          </div>
+
           <label className="input-label">
-            CSV export
+            CSV or Excel export
             <input
+              key={fileName || "migration-file"}
               type="file"
-              accept=".csv,text/csv"
-              onChange={async (event) => {
-                const file = event.target.files?.[0];
-                if (!file) return;
-                setFileName(file.name);
-                setCsv(await file.text());
+              accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              onChange={(event) => {
+                const selected = event.target.files?.[0] ?? null;
+                if (!selected) return;
+                setFile(selected);
+                setFileName(selected.name);
                 setPreview(null);
               }}
             />
           </label>
+          <p className="auth-copy" style={{ marginTop: 6 }}>
+            Upload a .csv or modern Excel .xlsx export up to 15 MB. The first worksheet is used for Excel files.
+          </p>
 
-          {fileName && (
+          {fileName && file && (
             <div className="notice notice-blue" style={{ marginTop: 10 }}>
               <UploadCloud size={16} className="i-teal" />
               <span>
-                <strong>{fileName}</strong> · {Math.max(0, csv.trim().split(/\r?\n/).length - 1)} data row(s)
+                <strong>{fileName}</strong> · {Math.max(1, Math.ceil(file.size / 1024)).toLocaleString("en-PH")} KB
               </span>
             </div>
           )}
 
           <div className="run-actions" style={{ paddingLeft: 0, paddingRight: 0 }}>
-            <button className="secondary-button" disabled={busy || !csv} onClick={() => void submit(true)}>
+            <button className="secondary-button" disabled={busy || !file} onClick={() => void submit(true)}>
               <ShieldCheck size={14} /> {busy ? "Checking…" : "Validate migration"}
             </button>
-            <button className="secondary-button" disabled={busy || !csv} onClick={resetFile}>
+            <button className="secondary-button" disabled={busy || !file} onClick={resetFile}>
               <RefreshCw size={14} /> Clear
             </button>
           </div>
@@ -242,19 +278,24 @@ export function MigrationCenter({
               </div>
             ) : (
               <>
-                <div className={preview.errorCount ? "notice notice-amber" : "notice notice-green"}>
-                  <CheckCircle2 size={16} className={preview.errorCount ? "i-amber" : "i-green"} />
+                <div className={(preview.attentionCount ?? 0) > 0 || (preview.duplicateCount ?? 0) > 0 ? "notice notice-amber" : "notice notice-green"}>
+                  <CheckCircle2
+                    size={16}
+                    className={(preview.attentionCount ?? 0) > 0 || (preview.duplicateCount ?? 0) > 0 ? "i-amber" : "i-green"}
+                  />
                   <span>
                     <strong>{preview.dryRun ? "Validation complete." : "Migration complete."}</strong>{" "}
-                    {preview.createdCount ?? 0} new · {preview.updatedCount ?? 0} updates · {preview.errorCount ?? 0} errors.
+                    {preview.readyCount ?? ((preview.createdCount ?? 0) + (preview.updatedCount ?? 0))} ready ·{" "}
+                    {preview.attentionCount ?? preview.errorCount ?? 0} need attention ·{" "}
+                    {preview.duplicateCount ?? 0} duplicates.
                   </span>
                 </div>
 
                 <div className="run-stats" style={{ margin: "12px 0" }}>
                   <div><span>Rows</span><strong>{preview.totalRows ?? 0}</strong><small>in uploaded file</small></div>
-                  <div><span>New</span><strong>{preview.createdCount ?? 0}</strong><small>records to create</small></div>
-                  <div><span>Updates</span><strong>{preview.updatedCount ?? 0}</strong><small>matched by stable ID</small></div>
-                  <div><span>Errors</span><strong>{preview.errorCount ?? 0}</strong><small>skipped until fixed</small></div>
+                  <div><span>Ready</span><strong>{preview.readyCount ?? 0}</strong><small>{preview.createdCount ?? 0} new · {preview.updatedCount ?? 0} updates</small></div>
+                  <div><span>Need attention</span><strong>{preview.attentionCount ?? preview.errorCount ?? 0}</strong><small>fix before they can import</small></div>
+                  <div><span>Duplicates</span><strong>{preview.duplicateCount ?? 0}</strong><small>skipped from this batch</small></div>
                 </div>
 
                 {Object.keys(preview.mappings ?? {}).length > 0 && (
