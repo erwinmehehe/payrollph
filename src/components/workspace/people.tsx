@@ -79,7 +79,7 @@ export function PeopleView({
 
     const direction = sort.dir === "asc" ? 1 : -1;
     return [...rows].sort((a, b) => {
-      if (sort.key === "basicRate") return (Number(a.basicRate) - Number(b.basicRate)) * direction;
+      if (sort.key === "basicRate") return (Number(a.payRate ?? a.basicRate) - Number(b.payRate ?? b.basicRate)) * direction;
       if (sort.key === "status") return a.status.localeCompare(b.status) * direction;
       return `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`) * direction;
     });
@@ -172,7 +172,7 @@ export function PeopleView({
               />
             </div>
             <button className="filter-button" onClick={() => toggleSort("basicRate")}>
-              <ArrowUpDown size={13} /> Monthly basic
+              <ArrowUpDown size={13} /> Pay rate
             </button>
             <button className="filter-button" onClick={() => toggleSort("status")}>
               <ArrowUpDown size={13} /> Status
@@ -189,7 +189,7 @@ export function PeopleView({
                   <th>Type</th>
                   <th>Status</th>
                   <th className="right sortable" onClick={() => toggleSort("basicRate")} aria-sort={sort.key === "basicRate" ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}>
-                    Monthly basic
+                    Pay rate
                   </th>
                   <th className="right">Region</th>
                 </tr>
@@ -226,7 +226,10 @@ export function PeopleView({
                       <Status value={employee.status} />
                     </td>
                     <td className="right num">
-                      {money(employee.basicRate)}
+                      {money(employee.payRate ?? employee.basicRate)}
+                      <small style={{ display: "block", color: "var(--muted)" }}>
+                        {employee.payBasis === "daily" ? "daily" : employee.payBasis === "hourly" ? "hourly" : "monthly"}
+                      </small>
                       {employee.mwe && <small className="mwe-tag">MWE</small>}
                     </td>
                     <td className="right mono" style={{ color: "var(--muted)" }}>
@@ -344,6 +347,13 @@ function PersonDrawer({
   onRefresh: () => Promise<void>;
   onClose: () => void;
 }) {
+  const [editingPay, setEditingPay] = useState(false);
+  const [savingPay, setSavingPay] = useState(false);
+  const [payBasis, setPayBasis] = useState(employee.payBasis ?? "monthly");
+  const [payRate, setPayRate] = useState(employee.payRate ?? employee.basicRate);
+  const [standardWorkDaysPerMonth, setStandardWorkDaysPerMonth] = useState(employee.standardWorkDaysPerMonth ?? "22");
+  const [standardHoursPerDay, setStandardHoursPerDay] = useState(employee.standardHoursPerDay ?? "8");
+  const [payError, setPayError] = useState("");
   const [editingGovernment, setEditingGovernment] = useState(false);
   const [savingGovernment, setSavingGovernment] = useState(false);
   const [middleName, setMiddleName] = useState(employee.middleName ?? "");
@@ -354,6 +364,34 @@ function PersonDrawer({
   const [pagIbigNo, setPagIbigNo] = useState(employee.pagIbigNo ?? "");
   const [nationality, setNationality] = useState(employee.nationality ?? "Filipino");
   const [governmentError, setGovernmentError] = useState("");
+
+  async function savePayProfile() {
+    setSavingPay(true);
+    setPayError("");
+    try {
+      const response = await fetch("/api/employees", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId: data.selectedOrganization.id,
+          employeeId: employee.id,
+          payBasis,
+          rateAmount: Number(payRate),
+          standardWorkDaysPerMonth: Number(standardWorkDaysPerMonth),
+          standardHoursPerDay: Number(standardHoursPerDay),
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setPayError(payload.error ?? "Could not save the pay profile.");
+        return;
+      }
+      await onRefresh();
+      onClose();
+    } finally {
+      setSavingPay(false);
+    }
+  }
 
   async function saveGovernmentIdentity() {
     setSavingGovernment(true);
@@ -415,9 +453,9 @@ function PersonDrawer({
 
         <div className="run-stats" style={{ margin: "16px 0" }}>
           <div>
-            <span>Monthly basic</span>
-            <strong>{money(employee.basicRate)}</strong>
-            <small>{employee.mwe ? "minimum-wage earner, tax exempt" : `region ${employee.region ?? "NCR"}`}</small>
+            <span>{employee.payBasis === "daily" ? "Daily rate" : employee.payBasis === "hourly" ? "Hourly rate" : "Monthly rate"}</span>
+            <strong>{money(employee.payRate ?? employee.basicRate)}</strong>
+            <small>{employee.payBasis === "daily" ? "daily paid" : employee.payBasis === "hourly" ? "hourly paid" : "monthly salaried"} · {employee.mwe ? "MWE" : `region ${employee.region ?? "NCR"}`}</small>
           </div>
           <div>
             <span>This run gross</span>
@@ -430,6 +468,74 @@ function PersonDrawer({
             <small>{entry ? `after ${money(entry.deductions)} deductions` : "-"}</small>
           </div>
         </div>
+
+        <section className="card" style={{ margin: "0 0 16px", boxShadow: "none" }}>
+          <div className="card-header">
+            <div>
+              <div className="card-kicker">PAYROLL PROFILE</div>
+              <h2 style={{ fontSize: 14 }}>Explicit pay basis</h2>
+              <p>Payroll never chooses salary behavior from attendance. The selected basis controls how regular time, leave, tardiness and undertime affect pay.</p>
+            </div>
+            {canManage && (
+              <button className="secondary-button" onClick={() => setEditingPay((value) => !value)}>
+                {editingPay ? "Cancel" : "Edit pay"}
+              </button>
+            )}
+          </div>
+          {editingPay ? (
+            <>
+              <div className="setting-form">
+                <label>Pay basis
+                  <select value={payBasis} onChange={(event) => setPayBasis(event.target.value)}>
+                    <option value="monthly">Monthly salaried</option>
+                    <option value="daily">Daily paid</option>
+                    <option value="hourly">Hourly paid</option>
+                  </select>
+                </label>
+                <label>{payBasis === "daily" ? "Daily rate" : payBasis === "hourly" ? "Hourly rate" : "Monthly rate"}
+                  <input type="number" min="0.01" step="0.01" value={payRate} onChange={(event) => setPayRate(event.target.value)} />
+                </label>
+                <label>Standard work days / month
+                  <input type="number" min="1" max="31" step="0.5" value={standardWorkDaysPerMonth} onChange={(event) => setStandardWorkDaysPerMonth(event.target.value)} />
+                </label>
+                <label>Standard hours / day
+                  <input type="number" min="1" max="24" step="0.25" value={standardHoursPerDay} onChange={(event) => setStandardHoursPerDay(event.target.value)} />
+                </label>
+              </div>
+              {payError && <div className="notice notice-amber" style={{ margin: "0 16px 10px" }}><span>{payError}</span></div>}
+              <div className="run-actions">
+                <button className="primary-button" disabled={savingPay} onClick={() => void savePayProfile()}>
+                  <Check size={14} /> {savingPay ? "Saving…" : "Save pay profile"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="card-body">
+              <div className="run-stats" style={{ margin: 0 }}>
+                <div>
+                  <span>Basis</span>
+                  <strong style={{ fontSize: 13 }}>{employee.payBasis === "daily" ? "Daily paid" : employee.payBasis === "hourly" ? "Hourly paid" : "Monthly salaried"}</strong>
+                  <small>explicit payroll behavior</small>
+                </div>
+                <div>
+                  <span>Configured rate</span>
+                  <strong style={{ fontSize: 13 }}>{money(employee.payRate ?? employee.basicRate)}</strong>
+                  <small>per {employee.payBasis === "daily" ? "day" : employee.payBasis === "hourly" ? "hour" : "month"}</small>
+                </div>
+                <div>
+                  <span>Work pattern</span>
+                  <strong style={{ fontSize: 13 }}>{employee.standardWorkDaysPerMonth ?? "22"} d · {employee.standardHoursPerDay ?? "8"} h</strong>
+                  <small>monthly days · daily hours</small>
+                </div>
+                <div>
+                  <span>Monthly equivalent</span>
+                  <strong style={{ fontSize: 13 }}>{money(employee.basicRate)}</strong>
+                  <small>used by existing monthly statutory engines</small>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
 
         <section className="card" style={{ margin: "0 0 16px", boxShadow: "none" }}>
           <div className="card-header">
