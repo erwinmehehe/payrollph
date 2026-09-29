@@ -165,11 +165,11 @@ jobs:
           }
 
           const personas = [
-            { id: "owner", label: "Owner", short: "Owner", person: "Andrea Lim", landing: "Overview", taskPage: "Overview" },
-            { id: "hr", label: "HR Admin", short: "HR Admin", person: "Aira Villanueva", landing: "People", taskPage: "People" },
-            { id: "payroll", label: "Payroll Officer", short: "Payroll", person: "Paolo Cruz", landing: "Payroll", taskPage: "Payroll" },
-            { id: "checker", label: "Checker", short: "Checker", person: "Mariel Santos", landing: "Approvals", taskPage: "Approvals" },
-            { id: "employee", label: "Employee", short: "Employee", person: "Jonas Reyes", landing: "My pay", taskPage: "My pay" },
+            { id: "owner", label: "Owner", short: "Owner", person: "Andrea Lim", landing: "Company control center", taskPage: "Overview", dashboardRole: "owner" },
+            { id: "hr", label: "HR Admin", short: "HR Admin", person: "Aira Villanueva", landing: "People operations today", taskPage: "People", dashboardRole: "hr" },
+            { id: "payroll", label: "Payroll Officer", short: "Payroll", person: "Paolo Cruz", landing: "Cutoff control center", taskPage: "Payroll", dashboardRole: "payroll" },
+            { id: "checker", label: "Checker", short: "Checker", person: "Mariel Santos", landing: "Independent review queue", taskPage: "Approvals", dashboardRole: "checker" },
+            { id: "employee", label: "Employee", short: "Employee", person: "Jonas Reyes", landing: "My pay", taskPage: "My pay", dashboardRole: null },
           ];
 
           async function qaPersona(browser, persona) {
@@ -208,6 +208,10 @@ jobs:
             check(body.includes("ROLE SANDBOX"), `${persona.label}: role sandbox did not render after launch`);
             check(body.includes(persona.person), `${persona.label}: expected persona identity ${persona.person} is missing`);
             check(body.toLowerCase().includes(persona.landing.toLowerCase()), `${persona.label}: expected landing context ${persona.landing} is missing`);
+            if (persona.dashboardRole) {
+              const dashboard = page.locator(`[data-role-dashboard="${persona.dashboardRole}"]`);
+              check((await dashboard.count()) === 1, `${persona.label}: role-specific dashboard did not render`);
+            }
 
             const alert = page.getByRole("alert");
             if (await alert.count()) {
