@@ -8,6 +8,7 @@ export type PayrollReleaseChecklistItem = {
   label: string;
   passed: boolean;
   blocking: boolean;
+  acknowledgeable?: boolean;
   detail: string;
 };
 
@@ -53,9 +54,9 @@ export async function buildPayrollReleaseChecklist(runId: number, options: { ack
 
   const items: PayrollReleaseChecklistItem[] = [
     { key:"inputs", label:"Employee inputs", passed:inputsComplete, blocking:true, detail:inputsComplete ? `${rows.length} payroll employee record(s) have the required inputs.` : "One or more payroll employees are missing an employee number, valid basic rate, or start date." },
-    { key:"attendance", label:"Attendance", passed:attendancePassed, blocking:true, detail:missingAttendance.length === 0 ? "No employee used the no-punch payroll fallback." : options.acknowledgeExceptions ? `${missingAttendance.length} attendance exception(s) were explicitly acknowledged.` : `${missingAttendance.length} employee(s) have no attendance in this cutoff and require review or acknowledgement.` },
+    { key:"attendance", label:"Attendance", passed:attendancePassed, blocking:true, acknowledgeable: missingAttendance.length > 0, detail:missingAttendance.length === 0 ? "No employee used the no-punch payroll fallback." : options.acknowledgeExceptions ? `${missingAttendance.length} attendance exception(s) were explicitly acknowledged.` : `${missingAttendance.length} employee(s) have no attendance in this cutoff and require review or acknowledgement.` },
     { key:"calculation", label:"Payroll calculation", passed:calculationComplete, blocking:true, detail:calculationComplete ? `${rows.length}/${expectedEntries} entries calculated and all chunks completed.` : `Calculation incomplete: ${rows.length}/${expectedEntries} entries, ${run.processedChunks ?? 0}/${run.totalChunks ?? 0} chunks.` },
-    { key:"exceptions", label:"Exceptions", passed:exceptionPassed, blocking:true, detail:exceptionPassed ? "No unresolved release-blocking payroll exception remains." : `${nonBankBlockers.length} blocking assurance finding(s) and/or ${run.exceptions} engine exception(s) still require action.` },
+    { key:"exceptions", label:"Exceptions", passed:exceptionPassed, blocking:true, acknowledgeable: nonBankBlockers.length === 0 && Number(run.exceptions) > 0, detail:exceptionPassed ? "No unresolved release-blocking payroll exception remains." : `${nonBankBlockers.length} blocking assurance finding(s) and/or ${run.exceptions} engine exception(s) still require action.` },
     { key:"statutory", label:"Statutory calculations", passed:statutoryPassed, blocking:true, detail:statutoryPassed ? "SSS, PhilHealth and Pag-IBIG treatment is present where compensation requires it." : `${statutoryReview.length} employee(s) need statutory treatment confirmation.` },
     { key:"approval", label:"Checker approval", passed:approvalPassed, blocking:true, detail:approvalPassed ? `Approved by ${approval?.decidedBy ?? approval?.approver ?? "the assigned checker"}.` : approval?.status === "Pending" ? `Waiting for ${approval.approver}.` : "No current approved checker task exists for this run." },
     { key:"bank", label:"Payout readiness", passed:bankPassed, blocking:true, detail:bankPassed ? "Every positive-net employee has complete payout details." : `${missingBank.length} positive-net employee(s) have incomplete bank details.` },
