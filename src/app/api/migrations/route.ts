@@ -2,6 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employeeLoans,
+  employeePayProfiles,
   employees,
   historicalPayrollEntries,
   importBatches,
@@ -11,6 +12,7 @@ import { ORG_ADMIN_ROLES, assertOrganizationRole } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
+import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { getEntitlements, requireFeature, seatUsage } from "@/lib/billing";
 import { xlsxToCsv } from "@/lib/xlsx-import";
 import {
@@ -177,6 +179,7 @@ export async function POST(request: Request) {
   if (denied) return denied;
 
   await ensureMigrationSchema();
+  await ensureEmployeePayProfiles(organizationId);
 
   const entitlements = await getEntitlements(organizationId);
   const gate = requireFeature(entitlements, "imports");
@@ -391,20 +394,44 @@ export async function POST(request: Request) {
         philHealthNo: row.philHealthNo,
         pagIbigNo: row.pagIbigNo,
       };
+      let employeeId: number;
       if (existing) {
         await db.update(employees).set(values).where(and(
           eq(employees.organizationId, organizationId),
           eq(employees.id, existing.id),
         ));
+        employeeId = existing.id;
       } else {
-        await db.insert(employees).values({
+        const [createdEmployee] = await db.insert(employees).values({
           organizationId,
           employeeNo: row.employeeNo,
           ...values,
           avatarInitials: `${row.firstName[0] ?? "?"}${row.lastName[0] ?? "?"}`.toUpperCase(),
           startDate: row.startDate ?? today(),
-        });
+        }).returning({ id: employees.id });
+        employeeId = createdEmployee.id;
       }
+
+      // Employee migration currently maps a field explicitly named monthly
+      // basic salary. Preserve that source meaning as an explicit monthly pay
+      // profile rather than letting payroll infer behavior from attendance.
+      await db.insert(employeePayProfiles).values({
+        employeeId,
+        organizationId,
+        payBasis: "monthly",
+        rateAmount: cents(row.monthlyBasic),
+        standardWorkDaysPerMonth: "22.00",
+        standardHoursPerDay: "8.00",
+      }).onConflictDoUpdate({
+        target: employeePayProfiles.employeeId,
+        set: {
+          payBasis: "monthly",
+          rateAmount: cents(row.monthlyBasic),
+          standardWorkDaysPerMonth: "22.00",
+          standardHoursPerDay: "8.00",
+          updatedAt: new Date(),
+        },
+      });
     }
   }
 
