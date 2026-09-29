@@ -16,8 +16,8 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
       DEMO_MODE: "false"
-      PUBLIC_DEMO_HOSTS: "127.0.0.1"
-      QA_URL: http://127.0.0.1:3000
+      PUBLIC_DEMO_HOSTS: "127.0.0.1,localhost"
+      QA_URL: http://localhost:3000
     services:
       postgres:
         image: postgres:16
