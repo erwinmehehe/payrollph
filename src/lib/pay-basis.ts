@@ -103,7 +103,8 @@ export function leaveAdjustmentForCutoff(input: {
   const { profile } = input;
 
   if (profile.payBasis === "monthly") {
-    return -(unpaidDays * profile.dailyRate);
+    const adjustment = -(unpaidDays * profile.dailyRate);
+    return adjustment === 0 ? 0 : adjustment;
   }
   if (profile.payBasis === "daily") {
     return paidDays * profile.dailyRate;
