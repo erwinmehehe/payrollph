@@ -4,6 +4,7 @@ import { employees, historicalPayrollEntries, payrollEntries, payrollRuns, yearE
 import { recordAuditEvent } from "@/lib/audit";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { annualize, ANNUALIZATION_RULE_VERSION, type AnnualizationResult } from "@/lib/annualization";
+import { readBasicAndThirteenth } from "@/lib/final-pay";
 
 type LineItem = { code?: string; label?: string; amount?: number | string };
 
@@ -64,24 +65,40 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
       sql`extract(year from ${historicalPayrollEntries.payDate}) = ${taxYear}`,
     ));
 
-  const totals = new Map<number, { gross: number; contributions: number; tax: number; thirteenth: number; periods: number; importedPeriods: number }>();
+  const totals = new Map<number, {
+    gross: number;
+    basic: number;
+    contributions: number;
+    tax: number;
+    thirteenthPaid: number;
+    periods: number;
+    importedPeriods: number;
+  }>();
   for (const entry of entries) {
-    const bucket = totals.get(entry.employeeId) ?? { gross: 0, contributions: 0, tax: 0, thirteenth: 0, periods: 0, importedPeriods: 0 };
+    const bucket = totals.get(entry.employeeId) ?? { gross: 0, basic: 0, contributions: 0, tax: 0, thirteenthPaid: 0, periods: 0, importedPeriods: 0 };
     const parsed = sumContributionsAndTax(entry.lineItems);
+    const basic = readBasicAndThirteenth(entry.lineItems);
     bucket.gross += Number(entry.grossPay);
+    bucket.basic += basic.basic;
     bucket.contributions += parsed.contributions;
     bucket.tax += parsed.tax;
-    bucket.thirteenth += parsed.thirteenth;
+    bucket.thirteenthPaid += parsed.thirteenth;
     bucket.periods += 1;
     totals.set(entry.employeeId, bucket);
   }
 
   for (const entry of importedHistory) {
-    const bucket = totals.get(entry.employeeId) ?? { gross: 0, contributions: 0, tax: 0, thirteenth: 0, periods: 0, importedPeriods: 0 };
+    const bucket = totals.get(entry.employeeId) ?? { gross: 0, basic: 0, contributions: 0, tax: 0, thirteenthPaid: 0, periods: 0, importedPeriods: 0 };
+    if (entry.basicSalary == null) {
+      throw new Error(
+        `Imported payroll history row #${entry.id} is missing basic salary earned. Re-import payroll history with Basic Salary Earned before running year-end annualization.`,
+      );
+    }
     bucket.gross += Number(entry.grossPay);
+    bucket.basic += Number(entry.basicSalary);
     bucket.contributions += Number(entry.sssEmployee) + Number(entry.philHealthEmployee) + Number(entry.pagIbigEmployee);
     bucket.tax += Number(entry.taxWithheld);
-    bucket.thirteenth += Number(entry.thirteenthMonth);
+    bucket.thirteenthPaid += Number(entry.thirteenthMonth);
     bucket.periods += 1;
     bucket.importedPeriods += 1;
     totals.set(entry.employeeId, bucket);
@@ -92,31 +109,57 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
     eq(yearEndAdjustments.taxYear, taxYear),
   ));
 
-  const rows: Array<{ employee: typeof staff[number]; result: AnnualizationResult; periods: number }> = [];
+  const rows: Array<{
+    employee: typeof staff[number];
+    result: AnnualizationResult;
+    periods: number;
+    importedPeriods: number;
+    basicSalaryEarned: number;
+    thirteenthEntitlement: number;
+    thirteenthAlreadyPaid: number;
+  }> = [];
 
   for (const employee of staff) {
     const bucket = totals.get(employee.id);
     if (!bucket || bucket.periods === 0) continue;
 
-    // 13th month accrual: one month of basic pay, pro-rated by periods worked
-    // against a 24-period semi-monthly year, unless already paid as a line item.
-    const accrued13th = bucket.thirteenth > 0
-      ? bucket.thirteenth
-      : Number(employee.basicRate) * Math.min(1, bucket.periods / 24);
+    // DOLE minimum 13th month: total basic salary actually earned in the
+    // calendar year divided by 12. Do not infer from the employee's current
+    // salary or payroll-period count because rate changes and unpaid time make
+    // that inaccurate.
+    const thirteenthEntitlement = Math.round(((bucket.basic / 12) + Number.EPSILON) * 100) / 100;
+    const annualThirteenth = Math.max(thirteenthEntitlement, bucket.thirteenthPaid);
 
+    const unpaidThirteenthAccrual = Math.max(0, annualThirteenth - bucket.thirteenthPaid);
     const result = annualize({
-      grossCompensation: bucket.gross,
-      thirteenthMonth: accrued13th,
+      grossCompensation: bucket.gross + unpaidThirteenthAccrual,
+      thirteenthMonth: annualThirteenth,
       statutoryContributions: bucket.contributions,
       taxWithheld: bucket.tax,
       mwe: employee.mwe,
     });
 
-    rows.push({ employee, result, periods: bucket.periods });
+    rows.push({
+      employee,
+      result,
+      periods: bucket.periods,
+      importedPeriods: bucket.importedPeriods,
+      basicSalaryEarned: bucket.basic,
+      thirteenthEntitlement,
+      thirteenthAlreadyPaid: bucket.thirteenthPaid,
+    });
   }
 
   if (rows.length) {
-    await db.insert(yearEndAdjustments).values(rows.map(({ employee, result, periods }) => ({
+    await db.insert(yearEndAdjustments).values(rows.map(({
+      employee,
+      result,
+      periods,
+      importedPeriods,
+      basicSalaryEarned,
+      thirteenthEntitlement,
+      thirteenthAlreadyPaid,
+    }) => ({
       organizationId,
       employeeId: employee.id,
       taxYear,
@@ -134,7 +177,11 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
         ...result,
         periodsIncluded: periods,
         runsIncluded: runIds.length,
-        importedHistoryRows: totals.get(employee.id)?.importedPeriods ?? 0,
+        importedHistoryRows: importedPeriods,
+        basicSalaryEarned,
+        thirteenthEntitlement,
+        thirteenthAlreadyPaid,
+        thirteenthStillDue: Math.max(0, thirteenthEntitlement - thirteenthAlreadyPaid),
       },
       ruleVersion: ANNUALIZATION_RULE_VERSION,
     })));

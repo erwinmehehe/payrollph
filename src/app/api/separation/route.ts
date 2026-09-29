@@ -1,17 +1,204 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { employeeLoans, employees, leaveBalances, payrollEntries, payrollRuns, separationRecords } from "@/db/schema";
+import {
+  employeeLoans,
+  employeePayProfiles,
+  employees,
+  historicalPayrollEntries,
+  loanPayments,
+  payrollEntries,
+  payrollRuns,
+  separationRecords,
+} from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { assertOrganizationRole, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
+import {
+  APPROVAL_ADMIN_ROLES,
+  assertOrganizationRole,
+  PAYROLL_RELEASE_ROLES,
+  PEOPLE_PAYROLL_ROLES,
+} from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
-import { computeThirteenthMonthPay } from "@/lib/ph-compliance";
+import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
+import { resolvePayProfile } from "@/lib/pay-basis";
+import { computeFinalPay, finalPayDueDate, readBasicAndThirteenth } from "@/lib/final-pay";
+import { ensureMigrationSchema } from "@/lib/migration-schema";
+import { ensureSeparationSchema } from "@/lib/separation-schema";
 
 export const dynamic = "force-dynamic";
+
+const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+const money = (value: number) => (Math.round((value + Number.EPSILON) * 100) / 100).toFixed(2);
+
+function nonNegative(value: unknown, label: string) {
+  const number = Number(value ?? 0);
+  if (!Number.isFinite(number) || number < 0) throw new Error(`${label} must be zero or greater.`);
+  return number;
+}
+
+async function loadFinalPaySources(input: {
+  organizationId: number;
+  employeeId: number;
+  lastDay: string;
+}) {
+  await Promise.all([
+    ensureEmployeePayProfiles(input.organizationId),
+    ensureMigrationSchema(),
+    ensureSeparationSchema(),
+  ]);
+
+  const taxYear = Number(input.lastDay.slice(0, 4));
+  const [employee] = await db.select().from(employees).where(and(
+    eq(employees.id, input.employeeId),
+    eq(employees.organizationId, input.organizationId),
+  )).limit(1);
+  if (!employee) throw new Error("Employee not found in this organization.");
+
+  const [payProfile] = await db.select().from(employeePayProfiles).where(and(
+    eq(employeePayProfiles.employeeId, input.employeeId),
+    eq(employeePayProfiles.organizationId, input.organizationId),
+  )).limit(1);
+  if (!payProfile) throw new Error("Employee pay profile is missing. Configure it before computing final pay.");
+
+  const released = await db.select({
+    runId: payrollRuns.id,
+    entryId: payrollEntries.id,
+    periodStart: payrollRuns.periodStart,
+    periodEnd: payrollRuns.periodEnd,
+    payDate: payrollRuns.payDate,
+    grossPay: payrollEntries.grossPay,
+    lineItems: payrollEntries.lineItems,
+  })
+    .from(payrollEntries)
+    .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
+    .where(and(
+      eq(payrollRuns.organizationId, input.organizationId),
+      eq(payrollEntries.employeeId, input.employeeId),
+      eq(payrollRuns.status, "Released"),
+      sql`extract(year from ${payrollRuns.periodEnd}) = ${taxYear}`,
+      lte(payrollRuns.periodEnd, input.lastDay),
+    ));
+
+  const crossing = await db.select({ id: payrollRuns.id, periodLabel: payrollRuns.periodLabel })
+    .from(payrollEntries)
+    .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
+    .where(and(
+      eq(payrollRuns.organizationId, input.organizationId),
+      eq(payrollEntries.employeeId, input.employeeId),
+      eq(payrollRuns.status, "Released"),
+      lte(payrollRuns.periodStart, input.lastDay),
+      gte(payrollRuns.periodEnd, input.lastDay),
+      sql`${payrollRuns.periodEnd} > ${input.lastDay}`,
+    ));
+
+  if (crossing.length > 0) {
+    throw new Error(
+      `Released payroll ${crossing[0].periodLabel} crosses the employee's last day. Split or correct that payroll period before computing final pay.`,
+    );
+  }
+
+  const historical = await db.select().from(historicalPayrollEntries).where(and(
+    eq(historicalPayrollEntries.organizationId, input.organizationId),
+    eq(historicalPayrollEntries.employeeId, input.employeeId),
+    sql`extract(year from ${historicalPayrollEntries.payDate}) = ${taxYear}`,
+    lte(historicalPayrollEntries.payDate, input.lastDay),
+  ));
+
+  const loans = await db.select().from(employeeLoans).where(and(
+    eq(employeeLoans.organizationId, input.organizationId),
+    eq(employeeLoans.employeeId, input.employeeId),
+    eq(employeeLoans.status, "active"),
+  ));
+
+  let releasedBasicYtd = 0;
+  let thirteenthPaidYtd = 0;
+  let ordinaryGrossYtd = 0;
+  let statutoryContributionsYtd = 0;
+  let taxWithheldYtd = 0;
+
+  for (const row of released) {
+    const parsed = readBasicAndThirteenth(row.lineItems);
+    releasedBasicYtd += parsed.basic;
+    thirteenthPaidYtd += parsed.thirteenthPaid;
+    statutoryContributionsYtd += parsed.contributions;
+    taxWithheldYtd += parsed.taxWithheld;
+    ordinaryGrossYtd += Math.max(0, Number(row.grossPay) - parsed.thirteenthPaid);
+  }
+
+  for (const row of historical) {
+    thirteenthPaidYtd += Number(row.thirteenthMonth);
+    statutoryContributionsYtd += Number(row.sssEmployee) + Number(row.philHealthEmployee) + Number(row.pagIbigEmployee);
+    taxWithheldYtd += Number(row.taxWithheld);
+    ordinaryGrossYtd += Math.max(0, Number(row.grossPay) - Number(row.thirteenthMonth));
+  }
+
+  const resolvedPayProfile = resolvePayProfile({
+    payBasis: payProfile.payBasis,
+    rateAmount: payProfile.rateAmount,
+    standardWorkDaysPerMonth: payProfile.standardWorkDaysPerMonth,
+    standardHoursPerDay: payProfile.standardHoursPerDay,
+  });
+
+  return {
+    employee,
+    payProfile,
+    resolvedPayProfile,
+    released,
+    historical,
+    loans,
+    totals: {
+      releasedBasicYtd: Number(money(releasedBasicYtd)),
+      thirteenthPaidYtd: Number(money(thirteenthPaidYtd)),
+      ordinaryGrossYtd: Number(money(ordinaryGrossYtd)),
+      statutoryContributionsYtd: Number(money(statutoryContributionsYtd)),
+      taxWithheldYtd: Number(money(taxWithheldYtd)),
+      activeLoanBalance: Number(money(loans.reduce((sum, loan) => sum + Number(loan.remainingBalance), 0))),
+    },
+  };
+}
+
+function fingerprint(sources: Awaited<ReturnType<typeof loadFinalPaySources>>) {
+  return {
+    employeeStatus: sources.employee.status,
+    employeeBasicRate: Number(sources.employee.basicRate),
+    payProfile: {
+      payBasis: sources.payProfile.payBasis,
+      rateAmount: Number(sources.payProfile.rateAmount),
+      standardWorkDaysPerMonth: Number(sources.payProfile.standardWorkDaysPerMonth),
+      standardHoursPerDay: Number(sources.payProfile.standardHoursPerDay),
+      updatedAt: sources.payProfile.updatedAt?.toISOString?.() ?? String(sources.payProfile.updatedAt),
+    },
+    released: sources.released.map((row) => ({
+      runId: row.runId,
+      entryId: row.entryId,
+      grossPay: Number(row.grossPay),
+      periodEnd: String(row.periodEnd),
+      lineItems: row.lineItems,
+    })),
+    historical: sources.historical.map((row) => ({
+      id: row.id,
+      grossPay: Number(row.grossPay),
+      basicSalary: row.basicSalary == null ? null : Number(row.basicSalary),
+      thirteenthMonth: Number(row.thirteenthMonth),
+      taxWithheld: Number(row.taxWithheld),
+      payDate: String(row.payDate),
+    })),
+    loans: sources.loans.map((loan) => ({
+      id: loan.id,
+      remainingBalance: Number(loan.remainingBalance),
+      status: loan.status,
+    })),
+  };
+}
+
+function sameSnapshot(left: unknown, right: unknown) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
 
 export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
+  await ensureSeparationSchema();
   const url = new URL(request.url);
   const organizationId = Number(url.searchParams.get("organizationId") ?? 1);
   const employeeId = Number(url.searchParams.get("employeeId") ?? 0);
@@ -49,15 +236,6 @@ export async function GET(request: Request) {
   });
 }
 
-/**
- * Creates or computes Final Pay for a separating employee.
- * Strictly adheres to DOLE Labor Advisory No. 06-20 (30-day final pay release mandate):
- * 1. Prorated 13th month pay = Basic earned from Jan 1 to Last Day / 12
- * 2. Unused leave credit monetization = Unused days * (Basic / 22)
- * 3. Withholding tax adjustment (refund/collection)
- * 4. Less: Active loan balances
- * 5. Computes net final pay
- */
 export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
@@ -66,9 +244,8 @@ export async function POST(request: Request) {
   const organizationId = Number(body.organizationId ?? 1);
   const employeeId = Number(body.employeeId);
   const separationType = String(body.separationType ?? "resignation");
-  const noticeDate = String(body.noticeDate ?? new Date().toISOString().slice(0, 10));
-  const lastDay = String(body.lastDay ?? new Date().toISOString().slice(0, 10));
-  const unusedLeaveCredits = Number(body.unusedLeaveCredits ?? 0);
+  const noticeDate = String(body.noticeDate ?? "");
+  const lastDay = String(body.lastDay ?? "");
 
   const denied = await assertOrganizationRole(
     user.id,
@@ -78,73 +255,233 @@ export async function POST(request: Request) {
   );
   if (denied) return denied;
 
-  const [employee] = await db.select().from(employees).where(eq(employees.id, employeeId)).limit(1);
-  if (!employee || employee.organizationId !== organizationId) {
-    return Response.json({ error: "Employee not found in this organization." }, { status: 404 });
+  if (!Number.isInteger(employeeId) || !datePattern.test(noticeDate) || !datePattern.test(lastDay)) {
+    return Response.json({ error: "employeeId, noticeDate and lastDay are required." }, { status: 400 });
   }
 
-  // Calculate Prorated 13th Month Pay (from Jan 1 to lastDay)
-  const lastDate = new Date(`${lastDay}T12:00:00Z`);
-  const monthsWorkedInYear = Math.min(12, Math.max(1, lastDate.getMonth() + 1));
-  const monthlyBasic = Number(employee.basicRate);
-  const basicEarnedThisYear = monthlyBasic * monthsWorkedInYear;
-  const prorated13th = computeThirteenthMonthPay(basicEarnedThisYear);
+  try {
+    const sources = await loadFinalPaySources({ organizationId, employeeId, lastDay });
+    if (lastDay < String(sources.employee.startDate)) {
+      return Response.json({ error: "Last day cannot be before the employee's hire date." }, { status: 400 });
+    }
 
-  // Unused Leave Monetization
-  const dailyRate = monthlyBasic / 22;
-  const leaveMonetizationPay = Number((unusedLeaveCredits * dailyRate).toFixed(2));
+    const [existingOpen] = await db.select().from(separationRecords).where(and(
+      eq(separationRecords.organizationId, organizationId),
+      eq(separationRecords.employeeId, employeeId),
+    )).orderBy(desc(separationRecords.id)).limit(1);
 
-  // Outstanding Loans to Deduct
-  const loans = await db.select().from(employeeLoans).where(
-    and(eq(employeeLoans.organizationId, organizationId), eq(employeeLoans.employeeId, employeeId), eq(employeeLoans.status, "active")),
-  );
-  const loanDeductions = Number(loans.reduce((sum, l) => sum + Number(l.remainingBalance), 0).toFixed(2));
+    const legacyHistoryMissingBasic = sources.historical.filter((row) => row.basicSalary == null).length;
+    const storedHistoricalBasic = sources.historical.reduce(
+      (sum, row) => sum + (row.basicSalary == null ? 0 : Number(row.basicSalary)),
+      0,
+    );
+    const historicalBasicOverride = nonNegative(body.historicalBasicSalaryEarned, "Legacy imported basic salary earned");
+    if (legacyHistoryMissingBasic > 0 && body.historicalBasicSalaryEarned === undefined) {
+      return Response.json({
+        error: "Legacy imported payroll rows are missing basic salary. Enter the total basic salary actually earned in those legacy rows so 13th-month pay is not guessed.",
+        missingBasicSalaryRows: legacyHistoryMissingBasic,
+      }, { status: 422 });
+    }
+    const historicalBasicSalaryEarned = Number(money(storedHistoricalBasic + historicalBasicOverride));
 
-  // Final Pay Net Amount
-  const netFinalPay = Math.max(0, Number((prorated13th + leaveMonetizationPay - loanDeductions).toFixed(2)));
+    const unpaidBasicSalary = nonNegative(body.unpaidBasicSalary, "Unpaid basic salary");
+    const finalStatutoryDeductions = nonNegative(body.finalStatutoryDeductions, "Final statutory deductions");
+    const finalStatutoryReviewed = Boolean(body.finalStatutoryReviewed);
+    if (unpaidBasicSalary > 0 && !finalStatutoryReviewed) {
+      return Response.json({
+        error: "Unpaid basic salary needs a reviewed final SSS/PhilHealth/Pag-IBIG adjustment. Confirm the review and enter the employee statutory deductions due in final pay, using zero only when payroll review confirms none is due.",
+      }, { status: 422 });
+    }
+    const unusedLeaveCredits = nonNegative(body.unusedLeaveCredits, "Convertible unused leave credits");
+    const separationPay = nonNegative(body.separationPay, "Separation pay");
+    const retirementPay = nonNegative(body.retirementPay, "Retirement pay");
+    const otherBenefits = nonNegative(body.otherBenefits, "Other final-pay benefits");
+    const deductOutstandingLoans = Boolean(body.deductOutstandingLoans);
+    const specialPayTaxReviewed = Boolean(body.specialPayTaxReviewed);
+    const separationPayTaxExempt = Boolean(body.separationPayTaxExempt);
+    const retirementPayTaxExempt = Boolean(body.retirementPayTaxExempt);
 
-  const [created] = await db.insert(separationRecords).values({
-    organizationId,
-    employeeId,
-    separationType,
-    noticeDate,
-    lastDay,
-    clearanceStatus: "in_progress",
-    itCleared: false,
-    adminCleared: false,
-    financeCleared: false,
-    hrCleared: false,
-    prorated13thMonth: prorated13th.toFixed(2),
-    unusedLeaveCredits: unusedLeaveCredits.toFixed(1),
-    leaveMonetizationPay: leaveMonetizationPay.toFixed(2),
-    taxAdjustment: "0.00",
-    loanDeductions: loanDeductions.toFixed(2),
-    netFinalPay: netFinalPay.toFixed(2),
-    status: "draft",
-    coeIssued: false,
-  }).returning();
+    if ((separationPay > 0 || retirementPay > 0) && !specialPayTaxReviewed) {
+      return Response.json({
+        error: "Separation or retirement pay has special tax-treatment conditions. Confirm that its tax treatment has been reviewed before computing the package.",
+      }, { status: 422 });
+    }
 
-  // Mark employee status as Separating
-  await db.update(employees).set({ status: "Separating" }).where(eq(employees.id, employeeId));
+    const leaveMonetizationPay = Number(money(unusedLeaveCredits * sources.resolvedPayProfile.dailyRate));
+    const leaveTaxReviewed = Boolean(body.leaveTaxReviewed);
+    const leaveMonetizationTaxExempt = Boolean(body.leaveMonetizationTaxExempt);
+    if (leaveMonetizationPay > 0 && !leaveTaxReviewed) {
+      return Response.json({
+        error: "Leave monetization tax treatment must be reviewed before computing final pay. Confirm whether the convertible leave cash amount is taxable or exempt.",
+      }, { status: 422 });
+    }
+    const loanDeductions = deductOutstandingLoans ? sources.totals.activeLoanBalance : 0;
 
-  await recordAuditEvent({
-    organizationId,
-    actor: user.name,
-    action: "Separation and Final Pay computed",
-    resource: `${employee.firstName} ${employee.lastName} (Final Pay: ₱${netFinalPay.toFixed(2)})`,
-    metadata: { separationId: created.id, prorated13th, leaveMonetizationPay, loanDeductions, netFinalPay },
-  });
+    const result = computeFinalPay({
+      releasedBasicYtd: sources.totals.releasedBasicYtd,
+      historicalBasicYtd: historicalBasicSalaryEarned,
+      unpaidBasicSalary,
+      thirteenthPaidYtd: sources.totals.thirteenthPaidYtd,
+      grossCompensationYtd: sources.totals.ordinaryGrossYtd,
+      statutoryContributionsYtd: sources.totals.statutoryContributionsYtd,
+      taxWithheldYtd: sources.totals.taxWithheldYtd,
+      mwe: sources.employee.mwe,
+      leaveMonetizationPay,
+      taxableLeaveMonetizationPay: leaveMonetizationTaxExempt ? 0 : leaveMonetizationPay,
+      separationPay,
+      retirementPay,
+      taxableSeparationPay: separationPayTaxExempt ? 0 : separationPay,
+      taxableRetirementPay: retirementPayTaxExempt ? 0 : retirementPay,
+      otherBenefits,
+      finalStatutoryDeductions,
+      loanDeductions,
+    });
 
-  return Response.json(created, { status: 201 });
+    const dueDate = finalPayDueDate(lastDay);
+    const sourceFingerprint = fingerprint(sources);
+    const computationSnapshot = {
+      rule: "13th month = total basic salary earned in calendar year / 12, less 13th month already paid",
+      taxRuleVersion: "PH-2026.01",
+      sourceFingerprint,
+      releasedBasicYtd: sources.totals.releasedBasicYtd,
+      historicalBasicSalaryEarned,
+      historicalBasicStored: Number(money(storedHistoricalBasic)),
+      historicalBasicOverride: Number(money(historicalBasicOverride)),
+      legacyHistoryMissingBasic,
+      unpaidBasicSalary,
+      thirteenthPaidYtd: result.thirteenthPaidYtd,
+      thirteenthEntitlement: result.thirteenthEntitlement,
+      deductOutstandingLoans,
+      specialPayTaxReviewed,
+      separationPayTaxExempt,
+      retirementPayTaxExempt,
+      activeLoanBalanceAtComputation: sources.totals.activeLoanBalance,
+      importedHistoryRows: sources.historical.length,
+      releasedPayrollEntries: sources.released.length,
+      payBasis: sources.resolvedPayProfile.payBasis,
+      dailyRate: sources.resolvedPayProfile.dailyRate,
+      leaveTaxReviewed,
+      leaveMonetizationTaxExempt,
+    };
+
+    const created = await db.transaction(async (tx) => {
+      const financialValues = {
+        separationType,
+        noticeDate,
+        lastDay,
+        prorated13thMonth: money(result.thirteenthDue),
+        thirteenthEntitlement: money(result.thirteenthEntitlement),
+        thirteenthPaidYtd: money(result.thirteenthPaidYtd),
+        basicSalaryEarnedYtd: money(result.basicSalaryEarnedYtd),
+        historicalBasicSalaryEarned: money(historicalBasicSalaryEarned),
+        unpaidBasicSalary: money(unpaidBasicSalary),
+        unusedLeaveCredits: unusedLeaveCredits.toFixed(1),
+        leaveMonetizationPay: money(result.leaveMonetizationPay),
+        separationPay: money(result.separationPay),
+        retirementPay: money(result.retirementPay),
+        otherBenefits: money(result.otherBenefits),
+        taxAdjustment: money(result.taxAdjustment),
+        finalStatutoryDeductions: money(result.finalStatutoryDeductions),
+        loanDeductions: money(result.loanDeductions),
+        grossFinalPay: money(result.grossFinalPay),
+        netFinalPay: money(result.netFinalPay),
+        finalPayDueDate: dueDate,
+        computationSnapshot,
+        status: "draft",
+        approvedAt: null,
+        releasedAt: null,
+      } as const;
+
+      let record: typeof separationRecords.$inferSelect;
+      if (existingOpen && existingOpen.status !== "released") {
+        const separationFactsChanged =
+          String(existingOpen.lastDay) !== lastDay
+          || existingOpen.separationType !== separationType;
+        const [updated] = await tx.update(separationRecords).set({
+          ...financialValues,
+          // Every recomputation invalidates Finance approval. A changed last
+          // day/category also invalidates operational clearance and any COE
+          // already marked issued from the previous separation facts.
+          financeCleared: false,
+          itCleared: separationFactsChanged ? false : existingOpen.itCleared,
+          adminCleared: separationFactsChanged ? false : existingOpen.adminCleared,
+          hrCleared: separationFactsChanged ? false : existingOpen.hrCleared,
+          coeIssued: separationFactsChanged ? false : existingOpen.coeIssued,
+          clearanceStatus: "in_progress",
+        }).where(and(
+          eq(separationRecords.id, existingOpen.id),
+          eq(separationRecords.organizationId, organizationId),
+        )).returning();
+        if (!updated) throw new Error("Open separation package changed while it was being recomputed.");
+        record = updated;
+      } else {
+        const [inserted] = await tx.insert(separationRecords).values({
+          organizationId,
+          employeeId,
+          ...financialValues,
+          clearanceStatus: "in_progress",
+          itCleared: false,
+          adminCleared: false,
+          financeCleared: false,
+          hrCleared: false,
+          coeIssued: false,
+        }).returning();
+        record = inserted;
+      }
+
+      await tx.update(employees)
+        .set({ status: "Separating" })
+        .where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId)));
+
+      return record;
+    });
+
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: existingOpen && existingOpen.status !== "released"
+        ? "Separation final pay recomputed"
+        : "Separation final pay computed",
+      resource: `${sources.employee.firstName} ${sources.employee.lastName} (Final Pay: ₱${result.netFinalPay.toFixed(2)})`,
+      metadata: {
+        separationId: created.id,
+        lastDay,
+        finalPayDueDate: dueDate,
+        basicSalaryEarnedYtd: result.basicSalaryEarnedYtd,
+        thirteenthEntitlement: result.thirteenthEntitlement,
+        thirteenthAlreadyPaid: result.thirteenthPaidYtd,
+        thirteenthDue: result.thirteenthDue,
+        unpaidBasicSalary,
+        leaveMonetizationPay,
+        leaveTaxReviewed,
+        leaveMonetizationTaxExempt,
+        separationPay,
+        retirementPay,
+        separationPayTaxExempt,
+        retirementPayTaxExempt,
+        otherBenefits,
+        finalStatutoryDeductions,
+        finalStatutoryReviewed,
+        taxAdjustment: result.taxAdjustment,
+        loanDeductions,
+        netFinalPay: result.netFinalPay,
+      },
+    });
+
+    return Response.json(created, { status: 201 });
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "Could not compute final pay." }, { status: 422 });
+  }
 }
 
 export async function PATCH(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
+  await ensureSeparationSchema();
   const body = await request.json().catch(() => ({}));
   const id = Number(body.id);
-  const action = String(body.action ?? "clearance"); // "clearance", "approve", "release", "issue_coe"
+  const action = String(body.action ?? "clearance");
 
   if (!Number.isInteger(id)) return Response.json({ error: "id is required." }, { status: 400 });
 
@@ -159,7 +496,27 @@ export async function PATCH(request: Request) {
   );
   if (denied) return denied;
 
+  if (action === "approve") {
+    const approvalDenied = await assertOrganizationRole(
+      user.id,
+      sep.organizationId,
+      APPROVAL_ADMIN_ROLES,
+      "Only an authorized HR/administrative approver can approve final pay.",
+    );
+    if (approvalDenied) return approvalDenied;
+  }
+  if (action === "release") {
+    const releaseDenied = await assertOrganizationRole(
+      user.id,
+      sep.organizationId,
+      PAYROLL_RELEASE_ROLES,
+      "Only payroll release roles can release final pay.",
+    );
+    if (releaseDenied) return releaseDenied;
+  }
+
   if (action === "clearance") {
+    if (sep.status === "released") return Response.json({ error: "Released final pay is immutable." }, { status: 409 });
     const itCleared = body.itCleared !== undefined ? Boolean(body.itCleared) : sep.itCleared;
     const adminCleared = body.adminCleared !== undefined ? Boolean(body.adminCleared) : sep.adminCleared;
     const financeCleared = body.financeCleared !== undefined ? Boolean(body.financeCleared) : sep.financeCleared;
@@ -177,20 +534,140 @@ export async function PATCH(request: Request) {
     return Response.json(updated);
   }
 
-  if (action === "approve") {
-    const [updated] = await db.update(separationRecords).set({
-      status: "approved",
-    }).where(eq(separationRecords.id, id)).returning();
-
+  if (action === "issue_coe") {
+    const [updated] = await db.update(separationRecords).set({ coeIssued: true })
+      .where(eq(separationRecords.id, id)).returning();
+    await recordAuditEvent({
+      organizationId: sep.organizationId,
+      actor: user.name,
+      action: "Certificate of Employment issued",
+      resource: `Separation #${sep.id}`,
+      metadata: { employeeId: sep.employeeId },
+    });
     return Response.json(updated);
   }
 
-  if (action === "issue_coe") {
-    const [updated] = await db.update(separationRecords).set({
-      coeIssued: true,
-    }).where(eq(separationRecords.id, id)).returning();
+  if (action === "approve" || action === "release") {
+    if (!(sep.itCleared && sep.adminCleared && sep.financeCleared && sep.hrCleared)) {
+      return Response.json({ error: "IT, Admin, Finance, and HR clearance must all be complete first." }, { status: 409 });
+    }
 
-    return Response.json(updated);
+    const snapshot = (sep.computationSnapshot ?? {}) as Record<string, unknown>;
+    const storedFingerprint = snapshot.sourceFingerprint;
+    const sources = await loadFinalPaySources({
+      organizationId: sep.organizationId,
+      employeeId: sep.employeeId,
+      lastDay: String(sep.lastDay),
+    });
+    const currentFingerprint = fingerprint(sources);
+    if (!sameSnapshot(storedFingerprint, currentFingerprint)) {
+      return Response.json({
+        error: "Payroll, pay-profile, imported-history, or loan data changed after final pay was computed. Recompute the final pay package before approval or release.",
+      }, { status: 409 });
+    }
+
+    if (action === "approve") {
+      if (sep.status !== "draft") {
+        return Response.json({ error: "Only a draft final-pay package can be approved." }, { status: 409 });
+      }
+      const [updated] = await db.update(separationRecords).set({
+        status: "approved",
+        approvedAt: new Date(),
+      }).where(and(eq(separationRecords.id, id), eq(separationRecords.status, "draft"))).returning();
+      if (!updated) return Response.json({ error: "Final-pay approval state changed. Refresh and try again." }, { status: 409 });
+
+      await recordAuditEvent({
+        organizationId: sep.organizationId,
+        actor: user.name,
+        action: "Final pay approved",
+        resource: `Separation #${sep.id}`,
+        metadata: { employeeId: sep.employeeId, netFinalPay: Number(sep.netFinalPay) },
+      });
+      return Response.json(updated);
+    }
+
+    if (sep.status !== "approved") {
+      return Response.json({ error: "Final pay must be approved before release." }, { status: 409 });
+    }
+    const releaseReference = String(body.releaseReference ?? "").trim();
+    if (!releaseReference) {
+      return Response.json({
+        error: "Enter a payout or bank reference before marking Final Pay released.",
+      }, { status: 422 });
+    }
+
+    const released = await db.transaction(async (tx) => {
+      const [fresh] = await tx.select().from(separationRecords).where(eq(separationRecords.id, id)).limit(1);
+      if (!fresh || fresh.status !== "approved") {
+        throw new Error("Final-pay release state changed. Refresh and try again.");
+      }
+
+      const freshSnapshot = (fresh.computationSnapshot ?? {}) as Record<string, unknown>;
+      if (!sameSnapshot(freshSnapshot.sourceFingerprint, currentFingerprint)) {
+        throw new Error("Final-pay source data changed before release. Recompute the package.");
+      }
+
+      const deductOutstandingLoans = Boolean(freshSnapshot.deductOutstandingLoans);
+      if (deductOutstandingLoans) {
+        for (const loan of sources.loans) {
+          const amount = Number(loan.remainingBalance);
+          if (amount <= 0) continue;
+          await tx.insert(loanPayments).values({
+            loanId: loan.id,
+            payrollRunId: null,
+            amount: money(amount),
+            paymentDate: String(fresh.lastDay),
+            reference: `Final pay separation #${fresh.id}`,
+          });
+          const [settledLoan] = await tx.update(employeeLoans).set({
+            totalPaid: money(Number(loan.totalPaid) + amount),
+            remainingBalance: "0.00",
+            status: "paid_off",
+          }).where(and(
+            eq(employeeLoans.id, loan.id),
+            eq(employeeLoans.status, "active"),
+            eq(employeeLoans.remainingBalance, loan.remainingBalance),
+          )).returning({ id: employeeLoans.id });
+          if (!settledLoan) {
+            throw new Error(`Loan ${loan.id} changed during final-pay release. Recompute the package before release.`);
+          }
+        }
+      }
+
+      const [updated] = await tx.update(separationRecords).set({
+        status: "released",
+        releasedAt: new Date(),
+        releaseReference: releaseReference.slice(0, 160),
+      }).where(and(
+        eq(separationRecords.id, id),
+        eq(separationRecords.status, "approved"),
+      )).returning();
+      if (!updated) throw new Error("Final-pay release state changed.");
+
+      await tx.update(employees).set({ status: "Separated" }).where(and(
+        eq(employees.id, fresh.employeeId),
+        eq(employees.organizationId, fresh.organizationId),
+      ));
+
+      return updated;
+    });
+
+    await recordAuditEvent({
+      organizationId: sep.organizationId,
+      actor: user.name,
+      action: "Final pay released",
+      resource: `Separation #${sep.id}`,
+      metadata: {
+        employeeId: sep.employeeId,
+        releasedAt: released.releasedAt,
+        finalPayDueDate: sep.finalPayDueDate,
+        netFinalPay: Number(sep.netFinalPay),
+        loanDeductions: Number(sep.loanDeductions),
+        releaseReference: releaseReference.slice(0, 160),
+      },
+    });
+
+    return Response.json(released);
   }
 
   return Response.json({ error: "Unknown action." }, { status: 400 });
