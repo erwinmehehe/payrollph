@@ -52,8 +52,8 @@ test("historical payroll imports preserve YTD components instead of recalculatin
     source: "sprout",
     kind: "payroll_history",
     csv: [
-      "Employee ID,Pay Date,Payroll Period,Gross Pay,Net Pay,Withholding Tax,SSS Contribution,PhilHealth Contribution,Pag-IBIG Contribution,13th Month Pay",
-      "SP-001,2026-06-30,June 2,40000,33500,2500,900,500,100,0",
+      "Employee ID,Pay Date,Payroll Period,Gross Pay,Basic Salary Earned,Net Pay,Withholding Tax,SSS Contribution,PhilHealth Contribution,Pag-IBIG Contribution,13th Month Pay",
+      "SP-001,2026-06-30,June 2,40000,30000,33500,2500,900,500,100,0",
     ].join("\n"),
   });
 
@@ -62,6 +62,7 @@ test("historical payroll imports preserve YTD components instead of recalculatin
     employeeNo: string;
     payDate: string;
     grossPay: number;
+    basicSalary: number;
     taxWithheld: number;
     sssEmployee: number;
     philHealthEmployee: number;
@@ -70,6 +71,7 @@ test("historical payroll imports preserve YTD components instead of recalculatin
   assert.equal(row.employeeNo, "SP-001");
   assert.equal(row.payDate, "2026-06-30");
   assert.equal(row.grossPay, 40000);
+  assert.equal(row.basicSalary, 30000);
   assert.equal(row.taxWithheld, 2500);
   assert.equal(row.sssEmployee, 900);
   assert.equal(row.philHealthEmployee, 500);
