@@ -229,6 +229,25 @@ jobs:
               fullPage: true,
             });
 
+            if (persona.dashboardRole) {
+              await page.setViewportSize({ width: 390, height: 844 });
+              await page.waitForTimeout(100);
+              const mobileOverflow = await page.evaluate(() => ({
+                scrollWidth: document.documentElement.scrollWidth,
+                innerWidth: window.innerWidth,
+              }));
+              check(
+                mobileOverflow.scrollWidth <= mobileOverflow.innerWidth + 1,
+                `${persona.label}: mobile dashboard horizontal overflow ${mobileOverflow.scrollWidth}px > ${mobileOverflow.innerWidth}px`,
+              );
+              await page.screenshot({
+                path: `${outDir}/persona-${persona.id}-landing-mobile-390.png`,
+                fullPage: true,
+              });
+              await page.setViewportSize({ width: 1440, height: 1000 });
+              await page.waitForTimeout(100);
+            }
+
             const sandbox = page.locator("section.card").filter({ hasText: "ROLE SANDBOX" }).first();
             check((await sandbox.count()) === 1, `${persona.label}: sandbox task panel is missing`);
             const firstTask = sandbox.getByRole("button").filter({ hasText: /^1\./ }).first();
