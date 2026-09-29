@@ -15,6 +15,7 @@ export function ensureSeparationSchema() {
       await client.query('ALTER TABLE separation_records ADD COLUMN IF NOT EXISTS separation_pay numeric(12,2) NOT NULL DEFAULT 0');
       await client.query('ALTER TABLE separation_records ADD COLUMN IF NOT EXISTS retirement_pay numeric(12,2) NOT NULL DEFAULT 0');
       await client.query('ALTER TABLE separation_records ADD COLUMN IF NOT EXISTS other_benefits numeric(12,2) NOT NULL DEFAULT 0');
+      await client.query('ALTER TABLE separation_records ADD COLUMN IF NOT EXISTS final_statutory_deductions numeric(12,2) NOT NULL DEFAULT 0');
       await client.query('ALTER TABLE separation_records ADD COLUMN IF NOT EXISTS gross_final_pay numeric(12,2) NOT NULL DEFAULT 0');
       await client.query('ALTER TABLE separation_records ADD COLUMN IF NOT EXISTS final_pay_due_date date');
       await client.query("ALTER TABLE separation_records ADD COLUMN IF NOT EXISTS computation_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb");
