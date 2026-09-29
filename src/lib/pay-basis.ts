@@ -118,3 +118,165 @@ export function payBasisLabel(payBasis: string) {
   if (payBasis === "hourly") return "Hourly paid";
   return "Unconfigured";
 }
+
+
+export type EffectivePayRevisionInput = {
+  effectiveDate: string;
+  previousPayBasis: string;
+  previousRateAmount: string | number;
+  previousStandardWorkDaysPerMonth: string | number;
+  previousStandardHoursPerDay: string | number;
+  newPayBasis: string;
+  newRateAmount: string | number;
+  newStandardWorkDaysPerMonth: string | number;
+  newStandardHoursPerDay: string | number;
+  reason?: string;
+};
+
+export type PayTimelineSegment = {
+  startDate: string;
+  endDate: string;
+  profile: ResolvedPayProfile;
+  source: "current" | "revision";
+  reason?: string;
+};
+
+function dateValue(value: string) {
+  const parsed = Date.parse(`${value}T00:00:00Z`);
+  if (!Number.isFinite(parsed)) throw new Error(`Invalid payroll date: ${value}`);
+  return parsed;
+}
+
+function isoDate(value: number) {
+  return new Date(value).toISOString().slice(0, 10);
+}
+
+function addDays(value: string, days: number) {
+  return isoDate(dateValue(value) + days * 86_400_000);
+}
+
+function daysInclusive(startDate: string, endDate: string) {
+  return Math.floor((dateValue(endDate) - dateValue(startDate)) / 86_400_000) + 1;
+}
+
+export function resolvePayTimeline(input: {
+  currentProfile: EmployeePayProfileInput;
+  revisions: EffectivePayRevisionInput[];
+  periodStart: string;
+  periodEnd: string;
+}) {
+  const periodStart = input.periodStart;
+  const periodEnd = input.periodEnd;
+  if (dateValue(periodEnd) < dateValue(periodStart)) throw new Error("Payroll period end must not precede period start.");
+
+  const revisions = [...input.revisions]
+    .filter((revision) => dateValue(revision.effectiveDate) <= dateValue(periodEnd))
+    .sort((a, b) => dateValue(a.effectiveDate) - dateValue(b.effectiveDate));
+
+  let startingProfile: ResolvedPayProfile | null = null;
+  const beforeOrAtStart = revisions.filter((revision) => dateValue(revision.effectiveDate) <= dateValue(periodStart));
+  if (beforeOrAtStart.length > 0) {
+    const latest = beforeOrAtStart[beforeOrAtStart.length - 1];
+    startingProfile = resolvePayProfile({
+      payBasis: latest.newPayBasis,
+      rateAmount: latest.newRateAmount,
+      standardWorkDaysPerMonth: latest.newStandardWorkDaysPerMonth,
+      standardHoursPerDay: latest.newStandardHoursPerDay,
+    });
+  } else {
+    const firstInPeriod = revisions.find((revision) => dateValue(revision.effectiveDate) > dateValue(periodStart));
+    if (firstInPeriod) {
+      startingProfile = resolvePayProfile({
+        payBasis: firstInPeriod.previousPayBasis,
+        rateAmount: firstInPeriod.previousRateAmount,
+        standardWorkDaysPerMonth: firstInPeriod.previousStandardWorkDaysPerMonth,
+        standardHoursPerDay: firstInPeriod.previousStandardHoursPerDay,
+      });
+    }
+  }
+  startingProfile ??= resolvePayProfile(input.currentProfile);
+
+  const changes = revisions.filter((revision) =>
+    dateValue(revision.effectiveDate) > dateValue(periodStart)
+    && dateValue(revision.effectiveDate) <= dateValue(periodEnd)
+  );
+
+  const segments: PayTimelineSegment[] = [];
+  let cursor = periodStart;
+  let active = startingProfile;
+  for (const revision of changes) {
+    const priorEnd = addDays(revision.effectiveDate, -1);
+    if (dateValue(priorEnd) >= dateValue(cursor)) {
+      segments.push({ startDate: cursor, endDate: priorEnd, profile: active, source: "current" });
+    }
+    active = resolvePayProfile({
+      payBasis: revision.newPayBasis,
+      rateAmount: revision.newRateAmount,
+      standardWorkDaysPerMonth: revision.newStandardWorkDaysPerMonth,
+      standardHoursPerDay: revision.newStandardHoursPerDay,
+    });
+    cursor = revision.effectiveDate;
+    segments.push({
+      startDate: cursor,
+      endDate: periodEnd,
+      profile: active,
+      source: "revision",
+      reason: revision.reason,
+    });
+  }
+
+  if (changes.length === 0) {
+    segments.push({ startDate: periodStart, endDate: periodEnd, profile: active, source: "current" });
+  } else {
+    const normalized: PayTimelineSegment[] = [];
+    for (let index = 0; index < segments.length; index += 1) {
+      const segment = segments[index];
+      if (index < segments.length - 1 && segment.source === "revision") continue;
+      normalized.push(segment);
+    }
+    const finalRevision = changes[changes.length - 1];
+    const finalStart = finalRevision.effectiveDate;
+    const existingFinal = normalized.find((segment) => segment.startDate === finalStart);
+    if (!existingFinal) {
+      normalized.push({
+        startDate: finalStart,
+        endDate: periodEnd,
+        profile: active,
+        source: "revision",
+        reason: finalRevision.reason,
+      });
+    }
+    normalized.sort((a, b) => dateValue(a.startDate) - dateValue(b.startDate));
+    return normalized;
+  }
+
+  return segments;
+}
+
+export function profileForDate(timeline: PayTimelineSegment[], workDate: string) {
+  const match = timeline.find((segment) =>
+    dateValue(workDate) >= dateValue(segment.startDate)
+    && dateValue(workDate) <= dateValue(segment.endDate)
+  );
+  if (!match) throw new Error(`No pay profile covers ${workDate}.`);
+  return match.profile;
+}
+
+export function fixedMonthlyBasicForTimeline(
+  timeline: PayTimelineSegment[],
+  periodStart: string,
+  periodEnd: string,
+) {
+  const totalDays = daysInclusive(periodStart, periodEnd);
+  return timeline.reduce((sum, segment) => {
+    if (segment.profile.payBasis !== "monthly") return sum;
+    const coveredDays = daysInclusive(segment.startDate, segment.endDate);
+    return sum + (segment.profile.rateAmount / 2) * (coveredDays / totalDays);
+  }, 0);
+}
+
+export function payTimelineTrace(timeline: PayTimelineSegment[]) {
+  return timeline.map((segment) =>
+    `${segment.startDate}..${segment.endDate}:${segment.profile.payBasis}@${segment.profile.rateAmount.toFixed(2)}`
+  );
+}
