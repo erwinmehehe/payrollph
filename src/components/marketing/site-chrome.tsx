@@ -5,10 +5,11 @@ import Link from "next/link";
 import { Menu, X } from "lucide-react";
 
 const LINKS = [
-  { href: "/#workflow", label: "Product" },
-  { href: "/demo", label: "Demo" },
+  { href: "/#simulation", label: "Product" },
+  { href: "/#workflow", label: "How it works" },
   { href: "/#pricing", label: "Pricing" },
-  { href: "/payroll-outsourcing", label: "Payroll outsourcing" },
+  { href: "/demo", label: "Demo" },
+  { href: "/payroll-outsourcing", label: "Outsourcing" },
 ];
 
 export function BrandMark({ size = 30 }: { size?: number }) {
