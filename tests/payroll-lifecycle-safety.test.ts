@@ -35,6 +35,7 @@ test("final bank files and payslips are release-only", () => {
 
   assert.ok(route.includes('kind === "bank" && !dryRun && run.status !== "Released"'));
   assert.ok(route.includes('kind === "payslip" && run.status !== "Released"'));
+  assert.ok(route.includes('kind === "journal" && run.status !== "Released"'));
   assert.ok(exporter.includes('run.status !== "Released"'));
   assert.ok(exporter.includes("missingPaymentSnapshots"));
   assert.ok(exporter.includes("Final bank file total does not match the released payroll net pay"));
