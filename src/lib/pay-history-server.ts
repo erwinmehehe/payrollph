@@ -1,10 +1,11 @@
-import { and, asc, eq, gt, gte, lt, lte } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, lte } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employeePayAdjustments,
   employeePayProfiles,
   employeePayRateChanges,
   employees,
+  payrollEntries,
   payrollRuns,
   timePunches,
 } from "@/db/schema";
@@ -170,7 +171,7 @@ export async function recordEffectivePayChange(input: {
   }> = [];
 
   if (input.effectiveFrom < today && input.effectiveFrom <= serviceThrough) {
-    const releasedRuns = await db.select().from(payrollRuns)
+    const candidateRuns = await db.select().from(payrollRuns)
       .where(and(
         eq(payrollRuns.organizationId, input.organizationId),
         eq(payrollRuns.status, "Released"),
@@ -178,6 +179,15 @@ export async function recordEffectivePayChange(input: {
         lte(payrollRuns.periodStart, serviceThrough),
       ))
       .orderBy(asc(payrollRuns.periodStart));
+    const candidateRunIds = candidateRuns.map((run) => run.id);
+    const employeeEntries = candidateRunIds.length
+      ? await db.select({ payrollRunId: payrollEntries.payrollRunId }).from(payrollEntries).where(and(
+          eq(payrollEntries.employeeId, input.employeeId),
+          inArray(payrollEntries.payrollRunId, candidateRunIds),
+        ))
+      : [];
+    const employeeRunIds = new Set(employeeEntries.map((entry) => entry.payrollRunId));
+    const releasedRuns = candidateRuns.filter((run) => employeeRunIds.has(run.id));
 
     const buckets = new Map<number, { amount: number; from: string; through: string }>();
     for (const run of releasedRuns) {
