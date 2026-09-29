@@ -67,6 +67,8 @@ export function PayrollRunView({
   onRefresh,
   notify,
   focusExceptionsToken = 0,
+  focusReviewToken = 0,
+  focusReleaseToken = 0,
 }: {
   data: DashboardData;
   busy: boolean;
@@ -78,6 +80,8 @@ export function PayrollRunView({
   onRefresh: () => Promise<void>;
   notify: Notify;
   focusExceptionsToken?: number;
+  focusReviewToken?: number;
+  focusReleaseToken?: number;
 }) {
   const [selectedId, setSelectedId] = useState<number | undefined>(data.payrollRuns[0]?.id);
   const [query, setQuery] = useState("");
@@ -216,6 +220,22 @@ export function PayrollRunView({
       setReviewLoading(false);
     }
   }
+
+  useEffect(() => {
+    if (focusReviewToken <= 0 || !run) return;
+    if (run.status === "Needs review" || run.status === "Processed") {
+      void openReviewSubmission();
+    }
+    // The token is an explicit navigation intent; the current run is read at the time it fires.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusReviewToken]);
+
+  useEffect(() => {
+    if (focusReleaseToken <= 0 || !run) return;
+    if (run.status === "Ready for release" && relatedTask?.status === "Approved") {
+      setConfirmRelease(true);
+    }
+  }, [focusReleaseToken, run, relatedTask]);
 
   async function submitForReview() {
     if (!run || !reviewApproverId) {
