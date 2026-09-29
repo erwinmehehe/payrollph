@@ -1,11 +1,13 @@
 import { asc, count, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { employees } from "@/db/schema";
+import { employeePayProfiles, employees } from "@/db/schema";
 import { authenticateApiKey, requireScope } from "@/lib/api-auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { findReplay, storeReplay } from "@/lib/idempotency";
 import { clientIp, rateLimitDistributed } from "@/lib/rate-limit";
 import { dispatchWebhook } from "@/lib/webhooks";
+import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
+import { resolvePayProfile } from "@/lib/pay-basis";
 
 export const dynamic = "force-dynamic";
 
@@ -23,14 +25,18 @@ export async function GET(request: Request) {
     return Response.json({ error: "API key is missing the employees:read scope." }, { status: 403 });
   }
 
+  await ensureEmployeePayProfiles(auth.organizationId);
+
   const { searchParams } = new URL(request.url);
   const limit = Math.min(200, Math.max(1, Number(searchParams.get("limit") ?? 50)));
   const offset = Math.max(0, Number(searchParams.get("offset") ?? 0));
 
-  const [rows, [{ value: total }]] = await Promise.all([
+  const [rows, payProfiles, [{ value: total }]] = await Promise.all([
     db.select().from(employees).where(eq(employees.organizationId, auth.organizationId)).orderBy(asc(employees.id)).limit(limit).offset(offset),
+    db.select().from(employeePayProfiles).where(eq(employeePayProfiles.organizationId, auth.organizationId)),
     db.select({ value: count() }).from(employees).where(eq(employees.organizationId, auth.organizationId)),
   ]);
+  const payByEmployee = new Map(payProfiles.map((profile) => [profile.employeeId, profile]));
 
   return Response.json({
     object: "list",
@@ -38,7 +44,9 @@ export async function GET(request: Request) {
     limit,
     offset,
     hasMore: offset + rows.length < total,
-    data: rows.map((row) => ({
+    data: rows.map((row) => {
+      const profile = payByEmployee.get(row.id);
+      return {
       id: row.id,
       employeeNo: row.employeeNo,
       firstName: row.firstName,
@@ -47,9 +55,14 @@ export async function GET(request: Request) {
       employmentType: row.employmentType,
       status: row.status,
       monthlyBasic: row.basicRate,
+      payBasis: profile?.payBasis ?? "monthly",
+      payRate: profile?.rateAmount ?? row.basicRate,
+      standardWorkDaysPerMonth: profile?.standardWorkDaysPerMonth ?? "22.00",
+      standardHoursPerDay: profile?.standardHoursPerDay ?? "8.00",
       mwe: row.mwe,
       startDate: row.startDate,
-    })),
+    };
+    }),
   });
 }
 
@@ -80,17 +93,28 @@ export async function POST(request: Request) {
   const firstName = String(body.firstName ?? "").trim();
   const lastName = String(body.lastName ?? "").trim();
   const title = String(body.title ?? "").trim();
-  const basicRate = Number(body.monthlyBasic ?? body.basicRate);
+  const rateAmount = Number(body.rateAmount ?? body.monthlyBasic ?? body.basicRate);
   const startDate = String(body.startDate ?? "").trim();
 
   const problems: string[] = [];
   if (!firstName) problems.push("firstName is required.");
   if (!lastName) problems.push("lastName is required.");
   if (!title) problems.push("title is required.");
-  if (!Number.isFinite(basicRate) || basicRate <= 0) problems.push("monthlyBasic must be a positive number.");
+  let payProfile;
+  try {
+    payProfile = resolvePayProfile({
+      payBasis: String(body.payBasis ?? "monthly"),
+      rateAmount,
+      standardWorkDaysPerMonth: Number(body.standardWorkDaysPerMonth ?? 22),
+      standardHoursPerDay: Number(body.standardHoursPerDay ?? 8),
+    });
+  } catch (error) {
+    problems.push(error instanceof Error ? error.message : "Pay profile is invalid.");
+  }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) problems.push("startDate must be YYYY-MM-DD.");
   if (problems.length) return Response.json({ error: "Validation failed.", problems }, { status: 422 });
 
+  await ensureEmployeePayProfiles(auth.organizationId);
   const [{ value: existing }] = await db.select({ value: count() }).from(employees).where(eq(employees.organizationId, auth.organizationId));
   const employeeNo = String(body.employeeNo ?? `API-${String(existing + 1).padStart(4, "0")}`).trim();
 
@@ -108,11 +132,29 @@ export async function POST(request: Request) {
     employmentType: String(body.employmentType ?? "Regular"),
     status: String(body.status ?? "Active"),
     avatarInitials: `${firstName[0] ?? "?"}${lastName[0] ?? "?"}`.toUpperCase(),
-    basicRate: basicRate.toFixed(2),
+    basicRate: payProfile!.monthlyEquivalent.toFixed(2),
     mwe: Boolean(body.mwe),
     email,
     startDate,
   }).returning();
+
+  await db.insert(employeePayProfiles).values({
+    employeeId: created.id,
+    organizationId: auth.organizationId,
+    payBasis: payProfile!.payBasis,
+    rateAmount: payProfile!.rateAmount.toFixed(2),
+    standardWorkDaysPerMonth: payProfile!.standardWorkDaysPerMonth.toFixed(2),
+    standardHoursPerDay: payProfile!.standardHoursPerDay.toFixed(2),
+  }).onConflictDoUpdate({
+    target: employeePayProfiles.employeeId,
+    set: {
+      payBasis: payProfile!.payBasis,
+      rateAmount: payProfile!.rateAmount.toFixed(2),
+      standardWorkDaysPerMonth: payProfile!.standardWorkDaysPerMonth.toFixed(2),
+      standardHoursPerDay: payProfile!.standardHoursPerDay.toFixed(2),
+      updatedAt: new Date(),
+    },
+  });
 
   const payload = {
     id: created.id,
@@ -122,6 +164,10 @@ export async function POST(request: Request) {
     title: created.title,
     status: created.status,
     monthlyBasic: created.basicRate,
+    payBasis: payProfile!.payBasis,
+    payRate: payProfile!.rateAmount.toFixed(2),
+    standardWorkDaysPerMonth: payProfile!.standardWorkDaysPerMonth.toFixed(2),
+    standardHoursPerDay: payProfile!.standardHoursPerDay.toFixed(2),
     startDate: created.startDate,
   };
 
