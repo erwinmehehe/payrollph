@@ -48,7 +48,13 @@ jobs:
         run: |
           set -euo pipefail
           for role in owner hr payroll checker employee; do
-            curl -fsS -c "/tmp/${role}.cookies"               -H 'Content-Type: application/json'               -d "{\"role\":\"${role}\"}"               http://127.0.0.1:3000/api/auth/demo-switch               | tee "/tmp/${role}.json"
+            code="$(curl -sS -o "/tmp/${role}.json" -w '%{http_code}' -c "/tmp/${role}.cookies" \
+              -H 'Host: erwinmehehe-payrollph.vercel.app' \
+              -H 'Content-Type: application/json' \
+              -d "{\"role\":\"${role}\"}" \
+              http://127.0.0.1:3000/api/auth/demo-switch)"
+            cat "/tmp/${role}.json"
+            test "$code" = "200"
             grep -q "\"redirectTo\":\"/?demoRole=${role}\"" "/tmp/${role}.json"
           done
       - name: Verify isolated demo tenant and sample data
