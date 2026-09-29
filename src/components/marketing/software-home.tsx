@@ -1,4 +1,11 @@
-import { ArrowRight, Check, ShieldCheck } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  CheckCircle2,
+  RefreshCcw,
+  ShieldCheck,
+  UsersRound,
+} from "lucide-react";
 import { getPublicPricingPlans } from "@/lib/pricing-catalog";
 import { PricingTable } from "@/components/marketing/pricing-table";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
@@ -7,65 +14,52 @@ import styles from "./software-home.module.css";
 
 const COVERAGE = ["SSS", "PhilHealth", "Pag-IBIG", "BIR TRAIN", "DOLE rules"];
 
-const WORKFLOW = [
-  {
-    step: "01",
-    title: "Prepare",
-    copy: "Bring attendance, employee changes and cutoff inputs into one place.",
-  },
-  {
-    step: "02",
-    title: "Calculate",
-    copy: "Apply payroll rules, premiums, deductions and statutory contributions.",
-  },
-  {
-    step: "03",
-    title: "Review",
-    copy: "Surface exceptions and material changes before they become payroll mistakes.",
-  },
-  {
-    step: "04",
-    title: "Approve",
-    copy: "Send the run to a different checker with a visible decision trail.",
-  },
-  {
-    step: "05",
-    title: "Release",
-    copy: "Generate payslips and payroll outputs only after the run is cleared.",
-  },
+const PAYROLL_FLOW = [
+  ["01", "Prepare", "Attendance, employee changes and cutoff inputs are pulled into one run."],
+  ["02", "Calculate", "Payroll rules, premiums, deductions and statutory contributions are applied."],
+  ["03", "Review", "Material changes and blockers are surfaced before approval."],
+  ["04", "Checker", "A different reviewer approves or sends the run back."],
+  ["05", "Release", "Final bank files and released payslips unlock only after approval."],
+];
+
+const CONTROL_POINTS = [
+  "Maker and checker stay separate",
+  "Recalculation invalidates stale approvals",
+  "Release re-checks payroll assurance",
+  "Final bank files are release-only",
 ];
 
 const COMPLIANCE = [
-  {
-    title: "SSS",
-    copy: "Contribution rules stay in the same calculation path as the payroll run.",
-  },
-  {
-    title: "PhilHealth",
-    copy: "Employee and employer contributions remain visible to the reviewer.",
-  },
-  {
-    title: "Pag-IBIG",
-    copy: "Mandatory and supported voluntary contributions stay attached to the run.",
-  },
-  {
-    title: "BIR TRAIN",
-    copy: "Withholding is calculated from configured Philippine tax rules.",
-  },
-  {
-    title: "Wage and premium rules",
-    copy: "Regional wage floors, holiday premiums and night differential can be applied in payroll.",
-  },
+  ["SSS", "Employee and employer contribution basis stays visible in the run."],
+  ["PhilHealth", "Contribution basis and employer share remain reviewable."],
+  ["Pag-IBIG", "Mandatory and supported voluntary contributions stay attached to payroll."],
+  ["BIR TRAIN", "Withholding and year-end annualization use the same payroll history."],
 ];
 
-const ROLE_LINKS = [
-  "Owner",
-  "Bookkeeper",
-  "Payroll",
-  "HR",
-  "Manager",
-  "Employee",
-  "Freelancer",
+const MIGRATION_SOURCES = [
+  "Sprout",
+  "Salarium",
+  "PayrollHero",
+  "GreatDay HR",
+  "Omni HR",
+  "Employment Hero",
+  "BambooHR",
+  "Workday / SAP",
+];
+
+const DEMO_ROLES = ["Owner", "HR Admin", "Payroll Officer", "Checker", "Employee"];
+
+const SUPPORTING_MODULES = [
+  "People",
+  "Time & attendance",
+  "Leave",
+  "Loans",
+  "Benefits",
+  "Expenses",
+  "Recruitment",
+  "Separation",
+  "Contractors",
+  "Assets",
 ];
 
 export async function SoftwareHome() {
@@ -81,21 +75,22 @@ export async function SoftwareHome() {
             <div className={styles.heroInner}>
               <span className={styles.eyebrow}>
                 <ShieldCheck size={14} aria-hidden />
-                Built for Philippine payroll
+                Philippine payroll software with real controls
               </span>
 
-              <h1>Philippine payroll, without the guesswork.</h1>
+              <h1>Run Philippine payroll with a clear path from draft to release.</h1>
 
               <p className={styles.heroLead}>
-                Run payroll, review exceptions, understand every peso and approve with confidence in one calm workspace.
+                Linaw brings payroll calculation, review, checker approval, release controls and employee payslips into one
+                calm workspace, with the Philippine rules your team needs to see.
               </p>
 
               <div className={styles.heroActions}>
                 <a className={styles.primaryAction} href="/signup">
                   Start free <ArrowRight size={15} aria-hidden />
                 </a>
-                <a className={styles.secondaryAction} href="#simulation">
-                  Explore the product
+                <a className={styles.secondaryAction} href="/demo">
+                  Try the role-based sandbox
                 </a>
               </div>
 
@@ -108,24 +103,50 @@ export async function SoftwareHome() {
           </div>
         </section>
 
+        <section className={styles.heroProduct} aria-label="Linaw payroll workspace">
+          <div className={styles.productStage}>
+            <div className={styles.productStageMeta}>
+              <div>
+                <span>Sample payroll workspace</span>
+                <strong>September 16–30 · Needs review</strong>
+              </div>
+              <div>
+                <span>Net payroll</span>
+                <strong>₱361,282</strong>
+              </div>
+              <div>
+                <span>Employees</span>
+                <strong>42</strong>
+              </div>
+              <div>
+                <span>Exceptions</span>
+                <strong>2</strong>
+              </div>
+            </div>
+            <div className={styles.productStageScreen}>
+              <WorkspacePreview mode="showcase" />
+            </div>
+          </div>
+        </section>
+
         <section className={styles.workflowSection} id="workflow">
           <div className={styles.shell}>
-            <div className={styles.editorialHead}>
-              <span className={styles.kicker}>A clearer payroll run</span>
-              <h2>One flow from cutoff to release.</h2>
+            <div className={styles.storyIntro}>
+              <span className={styles.kicker}>The payroll workflow</span>
+              <h2>Payroll should move forward in one direction.</h2>
               <p>
-                Linaw keeps the payroll process visible so your team always knows what is ready, what needs attention and
-                what still needs approval.
+                Every cutoff follows the same visible sequence. The team can see what changed, who still needs to decide,
+                and whether the run is actually safe to release.
               </p>
             </div>
 
-            <ol className={styles.workflow}>
-              {WORKFLOW.map((item) => (
-                <li key={item.step}>
-                  <span className={styles.step}>{item.step}</span>
+            <ol className={styles.flowRail}>
+              {PAYROLL_FLOW.map(([step, title, copy]) => (
+                <li key={step}>
+                  <span className={styles.flowNumber}>{step}</span>
                   <div>
-                    <h3>{item.title}</h3>
-                    <p>{item.copy}</p>
+                    <strong>{title}</strong>
+                    <p>{copy}</p>
                   </div>
                 </li>
               ))}
@@ -133,54 +154,28 @@ export async function SoftwareHome() {
           </div>
         </section>
 
-        <section className={styles.simulationSection} id="simulation">
-          <div className={styles.wideShell}>
-            <div className={styles.simulationHead}>
-              <div>
-                <span className={styles.kicker}>Interactive product</span>
-                <h2>Try the payroll workspace yourself.</h2>
-              </div>
-              <p>
-                Explore the wider workspace, from payroll and people to migration, leave, compliance, loans and
-                operations. Core payroll actions remain interactive; every screen uses sample data and writes nothing.
-              </p>
-            </div>
-
-            <div className={styles.simulationHints} aria-label="Things to try in the simulation">
-              <span>Open Payroll</span>
-              <span>Try Migration</span>
-              <span>Review Compliance</span>
-              <span>Explore People & Leave</span>
-            </div>
-
-            <div className={styles.simulationSurface}>
-              <WorkspacePreview mode="interactive" />
-            </div>
-
-            <div className={styles.simulationFooter}>
-              <span>Want to explore by role?</span>
-              <a href="/demo">
-                Open the role-based demo <ArrowRight size={13} aria-hidden />
-              </a>
-            </div>
-          </div>
-        </section>
-
-        <section className={styles.assuranceSection} id="assurance">
-          <div className={`${styles.shell} ${styles.assuranceGrid}`}>
-            <div className={styles.assuranceCopy}>
+        <section className={styles.controlSection}>
+          <div className={`${styles.shell} ${styles.controlGrid}`}>
+            <div className={styles.controlCopy}>
               <span className={styles.kicker}>Payroll assurance</span>
-              <h2>Know what changed before you approve payroll.</h2>
+              <h2>Know what changed before anyone presses release.</h2>
               <p>
-                Linaw compares the current run with the previous cutoff, surfaces unusual movements and gives reviewers a
-                clearer explanation of what changed.
+                Linaw does more than produce totals. It keeps the review trail visible and stops the run when critical
+                payroll state no longer matches what was approved.
               </p>
 
-              <div className={styles.assurancePoints}>
-                <span><Check size={14} aria-hidden /> Material net-pay changes are surfaced for review</span>
-                <span><Check size={14} aria-hidden /> Payroll integrity blockers can stop release</span>
-                <span><Check size={14} aria-hidden /> Maker and checker stay separate in the approval flow</span>
+              <div className={styles.controlPoints}>
+                {CONTROL_POINTS.map((item) => (
+                  <span key={item}>
+                    <CheckCircle2 size={15} aria-hidden />
+                    {item}
+                  </span>
+                ))}
               </div>
+
+              <a className={styles.textLink} href="/demo">
+                Open as Payroll Officer or Checker <ArrowRight size={14} aria-hidden />
+              </a>
             </div>
 
             <div className={styles.assurancePanel} aria-label="Illustrative payroll assurance review">
@@ -198,12 +193,12 @@ export async function SoftwareHome() {
                   <strong>₱361,282</strong>
                 </div>
                 <div>
-                  <span>Employees</span>
-                  <strong>42</strong>
-                </div>
-                <div>
                   <span>Compared</span>
                   <strong>40</strong>
+                </div>
+                <div>
+                  <span>Release</span>
+                  <strong>Locked</strong>
                 </div>
               </div>
 
@@ -220,7 +215,7 @@ export async function SoftwareHome() {
                   <span className={styles.personBadge}>RM</span>
                   <div>
                     <strong>Rico Mendoza</strong>
-                    <p>Incomplete time punch is affecting this cutoff.</p>
+                    <p>Incomplete attendance is affecting this cutoff.</p>
                   </div>
                   <span className={styles.reviewLabel}>Review</span>
                 </div>
@@ -237,24 +232,79 @@ export async function SoftwareHome() {
           </div>
         </section>
 
-        <section className={styles.rulesSection}>
+        <section className={styles.complianceSection} id="compliance">
           <div className={styles.shell}>
-            <div className={styles.rulesIntro}>
-              <span className={styles.kicker}>Philippine payroll rules</span>
-              <h2>Local payroll rules belong in the product, not in a side spreadsheet.</h2>
+            <div className={styles.storyIntro}>
+              <span className={styles.kicker}>Philippine compliance</span>
+              <h2>The rulebook belongs inside the payroll run.</h2>
               <p>
-                The reviewer should be able to see the statutory and wage rules affecting a payroll run without leaving
-                the workflow.
+                Reviewers should not need a side spreadsheet to understand the statutory rules affecting the numbers in
+                front of them.
               </p>
             </div>
 
-            <div className={styles.rulesList}>
-              {COMPLIANCE.map((item) => (
-                <article key={item.title}>
-                  <h3>{item.title}</h3>
-                  <p>{item.copy}</p>
+            <div className={styles.complianceRail}>
+              {COMPLIANCE.map(([title, copy]) => (
+                <article key={title}>
+                  <span>{title}</span>
+                  <p>{copy}</p>
                 </article>
               ))}
+            </div>
+          </div>
+        </section>
+
+        <section className={styles.migrationSection}>
+          <div className={`${styles.shell} ${styles.migrationGrid}`}>
+            <div className={styles.migrationCopy}>
+              <span className={styles.kicker}>Switch without starting over</span>
+              <h2>Bring your payroll history with you.</h2>
+              <p>
+                Import employees, payroll history, leave balances and loans from another payroll or HRIS. Mid-year
+                history is preserved instead of being recalculated under today&apos;s rules.
+              </p>
+
+              <div className={styles.sourceCloud}>
+                {MIGRATION_SOURCES.map((source) => (
+                  <span key={source}>{source}</span>
+                ))}
+                <span>Other CSV</span>
+              </div>
+
+              <a className={styles.textLink} href="#simulation">
+                Try the migration flow <ArrowRight size={14} aria-hidden />
+              </a>
+            </div>
+
+            <div className={styles.migrationSteps} aria-label="Migration process">
+              <div>
+                <span>01</span>
+                <div>
+                  <strong>Upload existing exports</strong>
+                  <p>Employees, payroll history, leave balances or loans.</p>
+                </div>
+              </div>
+              <div>
+                <span>02</span>
+                <div>
+                  <strong>Review detected mappings</strong>
+                  <p>Unknown columns stay visible instead of disappearing silently.</p>
+                </div>
+              </div>
+              <div>
+                <span>03</span>
+                <div>
+                  <strong>Validate before writing</strong>
+                  <p>Dry-run counts, errors and warnings appear before anything is committed.</p>
+                </div>
+              </div>
+              <div>
+                <span>04</span>
+                <div>
+                  <strong>Run payroll in Linaw</strong>
+                  <p>Imported YTD values remain available for year-end annualization.</p>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -263,30 +313,86 @@ export async function SoftwareHome() {
           <div className={styles.shell}>
             <div className={styles.rolesBand}>
               <div>
-                <span className={styles.kicker}>See the product from every seat</span>
-                <h2>One product. Different jobs.</h2>
+                <span className={styles.kicker}>Role-based sandbox</span>
+                <h2>See the product from the seat you actually use.</h2>
+                <p>Each persona opens a populated workspace with real role permissions and realistic tasks.</p>
               </div>
               <a className={styles.roleCta} href="/demo">
-                Explore all demo roles <ArrowRight size={14} aria-hidden />
+                Open sandbox <ArrowRight size={14} aria-hidden />
               </a>
             </div>
 
             <div className={styles.roleLinks} aria-label="Demo roles">
-              {ROLE_LINKS.map((role) => (
-                <a href="/demo" key={role}>{role}</a>
+              {DEMO_ROLES.map((role) => (
+                <a href="/demo" key={role}>
+                  <UsersRound size={13} aria-hidden />
+                  {role}
+                </a>
               ))}
+            </div>
+          </div>
+        </section>
+
+        <section className={styles.supportSection}>
+          <div className={styles.shell}>
+            <div className={styles.supportIntro}>
+              <div>
+                <span className={styles.kicker}>Around payroll</span>
+                <h2>The HR tools stay close, without taking over the story.</h2>
+              </div>
+              <p>
+                People operations, leave, attendance, loans and offboarding are available when they affect payroll, while
+                payroll remains the center of the workspace.
+              </p>
+            </div>
+
+            <div className={styles.moduleLine}>
+              {SUPPORTING_MODULES.map((item) => (
+                <span key={item}>{item}</span>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className={styles.simulationSection} id="simulation">
+          <div className={styles.wideShell}>
+            <div className={styles.simulationHead}>
+              <div>
+                <span className={styles.kicker}>Interactive product</span>
+                <h2>Now try the workspace yourself.</h2>
+              </div>
+              <p>
+                Use sample data to open payroll, approve leave, test migration and explore the surrounding modules. The
+                public simulation writes nothing.
+              </p>
+            </div>
+
+            <div className={styles.simulationHints} aria-label="Things to try in the simulation">
+              <span>Open Payroll</span>
+              <span>Approve Leave</span>
+              <span>Try Migration</span>
+              <span>Review Compliance</span>
+            </div>
+
+            <div className={styles.simulationSurface}>
+              <WorkspacePreview mode="interactive" />
+            </div>
+
+            <div className={styles.simulationFooter}>
+              <span>Want real permissions and persona tasks?</span>
+              <a href="/demo">
+                Open the role-based sandbox <ArrowRight size={13} aria-hidden />
+              </a>
             </div>
           </div>
         </section>
 
         <section className={styles.pricingSection} id="pricing">
           <div className={styles.shell}>
-            <div className={styles.editorialHead}>
+            <div className={styles.pricingLead}>
               <span className={styles.kicker}>Published pricing</span>
-              <h2>See the cost before you talk to anyone.</h2>
-              <p>
-                Adjust the employee count and the monthly price updates immediately.
-              </p>
+              <h2>Choose by how your payroll operates, not by a feature maze.</h2>
+              <p>Set your headcount and compare the monthly cost immediately.</p>
             </div>
 
             <div className={styles.pricingSurface}>
@@ -299,14 +405,14 @@ export async function SoftwareHome() {
           <div className={styles.shell}>
             <div className={styles.finalInner}>
               <span className={styles.kicker}>Start with one payroll</span>
-              <h2>Make the next cutoff easier to review.</h2>
-              <p>Create a workspace, or explore the role-based demo first.</p>
+              <h2>Make the next cutoff easier to explain, review and release.</h2>
+              <p>Start a workspace, or use the role sandbox first and see exactly how your team would work.</p>
               <div className={styles.heroActions}>
                 <a className={styles.primaryAction} href="/signup">
                   Start free <ArrowRight size={15} aria-hidden />
                 </a>
                 <a className={styles.secondaryAction} href="/demo">
-                  Explore demo
+                  Explore sandbox
                 </a>
               </div>
             </div>
