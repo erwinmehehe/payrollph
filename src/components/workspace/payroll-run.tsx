@@ -928,9 +928,10 @@ function ExportPanel({
                 <button
                   className="secondary-button"
                   style={{ marginTop: 10 }}
+                  disabled={!released}
                   onClick={() => download(`/api/payroll-runs/${run.id}/exports?kind=journal`, "Journal CSV")}
                 >
-                  <Download size={14} className="i-teal" /> Journal CSV
+                  <Download size={14} className="i-teal" /> {released ? "Journal CSV" : "Available after release"}
                 </button>
               </div>
             </div>
