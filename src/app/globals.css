@@ -5799,7 +5799,7 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
 
 .role-focus-number {
   display: grid;
-  grid-template-columns: 62px minmax(0, 1fr);
+  grid-template-columns: max-content minmax(0, 1fr);
   gap: 12px;
   align-items: center;
   padding: 12px 0;
@@ -5807,6 +5807,7 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
 }
 .role-focus-number:last-child { border-bottom: 0; }
 .role-focus-number > strong {
+  min-width: 56px;
   color: var(--ink);
   font-family: var(--font-mono), monospace;
   font-size: 22px;
