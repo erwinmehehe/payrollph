@@ -3,7 +3,7 @@ import test from "node:test";
 import { db } from "../src/db";
 import { outbox } from "../src/db/schema";
 import { and, eq } from "drizzle-orm";
-import { queueMessage, queueMessageOnce } from "../src/lib/mailer";
+import { queueMessage, queueMessageOnce, retryOutboxMessage } from "../src/lib/mailer";
 
 // Regression test for a real gap: activeMailProvider() and deliveryCapable()
 // both recognized SMTP_URL and reported the provider as ready, but the actual
@@ -101,6 +101,16 @@ test("queueMessageOnce keeps one outbox row per organization, recipient and purp
     assert.equal(failedDuplicate.delivered, false);
     assert.equal(failedDuplicate.queued, false);
     assert.match(failedDuplicate.reason ?? "", /previous notification attempt failed/i);
+
+    const retry = await retryOutboxMessage({ organizationId, messageId: first.id });
+    assert.ok(retry);
+    assert.equal(retry?.queued, true);
+    assert.equal(retry?.delivered, false);
+    assert.equal(retry?.status, "queued");
+
+    const [retriedRow] = await db.select().from(outbox).where(eq(outbox.id, first.id)).limit(1);
+    assert.equal(retriedRow.status, "queued");
+    assert.equal(retriedRow.error, null);
   } finally {
     await db.delete(outbox).where(and(
       eq(outbox.organizationId, organizationId),
