@@ -121,6 +121,8 @@ export async function getDashboardData(organizationId?: number) {
           .select({
             id: payrollRuns.id,
             periodLabel: payrollRuns.periodLabel,
+            periodStart: payrollRuns.periodStart,
+            periodEnd: payrollRuns.periodEnd,
             status: payrollRuns.status,
             payDate: payrollRuns.payDate,
           })
@@ -206,6 +208,8 @@ export async function getDashboardData(organizationId?: number) {
       ? {
           id: handoffRun.id,
           periodLabel: handoffRun.periodLabel,
+          periodStart: handoffRun.periodStart,
+          periodEnd: handoffRun.periodEnd,
           status: handoffRun.status,
           payDate: handoffRun.payDate,
         }
