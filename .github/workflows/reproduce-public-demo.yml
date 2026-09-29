@@ -1,0 +1,56 @@
+name: Reproduce public demo provisioning
+
+on:
+  push:
+    branches:
+      - fix/demo-launch-provisioning-sep29
+    paths:
+      - ".github/workflows/reproduce-public-demo.yml"
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run db:push
+      - name: Start app without DEMO_MODE
+        run: |
+          unset DEMO_MODE
+          npm run dev -- --hostname 127.0.0.1 >/tmp/app.log 2>&1 &
+          for i in {1..60}; do
+            curl -fsS http://127.0.0.1:3000/demo >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/app.log
+          exit 1
+      - name: Exercise public demo provisioning path
+        run: |
+          set -euo pipefail
+          code="$(curl -sS -o /tmp/response.json -w '%{http_code}'             -X POST             -H 'Content-Type: application/json'             -d '{"role":"owner"}'             http://127.0.0.1:3000/api/auth/demo-switch)"
+          cat /tmp/response.json
+          echo "HTTP $code"
+          if [ "$code" != "200" ]; then
+            cat /tmp/app.log
+            exit 1
+          fi
