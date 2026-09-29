@@ -8,6 +8,7 @@ import {
   calamityAdvisories,
   employees,
   freelancerProfiles,
+  leavePolicies,
   leaveRequests,
   minWageOrders,
   organizations,
@@ -23,9 +24,11 @@ import {
 import { ensureSeedData } from "@/db/seed";
 import { getAccess, PAYROLL_VIEW_ROLES, roleAllowed } from "@/lib/access";
 import { getSessionUser, publicUser } from "@/lib/auth";
+import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 
 export async function getDashboardData(organizationId?: number) {
   await ensureSeedData();
+  await ensureLeavePayrollSchema();
   const sessionUser = await getSessionUser();
   if (!sessionUser) {
     throw new Error("Authentication required to load workspace data.");
@@ -68,7 +71,7 @@ export async function getDashboardData(organizationId?: number) {
     ? and(eq(employees.organizationId, selectedOrganization.id), eq(employees.orgUnitId, access.orgUnitId))
     : eq(employees.organizationId, selectedOrganization.id);
 
-  const [employeeRows, runRows, taskRowsRaw, auditRows, plans, templates, advisories, freelancer, punchRowsRaw, delegationRows, leaveRowsRaw, units, wages, provisionRowsRaw] = await Promise.all([
+  const [employeeRows, runRows, taskRowsRaw, auditRows, plans, templates, advisories, freelancer, punchRowsRaw, delegationRows, leaveRowsRaw, leavePolicyRows, units, wages, provisionRowsRaw] = await Promise.all([
     db.select().from(employees).where(employeeFilter).orderBy(asc(employees.id)),
     canViewPayroll
       ? db.select().from(payrollRuns).where(eq(payrollRuns.organizationId, selectedOrganization.id)).orderBy(desc(payrollRuns.id))
@@ -86,6 +89,7 @@ export async function getDashboardData(organizationId?: number) {
     db.select().from(timePunches).where(eq(timePunches.organizationId, selectedOrganization.id)).orderBy(desc(timePunches.workDate)),
     db.select().from(approvalDelegations).where(eq(approvalDelegations.organizationId, selectedOrganization.id)).orderBy(desc(approvalDelegations.id)),
     db.select().from(leaveRequests).where(eq(leaveRequests.organizationId, selectedOrganization.id)).orderBy(desc(leaveRequests.id)),
+    db.select().from(leavePolicies).where(eq(leavePolicies.organizationId, selectedOrganization.id)).orderBy(asc(leavePolicies.id)),
     db.select().from(orgUnits).where(eq(orgUnits.organizationId, selectedOrganization.id)),
     db.select().from(minWageOrders),
     db.select().from(provisioningTasks).where(eq(provisioningTasks.organizationId, selectedOrganization.id)),
@@ -152,6 +156,7 @@ export async function getDashboardData(organizationId?: number) {
     punches: punchRows,
     delegations: delegationRows,
     leaveRequests: leaveRows,
+    leavePolicies: leavePolicyRows,
     wageOrders: wages,
     provisioning: provisionRows,
     freelancer: freelancer[0] ?? null,
