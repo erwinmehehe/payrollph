@@ -302,6 +302,10 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         notifications={notifications}
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenNotification={availablePages.includes("Exports") ? () => setOutboxOpen(true) : undefined}
+        onSelectNotification={(item) => {
+          if (item.employeeId) setFocusEmployeeId(item.employeeId);
+          if (item.page) setPage(item.page);
+        }}
         onSwitchClient={(id) => void changeOrganization(id)}
         onSwitchRole={demoRole ? (role) => void switchDemoRole(role) : undefined}
         onSignOut={() => void signOut()}
@@ -350,6 +354,10 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
               role={dashboardRole}
               onNewRun={() => setNewPayrollOpen(true)}
               onPage={setPage}
+              onOpenEmployee={(employeeId) => {
+                setFocusEmployeeId(employeeId);
+                setPage("People");
+              }}
             />
           ) : (
             <OverviewView
