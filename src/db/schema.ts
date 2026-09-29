@@ -214,6 +214,7 @@ export const employeePayRetroAdjustments = pgTable(
     amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
     status: varchar("status", { length: 24 }).notNull().default("pending"),
     settledPayrollRunId: integer("settled_payroll_run_id").references(() => payrollRuns.id, { onDelete: "set null" }),
+    settledSeparationId: integer("settled_separation_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     settledAt: timestamp("settled_at", { withTimezone: true }),
   },
@@ -675,6 +676,8 @@ export const historicalPayrollEntries = pgTable("historical_payroll_entries", {
   periodLabel: varchar("period_label", { length: 120 }).notNull(),
   payDate: date("pay_date").notNull(),
   grossPay: numeric("gross_pay", { precision: 14, scale: 2 }).notNull(),
+  basicSalaryEarned: numeric("basic_salary_earned", { precision: 14, scale: 2 }).notNull().default("0"),
+  otherNonTaxable: numeric("other_non_taxable", { precision: 14, scale: 2 }).notNull().default("0"),
   netPay: numeric("net_pay", { precision: 14, scale: 2 }).notNull(),
   taxWithheld: numeric("tax_withheld", { precision: 14, scale: 2 }).notNull().default("0"),
   sssEmployee: numeric("sss_employee", { precision: 14, scale: 2 }).notNull().default("0"),
@@ -816,6 +819,7 @@ export const separationRecords = pgTable("separation_records", {
   separationType: varchar("separation_type", { length: 32 }).notNull(), // "resignation", "retirement", "authorized_cause", "just_cause", "end_of_contract"
   noticeDate: date("notice_date").notNull(),
   lastDay: date("last_day").notNull(),
+  finalPayDueDate: date("final_pay_due_date"),
   clearanceStatus: varchar("clearance_status", { length: 32 }).notNull().default("in_progress"),
   itCleared: boolean("it_cleared").notNull().default(false),
   adminCleared: boolean("admin_cleared").notNull().default(false),
@@ -827,8 +831,11 @@ export const separationRecords = pgTable("separation_records", {
   taxAdjustment: numeric("tax_adjustment", { precision: 12, scale: 2 }).notNull().default("0"),
   loanDeductions: numeric("loan_deductions", { precision: 12, scale: 2 }).notNull().default("0"),
   netFinalPay: numeric("net_final_pay", { precision: 12, scale: 2 }).notNull().default("0"),
+  finalPayBreakdown: jsonb("final_pay_breakdown").notNull().default({}),
   status: varchar("status", { length: 32 }).notNull().default("draft"), // "draft", "approved", "released"
   coeIssued: boolean("coe_issued").notNull().default(false),
+  releasedAt: timestamp("released_at", { withTimezone: true }),
+  releasedBy: varchar("released_by", { length: 120 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
