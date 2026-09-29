@@ -177,37 +177,41 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   let releaseNotificationsQueued = 0;
   const releaseNotificationWarnings: string[] = [];
   if (payrollRunId && status === "Approved") {
-    const [approvedRun] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, payrollRunId)).limit(1);
-    const members = await db
-      .select({
-        name: users.name,
-        email: users.email,
-        role: userOrganizations.role,
-      })
-      .from(userOrganizations)
-      .innerJoin(users, eq(userOrganizations.userId, users.id))
-      .where(eq(userOrganizations.organizationId, task.organizationId));
+    try {
+      const [approvedRun] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, payrollRunId)).limit(1);
+      const members = await db
+        .select({
+          name: users.name,
+          email: users.email,
+          role: userOrganizations.role,
+        })
+        .from(userOrganizations)
+        .innerJoin(users, eq(userOrganizations.userId, users.id))
+        .where(eq(userOrganizations.organizationId, task.organizationId));
 
-    const releaseOwners = members.filter((member) => member.role === "owner" || member.role === "admin");
-    for (const owner of releaseOwners) {
-      try {
-        await queueMessage({
-          organizationId: task.organizationId,
-          recipient: owner.email,
-          subject: `Payroll approved and ready to release: ${approvedRun?.periodLabel ?? task.title}`,
-          purpose: "payroll-release-ready",
-          body: [
-            `Hi ${owner.name},`,
-            "",
-            `${actor} approved ${approvedRun?.periodLabel ?? task.title}.`,
-            "",
-            "Sign in to Linaw and open Payroll to complete the owner release control.",
-          ].join("\n"),
-        });
-        releaseNotificationsQueued += 1;
-      } catch {
-        releaseNotificationWarnings.push(`Could not queue the release-ready notice for ${owner.email}.`);
+      const releaseOwners = members.filter((member) => member.role === "owner" || member.role === "admin");
+      for (const owner of releaseOwners) {
+        try {
+          await queueMessage({
+            organizationId: task.organizationId,
+            recipient: owner.email,
+            subject: `Payroll approved and ready to release: ${approvedRun?.periodLabel ?? task.title}`,
+            purpose: "payroll-release-ready",
+            body: [
+              `Hi ${owner.name},`,
+              "",
+              `${actor} approved ${approvedRun?.periodLabel ?? task.title}.`,
+              "",
+              "Sign in to Linaw and open Payroll to complete the owner release control.",
+            ].join("\n"),
+          });
+          releaseNotificationsQueued += 1;
+        } catch {
+          releaseNotificationWarnings.push(`Could not queue the release-ready notice for ${owner.email}.`);
+        }
       }
+    } catch {
+      releaseNotificationWarnings.push("Payroll was approved, but release-ready recipients could not be loaded.");
     }
   }
 
