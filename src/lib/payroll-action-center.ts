@@ -68,7 +68,7 @@ function hrActions(data: DashboardData): PayrollActionItem[] {
       actionLabel: "Complete people records",
       page: "People",
       tone: "review",
-      blocking: true,
+      blocking: false,
     });
   }
 
@@ -80,12 +80,12 @@ function payrollActions(data: DashboardData): PayrollActionItem[] {
   const run = data.payrollRuns.find((candidate) => makerStatuses.has(candidate.status)) ?? null;
   if (!run) return [];
   const task = latestRunTask(data.tasks, run.id);
-  const { pendingLeave, incompletePunches, missingIds } = cutoffBlockers(data, run);
+  const { pendingLeave, incompletePunches } = cutoffBlockers(data, run);
 
   if (run.status === "Failed") {
     return [{
-      id: `payroll-failed-${run.id}`,
-      title: `${run.periodLabel} calculation failed`,
+      id: "payroll-failed-" + run.id,
+      title: run.periodLabel + " calculation failed",
       detail: "The run needs to be recalculated before it can return to checker review.",
       actionLabel: "Open failed run",
       page: "Payroll",
@@ -94,72 +94,63 @@ function payrollActions(data: DashboardData): PayrollActionItem[] {
     }];
   }
 
-  const hrBlockers: PayrollActionItem[] = [];
+  const actions: PayrollActionItem[] = [];
+
   if (pendingLeave.length) {
-    hrBlockers.push({
-      id: `payroll-wait-leave-${run.id}`,
-      title: `Waiting on HR: ${pendingLeave.length} leave request${pendingLeave.length === 1 ? "" : "s"} are still pending`,
-      detail: `These requests overlap ${run.periodLabel} and can change payable days.`,
+    actions.push({
+      id: "payroll-review-leave-" + run.id,
+      title: pendingLeave.length + " leave request" + (pendingLeave.length === 1 ? "" : "s") + " overlap this cutoff",
+      detail: "HR still has pending leave in " + run.periodLabel + ". Review the approval status before finalizing the register.",
       actionLabel: "View approval status",
       page: "Approvals",
       tone: "review",
-      blocking: true,
     });
   }
+
   if (incompletePunches.length) {
     const affected = new Set(incompletePunches.map((punch) => punch.employeeId)).size;
-    hrBlockers.push({
-      id: `payroll-wait-attendance-${run.id}`,
-      title: `Waiting on HR: ${incompletePunches.length} incomplete punch${incompletePunches.length === 1 ? "" : "es"}`,
-      detail: `${affected} employee${affected === 1 ? "" : "s"} in ${run.periodLabel} still have incomplete time records.`,
+    actions.push({
+      id: "payroll-review-attendance-" + run.id,
+      title: incompletePunches.length + " incomplete punch" + (incompletePunches.length === 1 ? "" : "es") + " affect this cutoff",
+      detail: affected + " employee" + (affected === 1 ? "" : "s") + " in " + run.periodLabel + " still have incomplete time records. HR owns the correction.",
       actionLabel: "Inspect attendance",
       page: "Time & attendance",
       tone: "danger",
       blocking: true,
     });
   }
-  if (missingIds.length) {
-    hrBlockers.push({
-      id: `payroll-wait-ids-${run.id}`,
-      title: `Waiting on HR: ${missingIds.length} employee filing profile${missingIds.length === 1 ? "" : "s"} are incomplete`,
-      detail: "Payroll can inspect the affected people records, but HR owns the government-ID cleanup.",
-      actionLabel: "Inspect people records",
-      page: "People",
-      tone: "review",
+
+  if (run.exceptions > 0) {
+    actions.push({
+      id: "payroll-exceptions-" + run.id,
+      title: run.exceptions + " payroll exception" + (run.exceptions === 1 ? "" : "s") + " need review",
+      detail: run.periodLabel + " has flagged register entries. Resolve them or carry them into independent review with clear evidence.",
+      actionLabel: "Review payroll exceptions",
+      page: "Payroll",
+      tone: "danger",
       blocking: true,
     });
   }
-  if (hrBlockers.length) return hrBlockers;
+
+  if (task?.status === "Declined") {
+    actions.push({
+      id: "payroll-declined-" + run.id,
+      title: run.periodLabel + " was returned by the checker",
+      detail: "Review the returned payroll, recalculate if inputs changed, then submit a fresh independent review.",
+      actionLabel: "Fix and resubmit",
+      page: "Payroll",
+      tone: "danger",
+      blocking: true,
+    });
+  }
+
+  if (actions.length) return actions;
 
   if (run.status === "Needs review" || run.status === "Draft" || run.status === "Calculated" || run.status === "Ready") {
-    if (run.exceptions > 0) {
-      return [{
-        id: `payroll-exceptions-${run.id}`,
-        title: `${run.exceptions} payroll exception${run.exceptions === 1 ? "" : "s"} need review`,
-        detail: `${run.periodLabel} cannot be handed off cleanly until the flagged register entries are understood.`,
-        actionLabel: "Resolve payroll exceptions",
-        page: "Payroll",
-        tone: "danger",
-        blocking: true,
-      }];
-    }
-
-    if (task?.status === "Declined") {
-      return [{
-        id: `payroll-declined-${run.id}`,
-        title: `${run.periodLabel} was declined by the checker`,
-        detail: "Review the returned payroll, recalculate if inputs changed, then submit a fresh independent review.",
-        actionLabel: "Fix and resubmit",
-        page: "Payroll",
-        tone: "danger",
-        blocking: true,
-      }];
-    }
-
     return [{
-      id: `payroll-submit-${run.id}`,
-      title: `${run.periodLabel} is ready for checker handoff`,
-      detail: "The register has no stored exceptions. Choose an independent checker and submit the run for review.",
+      id: "payroll-submit-" + run.id,
+      title: run.periodLabel + " is ready for checker handoff",
+      detail: "No current cutoff input warnings or stored payroll exceptions remain. Choose an independent checker and submit the run for review.",
       actionLabel: "Submit to checker",
       page: "Payroll",
       tone: "active",
