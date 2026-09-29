@@ -220,250 +220,32 @@ jobs:
               check((await handoff.count()) === 1, `${persona.label}: payroll handoff is missing from the role dashboard`);
               check((await handoff.locator(".handoff-step").count()) === 5, `${persona.label}: payroll handoff must show all five owners`);
 
-              const actionCenter = dashboard.locator(`[data-payroll-action-center="${persona.dashboardRole}"]`);
-              check((await actionCenter.count()) === 1, `${persona.label}: next-action center is missing`);
+              const actionCenter = dashboard.locator('[data-payroll-action-center="' + persona.dashboardRole + '"]');
+              check((await actionCenter.count()) === 1, persona.label + ": next-action center is missing");
               const actionCount = await actionCenter.locator(".payroll-action-item").count();
               const clearCount = await actionCenter.locator(".status-approved").count();
-              check(actionCount > 0 || clearCount > 0, `${persona.label}: action center must show either an action or a clear state`);
+              check(actionCount > 0 || clearCount > 0, persona.label + ": action center must show either an action or a clear state");
 
               const notificationButton = page.getByRole("button", { name: /Notifications/ }).first();
-              check((await notificationButton.count()) === 1, `${persona.label}: notification button is missing`);
+              check((await notificationButton.count()) === 1, persona.label + ": notification button is missing");
               await notificationButton.click();
               await page.waitForTimeout(50);
               const tray = page.getByRole("dialog", { name: "Notifications" });
-              check((await tray.count()) === 1, `${persona.label}: attention tray did not open`);
-              check((await tray.locator(".tray-item").count()) === actionCount, `${persona.label}: tray and dashboard action counts disagree`);
+              check((await tray.count()) === 1, persona.label + ": attention tray did not open");
+              check((await tray.locator(".tray-item").count()) === actionCount, persona.label + ": tray and dashboard action counts disagree");
               if (actionCount === 0) {
-                check((await tray.innerText()).includes("Nothing needs your attention."), `${persona.label}: empty attention state is missing`);
+                check((await tray.innerText()).includes("Nothing needs your attention."), persona.label + ": empty attention state is missing");
               }
               await notificationButton.click();
 
               if (actionCount > 0) {
                 const firstAction = actionCenter.locator(".payroll-action-item").first();
                 const targetPage = await firstAction.getAttribute("data-action-page");
-                check(Boolean(targetPage), `${persona.label}: next action is missing a target page`);
+                check(Boolean(targetPage), persona.label + ": next action is missing a target page");
                 await firstAction.click();
                 await page.waitForTimeout(100);
-                const activeTarget = page.locator("aside .nav-item[aria-current='page']").filter({ hasText: new RegExp(`^${targetPage}name: Marketing Browser QA
-
-on:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - "src/components/marketing/**"
-      - "src/components/workspace/**"
-      - "src/components/linaw-workspace.tsx"
-      - "src/components/demo-sandbox-bar.tsx"
-      - "src/app/page.tsx"
-      - "src/lib/pricing-catalog.ts"
-      - "src/lib/demo-roles.ts"
-      - "tests/marketing.test.ts"
-      - "tests/demo-sandbox.test.ts"
-      - ".github/workflows/preview-browser-qa.yml"
-  workflow_dispatch:
-
-permissions:
-  contents: read
-
-jobs:
-  browser-qa:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    env:
-      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
-      DEMO_MODE: "false"
-      PUBLIC_DEMO_HOSTS: "127.0.0.1,localhost"
-      QA_URL: http://localhost:3000
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: app_db
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d app_db"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-
-      - run: npm ci
-      - run: npm run db:push
-      - run: npx next build
-
-      - name: Install Playwright for browser QA
-        run: |
-          npm install --no-save playwright@1.55.0
-          npx playwright install --with-deps chromium
-
-      - name: Start production build
-        shell: bash
-        run: |
-          nohup npm start -- -H 127.0.0.1 > /tmp/payrollph-next.log 2>&1 &
-          echo $! > /tmp/payrollph-next.pid
-          for attempt in {1..40}; do
-            if curl -fsS "$QA_URL" >/tmp/homepage.html; then
-              echo "Production build is reachable."
-              exit 0
-            fi
-            sleep 2
-          done
-          cat /tmp/payrollph-next.log
-          exit 1
-
-      - name: Run Chromium homepage and persona QA
-        shell: bash
-        run: |
-          cat > preview-qa.cjs <<'JS'
-          const fs = require("node:fs");
-          const { chromium } = require("playwright");
-
-          const base = process.env.QA_URL;
-          const outDir = "qa-artifacts";
-          fs.mkdirSync(outDir, { recursive: true });
-
-          const report = {
-            base,
-            homepage: [],
-            modules: [],
-            pricing: [],
-            personas: [],
-            errors: [],
-          };
-
-          function check(condition, message) {
-            if (!condition) throw new Error(message);
-          }
-
-          function attachErrorCollection(page, bucket) {
-            page.on("pageerror", (error) => bucket.push(`pageerror: ${error.message}`));
-            page.on("console", (message) => {
-              if (message.type() === "error") bucket.push(`console: ${message.text()}`);
-            });
-          }
-
-          async function qaHomepage(browser, name, viewport) {
-            const context = await browser.newContext({ viewport });
-            const page = await context.newPage();
-            const errors = [];
-            attachErrorCollection(page, errors);
-
-            const response = await page.goto(base, { waitUntil: "networkidle", timeout: 90000 });
-            check(response && response.ok(), `${name}: homepage did not return 2xx`);
-
-            const h1 = (await page.locator("h1").first().innerText()).trim();
-            check(h1.includes("Run Philippine payroll"), `${name}: expected payroll hero heading not found; saw "${h1}"`);
-
-            const overflow = await page.evaluate(() => ({
-              scrollWidth: document.documentElement.scrollWidth,
-              innerWidth: window.innerWidth,
-            }));
-            check(
-              overflow.scrollWidth <= overflow.innerWidth + 1,
-              `${name}: horizontal overflow ${overflow.scrollWidth}px > ${overflow.innerWidth}px`,
-            );
-
-            await page.screenshot({
-              path: `${outDir}/homepage-${name}.png`,
-              fullPage: true,
-            });
-
-            report.homepage.push({ name, viewport, h1, overflow, errors: [...errors] });
-
-            const pricing = page.locator("#pricing");
-            check((await pricing.count()) === 1, `${name}: pricing section is missing`);
-            const planRows = pricing.locator(".pricing-plan-row");
-            check((await planRows.count()) === 3, `${name}: expected three business pricing rows`);
-
-            const firstAmount = (await planRows.first().locator(".price strong").innerText()).trim();
-            const fiftyPreset = pricing.locator(".pricing-presets button").filter({ hasText: /^50$/ }).first();
-            check((await fiftyPreset.count()) === 1, `${name}: 50 employee pricing preset is missing`);
-            await fiftyPreset.click();
-            await page.waitForTimeout(100);
-            const updatedAmount = (await planRows.first().locator(".price strong").innerText()).trim();
-            check(firstAmount !== updatedAmount, `${name}: pricing estimate did not update after changing headcount`);
-            check((await pricing.innerText()).includes("50 employees"), `${name}: pricing estimator did not show 50 employees`);
-            report.pricing.push({ name, rows: 3, headcount: 50, firstAmount, updatedAmount });
-
-            if (name === "desktop") {
-              const stage = page.locator("#hero-product-preview");
-              check((await stage.count()) === 1, "desktop: focused hero product preview is missing");
-
-              for (const moduleName of ["Payroll", "People", "Migration", "Approvals", "Compliance"]) {
-                const button = stage.locator("button.nav-item").filter({ hasText: moduleName }).first();
-                check((await button.count()) === 1, `desktop: missing hero module ${moduleName}`);
-                await button.click();
-                await page.waitForTimeout(150);
-                const current = await button.getAttribute("aria-current");
-                check(current === "page", `desktop: ${moduleName} did not become active after click`);
-                report.modules.push({ module: moduleName, active: true });
-              }
-            }
-
-            check(errors.length === 0, `${name}: browser console/page errors: ${errors.join(" | ")}`);
-            await context.close();
-          }
-
-          const personas = [
-            { id: "owner", label: "Owner", short: "Owner", person: "Andrea Lim", landing: "Company control center", taskPage: "Overview", dashboardRole: "owner" },
-            { id: "hr", label: "HR Admin", short: "HR Admin", person: "Aira Villanueva", landing: "People operations today", taskPage: "People", dashboardRole: "hr" },
-            { id: "payroll", label: "Payroll Officer", short: "Payroll", person: "Paolo Cruz", landing: "Cutoff control center", taskPage: "Payroll", dashboardRole: "payroll" },
-            { id: "checker", label: "Checker", short: "Checker", person: "Mariel Santos", landing: "Independent review queue", taskPage: "Approvals", dashboardRole: "checker" },
-            { id: "employee", label: "Employee", short: "Employee", person: "Jonas Reyes", landing: "My pay", taskPage: "My pay", dashboardRole: null },
-          ];
-
-          async function qaPersona(browser, persona) {
-            const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
-            const page = await context.newPage();
-            const errors = [];
-            attachErrorCollection(page, errors);
-
-            const demoResponse = await page.goto(`${base}/demo`, { waitUntil: "networkidle", timeout: 90000 });
-            check(demoResponse && demoResponse.ok(), `${persona.label}: /demo did not return 2xx`);
-
-            const roleTab = page.getByRole("tab").filter({ hasText: persona.label }).first();
-            check((await roleTab.count()) === 1, `${persona.label}: role tab is missing`);
-            await roleTab.click();
-
-            const openButton = page.getByRole("button", { name: new RegExp(`^Open ${persona.short} demo`, "i") });
-            check((await openButton.count()) === 1, `${persona.label}: launch button is missing`);
-
-            const [switchResponse] = await Promise.all([
-              page.waitForResponse(
-                (response) =>
-                  response.url().includes("/api/auth/demo-switch") &&
-                  response.request().method() === "POST",
-                { timeout: 90000 },
-              ),
-              openButton.click(),
-            ]);
-            if (!switchResponse.ok()) {
-              const switchText = await switchResponse.text().catch(() => "<response body unavailable>");
-              throw new Error(`${persona.label}: demo switch returned ${switchResponse.status()} ${switchText}`);
-            }
-            await page.waitForURL(new RegExp(`[?&]demoRole=${persona.id}(?:&|$)`), { timeout: 30000 });
-            await page.waitForLoadState("networkidle");
-
-            const body = await page.locator("body").innerText();
-            check(body.includes("ROLE SANDBOX"), `${persona.label}: role sandbox did not render after launch`);
-            check(body.includes(persona.person), `${persona.label}: expected persona identity ${persona.person} is missing`);
-            check(body.toLowerCase().includes(persona.landing.toLowerCase()), `${persona.label}: expected landing context ${persona.landing} is missing`);
-            if (persona.dashboardRole) {
-              const dashboard = page.locator(`[data-role-dashboard="${persona.dashboardRole}"]`);
-              check((await dashboard.count()) === 1, `${persona.label}: role-specific dashboard did not render`);
-) }).first();
-                check((await activeTarget.count()) === 1, `${persona.label}: next action did not navigate to ${targetPage}`);
+                const activeTarget = page.locator("aside .nav-item[aria-current='page']").first();
+                check((await activeTarget.innerText()).trim() === targetPage, persona.label + ": next action did not navigate to " + targetPage);
                 const overviewNav = page.locator("aside .nav-item").filter({ hasText: /^Overview$/ }).first();
                 await overviewNav.click();
                 await page.waitForTimeout(100);
