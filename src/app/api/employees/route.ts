@@ -1,12 +1,13 @@
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { assets, employeePayProfiles, employees } from "@/db/schema";
+import { assets, employeePayProfiles, employeePayRateChanges, employees } from "@/db/schema";
 import { assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { seedProvisioning } from "@/lib/provisioning";
-import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
+import { ensureEmployeePayHistory } from "@/lib/pay-basis-schema";
 import { resolvePayProfile } from "@/lib/pay-basis";
+import { philippinesToday, recordEffectivePayChange } from "@/lib/pay-history-server";
 
 export const dynamic = "force-dynamic";
 
@@ -24,15 +25,23 @@ export async function GET(request: Request) {
   );
   if (denied) return denied;
 
-  await ensureEmployeePayProfiles(organizationId);
-  const [rows, payProfiles] = await Promise.all([
+  await ensureEmployeePayHistory(organizationId);
+  const [rows, payProfiles, payHistory] = await Promise.all([
     db.select().from(employees)
       .where(eq(employees.organizationId, organizationId))
       .orderBy(asc(employees.id)),
     db.select().from(employeePayProfiles)
       .where(eq(employeePayProfiles.organizationId, organizationId)),
+    db.select().from(employeePayRateChanges)
+      .where(eq(employeePayRateChanges.organizationId, organizationId))
+      .orderBy(asc(employeePayRateChanges.effectiveFrom)),
   ]);
   const payByEmployee = new Map(payProfiles.map((profile) => [profile.employeeId, profile]));
+  const historyByEmployee = new Map<number, typeof payHistory>();
+  for (const change of payHistory) {
+    historyByEmployee.set(change.employeeId, [...(historyByEmployee.get(change.employeeId) ?? []), change]);
+  }
+  const today = philippinesToday();
 
   return Response.json(rows.map((employee) => {
     const profile = payByEmployee.get(employee.id);
@@ -42,6 +51,8 @@ export async function GET(request: Request) {
       payRate: profile?.rateAmount ?? employee.basicRate,
       standardWorkDaysPerMonth: profile?.standardWorkDaysPerMonth ?? "22.00",
       standardHoursPerDay: profile?.standardHoursPerDay ?? "8.00",
+      payHistory: historyByEmployee.get(employee.id) ?? [],
+      nextPayChange: (historyByEmployee.get(employee.id) ?? []).find((change) => String(change.effectiveFrom) > today) ?? null,
     };
   }));
 }
@@ -89,7 +100,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "firstName, lastName and YYYY-MM-DD startDate are required." }, { status: 400 });
   }
 
-  await ensureEmployeePayProfiles(organizationId);
+  await ensureEmployeePayHistory(organizationId);
 
   const existingRows = await db.select({ id: employees.id }).from(employees).where(eq(employees.organizationId, organizationId));
   const existing = existingRows.length;
@@ -135,6 +146,15 @@ export async function POST(request: Request) {
       standardHoursPerDay: payProfile.standardHoursPerDay.toFixed(2),
       updatedAt: new Date(),
     },
+  });
+
+  await recordEffectivePayChange({
+    organizationId,
+    employeeId: created.id,
+    effectiveFrom: startDate,
+    payProfile,
+    reason: "Opening pay profile",
+    actor: user.name,
   });
 
   const onboarding = await seedProvisioning(organizationId, created.id, "onboarding");
@@ -204,7 +224,7 @@ export async function PATCH(request: Request) {
     ))
     .limit(1);
   if (!employee) return Response.json({ error: "Employee not found in this organization." }, { status: 404 });
-  await ensureEmployeePayProfiles(organizationId);
+  await ensureEmployeePayHistory(organizationId);
   const [existingPayProfile] = await db.select().from(employeePayProfiles)
     .where(eq(employeePayProfiles.employeeId, employeeId))
     .limit(1);
@@ -257,10 +277,6 @@ export async function PATCH(request: Request) {
     return Response.json({ error: "No employee profile fields were supplied." }, { status: 400 });
   }
 
-  if (nextPayProfile) {
-    patch.basicRate = nextPayProfile.monthlyEquivalent.toFixed(2);
-  }
-
   const [updated] = await db.update(employees)
     .set(patch)
     .where(and(
@@ -269,25 +285,30 @@ export async function PATCH(request: Request) {
     ))
     .returning();
 
+  let payChangeResult: Awaited<ReturnType<typeof recordEffectivePayChange>> | null = null;
   if (nextPayProfile) {
-    await db.insert(employeePayProfiles).values({
-      employeeId,
-      organizationId,
-      payBasis: nextPayProfile.payBasis,
-      rateAmount: nextPayProfile.rateAmount.toFixed(2),
-      standardWorkDaysPerMonth: nextPayProfile.standardWorkDaysPerMonth.toFixed(2),
-      standardHoursPerDay: nextPayProfile.standardHoursPerDay.toFixed(2),
-    }).onConflictDoUpdate({
-      target: employeePayProfiles.employeeId,
-      set: {
-        payBasis: nextPayProfile.payBasis,
-        rateAmount: nextPayProfile.rateAmount.toFixed(2),
-        standardWorkDaysPerMonth: nextPayProfile.standardWorkDaysPerMonth.toFixed(2),
-        standardHoursPerDay: nextPayProfile.standardHoursPerDay.toFixed(2),
-        updatedAt: new Date(),
-      },
-    });
+    try {
+      payChangeResult = await recordEffectivePayChange({
+        organizationId,
+        employeeId,
+        effectiveFrom: String(body.effectiveFrom ?? philippinesToday()),
+        payProfile: nextPayProfile,
+        reason: String(body.payChangeReason ?? "").trim() || null,
+        actor: user.name,
+      });
+    } catch (error) {
+      return Response.json({
+        error: error instanceof Error ? error.message : "Could not record the effective-dated pay change.",
+      }, { status: 400 });
+    }
   }
+
+  const [currentPayProfile] = await db.select().from(employeePayProfiles)
+    .where(eq(employeePayProfiles.employeeId, employeeId))
+    .limit(1);
+  const [freshEmployee] = await db.select().from(employees)
+    .where(eq(employees.id, employeeId))
+    .limit(1);
 
   await recordAuditEvent({
     organizationId,
@@ -297,17 +318,20 @@ export async function PATCH(request: Request) {
     metadata: {
       employeeId,
       fields: [...Object.keys(patch), ...(nextPayProfile ? ["payBasis", "rateAmount", "standardWorkDaysPerMonth", "standardHoursPerDay"] : [])],
-      payBasis: nextPayProfile?.payBasis ?? existingPayProfile?.payBasis ?? "monthly",
+      payBasis: currentPayProfile?.payBasis ?? existingPayProfile?.payBasis ?? "monthly",
+      effectiveFrom: nextPayProfile ? String(body.effectiveFrom ?? philippinesToday()) : null,
+      retroAdjustments: payChangeResult?.retroAdjustments ?? [],
     },
   });
 
   return Response.json({
     employee: {
-      ...updated,
-      payBasis: nextPayProfile?.payBasis ?? existingPayProfile?.payBasis ?? "monthly",
-      payRate: (nextPayProfile?.rateAmount ?? Number(existingPayProfile?.rateAmount ?? updated.basicRate)).toFixed(2),
-      standardWorkDaysPerMonth: (nextPayProfile?.standardWorkDaysPerMonth ?? Number(existingPayProfile?.standardWorkDaysPerMonth ?? 22)).toFixed(2),
-      standardHoursPerDay: (nextPayProfile?.standardHoursPerDay ?? Number(existingPayProfile?.standardHoursPerDay ?? 8)).toFixed(2),
+      ...(freshEmployee ?? updated),
+      payBasis: currentPayProfile?.payBasis ?? existingPayProfile?.payBasis ?? "monthly",
+      payRate: currentPayProfile?.rateAmount ?? existingPayProfile?.rateAmount ?? (freshEmployee ?? updated).basicRate,
+      standardWorkDaysPerMonth: currentPayProfile?.standardWorkDaysPerMonth ?? existingPayProfile?.standardWorkDaysPerMonth ?? "22.00",
+      standardHoursPerDay: currentPayProfile?.standardHoursPerDay ?? existingPayProfile?.standardHoursPerDay ?? "8.00",
     },
+    payChange: payChangeResult,
   });
 }
