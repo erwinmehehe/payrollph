@@ -4,6 +4,7 @@ import { users } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { primaryOrganizationId } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
+import { publicDemoMutationDenied } from "@/lib/demo-security";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,8 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+  const demoDenied = publicDemoMutationDenied(user.email, "Profile changes");
+  if (demoDenied) return demoDenied;
 
   const body = await request.json().catch(() => ({}));
   const name = String(body.name ?? "").trim();
