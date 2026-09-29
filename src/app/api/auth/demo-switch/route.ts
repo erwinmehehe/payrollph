@@ -13,33 +13,21 @@ import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
 
 export const dynamic = "force-dynamic";
 
-function safeProvisioningDiagnostic(error: unknown) {
-  if (!error || typeof error !== "object") return "unknown";
-  const value = error as Record<string, unknown>;
-  const code = typeof value.code === "string" ? value.code : "unknown";
-  const table = typeof value.table === "string" ? value.table : "";
-  const column = typeof value.column === "string" ? value.column : "";
-  const constraint = typeof value.constraint === "string" ? value.constraint : "";
-  const message = typeof value.message === "string" ? value.message : "";
+async function preparePublicDemoTenant() {
+  let lastError: unknown;
 
-  // PostgreSQL does not populate table/column fields for every error class.
-  // Extract only quoted schema identifiers from a few known-safe messages.
-  const identifier =
-    message.match(/column "([A-Za-z0-9_]+)" does not exist/i)?.[1] ??
-    message.match(/relation "([A-Za-z0-9_]+)" does not exist/i)?.[1] ??
-    message.match(/null value in column "([A-Za-z0-9_]+)"/i)?.[1] ??
-    message.match(/constraint "([A-Za-z0-9_]+)"/i)?.[1] ??
-    "";
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      await ensurePublicDemoTenant();
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt === 3) break;
+      await new Promise((resolve) => setTimeout(resolve, attempt * 150));
+    }
+  }
 
-  return [
-    code,
-    table && `table:${table}`,
-    column && `column:${column}`,
-    constraint && `constraint:${constraint}`,
-    identifier && `identifier:${identifier}`,
-  ]
-    .filter(Boolean)
-    .join("|");
+  throw lastError;
 }
 
 type DemoAccount = {
@@ -176,15 +164,12 @@ export async function POST(request: Request) {
     if (DEMO_MODE) {
       await ensureSeedData();
     } else {
-      await ensurePublicDemoTenant();
+      await preparePublicDemoTenant();
     }
   } catch (error) {
     console.error("Public demo provisioning failed", error);
     return Response.json(
-      {
-        error: "The demo workspace could not be prepared. Please try again in a moment.",
-        diagnostic: safeProvisioningDiagnostic(error),
-      },
+      { error: "The demo workspace could not be prepared. Please try again in a moment." },
       { status: 503 },
     );
   }
