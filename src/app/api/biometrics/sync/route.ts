@@ -6,6 +6,7 @@ import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 
+import { denyPublicDemoSideEffect } from "@/lib/public-demo-guard";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
@@ -75,6 +76,9 @@ export async function POST(request: Request) {
     );
     if (denied) return denied;
   }
+
+  const demoDenied = await denyPublicDemoSideEffect(organizationId, "Biometric ingestion");
+  if (demoDenied) return demoDenied;
 
   const [device] = await db
     .select()
