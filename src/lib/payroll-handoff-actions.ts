@@ -34,8 +34,6 @@ export type PayrollHandoffContext = {
   payrollExceptions: number;
 };
 
-const CLEAR_ATTENDANCE = new Set(["complete", "present", "ok", "approved"]);
-
 export function selectHandoffRunForRole(
   data: DashboardData,
   role: CompanyHandoffRole,
@@ -92,7 +90,7 @@ export function getPayrollHandoffContext(
     : null;
 
   const attendanceIssues = (data.punches ?? []).filter(
-    (punch) => !CLEAR_ATTENDANCE.has(punch.status.toLowerCase()),
+    (punch) => !punch.timeIn || !punch.timeOut,
   ).length;
   const pendingLeave = (data.leaveRequests ?? []).filter((request) => request.status === "Pending").length;
   const missingGovernmentIds = data.employees.filter(
@@ -388,7 +386,7 @@ function waiting(title: string, detail: string): RoleHandoffAction {
 function namesForPunchIssues(data: DashboardData) {
   const ids = new Set(
     (data.punches ?? [])
-      .filter((punch) => !CLEAR_ATTENDANCE.has(punch.status.toLowerCase()))
+      .filter((punch) => !punch.timeIn || !punch.timeOut)
       .map((punch) => punch.employeeId),
   );
   return data.employees
