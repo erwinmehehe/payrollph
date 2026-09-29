@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { buildPayrollHandoff, type PayrollHandoffStage } from "@/lib/payroll-handoff";
-import { buildRoleHandoffAction, type RoleHandoffAction } from "@/lib/payroll-handoff-actions";
+import { buildRoleHandoffAction, selectHandoffRunForRole, type RoleHandoffAction } from "@/lib/payroll-handoff-actions";
 import type { DashboardData, PayrollHandoffRunSummary, PayrollRun, Task } from "./types";
 import {
   Avatar,
@@ -64,7 +64,10 @@ export function RoleOverviewView({
       (!employee.tin || !employee.sssNo || !employee.philHealthNo || !employee.pagIbigNo),
   );
   const activeAdvisories = data.advisories.filter((advisory) => advisory.active);
-  const handoffRun = currentRun ?? data.payrollHandoffRun ?? undefined;
+  const handoffRun = selectHandoffRunForRole(data, role) ?? currentRun ?? data.payrollHandoffRun ?? undefined;
+  const roleCurrentRun = handoffRun
+    ? data.payrollRuns.find((run) => run.id === handoffRun.id) ?? currentRun
+    : currentRun;
   const payrollApproval = handoffRun
     ? data.tasks
         .filter((task) => task.detail.includes(`Payroll run #${handoffRun.id}`))
@@ -79,7 +82,7 @@ export function RoleOverviewView({
 
   const common = {
     data,
-    currentRun,
+    currentRun: roleCurrentRun,
     handoffRun,
     firstName,
     activePeople,
@@ -152,7 +155,7 @@ function OwnerDashboard(props: RoleDashboardProps) {
   const releaseBlocked =
     !currentRun ||
     (currentRun.status !== "Released" &&
-      (payrollExceptions.length > 0 || pendingTasks.length > 0 || currentRun.status !== "Approved"));
+      (payrollExceptions.length > 0 || pendingTasks.length > 0 || currentRun.status !== "Ready for release"));
 
   return (
     <>
