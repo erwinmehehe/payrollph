@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { invitations, userOrganizations, users } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { createSession, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth";
-import { generateBackupCodes, hashPassword } from "@/lib/crypto";
+import { hashPassword } from "@/lib/crypto";
 import { clientIp, rateLimitDistributed } from "@/lib/rate-limit";
 import { findUsableInvitation, normalizeEmail, passwordIssues, validEmail } from "@/lib/tokens";
 import { cookies } from "next/headers";
@@ -38,21 +38,21 @@ export async function POST(request: Request) {
 
   const [existing] = await db.select().from(users).where(eq(users.email, invitation.email)).limit(1);
 
-  let userId: number;
   if (existing) {
-    await db.update(users).set({ name: name || existing.name, passwordHash: hashPassword(password) }).where(eq(users.id, existing.id));
-    userId = existing.id;
-  } else {
-    const [created] = await db.insert(users).values({
-      email: invitation.email,
-      name,
-      passwordHash: hashPassword(password),
-      role: invitation.role,
-      totpEnabled: false,
-      backupCodes: generateBackupCodes(),
-    }).returning();
-    userId = created.id;
+    return Response.json({
+      error: "An account with this email already exists. Sign in to that account and ask a workspace administrator to add the membership instead.",
+    }, { status: 409 });
   }
+
+  const [created] = await db.insert(users).values({
+    email: invitation.email,
+    name,
+    passwordHash: hashPassword(password),
+    role: invitation.role,
+    totpEnabled: false,
+    backupCodes: [],
+  }).returning();
+  const userId = created.id;
 
   await db.insert(userOrganizations).values({
     userId,
