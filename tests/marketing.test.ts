@@ -79,10 +79,14 @@ test("homepage simulation uses the real workspace navigation and no dead client 
   assert.ok(!preview.includes("client.id !== 1"), "homepage preview must not branch into disconnected client datasets");
 });
 
-test("homepage pricing uses the compact business pricing composition", () => {
+test("homepage pricing uses an operating-model comparison instead of a card wall", () => {
   const pricing = read("src/components/marketing/pricing-table.tsx");
-  assert.ok(pricing.includes("business-pricing-grid"), "business tiers must use the compact pricing grid");
+  assert.ok(pricing.includes("business-pricing-grid"), "business pricing must keep its stable composition hook");
+  assert.ok(pricing.includes("pricing-comparison"), "business tiers must render as one comparison surface");
+  assert.ok(pricing.includes("pricing-plan-row"), "each business tier must render as a comparison row");
+  assert.ok(pricing.includes("WHO_FOR"), "pricing must explicitly explain who each plan is for");
   assert.ok(pricing.includes("pricing-estimator"), "pricing must keep a simple headcount estimator");
+  assert.ok(!pricing.includes("price-card"), "business pricing must not return to tall plan cards");
   assert.ok(!pricing.includes('type="range"'), "pricing must not restore the oversized headcount slider");
 });
 

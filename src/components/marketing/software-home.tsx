@@ -430,8 +430,11 @@ export async function SoftwareHome() {
           <div className={styles.shell}>
             <div className={styles.pricingLead}>
               <span className={styles.kicker}>Published pricing</span>
-              <h2>Choose by how your payroll operates, not by a feature maze.</h2>
-              <p>Set your headcount and compare the monthly cost immediately.</p>
+              <h2>Know what payroll will cost before you sign up.</h2>
+              <p>
+                Set your headcount, then choose by operating model: one payroll team, controlled approvals, or more
+                complex enterprise operations.
+              </p>
             </div>
 
             <div className={styles.pricingSurface}>
@@ -443,9 +446,17 @@ export async function SoftwareHome() {
         <section className={styles.finalSection}>
           <div className={styles.shell}>
             <div className={styles.finalInner}>
-              <span className={styles.kicker}>Start with one payroll</span>
-              <h2>Make the next cutoff easier to explain, review and release.</h2>
-              <p>Start a workspace, or use the role sandbox first and see exactly how your team would work.</p>
+              <span className={styles.kicker}>Ready when your next cutoff is</span>
+              <h2>Run one payroll with clearer controls from the start.</h2>
+              <p>
+                Create a workspace when you are ready to set up payroll, or open the sandbox first to see the same
+                controls from each role.
+              </p>
+              <div className={styles.finalSignals} aria-label="Linaw product signals">
+                <span>Published pricing</span>
+                <span>Role-based sandbox</span>
+                <span>Philippine payroll controls</span>
+              </div>
               <div className={styles.heroActions}>
                 <a className={styles.primaryAction} href="/signup">
                   Start free <ArrowRight size={15} aria-hidden />

@@ -1,9 +1,15 @@
-name: Preview Browser QA
+name: Marketing Browser QA
 
 on:
-  push:
+  pull_request:
     branches:
-      - design/homepage-above-fold-pass-2
+      - main
+    paths:
+      - "src/components/marketing/**"
+      - "src/app/page.tsx"
+      - "src/lib/pricing-catalog.ts"
+      - "tests/marketing.test.ts"
+      - ".github/workflows/preview-browser-qa.yml"
   workflow_dispatch:
 
 permissions:
@@ -80,6 +86,7 @@ jobs:
             base,
             homepage: [],
             modules: [],
+            pricing: [],
             personas: [],
             errors: [],
           };
@@ -122,6 +129,21 @@ jobs:
             });
 
             report.homepage.push({ name, viewport, h1, overflow, errors: [...errors] });
+
+            const pricing = page.locator("#pricing");
+            check((await pricing.count()) === 1, `${name}: pricing section is missing`);
+            const planRows = pricing.locator(".pricing-plan-row");
+            check((await planRows.count()) === 3, `${name}: expected three business pricing rows`);
+
+            const firstAmount = (await planRows.first().locator(".price strong").innerText()).trim();
+            const fiftyPreset = pricing.locator(".pricing-presets button").filter({ hasText: /^50$/ }).first();
+            check((await fiftyPreset.count()) === 1, `${name}: 50 employee pricing preset is missing`);
+            await fiftyPreset.click();
+            await page.waitForTimeout(100);
+            const updatedAmount = (await planRows.first().locator(".price strong").innerText()).trim();
+            check(firstAmount !== updatedAmount, `${name}: pricing estimate did not update after changing headcount`);
+            check((await pricing.innerText()).includes("50 employees"), `${name}: pricing estimator did not show 50 employees`);
+            report.pricing.push({ name, rows: 3, headcount: 50, firstAmount, updatedAmount });
 
             if (name === "desktop") {
               const stage = page.locator("#hero-product-preview");
