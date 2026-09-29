@@ -12,6 +12,9 @@ on:
       - "src/app/page.tsx"
       - "src/lib/pricing-catalog.ts"
       - "src/lib/demo-roles.ts"
+      - "src/lib/role-inbox.ts"
+      - "src/app/api/payroll-runs/**"
+      - "src/app/api/approvals/**"
       - "tests/marketing.test.ts"
       - "tests/demo-sandbox.test.ts"
       - ".github/workflows/preview-browser-qa.yml"
@@ -219,6 +222,9 @@ jobs:
               const handoff = dashboard.locator("[data-payroll-handoff]").first();
               check((await handoff.count()) === 1, `${persona.label}: payroll handoff is missing from the role dashboard`);
               check((await handoff.locator(".handoff-step").count()) === 5, `${persona.label}: payroll handoff must show all five owners`);
+              const inbox = dashboard.locator(`[data-role-inbox="${persona.dashboardRole}"]`);
+              check((await inbox.count()) === 1, `${persona.label}: role handoff inbox did not render`);
+              check((await inbox.getByText(/YOUR HANDOFF INBOX/i).count()) === 1, `${persona.label}: handoff inbox label is missing`);
             }
             if (persona.id === "employee") {
               check(body.includes("NEXT PAY STATUS"), "Employee: next pay status section is missing");
