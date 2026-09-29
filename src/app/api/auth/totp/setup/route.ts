@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { getSessionUser, publicUser } from "@/lib/auth";
-import { generateBackupCodes } from "@/lib/crypto";
+import { generateBackupCodes, hashBackupCode } from "@/lib/crypto";
 import { buildOtpAuthUri, generateTotpSecret, verifyTotp } from "@/lib/totp";
 
 export const dynamic = "force-dynamic";
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
   const backupCodes = generateBackupCodes();
   await db.update(users).set({
     totpEnabled: true,
-    backupCodes,
+    backupCodes: backupCodes.map(hashBackupCode),
   }).where(eq(users.id, user.id));
 
   return Response.json({
