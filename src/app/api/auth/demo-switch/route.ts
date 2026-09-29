@@ -3,8 +3,8 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, organizations, userOrganizations, users } from "@/db/schema";
 import { createSession, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth";
-import { requestMeta } from "@/lib/rate-limit";
-import { hashPassword, randomToken } from "@/lib/crypto";
+import { clientIp, rateLimitDistributed, requestMeta } from "@/lib/rate-limit";
+import { hashPassword, randomToken, verifyPassword } from "@/lib/crypto";
 import { DEMO_MODE, ensureSeedData } from "@/db/seed";
 import { ensurePublicDemoTenant } from "@/db/public-demo";
 import { DEMO_ROLE_IDS, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
@@ -101,6 +101,7 @@ async function ensureDemoAccount(role: DemoRoleId, organizationId: number) {
       })
       .returning();
   } else {
+    const legacyKnownPassword = verifyPassword("LinawDemo2026!", user.passwordHash);
     [user] = await db
       .update(users)
       .set({
@@ -108,8 +109,8 @@ async function ensureDemoAccount(role: DemoRoleId, organizationId: number) {
         role: account.userRole,
         employeeId,
         // Public demo access is session-provisioned, never password-based.
-        // Rotate to an unknowable password so source-visible demo credentials cannot log in normally.
-        passwordHash: hashPassword(randomToken(32)),
+        // Rotate legacy source-visible demo credentials once, not on every switch.
+        ...(legacyKnownPassword ? { passwordHash: hashPassword(randomToken(32)) } : {}),
       })
       .where(eq(users.id, user.id))
       .returning();
@@ -158,6 +159,11 @@ function publicDemoAllowed(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const limited = await rateLimitDistributed(`public-demo:${clientIp(request)}`, { limit: 12, windowMs: 60_000 });
+  if (!limited.allowed) {
+    return Response.json({ error: "Too many demo session requests. Try again shortly." }, { status: 429 });
+  }
+
   if (!publicDemoAllowed(request)) {
     return Response.json({ error: "Demo accounts are disabled on this deployment." }, { status: 404 });
   }
