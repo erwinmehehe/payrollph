@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { buildPayrollHandoff, type PayrollHandoffStage } from "@/lib/payroll-handoff";
-import type { DashboardData, PayrollRun, Task } from "./types";
+import type { DashboardData, PayrollHandoffRunSummary, PayrollRun, Task } from "./types";
 import {
   Avatar,
   EmptyState,
@@ -61,12 +61,13 @@ export function RoleOverviewView({
       (!employee.tin || !employee.sssNo || !employee.philHealthNo || !employee.pagIbigNo),
   );
   const activeAdvisories = data.advisories.filter((advisory) => advisory.active);
-  const payrollApproval = currentRun
+  const handoffRun = currentRun ?? data.payrollHandoffRun ?? undefined;
+  const payrollApproval = handoffRun
     ? data.tasks
-        .filter((task) => task.detail.includes(`Payroll run #${currentRun.id}`))
+        .filter((task) => task.detail.includes(`Payroll run #${handoffRun.id}`))
         .sort((a, b) => b.id - a.id)[0] ?? null
     : null;
-  const handoffStages = buildPayrollHandoff(currentRun, {
+  const handoffStages = buildPayrollHandoff(handoffRun, {
     hrIssues: pendingLeave.length + attendanceIssues.length + peopleMissingGovernmentIds.length,
     payrollExceptions: payrollExceptions.length,
     approvalTask: payrollApproval,
@@ -75,6 +76,7 @@ export function RoleOverviewView({
   const common = {
     data,
     currentRun,
+    handoffRun,
     firstName,
     activePeople,
     pendingTasks,
@@ -104,6 +106,7 @@ export function RoleOverviewView({
 type RoleDashboardProps = {
   data: DashboardData;
   currentRun?: PayrollRun;
+  handoffRun?: PayrollHandoffRunSummary | PayrollRun;
   firstName: string;
   activePeople: DashboardData["employees"];
   pendingTasks: Task[];
@@ -124,6 +127,7 @@ function OwnerDashboard(props: RoleDashboardProps) {
   const {
     data,
     currentRun,
+    handoffRun,
     firstName,
     activePeople,
     pendingTasks,
@@ -174,9 +178,9 @@ function OwnerDashboard(props: RoleDashboardProps) {
 
       <PayrollHandoff
         stages={handoffStages}
-        period={currentRun?.periodLabel ?? "Next payroll"}
-        status={currentRun?.status ?? "Waiting for inputs"}
-        payDate={currentRun?.payDate}
+        period={handoffRun?.periodLabel ?? "Next payroll"}
+        status={handoffRun?.status ?? "Waiting for inputs"}
+        payDate={handoffRun?.payDate}
         viewerRole="owner"
       />
 
@@ -276,6 +280,7 @@ function HrDashboard(props: RoleDashboardProps) {
   const {
     data,
     currentRun,
+    handoffRun,
     firstName,
     activePeople,
     pendingLeave,
@@ -314,9 +319,9 @@ function HrDashboard(props: RoleDashboardProps) {
 
       <PayrollHandoff
         stages={handoffStages}
-        period={currentRun?.periodLabel ?? "Next payroll"}
-        status={currentRun?.status ?? "Waiting for inputs"}
-        payDate={currentRun?.payDate}
+        period={handoffRun?.periodLabel ?? "Next payroll"}
+        status={handoffRun?.status ?? "Waiting for inputs"}
+        payDate={handoffRun?.payDate}
         viewerRole="hr"
       />
 
@@ -398,6 +403,7 @@ function PayrollDashboard(props: RoleDashboardProps) {
   const {
     data,
     currentRun,
+    handoffRun,
     firstName,
     pendingTasks,
     payrollExceptions,
@@ -450,9 +456,9 @@ function PayrollDashboard(props: RoleDashboardProps) {
 
       <PayrollHandoff
         stages={handoffStages}
-        period={currentRun?.periodLabel ?? "Next payroll"}
-        status={currentRun?.status ?? "Waiting for inputs"}
-        payDate={currentRun?.payDate}
+        period={handoffRun?.periodLabel ?? "Next payroll"}
+        status={handoffRun?.status ?? "Waiting for inputs"}
+        payDate={handoffRun?.payDate}
         viewerRole="payroll"
       />
 
@@ -520,6 +526,7 @@ function CheckerDashboard(props: RoleDashboardProps) {
   const {
     data,
     currentRun,
+    handoffRun,
     firstName,
     pendingTasks,
     highPriorityTasks,
@@ -556,9 +563,9 @@ function CheckerDashboard(props: RoleDashboardProps) {
 
       <PayrollHandoff
         stages={handoffStages}
-        period={currentRun?.periodLabel ?? "Next payroll"}
-        status={currentRun?.status ?? "Waiting for inputs"}
-        payDate={currentRun?.payDate}
+        period={handoffRun?.periodLabel ?? "Next payroll"}
+        status={handoffRun?.status ?? "Waiting for inputs"}
+        payDate={handoffRun?.payDate}
         viewerRole="checker"
       />
 
