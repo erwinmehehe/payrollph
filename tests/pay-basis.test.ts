@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../src/db";
 import {
   employeePayProfiles,
+  employeePayRateChanges,
   employees,
   organizations,
   payrollEntries,
@@ -251,14 +252,14 @@ test("release refuses a pay profile changed after payroll calculation", async ()
     await enqueuePayrollRun(run.id, 25);
     await drainPayrollQueue(10, run.id);
 
-    await db.update(employeePayProfiles)
-      .set({ payBasis: "daily", rateAmount: "1000.00", updatedAt: new Date() })
-      .where(eq(employeePayProfiles.employeeId, employee.id));
+    await db.update(employeePayRateChanges)
+      .set({ payBasis: "daily", rateAmount: "1000.00" })
+      .where(eq(employeePayRateChanges.employeeId, employee.id));
     await db.update(payrollRuns).set({ status: "Releasing" }).where(eq(payrollRuns.id, run.id));
 
     await assert.rejects(
       () => settlePayrollRun(run.id),
-      /Pay profile for Stale Profile changed after calculation/,
+      /Pay history for Stale Profile changed after calculation/,
     );
 
     const [freshRun] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, run.id));
