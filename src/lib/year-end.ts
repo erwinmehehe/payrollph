@@ -1,6 +1,6 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, payrollEntries, payrollRuns, yearEndAdjustments } from "@/db/schema";
+import { employees, historicalPayrollEntries, payrollEntries, payrollRuns, yearEndAdjustments } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { annualize, ANNUALIZATION_RULE_VERSION, type AnnualizationResult } from "@/lib/annualization";
 
@@ -50,15 +50,37 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
     ? await db.select().from(payrollEntries).where(inArray(payrollEntries.payrollRunId, runIds))
     : [];
 
-  const totals = new Map<number, { gross: number; contributions: number; tax: number; thirteenth: number; periods: number }>();
+  // A company can switch payroll providers mid-year. Imported payroll history is
+  // preserved as source-of-truth totals and participates in annualization without
+  // being recalculated under the current Linaw rule tables.
+  const importedHistory = await db
+    .select()
+    .from(historicalPayrollEntries)
+    .where(and(
+      eq(historicalPayrollEntries.organizationId, organizationId),
+      sql`extract(year from ${historicalPayrollEntries.payDate}) = ${taxYear}`,
+    ));
+
+  const totals = new Map<number, { gross: number; contributions: number; tax: number; thirteenth: number; periods: number; importedPeriods: number }>();
   for (const entry of entries) {
-    const bucket = totals.get(entry.employeeId) ?? { gross: 0, contributions: 0, tax: 0, thirteenth: 0, periods: 0 };
+    const bucket = totals.get(entry.employeeId) ?? { gross: 0, contributions: 0, tax: 0, thirteenth: 0, periods: 0, importedPeriods: 0 };
     const parsed = sumContributionsAndTax(entry.lineItems);
     bucket.gross += Number(entry.grossPay);
     bucket.contributions += parsed.contributions;
     bucket.tax += parsed.tax;
     bucket.thirteenth += parsed.thirteenth;
     bucket.periods += 1;
+    totals.set(entry.employeeId, bucket);
+  }
+
+  for (const entry of importedHistory) {
+    const bucket = totals.get(entry.employeeId) ?? { gross: 0, contributions: 0, tax: 0, thirteenth: 0, periods: 0, importedPeriods: 0 };
+    bucket.gross += Number(entry.grossPay);
+    bucket.contributions += Number(entry.sssEmployee) + Number(entry.philHealthEmployee) + Number(entry.pagIbigEmployee);
+    bucket.tax += Number(entry.taxWithheld);
+    bucket.thirteenth += Number(entry.thirteenthMonth);
+    bucket.periods += 1;
+    bucket.importedPeriods += 1;
     totals.set(entry.employeeId, bucket);
   }
 
@@ -105,7 +127,12 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
       adjustment: result.adjustment.toFixed(2),
       outcome: result.outcome,
       mwe: result.mwe,
-      breakdown: { ...result, periodsIncluded: periods, runsIncluded: runIds.length },
+      breakdown: {
+        ...result,
+        periodsIncluded: periods,
+        runsIncluded: runIds.length,
+        importedHistoryRows: totals.get(employee.id)?.importedPeriods ?? 0,
+      },
       ruleVersion: ANNUALIZATION_RULE_VERSION,
     })));
   }
@@ -122,6 +149,7 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
       ruleVersion: ANNUALIZATION_RULE_VERSION,
       employees: rows.length,
       runsIncluded: runIds.length,
+      importedHistoryRows: importedHistory.length,
       refunds: refunds.length,
       collections: collections.length,
     },
@@ -130,6 +158,7 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
   return {
     taxYear,
     runsIncluded: runIds.length,
+    importedHistoryRows: importedHistory.length,
     employees: rows.length,
     refunds: refunds.length,
     collections: collections.length,
