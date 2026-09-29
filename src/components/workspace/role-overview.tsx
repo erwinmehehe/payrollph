@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { buildPayrollHandoff, type PayrollHandoffStage } from "@/lib/payroll-handoff";
+import { buildPayrollAttention, type PayrollAttentionItem } from "@/lib/payroll-attention";
 import type { DashboardData, PayrollHandoffRunSummary, PayrollRun, Task } from "./types";
 import {
   Avatar,
@@ -36,12 +37,14 @@ export function RoleOverviewView({
   role,
   onPage,
   onNewRun,
+  onAttentionAction,
 }: {
   data: DashboardData;
   currentRun?: PayrollRun;
   role: WorkspaceDashboardRole;
   onPage: (page: string) => void;
   onNewRun: () => void;
+  onAttentionAction: (item: PayrollAttentionItem) => void;
 }) {
   const firstName = (data.user?.name ?? "there").split(" ")[0];
   const activePeople = data.employees.filter((employee) => employee.status === "Active");
@@ -61,6 +64,7 @@ export function RoleOverviewView({
       (!employee.tin || !employee.sssNo || !employee.philHealthNo || !employee.pagIbigNo),
   );
   const activeAdvisories = data.advisories.filter((advisory) => advisory.active);
+  const attentionItems = buildPayrollAttention(data, role);
   const handoffRun = currentRun ?? data.payrollHandoffRun ?? undefined;
   const payrollApproval = handoffRun
     ? data.tasks
@@ -89,6 +93,8 @@ export function RoleOverviewView({
     peopleMissingGovernmentIds,
     activeAdvisories,
     handoffStages,
+    attentionItems,
+    onAttentionAction,
     onPage,
     onNewRun,
   };
@@ -119,6 +125,8 @@ type RoleDashboardProps = {
   peopleMissingGovernmentIds: DashboardData["employees"];
   activeAdvisories: DashboardData["advisories"];
   handoffStages: PayrollHandoffStage[];
+  attentionItems: PayrollAttentionItem[];
+  onAttentionAction: (item: PayrollAttentionItem) => void;
   onPage: (page: string) => void;
   onNewRun: () => void;
 };
@@ -135,6 +143,8 @@ function OwnerDashboard(props: RoleDashboardProps) {
     peopleMissingGovernmentIds,
     activeAdvisories,
     handoffStages,
+    attentionItems,
+    onAttentionAction,
     onPage,
     onNewRun,
   } = props;
@@ -183,6 +193,8 @@ function OwnerDashboard(props: RoleDashboardProps) {
         payDate={handoffRun?.payDate}
         viewerRole="owner"
       />
+
+      <PayrollActionQueue items={attentionItems} onAction={onAttentionAction} />
 
       <section className="stats-grid">
         <Metric
@@ -288,6 +300,8 @@ function HrDashboard(props: RoleDashboardProps) {
     attendanceIssues,
     peopleMissingGovernmentIds,
     handoffStages,
+    attentionItems,
+    onAttentionAction,
     onPage,
   } = props;
 
@@ -324,6 +338,8 @@ function HrDashboard(props: RoleDashboardProps) {
         payDate={handoffRun?.payDate}
         viewerRole="hr"
       />
+
+      <PayrollActionQueue items={attentionItems} onAction={onAttentionAction} />
 
       <section className="stats-grid">
         <Metric label="Active people" value={String(activePeople.length)} hint={"of " + String(data.employees.length) + " employee records"} icon={<UsersRound size={16} />} tone="purple" />
@@ -410,6 +426,8 @@ function PayrollDashboard(props: RoleDashboardProps) {
     pendingRetro,
     attendanceIssues,
     handoffStages,
+    attentionItems,
+    onAttentionAction,
     onPage,
     onNewRun,
   } = props;
@@ -461,6 +479,8 @@ function PayrollDashboard(props: RoleDashboardProps) {
         payDate={handoffRun?.payDate}
         viewerRole="payroll"
       />
+
+      <PayrollActionQueue items={attentionItems} onAction={onAttentionAction} />
 
       <section className="stats-grid">
         <Metric label="Run status" value={currentRun?.status ?? "No run"} hint={queueDone ? "calculation queue complete" : "calculation still in progress"} icon={<WalletCards size={16} />} tone={currentRun ? "blue" : "slate"} compact />
@@ -532,6 +552,8 @@ function CheckerDashboard(props: RoleDashboardProps) {
     highPriorityTasks,
     activeAdvisories,
     handoffStages,
+    attentionItems,
+    onAttentionAction,
     onPage,
   } = props;
 
@@ -569,6 +591,8 @@ function CheckerDashboard(props: RoleDashboardProps) {
         viewerRole="checker"
       />
 
+      <PayrollActionQueue items={attentionItems} onAction={onAttentionAction} />
+
       <section className="stats-grid">
         <Metric label="Assigned reviews" value={String(pendingTasks.length)} hint={pendingTasks.length ? "awaiting your decision" : "queue clear"} icon={<ClipboardCheck size={16} />} tone={pendingTasks.length ? "amber" : "mint"} />
         <Metric label="High priority" value={String(highPriorityTasks.length)} hint={highPriorityTasks.length ? "review these first" : "no urgent item"} icon={<AlertTriangle size={16} />} tone={highPriorityTasks.length ? "amber" : "mint"} />
@@ -597,6 +621,49 @@ function CheckerDashboard(props: RoleDashboardProps) {
         </RoleCard>
       </section>
     </>
+  );
+}
+
+function PayrollActionQueue({
+  items,
+  onAction,
+}: {
+  items: PayrollAttentionItem[];
+  onAction: (item: PayrollAttentionItem) => void;
+}) {
+  if (!items.length) return null;
+
+  return (
+    <section className="payroll-action-queue" aria-label="Payroll actions">
+      <div className="payroll-action-queue-head">
+        <div>
+          <span className="card-kicker">NEEDS ACTION</span>
+          <h2>Move payroll to the next owner.</h2>
+        </div>
+        <span className="payroll-action-count">{items.length}</span>
+      </div>
+      <div className="payroll-action-list">
+        {items.map((item) => (
+          <button
+            type="button"
+            key={item.id}
+            className={"payroll-action-item " + item.tone}
+            onClick={() => onAction(item)}
+          >
+            <span className="payroll-action-icon">
+              {item.tone === "danger" ? <AlertTriangle size={15} /> : <ClipboardCheck size={15} />}
+            </span>
+            <span className="payroll-action-copy">
+              <strong>{item.title}</strong>
+              <small>{item.detail}</small>
+            </span>
+            <span className="payroll-action-cta">
+              {item.actionLabel} <ArrowRight size={13} />
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 
