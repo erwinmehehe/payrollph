@@ -32,6 +32,8 @@ export type Employee = {
   status: string;
   avatarInitials: string;
   basicRate: string;
+  thirteenthMonthEligible?: boolean;
+  thirteenthMonthExclusionReason?: string | null;
   payBasis?: "monthly" | "daily" | "hourly" | string;
   payRate?: string;
   standardWorkDaysPerMonth?: string;
