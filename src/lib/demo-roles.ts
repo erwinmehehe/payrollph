@@ -17,6 +17,7 @@ export type DemoRoleInfo = {
   access: string[];
   actions: string[];
   landingPage: string;
+  tasks: Array<{ id: string; label: string; detail: string; page: string; cta: string }>;
 };
 
 export const DEMO_ROLES: DemoRoleInfo[] = [
@@ -29,6 +30,11 @@ export const DEMO_ROLES: DemoRoleInfo[] = [
     access: ["Company-wide overview", "Payroll and people", "Compliance, settings and audit"],
     actions: ["Create a payroll run", "Review company exceptions", "Release an approved payroll"],
     landingPage: "Overview",
+    tasks: [
+      { id: "owner-review", label: "Review the company", detail: "Open payroll status, exceptions and pending approvals.", page: "Overview", cta: "Open overview" },
+      { id: "owner-release", label: "Release approved payroll", detail: "Open the payroll run and release it only after checker approval.", page: "Payroll", cta: "Open payroll" },
+      { id: "owner-audit", label: "Verify the audit trail", detail: "Confirm approval and release events were recorded.", page: "Audit trail", cta: "Open audit trail" },
+    ],
   },
   {
     id: "hr",
@@ -39,6 +45,11 @@ export const DEMO_ROLES: DemoRoleInfo[] = [
     access: ["People records", "Time and leave", "HR operations and benefits"],
     actions: ["Open an employee record", "Review leave and attendance", "Work through lifecycle tasks"],
     landingPage: "People",
+    tasks: [
+      { id: "hr-person", label: "Review an employee 201 file", detail: "Open a populated employee record with statutory and employment details.", page: "People", cta: "Open people" },
+      { id: "hr-leave", label: "Review leave", detail: "Inspect the pending leave request and balance context.", page: "Leave", cta: "Open leave" },
+      { id: "hr-time", label: "Resolve attendance context", detail: "Inspect punches and exceptions before payroll.", page: "Time & attendance", cta: "Open attendance" },
+    ],
   },
   {
     id: "payroll",
@@ -49,6 +60,11 @@ export const DEMO_ROLES: DemoRoleInfo[] = [
     access: ["Payroll runs", "Time exceptions", "Exports and compliance"],
     actions: ["Inspect the live register", "Recalculate the run", "Submit payroll for checker review"],
     landingPage: "Payroll",
+    tasks: [
+      { id: "payroll-register", label: "Inspect the live register", detail: "Open the populated payroll run and review totals and exceptions.", page: "Payroll", cta: "Open payroll" },
+      { id: "payroll-recalc", label: "Recalculate safely", detail: "Use the real recalculation action and verify the register refreshes.", page: "Payroll", cta: "Open calculation" },
+      { id: "payroll-submit", label: "Send to checker", detail: "Submit the run for independent review. You cannot approve your own run.", page: "Payroll", cta: "Open review step" },
+    ],
   },
   {
     id: "checker",
@@ -59,6 +75,11 @@ export const DEMO_ROLES: DemoRoleInfo[] = [
     access: ["Assigned approvals", "Payroll review context", "Compliance checks"],
     actions: ["Open an assigned review", "Approve or decline it", "Confirm the audit trail"],
     landingPage: "Approvals",
+    tasks: [
+      { id: "checker-open", label: "Open assigned payroll review", detail: "Review the maker's submitted payroll and assurance context.", page: "Approvals", cta: "Open approvals" },
+      { id: "checker-decide", label: "Approve or decline", detail: "Record an independent decision using the real approval endpoint.", page: "Approvals", cta: "Review decision" },
+      { id: "checker-compliance", label: "Check compliance context", detail: "Inspect statutory and year-end controls before approval.", page: "Compliance", cta: "Open compliance" },
+    ],
   },
   {
     id: "employee",
@@ -69,6 +90,11 @@ export const DEMO_ROLES: DemoRoleInfo[] = [
     access: ["Own payslips", "Own year-to-date pay", "Clock in / out"],
     actions: ["Open a released payslip", "Download the payslip", "Record a demo attendance punch"],
     landingPage: "My pay",
+    tasks: [
+      { id: "employee-payslip", label: "Open a released payslip", detail: "Expand a real released payslip from your own employee record.", page: "My pay", cta: "Open payslip" },
+      { id: "employee-download", label: "Download your payslip", detail: "Use the real self-service payslip PDF endpoint.", page: "My pay", cta: "View pay history" },
+      { id: "employee-punch", label: "Record attendance", detail: "Open Web Bundy and submit a demo clock punch.", page: "My pay", cta: "Open Web Bundy" },
+    ],
   },
 ];
 
