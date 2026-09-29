@@ -112,3 +112,27 @@ test("employee sandbox supports instant persona switching without exposing other
   assert.ok(selfService.includes("DemoSandboxBar"), "employee persona must use the shared instant role switcher");
   assert.ok(selfService.includes("/api/self/payslips"), "employee sandbox must stay on the self-scoped payslip API");
 });
+
+
+test("homepage simulation keeps colored module navigation and collapsible groups", () => {
+  const preview = read("src/components/marketing/workspace-preview.tsx");
+  const css = read("src/components/marketing/software-home.module.css");
+  assert.ok(preview.includes("data-tone={tone}"), "module tone must reach the simulated nav item");
+  assert.ok(preview.includes("pv-nav-group-toggle"), "workspace groups must be collapsible");
+  assert.ok(preview.includes("collapsedGroups"), "collapsed nav state must be interactive");
+  assert.ok(css.includes('nav-item[data-tone="green"]'), "green module tint must be defined");
+  assert.ok(css.includes('nav-item[data-tone="purple"]'), "purple module tint must be defined");
+  assert.ok(css.includes('nav-item[data-tone="teal"]'), "teal module tint must be defined");
+  assert.ok(!css.includes("background: transparent;\n  color: #8d939d;"), "marketing CSS must not flatten all nav icons back to grey");
+});
+
+test("homepage Leave and Migration modules perform local interactive workflows", () => {
+  const preview = read("src/components/marketing/workspace-preview.tsx");
+  assert.ok(preview.includes("function PreviewLeave()"), "Leave must have a dedicated interactive preview");
+  assert.ok(preview.includes('decide(row.id, "Approved")'), "Leave must support sample approval");
+  assert.ok(preview.includes('decide(row.id, "Declined")'), "Leave must support sample decline");
+  assert.ok(preview.includes("addSampleRequest"), "Leave must support adding a local sample request");
+  assert.ok(preview.includes("function PreviewMigration"), "Migration must have a dedicated interactive preview");
+  assert.ok(preview.includes('setStage("mapped")'), "Migration must simulate header mapping");
+  assert.ok(preview.includes('setStage("validated")'), "Migration must simulate validation");
+});
