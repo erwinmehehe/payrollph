@@ -125,6 +125,17 @@ export async function recordEffectivePayChange(input: {
     ))
     .orderBy(asc(employeePayRateChanges.effectiveFrom));
 
+  const earliestKnown = history[0];
+  if (
+    earliestKnown &&
+    input.effectiveFrom < String(earliestKnown.effectiveFrom) &&
+    input.effectiveFrom < today
+  ) {
+    throw new Error(
+      `Cannot auto-calculate retro pay before the first known effective rate (${earliestKnown.effectiveFrom}). Add the historical rate first or handle the prior-period correction manually.`,
+    );
+  }
+
   const sameDate = history.find((row) => String(row.effectiveFrom) === input.effectiveFrom);
   if (sameDate) {
     const adjustments = await db.select().from(employeePayAdjustments)
