@@ -208,6 +208,57 @@ test("Payroll action center moves from exceptions to checker handoff and then cl
   assert.deepEqual(getPayrollActions(submitted, "payroll"), []);
 });
 
+test("Payroll separates cutoff warnings from HR-only filing readiness", () => {
+  const run = {
+    id: 11,
+    periodLabel: "Sep 16-30",
+    periodStart: "2026-09-16",
+    periodEnd: "2026-09-30",
+    scopeLabel: "All employees",
+    status: "Needs review",
+    payDate: "2026-10-05",
+    employeeCount: 1,
+    grossPay: "10000",
+    netPay: "8000",
+    exceptions: 1,
+    ruleVersion: "PH-2026.01",
+  };
+  const data = actionData({
+    payrollRuns: [run],
+    employees: [{
+      id: 10,
+      employeeNo: "E-10",
+      firstName: "Ana",
+      lastName: "Reyes",
+      title: "Coordinator",
+      employmentType: "Regular",
+      status: "Active",
+      avatarInitials: "AR",
+      basicRate: "30000",
+      mwe: false,
+      tin: null,
+      sssNo: null,
+      philHealthNo: null,
+      pagIbigNo: null,
+    }],
+    punches: [{
+      id: 1,
+      employeeId: 10,
+      workDate: "2026-09-29",
+      status: "Incomplete",
+      timeIn: new Date("2026-09-29T01:00:00Z"),
+      timeOut: null,
+    }],
+  });
+
+  const payrollIds = getPayrollActions(data, "payroll").map((item) => item.id);
+  assert.deepEqual(payrollIds, ["payroll-review-attendance-11", "payroll-exceptions-11"]);
+  assert.ok(!payrollIds.some((id) => id.includes("ids")), "Payroll must not treat filing IDs as a checker-handoff blocker");
+
+  const hrIds = getPayrollActions(data, "hr").map((item) => item.id);
+  assert.ok(hrIds.includes("hr-government-ids"), "HR must still receive filing-ID readiness attention");
+});
+
 test("Checker and Owner attention follows the maker-checker transition", () => {
   const run = {
     id: 12,
