@@ -9,6 +9,7 @@ import { assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 
+import { denyPublicDemoSideEffect } from "@/lib/public-demo-guard";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
@@ -32,6 +33,9 @@ export async function POST(request: Request) {
     "Only People administrators can import employee records.",
   );
   if (deniedImport) return deniedImport;
+
+  const demoDenied = await denyPublicDemoSideEffect(organizationId, "Employee imports");
+  if (demoDenied) return demoDenied;
 
   await ensureMigrationSchema();
   await ensureEmployeePayProfiles(organizationId);
