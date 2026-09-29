@@ -177,7 +177,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ].join("\n"),
     });
     handoffNotification = {
-      ok: notice.delivered || notice.queued || notice.duplicate,
+      ok: notice.delivered || notice.queued,
       duplicate: notice.duplicate,
       warning: notice.reason ?? undefined,
     };
