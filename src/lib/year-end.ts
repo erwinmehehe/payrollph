@@ -1,33 +1,21 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, historicalPayrollEntries, payrollEntries, payrollRuns, yearEndAdjustments } from "@/db/schema";
+import {
+  employeePayRetroAdjustments,
+  employees,
+  historicalPayrollEntries,
+  payrollEntries,
+  payrollRuns,
+  yearEndAdjustments,
+} from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { annualize, ANNUALIZATION_RULE_VERSION, type AnnualizationResult } from "@/lib/annualization";
-
-type LineItem = { code?: string; label?: string; amount?: number | string };
-
-function sumContributionsAndTax(lineItems: unknown) {
-  const items = Array.isArray(lineItems) ? (lineItems as LineItem[]) : [];
-  let contributions = 0;
-  let tax = 0;
-  let thirteenth = 0;
-
-  for (const item of items) {
-    const amount = Math.abs(Number(item.amount ?? 0));
-    if (!Number.isFinite(amount)) continue;
-    const label = `${item.code ?? ""} ${item.label ?? ""}`.toLowerCase();
-    if (label.includes("sss") || label.includes("philhealth") || label.includes("pag-ibig") || label.includes("pagibig")) {
-      contributions += amount;
-    } else if (label.includes("withholding") || label.includes("tax")) {
-      tax += amount;
-    } else if (label.includes("13th") || label.includes("thirteenth")) {
-      thirteenth += amount;
-    }
-  }
-
-  return { contributions, tax, thirteenth };
-}
+import {
+  computeThirteenthMonthBalance,
+  payrollTaxSummary,
+  thirteenthMonthBasicFromEntry,
+} from "@/lib/final-pay";
 
 /**
  * Aggregates every released payroll entry for the tax year and runs the
@@ -53,6 +41,22 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
     ? await db.select().from(payrollEntries).where(inArray(payrollEntries.payrollRunId, runIds))
     : [];
 
+  const retroRows = await db.select().from(employeePayRetroAdjustments)
+    .where(eq(employeePayRetroAdjustments.organizationId, organizationId));
+  const sourceRunIds = [...new Set(retroRows.map((row) => row.sourcePayrollRunId))];
+  const sourceRuns = sourceRunIds.length
+    ? await db.select().from(payrollRuns).where(inArray(payrollRuns.id, sourceRunIds))
+    : [];
+  const sourceRunById = new Map(sourceRuns.map((run) => [run.id, run]));
+  const eligibleRetroIds = new Set(
+    retroRows
+      .filter((row) => {
+        const sourceRun = sourceRunById.get(row.sourcePayrollRunId);
+        return sourceRun && new Date(`${sourceRun.periodEnd}T00:00:00Z`).getUTCFullYear() === taxYear;
+      })
+      .map((row) => row.id),
+  );
+
   // A company can switch payroll providers mid-year. Imported payroll history is
   // preserved as source-of-truth totals and participates in annualization without
   // being recalculated under the current Linaw rule tables.
@@ -64,24 +68,43 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
       sql`extract(year from ${historicalPayrollEntries.payDate}) = ${taxYear}`,
     ));
 
-  const totals = new Map<number, { gross: number; contributions: number; tax: number; thirteenth: number; periods: number; importedPeriods: number }>();
+  const emptyBucket = () => ({
+    gross: 0,
+    contributions: 0,
+    tax: 0,
+    thirteenthPaid: 0,
+    thirteenthBasic: 0,
+    otherNonTaxable: 0,
+    periods: 0,
+    importedPeriods: 0,
+    incompleteImportedBasic: 0,
+  });
+  const totals = new Map<number, ReturnType<typeof emptyBucket>>();
+
   for (const entry of entries) {
-    const bucket = totals.get(entry.employeeId) ?? { gross: 0, contributions: 0, tax: 0, thirteenth: 0, periods: 0, importedPeriods: 0 };
-    const parsed = sumContributionsAndTax(entry.lineItems);
-    bucket.gross += Number(entry.grossPay);
-    bucket.contributions += parsed.contributions;
-    bucket.tax += parsed.tax;
-    bucket.thirteenth += parsed.thirteenth;
+    const bucket = totals.get(entry.employeeId) ?? emptyBucket();
+    const tax = payrollTaxSummary(entry);
+    bucket.gross += tax.grossCompensation;
+    bucket.contributions += tax.statutoryContributions;
+    bucket.tax += tax.taxWithheld;
+    bucket.thirteenthPaid += tax.thirteenthMonth;
+    bucket.thirteenthBasic += thirteenthMonthBasicFromEntry(entry, { eligibleRetroIds });
+    bucket.otherNonTaxable += tax.otherNonTaxable;
     bucket.periods += 1;
     totals.set(entry.employeeId, bucket);
   }
 
   for (const entry of importedHistory) {
-    const bucket = totals.get(entry.employeeId) ?? { gross: 0, contributions: 0, tax: 0, thirteenth: 0, periods: 0, importedPeriods: 0 };
+    const bucket = totals.get(entry.employeeId) ?? emptyBucket();
     bucket.gross += Number(entry.grossPay);
     bucket.contributions += Number(entry.sssEmployee) + Number(entry.philHealthEmployee) + Number(entry.pagIbigEmployee);
     bucket.tax += Number(entry.taxWithheld);
-    bucket.thirteenth += Number(entry.thirteenthMonth);
+    bucket.thirteenthPaid += Number(entry.thirteenthMonth);
+    bucket.thirteenthBasic += Number(entry.basicSalaryEarned);
+    bucket.otherNonTaxable += Number(entry.otherNonTaxable);
+    if (Number(entry.grossPay) > 0 && Number(entry.basicSalaryEarned) <= 0 && Number(entry.thirteenthMonth) <= 0) {
+      bucket.incompleteImportedBasic += 1;
+    }
     bucket.periods += 1;
     bucket.importedPeriods += 1;
     totals.set(entry.employeeId, bucket);
@@ -92,27 +115,41 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
     eq(yearEndAdjustments.taxYear, taxYear),
   ));
 
-  const rows: Array<{ employee: typeof staff[number]; result: AnnualizationResult; periods: number }> = [];
+  const rows: Array<{ employee: typeof staff[number]; result: AnnualizationResult; periods: number; thirteenthBalance: number }> = [];
+  const incompleteImported = staff.flatMap((employee) => {
+    const bucket = totals.get(employee.id);
+    return bucket && bucket.incompleteImportedBasic > 0
+      ? [{ employeeNo: employee.employeeNo, rows: bucket.incompleteImportedBasic }]
+      : [];
+  });
+  if (incompleteImported.length > 0) {
+    throw new Error(
+      `Imported payroll history is missing Basic Salary Earned for 13th-month computation: ${incompleteImported.map((row) => `${row.employeeNo} (${row.rows} row(s))`).join(", ")}. Re-import those payroll rows with the 13th-month salary basis before annualization.`,
+    );
+  }
 
   for (const employee of staff) {
     const bucket = totals.get(employee.id);
     if (!bucket || bucket.periods === 0) continue;
 
-    // 13th month accrual: one month of basic pay, pro-rated by periods worked
-    // against a 24-period semi-monthly year, unless already paid as a line item.
-    const accrued13th = bucket.thirteenth > 0
-      ? bucket.thirteenth
-      : Number(employee.basicRate) * Math.min(1, bucket.periods / 24);
+    const thirteenth = computeThirteenthMonthBalance({
+      basicSalaryEarned: bucket.thirteenthBasic,
+      alreadyPaid: bucket.thirteenthPaid,
+      eligible: employee.thirteenthMonthEligible,
+    });
+    const totalThirteenthForYear = Math.max(thirteenth.entitlement, thirteenth.alreadyPaid);
+    const projectedGross = bucket.gross + thirteenth.balanceDue;
 
     const result = annualize({
-      grossCompensation: bucket.gross,
-      thirteenthMonth: accrued13th,
+      grossCompensation: projectedGross,
+      thirteenthMonth: totalThirteenthForYear,
       statutoryContributions: bucket.contributions,
       taxWithheld: bucket.tax,
+      otherNonTaxable: bucket.otherNonTaxable,
       mwe: employee.mwe,
     });
 
-    rows.push({ employee, result, periods: bucket.periods });
+    rows.push({ employee, result, periods: bucket.periods, thirteenthBalance: thirteenth.balanceDue });
   }
 
   if (rows.length) {
@@ -135,6 +172,11 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
         periodsIncluded: periods,
         runsIncluded: runIds.length,
         importedHistoryRows: totals.get(employee.id)?.importedPeriods ?? 0,
+        thirteenthMonthBasicEarned: totals.get(employee.id)?.thirteenthBasic ?? 0,
+        thirteenthMonthAlreadyPaid: totals.get(employee.id)?.thirteenthPaid ?? 0,
+        thirteenthMonthBalanceDue: thirteenthBalance,
+        thirteenthMonthEligible: employee.thirteenthMonthEligible,
+        thirteenthMonthExclusionReason: employee.thirteenthMonthExclusionReason,
       },
       ruleVersion: ANNUALIZATION_RULE_VERSION,
     })));
