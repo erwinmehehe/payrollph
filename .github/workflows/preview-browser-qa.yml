@@ -219,6 +219,24 @@ jobs:
               const handoff = dashboard.locator("[data-payroll-handoff]").first();
               check((await handoff.count()) === 1, `${persona.label}: payroll handoff is missing from the role dashboard`);
               check((await handoff.locator(".handoff-step").count()) === 5, `${persona.label}: payroll handoff must show all five owners`);
+
+              const actionCenter = dashboard.locator(`[data-payroll-action-center="${persona.dashboardRole}"]`);
+              check((await actionCenter.count()) === 1, `${persona.label}: next-action center is missing`);
+              const actionCount = await actionCenter.locator(".payroll-action-item").count();
+              const clearCount = await actionCenter.locator(".status-approved").count();
+              check(actionCount > 0 || clearCount > 0, `${persona.label}: action center must show either an action or a clear state`);
+
+              const notificationButton = page.getByRole("button", { name: /Notifications/ }).first();
+              check((await notificationButton.count()) === 1, `${persona.label}: notification button is missing`);
+              await notificationButton.click();
+              await page.waitForTimeout(50);
+              const tray = page.getByRole("dialog", { name: "Notifications" });
+              check((await tray.count()) === 1, `${persona.label}: attention tray did not open`);
+              check((await tray.locator(".tray-item").count()) === actionCount, `${persona.label}: tray and dashboard action counts disagree`);
+              if (actionCount === 0) {
+                check((await tray.innerText()).includes("Nothing needs your attention."), `${persona.label}: empty attention state is missing`);
+              }
+              await notificationButton.click();
             }
             if (persona.id === "employee") {
               check(body.includes("NEXT PAY STATUS"), "Employee: next pay status section is missing");
