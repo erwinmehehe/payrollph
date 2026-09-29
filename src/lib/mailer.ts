@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import nodemailer from "nodemailer";
 import { db } from "@/db";
 import { outbox } from "@/db/schema";
@@ -53,6 +53,43 @@ export async function queueMessage(input: {
     await db.update(outbox).set({ status: "failed", error: message }).where(eq(outbox.id, row.id));
     return { delivered: false, queued: false, provider: providerName, id: row.id, reason: message };
   }
+}
+
+export async function queueMessageOnce(input: {
+  organizationId: number;
+  channel?: "email" | "sms";
+  recipient: string;
+  subject: string;
+  body: string;
+  purpose: string;
+}) {
+  const [existing] = await db
+    .select({
+      id: outbox.id,
+      status: outbox.status,
+      provider: outbox.provider,
+    })
+    .from(outbox)
+    .where(and(
+      eq(outbox.organizationId, input.organizationId),
+      eq(outbox.recipient, input.recipient),
+      eq(outbox.purpose, input.purpose),
+    ))
+    .limit(1);
+
+  if (existing) {
+    return {
+      delivered: existing.status === "sent",
+      queued: existing.status === "queued" || existing.status === "pending",
+      provider: existing.provider as MailProvider,
+      id: existing.id,
+      reason: existing.status === "failed" ? "A previous notification attempt failed." : null,
+      duplicate: true,
+    };
+  }
+
+  const result = await queueMessage(input);
+  return { ...result, duplicate: false };
 }
 
 async function deliver(provider: MailProvider, row: typeof outbox.$inferSelect) {
