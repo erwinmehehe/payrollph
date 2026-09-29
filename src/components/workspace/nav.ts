@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   Package,
   ReceiptText,
+  RefreshCcw,
   Settings2,
   ShieldCheck,
   Sparkles,
@@ -55,6 +56,7 @@ export const NAVIGATION: NavGroup[] = [
       { name: "Overview", icon: LayoutDashboard, hint: "Payroll status, approvals and cost at a glance", tone: "blue" },
       { name: "Payroll", icon: WalletCards, hint: "Prepare, approve, release and export a run", tone: "green", badge: "runs" },
       { name: "People", icon: UsersRound, hint: "Employee directory, import and structure", tone: "purple", badge: "people" },
+      { name: "Migration", icon: RefreshCcw, hint: "Switch from another payroll or HRIS with validated imports", tone: "teal" },
       { name: "Time & attendance", icon: Clock3, hint: "Punches, exceptions and derived hours", tone: "cyan" },
       { name: "Leave", icon: CalendarDays, hint: "Leave requests and balances", tone: "pink" },
       { name: "Approvals", icon: ClipboardCheck, hint: "Decisions assigned to you or your delegates", tone: "amber", badge: "approvals" },
@@ -94,6 +96,7 @@ export const NAVIGATION: NavGroup[] = [
 /** Pages a freelancer (solo) workspace does not have. Mirrors the server's capability flags. */
 export const FREELANCER_HIDDEN = new Set([
   "People",
+  "Migration",
   "Payroll",
   "Time & attendance",
   "Leave",
