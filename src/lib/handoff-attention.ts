@@ -1,7 +1,7 @@
 import type { DashboardData, Employee, PayrollHandoffRunSummary, PayrollRun, Task } from "@/components/workspace/types";
 
 export type HandoffAttentionTone = "review" | "active" | "danger" | "success";
-export type HandoffAttentionFocus = "incomplete-attendance";
+export type HandoffAttentionFocus = "incomplete-attendance" | "payroll-exceptions";
 
 export type HandoffAttention = {
   id: string;
@@ -147,6 +147,7 @@ export function buildHandoffAttention(data: DashboardData, role: string | null |
           page: "Payroll",
           actionLabel: "Review exceptions",
           owner: "Payroll",
+          focus: "payroll-exceptions",
         });
       } else {
         items.push({
