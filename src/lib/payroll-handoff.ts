@@ -58,14 +58,13 @@ export function buildPayrollHandoff(
   const hrIssues = Math.max(0, context.hrIssues ?? 0);
   const payrollExceptions = Math.max(0, context.payrollExceptions ?? Number(run?.exceptions ?? 0));
   const approver = context.approvalTask?.approver;
+  const effectiveRank = rank <= 1 ? (hrIssues > 0 ? 0 : 1) : rank;
 
   const details: Record<PayrollHandoffKey, string> = {
     hr:
-      rank > 0
-        ? "Cutoff inputs have moved to payroll."
-        : hrIssues
-          ? `${hrIssues} people or attendance item(s) still need HR attention.`
-          : "People, attendance and leave inputs are ready for payroll.",
+      hrIssues
+        ? `${hrIssues} cutoff input${hrIssues === 1 ? "" : "s"} still need HR attention before Payroll continues.`
+        : "People, attendance and in-period leave inputs are clear for payroll.",
     payroll:
       rank > 1
         ? "The prepared register has been handed to an independent checker."
@@ -96,7 +95,7 @@ export function buildPayrollHandoff(
 
   return STAGES.map((stage, index) => ({
     ...stage,
-    state: index < rank ? "done" : index === rank ? "current" : "pending",
+    state: index < effectiveRank ? "done" : index === effectiveRank ? "current" : "pending",
     detail: details[stage.key],
   }));
 }
