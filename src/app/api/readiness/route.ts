@@ -24,7 +24,10 @@ export async function GET() {
   if (!["owner", "admin", "bookkeeper"].includes(user.role)) {
     return Response.json({ error: "Only workspace administrators can view deployment readiness." }, { status: 403 });
   }
+  return buildReadinessResponse();
+}
 
+export async function buildReadinessResponse() {
   const [{ value: userCount }] = await db.select({ value: count() }).from(users);
   const [{ value: queuedMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "queued"));
   const [{ value: sentMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "sent"));
