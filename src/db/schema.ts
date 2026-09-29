@@ -675,6 +675,7 @@ export const historicalPayrollEntries = pgTable("historical_payroll_entries", {
   periodLabel: varchar("period_label", { length: 120 }).notNull(),
   payDate: date("pay_date").notNull(),
   grossPay: numeric("gross_pay", { precision: 14, scale: 2 }).notNull(),
+  basicSalary: numeric("basic_salary", { precision: 14, scale: 2 }),
   netPay: numeric("net_pay", { precision: 14, scale: 2 }).notNull(),
   taxWithheld: numeric("tax_withheld", { precision: 14, scale: 2 }).notNull().default("0"),
   sssEmployee: numeric("sss_employee", { precision: 14, scale: 2 }).notNull().default("0"),
