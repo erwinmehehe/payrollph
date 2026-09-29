@@ -834,6 +834,7 @@ export const separationRecords = pgTable("separation_records", {
   retirementPay: numeric("retirement_pay", { precision: 12, scale: 2 }).notNull().default("0"),
   otherBenefits: numeric("other_benefits", { precision: 12, scale: 2 }).notNull().default("0"),
   taxAdjustment: numeric("tax_adjustment", { precision: 12, scale: 2 }).notNull().default("0"),
+  finalStatutoryDeductions: numeric("final_statutory_deductions", { precision: 12, scale: 2 }).notNull().default("0"),
   loanDeductions: numeric("loan_deductions", { precision: 12, scale: 2 }).notNull().default("0"),
   grossFinalPay: numeric("gross_final_pay", { precision: 12, scale: 2 }).notNull().default("0"),
   netFinalPay: numeric("net_final_pay", { precision: 12, scale: 2 }).notNull().default("0"),
