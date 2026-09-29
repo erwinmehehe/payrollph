@@ -15,7 +15,8 @@ jobs:
     timeout-minutes: 25
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
-      DEMO_MODE: "true"
+      DEMO_MODE: "false"
+      PUBLIC_DEMO_HOSTS: "127.0.0.1"
       QA_URL: http://127.0.0.1:3000
     services:
       postgres:
@@ -142,11 +143,11 @@ jobs:
           }
 
           const personas = [
-            { id: "owner", label: "Owner", short: "Owner", person: "Andrea Lim", landing: "Overview" },
-            { id: "hr", label: "HR Admin", short: "HR Admin", person: "Aira Villanueva", landing: "People" },
-            { id: "payroll", label: "Payroll Officer", short: "Payroll", person: "Paolo Cruz", landing: "Payroll" },
-            { id: "checker", label: "Checker", short: "Checker", person: "Mariel Santos", landing: "Approvals" },
-            { id: "employee", label: "Employee", short: "Employee", person: "Jonas Reyes", landing: "My pay" },
+            { id: "owner", label: "Owner", short: "Owner", person: "Andrea Lim", landing: "Overview", taskPage: "Overview" },
+            { id: "hr", label: "HR Admin", short: "HR Admin", person: "Aira Villanueva", landing: "People", taskPage: "People" },
+            { id: "payroll", label: "Payroll Officer", short: "Payroll", person: "Paolo Cruz", landing: "Payroll", taskPage: "Payroll" },
+            { id: "checker", label: "Checker", short: "Checker", person: "Mariel Santos", landing: "Approvals", taskPage: "Approvals" },
+            { id: "employee", label: "Employee", short: "Employee", person: "Jonas Reyes", landing: "My pay", taskPage: "My pay" },
           ];
 
           async function qaPersona(browser, persona) {
@@ -180,6 +181,21 @@ jobs:
               check(!alertText, `${persona.label}: launch alert: ${alertText}`);
             }
 
+            const sandbox = page.locator("section.card").filter({ hasText: "ROLE SANDBOX" }).first();
+            check((await sandbox.count()) === 1, `${persona.label}: sandbox task panel is missing`);
+            const firstTask = sandbox.getByRole("button").filter({ hasText: /^1\./ }).first();
+            check((await firstTask.count()) === 1, `${persona.label}: first sandbox task is missing`);
+            await firstTask.click();
+            await page.waitForTimeout(250);
+
+            if (persona.id === "employee") {
+              const afterTask = await page.locator("body").innerText();
+              check(afterTask.includes("Rule version"), "Employee: opening the first payslip did not reveal its details");
+            } else {
+              const activeNav = page.locator("aside .nav-item[aria-current='page']").filter({ hasText: persona.taskPage }).first();
+              check((await activeNav.count()) === 1, `${persona.label}: first sandbox task did not navigate to ${persona.taskPage}`);
+            }
+
             await page.screenshot({
               path: `${outDir}/persona-${persona.id}.png`,
               fullPage: true,
@@ -193,6 +209,7 @@ jobs:
               url: page.url(),
               person: persona.person,
               landing: persona.landing,
+              firstTask: "passed",
               errors,
             });
             await context.close();
