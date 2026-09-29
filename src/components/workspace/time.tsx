@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, CalendarDays, Check, Clock3, Clock, Download, Search, Timer } from "lucide-react";
+import { AlertTriangle, CalendarDays, Check, Clock3, Clock, Download, PencilLine, Search, Timer, X } from "lucide-react";
 import type { DashboardData, Notify, Punch } from "./types";
 import { Avatar, EmptyState, Metric, PageHeading, Progress, Segmented, Status, formatDate, formatTimeOnly } from "./ui";
 
@@ -12,16 +12,23 @@ export function TimeView({
   data,
   onOpenBundy,
   notify,
+  onRefresh,
   canManage = true,
 }: {
   data: DashboardData;
   onOpenBundy: () => void;
   notify: Notify;
+  onRefresh?: () => Promise<void>;
   canManage?: boolean;
 }) {
   const punches = useMemo(() => data.punches ?? [], [data.punches]);
   const [view, setView] = useState<"all" | "incomplete">("all");
   const [query, setQuery] = useState("");
+  const [editingPunch, setEditingPunch] = useState<Punch | null>(null);
+  const [correctedTimeIn, setCorrectedTimeIn] = useState("");
+  const [correctedTimeOut, setCorrectedTimeOut] = useState("");
+  const [correctionReason, setCorrectionReason] = useState("");
+  const [savingCorrection, setSavingCorrection] = useState(false);
 
   const stats = useMemo(() => {
     const complete = punches.filter(isComplete);
@@ -47,6 +54,47 @@ export function TimeView({
   }, [punches, data.employees, view, query]);
 
   const completionPercent = punches.length ? (stats.complete.length / punches.length) * 100 : 0;
+
+  function openCorrection(punch: Punch) {
+    setEditingPunch(punch);
+    setCorrectedTimeIn(toManilaInput(punch.timeIn, punch.workDate, "09:00"));
+    setCorrectedTimeOut(toManilaInput(punch.timeOut, punch.workDate, "18:00"));
+    setCorrectionReason("");
+  }
+
+  async function saveCorrection() {
+    if (!editingPunch) return;
+    if (correctionReason.trim().length < 10) {
+      notify("Give a correction reason of at least 10 characters.", "err");
+      return;
+    }
+    setSavingCorrection(true);
+    try {
+      const response = await fetch("/api/web-bundy", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId: data.selectedOrganization.id,
+          punchId: editingPunch.id,
+          timeIn: manilaInputToIso(correctedTimeIn),
+          timeOut: manilaInputToIso(correctedTimeOut),
+          reason: correctionReason.trim(),
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        notify(payload.error ?? "Attendance correction could not be saved.", "err");
+        return;
+      }
+      setEditingPunch(null);
+      await onRefresh?.();
+      notify("Attendance correction saved and written to the audit trail.");
+    } catch {
+      notify("Could not reach the attendance service.", "err");
+    } finally {
+      setSavingCorrection(false);
+    }
+  }
 
   return (
     <>
@@ -183,6 +231,61 @@ export function TimeView({
         </article>
       </section>
 
+      {editingPunch && (
+        <article className="card attendance-correction-card" data-attendance-correction>
+          <div className="card-header">
+            <div>
+              <div className="card-kicker">Attendance correction</div>
+              <h2>Complete the missing punch pair</h2>
+              <p>
+                This change is audit-logged. Attendance inside an already released payroll period cannot be edited.
+              </p>
+            </div>
+            <button className="icon-button" onClick={() => setEditingPunch(null)} aria-label="Close attendance correction">
+              <X size={15} />
+            </button>
+          </div>
+          <div className="attendance-correction-grid">
+            <label>
+              Time in
+              <input
+                type="datetime-local"
+                value={correctedTimeIn}
+                onChange={(event) => setCorrectedTimeIn(event.target.value)}
+              />
+            </label>
+            <label>
+              Time out
+              <input
+                type="datetime-local"
+                value={correctedTimeOut}
+                onChange={(event) => setCorrectedTimeOut(event.target.value)}
+              />
+            </label>
+            <label className="attendance-correction-reason">
+              Correction reason
+              <textarea
+                value={correctionReason}
+                onChange={(event) => setCorrectionReason(event.target.value)}
+                placeholder="Explain why this punch needs correction"
+                minLength={10}
+                rows={2}
+              />
+            </label>
+          </div>
+          <div className="run-actions">
+            <button className="secondary-button" onClick={() => setEditingPunch(null)}>Cancel</button>
+            <button
+              className="primary-button brand"
+              disabled={savingCorrection || !correctedTimeIn || !correctedTimeOut || correctionReason.trim().length < 10}
+              onClick={() => void saveCorrection()}
+            >
+              {savingCorrection ? "Saving…" : "Save correction"}
+            </button>
+          </div>
+        </article>
+      )}
+
       <article className="card table-card" style={{ marginTop: 16 }}>
         <div className="table-toolbar">
           <div className="search-field">
@@ -215,6 +318,7 @@ export function TimeView({
                 <th>Time in</th>
                 <th>Time out</th>
                 <th>Status</th>
+                {canManage && <th>Action</th>}
               </tr>
             </thead>
             <tbody>
@@ -242,6 +346,17 @@ export function TimeView({
                   <td>
                     <Status value={isComplete(punch) ? punch.status : "Incomplete punch"} />
                   </td>
+                  {canManage && (
+                    <td>
+                      {!isComplete(punch) ? (
+                        <button className="link-button" onClick={() => openCorrection(punch)}>
+                          <PencilLine size={12} /> Correct
+                        </button>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -275,4 +390,27 @@ function toneForStatus(status: string): "amber" | "blue" | "red" | undefined {
   if (lower.includes("late") || lower.includes("tardy") || lower.includes("undertime")) return "amber";
   if (lower.includes("overtime") || lower.includes("night")) return "blue";
   return undefined;
+}
+
+
+function toManilaInput(value: Date | string | null, workDate: string, fallbackTime: string) {
+  if (!value) return `${workDate}T${fallbackTime}`;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return `${workDate}T${fallbackTime}`;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const map = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${map.year}-${map.month}-${map.day}T${map.hour}:${map.minute}`;
+}
+
+function manilaInputToIso(value: string) {
+  if (!value) return "";
+  return new Date(`${value}:00+08:00`).toISOString();
 }
