@@ -60,6 +60,8 @@ export function computeFinalPay(input: {
   leaveMonetizationPay: number;
   separationPay: number;
   retirementPay: number;
+  taxableSeparationPay?: number;
+  taxableRetirementPay?: number;
   otherBenefits: number;
   loanDeductions: number;
 }) {
@@ -75,9 +77,10 @@ export function computeFinalPay(input: {
   const grossForAnnualization = round2(
     Math.max(0, input.grossCompensationYtd)
       + Math.max(0, input.unpaidBasicSalary)
+      + thirteenthPaidYtd
       + thirteenthDue
-      + Math.max(0, input.separationPay)
-      + Math.max(0, input.retirementPay)
+      + Math.max(0, input.taxableSeparationPay ?? input.separationPay)
+      + Math.max(0, input.taxableRetirementPay ?? input.retirementPay)
       + Math.max(0, input.otherBenefits),
   );
   const annualized = annualize({
