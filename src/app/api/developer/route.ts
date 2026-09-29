@@ -9,6 +9,7 @@ import { dispatchWebhook, WEBHOOK_EVENTS } from "@/lib/webhooks";
 import { assertOrganizationRole, DEVELOPER_ADMIN_ROLES } from "@/lib/access";
 import { validateOutboundWebhookUrl } from "@/lib/outbound-url-security";
 
+import { denyPublicDemoSideEffect } from "@/lib/public-demo-guard";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
@@ -68,6 +69,8 @@ export async function POST(request: Request) {
     "Only workspace administrators can manage API keys and webhooks.",
   );
   if (deniedDev) return deniedDev;
+  const demoDenied = await denyPublicDemoSideEffect(organizationId, "Developer credential and webhook changes");
+  if (demoDenied) return demoDenied;
 
   if (action === "create-key") {
     const minted = mintApiKey();
