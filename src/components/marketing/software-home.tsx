@@ -8,6 +8,7 @@ import { getPublicPricingPlans } from "@/lib/pricing-catalog";
 import { PricingTable } from "@/components/marketing/pricing-table";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 import { WorkspacePreview } from "@/components/marketing/workspace-preview";
+import { buildSampleRun } from "@/components/marketing/sample-workspace";
 import styles from "./software-home.module.css";
 
 const COVERAGE = ["SSS", "PhilHealth", "Pag-IBIG", "BIR TRAIN"];
@@ -62,6 +63,12 @@ const SUPPORTING_MODULES = [
 
 export async function SoftwareHome() {
   const plans = await getPublicPricingPlans();
+  const sampleRun = buildSampleRun();
+  const sampleNet = new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+    maximumFractionDigits: 0,
+  }).format(sampleRun.net);
 
   return (
     <div className={`site ${styles.page}`}>
@@ -140,19 +147,19 @@ export async function SoftwareHome() {
                   Sample payroll workspace
                   <b className={styles.interactiveBadge}>Interactive</b>
                 </span>
-                <strong>September 16–30 · Needs review</strong>
+                <strong>{sampleRun.periodLabel} · Needs review</strong>
               </div>
               <div>
                 <span>Net payroll</span>
-                <strong>₱361,282</strong>
+                <strong>{sampleNet}</strong>
               </div>
               <div>
                 <span>Employees</span>
-                <strong>42</strong>
+                <strong>{sampleRun.entries.length}</strong>
               </div>
               <div>
                 <span>Exceptions</span>
-                <strong>2</strong>
+                <strong>{sampleRun.exceptions}</strong>
               </div>
             </div>
             <div className={styles.productStageScreen}>
