@@ -63,6 +63,7 @@ export function computeFinalPay(input: {
   taxableSeparationPay?: number;
   taxableRetirementPay?: number;
   otherBenefits: number;
+  finalStatutoryDeductions?: number;
   loanDeductions: number;
 }) {
   const basicSalaryEarnedYtd = round2(
@@ -102,9 +103,10 @@ export function computeFinalPay(input: {
       + Math.max(0, input.retirementPay)
       + Math.max(0, input.otherBenefits),
   );
+  const finalStatutoryDeductions = round2(Math.max(0, input.finalStatutoryDeductions ?? 0));
   const netFinalPay = round2(Math.max(
     0,
-    grossFinalPay + taxAdjustment - Math.max(0, input.loanDeductions),
+    grossFinalPay + taxAdjustment - finalStatutoryDeductions - Math.max(0, input.loanDeductions),
   ));
 
   return {
@@ -121,6 +123,7 @@ export function computeFinalPay(input: {
     separationPay: round2(Math.max(0, input.separationPay)),
     retirementPay: round2(Math.max(0, input.retirementPay)),
     otherBenefits: round2(Math.max(0, input.otherBenefits)),
+    finalStatutoryDeductions,
     loanDeductions: round2(Math.max(0, input.loanDeductions)),
     netFinalPay,
   };
