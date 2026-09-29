@@ -30,9 +30,11 @@ test("demo launch and authenticated dashboard apply core compatibility before Dr
   const dashboard = read("src/lib/dashboard-data.ts");
 
   assert.ok(demo.includes("await ensureCoreCompatibilitySchema()"), "demo launch must upgrade schema before provisioning");
+  assert.ok(demo.includes("await preparePublicDemoTenant()"), "production demo launch must use the retry wrapper");
+  assert.ok(demo.includes("await ensurePublicDemoTenant()"), "retry wrapper must still call the public demo provisioner");
   assert.ok(
-    demo.indexOf("await ensureCoreCompatibilitySchema()") < demo.indexOf("await ensurePublicDemoTenant()"),
-    "compatibility upgrade must happen before public demo tenant provisioning",
+    demo.indexOf("await ensureCoreCompatibilitySchema()") < demo.indexOf("await preparePublicDemoTenant()"),
+    "compatibility upgrade must happen before retryable public demo tenant provisioning",
   );
   assert.ok(
     dashboard.indexOf("await ensureCoreCompatibilitySchema()") < dashboard.indexOf("await ensureSeedData()"),
