@@ -2,7 +2,7 @@ import { and, count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { approvalTasks, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { queueMessage } from "@/lib/mailer";
+import { queueMessageOnce } from "@/lib/mailer";
 import { dispatchWebhook } from "@/lib/webhooks";
 import { assertOrganizationRole, PAYROLL_RELEASE_ROLES } from "@/lib/access";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
@@ -152,11 +152,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   for (const person of staff) {
     if (person.status !== "Active" || !person.email) continue;
     try {
-      await queueMessage({
+      const notice = await queueMessageOnce({
         organizationId: run.organizationId,
         recipient: person.email,
         subject: `Your payslip for ${run.periodLabel} is ready`,
-        purpose: "payslip-ready",
+        purpose: `payslip-ready-${runId}-${person.id}`,
         body: [
           `Hi ${person.firstName},`,
           "",
@@ -165,7 +165,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           "Sign in to Linaw to view and download your payslip.",
         ].join("\n"),
       });
-      notified += 1;
+      if (notice.delivered || notice.queued || notice.duplicate) {
+        notified += 1;
+      } else {
+        postReleaseWarnings.push(
+          `Payslip notice for employee #${person.id} was not queued${notice.reason ? `: ${notice.reason}` : "."}`,
+        );
+      }
     } catch {
       postReleaseWarnings.push(`Could not queue payslip notice for employee #${person.id}.`);
     }
