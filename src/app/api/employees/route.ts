@@ -1,12 +1,20 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gte } from "drizzle-orm";
 import { db } from "@/db";
-import { assets, employeePayProfiles, employees } from "@/db/schema";
+import {
+  assets,
+  employeePayProfiles,
+  employeePayRevisions,
+  employeePayRetroAdjustments,
+  employees,
+  payrollEntries,
+  payrollRuns,
+} from "@/db/schema";
 import { assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { seedProvisioning } from "@/lib/provisioning";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
-import { resolvePayProfile } from "@/lib/pay-basis";
+import { monthlyRetroForReleasedCutoff, resolvePayProfile } from "@/lib/pay-basis";
 
 export const dynamic = "force-dynamic";
 
@@ -224,7 +232,38 @@ export async function PATCH(request: Request) {
   ].some((value) => value !== undefined);
 
   let nextPayProfile = null;
+  let payEffectiveDate: string | null = null;
+  let payChangeReason: string | null = null;
   if (wantsPayUpdate) {
+    payEffectiveDate = String(body.payEffectiveDate ?? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date())).trim();
+    payChangeReason = String(body.payChangeReason ?? "Pay adjustment").trim();
+    const todayPh = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(payEffectiveDate)) {
+      return Response.json({ error: "Pay effective date must use YYYY-MM-DD." }, { status: 400 });
+    }
+    if (payEffectiveDate < String(employee.startDate)) {
+      return Response.json({ error: "Pay effective date cannot be before the employee start date." }, { status: 400 });
+    }
+    if (payEffectiveDate > todayPh) {
+      return Response.json({ error: "Future-dated pay changes are not applied early. Use the effective date when it becomes active." }, { status: 400 });
+    }
+    if (!payChangeReason) {
+      return Response.json({ error: "A reason is required for an effective-dated pay change." }, { status: 400 });
+    }
+
+    const [latestRevision] = await db.select().from(employeePayRevisions)
+      .where(and(
+        eq(employeePayRevisions.organizationId, organizationId),
+        eq(employeePayRevisions.employeeId, employeeId),
+      ))
+      .orderBy(desc(employeePayRevisions.effectiveDate), desc(employeePayRevisions.id))
+      .limit(1);
+    if (latestRevision && payEffectiveDate < String(latestRevision.effectiveDate)) {
+      return Response.json({
+        error: `This employee already has a later pay change effective ${latestRevision.effectiveDate}. Add changes in chronological order so the audit chain stays unambiguous.`,
+      }, { status: 409 });
+    }
+
     try {
       nextPayProfile = resolvePayProfile({
         payBasis: String(body.payBasis ?? existingPayProfile?.payBasis ?? "monthly"),
@@ -261,33 +300,135 @@ export async function PATCH(request: Request) {
     patch.basicRate = nextPayProfile.monthlyEquivalent.toFixed(2);
   }
 
-  const [updated] = await db.update(employees)
-    .set(patch)
-    .where(and(
-      eq(employees.id, employeeId),
-      eq(employees.organizationId, organizationId),
-    ))
-    .returning();
+  const result = await db.transaction(async (tx) => {
+    const [updated] = await tx.update(employees)
+      .set(patch)
+      .where(and(
+        eq(employees.id, employeeId),
+        eq(employees.organizationId, organizationId),
+      ))
+      .returning();
 
-  if (nextPayProfile) {
-    await db.insert(employeePayProfiles).values({
-      employeeId,
-      organizationId,
-      payBasis: nextPayProfile.payBasis,
-      rateAmount: nextPayProfile.rateAmount.toFixed(2),
-      standardWorkDaysPerMonth: nextPayProfile.standardWorkDaysPerMonth.toFixed(2),
-      standardHoursPerDay: nextPayProfile.standardHoursPerDay.toFixed(2),
-    }).onConflictDoUpdate({
-      target: employeePayProfiles.employeeId,
-      set: {
+    let revisionId: number | null = null;
+    let retroAdjustments = 0;
+    let retroTotal = 0;
+
+    if (nextPayProfile && payEffectiveDate) {
+      const [sameDayRevision] = await tx.select().from(employeePayRevisions)
+        .where(and(
+          eq(employeePayRevisions.employeeId, employeeId),
+          eq(employeePayRevisions.effectiveDate, payEffectiveDate),
+        ))
+        .limit(1);
+
+      const previousPayBasis = sameDayRevision?.previousPayBasis ?? existingPayProfile?.payBasis ?? "monthly";
+      const previousRateAmount = Number(sameDayRevision?.previousRateAmount ?? existingPayProfile?.rateAmount ?? employee.basicRate);
+      const previousStandardWorkDaysPerMonth = Number(
+        sameDayRevision?.previousStandardWorkDaysPerMonth ?? existingPayProfile?.standardWorkDaysPerMonth ?? 22,
+      );
+      const previousStandardHoursPerDay = Number(
+        sameDayRevision?.previousStandardHoursPerDay ?? existingPayProfile?.standardHoursPerDay ?? 8,
+      );
+
+      const [revision] = await tx.insert(employeePayRevisions).values({
+        employeeId,
+        organizationId,
+        effectiveDate: payEffectiveDate,
+        previousPayBasis,
+        previousRateAmount: previousRateAmount.toFixed(2),
+        previousStandardWorkDaysPerMonth: previousStandardWorkDaysPerMonth.toFixed(2),
+        previousStandardHoursPerDay: previousStandardHoursPerDay.toFixed(2),
+        newPayBasis: nextPayProfile.payBasis,
+        newRateAmount: nextPayProfile.rateAmount.toFixed(2),
+        newStandardWorkDaysPerMonth: nextPayProfile.standardWorkDaysPerMonth.toFixed(2),
+        newStandardHoursPerDay: nextPayProfile.standardHoursPerDay.toFixed(2),
+        reason: payChangeReason ?? "Pay adjustment",
+        createdBy: user.name,
+      }).onConflictDoUpdate({
+        target: [employeePayRevisions.employeeId, employeePayRevisions.effectiveDate],
+        set: {
+          newPayBasis: nextPayProfile.payBasis,
+          newRateAmount: nextPayProfile.rateAmount.toFixed(2),
+          newStandardWorkDaysPerMonth: nextPayProfile.standardWorkDaysPerMonth.toFixed(2),
+          newStandardHoursPerDay: nextPayProfile.standardHoursPerDay.toFixed(2),
+          reason: payChangeReason ?? "Pay adjustment",
+          createdBy: user.name,
+          createdAt: new Date(),
+        },
+      }).returning({ id: employeePayRevisions.id });
+      revisionId = revision.id;
+
+      await tx.insert(employeePayProfiles).values({
+        employeeId,
+        organizationId,
         payBasis: nextPayProfile.payBasis,
         rateAmount: nextPayProfile.rateAmount.toFixed(2),
         standardWorkDaysPerMonth: nextPayProfile.standardWorkDaysPerMonth.toFixed(2),
         standardHoursPerDay: nextPayProfile.standardHoursPerDay.toFixed(2),
-        updatedAt: new Date(),
-      },
-    });
-  }
+      }).onConflictDoUpdate({
+        target: employeePayProfiles.employeeId,
+        set: {
+          payBasis: nextPayProfile.payBasis,
+          rateAmount: nextPayProfile.rateAmount.toFixed(2),
+          standardWorkDaysPerMonth: nextPayProfile.standardWorkDaysPerMonth.toFixed(2),
+          standardHoursPerDay: nextPayProfile.standardHoursPerDay.toFixed(2),
+          updatedAt: new Date(),
+        },
+      });
+
+      if (previousPayBasis === "monthly" && nextPayProfile.payBasis === "monthly") {
+        const impacted = await tx.select({
+          runId: payrollRuns.id,
+          periodLabel: payrollRuns.periodLabel,
+          periodStart: payrollRuns.periodStart,
+          periodEnd: payrollRuns.periodEnd,
+        })
+          .from(payrollRuns)
+          .innerJoin(payrollEntries, and(
+            eq(payrollEntries.payrollRunId, payrollRuns.id),
+            eq(payrollEntries.employeeId, employeeId),
+          ))
+          .where(and(
+            eq(payrollRuns.organizationId, organizationId),
+            eq(payrollRuns.status, "Released"),
+            gte(payrollRuns.periodEnd, payEffectiveDate),
+          ));
+
+        for (const released of impacted) {
+          const amount = monthlyRetroForReleasedCutoff({
+            previousMonthlyRate: previousRateAmount,
+            newMonthlyRate: nextPayProfile.rateAmount,
+            effectiveDate: payEffectiveDate,
+            periodStart: String(released.periodStart),
+            periodEnd: String(released.periodEnd),
+          });
+          if (Math.abs(amount) < 0.005) continue;
+          await tx.insert(employeePayRetroAdjustments).values({
+            organizationId,
+            employeeId,
+            revisionId: revision.id,
+            sourcePayrollRunId: released.runId,
+            sourcePeriodLabel: released.periodLabel,
+            amount: amount.toFixed(2),
+            status: "pending",
+          }).onConflictDoUpdate({
+            target: [employeePayRetroAdjustments.revisionId, employeePayRetroAdjustments.sourcePayrollRunId],
+            set: {
+              amount: amount.toFixed(2),
+              status: "pending",
+              settledPayrollRunId: null,
+              settledAt: null,
+            },
+          });
+          retroAdjustments += 1;
+          retroTotal += amount;
+        }
+      }
+    }
+
+    return { updated, revisionId, retroAdjustments, retroTotal };
+  });
+  const updated = result.updated;
 
   await recordAuditEvent({
     organizationId,
@@ -298,6 +439,11 @@ export async function PATCH(request: Request) {
       employeeId,
       fields: [...Object.keys(patch), ...(nextPayProfile ? ["payBasis", "rateAmount", "standardWorkDaysPerMonth", "standardHoursPerDay"] : [])],
       payBasis: nextPayProfile?.payBasis ?? existingPayProfile?.payBasis ?? "monthly",
+      payEffectiveDate,
+      payChangeReason,
+      payRevisionId: result.revisionId,
+      retroAdjustments: result.retroAdjustments,
+      retroTotal: result.retroTotal,
     },
   });
 
@@ -309,5 +455,12 @@ export async function PATCH(request: Request) {
       standardWorkDaysPerMonth: (nextPayProfile?.standardWorkDaysPerMonth ?? Number(existingPayProfile?.standardWorkDaysPerMonth ?? 22)).toFixed(2),
       standardHoursPerDay: (nextPayProfile?.standardHoursPerDay ?? Number(existingPayProfile?.standardHoursPerDay ?? 8)).toFixed(2),
     },
+    payChange: nextPayProfile ? {
+      effectiveDate: payEffectiveDate,
+      reason: payChangeReason,
+      revisionId: result.revisionId,
+      retroAdjustments: result.retroAdjustments,
+      retroTotal: Number(result.retroTotal.toFixed(2)),
+    } : null,
   });
 }
