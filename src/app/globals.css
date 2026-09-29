@@ -6141,3 +6141,148 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
     min-width: 0;
   }
 }
+
+
+/* ==========================================================================
+   Actionable payroll handoffs
+   ========================================================================== */
+
+.payroll-action-queue {
+  margin: -2px 0 18px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
+}
+
+.payroll-action-queue-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 16px 11px;
+  border-bottom: 1px solid var(--line-faint);
+  background: linear-gradient(180deg, rgba(68, 76, 231, .025), transparent);
+}
+
+.payroll-action-queue-head h2 {
+  margin: 3px 0 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+
+.payroll-action-count {
+  min-width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #eef0ff;
+  color: #444ce7;
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.payroll-action-list {
+  display: grid;
+}
+
+.payroll-action-item {
+  appearance: none;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 11px;
+  align-items: center;
+  padding: 13px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--line-faint);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background .14s ease;
+}
+
+.payroll-action-item:last-child {
+  border-bottom: 0;
+}
+
+.payroll-action-item:hover {
+  background: var(--canvas);
+}
+
+.payroll-action-icon {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: #eef0ff;
+  color: #444ce7;
+}
+
+.payroll-action-item.danger .payroll-action-icon {
+  background: var(--review-bg);
+  color: var(--review);
+}
+
+.payroll-action-item.review .payroll-action-icon {
+  background: #fff7e6;
+  color: #b54708;
+}
+
+.payroll-action-copy {
+  min-width: 0;
+}
+
+.payroll-action-copy strong {
+  display: block;
+  color: var(--ink);
+  font-size: 11.5px;
+  font-weight: 680;
+}
+
+.payroll-action-copy small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.payroll-action-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--active);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tray-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 5px;
+  color: var(--active);
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .payroll-action-item {
+    grid-template-columns: 32px minmax(0, 1fr);
+    padding: 12px 13px;
+  }
+
+  .payroll-action-cta {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
