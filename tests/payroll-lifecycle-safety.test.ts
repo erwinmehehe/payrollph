@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { buildPayrollHandoff, employeePayStatusLabel } from "../src/lib/payroll-handoff";
+import { buildRoleInbox } from "../src/lib/role-inbox";
+import type { DashboardData } from "../src/components/workspace/types";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -92,4 +94,68 @@ test("employee-facing payroll labels never imply unreleased pay is available", (
   assert.equal(employeePayStatusLabel("Pending approval"), "With an independent checker");
   assert.equal(employeePayStatusLabel("Ready for release"), "Approved, waiting for release");
   assert.equal(employeePayStatusLabel("Released"), "Payslip available");
+});
+
+
+test("role inbox assigns the next concrete action to the active handoff owner", () => {
+  const data = {
+    user: { id: 1, email: "payroll@example.com", name: "Payroll User", role: "payroll", totpEnabled: false },
+    access: { companyWide: true, orgUnitName: null, role: "payroll" },
+    organizations: [],
+    selectedOrganization: { id: 1, name: "Loom & Local", legalName: "Loom & Local Inc.", plan: "Scale", accountType: "business", employeeCount: 2, color: "#176B5D" },
+    employees: [],
+    payrollRuns: [{
+      id: 9,
+      organizationId: 1,
+      periodLabel: "Sep 16–30, 2026",
+      periodStart: "2026-09-16",
+      periodEnd: "2026-09-30",
+      payDate: "2026-10-05",
+      status: "Needs review",
+      grossPay: "100000.00",
+      netPay: "80000.00",
+      exceptions: 0,
+      employeeCount: 2,
+      ruleVersion: "PH-2026.01",
+      totalChunks: 1,
+      processedChunks: 1,
+    }],
+    payrollEntries: [],
+    tasks: [],
+    auditEvents: [],
+    plans: [],
+    templates: [],
+    advisories: [],
+    freelancer: null,
+  } as unknown as DashboardData;
+
+  const payrollInbox = buildRoleInbox(data, "payroll");
+  assert.equal(payrollInbox.currentStage, "payroll");
+  assert.equal(payrollInbox.items[0]?.id, "payroll-submit");
+  assert.equal(payrollInbox.items[0]?.page, "Payroll");
+
+  data.payrollRuns[0].status = "Ready for release";
+  const ownerInbox = buildRoleInbox(data, "owner");
+  assert.equal(ownerInbox.currentStage, "owner");
+  assert.equal(ownerInbox.items[0]?.id, "owner-release");
+
+  const payrollWaiting = buildRoleInbox(data, "payroll");
+  assert.equal(payrollWaiting.items.length, 0);
+  assert.equal(payrollWaiting.currentOwner, "Owner");
+});
+
+test("formal payroll handoffs queue the next-person notification", () => {
+  const submit = read("src/app/api/payroll-runs/[id]/submit-review/route.ts");
+  const approvals = read("src/app/api/approvals/[id]/route.ts");
+  const release = read("src/app/api/payroll-runs/[id]/release/route.ts");
+
+  assert.ok(submit.includes('purpose: "payroll-review-required"'));
+  assert.ok(submit.includes("recipient: checker.email"));
+
+  assert.ok(approvals.includes('purpose: "payroll-ready-for-release"'));
+  assert.ok(approvals.includes("PAYROLL_RELEASE_ROLES"));
+  assert.ok(approvals.includes('purpose: "payroll-needs-rework"'));
+  assert.ok(approvals.includes("makerUserId"));
+
+  assert.ok(release.includes('purpose: "payslip-ready"'));
 });
