@@ -106,3 +106,11 @@ export function employeePayStatusLabel(status: string | null | undefined) {
   if (rank === 1) return "Payroll is being finalized";
   return "Inputs are being prepared";
 }
+
+
+export function handoffViewerRole(role: string | null | undefined): PayrollHandoffKey | null {
+  if (role === "owner" || role === "hr" || role === "payroll" || role === "checker" || role === "employee") {
+    return role;
+  }
+  return null;
+}
