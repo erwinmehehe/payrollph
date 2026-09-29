@@ -7,6 +7,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { dispatchWebhook, WEBHOOK_EVENTS } from "@/lib/webhooks";
 import { assertOrganizationRole, DEVELOPER_ADMIN_ROLES } from "@/lib/access";
+import { validateOutboundWebhookUrl } from "@/lib/outbound-url-security";
 
 export const dynamic = "force-dynamic";
 
@@ -108,8 +109,13 @@ export async function POST(request: Request) {
   }
 
   if (action === "create-webhook") {
-    const url = String(body.url ?? "").trim();
-    if (!/^https?:\/\//i.test(url)) return Response.json({ error: "A valid http(s) URL is required." }, { status: 400 });
+    const requestedUrl = String(body.url ?? "").trim();
+    let url: string;
+    try {
+      url = await validateOutboundWebhookUrl(requestedUrl);
+    } catch (error) {
+      return Response.json({ error: error instanceof Error ? error.message : "Webhook URL is not allowed." }, { status: 422 });
+    }
     const events = Array.isArray(body.events)
       ? body.events.filter((event: unknown): event is string => typeof event === "string" && (WEBHOOK_EVENTS as readonly string[]).includes(event))
       : [];
