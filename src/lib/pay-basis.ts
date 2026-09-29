@@ -204,10 +204,13 @@ export function resolvePayTimeline(input: {
   const segments: PayTimelineSegment[] = [];
   let cursor = periodStart;
   let active = startingProfile;
+  let source: PayTimelineSegment["source"] = "current";
+  let reason: string | undefined;
+
   for (const revision of changes) {
     const priorEnd = addDays(revision.effectiveDate, -1);
     if (dateValue(priorEnd) >= dateValue(cursor)) {
-      segments.push({ startDate: cursor, endDate: priorEnd, profile: active, source: "current" });
+      segments.push({ startDate: cursor, endDate: priorEnd, profile: active, source, reason });
     }
     active = resolvePayProfile({
       payBasis: revision.newPayBasis,
@@ -216,40 +219,11 @@ export function resolvePayTimeline(input: {
       standardHoursPerDay: revision.newStandardHoursPerDay,
     });
     cursor = revision.effectiveDate;
-    segments.push({
-      startDate: cursor,
-      endDate: periodEnd,
-      profile: active,
-      source: "revision",
-      reason: revision.reason,
-    });
+    source = "revision";
+    reason = revision.reason;
   }
 
-  if (changes.length === 0) {
-    segments.push({ startDate: periodStart, endDate: periodEnd, profile: active, source: "current" });
-  } else {
-    const normalized: PayTimelineSegment[] = [];
-    for (let index = 0; index < segments.length; index += 1) {
-      const segment = segments[index];
-      if (index < segments.length - 1 && segment.source === "revision") continue;
-      normalized.push(segment);
-    }
-    const finalRevision = changes[changes.length - 1];
-    const finalStart = finalRevision.effectiveDate;
-    const existingFinal = normalized.find((segment) => segment.startDate === finalStart);
-    if (!existingFinal) {
-      normalized.push({
-        startDate: finalStart,
-        endDate: periodEnd,
-        profile: active,
-        source: "revision",
-        reason: finalRevision.reason,
-      });
-    }
-    normalized.sort((a, b) => dateValue(a.startDate) - dateValue(b.startDate));
-    return normalized;
-  }
-
+  segments.push({ startDate: cursor, endDate: periodEnd, profile: active, source, reason });
   return segments;
 }
 
