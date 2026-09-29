@@ -2,34 +2,19 @@
 
 import { useMemo, useState } from "react";
 import {
-  AlertCircle,
   AlertTriangle,
   ArrowUpRight,
-  Banknote,
   Bell,
-  CalendarDays,
   Check,
-  ChevronDown,
   CircleDollarSign,
   ClipboardCheck,
-  Clock3,
   Download,
-  FileBarChart2,
-  Globe,
-  HandCoins,
   LayoutDashboard,
-  Package,
   ReceiptText,
   RefreshCcw,
   Search,
   Send,
-  ShieldCheck,
-  Sparkles,
-  UploadCloud,
-  UserPlus,
   UsersRound,
-  UserX,
-  WalletCards,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -40,54 +25,19 @@ import {
   buildSampleRun,
   type SampleEntry,
 } from "./sample-workspace";
+import { NAVIGATION } from "@/components/workspace/nav";
 import { Battery, Progress, Status, formatDate, money, moneyExact, shortMoney } from "@/components/workspace/ui";
 
-type Tab =
-  | "Overview"
-  | "Payroll"
-  | "People"
-  | "Migration"
-  | "Time & attendance"
-  | "Leave"
-  | "Approvals"
-  | "Analytics"
-  | "Exports"
-  | "Compliance"
-  | "Loans"
-  | "Benefits"
-  | "De minimis"
-  | "Expenses"
-  | "Earned wage"
-  | "Recruitment"
-  | "Discipline"
-  | "Separation"
-  | "Contractors"
-  | "Assets";
+type Tab = string;
 
-type PreviewGroup = "Workspace" | "Operate";
+const PREVIEW_GROUPS = NAVIGATION
+  .map((group) => ({
+    label: group.label,
+    items: group.items.filter((item) => item.name !== "Freelancer hub"),
+  }))
+  .filter((group) => group.items.length > 0);
 
-const TABS: Array<{ key: Tab; icon: typeof LayoutDashboard; tone: string; group: PreviewGroup }> = [
-  { key: "Overview", icon: LayoutDashboard, tone: "blue", group: "Workspace" },
-  { key: "Payroll", icon: WalletCards, tone: "green", group: "Workspace" },
-  { key: "People", icon: UsersRound, tone: "purple", group: "Workspace" },
-  { key: "Migration", icon: RefreshCcw, tone: "teal", group: "Workspace" },
-  { key: "Time & attendance", icon: Clock3, tone: "cyan", group: "Workspace" },
-  { key: "Leave", icon: CalendarDays, tone: "pink", group: "Workspace" },
-  { key: "Approvals", icon: ClipboardCheck, tone: "amber", group: "Workspace" },
-  { key: "Analytics", icon: FileBarChart2, tone: "blue", group: "Operate" },
-  { key: "Exports", icon: UploadCloud, tone: "teal", group: "Operate" },
-  { key: "Compliance", icon: ShieldCheck, tone: "green", group: "Operate" },
-  { key: "Loans", icon: Banknote, tone: "amber", group: "Operate" },
-  { key: "Benefits", icon: HandCoins, tone: "pink", group: "Operate" },
-  { key: "De minimis", icon: Sparkles, tone: "purple", group: "Operate" },
-  { key: "Expenses", icon: ReceiptText, tone: "cyan", group: "Operate" },
-  { key: "Earned wage", icon: CircleDollarSign, tone: "green", group: "Operate" },
-  { key: "Recruitment", icon: UserPlus, tone: "blue", group: "Operate" },
-  { key: "Discipline", icon: AlertCircle, tone: "red", group: "Operate" },
-  { key: "Separation", icon: UserX, tone: "red", group: "Operate" },
-  { key: "Contractors", icon: Globe, tone: "teal", group: "Operate" },
-  { key: "Assets", icon: Package, tone: "amber", group: "Operate" },
-];
+const TABS = PREVIEW_GROUPS.flatMap((group) => group.items);
 
 const CORE_INTERACTIVE_TABS = new Set<Tab>([
   "Overview",
@@ -97,6 +47,8 @@ const CORE_INTERACTIVE_TABS = new Set<Tab>([
   "Approvals",
   "Exports",
 ]);
+
+const SAMPLE_COMPANY = SAMPLE_CLIENTS[0];
 
 /**
  * The public workspace preview.
@@ -108,8 +60,6 @@ const CORE_INTERACTIVE_TABS = new Set<Tab>([
 export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" | "interactive" }) {
   const run = useMemo(() => buildSampleRun(), []);
   const [tab, setTab] = useState<Tab>("Overview");
-  const [client, setClient] = useState(SAMPLE_CLIENTS[0]);
-  const [clientOpen, setClientOpen] = useState(false);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [released, setReleased] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
@@ -148,11 +98,11 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
                 <strong style={{ fontSize: 14 }}>linaw</strong>
               </div>
             </div>
-            {(["Workspace", "Operate"] as PreviewGroup[]).map((group) => (
-              <div key={group}>
+            {PREVIEW_GROUPS.map((group) => (
+              <div key={group.label}>
                 <div
                   style={{
-                    padding: group === "Workspace" ? "2px 10px 5px" : "14px 10px 5px",
+                    padding: group.label === "Workspace" ? "2px 10px 5px" : "14px 10px 5px",
                     color: "var(--muted)",
                     fontSize: 8.5,
                     fontWeight: 700,
@@ -160,22 +110,22 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
                     textTransform: "uppercase",
                   }}
                 >
-                  {group}
+                  {group.label}
                 </div>
-                {TABS.filter((item) => item.group === group).map(({ key, icon: Icon, tone }) => (
+                {group.items.map(({ name, icon: Icon, tone }) => (
                   <button
-                    key={key}
-                    className={`nav-item ${activeTab === key ? "active" : ""}`}
-                    onClick={() => interactive && setTab(key)}
+                    key={name}
+                    className={`nav-item ${activeTab === name ? "active" : ""}`}
+                    onClick={() => interactive && setTab(name)}
                     tabIndex={interactive ? 0 : -1}
-                    aria-current={activeTab === key ? "page" : undefined}
+                    aria-current={activeTab === name ? "page" : undefined}
                   >
                     <span className={`nav-icon t-${tone}`} aria-hidden>
                       <Icon size={13} strokeWidth={2} />
                     </span>
-                    <span>{key}</span>
-                    {key === "Approvals" && <b>{SAMPLE_APPROVALS.filter((task) => !decided[task.id]).length}</b>}
-                    {key === "People" && <b>{SAMPLE_EMPLOYEES.length}</b>}
+                    <span>{name}</span>
+                    {name === "Approvals" && <b>{SAMPLE_APPROVALS.filter((task) => !decided[task.id]).length}</b>}
+                    {name === "People" && <b>{SAMPLE_EMPLOYEES.length}</b>}
                   </button>
                 ))}
               </div>
@@ -185,51 +135,15 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
           <div className="pv-main">
             <div className="pv-top">
               <div className="company-switcher-wrap">
-                <button
-                  className="company-switcher"
-                  onClick={() => interactive && setClientOpen((current) => !current)}
-                  aria-expanded={clientOpen}
-                  tabIndex={interactive ? 0 : -1}
-                >
-                  <span className="company-logo small" style={{ backgroundColor: client.color }} aria-hidden>
-                    {client.name.slice(0, 1)}
+                <div className="company-switcher" aria-label="Sample company">
+                  <span className="company-logo small" style={{ backgroundColor: SAMPLE_COMPANY.color }} aria-hidden>
+                    {SAMPLE_COMPANY.name.slice(0, 1)}
                   </span>
                   <span>
-                    <strong>{client.name}</strong>
-                    <small>
-                      {client.plan} · {client.people} people
-                    </small>
+                    <strong>{SAMPLE_COMPANY.name}</strong>
+                    <small>{SAMPLE_COMPANY.plan} · {SAMPLE_COMPANY.people} sample people</small>
                   </span>
-                  <ChevronDown size={14} />
-                </button>
-                {clientOpen && interactive && (
-                  <div className="company-popover" style={{ width: 260 }}>
-                    <p>
-                      Client portfolio <span>{SAMPLE_CLIENTS.length} accounts</span>
-                    </p>
-                    {SAMPLE_CLIENTS.map((option) => (
-                      <button
-                        key={option.id}
-                        className={option.id === client.id ? "selected" : ""}
-                        onClick={() => {
-                          setClient(option);
-                          setClientOpen(false);
-                        }}
-                      >
-                        <span className="company-logo small" style={{ backgroundColor: option.color }} aria-hidden>
-                          {option.name.slice(0, 1)}
-                        </span>
-                        <span>
-                          <strong>{option.name}</strong>
-                          <small>
-                            {option.people} people · {option.plan}
-                          </small>
-                        </span>
-                        {option.id === client.id && <Check size={14} className="i-green" />}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                </div>
               </div>
               <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
                 <span className="icon-button relative" aria-hidden>
@@ -244,50 +158,39 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
 
             {interactive && (
               <div className="pv-pillnav slim-scroll">
-                {TABS.map(({ key }) => (
-                  <button key={key} className={activeTab === key ? "on" : ""} onClick={() => setTab(key)}>
-                    {key}
+                {TABS.map(({ name }) => (
+                  <button key={name} className={activeTab === name ? "on" : ""} onClick={() => setTab(name)}>
+                    {name}
                   </button>
                 ))}
               </div>
             )}
 
             <div className="pv-body slim-scroll">
-              {client.id !== 1 ? (
-                <div className="empty-state">
-                  <UsersRound size={22} className="i-purple" />
-                  <strong>{client.name} is not part of this simulation</strong>
-                  <p>
-                    Only Masigla Foods carries sample payroll data. Switching clients here demonstrates how the workspace
-                    re-scopes every query, in the product, each client&apos;s rows are isolated server-side.
-                  </p>
-                  <button className="secondary-button" onClick={() => setClient(SAMPLE_CLIENTS[0])}>
-                    Back to Masigla Foods
-                  </button>
-                </div>
-              ) : (
-                <>
-                  {activeTab === "Overview" && <PreviewDashboard run={run} released={released} decided={decided} />}
-                  {activeTab === "Payroll" && (
-                    <PreviewPayroll
-                      run={run}
-                      released={released}
-                      acknowledged={acknowledged}
-                      onAcknowledge={setAcknowledged}
-                      onRelease={() => setReleased(true)}
-                      expanded={expanded}
-                      onExpand={setExpanded}
-                    />
-                  )}
-                  {activeTab === "People" && <PreviewPeople query={query} onQuery={setQuery} />}
-                  {activeTab === "Time & attendance" && <PreviewTime />}
-                  {activeTab === "Approvals" && (
-                    <PreviewApprovals decided={decided} onDecide={(id, status) => setDecided((current) => ({ ...current, [id]: status }))} />
-                  )}
-                  {activeTab === "Exports" && <PreviewExports run={run} released={released} />}
-                  {!CORE_INTERACTIVE_TABS.has(activeTab) && <PreviewFeature tab={activeTab} run={run} />}
-                </>
-              )}
+              <>
+                {activeTab === "Overview" && <PreviewDashboard run={run} released={released} decided={decided} />}
+                {activeTab === "Payroll" && (
+                  <PreviewPayroll
+                    run={run}
+                    released={released}
+                    acknowledged={acknowledged}
+                    onAcknowledge={setAcknowledged}
+                    onRelease={() => setReleased(true)}
+                    expanded={expanded}
+                    onExpand={setExpanded}
+                  />
+                )}
+                {activeTab === "People" && <PreviewPeople query={query} onQuery={setQuery} />}
+                {activeTab === "Time & attendance" && <PreviewTime />}
+                {activeTab === "Approvals" && (
+                  <PreviewApprovals
+                    decided={decided}
+                    onDecide={(id, status) => setDecided((current) => ({ ...current, [id]: status }))}
+                  />
+                )}
+                {activeTab === "Exports" && <PreviewExports run={run} released={released} />}
+                {!CORE_INTERACTIVE_TABS.has(activeTab) && <PreviewFeature tab={activeTab} run={run} />}
+              </>
             </div>
           </div>
         </div>
@@ -1064,8 +967,23 @@ const FEATURE_PREVIEWS: Partial<Record<Tab, PreviewFeatureSpec>> = {
 };
 
 function PreviewFeature({ tab, run }: { tab: Tab; run: ReturnType<typeof buildSampleRun> }) {
-  const spec = FEATURE_PREVIEWS[tab];
-  if (!spec) return null;
+  const navItem = TABS.find((item) => item.name === tab);
+  const group = PREVIEW_GROUPS.find((candidate) => candidate.items.some((item) => item.name === tab));
+  const spec = FEATURE_PREVIEWS[tab] ?? {
+    kicker: group?.label ?? "Workspace",
+    title: navItem?.name ?? tab,
+    copy: navItem?.hint ?? "Explore this module in the connected sample workspace.",
+    stats: [
+      { label: "Workspace", value: "Connected", hint: "same sample company" },
+      { label: "Data", value: "Sample", hint: "no live writes" },
+      { label: "Access", value: "Role-aware", hint: "real product permissions" },
+    ],
+    rows: [
+      { title: navItem?.name ?? tab, detail: navItem?.hint ?? "Module preview", status: "Available" },
+      { title: "Audit trail", detail: "Product actions remain traceable in the authenticated workspace", status: "Connected" },
+      { title: "Same company context", detail: "No dead client switch or separate fake dataset", status: "Connected" },
+    ],
+  };
 
   return (
     <>
@@ -1087,7 +1005,7 @@ function PreviewFeature({ tab, run }: { tab: Tab; run: ReturnType<typeof buildSa
             value={stat.value}
             hint={stat.hint}
             tone={["purple", "mint", "blue"][index % 3]}
-            icon={TABS.find((item) => item.key === tab)?.icon ?? LayoutDashboard}
+            icon={TABS.find((item) => item.name === tab)?.icon ?? LayoutDashboard}
           />
         ))}
       </div>
