@@ -250,3 +250,25 @@ test("Checker and Owner attention follows the maker-checker transition", () => {
   });
   assert.deepEqual(getPayrollActions(released, "owner"), []);
 });
+
+
+test("HR can resolve an incomplete attendance blocker through an audited correction", () => {
+  const route = read("src/app/api/web-bundy/route.ts");
+  const timeView = read("src/components/workspace/time.tsx");
+  const engine = read("src/lib/payroll-engine.ts");
+
+  assert.ok(route.includes("export async function PATCH"));
+  assert.ok(route.includes("PEOPLE_ADMIN_ROLES"));
+  assert.ok(route.includes("Only People administrators can correct attendance records."));
+  assert.ok(route.includes("This correction flow is only for incomplete punches."));
+  assert.ok(route.includes('action: "Attendance punch corrected"'));
+  assert.ok(route.includes('status: "Complete"'));
+
+  assert.ok(timeView.includes("Fix punch"));
+  assert.ok(timeView.includes('method: "PATCH"'));
+  assert.ok(timeView.includes('fetch("/api/web-bundy"'));
+  assert.ok(timeView.includes("Recalculate any payroll run that already used this work date"));
+
+  assert.ok(engine.includes("timeIn: punch.timeIn"));
+  assert.ok(engine.includes("timeOut: punch.timeOut"));
+});
