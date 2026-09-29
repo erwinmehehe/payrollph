@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { readLineItems, readTrace, type BankTemplate, type DashboardData, type Notify, type PayrollEntry, type PayrollLineItem, type PayrollRun, type Task } from "./types";
 import { PayrollAssurancePanel } from "./payroll-assurance-panel";
+import { ExplainPayDrawer } from "./explain-pay-drawer";
 import {
   Battery,
   EmptyState,
@@ -36,7 +37,22 @@ import {
 
 type Stage = "prepare" | "approve" | "release" | "export";
 
-const GOVERNMENT_DRAFTS = ["1601-C", "Alphalist/2316", "SSS R-3", "PhilHealth RF-1", "Pag-IBIG MCRF"];
+type ReleaseChecklistItem = {
+  key: "inputs" | "attendance" | "calculation" | "exceptions" | "statutory" | "approval" | "bank";
+  label: string;
+  passed: boolean;
+  blocking: boolean;
+  acknowledgeable?: boolean;
+  detail: string;
+};
+
+const GOVERNMENT_DRAFTS = [
+  { value: "bir-1601c", label: "BIR 1601-C worksheet" },
+  { value: "bir-1604c-source", label: "BIR 1604-C annual source extract" },
+  { value: "sss-r3", label: "SSS e-CL / R-3 worksheet" },
+  { value: "philhealth-rf1", label: "PhilHealth EPRS / RF-1 worksheet" },
+  { value: "pagibig-mcrf", label: "Pag-IBIG MCRF / eSRS worksheet" },
+] as const;
 
 export function PayrollRunView({
   data,
@@ -62,6 +78,7 @@ export function PayrollRunView({
   const [selectedId, setSelectedId] = useState<number | undefined>(data.payrollRuns[0]?.id);
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [explainEmployeeId, setExplainEmployeeId] = useState<number | null>(null);
   const [onlyExceptions, setOnlyExceptions] = useState(false);
   const [confirmRelease, setConfirmRelease] = useState(false);
   const [exportsOpen, setExportsOpen] = useState(false);
@@ -70,6 +87,11 @@ export function PayrollRunView({
   const [reviewApproverId, setReviewApproverId] = useState<number | null>(null);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewLoading, setReviewLoading] = useState(false);
+  const [releaseChecklist, setReleaseChecklist] = useState<{
+    ready: boolean;
+    items: ReleaseChecklistItem[];
+    assuranceSummary?: { high: number; medium: number; blocking: number } | null;
+  } | null>(null);
 
   // Derived, not synced: if the selected run disappears (client switch, new
   // run) the first run takes over without an effect round-trip.
@@ -108,6 +130,28 @@ export function PayrollRunView({
       alive = false;
     };
   }, [runId, data.payrollRuns]);
+
+  useEffect(() => {
+    if (!runId) {
+      setReleaseChecklist(null);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      try {
+        const response = await fetch(`/api/payroll-runs/${runId}/release-checklist`, { cache: "no-store" });
+        if (!alive) return;
+        if (!response.ok) {
+          setReleaseChecklist(null);
+          return;
+        }
+        setReleaseChecklist(await response.json());
+      } catch {
+        if (alive) setReleaseChecklist(null);
+      }
+    })();
+    return () => { alive = false; };
+  }, [runId, data.payrollRuns, data.tasks]);
 
   const loadedForSelection = Boolean(fetched && fetched.runId === runId);
   const entries = useMemo(
@@ -225,6 +269,12 @@ export function PayrollRunView({
       ? 100
       : 0;
   const stage = currentStage(run, relatedTask);
+  const hardChecklistBlocked = releaseChecklist?.items.some(
+    (item) => item.blocking && !item.passed && !item.acknowledgeable,
+  ) ?? false;
+  const checklistAcknowledgementNeeded = releaseChecklist?.items.some(
+    (item) => item.blocking && !item.passed && item.acknowledgeable,
+  ) ?? false;
 
   return (
     <>
@@ -345,6 +395,33 @@ export function PayrollRunView({
 
           <PayrollAssurancePanel runId={run.id} employees={data.employees} />
 
+          {releaseChecklist && calculated && (
+            <div className="card-body" style={{ paddingTop: 0 }}>
+              <div className="line-title" style={{ margin: 0 }}>
+                <div>
+                  <strong>Release checklist</strong>
+                  <span>{releaseChecklist.ready ? "All release controls currently pass" : "Resolve every blocking control before release"}</span>
+                </div>
+                <span className={`status ${releaseChecklist.ready ? "status-approved" : "status-review"}`}>
+                  {releaseChecklist.ready ? "Ready" : "Blocked"}
+                </span>
+              </div>
+              <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+                {releaseChecklist.items.map((item) => (
+                  <div key={item.key} className="exception-row" style={{ alignItems: "flex-start" }}>
+                    <span className={`status ${item.passed ? "status-approved" : "status-review"}`} style={{ minWidth: 72, justifyContent: "center" }}>
+                      {item.passed ? "Pass" : "Action"}
+                    </span>
+                    <div>
+                      <strong>{item.label}</strong>
+                      <p>{item.detail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Exceptions */}
           {exceptionRows.length > 0 && (
             <div className="card-body" style={{ paddingTop: 0 }}>
@@ -456,9 +533,11 @@ export function PayrollRunView({
                   ? "Released. Payslip-ready notices were queued for every active employee with an email on file."
                   : relatedTask?.status !== "Approved"
                     ? "A checker must approve this payroll before release is available."
-                    : exceptionRows.length > 0
-                      ? `${exceptionRows.length} exception${exceptionRows.length === 1 ? "" : "s"} must be acknowledged explicitly.`
-                      : "Locks the register, makes the stored payslips available and fires the payroll.released webhook."
+                    : hardChecklistBlocked
+                      ? "Release checklist still has hard blockers. Open the checklist above and resolve them first."
+                      : checklistAcknowledgementNeeded || exceptionRows.length > 0
+                        ? "Review the remaining exceptions and acknowledge them explicitly in the release confirmation."
+                        : "Locks the register, makes the stored payslips available and fires the payroll.released webhook."
               }
               action={
                 released ? (
@@ -466,7 +545,7 @@ export function PayrollRunView({
                     Released
                   </span>
                 ) : (
-                  <button className="primary-button brand" disabled={busy || !calculated || relatedTask?.status !== "Approved"} onClick={() => setConfirmRelease(true)}>
+                  <button className="primary-button brand" disabled={busy || !calculated || relatedTask?.status !== "Approved" || hardChecklistBlocked} onClick={() => setConfirmRelease(true)}>
                     <Send size={14} className="i-pink" /> Release
                   </button>
                 )
@@ -620,6 +699,7 @@ export function PayrollRunView({
                             periodLabel={run.periodLabel}
                             released={released}
                             notify={notify}
+                            onExplain={() => setExplainEmployeeId(entry.employeeId)}
                           />
                         )}
                       </div>
@@ -645,10 +725,23 @@ export function PayrollRunView({
         </article>
       </section>
 
+      {explainEmployeeId != null && (
+        <ExplainPayDrawer
+          runId={run.id}
+          employeeId={explainEmployeeId}
+          employeeName={(() => {
+            const employee = data.employees.find((item) => item.id === explainEmployeeId);
+            return employee ? `${employee.firstName} ${employee.lastName}` : `Employee #${explainEmployeeId}`;
+          })()}
+          onClose={() => setExplainEmployeeId(null)}
+        />
+      )}
+
       {confirmRelease && (
         <ReleaseDialog
           run={run}
           exceptions={exceptionRows.length || run.exceptions}
+          checklist={releaseChecklist?.items ?? []}
           busy={busy}
           onClose={() => setConfirmRelease(false)}
           onConfirm={async (acknowledge) => {
@@ -695,12 +788,14 @@ function PayslipDetail({
   periodLabel,
   released,
   notify,
+  onExplain,
 }: {
   entry: PayrollEntry;
   runId: number;
   periodLabel: string;
   released: boolean;
   notify: Notify;
+  onExplain: () => void;
 }) {
   const lines: PayrollLineItem[] = readLineItems(entry);
   const earnings = lines.filter((line) => Number(line.amount) > 0);
@@ -807,6 +902,9 @@ function PayslipDetail({
         Figures come straight from the stored payroll entry, this panel never re-derives statutory amounts in the browser.
       </p>
       <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+        <button className="secondary-button" onClick={onExplain}>
+          <BookOpen size={14} className="i-purple" /> Explain this pay
+        </button>
         <button
           className="secondary-button"
           disabled={!released}
@@ -851,7 +949,7 @@ function ExportPanel({
 }) {
   const [template, setTemplate] = useState(templates[0]?.name ?? "BDO DAT");
   const [dryRun, setDryRun] = useState(true);
-  const [draft, setDraft] = useState(GOVERNMENT_DRAFTS[0]);
+  const [draft, setDraft] = useState<string>(GOVERNMENT_DRAFTS[0].value);
   const released = run.status === "Released";
 
   function download(url: string, label: string) {
@@ -952,9 +1050,9 @@ function ExportPanel({
                   <label className="field">
                     <span className="sr-only">Worksheet</span>
                     <select value={draft} onChange={(event) => setDraft(event.target.value)} aria-label="Government worksheet">
-                      {GOVERNMENT_DRAFTS.map((name) => (
-                        <option key={name} value={name}>
-                          {name}
+                      {GOVERNMENT_DRAFTS.map((item) => (
+                        <option key={item.value} value={item.value}>
+                          {item.label}
                         </option>
                       ))}
                     </select>
@@ -983,18 +1081,23 @@ function ExportPanel({
 function ReleaseDialog({
   run,
   exceptions,
+  checklist,
   busy,
   onClose,
   onConfirm,
 }: {
   run: PayrollRun;
   exceptions: number;
+  checklist: ReleaseChecklistItem[];
   busy: boolean;
   onClose: () => void;
   onConfirm: (acknowledgeExceptions: boolean) => Promise<void>;
 }) {
   const [acknowledged, setAcknowledged] = useState(false);
-  const blocked = exceptions > 0 && !acknowledged;
+  const hardFailures = checklist.filter((item) => item.blocking && !item.passed && !item.acknowledgeable);
+  const acknowledgementItems = checklist.filter((item) => item.blocking && !item.passed && item.acknowledgeable);
+  const needsAcknowledgement = exceptions > 0 || acknowledgementItems.length > 0;
+  const blocked = hardFailures.length > 0 || (needsAcknowledgement && !acknowledged);
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Confirm payroll release">
@@ -1027,21 +1130,32 @@ function ReleaseDialog({
           </div>
         </div>
 
-        {exceptions > 0 && (
+        {hardFailures.length > 0 && (
+          <div className="notice notice-red" style={{ margin: "0 0 12px" }}>
+            <AlertTriangle size={15} className="i-red" />
+            <div>
+              <strong>{hardFailures.length} hard release blocker{hardFailures.length === 1 ? "" : "s"} remain.</strong>
+              <p style={{ margin: "4px 0 0" }}>{hardFailures.map((item) => item.label).join(" · ")}</p>
+            </div>
+          </div>
+        )}
+
+        {needsAcknowledgement && (
           <div className="notice notice-amber" style={{ margin: 0 }}>
             <AlertTriangle size={15} className="i-red" />
             <div>
               <strong>
-                {exceptions} exception{exceptions === 1 ? "" : "s"} still flagged.
+                Review acknowledgement required before release.
               </strong>
               <p style={{ margin: "4px 0 8px" }}>
-                Incomplete punches derive zero hours. The release endpoint rejects this run unless you acknowledge them
-                explicitly, that acknowledgement is recorded in the audit event.
+                {exceptions > 0 ? `${exceptions} engine exception(s). ` : ""}
+                {acknowledgementItems.length > 0 ? acknowledgementItems.map((item) => item.label).join(" · ") : ""}
+                {" "}Your acknowledgement is recorded with the release audit event.
               </p>
               <label className="switch">
                 <input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} />
                 <i aria-hidden />
-                <span>I have reviewed the exceptions and accept them</span>
+                <span>I reviewed these exceptions and accept them for this release</span>
               </label>
             </div>
           </div>
