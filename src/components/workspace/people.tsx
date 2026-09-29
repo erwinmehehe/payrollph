@@ -353,6 +353,11 @@ function PersonDrawer({
   const [payRate, setPayRate] = useState(employee.payRate ?? employee.basicRate);
   const [standardWorkDaysPerMonth, setStandardWorkDaysPerMonth] = useState(employee.standardWorkDaysPerMonth ?? "22");
   const [standardHoursPerDay, setStandardHoursPerDay] = useState(employee.standardHoursPerDay ?? "8");
+  const [payEffectiveDate, setPayEffectiveDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+  });
+  const [payChangeReason, setPayChangeReason] = useState("Salary adjustment");
   const [payError, setPayError] = useState("");
   const [editingGovernment, setEditingGovernment] = useState(false);
   const [savingGovernment, setSavingGovernment] = useState(false);
@@ -379,6 +384,8 @@ function PersonDrawer({
           rateAmount: Number(payRate),
           standardWorkDaysPerMonth: Number(standardWorkDaysPerMonth),
           standardHoursPerDay: Number(standardHoursPerDay),
+          payEffectiveDate,
+          payChangeReason,
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -474,7 +481,7 @@ function PersonDrawer({
             <div>
               <div className="card-kicker">PAYROLL PROFILE</div>
               <h2 style={{ fontSize: 14 }}>Explicit pay basis</h2>
-              <p>Payroll never chooses salary behavior from attendance. The selected basis controls how regular time, leave, tardiness and undertime affect pay.</p>
+              <p>Payroll uses an effective-dated pay history. Mid-cutoff changes preserve the old rate before the effective date and use the new rate after it.</p>
             </div>
             {canManage && (
               <button className="secondary-button" onClick={() => setEditingPay((value) => !value)}>
@@ -501,6 +508,15 @@ function PersonDrawer({
                 <label>Standard hours / day
                   <input type="number" min="1" max="24" step="0.25" value={standardHoursPerDay} onChange={(event) => setStandardHoursPerDay(event.target.value)} />
                 </label>
+                <label>Effective date
+                  <input type="date" required value={payEffectiveDate} onChange={(event) => setPayEffectiveDate(event.target.value)} />
+                </label>
+                <label>Reason
+                  <input value={payChangeReason} onChange={(event) => setPayChangeReason(event.target.value)} placeholder="Promotion, annual increase, correction…" />
+                </label>
+              </div>
+              <div className="modal-note" style={{ margin: "0 16px 10px" }}>
+                Effective-dated changes are applied inside an open cutoff. If a monthly salary change reaches a cutoff that was already released, Linaw creates a one-time retro-pay line for the next payroll instead of rewriting the released register.
               </div>
               {payError && <div className="notice notice-amber" style={{ margin: "0 16px 10px" }}><span>{payError}</span></div>}
               <div className="run-actions">
