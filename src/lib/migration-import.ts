@@ -5,6 +5,12 @@ export const MIGRATION_SOURCES = [
   { id: "salarium", label: "Salarium", note: "Employee 201, payroll and attendance exports" },
   { id: "kami", label: "KAMI Workforce", note: "HRIS and payroll exports" },
   { id: "greatday", label: "GreatDay HR", note: "Employee and payroll exports" },
+  { id: "payrollhero", label: "PayrollHero", note: "Employee, timekeeping and payroll exports" },
+  { id: "omnihr", label: "Omni HR", note: "Employee and payroll exports" },
+  { id: "jeonsoft", label: "JeonSoft", note: "Payroll and employee flat-file exports" },
+  { id: "darwinbox", label: "Darwinbox", note: "Enterprise employee and payroll exports" },
+  { id: "sunfish", label: "SunFish HR", note: "Employee and payroll exports" },
+  { id: "oracle-hcm", label: "Oracle HCM", note: "Enterprise HCM flat-file exports" },
   { id: "employment-hero", label: "Employment Hero", note: "Employee and payroll CSV exports" },
   { id: "bamboohr", label: "BambooHR", note: "Employee directory exports" },
   { id: "zoho-people", label: "Zoho People", note: "Employee and leave exports" },
@@ -167,6 +173,34 @@ const SOURCE_ALIASES: Partial<Record<MigrationSource, Record<string, string[]>>>
     monthlyBasic: ["basic salary", "base salary"],
     grossPay: ["gross salary"],
     netPay: ["net salary"],
+  },
+  payrollhero: {
+    employeeNo: ["employee id", "employee number", "employee code"],
+    monthlyBasic: ["basic salary", "monthly salary", "pay rate"],
+  },
+  omnihr: {
+    employeeNo: ["employee id", "employee number"],
+    monthlyBasic: ["base salary", "monthly salary"],
+  },
+  jeonsoft: {
+    employeeNo: ["employee code", "employee id"],
+    monthlyBasic: ["basic pay", "basic salary"],
+  },
+  darwinbox: {
+    employeeNo: ["employee id", "employee code"],
+    title: ["designation", "job title"],
+    startDate: ["date of joining", "hire date"],
+  },
+  sunfish: {
+    employeeNo: ["employee id", "employee no", "employee code"],
+    monthlyBasic: ["basic salary", "basic pay"],
+  },
+  "oracle-hcm": {
+    employeeNo: ["person number", "employee number", "employee id"],
+    firstName: ["first name", "legal first name"],
+    lastName: ["last name", "legal last name"],
+    title: ["job name", "job title"],
+    startDate: ["hire date", "enterprise hire date"],
   },
   "employment-hero": {
     employeeNo: ["employee id", "employee number"],
