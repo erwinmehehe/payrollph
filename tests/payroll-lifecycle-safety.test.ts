@@ -193,6 +193,7 @@ test("HR and Payroll handoff alerts are derived from live blockers and clear whe
     ["payroll-submit-10"],
     "once HR blockers clear, Payroll gets the submit-to-checker action instead of stale blocker alerts",
   );
+  assert.equal(buildHandoffAttention(clear, "payroll")[0]?.focus, "submit-review");
 });
 
 test("Checker and Owner notifications follow payroll state and disappear after the action completes", () => {
@@ -220,6 +221,7 @@ test("Checker and Owner notifications follow payroll state and disappear after t
 
   const ownerReady = buildHandoffAttention(checkerDone, "owner");
   assert.equal(ownerReady[0]?.actionLabel, "Release payroll");
+  assert.equal(ownerReady[0]?.focus, "release-payroll");
 
   const released = attentionData({
     payrollRuns: [{ ...attentionData().payrollRuns[0], status: "Released" }],
@@ -248,4 +250,13 @@ test("workspace notification tray uses the same handoff source and exposes direc
   assert.ok(shell.includes("item.actionLabel"));
   assert.ok(workspace.includes("onNotificationAction={openAttention}"));
   assert.ok(workspace.includes('item.focus === "incomplete-attendance"'));
+  assert.ok(workspace.includes('item.focus === "payroll-exceptions"'));
+  assert.ok(workspace.includes('item.focus === "submit-review"'));
+  assert.ok(workspace.includes('item.focus === "release-payroll"'));
+
+  const payroll = read("src/components/workspace/payroll-run.tsx");
+  assert.ok(payroll.includes("focusReviewToken"));
+  assert.ok(payroll.includes("void openReviewSubmission()"));
+  assert.ok(payroll.includes("focusReleaseToken"));
+  assert.ok(payroll.includes("setConfirmRelease(true)"));
 });
