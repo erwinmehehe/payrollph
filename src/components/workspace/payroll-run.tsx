@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { readLineItems, readTrace, type BankTemplate, type DashboardData, type Notify, type PayrollEntry, type PayrollLineItem, type PayrollRun, type Task } from "./types";
 import { PayrollAssurancePanel } from "./payroll-assurance-panel";
+import { ExplainPayDrawer } from "./explain-pay-drawer";
 import {
   Battery,
   EmptyState,
@@ -78,6 +79,7 @@ export function PayrollRunView({
   );
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [explainEmployeeId, setExplainEmployeeId] = useState<number | null>(null);
   const [onlyExceptions, setOnlyExceptions] = useState(false);
   const [confirmRelease, setConfirmRelease] = useState(false);
   const [exportsOpen, setExportsOpen] = useState(false);
@@ -180,6 +182,9 @@ export function PayrollRunView({
   }, [entries, data.employees, query, onlyExceptions]);
 
   const exceptionRows = entries.filter((entry) => entry.status === "Exception");
+  const explainEmployee = explainEmployeeId == null
+    ? null
+    : data.employees.find((employee) => employee.id === explainEmployeeId) ?? null;
   const relatedTask = useMemo(() => findRunApproval(data.tasks, run), [data.tasks, run]);
   async function openReviewSubmission() {
     if (!run) return;
@@ -305,6 +310,7 @@ export function PayrollRunView({
               onClick={() => {
                 setSelectedId(item.id);
                 setExpanded(null);
+                setExplainEmployeeId(null);
               }}
               aria-current={item.id === run.id ? "true" : undefined}
             >
@@ -677,7 +683,15 @@ export function PayrollRunView({
                             <ChevronDown size={15} />
                           </span>
                         </button>
-                        {open && <PayslipDetail entry={entry} runId={run.id} periodLabel={run.periodLabel} notify={notify} />}
+                        {open && (
+                          <PayslipDetail
+                            entry={entry}
+                            runId={run.id}
+                            periodLabel={run.periodLabel}
+                            notify={notify}
+                            onExplain={() => setExplainEmployeeId(entry.employeeId)}
+                          />
+                        )}
                       </div>
                     );
                   })}
@@ -700,6 +714,14 @@ export function PayrollRunView({
           )}
         </article>
       </section>
+
+      {explainEmployee && (
+        <ExplainPayDrawer
+          runId={run.id}
+          employee={explainEmployee}
+          onClose={() => setExplainEmployeeId(null)}
+        />
+      )}
 
       {confirmRelease && (
         <ReleaseDialog
@@ -751,11 +773,13 @@ function PayslipDetail({
   runId,
   periodLabel,
   notify,
+  onExplain,
 }: {
   entry: PayrollEntry;
   runId: number;
   periodLabel: string;
   notify: Notify;
+  onExplain: () => void;
 }) {
   const lines: PayrollLineItem[] = readLineItems(entry);
   const earnings = lines.filter((line) => Number(line.amount) > 0);
@@ -813,7 +837,21 @@ function PayslipDetail({
             ))}
             <div className="payslip-total">
               <span>Net pay</span>
-              <strong>{moneyExact(entry.netPay)}</strong>
+              <button
+                className="link-button"
+                onClick={onExplain}
+                title="Explain this pay"
+                style={{
+                  padding: 0,
+                  fontFamily: "var(--font-mono), monospace",
+                  fontSize: 17,
+                  fontWeight: 650,
+                  letterSpacing: "-.03em",
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {moneyExact(entry.netPay)}
+              </button>
             </div>
           </div>
         </div>
@@ -862,6 +900,9 @@ function PayslipDetail({
         Figures come straight from the stored payroll entry, this panel never re-derives statutory amounts in the browser.
       </p>
       <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+        <button className="secondary-button" onClick={onExplain}>
+          <BookOpen size={14} className="i-purple" /> Explain this pay
+        </button>
         <button
           className="secondary-button"
           onClick={async () => {
