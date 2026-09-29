@@ -8,6 +8,7 @@ import { hashPassword } from "@/lib/crypto";
 import { DEMO_MODE, ensureSeedData } from "@/db/seed";
 import { ensurePublicDemoTenant } from "@/db/public-demo";
 import { DEMO_ROLE_IDS, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
+import { publicDemoHostAllowed } from "@/lib/demo-host";
 
 export const dynamic = "force-dynamic";
 
@@ -123,19 +124,10 @@ async function ensureDemoAccount(role: DemoRoleId, organizationId: number) {
 
 function publicDemoAllowed(request: Request) {
   if (DEMO_MODE) return true;
-
-  const hostname = new URL(request.url).hostname.toLowerCase();
-  const productionHost = (process.env.VERCEL_PROJECT_PRODUCTION_URL ?? "").toLowerCase();
-  const configuredHosts = (process.env.PUBLIC_DEMO_HOSTS ?? "")
-    .split(",")
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean);
-
-  return (
-    hostname === "erwinmehehe-payrollph.vercel.app" ||
-    (productionHost && hostname === productionHost) ||
-    configuredHosts.includes(hostname)
-  );
+  return publicDemoHostAllowed(new URL(request.url).hostname, {
+    productionHost: process.env.VERCEL_PROJECT_PRODUCTION_URL,
+    configuredHosts: process.env.PUBLIC_DEMO_HOSTS,
+  });
 }
 
 export async function POST(request: Request) {
