@@ -292,6 +292,8 @@ export async function POST(request: Request) {
     const otherBenefits = nonNegative(body.otherBenefits, "Other final-pay benefits");
     const deductOutstandingLoans = Boolean(body.deductOutstandingLoans);
     const specialPayTaxReviewed = Boolean(body.specialPayTaxReviewed);
+    const separationPayTaxExempt = Boolean(body.separationPayTaxExempt);
+    const retirementPayTaxExempt = Boolean(body.retirementPayTaxExempt);
 
     if ((separationPay > 0 || retirementPay > 0) && !specialPayTaxReviewed) {
       return Response.json({
@@ -314,6 +316,8 @@ export async function POST(request: Request) {
       leaveMonetizationPay,
       separationPay,
       retirementPay,
+      taxableSeparationPay: separationPayTaxExempt ? 0 : separationPay,
+      taxableRetirementPay: retirementPayTaxExempt ? 0 : retirementPay,
       otherBenefits,
       loanDeductions,
     });
@@ -334,6 +338,8 @@ export async function POST(request: Request) {
       thirteenthEntitlement: result.thirteenthEntitlement,
       deductOutstandingLoans,
       specialPayTaxReviewed,
+      separationPayTaxExempt,
+      retirementPayTaxExempt,
       activeLoanBalanceAtComputation: sources.totals.activeLoanBalance,
       importedHistoryRows: sources.historical.length,
       releasedPayrollEntries: sources.released.length,
@@ -398,6 +404,8 @@ export async function POST(request: Request) {
         leaveMonetizationPay,
         separationPay,
         retirementPay,
+        separationPayTaxExempt,
+        retirementPayTaxExempt,
         otherBenefits,
         taxAdjustment: result.taxAdjustment,
         loanDeductions,
