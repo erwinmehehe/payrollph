@@ -52,6 +52,7 @@ const GOVERNMENT_EXPORTS = [
 
 export function PayrollRunView({
   data,
+  initialRunId,
   busy,
   onNewRun,
   onProcess,
@@ -62,6 +63,7 @@ export function PayrollRunView({
   notify,
 }: {
   data: DashboardData;
+  initialRunId?: number;
   busy: boolean;
   onNewRun: () => void;
   onProcess: (runId: number) => Promise<void>;
@@ -71,7 +73,9 @@ export function PayrollRunView({
   onRefresh: () => Promise<void>;
   notify: Notify;
 }) {
-  const [selectedId, setSelectedId] = useState<number | undefined>(data.payrollRuns[0]?.id);
+  const [selectedId, setSelectedId] = useState<number | undefined>(
+    initialRunId ?? data.payrollRuns[0]?.id,
+  );
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<number | null>(null);
   const [onlyExceptions, setOnlyExceptions] = useState(false);
