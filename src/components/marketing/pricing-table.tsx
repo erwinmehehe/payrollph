@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowUpRight, Check, Minus, Plus } from "lucide-react";
+import { ArrowRight, Check, Minus, Plus } from "lucide-react";
 import { money } from "@/components/workspace/ui";
 
 export type PublicPlan = {
@@ -15,15 +15,23 @@ export type PublicPlan = {
 
 const BLURB: Record<string, string> = {
   Solo: "For independent and self-employed work",
-  Core: "For small teams running one Philippine payroll",
-  Scale: "For growing teams, approvals and multi-branch payroll",
-  Enterprise: "For complex organizations and high-control payroll operations",
+  Core: "The essentials for one Philippine payroll team",
+  Scale: "More control for growing payroll operations",
+  Enterprise: "Advanced controls for complex organizations",
+};
+
+const WHO_FOR: Record<string, string> = {
+  Core: "One payroll team, usually 5–40 employees, that wants payroll, attendance and statutory calculations in one place.",
+  Scale:
+    "Growing companies that need checker approvals, an audit trail, or multiple locations without adding payroll spreadsheets.",
+  Enterprise:
+    "Larger or high-control organizations that need advanced access, migration support, integrations, or stricter operating controls.",
 };
 
 const BEST_FOR: Record<string, string> = {
-  Core: "Best for 5–40 employees",
-  Scale: "Best for 25–250 employees",
-  Enterprise: "Best for larger or complex teams",
+  Core: "5–40 employees",
+  Scale: "25–250 employees",
+  Enterprise: "Complex or larger teams",
 };
 
 const HEADCOUNT_PRESETS = [10, 25, 50, 100];
@@ -59,9 +67,9 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
     <>
       <div className="pricing-estimator">
         <div>
-          <span className="price-plan">Monthly estimate</span>
+          <span className="price-plan">Estimate your monthly bill</span>
           <strong>{headcount} employees</strong>
-          <small>Change headcount and every plan updates immediately.</small>
+          <small>Change headcount and the monthly estimate updates immediately.</small>
         </div>
 
         <div className="pricing-estimator-controls">
@@ -110,33 +118,36 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
         </div>
       </div>
 
-      <div className="pricing-grid business-pricing-grid">
+      <div className="pricing-comparison business-pricing-grid">
         {businessPlans.map((plan) => {
           const total = Number(plan.monthlyBase) + Number(plan.perEmployee) * headcount;
           const featured = plan.name === "Scale";
           const buyerPoints = BUYER_POINTS[plan.name] ?? [];
 
           return (
-            <article className={`price-card ${featured ? "featured" : ""}`} key={plan.id}>
-              <div className="price-card-top">
-                <div>
+            <article className={`pricing-plan-row ${featured ? "featured" : ""}`} key={plan.id}>
+              <div className="pricing-plan-identity">
+                <div className="pricing-plan-heading">
                   <span className="price-plan">{plan.name}</span>
-                  <h2>{BLURB[plan.name] ?? "Philippine payroll and HRIS"}</h2>
-                  <small className="price-best-for">{BEST_FOR[plan.name] ?? "Flexible team size"}</small>
+                  {featured && <span className="popular-label">Approval-ready</span>}
                 </div>
-                {featured && <span className="popular-label">Recommended</span>}
+                <h3>{BLURB[plan.name] ?? "Philippine payroll and HRIS"}</h3>
+                <p>{WHO_FOR[plan.name] ?? "A flexible Philippine payroll setup for your team."}</p>
+                <small className="price-best-for">Typical fit · {BEST_FOR[plan.name] ?? "Flexible team size"}</small>
               </div>
 
-              <div className="price">
-                <strong>{money(total)}</strong>
-                <span>/ month</span>
+              <div className="pricing-plan-cost">
+                <span>Estimated monthly</span>
+                <div className="price">
+                  <strong>{money(total)}</strong>
+                  <span>/ month</span>
+                </div>
+                <small className="price-formula">
+                  {money(plan.monthlyBase)} base + {money(plan.perEmployee)} × {headcount}
+                </small>
               </div>
 
-              <small className="price-formula">
-                {money(plan.monthlyBase)} base + {money(plan.perEmployee)} × {headcount} employees
-              </small>
-
-              <ul className="price-features">
+              <ul className="price-features" aria-label={`${plan.name} operating fit`}>
                 {buyerPoints.map((point) => (
                   <li key={point}>
                     <Check size={13} aria-hidden />
@@ -145,8 +156,8 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
                 ))}
               </ul>
 
-              <a className={featured ? "primary-button full" : "secondary-button full"} href="/signup">
-                Start free <ArrowUpRight size={13} />
+              <a className={featured ? "primary-button pricing-plan-cta" : "secondary-button pricing-plan-cta"} href="/signup">
+                Start free <ArrowRight size={13} />
               </a>
             </article>
           );
@@ -157,7 +168,7 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
         <div className="solo-price-row">
           <div>
             <span className="price-plan">Solo</span>
-            <strong>Self-employed?</strong>
+            <strong>Self-employed or working independently?</strong>
             <small>{BLURB.Solo}. No employee payroll seat required.</small>
           </div>
           <div className="solo-price-value">
@@ -165,7 +176,7 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
             <span>/ month</span>
           </div>
           <a className="secondary-button" href="/signup">
-            Start Solo <ArrowUpRight size={13} />
+            Start Solo <ArrowRight size={13} />
           </a>
         </div>
       )}
