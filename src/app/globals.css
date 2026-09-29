@@ -6141,3 +6141,76 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
     min-width: 0;
   }
 }
+
+
+/* ==========================================================================
+   Actionable payroll handoffs
+   ========================================================================== */
+
+.handoff-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: -4px 0 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
+}
+.handoff-action > div {
+  min-width: 0;
+}
+.handoff-action strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+.handoff-action p {
+  max-width: 760px;
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+.handoff-action.attention {
+  border-color: rgba(245, 158, 11, .24);
+  background: linear-gradient(90deg, rgba(245, 158, 11, .055), transparent 52%), var(--paper);
+}
+.handoff-action.ready {
+  border-color: rgba(68, 76, 231, .22);
+  background: linear-gradient(90deg, rgba(68, 76, 231, .05), transparent 52%), var(--paper);
+}
+.handoff-action.clear {
+  border-color: rgba(18, 183, 106, .18);
+  background: linear-gradient(90deg, rgba(18, 183, 106, .045), transparent 52%), var(--paper);
+}
+
+.tray-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+}
+.tray-action-label {
+  color: var(--active);
+  font-size: 9px;
+  font-weight: 750;
+}
+.tray-item-meta time {
+  margin-left: auto;
+}
+
+@media (max-width: 640px) {
+  .handoff-action {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .handoff-action button {
+    align-self: flex-start;
+  }
+}
