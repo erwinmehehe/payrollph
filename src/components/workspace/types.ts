@@ -205,6 +205,31 @@ export type ProvisioningTask = {
   done: boolean;
 };
 
+export type PayRevision = {
+  id: number;
+  employeeId: number;
+  effectiveDate: string;
+  previousPayBasis: string;
+  previousRateAmount: string;
+  newPayBasis: string;
+  newRateAmount: string;
+  reason: string;
+  createdBy: string;
+  createdAt: Date | string;
+};
+
+export type RetroAdjustment = {
+  id: number;
+  employeeId: number;
+  revisionId: number;
+  sourcePayrollRunId: number;
+  sourcePeriodLabel: string;
+  amount: string;
+  status: string;
+  settledPayrollRunId?: number | null;
+  settledAt?: Date | string | null;
+};
+
 export type OrgUnit = { id: number; name: string; type: string };
 
 export type SessionUser = { id: number; email: string; name: string; role: string; totpEnabled: boolean };
@@ -243,6 +268,8 @@ export type DashboardData = {
     developer: boolean;
   };
   provisioning?: ProvisioningTask[];
+  payRevisions?: PayRevision[];
+  retroAdjustments?: RetroAdjustment[];
   freelancer: FreelancerProfile;
   security?: {
     passwordAuth: boolean;
