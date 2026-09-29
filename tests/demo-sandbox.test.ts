@@ -25,11 +25,11 @@ test("role sandbox exposes exactly the five product personas", () => {
   assert.ok(!roles.includes('"manager"'), "manager should not replace one of the five sandbox personas");
 });
 
-test("every sandbox persona has a landing page and realistic tasks", () => {
+test("company sandbox personas land on role-specific dashboards before opening tasks", () => {
   const roles = read("src/lib/demo-roles.ts");
-  for (const landing of ['landingPage: "Overview"', 'landingPage: "People"', 'landingPage: "Payroll"', 'landingPage: "Approvals"', 'landingPage: "My pay"']) {
-    assert.ok(roles.includes(landing), `missing ${landing}`);
-  }
+  const overviewLandings = (roles.match(/landingPage: "Overview"/g) ?? []).length;
+  assert.equal(overviewLandings, 4, "owner, HR, payroll and checker should all land on Overview");
+  assert.ok(roles.includes('landingPage: "My pay"'), "employee must still land in self-service");
   for (const task of ["owner-release", "hr-leave", "payroll-submit", "checker-decide", "employee-punch"]) {
     assert.ok(roles.includes(task), `missing sandbox task ${task}`);
   }
@@ -91,6 +91,39 @@ test("demo switch provisions all personas into one populated sample workspace", 
   assert.ok(route.includes("for (const role of DEMO_ROLE_IDS)"), "all personas must be provisioned together");
   assert.ok(route.includes('organizations.name, "Loom & Local"'), "sandbox must use the populated sample company");
   assert.ok(route.includes("createSession"), "persona launch must create a real authenticated session");
+});
+
+test("workspace renders distinct owner, HR, payroll and checker dashboards", () => {
+  const workspace = read("src/components/linaw-workspace.tsx");
+  const dashboard = read("src/components/workspace/role-overview.tsx");
+
+  assert.ok(workspace.includes("normalizeDashboardRole"), "workspace must normalize the real/demo role");
+  assert.ok(workspace.includes("<RoleOverviewView"), "workspace must render the role-specific overview");
+  for (const marker of [
+    'data-role-dashboard={role}',
+    "Company control center",
+    "People operations today",
+    "Cutoff control center",
+    "Independent review queue",
+  ]) {
+    assert.ok(dashboard.includes(marker), `role dashboard missing ${marker}`);
+  }
+});
+
+test("role dashboards use workspace data rather than hardcoded KPI totals", () => {
+  const dashboard = read("src/components/workspace/role-overview.tsx");
+  for (const source of [
+    "data.employees.filter",
+    "data.tasks.filter",
+    "data.leaveRequests",
+    "data.provisioning",
+    "data.payrollEntries.filter",
+    "data.retroAdjustments",
+    "data.punches",
+    "data.advisories.filter",
+  ]) {
+    assert.ok(dashboard.includes(source), `role dashboard must derive its state from ${source}`);
+  }
 });
 
 test("workspace and employee self-service share the same persona sandbox control", () => {
