@@ -9,6 +9,7 @@ import { DEMO_MODE, ensureSeedData } from "@/db/seed";
 import { ensurePublicDemoTenant } from "@/db/public-demo";
 import { DEMO_ROLE_IDS, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
 import { publicDemoHostAllowed } from "@/lib/demo-host";
+import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
 
 export const dynamic = "force-dynamic";
 
@@ -142,6 +143,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    await ensureCoreCompatibilitySchema();
     if (DEMO_MODE) {
       await ensureSeedData();
     } else {

@@ -29,8 +29,10 @@ import { getAccess, PAYROLL_VIEW_ROLES, PEOPLE_PAYROLL_ROLES, roleAllowed } from
 import { getSessionUser, publicUser } from "@/lib/auth";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
+import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
 
 export async function getDashboardData(organizationId?: number) {
+  await ensureCoreCompatibilitySchema();
   await ensureSeedData();
   await ensureLeavePayrollSchema();
   const sessionUser = await getSessionUser();
