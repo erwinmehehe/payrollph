@@ -166,8 +166,21 @@ jobs:
             const openButton = page.getByRole("button", { name: new RegExp(`^Open ${persona.short} demo`, "i") });
             check((await openButton.count()) === 1, `${persona.label}: launch button is missing`);
 
-            await openButton.click();
-            await page.waitForURL(new RegExp(`[?&]demoRole=${persona.id}(?:&|$)`), { timeout: 90000 });
+            const [switchResponse] = await Promise.all([
+              page.waitForResponse(
+                (response) =>
+                  response.url().includes("/api/auth/demo-switch") &&
+                  response.request().method() === "POST",
+                { timeout: 90000 },
+              ),
+              openButton.click(),
+            ]);
+            const switchText = await switchResponse.text();
+            check(
+              switchResponse.ok(),
+              `${persona.label}: demo switch returned ${switchResponse.status()} ${switchText}`,
+            );
+            await page.waitForURL(new RegExp(`[?&]demoRole=${persona.id}(?:&|$)`), { timeout: 30000 });
             await page.waitForLoadState("networkidle");
 
             const body = await page.locator("body").innerText();
