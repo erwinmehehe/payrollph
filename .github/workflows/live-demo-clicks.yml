@@ -1,0 +1,185 @@
+name: Live demo click QA
+
+on:
+  push:
+    branches:
+      - qa/live-demo-clicks-sep29
+    paths:
+      - ".github/workflows/live-demo-clicks.yml"
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for live demo API
+        run: |
+          set -euo pipefail
+          for i in {1..40}; do
+            code="$(curl -sS -o /tmp/demo-owner.json -w '%{http_code}'               -X POST               -H 'Content-Type: application/json'               -d '{"role":"owner"}'               https://erwinmehehe-payrollph.vercel.app/api/auth/demo-switch || true)"
+            echo "attempt=$i status=$code body=$(cat /tmp/demo-owner.json 2>/dev/null || true)"
+            if [ "$code" = "200" ]; then
+              grep -q '"redirectTo":"/?demoRole=owner"' /tmp/demo-owner.json
+              exit 0
+            fi
+            sleep 5
+          done
+          exit 1
+
+      - name: Start Chrome
+        run: |
+          google-chrome --headless=new --no-sandbox --disable-dev-shm-usage             --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222             --user-data-dir=/tmp/linaw-live-demo about:blank >/tmp/chrome.log 2>&1 &
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:9222/json/version >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/chrome.log
+          exit 1
+
+      - name: Click every live persona
+        env:
+          BASE_URL: https://erwinmehehe-payrollph.vercel.app
+        run: |
+          cat >/tmp/click-demo.mjs <<'EOF'
+          import fs from "node:fs/promises";
+
+          const base = process.env.BASE_URL;
+          const targets = await (await fetch("http://127.0.0.1:9222/json")).json();
+          const page = targets.find((item) => item.type === "page");
+          if (!page) throw new Error("No Chrome target");
+
+          const ws = new WebSocket(page.webSocketDebuggerUrl);
+          await new Promise((resolve, reject) => {
+            ws.addEventListener("open", resolve, { once: true });
+            ws.addEventListener("error", reject, { once: true });
+          });
+
+          let id = 1;
+          const pending = new Map();
+          const listeners = new Map();
+
+          ws.addEventListener("message", (event) => {
+            const message = JSON.parse(String(event.data));
+            if (message.id && pending.has(message.id)) {
+              const promise = pending.get(message.id);
+              pending.delete(message.id);
+              message.error ? promise.reject(new Error(message.error.message)) : promise.resolve(message.result);
+              return;
+            }
+            if (message.method && listeners.has(message.method)) {
+              for (const fn of listeners.get(message.method)) fn(message.params);
+            }
+          });
+
+          const send = (method, params = {}) =>
+            new Promise((resolve, reject) => {
+              const call = id++;
+              pending.set(call, { resolve, reject });
+              ws.send(JSON.stringify({ id: call, method, params }));
+            });
+
+          const once = (method) =>
+            new Promise((resolve) => {
+              const set = listeners.get(method) ?? new Set();
+              const fn = (params) => {
+                set.delete(fn);
+                resolve(params);
+              };
+              set.add(fn);
+              listeners.set(method, set);
+            });
+
+          const wait = async (expression, timeout = 45000) => {
+            const started = Date.now();
+            while (Date.now() - started < timeout) {
+              const result = await send("Runtime.evaluate", { expression, returnByValue: true });
+              if (result.result.value) return result.result.value;
+              await new Promise((resolve) => setTimeout(resolve, 250));
+            }
+            throw new Error("Timeout: " + expression);
+          };
+
+          async function navigate(url) {
+            const loaded = once("Page.loadEventFired");
+            await send("Page.navigate", { url });
+            await loaded;
+            await wait("document.readyState === 'complete'");
+          }
+
+          async function selectRole(label) {
+            const result = await send("Runtime.evaluate", {
+              expression: `(() => {
+                const button = Array.from(document.querySelectorAll('[role="tab"]'))
+                  .find((item) => item.textContent?.includes(${JSON.stringify(label)}));
+                if (!button) return false;
+                button.click();
+                return true;
+              })()`,
+              returnByValue: true,
+            });
+            if (!result.result.value) throw new Error("Missing role tab: " + label);
+          }
+
+          async function clickOpen(label) {
+            const result = await send("Runtime.evaluate", {
+              expression: `(() => {
+                const button = Array.from(document.querySelectorAll("button"))
+                  .find((item) => item.textContent?.includes(${JSON.stringify(label)}));
+                if (!button) return false;
+                button.click();
+                return true;
+              })()`,
+              returnByValue: true,
+            });
+            if (!result.result.value) throw new Error("Missing launch button: " + label);
+          }
+
+          await send("Page.enable");
+          await send("Runtime.enable");
+          await send("Network.enable");
+          await send("Emulation.setDeviceMetricsOverride", {
+            width: 1440,
+            height: 1000,
+            deviceScaleFactor: 1,
+            mobile: false,
+          });
+
+          const roles = [
+            { tab: "Owner", open: "Open Owner demo", query: "demoRole=owner", marker: "ROLE SANDBOX" },
+            { tab: "HR Admin", open: "Open HR Admin demo", query: "demoRole=hr", marker: "ROLE SANDBOX" },
+            { tab: "Payroll Officer", open: "Open Payroll demo", query: "demoRole=payroll", marker: "ROLE SANDBOX" },
+            { tab: "Checker", open: "Open Checker demo", query: "demoRole=checker", marker: "ROLE SANDBOX" },
+            { tab: "Employee", open: "Open Employee demo", query: "demoRole=employee", marker: "MY PAY" },
+          ];
+
+          const results = [];
+
+          for (const role of roles) {
+            await navigate(base + "/demo");
+            await wait("document.body.innerText.includes('Choose a seat.')");
+            await selectRole(role.tab);
+            await wait(`document.querySelector('[role="tabpanel"]').innerText.includes(${JSON.stringify(role.tab === "Payroll Officer" ? "Paolo Cruz" : role.tab === "HR Admin" ? "Aira Villanueva" : role.tab === "Checker" ? "Mariel Santos" : role.tab === "Employee" ? "Jonas Reyes" : "Andrea Lim")})`);
+            await clickOpen(role.open);
+            await wait(`location.href.includes(${JSON.stringify(role.query)})`);
+            await wait(`document.body.innerText.includes(${JSON.stringify(role.marker)})`);
+
+            const info = await send("Runtime.evaluate", {
+              expression: `({ href: location.href, body: document.body.innerText.slice(0, 260) })`,
+              returnByValue: true,
+            });
+            results.push({ role: role.tab, ...info.result.value });
+          }
+
+          await fs.writeFile("live-demo-click-results.json", JSON.stringify(results, null, 2));
+          console.log(JSON.stringify(results, null, 2));
+          ws.close();
+          EOF
+
+          node /tmp/click-demo.mjs
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: live-demo-click-results
+          path: live-demo-click-results.json
+          retention-days: 3
