@@ -6,6 +6,16 @@ import {
   THIRTEENTH_MONTH_EXEMPTION_CAP,
 } from "../src/lib/annualization";
 import { BACKOFF_SCHEDULE_MS, nextBackoffMs } from "../src/lib/webhook-backoff";
+import { eq } from "drizzle-orm";
+import { db } from "../src/db";
+import {
+  employeePayProfiles,
+  employees,
+  organizations,
+  payrollEntries,
+  payrollRuns,
+} from "../src/db/schema";
+import { computeFinalPayPackage } from "../src/lib/final-pay-service";
 import {
   computeStatutoryRetirementPay,
   computeStatutorySeparationPay,
@@ -209,4 +219,116 @@ test("statutory retirement uses 22.5 daily-rate days per rounded service year an
 
 test("final pay due date is 30 calendar days after separation", () => {
   assert.equal(finalPayDueDate("2026-09-30"), "2026-10-30");
+});
+
+
+test("final pay 13th-month balance comes from released basic salary, not the employee's current salary", async () => {
+  const [org] = await db.insert(organizations).values({
+    name: "Final Pay Actual Basic Test",
+    legalName: "Final Pay Actual Basic Test Inc.",
+    plan: "Core",
+  }).returning();
+
+  try {
+    const [employee] = await db.insert(employees).values({
+      organizationId: org.id,
+      employeeNo: "FP-ACTUAL-BASIC",
+      firstName: "Actual",
+      lastName: "Basic",
+      title: "Staff",
+      avatarInitials: "AB",
+      basicRate: "30000.00",
+      thirteenthMonthEligible: true,
+      startDate: "2025-01-01",
+    }).returning();
+
+    await db.insert(employeePayProfiles).values({
+      employeeId: employee.id,
+      organizationId: org.id,
+      payBasis: "monthly",
+      rateAmount: "30000.00",
+      standardWorkDaysPerMonth: "22.00",
+      standardHoursPerDay: "8.00",
+    });
+
+    const [firstRun, secondRun] = await db.insert(payrollRuns).values([
+      {
+        organizationId: org.id,
+        periodLabel: "Jan 1–15, 2026",
+        periodStart: "2026-01-01",
+        periodEnd: "2026-01-15",
+        scopeLabel: "All locations",
+        status: "Released",
+        payDate: "2026-01-15",
+        employeeCount: 1,
+        grossPay: "12000.00",
+        netPay: "12000.00",
+      },
+      {
+        organizationId: org.id,
+        periodLabel: "Jan 16–31, 2026",
+        periodStart: "2026-01-16",
+        periodEnd: "2026-01-31",
+        scopeLabel: "All locations",
+        status: "Released",
+        payDate: "2026-01-31",
+        employeeCount: 1,
+        grossPay: "12000.00",
+        netPay: "12000.00",
+      },
+    ]).returning();
+
+    await db.insert(payrollEntries).values([
+      {
+        payrollRunId: firstRun.id,
+        employeeId: employee.id,
+        grossPay: "12000.00",
+        deductions: "0.00",
+        netPay: "12000.00",
+        status: "Ready",
+        lineItems: [{ code: "BASIC", label: "Basic / worked pay", amount: "12000.00" }],
+        trace: { inputs: ["deMinimisPaid=0.00", "deMinimisTaxableExcess=0.00"] },
+      },
+      {
+        payrollRunId: secondRun.id,
+        employeeId: employee.id,
+        grossPay: "12000.00",
+        deductions: "0.00",
+        netPay: "12000.00",
+        status: "Ready",
+        lineItems: [{ code: "BASIC", label: "Basic / worked pay", amount: "12000.00" }],
+        trace: { inputs: ["deMinimisPaid=0.00", "deMinimisTaxableExcess=0.00"] },
+      },
+    ]);
+
+    const result = await computeFinalPayPackage({
+      organizationId: org.id,
+      employeeId: employee.id,
+      separationType: "resignation",
+      noticeDate: "2026-01-01",
+      lastDay: "2026-01-31",
+      unusedLeaveCredits: 0,
+      leaveBasisNote: "",
+      finalPayrollVerified: false,
+      unpaidBasicSalary: 0,
+      otherUnpaidTaxableEarnings: 0,
+      additionalThirteenthMonthBasic: 0,
+      deductOutstandingLoans: false,
+      separationPayTaxExemptConfirmed: false,
+      retirementPlanBenefit: 0,
+      retirementPlanReference: "",
+      retirementTaxExemptConfirmed: false,
+      additionalCompanyBenefit: 0,
+      additionalCompanyBenefitTaxable: true,
+    });
+
+    assert.deepEqual(result.snapshot.blockers, []);
+    assert.equal(result.snapshot.thirteenthMonth.basicSalaryEarned, 24000);
+    assert.equal(result.snapshot.thirteenthMonth.entitlement, 2000);
+    assert.equal(result.snapshot.thirteenthMonth.balanceDue, 2000);
+    assert.equal(result.columns.netFinalPay, 2000);
+    assert.equal(result.columns.finalPayDueDate, "2026-03-02");
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
 });
