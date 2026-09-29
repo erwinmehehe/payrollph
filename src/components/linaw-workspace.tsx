@@ -39,7 +39,8 @@ import {
 } from "@/components/workspace/panels";
 import { PayrollRunView } from "@/components/workspace/payroll-run";
 import { PeopleView } from "@/components/workspace/people";
-import { WorkspaceShell, buildNotifications } from "@/components/workspace/shell";
+import { WorkspaceShell } from "@/components/workspace/shell";
+import { buildNotifications } from "@/lib/workspace-notifications";
 import { TimeView } from "@/components/workspace/time";
 import type { DashboardData, PricingPlan } from "@/components/workspace/types";
 import { ToastStack, useToasts } from "@/components/workspace/ui";
