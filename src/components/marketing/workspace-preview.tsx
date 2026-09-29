@@ -2,21 +2,33 @@
 
 import { useMemo, useState } from "react";
 import {
+  AlertCircle,
   AlertTriangle,
   ArrowUpRight,
+  Banknote,
   Bell,
+  CalendarDays,
   Check,
   ChevronDown,
   CircleDollarSign,
   ClipboardCheck,
   Clock3,
   Download,
+  FileBarChart2,
+  Globe,
+  HandCoins,
   LayoutDashboard,
+  Package,
   ReceiptText,
+  RefreshCcw,
   Search,
   Send,
+  ShieldCheck,
+  Sparkles,
   UploadCloud,
+  UserPlus,
   UsersRound,
+  UserX,
   WalletCards,
   type LucideIcon,
 } from "lucide-react";
@@ -30,16 +42,61 @@ import {
 } from "./sample-workspace";
 import { Battery, Progress, Status, formatDate, money, moneyExact, shortMoney } from "@/components/workspace/ui";
 
-type Tab = "Dashboard" | "Payroll" | "People" | "Time" | "Approvals" | "Exports";
+type Tab =
+  | "Overview"
+  | "Payroll"
+  | "People"
+  | "Migration"
+  | "Time & attendance"
+  | "Leave"
+  | "Approvals"
+  | "Analytics"
+  | "Exports"
+  | "Compliance"
+  | "Loans"
+  | "Benefits"
+  | "De minimis"
+  | "Expenses"
+  | "Earned wage"
+  | "Recruitment"
+  | "Discipline"
+  | "Separation"
+  | "Contractors"
+  | "Assets";
 
-const TABS: Array<{ key: Tab; icon: typeof LayoutDashboard; tone: string }> = [
-  { key: "Dashboard", icon: LayoutDashboard, tone: "blue" },
-  { key: "Payroll", icon: WalletCards, tone: "green" },
-  { key: "People", icon: UsersRound, tone: "purple" },
-  { key: "Time", icon: Clock3, tone: "cyan" },
-  { key: "Approvals", icon: ClipboardCheck, tone: "amber" },
-  { key: "Exports", icon: UploadCloud, tone: "teal" },
+type PreviewGroup = "Workspace" | "Operate";
+
+const TABS: Array<{ key: Tab; icon: typeof LayoutDashboard; tone: string; group: PreviewGroup }> = [
+  { key: "Overview", icon: LayoutDashboard, tone: "blue", group: "Workspace" },
+  { key: "Payroll", icon: WalletCards, tone: "green", group: "Workspace" },
+  { key: "People", icon: UsersRound, tone: "purple", group: "Workspace" },
+  { key: "Migration", icon: RefreshCcw, tone: "teal", group: "Workspace" },
+  { key: "Time & attendance", icon: Clock3, tone: "cyan", group: "Workspace" },
+  { key: "Leave", icon: CalendarDays, tone: "pink", group: "Workspace" },
+  { key: "Approvals", icon: ClipboardCheck, tone: "amber", group: "Workspace" },
+  { key: "Analytics", icon: FileBarChart2, tone: "blue", group: "Operate" },
+  { key: "Exports", icon: UploadCloud, tone: "teal", group: "Operate" },
+  { key: "Compliance", icon: ShieldCheck, tone: "green", group: "Operate" },
+  { key: "Loans", icon: Banknote, tone: "amber", group: "Operate" },
+  { key: "Benefits", icon: HandCoins, tone: "pink", group: "Operate" },
+  { key: "De minimis", icon: Sparkles, tone: "purple", group: "Operate" },
+  { key: "Expenses", icon: ReceiptText, tone: "cyan", group: "Operate" },
+  { key: "Earned wage", icon: CircleDollarSign, tone: "green", group: "Operate" },
+  { key: "Recruitment", icon: UserPlus, tone: "blue", group: "Operate" },
+  { key: "Discipline", icon: AlertCircle, tone: "red", group: "Operate" },
+  { key: "Separation", icon: UserX, tone: "red", group: "Operate" },
+  { key: "Contractors", icon: Globe, tone: "teal", group: "Operate" },
+  { key: "Assets", icon: Package, tone: "amber", group: "Operate" },
 ];
+
+const CORE_INTERACTIVE_TABS = new Set<Tab>([
+  "Overview",
+  "Payroll",
+  "People",
+  "Time & attendance",
+  "Approvals",
+  "Exports",
+]);
 
 /**
  * The public workspace preview.
@@ -50,7 +107,7 @@ const TABS: Array<{ key: Tab; icon: typeof LayoutDashboard; tone: string }> = [
  */
 export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" | "interactive" }) {
   const run = useMemo(() => buildSampleRun(), []);
-  const [tab, setTab] = useState<Tab>("Dashboard");
+  const [tab, setTab] = useState<Tab>("Overview");
   const [client, setClient] = useState(SAMPLE_CLIENTS[0]);
   const [clientOpen, setClientOpen] = useState(false);
   const [expanded, setExpanded] = useState<number | null>(null);
@@ -60,7 +117,7 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
   const [query, setQuery] = useState("");
 
   const interactive = mode === "interactive";
-  const activeTab: Tab = interactive ? tab : "Dashboard";
+  const activeTab: Tab = interactive ? tab : "Overview";
 
   return (
     <div className={`frame ${interactive ? "standalone" : ""}`}>
@@ -91,20 +148,37 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
                 <strong style={{ fontSize: 14 }}>linaw</strong>
               </div>
             </div>
-            {TABS.map(({ key, icon: Icon, tone }) => (
-              <button
-                key={key}
-                className={`nav-item ${activeTab === key ? "active" : ""}`}
-                onClick={() => interactive && setTab(key)}
-                tabIndex={interactive ? 0 : -1}
-                aria-current={activeTab === key ? "page" : undefined}
-              >
-                <span className={`nav-icon t-${tone}`} aria-hidden>
-                  <Icon size={13} strokeWidth={2} />
-                </span>
-                <span>{key}</span>
-                {key === "Approvals" && <b>{SAMPLE_APPROVALS.filter((task) => !decided[task.id]).length}</b>}
-              </button>
+            {(["Workspace", "Operate"] as PreviewGroup[]).map((group) => (
+              <div key={group}>
+                <div
+                  style={{
+                    padding: group === "Workspace" ? "2px 10px 5px" : "14px 10px 5px",
+                    color: "var(--muted)",
+                    fontSize: 8.5,
+                    fontWeight: 700,
+                    letterSpacing: ".08em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {group}
+                </div>
+                {TABS.filter((item) => item.group === group).map(({ key, icon: Icon, tone }) => (
+                  <button
+                    key={key}
+                    className={`nav-item ${activeTab === key ? "active" : ""}`}
+                    onClick={() => interactive && setTab(key)}
+                    tabIndex={interactive ? 0 : -1}
+                    aria-current={activeTab === key ? "page" : undefined}
+                  >
+                    <span className={`nav-icon t-${tone}`} aria-hidden>
+                      <Icon size={13} strokeWidth={2} />
+                    </span>
+                    <span>{key}</span>
+                    {key === "Approvals" && <b>{SAMPLE_APPROVALS.filter((task) => !decided[task.id]).length}</b>}
+                    {key === "People" && <b>{SAMPLE_EMPLOYEES.length}</b>}
+                  </button>
+                ))}
+              </div>
             ))}
           </aside>
 
@@ -193,7 +267,7 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
                 </div>
               ) : (
                 <>
-                  {activeTab === "Dashboard" && <PreviewDashboard run={run} released={released} decided={decided} />}
+                  {activeTab === "Overview" && <PreviewDashboard run={run} released={released} decided={decided} />}
                   {activeTab === "Payroll" && (
                     <PreviewPayroll
                       run={run}
@@ -206,11 +280,12 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
                     />
                   )}
                   {activeTab === "People" && <PreviewPeople query={query} onQuery={setQuery} />}
-                  {activeTab === "Time" && <PreviewTime />}
+                  {activeTab === "Time & attendance" && <PreviewTime />}
                   {activeTab === "Approvals" && (
                     <PreviewApprovals decided={decided} onDecide={(id, status) => setDecided((current) => ({ ...current, [id]: status }))} />
                   )}
                   {activeTab === "Exports" && <PreviewExports run={run} released={released} />}
+                  {!CORE_INTERACTIVE_TABS.has(activeTab) && <PreviewFeature tab={activeTab} run={run} />}
                 </>
               )}
             </div>
@@ -765,6 +840,293 @@ function PreviewExports({ run, released }: { run: ReturnType<typeof buildSampleR
         </a>{" "}
         lists every gate. <ArrowUpRight size={11} style={{ display: "inline", verticalAlign: "middle" }} />
       </p>
+    </>
+  );
+}
+
+type PreviewFeatureSpec = {
+  kicker: string;
+  title: string;
+  copy: string;
+  stats: Array<{ label: string; value: string; hint: string }>;
+  rows: Array<{ title: string; detail: string; status: string }>;
+};
+
+const FEATURE_PREVIEWS: Partial<Record<Tab, PreviewFeatureSpec>> = {
+  Migration: {
+    kicker: "Switching tools",
+    title: "Bring your existing payroll and HR data with you.",
+    copy: "Upload exports from another payroll or HRIS, review detected mappings and errors, then commit only after validation.",
+    stats: [
+      { label: "Source presets", value: "14+", hint: "plus generic CSV" },
+      { label: "Import types", value: "4", hint: "people, payroll, leave, loans" },
+      { label: "Write mode", value: "Dry run", hint: "validate before commit" },
+    ],
+    rows: [
+      { title: "Sprout Solutions", detail: "Employee and payroll export aliases detected", status: "Ready" },
+      { title: "Salarium", detail: "Employee, payroll and leave fields recognized", status: "Ready" },
+      { title: "PayrollHero / GreatDay / Omni HR", detail: "Vendor aliases with generic fallback mapping", status: "Ready" },
+      { title: "Historical payroll", detail: "Preserved as imported, not recalculated under current rules", status: "Protected" },
+    ],
+  },
+  Leave: {
+    kicker: "Leave",
+    title: "Balances and approvals stay attached to the employee.",
+    copy: "Track opening balances, accrual, requests and decisions without moving the payroll team into another sheet.",
+    stats: [
+      { label: "Pending", value: "3", hint: "requests awaiting review" },
+      { label: "Approved", value: "11", hint: "this month" },
+      { label: "Balance alerts", value: "2", hint: "near policy limit" },
+    ],
+    rows: [
+      { title: "Aira Villanueva", detail: "Emergency leave · Mar 17–18", status: "Pending" },
+      { title: "Jonas Reyes", detail: "Vacation leave · 6.5 days remaining", status: "Healthy" },
+      { title: "Trish Dela Cruz", detail: "Final leave conversion attached to separation", status: "Review" },
+    ],
+  },
+  Analytics: {
+    kicker: "Analytics",
+    title: "Payroll and people trends without a separate BI project.",
+    copy: "Use the same operational data behind payroll to understand cost, headcount, exceptions and movement.",
+    stats: [
+      { label: "Headcount", value: "8", hint: "sample company" },
+      { label: "Net payroll", value: "₱285.6k", hint: "current cutoff" },
+      { label: "Exceptions", value: "2", hint: "needs attention" },
+    ],
+    rows: [
+      { title: "Payroll cost", detail: "Gross and statutory employer cost by cutoff", status: "Live" },
+      { title: "Headcount", detail: "Active, on leave and separating employees", status: "Live" },
+      { title: "Compliance exceptions", detail: "Missing IDs, incomplete time and filing blockers", status: "Live" },
+    ],
+  },
+  Compliance: {
+    kicker: "Philippine compliance",
+    title: "The rulebook stays visible in the workflow.",
+    copy: "Statutory rules, wage orders, filing prerequisites and year-end annualization are exposed to the reviewer.",
+    stats: [
+      { label: "Rule version", value: "PH-2026.01", hint: "calculation trace" },
+      { label: "BIR", value: "Ready", hint: "identity checks enforced" },
+      { label: "Year-end", value: "YTD", hint: "imports included" },
+    ],
+    rows: [
+      { title: "SSS", detail: "Employee and employer contribution basis", status: "Configured" },
+      { title: "PhilHealth", detail: "Contribution basis and employer share", status: "Configured" },
+      { title: "Pag-IBIG", detail: "Mandatory contribution and supported voluntary plans", status: "Configured" },
+      { title: "BIR TRAIN", detail: "Semi-monthly withholding plus annualization", status: "Configured" },
+    ],
+  },
+  Loans: {
+    kicker: "Employee loans",
+    title: "Outstanding balances deduct through payroll.",
+    copy: "Keep government and company loans visible with balances, amortization and payroll-linked settlement.",
+    stats: [
+      { label: "Active loans", value: "3", hint: "sample workspace" },
+      { label: "Due this cutoff", value: "₱3.8k", hint: "scheduled deductions" },
+      { label: "Stale balance guard", value: "On", hint: "release fails closed" },
+    ],
+    rows: [
+      { title: "SSS Salary Loan", detail: "Jonas Reyes · ₱12,000 remaining", status: "Active" },
+      { title: "Pag-IBIG MPL", detail: "Paolo Cruz · ₱8,500 remaining", status: "Active" },
+      { title: "Company Emergency Loan", detail: "Rico Mendoza · ₱4,200 remaining", status: "Active" },
+    ],
+  },
+  Benefits: {
+    kicker: "Benefits",
+    title: "Plans can flow directly into payroll.",
+    copy: "Enroll employees in benefits and voluntary programs while keeping employee and employer shares separate.",
+    stats: [
+      { label: "Plans", value: "4", hint: "sample catalogue" },
+      { label: "Enrolments", value: "13", hint: "active" },
+      { label: "Payroll linked", value: "Yes", hint: "next calculation" },
+    ],
+    rows: [
+      { title: "HMO", detail: "Employee and employer share tracked separately", status: "Active" },
+      { title: "Group life", detail: "Employer-paid benefit", status: "Active" },
+      { title: "Pag-IBIG MP2", detail: "Voluntary deduction with cap validation", status: "Active" },
+    ],
+  },
+  "De minimis": {
+    kicker: "De minimis",
+    title: "Tax-exempt allowances remain traceable.",
+    copy: "Record supported benefit types, limits and taxable excess instead of hiding them inside one allowance total.",
+    stats: [
+      { label: "Active grants", value: "6", hint: "sample records" },
+      { label: "Tax handling", value: "Automatic", hint: "within configured ceilings" },
+      { label: "Trace", value: "Per line", hint: "visible on payslip" },
+    ],
+    rows: [
+      { title: "Rice allowance", detail: "Monthly benefit with tax treatment", status: "Active" },
+      { title: "Uniform allowance", detail: "Annual ceiling tracked", status: "Active" },
+      { title: "Medical cash allowance", detail: "Taxable excess is separated", status: "Tracked" },
+    ],
+  },
+  Expenses: {
+    kicker: "Expenses",
+    title: "Approved reimbursements can ride the payroll run.",
+    copy: "Keep reimbursements non-taxable and linked to the run that actually settles them.",
+    stats: [
+      { label: "Approved", value: "4", hint: "waiting for payroll" },
+      { label: "Value", value: "₱8.4k", hint: "approved claims" },
+      { label: "Double-pay guard", value: "On", hint: "settlement checks linkage" },
+    ],
+    rows: [
+      { title: "Client travel", detail: "Mariel Santos · ₱2,450", status: "Approved" },
+      { title: "Internet reimbursement", detail: "Jonas Reyes · ₱1,500", status: "Approved" },
+      { title: "Warehouse supplies", detail: "Rico Mendoza · ₱4,420", status: "Approved" },
+    ],
+  },
+  "Earned wage": {
+    kicker: "Earned wage",
+    title: "Advances stay visible before payroll recovers them.",
+    copy: "Approved advances become explicit deductions, with settlement blocked if the linked balance changed.",
+    stats: [
+      { label: "Open", value: "2", hint: "approved advances" },
+      { label: "Recovery", value: "₱3.0k", hint: "next cutoff" },
+      { label: "Settlement", value: "Atomic", hint: "no partial recovery" },
+    ],
+    rows: [
+      { title: "Jonas Reyes", detail: "₱1,500 approved advance", status: "Approved" },
+      { title: "Nina Garcia", detail: "₱1,500 approved advance", status: "Approved" },
+    ],
+  },
+  Recruitment: {
+    kicker: "Recruitment",
+    title: "A light hiring pipeline lives beside the employee record.",
+    copy: "Track openings and applicants until a candidate becomes an employee and onboarding begins.",
+    stats: [
+      { label: "Open roles", value: "3", hint: "current requisitions" },
+      { label: "Applicants", value: "18", hint: "across pipeline" },
+      { label: "Offers", value: "2", hint: "awaiting decision" },
+    ],
+    rows: [
+      { title: "Payroll Specialist", detail: "6 applicants · 2 interviewing", status: "Open" },
+      { title: "Support Associate", detail: "8 applicants · 1 offer", status: "Open" },
+      { title: "Operations Analyst", detail: "4 applicants · 1 offer", status: "Open" },
+    ],
+  },
+  Discipline: {
+    kicker: "Discipline",
+    title: "Employee cases stay documented and auditable.",
+    copy: "Keep notices, explanations, hearings and decisions attached to the case rather than scattered across inboxes.",
+    stats: [
+      { label: "Open cases", value: "1", hint: "sample workspace" },
+      { label: "NTE", value: "Issued", hint: "response pending" },
+      { label: "Audit trail", value: "On", hint: "case actions recorded" },
+    ],
+    rows: [
+      { title: "Rico Mendoza", detail: "Attendance policy review · explanation requested", status: "NTE issued" },
+    ],
+  },
+  Separation: {
+    kicker: "Separation",
+    title: "Offboarding and final pay move together.",
+    copy: "Coordinate access removal, leave conversion and final-pay inputs instead of treating resignation as a separate spreadsheet.",
+    stats: [
+      { label: "Separating", value: "1", hint: "sample employee" },
+      { label: "Checklist", value: "4/6", hint: "items completed" },
+      { label: "Final pay", value: "Review", hint: "not regular payroll" },
+    ],
+    rows: [
+      { title: "Trish Dela Cruz", detail: "Last day Mar 31 · access and property review", status: "In progress" },
+      { title: "Leave conversion", detail: "Approved balance included in final-pay workflow", status: "Ready" },
+    ],
+  },
+  Contractors: {
+    kicker: "Contractors",
+    title: "Keep non-employees separate from payroll employees.",
+    copy: "Track contractor terms, currencies and engagement dates without forcing them into statutory employee payroll.",
+    stats: [
+      { label: "Active", value: "3", hint: "contractors" },
+      { label: "Currencies", value: "2", hint: "PHP and USD" },
+      { label: "Employee payroll", value: "Separate", hint: "no accidental inclusion" },
+    ],
+    rows: [
+      { title: "Design contractor", detail: "Monthly · USD", status: "Active" },
+      { title: "IT consultant", detail: "Monthly · PHP", status: "Active" },
+      { title: "Project accountant", detail: "Fixed term · PHP", status: "Active" },
+    ],
+  },
+  Assets: {
+    kicker: "Assets",
+    title: "Issued equipment follows the person.",
+    copy: "Track assigned devices and returns so offboarding can see what is still outstanding.",
+    stats: [
+      { label: "Assigned", value: "7", hint: "sample assets" },
+      { label: "Due back", value: "1", hint: "separating employee" },
+      { label: "Unassigned", value: "2", hint: "available stock" },
+    ],
+    rows: [
+      { title: "MacBook Air M3", detail: "Assigned to Mariel Santos", status: "Assigned" },
+      { title: "Dell Latitude 7450", detail: "Assigned to Trish Dela Cruz · return due", status: "Due back" },
+      { title: "YubiKey 5C", detail: "Unassigned inventory", status: "Available" },
+    ],
+  },
+};
+
+function PreviewFeature({ tab, run }: { tab: Tab; run: ReturnType<typeof buildSampleRun> }) {
+  const spec = FEATURE_PREVIEWS[tab];
+  if (!spec) return null;
+
+  return (
+    <>
+      <div className="console-strip" style={{ marginBottom: 14 }}>
+        <div className="console-strip-top">
+          <div>
+            <span className="kicker">{spec.kicker}</span>
+            <h2 style={{ fontSize: 17 }}>{spec.title}</h2>
+            <p style={{ fontSize: 11.5, maxWidth: 620 }}>{spec.copy}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="stats-grid" style={{ marginBottom: 14 }}>
+        {spec.stats.map((stat, index) => (
+          <MiniStat
+            key={stat.label}
+            label={stat.label}
+            value={stat.value}
+            hint={stat.hint}
+            tone={["purple", "mint", "blue"][index % 3]}
+            icon={TABS.find((item) => item.key === tab)?.icon ?? LayoutDashboard}
+          />
+        ))}
+      </div>
+
+      <article className="card">
+        <div className="card-header">
+          <div>
+            <div className="card-kicker">{tab}</div>
+            <h2 style={{ fontSize: 14 }}>Sample workspace activity</h2>
+            <p>
+              This is sample data in the public simulation. The authenticated workspace uses the server-backed module.
+            </p>
+          </div>
+          <Status value="Simulation" />
+        </div>
+        <div className="approval-list">
+          {spec.rows.map((row) => (
+            <div className="approval-content" key={row.title}>
+              <span className="approval-symbol" aria-hidden>
+                <Check size={15} className="i-green" />
+              </span>
+              <div>
+                <strong>{row.title}</strong>
+                <p>{row.detail}</p>
+              </div>
+              <Status value={row.status} />
+            </div>
+          ))}
+        </div>
+        {tab === "Migration" && (
+          <div className="notice notice-blue" style={{ margin: "0 16px 16px" }}>
+            <RefreshCcw size={15} className="i-teal" />
+            <span>
+              <strong>Switching mid-year?</strong> Imported payroll history contributes to year-end totals without being
+              recalculated under the current rule engine. The current sample run remains {money(run.net)} net.
+            </span>
+          </div>
+        )}
+      </article>
     </>
   );
 }
