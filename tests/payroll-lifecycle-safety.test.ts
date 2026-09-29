@@ -26,8 +26,8 @@ test("calculation snapshots payout instructions and release rejects stale employ
   assert.ok(settlement.includes("lacks an immutable payment snapshot"));
   assert.ok(settlement.includes('employee.status !== "Active"'));
   assert.ok(settlement.includes("Payment instructions for"));
-  assert.ok(settlement.includes("lacks an immutable pay-profile snapshot"));
-  assert.ok(settlement.includes("Pay profile for"));
+  assert.ok(settlement.includes("lacks an immutable effective-pay snapshot"));
+  assert.ok(settlement.includes("Pay history for"));
   assert.ok(settlement.includes("changed after calculation"));
   assert.ok(settlement.includes("no captured bank account or mobile payout destination"));
 });
