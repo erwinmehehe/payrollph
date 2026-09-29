@@ -15,6 +15,7 @@ export type AnnualizationInput = {
   taxWithheld: number;
   mwe: boolean;
   deMinimis?: number;
+  otherNonTaxable?: number;
 };
 
 export type AnnualizationResult = {
@@ -23,6 +24,7 @@ export type AnnualizationResult = {
   exemptThirteenthMonth: number;
   taxableThirteenthMonth: number;
   deMinimis: number;
+  otherNonTaxable: number;
   nonTaxable: number;
   statutoryContributions: number;
   taxableIncome: number;
@@ -57,16 +59,20 @@ export function annualize(input: AnnualizationInput): AnnualizationResult {
   const grossCompensation = round2(Math.max(0, input.grossCompensation));
   const thirteenthMonth = round2(Math.max(0, input.thirteenthMonth));
   const deMinimis = round2(Math.max(0, input.deMinimis ?? 0));
+  const otherNonTaxable = round2(Math.max(0, input.otherNonTaxable ?? 0));
   const statutoryContributions = round2(Math.max(0, input.statutoryContributions));
   const taxWithheld = round2(Math.max(0, input.taxWithheld));
 
   const exemptThirteenthMonth = round2(Math.min(thirteenthMonth, THIRTEENTH_MONTH_EXEMPTION_CAP));
   const taxableThirteenthMonth = round2(Math.max(0, thirteenthMonth - THIRTEENTH_MONTH_EXEMPTION_CAP));
-  const nonTaxable = round2(exemptThirteenthMonth + deMinimis + statutoryContributions);
+  const nonTaxable = round2(exemptThirteenthMonth + deMinimis + otherNonTaxable + statutoryContributions);
 
+  // grossCompensation already includes the full 13th-month / other-benefits
+  // amount. Subtract only the exempt portion here; adding the taxable excess
+  // again would double-count the amount over the PHP 90,000 ceiling.
   const taxableIncome = input.mwe
     ? 0
-    : round2(Math.max(0, grossCompensation + taxableThirteenthMonth - nonTaxable));
+    : round2(Math.max(0, grossCompensation - nonTaxable));
 
   const taxDue = input.mwe ? 0 : round2(computeAnnualWithholdingTax(taxableIncome, false));
   const adjustment = round2(taxDue - taxWithheld);
@@ -77,6 +83,7 @@ export function annualize(input: AnnualizationInput): AnnualizationResult {
     exemptThirteenthMonth,
     taxableThirteenthMonth,
     deMinimis,
+    otherNonTaxable,
     nonTaxable,
     statutoryContributions,
     taxableIncome,
@@ -121,6 +128,7 @@ export function renderForm2316(input: {
     line("  Exempt portion (cap 90,000.00)", money(r.exemptThirteenthMonth)),
     line("  Taxable excess", money(r.taxableThirteenthMonth)),
     line("De minimis benefits", money(r.deMinimis)),
+    line("Other non-taxable compensation", money(r.otherNonTaxable)),
     line("SSS / PhilHealth / Pag-IBIG (employee share)", money(r.statutoryContributions)),
     line("Total non-taxable / exempt", money(r.nonTaxable)),
     "",
