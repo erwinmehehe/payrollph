@@ -51,7 +51,7 @@ test("hr and payroll demos expose the broader workspaces their server roles supp
     assert.ok(payrollPages.includes(page), `payroll demo should expose ${page}`);
   }
 
-  for (const page of ["Overview", "Loans", "De minimis", "Compliance", "Audit trail"]) {
+  for (const page of ["Overview", "Loans", "De minimis", "Compliance"]) {
     assert.ok(hrPages.includes(page), `HR demo should expose ${page}`);
   }
 
@@ -59,6 +59,7 @@ test("hr and payroll demos expose the broader workspaces their server roles supp
   assert.ok(!payrollPages.includes("Migration"), "payroll demo must not imply migration-admin access");
   assert.ok(!hrPages.includes("Payroll"), "HR demo must not imply payroll-operator access");
   assert.ok(!hrPages.includes("Migration"), "HR demo must not imply migration-admin access");
+  assert.ok(!hrPages.includes("Audit trail"), "HR demo must not expose audit data the dashboard server withholds");
 });
 
 test("real HR, payroll and checker navigation is role-scoped too", () => {
@@ -104,6 +105,16 @@ test("payroll approvals render as review-only instead of exposing forbidden deci
   assert.ok(approvals.includes('task.status === "Pending" && canDecide'), "pending decision buttons must be capability-gated");
   assert.ok(workspace.includes("roleCanDecideApprovals(effectiveRole)"), "workspace must derive approval controls from the real role");
   assert.ok(workspace.includes("workspacePagesForRole(effectiveRole)"), "real user navigation must be role-scoped");
+});
+
+test("dashboard payload withholds approval delegation rows from HR and payroll", () => {
+  const dashboard = read("src/lib/dashboard-data.ts");
+  assert.ok(dashboard.includes("PAYROLL_CHECKER_ROLES"), "dashboard must reuse the checker role family for delegation visibility");
+  assert.ok(dashboard.includes("const canViewDelegations = roleAllowed(access.role, PAYROLL_CHECKER_ROLES)"));
+  assert.ok(
+    dashboard.includes("canViewDelegations\n      ? db.select().from(approvalDelegations)"),
+    "delegation rows must be conditionally queried",
+  );
 });
 
 test("expanded payroll-input demo pages match the existing server authorization model", () => {
