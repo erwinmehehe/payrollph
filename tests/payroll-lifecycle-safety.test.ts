@@ -135,6 +135,7 @@ test("handoff mail failure cannot turn a committed payroll transition into a fai
 
   assert.ok(submit.includes("The review was submitted, but the checker notification could not be queued."));
   assert.ok(approval.includes("Payroll was approved, but the release-authority notification could not be queued."));
+  assert.ok(approval.includes("release-authority notification(s) could not be queued."));
   assert.ok(approval.includes("Payroll was returned for changes, but the maker notification could not be queued."));
   assert.ok(release.includes("postReleaseWarnings"));
 });
