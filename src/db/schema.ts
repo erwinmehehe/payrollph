@@ -165,6 +165,27 @@ export const employeePayRevisions = pgTable(
   ],
 );
 
+export const employeePayRetroAdjustments = pgTable(
+  "employee_pay_retro_adjustments",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    revisionId: integer("revision_id").notNull().references(() => employeePayRevisions.id, { onDelete: "cascade" }),
+    sourcePayrollRunId: integer("source_payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "cascade" }),
+    sourcePeriodLabel: varchar("source_period_label", { length: 80 }).notNull(),
+    amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("pending"),
+    settledPayrollRunId: integer("settled_payroll_run_id").references(() => payrollRuns.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    settledAt: timestamp("settled_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("employee_pay_retro_org_employee_idx").on(table.organizationId, table.employeeId),
+    uniqueIndex("employee_pay_retro_revision_run_idx").on(table.revisionId, table.sourcePayrollRunId),
+  ],
+);
+
 export const timePunches = pgTable("time_punches", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
