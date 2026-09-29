@@ -159,6 +159,17 @@ export async function generateJournalCsv(runId: number) {
 }
 
 export async function generateGovernmentDraft(runId: number, kind: string) {
+  const supportedKinds = new Set([
+    "sss-r3",
+    "philhealth-rf1",
+    "pagibig-mcrf",
+    "bir-1601c",
+    "bir-1604c-source",
+  ]);
+  if (!supportedKinds.has(kind)) {
+    throw new Error(`Unsupported government export "${kind}". Exact filing formats are never guessed.`);
+  }
+
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) throw new Error("Payroll run not found");
   const entries = await db.select({
@@ -222,7 +233,11 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
         ].map(csv).join(",");
       }),
     ].join("\n");
-    return { filename: `sss-r3-draft-${run.id}.csv`, contentType: "text/csv", body: `${headerNote}\n# Figures below are full monthly amounts (recomputed from basic pay), not this single cutoff's half-month deduction.\n${body}` };
+    return {
+      filename: `sss-ecl-r3-worksheet-${run.id}.csv`,
+      contentType: "text/csv",
+      body: `${headerNote}\n# SSS employer workflow uses My.SSS e-CL and a PRN. This worksheet is not an SSS acknowledgement or a certified R3 File Generator output.\n# Figures below are full monthly amounts (recomputed from basic pay), not this single cutoff's half-month deduction.\n${body}`,
+    };
   }
 
   if (kind === "philhealth-rf1") {
@@ -251,9 +266,9 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
       }),
     ].join("\n");
     return {
-      filename: `philhealth-rf1-draft-${run.id}.csv`,
+      filename: `philhealth-eprs-rf1-worksheet-${run.id}.csv`,
       contentType: "text/csv",
-      body: `${headerNote}\n# Full monthly premium amounts are recomputed from monthly basic salary; this file is a portal-entry aid, not an EPRS acknowledgement.\n${body}`,
+      body: `${headerNote}\n# PhilHealth requires employers to use EPRS for premium reporting and payment. This worksheet is a portal-entry aid, not an EPRS acknowledgement.\n# Full monthly premium amounts are recomputed from monthly basic salary.\n${body}`,
     };
   }
 
@@ -283,9 +298,9 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
       }),
     ].join("\n");
     return {
-      filename: `pagibig-mcrf-draft-${run.id}.csv`,
+      filename: `pagibig-mcrf-esrs-worksheet-${run.id}.csv`,
       contentType: "text/csv",
-      body: `${headerNote}\n# Full monthly Pag-IBIG mandatory contributions are recomputed from monthly basic salary; use as an eSRS/portal-entry aid until portal acceptance is recorded.\n${body}`,
+      body: `${headerNote}\n# Pag-IBIG's published MCRF encoding instructions use its prescribed spreadsheet layout and YYYYMM period. This CSV is an assisted worksheet only, not an upload-ready MCRF.\n# Full monthly mandatory contributions are recomputed from monthly basic salary.\n${body}`,
     };
   }
 
@@ -301,9 +316,16 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     return { filename: `bir-1601c-draft-${run.id}.csv`, contentType: "text/csv", body: `${headerNote}\n${body}` };
   }
 
+  if (kind !== "bir-1604c-source") {
+    throw new Error(`Government export "${kind}" is not implemented.`);
+  }
+
   // BIR annual summary input. This remains a DRAFT source extract, not the
-  // exact ADES .DAT contract. Unlike the older implementation, it never
-  // substitutes an internal employee number for a government TIN.
+  // exact ADES .DAT contract. RMC 15-2025 requires taxpayers with their own
+  // extract program to follow the current Annex A structure and Annex B naming
+  // convention, then validate through Alphalist Data Entry and Validation
+  // Module v7.4. A single cutoff does not contain the full annual schedule
+  // fields, so Linaw deliberately does not pretend this CSV is filing-ready.
   const [organization] = await db.select().from(organizations)
     .where(eq(organizations.id, run.organizationId))
     .limit(1);
@@ -346,8 +368,8 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
   ].join("\n");
 
   return {
-    filename: `bir-alphalist-2316-draft-${run.id}.csv`,
+    filename: `bir-1604c-annual-source-${run.id}.csv`,
     contentType: "text/csv",
-    body: `${headerNote}\n# Source extract only. Validate and transform to the exact current BIR 1604-C/ADES DAT contract before filing.\n${body}`,
+    body: `${headerNote}\n# Source extract only. A filing-ready 1604-C DAT requires annual year-to-date schedule fields plus validation in the current BIR Alphalist module.\n${body}`,
   };
 }
