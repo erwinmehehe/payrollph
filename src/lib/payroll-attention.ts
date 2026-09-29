@@ -17,17 +17,28 @@ export type PayrollAttentionItem = {
 
 const COMPLETE_PUNCH_STATUSES = new Set(["complete", "present", "ok", "approved"]);
 
+export function selectPayrollHandoffRun(
+  data: DashboardData,
+  role: string | null | undefined,
+) {
+  const fullRuns = data.payrollRuns;
+  const byRank = (rank: number) => fullRuns.find((run) => payrollHandoffRank(run.status) === rank);
+
+  if (role === "checker") return byRank(2) ?? fullRuns.find((run) => run.status !== "Released") ?? data.payrollHandoffRun ?? fullRuns[0] ?? null;
+  if (role === "owner") return byRank(3) ?? fullRuns.find((run) => run.status !== "Released") ?? data.payrollHandoffRun ?? fullRuns[0] ?? null;
+  if (role === "payroll") return byRank(1) ?? fullRuns.find((run) => run.status !== "Released") ?? data.payrollHandoffRun ?? fullRuns[0] ?? null;
+  if (role === "hr") return byRank(0) ?? data.payrollHandoffRun ?? fullRuns.find((run) => run.status !== "Released") ?? fullRuns[0] ?? null;
+
+  return fullRuns.find((run) => run.status !== "Released") ?? data.payrollHandoffRun ?? fullRuns[0] ?? null;
+}
+
 export function buildPayrollAttention(
   data: DashboardData,
   role: string | null | undefined,
 ): PayrollAttentionItem[] {
   if (role !== "owner" && role !== "hr" && role !== "payroll" && role !== "checker") return [];
 
-  const handoffRun =
-    data.payrollRuns.find((run) => run.status !== "Released") ??
-    data.payrollHandoffRun ??
-    data.payrollRuns[0] ??
-    null;
+  const handoffRun = selectPayrollHandoffRun(data, role);
   if (!handoffRun) return [];
 
   const rank = payrollHandoffRank(handoffRun.status);
