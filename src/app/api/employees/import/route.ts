@@ -6,6 +6,7 @@ import { getSessionUser } from "@/lib/auth";
 import { getEntitlements, requireFeature, seatUsage } from "@/lib/billing";
 import { parseEmployeeCsv } from "@/lib/csv-import";
 import { assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
+import { ensureMigrationSchema } from "@/lib/migration-schema";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,8 @@ export async function POST(request: Request) {
     "Only People administrators can import employee records.",
   );
   if (deniedImport) return deniedImport;
+
+  await ensureMigrationSchema();
 
   const entitlements = await getEntitlements(organizationId);
   const gate = requireFeature(entitlements, "imports");
@@ -172,6 +175,7 @@ export async function GET(request: Request) {
     "Only People administrators can view import history.",
   );
   if (deniedList) return deniedList;
+  await ensureMigrationSchema();
   const batches = await db.select().from(importBatches).where(eq(importBatches.organizationId, organizationId));
   return Response.json({ batches: batches.slice(-10).reverse() });
 }

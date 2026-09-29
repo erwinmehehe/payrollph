@@ -141,16 +141,16 @@ export async function SoftwareHome() {
                 <h2>Try the payroll workspace yourself.</h2>
               </div>
               <p>
-                Open Payroll, inspect a payslip, acknowledge an exception and simulate releasing a sample run. The
-                interactions are real; the people and payroll data are sample data.
+                Explore the wider workspace, from payroll and people to migration, leave, compliance, loans and
+                operations. Core payroll actions remain interactive; every screen uses sample data and writes nothing.
               </p>
             </div>
 
             <div className={styles.simulationHints} aria-label="Things to try in the simulation">
               <span>Open Payroll</span>
-              <span>Expand a payslip</span>
-              <span>Review an exception</span>
-              <span>Release the sample run</span>
+              <span>Try Migration</span>
+              <span>Review Compliance</span>
+              <span>Explore People & Leave</span>
             </div>
 
             <div className={styles.simulationSurface}>

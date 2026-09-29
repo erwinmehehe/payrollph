@@ -99,10 +99,11 @@ export const DEVELOPER_ADMIN_ROLES = ["owner", "admin", "bookkeeper"] as const;
 export const BILLING_ADMIN_ROLES = ["owner", "admin", "bookkeeper"] as const;
 export const APPROVAL_ADMIN_ROLES = ["owner", "admin", "bookkeeper", "hr"] as const;
 export const PAYROLL_OPERATOR_ROLES = ["owner", "admin", "bookkeeper", "payroll"] as const;
+export const PAYROLL_VIEW_ROLES = ["owner", "admin", "bookkeeper", "payroll", "checker"] as const;
 // Preparing payroll and approving/releasing it are deliberately separate powers.
 // Bookkeepers/payroll processors can prepare and export, but they cannot act as
 // their own checker or release money-bearing payroll state.
-export const PAYROLL_CHECKER_ROLES = ["owner", "admin", "manager"] as const;
+export const PAYROLL_CHECKER_ROLES = ["owner", "admin", "manager", "checker"] as const;
 export const PAYROLL_RELEASE_ROLES = ["owner", "admin"] as const;
 export const PAYROLL_DISBURSEMENT_ROLES = ["owner"] as const;
 
