@@ -588,6 +588,8 @@ export const importBatches = pgTable("import_batches", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   fileName: varchar("file_name", { length: 200 }).notNull(),
+  sourceSystem: varchar("source_system", { length: 64 }).notNull().default("generic"),
+  importKind: varchar("import_kind", { length: 40 }).notNull().default("employees"),
   totalRows: integer("total_rows").notNull().default(0),
   createdCount: integer("created_count").notNull().default(0),
   updatedCount: integer("updated_count").notNull().default(0),
@@ -597,6 +599,32 @@ export const importBatches = pgTable("import_batches", {
   createdBy: varchar("created_by", { length: 120 }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const historicalPayrollEntries = pgTable("historical_payroll_entries", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  importBatchId: integer("import_batch_id").references(() => importBatches.id, { onDelete: "set null" }),
+  sourceSystem: varchar("source_system", { length: 64 }).notNull().default("generic"),
+  sourceReference: varchar("source_reference", { length: 180 }).notNull(),
+  periodLabel: varchar("period_label", { length: 120 }).notNull(),
+  payDate: date("pay_date").notNull(),
+  grossPay: numeric("gross_pay", { precision: 14, scale: 2 }).notNull(),
+  netPay: numeric("net_pay", { precision: 14, scale: 2 }).notNull(),
+  taxWithheld: numeric("tax_withheld", { precision: 14, scale: 2 }).notNull().default("0"),
+  sssEmployee: numeric("sss_employee", { precision: 14, scale: 2 }).notNull().default("0"),
+  philHealthEmployee: numeric("philhealth_employee", { precision: 14, scale: 2 }).notNull().default("0"),
+  pagIbigEmployee: numeric("pagibig_employee", { precision: 14, scale: 2 }).notNull().default("0"),
+  thirteenthMonth: numeric("thirteenth_month", { precision: 14, scale: 2 }).notNull().default("0"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("historical_payroll_source_unique").on(
+    table.organizationId,
+    table.employeeId,
+    table.sourceSystem,
+    table.sourceReference,
+  ),
+]);
 
 export const benefitPlans = pgTable("benefit_plans", {
   id: serial("id").primaryKey(),
