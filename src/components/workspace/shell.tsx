@@ -29,6 +29,7 @@ export type Notification = {
   at?: string | Date;
   tone: "review" | "active" | "danger" | "success";
   page?: string;
+  employeeId?: number;
 };
 
 export function WorkspaceShell({
@@ -38,6 +39,7 @@ export function WorkspaceShell({
   notifications,
   onOpenPalette,
   onOpenNotification,
+  onSelectNotification,
   onSwitchClient,
   onSwitchRole,
   onSignOut,
@@ -53,6 +55,7 @@ export function WorkspaceShell({
   notifications: Notification[];
   onOpenPalette: () => void;
   onOpenNotification?: () => void;
+  onSelectNotification?: (notification: Notification) => void;
   onSwitchClient: (id: number) => void;
   onSwitchRole?: (role: DemoRoleId) => void;
   onSignOut: () => void;
@@ -353,7 +356,11 @@ export function WorkspaceShell({
                           className="tray-item"
                           onClick={() => {
                             setTrayOpen(false);
-                            if (item.page) onPage(item.page);
+                            if (onSelectNotification) {
+                              onSelectNotification(item);
+                            } else if (item.page) {
+                              onPage(item.page);
+                            }
                           }}
                         >
                           <span className={`attention-icon ${item.tone === "review" || item.tone === "danger" ? "urgent" : ""}`} aria-hidden>
@@ -405,5 +412,6 @@ export function buildNotifications(
     detail: item.detail,
     tone: item.tone,
     page: item.page,
+    employeeId: item.employeeId,
   }));
 }
