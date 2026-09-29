@@ -276,6 +276,7 @@ export type FinalPayTaxInputs = {
   statutorySeparationPay: number;
   statutoryRetirementPay: number;
   separationPayTaxExempt: boolean;
+  retirementPayTaxExempt: boolean;
   mwe: boolean;
 };
 
@@ -292,7 +293,7 @@ export function computeFinalPayTaxAdjustment(input: FinalPayTaxInputs): Annualiz
   const otherNonTaxable =
     Math.max(0, input.otherNonTaxable)
     + (input.separationPayTaxExempt ? Math.max(0, input.statutorySeparationPay) : 0)
-    + Math.max(0, input.statutoryRetirementPay);
+    + (input.retirementPayTaxExempt ? Math.max(0, input.statutoryRetirementPay) : 0);
 
   return annualize({
     grossCompensation,
