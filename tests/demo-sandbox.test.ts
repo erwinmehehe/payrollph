@@ -72,3 +72,21 @@ test("production demo switch provisions only the isolated public demo tenant whe
   assert.ok(!publicDemo.includes("Mantra Studio"), "public production demo must not seed unrelated demo organizations");
   assert.ok(!publicDemo.includes("Santos Retail Group"), "public production demo must not seed unrelated demo organizations");
 });
+
+
+test("optional public demo enrichment cannot block the core sandbox", () => {
+  const publicDemo = read("src/db/public-demo.ts");
+  assert.ok(publicDemo.includes("async function optionalSeed"), "optional demo data must be isolated behind a non-blocking helper");
+  for (const enrichment of ['optionalSeed("subscription"', 'optionalSeed("attendance"', 'optionalSeed("leave"', 'optionalSeed("audit"']) {
+    assert.ok(publicDemo.includes(enrichment), `missing resilient enrichment: ${enrichment}`);
+  }
+  assert.ok(publicDemo.indexOf("return organization.id") < publicDemo.indexOf("await ensureOptionalDemoData(organizationId)"),
+    "core demo tenant must commit before optional enrichment runs");
+});
+
+test("demo switch returns a controlled response when provisioning fails", () => {
+  const route = read("src/app/api/auth/demo-switch/route.ts");
+  assert.ok(route.includes('console.error("Public demo provisioning failed"'), "server must log provisioning failures");
+  assert.ok(route.includes("The demo workspace could not be prepared. Please try again in a moment."), "browser must receive a useful retry message");
+  assert.ok(route.includes("{ status: 503 }"), "provisioning failures must be service-unavailable, not an empty 500");
+});

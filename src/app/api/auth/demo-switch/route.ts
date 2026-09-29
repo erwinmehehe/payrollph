@@ -141,10 +141,18 @@ export async function POST(request: Request) {
     return Response.json({ error: "Demo accounts are disabled on this deployment." }, { status: 404 });
   }
 
-  if (DEMO_MODE) {
-    await ensureSeedData();
-  } else {
-    await ensurePublicDemoTenant();
+  try {
+    if (DEMO_MODE) {
+      await ensureSeedData();
+    } else {
+      await ensurePublicDemoTenant();
+    }
+  } catch (error) {
+    console.error("Public demo provisioning failed", error);
+    return Response.json(
+      { error: "The demo workspace could not be prepared. Please try again in a moment." },
+      { status: 503 },
+    );
   }
 
   const body = await request.json().catch(() => ({}));
