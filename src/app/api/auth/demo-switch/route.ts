@@ -6,7 +6,9 @@ import { createSession, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth"
 import { requestMeta } from "@/lib/rate-limit";
 import { hashPassword } from "@/lib/crypto";
 import { DEMO_MODE, ensureSeedData } from "@/db/seed";
+import { ensurePublicDemoTenant } from "@/db/public-demo";
 import { DEMO_ROLE_IDS, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
+import { publicDemoHostAllowed } from "@/lib/demo-host";
 
 export const dynamic = "force-dynamic";
 
@@ -120,12 +122,30 @@ async function ensureDemoAccount(role: DemoRoleId, organizationId: number) {
   return user;
 }
 
+function publicDemoAllowed(request: Request) {
+  if (DEMO_MODE) return true;
+
+  const hostname = new URL(request.url).hostname.toLowerCase();
+  if (process.env.NODE_ENV !== "production" && (hostname === "127.0.0.1" || hostname === "localhost")) {
+    return true;
+  }
+
+  return publicDemoHostAllowed(hostname, {
+    productionHost: process.env.VERCEL_PROJECT_PRODUCTION_URL,
+    configuredHosts: process.env.PUBLIC_DEMO_HOSTS,
+  });
+}
+
 export async function POST(request: Request) {
-  if (!DEMO_MODE) {
+  if (!publicDemoAllowed(request)) {
     return Response.json({ error: "Demo accounts are disabled on this deployment." }, { status: 404 });
   }
 
-  await ensureSeedData();
+  if (DEMO_MODE) {
+    await ensureSeedData();
+  } else {
+    await ensurePublicDemoTenant();
+  }
 
   const body = await request.json().catch(() => ({}));
   const requestedRole = String(body.role ?? "");
