@@ -168,11 +168,24 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         return;
       }
       await refresh();
+      const handoff = payload.handoffNotification as
+        | { ok?: boolean; recipients?: number; warning?: string }
+        | null
+        | undefined;
+      const handoffCopy =
+        status === "Approved" && handoff?.ok && (handoff.recipients ?? 0) > 0
+          ? ` ${handoff.recipients} release-authority notice(s) queued.`
+          : status === "Declined" && handoff?.ok
+            ? " Payroll returned to the maker and the handoff notice was queued."
+            : "";
       notify(
-        payload.decidedOnBehalfOf
+        (payload.decidedOnBehalfOf
           ? `Approval ${status.toLowerCase()} on behalf of ${payload.decidedOnBehalfOf}, the delegation chain is in the audit trail.`
-          : `Approval ${status.toLowerCase()} and recorded in the audit trail.`,
+          : `Approval ${status.toLowerCase()} and recorded in the audit trail.`) + handoffCopy,
       );
+      if (handoff?.warning) {
+        notify(handoff.warning, "info");
+      }
     } catch {
       notify("Could not reach the approvals service.", "err");
     } finally {
