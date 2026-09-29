@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, CheckCircle2, RotateCcw, UserCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, RotateCcw, ShieldCheck, UserCheck } from "lucide-react";
 import { DEMO_ROLES, demoRoleInfo, type DemoRoleId } from "@/lib/demo-roles";
 
 export function DemoSandboxBar({
@@ -43,6 +43,35 @@ export function DemoSandboxBar({
               {item.shortLabel}
             </button>
           ))}
+        </div>
+
+        <div
+          style={{
+            marginTop: 12,
+            padding: "11px 12px",
+            border: "1px solid var(--line)",
+            borderRadius: 10,
+            background: "var(--soft)",
+          }}
+        >
+          <div className="card-kicker" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <ShieldCheck size={12} className="i-green" />
+            THIS ROLE CAN SEE
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 7 }}>
+            {info.access.map((item) => (
+              <span
+                key={item}
+                className="status"
+                style={{ background: "#fff", border: "1px solid var(--line)", color: "var(--muted)" }}
+              >
+                {item}
+              </span>
+            ))}
+          </div>
+          <small style={{ display: "block", marginTop: 8, color: "var(--muted)", lineHeight: 1.45 }}>
+            Navigation is scoped to the selected persona. Owner-only administration stays hidden, and every write action is still checked by the server.
+          </small>
         </div>
       </div>
 
