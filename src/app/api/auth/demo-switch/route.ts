@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, organizations, orgUnits, userOrganizations, users } from "@/db/schema";
+import { employees, organizations, userOrganizations, users } from "@/db/schema";
 import { createSession, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth";
 import { requestMeta } from "@/lib/rate-limit";
 import { hashPassword } from "@/lib/crypto";
@@ -15,9 +15,7 @@ type DemoAccount = {
   name: string;
   userRole: string;
   membershipRole: string;
-  target: "loom" | "businesses" | "freelancer";
   employeeEmail?: string;
-  orgUnitCode?: string;
 };
 
 const DEMO_ACCOUNTS: Record<DemoRoleId, DemoAccount> = {
@@ -26,51 +24,31 @@ const DEMO_ACCOUNTS: Record<DemoRoleId, DemoAccount> = {
     name: "Andrea Lim",
     userRole: "owner",
     membershipRole: "owner",
-    target: "loom",
-  },
-  bookkeeper: {
-    email: "celine@linaw.ph",
-    name: "Celine Yao",
-    userRole: "bookkeeper",
-    membershipRole: "bookkeeper",
-    target: "businesses",
-  },
-  payroll: {
-    email: "payroll.demo@linaw.ph",
-    name: "Paolo Cruz",
-    userRole: "payroll",
-    membershipRole: "payroll",
-    target: "loom",
   },
   hr: {
     email: "hr.demo@linaw.ph",
     name: "Aira Villanueva",
     userRole: "hr",
     membershipRole: "hr",
-    target: "loom",
   },
-  manager: {
-    email: "manager.demo@linaw.ph",
+  payroll: {
+    email: "payroll.demo@linaw.ph",
+    name: "Paolo Cruz",
+    userRole: "payroll",
+    membershipRole: "payroll",
+  },
+  checker: {
+    email: "checker.demo@linaw.ph",
     name: "Mariel Santos",
-    userRole: "manager",
-    membershipRole: "manager",
-    target: "loom",
-    orgUnitCode: "OPS",
+    userRole: "checker",
+    membershipRole: "checker",
   },
   employee: {
     email: "jonas.reyes@linaw.ph",
     name: "Jonas Reyes",
     userRole: "employee",
     membershipRole: "employee",
-    target: "loom",
     employeeEmail: "jonas.reyes@linaw.ph",
-  },
-  freelancer: {
-    email: "mika@linaw.ph",
-    name: "Mika Ramos",
-    userRole: "freelancer",
-    membershipRole: "owner",
-    target: "freelancer",
   },
 };
 
@@ -89,8 +67,6 @@ export async function POST(request: Request) {
 
   const orgs = await db.select().from(organizations);
   const loom = orgs.find((org) => org.name === "Loom & Local");
-  const freelancer = orgs.find((org) => org.name === "Mika, self-employed");
-  const demoBusinessNames = new Set(["Loom & Local", "Mantra Studio", "Santos Retail Group"]);
 
   if (!loom) {
     return Response.json({ error: "Demo company data is unavailable." }, { status: 503 });
@@ -141,55 +117,31 @@ export async function POST(request: Request) {
       .returning();
   }
 
-  let targetOrganizations = [];
-  if (account.target === "businesses") {
-    targetOrganizations = orgs.filter((org) => demoBusinessNames.has(org.name));
-  } else if (account.target === "freelancer") {
-    if (!freelancer) {
-      return Response.json({ error: "Demo freelancer data is unavailable." }, { status: 503 });
-    }
-    targetOrganizations = [freelancer];
-  } else {
-    targetOrganizations = [loom];
-  }
-
-  let orgUnitId: number | null = null;
-  if (account.orgUnitCode) {
-    const [unit] = await db
-      .select()
-      .from(orgUnits)
-      .where(and(eq(orgUnits.organizationId, loom.id), eq(orgUnits.code, account.orgUnitCode)))
-      .limit(1);
-    orgUnitId = unit?.id ?? null;
-  }
-
-  const desiredOrganizationIds = new Set(targetOrganizations.map((organization) => organization.id));
-  for (const organization of targetOrganizations) {
-    await db
-      .insert(userOrganizations)
-      .values({
-        userId: user.id,
-        organizationId: organization.id,
+  await db
+    .insert(userOrganizations)
+    .values({
+      userId: user.id,
+      organizationId: loom.id,
+      role: account.membershipRole,
+      orgUnitId: null,
+    })
+    .onConflictDoUpdate({
+      target: [userOrganizations.userId, userOrganizations.organizationId],
+      set: {
         role: account.membershipRole,
-        orgUnitId: organization.id === loom.id ? orgUnitId : null,
-      })
-      .onConflictDoUpdate({
-        target: [userOrganizations.userId, userOrganizations.organizationId],
-        set: {
-          role: account.membershipRole,
-          orgUnitId: organization.id === loom.id ? orgUnitId : null,
-        },
-      });
-  }
+        orgUnitId: null,
+      },
+    });
 
-  // Remove only stale memberships belonging to this dedicated demo identity.
-  // Other personas are untouched.
+  // Each public persona is a dedicated demo identity and belongs only to the
+  // sample company. Keeping one organization per persona removes confusing
+  // client-switch states and makes every launch deterministic.
   const memberships = await db
     .select()
     .from(userOrganizations)
     .where(eq(userOrganizations.userId, user.id));
   for (const membership of memberships) {
-    if (desiredOrganizationIds.has(membership.organizationId)) continue;
+    if (membership.organizationId === loom.id) continue;
     await db.delete(userOrganizations).where(eq(userOrganizations.id, membership.id));
   }
 
@@ -207,6 +159,6 @@ export async function POST(request: Request) {
       role: activeUser.role,
       employeeId: activeUser.employeeId,
     },
-    redirectTo: requestedRole === "employee" ? "/" : `/?demoRole=${requestedRole}`,
+    redirectTo: `/?demoRole=${requestedRole}`,
   });
 }
