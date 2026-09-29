@@ -12,7 +12,6 @@ export function publicDemoHostAllowed(
   const normalized = hostname.trim().toLowerCase();
   const productionHost = (options.productionHost ?? "").trim().toLowerCase();
   const deploymentHost = (options.deploymentHost ?? "").trim().toLowerCase();
-  const deploymentHost = (options.deploymentHost ?? "").trim().toLowerCase();
   const configuredHosts = (options.configuredHosts ?? "")
     .split(",")
     .map((value) => value.trim().toLowerCase())
