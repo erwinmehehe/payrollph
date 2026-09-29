@@ -124,7 +124,13 @@ async function ensureDemoAccount(role: DemoRoleId, organizationId: number) {
 
 function publicDemoAllowed(request: Request) {
   if (DEMO_MODE) return true;
-  return publicDemoHostAllowed(new URL(request.url).hostname, {
+
+  const hostname = new URL(request.url).hostname.toLowerCase();
+  if (process.env.NODE_ENV !== "production" && (hostname === "127.0.0.1" || hostname === "localhost")) {
+    return true;
+  }
+
+  return publicDemoHostAllowed(hostname, {
     productionHost: process.env.VERCEL_PROJECT_PRODUCTION_URL,
     configuredHosts: process.env.PUBLIC_DEMO_HOSTS,
   });
