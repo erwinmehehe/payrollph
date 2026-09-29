@@ -42,6 +42,7 @@ type ReleaseChecklistItem = {
   label: string;
   passed: boolean;
   blocking: boolean;
+  acknowledgeable?: boolean;
   detail: string;
 };
 
@@ -268,6 +269,12 @@ export function PayrollRunView({
       ? 100
       : 0;
   const stage = currentStage(run, relatedTask);
+  const hardChecklistBlocked = releaseChecklist?.items.some(
+    (item) => item.blocking && !item.passed && !item.acknowledgeable,
+  ) ?? false;
+  const checklistAcknowledgementNeeded = releaseChecklist?.items.some(
+    (item) => item.blocking && !item.passed && item.acknowledgeable,
+  ) ?? false;
 
   return (
     <>
@@ -526,9 +533,11 @@ export function PayrollRunView({
                   ? "Released. Payslip-ready notices were queued for every active employee with an email on file."
                   : relatedTask?.status !== "Approved"
                     ? "A checker must approve this payroll before release is available."
-                    : exceptionRows.length > 0
-                      ? `${exceptionRows.length} exception${exceptionRows.length === 1 ? "" : "s"} must be acknowledged explicitly.`
-                      : "Locks the register, makes the stored payslips available and fires the payroll.released webhook."
+                    : hardChecklistBlocked
+                      ? "Release checklist still has hard blockers. Open the checklist above and resolve them first."
+                      : checklistAcknowledgementNeeded || exceptionRows.length > 0
+                        ? "Review the remaining exceptions and acknowledge them explicitly in the release confirmation."
+                        : "Locks the register, makes the stored payslips available and fires the payroll.released webhook."
               }
               action={
                 released ? (
@@ -536,7 +545,7 @@ export function PayrollRunView({
                     Released
                   </span>
                 ) : (
-                  <button className="primary-button brand" disabled={busy || !calculated || relatedTask?.status !== "Approved" || releaseChecklist?.ready === false} onClick={() => setConfirmRelease(true)}>
+                  <button className="primary-button brand" disabled={busy || !calculated || relatedTask?.status !== "Approved" || hardChecklistBlocked} onClick={() => setConfirmRelease(true)}>
                     <Send size={14} className="i-pink" /> Release
                   </button>
                 )
@@ -732,6 +741,7 @@ export function PayrollRunView({
         <ReleaseDialog
           run={run}
           exceptions={exceptionRows.length || run.exceptions}
+          checklist={releaseChecklist?.items ?? []}
           busy={busy}
           onClose={() => setConfirmRelease(false)}
           onConfirm={async (acknowledge) => {
@@ -1071,18 +1081,23 @@ function ExportPanel({
 function ReleaseDialog({
   run,
   exceptions,
+  checklist,
   busy,
   onClose,
   onConfirm,
 }: {
   run: PayrollRun;
   exceptions: number;
+  checklist: ReleaseChecklistItem[];
   busy: boolean;
   onClose: () => void;
   onConfirm: (acknowledgeExceptions: boolean) => Promise<void>;
 }) {
   const [acknowledged, setAcknowledged] = useState(false);
-  const blocked = exceptions > 0 && !acknowledged;
+  const hardFailures = checklist.filter((item) => item.blocking && !item.passed && !item.acknowledgeable);
+  const acknowledgementItems = checklist.filter((item) => item.blocking && !item.passed && item.acknowledgeable);
+  const needsAcknowledgement = exceptions > 0 || acknowledgementItems.length > 0;
+  const blocked = hardFailures.length > 0 || (needsAcknowledgement && !acknowledged);
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Confirm payroll release">
@@ -1115,21 +1130,32 @@ function ReleaseDialog({
           </div>
         </div>
 
-        {exceptions > 0 && (
+        {hardFailures.length > 0 && (
+          <div className="notice notice-red" style={{ margin: "0 0 12px" }}>
+            <AlertTriangle size={15} className="i-red" />
+            <div>
+              <strong>{hardFailures.length} hard release blocker{hardFailures.length === 1 ? "" : "s"} remain.</strong>
+              <p style={{ margin: "4px 0 0" }}>{hardFailures.map((item) => item.label).join(" · ")}</p>
+            </div>
+          </div>
+        )}
+
+        {needsAcknowledgement && (
           <div className="notice notice-amber" style={{ margin: 0 }}>
             <AlertTriangle size={15} className="i-red" />
             <div>
               <strong>
-                {exceptions} exception{exceptions === 1 ? "" : "s"} still flagged.
+                Review acknowledgement required before release.
               </strong>
               <p style={{ margin: "4px 0 8px" }}>
-                Incomplete punches derive zero hours. The release endpoint rejects this run unless you acknowledge them
-                explicitly, that acknowledgement is recorded in the audit event.
+                {exceptions > 0 ? `${exceptions} engine exception(s). ` : ""}
+                {acknowledgementItems.length > 0 ? acknowledgementItems.map((item) => item.label).join(" · ") : ""}
+                {" "}Your acknowledgement is recorded with the release audit event.
               </p>
               <label className="switch">
                 <input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} />
                 <i aria-hidden />
-                <span>I have reviewed the exceptions and accept them</span>
+                <span>I reviewed these exceptions and accept them for this release</span>
               </label>
             </div>
           </div>
