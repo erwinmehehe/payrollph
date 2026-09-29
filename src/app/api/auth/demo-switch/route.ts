@@ -6,7 +6,7 @@ import { createSession, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth"
 import { requestMeta } from "@/lib/rate-limit";
 import { hashPassword } from "@/lib/crypto";
 import { DEMO_MODE, ensureSeedData } from "@/db/seed";
-import { isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
+import { DEMO_ROLE_IDS, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
 
 export const dynamic = "force-dynamic";
 
@@ -52,43 +52,18 @@ const DEMO_ACCOUNTS: Record<DemoRoleId, DemoAccount> = {
   },
 };
 
-export async function POST(request: Request) {
-  if (!DEMO_MODE) {
-    return Response.json({ error: "Demo accounts are disabled on this deployment." }, { status: 404 });
-  }
-
-  await ensureSeedData();
-
-  const body = await request.json().catch(() => ({}));
-  const requestedRole = String(body.role ?? "");
-  if (!isDemoRole(requestedRole)) {
-    return Response.json({ error: "Unknown demo role." }, { status: 400 });
-  }
-
-  const orgs = await db.select().from(organizations);
-  const loom = orgs.find((org) => org.name === "Loom & Local");
-
-  if (!loom) {
-    return Response.json({ error: "Demo company data is unavailable." }, { status: 503 });
-  }
-
-  // Repair only the persona being opened. Demo identities are dedicated
-  // accounts, so a role switch must never rewrite memberships for every other
-  // persona. That avoids cross-session races when several people use the demo
-  // at the same time.
-  const account = DEMO_ACCOUNTS[requestedRole];
+async function ensureDemoAccount(role: DemoRoleId, organizationId: number) {
+  const account = DEMO_ACCOUNTS[role];
 
   let employeeId: number | null = null;
   if (account.employeeEmail) {
     const [employee] = await db
       .select()
       .from(employees)
-      .where(and(eq(employees.organizationId, loom.id), eq(employees.email, account.employeeEmail)))
+      .where(and(eq(employees.organizationId, organizationId), eq(employees.email, account.employeeEmail)))
       .limit(1);
     employeeId = employee?.id ?? null;
-    if (!employeeId) {
-      return Response.json({ error: `Demo employee for ${requestedRole} is unavailable.` }, { status: 503 });
-    }
+    if (!employeeId) throw new Error(`Demo employee for ${role} is unavailable.`);
   }
 
   let [user] = await db.select().from(users).where(eq(users.email, account.email)).limit(1);
@@ -121,7 +96,7 @@ export async function POST(request: Request) {
     .insert(userOrganizations)
     .values({
       userId: user.id,
-      organizationId: loom.id,
+      organizationId,
       role: account.membershipRole,
       orgUnitId: null,
     })
@@ -133,19 +108,60 @@ export async function POST(request: Request) {
       },
     });
 
-  // Each public persona is a dedicated demo identity and belongs only to the
-  // sample company. Keeping one organization per persona removes confusing
-  // client-switch states and makes every launch deterministic.
   const memberships = await db
     .select()
     .from(userOrganizations)
     .where(eq(userOrganizations.userId, user.id));
   for (const membership of memberships) {
-    if (membership.organizationId === loom.id) continue;
+    if (membership.organizationId === organizationId) continue;
     await db.delete(userOrganizations).where(eq(userOrganizations.id, membership.id));
   }
 
-  const activeUser = user;
+  return user;
+}
+
+export async function POST(request: Request) {
+  if (!DEMO_MODE) {
+    return Response.json({ error: "Demo accounts are disabled on this deployment." }, { status: 404 });
+  }
+
+  await ensureSeedData();
+
+  const body = await request.json().catch(() => ({}));
+  const requestedRole = String(body.role ?? "");
+  if (!isDemoRole(requestedRole)) {
+    return Response.json({ error: "Unknown demo role." }, { status: 400 });
+  }
+
+  const [loom] = await db
+    .select()
+    .from(organizations)
+    .where(eq(organizations.name, "Loom & Local"))
+    .limit(1);
+
+  if (!loom) {
+    return Response.json({ error: "Demo company data is unavailable." }, { status: 503 });
+  }
+
+  // Provision all five identities together so a Payroll Officer can immediately
+  // submit to the Checker even if nobody has opened the Checker persona yet.
+  const personaUsers = new Map<DemoRoleId, Awaited<ReturnType<typeof ensureDemoAccount>>>();
+  try {
+    for (const role of DEMO_ROLE_IDS) {
+      personaUsers.set(role, await ensureDemoAccount(role, loom.id));
+    }
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Demo personas could not be prepared." },
+      { status: 503 },
+    );
+  }
+
+  const activeUser = personaUsers.get(requestedRole);
+  if (!activeUser) {
+    return Response.json({ error: "Demo persona is unavailable." }, { status: 503 });
+  }
+
   const { token, expiresAt } = await createSession(activeUser.id, requestMeta(request));
   const jar = await cookies();
   jar.set(SESSION_COOKIE, token, sessionCookieOptions(expiresAt));
