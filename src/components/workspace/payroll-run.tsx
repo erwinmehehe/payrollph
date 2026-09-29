@@ -34,9 +34,21 @@ import {
   moneyExact,
 } from "./ui";
 
-type Stage = "prepare" | "approve" | "release" | "export";
+type ReleaseChecklistItem = {
+  key: "inputs" | "attendance" | "calculation" | "exceptions" | "statutory" | "approval" | "bank";
+  label: string;
+  passed: boolean;
+  blocking: boolean;
+  detail: string;
+};
 
-const GOVERNMENT_DRAFTS = ["1601-C", "Alphalist/2316", "SSS R-3", "PhilHealth RF-1", "Pag-IBIG MCRF"];
+const GOVERNMENT_EXPORTS = [
+  { value: "bir-1601c", label: "BIR 1601-C worksheet" },
+  { value: "bir-1604c-source", label: "BIR 1604-C annual source extract" },
+  { value: "sss-r3", label: "SSS e-CL / R-3 worksheet" },
+  { value: "philhealth-rf1", label: "PhilHealth EPRS / RF-1 worksheet" },
+  { value: "pagibig-mcrf", label: "Pag-IBIG MCRF / eSRS worksheet" },
+] as const;
 
 export function PayrollRunView({
   data,
@@ -70,6 +82,11 @@ export function PayrollRunView({
   const [reviewApproverId, setReviewApproverId] = useState<number | null>(null);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewLoading, setReviewLoading] = useState(false);
+  const [releaseChecklist, setReleaseChecklist] = useState<{
+    ready: boolean;
+    items: ReleaseChecklistItem[];
+    assuranceSummary?: { high: number; medium: number; blocking: number } | null;
+  } | null>(null);
 
   // Derived, not synced: if the selected run disappears (client switch, new
   // run) the first run takes over without an effect round-trip.
@@ -108,6 +125,30 @@ export function PayrollRunView({
       alive = false;
     };
   }, [runId, data.payrollRuns]);
+
+  useEffect(() => {
+    if (!runId) {
+      setReleaseChecklist(null);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      try {
+        const response = await fetch(`/api/payroll-runs/${runId}/release-checklist`, { cache: "no-store" });
+        if (!alive) return;
+        if (!response.ok) {
+          setReleaseChecklist(null);
+          return;
+        }
+        setReleaseChecklist(await response.json());
+      } catch {
+        if (alive) setReleaseChecklist(null);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [runId, data.payrollRuns, data.tasks]);
 
   const loadedForSelection = Boolean(fetched && fetched.runId === runId);
   const entries = useMemo(
@@ -224,14 +265,15 @@ export function PayrollRunView({
     : calculated
       ? 100
       : 0;
-  const stage = currentStage(run, relatedTask);
+  const releaseFailures = releaseChecklist?.items.filter((item) => item.blocking && !item.passed) ?? [];
+  const hardReleaseFailures = releaseFailures.filter((item) => item.key !== "attendance" && item.key !== "exceptions");
 
   return (
     <>
       <PageHeading
         eyebrow={`Payroll run #${run.id}`}
         title="Pay confidently, every cycle."
-        copy="Prepare, approve, release and export are deliberately separate steps. Each one is authorised on the server against your role and this client's workspace."
+        copy="One control center for the full payroll path: Prepare, Calculate, Review, Approve and Release. Every transition is re-checked on the server."
         actions={
           <>
             <button className="secondary-button" onClick={() => setExportsOpen((current) => !current)} aria-expanded={exportsOpen}>
@@ -338,7 +380,33 @@ export function PayrollRunView({
             )}
           </div>
 
-          <PayrollAssurancePanel runId={run.id} employees={data.employees} />
+          <div id="payroll-assurance">
+            <PayrollAssurancePanel runId={run.id} employees={data.employees} />
+          </div>
+
+          {releaseChecklist && (
+            <div className="card-body" id="release-checklist" style={{ paddingTop: 0 }}>
+              <div className="line-title" style={{ margin: 0 }}>
+                <strong>Release checklist</strong>
+                <span>
+                  {releaseChecklist.items.filter((item) => item.passed).length}/{releaseChecklist.items.length} controls ready
+                </span>
+              </div>
+              <div className="worksheet-list" style={{ display: "grid", gap: 7 }}>
+                {releaseChecklist.items.map((item) => (
+                  <div key={item.key}>
+                    {item.passed
+                      ? <Check size={14} className="i-green" />
+                      : <AlertTriangle size={14} className="i-red" />}
+                    <span>
+                      <strong>{item.label}</strong>
+                      <small style={{ display: "block", marginTop: 2, color: "var(--muted)" }}>{item.detail}</small>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Exceptions */}
           {exceptionRows.length > 0 && (
@@ -383,13 +451,20 @@ export function PayrollRunView({
             </div>
           )}
 
-          {/* Stage rail: the four separated actions */}
+          {/* Payroll Control Center: the five operational gates */}
           <div className="stage-rail">
             <StageCard
               no={1}
               title="Prepare"
-              state={calculated ? "done" : stage === "prepare" ? "now" : "locked"}
-              copy="Derive hours from punches and compute statutory deductions in the resumable queue."
+              state="done"
+              copy={`${run.periodLabel} · ${run.scopeLabel} · pay date ${formatDate(run.payDate)}`}
+              action={<span className="status status-tested"><Check size={12} /> Inputs saved</span>}
+            />
+            <StageCard
+              no={2}
+              title="Calculate"
+              state={calculated ? "done" : "now"}
+              copy="Derive hours from this cutoff only and calculate statutory deductions."
               action={
                 <button className="secondary-button" disabled={busy || released} onClick={() => onProcess(run.id)}>
                   {busy ? <Spinner label="Processing" /> : <RefreshCw size={14} className="i-blue" />}
@@ -398,32 +473,41 @@ export function PayrollRunView({
               }
             />
             <StageCard
-              no={2}
-              title="Approve"
-              state={
-                relatedTask
-                  ? relatedTask.status === "Pending"
-                    ? "now"
-                    : relatedTask.status === "Approved"
-                      ? "done"
-                      : "locked"
-                  : calculated
-                    ? "now"
-                    : "locked"
-              }
+              no={3}
+              title="Review"
+              state={relatedTask?.status === "Pending" || relatedTask?.status === "Approved" ? "done" : calculated ? "now" : "locked"}
               copy={
-                relatedTask
-                  ? relatedTask.status === "Pending"
-                    ? `${relatedTask.detail}, checker ${relatedTask.approver}.`
-                    : relatedTask.status === "Approved"
-                      ? `Approved by ${relatedTask.approver}. Maker-checker control is satisfied.`
-                      : "The review was declined. Resolve the issue and submit again."
-                  : calculated
-                    ? "Submit this calculated payroll to a different person for checker approval."
-                    : "Calculate payroll before submitting it for review."
+                calculated
+                  ? "Review payroll assurance, attendance exceptions and material variances, then submit to a checker."
+                  : "Calculation must finish before the review gate opens."
               }
               action={
-                relatedTask && relatedTask.status === "Pending" ? (
+                relatedTask?.status === "Pending" || relatedTask?.status === "Approved" ? (
+                  <span className="status status-tested"><Check size={12} /> Submitted</span>
+                ) : (
+                  <button
+                    className="secondary-button"
+                    disabled={!calculated || released}
+                    onClick={() => void openReviewSubmission()}
+                  >
+                    {reviewLoading ? <Spinner label="Loading" /> : <ShieldCheck size={14} className="i-purple" />} Submit review
+                  </button>
+                )
+              }
+            />
+            <StageCard
+              no={4}
+              title="Approve"
+              state={relatedTask?.status === "Approved" ? "done" : relatedTask?.status === "Pending" ? "now" : "locked"}
+              copy={
+                relatedTask?.status === "Approved"
+                  ? `Approved by ${relatedTask.decidedBy ?? relatedTask.approver}. Maker-checker control is satisfied.`
+                  : relatedTask?.status === "Pending"
+                    ? `Waiting for ${relatedTask.approver}. The maker cannot approve their own run.`
+                    : "A different authorized checker must approve the submitted payroll."
+              }
+              action={
+                relatedTask?.status === "Pending" ? (
                   <button className="secondary-button" onClick={() => onPage("Approvals")}>
                     <ArrowRight size={14} /> Open approval
                   </button>
@@ -431,51 +515,36 @@ export function PayrollRunView({
                   <span className="status status-approved" style={{ height: 30, padding: "0 12px" }}>
                     <Check size={12} /> Approved
                   </span>
-                ) : (
-                  <button
-                    className="secondary-button"
-                    disabled={!calculated || released}
-                    onClick={() => void openReviewSubmission()}
-                  >
-                    {reviewLoading ? <Spinner label="Loading" /> : <ShieldCheck size={14} className="i-purple" />} Submit for review
-                  </button>
-                )
+                ) : <span className="status">Waiting</span>
               }
             />
             <StageCard
-              no={3}
+              no={5}
               title="Release"
               state={released ? "done" : relatedTask?.status === "Approved" ? "now" : "locked"}
               copy={
                 released
-                  ? "Released. Payslip-ready notices were queued for every active employee with an email on file."
+                  ? "Released. The financial settlement and audit event committed atomically."
                   : relatedTask?.status !== "Approved"
-                    ? "A checker must approve this payroll before release is available."
-                    : exceptionRows.length > 0
-                      ? `${exceptionRows.length} exception${exceptionRows.length === 1 ? "" : "s"} must be acknowledged explicitly.`
-                      : "Locks the register, generates payslips and fires the payroll.released webhook."
+                    ? "Checker approval is required before release."
+                    : hardReleaseFailures.length > 0
+                      ? `${hardReleaseFailures.length} release-control item(s) still block payout.`
+                      : releaseFailures.length > 0
+                        ? "Only reviewable attendance/exception acknowledgement remains."
+                        : "All release controls pass. Final release re-checks them server-side."
               }
               action={
                 released ? (
-                  <span className="status status-released" style={{ height: 30, padding: "0 12px" }}>
-                    Released
-                  </span>
+                  <span className="status status-released" style={{ height: 30, padding: "0 12px" }}>Released</span>
                 ) : (
-                  <button className="primary-button brand" disabled={busy || !calculated || relatedTask?.status !== "Approved"} onClick={() => setConfirmRelease(true)}>
+                  <button
+                    className="primary-button brand"
+                    disabled={busy || !calculated || relatedTask?.status !== "Approved" || hardReleaseFailures.length > 0}
+                    onClick={() => setConfirmRelease(true)}
+                  >
                     <Send size={14} className="i-pink" /> Release
                   </button>
                 )
-              }
-            />
-            <StageCard
-              no={4}
-              title="Export"
-              state={released ? "now" : "locked"}
-              copy="Bank disbursement files, accounting journals and government worksheet drafts."
-              action={
-                <button className="secondary-button" disabled={!calculated} onClick={() => setExportsOpen(true)}>
-                  <Download size={14} className="i-teal" /> Open exports
-                </button>
               }
             />
           </div>
@@ -632,6 +701,7 @@ export function PayrollRunView({
         <ReleaseDialog
           run={run}
           exceptions={exceptionRows.length || run.exceptions}
+          checklist={releaseChecklist?.items ?? []}
           busy={busy}
           onClose={() => setConfirmRelease(false)}
           onConfirm={async (acknowledge) => {
@@ -830,7 +900,7 @@ function ExportPanel({
 }) {
   const [template, setTemplate] = useState(templates[0]?.name ?? "BDO DAT");
   const [dryRun, setDryRun] = useState(true);
-  const [draft, setDraft] = useState(GOVERNMENT_DRAFTS[0]);
+  const [draft, setDraft] = useState<string>(GOVERNMENT_EXPORTS[0].value);
 
   function download(url: string, label: string) {
     window.open(url, "_blank", "noopener");
@@ -924,9 +994,9 @@ function ExportPanel({
                   <label className="field">
                     <span className="sr-only">Worksheet</span>
                     <select value={draft} onChange={(event) => setDraft(event.target.value)} aria-label="Government worksheet">
-                      {GOVERNMENT_DRAFTS.map((name) => (
-                        <option key={name} value={name}>
-                          {name}
+                      {GOVERNMENT_EXPORTS.map((item) => (
+                        <option key={item.value} value={item.value}>
+                          {item.label}
                         </option>
                       ))}
                     </select>
@@ -936,7 +1006,7 @@ function ExportPanel({
                     onClick={() =>
                       download(
                         `/api/payroll-runs/${run.id}/exports?kind=government&template=${encodeURIComponent(draft)}`,
-                        `${draft} draft`,
+                        `${GOVERNMENT_EXPORTS.find((item) => item.value === draft)?.label ?? draft} export`,
                       )
                     }
                   >
@@ -955,18 +1025,26 @@ function ExportPanel({
 function ReleaseDialog({
   run,
   exceptions,
+  checklist,
   busy,
   onClose,
   onConfirm,
 }: {
   run: PayrollRun;
   exceptions: number;
+  checklist: ReleaseChecklistItem[];
   busy: boolean;
   onClose: () => void;
   onConfirm: (acknowledgeExceptions: boolean) => Promise<void>;
 }) {
   const [acknowledged, setAcknowledged] = useState(false);
-  const blocked = exceptions > 0 && !acknowledged;
+  const unresolved = checklist.filter((item) =>
+    item.blocking &&
+    !item.passed &&
+    item.key !== "attendance" &&
+    item.key !== "exceptions"
+  );
+  const blocked = unresolved.length > 0 || (exceptions > 0 && !acknowledged);
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Confirm payroll release">
@@ -998,6 +1076,19 @@ function ReleaseDialog({
             <strong style={{ fontSize: 14 }}>{formatDate(run.payDate)}</strong>
           </div>
         </div>
+
+        {checklist.length > 0 && (
+          <div className="worksheet-list" style={{ display: "grid", gap: 6, marginBottom: 14 }}>
+            {checklist.map((item) => (
+              <div key={item.key}>
+                {item.passed
+                  ? <Check size={13} className="i-green" />
+                  : <AlertTriangle size={13} className="i-red" />}
+                <span><strong>{item.label}</strong><small style={{ display: "block", marginTop: 2 }}>{item.detail}</small></span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {exceptions > 0 && (
           <div className="notice notice-amber" style={{ margin: 0 }}>
@@ -1033,13 +1124,6 @@ function ReleaseDialog({
 }
 
 /* ---------------------------------------------------------------- helpers */
-
-function currentStage(run: PayrollRun, task?: Task): Stage {
-  if (run.status === "Released") return "export";
-  if (run.status === "Ready for release" && task?.status === "Approved") return "release";
-  if (Number(run.grossPay) > 0) return "approve";
-  return "prepare";
-}
 
 /**
  * Payroll approvals are linked to an exact run id in task detail. Do not fall
