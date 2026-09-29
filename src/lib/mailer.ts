@@ -92,6 +92,93 @@ export async function queueMessageOnce(input: {
   return { ...result, duplicate: false };
 }
 
+export async function retryOutboxMessage(input: {
+  organizationId: number;
+  messageId: number;
+}) {
+  const [row] = await db
+    .select()
+    .from(outbox)
+    .where(and(
+      eq(outbox.id, input.messageId),
+      eq(outbox.organizationId, input.organizationId),
+    ))
+    .limit(1);
+
+  if (!row) return null;
+
+  if (row.status === "sent") {
+    return {
+      id: row.id,
+      status: row.status,
+      delivered: true,
+      queued: false,
+      provider: row.provider as MailProvider,
+      alreadySent: true,
+      reason: null,
+    };
+  }
+
+  const providerName = provider();
+  if (providerName === "none") {
+    await db.update(outbox).set({
+      provider: providerName,
+      status: "queued",
+      error: null,
+    }).where(eq(outbox.id, row.id));
+
+    return {
+      id: row.id,
+      status: "queued",
+      delivered: false,
+      queued: true,
+      provider: providerName,
+      alreadySent: false,
+      reason: "No email provider configured (set RESEND_API_KEY, POSTMARK_SERVER_TOKEN, or SMTP_URL).",
+    };
+  }
+
+  await db.update(outbox).set({
+    provider: providerName,
+    status: "pending",
+    error: null,
+  }).where(eq(outbox.id, row.id));
+
+  try {
+    const response = await deliver(providerName, { ...row, provider: providerName, status: "pending", error: null });
+    await db.update(outbox).set({
+      status: response.ok ? "sent" : "failed",
+      sentAt: response.ok ? new Date() : null,
+      error: response.ok ? null : response.error,
+    }).where(eq(outbox.id, row.id));
+
+    return {
+      id: row.id,
+      status: response.ok ? "sent" : "failed",
+      delivered: response.ok,
+      queued: false,
+      provider: providerName,
+      alreadySent: false,
+      reason: response.ok ? null : response.error,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "delivery error";
+    await db.update(outbox).set({
+      status: "failed",
+      error: message,
+    }).where(eq(outbox.id, row.id));
+    return {
+      id: row.id,
+      status: "failed",
+      delivered: false,
+      queued: false,
+      provider: providerName,
+      alreadySent: false,
+      reason: message,
+    };
+  }
+}
+
 async function deliver(provider: MailProvider, row: typeof outbox.$inferSelect) {
   if (provider === "resend") {
     const response = await fetch("https://api.resend.com/emails", {
