@@ -23,7 +23,7 @@ function inCidr(ip: string, base: string, prefix: number) {
 }
 
 /** Reject non-routable, private, loopback, link-local, documentation and multicast ranges. */
-export function isForbiddenIp(address: string) {
+export function isForbiddenIp(address: string): boolean {
   if (isIP(address) === 4) {
     return [
       ["0.0.0.0", 8],
