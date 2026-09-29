@@ -102,7 +102,7 @@ export async function SoftwareHome() {
         </section>
 
         <section className={styles.heroProduct} aria-label="Linaw payroll workspace">
-          <div className={styles.productStage}>
+          <div className={styles.productStage} id="hero-product-preview">
             <div className={styles.productStageMeta}>
               <div>
                 <span className={styles.stageLabelRow}>
