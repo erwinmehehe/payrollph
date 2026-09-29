@@ -16,6 +16,7 @@ import {
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { seedProvisioning } from "@/lib/provisioning";
+import { dispatchWebhook } from "@/lib/webhooks";
 import { ensureFinalPaySchema } from "@/lib/final-pay-schema";
 import {
   computeFinalPayPackage,
@@ -482,6 +483,18 @@ export async function PATCH(request: Request) {
         });
 
         return claimed;
+      });
+
+      await dispatchWebhook({
+        organizationId: sep.organizationId,
+        event: "employee.offboarded",
+        data: {
+          id: sep.employeeId,
+          status: "Separated",
+          separationId: sep.id,
+          lastDay: sep.lastDay,
+          finalPayReleased: true,
+        },
       });
 
       return Response.json(result);
