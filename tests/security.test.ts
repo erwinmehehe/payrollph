@@ -90,7 +90,7 @@ test("developer webhooks are SSRF-guarded and demo identities cannot mint creden
   const developer = readFileSync("src/app/api/developer/route.ts", "utf8");
   const webhooks = readFileSync("src/lib/webhooks.ts", "utf8");
   assert.ok(developer.includes("validateWebhookTarget"));
-  assert.ok(developer.includes("isDemoIdentity"));
+  assert.ok(developer.includes("publicDemoMutationDenied"));
   assert.ok(webhooks.includes("validateWebhookTarget(endpoint.url)"));
   assert.ok(webhooks.includes('redirect: "manual"'));
 });
@@ -118,5 +118,23 @@ test("baseline browser hardening headers are configured", () => {
     "Strict-Transport-Security",
   ]) {
     assert.ok(source.includes(header), `${header} must be configured`);
+  }
+});
+
+
+test("shared public demo cannot mutate credentials or trigger real external side effects", () => {
+  for (const path of [
+    "src/app/api/account/email/route.ts",
+    "src/app/api/account/password/route.ts",
+    "src/app/api/account/profile/route.ts",
+    "src/app/api/account/sessions/route.ts",
+    "src/app/api/auth/totp/setup/route.ts",
+    "src/app/api/invitations/route.ts",
+    "src/app/api/billing/route.ts",
+    "src/app/api/organizations/route.ts",
+    "src/app/api/developer/route.ts",
+  ]) {
+    const source = readFileSync(path, "utf8");
+    assert.ok(source.includes("publicDemoMutationDenied"), `${path} must guard shared demo mutations`);
   }
 });
