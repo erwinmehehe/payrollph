@@ -13,6 +13,12 @@ export async function ensureEmployeePayProfileSchema() {
       await client.query("BEGIN");
       await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_employee_pay_profile_schema_v1'))");
       await client.query(`
+        ALTER TABLE employees
+          ADD COLUMN IF NOT EXISTS thirteenth_month_eligible boolean NOT NULL DEFAULT true,
+          ADD COLUMN IF NOT EXISTS thirteenth_month_exclusion_reason varchar(200)
+      `);
+
+      await client.query(`
         CREATE TABLE IF NOT EXISTS employee_pay_profiles (
           id serial PRIMARY KEY,
           employee_id integer NOT NULL UNIQUE REFERENCES employees(id) ON DELETE CASCADE,
