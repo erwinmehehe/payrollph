@@ -37,7 +37,8 @@ test("import endpoint enforces the plan and seat limit in this order", () => {
 
 test("employee self-service exposes an upcoming pay stage without unreleased amounts", () => {
   const route = read("src/app/api/self/payslips/route.ts");
-  assert.ok(route.includes("const upcoming = rows.find((row) => row.run.status !== \"Released\")"));
+  assert.ok(route.includes('.filter((row) => row.run.status !== "Released")'));
+  assert.ok(route.includes(".sort((a, b) => a.run.payDate.localeCompare(b.run.payDate))[0]"));
   assert.ok(route.includes("employeePayStatusLabel(upcoming.run.status)"));
 
   const nextPayStart = route.indexOf("nextPay: upcoming");
