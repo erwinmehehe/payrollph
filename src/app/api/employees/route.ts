@@ -114,6 +114,10 @@ export async function POST(request: Request) {
     status: "Active",
     avatarInitials: `${firstName[0] ?? "?"}${lastName[0] ?? "?"}`.toUpperCase(),
     basicRate: payProfile.monthlyEquivalent.toFixed(2),
+    thirteenthMonthEligible: body.thirteenthMonthEligible !== false,
+    thirteenthMonthExclusionReason: body.thirteenthMonthEligible === false
+      ? String(body.thirteenthMonthExclusionReason ?? "").trim() || null
+      : null,
     mwe: Boolean(body.mwe),
     region: String(body.region ?? "NCR"),
     email: email || null,
@@ -278,6 +282,14 @@ export async function PATCH(request: Request) {
 
   const updates = {
     middleName: clean(body.middleName),
+    thirteenthMonthEligible: body.thirteenthMonthEligible === undefined
+      ? undefined
+      : Boolean(body.thirteenthMonthEligible),
+    thirteenthMonthExclusionReason: body.thirteenthMonthEligible === undefined && body.thirteenthMonthExclusionReason === undefined
+      ? undefined
+      : Boolean(body.thirteenthMonthEligible ?? employee.thirteenthMonthEligible)
+        ? null
+        : clean(body.thirteenthMonthExclusionReason),
     tin: clean(body.tin),
     tinBranchCode: body.tinBranchCode === undefined
       ? undefined
