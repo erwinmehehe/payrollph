@@ -5,13 +5,14 @@ import { hashPassword, sha256 } from "@/lib/crypto";
 import { recordAuditEvent } from "@/lib/audit";
 import { revokeAllSessions } from "@/lib/auth";
 import { clientIp, rateLimitDistributed } from "@/lib/rate-limit";
+import { passwordIssues } from "@/lib/validation";
 
 export async function POST(request: Request) {
   const ip = clientIp(request);
   const limited = await rateLimitDistributed(`reset:${ip}`, { limit: 8, windowMs: 60_000 });
   if (!limited.allowed) {
     return Response.json({
-      error: "Too many reset attempts. Rate limit is single-instance, not yet distributed.",
+      error: "Too many reset attempts.",
       retryAfterMs: limited.retryAfterMs,
       rateLimitMode: limited.mode,
     }, { status: 429 });
@@ -20,8 +21,12 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const token = typeof body.token === "string" ? body.token.trim() : "";
   const password = typeof body.password === "string" ? body.password : "";
-  if (!token || password.length < 10) {
-    return Response.json({ error: "A valid token and password (min 10 chars) are required." }, { status: 400 });
+  if (!token) {
+    return Response.json({ error: "A valid reset token is required." }, { status: 400 });
+  }
+  const problems = passwordIssues(password);
+  if (problems.length > 0) {
+    return Response.json({ error: "Password does not meet security requirements.", problems }, { status: 422 });
   }
 
   const [row] = await db.select().from(passwordResetTokens).where(and(
