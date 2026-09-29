@@ -9,6 +9,7 @@ import {
 } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
+import { queueMessage } from "@/lib/mailer";
 
 const SUBMITTABLE = ["Needs review", "Processed"];
 
@@ -153,9 +154,32 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }, { status: 409 });
   }
 
+  let reviewNotificationQueued = false;
+  let reviewNotificationWarning: string | null = null;
+  try {
+    await queueMessage({
+      organizationId: run.organizationId,
+      recipient: checker.email,
+      subject: `Payroll ready for your review: ${run.periodLabel}`,
+      purpose: "payroll-review-ready",
+      body: [
+        `Hi ${checker.name},`,
+        "",
+        `${user.name} submitted ${run.periodLabel} payroll for your independent review.`,
+        "",
+        "Sign in to Linaw and open Approvals to review the run.",
+      ].join("\n"),
+    });
+    reviewNotificationQueued = true;
+  } catch {
+    reviewNotificationWarning = "Payroll was submitted, but the checker notification could not be queued.";
+  }
+
   return Response.json({
     task: submission.task,
     maker: { id: user.id, name: user.name },
     approver: { id: checker.id, name: checker.name, role: checker.role },
+    reviewNotificationQueued,
+    reviewNotificationWarning,
   }, { status: 201 });
 }
