@@ -248,8 +248,8 @@ export function computeStatutoryRetirementPay(input: {
   );
   if (last < birthdayThisYear) age -= 1;
 
-  if (age < 60 || age > 65) {
-    return { eligible: false, blocker: "Statutory retirement under Article 302 requires age 60 to 65 unless a better plan or agreement applies.", years, age, amount: 0 };
+  if (age < 60) {
+    return { eligible: false, blocker: "Statutory retirement under Article 302 generally starts at age 60 unless a better plan or agreement applies.", years, age, amount: 0 };
   }
   if (years < 5) {
     return { eligible: false, blocker: "Statutory retirement under Article 302 requires at least five years of service unless a better plan or agreement applies.", years, age, amount: 0 };
@@ -259,6 +259,7 @@ export function computeStatutoryRetirementPay(input: {
     blocker: null,
     years,
     age,
+    compulsoryAgeReached: age >= 65,
     amount: round2(Math.max(0, input.dailyRate) * 22.5 * years),
   };
 }
@@ -282,15 +283,20 @@ export type FinalPayTaxInputs = {
 };
 
 export function computeFinalPayTaxAdjustment(input: FinalPayTaxInputs): AnnualizationResult {
-  const grossCompensation =
+  const signedTaxableCorrection = Number.isFinite(input.finalOtherTaxableEarnings)
+    ? input.finalOtherTaxableEarnings
+    : 0;
+  const grossCompensation = Math.max(
+    0,
     Math.max(0, input.grossCompensationBeforeFinalPay)
-    + Math.max(0, input.finalUnpaidBasicSalary)
-    + Math.max(0, input.finalOtherTaxableEarnings)
-    + Math.max(0, input.finalOtherNonTaxableEarnings)
-    + Math.max(0, input.thirteenthMonthBalance)
-    + Math.max(0, input.leaveMonetization)
-    + Math.max(0, input.statutorySeparationPay)
-    + Math.max(0, input.statutoryRetirementPay);
+      + Math.max(0, input.finalUnpaidBasicSalary)
+      + signedTaxableCorrection
+      + Math.max(0, input.finalOtherNonTaxableEarnings)
+      + Math.max(0, input.thirteenthMonthBalance)
+      + Math.max(0, input.leaveMonetization)
+      + Math.max(0, input.statutorySeparationPay)
+      + Math.max(0, input.statutoryRetirementPay),
+  );
 
   const otherNonTaxable =
     Math.max(0, input.otherNonTaxable)
