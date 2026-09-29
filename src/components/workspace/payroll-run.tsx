@@ -45,7 +45,13 @@ type ReleaseChecklistItem = {
   detail: string;
 };
 
-const GOVERNMENT_DRAFTS = ["1601-C", "Alphalist/2316", "SSS R-3", "PhilHealth RF-1", "Pag-IBIG MCRF"];
+const GOVERNMENT_DRAFTS = [
+  { value: "bir-1601c", label: "BIR 1601-C worksheet" },
+  { value: "bir-1604c-source", label: "BIR 1604-C annual source extract" },
+  { value: "sss-r3", label: "SSS e-CL / R-3 worksheet" },
+  { value: "philhealth-rf1", label: "PhilHealth EPRS / RF-1 worksheet" },
+  { value: "pagibig-mcrf", label: "Pag-IBIG MCRF / eSRS worksheet" },
+] as const;
 
 export function PayrollRunView({
   data,
@@ -933,7 +939,7 @@ function ExportPanel({
 }) {
   const [template, setTemplate] = useState(templates[0]?.name ?? "BDO DAT");
   const [dryRun, setDryRun] = useState(true);
-  const [draft, setDraft] = useState(GOVERNMENT_DRAFTS[0]);
+  const [draft, setDraft] = useState(GOVERNMENT_DRAFTS[0].value);
   const released = run.status === "Released";
 
   function download(url: string, label: string) {
@@ -1034,9 +1040,9 @@ function ExportPanel({
                   <label className="field">
                     <span className="sr-only">Worksheet</span>
                     <select value={draft} onChange={(event) => setDraft(event.target.value)} aria-label="Government worksheet">
-                      {GOVERNMENT_DRAFTS.map((name) => (
-                        <option key={name} value={name}>
-                          {name}
+                      {GOVERNMENT_DRAFTS.map((item) => (
+                        <option key={item.value} value={item.value}>
+                          {item.label}
                         </option>
                       ))}
                     </select>
