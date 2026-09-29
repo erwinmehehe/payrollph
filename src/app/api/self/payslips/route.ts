@@ -2,6 +2,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, organizations, payrollEntries, payrollRuns, payslips, userOrganizations, users } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
+import { employeePayStatusLabel } from "@/lib/payroll-handoff";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,7 @@ export async function GET() {
     .limit(52);
 
   const released = rows.filter((row) => row.run.status === "Released");
+  const upcoming = rows.find((row) => row.run.status !== "Released");
 
   const yearToDate = released.reduce(
     (totals, row) => {
@@ -70,6 +72,14 @@ export async function GET() {
       tax: yearToDate.tax.toFixed(2),
       periodsPaid: released.length,
     },
+    nextPay: upcoming
+      ? {
+          period: upcoming.run.periodLabel,
+          payDate: upcoming.run.payDate,
+          status: upcoming.run.status,
+          label: employeePayStatusLabel(upcoming.run.status),
+        }
+      : null,
     payslips: released.map((row) => ({
       entryId: row.entry.id,
       period: row.run.periodLabel,
