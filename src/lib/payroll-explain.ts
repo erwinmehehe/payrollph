@@ -131,6 +131,9 @@ function reasonFor(line: StoredLine, values: Map<string, string>, narrative: str
   if (code.startsWith("LOAN-")) return note || "Scheduled employee-loan repayment for this cutoff.";
   if (code.startsWith("EWA-")) return note || "Earned-wage advance recovery for this cutoff.";
   if (code.startsWith("EXP-")) return note || "Approved expense reimbursement.";
+  if (code.startsWith("RETRO-")) {
+    return note || "Effective-dated salary correction from a previously released cutoff, carried forward exactly once.";
+  }
   if (code === "HOLIDAY") return note || narrative.find((item) => /holiday/i.test(item)) || "Holiday or rest-day premium from attendance.";
   if (code === "CALAMITY") return note || narrative.find((item) => /calamity|hazard/i.test(item)) || "Configured calamity or hazard premium.";
   return note || (line.amount >= 0 ? "Stored earning included in gross pay." : "Stored deduction included in this payroll entry.");
@@ -179,6 +182,10 @@ export function buildPayExplanation(current: ExplainPayEntryInput, previous: Exp
     netPercent: previousNet == null || previousNet === 0 ? null : cents((netDelta! / Math.abs(previousNet)) * 100),
     ruleVersion: currentTrace.ruleVersion,
     context: {
+      payTimeline: currentTrace.values.get("payTimeline") ?? null,
+      effectivePayChanges: numeric(currentTrace.values, "effectivePayChanges"),
+      retroPay: numeric(currentTrace.values, "retroPay"),
+      retroAdjustments: numeric(currentTrace.values, "retroAdjustments"),
       payBasis: currentTrace.values.get("payBasis") ?? null,
       rateAmount: numeric(currentTrace.values, "rateAmount"),
       standardWorkDaysPerMonth: numeric(currentTrace.values, "standardWorkDaysPerMonth"),
