@@ -390,6 +390,10 @@
 
 .simulationSurface :global(.pv-side) {
   width: 176px;
+  max-height: 660px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
   border-right: 1px solid #eceef1;
   background: #fafafa;
 }
