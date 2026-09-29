@@ -1091,11 +1091,11 @@ function PreviewLeave() {
               <Status value={row.status === "Pending" ? "Awaiting approval" : row.status} />
               {row.status === "Pending" && (
                 <div className="preview-row-actions">
-                  <button type="button" className="icon-button preview-decline" aria-label={`Decline ${row.person}`} onClick={() => decide(row.id, "Declined")}>
-                    <X size={13} />
+                  <button type="button" className="preview-decision preview-decline" aria-label={`Decline ${row.person}`} onClick={() => decide(row.id, "Declined")}>
+                    <X size={12} /> Decline
                   </button>
-                  <button type="button" className="icon-button preview-approve" aria-label={`Approve ${row.person}`} onClick={() => decide(row.id, "Approved")}>
-                    <Check size={13} />
+                  <button type="button" className="preview-decision preview-approve" aria-label={`Approve ${row.person}`} onClick={() => decide(row.id, "Approved")}>
+                    <Check size={12} /> Approve
                   </button>
                 </div>
               )}
