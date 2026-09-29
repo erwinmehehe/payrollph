@@ -78,7 +78,7 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
   const fullNavigation = mode === "interactive";
   const focusedNavigation = mode !== "interactive";
   const activeTab: Tab = interactive ? tab : "Payroll";
-  const showcaseNames = new Set(["Overview", "Payroll", "People", "Migration", "Approvals"]);
+  const showcaseNames = new Set(["Payroll", "People", "Migration", "Approvals", "Compliance"]);
   const displayedGroups = focusedNavigation
     ? PREVIEW_GROUPS
         .map((group) => ({
