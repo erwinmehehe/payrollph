@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import { OFFICIAL_PUBLIC_DEMO_HOST, publicDemoHostAllowed } from "../src/lib/demo-host";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -43,4 +44,31 @@ test("maker and checker remain separate in the real authorization model", () => 
   assert.ok(access.includes('PAYROLL_OPERATOR_ROLES = ["owner", "admin", "bookkeeper", "payroll"]'));
   assert.ok(access.includes('PAYROLL_CHECKER_ROLES = ["owner", "admin", "manager", "checker"]'));
   assert.ok(!access.includes('PAYROLL_CHECKER_ROLES = ["owner", "admin", "manager", "checker", "payroll"]'));
+});
+
+
+test("official public Vercel hostname can launch the sandbox without enabling demo mode globally", () => {
+  assert.equal(OFFICIAL_PUBLIC_DEMO_HOST, "erwinmehehe-payrollph.vercel.app");
+  assert.equal(publicDemoHostAllowed("erwinmehehe-payrollph.vercel.app"), true);
+  assert.equal(publicDemoHostAllowed("ERWINMEHEHE-PAYROLLPH.VERCEL.APP"), true);
+});
+
+test("arbitrary customer and self-hosted domains cannot provision the public demo tenant", () => {
+  assert.equal(publicDemoHostAllowed("customer.example.com"), false);
+  assert.equal(publicDemoHostAllowed("localhost"), false);
+  assert.equal(
+    publicDemoHostAllowed("preview.example.com", { configuredHosts: "preview.example.com" }),
+    true,
+  );
+});
+
+test("production demo switch provisions only the isolated public demo tenant when demo mode is off", () => {
+  const route = read("src/app/api/auth/demo-switch/route.ts");
+  const publicDemo = read("src/db/public-demo.ts");
+  assert.ok(route.includes("ensurePublicDemoTenant"), "production demo path must provision the isolated public demo tenant");
+  assert.ok(route.includes("publicDemoHostAllowed"), "production demo path must be host-gated");
+  assert.ok(publicDemo.includes("pg_advisory_xact_lock"), "first-launch provisioning must be concurrency-safe");
+  assert.ok(publicDemo.includes('const PUBLIC_DEMO_ORG = "Loom & Local"'), "public demo must stay in the dedicated tenant");
+  assert.ok(!publicDemo.includes("Mantra Studio"), "public production demo must not seed unrelated demo organizations");
+  assert.ok(!publicDemo.includes("Santos Retail Group"), "public production demo must not seed unrelated demo organizations");
 });
