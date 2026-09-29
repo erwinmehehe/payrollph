@@ -172,6 +172,7 @@ function fingerprint(sources: Awaited<ReturnType<typeof loadFinalPaySources>>) {
     historical: sources.historical.map((row) => ({
       id: row.id,
       grossPay: Number(row.grossPay),
+      basicSalary: row.basicSalary == null ? null : Number(row.basicSalary),
       thirteenthMonth: Number(row.thirteenthMonth),
       taxWithheld: Number(row.taxWithheld),
       payDate: String(row.payDate),
@@ -270,13 +271,19 @@ export async function POST(request: Request) {
       }, { status: 409 });
     }
 
-    const historicalBasicSalaryEarned = nonNegative(body.historicalBasicSalaryEarned, "Historical basic salary earned");
-    if (sources.historical.length > 0 && body.historicalBasicSalaryEarned === undefined) {
+    const legacyHistoryMissingBasic = sources.historical.filter((row) => row.basicSalary == null).length;
+    const storedHistoricalBasic = sources.historical.reduce(
+      (sum, row) => sum + (row.basicSalary == null ? 0 : Number(row.basicSalary)),
+      0,
+    );
+    const historicalBasicOverride = nonNegative(body.historicalBasicSalaryEarned, "Legacy imported basic salary earned");
+    if (legacyHistoryMissingBasic > 0 && body.historicalBasicSalaryEarned === undefined) {
       return Response.json({
-        error: "Imported payroll history exists for this employee, but those rows do not store basic salary. Enter the basic salary actually earned in the imported periods so 13th-month pay is not guessed.",
-        importedHistoryRows: sources.historical.length,
+        error: "Legacy imported payroll rows are missing basic salary. Enter the total basic salary actually earned in those legacy rows so 13th-month pay is not guessed.",
+        missingBasicSalaryRows: legacyHistoryMissingBasic,
       }, { status: 422 });
     }
+    const historicalBasicSalaryEarned = Number(money(storedHistoricalBasic + historicalBasicOverride));
 
     const unpaidBasicSalary = nonNegative(body.unpaidBasicSalary, "Unpaid basic salary");
     const unusedLeaveCredits = nonNegative(body.unusedLeaveCredits, "Convertible unused leave credits");
@@ -319,6 +326,9 @@ export async function POST(request: Request) {
       sourceFingerprint,
       releasedBasicYtd: sources.totals.releasedBasicYtd,
       historicalBasicSalaryEarned,
+      historicalBasicStored: Number(money(storedHistoricalBasic)),
+      historicalBasicOverride: Number(money(historicalBasicOverride)),
+      legacyHistoryMissingBasic,
       unpaidBasicSalary,
       thirteenthPaidYtd: result.thirteenthPaidYtd,
       thirteenthEntitlement: result.thirteenthEntitlement,
