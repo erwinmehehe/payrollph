@@ -103,6 +103,8 @@ export const employees = pgTable("employees", {
   status: varchar("status", { length: 32 }).notNull().default("Active"),
   avatarInitials: varchar("avatar_initials", { length: 4 }).notNull(),
   basicRate: numeric("basic_rate", { precision: 12, scale: 2 }).notNull(),
+  thirteenthMonthEligible: boolean("thirteenth_month_eligible").notNull().default(true),
+  thirteenthMonthExclusionReason: varchar("thirteenth_month_exclusion_reason", { length: 200 }),
   mwe: boolean("mwe").notNull().default(false),
   bankAccount: varchar("bank_account", { length: 40 }),
   bankCode: varchar("bank_code", { length: 16 }),
