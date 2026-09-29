@@ -20,11 +20,14 @@ test("calculation snapshots payout instructions and release rejects stale employ
   const settlement = read("src/lib/payroll-settlement.ts");
 
   assert.ok(engine.includes("payment: {"));
+  assert.ok(engine.includes("payProfile: {"));
   assert.ok(engine.includes("bankAccount: employee.bankAccount"));
   assert.ok(engine.includes("mobile: employee.mobile"));
   assert.ok(settlement.includes("lacks an immutable payment snapshot"));
   assert.ok(settlement.includes('employee.status !== "Active"'));
   assert.ok(settlement.includes("Payment instructions for"));
+  assert.ok(settlement.includes("lacks an immutable pay-profile snapshot"));
+  assert.ok(settlement.includes("Pay profile for"));
   assert.ok(settlement.includes("changed after calculation"));
   assert.ok(settlement.includes("no captured bank account or mobile payout destination"));
 });
