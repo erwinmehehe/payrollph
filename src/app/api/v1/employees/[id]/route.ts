@@ -65,7 +65,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const body = await request.json().catch(() => ({}));
   const patch: Record<string, unknown> = {};
   if (typeof body.title === "string") patch.title = body.title.trim();
-  if (typeof body.status === "string") patch.status = body.status.trim();
+  if (typeof body.status === "string") {
+    const requestedStatus = body.status.trim();
+    if (
+      ["Separating", "Separated"].includes(requestedStatus)
+      && !["Separating", "Separated"].includes(existing.status)
+    ) {
+      return Response.json({
+        error: "Start separation through the final-pay workflow so the last day, 13th-month balance, tax adjustment, leave conversion, liabilities, clearance, and release remain auditable.",
+      }, { status: 409 });
+    }
+    patch.status = requestedStatus;
+  }
   if (typeof body.employmentType === "string") patch.employmentType = body.employmentType.trim();
   const wantsPayUpdate = [
     body.payBasis,
@@ -338,23 +349,9 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     return Response.json({ error: "Employee not found." }, { status: 404 });
   }
 
-  // Soft-delete: mark Separating and open the offboarding checklist rather than destroying payroll history.
-  const [updated] = await db.update(employees).set({ status: "Separating" }).where(eq(employees.id, id)).returning();
-  await seedProvisioning(updated.organizationId, updated.id, "offboarding");
-
-  await recordAuditEvent({
-    organizationId: updated.organizationId,
-    actor: `api_key:${gate.auth!.keyId}`,
-    action: "Employee offboarded via API",
-    resource: `${updated.firstName} ${updated.lastName}`,
-    metadata: { previousStatus: existing.status },
-  });
-
-  await dispatchWebhook({
-    organizationId: updated.organizationId,
-    event: "employee.offboarded",
-    data: { id: updated.id, status: updated.status, action: "offboarded" },
-  });
-
-  return Response.json({ id: updated.id, status: updated.status, offboardingStarted: true });
+  return Response.json({
+    error: "Employee offboarding now requires the separation/final-pay workflow. Direct API deletion is blocked so an employee cannot be removed from payroll before final salary, 13th-month pay, tax, leave, loans, clearance, and release are reconciled.",
+    employeeId: existing.id,
+    requiredWorkflow: "separation",
+  }, { status: 409 });
 }
