@@ -2918,3 +2918,313 @@
     gap: 5px;
   }
 }
+
+
+/* ==========================================================================
+   Above-the-fold design pass 2
+   Keep the homepage editorial first; the product remains interactive but
+   no longer dominates the first viewport.
+   ========================================================================== */
+
+.hero {
+  padding: 96px 0 146px;
+  background:
+    radial-gradient(circle at 10% 6%, rgba(0, 135, 90, .09), transparent 28%),
+    radial-gradient(circle at 86% 10%, rgba(68, 76, 231, .10), transparent 31%),
+    #fff;
+}
+
+.heroLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.16fr) minmax(320px, .84fr);
+  gap: clamp(56px, 7vw, 92px);
+  align-items: center;
+}
+
+.heroInner {
+  max-width: 720px;
+  margin: 0;
+  text-align: left;
+}
+
+.hero h1 {
+  max-width: 720px;
+  margin: 22px 0 0;
+  font-size: clamp(52px, 5.4vw, 70px);
+}
+
+.heroLead {
+  max-width: 630px;
+  margin-inline: 0;
+}
+
+.heroActions {
+  justify-content: flex-start;
+}
+
+.hero .primaryAction {
+  border-color: #087a5b;
+  background: #087a5b;
+}
+
+.hero .primaryAction:hover {
+  border-color: #06694e;
+  background: #06694e;
+}
+
+.hero .secondaryAction {
+  border-color: #d9d6fe;
+  color: #444ce7;
+}
+
+.hero .secondaryAction:hover {
+  border-color: #c7c3fb;
+  background: #f7f6ff;
+}
+
+.heroTrust {
+  justify-content: flex-start;
+  margin-top: 30px;
+  color: #6f7784;
+}
+
+.heroTrust span {
+  font-weight: 650;
+}
+
+.heroProof {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #e1e5ea;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, .86);
+  box-shadow: 0 24px 70px rgba(16, 24, 40, .08);
+  backdrop-filter: blur(12px);
+}
+
+.heroProof::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, #087a5b 0 46%, #444ce7 46% 100%);
+}
+
+.heroProofTop {
+  display: grid;
+  gap: 7px;
+  padding: 26px 26px 22px;
+  border-bottom: 1px solid #eaecf0;
+}
+
+.heroProofTop span {
+  color: #667085;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .065em;
+  text-transform: uppercase;
+}
+
+.heroProofTop strong {
+  max-width: 330px;
+  color: #1d2939;
+  font-size: 22px;
+  font-weight: 680;
+  line-height: 1.15;
+  letter-spacing: -.035em;
+}
+
+.heroProofGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.heroProofGrid > div {
+  min-width: 0;
+  padding: 20px 22px;
+}
+
+.heroProofGrid > div:nth-child(even) {
+  border-left: 1px solid #eaecf0;
+}
+
+.heroProofGrid > div:nth-child(n+3) {
+  border-top: 1px solid #eaecf0;
+}
+
+.heroProofGrid b,
+.heroProofGrid span {
+  display: block;
+}
+
+.heroProofGrid b {
+  color: #344054;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.heroProofGrid span {
+  margin-top: 4px;
+  color: #8a929f;
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+.heroProofFoot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 15px 22px;
+  border-top: 1px solid #eaecf0;
+  background: #fbfcfd;
+  color: #667085;
+  font-size: 10.5px;
+  font-weight: 620;
+}
+
+.heroProofFoot svg {
+  flex: none;
+  color: #087a5b;
+}
+
+.heroProduct {
+  margin-top: -78px;
+  padding-bottom: 108px;
+}
+
+.productStage {
+  width: min(1040px, calc(100% - 64px));
+  transform: translateX(34px);
+  border-radius: 18px;
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, .03),
+    0 24px 60px rgba(16, 24, 40, .09);
+}
+
+.productStage::before {
+  content: "";
+  display: block;
+  height: 3px;
+  background: linear-gradient(90deg, #087a5b 0 44%, #444ce7 44% 100%);
+}
+
+.productStageMeta {
+  min-height: 64px;
+  grid-template-columns: minmax(0, 1.9fr) repeat(3, minmax(105px, .55fr));
+}
+
+.productStageMeta > div {
+  padding: 10px 15px;
+}
+
+.productStageScreen :global(.frame-body),
+.productStageScreen :global(.pv) {
+  min-height: 448px;
+}
+
+.productStageScreen :global(.pv) {
+  grid-template-columns: 176px minmax(0, 1fr);
+}
+
+.productStageScreen :global(.pv-side) {
+  width: 176px;
+  max-height: 448px;
+}
+
+.productStageScreen :global(.pv-body) {
+  min-height: 386px;
+  max-height: 386px;
+  overflow: auto;
+}
+
+.productStageScreen::after {
+  content: "Try Payroll, People, Migration, Approvals or Compliance";
+  right: 14px;
+  bottom: 12px;
+}
+
+@media (max-width: 1180px) {
+  .productStage {
+    transform: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .hero {
+    padding: 82px 0 132px;
+  }
+
+  .heroLayout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 38px;
+  }
+
+  .heroInner {
+    max-width: 760px;
+  }
+
+  .heroProof {
+    max-width: 620px;
+  }
+
+  .productStage {
+    width: min(100% - 32px, 1040px);
+  }
+}
+
+@media (max-width: 720px) {
+  .hero {
+    padding: 72px 0 118px;
+  }
+
+  .hero h1 {
+    font-size: clamp(42px, 11.5vw, 56px);
+  }
+
+  .heroProof {
+    display: none;
+  }
+
+  .heroProduct {
+    margin-top: -58px;
+    padding-bottom: 82px;
+  }
+
+  .productStage {
+    width: min(100% - 20px, 1040px);
+  }
+
+  .productStageMeta {
+    min-height: 0;
+  }
+
+  .productStageScreen :global(.pv) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .productStageScreen :global(.pv-body) {
+    min-height: 430px;
+    max-height: 430px;
+  }
+}
+
+@media (max-width: 560px) {
+  .heroInner {
+    text-align: left;
+  }
+
+  .heroActions {
+    align-items: stretch;
+  }
+
+  .heroTrust {
+    display: flex;
+    justify-content: flex-start;
+    gap: 8px 16px;
+  }
+
+  .heroTrust span + span::before {
+    display: block;
+    left: -10px;
+  }
+}
