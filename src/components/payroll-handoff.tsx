@@ -30,7 +30,7 @@ export function PayrollHandoff({
         </div>
         <div className="payroll-handoff-meta">
           <span className="status">{status}</span>
-          {payDate && <small>Pay date {payDate}</small>}
+          {payDate && <small>Pay date {displayPayDate(payDate)}</small>}
         </div>
       </div>
 
@@ -61,5 +61,13 @@ export function PayrollHandoff({
         })}
       </div>
     </section>
+  );
+}
+
+
+function displayPayDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  return new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric", year: "numeric" }).format(
+    new Date(value + "T00:00:00+08:00"),
   );
 }
