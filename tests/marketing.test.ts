@@ -145,8 +145,8 @@ test("homepage Leave and Migration modules perform local interactive workflows",
 test("homepage hero uses a focused payroll showcase before the full interactive demo", () => {
   const page = read("src/components/marketing/software-home.tsx");
   const preview = read("src/components/marketing/workspace-preview.tsx");
-  assert.ok(page.includes('<WorkspacePreview mode="showcase" />'), "hero must show the product before the feature narrative");
-  assert.ok(preview.includes('interactive ? tab : "Payroll"'), "showcase must default to payroll rather than a generic dashboard");
+  assert.ok(page.includes('<WorkspacePreview mode="focused" />'), "hero product frame must be a focused interactive preview");
+  assert.ok(preview.includes('mode !== "showcase"'), "focused mode must remain interactive");
   assert.ok(preview.includes('"Overview", "Payroll", "People", "Migration", "Approvals"'), "showcase nav must stay focused");
 });
 

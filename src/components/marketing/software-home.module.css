@@ -2849,3 +2849,72 @@
     gap: 10px 14px;
   }
 }
+
+
+/* Focused first-view product demo must read as interactive, not a screenshot. */
+.stageLabelRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.interactiveBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border: 1px solid #c7d7fe;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #3538cd;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.productStage {
+  width: min(1180px, calc(100% - 40px));
+}
+
+.productStageScreen {
+  position: relative;
+}
+
+.productStageScreen::after {
+  content: "Click Payroll, People, Migration or Approvals";
+  position: absolute;
+  right: 18px;
+  bottom: 14px;
+  z-index: 4;
+  padding: 7px 10px;
+  border: 1px solid rgba(208, 213, 221, .92);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .92);
+  color: #667085;
+  font-size: 9px;
+  font-weight: 650;
+  box-shadow: 0 6px 18px rgba(16, 24, 40, .08);
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+
+.productStageScreen :global(.nav-item) {
+  cursor: pointer;
+}
+
+.productStageScreen :global(.nav-item:hover) {
+  transform: translateX(2px);
+}
+
+@media (max-width: 720px) {
+  .productStageScreen::after {
+    display: none;
+  }
+
+  .stageLabelRow {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+}

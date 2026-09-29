@@ -64,9 +64,9 @@ const SAMPLE_COMPANY = SAMPLE_CLIENTS[0];
  * `interactive` is the playable version: tabs, client switching, expandable
  * payslips and a simulated release, all local state, nothing persisted.
  */
-export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" | "interactive" }) {
+export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" | "focused" | "interactive" }) {
   const run = useMemo(() => buildSampleRun(), []);
-  const [tab, setTab] = useState<Tab>("Overview");
+  const [tab, setTab] = useState<Tab>(mode === "interactive" ? "Overview" : "Payroll");
   const [expanded, setExpanded] = useState<number | null>(null);
   const [released, setReleased] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
@@ -74,20 +74,22 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
   const [query, setQuery] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({ Manage: true });
 
-  const interactive = mode === "interactive";
+  const interactive = mode !== "showcase";
+  const fullNavigation = mode === "interactive";
+  const focusedNavigation = mode !== "interactive";
   const activeTab: Tab = interactive ? tab : "Payroll";
   const showcaseNames = new Set(["Overview", "Payroll", "People", "Migration", "Approvals"]);
-  const displayedGroups = interactive
+  const displayedGroups = focusedNavigation
     ? PREVIEW_GROUPS
-    : PREVIEW_GROUPS
         .map((group) => ({
           ...group,
           items: group.items.filter((item) => showcaseNames.has(item.name)),
         }))
-        .filter((group) => group.items.length > 0);
+        .filter((group) => group.items.length > 0)
+    : PREVIEW_GROUPS;
 
   return (
-    <div className={`frame ${interactive ? "standalone" : ""}`}>
+    <div className={`frame ${fullNavigation ? "standalone" : ""}`}>
       <div className="frame-bar">
         <span className="frame-dots" aria-hidden>
           <i />
@@ -97,7 +99,7 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
         <span className="frame-url">
           <span>linaw.ph/workspace</span>
         </span>
-        <span className="frame-tag">Simulation</span>
+        <span className="frame-tag">{interactive ? "Interactive" : "Preview"}</span>
       </div>
 
       <div className="frame-body">
@@ -116,15 +118,15 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
               </div>
             </div>
             {displayedGroups.map((group) => {
-              const collapsed = interactive && Boolean(collapsedGroups[group.label]);
+              const collapsed = fullNavigation && Boolean(collapsedGroups[group.label]);
               return (
                 <div className="pv-nav-group" key={group.label}>
                   <button
                     className="pv-nav-group-toggle"
                     type="button"
-                    disabled={!interactive}
+                    disabled={!fullNavigation}
                     onClick={() =>
-                      interactive &&
+                      fullNavigation &&
                       setCollapsedGroups((current) => ({
                         ...current,
                         [group.label]: !current[group.label],
@@ -133,7 +135,7 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
                     aria-expanded={!collapsed}
                   >
                     <span>{group.label}</span>
-                    {interactive && (collapsed ? <ChevronRight size={11} /> : <ChevronDown size={11} />)}
+                    {fullNavigation && (collapsed ? <ChevronRight size={11} /> : <ChevronDown size={11} />)}
                   </button>
                   {!collapsed && group.items.map(({ name, icon: Icon, tone }) => (
                     <button
@@ -182,7 +184,7 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
               </div>
             </div>
 
-            {interactive && (
+            {fullNavigation && (
               <div className="pv-pillnav slim-scroll">
                 {TABS.map(({ name }) => (
                   <button key={name} className={activeTab === name ? "on" : ""} onClick={() => setTab(name)}>

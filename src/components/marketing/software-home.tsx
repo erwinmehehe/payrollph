@@ -102,10 +102,13 @@ export async function SoftwareHome() {
         </section>
 
         <section className={styles.heroProduct} aria-label="Linaw payroll workspace">
-          <div className={styles.productStage}>
+          <div className={styles.productStage} id="hero-product-preview">
             <div className={styles.productStageMeta}>
               <div>
-                <span>Sample payroll workspace</span>
+                <span className={styles.stageLabelRow}>
+                  Sample payroll workspace
+                  <b className={styles.interactiveBadge}>Interactive</b>
+                </span>
                 <strong>September 16–30 · Needs review</strong>
               </div>
               <div>
@@ -122,7 +125,7 @@ export async function SoftwareHome() {
               </div>
             </div>
             <div className={styles.productStageScreen}>
-              <WorkspacePreview mode="showcase" />
+              <WorkspacePreview mode="focused" />
             </div>
           </div>
         </section>
