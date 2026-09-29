@@ -28,3 +28,26 @@ export function randomToken(bytes = 32) {
 export function generateBackupCodes(count = 8) {
   return Array.from({ length: count }, () => randomBytes(4).toString("hex").toUpperCase());
 }
+
+const BACKUP_CODE_PREFIX = "sha256:";
+
+export function hashBackupCode(code: string) {
+  return `${BACKUP_CODE_PREFIX}${sha256(code.trim().toUpperCase())}`;
+}
+
+export function backupCodeMatches(code: string, stored: string) {
+  const normalized = code.trim().toUpperCase();
+  if (!normalized || !stored) return false;
+
+  if (stored.startsWith(BACKUP_CODE_PREFIX)) {
+    const expected = Buffer.from(stored.slice(BACKUP_CODE_PREFIX.length), "hex");
+    const actual = Buffer.from(sha256(normalized), "hex");
+    return expected.length === actual.length && timingSafeEqual(expected, actual);
+  }
+
+  // Backward-compatible one-time acceptance for legacy plaintext backup codes.
+  // A matched legacy code is removed immediately by the login route.
+  const actual = Buffer.from(normalized);
+  const expected = Buffer.from(stored.trim().toUpperCase());
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
