@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, timePunches } from "@/db/schema";
+import { employees, payrollRuns, timePunches } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertMembership, assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
@@ -211,4 +211,98 @@ export async function POST(request: Request) {
   });
 
   return Response.json({ ok: true, action: "clock_out", punch: updated });
+}
+
+
+export async function PATCH(request: Request) {
+  const user = await getSessionUser();
+  if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+
+  const body = await request.json().catch(() => ({}));
+  const organizationId = Number(body.organizationId);
+  const punchId = Number(body.punchId);
+  const reason = String(body.reason ?? "").trim();
+  const timeIn = new Date(String(body.timeIn ?? ""));
+  const timeOut = new Date(String(body.timeOut ?? ""));
+
+  if (!Number.isInteger(organizationId) || !Number.isInteger(punchId)) {
+    return Response.json({ error: "organizationId and punchId are required." }, { status: 400 });
+  }
+  if (reason.length < 10) {
+    return Response.json({ error: "Give a correction reason of at least 10 characters." }, { status: 400 });
+  }
+  if (Number.isNaN(timeIn.getTime()) || Number.isNaN(timeOut.getTime())) {
+    return Response.json({ error: "Valid time-in and time-out values are required." }, { status: 400 });
+  }
+  if (timeOut.getTime() <= timeIn.getTime()) {
+    return Response.json({ error: "Time out must be later than time in." }, { status: 400 });
+  }
+  if (timeOut.getTime() - timeIn.getTime() > 36 * 60 * 60 * 1000) {
+    return Response.json({ error: "A corrected punch pair cannot span more than 36 hours." }, { status: 400 });
+  }
+
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_ADMIN_ROLES,
+    "Only People administrators can correct attendance.",
+  );
+  if (denied) return denied;
+
+  const [existing] = await db
+    .select()
+    .from(timePunches)
+    .where(and(eq(timePunches.id, punchId), eq(timePunches.organizationId, organizationId)))
+    .limit(1);
+  if (!existing) return Response.json({ error: "Attendance punch not found in this organization." }, { status: 404 });
+
+  const releasedRuns = await db
+    .select({ periodStart: payrollRuns.periodStart, periodEnd: payrollRuns.periodEnd })
+    .from(payrollRuns)
+    .where(and(eq(payrollRuns.organizationId, organizationId), eq(payrollRuns.status, "Released")));
+  const lockedByRelease = releasedRuns.some(
+    (run) => existing.workDate >= run.periodStart && existing.workDate <= run.periodEnd,
+  );
+  if (lockedByRelease) {
+    return Response.json({
+      error: "Attendance inside a released payroll period is immutable. Record an adjustment in a later payroll instead.",
+    }, { status: 409 });
+  }
+
+  const [employee] = await db
+    .select()
+    .from(employees)
+    .where(and(eq(employees.id, existing.employeeId), eq(employees.organizationId, organizationId)))
+    .limit(1);
+
+  const correctionNote = `Attendance corrected by ${user.name}: ${reason}`;
+  const [updated] = await db
+    .update(timePunches)
+    .set({
+      timeIn,
+      timeOut,
+      status: "Complete",
+      notes: existing.notes ? `${existing.notes} · ${correctionNote}` : correctionNote,
+    })
+    .where(and(eq(timePunches.id, punchId), eq(timePunches.organizationId, organizationId)))
+    .returning();
+
+  await recordAuditEvent({
+    organizationId,
+    actor: user.name,
+    action: "Attendance punch corrected",
+    resource: employee ? `${employee.firstName} ${employee.lastName}` : `Punch #${punchId}`,
+    metadata: {
+      punchId,
+      employeeId: existing.employeeId,
+      workDate: existing.workDate,
+      previousTimeIn: existing.timeIn?.toISOString() ?? null,
+      previousTimeOut: existing.timeOut?.toISOString() ?? null,
+      correctedTimeIn: timeIn.toISOString(),
+      correctedTimeOut: timeOut.toISOString(),
+      reason,
+    },
+  });
+
+  return Response.json({ ok: true, punch: updated });
 }
