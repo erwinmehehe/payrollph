@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { passwordResetTokens, users } from "@/db/schema";
 import { randomToken, sha256 } from "@/lib/crypto";
@@ -35,6 +35,12 @@ export async function POST(request: Request) {
   if (!user) return Response.json(generic);
 
   const token = randomToken(24);
+
+  // Only the newest reset link should remain usable.
+  await db.update(passwordResetTokens)
+    .set({ usedAt: new Date() })
+    .where(and(eq(passwordResetTokens.userId, user.id), isNull(passwordResetTokens.usedAt)));
+
   await db.insert(passwordResetTokens).values({
     userId: user.id,
     tokenHash: sha256(token),
