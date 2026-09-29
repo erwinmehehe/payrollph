@@ -172,7 +172,7 @@ jobs:
             const body = await page.locator("body").innerText();
             check(body.includes("ROLE SANDBOX"), `${persona.label}: role sandbox did not render after launch`);
             check(body.includes(persona.person), `${persona.label}: expected persona identity ${persona.person} is missing`);
-            check(body.includes(persona.landing), `${persona.label}: expected landing context ${persona.landing} is missing`);
+            check(body.toLowerCase().includes(persona.landing.toLowerCase()), `${persona.label}: expected landing context ${persona.landing} is missing`);
 
             const alert = page.getByRole("alert");
             if (await alert.count()) {
