@@ -69,7 +69,8 @@ export async function ensureEmployeePayProfiles(organizationId: number) {
       WHERE e.organization_id = $1
         AND NOT EXISTS (
           SELECT 1 FROM employee_pay_profiles p WHERE p.employee_id = e.id
-        )`,
+        )
+      ON CONFLICT (employee_id) DO NOTHING`,
       [organizationId],
     );
   } finally {
