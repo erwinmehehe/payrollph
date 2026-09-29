@@ -2,7 +2,6 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employeeLoans,
-  employeePayProfiles,
   employees,
   historicalPayrollEntries,
   importBatches,
@@ -12,7 +11,8 @@ import { ORG_ADMIN_ROLES, assertOrganizationRole } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
-import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
+import { ensureEmployeePayHistory } from "@/lib/pay-basis-schema";
+import { philippinesToday, recordEffectivePayChange } from "@/lib/pay-history-server";
 import { getEntitlements, requireFeature, seatUsage } from "@/lib/billing";
 import { xlsxToCsv } from "@/lib/xlsx-import";
 import {
@@ -179,7 +179,7 @@ export async function POST(request: Request) {
   if (denied) return denied;
 
   await ensureMigrationSchema();
-  await ensureEmployeePayProfiles(organizationId);
+  await ensureEmployeePayHistory(organizationId);
 
   const entitlements = await getEntitlements(organizationId);
   const gate = requireFeature(entitlements, "imports");
@@ -412,25 +412,22 @@ export async function POST(request: Request) {
         employeeId = createdEmployee.id;
       }
 
-      // Employee migration currently maps a field explicitly named monthly
-      // basic salary. Preserve that source meaning as an explicit monthly pay
-      // profile rather than letting payroll infer behavior from attendance.
-      await db.insert(employeePayProfiles).values({
-        employeeId,
+      // Employee migration maps a field explicitly named monthly basic.
+      // New employees keep the source hire date as their opening rate; existing
+      // employees get a current effective-dated update so historical payroll is
+      // never retroactively rewritten by a roster import.
+      await recordEffectivePayChange({
         organizationId,
-        payBasis: "monthly",
-        rateAmount: cents(row.monthlyBasic),
-        standardWorkDaysPerMonth: "22.00",
-        standardHoursPerDay: "8.00",
-      }).onConflictDoUpdate({
-        target: employeePayProfiles.employeeId,
-        set: {
+        employeeId,
+        effectiveFrom: existing ? philippinesToday() : (row.startDate ?? philippinesToday()),
+        payProfile: {
           payBasis: "monthly",
-          rateAmount: cents(row.monthlyBasic),
-          standardWorkDaysPerMonth: "22.00",
-          standardHoursPerDay: "8.00",
-          updatedAt: new Date(),
+          rateAmount: row.monthlyBasic,
+          standardWorkDaysPerMonth: 22,
+          standardHoursPerDay: 8,
         },
+        reason: `Migration from ${source} · ${fileName}`,
+        actor: user.name,
       });
     }
   }
