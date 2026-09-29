@@ -15,12 +15,12 @@ import {
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, PageHeading, Segmented, Status, formatDate, money } from "./ui";
 
-const GOVERNMENT_DRAFTS = [
-  { template: "1601-C", detail: "Monthly remittance return of income taxes withheld on compensation" },
-  { template: "Alphalist/2316", detail: "Year-end alphalist and certificate of compensation summary" },
-  { template: "SSS R-3", detail: "Monthly contribution collection list, recomputed from the full monthly MSC" },
-  { template: "PhilHealth RF-1", detail: "Employer remittance report" },
-  { template: "Pag-IBIG MCRF", detail: "Membership contribution remittance form" },
+const GOVERNMENT_WORKSHEETS = [
+  { value: "bir-1601c", label: "BIR 1601-C worksheet", detail: "Cutoff withholding summary. This is not the filed return." },
+  { value: "bir-1604c-source", label: "BIR 1604-C annual source extract", detail: "Source fields for year-end work. Exact DAT generation stays disabled until the annual schedule is complete and passes BIR Alphalist v7.4." },
+  { value: "sss-r3", label: "SSS e-CL / R-3 worksheet", detail: "Full-month SSS and EC amounts for My.SSS e-CL / R-3 review. PRN and employer-portal acceptance are still required." },
+  { value: "philhealth-rf1", label: "PhilHealth EPRS / RF-1 worksheet", detail: "Full-month premium worksheet for the mandatory employer EPRS workflow." },
+  { value: "pagibig-mcrf", label: "Pag-IBIG MCRF / eSRS worksheet", detail: "Assisted contribution worksheet only. The prescribed spreadsheet/eSRS format is not claimed as upload-ready." },
 ];
 
 export function ExportsView({ data, notify }: { data: DashboardData; notify: Notify }) {
@@ -141,6 +141,7 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
                   />
                   <button
                     className={mode === "live" ? "primary-button" : "secondary-button"}
+                    disabled={mode === "live" && run.status !== "Released"}
                     onClick={() =>
                       download(
                         `/api/payroll-runs/${run.id}/exports?kind=bank&template=${encodeURIComponent(template)}&dryRun=${mode === "dry"}`,
@@ -148,7 +149,11 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
                       )
                     }
                   >
-                    <Download size={14} className="i-teal" /> {mode === "dry" ? "Run validation" : `Generate ${template}`}
+                    <Download size={14} className="i-teal" /> {mode === "dry"
+                      ? "Run validation"
+                      : run.status === "Released"
+                        ? `Generate ${template}`
+                        : "Release payroll first"}
                   </button>
                 </div>
               </div>
@@ -182,14 +187,14 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
                   Government worksheets <Status value="Draft only" />
                 </h3>
                 <p>
-                  Computed from the same rule engine as payroll, but <strong>not</strong> byte-validated against the
-                  agencies&apos; own import tools. Every file is labelled DRAFT.
+                  These are deliberately scoped to what Linaw can prove. BIR DAT, SSS/My.SSS, PhilHealth EPRS and
+                  Pag-IBIG eSRS are not called filing-ready until the current agency workflow accepts them.
                 </p>
                 <div className="worksheet-list" style={{ padding: "12px 0 0" }}>
-                  {GOVERNMENT_DRAFTS.map((item) => (
-                    <div className="leave-request" key={item.template} style={{ padding: "10px 12px" }}>
+                  {GOVERNMENT_WORKSHEETS.map((item) => (
+                    <div className="leave-request" key={item.value} style={{ padding: "10px 12px" }}>
                       <div>
-                        <strong>{item.template}</strong>
+                        <strong>{item.label}</strong>
                         <p>{item.detail}</p>
                       </div>
                       <button
@@ -197,12 +202,12 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
                         style={{ height: 28, fontSize: 11 }}
                         onClick={() =>
                           download(
-                            `/api/payroll-runs/${run.id}/exports?kind=government&template=${encodeURIComponent(item.template)}`,
-                            `${item.template} draft`,
+                            `/api/payroll-runs/${run.id}/exports?kind=government&template=${encodeURIComponent(item.value)}`,
+                            `${item.label} worksheet`,
                           )
                         }
                       >
-                        <Download size={13} className="i-teal" /> Draft
+                        <Download size={13} className="i-teal" /> Worksheet
                       </button>
                     </div>
                   ))}
