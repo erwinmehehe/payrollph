@@ -114,6 +114,25 @@ export async function getDashboardData(organizationId?: number) {
     db.select().from(provisioningTasks).where(eq(provisioningTasks.organizationId, selectedOrganization.id)),
   ]);
 
+  const handoffRunRows = canViewPayroll
+    ? runRows
+    : access.role === "hr" && access.companyWide
+      ? await db
+          .select({
+            id: payrollRuns.id,
+            periodLabel: payrollRuns.periodLabel,
+            status: payrollRuns.status,
+            payDate: payrollRuns.payDate,
+          })
+          .from(payrollRuns)
+          .where(eq(payrollRuns.organizationId, selectedOrganization.id))
+          .orderBy(desc(payrollRuns.id))
+          .limit(12)
+      : [];
+  const handoffRun = canViewPayroll
+    ? runRows.find((run) => run.status !== "Released") ?? runRows[0] ?? null
+    : handoffRunRows.find((run) => run.status !== "Released") ?? handoffRunRows[0] ?? null;
+
   const visibleEmployeeIds = new Set(employeeRows.map((employee) => employee.id));
   const punchRows = access.companyWide
     ? punchRowsRaw
@@ -183,6 +202,14 @@ export async function getDashboardData(organizationId?: number) {
     employees: employeesWithPayBasis,
     orgUnits: units,
     payrollRuns: runRows,
+    payrollHandoffRun: handoffRun
+      ? {
+          id: handoffRun.id,
+          periodLabel: handoffRun.periodLabel,
+          status: handoffRun.status,
+          payDate: handoffRun.payDate,
+        }
+      : null,
     payrollEntries: entries,
     payrollJobs: jobs,
     tasks: taskRows,

@@ -33,3 +33,26 @@ test("import endpoint enforces the plan and seat limit in this order", () => {
   assert.ok(featureAt > -1, "plan gate must exist");
   assert.ok(seatAt > featureAt, "seat limit is checked only after the plan gate passes");
 });
+
+
+test("employee self-service exposes an upcoming pay stage without unreleased amounts", () => {
+  const route = read("src/app/api/self/payslips/route.ts");
+  assert.ok(route.includes('.filter((row) => row.run.status !== "Released")'));
+  assert.ok(route.includes(".sort((a, b) => a.run.payDate.localeCompare(b.run.payDate))[0]"));
+  assert.ok(route.includes("employeePayStatusLabel(upcoming.run.status)"));
+
+  const nextPayStart = route.indexOf("nextPay: upcoming");
+  const payslipsStart = route.indexOf("payslips: released.map", nextPayStart);
+  assert.ok(nextPayStart > -1 && payslipsStart > nextPayStart, "nextPay response block must exist before released payslips");
+  const nextPayBlock = route.slice(nextPayStart, payslipsStart);
+  assert.ok(!nextPayBlock.includes("gross:"), "upcoming pay must not expose unreleased gross pay");
+  assert.ok(!nextPayBlock.includes("net:"), "upcoming pay must not expose unreleased net pay");
+  assert.ok(!nextPayBlock.includes("deductions:"), "upcoming pay must not expose unreleased deductions");
+});
+
+test("employee self-service renders the same payroll handoff used by company roles", () => {
+  const portal = read("src/components/self-service-portal.tsx");
+  assert.ok(portal.includes("<PayrollHandoff"));
+  assert.ok(portal.includes("NEXT PAY STATUS"));
+  assert.ok(portal.includes("Your pay amount stays private and hidden until payroll is released."));
+});

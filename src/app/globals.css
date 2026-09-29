@@ -5894,3 +5894,250 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
     justify-self: start;
   }
 }
+
+
+/* ==========================================================================
+   Payroll handoff + employee self-service journey
+   ========================================================================== */
+
+.payroll-handoff {
+  margin: 16px 0 18px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background:
+    linear-gradient(180deg, rgba(68, 76, 231, .025), transparent 110px),
+    var(--paper);
+  box-shadow: var(--shadow-sm);
+}
+.payroll-handoff.compact {
+  margin-top: 12px;
+}
+.payroll-handoff-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+}
+.payroll-handoff-head h2 {
+  margin: 5px 0 3px;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+.payroll-handoff-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+.payroll-handoff-meta {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+  flex: none;
+}
+.payroll-handoff-meta small {
+  color: var(--muted-light);
+  font-size: 9.5px;
+}
+.handoff-steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0;
+  margin-top: 16px;
+}
+.handoff-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 9px;
+  min-width: 0;
+  padding: 12px 12px 12px 0;
+}
+.handoff-step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 26px;
+  right: -1px;
+  width: 12px;
+  height: 1px;
+  background: var(--line);
+}
+.handoff-step-marker {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--canvas);
+  color: var(--muted-light);
+}
+.handoff-step.done .handoff-step-marker {
+  border-color: rgba(18, 183, 106, .2);
+  background: var(--success-bg);
+  color: var(--success);
+}
+.handoff-step.current .handoff-step-marker {
+  border-color: rgba(68, 76, 231, .22);
+  background: #eef0ff;
+  color: #444ce7;
+  box-shadow: 0 0 0 4px rgba(68, 76, 231, .055);
+}
+.handoff-step.mine {
+  background: linear-gradient(180deg, rgba(68, 76, 231, .035), transparent);
+  border-radius: 10px;
+}
+.handoff-step-copy { min-width: 0; }
+.handoff-step-top {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.handoff-step-top > span {
+  color: var(--muted-light);
+  font-family: var(--font-mono), monospace;
+  font-size: 8px;
+}
+.handoff-step-top > strong {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 750;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.handoff-step-top > em {
+  margin-left: auto;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: #eef0ff;
+  color: #444ce7;
+  font-size: 7.5px;
+  font-style: normal;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.handoff-step-copy > b {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink);
+  font-size: 10.5px;
+  font-weight: 680;
+}
+.handoff-step-copy > p {
+  margin: 3px 0 0;
+  color: var(--muted-light);
+  font-size: 9.5px;
+  line-height: 1.4;
+}
+.handoff-step.pending {
+  opacity: .62;
+}
+
+.employee-pay-next {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  margin-bottom: 12px;
+  padding: 18px 20px;
+  border: 1px solid #dfe3e8;
+  border-radius: var(--r-lg);
+  background:
+    radial-gradient(circle at 0 0, rgba(18, 183, 106, .07), transparent 32%),
+    var(--paper);
+  box-shadow: var(--shadow-sm);
+}
+.employee-pay-next-copy {
+  min-width: 0;
+}
+.employee-pay-next-copy h2 {
+  margin: 5px 0 4px;
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 720;
+  letter-spacing: -.025em;
+}
+.employee-pay-next-copy p {
+  max-width: 570px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.employee-pay-next-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 190px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--canvas);
+  color: var(--active);
+}
+.employee-pay-next-meta div {
+  min-width: 0;
+}
+.employee-pay-next-meta span {
+  display: block;
+  color: var(--muted-light);
+  font-size: 8.5px;
+  font-weight: 750;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.employee-pay-next-meta strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 680;
+}
+
+@media (max-width: 980px) {
+  .handoff-steps {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .handoff-step {
+    padding: 8px 0;
+  }
+  .handoff-step:not(:last-child)::after {
+    top: auto;
+    right: auto;
+    bottom: -3px;
+    left: 14px;
+    width: 1px;
+    height: 10px;
+  }
+  .handoff-step.mine {
+    padding-inline: 8px;
+    margin-inline: -8px;
+  }
+}
+
+@media (max-width: 640px) {
+  .payroll-handoff {
+    padding: 15px;
+  }
+  .payroll-handoff-head,
+  .employee-pay-next {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .payroll-handoff-meta {
+    justify-items: start;
+  }
+  .employee-pay-next {
+    padding: 16px;
+  }
+  .employee-pay-next-meta {
+    min-width: 0;
+  }
+}

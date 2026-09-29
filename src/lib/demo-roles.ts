@@ -86,8 +86,8 @@ export const DEMO_ROLES: DemoRoleInfo[] = [
     label: "Employee",
     shortLabel: "Employee",
     person: "Jonas Reyes",
-    description: "Use employee self-service for personal pay history, released payslips and attendance punches.",
-    access: ["Own payslips", "Own year-to-date pay", "Clock in / out"],
+    description: "Use employee self-service to follow the upcoming pay stage, view released payslips and record attendance.",
+    access: ["Own upcoming pay stage", "Own released payslips and year-to-date pay", "Clock in / out"],
     actions: ["Open a released payslip", "Download the payslip", "Record a demo attendance punch"],
     landingPage: "My pay",
     tasks: [

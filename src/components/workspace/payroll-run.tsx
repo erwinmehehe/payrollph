@@ -18,6 +18,8 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
+import { PayrollHandoff } from "@/components/payroll-handoff";
+import { buildPayrollHandoff, handoffViewerRole } from "@/lib/payroll-handoff";
 import { readLineItems, readTrace, type BankTemplate, type DashboardData, type Notify, type PayrollEntry, type PayrollLineItem, type PayrollRun, type Task } from "./types";
 import { PayrollAssurancePanel } from "./payroll-assurance-panel";
 import { ExplainPayDrawer } from "./explain-pay-drawer";
@@ -180,6 +182,11 @@ export function PayrollRunView({
 
   const exceptionRows = entries.filter((entry) => entry.status === "Exception");
   const relatedTask = useMemo(() => findRunApproval(data.tasks, run), [data.tasks, run]);
+  const handoffStages = buildPayrollHandoff(run, {
+    payrollExceptions: exceptionRows.length,
+    approvalTask: relatedTask,
+  });
+  const handoffRole = handoffViewerRole(data.access?.role ?? data.user?.role);
   async function openReviewSubmission() {
     if (!run) return;
     setReviewLoading(true);
@@ -297,6 +304,15 @@ export function PayrollRunView({
             </button>
           </>
         }
+      />
+
+      <PayrollHandoff
+        stages={handoffStages}
+        period={run.periodLabel}
+        status={run.status}
+        payDate={formatDate(run.payDate)}
+        viewerRole={handoffRole}
+        compact
       />
 
       <section className="payroll-workspace">

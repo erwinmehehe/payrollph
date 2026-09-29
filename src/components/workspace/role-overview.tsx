@@ -15,7 +15,9 @@ import {
   UsersRound,
   WalletCards,
 } from "lucide-react";
-import type { DashboardData, PayrollRun, Task } from "./types";
+import { PayrollHandoff } from "@/components/payroll-handoff";
+import { buildPayrollHandoff, type PayrollHandoffStage } from "@/lib/payroll-handoff";
+import type { DashboardData, PayrollHandoffRunSummary, PayrollRun, Task } from "./types";
 import {
   Avatar,
   EmptyState,
@@ -59,10 +61,22 @@ export function RoleOverviewView({
       (!employee.tin || !employee.sssNo || !employee.philHealthNo || !employee.pagIbigNo),
   );
   const activeAdvisories = data.advisories.filter((advisory) => advisory.active);
+  const handoffRun = currentRun ?? data.payrollHandoffRun ?? undefined;
+  const payrollApproval = handoffRun
+    ? data.tasks
+        .filter((task) => task.detail.includes(`Payroll run #${handoffRun.id}`))
+        .sort((a, b) => b.id - a.id)[0] ?? null
+    : null;
+  const handoffStages = buildPayrollHandoff(handoffRun, {
+    hrIssues: pendingLeave.length + attendanceIssues.length + peopleMissingGovernmentIds.length,
+    payrollExceptions: payrollExceptions.length,
+    approvalTask: payrollApproval,
+  });
 
   const common = {
     data,
     currentRun,
+    handoffRun,
     firstName,
     activePeople,
     pendingTasks,
@@ -74,6 +88,7 @@ export function RoleOverviewView({
     attendanceIssues,
     peopleMissingGovernmentIds,
     activeAdvisories,
+    handoffStages,
     onPage,
     onNewRun,
   };
@@ -91,6 +106,7 @@ export function RoleOverviewView({
 type RoleDashboardProps = {
   data: DashboardData;
   currentRun?: PayrollRun;
+  handoffRun?: PayrollHandoffRunSummary | PayrollRun;
   firstName: string;
   activePeople: DashboardData["employees"];
   pendingTasks: Task[];
@@ -102,6 +118,7 @@ type RoleDashboardProps = {
   attendanceIssues: NonNullable<DashboardData["punches"]>;
   peopleMissingGovernmentIds: DashboardData["employees"];
   activeAdvisories: DashboardData["advisories"];
+  handoffStages: PayrollHandoffStage[];
   onPage: (page: string) => void;
   onNewRun: () => void;
 };
@@ -110,12 +127,14 @@ function OwnerDashboard(props: RoleDashboardProps) {
   const {
     data,
     currentRun,
+    handoffRun,
     firstName,
     activePeople,
     pendingTasks,
     payrollExceptions,
     peopleMissingGovernmentIds,
     activeAdvisories,
+    handoffStages,
     onPage,
     onNewRun,
   } = props;
@@ -155,6 +174,14 @@ function OwnerDashboard(props: RoleDashboardProps) {
           ["People", String(activePeople.length)],
         ]}
         tone="owner"
+      />
+
+      <PayrollHandoff
+        stages={handoffStages}
+        period={handoffRun?.periodLabel ?? "Next payroll"}
+        status={handoffRun?.status ?? "Waiting for inputs"}
+        payDate={handoffRun?.payDate}
+        viewerRole="owner"
       />
 
       <section className="stats-grid">
@@ -252,12 +279,15 @@ function OwnerDashboard(props: RoleDashboardProps) {
 function HrDashboard(props: RoleDashboardProps) {
   const {
     data,
+    currentRun,
+    handoffRun,
     firstName,
     activePeople,
     pendingLeave,
     openProvisioning,
     attendanceIssues,
     peopleMissingGovernmentIds,
+    handoffStages,
     onPage,
   } = props;
 
@@ -285,6 +315,14 @@ function HrDashboard(props: RoleDashboardProps) {
           ["Onboarding items", String(openProvisioning.length)],
         ]}
         tone="hr"
+      />
+
+      <PayrollHandoff
+        stages={handoffStages}
+        period={handoffRun?.periodLabel ?? "Next payroll"}
+        status={handoffRun?.status ?? "Waiting for inputs"}
+        payDate={handoffRun?.payDate}
+        viewerRole="hr"
       />
 
       <section className="stats-grid">
@@ -365,11 +403,13 @@ function PayrollDashboard(props: RoleDashboardProps) {
   const {
     data,
     currentRun,
+    handoffRun,
     firstName,
     pendingTasks,
     payrollExceptions,
     pendingRetro,
     attendanceIssues,
+    handoffStages,
     onPage,
     onNewRun,
   } = props;
@@ -412,6 +452,14 @@ function PayrollDashboard(props: RoleDashboardProps) {
           ["Retro items", String(pendingRetro.length)],
         ]}
         tone="payroll"
+      />
+
+      <PayrollHandoff
+        stages={handoffStages}
+        period={handoffRun?.periodLabel ?? "Next payroll"}
+        status={handoffRun?.status ?? "Waiting for inputs"}
+        payDate={handoffRun?.payDate}
+        viewerRole="payroll"
       />
 
       <section className="stats-grid">
@@ -478,10 +526,12 @@ function CheckerDashboard(props: RoleDashboardProps) {
   const {
     data,
     currentRun,
+    handoffRun,
     firstName,
     pendingTasks,
     highPriorityTasks,
     activeAdvisories,
+    handoffStages,
     onPage,
   } = props;
 
@@ -509,6 +559,14 @@ function CheckerDashboard(props: RoleDashboardProps) {
           ["Advisories", String(activeAdvisories.length)],
         ]}
         tone="checker"
+      />
+
+      <PayrollHandoff
+        stages={handoffStages}
+        period={handoffRun?.periodLabel ?? "Next payroll"}
+        status={handoffRun?.status ?? "Waiting for inputs"}
+        payDate={handoffRun?.payDate}
+        viewerRole="checker"
       />
 
       <section className="stats-grid">

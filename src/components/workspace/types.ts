@@ -70,6 +70,13 @@ export type PayrollLineItem = { code: string; label: string; amount: string; not
 
 export type PayrollTrace = { ruleVersion?: string; inputs?: string[]; flags?: string[] } | null;
 
+export type PayrollHandoffRunSummary = {
+  id: number;
+  periodLabel: string;
+  status: string;
+  payDate: string;
+};
+
 export type PayrollEntry = {
   id: number;
   employeeId: number;
@@ -247,6 +254,7 @@ export type DashboardData = {
   selectedOrganization: Organization;
   employees: Employee[];
   payrollRuns: PayrollRun[];
+  payrollHandoffRun?: PayrollHandoffRunSummary | null;
   payrollEntries: PayrollEntry[];
   payrollJobs?: Array<{ id: number; status: string; chunkIndex: number }>;
   tasks: Task[];

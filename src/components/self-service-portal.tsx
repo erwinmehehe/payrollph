@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Clock, Download, FileText, LogOut, ShieldCheck, WalletCards } from "lucide-react";
+import { CalendarDays, Clock, Download, FileText, LogOut, ShieldCheck, WalletCards } from "lucide-react";
 import { WebBundyModal } from "@/components/web-bundy-modal";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
+import { PayrollHandoff } from "@/components/payroll-handoff";
 import { type DemoRoleId } from "@/lib/demo-roles";
+import { buildPayrollHandoff } from "@/lib/payroll-handoff";
 
 type Payslip = {
   entryId: number;
@@ -22,11 +24,20 @@ type Payload = {
   employee: { employeeNo: string; firstName: string; lastName: string; title: string; employmentType: string; status: string; monthlyBasic: string };
   employer: { id: number; name: string } | null;
   yearToDate: { gross: string; net: string; deductions: string; tax: string; periodsPaid: number };
+  nextPay: { period: string; payDate: string; status: string; label: string } | null;
   payslips: Payslip[];
 };
 
 const peso = (value: string | number) =>
   new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 2 }).format(Number(value));
+
+const payDateLabel = (value: string) =>
+  new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric", year: "numeric" }).format(
+    new Date(value + "T00:00:00+08:00"),
+  );
+
+const payDateHasPassed = (value: string) =>
+  new Date(value + "T23:59:59+08:00").getTime() < Date.now();
 
 export function SelfServicePortal() {
   const searchParams = useSearchParams();
@@ -175,6 +186,49 @@ export function SelfServicePortal() {
 
       {data && (
         <>
+          <section className="employee-pay-next">
+            <div className="employee-pay-next-copy">
+              <span className="card-kicker">NEXT PAY STATUS</span>
+              {data.nextPay ? (
+                <>
+                  <h2>{data.nextPay.period}</h2>
+                  <p>
+                    {data.nextPay.label}.
+                    {payDateHasPassed(data.nextPay.payDate) ? " The scheduled pay date has passed, so this stays visible until release." : ""}
+                    {" "}Your pay amount stays private and hidden until payroll is released.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h2>No upcoming payroll yet</h2>
+                  <p>Your next cycle will appear here after your employee record is included in a payroll run.</p>
+                </>
+              )}
+            </div>
+            <div className="employee-pay-next-meta">
+              <CalendarDays size={17} />
+              <div>
+                <span>{data.nextPay && payDateHasPassed(data.nextPay.payDate) ? "Scheduled date passed" : "Scheduled pay date"}</span>
+                <strong>{data.nextPay ? payDateLabel(data.nextPay.payDate) : "Not scheduled"}</strong>
+              </div>
+            </div>
+          </section>
+
+          {data.nextPay && (
+            <PayrollHandoff
+              stages={buildPayrollHandoff({
+                status: data.nextPay.status,
+                periodLabel: data.nextPay.period,
+                payDate: data.nextPay.payDate,
+              })}
+              period={data.nextPay.period}
+              status={data.nextPay.label}
+              payDate={payDateLabel(data.nextPay.payDate)}
+              viewerRole="employee"
+              compact
+            />
+          )}
+
           <section className="stats-grid">
             <article className="stat-card">
               <div className="stat-icon mint"><WalletCards size={19} /></div>

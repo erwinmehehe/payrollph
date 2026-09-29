@@ -117,6 +117,26 @@ test("dashboard payload withholds approval delegation rows from HR and payroll",
   );
 });
 
+test("HR receives only an amount-free payroll handoff summary", () => {
+  const dashboard = read("src/lib/dashboard-data.ts");
+  const roleOverview = read("src/components/workspace/role-overview.tsx");
+
+  assert.ok(
+    dashboard.includes('access.role === "hr" && access.companyWide'),
+    "safe payroll summary must be restricted to company-wide HR",
+  );
+  assert.ok(dashboard.includes("payrollHandoffRun: handoffRun"), "dashboard must expose the handoff summary");
+  assert.ok(roleOverview.includes("currentRun ?? data.payrollHandoffRun ?? undefined"), "HR dashboard must use the safe summary fallback");
+
+  const selectStart = dashboard.indexOf(".select({\n            id: payrollRuns.id");
+  const selectEnd = dashboard.indexOf("})\n          .from(payrollRuns)", selectStart);
+  assert.ok(selectStart > -1 && selectEnd > selectStart, "safe handoff select must exist");
+  const safeSelect = dashboard.slice(selectStart, selectEnd);
+  for (const privateField of ["grossPay", "netPay", "exceptions", "employeeCount"]) {
+    assert.ok(!safeSelect.includes(privateField), `safe HR handoff must not select ${privateField}`);
+  }
+});
+
 test("expanded payroll-input demo pages match the existing server authorization model", () => {
   const access = read("src/lib/access.ts");
   const benefits = read("src/app/api/benefits/route.ts");

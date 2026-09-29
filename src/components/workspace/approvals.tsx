@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { Check, ClipboardCheck, Clock3, Settings2, ShieldCheck, UserCheck, X } from "lucide-react";
+import { PayrollHandoff } from "@/components/payroll-handoff";
+import { buildPayrollHandoff, handoffViewerRole } from "@/lib/payroll-handoff";
 import type { DashboardData, Notify, Task } from "./types";
 import { EmptyState, Metric, PageHeading, Segmented, Spinner, Status } from "./ui";
 
@@ -36,6 +38,16 @@ export function ApprovalsView({
 
   const pendingCount = data.tasks.filter((task) => task.status === "Pending").length;
   const highCount = data.tasks.filter((task) => task.status === "Pending" && task.priority === "High").length;
+  const currentRun = data.payrollRuns.find((run) => run.status !== "Released") ?? data.payrollRuns[0];
+  const payrollTask = currentRun
+    ? data.tasks
+        .filter((task) => task.detail.includes(`Payroll run #${currentRun.id}`))
+        .sort((a, b) => b.id - a.id)[0] ?? null
+    : null;
+  const handoffStages = currentRun
+    ? buildPayrollHandoff(currentRun, { payrollExceptions: currentRun.exceptions, approvalTask: payrollTask })
+    : [];
+  const handoffRole = handoffViewerRole(data.access?.role ?? data.user?.role);
 
   async function decide(task: Task, status: "Approved" | "Declined") {
     setPendingId(task.id);
@@ -64,6 +76,17 @@ export function ApprovalsView({
           ) : undefined
         }
       />
+
+      {currentRun && (
+        <PayrollHandoff
+          stages={handoffStages}
+          period={currentRun.periodLabel}
+          status={currentRun.status}
+          payDate={currentRun.payDate}
+          viewerRole={handoffRole}
+          compact
+        />
+      )}
 
       <section className="stats-grid">
         <Metric label="Pending" value={String(pendingCount)} hint="awaiting a decision" icon={<ClipboardCheck size={16} className="i-amber" />} tone={pendingCount ? "amber" : "mint"} />
