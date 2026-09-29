@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { organizations, userOrganizations, users } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { createSession, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth";
-import { generateBackupCodes, hashPassword } from "@/lib/crypto";
+import { hashPassword } from "@/lib/crypto";
 import { clientIp, rateLimitDistributed } from "@/lib/rate-limit";
 import { normalizeEmail, passwordIssues, validEmail } from "@/lib/tokens";
 import { cookies } from "next/headers";
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     passwordHash: hashPassword(password),
     role: "owner",
     totpEnabled: false,
-    backupCodes: generateBackupCodes(),
+    backupCodes: [],
   }).returning();
 
   await db.insert(userOrganizations).values({
