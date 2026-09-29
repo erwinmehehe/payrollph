@@ -267,7 +267,8 @@ test("HR can resolve an incomplete attendance blocker through an audited correct
   assert.ok(timeView.includes("Fix punch"));
   assert.ok(timeView.includes('method: "PATCH"'));
   assert.ok(timeView.includes('fetch("/api/web-bundy"'));
-  assert.ok(timeView.includes("Recalculate any payroll run that already used this work date"));
+  assert.ok(timeView.includes("Payroll must recalculate the run before checker review."));
+  assert.ok(route.includes("Recalculate any payroll run that already used this work date."));
 
   assert.ok(engine.includes("timeIn: punch.timeIn"));
   assert.ok(engine.includes("timeOut: punch.timeOut"));
