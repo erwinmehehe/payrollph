@@ -473,7 +473,18 @@ test("pending retro pay is included once and settled only on payroll release", a
     const lines = entry.lineItems as Array<{ code: string; amount: string }>;
     assert.equal(Number(lines.find((line) => line.code === `RETRO-${retro.id}`)?.amount), 1066.67);
 
+    await db.update(employeePayRetroAdjustments)
+      .set({ amount: "1200.00" })
+      .where(eq(employeePayRetroAdjustments.id, retro.id));
     await db.update(payrollRuns).set({ status: "Releasing" }).where(eq(payrollRuns.id, nextRun.id));
+    await assert.rejects(
+      () => settlePayrollRun(nextRun.id),
+      /Retro pay adjustment .* changed after calculation/,
+    );
+
+    await db.update(employeePayRetroAdjustments)
+      .set({ amount: "1066.67" })
+      .where(eq(employeePayRetroAdjustments.id, retro.id));
     const released = await settlePayrollRun(nextRun.id);
     assert.equal(released.settlement.retroAdjustmentsSettled, 1);
 
