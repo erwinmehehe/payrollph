@@ -1,4 +1,4 @@
-import { count, eq, sql } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalTasks,
@@ -287,7 +287,10 @@ export async function ensurePublicDemoTenant() {
     let [organization] = await tx
       .select()
       .from(organizations)
-      .where(eq(organizations.name, PUBLIC_DEMO_ORG))
+      .where(and(
+        eq(organizations.name, PUBLIC_DEMO_ORG),
+        eq(organizations.accountType, "public-demo"),
+      ))
       .limit(1);
 
     if (!organization) {
@@ -296,7 +299,7 @@ export async function ensurePublicDemoTenant() {
         .values({
           name: PUBLIC_DEMO_ORG,
           legalName: "Loom & Local Philippines Inc.",
-          accountType: "business",
+          accountType: "public-demo",
           plan: "Scale",
           employeeCount: people.length,
           color: "#176B5D",
