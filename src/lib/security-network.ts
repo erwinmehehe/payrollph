@@ -52,11 +52,12 @@ export function isForbiddenIp(address: string): boolean {
       normalized.startsWith("fd") ||
       /^fe[89ab]/.test(normalized) ||
       normalized.startsWith("ff") ||
-      normalized.startsWith("2001:db8:")
+      normalized.startsWith("2001:db8:") ||
+      normalized.startsWith("::ffff:") ||
+      /^fe[c-f]/.test(normalized)
     ) return true;
 
-    const mapped = normalized.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-    return mapped ? isForbiddenIp(mapped[1]) : false;
+    return false;
   }
 
   return true;
