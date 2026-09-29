@@ -13,6 +13,7 @@ import {
 } from "@/lib/auth";
 import { hashPassword, verifyPassword } from "@/lib/crypto";
 import { passwordChangeIssues } from "@/lib/account";
+import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { clientIp, rateLimitDistributed, requestMeta } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +34,8 @@ export async function POST(request: Request) {
 
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+  const demoDenied = publicDemoMutationDenied(user.email, "Password changes");
+  if (demoDenied) return demoDenied;
 
   const body = await request.json().catch(() => ({}));
   const currentPassword = typeof body.currentPassword === "string" ? body.currentPassword : "";
