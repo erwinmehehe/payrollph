@@ -21,7 +21,11 @@ export function TimeView({
   onRefresh?: () => Promise<void>;
   canManage?: boolean;
 }) {
-  const punches = useMemo(() => data.punches ?? [], [data.punches]);
+  const [optimisticCorrections, setOptimisticCorrections] = useState<Record<number, Punch>>({});
+  const punches = useMemo(
+    () => (data.punches ?? []).map((punch) => optimisticCorrections[punch.id] ?? punch),
+    [data.punches, optimisticCorrections],
+  );
   const [view, setView] = useState<"all" | "incomplete">("all");
   const [query, setQuery] = useState("");
   const [editingPunch, setEditingPunch] = useState<Punch | null>(null);
@@ -85,6 +89,13 @@ export function TimeView({
       if (!response.ok) {
         notify(payload.error ?? "Attendance correction could not be saved.", "err");
         return;
+      }
+      const correctedPunch = payload.punch as Punch | undefined;
+      if (correctedPunch) {
+        setOptimisticCorrections((current) => ({
+          ...current,
+          [correctedPunch.id]: correctedPunch,
+        }));
       }
       setEditingPunch(null);
       await onRefresh?.();
