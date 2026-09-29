@@ -448,6 +448,7 @@ export async function POST(request: Request) {
         periodLabel: row.periodLabel,
         payDate: row.payDate,
         grossPay: cents(row.grossPay),
+        basicSalary: cents(row.basicSalary),
         netPay: cents(row.netPay),
         taxWithheld: cents(row.taxWithheld),
         sssEmployee: cents(row.sssEmployee),
