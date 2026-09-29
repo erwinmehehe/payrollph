@@ -20,6 +20,7 @@ import { FREELANCER_HIDDEN, NAVIGATION, groupOf } from "./nav";
 import type { DashboardData, Organization } from "./types";
 import { Avatar, initialsOf, relativeTime } from "./ui";
 import { DEMO_ROLES, demoRoleInfo, type DemoRoleId } from "@/lib/demo-roles";
+import { getPayrollActions } from "@/lib/payroll-action-center";
 
 export type Notification = {
   id: string;
@@ -28,6 +29,7 @@ export type Notification = {
   at?: string | Date;
   tone: "review" | "active" | "danger" | "success";
   page?: string;
+  actionLabel?: string;
 };
 
 export function WorkspaceShell({
@@ -318,7 +320,7 @@ export function WorkspaceShell({
                 className="icon-button relative"
                 onClick={() => setTrayOpen((current) => !current)}
                 aria-expanded={trayOpen}
-                aria-label={`Notifications${notifications.length ? ` (${notifications.length} unread)` : ""}`}
+                aria-label={`Notifications${notifications.length ? ` (${notifications.length} need attention)` : ""}`}
               >
                 <Bell size={17} className="i-pink" />
                 {notifications.length > 0 && <span className="notification-dot">{notifications.length > 9 ? "9+" : notifications.length}</span>}
@@ -361,6 +363,7 @@ export function WorkspaceShell({
                           <div>
                             <strong>{item.title}</strong>
                             <p>{item.detail}</p>
+                            {item.actionLabel && <span className="tray-action-label">{item.actionLabel} <ChevronRight size={11} /></span>}
                             {item.at && <time>{relativeTime(item.at)}</time>}
                           </div>
                         </button>
@@ -394,49 +397,13 @@ export function WorkspaceShell({
  * Derives the notification tray from real workspace rows. Nothing here is
  * invented, each entry points at a record the user can open.
  */
-export function buildNotifications(data: DashboardData): Notification[] {
-  const items: Notification[] = [];
-
-  for (const task of data.tasks.filter((task) => task.status === "Pending").slice(0, 5)) {
-    items.push({
-      id: `task-${task.id}`,
-      title: task.title,
-      detail: `${task.detail} · ${task.dueLabel}`,
-      tone: task.priority === "High" ? "danger" : "review",
-      page: "Approvals",
-    });
-  }
-
-  for (const run of data.payrollRuns.filter((run) => run.exceptions > 0).slice(0, 3)) {
-    items.push({
-      id: `run-${run.id}`,
-      title: `${run.exceptions} timekeeping exception${run.exceptions === 1 ? "" : "s"} on ${run.periodLabel}`,
-      detail: "Incomplete punches derive zero hours and need sign-off before release.",
-      tone: "review",
-      page: "Payroll",
-    });
-  }
-
-  const openProvisioning = (data.provisioning ?? []).filter((item) => !item.done).length;
-  if (openProvisioning > 0) {
-    items.push({
-      id: "provisioning",
-      title: `${openProvisioning} lifecycle checklist items open`,
-      detail: "Onboarding and offboarding tasks awaiting completion.",
-      tone: "active",
-      page: "People",
-    });
-  }
-
-  for (const advisory of data.advisories.filter((advisory) => advisory.active).slice(0, 2)) {
-    items.push({
-      id: `advisory-${advisory.id}`,
-      title: `Active advisory ${advisory.advisoryNumber}`,
-      detail: `${advisory.policy}, applied automatically during calculation.`,
-      tone: "active",
-      page: "Compliance",
-    });
-  }
-
-  return items;
+export function buildNotifications(data: DashboardData, role?: string | null): Notification[] {
+  return getPayrollActions(data, role).map((action) => ({
+    id: action.id,
+    title: action.title,
+    detail: action.detail,
+    tone: action.tone,
+    page: action.page,
+    actionLabel: action.actionLabel,
+  }));
 }
