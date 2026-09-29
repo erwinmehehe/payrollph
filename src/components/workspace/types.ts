@@ -119,6 +119,7 @@ export type Task = {
   dueLabel: string;
   priority: string;
   status: string;
+  decidedBy?: string | null;
 };
 
 export type AuditEvent = {
