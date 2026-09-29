@@ -1,11 +1,12 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalTasks, auditEvents, leaveRequests, payrollRuns } from "@/db/schema";
+import { approvalTasks, auditEvents, leaveRequests, payrollRuns, userOrganizations, users } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { canDecide } from "@/lib/delegation";
 import { dispatchWebhook } from "@/lib/webhooks";
-import { assertMembership } from "@/lib/access";
+import { assertMembership, PAYROLL_RELEASE_ROLES, roleAllowed } from "@/lib/access";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
+import { queueMessageOnce } from "@/lib/mailer";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -32,12 +33,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const payrollRunMatch = task.detail.match(/Payroll run #(\d+)/);
   const payrollRunId = payrollRunMatch ? Number(payrollRunMatch[1]) : null;
   let payrollSubmission: { actor: string; metadata: Record<string, unknown> } | null = null;
+  let payrollRunForNotification: typeof payrollRuns.$inferSelect | null = null;
+  let payrollMakerUserId: number | null = null;
 
   if (payrollRunId) {
     const [payrollRun] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, payrollRunId)).limit(1);
     if (!payrollRun || payrollRun.organizationId !== task.organizationId) {
       return Response.json({ error: "The payroll approval is not linked to a valid run in this workspace." }, { status: 409 });
     }
+    payrollRunForNotification = payrollRun;
+
     if (payrollRun.status !== "Pending approval") {
       return Response.json({
         error: `This payroll is not awaiting approval (currently ${payrollRun.status}). Recalculate or submit it for review again.`,
@@ -60,6 +65,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     payrollSubmission = { actor: submission.actor, metadata };
     const makerUserId = Number(metadata.makerUserId);
     const assignedApproverUserId = Number(metadata.approverUserId);
+    payrollMakerUserId = Number.isInteger(makerUserId) ? makerUserId : null;
 
     if (Number.isInteger(makerUserId) && makerUserId === sessionUser.id) {
       return Response.json({
@@ -167,6 +173,96 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     throw error;
   }
 
+  let handoffNotification:
+    | { ok: boolean; recipients: number; duplicateCount: number; warning?: string }
+    | null = null;
+
+  if (payrollRunId && payrollRunForNotification) {
+    try {
+      if (status === "Approved") {
+        const members = await db
+          .select({
+            id: users.id,
+            name: users.name,
+            email: users.email,
+            role: userOrganizations.role,
+          })
+          .from(userOrganizations)
+          .innerJoin(users, eq(userOrganizations.userId, users.id))
+          .where(eq(userOrganizations.organizationId, task.organizationId));
+
+        const releaseAuthorities = members.filter((member) => roleAllowed(member.role, PAYROLL_RELEASE_ROLES));
+        let okCount = 0;
+        let duplicateCount = 0;
+
+        for (const recipient of releaseAuthorities) {
+          const notice = await queueMessageOnce({
+            organizationId: task.organizationId,
+            recipient: recipient.email,
+            subject: `Payroll ready for release: ${payrollRunForNotification.periodLabel}`,
+            purpose: `payroll-release-${payrollRunId}-${recipient.id}`,
+            body: [
+              `Hi ${recipient.name},`,
+              "",
+              `${actor} approved ${payrollRunForNotification.periodLabel} payroll after independent review.`,
+              "",
+              "Sign in to Linaw and open Payroll to review the release checklist and release the run.",
+              "Only an owner or administrator can complete release.",
+            ].join("\n"),
+          });
+          if (notice.delivered || notice.queued || notice.duplicate) okCount += 1;
+          if (notice.duplicate) duplicateCount += 1;
+        }
+
+        handoffNotification = {
+          ok: releaseAuthorities.length === 0 || okCount === releaseAuthorities.length,
+          recipients: releaseAuthorities.length,
+          duplicateCount,
+          ...(releaseAuthorities.length === 0
+            ? { warning: "Payroll was approved, but no owner/admin release authority has an email target in this workspace." }
+            : {}),
+        };
+      } else if (payrollMakerUserId) {
+        const [maker] = await db
+          .select({ id: users.id, name: users.name, email: users.email })
+          .from(users)
+          .where(eq(users.id, payrollMakerUserId))
+          .limit(1);
+
+        if (maker) {
+          const notice = await queueMessageOnce({
+            organizationId: task.organizationId,
+            recipient: maker.email,
+            subject: `Payroll returned for changes: ${payrollRunForNotification.periodLabel}`,
+            purpose: `payroll-returned-${payrollRunId}-${maker.id}`,
+            body: [
+              `Hi ${maker.name},`,
+              "",
+              `${actor} declined ${payrollRunForNotification.periodLabel} payroll during independent review.`,
+              "",
+              "Sign in to Linaw and open Payroll to review the run, resolve the issue, recalculate if needed, and submit it again.",
+            ].join("\n"),
+          });
+          handoffNotification = {
+            ok: notice.delivered || notice.queued || notice.duplicate,
+            recipients: 1,
+            duplicateCount: notice.duplicate ? 1 : 0,
+            ...(notice.reason ? { warning: notice.reason } : {}),
+          };
+        }
+      }
+    } catch {
+      handoffNotification = {
+        ok: false,
+        recipients: 0,
+        duplicateCount: 0,
+        warning: status === "Approved"
+          ? "Payroll was approved, but the release-authority notification could not be queued."
+          : "Payroll was returned for changes, but the maker notification could not be queued.",
+      };
+    }
+  }
+
   const deliveries = await dispatchWebhook({
     organizationId: task.organizationId,
     event: "approval.decided",
@@ -188,5 +284,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
   }
 
-  return Response.json({ ...updated, delegation: decision, webhookDeliveries: deliveries.length, leaveUpdated: Boolean(linkedLeave) });
+  return Response.json({
+    ...updated,
+    delegation: decision,
+    webhookDeliveries: deliveries.length,
+    leaveUpdated: Boolean(linkedLeave),
+    handoffNotification,
+  });
 }
