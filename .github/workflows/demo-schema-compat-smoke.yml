@@ -1,0 +1,121 @@
+name: Demo schema compatibility smoke
+
+on:
+  push:
+    branches:
+      - fix/demo-production-schema-compat-sep29
+    paths:
+      - ".github/workflows/demo-schema-compat-smoke.yml"
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run db:push
+
+      - name: Downgrade database to legacy production shape
+        run: |
+          psql "$DATABASE_URL" <<'SQL'
+          DROP TABLE IF EXISTS historical_payroll_entries;
+          DROP TABLE IF EXISTS employee_pay_retro_adjustments;
+          DROP TABLE IF EXISTS employee_pay_revisions;
+          DROP TABLE IF EXISTS employee_pay_profiles;
+
+          ALTER TABLE import_batches
+            DROP COLUMN IF EXISTS source_system,
+            DROP COLUMN IF EXISTS import_kind;
+
+          ALTER TABLE leave_policies
+            DROP COLUMN IF EXISTS pay_treatment,
+            DROP COLUMN IF EXISTS paid_percentage;
+
+          ALTER TABLE payroll_runs
+            DROP COLUMN IF EXISTS period_start,
+            DROP COLUMN IF EXISTS period_end,
+            DROP COLUMN IF EXISTS scope_org_unit_id;
+
+          ALTER TABLE employees
+            DROP COLUMN IF EXISTS middle_name,
+            DROP COLUMN IF EXISTS tin_branch_code,
+            DROP COLUMN IF EXISTS nationality;
+
+          ALTER TABLE organizations
+            DROP COLUMN IF EXISTS bir_tin,
+            DROP COLUMN IF EXISTS bir_branch_code,
+            DROP COLUMN IF EXISTS sss_employer_no,
+            DROP COLUMN IF EXISTS philhealth_employer_no,
+            DROP COLUMN IF EXISTS pagibig_employer_no;
+          SQL
+
+      - name: Start application against legacy schema
+        run: |
+          npm run dev -- --hostname 127.0.0.1 >/tmp/app.log 2>&1 &
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:3000/demo >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/app.log
+          exit 1
+
+      - name: Launch and render all five personas
+        run: |
+          set -euo pipefail
+
+          for role in owner hr payroll checker employee; do
+            echo "Launching $role"
+            status="$(curl -sS -o "/tmp/${role}-switch.json" -w '%{http_code}' \
+              -c "/tmp/${role}.cookies" \
+              -X POST \
+              -H 'Content-Type: application/json' \
+              -d "{\"role\":\"${role}\"}" \
+              http://127.0.0.1:3000/api/auth/demo-switch)"
+
+            cat "/tmp/${role}-switch.json"
+            test "$status" = "200"
+            grep -q "\"redirectTo\":\"/?demoRole=${role}\"" "/tmp/${role}-switch.json"
+
+            page_status="$(curl -sS -L -o "/tmp/${role}-page.html" -w '%{http_code}' \
+              -b "/tmp/${role}.cookies" \
+              "http://127.0.0.1:3000/?demoRole=${role}")"
+            test "$page_status" = "200"
+            test -s "/tmp/${role}-page.html"
+          done
+
+          grep -q "ROLE SANDBOX" /tmp/owner-page.html
+          grep -q "Payroll Officer" /tmp/payroll-page.html
+          grep -q "Checker" /tmp/checker-page.html
+          grep -q "MY PAY" /tmp/employee-page.html
+
+      - name: Verify compatibility schema was restored
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" -Atc "
+            SELECT
+              EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='organizations' AND column_name='bir_tin'),
+              EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='employees' AND column_name='middle_name'),
+              EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payroll_runs' AND column_name='period_start'),
+              EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='employee_pay_profiles'),
+              EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='historical_payroll_entries')
+          " | grep -q "t|t|t|t|t"
