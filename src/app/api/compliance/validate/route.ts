@@ -114,9 +114,9 @@ export async function POST(request: Request) {
   const birAlphalistChecks: LocalCheck[] = [
     ...bir2316Checks.slice(0, 3),
     {
-      rule: "Official 1604-C file contract",
-      passed: true,
-      message: "Local preflight uses the BIR-published 1604-C contract: employer TIN 9 digits, branch code 4 digits, return period MM/DD/YYYY, and distinct employee TIN/name fields.",
+      rule: "Exact 1604-C DAT output",
+      passed: false,
+      message: "Not yet filing-ready. BIR RMC 15-2025 requires the current Annex A file structure, Annex B naming convention, and validation through Alphalist Data Entry and Validation Module v7.4. Linaw currently exposes an annual source extract, not a claimed DAT submission file.",
     },
     {
       rule: "Run reconciliation",
@@ -154,9 +154,9 @@ export async function POST(request: Request) {
       message: "15% MSC total is modeled as 5% employee / 10% employer, plus employer-only EC.",
     },
     {
-      rule: "My.SSS / R3 File Generator acceptance",
+      rule: "My.SSS e-CL / R-3 acceptance",
       passed: false,
-      message: "Not yet proven. SSS currently provides R3 File Generator 2023 and My.SSS R-3 upload; a real employer account must accept the generated data before filing-ready status.",
+      message: "Not yet portal-proven. Current SSS employer remittance uses My.SSS electronic Contribution Collection List (e-CL) and a Payment Reference Number (PRN); SSS also publishes the R3 File Generator. Linaw output remains a worksheet until accepted in the employer workflow.",
     },
   ];
 
@@ -186,7 +186,7 @@ export async function POST(request: Request) {
     {
       rule: "EPRS acceptance",
       passed: false,
-      message: "Not yet proven. PhilHealth requires EPRS for employer premium reporting; portal acknowledgement is still required.",
+      message: "Not yet portal-proven. PhilHealth requires employers to use EPRS for premium payment and remittance reporting. The RF-1 CSV remains a worksheet until the employer EPRS flow accepts it.",
     },
   ];
 
@@ -219,9 +219,9 @@ export async function POST(request: Request) {
       message: `${mappedRegions.length}/${requiredRegions.length} employee region(s) mapped to versioned wage orders.`,
     },
     {
-      rule: "eSRS / employer portal acceptance",
+      rule: "MCRF / eSRS exact electronic format",
       passed: false,
-      message: "Not yet proven. Pag-IBIG officially supports electronic submission of remittance schedules, but a real employer portal acknowledgement is still required.",
+      message: "Assisted only. Pag-IBIG's published MCRF instructions prescribe its spreadsheet fields, YYYYMM period, and filename convention. Linaw does not claim its CSV worksheet is upload-ready until the exact employer electronic workflow is proven.",
     },
   ];
 
@@ -240,7 +240,7 @@ export async function POST(request: Request) {
       status: statusOf(birAlphalistChecks),
       portalValidated: false,
       checks: birAlphalistChecks,
-      nextStep: "Run the current BIR Alphalist module against a generated annual extract and retain its validation report.",
+      nextStep: "Complete the annual 1604-C schedule dataset, generate the exact DAT from the current BIR annex, run it through Alphalist v7.4, and retain the validation report before enabling filing-ready status.",
     },
     {
       document: "SSS R-3 (Contribution Collection List)",
@@ -248,7 +248,7 @@ export async function POST(request: Request) {
       status: statusOf(sssChecks),
       portalValidated: false,
       checks: sssChecks,
-      nextStep: "Use the official R3 File Generator / My.SSS employer upload with a test applicable month and retain the acceptance result.",
+      nextStep: "Use a real My.SSS employer account to verify the e-CL / R-3 workflow for one applicable month and retain the PRN or acceptance result.",
     },
     {
       document: "PhilHealth RF-1 / EPRS remittance report",
@@ -256,7 +256,7 @@ export async function POST(request: Request) {
       status: statusOf(philHealthChecks),
       portalValidated: false,
       checks: philHealthChecks,
-      nextStep: "Use an employer EPRS account to encode/upload one test remittance report and retain the acknowledgement.",
+      nextStep: "Use an employer EPRS account to verify one test remittance report and retain the acknowledgement before calling the worksheet upload-ready.",
     },
     {
       document: "Pag-IBIG MCRF / eSRS",
@@ -264,7 +264,7 @@ export async function POST(request: Request) {
       status: statusOf(pagIbigChecks),
       portalValidated: false,
       checks: pagIbigChecks,
-      nextStep: "Use the employer eSRS / Pag-IBIG employer service with one test remittance schedule and retain the acknowledgement.",
+      nextStep: "Keep this assisted. Reproduce the prescribed MCRF spreadsheet/eSRS contract exactly, then verify one test remittance in the employer service before enabling direct export.",
     },
   ];
 
