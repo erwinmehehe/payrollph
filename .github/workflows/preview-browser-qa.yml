@@ -221,7 +221,7 @@ jobs:
               check((await handoff.locator(".handoff-step").count()) === 5, `${persona.label}: payroll handoff must show all five owners`);
             }
             if (persona.id === "employee") {
-              check(body.includes("UPCOMING PAY"), "Employee: upcoming pay section is missing");
+              check(body.includes("NEXT PAY STATUS"), "Employee: next pay status section is missing");
               check(body.includes("Your pay amount stays private and hidden until payroll is released."), "Employee: unreleased-pay privacy copy is missing");
               const handoff = page.locator("[data-payroll-handoff]").first();
               check((await handoff.count()) === 1, "Employee: payroll handoff is missing");
