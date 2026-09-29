@@ -15,6 +15,8 @@ import {
   UsersRound,
   WalletCards,
 } from "lucide-react";
+import { PayrollHandoff } from "@/components/payroll-handoff";
+import { buildPayrollHandoff, type PayrollHandoffStage } from "@/lib/payroll-handoff";
 import type { DashboardData, PayrollRun, Task } from "./types";
 import {
   Avatar,
@@ -59,6 +61,16 @@ export function RoleOverviewView({
       (!employee.tin || !employee.sssNo || !employee.philHealthNo || !employee.pagIbigNo),
   );
   const activeAdvisories = data.advisories.filter((advisory) => advisory.active);
+  const payrollApproval = currentRun
+    ? data.tasks
+        .filter((task) => task.detail.includes(`Payroll run #${currentRun.id}`))
+        .sort((a, b) => b.id - a.id)[0] ?? null
+    : null;
+  const handoffStages = buildPayrollHandoff(currentRun, {
+    hrIssues: pendingLeave.length + attendanceIssues.length + peopleMissingGovernmentIds.length,
+    payrollExceptions: payrollExceptions.length,
+    approvalTask: payrollApproval,
+  });
 
   const common = {
     data,
@@ -74,6 +86,7 @@ export function RoleOverviewView({
     attendanceIssues,
     peopleMissingGovernmentIds,
     activeAdvisories,
+    handoffStages,
     onPage,
     onNewRun,
   };
@@ -102,6 +115,7 @@ type RoleDashboardProps = {
   attendanceIssues: NonNullable<DashboardData["punches"]>;
   peopleMissingGovernmentIds: DashboardData["employees"];
   activeAdvisories: DashboardData["advisories"];
+  handoffStages: PayrollHandoffStage[];
   onPage: (page: string) => void;
   onNewRun: () => void;
 };
@@ -116,6 +130,7 @@ function OwnerDashboard(props: RoleDashboardProps) {
     payrollExceptions,
     peopleMissingGovernmentIds,
     activeAdvisories,
+    handoffStages,
     onPage,
     onNewRun,
   } = props;
@@ -155,6 +170,14 @@ function OwnerDashboard(props: RoleDashboardProps) {
           ["People", String(activePeople.length)],
         ]}
         tone="owner"
+      />
+
+      <PayrollHandoff
+        stages={handoffStages}
+        period={currentRun?.periodLabel ?? "Next payroll"}
+        status={currentRun?.status ?? "Waiting for inputs"}
+        payDate={currentRun?.payDate}
+        viewerRole="owner"
       />
 
       <section className="stats-grid">
@@ -258,6 +281,7 @@ function HrDashboard(props: RoleDashboardProps) {
     openProvisioning,
     attendanceIssues,
     peopleMissingGovernmentIds,
+    handoffStages,
     onPage,
   } = props;
 
@@ -285,6 +309,14 @@ function HrDashboard(props: RoleDashboardProps) {
           ["Onboarding items", String(openProvisioning.length)],
         ]}
         tone="hr"
+      />
+
+      <PayrollHandoff
+        stages={handoffStages}
+        period={currentRun?.periodLabel ?? "Next payroll"}
+        status={currentRun?.status ?? "Waiting for inputs"}
+        payDate={currentRun?.payDate}
+        viewerRole="hr"
       />
 
       <section className="stats-grid">
@@ -370,6 +402,7 @@ function PayrollDashboard(props: RoleDashboardProps) {
     payrollExceptions,
     pendingRetro,
     attendanceIssues,
+    handoffStages,
     onPage,
     onNewRun,
   } = props;
@@ -412,6 +445,14 @@ function PayrollDashboard(props: RoleDashboardProps) {
           ["Retro items", String(pendingRetro.length)],
         ]}
         tone="payroll"
+      />
+
+      <PayrollHandoff
+        stages={handoffStages}
+        period={currentRun?.periodLabel ?? "Next payroll"}
+        status={currentRun?.status ?? "Waiting for inputs"}
+        payDate={currentRun?.payDate}
+        viewerRole="payroll"
       />
 
       <section className="stats-grid">
@@ -482,6 +523,7 @@ function CheckerDashboard(props: RoleDashboardProps) {
     pendingTasks,
     highPriorityTasks,
     activeAdvisories,
+    handoffStages,
     onPage,
   } = props;
 
@@ -509,6 +551,14 @@ function CheckerDashboard(props: RoleDashboardProps) {
           ["Advisories", String(activeAdvisories.length)],
         ]}
         tone="checker"
+      />
+
+      <PayrollHandoff
+        stages={handoffStages}
+        period={currentRun?.periodLabel ?? "Next payroll"}
+        status={currentRun?.status ?? "Waiting for inputs"}
+        payDate={currentRun?.payDate}
+        viewerRole="checker"
       />
 
       <section className="stats-grid">
