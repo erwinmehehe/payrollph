@@ -128,7 +128,7 @@ export async function GET(request: Request) {
   );
   if (denied) return denied;
 
-  await ensureFinalPaySchema();
+  await ensureFinalPaySchema(organizationId);
 
   const filter = employeeId > 0
     ? and(eq(separationRecords.organizationId, organizationId), eq(separationRecords.employeeId, employeeId))
@@ -182,7 +182,7 @@ export async function POST(request: Request) {
   );
   if (denied) return denied;
 
-  await ensureFinalPaySchema();
+  await ensureFinalPaySchema(input.organizationId);
 
   const [openSeparation] = await db.select({ id: separationRecords.id })
     .from(separationRecords)
@@ -265,6 +265,7 @@ export async function PATCH(request: Request) {
   await ensureFinalPaySchema();
   const [sep] = await db.select().from(separationRecords).where(eq(separationRecords.id, id)).limit(1);
   if (!sep) return Response.json({ error: "Separation record not found." }, { status: 404 });
+  await ensureFinalPaySchema(sep.organizationId);
 
   const moneyAction = action === "approve" || action === "release";
   const denied = await assertOrganizationRole(
