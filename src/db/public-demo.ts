@@ -18,6 +18,16 @@ import { ensureSubscription } from "@/lib/billing";
 
 const PUBLIC_DEMO_ORG = "Loom & Local";
 
+export class PublicDemoProvisioningError extends Error {
+  stage: string;
+
+  constructor(stage: string) {
+    super("Public demo provisioning failed.");
+    this.name = "PublicDemoProvisioningError";
+    this.stage = stage;
+  }
+}
+
 const people = [
   { firstName: "Mariel", lastName: "Santos", title: "Operations Lead", initials: "MS", status: "Active", basicRate: "38500.00", bankAccount: "1234567890", bankCode: "BDO", mobile: "09171230001" },
   { firstName: "Jonas", lastName: "Reyes", title: "Customer Experience", initials: "JR", status: "Active", basicRate: "29200.00", bankAccount: "2234567890", bankCode: "BPI", mobile: "09171230002" },
@@ -281,17 +291,24 @@ async function ensureOptionalDemoData(organizationId: number) {
  * make every persona launch fail.
  */
 export async function ensurePublicDemoTenant() {
-  const organizationId = await db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('linaw-public-demo-tenant-v2'))`);
+  let stage = "lock";
+  let organizationId: number;
 
-    let [organization] = await tx
+  try {
+    organizationId = await db.transaction(async (tx) => {
+      stage = "lock";
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('linaw-public-demo-tenant-v2'))`);
+
+      stage = "organization-read";
+      let [organization] = await tx
       .select()
       .from(organizations)
       .where(eq(organizations.name, PUBLIC_DEMO_ORG))
       .limit(1);
 
-    if (!organization) {
-      [organization] = await tx
+      if (!organization) {
+        stage = "organization-create";
+        [organization] = await tx
         .insert(organizations)
         .values({
           name: PUBLIC_DEMO_ORG,
@@ -302,21 +319,24 @@ export async function ensurePublicDemoTenant() {
           color: "#176B5D",
         })
         .returning();
-    }
+      }
 
-    let staff = await tx
-      .select()
-      .from(employees)
+      stage = "employee-read";
+      let staff = await tx
+        .select()
+        .from(employees)
       .where(eq(employees.organizationId, organization.id));
 
-    if (staff.length === 0) {
-      let units = await tx
+      if (staff.length === 0) {
+        stage = "org-unit-read";
+        let units = await tx
         .select()
         .from(orgUnits)
         .where(eq(orgUnits.organizationId, organization.id));
 
-      if (units.length === 0) {
-        units = await tx
+        if (units.length === 0) {
+          stage = "org-unit-create";
+          units = await tx
           .insert(orgUnits)
           .values([
             { organizationId: organization.id, type: "Branch", name: "Makati HQ", code: "MKT" },
@@ -324,10 +344,11 @@ export async function ensurePublicDemoTenant() {
             { organizationId: organization.id, type: "Department", name: "Operations", code: "OPS" },
           ])
           .returning();
-      }
+        }
 
-      staff = await tx
-        .insert(employees)
+        stage = "employee-create";
+        staff = await tx
+          .insert(employees)
         .values(
           people.map((person, index) => ({
             organizationId: organization.id,
@@ -350,10 +371,11 @@ export async function ensurePublicDemoTenant() {
           })),
         )
         .returning();
-    }
+      }
 
-    const activeStaff = staff.filter((employee) => employee.status === "Active");
-    const existingRuns = await tx
+      const activeStaff = staff.filter((employee) => employee.status === "Active");
+      stage = "payroll-run-read";
+      const existingRuns = await tx
       .select()
       .from(payrollRuns)
       .where(eq(payrollRuns.organizationId, organization.id));
@@ -363,6 +385,7 @@ export async function ensurePublicDemoTenant() {
       const existing = existingRuns.find((run) => run.periodLabel === definition.periodLabel);
       if (existing) return existing;
 
+      stage = "payroll-run-create";
       const [created] = await tx
         .insert(payrollRuns)
         .values({
@@ -393,14 +416,16 @@ export async function ensurePublicDemoTenant() {
     const grossValues = [38500, 29200, 32500, 24500, 21800, 34800];
     const deductionValues = [7200, 5400, 6100, 4600, 4100, 6500];
 
-    for (const [runIndex, run] of [releasedRun, checkerRun, workRun].entries()) {
-      const [{ value: entryCount }] = await tx
+      for (const [runIndex, run] of [releasedRun, checkerRun, workRun].entries()) {
+        stage = "payroll-entry-read";
+        const [{ value: entryCount }] = await tx
         .select({ value: count() })
         .from(payrollEntries)
         .where(eq(payrollEntries.payrollRunId, run.id));
       if (entryCount > 0) continue;
 
-      await tx.insert(payrollEntries).values(
+        stage = "payroll-entry-create";
+        await tx.insert(payrollEntries).values(
         activeStaff.map((employee, index) => {
           const gross = grossValues[index] + runIndex * 250;
           const deductions = deductionValues[index] + runIndex * 50;
@@ -420,15 +445,17 @@ export async function ensurePublicDemoTenant() {
           };
         }),
       );
-    }
+      }
 
-    const tasks = await tx
-      .select()
+      stage = "approval-read";
+      const tasks = await tx
+        .select()
       .from(approvalTasks)
       .where(eq(approvalTasks.organizationId, organization.id));
 
-    if (!tasks.some((task) => task.detail.includes(`Payroll run #${checkerRun.id}`))) {
-      await tx.insert(approvalTasks).values({
+      if (!tasks.some((task) => task.detail.includes(`Payroll run #${checkerRun.id}`))) {
+        stage = "approval-payroll-create";
+        await tx.insert(approvalTasks).values({
         organizationId: organization.id,
         title: "Review Sep 1–15 payroll",
         detail: `Payroll run #${checkerRun.id} · 0 review item(s)`,
@@ -438,8 +465,9 @@ export async function ensurePublicDemoTenant() {
       });
     }
 
-    if (!tasks.some((task) => task.title === "Approve leave request")) {
-      await tx.insert(approvalTasks).values({
+      if (!tasks.some((task) => task.title === "Approve leave request")) {
+        stage = "approval-leave-create";
+        await tx.insert(approvalTasks).values({
         organizationId: organization.id,
         title: "Approve leave request",
         detail: "Aira Villanueva · Oct 8–9",
@@ -449,8 +477,11 @@ export async function ensurePublicDemoTenant() {
       });
     }
 
-    return organization.id;
-  });
+      return organization.id;
+    });
+  } catch {
+    throw new PublicDemoProvisioningError(stage);
+  }
 
   await ensureOptionalDemoData(organizationId);
   return organizationId;
