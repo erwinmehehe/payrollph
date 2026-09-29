@@ -6,6 +6,9 @@ test("13th-month base uses basic earnings and effective-dated retro only", () =>
   const parsed = readBasicAndThirteenth([
     { code: "BASIC", label: "Basic / worked pay", amount: "11000.00" },
     { code: "RETRO-4", label: "Retro pay, prior cutoff", amount: "1000.00" },
+    { code: "LEAVE-8", label: "Unpaid leave, Vacation", amount: "-500.00" },
+    { code: "LATE", label: "Tardiness", amount: "-100.00" },
+    { code: "UT", label: "Undertime", amount: "-50.00" },
     { code: "OT", label: "Overtime", amount: "1500.00" },
     { code: "ND", label: "Night differential", amount: "300.00" },
     { code: "13TH", label: "13th Month Pay", amount: "5000.00" },
@@ -13,7 +16,7 @@ test("13th-month base uses basic earnings and effective-dated retro only", () =>
     { code: "WHT", label: "Withholding tax", amount: "-700.00" },
   ]);
 
-  assert.equal(parsed.basic, 12000);
+  assert.equal(parsed.basic, 11350);
   assert.equal(parsed.thirteenthPaid, 5000);
   assert.equal(parsed.contributions, 500);
   assert.equal(parsed.taxWithheld, 700);
