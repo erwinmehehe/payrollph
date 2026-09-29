@@ -58,6 +58,7 @@ export function computeFinalPay(input: {
   taxWithheldYtd: number;
   mwe: boolean;
   leaveMonetizationPay: number;
+  taxableLeaveMonetizationPay?: number;
   separationPay: number;
   retirementPay: number;
   taxableSeparationPay?: number;
@@ -75,11 +76,13 @@ export function computeFinalPay(input: {
   const thirteenthPaidYtd = round2(Math.max(0, input.thirteenthPaidYtd));
   const thirteenthDue = round2(Math.max(0, thirteenthEntitlement - thirteenthPaidYtd));
 
+  const finalStatutoryDeductions = round2(Math.max(0, input.finalStatutoryDeductions ?? 0));
   const grossForAnnualization = round2(
     Math.max(0, input.grossCompensationYtd)
       + Math.max(0, input.unpaidBasicSalary)
       + thirteenthPaidYtd
       + thirteenthDue
+      + Math.max(0, input.taxableLeaveMonetizationPay ?? input.leaveMonetizationPay)
       + Math.max(0, input.taxableSeparationPay ?? input.separationPay)
       + Math.max(0, input.taxableRetirementPay ?? input.retirementPay)
       + Math.max(0, input.otherBenefits),
@@ -87,7 +90,7 @@ export function computeFinalPay(input: {
   const annualized = annualize({
     grossCompensation: grossForAnnualization,
     thirteenthMonth: thirteenthPaidYtd + thirteenthDue,
-    statutoryContributions: Math.max(0, input.statutoryContributionsYtd),
+    statutoryContributions: Math.max(0, input.statutoryContributionsYtd) + finalStatutoryDeductions,
     taxWithheld: Math.max(0, input.taxWithheldYtd),
     mwe: input.mwe,
   });
@@ -103,7 +106,6 @@ export function computeFinalPay(input: {
       + Math.max(0, input.retirementPay)
       + Math.max(0, input.otherBenefits),
   );
-  const finalStatutoryDeductions = round2(Math.max(0, input.finalStatutoryDeductions ?? 0));
   const netFinalPay = round2(Math.max(
     0,
     grossFinalPay + taxAdjustment - finalStatutoryDeductions - Math.max(0, input.loanDeductions),
