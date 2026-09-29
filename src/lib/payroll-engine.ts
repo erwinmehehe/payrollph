@@ -7,6 +7,7 @@ import {
   employeeLoans,
   employeePayProfiles,
   employeePayRevisions,
+  employeePayRetroAdjustments,
   employees,
   expenseClaims,
   leaveConversions,
@@ -438,7 +439,19 @@ async function processPayrollChunk(input: {
         inArray(employeeLoans.employeeId, chunkIds),
       ))
     : [];
-  const loansByEmployee = new Map<number, typeof activeLoans>();
+  const pendingRetroAdjustments = chunkIds.length
+    ? await db.select().from(employeePayRetroAdjustments).where(and(
+        eq(employeePayRetroAdjustments.organizationId, input.organizationId),
+        eq(employeePayRetroAdjustments.status, "pending"),
+        inArray(employeePayRetroAdjustments.employeeId, chunkIds),
+      ))
+    : [];
+  const retroByEmployee = new Map<number, typeof pendingRetroAdjustments>();
+  for (const retro of pendingRetroAdjustments) {
+    retroByEmployee.set(retro.employeeId, [...(retroByEmployee.get(retro.employeeId) ?? []), retro]);
+  }
+
+    const loansByEmployee = new Map<number, typeof activeLoans>();
   for (const loan of activeLoans) {
     if (Number(loan.remainingBalance) <= 0) continue;
     loansByEmployee.set(loan.employeeId, [...(loansByEmployee.get(loan.employeeId) ?? []), loan]);
@@ -512,6 +525,11 @@ async function processPayrollChunk(input: {
         taxExempt: c.taxExempt,
       })),
       approvedLeave: approvedLeaveByEmployee.get(employee.id) ?? [],
+      retroAdjustments: (retroByEmployee.get(employee.id) ?? []).map((retro) => ({
+        id: retro.id,
+        amount: Number(retro.amount),
+        sourcePeriodLabel: retro.sourcePeriodLabel,
+      })),
       payProfile: (() => {
         const profile = payProfileByEmployee.get(employee.id);
         if (!profile) throw new Error(`Employee #${employee.id} has no pay profile.`);
@@ -638,6 +656,7 @@ function calculateEmployeePay(input: {
   loans?: Array<{ id: number; loanType: string; referenceNo: string; cutoffDeduction: number; remainingBalance: number }>;
   leaveConversions?: Array<{ id: number; leaveType: string; daysConverted: number; dailyRate: number; cashAmount: number; taxExempt: boolean }>;
   approvedLeave?: ResolvedPayrollLeave[];
+  retroAdjustments?: Array<{ id: number; amount: number; sourcePeriodLabel: string }>;
   payProfile: EmployeePayProfileInput;
   payRevisions?: EffectivePayRevisionInput[];
   periodStart: string;
@@ -811,6 +830,15 @@ function calculateEmployeePay(input: {
     }
   }
 
+  const retroLines = (input.retroAdjustments ?? []).map((retro) => ({
+    code: `RETRO-${retro.id}`,
+    label: `Retro pay, ${retro.sourcePeriodLabel}`,
+    amount: money(retro.amount),
+    notes: ["Effective-dated monthly pay correction from a previously released cutoff"],
+    amountNum: retro.amount,
+  }));
+  const retroTotal = retroLines.reduce((sum, line) => sum + line.amountNum, 0);
+
   // Approved expense reimbursements are a non-taxable addition to pay, and
   // approved earned-wage advances are recovered here so they cannot be
   // double-drawn. Both are excluded when not supplied, keeping the engine
@@ -884,7 +912,7 @@ function calculateEmployeePay(input: {
   });
   const loanTotal = loanLines.reduce((sum, l) => sum + l.deductAmount, 0);
 
-  const gross = Math.max(0, baseBasicPay + leaveAdjustmentTotal + overtimePay + nightDiffPay + calamityPay + holidayPremium + expenseTotal + deMinimisTotal + conversionTotal);
+  const gross = Math.max(0, baseBasicPay + leaveAdjustmentTotal + overtimePay + nightDiffPay + calamityPay + holidayPremium + retroTotal + expenseTotal + deMinimisTotal + conversionTotal);
   const sssRule = computeSss(monthly);
   const philHealthRule = computePhilHealth(monthly);
   const pagIbigRule = computePagIbig(monthly);
@@ -912,6 +940,7 @@ function calculateEmployeePay(input: {
     { code: "ND", label: "Night differential (10%)", amount: money(nightDiffPay) },
     { code: "HOLIDAY", label: "Holiday / rest-day premium", amount: money(holidayPremium), notes: holidayNotes },
     { code: "CALAMITY", label: "Calamity / hazard premium", amount: money(calamityPay), notes: calamityNotes },
+    ...retroLines.map(({ amountNum: _amountNum, ...line }) => line),
     ...conversionLines.map(({ amountNum: _amountNum, taxExempt: _taxExempt, ...c }) => c),
     { code: "SSS", label: "SSS contribution", amount: money(-sss) },
     { code: "PHIC", label: "PhilHealth contribution", amount: money(-philhealth) },
@@ -952,6 +981,8 @@ function calculateEmployeePay(input: {
       `paidLeaveDays=${money(approvedLeave.reduce((sum, leave) => sum + leave.paidDays, 0))}`,
       `unpaidLeaveDays=${money(approvedLeave.reduce((sum, leave) => sum + leave.unpaidDays, 0))}`,
       `leavePayAdjustment=${money(leaveAdjustmentTotal)}`,
+      `retroPay=${money(retroTotal)}`,
+      `retroAdjustments=${retroLines.length}`,
       `punches=${input.punches.length}`,
       `regularMinutes=${regularMinutes}`,
       `overtimeMinutes=${overtimeMinutes}`,
