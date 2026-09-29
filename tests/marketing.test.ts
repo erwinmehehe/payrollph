@@ -102,13 +102,13 @@ test("role sandbox uses five real identities and provisions the checker for payr
   assert.ok(access.includes('"checker"] as const'), "checker must be present in payroll review permissions");
   assert.ok(dashboard.includes('access.role === "checker"'), "checker dashboard must be scoped to assigned approvals");
   assert.ok(roles.includes('"Payroll Officer"') && roles.includes('"HR Admin"') && roles.includes('"Checker"'), "public persona labels must match the sandbox");
-  assert.ok(workspace.includes("demoInfo.actions.join"), "workspace must show the persona mission after launch");
+  assert.ok(workspace.includes("DemoSandboxBar"), "workspace must show the task-driven persona sandbox after launch");
   assert.ok(workspace.includes("onSwitchRole={demoRole ?"), "persona switching must only appear in demo sessions");
 });
 
 test("employee sandbox supports instant persona switching without exposing other employees", () => {
   const selfService = read("src/components/self-service-portal.tsx");
   assert.ok(selfService.includes("switchDemoRole"), "employee self-service must support instant demo persona switching");
-  assert.ok(selfService.includes('role.id !== "employee"'), "employee persona switcher must offer the other sandbox roles");
+  assert.ok(selfService.includes("DemoSandboxBar"), "employee persona must use the shared instant role switcher");
   assert.ok(selfService.includes("/api/self/payslips"), "employee sandbox must stay on the self-scoped payslip API");
 });
