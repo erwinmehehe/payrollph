@@ -231,7 +231,9 @@ export function PayrollRunView({
       }
       setReviewOpen(false);
       await onRefresh();
-      notify(`Payroll submitted to ${checker?.name ?? "the selected checker"} for checker approval.`);
+      notify(
+        `Payroll submitted to ${checker?.name ?? "the selected checker"} for checker approval${payload.checkerNotificationQueued ? ", and a review notice was queued" : ""}.`,
+      );
     } catch {
       notify("Could not reach the payroll review service.", "err");
     } finally {
