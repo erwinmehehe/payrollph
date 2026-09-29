@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { buildPayrollHandoff, employeePayStatusLabel } from "../src/lib/payroll-handoff";
+import { buildHandoffAttention } from "../src/lib/handoff-attention";
+import type { DashboardData } from "../src/components/workspace/types";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -92,4 +94,158 @@ test("employee-facing payroll labels never imply unreleased pay is available", (
   assert.equal(employeePayStatusLabel("Pending approval"), "With an independent checker");
   assert.equal(employeePayStatusLabel("Ready for release"), "Approved, waiting for release");
   assert.equal(employeePayStatusLabel("Released"), "Payslip available");
+});
+
+
+function attentionData(overrides: Partial<DashboardData> = {}): DashboardData {
+  return {
+    user: { id: 1, email: "role@example.com", name: "Role User", role: "owner", totpEnabled: false },
+    organizations: [],
+    selectedOrganization: {
+      id: 1,
+      name: "Loom & Local",
+      legalName: "Loom & Local Inc.",
+      accountType: "business",
+      plan: "Scale",
+      employeeCount: 1,
+      color: "#176B5D",
+    },
+    employees: [{
+      id: 1,
+      employeeNo: "E-001",
+      firstName: "Jonas",
+      lastName: "Reyes",
+      title: "Designer",
+      employmentType: "Regular",
+      status: "Active",
+      avatarInitials: "JR",
+      basicRate: "30000",
+      mwe: false,
+      tin: "123",
+      sssNo: "456",
+      philHealthNo: "789",
+      pagIbigNo: "101",
+    }],
+    payrollRuns: [{
+      id: 10,
+      periodLabel: "Sep 16–30, 2026",
+      periodStart: "2026-09-16",
+      periodEnd: "2026-09-30",
+      scopeLabel: "All employees",
+      status: "Needs review",
+      payDate: "2026-10-05",
+      employeeCount: 1,
+      grossPay: "30000",
+      netPay: "25000",
+      exceptions: 0,
+      ruleVersion: "PH-2026.01",
+    }],
+    payrollEntries: [],
+    tasks: [],
+    auditEvents: [],
+    plans: [],
+    templates: [],
+    advisories: [],
+    punches: [],
+    leaveRequests: [],
+    freelancer: null,
+    ...overrides,
+  } as DashboardData;
+}
+
+test("HR and Payroll handoff alerts are derived from live blockers and clear when resolved", () => {
+  const blocked = attentionData({
+    employees: [{
+      ...attentionData().employees[0],
+      tin: null,
+    }],
+    punches: [{
+      id: 1,
+      employeeId: 1,
+      workDate: "2026-09-29",
+      status: "Incomplete",
+      timeIn: new Date("2026-09-29T08:00:00+08:00"),
+      timeOut: null,
+    }],
+    leaveRequests: [{
+      id: 1,
+      employeeId: 1,
+      leaveType: "Vacation",
+      startDate: "2026-09-30",
+      endDate: "2026-09-30",
+      days: "1",
+      status: "Pending",
+    }],
+  });
+
+  assert.deepEqual(
+    buildHandoffAttention(blocked, "hr").map((item) => item.id),
+    ["hr-attendance", "hr-leave", "hr-government-ids"],
+  );
+  assert.deepEqual(
+    buildHandoffAttention(blocked, "payroll").map((item) => item.id),
+    ["payroll-waiting-attendance", "payroll-waiting-leave", "payroll-waiting-ids"],
+  );
+
+  const clear = attentionData();
+  assert.deepEqual(
+    buildHandoffAttention(clear, "payroll").map((item) => item.id),
+    ["payroll-submit-10"],
+    "once HR blockers clear, Payroll gets the submit-to-checker action instead of stale blocker alerts",
+  );
+});
+
+test("Checker and Owner notifications follow payroll state and disappear after the action completes", () => {
+  const pendingTask = {
+    id: 7,
+    title: "Review Sep 16–30 payroll",
+    detail: "Payroll run #10 · 0 review item(s)",
+    approver: "Mariel Santos",
+    dueLabel: "Required before release",
+    priority: "Normal",
+    status: "Pending",
+  };
+
+  const checker = attentionData({
+    payrollRuns: [{ ...attentionData().payrollRuns[0], status: "Pending approval" }],
+    tasks: [pendingTask],
+  });
+  assert.equal(buildHandoffAttention(checker, "checker")[0]?.actionLabel, "Review now");
+
+  const checkerDone = attentionData({
+    payrollRuns: [{ ...attentionData().payrollRuns[0], status: "Ready for release" }],
+    tasks: [{ ...pendingTask, status: "Approved" }],
+  });
+  assert.equal(buildHandoffAttention(checkerDone, "checker").length, 0);
+
+  const ownerReady = buildHandoffAttention(checkerDone, "owner");
+  assert.equal(ownerReady[0]?.actionLabel, "Release payroll");
+
+  const released = attentionData({
+    payrollRuns: [{ ...attentionData().payrollRuns[0], status: "Released" }],
+    tasks: [{ ...pendingTask, status: "Approved" }],
+  });
+  assert.equal(buildHandoffAttention(released, "owner").length, 0);
+});
+
+test("transition notifications are targeted at checker, owner and employees", () => {
+  const submit = read("src/app/api/payroll-runs/[id]/submit-review/route.ts");
+  const decide = read("src/app/api/approvals/[id]/route.ts");
+  const release = read("src/app/api/payroll-runs/[id]/release/route.ts");
+
+  assert.ok(submit.includes('purpose: "payroll-review-ready"'));
+  assert.ok(submit.includes("Payroll ready for your review"));
+  assert.ok(decide.includes('purpose: "payroll-release-ready"'));
+  assert.ok(decide.includes("Payroll approved and ready to release"));
+  assert.ok(release.includes('purpose: "payslip-ready"'));
+  assert.ok(release.includes("Your payslip for"));
+});
+
+test("workspace notification tray uses the same handoff source and exposes direct actions", () => {
+  const shell = read("src/components/workspace/shell.tsx");
+  const workspace = read("src/components/linaw-workspace.tsx");
+  assert.ok(shell.includes("buildHandoffAttention(data"));
+  assert.ok(shell.includes("item.actionLabel"));
+  assert.ok(workspace.includes("onNotificationAction={openAttention}"));
+  assert.ok(workspace.includes('item.focus === "incomplete-attendance"'));
 });
