@@ -6141,3 +6141,134 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
     min-width: 0;
   }
 }
+
+
+/* ==========================================================================
+   Role handoff inbox
+   ========================================================================== */
+
+.role-inbox {
+  margin: 0 0 18px;
+  padding: 17px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background:
+    linear-gradient(180deg, rgba(68, 76, 231, .025), transparent 100px),
+    var(--paper);
+  box-shadow: var(--shadow-sm);
+}
+.role-inbox-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+.role-inbox-head h2 {
+  margin: 5px 0 3px;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 720;
+  letter-spacing: -.02em;
+}
+.role-inbox-head p {
+  margin: 0;
+  max-width: 680px;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+.role-inbox-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 6px 9px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+.role-inbox-state.active {
+  background: var(--review-bg);
+  color: var(--review);
+}
+.role-inbox-state.waiting {
+  background: var(--success-bg);
+  color: var(--success);
+}
+.role-inbox-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+.role-inbox-item {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  gap: 11px;
+  align-items: center;
+  min-width: 0;
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--line-faint);
+  border-radius: 10px;
+  background: var(--canvas);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .14s, transform .14s, background .14s;
+}
+.role-inbox-item:hover {
+  border-color: var(--brand-border);
+  background: var(--paper);
+  transform: translateY(-1px);
+}
+.role-inbox-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--active);
+}
+.role-inbox-item.danger .role-inbox-dot { background: var(--danger); }
+.role-inbox-item.review .role-inbox-dot { background: var(--review); }
+.role-inbox-item.success .role-inbox-dot { background: var(--success); }
+.role-inbox-item > div {
+  min-width: 0;
+}
+.role-inbox-item strong {
+  display: block;
+  color: var(--ink);
+  font-size: 11.5px;
+  font-weight: 680;
+}
+.role-inbox-item p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+.role-inbox-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--active);
+  font-size: 9.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .role-inbox {
+    padding: 15px;
+  }
+  .role-inbox-head {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .role-inbox-item {
+    grid-template-columns: 8px minmax(0, 1fr);
+  }
+  .role-inbox-cta {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
