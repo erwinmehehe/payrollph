@@ -1,4 +1,5 @@
 export const OFFICIAL_PUBLIC_DEMO_HOST = "erwinmehehe-payrollph.vercel.app";
+export const OFFICIAL_PUBLIC_DEMO_HOSTS = new Set([OFFICIAL_PUBLIC_DEMO_HOST, "payrollph-three.vercel.app"]);
 
 export function publicDemoHostAllowed(
   hostname: string,
@@ -15,7 +16,7 @@ export function publicDemoHostAllowed(
     .filter(Boolean);
 
   return (
-    normalized === OFFICIAL_PUBLIC_DEMO_HOST ||
+    OFFICIAL_PUBLIC_DEMO_HOSTS.has(normalized) ||
     Boolean(productionHost && normalized === productionHost) ||
     configuredHosts.includes(normalized)
   );
