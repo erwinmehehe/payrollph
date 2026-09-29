@@ -20,6 +20,7 @@ import { FREELANCER_HIDDEN, NAVIGATION, groupOf } from "./nav";
 import type { DashboardData, Organization } from "./types";
 import { Avatar, initialsOf, relativeTime } from "./ui";
 import { DEMO_ROLES, demoRoleInfo, type DemoRoleId } from "@/lib/demo-roles";
+import { buildPayrollAttention } from "@/lib/payroll-attention";
 
 export type Notification = {
   id: string;
@@ -28,6 +29,9 @@ export type Notification = {
   at?: string | Date;
   tone: "review" | "active" | "danger" | "success";
   page?: string;
+  actionLabel?: string;
+  employeeId?: number;
+  timeFilter?: "incomplete";
 };
 
 export function WorkspaceShell({
@@ -37,6 +41,7 @@ export function WorkspaceShell({
   notifications,
   onOpenPalette,
   onOpenNotification,
+  onOpenNotificationItem,
   onSwitchClient,
   onSwitchRole,
   onSignOut,
@@ -52,6 +57,7 @@ export function WorkspaceShell({
   notifications: Notification[];
   onOpenPalette: () => void;
   onOpenNotification?: () => void;
+  onOpenNotificationItem?: (item: Notification) => void;
   onSwitchClient: (id: number) => void;
   onSwitchRole?: (role: DemoRoleId) => void;
   onSignOut: () => void;
@@ -352,7 +358,11 @@ export function WorkspaceShell({
                           className="tray-item"
                           onClick={() => {
                             setTrayOpen(false);
-                            if (item.page) onPage(item.page);
+                            if (onOpenNotificationItem) {
+                              onOpenNotificationItem(item);
+                            } else if (item.page) {
+                              onPage(item.page);
+                            }
                           }}
                         >
                           <span className={`attention-icon ${item.tone === "review" || item.tone === "danger" ? "urgent" : ""}`} aria-hidden>
@@ -362,6 +372,7 @@ export function WorkspaceShell({
                             <strong>{item.title}</strong>
                             <p>{item.detail}</p>
                             {item.at && <time>{relativeTime(item.at)}</time>}
+                            {item.actionLabel && <span className="tray-action">{item.actionLabel} <ChevronRight size={11} /></span>}
                           </div>
                         </button>
                       ))
@@ -391,52 +402,13 @@ export function WorkspaceShell({
 }
 
 /**
- * Derives the notification tray from real workspace rows. Nothing here is
- * invented, each entry points at a record the user can open.
+ * The tray is a live action queue, not a generic activity feed.
+ * Items are derived from the current payroll lifecycle and disappear as soon
+ * as the underlying blocker or handoff state changes.
  */
-export function buildNotifications(data: DashboardData): Notification[] {
-  const items: Notification[] = [];
-
-  for (const task of data.tasks.filter((task) => task.status === "Pending").slice(0, 5)) {
-    items.push({
-      id: `task-${task.id}`,
-      title: task.title,
-      detail: `${task.detail} · ${task.dueLabel}`,
-      tone: task.priority === "High" ? "danger" : "review",
-      page: "Approvals",
-    });
-  }
-
-  for (const run of data.payrollRuns.filter((run) => run.exceptions > 0).slice(0, 3)) {
-    items.push({
-      id: `run-${run.id}`,
-      title: `${run.exceptions} timekeeping exception${run.exceptions === 1 ? "" : "s"} on ${run.periodLabel}`,
-      detail: "Incomplete punches derive zero hours and need sign-off before release.",
-      tone: "review",
-      page: "Payroll",
-    });
-  }
-
-  const openProvisioning = (data.provisioning ?? []).filter((item) => !item.done).length;
-  if (openProvisioning > 0) {
-    items.push({
-      id: "provisioning",
-      title: `${openProvisioning} lifecycle checklist items open`,
-      detail: "Onboarding and offboarding tasks awaiting completion.",
-      tone: "active",
-      page: "People",
-    });
-  }
-
-  for (const advisory of data.advisories.filter((advisory) => advisory.active).slice(0, 2)) {
-    items.push({
-      id: `advisory-${advisory.id}`,
-      title: `Active advisory ${advisory.advisoryNumber}`,
-      detail: `${advisory.policy}, applied automatically during calculation.`,
-      tone: "active",
-      page: "Compliance",
-    });
-  }
-
-  return items;
+export function buildNotifications(
+  data: DashboardData,
+  role: string | null | undefined = data.access?.role ?? data.user?.role,
+): Notification[] {
+  return buildPayrollAttention(data, role);
 }
