@@ -73,6 +73,8 @@ export type PayrollTrace = { ruleVersion?: string; inputs?: string[]; flags?: st
 export type PayrollHandoffRunSummary = {
   id: number;
   periodLabel: string;
+  periodStart?: string;
+  periodEnd?: string;
   status: string;
   payDate: string;
 };
