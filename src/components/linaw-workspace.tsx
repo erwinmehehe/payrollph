@@ -7,6 +7,7 @@ import { AssetsPanel } from "@/components/assets-panel";
 import { BenefitsPanel } from "@/components/benefits-panel";
 import { ContractorsPanel } from "@/components/contractors-panel";
 import { DeMinimisPanel } from "@/components/de-minimis-panel";
+import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { DisciplinePanel } from "@/components/discipline-panel";
 import { LoansPanel } from "@/components/loans-panel";
 import { MigrationCenter } from "@/components/migration-center";
@@ -68,6 +69,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
   const [govModalOpen, setGovModalOpen] = useState(false);
   const [newHireOpen, setNewHireOpen] = useState(false);
   const [webBundyOpen, setWebBundyOpen] = useState(false);
+  const [demoSwitching, setDemoSwitching] = useState<DemoRoleId | null>(null);
 
   const { toasts, notify, dismiss } = useToasts();
   const noticeAdapter = useCallback((message: string) => notify(message, "info"), [notify]);
@@ -125,6 +127,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
   }
 
   async function switchDemoRole(role: DemoRoleId) {
+    setDemoSwitching(role);
     try {
       const response = await fetch("/api/auth/demo-switch", {
         method: "POST",
@@ -139,6 +142,8 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
       window.location.href = typeof payload.redirectTo === "string" ? payload.redirectTo : `/?demoRole=${role}`;
     } catch {
       notify("Role switch failed.", "err");
+    } finally {
+      setDemoSwitching(null);
     }
   }
 
@@ -321,12 +326,14 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         }
       >
         {demoRole && demoInfo && (
-          <div className="notice notice-purple" style={{ marginBottom: 16 }}>
-            <ShieldCheck size={16} className="i-purple" />
-            <span>
-              <strong>{demoInfo.shortLabel} sandbox:</strong> {demoInfo.actions.join(" · ")}
-            </span>
-          </div>
+          <DemoSandboxBar
+            role={demoRole}
+            busyRole={demoSwitching}
+            onSwitch={(role) => void switchDemoRole(role)}
+            onTask={(_taskId, targetPage) => {
+              if (availablePages.includes(targetPage)) setPage(targetPage);
+            }}
+          />
         )}
 
         {page === "Overview" && (
