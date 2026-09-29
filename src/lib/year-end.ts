@@ -2,6 +2,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, historicalPayrollEntries, payrollEntries, payrollRuns, yearEndAdjustments } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
+import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { annualize, ANNUALIZATION_RULE_VERSION, type AnnualizationResult } from "@/lib/annualization";
 
 type LineItem = { code?: string; label?: string; amount?: number | string };
@@ -34,6 +35,8 @@ function sumContributionsAndTax(lineItems: unknown) {
  * that year's adjustments for the organization.
  */
 export async function runYearEndAnnualization(organizationId: number, taxYear: number, actor: string) {
+  await ensureMigrationSchema();
+
   const runs = await db
     .select()
     .from(payrollRuns)
