@@ -6,6 +6,11 @@ on:
       - feat/migration-center-competitors-sep29
     paths:
       - ".github/workflows/homepage-connected-qa.yml"
+      - "src/components/marketing/workspace-preview.tsx"
+      - "src/components/marketing/pricing-table.tsx"
+      - "src/components/marketing/software-home.module.css"
+      - "src/components/marketing/software-home.tsx"
+      - "src/components/marketing/site-chrome.tsx"
 
 jobs:
   visual:
