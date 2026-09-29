@@ -11,6 +11,7 @@ permissions:
 
 env:
   PREVIEW_URL: https://erwinmehehe-payrollph-git-design-homepage-abov-15bcb9-payrollph.vercel.app
+  FEEDBACK_URL: https://vercel.live/open-feedback/erwinmehehe-payrollph-git-design-homepage-abov-15bcb9-payrollph.vercel.app?via=pr-comment-feedback-link
 
 jobs:
   browser-qa:
@@ -35,8 +36,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          curl -L -sS -c /tmp/vercel-cookies.txt -b /tmp/vercel-cookies.txt "$FEEDBACK_URL" -o /tmp/feedback.html || true
           for attempt in {1..40}; do
-            code="$(curl -L -sS -o /tmp/preview.html -w "%{http_code}" "$PREVIEW_URL" || true)"
+            code="$(curl -L -sS -c /tmp/vercel-cookies.txt -b /tmp/vercel-cookies.txt -o /tmp/preview.html -w "%{http_code}" "$PREVIEW_URL" || true)"
             if [ "$code" = "200" ] && grep -q "Run Philippine payroll with a clear path" /tmp/preview.html; then
               echo "Preview is reachable and serving the current homepage."
               exit 0
@@ -55,6 +57,7 @@ jobs:
           const { chromium } = require("playwright");
 
           const base = process.env.PREVIEW_URL;
+          const feedback = process.env.FEEDBACK_URL;
           const outDir = "qa-artifacts";
           fs.mkdirSync(outDir, { recursive: true });
 
@@ -83,6 +86,9 @@ jobs:
             const errors = [];
             await collectPageErrors(page, errors);
 
+            if (feedback) {
+              await page.goto(feedback, { waitUntil: "domcontentloaded", timeout: 90000 }).catch(() => null);
+            }
             const response = await page.goto(base, { waitUntil: "networkidle", timeout: 90000 });
             check(response && response.ok(), `${name}: homepage did not return 2xx`);
 
@@ -138,6 +144,9 @@ jobs:
             const errors = [];
             await collectPageErrors(page, errors);
 
+            if (feedback) {
+              await page.goto(feedback, { waitUntil: "domcontentloaded", timeout: 90000 }).catch(() => null);
+            }
             const demoResponse = await page.goto(`${base}/demo`, { waitUntil: "networkidle", timeout: 90000 });
             check(demoResponse && demoResponse.ok(), `${persona.label}: /demo did not return 2xx`);
 
