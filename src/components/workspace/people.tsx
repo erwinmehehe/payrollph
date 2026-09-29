@@ -353,6 +353,11 @@ function PersonDrawer({
   const [payRate, setPayRate] = useState(employee.payRate ?? employee.basicRate);
   const [standardWorkDaysPerMonth, setStandardWorkDaysPerMonth] = useState(employee.standardWorkDaysPerMonth ?? "22");
   const [standardHoursPerDay, setStandardHoursPerDay] = useState(employee.standardHoursPerDay ?? "8");
+  const [payEffectiveDate, setPayEffectiveDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+  });
+  const [payChangeReason, setPayChangeReason] = useState("Salary adjustment");
   const [payError, setPayError] = useState("");
   const [editingGovernment, setEditingGovernment] = useState(false);
   const [savingGovernment, setSavingGovernment] = useState(false);
@@ -379,6 +384,8 @@ function PersonDrawer({
           rateAmount: Number(payRate),
           standardWorkDaysPerMonth: Number(standardWorkDaysPerMonth),
           standardHoursPerDay: Number(standardHoursPerDay),
+          payEffectiveDate,
+          payChangeReason,
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -427,6 +434,10 @@ function PersonDrawer({
   const punches = (data.punches ?? []).filter((punch) => punch.employeeId === employee.id).slice(0, 6);
   const leave = (data.leaveRequests ?? []).filter((request) => request.employeeId === employee.id);
   const checklist = (data.provisioning ?? []).filter((item) => item.employeeId === employee.id);
+  const payRevisions = (data.payRevisions ?? []).filter((revision) => revision.employeeId === employee.id).slice(0, 5);
+  const retroAdjustments = (data.retroAdjustments ?? []).filter((retro) => retro.employeeId === employee.id);
+  const pendingRetro = retroAdjustments.filter((retro) => retro.status === "pending");
+  const pendingRetroTotal = pendingRetro.reduce((sum, retro) => sum + Number(retro.amount), 0);
   const entry = data.payrollEntries.find((item) => item.employeeId === employee.id);
 
   return (
@@ -474,7 +485,7 @@ function PersonDrawer({
             <div>
               <div className="card-kicker">PAYROLL PROFILE</div>
               <h2 style={{ fontSize: 14 }}>Explicit pay basis</h2>
-              <p>Payroll never chooses salary behavior from attendance. The selected basis controls how regular time, leave, tardiness and undertime affect pay.</p>
+              <p>Payroll uses an effective-dated pay history. Mid-cutoff changes preserve the old rate before the effective date and use the new rate after it.</p>
             </div>
             {canManage && (
               <button className="secondary-button" onClick={() => setEditingPay((value) => !value)}>
@@ -501,6 +512,15 @@ function PersonDrawer({
                 <label>Standard hours / day
                   <input type="number" min="1" max="24" step="0.25" value={standardHoursPerDay} onChange={(event) => setStandardHoursPerDay(event.target.value)} />
                 </label>
+                <label>Effective date
+                  <input type="date" required value={payEffectiveDate} onChange={(event) => setPayEffectiveDate(event.target.value)} />
+                </label>
+                <label>Reason
+                  <input value={payChangeReason} onChange={(event) => setPayChangeReason(event.target.value)} placeholder="Promotion, annual increase, correction…" />
+                </label>
+              </div>
+              <div className="modal-note" style={{ margin: "0 16px 10px" }}>
+                Effective-dated changes are applied inside an open cutoff. If a monthly salary change reaches a cutoff that was already released, Linaw creates a one-time retro-pay line for the next payroll instead of rewriting the released register.
               </div>
               {payError && <div className="notice notice-amber" style={{ margin: "0 16px 10px" }}><span>{payError}</span></div>}
               <div className="run-actions">
@@ -535,6 +555,44 @@ function PersonDrawer({
               </div>
             </div>
           )}
+        </section>
+
+        <section className="card" style={{ margin: "0 0 16px", boxShadow: "none" }}>
+          <div className="card-header">
+            <div>
+              <div className="card-kicker">PAY HISTORY</div>
+              <h2 style={{ fontSize: 14 }}>Effective changes &amp; retro</h2>
+              <p>Released payroll is never rewritten. Backdated monthly corrections are carried forward as explicit retro-pay lines.</p>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <strong style={{ display: "block", fontSize: 14 }}>{money(pendingRetroTotal)}</strong>
+              <small style={{ color: "var(--muted)" }}>{pendingRetro.length} pending retro item{pendingRetro.length === 1 ? "" : "s"}</small>
+            </div>
+          </div>
+          <div className="card-body">
+            {payRevisions.length === 0 ? (
+              <p style={{ color: "var(--muted)", fontSize: 11.5, margin: 0 }}>No effective-dated pay changes yet.</p>
+            ) : (
+              payRevisions.map((revision) => (
+                <div className="payslip-line" key={revision.id} style={{ gridTemplateColumns: "1fr auto" }}>
+                  <span>
+                    {revision.reason}
+                    <em>
+                      effective {formatDate(revision.effectiveDate)} · {revision.previousPayBasis} {money(revision.previousRateAmount)} → {revision.newPayBasis} {money(revision.newRateAmount)}
+                    </em>
+                  </span>
+                  <b>{revision.createdBy}</b>
+                </div>
+              ))
+            )}
+            {pendingRetro.length > 0 && (
+              <div className="notice notice-amber" style={{ marginTop: 12 }}>
+                <span>
+                  Pending retro will be included in the next payroll calculation and marked settled only when that payroll is released.
+                </span>
+              </div>
+            )}
+          </div>
         </section>
 
         <section className="card" style={{ margin: "0 0 16px", boxShadow: "none" }}>

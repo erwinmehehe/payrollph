@@ -6,6 +6,7 @@ import {
   earnedWageRequests,
   employeeLoans,
   employeePayProfiles,
+  employeePayRetroAdjustments,
   employees,
   expenseClaims,
   leaveConversions,
@@ -152,6 +153,34 @@ export async function settlePayrollRun(
         ))
       : [];
     const payProfileByEmployee = new Map(currentPayProfiles.map((profile) => [profile.employeeId, profile]));
+    const currentPendingRetro = employeeIds.length
+      ? await tx.select().from(employeePayRetroAdjustments).where(and(
+          eq(employeePayRetroAdjustments.organizationId, run.organizationId),
+          eq(employeePayRetroAdjustments.status, "pending"),
+          inArray(employeePayRetroAdjustments.employeeId, employeeIds),
+        ))
+      : [];
+    const pendingRetroById = new Map(currentPendingRetro.map((retro) => [retro.id, retro]));
+    const calculatedRetroIds = new Set<number>();
+    for (const entry of entries) {
+      for (const line of storedLines(entry.lineItems)) {
+        const retroId = numericId(line.code, "RETRO-");
+        if (!retroId) continue;
+        calculatedRetroIds.add(retroId);
+        const currentRetro = pendingRetroById.get(retroId);
+        if (!currentRetro || !samePayrollNumber(currentRetro.amount, line.amount)) {
+          throw new Error(
+            `Retro pay adjustment ${retroId} changed after calculation; recalculate before release so the approved register matches the pending retro ledger.`,
+          );
+        }
+      }
+    }
+    const missingRetro = currentPendingRetro.find((retro) => !calculatedRetroIds.has(retro.id));
+    if (missingRetro) {
+      throw new Error(
+        `A new retro pay adjustment was added after calculation; recalculate before release so adjustment #${missingRetro.id} is included.`,
+      );
+    }
 
     for (const entry of entries) {
       const employee = employeeById.get(entry.employeeId);
@@ -221,6 +250,7 @@ export async function settlePayrollRun(
     let advancesSettled = 0;
     let loanPaymentsSettled = 0;
     let leaveConversionsSettled = 0;
+    let retroAdjustmentsSettled = 0;
 
     for (const entry of entries) {
       for (const line of storedLines(entry.lineItems)) {
@@ -332,7 +362,42 @@ export async function settlePayrollRun(
           continue;
         }
 
-        const loanId = numericId(line.code, "LOAN-");
+        const retroId = numericId(line.code, "RETRO-");
+        if (retroId) {
+          const [retro] = await tx.select().from(employeePayRetroAdjustments)
+            .where(and(
+              eq(employeePayRetroAdjustments.id, retroId),
+              eq(employeePayRetroAdjustments.organizationId, run.organizationId),
+            ))
+            .limit(1);
+          if (!retro || retro.employeeId !== entry.employeeId) {
+            throw new Error(`Retro pay adjustment ${retroId} no longer matches this payroll entry.`);
+          }
+          if (retro.status === "settled" && retro.settledPayrollRunId === run.id) continue;
+          if (retro.status !== "pending" || retro.settledPayrollRunId != null) {
+            throw new Error(`Retro pay adjustment ${retroId} was already settled or changed; recalculate payroll before release.`);
+          }
+          const [settledRetro] = await tx.update(employeePayRetroAdjustments)
+            .set({
+              status: "settled",
+              settledPayrollRunId: run.id,
+              settledAt: new Date(),
+            })
+            .where(and(
+              eq(employeePayRetroAdjustments.id, retroId),
+              eq(employeePayRetroAdjustments.organizationId, run.organizationId),
+              eq(employeePayRetroAdjustments.status, "pending"),
+              isNull(employeePayRetroAdjustments.settledPayrollRunId),
+            ))
+            .returning({ id: employeePayRetroAdjustments.id });
+          if (!settledRetro) {
+            throw new Error(`Retro pay adjustment ${retroId} changed while payroll was being released; recalculate before release.`);
+          }
+          retroAdjustmentsSettled += 1;
+          continue;
+        }
+
+                const loanId = numericId(line.code, "LOAN-");
         if (loanId) {
           const plannedDeduction = Math.abs(line.amount);
           if (plannedDeduction <= 0) continue;
@@ -415,6 +480,7 @@ export async function settlePayrollRun(
       advancesSettled,
       loanPaymentsSettled,
       leaveConversionsSettled,
+      retroAdjustmentsSettled,
     };
 
     // The release audit is part of the same transaction as the ledger changes.
