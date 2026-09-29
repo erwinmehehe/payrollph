@@ -216,6 +216,16 @@ jobs:
             if (persona.dashboardRole) {
               const dashboard = page.locator(`[data-role-dashboard="${persona.dashboardRole}"]`);
               check((await dashboard.count()) === 1, `${persona.label}: role-specific dashboard did not render`);
+              const handoff = dashboard.locator("[data-payroll-handoff]").first();
+              check((await handoff.count()) === 1, `${persona.label}: payroll handoff is missing from the role dashboard`);
+              check((await handoff.locator(".handoff-step").count()) === 5, `${persona.label}: payroll handoff must show all five owners`);
+            }
+            if (persona.id === "employee") {
+              check(body.includes("UPCOMING PAY"), "Employee: upcoming pay section is missing");
+              check(body.includes("Your pay amount stays private and hidden until payroll is released."), "Employee: unreleased-pay privacy copy is missing");
+              const handoff = page.locator("[data-payroll-handoff]").first();
+              check((await handoff.count()) === 1, "Employee: payroll handoff is missing");
+              check((await handoff.locator(".handoff-step").count()) === 5, "Employee: payroll handoff must show all five owners");
             }
 
             const alert = page.getByRole("alert");
@@ -247,12 +257,13 @@ jobs:
               check((await page.getByRole("button", { name: /^Approve$/ }).count()) === 0, "Payroll: Approve action must be hidden");
               check((await page.getByRole("button", { name: /^Decline$/ }).count()) === 0, "Payroll: Decline action must be hidden");
               check((await page.getByRole("button", { name: /Delegation settings/i }).count()) === 0, "Payroll: delegation controls must be hidden");
+              check((await page.locator("[data-payroll-handoff]").count()) >= 1, "Payroll: approvals page should retain the shared handoff context");
               const overviewNav = sidebar.locator(".nav-item").filter({ hasText: /^Overview$/ }).first();
               await overviewNav.click();
               await page.waitForTimeout(100);
             }
 
-            if (persona.dashboardRole) {
+            if (persona.dashboardRole || persona.id === "employee") {
               await page.setViewportSize({ width: 390, height: 844 });
               await page.waitForTimeout(100);
               const mobileOverflow = await page.evaluate(() => ({
@@ -261,7 +272,7 @@ jobs:
               }));
               check(
                 mobileOverflow.scrollWidth <= mobileOverflow.innerWidth + 1,
-                `${persona.label}: mobile dashboard horizontal overflow ${mobileOverflow.scrollWidth}px > ${mobileOverflow.innerWidth}px`,
+                `${persona.label}: mobile workspace horizontal overflow ${mobileOverflow.scrollWidth}px > ${mobileOverflow.innerWidth}px`,
               );
               await page.screenshot({
                 path: `${outDir}/persona-${persona.id}-landing-mobile-390.png`,
