@@ -152,6 +152,8 @@ export function calculateSegmentedBasicPay(input: {
     end: string;
     payBasis: string;
     rateAmount: number;
+    standardWorkDaysPerMonth: number;
+    standardHoursPerDay: number;
     regularMinutes: number;
     amount: number;
   }> = [];
@@ -171,6 +173,8 @@ export function calculateSegmentedBasicPay(input: {
       end: segment.end,
       payBasis: segment.profile.payBasis,
       rateAmount: segment.profile.rateAmount,
+      standardWorkDaysPerMonth: segment.profile.standardWorkDaysPerMonth,
+      standardHoursPerDay: segment.profile.standardHoursPerDay,
       regularMinutes,
       amount,
     });
