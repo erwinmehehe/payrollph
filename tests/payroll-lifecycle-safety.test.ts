@@ -290,3 +290,15 @@ test("in-flight and failure states remain owned by the correct handoff stage", (
   }
   assert.equal(payrollHandoffRank("Releasing"), 3, "Releasing should stay with Owner");
 });
+
+
+test("operational admin roles keep relevant handoff notifications", () => {
+  const payroll = handoffData({ runs: [makeRun(10, "Needs review")] });
+  assert.match(buildHandoffNotifications(payroll, "bookkeeper")[0]?.title ?? "", /ready for Checker|prepare payroll/i);
+
+  const checker = handoffData({ runs: [makeRun(11, "Pending approval")], tasks: [makeTask(11, "Pending")] });
+  assert.match(buildHandoffNotifications(checker, "manager")[0]?.title ?? "", /ready for independent review/i);
+
+  const release = handoffData({ runs: [makeRun(12, "Ready for release")], tasks: [makeTask(12, "Approved")] });
+  assert.match(buildHandoffNotifications(release, "admin")[0]?.title ?? "", /ready to release/i);
+});
