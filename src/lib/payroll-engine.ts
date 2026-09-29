@@ -529,6 +529,13 @@ async function processPayrollChunk(input: {
           bankCode: employee.bankCode,
           mobile: employee.mobile,
         },
+        payProfile: {
+          payBasis: payProfileByEmployee.get(employee.id)!.payBasis,
+          rateAmount: Number(payProfileByEmployee.get(employee.id)!.rateAmount),
+          standardWorkDaysPerMonth: Number(payProfileByEmployee.get(employee.id)!.standardWorkDaysPerMonth),
+          standardHoursPerDay: Number(payProfileByEmployee.get(employee.id)!.standardHoursPerDay),
+          monthlyEquivalent: Number(employee.basicRate),
+        },
       },
     }).returning();
 
