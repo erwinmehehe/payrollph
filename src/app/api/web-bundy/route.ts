@@ -256,16 +256,40 @@ export async function PATCH(request: Request) {
     .limit(1);
   if (!existing) return Response.json({ error: "Attendance punch not found in this organization." }, { status: 404 });
 
-  const releasedRuns = await db
-    .select({ periodStart: payrollRuns.periodStart, periodEnd: payrollRuns.periodEnd })
+  const payrollPeriods = await db
+    .select({
+      id: payrollRuns.id,
+      periodStart: payrollRuns.periodStart,
+      periodEnd: payrollRuns.periodEnd,
+      status: payrollRuns.status,
+    })
     .from(payrollRuns)
-    .where(and(eq(payrollRuns.organizationId, organizationId), eq(payrollRuns.status, "Released")));
-  const lockedByRelease = releasedRuns.some(
+    .where(eq(payrollRuns.organizationId, organizationId));
+  const coveringRuns = payrollPeriods.filter(
     (run) => existing.workDate >= run.periodStart && existing.workDate <= run.periodEnd,
   );
-  if (lockedByRelease) {
+
+  if (coveringRuns.some((run) => run.status === "Released")) {
     return Response.json({
       error: "Attendance inside a released payroll period is immutable. Record an adjustment in a later payroll instead.",
+    }, { status: 409 });
+  }
+
+  const transitionRun = coveringRuns.find((run) =>
+    ["Queued", "Processing", "Recalculating", "Releasing"].includes(run.status),
+  );
+  if (transitionRun) {
+    return Response.json({
+      error: `Payroll run #${transitionRun.id} is currently ${transitionRun.status}. Wait for that transition to finish before correcting attendance.`,
+    }, { status: 409 });
+  }
+
+  const reviewLockedRun = coveringRuns.find((run) =>
+    ["Pending approval", "Ready for release"].includes(run.status),
+  );
+  if (reviewLockedRun) {
+    return Response.json({
+      error: "This cutoff is already in checker review or release. Payroll must return the run for recalculation before HR can change attendance.",
     }, { status: 409 });
   }
 
