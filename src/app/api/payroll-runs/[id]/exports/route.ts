@@ -42,6 +42,24 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   const actor = user.name;
 
+  if (kind === "bank" && !dryRun && run.status !== "Released") {
+    return Response.json({
+      error: `Final bank files are available only after payroll release (currently ${run.status}). Use dryRun=true before release.`,
+    }, { status: 409 });
+  }
+
+  if (kind === "payslip" && run.status !== "Released") {
+    return Response.json({
+      error: `Payslips are available only after payroll release (currently ${run.status}).`,
+    }, { status: 409 });
+  }
+
+  if (kind === "journal" && run.status !== "Released") {
+    return Response.json({
+      error: `Final accounting journals are available only after payroll release (currently ${run.status}).`,
+    }, { status: 409 });
+  }
+
   if (kind === "payslip") {
     if (!payslipId) {
       const rows = await db

@@ -4,18 +4,23 @@ import { and, eq } from "drizzle-orm";
 import { db } from "../src/db";
 import {
   approvalTasks,
+  bankTemplates,
   employeeLoans,
   employees,
   expenseClaims,
+  leaveConversions,
   loanPayments,
   organizations,
   orgUnits,
   payrollEntries,
   payrollRuns,
+  payslips,
   timePunches,
 } from "../src/db/schema";
 import { drainPayrollQueue, enqueuePayrollRun } from "../src/lib/payroll-engine";
 import { settlePayrollRun } from "../src/lib/payroll-settlement";
+import { buildPayrollAssurance } from "../src/lib/payroll-assurance-server";
+import { generateBankFile } from "../src/lib/exporters";
 
 test("payroll calculation uses only employees in scope and punches inside the cutoff", async () => {
   const [org] = await db.insert(organizations).values({
@@ -132,6 +137,8 @@ test("failed settlement rolls back every earlier ledger mutation", async () => {
       title: "Associate",
       avatarInitials: "RT",
       basicRate: "30000.00",
+      bankAccount: "1234567890",
+      bankCode: "BDO",
       startDate: "2025-01-01",
     }).returning();
 
@@ -143,6 +150,7 @@ test("failed settlement rolls back every earlier ledger mutation", async () => {
       scopeLabel: "All locations",
       status: "Releasing",
       payDate: "2026-09-30",
+      employeeCount: 1,
     }).returning();
 
     const [claim] = await db.insert(expenseClaims).values({
@@ -180,7 +188,15 @@ test("failed settlement rolls back every earlier ledger mutation", async () => {
         { code: `EXP-${claim.id}`, label: "Expense reimbursement", amount: "500.00" },
         { code: `LOAN-${loan.id}`, label: "Loan deduction", amount: "-500.00" },
       ],
-      trace: {},
+      trace: {
+        payment: {
+          employeeName: "Rollback Tester",
+          employeeNo: "ROLL-001",
+          bankAccount: "1234567890",
+          bankCode: "BDO",
+          mobile: null,
+        },
+      },
     });
 
     await assert.rejects(() => settlePayrollRun(run.id), /no longer active/);
@@ -422,6 +438,8 @@ test("two releases cannot settle the same expense claim into different payroll r
       title: "Associate",
       avatarInitials: "SR",
       basicRate: "30000.00",
+      bankAccount: "2234567890",
+      bankCode: "BPI",
       startDate: "2025-01-01",
     }).returning();
 
@@ -444,6 +462,7 @@ test("two releases cannot settle the same expense claim into different payroll r
         scopeLabel: "All locations",
         status: "Releasing",
         payDate: "2026-09-30",
+        employeeCount: 1,
       },
       {
         organizationId: org.id,
@@ -453,6 +472,7 @@ test("two releases cannot settle the same expense claim into different payroll r
         scopeLabel: "All locations",
         status: "Releasing",
         payDate: "2026-09-30",
+        employeeCount: 1,
       },
     ]).returning();
 
@@ -467,7 +487,15 @@ test("two releases cannot settle the same expense claim into different payroll r
         lineItems: [
           { code: `EXP-${claim.id}`, label: "Expense reimbursement", amount: "500.00" },
         ],
-        trace: {},
+        trace: {
+          payment: {
+            employeeName: "Settlement Race",
+            employeeNo: "SETTLE-RACE-001",
+            bankAccount: "2234567890",
+            bankCode: "BPI",
+            mobile: null,
+          },
+        },
       });
     }
 
@@ -486,6 +514,197 @@ test("two releases cannot settle the same expense claim into different payroll r
     assert.equal(freshRuns.filter((run) => run.status === "Released").length, 1);
     assert.equal(freshRuns.filter((run) => run.status === "Releasing").length, 1);
   } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});
+
+
+test("seeded payroll lifecycle recalculates cleanly and releases overtime, leave conversion, loan and export data", async () => {
+  const [org] = await db.insert(organizations).values({
+    name: "Payroll Lifecycle QA",
+    legalName: "Payroll Lifecycle QA Inc.",
+    plan: "Core",
+  }).returning();
+
+  let templateId: number | null = null;
+
+  try {
+    const [activeEmployee, inactiveEmployee] = await db.insert(employees).values([
+      {
+        organizationId: org.id,
+        employeeNo: "LIFE-001",
+        firstName: "Lifecycle",
+        lastName: "Active",
+        title: "Payroll QA",
+        avatarInitials: "LA",
+        basicRate: "44000.00",
+        bankAccount: "9988776655",
+        bankCode: "BPI",
+        mobile: "09171234567",
+        email: "lifecycle-active@example.test",
+        startDate: "2025-01-01",
+        status: "Active",
+      },
+      {
+        organizationId: org.id,
+        employeeNo: "LIFE-002",
+        firstName: "Lifecycle",
+        lastName: "Inactive",
+        title: "Payroll QA",
+        avatarInitials: "LI",
+        basicRate: "44000.00",
+        bankAccount: "1122334455",
+        bankCode: "BPI",
+        startDate: "2025-01-01",
+        status: "Inactive",
+      },
+    ]).returning();
+
+    const [loan] = await db.insert(employeeLoans).values({
+      organizationId: org.id,
+      employeeId: activeEmployee.id,
+      loanType: "Company Loan",
+      referenceNo: "LIFE-LOAN-001",
+      principal: "3000.00",
+      monthlyAmortization: "1200.00",
+      cutoffDeduction: "600.00",
+      remainingBalance: "3000.00",
+      totalPaid: "0.00",
+      status: "active",
+      startDate: "2026-01-01",
+    }).returning();
+
+    const [leaveConversion] = await db.insert(leaveConversions).values({
+      organizationId: org.id,
+      employeeId: activeEmployee.id,
+      leaveType: "Service Incentive Leave",
+      daysConverted: "1.0",
+      dailyRate: "2000.00",
+      cashAmount: "2000.00",
+      taxExempt: true,
+      status: "approved",
+    }).returning();
+
+    const [overtimePunch] = await db.insert(timePunches).values({
+      organizationId: org.id,
+      employeeId: activeEmployee.id,
+      workDate: "2026-09-20",
+      timeIn: new Date("2026-09-20T09:00:00+08:00"),
+      timeOut: new Date("2026-09-20T20:00:00+08:00"),
+      shiftStart: "09:00",
+      shiftEnd: "18:00",
+      status: "Complete",
+    }).returning();
+
+    await db.insert(timePunches).values({
+      organizationId: org.id,
+      employeeId: inactiveEmployee.id,
+      workDate: "2026-09-20",
+      timeIn: new Date("2026-09-20T09:00:00+08:00"),
+      timeOut: new Date("2026-09-20T23:00:00+08:00"),
+      shiftStart: "09:00",
+      shiftEnd: "18:00",
+      status: "Complete",
+    });
+
+    const [run] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      periodLabel: "Sep 16–30, 2026 lifecycle QA",
+      periodStart: "2026-09-16",
+      periodEnd: "2026-09-30",
+      scopeLabel: "All locations",
+      status: "Draft",
+      payDate: "2026-09-30",
+    }).returning();
+
+    await enqueuePayrollRun(run.id, 25);
+    await drainPayrollQueue(10, run.id);
+
+    let entries = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
+    assert.equal(entries.length, 1, "inactive employees must never enter a regular payroll register");
+    assert.equal(entries[0].employeeId, activeEmployee.id);
+
+    const firstEntryId = entries[0].id;
+    const firstLines = entries[0].lineItems as Array<{ code: string; amount: string }>;
+    const firstOt = firstLines.find((line) => line.code === "OT");
+    const firstLoan = firstLines.find((line) => line.code === `LOAN-${loan.id}`);
+    const firstLeave = firstLines.find((line) => line.code === `LEAVE_CONV-${leaveConversion.id}`);
+
+    assert.ok(firstOt && Number(firstOt.amount) > 0, "overtime must be present in the calculated register");
+    assert.equal(Number(firstLoan?.amount), -600);
+    assert.equal(Number(firstLeave?.amount), 2000);
+    const firstTrace = entries[0].trace as { inputs?: string[] };
+    assert.ok(firstTrace.inputs?.includes("leaveConversionTaxExempt=2000.00"));
+
+    const firstPayslips = await db.select().from(payslips).where(eq(payslips.payrollEntryId, firstEntryId));
+    assert.equal(firstPayslips.length, 1);
+
+    const assurance = await buildPayrollAssurance(run.id);
+    assert.ok(assurance);
+    assert.equal(assurance!.assurance.summary.blocking, 0, "the seeded run must pass payroll assurance before approval");
+
+    await db.update(timePunches)
+      .set({ timeOut: new Date("2026-09-20T18:00:00+08:00") })
+      .where(eq(timePunches.id, overtimePunch.id));
+    await db.update(employeeLoans)
+      .set({ cutoffDeduction: "400.00" })
+      .where(eq(employeeLoans.id, loan.id));
+
+    await enqueuePayrollRun(run.id, 25);
+    await drainPayrollQueue(10, run.id);
+
+    const oldEntries = await db.select().from(payrollEntries).where(eq(payrollEntries.id, firstEntryId));
+    const oldPayslips = await db.select().from(payslips).where(eq(payslips.payrollEntryId, firstEntryId));
+    assert.equal(oldEntries.length, 0, "recalculation must replace the previous register");
+    assert.equal(oldPayslips.length, 0, "recalculation must cascade-delete stale payslips");
+
+    entries = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
+    assert.equal(entries.length, 1);
+    const replacementLines = entries[0].lineItems as Array<{ code: string; amount: string }>;
+    assert.equal(replacementLines.some((line) => line.code === "OT" && Number(line.amount) > 0), false);
+    assert.equal(Number(replacementLines.find((line) => line.code === `LOAN-${loan.id}`)?.amount), -400);
+    assert.equal(Number(replacementLines.find((line) => line.code === `LEAVE_CONV-${leaveConversion.id}`)?.amount), 2000);
+
+    const [freshRun] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, run.id));
+    assert.equal(freshRun.employeeCount, 1);
+    assert.equal(freshRun.status, "Needs review");
+
+    const assuranceAfterRecalc = await buildPayrollAssurance(run.id);
+    assert.ok(assuranceAfterRecalc);
+    assert.equal(assuranceAfterRecalc!.assurance.summary.blocking, 0);
+
+    await db.update(payrollRuns).set({ status: "Releasing" }).where(eq(payrollRuns.id, run.id));
+    const released = await settlePayrollRun(run.id);
+    assert.equal(released.run.status, "Released");
+    assert.equal(released.settlement.loanPaymentsSettled, 1);
+    assert.equal(released.settlement.leaveConversionsSettled, 1);
+
+    const [loanAfter] = await db.select().from(employeeLoans).where(eq(employeeLoans.id, loan.id));
+    assert.equal(Number(loanAfter.remainingBalance), 2600);
+    assert.equal(Number(loanAfter.totalPaid), 400);
+
+    const [conversionAfter] = await db.select().from(leaveConversions).where(eq(leaveConversions.id, leaveConversion.id));
+    assert.equal(conversionAfter.status, "paid");
+    assert.equal(conversionAfter.payrollRunId, run.id);
+
+    const [template] = await db.insert(bankTemplates).values({
+      name: `Lifecycle QA Bank ${org.id}`,
+      version: "1",
+      format: "CSV",
+      mappings: {},
+      active: true,
+    }).returning();
+    templateId = template.id;
+
+    const bank = await generateBankFile(run.id, template.name, false);
+    assert.equal(bank.validation.dryRun, false);
+    assert.equal(bank.validation.rowCount, 1);
+    assert.equal(bank.validation.missingPaymentSnapshots, 0);
+    assert.equal(Number(bank.validation.totalNet), Number(released.run.netPay));
+    assert.ok(bank.body.includes(activeEmployee.employeeNo));
+    assert.equal(bank.body.includes(inactiveEmployee.employeeNo), false);
+  } finally {
+    if (templateId) await db.delete(bankTemplates).where(eq(bankTemplates.id, templateId));
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
 });

@@ -40,13 +40,23 @@ function roundToCents(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+const PHILIPPINE_TIME = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Manila",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
 function toLocalIso(date: Date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  const hh = String(date.getHours()).padStart(2, "0");
-  const mm = String(date.getMinutes()).padStart(2, "0");
-  return `${y}-${m}-${d}T${hh}:${mm}`;
+  const parts = new Map(
+    PHILIPPINE_TIME.formatToParts(date)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  return `${parts.get("year")}-${parts.get("month")}-${parts.get("day")}T${parts.get("hour")}:${parts.get("minute")}`;
 }
 
 export async function enqueuePayrollRun(runId: number, chunkSize = DEFAULT_CHUNK) {
@@ -57,9 +67,16 @@ export async function enqueuePayrollRun(runId: number, chunkSize = DEFAULT_CHUNK
     ? and(
         eq(employees.organizationId, run.organizationId),
         eq(employees.orgUnitId, run.scopeOrgUnitId),
+        eq(employees.status, "Active"),
       )
-    : eq(employees.organizationId, run.organizationId);
+    : and(
+        eq(employees.organizationId, run.organizationId),
+        eq(employees.status, "Active"),
+      );
   const employeeRows = await db.select().from(employees).where(employeeWhere).orderBy(asc(employees.id));
+  if (employeeRows.length === 0) {
+    throw new Error("Payroll scope has no active employees. Add or reactivate an employee before calculating.");
+  }
   const totalChunks = Math.max(1, Math.ceil(employeeRows.length / chunkSize));
 
   await db.delete(payrollJobs).where(eq(payrollJobs.payrollRunId, runId));
@@ -234,11 +251,21 @@ async function processPayrollChunk(input: {
     ? and(
         eq(employees.organizationId, input.organizationId),
         eq(employees.orgUnitId, run.scopeOrgUnitId),
+        eq(employees.status, "Active"),
       )
-    : eq(employees.organizationId, input.organizationId);
+    : and(
+        eq(employees.organizationId, input.organizationId),
+        eq(employees.status, "Active"),
+      );
   const allEmployees = await db.select().from(employees)
     .where(employeeWhere)
     .orderBy(asc(employees.id));
+
+  if (allEmployees.length !== run.employeeCount) {
+    throw new Error(
+      "Payroll employee scope changed after calculation was queued. Recalculate so the run uses one consistent active-employee cohort.",
+    );
+  }
   const chunk = allEmployees.slice(input.chunkIndex * input.chunkSize, (input.chunkIndex + 1) * input.chunkSize);
   if (chunk.length === 0) {
     await finalizeRun(input.runId);
@@ -402,6 +429,7 @@ async function processPayrollChunk(input: {
         daysConverted: Number(c.daysConverted),
         dailyRate: Number(c.dailyRate),
         cashAmount: Number(c.cashAmount),
+        taxExempt: c.taxExempt,
       })),
     });
 
@@ -417,7 +445,16 @@ async function processPayrollChunk(input: {
       netPay: money(calc.net),
       status: calc.status,
       lineItems: calc.lineItems,
-      trace: calc.trace,
+      trace: {
+        ...calc.trace,
+        payment: {
+          employeeName: `${employee.firstName} ${employee.lastName}`,
+          employeeNo: employee.employeeNo,
+          bankAccount: employee.bankAccount,
+          bankCode: employee.bankCode,
+          mobile: employee.mobile,
+        },
+      },
     }).returning();
 
     await db.insert(payslips).values({
@@ -487,7 +524,7 @@ function calculateEmployeePay(input: {
   advances?: Array<{ id: number; requestedAmount: number; fee: number }>;
   deMinimis?: Array<{ id: number; benefitType: DeMinimisType; amount: number; frequency: "month" | "semester" | "year" }>;
   loans?: Array<{ id: number; loanType: string; referenceNo: string; cutoffDeduction: number; remainingBalance: number }>;
-  leaveConversions?: Array<{ id: number; leaveType: string; daysConverted: number; dailyRate: number; cashAmount: number }>;
+  leaveConversions?: Array<{ id: number; leaveType: string; daysConverted: number; dailyRate: number; cashAmount: number; taxExempt: boolean }>;
 }) {
   const monthly = Number(input.employee.basicRate);
   const semiMonthlyBasic = monthly / 2;
@@ -614,10 +651,18 @@ function calculateEmployeePay(input: {
     code: `LEAVE_CONV-${conv.id}`,
     label: `Leave Conversion (${conv.leaveType} ${conv.daysConverted}d)`,
     amount: money(conv.cashAmount),
-    notes: [`${conv.daysConverted} days @ daily rate ₱${conv.dailyRate}`],
+    notes: [
+      `${conv.daysConverted} days @ daily rate ₱${conv.dailyRate}`,
+      conv.taxExempt ? "Tax treatment: exempt" : "Tax treatment: taxable",
+    ],
     amountNum: conv.cashAmount,
+    taxExempt: conv.taxExempt,
   }));
   const conversionTotal = conversionLines.reduce((sum, c) => sum + c.amountNum, 0);
+  const conversionTaxExemptTotal = conversionLines.reduce(
+    (sum, c) => sum + (c.taxExempt ? c.amountNum : 0),
+    0,
+  );
 
   // Employee Loans (SSS Salary Loan, Pag-IBIG MPL/Calamity, Company Loan)
   const loanLines = (input.loans ?? []).map((loan) => {
@@ -644,7 +689,7 @@ function calculateEmployeePay(input: {
   // shares. Expense reimbursement is a non-taxable pass-through, not salary.
   const taxableCompensation = Math.max(
     0,
-    gross - expenseTotal - deMinimisTotal + deMinimisTaxable - sss - philhealth - pagibig,
+    gross - expenseTotal - deMinimisTotal - conversionTaxExemptTotal + deMinimisTaxable - sss - philhealth - pagibig,
   );
   const withholding = computeSemiMonthlyWithholdingTax(taxableCompensation, treatAsMwe);
   const benefitLines = calculateBenefits(input.benefits ?? []);
@@ -659,7 +704,7 @@ function calculateEmployeePay(input: {
     { code: "ND", label: "Night differential (10%)", amount: money(nightDiffPay) },
     { code: "HOLIDAY", label: "Holiday / rest-day premium", amount: money(holidayPremium), notes: holidayNotes },
     { code: "CALAMITY", label: "Calamity / hazard premium", amount: money(calamityPay), notes: calamityNotes },
-    ...conversionLines.map(({ amountNum: _amountNum, ...c }) => c),
+    ...conversionLines.map(({ amountNum: _amountNum, taxExempt: _taxExempt, ...c }) => c),
     { code: "SSS", label: "SSS contribution", amount: money(-sss) },
     { code: "PHIC", label: "PhilHealth contribution", amount: money(-philhealth) },
     { code: "HDMF", label: "Pag-IBIG contribution", amount: money(-pagibig) },
@@ -685,6 +730,7 @@ function calculateEmployeePay(input: {
       `taxableCompensation=${money(taxableCompensation)}`,
       `deMinimisPaid=${money(deMinimisTotal)}`,
       `deMinimisTaxableExcess=${money(deMinimisTaxable)}`,
+      `leaveConversionTaxExempt=${money(conversionTaxExemptTotal)}`,
       `punches=${input.punches.length}`,
       `regularMinutes=${regularMinutes}`,
       `overtimeMinutes=${overtimeMinutes}`,
