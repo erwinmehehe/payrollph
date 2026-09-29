@@ -589,6 +589,12 @@ export async function PATCH(request: Request) {
     if (sep.status !== "approved") {
       return Response.json({ error: "Final pay must be approved before release." }, { status: 409 });
     }
+    const releaseReference = String(body.releaseReference ?? "").trim();
+    if (!releaseReference) {
+      return Response.json({
+        error: "Enter a payout or bank reference before marking Final Pay released.",
+      }, { status: 422 });
+    }
 
     const released = await db.transaction(async (tx) => {
       const [fresh] = await tx.select().from(separationRecords).where(eq(separationRecords.id, id)).limit(1);
@@ -631,6 +637,7 @@ export async function PATCH(request: Request) {
       const [updated] = await tx.update(separationRecords).set({
         status: "released",
         releasedAt: new Date(),
+        releaseReference: releaseReference.slice(0, 160),
       }).where(and(
         eq(separationRecords.id, id),
         eq(separationRecords.status, "approved"),
@@ -656,6 +663,7 @@ export async function PATCH(request: Request) {
         finalPayDueDate: sep.finalPayDueDate,
         netFinalPay: Number(sep.netFinalPay),
         loanDeductions: Number(sep.loanDeductions),
+        releaseReference: releaseReference.slice(0, 160),
       },
     });
 
