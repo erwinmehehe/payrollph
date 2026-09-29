@@ -328,7 +328,7 @@ export function WorkspaceShell({
               {trayOpen && (
                 <div className="company-popover tray" role="dialog" aria-label="Notifications">
                   <div className="tray-head">
-                    <strong>Notifications</strong>
+                    <strong>Needs attention</strong>
                     {onOpenNotification && (
                       <button
                         className="link-button"
