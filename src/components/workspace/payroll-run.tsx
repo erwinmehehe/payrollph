@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { readLineItems, readTrace, type BankTemplate, type DashboardData, type Notify, type PayrollEntry, type PayrollLineItem, type PayrollRun, type Task } from "./types";
 import { PayrollAssurancePanel } from "./payroll-assurance-panel";
+import { ExplainPayDrawer } from "./explain-pay-drawer";
 import {
   Battery,
   EmptyState,
@@ -35,6 +36,14 @@ import {
 } from "./ui";
 
 type Stage = "prepare" | "approve" | "release" | "export";
+
+type ReleaseChecklistItem = {
+  key: "inputs" | "attendance" | "calculation" | "exceptions" | "statutory" | "approval" | "bank";
+  label: string;
+  passed: boolean;
+  blocking: boolean;
+  detail: string;
+};
 
 const GOVERNMENT_DRAFTS = ["1601-C", "Alphalist/2316", "SSS R-3", "PhilHealth RF-1", "Pag-IBIG MCRF"];
 
@@ -62,6 +71,7 @@ export function PayrollRunView({
   const [selectedId, setSelectedId] = useState<number | undefined>(data.payrollRuns[0]?.id);
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [explainEmployeeId, setExplainEmployeeId] = useState<number | null>(null);
   const [onlyExceptions, setOnlyExceptions] = useState(false);
   const [confirmRelease, setConfirmRelease] = useState(false);
   const [exportsOpen, setExportsOpen] = useState(false);
@@ -70,6 +80,11 @@ export function PayrollRunView({
   const [reviewApproverId, setReviewApproverId] = useState<number | null>(null);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewLoading, setReviewLoading] = useState(false);
+  const [releaseChecklist, setReleaseChecklist] = useState<{
+    ready: boolean;
+    items: ReleaseChecklistItem[];
+    assuranceSummary?: { high: number; medium: number; blocking: number } | null;
+  } | null>(null);
 
   // Derived, not synced: if the selected run disappears (client switch, new
   // run) the first run takes over without an effect round-trip.
@@ -108,6 +123,28 @@ export function PayrollRunView({
       alive = false;
     };
   }, [runId, data.payrollRuns]);
+
+  useEffect(() => {
+    if (!runId) {
+      setReleaseChecklist(null);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      try {
+        const response = await fetch(`/api/payroll-runs/${runId}/release-checklist`, { cache: "no-store" });
+        if (!alive) return;
+        if (!response.ok) {
+          setReleaseChecklist(null);
+          return;
+        }
+        setReleaseChecklist(await response.json());
+      } catch {
+        if (alive) setReleaseChecklist(null);
+      }
+    })();
+    return () => { alive = false; };
+  }, [runId, data.payrollRuns, data.tasks]);
 
   const loadedForSelection = Boolean(fetched && fetched.runId === runId);
   const entries = useMemo(
@@ -345,6 +382,33 @@ export function PayrollRunView({
 
           <PayrollAssurancePanel runId={run.id} employees={data.employees} />
 
+          {releaseChecklist && calculated && (
+            <div className="card-body" style={{ paddingTop: 0 }}>
+              <div className="line-title" style={{ margin: 0 }}>
+                <div>
+                  <strong>Release checklist</strong>
+                  <span>{releaseChecklist.ready ? "All release controls currently pass" : "Resolve every blocking control before release"}</span>
+                </div>
+                <span className={`status ${releaseChecklist.ready ? "status-approved" : "status-review"}`}>
+                  {releaseChecklist.ready ? "Ready" : "Blocked"}
+                </span>
+              </div>
+              <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+                {releaseChecklist.items.map((item) => (
+                  <div key={item.key} className="exception-row" style={{ alignItems: "flex-start" }}>
+                    <span className={`status ${item.passed ? "status-approved" : "status-review"}`} style={{ minWidth: 72, justifyContent: "center" }}>
+                      {item.passed ? "Pass" : "Action"}
+                    </span>
+                    <div>
+                      <strong>{item.label}</strong>
+                      <p>{item.detail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Exceptions */}
           {exceptionRows.length > 0 && (
             <div className="card-body" style={{ paddingTop: 0 }}>
@@ -466,7 +530,7 @@ export function PayrollRunView({
                     Released
                   </span>
                 ) : (
-                  <button className="primary-button brand" disabled={busy || !calculated || relatedTask?.status !== "Approved"} onClick={() => setConfirmRelease(true)}>
+                  <button className="primary-button brand" disabled={busy || !calculated || relatedTask?.status !== "Approved" || releaseChecklist?.ready === false} onClick={() => setConfirmRelease(true)}>
                     <Send size={14} className="i-pink" /> Release
                   </button>
                 )
@@ -620,6 +684,7 @@ export function PayrollRunView({
                             periodLabel={run.periodLabel}
                             released={released}
                             notify={notify}
+                            onExplain={() => setExplainEmployeeId(entry.employeeId)}
                           />
                         )}
                       </div>
@@ -644,6 +709,18 @@ export function PayrollRunView({
           )}
         </article>
       </section>
+
+      {explainEmployeeId != null && (
+        <ExplainPayDrawer
+          runId={run.id}
+          employeeId={explainEmployeeId}
+          employeeName={(() => {
+            const employee = data.employees.find((item) => item.id === explainEmployeeId);
+            return employee ? `${employee.firstName} ${employee.lastName}` : `Employee #${explainEmployeeId}`;
+          })()}
+          onClose={() => setExplainEmployeeId(null)}
+        />
+      )}
 
       {confirmRelease && (
         <ReleaseDialog
@@ -695,12 +772,14 @@ function PayslipDetail({
   periodLabel,
   released,
   notify,
+  onExplain,
 }: {
   entry: PayrollEntry;
   runId: number;
   periodLabel: string;
   released: boolean;
   notify: Notify;
+  onExplain: () => void;
 }) {
   const lines: PayrollLineItem[] = readLineItems(entry);
   const earnings = lines.filter((line) => Number(line.amount) > 0);
@@ -807,6 +886,9 @@ function PayslipDetail({
         Figures come straight from the stored payroll entry, this panel never re-derives statutory amounts in the browser.
       </p>
       <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+        <button className="secondary-button" onClick={onExplain}>
+          <BookOpen size={14} className="i-purple" /> Explain this pay
+        </button>
         <button
           className="secondary-button"
           disabled={!released}
