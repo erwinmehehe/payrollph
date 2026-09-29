@@ -94,6 +94,12 @@ export async function getSessionUser() {
 
   if (!row) return null;
 
+  // The historical review account has source-visible credentials and is reserved
+  // for local demo fixtures only. Treat any surviving production session as invalid.
+  if (process.env.NODE_ENV === "production" && row.user.email.toLowerCase() === "celine@linaw.ph") {
+    return null;
+  }
+
   const lastSeen = row.session.lastSeenAt ? new Date(row.session.lastSeenAt).getTime() : 0;
   if (Date.now() - lastSeen > LAST_SEEN_WRITE_INTERVAL_MS) {
     await db.update(sessions).set({ lastSeenAt: new Date() }).where(eq(sessions.id, row.session.id));
