@@ -116,6 +116,7 @@ export async function recordEffectivePayChange(input: {
   }
 
   const nextProfile = resolvePayProfile(input.payProfile);
+  const today = philippinesToday();
   const history = await db.select().from(employeePayRateChanges)
     .where(and(
       eq(employeePayRateChanges.organizationId, input.organizationId),
@@ -130,7 +131,6 @@ export async function recordEffectivePayChange(input: {
     if (adjustments.some((row) => row.status === "paid")) {
       throw new Error("This effective-dated change already produced a paid retro adjustment and cannot be overwritten.");
     }
-    await db.delete(employeePayAdjustments).where(eq(employeePayAdjustments.rateChangeId, sameDate.id));
   }
 
   const previous = history
@@ -147,29 +147,14 @@ export async function recordEffectivePayChange(input: {
           standardWorkDaysPerMonth: 22,
           standardHoursPerDay: 8,
         };
+  const previousResolved = resolvePayProfile(previousProfile);
 
-  const [change] = sameDate
-    ? await db.update(employeePayRateChanges).set({
-        payBasis: nextProfile.payBasis,
-        rateAmount: nextProfile.rateAmount.toFixed(2),
-        standardWorkDaysPerMonth: nextProfile.standardWorkDaysPerMonth.toFixed(2),
-        standardHoursPerDay: nextProfile.standardHoursPerDay.toFixed(2),
-        reason: input.reason?.trim() || null,
-        createdBy: input.actor,
-      }).where(eq(employeePayRateChanges.id, sameDate.id)).returning()
-    : await db.insert(employeePayRateChanges).values({
-        employeeId: input.employeeId,
-        organizationId: input.organizationId,
-        effectiveFrom: input.effectiveFrom,
-        payBasis: nextProfile.payBasis,
-        rateAmount: nextProfile.rateAmount.toFixed(2),
-        standardWorkDaysPerMonth: nextProfile.standardWorkDaysPerMonth.toFixed(2),
-        standardHoursPerDay: nextProfile.standardHoursPerDay.toFixed(2),
-        reason: input.reason?.trim() || null,
-        createdBy: input.actor,
-      }).returning();
+  if (input.effectiveFrom < today && previousResolved.payBasis !== nextProfile.payBasis) {
+    throw new Error(
+      "Retroactive pay-basis changes are not auto-adjusted. Use a current/future cutoff boundary and handle prior-period correction manually.",
+    );
+  }
 
-  const today = philippinesToday();
   const nextExisting = history.find((row) => String(row.effectiveFrom) > input.effectiveFrom);
   const serviceThrough = earlier(
     previousDay(today),
@@ -185,11 +170,6 @@ export async function recordEffectivePayChange(input: {
   }> = [];
 
   if (input.effectiveFrom < today && input.effectiveFrom <= serviceThrough) {
-    const previousResolved = resolvePayProfile(previousProfile);
-    if (previousResolved.payBasis !== nextProfile.payBasis) {
-      throw new Error("Retroactive pay-basis changes are not auto-adjusted. Use a current/future cutoff boundary and handle prior-period correction manually.");
-    }
-
     const releasedRuns = await db.select().from(payrollRuns)
       .where(and(
         eq(payrollRuns.organizationId, input.organizationId),
@@ -258,26 +238,55 @@ export async function recordEffectivePayChange(input: {
     }
   }
 
-  if (retroRows.length > 0) {
-    await db.insert(employeePayAdjustments).values(retroRows.map((row) => ({
-      organizationId: input.organizationId,
-      employeeId: input.employeeId,
-      rateChangeId: change.id,
-      adjustmentType: "retro_basic",
-      amount: row.amount.toFixed(2),
-      serviceYear: row.serviceYear,
-      serviceFrom: row.serviceFrom,
-      serviceThrough: row.serviceThrough,
-      status: row.status,
-      notes: row.amount > 0
-        ? `Retro basic pay generated from effective rate change dated ${input.effectiveFrom}.`
-        : `Negative retro delta requires manual review; no automatic payroll deduction is allowed.`,
-    })));
-  }
+  const result = await db.transaction(async (tx) => {
+    const [change] = sameDate
+      ? await tx.update(employeePayRateChanges).set({
+          payBasis: nextProfile.payBasis,
+          rateAmount: nextProfile.rateAmount.toFixed(2),
+          standardWorkDaysPerMonth: nextProfile.standardWorkDaysPerMonth.toFixed(2),
+          standardHoursPerDay: nextProfile.standardHoursPerDay.toFixed(2),
+          reason: input.reason?.trim() || null,
+          createdBy: input.actor,
+        }).where(eq(employeePayRateChanges.id, sameDate.id)).returning()
+      : await tx.insert(employeePayRateChanges).values({
+          employeeId: input.employeeId,
+          organizationId: input.organizationId,
+          effectiveFrom: input.effectiveFrom,
+          payBasis: nextProfile.payBasis,
+          rateAmount: nextProfile.rateAmount.toFixed(2),
+          standardWorkDaysPerMonth: nextProfile.standardWorkDaysPerMonth.toFixed(2),
+          standardHoursPerDay: nextProfile.standardHoursPerDay.toFixed(2),
+          reason: input.reason?.trim() || null,
+          createdBy: input.actor,
+        }).returning();
+
+    if (sameDate) {
+      await tx.delete(employeePayAdjustments).where(eq(employeePayAdjustments.rateChangeId, sameDate.id));
+    }
+
+    if (retroRows.length > 0) {
+      await tx.insert(employeePayAdjustments).values(retroRows.map((row) => ({
+        organizationId: input.organizationId,
+        employeeId: input.employeeId,
+        rateChangeId: change.id,
+        adjustmentType: "retro_basic",
+        amount: row.amount.toFixed(2),
+        serviceYear: row.serviceYear,
+        serviceFrom: row.serviceFrom,
+        serviceThrough: row.serviceThrough,
+        status: row.status,
+        notes: row.amount > 0
+          ? `Retro basic pay generated from effective rate change dated ${input.effectiveFrom}.`
+          : "Negative retro delta requires manual review; no automatic payroll deduction is allowed.",
+      })));
+    }
+
+    return change;
+  });
 
   if (input.effectiveFrom <= today) {
     await syncCurrentPayProfile(input.organizationId, input.employeeId, today);
   }
 
-  return { change, retroAdjustments: retroRows };
+  return { change: result, retroAdjustments: retroRows };
 }
