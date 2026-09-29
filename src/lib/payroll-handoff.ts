@@ -29,13 +29,16 @@ export function payrollHandoffRank(status: string | null | undefined) {
   const normalized = String(status ?? "").trim().toLowerCase();
   if (!normalized) return 0;
   if (normalized === "released") return 4;
-  if (normalized === "ready for release" || normalized === "approved") return 3;
+  if (normalized === "ready for release" || normalized === "approved" || normalized === "releasing") return 3;
   if (normalized === "pending approval" || normalized === "submitted") return 2;
   if (
     normalized === "needs review" ||
     normalized === "processing" ||
     normalized === "calculating" ||
     normalized === "calculated" ||
+    normalized === "recalculating" ||
+    normalized === "queued" ||
+    normalized === "failed" ||
     normalized === "ready"
   ) {
     return 1;
