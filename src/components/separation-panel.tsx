@@ -226,9 +226,9 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
               <label>Effective Last Day
                 <input required type="date" value={form.lastDay} onChange={(e) => setForm({ ...form, lastDay: e.target.value })} />
               </label>
-              <label>Imported-history basic salary earned
+              <label>Legacy imported basic salary, if prompted
                 <input type="number" step="0.01" min="0" value={form.historicalBasicSalaryEarned} onChange={(e) => setForm({ ...form, historicalBasicSalaryEarned: e.target.value })} />
-                <small>Only needed when this year includes payroll imported from another system.</small>
+                <small>New payroll-history imports store basic salary directly. Use this only for older imported rows that predate that field.</small>
               </label>
               <label>Unpaid basic salary through last day
                 <input type="number" step="0.01" min="0" value={form.unpaidBasicSalary} onChange={(e) => setForm({ ...form, unpaidBasicSalary: e.target.value })} />
