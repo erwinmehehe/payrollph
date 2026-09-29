@@ -6,7 +6,8 @@ import { recordAuditEvent } from "@/lib/audit";
 import { dispatchWebhook } from "@/lib/webhooks";
 import { seedProvisioning } from "@/lib/provisioning";
 import { clientIp, rateLimitDistributed } from "@/lib/rate-limit";
-import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
+import { ensureEmployeePayHistory } from "@/lib/pay-basis-schema";
+import { philippinesToday, recordEffectivePayChange } from "@/lib/pay-history-server";
 import { resolvePayProfile } from "@/lib/pay-basis";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +27,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const gate = await authorize(request, "employees:read");
   if ("error" in gate && gate.error) return gate.error;
   const id = Number((await params).id);
-  await ensureEmployeePayProfiles(gate.auth!.organizationId);
+  await ensureEmployeePayHistory(gate.auth!.organizationId);
   const [row] = await db.select().from(employees).where(eq(employees.id, id));
   if (!row || row.organizationId !== gate.auth!.organizationId) {
     return Response.json({ error: "Employee not found." }, { status: 404 });
@@ -50,7 +51,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return Response.json({ error: "Employee not found." }, { status: 404 });
   }
 
-  await ensureEmployeePayProfiles(gate.auth!.organizationId);
+  await ensureEmployeePayHistory(gate.auth!.organizationId);
   const [existingPayProfile] = await db.select().from(employeePayProfiles)
     .where(eq(employeePayProfiles.employeeId, id))
     .limit(1);
@@ -77,7 +78,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         standardWorkDaysPerMonth: Number(body.standardWorkDaysPerMonth ?? existingPayProfile?.standardWorkDaysPerMonth ?? 22),
         standardHoursPerDay: Number(body.standardHoursPerDay ?? existingPayProfile?.standardHoursPerDay ?? 8),
       });
-      patch.basicRate = nextPayProfile.monthlyEquivalent.toFixed(2);
+      // Effective-dated pay is persisted separately below. The compatibility
+      // monthly equivalent is updated only when the change becomes current.
     } catch (error) {
       return Response.json({ error: "Validation failed.", problems: [error instanceof Error ? error.message : "Pay profile is invalid."] }, { status: 422 });
     }
@@ -92,25 +94,29 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const [updated] = await db.update(employees).set(patch).where(eq(employees.id, id)).returning();
 
+  let payChange = null;
   if (nextPayProfile) {
-    await db.insert(employeePayProfiles).values({
-      employeeId: id,
-      organizationId: updated.organizationId,
-      payBasis: nextPayProfile.payBasis,
-      rateAmount: nextPayProfile.rateAmount.toFixed(2),
-      standardWorkDaysPerMonth: nextPayProfile.standardWorkDaysPerMonth.toFixed(2),
-      standardHoursPerDay: nextPayProfile.standardHoursPerDay.toFixed(2),
-    }).onConflictDoUpdate({
-      target: employeePayProfiles.employeeId,
-      set: {
-        payBasis: nextPayProfile.payBasis,
-        rateAmount: nextPayProfile.rateAmount.toFixed(2),
-        standardWorkDaysPerMonth: nextPayProfile.standardWorkDaysPerMonth.toFixed(2),
-        standardHoursPerDay: nextPayProfile.standardHoursPerDay.toFixed(2),
-        updatedAt: new Date(),
-      },
-    });
+    try {
+      payChange = await recordEffectivePayChange({
+        organizationId: updated.organizationId,
+        employeeId: id,
+        effectiveFrom: String(body.effectiveFrom ?? philippinesToday()),
+        payProfile: nextPayProfile,
+        reason: typeof body.payChangeReason === "string" ? body.payChangeReason.trim() || null : null,
+        actor: `api_key:${gate.auth!.keyId}`,
+      });
+    } catch (error) {
+      return Response.json({
+        error: "Validation failed.",
+        problems: [error instanceof Error ? error.message : "Could not record the effective-dated pay change."],
+      }, { status: 422 });
+    }
   }
+
+  const [freshEmployee] = await db.select().from(employees).where(eq(employees.id, id)).limit(1);
+  const [freshPayProfile] = await db.select().from(employeePayProfiles)
+    .where(eq(employeePayProfiles.employeeId, id))
+    .limit(1);
 
   if (updated.status === "Separating" && existing.status !== "Separating") {
     await seedProvisioning(updated.organizationId, updated.id, "offboarding");
@@ -123,16 +129,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     resource: `${updated.firstName} ${updated.lastName}`,
     metadata: {
       patch,
-      payBasis: nextPayProfile?.payBasis ?? existingPayProfile?.payBasis ?? "monthly",
+      payBasis: freshPayProfile?.payBasis ?? existingPayProfile?.payBasis ?? "monthly",
+      effectiveFrom: nextPayProfile ? String(body.effectiveFrom ?? philippinesToday()) : null,
+      retroAdjustments: payChange?.retroAdjustments ?? [],
     },
   });
 
+  const responseEmployee = freshEmployee ?? updated;
   return Response.json({
-    ...updated,
-    payBasis: nextPayProfile?.payBasis ?? existingPayProfile?.payBasis ?? "monthly",
-    payRate: (nextPayProfile?.rateAmount ?? Number(existingPayProfile?.rateAmount ?? updated.basicRate)).toFixed(2),
-    standardWorkDaysPerMonth: (nextPayProfile?.standardWorkDaysPerMonth ?? Number(existingPayProfile?.standardWorkDaysPerMonth ?? 22)).toFixed(2),
-    standardHoursPerDay: (nextPayProfile?.standardHoursPerDay ?? Number(existingPayProfile?.standardHoursPerDay ?? 8)).toFixed(2),
+    ...responseEmployee,
+    payBasis: freshPayProfile?.payBasis ?? existingPayProfile?.payBasis ?? "monthly",
+    payRate: freshPayProfile?.rateAmount ?? existingPayProfile?.rateAmount ?? responseEmployee.basicRate,
+    standardWorkDaysPerMonth: freshPayProfile?.standardWorkDaysPerMonth ?? existingPayProfile?.standardWorkDaysPerMonth ?? "22.00",
+    standardHoursPerDay: freshPayProfile?.standardHoursPerDay ?? existingPayProfile?.standardHoursPerDay ?? "8.00",
+    payChange,
   });
 }
 
