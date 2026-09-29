@@ -140,6 +140,51 @@ export const employeePayProfiles = pgTable(
   (table) => [index("employee_pay_profiles_org_idx").on(table.organizationId)],
 );
 
+export const employeePayRateChanges = pgTable(
+  "employee_pay_rate_changes",
+  {
+    id: serial("id").primaryKey(),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    effectiveFrom: date("effective_from").notNull(),
+    payBasis: varchar("pay_basis", { length: 16 }).notNull(),
+    rateAmount: numeric("rate_amount", { precision: 12, scale: 2 }).notNull(),
+    standardWorkDaysPerMonth: numeric("standard_work_days_per_month", { precision: 6, scale: 2 }).notNull(),
+    standardHoursPerDay: numeric("standard_hours_per_day", { precision: 5, scale: 2 }).notNull(),
+    reason: varchar("reason", { length: 200 }),
+    createdBy: varchar("created_by", { length: 120 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("employee_pay_rate_changes_employee_effective_unique").on(table.employeeId, table.effectiveFrom),
+    index("employee_pay_rate_changes_org_idx").on(table.organizationId),
+  ],
+);
+
+export const employeePayAdjustments = pgTable(
+  "employee_pay_adjustments",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    rateChangeId: integer("rate_change_id").references(() => employeePayRateChanges.id, { onDelete: "cascade" }),
+    adjustmentType: varchar("adjustment_type", { length: 32 }).notNull().default("retro_basic"),
+    amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+    serviceYear: integer("service_year").notNull(),
+    serviceFrom: date("service_from").notNull(),
+    serviceThrough: date("service_through").notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("pending"),
+    payrollRunId: integer("payroll_run_id"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("employee_pay_adjustments_rate_year_unique").on(table.rateChangeId, table.serviceYear),
+    index("employee_pay_adjustments_org_status_idx").on(table.organizationId, table.status),
+  ],
+);
+
 export const timePunches = pgTable("time_punches", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
@@ -635,6 +680,7 @@ export const historicalPayrollEntries = pgTable("historical_payroll_entries", {
   philHealthEmployee: numeric("philhealth_employee", { precision: 14, scale: 2 }).notNull().default("0"),
   pagIbigEmployee: numeric("pagibig_employee", { precision: 14, scale: 2 }).notNull().default("0"),
   thirteenthMonth: numeric("thirteenth_month", { precision: 14, scale: 2 }).notNull().default("0"),
+  basicSalaryEarned: numeric("basic_salary_earned", { precision: 14, scale: 2 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex("historical_payroll_source_unique").on(
@@ -776,6 +822,11 @@ export const separationRecords = pgTable("separation_records", {
   financeCleared: boolean("finance_cleared").notNull().default(false),
   hrCleared: boolean("hr_cleared").notNull().default(false),
   prorated13thMonth: numeric("prorated_13th_month", { precision: 12, scale: 2 }).notNull().default("0"),
+  unpaidSalary: numeric("unpaid_salary", { precision: 12, scale: 2 }).notNull().default("0"),
+  basicSalaryEarnedYtd: numeric("basic_salary_earned_ytd", { precision: 14, scale: 2 }).notNull().default("0"),
+  thirteenthMonthPreviouslyPaid: numeric("thirteenth_month_previously_paid", { precision: 12, scale: 2 }).notNull().default("0"),
+  finalPayDueDate: date("final_pay_due_date"),
+  finalPayBreakdown: jsonb("final_pay_breakdown").notNull().default({}),
   unusedLeaveCredits: numeric("unused_leave_credits", { precision: 6, scale: 1 }).notNull().default("0"),
   leaveMonetizationPay: numeric("leave_monetization_pay", { precision: 12, scale: 2 }).notNull().default("0"),
   taxAdjustment: numeric("tax_adjustment", { precision: 12, scale: 2 }).notNull().default("0"),
