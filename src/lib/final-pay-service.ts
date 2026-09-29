@@ -320,6 +320,8 @@ export async function computeFinalPayPackage(input: FinalPayInputs) {
       otherUnpaidTaxableEarnings
       + pendingRetroTotal
       + (input.additionalCompanyBenefitTaxable ? additionalCompanyBenefit : 0),
+    finalOtherNonTaxableEarnings:
+      input.additionalCompanyBenefitTaxable ? 0 : additionalCompanyBenefit,
     thirteenthMonthBalance: thirteenth.balanceDue,
     leaveMonetization: leaveMonetizationPay,
     statutorySeparationPay: separation.amount,
