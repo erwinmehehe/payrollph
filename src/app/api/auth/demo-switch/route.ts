@@ -13,6 +13,35 @@ import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
 
 export const dynamic = "force-dynamic";
 
+function safeProvisioningDiagnostic(error: unknown) {
+  if (!error || typeof error !== "object") return "unknown";
+  const value = error as Record<string, unknown>;
+  const code = typeof value.code === "string" ? value.code : "unknown";
+  const table = typeof value.table === "string" ? value.table : "";
+  const column = typeof value.column === "string" ? value.column : "";
+  const constraint = typeof value.constraint === "string" ? value.constraint : "";
+  const message = typeof value.message === "string" ? value.message : "";
+
+  // PostgreSQL does not populate table/column fields for every error class.
+  // Extract only quoted schema identifiers from a few known-safe messages.
+  const identifier =
+    message.match(/column "([A-Za-z0-9_]+)" does not exist/i)?.[1] ??
+    message.match(/relation "([A-Za-z0-9_]+)" does not exist/i)?.[1] ??
+    message.match(/null value in column "([A-Za-z0-9_]+)"/i)?.[1] ??
+    message.match(/constraint "([A-Za-z0-9_]+)"/i)?.[1] ??
+    "";
+
+  return [
+    code,
+    table && `table:${table}`,
+    column && `column:${column}`,
+    constraint && `constraint:${constraint}`,
+    identifier && `identifier:${identifier}`,
+  ]
+    .filter(Boolean)
+    .join("|");
+}
+
 type DemoAccount = {
   email: string;
   name: string;
@@ -152,7 +181,10 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Public demo provisioning failed", error);
     return Response.json(
-      { error: "The demo workspace could not be prepared. Please try again in a moment." },
+      {
+        error: "The demo workspace could not be prepared. Please try again in a moment.",
+        diagnostic: safeProvisioningDiagnostic(error),
+      },
       { status: 503 },
     );
   }
