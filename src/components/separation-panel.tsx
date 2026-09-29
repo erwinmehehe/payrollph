@@ -148,6 +148,23 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
     }
   }
 
+  async function issueCoe(id: number) {
+    const res = await fetch("/api/separation", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, action: "issue_coe" }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setNotice(data.error ?? "Could not mark the COE as issued.");
+      return;
+    }
+    setNotice("COE marked issued in the separation record.");
+    setShowCoeModal(false);
+    setSelectedRecord(null);
+    reload();
+  }
+
   async function transitionFinalPay(id: number, action: "approve" | "release") {
     const res = await fetch("/api/separation", {
       method: "PATCH",
@@ -405,7 +422,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
             </div>
             <div className="modal-actions">
               <button className="secondary-button" onClick={() => setShowCoeModal(false)}>Close</button>
-              <button className="primary-button" onClick={() => { setNotice("COE generated and marked issued."); setShowCoeModal(false); }}>Print / Download COE</button>
+              <button className="primary-button" onClick={() => void issueCoe(selectedRecord.id)}>Mark COE Issued</button>
             </div>
           </section>
         </div>
