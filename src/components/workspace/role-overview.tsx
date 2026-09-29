@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { buildPayrollHandoff, type PayrollHandoffStage } from "@/lib/payroll-handoff";
+import { getPayrollActions, type PayrollActionItem } from "@/lib/payroll-action-center";
 import type { DashboardData, PayrollHandoffRunSummary, PayrollRun, Task } from "./types";
 import {
   Avatar,
@@ -72,6 +73,7 @@ export function RoleOverviewView({
     payrollExceptions: payrollExceptions.length,
     approvalTask: payrollApproval,
   });
+  const roleActions = getPayrollActions(data, role);
 
   const common = {
     data,
@@ -89,6 +91,7 @@ export function RoleOverviewView({
     peopleMissingGovernmentIds,
     activeAdvisories,
     handoffStages,
+    roleActions,
     onPage,
     onNewRun,
   };
@@ -119,6 +122,7 @@ type RoleDashboardProps = {
   peopleMissingGovernmentIds: DashboardData["employees"];
   activeAdvisories: DashboardData["advisories"];
   handoffStages: PayrollHandoffStage[];
+  roleActions: PayrollActionItem[];
   onPage: (page: string) => void;
   onNewRun: () => void;
 };
@@ -135,6 +139,7 @@ function OwnerDashboard(props: RoleDashboardProps) {
     peopleMissingGovernmentIds,
     activeAdvisories,
     handoffStages,
+    roleActions,
     onPage,
     onNewRun,
   } = props;
@@ -183,6 +188,8 @@ function OwnerDashboard(props: RoleDashboardProps) {
         payDate={handoffRun?.payDate}
         viewerRole="owner"
       />
+
+      <ActionCenter role="owner" actions={roleActions} onPage={onPage} />
 
       <section className="stats-grid">
         <Metric
@@ -288,6 +295,7 @@ function HrDashboard(props: RoleDashboardProps) {
     attendanceIssues,
     peopleMissingGovernmentIds,
     handoffStages,
+    roleActions,
     onPage,
   } = props;
 
@@ -324,6 +332,8 @@ function HrDashboard(props: RoleDashboardProps) {
         payDate={handoffRun?.payDate}
         viewerRole="hr"
       />
+
+      <ActionCenter role="hr" actions={roleActions} onPage={onPage} />
 
       <section className="stats-grid">
         <Metric label="Active people" value={String(activePeople.length)} hint={"of " + String(data.employees.length) + " employee records"} icon={<UsersRound size={16} />} tone="purple" />
@@ -410,6 +420,7 @@ function PayrollDashboard(props: RoleDashboardProps) {
     pendingRetro,
     attendanceIssues,
     handoffStages,
+    roleActions,
     onPage,
     onNewRun,
   } = props;
@@ -461,6 +472,8 @@ function PayrollDashboard(props: RoleDashboardProps) {
         payDate={handoffRun?.payDate}
         viewerRole="payroll"
       />
+
+      <ActionCenter role="payroll" actions={roleActions} onPage={onPage} />
 
       <section className="stats-grid">
         <Metric label="Run status" value={currentRun?.status ?? "No run"} hint={queueDone ? "calculation queue complete" : "calculation still in progress"} icon={<WalletCards size={16} />} tone={currentRun ? "blue" : "slate"} compact />
@@ -532,6 +545,7 @@ function CheckerDashboard(props: RoleDashboardProps) {
     highPriorityTasks,
     activeAdvisories,
     handoffStages,
+    roleActions,
     onPage,
   } = props;
 
@@ -569,6 +583,8 @@ function CheckerDashboard(props: RoleDashboardProps) {
         viewerRole="checker"
       />
 
+      <ActionCenter role="checker" actions={roleActions} onPage={onPage} />
+
       <section className="stats-grid">
         <Metric label="Assigned reviews" value={String(pendingTasks.length)} hint={pendingTasks.length ? "awaiting your decision" : "queue clear"} icon={<ClipboardCheck size={16} />} tone={pendingTasks.length ? "amber" : "mint"} />
         <Metric label="High priority" value={String(highPriorityTasks.length)} hint={highPriorityTasks.length ? "review these first" : "no urgent item"} icon={<AlertTriangle size={16} />} tone={highPriorityTasks.length ? "amber" : "mint"} />
@@ -597,6 +613,58 @@ function CheckerDashboard(props: RoleDashboardProps) {
         </RoleCard>
       </section>
     </>
+  );
+}
+
+function ActionCenter({
+  role,
+  actions,
+  onPage,
+}: {
+  role: WorkspaceDashboardRole;
+  actions: PayrollActionItem[];
+  onPage: (page: string) => void;
+}) {
+  const clearCopy: Record<WorkspaceDashboardRole, string> = {
+    owner: "No approved payroll is waiting for release.",
+    hr: "No HR cutoff blockers are visible. Payroll can work from the current people and attendance inputs.",
+    payroll: "No payroll-maker action is waiting right now. The run is either with another role or already released.",
+    checker: "No payroll review is currently assigned to you.",
+  };
+
+  return (
+    <section className="card payroll-action-center" data-payroll-action-center={role}>
+      <div className="card-header">
+        <div>
+          <div className="card-kicker">NEXT ACTION</div>
+          <h2>{actions.length ? "Move the payroll forward" : "Nothing waiting on you"}</h2>
+          <p>{actions.length ? "These items come from live payroll, people, attendance and approval state." : clearCopy[role]}</p>
+        </div>
+        {!actions.length && <span className="status status-approved"><Check size={12} /> Clear</span>}
+      </div>
+
+      {actions.length > 0 && (
+        <div className="payroll-action-list">
+          {actions.map((action) => (
+            <button
+              type="button"
+              className={`payroll-action-item ${action.tone} ${action.blocking ? "blocking" : ""}`}
+              key={action.id}
+              onClick={() => onPage(action.page)}
+            >
+              <span className="payroll-action-icon" aria-hidden>
+                {action.blocking ? <AlertTriangle size={15} /> : <ShieldCheck size={15} />}
+              </span>
+              <span className="payroll-action-copy">
+                <strong>{action.title}</strong>
+                <small>{action.detail}</small>
+              </span>
+              <span className="payroll-action-cta">{action.actionLabel} <ArrowRight size={13} /></span>
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
