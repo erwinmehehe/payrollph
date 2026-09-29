@@ -130,8 +130,9 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
     const thirteenthEntitlement = Math.round(((bucket.basic / 12) + Number.EPSILON) * 100) / 100;
     const annualThirteenth = Math.max(thirteenthEntitlement, bucket.thirteenthPaid);
 
+    const unpaidThirteenthAccrual = Math.max(0, annualThirteenth - bucket.thirteenthPaid);
     const result = annualize({
-      grossCompensation: bucket.gross,
+      grossCompensation: bucket.gross + unpaidThirteenthAccrual,
       thirteenthMonth: annualThirteenth,
       statutoryContributions: bucket.contributions,
       taxWithheld: bucket.tax,
