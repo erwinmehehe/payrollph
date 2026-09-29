@@ -53,6 +53,6 @@ test("employee self-service exposes an upcoming pay stage without unreleased amo
 test("employee self-service renders the same payroll handoff used by company roles", () => {
   const portal = read("src/components/self-service-portal.tsx");
   assert.ok(portal.includes("<PayrollHandoff"));
-  assert.ok(portal.includes("UPCOMING PAY"));
+  assert.ok(portal.includes("NEXT PAY STATUS"));
   assert.ok(portal.includes("Your pay amount stays private and hidden until payroll is released."));
 });
