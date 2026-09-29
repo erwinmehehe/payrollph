@@ -62,11 +62,23 @@ test("official public Vercel hostname can launch the sandbox without enabling de
   assert.equal(publicDemoHostAllowed("erwinmehehe-payrollph.vercel.app"), true);
   assert.equal(publicDemoHostAllowed("ERWINMEHEHE-PAYROLLPH.VERCEL.APP"), true);
   assert.equal(publicDemoHostAllowed("payrollph-three.vercel.app"), true);
+  assert.equal(
+    publicDemoHostAllowed("payrollph-git-homepage-preview.vercel.app", {
+      deploymentHost: "payrollph-git-homepage-preview.vercel.app",
+    }),
+    true,
+  );
 });
 
 test("arbitrary customer and self-hosted domains cannot provision the public demo tenant", () => {
   assert.equal(publicDemoHostAllowed("customer.example.com"), false);
   assert.equal(publicDemoHostAllowed("localhost"), false);
+  assert.equal(
+    publicDemoHostAllowed("other-preview.vercel.app", {
+      deploymentHost: "this-preview.vercel.app",
+    }),
+    false,
+  );
   assert.equal(
     publicDemoHostAllowed("preview.example.com", { configuredHosts: "preview.example.com" }),
     true,
