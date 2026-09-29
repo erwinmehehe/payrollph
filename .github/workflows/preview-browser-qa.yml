@@ -224,6 +224,11 @@ jobs:
               check(!alertText, `${persona.label}: launch alert: ${alertText}`);
             }
 
+            await page.screenshot({
+              path: `${outDir}/persona-${persona.id}-landing.png`,
+              fullPage: true,
+            });
+
             const sandbox = page.locator("section.card").filter({ hasText: "ROLE SANDBOX" }).first();
             check((await sandbox.count()) === 1, `${persona.label}: sandbox task panel is missing`);
             const firstTask = sandbox.getByRole("button").filter({ hasText: /^1\./ }).first();
