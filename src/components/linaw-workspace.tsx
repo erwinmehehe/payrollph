@@ -406,6 +406,9 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
             data={data}
             onOpenBundy={() => setWebBundyOpen(true)}
             notify={notify}
+            onRefresh={async () => {
+              await refresh();
+            }}
             canManage={canManageTime}
           />
         )}
