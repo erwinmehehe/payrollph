@@ -270,12 +270,17 @@ export function evaluatePayrollAssurance(
 
     const employee = employeeById.get(entry.employeeId);
     const punches = traceNumber(entry, "punches");
+    const payBasis = traceInputsOf(entry)
+      .find((line) => line.startsWith("payBasis="))
+      ?.slice("payBasis=".length);
     if (punches === 0 && gross > 0) {
       findings.push({
         code: "MISSING_ATTENDANCE",
         severity: "medium",
         title: "No attendance recorded for this cutoff",
-        detail: "The payroll engine fell back to the employee's cutoff basic because no punches were found in this payroll period. Confirm attendance before approval.",
+        detail: payBasis === "monthly"
+          ? "This employee is explicitly monthly salaried, so basic pay remains fixed. Confirm the missing attendance before approval because overtime, undertime and attendance exceptions cannot be validated."
+          : "This daily/hourly employee has positive gross pay without punches, likely from paid leave or another earning. Confirm the attendance and earning source before approval.",
         employeeId: entry.employeeId,
       });
     }
