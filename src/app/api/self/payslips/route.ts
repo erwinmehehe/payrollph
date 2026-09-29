@@ -37,7 +37,9 @@ export async function GET() {
     .limit(52);
 
   const released = rows.filter((row) => row.run.status === "Released");
-  const upcoming = rows.find((row) => row.run.status !== "Released");
+  const upcoming = rows
+    .filter((row) => row.run.status !== "Released")
+    .sort((a, b) => a.run.payDate.localeCompare(b.run.payDate))[0];
 
   const yearToDate = released.reduce(
     (totals, row) => {
