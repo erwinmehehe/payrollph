@@ -199,6 +199,13 @@ test("failed settlement rolls back every earlier ledger mutation", async () => {
           bankCode: "BDO",
           mobile: null,
         },
+        payProfile: {
+          payBasis: "monthly",
+          rateAmount: 30000,
+          standardWorkDaysPerMonth: 22,
+          standardHoursPerDay: 8,
+          monthlyEquivalent: 30000,
+        },
       },
     });
 
@@ -497,6 +504,13 @@ test("two releases cannot settle the same expense claim into different payroll r
             bankAccount: "2234567890",
             bankCode: "BPI",
             mobile: null,
+          },
+          payProfile: {
+            payBasis: "monthly",
+            rateAmount: 30000,
+            standardWorkDaysPerMonth: 22,
+            standardHoursPerDay: 8,
+            monthlyEquivalent: 30000,
           },
         },
       });
