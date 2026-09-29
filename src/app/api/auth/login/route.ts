@@ -4,11 +4,13 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { ensureSeedData } from "@/db/seed";
 import { createSession, publicUser, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth";
-import { backupCodeMatches, verifyPassword } from "@/lib/crypto";
+import { backupCodeMatches, hashPassword, sha256, verifyPassword } from "@/lib/crypto";
 import { clientIp, rateLimitDistributed, requestMeta } from "@/lib/rate-limit";
 import { verifyTotp } from "@/lib/totp";
 
 export const dynamic = "force-dynamic";
+
+const DUMMY_PASSWORD_HASH = hashPassword("Linaw-invalid-account-timing-pad-2026");
 
 export async function POST(request: Request) {
   await ensureSeedData();
@@ -16,7 +18,7 @@ export async function POST(request: Request) {
   const limited = await rateLimitDistributed(`login:${ip}`, { limit: 10, windowMs: 60_000 });
   if (!limited.allowed) {
     return Response.json({
-      error: "Too many login attempts. Rate limit is single-instance, not yet distributed.",
+      error: "Too many login attempts. Try again later.",
       retryAfterMs: limited.retryAfterMs,
       rateLimitMode: limited.mode,
     }, { status: 429 });
@@ -32,16 +34,19 @@ export async function POST(request: Request) {
     return Response.json({ error: "Email and password are required." }, { status: 400 });
   }
 
+  const accountLimit = await rateLimitDistributed(`login-account:${sha256(email)}`, { limit: 12, windowMs: 15 * 60_000 });
+  if (!accountLimit.allowed) {
+    return Response.json({ error: "Invalid email or password." }, { status: 401 });
+  }
+
   const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
   if (!user) {
+    verifyPassword(password, DUMMY_PASSWORD_HASH);
     return Response.json({ error: "Invalid email or password." }, { status: 401 });
   }
 
   if (user.lockedUntil && user.lockedUntil > new Date()) {
-    return Response.json({
-      error: "Account locked after repeated failed attempts.",
-      lockedUntil: user.lockedUntil.toISOString(),
-    }, { status: 423 });
+    return Response.json({ error: "Invalid email or password." }, { status: 401 });
   }
 
   const validPassword = verifyPassword(password, user.passwordHash);
@@ -52,10 +57,7 @@ export async function POST(request: Request) {
       failedLoginAttempts: attempts,
       lockedUntil,
     }).where(eq(users.id, user.id));
-    return Response.json({
-      error: lockedUntil ? "Account locked after repeated failed attempts." : "Invalid email or password.",
-      attemptsRemaining: Math.max(0, 5 - attempts),
-    }, { status: lockedUntil ? 423 : 401 });
+    return Response.json({ error: "Invalid email or password." }, { status: 401 });
   }
 
   if (user.totpEnabled) {
