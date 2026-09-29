@@ -16,6 +16,8 @@ import {
   WalletCards,
 } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
+import { RoleInboxPanel } from "@/components/workspace/role-inbox";
+import { buildRoleInbox } from "@/lib/role-inbox";
 import { buildPayrollHandoff, type PayrollHandoffStage } from "@/lib/payroll-handoff";
 import type { DashboardData, PayrollHandoffRunSummary, PayrollRun, Task } from "./types";
 import {
@@ -72,6 +74,7 @@ export function RoleOverviewView({
     payrollExceptions: payrollExceptions.length,
     approvalTask: payrollApproval,
   });
+  const roleInbox = buildRoleInbox(data, role);
 
   const common = {
     data,
@@ -89,6 +92,7 @@ export function RoleOverviewView({
     peopleMissingGovernmentIds,
     activeAdvisories,
     handoffStages,
+    roleInbox,
     onPage,
     onNewRun,
   };
@@ -119,6 +123,7 @@ type RoleDashboardProps = {
   peopleMissingGovernmentIds: DashboardData["employees"];
   activeAdvisories: DashboardData["advisories"];
   handoffStages: PayrollHandoffStage[];
+  roleInbox: ReturnType<typeof buildRoleInbox>;
   onPage: (page: string) => void;
   onNewRun: () => void;
 };
@@ -135,6 +140,7 @@ function OwnerDashboard(props: RoleDashboardProps) {
     peopleMissingGovernmentIds,
     activeAdvisories,
     handoffStages,
+    roleInbox,
     onPage,
     onNewRun,
   } = props;
@@ -183,6 +189,8 @@ function OwnerDashboard(props: RoleDashboardProps) {
         payDate={handoffRun?.payDate}
         viewerRole="owner"
       />
+
+      <RoleInboxPanel inbox={roleInbox} onPage={onPage} />
 
       <section className="stats-grid">
         <Metric
@@ -288,6 +296,7 @@ function HrDashboard(props: RoleDashboardProps) {
     attendanceIssues,
     peopleMissingGovernmentIds,
     handoffStages,
+    roleInbox,
     onPage,
   } = props;
 
@@ -324,6 +333,8 @@ function HrDashboard(props: RoleDashboardProps) {
         payDate={handoffRun?.payDate}
         viewerRole="hr"
       />
+
+      <RoleInboxPanel inbox={roleInbox} onPage={onPage} />
 
       <section className="stats-grid">
         <Metric label="Active people" value={String(activePeople.length)} hint={"of " + String(data.employees.length) + " employee records"} icon={<UsersRound size={16} />} tone="purple" />
@@ -410,6 +421,7 @@ function PayrollDashboard(props: RoleDashboardProps) {
     pendingRetro,
     attendanceIssues,
     handoffStages,
+    roleInbox,
     onPage,
     onNewRun,
   } = props;
@@ -461,6 +473,8 @@ function PayrollDashboard(props: RoleDashboardProps) {
         payDate={handoffRun?.payDate}
         viewerRole="payroll"
       />
+
+      <RoleInboxPanel inbox={roleInbox} onPage={onPage} />
 
       <section className="stats-grid">
         <Metric label="Run status" value={currentRun?.status ?? "No run"} hint={queueDone ? "calculation queue complete" : "calculation still in progress"} icon={<WalletCards size={16} />} tone={currentRun ? "blue" : "slate"} compact />
@@ -532,6 +546,7 @@ function CheckerDashboard(props: RoleDashboardProps) {
     highPriorityTasks,
     activeAdvisories,
     handoffStages,
+    roleInbox,
     onPage,
   } = props;
 
@@ -568,6 +583,8 @@ function CheckerDashboard(props: RoleDashboardProps) {
         payDate={handoffRun?.payDate}
         viewerRole="checker"
       />
+
+      <RoleInboxPanel inbox={roleInbox} onPage={onPage} />
 
       <section className="stats-grid">
         <Metric label="Assigned reviews" value={String(pendingTasks.length)} hint={pendingTasks.length ? "awaiting your decision" : "queue clear"} icon={<ClipboardCheck size={16} />} tone={pendingTasks.length ? "amber" : "mint"} />
