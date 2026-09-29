@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { buildPayrollHandoff, type PayrollHandoffStage } from "@/lib/payroll-handoff";
+import { buildHandoffAttention, type HandoffAttention } from "@/lib/handoff-attention";
 import type { DashboardData, PayrollHandoffRunSummary, PayrollRun, Task } from "./types";
 import {
   Avatar,
@@ -36,12 +37,14 @@ export function RoleOverviewView({
   role,
   onPage,
   onNewRun,
+  onAttention,
 }: {
   data: DashboardData;
   currentRun?: PayrollRun;
   role: WorkspaceDashboardRole;
   onPage: (page: string) => void;
   onNewRun: () => void;
+  onAttention: (item: HandoffAttention) => void;
 }) {
   const firstName = (data.user?.name ?? "there").split(" ")[0];
   const activePeople = data.employees.filter((employee) => employee.status === "Active");
@@ -72,6 +75,7 @@ export function RoleOverviewView({
     payrollExceptions: payrollExceptions.length,
     approvalTask: payrollApproval,
   });
+  const attention = buildHandoffAttention(data, role);
 
   const common = {
     data,
@@ -89,6 +93,8 @@ export function RoleOverviewView({
     peopleMissingGovernmentIds,
     activeAdvisories,
     handoffStages,
+    attention,
+    onAttention,
     onPage,
     onNewRun,
   };
@@ -119,6 +125,8 @@ type RoleDashboardProps = {
   peopleMissingGovernmentIds: DashboardData["employees"];
   activeAdvisories: DashboardData["advisories"];
   handoffStages: PayrollHandoffStage[];
+  attention: HandoffAttention[];
+  onAttention: (item: HandoffAttention) => void;
   onPage: (page: string) => void;
   onNewRun: () => void;
 };
@@ -135,6 +143,8 @@ function OwnerDashboard(props: RoleDashboardProps) {
     peopleMissingGovernmentIds,
     activeAdvisories,
     handoffStages,
+    attention,
+    onAttention,
     onPage,
     onNewRun,
   } = props;
@@ -183,6 +193,8 @@ function OwnerDashboard(props: RoleDashboardProps) {
         payDate={handoffRun?.payDate}
         viewerRole="owner"
       />
+
+      <HandoffActionPanel items={attention} onOpen={onAttention} />
 
       <section className="stats-grid">
         <Metric
@@ -288,6 +300,8 @@ function HrDashboard(props: RoleDashboardProps) {
     attendanceIssues,
     peopleMissingGovernmentIds,
     handoffStages,
+    attention,
+    onAttention,
     onPage,
   } = props;
 
@@ -324,6 +338,8 @@ function HrDashboard(props: RoleDashboardProps) {
         payDate={handoffRun?.payDate}
         viewerRole="hr"
       />
+
+      <HandoffActionPanel items={attention} onOpen={onAttention} />
 
       <section className="stats-grid">
         <Metric label="Active people" value={String(activePeople.length)} hint={"of " + String(data.employees.length) + " employee records"} icon={<UsersRound size={16} />} tone="purple" />
@@ -410,6 +426,8 @@ function PayrollDashboard(props: RoleDashboardProps) {
     pendingRetro,
     attendanceIssues,
     handoffStages,
+    attention,
+    onAttention,
     onPage,
     onNewRun,
   } = props;
@@ -461,6 +479,8 @@ function PayrollDashboard(props: RoleDashboardProps) {
         payDate={handoffRun?.payDate}
         viewerRole="payroll"
       />
+
+      <HandoffActionPanel items={attention} onOpen={onAttention} />
 
       <section className="stats-grid">
         <Metric label="Run status" value={currentRun?.status ?? "No run"} hint={queueDone ? "calculation queue complete" : "calculation still in progress"} icon={<WalletCards size={16} />} tone={currentRun ? "blue" : "slate"} compact />
@@ -532,6 +552,8 @@ function CheckerDashboard(props: RoleDashboardProps) {
     highPriorityTasks,
     activeAdvisories,
     handoffStages,
+    attention,
+    onAttention,
     onPage,
   } = props;
 
@@ -569,6 +591,8 @@ function CheckerDashboard(props: RoleDashboardProps) {
         viewerRole="checker"
       />
 
+      <HandoffActionPanel items={attention} onOpen={onAttention} />
+
       <section className="stats-grid">
         <Metric label="Assigned reviews" value={String(pendingTasks.length)} hint={pendingTasks.length ? "awaiting your decision" : "queue clear"} icon={<ClipboardCheck size={16} />} tone={pendingTasks.length ? "amber" : "mint"} />
         <Metric label="High priority" value={String(highPriorityTasks.length)} hint={highPriorityTasks.length ? "review these first" : "no urgent item"} icon={<AlertTriangle size={16} />} tone={highPriorityTasks.length ? "amber" : "mint"} />
@@ -597,6 +621,52 @@ function CheckerDashboard(props: RoleDashboardProps) {
         </RoleCard>
       </section>
     </>
+  );
+}
+
+function HandoffActionPanel({
+  items,
+  onOpen,
+}: {
+  items: HandoffAttention[];
+  onOpen: (item: HandoffAttention) => void;
+}) {
+  if (!items.length) {
+    return (
+      <section className="handoff-action-panel clear" data-handoff-actions>
+        <span className="handoff-action-icon ok"><Check size={14} /></span>
+        <div>
+          <strong>No handoff action needed right now</strong>
+          <p>The next payroll control belongs to another role, or this role&apos;s blockers are already clear.</p>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="handoff-action-panel" data-handoff-actions>
+      <div className="handoff-action-head">
+        <div>
+          <span className="card-kicker">NEXT ACTION</span>
+          <h2>{items.length === 1 ? items[0].title : `${items.length} items need attention`}</h2>
+        </div>
+        <span className="status status-review">{items[0].owner}</span>
+      </div>
+      <div className="handoff-action-list">
+        {items.map((item) => (
+          <button type="button" className="handoff-action-row" key={item.id} onClick={() => onOpen(item)}>
+            <span className={`handoff-action-icon ${item.tone === "danger" ? "danger" : item.tone === "active" ? "active" : "review"}`}>
+              {item.tone === "danger" ? <AlertTriangle size={14} /> : <ArrowRight size={14} />}
+            </span>
+            <div>
+              <strong>{item.title}</strong>
+              <p>{item.detail}</p>
+            </div>
+            <span className="handoff-action-cta">{item.actionLabel} <ArrowRight size={12} /></span>
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 
