@@ -10,6 +10,7 @@ import {
 import { ORG_ADMIN_ROLES, assertOrganizationRole } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { getEntitlements, requireFeature, seatUsage } from "@/lib/billing";
 import {
   MIGRATION_SOURCES,
@@ -52,6 +53,8 @@ export async function GET(request: Request) {
     "Only organization administrators and bookkeepers can view migration history.",
   );
   if (denied) return denied;
+
+  await ensureMigrationSchema();
 
   const batches = await db
     .select()
@@ -107,6 +110,8 @@ export async function POST(request: Request) {
     "Only organization administrators and bookkeepers can migrate payroll or HR data.",
   );
   if (denied) return denied;
+
+  await ensureMigrationSchema();
 
   const entitlements = await getEntitlements(organizationId);
   const gate = requireFeature(entitlements, "imports");
