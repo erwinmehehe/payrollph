@@ -82,13 +82,26 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     });
   }
 
+  if (kind === "bank" && !dryRun && run.status !== "Released") {
+    return Response.json({
+      error: "A live bank disbursement file can only be generated after checker approval and payroll release. Use dry-run validation before release.",
+      status: run.status,
+    }, { status: 409 });
+  }
+
   let file;
-  if (kind === "journal") {
-    file = await generateJournalCsv(runId);
-  } else if (kind === "government") {
-    file = await generateGovernmentDraft(runId, template);
-  } else {
-    file = await generateBankFile(runId, template, dryRun);
+  try {
+    if (kind === "journal") {
+      file = await generateJournalCsv(runId);
+    } else if (kind === "government") {
+      file = await generateGovernmentDraft(runId, template);
+    } else {
+      file = await generateBankFile(runId, template, dryRun);
+    }
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "The requested export could not be generated.",
+    }, { status: 422 });
   }
 
   await recordAuditEvent({
