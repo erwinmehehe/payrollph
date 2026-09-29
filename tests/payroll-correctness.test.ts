@@ -859,11 +859,16 @@ test("approved paid, unpaid and partially paid leave flows into payroll without 
     const partialLines = partialEntry.lineItems as Array<{ code: string; amount: string }>;
 
     assert.equal(
-      Number(paidLines.find((line) => line.code === `LEAVE-${paidLeave.id}`)?.amount),
-      3000,
-      "three of five paid leave days belong to the Sep 16–30 cutoff",
+      paidLines.some((line) => line.code === `LEAVE-${paidLeave.id}`),
+      false,
+      "monthly paid leave is already included in the fixed cutoff salary and must not be added again",
     );
-    assert.equal(Number(paidEntry.grossPay), 4000, "worked day plus three paid leave days should be gross earnings");
+    assert.equal(
+      Number(paidLines.find((line) => line.code === "BASIC")?.amount),
+      11000,
+      "monthly salaried basic remains the full semi-monthly amount even when attendance exists",
+    );
+    assert.equal(Number(paidEntry.grossPay), 11000, "paid leave does not double-pay a monthly salaried employee");
 
     assert.equal(
       Number(unpaidLines.find((line) => line.code === `LEAVE-${unpaidLeave.id}`)?.amount),
