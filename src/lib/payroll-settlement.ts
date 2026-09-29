@@ -153,6 +153,34 @@ export async function settlePayrollRun(
         ))
       : [];
     const payProfileByEmployee = new Map(currentPayProfiles.map((profile) => [profile.employeeId, profile]));
+    const currentPendingRetro = employeeIds.length
+      ? await tx.select().from(employeePayRetroAdjustments).where(and(
+          eq(employeePayRetroAdjustments.organizationId, run.organizationId),
+          eq(employeePayRetroAdjustments.status, "pending"),
+          inArray(employeePayRetroAdjustments.employeeId, employeeIds),
+        ))
+      : [];
+    const pendingRetroById = new Map(currentPendingRetro.map((retro) => [retro.id, retro]));
+    const calculatedRetroIds = new Set<number>();
+    for (const entry of entries) {
+      for (const line of storedLines(entry.lineItems)) {
+        const retroId = numericId(line.code, "RETRO-");
+        if (!retroId) continue;
+        calculatedRetroIds.add(retroId);
+        const currentRetro = pendingRetroById.get(retroId);
+        if (!currentRetro || !samePayrollNumber(currentRetro.amount, line.amount)) {
+          throw new Error(
+            `Retro pay adjustment ${retroId} changed after calculation; recalculate before release so the approved register matches the pending retro ledger.`,
+          );
+        }
+      }
+    }
+    const missingRetro = currentPendingRetro.find((retro) => !calculatedRetroIds.has(retro.id));
+    if (missingRetro) {
+      throw new Error(
+        `A new retro pay adjustment was added after calculation; recalculate before release so adjustment #${missingRetro.id} is included.`,
+      );
+    }
 
     for (const entry of entries) {
       const employee = employeeById.get(entry.employeeId);
