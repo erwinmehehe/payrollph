@@ -934,6 +934,7 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
   const [messages, setMessages] = useState<any[]>([]);
   const [selectedMsg, setSelectedMsg] = useState<any>(null);
   const [loaded, setLoaded] = useState(false);
+  const [retryingId, setRetryingId] = useState<number | null>(null);
 
   const [nonce, setNonce] = useState(0);
   useEffect(() => {
@@ -954,6 +955,29 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
 
   function load() {
     setNonce((n) => n + 1);
+  }
+
+  async function retrySelected() {
+    if (!selectedMsg?.id) return;
+    setRetryingId(selectedMsg.id);
+    try {
+      const response = await fetch("/api/outbox", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId, messageId: selectedMsg.id }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok && response.status !== 502) {
+        setNotice(payload.error ?? "Outbox retry failed.");
+        return;
+      }
+      setNotice(payload.note ?? payload.error ?? "Outbox retry finished.");
+      load();
+    } catch {
+      setNotice("Could not reach the outbox retry service.");
+    } finally {
+      setRetryingId(null);
+    }
   }
 
   return (
@@ -1007,6 +1031,15 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
         </div>
 
         <div className="modal-actions">
+          {selectedMsg && (selectedMsg.status === "failed" || selectedMsg.status === "queued") && (
+            <button
+              className="secondary-button"
+              disabled={retryingId === selectedMsg.id}
+              onClick={() => void retrySelected()}
+            >
+              {retryingId === selectedMsg.id ? "Retrying…" : "Retry delivery"}
+            </button>
+          )}
           <button className="secondary-button" onClick={onClose}>Close</button>
         </div>
       </section>
