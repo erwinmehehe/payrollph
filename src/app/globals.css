@@ -6246,6 +6246,34 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
   white-space: nowrap;
 }
 
+.row-actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.table-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--active);
+  font-size: 10px;
+  font-weight: 750;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color .14s ease, background .14s ease;
+}
+
+.table-action:hover {
+  border-color: var(--brand-border);
+  background: var(--active-bg);
+}
+
 .tray-action-label {
   display: inline-flex;
   align-items: center;
