@@ -9,6 +9,10 @@ type ZipEntry = {
 };
 
 const decoder = new TextDecoder("utf-8");
+const MAX_ZIP_ENTRIES = 4_096;
+const MAX_ZIP_ENTRY_BYTES = 16 * 1024 * 1024;
+const MAX_ZIP_TOTAL_UNCOMPRESSED_BYTES = 48 * 1024 * 1024;
+const MAX_COMPRESSION_RATIO = 200;
 
 function u16(bytes: Uint8Array, offset: number) {
   return bytes[offset] | (bytes[offset + 1] << 8);
@@ -35,11 +39,15 @@ function readZip(bytes: Uint8Array) {
   const eocd = findEocd(bytes);
   const entryCount = u16(bytes, eocd + 10);
   const centralOffset = u32(bytes, eocd + 16);
+  if (entryCount > MAX_ZIP_ENTRIES) throw new Error("The Excel archive contains too many ZIP entries.");
+  if (centralOffset >= bytes.length) throw new Error("The Excel ZIP directory offset is invalid.");
+
   const entries = new Map<string, ZipEntry>();
   let cursor = centralOffset;
+  let totalUncompressedBytes = 0;
 
   for (let index = 0; index < entryCount; index += 1) {
-    if (u32(bytes, cursor) !== 0x02014b50) {
+    if (cursor + 46 > bytes.length || u32(bytes, cursor) !== 0x02014b50) {
       throw new Error("The Excel ZIP directory is corrupt.");
     }
     const method = u16(bytes, cursor + 10);
@@ -49,9 +57,26 @@ function readZip(bytes: Uint8Array) {
     const extraLength = u16(bytes, cursor + 30);
     const commentLength = u16(bytes, cursor + 32);
     const localOffset = u32(bytes, cursor + 42);
+    const recordEnd = cursor + 46 + nameLength + extraLength + commentLength;
+    if (recordEnd > bytes.length) throw new Error("The Excel ZIP directory entry is truncated.");
+    if (uncompressedSize > MAX_ZIP_ENTRY_BYTES) {
+      throw new Error("The Excel archive contains an entry that expands beyond the safe limit.");
+    }
+    if (
+      compressedSize > 0 &&
+      uncompressedSize > 1_048_576 &&
+      uncompressedSize / compressedSize > MAX_COMPRESSION_RATIO
+    ) {
+      throw new Error("The Excel archive has an unsafe compression ratio.");
+    }
+    totalUncompressedBytes += uncompressedSize;
+    if (totalUncompressedBytes > MAX_ZIP_TOTAL_UNCOMPRESSED_BYTES) {
+      throw new Error("The Excel archive expands beyond the safe total size.");
+    }
+
     const name = decoder.decode(bytes.subarray(cursor + 46, cursor + 46 + nameLength));
     entries.set(name, { name, method, compressedSize, uncompressedSize, localOffset });
-    cursor += 46 + nameLength + extraLength + commentLength;
+    cursor = recordEnd;
   }
 
   function read(name: string) {
@@ -64,11 +89,17 @@ function readZip(bytes: Uint8Array) {
     const nameLength = u16(bytes, offset + 26);
     const extraLength = u16(bytes, offset + 28);
     const dataStart = offset + 30 + nameLength + extraLength;
-    const compressed = bytes.subarray(dataStart, dataStart + entry.compressedSize);
+    const dataEnd = dataStart + entry.compressedSize;
+    if (dataStart < 0 || dataEnd > bytes.length) {
+      throw new Error(`Excel ZIP entry "${name}" is truncated.`);
+    }
+    const compressed = bytes.subarray(dataStart, dataEnd);
 
     if (entry.method === 0) return new Uint8Array(compressed);
     if (entry.method === 8) {
-      const inflated = inflateRawSync(Buffer.from(compressed));
+      const inflated = inflateRawSync(Buffer.from(compressed), {
+        maxOutputLength: Math.max(1, Math.min(MAX_ZIP_ENTRY_BYTES, entry.uncompressedSize || MAX_ZIP_ENTRY_BYTES)),
+      });
       if (entry.uncompressedSize && inflated.length !== entry.uncompressedSize) {
         throw new Error(`Excel ZIP entry "${name}" did not decompress to the expected size.`);
       }
