@@ -6,6 +6,7 @@ import { getSessionUser } from "@/lib/auth";
 import { deliveryCapable, queueMessage } from "@/lib/mailer";
 import { createInvitation } from "@/lib/tokens";
 import { assertOrganizationRole, getAccess, ORG_ADMIN_ROLES } from "@/lib/access";
+import { publicDemoMutationDenied } from "@/lib/demo-security";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+  const demoDenied = publicDemoMutationDenied(user.email, "Invitations");
+  if (demoDenied) return demoDenied;
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
