@@ -27,16 +27,20 @@ test("the software homepage keeps the interactive payroll simulation", () => {
   const page = read("src/components/marketing/software-home.tsx");
   assert.ok(page.includes('<WorkspacePreview mode="interactive" />'), "interactive payroll simulation must remain mounted");
   assert.ok(page.includes('id="simulation"'), "homepage must expose a stable simulation section anchor");
-  assert.ok(page.includes("Try the payroll workspace yourself."), "simulation section must explain what visitors can do");
+  assert.ok(page.includes("Now try the workspace yourself."), "simulation section must explain what visitors can do");
 });
 
-test("the homepage stays customer-facing instead of restoring engineering-heavy proof blocks", () => {
+test("the homepage leads with payroll control instead of a module catalogue", () => {
   const page = read("src/components/marketing/software-home.tsx");
 
-  assert.ok(page.includes("Philippine payroll, without the guesswork."), "homepage must keep the simplified payroll positioning");
-  assert.ok(page.includes("One flow from cutoff to release."), "homepage must keep the clear payroll workflow");
-  assert.ok(!page.includes("Sprout"), "competitor comparison should not return to the homepage");
-  assert.ok(!page.includes("PayrollHero"), "competitor comparison should not return to the homepage");
+  assert.ok(
+    page.includes("Run Philippine payroll with a clear path from draft to release."),
+    "hero must lead with the payroll lifecycle",
+  );
+  assert.ok(page.includes("Know what changed before anyone presses release."), "assurance must be a primary product story");
+  assert.ok(page.includes("The rulebook belongs inside the payroll run."), "Philippine compliance must be visible");
+  assert.ok(page.includes("Bring your payroll history with you."), "migration must be part of the switching story");
+  assert.ok(page.includes("The HR tools stay close, without taking over the story."), "supporting HR modules must remain secondary");
   assert.ok(!page.includes("<StatutoryLab"), "the removed statutory lab must not be required by the homepage contract");
 });
 
@@ -135,4 +139,30 @@ test("homepage Leave and Migration modules perform local interactive workflows",
   assert.ok(preview.includes("function PreviewMigration"), "Migration must have a dedicated interactive preview");
   assert.ok(preview.includes('setStage("mapped")'), "Migration must simulate header mapping");
   assert.ok(preview.includes('setStage("validated")'), "Migration must simulate validation");
+});
+
+
+test("homepage hero uses a focused payroll showcase before the full interactive demo", () => {
+  const page = read("src/components/marketing/software-home.tsx");
+  const preview = read("src/components/marketing/workspace-preview.tsx");
+  assert.ok(page.includes('<WorkspacePreview mode="showcase" />'), "hero must show the product before the feature narrative");
+  assert.ok(preview.includes('interactive ? tab : "Payroll"'), "showcase must default to payroll rather than a generic dashboard");
+  assert.ok(preview.includes('"Overview", "Payroll", "People", "Migration", "Approvals"'), "showcase nav must stay focused");
+});
+
+test("pricing explains who each plan is for instead of dumping internal module names", () => {
+  const pricing = read("src/components/marketing/pricing-table.tsx");
+  assert.ok(pricing.includes("BUYER_POINTS"), "pricing must use buyer-oriented outcomes");
+  assert.ok(pricing.includes("Checker approvals, audit trail and stronger controls"), "Scale must explain operational value");
+  assert.ok(!pricing.includes("modules.map"), "pricing must not dump persisted module names directly into the cards");
+});
+
+test("homepage public demo roles match the five real sandbox personas", () => {
+  const page = read("src/components/marketing/software-home.tsx");
+  for (const role of ["Owner", "HR Admin", "Payroll Officer", "Checker", "Employee"]) {
+    assert.ok(page.includes(`"${role}"`), `homepage must expose the ${role} persona`);
+  }
+  for (const removed of ["Bookkeeper", "Manager", "Freelancer"]) {
+    assert.ok(!page.includes(`"${removed}"`), `homepage must not advertise legacy role ${removed}`);
+  }
 });
