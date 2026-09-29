@@ -4,9 +4,9 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { ensureSeedData } from "@/db/seed";
 import { createSession, publicUser, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth";
-import { verifyPassword } from "@/lib/crypto";
+import { sha256, verifyPassword } from "@/lib/crypto";
 import { clientIp, rateLimitDistributed, requestMeta } from "@/lib/rate-limit";
-import { generateTotp, verifyTotp } from "@/lib/totp";
+import { verifyTotp } from "@/lib/totp";
 
 export const dynamic = "force-dynamic";
 
@@ -64,8 +64,6 @@ export async function POST(request: Request) {
         requiresTotp: true,
         message: "Password accepted. Enter your authenticator code to finish sign-in.",
         rateLimitMode: limited.mode,
-        // Development convenience only: exposes current TOTP for the seeded demo account.
-        demoTotpCode: user.email === "celine@linaw.ph" && user.totpSecret ? generateTotp(user.totpSecret) : undefined,
       });
     }
 
@@ -75,10 +73,12 @@ export async function POST(request: Request) {
     }
     if (!totpOk && backupCode) {
       const codes = Array.isArray(user.backupCodes) ? user.backupCodes as string[] : [];
-      if (codes.includes(backupCode)) {
+      const backupHash = sha256(backupCode);
+      const matchedCode = codes.find((code) => code === backupHash || code === backupCode);
+      if (matchedCode) {
         totpOk = true;
         await db.update(users).set({
-          backupCodes: codes.filter((code) => code !== backupCode),
+          backupCodes: codes.filter((code) => code !== matchedCode),
         }).where(eq(users.id, user.id));
       }
     }
