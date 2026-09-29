@@ -10,7 +10,7 @@ import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 import { WorkspacePreview } from "@/components/marketing/workspace-preview";
 import styles from "./software-home.module.css";
 
-const COVERAGE = ["SSS", "PhilHealth", "Pag-IBIG", "BIR TRAIN", "DOLE rules"];
+const COVERAGE = ["SSS", "PhilHealth", "Pag-IBIG", "BIR TRAIN"];
 
 const PAYROLL_FLOW = [
   ["01", "Prepare", "Attendance, employee changes and cutoff inputs are pulled into one run."],
@@ -70,33 +70,64 @@ export async function SoftwareHome() {
       <main>
         <section className={styles.hero}>
           <div className={styles.shell}>
-            <div className={styles.heroInner}>
-              <span className={styles.eyebrow}>
-                <ShieldCheck size={14} aria-hidden />
-                Philippine payroll software with real controls
-              </span>
+            <div className={styles.heroLayout}>
+              <div className={styles.heroInner}>
+                <span className={styles.eyebrow}>
+                  <ShieldCheck size={14} aria-hidden />
+                  Philippine payroll software with real controls
+                </span>
 
-              <h1>Run Philippine payroll with a clear path from draft to release.</h1>
+                <h1>Run Philippine payroll with a clear path from draft to release.</h1>
 
-              <p className={styles.heroLead}>
-                Linaw brings payroll calculation, review, checker approval, release controls and employee payslips into one
-                calm workspace, with the Philippine rules your team needs to see.
-              </p>
+                <p className={styles.heroLead}>
+                  Linaw brings payroll calculation, review, checker approval, release controls and employee payslips into one
+                  calm workspace, with the Philippine rules your team needs to see.
+                </p>
 
-              <div className={styles.heroActions}>
-                <a className={styles.primaryAction} href="/signup">
-                  Start free <ArrowRight size={15} aria-hidden />
-                </a>
-                <a className={styles.secondaryAction} href="/demo">
-                  Try the role-based sandbox
-                </a>
+                <div className={styles.heroActions}>
+                  <a className={styles.primaryAction} href="/signup">
+                    Start free <ArrowRight size={15} aria-hidden />
+                  </a>
+                  <a className={styles.secondaryAction} href="/demo">
+                    Try sandbox
+                  </a>
+                </div>
+
+                <div className={styles.heroTrust} aria-label="Philippine payroll coverage">
+                  {COVERAGE.map((item) => (
+                    <span key={item}>{item}</span>
+                  ))}
+                </div>
               </div>
 
-              <div className={styles.heroTrust} aria-label="Philippine payroll coverage">
-                {COVERAGE.map((item) => (
-                  <span key={item}>{item}</span>
-                ))}
-              </div>
+              <aside className={styles.heroProof} aria-label="Philippine payroll controls">
+                <div className={styles.heroProofTop}>
+                  <span>Built for Philippine payroll</span>
+                  <strong>Rules stay visible before release.</strong>
+                </div>
+                <div className={styles.heroProofGrid}>
+                  <div>
+                    <b>SSS</b>
+                    <span>Contribution basis</span>
+                  </div>
+                  <div>
+                    <b>PhilHealth</b>
+                    <span>Employee + employer share</span>
+                  </div>
+                  <div>
+                    <b>Pag-IBIG</b>
+                    <span>Mandatory + voluntary</span>
+                  </div>
+                  <div>
+                    <b>BIR TRAIN</b>
+                    <span>Withholding + annualization</span>
+                  </div>
+                </div>
+                <div className={styles.heroProofFoot}>
+                  <CheckCircle2 size={14} aria-hidden />
+                  Maker-checker controls remain separate.
+                </div>
+              </aside>
             </div>
           </div>
         </section>
