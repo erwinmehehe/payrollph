@@ -92,8 +92,8 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
   );
 
   const notifications = useMemo(
-    () => buildNotifications(data).filter((item) => !item.page || availablePages.includes(item.page)),
-    [data, availablePages],
+    () => buildNotifications(data, effectiveRole).filter((item) => !item.page || availablePages.includes(item.page)),
+    [data, effectiveRole, availablePages],
   );
 
   const allowClientSwitch = !demoRole;
