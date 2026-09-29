@@ -31,6 +31,7 @@ type SeparationRecord = {
   retirementPay: string;
   otherBenefits: string;
   taxAdjustment: string;
+  finalStatutoryDeductions: string;
   loanDeductions: string;
   grossFinalPay: string;
   netFinalPay: string;
@@ -59,6 +60,8 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
     lastDay: new Date().toISOString().slice(0, 10),
     historicalBasicSalaryEarned: "0",
     unpaidBasicSalary: "0",
+    finalStatutoryDeductions: "0",
+    finalStatutoryReviewed: false,
     unusedLeaveCredits: "0",
     separationPay: "0",
     retirementPay: "0",
@@ -110,6 +113,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
         employeeId: Number(form.employeeId),
         historicalBasicSalaryEarned: Number(form.historicalBasicSalaryEarned),
         unpaidBasicSalary: Number(form.unpaidBasicSalary),
+        finalStatutoryDeductions: Number(form.finalStatutoryDeductions),
         unusedLeaveCredits: Number(form.unusedLeaveCredits),
         separationPay: Number(form.separationPay),
         retirementPay: Number(form.retirementPay),
@@ -236,6 +240,18 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                 <input type="number" step="0.01" min="0" value={form.unpaidBasicSalary} onChange={(e) => setForm({ ...form, unpaidBasicSalary: e.target.value })} />
                 <small>Earned basic salary not already in a Released Linaw payroll.</small>
               </label>
+              {Number(form.unpaidBasicSalary) > 0 && (
+                <>
+                  <label>Final employee statutory deductions
+                    <input type="number" step="0.01" min="0" value={form.finalStatutoryDeductions} onChange={(e) => setForm({ ...form, finalStatutoryDeductions: e.target.value })} />
+                    <small>Reviewed SSS, PhilHealth and Pag-IBIG employee share still due from the unpaid salary.</small>
+                  </label>
+                  <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <input type="checkbox" checked={form.finalStatutoryReviewed} onChange={(e) => setForm({ ...form, finalStatutoryReviewed: e.target.checked })} />
+                    Final statutory contribution treatment reviewed
+                  </label>
+                </>
+              )}
               <label>Convertible unused leave credits (days)
                 <input type="number" step="0.5" min="0" max="365" value={form.unusedLeaveCredits} onChange={(e) => setForm({ ...form, unusedLeaveCredits: e.target.value })} />
               </label>
@@ -323,7 +339,11 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
             <div style={{ background: "white", padding: 14, borderRadius: 10, border: "1px solid var(--line)" }}>
               <span style={{ fontSize: 10, fontWeight: 800, color: "var(--danger)", textTransform: "uppercase" }}>DEDUCTIONS (LIABILITIES)</span>
               <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #edf2ee", fontSize: 11.5, marginTop: 6 }}>
-                <span>Outstanding Employee Loans</span>
+                <span>Final statutory deductions</span>
+                <strong style={{ color: "var(--danger)" }}>-{peso(selectedRecord.finalStatutoryDeductions)}</strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #edf2ee", fontSize: 11.5 }}>
+                <span>Authorized Outstanding Employee Loans</span>
                 <strong style={{ color: "var(--danger)" }}>-{peso(selectedRecord.loanDeductions)}</strong>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: 11.5 }}>
