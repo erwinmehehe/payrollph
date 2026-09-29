@@ -126,7 +126,7 @@ const COMMON_ALIASES: Record<string, string[]> = {
   sourceReference: ["reference", "reference no", "payroll run id", "run id", "payroll id", "batch id"],
   grossPay: ["gross", "gross pay", "gross salary", "gross compensation", "total gross", "gross earnings"],
   basicSalaryEarned: ["basic salary earned", "basic earned", "13th month basic", "13th month basis", "basic compensation earned"],
-  otherNonTaxable: ["other non taxable", "other non-taxable", "non taxable compensation", "non-taxable compensation", "other exempt compensation"],
+  otherNonTaxable: ["other non taxable", "other non-taxable", "other non taxable compensation", "other non-taxable compensation", "non taxable compensation", "non-taxable compensation", "other exempt compensation"],
   netPay: ["net", "net pay", "net salary", "take home pay", "take-home pay", "amount paid"],
   taxWithheld: ["withholding tax", "tax withheld", "wht", "bir tax", "income tax", "withholding"],
   sssEmployee: ["sss employee", "sss ee", "employee sss", "sss contribution"],
