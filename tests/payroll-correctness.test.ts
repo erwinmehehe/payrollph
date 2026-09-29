@@ -206,6 +206,14 @@ test("failed settlement rolls back every earlier ledger mutation", async () => {
           standardHoursPerDay: 8,
           monthlyEquivalent: 30000,
         },
+        paySegments: [{
+          start: "2026-09-16",
+          end: "2026-09-30",
+          payBasis: "monthly",
+          rateAmount: 30000,
+          standardWorkDaysPerMonth: 22,
+          standardHoursPerDay: 8,
+        }],
       },
     });
 
@@ -512,6 +520,14 @@ test("two releases cannot settle the same expense claim into different payroll r
             standardHoursPerDay: 8,
             monthlyEquivalent: 30000,
           },
+          paySegments: [{
+            start: "2026-09-16",
+            end: "2026-09-30",
+            payBasis: "monthly",
+            rateAmount: 30000,
+            standardWorkDaysPerMonth: 22,
+            standardHoursPerDay: 8,
+          }],
         },
       });
     }
