@@ -21,6 +21,7 @@ export function ensureSeparationSchema() {
       await client.query("ALTER TABLE separation_records ADD COLUMN IF NOT EXISTS computation_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb");
       await client.query('ALTER TABLE separation_records ADD COLUMN IF NOT EXISTS approved_at timestamptz');
       await client.query('ALTER TABLE separation_records ADD COLUMN IF NOT EXISTS released_at timestamptz');
+      await client.query('ALTER TABLE separation_records ADD COLUMN IF NOT EXISTS release_reference varchar(160)');
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");
