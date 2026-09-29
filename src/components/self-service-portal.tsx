@@ -19,7 +19,7 @@ type Payslip = {
 
 type Payload = {
   employee: { employeeNo: string; firstName: string; lastName: string; title: string; employmentType: string; status: string; monthlyBasic: string };
-  employer: { name: string } | null;
+  employer: { id: number; name: string } | null;
   yearToDate: { gross: string; net: string; deductions: string; tax: string; periodsPaid: number };
   payslips: Payslip[];
 };
@@ -154,7 +154,7 @@ export function SelfServicePortal() {
 
       {webBundyOpen && (
         <WebBundyModal
-          organizationId={1}
+          organizationId={data?.employer?.id ?? 0}
           employeeName={data?.employee ? `${data.employee.firstName} ${data.employee.lastName}` : "Self"}
           onClose={() => setWebBundyOpen(false)}
           onPunchSuccess={() => { setNonce((n) => n + 1); }}
