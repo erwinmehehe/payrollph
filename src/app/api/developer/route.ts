@@ -6,9 +6,23 @@ import { mintApiKey } from "@/lib/api-auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { dispatchWebhook, WEBHOOK_EVENTS } from "@/lib/webhooks";
+import { validateWebhookTarget } from "@/lib/security-network";
 import { assertOrganizationRole, DEVELOPER_ADMIN_ROLES } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
+
+const DEMO_IDENTITY_EMAILS = new Set([
+  "celine@linaw.ph",
+  "owner.demo@linaw.ph",
+  "hr.demo@linaw.ph",
+  "payroll.demo@linaw.ph",
+  "checker.demo@linaw.ph",
+  "jonas.reyes@linaw.ph",
+]);
+
+function isDemoIdentity(email: string) {
+  return DEMO_IDENTITY_EMAILS.has(email.trim().toLowerCase());
+}
 
 export async function GET(request: Request) {
   const user = await getSessionUser();
@@ -53,6 +67,13 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+
+  if (isDemoIdentity(user.email)) {
+    return Response.json(
+      { error: "Developer credentials and webhook mutations are disabled in the public demo." },
+      { status: 403 },
+    );
+  }
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
@@ -108,8 +129,16 @@ export async function POST(request: Request) {
   }
 
   if (action === "create-webhook") {
-    const url = String(body.url ?? "").trim();
-    if (!/^https?:\/\//i.test(url)) return Response.json({ error: "A valid http(s) URL is required." }, { status: 400 });
+    const rawUrl = String(body.url ?? "").trim();
+    let url: string;
+    try {
+      url = await validateWebhookTarget(rawUrl);
+    } catch (error) {
+      return Response.json(
+        { error: error instanceof Error ? error.message : "Webhook URL is not allowed." },
+        { status: 400 },
+      );
+    }
     const events = Array.isArray(body.events)
       ? body.events.filter((event: unknown): event is string => typeof event === "string" && (WEBHOOK_EVENTS as readonly string[]).includes(event))
       : [];
