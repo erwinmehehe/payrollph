@@ -6281,3 +6281,59 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
     justify-self: start;
   }
 }
+
+
+.attendance-correction-card {
+  margin-top: 16px;
+  border-color: rgba(68, 76, 231, .16);
+}
+.attendance-correction-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 0 18px 14px;
+}
+.attendance-correction-grid label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 9.5px;
+  font-weight: 700;
+}
+.attendance-correction-grid input,
+.attendance-correction-grid textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--canvas);
+  color: var(--ink);
+  font: inherit;
+  font-size: 11px;
+  outline: none;
+}
+.attendance-correction-grid input {
+  min-height: 38px;
+  padding: 0 10px;
+}
+.attendance-correction-grid textarea {
+  padding: 9px 10px;
+  resize: vertical;
+}
+.attendance-correction-grid input:focus,
+.attendance-correction-grid textarea:focus {
+  border-color: var(--brand-border);
+  box-shadow: 0 0 0 3px rgba(68, 76, 231, .055);
+}
+.attendance-correction-reason {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 640px) {
+  .attendance-correction-grid {
+    grid-template-columns: minmax(0, 1fr);
+    padding-inline: 14px;
+  }
+  .attendance-correction-reason {
+    grid-column: auto;
+  }
+}
