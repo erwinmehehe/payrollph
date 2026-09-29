@@ -123,6 +123,22 @@ export const employees = pgTable("employees", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const employeePayProfiles = pgTable(
+  "employee_pay_profiles",
+  {
+    id: serial("id").primaryKey(),
+    employeeId: integer("employee_id").notNull().unique().references(() => employees.id, { onDelete: "cascade" }),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    payBasis: varchar("pay_basis", { length: 16 }).notNull(),
+    rateAmount: numeric("rate_amount", { precision: 12, scale: 2 }).notNull(),
+    standardWorkDaysPerMonth: numeric("standard_work_days_per_month", { precision: 6, scale: 2 }).notNull(),
+    standardHoursPerDay: numeric("standard_hours_per_day", { precision: 5, scale: 2 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("employee_pay_profiles_org_idx").on(table.organizationId)],
+);
+
 export const timePunches = pgTable("time_punches", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
