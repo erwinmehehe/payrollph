@@ -1,11 +1,14 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db";
-import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
+import { ensureEmployeePayHistory } from "@/lib/pay-basis-schema";
+import { buildPaySegments } from "@/lib/pay-history";
 import {
   auditEvents,
   earnedWageRequests,
   employeeLoans,
+  employeePayAdjustments,
   employeePayProfiles,
+  employeePayRateChanges,
   employees,
   expenseClaims,
   leaveConversions,
@@ -100,6 +103,50 @@ function samePayrollNumber(left: string | number | null | undefined, right: stri
   return Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) < 0.005;
 }
 
+type PaySegmentSnapshot = {
+  start: string;
+  end: string;
+  payBasis: string;
+  rateAmount: number;
+  standardWorkDaysPerMonth: number;
+  standardHoursPerDay: number;
+};
+
+function readPaySegmentsSnapshot(value: unknown): PaySegmentSnapshot[] | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = (value as Record<string, unknown>).paySegments;
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const rows: PaySegmentSnapshot[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") return null;
+    const row = item as Record<string, unknown>;
+    const start = typeof row.start === "string" ? row.start : "";
+    const end = typeof row.end === "string" ? row.end : "";
+    const payBasis = typeof row.payBasis === "string" ? row.payBasis : "";
+    const rateAmount = Number(row.rateAmount);
+    const standardWorkDaysPerMonth = Number(row.standardWorkDaysPerMonth);
+    const standardHoursPerDay = Number(row.standardHoursPerDay);
+    if (!start || !end || !payBasis || !Number.isFinite(rateAmount) || !Number.isFinite(standardWorkDaysPerMonth) || !Number.isFinite(standardHoursPerDay)) {
+      return null;
+    }
+    rows.push({ start, end, payBasis, rateAmount, standardWorkDaysPerMonth, standardHoursPerDay });
+  }
+  return rows;
+}
+
+function samePaySegments(left: PaySegmentSnapshot[], right: PaySegmentSnapshot[]) {
+  if (left.length !== right.length) return false;
+  return left.every((segment, index) => {
+    const other = right[index];
+    return segment.start === other.start &&
+      segment.end === other.end &&
+      segment.payBasis === other.payBasis &&
+      samePayrollNumber(segment.rateAmount, other.rateAmount) &&
+      samePayrollNumber(segment.standardWorkDaysPerMonth, other.standardWorkDaysPerMonth) &&
+      samePayrollNumber(segment.standardHoursPerDay, other.standardHoursPerDay);
+  });
+}
+
 /**
  * Settles every payroll-linked sub-ledger and flips the run to Released in one
  * database transaction. Any stale expense, advance, leave conversion, or loan
@@ -119,7 +166,7 @@ export async function settlePayrollRun(
 ) {
   const [preflightRun] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
   if (!preflightRun) throw new Error("Payroll run not found.");
-  await ensureEmployeePayProfiles(preflightRun.organizationId);
+  await ensureEmployeePayHistory(preflightRun.organizationId);
 
   return db.transaction(async (tx) => {
     const [run] = await tx.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
@@ -145,13 +192,41 @@ export async function settlePayrollRun(
         ))
       : [];
     const employeeById = new Map(currentEmployees.map((employee) => [employee.id, employee]));
-    const currentPayProfiles = employeeIds.length
-      ? await tx.select().from(employeePayProfiles).where(and(
-          eq(employeePayProfiles.organizationId, run.organizationId),
-          inArray(employeePayProfiles.employeeId, employeeIds),
-        ))
-      : [];
+    const [currentPayProfiles, payHistoryRows, pendingPayAdjustments] = employeeIds.length
+      ? await Promise.all([
+          tx.select().from(employeePayProfiles).where(and(
+            eq(employeePayProfiles.organizationId, run.organizationId),
+            inArray(employeePayProfiles.employeeId, employeeIds),
+          )),
+          tx.select().from(employeePayRateChanges).where(and(
+            eq(employeePayRateChanges.organizationId, run.organizationId),
+            inArray(employeePayRateChanges.employeeId, employeeIds),
+            lte(employeePayRateChanges.effectiveFrom, run.periodEnd),
+          )),
+          tx.select().from(employeePayAdjustments).where(and(
+            eq(employeePayAdjustments.organizationId, run.organizationId),
+            inArray(employeePayAdjustments.employeeId, employeeIds),
+            eq(employeePayAdjustments.status, "pending"),
+          )),
+        ])
+      : [[], [], []] as const;
     const payProfileByEmployee = new Map(currentPayProfiles.map((profile) => [profile.employeeId, profile]));
+    const payHistoryByEmployee = new Map<number, typeof payHistoryRows>();
+    for (const change of payHistoryRows) {
+      payHistoryByEmployee.set(change.employeeId, [...(payHistoryByEmployee.get(change.employeeId) ?? []), change]);
+    }
+
+    const retroIdsInRegister = new Set<number>();
+    for (const entry of entries) {
+      for (const line of storedLines(entry.lineItems)) {
+        const retroId = numericId(line.code, "RETRO_BASIC-");
+        if (retroId) retroIdsInRegister.add(retroId);
+      }
+    }
+    const unrepresentedPendingRetro = pendingPayAdjustments.filter((adjustment) => !retroIdsInRegister.has(adjustment.id));
+    if (unrepresentedPendingRetro.length > 0) {
+      throw new Error("A new retroactive pay adjustment was created after calculation; recalculate before release.");
+    }
 
     for (const entry of entries) {
       const employee = employeeById.get(entry.employeeId);
@@ -192,9 +267,10 @@ export async function settlePayrollRun(
       }
 
       const paySnapshot = readPayProfileSnapshot(entry.trace);
-      if (!paySnapshot) {
+      const paySegmentsSnapshot = readPaySegmentsSnapshot(entry.trace);
+      if (!paySnapshot || !paySegmentsSnapshot) {
         throw new Error(
-          `Payroll entry for ${currentName} lacks an immutable pay-profile snapshot; recalculate before release.`,
+          `Payroll entry for ${currentName} lacks an immutable effective-pay snapshot; recalculate before release.`,
         );
       }
       const currentPayProfile = payProfileByEmployee.get(entry.employeeId);
@@ -203,16 +279,35 @@ export async function settlePayrollRun(
           `Pay profile for ${currentName} is missing; configure it and recalculate before release.`,
         );
       }
-      const payProfileChanged =
-        paySnapshot.payBasis !== currentPayProfile.payBasis ||
-        !samePayrollNumber(paySnapshot.rateAmount, currentPayProfile.rateAmount) ||
-        !samePayrollNumber(paySnapshot.standardWorkDaysPerMonth, currentPayProfile.standardWorkDaysPerMonth) ||
-        !samePayrollNumber(paySnapshot.standardHoursPerDay, currentPayProfile.standardHoursPerDay) ||
-        !samePayrollNumber(paySnapshot.monthlyEquivalent, employee.basicRate);
+      const expectedSegments = buildPaySegments({
+        fallback: {
+          payBasis: currentPayProfile.payBasis,
+          rateAmount: currentPayProfile.rateAmount,
+          standardWorkDaysPerMonth: currentPayProfile.standardWorkDaysPerMonth,
+          standardHoursPerDay: currentPayProfile.standardHoursPerDay,
+        },
+        changes: (payHistoryByEmployee.get(entry.employeeId) ?? []).map((change) => ({
+          id: change.id,
+          effectiveFrom: String(change.effectiveFrom),
+          payBasis: change.payBasis,
+          rateAmount: change.rateAmount,
+          standardWorkDaysPerMonth: change.standardWorkDaysPerMonth,
+          standardHoursPerDay: change.standardHoursPerDay,
+        })),
+        periodStart: String(run.periodStart),
+        periodEnd: String(run.periodEnd),
+      }).map((segment) => ({
+        start: segment.start,
+        end: segment.end,
+        payBasis: segment.profile.payBasis,
+        rateAmount: segment.profile.rateAmount,
+        standardWorkDaysPerMonth: segment.profile.standardWorkDaysPerMonth,
+        standardHoursPerDay: segment.profile.standardHoursPerDay,
+      }));
 
-      if (payProfileChanged) {
+      if (!samePaySegments(paySegmentsSnapshot, expectedSegments)) {
         throw new Error(
-          `Pay profile for ${currentName} changed after calculation; recalculate before release so the approved register uses the current pay basis and rate.`,
+          `Pay history for ${currentName} changed after calculation; recalculate before release so the approved register uses the effective rates for this cutoff.`,
         );
       }
     }
@@ -221,9 +316,40 @@ export async function settlePayrollRun(
     let advancesSettled = 0;
     let loanPaymentsSettled = 0;
     let leaveConversionsSettled = 0;
+    let retroAdjustmentsSettled = 0;
 
     for (const entry of entries) {
       for (const line of storedLines(entry.lineItems)) {
+        const retroAdjustmentId = numericId(line.code, "RETRO_BASIC-");
+        if (retroAdjustmentId) {
+          const [adjustment] = await tx.select().from(employeePayAdjustments).where(and(
+            eq(employeePayAdjustments.id, retroAdjustmentId),
+            eq(employeePayAdjustments.organizationId, run.organizationId),
+          )).limit(1);
+          if (!adjustment || adjustment.employeeId !== entry.employeeId) {
+            throw new Error(`Retro pay adjustment ${retroAdjustmentId} no longer matches this payroll entry.`);
+          }
+          if (adjustment.status !== "pending" || adjustment.payrollRunId != null) {
+            throw new Error(`Retro pay adjustment ${retroAdjustmentId} is no longer pending; recalculate before release.`);
+          }
+          if (!samePayrollNumber(adjustment.amount, line.amount)) {
+            throw new Error(`Retro pay adjustment ${retroAdjustmentId} amount changed after calculation; recalculate before release.`);
+          }
+          const [settledAdjustment] = await tx.update(employeePayAdjustments)
+            .set({ status: "paid", payrollRunId: run.id, paidAt: new Date() })
+            .where(and(
+              eq(employeePayAdjustments.id, retroAdjustmentId),
+              eq(employeePayAdjustments.status, "pending"),
+              isNull(employeePayAdjustments.payrollRunId),
+            ))
+            .returning({ id: employeePayAdjustments.id });
+          if (!settledAdjustment) {
+            throw new Error(`Retro pay adjustment ${retroAdjustmentId} changed while payroll was being released; recalculate before release.`);
+          }
+          retroAdjustmentsSettled += 1;
+          continue;
+        }
+
         const expenseId = numericId(line.code, "EXP-");
         if (expenseId) {
           const [claim] = await tx
