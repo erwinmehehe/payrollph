@@ -6,7 +6,7 @@ import { createSession, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth"
 import { requestMeta } from "@/lib/rate-limit";
 import { hashPassword } from "@/lib/crypto";
 import { DEMO_MODE, ensureSeedData } from "@/db/seed";
-import { ensurePublicDemoTenant } from "@/db/public-demo";
+import { ensurePublicDemoTenant, PublicDemoProvisioningError } from "@/db/public-demo";
 import { DEMO_ROLE_IDS, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
 import { publicDemoHostAllowed } from "@/lib/demo-host";
 
@@ -149,8 +149,14 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     console.error("Public demo provisioning failed", error);
+    const code = error instanceof PublicDemoProvisioningError
+      ? `DEMO_PROVISION_${error.stage.toUpperCase().replaceAll("-", "_")}`
+      : "DEMO_PROVISION_UNKNOWN";
     return Response.json(
-      { error: "The demo workspace could not be prepared. Please try again in a moment." },
+      {
+        error: "The demo workspace could not be prepared. Please try again in a moment.",
+        code,
+      },
       { status: 503 },
     );
   }
