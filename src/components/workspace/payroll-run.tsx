@@ -231,7 +231,15 @@ export function PayrollRunView({
       }
       setReviewOpen(false);
       await onRefresh();
-      notify(`Payroll submitted to ${checker?.name ?? "the selected checker"} for checker approval.`);
+      const handoff = payload.handoffNotification as { ok?: boolean; warning?: string } | undefined;
+      notify(
+        `Payroll submitted to ${checker?.name ?? "the selected checker"} for checker approval.${
+          handoff?.ok ? " Checker notification queued." : ""
+        }`,
+      );
+      if (handoff?.warning) {
+        notify(handoff.warning, "info");
+      }
     } catch {
       notify("Could not reach the payroll review service.", "err");
     } finally {
