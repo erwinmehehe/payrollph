@@ -269,12 +269,6 @@ export async function POST(request: Request) {
       eq(separationRecords.organizationId, organizationId),
       eq(separationRecords.employeeId, employeeId),
     )).orderBy(desc(separationRecords.id)).limit(1);
-    if (existingOpen && existingOpen.status !== "released") {
-      return Response.json({
-        error: "This employee already has an open separation package. Finish or correct that package instead of creating a duplicate.",
-        separationId: existingOpen.id,
-      }, { status: 409 });
-    }
 
     const legacyHistoryMissingBasic = sources.historical.filter((row) => row.basicSalary == null).length;
     const storedHistoricalBasic = sources.historical.reduce(
@@ -371,17 +365,10 @@ export async function POST(request: Request) {
     };
 
     const created = await db.transaction(async (tx) => {
-      const [record] = await tx.insert(separationRecords).values({
-        organizationId,
-        employeeId,
+      const financialValues = {
         separationType,
         noticeDate,
         lastDay,
-        clearanceStatus: "in_progress",
-        itCleared: false,
-        adminCleared: false,
-        financeCleared: false,
-        hrCleared: false,
         prorated13thMonth: money(result.thirteenthDue),
         thirteenthEntitlement: money(result.thirteenthEntitlement),
         thirteenthPaidYtd: money(result.thirteenthPaidYtd),
@@ -401,8 +388,37 @@ export async function POST(request: Request) {
         finalPayDueDate: dueDate,
         computationSnapshot,
         status: "draft",
-        coeIssued: false,
-      }).returning();
+        approvedAt: null,
+        releasedAt: null,
+      } as const;
+
+      let record: typeof separationRecords.$inferSelect;
+      if (existingOpen && existingOpen.status !== "released") {
+        const [updated] = await tx.update(separationRecords).set({
+          ...financialValues,
+          // Financial data changed, so Finance must re-clear the recomputed package.
+          financeCleared: false,
+          clearanceStatus: "in_progress",
+        }).where(and(
+          eq(separationRecords.id, existingOpen.id),
+          eq(separationRecords.organizationId, organizationId),
+        )).returning();
+        if (!updated) throw new Error("Open separation package changed while it was being recomputed.");
+        record = updated;
+      } else {
+        const [inserted] = await tx.insert(separationRecords).values({
+          organizationId,
+          employeeId,
+          ...financialValues,
+          clearanceStatus: "in_progress",
+          itCleared: false,
+          adminCleared: false,
+          financeCleared: false,
+          hrCleared: false,
+          coeIssued: false,
+        }).returning();
+        record = inserted;
+      }
 
       await tx.update(employees)
         .set({ status: "Separating" })
@@ -414,7 +430,9 @@ export async function POST(request: Request) {
     await recordAuditEvent({
       organizationId,
       actor: user.name,
-      action: "Separation final pay computed",
+      action: existingOpen && existingOpen.status !== "released"
+        ? "Separation final pay recomputed"
+        : "Separation final pay computed",
       resource: `${sources.employee.firstName} ${sources.employee.lastName} (Final Pay: ₱${result.netFinalPay.toFixed(2)})`,
       metadata: {
         separationId: created.id,
