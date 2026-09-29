@@ -21,7 +21,7 @@ import {
   userOrganizations,
 } from "@/db/schema";
 import { ensureSeedData } from "@/db/seed";
-import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
+import { getAccess, PAYROLL_VIEW_ROLES, roleAllowed } from "@/lib/access";
 import { getSessionUser, publicUser } from "@/lib/auth";
 
 export async function getDashboardData(organizationId?: number) {
@@ -61,8 +61,8 @@ export async function getDashboardData(organizationId?: number) {
     throw new Error("The requested workspace is not available to this account.");
   }
 
-  const canViewPayroll = roleAllowed(access.role, PAYROLL_OPERATOR_ROLES);
-  const canViewAudit = ["owner", "admin", "bookkeeper", "payroll"].includes(access.role);
+  const canViewPayroll = roleAllowed(access.role, PAYROLL_VIEW_ROLES);
+  const canViewAudit = ["owner", "admin", "bookkeeper", "payroll", "checker"].includes(access.role);
 
   const employeeFilter = access && !access.companyWide && access.orgUnitId
     ? and(eq(employees.organizationId, selectedOrganization.id), eq(employees.orgUnitId, access.orgUnitId))
@@ -108,7 +108,7 @@ export async function getDashboardData(organizationId?: number) {
       .map((delegation) => delegation.fromApprover.toLowerCase()),
   );
   const taskRows =
-    access.role === "manager"
+    access.role === "manager" || access.role === "checker"
       ? taskRowsRaw.filter(
           (task) =>
             task.approver.toLowerCase() === sessionUser.name.toLowerCase() ||
@@ -128,7 +128,7 @@ export async function getDashboardData(organizationId?: number) {
   const capabilities = {
     orgStructure: accountType !== "freelancer",
     payroll: accountType !== "freelancer" && canViewPayroll,
-    approvals: accountType !== "freelancer" && roleAllowed(access.role, ["owner", "admin", "bookkeeper", "payroll", "manager", "hr"]),
+    approvals: accountType !== "freelancer" && roleAllowed(access.role, ["owner", "admin", "bookkeeper", "payroll", "manager", "hr", "checker"]),
     multiBranch: accountType === "enterprise" || selectedOrganization.plan === "Scale" || selectedOrganization.plan === "Enterprise",
     developer: accountType !== "freelancer",
   };

@@ -1,11 +1,9 @@
 export const DEMO_ROLE_IDS = [
   "owner",
-  "bookkeeper",
-  "payroll",
   "hr",
-  "manager",
+  "payroll",
+  "checker",
   "employee",
-  "freelancer",
 ] as const;
 
 export type DemoRoleId = (typeof DEMO_ROLE_IDS)[number];
@@ -17,72 +15,60 @@ export type DemoRoleInfo = {
   person: string;
   description: string;
   access: string[];
+  actions: string[];
   landingPage: string;
 };
 
 export const DEMO_ROLES: DemoRoleInfo[] = [
   {
     id: "owner",
-    label: "Company owner / admin",
+    label: "Owner",
     shortLabel: "Owner",
     person: "Andrea Lim",
-    description: "See the company-wide view, settings, payroll, people, compliance and reporting.",
-    access: ["Company-wide overview", "Payroll and people", "Settings and audit"],
+    description: "Run the company workspace with visibility across payroll, people, compliance, reporting and settings.",
+    access: ["Company-wide overview", "Payroll and people", "Compliance, settings and audit"],
+    actions: ["Create a payroll run", "Review company exceptions", "Release an approved payroll"],
     landingPage: "Overview",
-  },
-  {
-    id: "bookkeeper",
-    label: "Bookkeeper / accountant",
-    shortLabel: "Bookkeeper",
-    person: "Celine Yao",
-    description: "Work across multiple client companies from one payroll workspace.",
-    access: ["Multi-client switcher", "Payroll and exports", "Approvals and reporting"],
-    landingPage: "Overview",
-  },
-  {
-    id: "payroll",
-    label: "Payroll administrator",
-    shortLabel: "Payroll",
-    person: "Paolo Cruz",
-    description: "Focus on cutoff inputs, calculation, exceptions, approvals, release and exports.",
-    access: ["Payroll runs", "Time exceptions", "Exports and compliance"],
-    landingPage: "Payroll",
   },
   {
     id: "hr",
-    label: "HR administrator",
-    shortLabel: "HR",
+    label: "HR Admin",
+    shortLabel: "HR Admin",
     person: "Aira Villanueva",
-    description: "Manage people, attendance, leave, benefits and employee lifecycle work.",
-    access: ["People records", "Time and leave", "HR operations"],
+    description: "Manage employee records, attendance, leave, benefits and lifecycle work from the populated sample company.",
+    access: ["People records", "Time and leave", "HR operations and benefits"],
+    actions: ["Open an employee record", "Review leave and attendance", "Work through lifecycle tasks"],
     landingPage: "People",
   },
   {
-    id: "manager",
-    label: "Manager / approver",
-    shortLabel: "Manager",
+    id: "payroll",
+    label: "Payroll Officer",
+    shortLabel: "Payroll",
+    person: "Paolo Cruz",
+    description: "Prepare payroll, resolve cutoff inputs, recalculate and submit the run to an independent checker.",
+    access: ["Payroll runs", "Time exceptions", "Exports and compliance"],
+    actions: ["Inspect the live register", "Recalculate the run", "Submit payroll for checker review"],
+    landingPage: "Payroll",
+  },
+  {
+    id: "checker",
+    label: "Checker",
+    shortLabel: "Checker",
     person: "Mariel Santos",
-    description: "Review the team and handle the decisions assigned to a department manager.",
-    access: ["Team people view", "Team attendance", "Approvals"],
+    description: "Review assigned payroll and approval items independently from the payroll maker.",
+    access: ["Assigned approvals", "Payroll review context", "Compliance checks"],
+    actions: ["Open an assigned review", "Approve or decline it", "Confirm the audit trail"],
     landingPage: "Approvals",
   },
   {
     id: "employee",
-    label: "Employee self-service",
+    label: "Employee",
     shortLabel: "Employee",
     person: "Jonas Reyes",
-    description: "Open the employee experience for personal payslips, pay history and time punches.",
-    access: ["Own payslips", "Own pay history", "Clock in / out"],
+    description: "Use employee self-service for personal pay history, released payslips and attendance punches.",
+    access: ["Own payslips", "Own year-to-date pay", "Clock in / out"],
+    actions: ["Open a released payslip", "Download the payslip", "Record a demo attendance punch"],
     landingPage: "My pay",
-  },
-  {
-    id: "freelancer",
-    label: "Freelancer / self-employed",
-    shortLabel: "Freelancer",
-    person: "Mika Ramos",
-    description: "See the simpler solo workspace for self-employed income and tax planning.",
-    access: ["Solo workspace", "Tax planning", "Personal reporting"],
-    landingPage: "Freelancer hub",
   },
 ];
 
@@ -94,8 +80,33 @@ export function demoRoleInfo(role: string | null | undefined) {
   return DEMO_ROLES.find((item) => item.id === role);
 }
 
-
 export const DEMO_ROLE_PAGES: Partial<Record<DemoRoleId, readonly string[]>> = {
+  owner: [
+    "Overview",
+    "Payroll",
+    "People",
+    "Migration",
+    "Time & attendance",
+    "Leave",
+    "Approvals",
+    "Analytics",
+    "Exports",
+    "Compliance",
+    "Loans",
+    "Benefits",
+    "De minimis",
+    "Expenses",
+    "Earned wage",
+    "Recruitment",
+    "Discipline",
+    "Separation",
+    "Contractors",
+    "Assets",
+    "Integrations",
+    "Developer",
+    "Audit trail",
+    "Settings",
+  ],
   payroll: [
     "Overview",
     "Payroll",
@@ -120,11 +131,11 @@ export const DEMO_ROLE_PAGES: Partial<Record<DemoRoleId, readonly string[]>> = {
     "Separation",
     "Assets",
   ],
-  manager: [
-    "People",
-    "Time & attendance",
-    "Leave",
+  checker: [
+    "Overview",
     "Approvals",
+    "Compliance",
+    "Audit trail",
   ],
 };
 

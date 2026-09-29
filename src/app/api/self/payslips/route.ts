@@ -62,7 +62,7 @@ export async function GET() {
       status: employee.status,
       monthlyBasic: employee.basicRate,
     },
-    employer: organization ? { name: organization.name } : null,
+    employer: organization ? { id: organization.id, name: organization.name } : null,
     yearToDate: {
       gross: yearToDate.gross.toFixed(2),
       net: yearToDate.net.toFixed(2),

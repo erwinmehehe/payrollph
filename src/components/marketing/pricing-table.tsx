@@ -15,17 +15,23 @@ export type PublicPlan = {
 
 const BLURB: Record<string, string> = {
   Solo: "For independent and self-employed work",
-  Core: "For a small team on one payroll",
-  Scale: "For growing operations and multi-branch payroll",
-  Enterprise: "For complex organizations and bookkeeping practices",
+  Core: "For small teams running one Philippine payroll",
+  Scale: "For growing teams, approvals and multi-branch payroll",
+  Enterprise: "For complex organizations and high-control payroll operations",
 };
 
-/**
- * Pricing is read from the same persisted pricing rows used by checkout.
- */
+const BEST_FOR: Record<string, string> = {
+  Core: "Best for 5–40 employees",
+  Scale: "Best for 25–250 employees",
+  Enterprise: "Best for larger or complex teams",
+};
+
+const HEADCOUNT_PRESETS = [10, 25, 50, 100];
+
 export function PricingTable({ plans }: { plans: PublicPlan[] }) {
-  const [headcount, setHeadcount] = useState(24);
-  const fill = ((headcount - 1) / (500 - 1)) * 100;
+  const [headcount, setHeadcount] = useState(25);
+  const solo = plans.find((plan) => plan.name === "Solo");
+  const businessPlans = plans.filter((plan) => plan.name !== "Solo");
 
   function updateHeadcount(value: number) {
     setHeadcount(Math.min(500, Math.max(1, Math.round(value) || 1)));
@@ -33,18 +39,30 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
 
   return (
     <>
-      <div className="pricing-calculator">
-        <div className="pricing-calculator-copy">
-          <p className="eyebrow">Headcount</p>
-          <h2>How many people are you paying?</h2>
-          <p>Adjust the headcount and the monthly pricing updates automatically.</p>
+      <div className="pricing-estimator">
+        <div>
+          <span className="price-plan">Monthly estimate</span>
+          <strong>{headcount} employees</strong>
+          <small>Change headcount and every plan updates immediately.</small>
         </div>
 
-        <div className="pricing-headcount-control">
-          <div className="pricing-headcount-value">
+        <div className="pricing-estimator-controls">
+          <div className="pricing-presets" aria-label="Headcount presets">
+            {HEADCOUNT_PRESETS.map((count) => (
+              <button
+                type="button"
+                key={count}
+                className={headcount === count ? "active" : ""}
+                onClick={() => updateHeadcount(count)}
+              >
+                {count}
+              </button>
+            ))}
+          </div>
+
+          <div className="pricing-stepper-box">
             <button
               type="button"
-              className="pricing-stepper"
               aria-label="Decrease headcount"
               onClick={() => updateHeadcount(headcount - 1)}
               disabled={headcount <= 1}
@@ -57,15 +75,13 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
                 type="number"
                 min={1}
                 max={500}
-                inputMode="numeric"
                 value={headcount}
-                aria-label="Employee headcount"
                 onChange={(event) => updateHeadcount(Number(event.target.value))}
+                aria-label="Employee headcount"
               />
             </label>
             <button
               type="button"
-              className="pricing-stepper"
               aria-label="Increase headcount"
               onClick={() => updateHeadcount(headcount + 1)}
               disabled={headcount >= 500}
@@ -73,29 +89,12 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
               <Plus size={14} />
             </button>
           </div>
-
-          <div className="pricing-headcount-slider">
-            <input
-              type="range"
-              min={1}
-              max={500}
-              value={headcount}
-              aria-label="Headcount slider"
-              style={{ ["--range-fill" as string]: `${fill}%` }}
-              onChange={(event) => updateHeadcount(Number(event.target.value))}
-            />
-            <div className="pricing-range-labels" aria-hidden>
-              <span>1</span>
-              <span>500</span>
-            </div>
-          </div>
         </div>
       </div>
 
-      <div className="pricing-grid">
-        {plans.map((plan) => {
-          const perSeat = plan.name === "Solo" ? 0 : headcount;
-          const total = Number(plan.monthlyBase) + Number(plan.perEmployee) * perSeat;
+      <div className="pricing-grid business-pricing-grid">
+        {businessPlans.map((plan) => {
+          const total = Number(plan.monthlyBase) + Number(plan.perEmployee) * headcount;
           const modules = Array.isArray(plan.modules) ? (plan.modules as string[]) : [];
           const featured = plan.name === "Scale";
 
@@ -105,8 +104,9 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
                 <div>
                   <span className="price-plan">{plan.name}</span>
                   <h2>{BLURB[plan.name] ?? "Philippine payroll and HRIS"}</h2>
+                  <small className="price-best-for">{BEST_FOR[plan.name] ?? "Flexible team size"}</small>
                 </div>
-                {featured && <span className="popular-label">Most chosen</span>}
+                {featured && <span className="popular-label">Recommended</span>}
               </div>
 
               <div className="price">
@@ -115,20 +115,17 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
               </div>
 
               <small className="price-formula">
-                Base {money(plan.monthlyBase)}
-                {plan.name === "Solo" ? "" : ` + ${money(plan.perEmployee)} per employee`}
+                {money(plan.monthlyBase)} base + {money(plan.perEmployee)} × {headcount} employees
               </small>
 
-              {modules.length > 0 && (
-                <ul className="price-features">
-                  {modules.slice(0, 4).map((module) => (
-                    <li key={module}>
-                      <Check size={12} aria-hidden />
-                      <span>{module}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <ul className="price-features">
+                {modules.map((module) => (
+                  <li key={module}>
+                    <Check size={13} aria-hidden />
+                    <span>{module}</span>
+                  </li>
+                ))}
+              </ul>
 
               <a className={featured ? "primary-button full" : "secondary-button full"} href="/signup">
                 Start free <ArrowUpRight size={13} />
@@ -137,6 +134,23 @@ export function PricingTable({ plans }: { plans: PublicPlan[] }) {
           );
         })}
       </div>
+
+      {solo && (
+        <div className="solo-price-row">
+          <div>
+            <span className="price-plan">Solo</span>
+            <strong>Self-employed?</strong>
+            <small>{BLURB.Solo}. No employee payroll seat required.</small>
+          </div>
+          <div className="solo-price-value">
+            <strong>{money(solo.monthlyBase)}</strong>
+            <span>/ month</span>
+          </div>
+          <a className="secondary-button" href="/signup">
+            Start Solo <ArrowUpRight size={13} />
+          </a>
+        </div>
+      )}
     </>
   );
 }

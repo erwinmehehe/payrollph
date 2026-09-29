@@ -47,8 +47,11 @@ test("a dedicated role-based demo page exists", () => {
   const demo = read("src/components/marketing/demo-role-picker.tsx");
   const roles = read("src/lib/demo-roles.ts");
   assert.ok(demo.includes("See Linaw from the seat you actually use."), "demo page must explain the role-based experience");
-  for (const role of ["owner", "bookkeeper", "payroll", "hr", "manager", "employee", "freelancer"]) {
+  for (const role of ["owner", "hr", "payroll", "checker", "employee"]) {
     assert.ok(roles.includes(`"${role}"`), `demo roles must include ${role}`);
+  }
+  for (const removed of ["bookkeeper", "manager", "freelancer"]) {
+    assert.ok(!roles.includes(`"${removed}"`), `public sandbox should not expose legacy persona ${removed}`);
   }
 });
 
@@ -61,4 +64,51 @@ test("payroll outsourcing has its own service route and conversion path", () => 
   assert.ok(page.includes("Payroll Outsourcing Philippines"), "service metadata must target outsourcing intent");
   assert.ok(page.includes("Get a payroll quote"), "service page must use a quote CTA");
   assert.ok(!page.includes("PricingTable"), "outsourcing page must not reuse product pricing");
+});
+
+
+test("homepage simulation uses the real workspace navigation and no dead client states", () => {
+  const preview = read("src/components/marketing/workspace-preview.tsx");
+  assert.ok(preview.includes('from "@/components/workspace/nav"'), "homepage preview must consume the workspace navigation contract");
+  assert.ok(preview.includes("NAVIGATION"), "homepage preview must derive its navigation from the real app");
+  assert.ok(!preview.includes("not part of this simulation"), "homepage preview must not expose dead client switch states");
+  assert.ok(!preview.includes("client.id !== 1"), "homepage preview must not branch into disconnected client datasets");
+});
+
+test("homepage pricing uses the compact business pricing composition", () => {
+  const pricing = read("src/components/marketing/pricing-table.tsx");
+  assert.ok(pricing.includes("business-pricing-grid"), "business tiers must use the compact pricing grid");
+  assert.ok(pricing.includes("pricing-estimator"), "pricing must keep a simple headcount estimator");
+  assert.ok(!pricing.includes('type="range"'), "pricing must not restore the oversized headcount slider");
+});
+
+test("role demo launches the same product instead of rendering a second fake app", () => {
+  const demo = read("src/components/marketing/demo-role-picker.tsx");
+  assert.ok(demo.includes("Sandbox task"), "role page must explain the action-oriented sandbox handoff");
+  assert.ok(!demo.includes("previewSidebar"), "role page must not maintain a second fake app navigation");
+  assert.ok(!demo.includes("PreviewRow"), "role page must not maintain a separate fake payroll table");
+});
+
+
+test("role sandbox uses five real identities and provisions the checker for payroll handoff", () => {
+  const route = read("src/app/api/auth/demo-switch/route.ts");
+  const roles = read("src/lib/demo-roles.ts");
+  const access = read("src/lib/access.ts");
+  const dashboard = read("src/lib/dashboard-data.ts");
+  const workspace = read("src/components/linaw-workspace.tsx");
+
+  assert.ok(route.includes("for (const role of DEMO_ROLE_IDS)"), "opening any persona must provision the complete five-role handoff");
+  assert.ok(route.includes('membershipRole: "checker"'), "checker must be a real organization role");
+  assert.ok(access.includes('"checker"] as const'), "checker must be present in payroll review permissions");
+  assert.ok(dashboard.includes('access.role === "checker"'), "checker dashboard must be scoped to assigned approvals");
+  assert.ok(roles.includes('"Payroll Officer"') && roles.includes('"HR Admin"') && roles.includes('"Checker"'), "public persona labels must match the sandbox");
+  assert.ok(workspace.includes("demoInfo.actions.join"), "workspace must show the persona mission after launch");
+  assert.ok(workspace.includes("onSwitchRole={demoRole ?"), "persona switching must only appear in demo sessions");
+});
+
+test("employee sandbox supports instant persona switching without exposing other employees", () => {
+  const selfService = read("src/components/self-service-portal.tsx");
+  assert.ok(selfService.includes("switchDemoRole"), "employee self-service must support instant demo persona switching");
+  assert.ok(selfService.includes('role.id !== "employee"'), "employee persona switcher must offer the other sandbox roles");
+  assert.ok(selfService.includes("/api/self/payslips"), "employee sandbox must stay on the self-scoped payslip API");
 });

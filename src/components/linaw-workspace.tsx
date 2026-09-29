@@ -9,6 +9,7 @@ import { ContractorsPanel } from "@/components/contractors-panel";
 import { DeMinimisPanel } from "@/components/de-minimis-panel";
 import { DisciplinePanel } from "@/components/discipline-panel";
 import { LoansPanel } from "@/components/loans-panel";
+import { MigrationCenter } from "@/components/migration-center";
 import { NewHireModal } from "@/components/new-hire-modal";
 import { RecruitmentPanel } from "@/components/recruitment-panel";
 import { SeparationPanel } from "@/components/separation-panel";
@@ -52,7 +53,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
       ? requestedDemoRole
       : null;
   const demoInfo = demoRoleInfo(demoRole);
-  const initialPage = demoRole === "freelancer" ? "Overview" : demoInfo?.landingPage ?? "Overview";
+  const initialPage = demoInfo?.landingPage ?? "Overview";
 
   const [data, setData] = useState(initialData);
   const [page, setPage] = useState(initialPage);
@@ -89,10 +90,10 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
     [data, availablePages],
   );
 
-  const allowClientSwitch = !demoRole || demoRole === "bookkeeper";
-  const canManagePayroll = !demoRole || ["owner", "bookkeeper", "payroll"].includes(demoRole);
-  const canManagePeople = !demoRole || ["owner", "bookkeeper", "hr"].includes(demoRole);
-  const canManageTime = !demoRole || ["owner", "bookkeeper", "hr"].includes(demoRole);
+  const allowClientSwitch = !demoRole;
+  const canManagePayroll = !demoRole || ["owner", "payroll"].includes(demoRole);
+  const canManagePeople = !demoRole || ["owner", "hr"].includes(demoRole);
+  const canManageTime = !demoRole || ["owner", "hr"].includes(demoRole);
   const canUsePayrollOps = canManagePayroll && availablePages.includes("Payroll");
   const canUsePeopleOps = canManagePeople && availablePages.includes("People");
 
@@ -112,15 +113,6 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
     [data.selectedOrganization.id],
   );
 
-  useEffect(() => {
-    if (demoRole !== "freelancer" || isFreelancer) return;
-    const solo = data.organizations.find((organization) => organization.accountType === "freelancer");
-    if (!solo) return;
-
-    void refresh(solo.id)
-      .then(() => setPage("Freelancer hub"))
-      .catch(() => notify("Could not open the freelancer demo.", "err"));
-  }, [demoRole, isFreelancer, data.organizations, refresh, notify]);
 
   async function changeOrganization(id: number) {
     try {
@@ -272,6 +264,9 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
     }
     if (canUsePeopleOps) {
       actions.push({ id: "new-hire", label: "Add employee", hint: "Create a record with its onboarding checklist", run: () => setNewHireOpen(true) });
+      if (availablePages.includes("Migration")) {
+        actions.push({ id: "migration", label: "Open migration center", hint: "Switch from another payroll or HRIS", run: () => setPage("Migration") });
+      }
     }
     if (canManageTime && availablePages.includes("Time & attendance")) {
       actions.push({ id: "bundy", label: "Open web bundy", hint: "Record an attendance punch", run: () => setWebBundyOpen(true) });
@@ -297,7 +292,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenNotification={availablePages.includes("Exports") ? () => setOutboxOpen(true) : undefined}
         onSwitchClient={(id) => void changeOrganization(id)}
-        onSwitchRole={(role) => void switchDemoRole(role)}
+        onSwitchRole={demoRole ? (role) => void switchDemoRole(role) : undefined}
         onSignOut={() => void signOut()}
         visiblePages={availablePages}
         displayRole={demoRole}
@@ -325,6 +320,15 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
           </>
         }
       >
+        {demoRole && demoInfo && (
+          <div className="notice notice-purple" style={{ marginBottom: 16 }}>
+            <ShieldCheck size={16} className="i-purple" />
+            <span>
+              <strong>{demoInfo.shortLabel} sandbox:</strong> {demoInfo.actions.join(" · ")}
+            </span>
+          </div>
+        )}
+
         {page === "Overview" && (
           <OverviewView
             data={data}
@@ -362,6 +366,15 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
             canManage={canManagePeople}
             focusEmployeeId={focusEmployeeId}
             onClearFocus={() => setFocusEmployeeId(null)}
+          />
+        )}
+
+        {page === "Migration" && (
+          <MigrationCenter
+            organizationId={data.selectedOrganization.id}
+            onImported={async () => {
+              await refresh();
+            }}
           />
         )}
 
