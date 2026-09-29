@@ -4,31 +4,27 @@ import { useMemo, useState, type ElementType } from "react";
 import {
   ArrowRight,
   BriefcaseBusiness,
-  Calculator,
   Check,
   CircleDollarSign,
+  ClipboardCheck,
   LoaderCircle,
   ShieldCheck,
   UserRound,
-  UserRoundCheck,
   UsersRound,
-  WalletCards,
 } from "lucide-react";
 import { DEMO_ROLES, type DemoRoleId } from "@/lib/demo-roles";
 import styles from "./demo-role-picker.module.css";
 
 const ICONS: Record<DemoRoleId, ElementType> = {
   owner: BriefcaseBusiness,
-  bookkeeper: Calculator,
-  payroll: CircleDollarSign,
   hr: UsersRound,
-  manager: UserRoundCheck,
+  payroll: CircleDollarSign,
+  checker: ClipboardCheck,
   employee: UserRound,
-  freelancer: WalletCards,
 };
 
 export function DemoRolePicker() {
-  const [selectedRole, setSelectedRole] = useState<DemoRoleId>("payroll");
+  const [selectedRole, setSelectedRole] = useState<DemoRoleId>("owner");
   const [launching, setLaunching] = useState<DemoRoleId | null>(null);
   const [error, setError] = useState("");
 
@@ -74,8 +70,8 @@ export function DemoRolePicker() {
             </span>
             <h1>See Linaw from the seat you actually use.</h1>
             <p>
-              Explore a sample Philippine payroll workspace from different roles. See how each person prepares, reviews,
-              approves and releases payroll using sample data.
+              Enter the actual sample workspace as Owner, HR Admin, Payroll Officer, Checker or Employee. Each persona has
+              its own permissions, landing page and realistic actions on populated demo data.
             </p>
           </div>
         </div>
@@ -86,7 +82,7 @@ export function DemoRolePicker() {
           <div className={styles.sectionIntro}>
             <span className={styles.kicker}>Role-based product demo</span>
             <h2>Choose a seat.</h2>
-            <p>You can switch roles inside the demo at any time.</p>
+            <p>Pick a persona, complete a realistic task, then switch roles instantly from inside the sandbox.</p>
           </div>
 
           {error && (
@@ -117,7 +113,7 @@ export function DemoRolePicker() {
                       <strong>{role.label}</strong>
                       <small>{role.person}</small>
                     </span>
-                    {role.id === "payroll" && <span className={styles.suggested}>Start here</span>}
+                    {role.id === "owner" && <span className={styles.suggested}>Start here</span>}
                     <ArrowRight size={14} aria-hidden />
                   </button>
                 );
@@ -161,19 +157,27 @@ export function DemoRolePicker() {
 
               <div className={styles.connectedDemo}>
                 <div>
-                  <span className={styles.accessLabel}>Connected product demo</span>
-                  <strong>Open the same Linaw workspace used by the product.</strong>
+                  <span className={styles.accessLabel}>Sandbox task</span>
+                  <strong>Do something the role actually owns.</strong>
                   <p>
-                    We no longer render a second fake dashboard here. Choosing a role creates that role in the sample
-                    workspace and opens the actual application with its real navigation and permissions.
+                    This opens the real product shell against populated demo data. Server permissions still apply, so a
+                    Payroll Officer cannot approve their own payroll and a Checker cannot calculate or release it.
                   </p>
+                </div>
+                <div className={styles.accessList}>
+                  {selected.actions.map((item) => (
+                    <span key={item}>
+                      <Check size={13} aria-hidden />
+                      {item}
+                    </span>
+                  ))}
                 </div>
                 <div className={styles.connectedFlow}>
                   <span>{selected.label}</span>
                   <ArrowRight size={13} aria-hidden />
                   <span>{selected.landingPage}</span>
                   <ArrowRight size={13} aria-hidden />
-                  <span>Real workspace</span>
+                  <span>Populated workspace</span>
                 </div>
               </div>
 
