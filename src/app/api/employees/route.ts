@@ -277,14 +277,6 @@ export async function PATCH(request: Request) {
     return Response.json({ error: "No employee profile fields were supplied." }, { status: 400 });
   }
 
-  const [updated] = await db.update(employees)
-    .set(patch)
-    .where(and(
-      eq(employees.id, employeeId),
-      eq(employees.organizationId, organizationId),
-    ))
-    .returning();
-
   let payChangeResult: Awaited<ReturnType<typeof recordEffectivePayChange>> | null = null;
   if (nextPayProfile) {
     try {
@@ -301,6 +293,18 @@ export async function PATCH(request: Request) {
         error: error instanceof Error ? error.message : "Could not record the effective-dated pay change.",
       }, { status: 400 });
     }
+  }
+
+  let updated = employee;
+  if (Object.keys(patch).length > 0) {
+    const [patchedEmployee] = await db.update(employees)
+      .set(patch)
+      .where(and(
+        eq(employees.id, employeeId),
+        eq(employees.organizationId, organizationId),
+      ))
+      .returning();
+    updated = patchedEmployee ?? employee;
   }
 
   const [currentPayProfile] = await db.select().from(employeePayProfiles)
