@@ -164,7 +164,6 @@ export const DEMO_ROLE_PAGES: Partial<Record<DemoRoleId, readonly string[]>> = {
     "Discipline",
     "Separation",
     "Assets",
-    "Audit trail",
   ],
   checker: [
     "Overview",
