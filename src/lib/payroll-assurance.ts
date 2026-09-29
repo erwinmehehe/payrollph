@@ -17,6 +17,25 @@ export type AssuranceEntry = {
   trace?: unknown;
 };
 
+export type AssuranceEmployeeContext = {
+  id: number;
+  employeeNo?: string | null;
+  status?: string | null;
+  startDate?: string | null;
+  basicRate?: string | number | null;
+  region?: string | null;
+  bankAccount?: string | null;
+  bankCode?: string | null;
+  minimumWageIssue?: boolean;
+};
+
+export type AssuranceContext = {
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  payDate?: string | null;
+  employees?: AssuranceEmployeeContext[];
+};
+
 export type AssuranceFinding = {
   code: string;
   severity: AssuranceSeverity;
@@ -109,6 +128,26 @@ function traceFlagsOf(entry: AssuranceEntry) {
   return Array.isArray(flags) ? flags.filter((flag): flag is string => typeof flag === "string") : [];
 }
 
+function traceInputsOf(entry: AssuranceEntry) {
+  if (!entry.trace || typeof entry.trace !== "object") return [] as string[];
+  const inputs = (entry.trace as Record<string, unknown>).inputs;
+  return Array.isArray(inputs) ? inputs.filter((line): line is string => typeof line === "string") : [];
+}
+
+function traceNumber(entry: AssuranceEntry, key: string) {
+  const prefix = `${key}=`;
+  const raw = traceInputsOf(entry).find((line) => line.startsWith(prefix))?.slice(prefix.length);
+  if (raw == null) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
+
+function positiveLineAmount(entry: AssuranceEntry, code: string) {
+  return cents(lineItemsOf(entry).reduce((sum, line) => {
+    if (line.code.toUpperCase() !== code.toUpperCase()) return sum;
+    return sum + Math.max(0, numberOf(line.amount));
+  }, 0));
+}
 
 function lineAmountByCodes(entry: AssuranceEntry, codes: string[]) {
   const wanted = new Set(codes.map((code) => code.toUpperCase()));
@@ -165,8 +204,10 @@ function compareLines(current: AssuranceEntry, previous: AssuranceEntry | null):
 export function evaluatePayrollAssurance(
   currentEntries: AssuranceEntry[],
   previousEntries: AssuranceEntry[] = [],
+  context: AssuranceContext = {},
 ): PayrollAssurance {
   const previousByEmployee = new Map(previousEntries.map((entry) => [entry.employeeId, entry]));
+  const employeeById = new Map((context.employees ?? []).map((employee) => [employee.id, employee]));
   const findings: AssuranceFinding[] = [];
   const comparisons: EmployeeVariance[] = [];
 
@@ -223,6 +264,139 @@ export function evaluatePayrollAssurance(
         severity: "medium",
         title: "Payroll engine exception",
         detail: flags[0] ?? "This employee was flagged by the payroll calculation and needs reviewer sign-off.",
+        employeeId: entry.employeeId,
+      });
+    }
+
+    const employee = employeeById.get(entry.employeeId);
+    const punches = traceNumber(entry, "punches");
+    if (punches === 0 && gross > 0) {
+      findings.push({
+        code: "MISSING_ATTENDANCE",
+        severity: "medium",
+        title: "No attendance recorded for this cutoff",
+        detail: "The payroll engine fell back to the employee's cutoff basic because no punches were found in this payroll period. Confirm attendance before approval.",
+        employeeId: entry.employeeId,
+      });
+    }
+
+    const basic = positiveLineAmount(entry, "BASIC");
+    const overtime = positiveLineAmount(entry, "OT");
+    if (basic > 0 && overtime >= 5_000 && overtime / basic >= 0.25) {
+      findings.push({
+        code: "UNUSUAL_OVERTIME",
+        severity: "medium",
+        title: "Unusually high overtime",
+        detail: `Overtime is ₱${overtime.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, or ${Math.round((overtime / basic) * 100)}% of basic/worked pay for this cutoff.`,
+        employeeId: entry.employeeId,
+        current: overtime,
+      });
+    }
+
+    if (previous) {
+      const previousBasic = positiveLineAmount(previous, "BASIC");
+      if (previousBasic > 0) {
+        const basicDelta = cents(basic - previousBasic);
+        const basicPercent = percentChange(basic, previousBasic);
+        if (Math.abs(basicDelta) >= 1_000 && basicPercent != null && Math.abs(basicPercent) >= 15) {
+          findings.push({
+            code: "SALARY_CHANGE",
+            severity: "medium",
+            title: "Material basic-pay change",
+            detail: `Basic/worked pay changed by ${Math.abs(basicPercent).toFixed(1)}% from the previous released payroll.`,
+            employeeId: entry.employeeId,
+            current: basic,
+            previous: previousBasic,
+            delta: basicDelta,
+            percent: cents(basicPercent),
+          });
+        }
+      }
+
+      const currentStatutory = currentComponents.sss + currentComponents.philHealth + currentComponents.pagIbig;
+      const previousStatutory = previousComponents
+        ? previousComponents.sss + previousComponents.philHealth + previousComponents.pagIbig
+        : 0;
+      const statutoryDelta = cents(currentStatutory - previousStatutory);
+      const statutoryPercent = previousStatutory > 0 ? percentChange(currentStatutory, previousStatutory) : null;
+      if (
+        previousStatutory > 0 &&
+        Math.abs(statutoryDelta) >= 500 &&
+        statutoryPercent != null &&
+        Math.abs(statutoryPercent) >= 15
+      ) {
+        findings.push({
+          code: "STATUTORY_CHANGE",
+          severity: "medium",
+          title: "Material statutory contribution change",
+          detail: `SSS, PhilHealth and Pag-IBIG employee deductions changed by ${Math.abs(statutoryPercent).toFixed(1)}% from the previous released payroll.`,
+          employeeId: entry.employeeId,
+          current: currentStatutory,
+          previous: previousStatutory,
+          delta: statutoryDelta,
+          percent: cents(statutoryPercent),
+        });
+      }
+    }
+
+    const positiveCodes = lineItemsOf(entry)
+      .filter((line) => numberOf(line.amount) > 0)
+      .map((line) => line.code.toUpperCase());
+    const duplicateCodes = [...new Set(positiveCodes.filter((code, index) => positiveCodes.indexOf(code) !== index))];
+    if (duplicateCodes.length > 0) {
+      findings.push({
+        code: "DUPLICATE_EARNING",
+        severity: "medium",
+        title: "Possible duplicate earning",
+        detail: `The payroll entry contains repeated positive line-item code(s): ${duplicateCodes.join(", ")}. Confirm the allowance or earning was not added twice.`,
+        employeeId: entry.employeeId,
+      });
+    }
+
+    if (employee && net > 0 && (!employee.bankAccount?.trim() || !employee.bankCode?.trim())) {
+      findings.push({
+        code: "MISSING_BANK_DETAILS",
+        severity: "high",
+        blocking: true,
+        title: "Bank details are incomplete",
+        detail: "This employee has positive net pay but no complete bank account and bank code. Complete payout details before release.",
+        employeeId: entry.employeeId,
+      });
+    }
+
+    if (
+      employee?.startDate &&
+      context.periodStart &&
+      context.periodEnd &&
+      employee.startDate >= context.periodStart &&
+      employee.startDate <= context.periodEnd
+    ) {
+      findings.push({
+        code: "NEW_EMPLOYEE",
+        severity: "info",
+        title: "New employee in this cutoff",
+        detail: `Employment start date ${employee.startDate} falls inside this payroll period. Confirm proration and onboarding details.`,
+        employeeId: entry.employeeId,
+      });
+    }
+
+    const employmentStatus = employee?.status?.toLowerCase() ?? "";
+    if (employmentStatus.includes("separat") || employmentStatus.includes("resign") || employmentStatus.includes("terminat")) {
+      findings.push({
+        code: "SEPARATING_EMPLOYEE",
+        severity: "medium",
+        title: "Separating employee included",
+        detail: `Employee status is "${employee?.status}". Confirm final-pay treatment and cut-off before approval.`,
+        employeeId: entry.employeeId,
+      });
+    }
+
+    if (employee?.minimumWageIssue) {
+      findings.push({
+        code: "WAGE_FLOOR",
+        severity: "medium",
+        title: "Basic rate is below the mapped wage floor",
+        detail: "The employee's monthly basic maps below the configured regional minimum-wage equivalent. Review the wage-order mapping and employee classification.",
         employeeId: entry.employeeId,
       });
     }
