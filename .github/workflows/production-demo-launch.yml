@@ -62,7 +62,7 @@ jobs:
         run: |
           set -euo pipefail
           for role in owner hr payroll checker; do
-            curl -fsS -b "/tmp/${role}.cookies" "http://127.0.0.1:3000/?demoRole=${role}" | grep -q 'ROLE SANDBOX'
+            curl -fsS -H 'Host: erwinmehehe-payrollph.vercel.app' -b "/tmp/${role}.cookies" "http://127.0.0.1:3000/?demoRole=${role}" | grep -q 'ROLE SANDBOX'
           done
-          curl -fsS -b /tmp/employee.cookies http://127.0.0.1:3000/api/self/payslips >/tmp/employee-pay.json
+          curl -fsS -H 'Host: erwinmehehe-payrollph.vercel.app' -b /tmp/employee.cookies http://127.0.0.1:3000/api/self/payslips >/tmp/employee-pay.json
           node -e 'const p=require("/tmp/employee-pay.json"); if(!p.employee || !Array.isArray(p.payslips) || p.payslips.length<1) process.exit(1)'
