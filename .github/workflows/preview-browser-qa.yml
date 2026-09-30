@@ -11,6 +11,7 @@ on:
       - "src/components/self-service-portal.tsx"
       - "src/components/demo-sandbox-bar.tsx"
       - "src/app/page.tsx"
+      - "src/app/workspace/page.tsx"
       - "src/lib/pricing-catalog.ts"
       - "src/lib/demo-roles.ts"
       - "tests/marketing.test.ts"
@@ -214,6 +215,40 @@ jobs:
             check(body.includes("ROLE SANDBOX"), `${persona.label}: role sandbox did not render after launch`);
             check(body.includes(persona.person), `${persona.label}: expected persona identity ${persona.person} is missing`);
             check(body.toLowerCase().includes(persona.landing.toLowerCase()), `${persona.label}: expected landing context ${persona.landing} is missing`);
+
+            if (persona.id === "owner") {
+              check(new URL(page.url()).pathname === "/workspace", "Owner: demo must land on /workspace, not replace the homepage");
+              const marketingPage = await context.newPage();
+              const marketingResponse = await marketingPage.goto(base, { waitUntil: "networkidle", timeout: 90000 });
+              check(marketingResponse && marketingResponse.ok(), "Owner: signed-in visit to / did not return 2xx");
+              const marketingH1 = (await marketingPage.locator("h1").first().innerText()).trim();
+              check(marketingH1.includes("Run Philippine payroll"), `Owner: signed-in / should stay marketing; saw "${marketingH1}"`);
+              await marketingPage.close();
+
+              const tonedItems = page.locator("aside .nav-item[data-tone]");
+              check((await tonedItems.count()) >= 5, "Owner: real sidebar is missing module tone data");
+              const firstIcon = tonedItems.nth(0).locator(".nav-icon");
+              const secondIcon = tonedItems.nth(1).locator(".nav-icon");
+              const iconColors = await Promise.all([
+                firstIcon.evaluate((element) => ({
+                  color: getComputedStyle(element).color,
+                  background: getComputedStyle(element).backgroundColor,
+                })),
+                secondIcon.evaluate((element) => ({
+                  color: getComputedStyle(element).color,
+                  background: getComputedStyle(element).backgroundColor,
+                })),
+              ]);
+              check(iconColors[0].color !== iconColors[1].color, "Owner: sidebar module icons were flattened to one color");
+              check(iconColors[0].background !== "rgba(0, 0, 0, 0)", "Owner: sidebar icon tint background is transparent");
+
+              const profile = page.locator("aside .side-profile");
+              check((await profile.count()) === 1, "Owner: interactive profile control is missing");
+              const profileAvatar = profile.locator(".avatar").first();
+              const avatarBackground = await profileAvatar.evaluate((element) => getComputedStyle(element).backgroundColor);
+              check(avatarBackground !== "rgb(238, 238, 239)", "Owner: profile avatar is still the old gray placeholder");
+            }
+
             if (persona.dashboardRole) {
               const dashboard = page.locator(`[data-role-dashboard="${persona.dashboardRole}"]`);
               check((await dashboard.count()) === 1, `${persona.label}: role-specific dashboard did not render`);
@@ -354,7 +389,7 @@ jobs:
             const response = await context.request.post(`${base}/api/auth/demo-switch`, { data: { role } });
             check(response.ok(), `Lifecycle: switching to ${role} returned ${response.status()}`);
             const payload = await response.json();
-            const target = typeof payload.redirectTo === "string" ? payload.redirectTo : `/?demoRole=${role}`;
+            const target = typeof payload.redirectTo === "string" ? payload.redirectTo : `/workspace?demoRole=${role}`;
             await page.goto(target.startsWith("http") ? target : `${base}${target}`, { waitUntil: "networkidle", timeout: 90000 });
             return payload;
           }

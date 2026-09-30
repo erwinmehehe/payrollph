@@ -1,9 +1,5 @@
 import type { Metadata } from "next";
-import { LinawWorkspace } from "@/components/linaw-workspace";
-import { SelfServicePortal } from "@/components/self-service-portal";
 import { SoftwareHome } from "@/components/marketing/software-home";
-import { getSessionUser } from "@/lib/auth";
-import { getDashboardData } from "@/lib/dashboard-data";
 
 export const dynamic = "force-dynamic";
 
@@ -14,13 +10,6 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
-export default async function HomePage() {
-  const user = await getSessionUser();
-
-  if (!user) return <SoftwareHome />;
-
-  if (user.role === "employee") return <SelfServicePortal />;
-
-  const data = await getDashboardData();
-  return <LinawWorkspace initialData={data} />;
+export default function HomePage() {
+  return <SoftwareHome />;
 }

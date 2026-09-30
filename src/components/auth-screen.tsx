@@ -39,7 +39,7 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
         if (payload.demoTotpCode) setTotpCode(payload.demoTotpCode);
         return;
       }
-      window.location.href = "/";
+      window.location.href = "/workspace";
     } catch {
       setError("Could not reach the auth service.");
     } finally {
@@ -81,7 +81,7 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
         body: JSON.stringify({ role }),
       });
       if (res.ok) {
-        window.location.href = "/";
+        window.location.href = "/workspace";
       }
     } catch {
       setError("Could not switch role.");

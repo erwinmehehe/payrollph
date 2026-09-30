@@ -51,7 +51,7 @@ export function DemoRolePicker() {
         return;
       }
 
-      window.location.href = typeof payload.redirectTo === "string" ? payload.redirectTo : `/?demoRole=${role}`;
+      window.location.href = typeof payload.redirectTo === "string" ? payload.redirectTo : `/workspace?demoRole=${role}`;
     } catch {
       setError("Could not open the demo workspace. Please try again.");
     } finally {

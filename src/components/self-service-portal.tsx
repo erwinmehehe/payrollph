@@ -100,7 +100,7 @@ export function SelfServicePortal() {
         setError(payload.error ?? "Could not switch demo persona.");
         return;
       }
-      window.location.href = typeof payload.redirectTo === "string" ? payload.redirectTo : `/?demoRole=${role}`;
+      window.location.href = typeof payload.redirectTo === "string" ? payload.redirectTo : `/workspace?demoRole=${role}`;
     } catch {
       setError("Could not switch demo persona.");
     } finally {
