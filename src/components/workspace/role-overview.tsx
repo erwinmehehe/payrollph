@@ -100,6 +100,7 @@ export function RoleOverviewView({
     peopleMissingGovernmentIds,
     activeAdvisories,
     handoffStages,
+    handoffAction,
     onPage,
     onNewRun,
   };
