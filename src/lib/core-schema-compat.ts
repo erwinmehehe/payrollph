@@ -54,6 +54,16 @@ export async function ensureCoreCompatibilitySchema() {
       await client.query("ALTER TABLE payroll_runs ALTER COLUMN period_end SET NOT NULL");
 
       await client.query(`
+        ALTER TABLE outbox
+          ADD COLUMN IF NOT EXISTS payroll_run_id integer REFERENCES payroll_runs(id) ON DELETE SET NULL,
+          ADD COLUMN IF NOT EXISTS employee_id integer REFERENCES employees(id) ON DELETE SET NULL,
+          ADD COLUMN IF NOT EXISTS provider_message_id varchar(200),
+          ADD COLUMN IF NOT EXISTS attempt_count integer NOT NULL DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS last_attempt_at timestamptz,
+          ADD COLUMN IF NOT EXISTS next_attempt_at timestamptz
+      `);
+
+      await client.query(`
         ALTER TABLE import_batches
           ADD COLUMN IF NOT EXISTS source_system varchar(64) NOT NULL DEFAULT 'generic',
           ADD COLUMN IF NOT EXISTS import_kind varchar(40) NOT NULL DEFAULT 'employees'
