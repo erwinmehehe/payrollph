@@ -168,11 +168,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const activeStaff = (sharedDemo ? [] : staff).filter((person) => person.status === "Active");
   const notifiableStaff = activeStaff.filter((person) => Boolean(person.email));
   const missingEmail = activeStaff.length - notifiableStaff.length;
-  let notified = 0;
+  let sentNotices = 0;
+  let queuedNotices = 0;
+  let failedNotices = 0;
   for (const person of notifiableStaff) {
     try {
-      await queueMessage({
+      const delivery = await queueMessage({
         organizationId: run.organizationId,
+        payrollRunId: run.id,
+        employeeId: person.id,
         recipient: person.email!,
         subject: `Your payslip for ${run.periodLabel} is ready`,
         purpose: "payslip-ready",
@@ -184,8 +188,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           "Sign in to Linaw to view and download your payslip.",
         ].join("\n"),
       });
-      notified += 1;
+      if (delivery.delivered) sentNotices += 1;
+      else if (delivery.queued) queuedNotices += 1;
+      else {
+        failedNotices += 1;
+        postReleaseWarnings.push(`Payslip notice delivery failed for employee #${person.id}: ${delivery.reason ?? "delivery failed"}`);
+      }
     } catch {
+      failedNotices += 1;
       postReleaseWarnings.push(`Could not queue payslip notice for employee #${person.id}.`);
     }
   }
@@ -226,9 +236,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           ? "Payslips are available; one or more email notices need attention"
           : missingEmail > 0
             ? `Payslips are available; ${missingEmail} employee(s) have no email on file`
-            : `Payslips are available; ${notified} notice(s) queued`,
+            : failedNotices > 0
+              ? `Payslips are available; ${failedNotices} notice(s) failed delivery`
+              : queuedNotices > 0
+                ? `Payslips are available; ${queuedNotices} notice(s) queued for delivery`
+                : `Payslips are available; ${sentNotices} notice(s) sent`,
       available: Number(entryCount),
-      noticesQueued: notified,
+      noticesSent: sentNotices,
+      noticesQueued: queuedNotices,
+      noticesFailed: failedNotices,
       missingEmail,
       warningCount: postReleaseWarnings.length,
     },
@@ -253,7 +269,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     run: updated,
     settlement,
     webhookDeliveries,
-    employeesNotified: notified,
+    employeesNotified: sentNotices + queuedNotices,
+    noticeDelivery: {
+      sent: sentNotices,
+      queued: queuedNotices,
+      failed: failedNotices,
+      missingEmail,
+    },
     postReleaseWarnings,
     receipt,
   });
