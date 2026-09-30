@@ -121,6 +121,16 @@ export async function attemptOutboxDelivery(id: number) {
   await ensureCoreCompatibilitySchema();
   const [existing] = await db.select().from(outbox).where(eq(outbox.id, id)).limit(1);
   if (!existing) return { delivered: false, queued: false, id, reason: "Outbox message not found." };
+  if (existing.channel !== "email") {
+    return {
+      delivered: false,
+      queued: existing.status === "queued",
+      provider: existing.provider as MailProvider,
+      id,
+      reason: `Channel ${existing.channel} is not supported by the email delivery worker.`,
+    };
+  }
+
   if (existing.status === "sent") {
     return {
       delivered: true,
