@@ -45,7 +45,7 @@ export default function Hero() {
           </Reveal>
           <Reveal delay={230}>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <a href="/signup" className="btn-primary group inline-flex items-center justify-center gap-2 rounded-full bg-[#11141F] px-7 py-4 text-[15px] font-semibold text-white">
+              <a href="/signup" className="hero-primary-cta btn-primary group inline-flex items-center justify-center gap-2 rounded-full bg-[#11141F] px-7 py-4 text-[15px] font-semibold text-white">
                 Start 14-day trial <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" aria-hidden />
               </a>
               <a href="#demo" className="group inline-flex items-center justify-center gap-2 rounded-full border border-[#D9DCEC] bg-white px-7 py-4 text-[15px] font-semibold shadow-sm transition-all hover:shadow-md">
