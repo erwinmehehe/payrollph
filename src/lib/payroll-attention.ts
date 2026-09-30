@@ -97,18 +97,27 @@ export function buildPayrollAttention(
 
   if (role === "payroll" && rank === 1) {
     const exceptions = data.payrollEntries.filter((entry) => entry.status === "Exception");
-    const failedJobs = (data.payrollJobs ?? []).filter((job) => job.status === "Failed");
+    const jobs = data.payrollJobs ?? [];
+    const failedJobs = jobs.filter((job) => job.status.toLowerCase() === "failed");
+    const calculating = jobs.some((job) => !["completed", "failed"].includes(job.status.toLowerCase()));
+    const normalizedStatus = handoffRun.status.trim().toLowerCase();
 
-    if (failedJobs.length) {
+    if (failedJobs.length || normalizedStatus === "failed") {
       items.push({
         id: `payroll-job-${handoffRun.id}`,
         role,
-        title: `${failedJobs.length} payroll calculation job${failedJobs.length === 1 ? "" : "s"} failed`,
+        title: failedJobs.length
+          ? `${failedJobs.length} payroll calculation job${failedJobs.length === 1 ? "" : "s"} failed`
+          : "Payroll calculation failed",
         detail: "Re-run the payroll calculation before the register can move to Checker.",
         tone: "danger",
         page: "Payroll",
         actionLabel: "Open payroll",
       });
+      return items;
+    }
+
+    if (calculating || ["queued", "processing", "calculating"].includes(normalizedStatus)) {
       return items;
     }
 
