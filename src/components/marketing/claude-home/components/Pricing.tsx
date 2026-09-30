@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight, Minus, Plus, Sparkles, Star } from "lucide-react";
+import { ArrowRight, Minus, Plus, Sparkles } from "lucide-react";
 import { CheckItem, Reveal, SectionHeading } from "./ui";
 import { cn } from "../utils/cn";
 import type { PublicPlan } from "../App";
@@ -114,41 +114,41 @@ export default function Pricing({ plans }: { plans: PublicPlan[] }) {
               <Reveal key={plan.id} delay={index * 90}>
                 <article
                   className={cn(
-                    "pricing-plan-card relative flex h-full flex-col overflow-hidden rounded-[28px] border p-6 transition-all duration-300 hover:-translate-y-1",
+                    "pricing-plan-card relative flex h-full flex-col overflow-hidden rounded-[24px] border bg-white p-6 transition-all duration-300 hover:-translate-y-1",
                     featured
-                      ? "border-[#11141F] bg-[#11141F] text-white shadow-[0_28px_64px_-24px_rgba(17,20,31,0.48)]"
-                      : "card-hover border-[#E8EAF3] bg-white"
+                      ? "border-[#CFCFFF] shadow-[0_18px_50px_-26px_rgba(97,97,255,0.38)] ring-1 ring-[#E7E7FF]"
+                      : "card-hover border-[#E8EAF3]"
                   )}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className={cn("text-[12px] font-bold uppercase tracking-[0.14em]", featured ? "text-white/58" : "text-[#7C82A1]")}>
+                      <p className={cn("text-[12px] font-bold uppercase tracking-[0.14em]", featured ? "text-[#6161FF]" : "text-[#7C82A1]")}>
                         {plan.name}
                       </p>
                       <h3 className="font-display mt-2 text-[21px] font-semibold leading-tight">{copy.tagline}</h3>
                     </div>
                     {featured && (
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-[#11141F]">
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[#D9D9FF] bg-[#F5F5FF] px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-[#4A4AE0]">
                         <Sparkles className="h-3 w-3" aria-hidden />
                         Popular
                       </span>
                     )}
                   </div>
 
-                  <p className={cn("mt-3 text-[13.5px] font-medium", featured ? "text-white/60" : "text-[#7C82A1]")}>{copy.fit}</p>
+                  <p className="mt-3 text-[13.5px] font-medium text-[#7C82A1]">{copy.fit}</p>
 
-                  <div className={cn("my-5 h-px", featured ? "bg-white/12" : "bg-[#EDEFF7]")} aria-hidden />
+                  <div className="my-5 h-px bg-[#EDEFF7]" aria-hidden />
 
-                  <p className={cn("text-[12px] font-medium", featured ? "text-white/58" : "text-[#7C82A1]")}>Estimated monthly</p>
+                  <p className="text-[12px] font-medium text-[#7C82A1]">Estimated monthly</p>
                   <p className="mt-1 flex items-baseline gap-1.5">
-                    <span key={total} className="pricing-amount font-display text-[40px] font-semibold tabular-nums">{peso(total)}</span>
-                    <span className={cn("text-[13px] font-medium", featured ? "text-white/55" : "text-[#7C82A1]")}>/mo</span>
+                    <span key={total} className="pricing-amount font-display text-[36px] font-semibold tracking-[-0.035em] tabular-nums text-[#11141F]">{peso(total)}</span>
+                    <span className="text-[13px] font-medium text-[#7C82A1]">/mo</span>
                   </p>
-                  <p className={cn("mt-1 font-mono text-[12px]", featured ? "text-white/45" : "text-[#8B90AA]")}>
+                  <p className="mt-1 font-mono text-[12px] text-[#8B90AA]">
                     {peso(base)} base + {peso(perHead)} × {heads}
                   </p>
 
-                  <ul className={cn("mt-5 space-y-3", featured && "[&_li]:text-white/85")}>
+                  <ul className="mt-5 space-y-3">
                     {copy.features.map((feature) => (
                       <CheckItem key={feature}>{feature}</CheckItem>
                     ))}
@@ -159,8 +159,8 @@ export default function Pricing({ plans }: { plans: PublicPlan[] }) {
                     className={cn(
                       "group mt-6 inline-flex items-center justify-center gap-2 rounded-full px-6 py-3.5 text-[14px] font-semibold transition-all",
                       featured
-                        ? "bg-white text-[#11141F] hover:bg-[#E8EAF3]"
-                        : "border border-[#D9DCEC] bg-white text-[#0B0D1A] hover:border-[#11141F] hover:bg-[#11141F] hover:text-white"
+                        ? "border border-[#6161FF] bg-[#6161FF] text-white shadow-[0_10px_24px_-12px_rgba(97,97,255,.6)] hover:bg-[#4F4FE6]"
+                        : "border border-[#D9DCEC] bg-white text-[#2B2F45] hover:border-[#B9BDE0] hover:bg-[#F7F8FC]"
                     )}
                   >
                     Start free
@@ -192,15 +192,8 @@ export default function Pricing({ plans }: { plans: PublicPlan[] }) {
 
         <Reveal delay={90}>
           <p className="mt-5 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-center text-[13.5px] font-medium text-[#7C82A1]">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="flex" aria-label="4.9 out of 5 stars">
-                {[...Array(5)].map((_, index) => (
-                  <Star key={index} className="h-3.5 w-3.5 fill-[#FFB020] text-[#FFB020]" aria-hidden />
-                ))}
-              </span>
-              4.9 from payroll teams
-            </span>
             <span>No credit card to start</span>
+            <span>Solo stays free</span>
             <span>Cancel anytime</span>
           </p>
         </Reveal>
