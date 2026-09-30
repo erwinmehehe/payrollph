@@ -3,8 +3,8 @@
 import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
 import Demo from "./components/Demo";
-import { Benchmarks, Calculator, Exports, TrustStrip } from "./components/Product";
-import { Audiences, Developers, Scorecard, Security } from "./components/Trust";
+import { Calculator, Exports, TrustStrip } from "./components/Product";
+import { Audiences, Security } from "./components/Trust";
 import Pricing from "./components/Pricing";
 import { CTA, FAQ, Footer } from "./components/Closing";
 
@@ -28,11 +28,8 @@ export default function ClaudeHomepage({ plans }: { plans: PublicPlan[] }) {
         <Audiences />
         <Demo />
         <Calculator />
-        <Benchmarks />
         <Exports />
         <Security />
-        <Scorecard />
-        <Developers />
         <Pricing plans={plans} />
         <FAQ />
         <CTA />

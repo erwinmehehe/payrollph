@@ -155,20 +155,19 @@ export function Footer() {
     {
       h: "Product",
       links: [
-        ["How it works", "#product"],
+        ["Product overview", "#product"],
         ["Role-based demo", "/demo"],
-        ["Payroll simulation", "#demo"],
-        ["Pricing", "#pricing"],
         ["Payroll outsourcing", "/payroll-outsourcing"],
+        ["Pricing", "#pricing"],
       ],
     },
     {
       h: "Company",
       links: [
-        ["Capability scorecard", "#scorecard"],
+        ["Capability scorecard", "/scorecard"],
         ["Security", "#security"],
         ["System status", "/status"],
-        ["API reference", "#developers"],
+        ["Book a demo", "/book-demo"],
       ],
     },
     {

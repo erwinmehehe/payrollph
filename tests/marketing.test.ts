@@ -30,15 +30,14 @@ test("pricing is read from the database, never hardcoded in the homepage UI", ()
   assert.ok(!/₱\s?1,499|₱\s?4,499|₱\s?12,999/.test(page), "prices must not be hardcoded in the page");
 });
 
-test("the software homepage keeps the uploaded Claude payroll simulation", () => {
+test("the software homepage uses the real Linaw workspace preview", () => {
   const home = read("src/components/marketing/claude-home/App.tsx");
   const demo = read("src/components/marketing/claude-home/components/Demo.tsx");
-  assert.ok(home.includes("<Demo />"), "redesigned homepage must mount the Claude live product demo");
+  assert.ok(home.includes("<Demo />"), "redesigned homepage must mount the product demo");
   assert.ok(demo.includes('id="demo"'), "homepage must expose a stable live-demo anchor");
-  assert.ok(demo.includes("Run payroll."), "demo must keep the uploaded Claude payroll interaction");
-  assert.ok(demo.includes("Try to break it."), "demo must keep the uploaded Claude challenge framing");
-  assert.ok(demo.includes('role="radiogroup" aria-label="Acting as"'), "demo must keep role switching");
-  assert.ok(demo.includes("Submit for approval") && demo.includes("Release payroll"), "demo must keep the payroll lifecycle interactions");
+  assert.ok(demo.includes('from "@/components/marketing/workspace-preview"'), "homepage demo must use the shared Linaw workspace preview");
+  assert.ok(demo.includes('<WorkspacePreview mode="interactive" />'), "homepage demo must expose the interactive real-system preview");
+  assert.ok(demo.includes("Open role-based sandbox"), "homepage demo must hand off to the real role-based sandbox");
 });
 
 test("the homepage leads with the Claude payroll value proposition", () => {
@@ -178,14 +177,14 @@ test("homepage Leave and Migration modules perform local interactive workflows",
 });
 
 
-test("homepage hero and demo preserve the uploaded Claude payroll experience", () => {
+test("homepage hero preserves the payroll story while the demo uses the shared product system", () => {
   const hero = read("src/components/marketing/claude-home/components/Hero.tsx");
   const demo = read("src/components/marketing/claude-home/components/Demo.tsx");
-  assert.ok(hero.includes("Mar 1–15, 2026"), "hero must render the uploaded payroll console");
+  assert.ok(hero.includes("Mar 1–15, 2026"), "hero must render the payroll console");
   assert.ok(hero.includes("Needs decision"), "hero console must expose payroll decision state");
   assert.ok(hero.includes("Prepare") && hero.includes("Approve") && hero.includes("Release") && hero.includes("Export"), "hero must show the payroll lifecycle");
-  assert.ok(demo.includes("INCOMPLETE_PUNCH"), "live demo must preserve the uploaded exception workflow");
-  assert.ok(demo.includes("BDO DAT") && demo.includes("GCash CSV") && demo.includes("Xero journal"), "live demo must preserve export interactions");
+  assert.ok(demo.includes("WorkspacePreview"), "homepage demo must render the shared workspace preview");
+  assert.ok(demo.includes("actual Linaw workspace"), "homepage demo must explain that it is showing the product system");
 });
 
 test("pricing explains who each plan is for instead of dumping internal module names", () => {
@@ -195,11 +194,31 @@ test("pricing explains who each plan is for instead of dumping internal module n
   assert.ok(!pricing.includes("modules.map"), "pricing must not dump persisted module names directly into the cards");
 });
 
-test("homepage live demo keeps maker-checker-owner role boundaries", () => {
+test("homepage demo delegates role boundaries to the real sandbox", () => {
   const demo = read("src/components/marketing/claude-home/components/Demo.tsx");
-  assert.ok(demo.includes('type Role = "payroll" | "checker" | "owner"'), "uploaded demo role model must be preserved");
-  assert.ok(demo.includes("Maker cannot approve their own run."), "payroll maker must be denied self-approval in the demo");
-  assert.ok(demo.includes("Only the checker or a delegate can approve."), "checker approval boundary must be preserved");
-  assert.ok(demo.includes("Release requires owner or admin."), "owner release boundary must be preserved");
+  const roles = read("src/lib/demo-roles.ts");
+  assert.ok(demo.includes('href="/demo"'), "homepage demo must link to the role-based sandbox");
+  for (const role of ["owner", "hr", "payroll", "checker", "employee"]) {
+    assert.ok(roles.includes(`"${role}"`), `real sandbox must keep ${role}`);
+  }
 });
 
+
+
+test("homepage navigation exposes the real public site", () => {
+  const nav = read("src/components/marketing/claude-home/components/Navbar.tsx");
+  const home = read("src/components/marketing/claude-home/App.tsx");
+  const footer = read("src/components/marketing/claude-home/components/Closing.tsx");
+
+  for (const route of ["/demo", "/payroll-outsourcing", "/scorecard"]) {
+    assert.ok(nav.includes(`href: "${route}"`), `primary nav must expose ${route}`);
+  }
+  assert.ok(!nav.includes('"Calculator"'), "calculator should not compete in primary navigation");
+  assert.ok(!nav.includes('"Security"'), "security should not compete in primary navigation");
+  assert.ok(!home.includes("<Benchmarks />"), "benchmarks should not clutter the homepage");
+  assert.ok(!home.includes("<Scorecard />"), "scorecard should live on its dedicated route");
+  assert.ok(!home.includes("<Developers />"), "developer detail should not clutter the buyer homepage");
+  assert.ok(footer.includes('["Capability scorecard", "/scorecard"]'), "footer must link to the scorecard route");
+  assert.ok(footer.includes('["System status", "/status"]'), "footer must link to the system status route");
+  assert.ok(footer.includes('["Book a demo", "/book-demo"]'), "footer must link to booking");
+});
