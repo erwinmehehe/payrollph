@@ -230,16 +230,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       label: "Ready to generate from the released register",
     },
     payslips: {
-      status: postReleaseWarnings.length > 0 ? "attention" as const : "ready" as const,
+      status:
+        postReleaseWarnings.length > 0 || failedNotices > 0 || queuedNotices > 0 || missingEmail > 0
+          ? "attention" as const
+          : "ready" as const,
       label:
-        postReleaseWarnings.length > 0
-          ? "Payslips are available; one or more email notices need attention"
-          : missingEmail > 0
-            ? `Payslips are available; ${missingEmail} employee(s) have no email on file`
-            : failedNotices > 0
-              ? `Payslips are available; ${failedNotices} notice(s) failed delivery`
-              : queuedNotices > 0
-                ? `Payslips are available; ${queuedNotices} notice(s) queued for delivery`
+        failedNotices > 0
+          ? `Payslips are available; ${failedNotices} notice(s) failed delivery`
+          : queuedNotices > 0
+            ? `Payslips are available; ${queuedNotices} notice(s) queued for delivery`
+            : missingEmail > 0
+              ? `Payslips are available; ${missingEmail} employee(s) have no email on file`
+              : postReleaseWarnings.length > 0
+                ? "Payslips are available; one or more post-release notices need attention"
                 : `Payslips are available; ${sentNotices} notice(s) sent`,
       available: Number(entryCount),
       noticesSent: sentNotices,
