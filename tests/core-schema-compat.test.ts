@@ -17,6 +17,12 @@ test("core schema compatibility upgrades fields used by production demo and dash
     "ADD COLUMN IF NOT EXISTS source_system",
     "ADD COLUMN IF NOT EXISTS import_kind",
     "CREATE TABLE IF NOT EXISTS historical_payroll_entries",
+    "ALTER TABLE outbox",
+    "ADD COLUMN IF NOT EXISTS payroll_run_id",
+    "ADD COLUMN IF NOT EXISTS provider_message_id",
+    "ADD COLUMN IF NOT EXISTS attempt_count",
+    "ADD COLUMN IF NOT EXISTS last_attempt_at",
+    "ADD COLUMN IF NOT EXISTS next_attempt_at",
   ]) {
     assert.ok(source.includes(fragment), `missing compatibility migration fragment: ${fragment}`);
   }
