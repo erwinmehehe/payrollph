@@ -44,6 +44,8 @@ export function ExportsView({
   const [exporting, setExporting] = useState<string | null>(null);
   const [payoutReference, setPayoutReference] = useState("");
   const [recordingPayout, setRecordingPayout] = useState(false);
+  const [reconcilingPayout, setReconcilingPayout] = useState(false);
+  const [retryingFailedPayouts, setRetryingFailedPayouts] = useState(false);
 
   const run = runs.find((item) => item.id === runId) ?? runs[0];
   const organizationId = data.selectedOrganization.id;
@@ -119,6 +121,54 @@ export function ExportsView({
       notify("Payout completion could not be recorded because the server could not be reached.", "err");
     } finally {
       setRecordingPayout(false);
+    }
+  }
+
+
+  async function reconcilePaymongoPayout(action: "reconcile" | "retry-failed") {
+    if (!run) return;
+    const retry = action === "retry-failed";
+    if (retry) setRetryingFailedPayouts(true);
+    else setReconcilingPayout(true);
+
+    try {
+      const response = await fetch(`/api/payroll-runs/${run.id}/payout-reconciliation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          confirm: retry,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        notify(payload.error ?? (retry ? "Failed payouts could not be retried." : "Payout status could not be refreshed."), "err");
+        await onRefresh();
+        return;
+      }
+
+      if (retry) {
+        notify(payload.message ?? "Failed transfers were resubmitted without touching pending or settled payouts.", "ok");
+      } else {
+        const reconciliation = payload.reconciliation as {
+          succeeded?: number;
+          pending?: number;
+          failed?: number;
+          unknown?: number;
+        } | undefined;
+        notify(
+          reconciliation
+            ? `PayMongo checked: ${reconciliation.succeeded ?? 0} settled, ${reconciliation.pending ?? 0} pending, ${reconciliation.failed ?? 0} failed.`
+            : "PayMongo payout status refreshed.",
+          reconciliation?.failed ? "err" : reconciliation?.pending || reconciliation?.unknown ? "info" : "ok",
+        );
+      }
+      await onRefresh();
+    } catch {
+      notify(retry ? "Failed payouts could not be retried because the server could not be reached." : "Payout status could not be refreshed because the server could not be reached.", "err");
+    } finally {
+      if (retry) setRetryingFailedPayouts(false);
+      else setReconcilingPayout(false);
     }
   }
 
@@ -253,7 +303,118 @@ export function ExportsView({
                   </div>
                 </div>
 
-                {payoutState.bankFile.status === "generated" && payoutState.payout.status !== "completed" && (
+                {payoutState.reconciliation.provider === "PayMongo" && (
+                  <div data-payout-reconciliation style={{ marginTop: 14, display: "grid", gap: 12 }}>
+                    <div className="line-title" style={{ margin: 0 }}>
+                      <div>
+                        <strong>PayMongo reconciliation</strong>
+                        <span>
+                          {payoutState.reconciliation.checkedAt
+                            ? `Last checked ${formatDate(payoutState.reconciliation.checkedAt)}`
+                            : "Refresh provider status to confirm settlement"}
+                        </span>
+                      </div>
+                      <Status
+                        value={
+                          payoutState.reconciliation.status === "settled"
+                            ? "Settled"
+                            : payoutState.reconciliation.status === "attention"
+                              ? "Needs attention"
+                              : payoutState.reconciliation.status === "pending"
+                                ? "Pending"
+                                : "Submitted"
+                        }
+                      />
+                    </div>
+
+                    <div className="run-stats" style={{ margin: 0 }}>
+                      <div>
+                        <span>Settled</span>
+                        <strong className="green-number">{payoutState.reconciliation.succeeded}</strong>
+                        <small>provider status: succeeded</small>
+                      </div>
+                      <div>
+                        <span>Pending</span>
+                        <strong>{payoutState.reconciliation.pending}</strong>
+                        <small>never retried while pending</small>
+                      </div>
+                      <div>
+                        <span>Failed</span>
+                        <strong className={payoutState.reconciliation.failed ? "red-number" : undefined}>
+                          {payoutState.reconciliation.failed}
+                        </strong>
+                        <small>eligible for failed-only retry</small>
+                      </div>
+                    </div>
+
+                    {payoutState.reconciliation.unknown > 0 && (
+                      <div className="notice notice-amber" style={{ margin: 0 }}>
+                        <AlertTriangle size={15} className="i-amber" />
+                        <span>
+                          PayMongo returned {payoutState.reconciliation.unknown} unrecognized transfer state(s). Linaw will not retry those transfers automatically.
+                        </span>
+                      </div>
+                    )}
+
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button
+                        className="secondary-button"
+                        disabled={reconcilingPayout || retryingFailedPayouts}
+                        onClick={() => void reconcilePaymongoPayout("reconcile")}
+                      >
+                        <Clock3 size={14} />
+                        {reconcilingPayout ? "Checking PayMongo…" : "Refresh PayMongo status"}
+                      </button>
+                      {payoutState.reconciliation.canRetryFailed && (
+                        <button
+                          className="primary-button brand"
+                          disabled={reconcilingPayout || retryingFailedPayouts}
+                          onClick={() => void reconcilePaymongoPayout("retry-failed")}
+                        >
+                          <AlertTriangle size={14} />
+                          {retryingFailedPayouts
+                            ? "Retrying failed only…"
+                            : `Retry ${payoutState.reconciliation.failed} failed only`}
+                        </button>
+                      )}
+                    </div>
+
+                    {payoutState.reconciliation.transfers.length > 0 && (
+                      <div className="audit-list" data-payout-transfer-list>
+                        {payoutState.reconciliation.transfers.map((transfer) => (
+                          <div className="audit-row" key={transfer.referenceNumber}>
+                            <span
+                              className={`audit-dot ${transfer.status === "succeeded" ? "dot-green" : transfer.status === "failed" ? "dot-red" : ""}`}
+                              aria-hidden
+                            />
+                            <div style={{ minWidth: 0 }}>
+                              <strong>{transfer.employeeNo}</strong>
+                              <p>
+                                {money(transfer.amountCents / 100)} · {transfer.referenceNumber}
+                                {transfer.providerReferenceNumber ? ` · Provider ref ${transfer.providerReferenceNumber}` : ""}
+                              </p>
+                            </div>
+                            <Status
+                              value={
+                                transfer.status === "succeeded"
+                                  ? "Settled"
+                                  : transfer.status === "failed"
+                                    ? "Failed"
+                                    : transfer.status === "pending"
+                                      ? "Pending"
+                                      : "Check"
+                              }
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {payoutState.bankFile.status === "generated"
+                  && payoutState.payout.status !== "completed"
+                  && payoutState.reconciliation.provider !== "PayMongo" && (
                   <div className="payout-confirm">
                     <label className="field">
                       <span>Bank / payment confirmation reference</span>
