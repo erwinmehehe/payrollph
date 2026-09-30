@@ -36,8 +36,8 @@ const periods = {
     periodEnd: "2026-08-31",
     status: "Released",
     payDate: "2026-09-05",
-    grossPay: "176300.00",
-    netPay: "145645.00",
+    grossPay: "181300.00",
+    netPay: "147400.00",
     exceptions: 0,
   },
   checker: {
@@ -46,8 +46,8 @@ const periods = {
     periodEnd: "2026-09-15",
     status: "Pending approval",
     payDate: "2026-09-18",
-    grossPay: "181250.00",
-    netPay: "149768.00",
+    grossPay: "182800.00",
+    netPay: "148600.00",
     exceptions: 0,
   },
   work: {
@@ -56,8 +56,8 @@ const periods = {
     periodEnd: "2026-09-30",
     status: "Needs review",
     payDate: "2026-10-05",
-    grossPay: "183400.00",
-    netPay: "151524.00",
+    grossPay: "184300.00",
+    netPay: "149800.00",
     exceptions: 2,
   },
 } as const;
