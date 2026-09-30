@@ -73,6 +73,8 @@ export function WorkspaceShell({
   const roleInfo = demoRoleInfo(displayRole);
   const userName = roleInfo?.person ?? data.user?.name ?? "Signed-in user";
   const roleLabel = roleInfo?.shortLabel ?? (data.user?.role === "employee" ? "Employee" : data.user?.role ?? "Member");
+  const avatarRole = displayRole ?? data.user?.role ?? "member";
+  const profileAvatarIndex = ({ owner: 0, admin: 0, hr: 1, payroll: 2, checker: 3, employee: 4 } as Record<string, number>)[avatarRole] ?? 0;
   const defaultPage = visiblePages?.[0] ?? "Overview";
 
   function closeOverlays() {
@@ -162,6 +164,7 @@ export function WorkspaceShell({
                     <button
                       key={item.name}
                       className={`nav-item ${active ? "active" : ""}`}
+                      data-tone={item.tone}
                       onClick={() => go(item.name)}
                       aria-current={active ? "page" : undefined}
                       title={rail ? item.name : undefined}
@@ -184,14 +187,22 @@ export function WorkspaceShell({
             <LogOut size={16} className="i-slate" />
             <span>Sign out</span>
           </button>
-          <div className="side-profile">
-            <Avatar initials={initialsOf(userName)} index={0} />
+          <button
+            type="button"
+            className="side-profile"
+            onClick={() => go(visiblePages?.includes("Settings") ? "Settings" : defaultPage)}
+            aria-label={visiblePages?.includes("Settings") ? "Open account settings" : `Return to ${defaultPage}`}
+          >
+            <span className="side-profile-avatar">
+              <Avatar initials={initialsOf(userName)} index={profileAvatarIndex} />
+              <i aria-hidden />
+            </span>
             <div>
               <strong>{userName}</strong>
               <span>{roleLabel}</span>
             </div>
             <MoreHorizontal size={16} />
-          </div>
+          </button>
         </div>
       </aside>
 
@@ -373,7 +384,7 @@ export function WorkspaceShell({
             </div>
 
             <button
-              className="top-avatar"
+              className={`top-avatar avatar-${profileAvatarIndex}`}
               onClick={() => go(visiblePages?.includes("Settings") ? "Settings" : defaultPage)}
               title={visiblePages?.includes("Settings") ? "Account settings" : `Return to ${defaultPage}`}
               aria-label={visiblePages?.includes("Settings") ? "Account settings" : `Return to ${defaultPage}`}
