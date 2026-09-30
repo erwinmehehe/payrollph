@@ -557,6 +557,7 @@ function CheckerDashboard(props: RoleDashboardProps) {
     pendingTasks,
     highPriorityTasks,
     activeAdvisories,
+    payrollExceptions,
     handoffStages,
     attentionItems,
     onAttentionAction,
