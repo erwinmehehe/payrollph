@@ -56,7 +56,7 @@ export function InviteAcceptForm() {
       return;
     }
     setDone(true);
-    setTimeout(() => { window.location.href = "/"; }, 900);
+    setTimeout(() => { window.location.href = "/app"; }, 900);
   }
 
   if (!token) {
@@ -65,7 +65,7 @@ export function InviteAcceptForm() {
         <div className="card-kicker">INVITATION</div>
         <h2>No invitation token</h2>
         <p className="auth-copy">Open the link from your invitation email, or ask your administrator to resend it.</p>
-        <Link className="link-button" href="/">Back to sign in</Link>
+        <Link className="link-button" href="/login">Back to sign in</Link>
       </section>
     );
   }
