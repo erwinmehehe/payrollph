@@ -12,7 +12,10 @@ import {
   Info,
   ShieldCheck,
   Users,
+  Check,
+  Clock3,
 } from "lucide-react";
+import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, PageHeading, Segmented, Status, formatDate, money } from "./ui";
 
@@ -24,16 +27,27 @@ const GOVERNMENT_DRAFTS = [
   { template: "Pag-IBIG MCRF", detail: "Membership contribution remittance form" },
 ];
 
-export function ExportsView({ data, notify }: { data: DashboardData; notify: Notify }) {
+export function ExportsView({
+  data,
+  notify,
+  onRefresh,
+}: {
+  data: DashboardData;
+  notify: Notify;
+  onRefresh: () => Promise<void>;
+}) {
   const runs = data.payrollRuns;
   const [runId, setRunId] = useState<number | undefined>(runs[0]?.id);
   const [template, setTemplate] = useState(data.templates[0]?.name ?? "BDO DAT");
   const [mode, setMode] = useState<"dry" | "live">("dry");
   const [exportFailure, setExportFailure] = useState<{ url: string; label: string; error: string } | null>(null);
   const [exporting, setExporting] = useState<string | null>(null);
+  const [payoutReference, setPayoutReference] = useState("");
+  const [recordingPayout, setRecordingPayout] = useState(false);
 
   const run = runs.find((item) => item.id === runId) ?? runs[0];
   const organizationId = data.selectedOrganization.id;
+  const payoutState = run ? derivePayrollPayoutState(data.auditEvents, run.id) : null;
 
   async function download(url: string, label: string) {
     setExporting(label);
@@ -59,12 +73,52 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
       URL.revokeObjectURL(href);
       setExportFailure(null);
       notify(`${label} generated and written to the audit trail.`, "info");
+      await onRefresh();
     } catch {
       const error = `${label} could not be generated because the export service could not be reached.`;
       setExportFailure({ url, label, error });
       notify(error, "err");
     } finally {
       setExporting(null);
+    }
+  }
+
+  async function recordPayoutCompletion() {
+    if (!run) return;
+    const reference = payoutReference.trim();
+    if (reference.length < 4) {
+      notify("Enter the bank confirmation or transaction reference first.", "err");
+      return;
+    }
+
+    setRecordingPayout(true);
+    try {
+      const response = await fetch(`/api/payroll-runs/${run.id}/exports`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "complete-manual",
+          reference,
+          confirmed: true,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        notify(payload.error ?? "Payout completion could not be recorded.", "err");
+        return;
+      }
+      notify(
+        payload.alreadyRecorded
+          ? "Payout completion was already recorded."
+          : "Payout completion recorded in the audit trail.",
+        "ok",
+      );
+      setPayoutReference("");
+      await onRefresh();
+    } catch {
+      notify("Payout completion could not be recorded because the server could not be reached.", "err");
+    } finally {
+      setRecordingPayout(false);
     }
   }
 
@@ -145,6 +199,88 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
               </div>
             </div>
           </article>
+
+          {run.status === "Released" && payoutState && (
+            <article className="card" data-payout-operations style={{ marginBottom: 16 }}>
+              <div className="card-header">
+                <div>
+                  <div className="card-kicker">PAYOUT COMPLETION</div>
+                  <h2>Close the loop after release</h2>
+                  <p>Release, final bank-file generation and payout completion are separate audited milestones.</p>
+                </div>
+                <Status value={payoutState.payout.status === "completed" ? "Completed" : "In progress"} />
+              </div>
+              <div className="card-body" style={{ paddingTop: 0 }}>
+                <div className="payout-steps">
+                  <div className="payout-step done" data-payout-stage="released">
+                    <span className="payout-step-icon"><Check size={13} /></span>
+                    <div>
+                      <strong>1. Payroll released</strong>
+                      <p>The register is locked for payout.</p>
+                    </div>
+                  </div>
+                  <div
+                    className={`payout-step ${payoutState.bankFile.status === "generated" ? "done" : "current"}`}
+                    data-payout-stage="bank-file"
+                  >
+                    <span className="payout-step-icon">
+                      {payoutState.bankFile.status === "generated" ? <Check size={13} /> : <Clock3 size={13} />}
+                    </span>
+                    <div>
+                      <strong>2. Final bank file</strong>
+                      <p>
+                        {payoutState.bankFile.status === "generated"
+                          ? `${payoutState.bankFile.filename ?? "Bank file"} generated and audit-logged.`
+                          : "Generate the released bank file below before recording payout completion."}
+                      </p>
+                    </div>
+                  </div>
+                  <div
+                    className={`payout-step ${payoutState.payout.status === "completed" ? "done" : payoutState.bankFile.status === "generated" ? "current" : "pending"}`}
+                    data-payout-stage="completed"
+                    data-payout-status={payoutState.payout.status}
+                  >
+                    <span className="payout-step-icon">
+                      {payoutState.payout.status === "completed" ? <Check size={13} /> : <Clock3 size={13} />}
+                    </span>
+                    <div>
+                      <strong>3. Payout completed</strong>
+                      <p>{payoutState.payout.label}</p>
+                      {payoutState.payout.reference && (
+                        <small>Reference: {payoutState.payout.reference}</small>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {payoutState.bankFile.status === "generated" && payoutState.payout.status !== "completed" && (
+                  <div className="payout-confirm">
+                    <label className="field">
+                      <span>Bank / payment confirmation reference</span>
+                      <input
+                        value={payoutReference}
+                        onChange={(event) => setPayoutReference(event.target.value)}
+                        placeholder="e.g. BDO batch 004821"
+                        maxLength={120}
+                      />
+                    </label>
+                    <div>
+                      <button
+                        className="primary-button brand"
+                        disabled={recordingPayout || payoutReference.trim().length < 4}
+                        onClick={() => void recordPayoutCompletion()}
+                      >
+                        {recordingPayout ? "Recording…" : "Mark payout complete"}
+                      </button>
+                      <p className="field-help">
+                        Use this only after the bank or payment provider shows the payout as completed. Linaw records your confirmation; it does not independently verify the bank transfer.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </article>
+          )}
 
           <section className="integration-grid">
             <article className="export-card">

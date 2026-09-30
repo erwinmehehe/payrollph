@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { buildPayrollHandoff, employeePayStatusLabel } from "../src/lib/payroll-handoff";
+import { derivePayrollPayoutState } from "../src/lib/payroll-payout-state";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -129,4 +130,83 @@ test("release completion and payroll failure states are explicit and recoverable
   assert.ok(exportsView.includes('data-recovery-state="export-failed"'));
   assert.ok(exportsView.includes("Retry export"));
   assert.ok(!exportsView.includes('window.open(url, "_blank", "noopener")'), "export failures must be observable before download");
+});
+
+
+test("released payroll payout completion is audit-derived and ordered", () => {
+  const now = new Date("2026-09-30T02:00:00Z");
+  const events = [
+    {
+      id: 1,
+      actor: "Owner",
+      action: "Payroll release receipt",
+      resource: "Sep 16–30, 2026",
+      metadata: { runId: 77 },
+      createdAt: now,
+    },
+    {
+      id: 2,
+      actor: "Owner",
+      action: "bank export generated",
+      resource: "Sep 16–30, 2026",
+      metadata: {
+        runId: 77,
+        kind: "bank",
+        dryRun: false,
+        template: "BDO DAT",
+        filename: "payroll-77-bdo.dat",
+      },
+      createdAt: new Date("2026-09-30T02:05:00Z"),
+    },
+    {
+      id: 3,
+      actor: "Owner",
+      action: "Payroll payout completed manually",
+      resource: "Sep 16–30, 2026",
+      metadata: {
+        runId: 77,
+        method: "bank-file",
+        reference: "BDO-BATCH-004821",
+        completedAt: "2026-09-30T02:15:00Z",
+      },
+      createdAt: new Date("2026-09-30T02:15:00Z"),
+    },
+  ];
+
+  const state = derivePayrollPayoutState(events, 77);
+  assert.equal(state.release.done, true);
+  assert.equal(state.bankFile.status, "generated");
+  assert.equal(state.bankFile.filename, "payroll-77-bdo.dat");
+  assert.equal(state.payout.status, "completed");
+  assert.equal(state.payout.reference, "BDO-BATCH-004821");
+});
+
+test("payout completion route requires released bank-file evidence and explicit confirmation", () => {
+  const route = read("src/app/api/payroll-runs/[id]/exports/route.ts");
+  const exportsView = read("src/components/workspace/exports.tsx");
+  const payrollView = read("src/components/workspace/payroll-run.tsx");
+
+  for (const marker of [
+    'body.mode === "complete-manual"',
+    "Generate the final released bank file before recording payout completion.",
+    "Confirm that the bank or payment provider shows this payroll payout as completed.",
+    "Payroll payout completed manually",
+    "bankExportEventId",
+    "moneyMovedByLinaw: false",
+  ]) {
+    assert.ok(route.includes(marker), `payout completion route is missing ${marker}`);
+  }
+
+  for (const marker of [
+    "PAYOUT COMPLETION",
+    "Mark payout complete",
+    "Linaw records your confirmation; it does not independently verify the bank transfer.",
+    'data-payout-stage="bank-file"',
+    'data-payout-stage="completed"',
+  ]) {
+    assert.ok(exportsView.includes(marker), `exports payout UX is missing ${marker}`);
+  }
+
+  assert.ok(payrollView.includes("Payout status"));
+  assert.ok(payrollView.includes('data-payout-status={visibleReleaseReceipt.payout.status}'));
 });

@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { buildPayrollHandoff, handoffViewerRole } from "@/lib/payroll-handoff";
+import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
 import { readLineItems, readTrace, type BankTemplate, type DashboardData, type Notify, type PayrollEntry, type PayrollLineItem, type PayrollReleaseReceipt, type PayrollRun, type Task } from "./types";
 import { PayrollAssurancePanel } from "./payroll-assurance-panel";
 import { ExplainPayDrawer } from "./explain-pay-drawer";
@@ -286,8 +287,9 @@ export function PayrollRunView({
   ) ?? false;
 
   const failedChecklistItem = releaseChecklist?.items.find((item) => item.blocking && !item.passed);
+  const persistedReleaseReceipt = readReleaseReceipt(data.auditEvents, run.id);
   const visibleReleaseReceipt =
-    releaseReceipt?.runId === run.id ? releaseReceipt : readReleaseReceipt(data.auditEvents, run.id);
+    persistedReleaseReceipt ?? (releaseReceipt?.runId === run.id ? releaseReceipt : null);
   const recoveryStates: Array<{
     key: string;
     title: string;
@@ -411,13 +413,38 @@ export function PayrollRunView({
           </div>
           <div className="card-body" style={{ paddingTop: 0, display: "grid", gap: 8 }}>
             <div className="exception-row" style={{ alignItems: "flex-start" }}>
-              <span className="status status-approved" style={{ minWidth: 72, justifyContent: "center" }}>Ready</span>
+              <span
+                className={`status ${visibleReleaseReceipt.bankExport.status === "generated" ? "status-approved" : "status-review"}`}
+                style={{ minWidth: 72, justifyContent: "center" }}
+              >
+                {visibleReleaseReceipt.bankExport.status === "generated" ? "Generated" : "Ready"}
+              </span>
               <div>
                 <strong>Bank / export status</strong>
                 <p>{visibleReleaseReceipt.bankExport.label}</p>
               </div>
               <button className="secondary-button" onClick={() => setExportsOpen(true)}>Open exports</button>
             </div>
+            {visibleReleaseReceipt.payout && (
+              <div className="exception-row" style={{ alignItems: "flex-start" }} data-payout-status={visibleReleaseReceipt.payout.status}>
+                <span
+                  className={`status ${visibleReleaseReceipt.payout.status === "completed" ? "status-approved" : "status-review"}`}
+                  style={{ minWidth: 72, justifyContent: "center" }}
+                >
+                  {visibleReleaseReceipt.payout.status === "completed" ? "Completed" : "Pending"}
+                </span>
+                <div>
+                  <strong>Payout status</strong>
+                  <p>
+                    {visibleReleaseReceipt.payout.label}
+                    {visibleReleaseReceipt.payout.reference ? ` · Ref ${visibleReleaseReceipt.payout.reference}` : ""}
+                  </p>
+                </div>
+                {visibleReleaseReceipt.payout.status !== "completed" && (
+                  <button className="secondary-button" onClick={() => onPage("Exports")}>Finish payout</button>
+                )}
+              </div>
+            )}
             <div className="exception-row" style={{ alignItems: "flex-start" }}>
               <span className={`status ${visibleReleaseReceipt.payslips.status === "ready" ? "status-approved" : "status-review"}`} style={{ minWidth: 72, justifyContent: "center" }}>
                 {visibleReleaseReceipt.payslips.status === "ready" ? "Ready" : "Check"}
@@ -759,7 +786,15 @@ export function PayrollRunView({
             </article>
           )}
 
-          {exportsOpen && <ExportPanel run={run} templates={data.templates} notify={notify} onClose={() => setExportsOpen(false)} />}
+          {exportsOpen && (
+            <ExportPanel
+              run={run}
+              templates={data.templates}
+              notify={notify}
+              onRefresh={onRefresh}
+              onClose={() => setExportsOpen(false)}
+            />
+          )}
 
           {/* Register */}
           <div className="line-title" id="payroll-register">
@@ -1096,11 +1131,13 @@ function ExportPanel({
   run,
   templates,
   notify,
+  onRefresh,
   onClose,
 }: {
   run: PayrollRun;
   templates: BankTemplate[];
   notify: Notify;
+  onRefresh: () => Promise<void>;
   onClose: () => void;
 }) {
   const [template, setTemplate] = useState(templates[0]?.name ?? "BDO DAT");
@@ -1134,6 +1171,7 @@ function ExportPanel({
       URL.revokeObjectURL(href);
       setExportFailure(null);
       notify(`${label} generated and audit-logged.`, "info");
+      await onRefresh();
     } catch {
       const error = `${label} could not be generated because the export service could not be reached.`;
       setExportFailure({ url, label, error });
@@ -1416,16 +1454,25 @@ function readReleaseReceipt(events: DashboardData["auditEvents"], runId: number)
   const slips = payslips as Record<string, unknown>;
   if (typeof bank.label !== "string" || typeof slips.label !== "string") return null;
 
+  const payout = derivePayrollPayoutState(events, runId);
   return {
     runId,
     periodLabel: raw.periodLabel,
     employeeCount: Number(raw.employeeCount ?? 0),
     totalNetPay: raw.totalNetPay,
     releasedAt: raw.releasedAt,
-    bankExport: {
-      status: "ready",
-      label: bank.label,
-    },
+    bankExport: payout.bankFile.status === "generated"
+      ? {
+          status: "generated",
+          label: `${payout.bankFile.filename ?? "Final bank file"} generated and audit-logged`,
+          filename: payout.bankFile.filename,
+          generatedAt: payout.bankFile.generatedAt,
+        }
+      : {
+          status: "ready",
+          label: bank.label,
+        },
+    payout: payout.payout,
     payslips: {
       status: slips.status === "attention" ? "attention" : "ready",
       label: slips.label,
