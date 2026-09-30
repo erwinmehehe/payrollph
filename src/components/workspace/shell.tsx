@@ -10,8 +10,6 @@ import {
   LogOut,
   Menu,
   MoreHorizontal,
-  PanelLeftClose,
-  PanelLeftOpen,
   Search,
   ShieldCheck,
   UserCheck,
