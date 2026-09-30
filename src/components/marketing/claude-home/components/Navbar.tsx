@@ -4,10 +4,10 @@ import { cn } from "../utils/cn";
 
 const links = [
   { label: "Product", href: "#product" },
-  { label: "Live demo", href: "#demo" },
-  { label: "Calculator", href: "#calculator" },
-  { label: "Security", href: "#security" },
+  { label: "Demo", href: "/demo" },
+  { label: "Payroll outsourcing", href: "/payroll-outsourcing" },
   { label: "Pricing", href: "#pricing" },
+  { label: "Trust", href: "/scorecard" },
 ];
 
 export default function Navbar() {
