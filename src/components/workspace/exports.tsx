@@ -14,6 +14,7 @@ import {
   Users,
 } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
+import { derivePayrollPostReleaseStatus } from "@/lib/payroll-post-release";
 import { EmptyState, PageHeading, Segmented, Status, formatDate, money } from "./ui";
 
 const GOVERNMENT_DRAFTS = [
@@ -24,16 +25,27 @@ const GOVERNMENT_DRAFTS = [
   { template: "Pag-IBIG MCRF", detail: "Membership contribution remittance form" },
 ];
 
-export function ExportsView({ data, notify }: { data: DashboardData; notify: Notify }) {
+export function ExportsView({
+  data,
+  notify,
+  onRefresh,
+}: {
+  data: DashboardData;
+  notify: Notify;
+  onRefresh: () => Promise<void>;
+}) {
   const runs = data.payrollRuns;
   const [runId, setRunId] = useState<number | undefined>(runs[0]?.id);
   const [template, setTemplate] = useState(data.templates[0]?.name ?? "BDO DAT");
   const [mode, setMode] = useState<"dry" | "live">("dry");
   const [exportFailure, setExportFailure] = useState<{ url: string; label: string; error: string } | null>(null);
   const [exporting, setExporting] = useState<string | null>(null);
+  const [confirmingUpload, setConfirmingUpload] = useState(false);
+  const [payoutBusy, setPayoutBusy] = useState(false);
 
   const run = runs.find((item) => item.id === runId) ?? runs[0];
   const organizationId = data.selectedOrganization.id;
+  const postReleaseStatus = run ? derivePayrollPostReleaseStatus(run, data.auditEvents) : null;
 
   async function download(url: string, label: string) {
     setExporting(label);
@@ -58,6 +70,9 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
       anchor.remove();
       URL.revokeObjectURL(href);
       setExportFailure(null);
+      if (url.includes("kind=bank") && url.includes("dryRun=false")) {
+        await onRefresh();
+      }
       notify(`${label} generated and written to the audit trail.`, "info");
     } catch {
       const error = `${label} could not be generated because the export service could not be reached.`;
@@ -65,6 +80,30 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
       notify(error, "err");
     } finally {
       setExporting(null);
+    }
+  }
+
+  async function confirmBankUpload() {
+    if (!run) return;
+    setPayoutBusy(true);
+    try {
+      const response = await fetch(`/api/payroll-runs/${run.id}/payout-confirmation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        notify(payload.error ?? "Bank upload confirmation could not be recorded.", "err");
+        return;
+      }
+      await onRefresh();
+      setConfirmingUpload(false);
+      notify(payload.message ?? "Bank upload recorded.", "info");
+    } catch {
+      notify("Could not reach the payout confirmation service.", "err");
+    } finally {
+      setPayoutBusy(false);
     }
   }
 
@@ -84,6 +123,59 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
           the gate-by-gate status.
         </span>
       </div>
+      {run?.status === "Released" && postReleaseStatus && (
+        <article className="card" data-post-release-payout style={{ marginTop: 16, marginBottom: 16 }}>
+          <div className="card-header">
+            <div>
+              <div className="card-kicker">POST-RELEASE PAYOUT</div>
+              <h2>{postReleaseStatus.label}</h2>
+              <p>{postReleaseStatus.detail}</p>
+            </div>
+            <Status value={postReleaseStatus.state === "disbursed" ? "Disbursed" : postReleaseStatus.state === "submitted" ? "Submitted" : postReleaseStatus.state === "exported" ? "File generated" : "Ready"} />
+          </div>
+          <div className="card-body" style={{ paddingTop: 0, display: "grid", gap: 8 }}>
+            <div className="exception-row">
+              <span className="status status-approved" style={{ minWidth: 84, justifyContent: "center" }}>Released</span>
+              <div><strong>Payroll locked</strong><p>The approved register and employee payslips are final for this run.</p></div>
+            </div>
+            <div className="exception-row">
+              <span className={`status ${postReleaseStatus.state !== "released" ? "status-approved" : "status-review"}`} style={{ minWidth: 84, justifyContent: "center" }}>
+                {postReleaseStatus.state !== "released" ? "Generated" : "Pending"}
+              </span>
+              <div>
+                <strong>Final bank file</strong>
+                <p>{postReleaseStatus.bankFilename ? `${postReleaseStatus.bankFilename} is recorded for this exact run.` : "Generate a non-dry-run bank file before external submission."}</p>
+              </div>
+            </div>
+            <div className="exception-row">
+              <span className={`status ${postReleaseStatus.state === "submitted" || postReleaseStatus.state === "disbursed" ? "status-approved" : "status-review"}`} style={{ minWidth: 84, justifyContent: "center" }}>
+                {postReleaseStatus.state === "disbursed" ? "Disbursed" : postReleaseStatus.state === "submitted" ? "Submitted" : "Pending"}
+              </span>
+              <div>
+                <strong>Payout handoff</strong>
+                <p>{postReleaseStatus.state === "submitted" ? "Submitted externally; final settlement is not independently verified." : postReleaseStatus.detail}</p>
+              </div>
+              {postReleaseStatus.state === "exported" && (
+                <button className="secondary-button" onClick={() => setConfirmingUpload(true)}>Record bank upload</button>
+              )}
+            </div>
+            {confirmingUpload && postReleaseStatus.state === "exported" && (
+              <div className="notice notice-amber">
+                <AlertTriangle size={15} className="i-red" />
+                <div style={{ flex: 1 }}>
+                  <strong>Confirm only after external upload</strong>
+                  <p style={{ margin: "4px 0 0" }}>This records submission to the bank portal. It does not mark employee payments as settled.</p>
+                </div>
+                <button className="secondary-button" disabled={payoutBusy} onClick={() => setConfirmingUpload(false)}>Cancel</button>
+                <button className="primary-button" disabled={payoutBusy} onClick={() => void confirmBankUpload()}>
+                  {payoutBusy ? "Recording…" : "Confirm uploaded"}
+                </button>
+              </div>
+            )}
+          </div>
+        </article>
+      )}
+
       {exportFailure && (
         <div className="notice notice-red" data-recovery-state="export-failed" style={{ marginTop: 12 }}>
           <AlertTriangle size={15} className="i-red" />
