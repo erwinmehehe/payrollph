@@ -60,6 +60,25 @@ export async function ensureCoreCompatibilitySchema() {
       `);
 
       await client.query(`
+        ALTER TABLE outbox
+          ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+          ADD COLUMN IF NOT EXISTS provider_message_id varchar(200),
+          ADD COLUMN IF NOT EXISTS attempts integer NOT NULL DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS max_attempts integer NOT NULL DEFAULT 5,
+          ADD COLUMN IF NOT EXISTS last_attempt_at timestamptz,
+          ADD COLUMN IF NOT EXISTS next_attempt_at timestamptz
+      `);
+
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS outbox_org_created_idx
+        ON outbox(organization_id, created_at)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS outbox_retry_idx
+        ON outbox(status, next_attempt_at)
+      `);
+
+      await client.query(`
         CREATE TABLE IF NOT EXISTS historical_payroll_entries (
           id serial PRIMARY KEY,
           organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
