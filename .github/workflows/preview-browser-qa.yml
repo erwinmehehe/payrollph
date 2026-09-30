@@ -133,6 +133,10 @@ jobs:
             });
             check(heroPrimaryStyles.color === "rgb(255, 255, 255)", `${name}: hero primary CTA text lost white contrast; saw ${heroPrimaryStyles.color}`);
             check(heroPrimaryStyles.backgroundColor !== "rgba(0, 0, 0, 0)" && heroPrimaryStyles.backgroundColor !== "rgb(255, 255, 255)", `${name}: hero primary CTA background lost contrast; saw ${heroPrimaryStyles.backgroundColor}`);
+            const primaryNav = page.getByRole("navigation", { name: "Primary" });
+            check((await primaryNav.getByRole("link", { name: "Demo", exact: true }).getAttribute("href")) === "/demo", `${name}: primary nav does not expose role-based demo`);
+            check((await primaryNav.getByRole("link", { name: "Payroll outsourcing", exact: true }).getAttribute("href")) === "/payroll-outsourcing", `${name}: primary nav does not expose payroll outsourcing`);
+            check((await primaryNav.getByRole("link", { name: "Trust", exact: true }).getAttribute("href")) === "/scorecard", `${name}: primary nav does not expose scorecard`);
 
             const overflow = await page.evaluate(() => ({
               scrollWidth: document.documentElement.scrollWidth,
