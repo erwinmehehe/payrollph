@@ -203,3 +203,22 @@ test("homepage demo delegates role boundaries to the real sandbox", () => {
   }
 });
 
+
+
+test("homepage navigation exposes the real public site", () => {
+  const nav = read("src/components/marketing/claude-home/components/Navbar.tsx");
+  const home = read("src/components/marketing/claude-home/App.tsx");
+  const footer = read("src/components/marketing/claude-home/components/Closing.tsx");
+
+  for (const route of ["/demo", "/payroll-outsourcing", "/scorecard"]) {
+    assert.ok(nav.includes(`href: "${route}"`), `primary nav must expose ${route}`);
+  }
+  assert.ok(!nav.includes('"Calculator"'), "calculator should not compete in primary navigation");
+  assert.ok(!nav.includes('"Security"'), "security should not compete in primary navigation");
+  assert.ok(!home.includes("<Benchmarks />"), "benchmarks should not clutter the homepage");
+  assert.ok(!home.includes("<Scorecard />"), "scorecard should live on its dedicated route");
+  assert.ok(!home.includes("<Developers />"), "developer detail should not clutter the buyer homepage");
+  assert.ok(footer.includes('["Capability scorecard", "/scorecard"]'), "footer must link to the scorecard route");
+  assert.ok(footer.includes('["System status", "/status"]'), "footer must link to the system status route");
+  assert.ok(footer.includes('["Book a demo", "/book-demo"]'), "footer must link to booking");
+});
