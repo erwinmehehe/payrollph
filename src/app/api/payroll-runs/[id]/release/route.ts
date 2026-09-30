@@ -180,7 +180,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         purpose: "payslip-ready",
         dedupeKey: `payslip-ready:${run.organizationId}:${run.id}:${person.id}`,
         body: [
-          `Hi ${person.firstName},`
+          `Hi ${person.firstName},`,
           "",
           `${organization?.name ?? "Your employer"} released payroll for ${run.periodLabel}.`,
           "",
