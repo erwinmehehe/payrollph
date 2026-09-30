@@ -41,9 +41,13 @@ export async function GET(request: Request) {
       else if (row.status === "queued") counts.queued += 1;
       else if (row.status === "pending") counts.pending += 1;
       if (row.retryCount > 0) counts.retried += 1;
+      if (row.deliveryStatus === "delivered") counts.delivered += 1;
+      if (["bounced", "complained", "failed", "suppressed"].includes(row.deliveryStatus ?? "")) {
+        counts.deliveryIssues += 1;
+      }
       return counts;
     },
-    { queued: 0, pending: 0, sent: 0, failed: 0, retried: 0 },
+    { queued: 0, pending: 0, sent: 0, failed: 0, retried: 0, delivered: 0, deliveryIssues: 0 },
   );
 
   return Response.json({
@@ -67,11 +71,14 @@ export async function GET(request: Request) {
       canRetry: row.canRetry,
       lastAttemptAt: row.lastAttemptAt,
       providerMessageId: row.providerMessageId,
+      deliveryStatus: row.deliveryStatus,
+      deliveryEventAt: row.deliveryEventAt,
+      deliveryDetail: row.deliveryDetail,
       runId: row.runId,
       employeeId: row.employeeId,
       periodLabel: row.periodLabel,
     })),
-    note: "Messages stay queued while no provider is configured. Payslip-ready notices use bounded automatic retries; one-time-link messages must be regenerated after a failed attempt.",
+    note: "Outbox state tracks send attempts. Verified provider webhooks add delivered, delayed, bounced, complained, failed, or suppressed delivery outcomes when available.",
   });
 }
 
