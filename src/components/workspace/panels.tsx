@@ -443,7 +443,7 @@ function Contribution({ name, value, note }: { name: string; value: string; note
 }
 
 
-export function IntegrationsPage({ onOpenOutbox }: { onOpenOutbox: () => void }) {
+export function IntegrationsPage({ onOpenOutbox }: { onOpenOutbox?: () => void }) {
   const entries = [
     ["Accounting", "Xero / QuickBooks Online", "Journal CSV mapping ready", "File based"],
     ["Banking", "BDO, BPI, UnionBank, GCash", "Versioned templates + byte generators", "Validated"],
@@ -455,7 +455,12 @@ export function IntegrationsPage({ onOpenOutbox }: { onOpenOutbox: () => void })
 
   return (
     <>
-      <PageHeading eyebrow="INTEGRATIONS" title="Connect without pretending." copy="Integration cards clearly state their current mode: template, credential-required, or live." actions={<button className="primary-button" onClick={onOpenOutbox}><Mail size={16} className="i-pink" /> View Email Outbox</button>} />
+      <PageHeading
+        eyebrow="INTEGRATIONS"
+        title="Connect without pretending."
+        copy="Integration cards clearly state their current mode: template, credential-required, or live."
+        actions={onOpenOutbox ? <button className="primary-button" onClick={onOpenOutbox}><Mail size={16} className="i-pink" /> View Email Outbox</button> : undefined}
+      />
       <section className="integration-grid">
         {entries.map(([type, name, copy, state], index) => (
           <article className="card integration-card" key={name}>
@@ -465,7 +470,9 @@ export function IntegrationsPage({ onOpenOutbox }: { onOpenOutbox: () => void })
             <p>{copy}</p>
             <div>
               <Status value={state} />
-              <button className="row-more" onClick={name.includes("Outbox") ? onOpenOutbox : undefined}><ArrowUpRight size={17} /></button>
+              {(!name.includes("Outbox") || onOpenOutbox) && (
+                <button className="row-more" onClick={name.includes("Outbox") ? onOpenOutbox : undefined}><ArrowUpRight size={17} /></button>
+              )}
             </div>
           </article>
         ))}
