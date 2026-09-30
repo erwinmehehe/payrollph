@@ -11,6 +11,7 @@ on:
       - "src/components/self-service-portal.tsx"
       - "src/components/demo-sandbox-bar.tsx"
       - "src/app/page.tsx"
+      - "src/app/app/page.tsx"
       - "src/app/workspace/page.tsx"
       - "src/lib/pricing-catalog.ts"
       - "src/lib/demo-roles.ts"
@@ -221,13 +222,21 @@ jobs:
             check(body.toLowerCase().includes(persona.landing.toLowerCase()), `${persona.label}: expected landing context ${persona.landing} is missing`);
 
             if (persona.id === "owner") {
-              check(new URL(page.url()).pathname === "/workspace", "Owner: demo must land on /workspace, not replace the homepage");
+              check(new URL(page.url()).pathname === "/app", "Owner: demo must land on /app, not replace the homepage");
               const marketingPage = await context.newPage();
               const marketingResponse = await marketingPage.goto(base, { waitUntil: "networkidle", timeout: 90000 });
               check(marketingResponse && marketingResponse.ok(), "Owner: signed-in visit to / did not return 2xx");
               const marketingH1 = (await marketingPage.locator("h1").first().innerText()).trim();
               check(marketingH1.includes("Run Philippine payroll"), `Owner: signed-in / should stay marketing; saw "${marketingH1}"`);
               await marketingPage.close();
+
+              const legacyPage = await context.newPage();
+              const legacyResponse = await legacyPage.goto(`${base}/workspace?demoRole=owner`, { waitUntil: "networkidle", timeout: 90000 });
+              check(legacyResponse && legacyResponse.ok(), "Owner: legacy /workspace redirect did not resolve");
+              const legacyUrl = new URL(legacyPage.url());
+              check(legacyUrl.pathname === "/app", `Owner: legacy /workspace should redirect to /app; saw ${legacyUrl.pathname}`);
+              check(legacyUrl.searchParams.get("demoRole") === "owner", "Owner: legacy /workspace redirect dropped demoRole");
+              await legacyPage.close();
 
               const tonedItems = page.locator("aside .nav-item[data-tone]");
               check((await tonedItems.count()) >= 5, "Owner: real sidebar is missing module tone data");
@@ -398,7 +407,7 @@ jobs:
             });
             check(response.ok(), `Lifecycle: switching to ${role} returned ${response.status()}`);
             const payload = await response.json();
-            const target = typeof payload.redirectTo === "string" ? payload.redirectTo : `/workspace?demoRole=${role}`;
+            const target = typeof payload.redirectTo === "string" ? payload.redirectTo : `/app?demoRole=${role}`;
             await page.goto(target.startsWith("http") ? target : `${base}${target}`, { waitUntil: "networkidle", timeout: 90000 });
             return payload;
           }
