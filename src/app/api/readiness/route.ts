@@ -33,6 +33,7 @@ export async function GET(request: Request) {
 
   const [{ value: userCount }] = await db.select({ value: count() }).from(users);
   const [{ value: queuedMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "queued"));
+  const [{ value: failedMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "failed"));
   const [{ value: sentMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "sent"));
   const [{ value: paidInvoices }] = await db.select({ value: count() }).from(invoices).where(eq(invoices.status, "paid"));
   const [{ value: activeSubs }] = await db.select({ value: count() }).from(subscriptions).where(eq(subscriptions.status, "active"));
@@ -125,8 +126,8 @@ export async function GET(request: Request) {
       ready: deliveryCapable() && Number(sentMail) > 0,
       detail: deliveryCapable()
         ? Number(sentMail) > 0
-          ? `Active provider: ${provider}. ${sentMail} successful delivery record(s) exist on this deployment.`
-          : `Provider ${provider} is configured, but this deployment has not recorded a successful delivery yet.`
+          ? `Active provider: ${provider}. ${sentMail} successful delivery record(s) exist; ${failedMail} message(s) currently need retry or operator review.`
+          : `Provider ${provider} is configured, but this deployment has not recorded a successful delivery yet. ${failedMail} failed attempt(s) are visible in the outbox.`
         : "No provider configured. Messages remain queued until a transactional email provider is connected.",
       blocks: deliveryCapable() && Number(sentMail) > 0 ? "none" : "launch",
     },
@@ -228,8 +229,8 @@ export async function GET(request: Request) {
       label: "Dedicated background worker",
       ready: enabled("WORKER_ENABLED"),
       detail: enabled("WORKER_ENABLED")
-        ? "Dedicated worker is enabled; scripts/worker.ts drains payroll jobs and webhook retries."
-        : "Dedicated worker code exists at scripts/worker.ts. Set WORKER_ENABLED=true and run npm run worker in a persistent worker service to activate it.",
+        ? "Dedicated worker is enabled; scripts/worker.ts drains payroll jobs, webhook retries, and email outbox retries."
+        : "Dedicated worker code exists at scripts/worker.ts. Set WORKER_ENABLED=true and run npm run worker in a persistent worker service to activate payroll jobs, webhook retries, and email outbox retries.",
       blocks: "scale",
     },
   ];
@@ -254,7 +255,7 @@ export async function GET(request: Request) {
           : `${unworkaroundableBlockers.length} blocker(s) have no manual workaround and must be fixed even for a manual-ops pilot: ${unworkaroundableBlockers.map((g) => g.label).join(", ")}.`,
     },
     gates,
-    counts: { users: userCount, queuedMail, sentMail, paidInvoices, activeSubs, paymongoPreflightPasses },
+    counts: { users: userCount, queuedMail, failedMail, sentMail, paidInvoices, activeSubs, paymongoPreflightPasses },
     generatedAt: new Date().toISOString(),
   });
 }
