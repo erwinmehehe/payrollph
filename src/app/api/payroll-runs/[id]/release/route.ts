@@ -8,6 +8,7 @@ import { assertOrganizationRole, PAYROLL_RELEASE_ROLES } from "@/lib/access";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
 import { settlePayrollRun } from "@/lib/payroll-settlement";
 import { buildPayrollReleaseChecklist } from "@/lib/payroll-release-checklist";
+import { recordAuditEvent } from "@/lib/audit";
 
 const RELEASABLE = ["Ready for release"];
 
@@ -148,9 +149,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // webhook failures must not turn a successful financial commit into a 500
   // response that invites the operator to retry the release.
   const postReleaseWarnings: string[] = [];
+  const releasedAt = new Date().toISOString();
+  const activeStaff = staff.filter((person) => person.status === "Active");
+  const notifiableStaff = activeStaff.filter((person) => Boolean(person.email));
+  const missingEmail = activeStaff.length - notifiableStaff.length;
   let notified = 0;
-  for (const person of staff) {
-    if (person.status !== "Active" || !person.email) continue;
+  for (const person of notifiableStaff) {
     try {
       await queueMessage({
         organizationId: run.organizationId,
@@ -190,11 +194,52 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     postReleaseWarnings.push("Payroll was released, but webhook delivery could not be queued.");
   }
 
+  const receipt = {
+    runId,
+    periodLabel: run.periodLabel,
+    employeeCount: Number(entryCount),
+    totalNetPay: run.netPay,
+    releasedAt,
+    bankExport: {
+      status: "ready" as const,
+      label: "Ready to generate from the released register",
+    },
+    payslips: {
+      status: postReleaseWarnings.length > 0 ? "attention" as const : "ready" as const,
+      label:
+        postReleaseWarnings.length > 0
+          ? "Payslips are available; one or more email notices need attention"
+          : missingEmail > 0
+            ? `Payslips are available; ${missingEmail} employee(s) have no email on file`
+            : `Payslips are available; ${notified} notice(s) queued`,
+      available: Number(entryCount),
+      noticesQueued: notified,
+      missingEmail,
+      warningCount: postReleaseWarnings.length,
+    },
+  };
+
+  try {
+    await recordAuditEvent({
+      organizationId: run.organizationId,
+      actor: user.name,
+      action: "Payroll release receipt",
+      resource: run.periodLabel,
+      metadata: receipt,
+    });
+  } catch {
+    postReleaseWarnings.push("Payroll was released, but the delivery summary could not be added to the audit trail.");
+    receipt.payslips.status = "attention";
+    receipt.payslips.warningCount = postReleaseWarnings.length;
+    receipt.payslips.label = "Payslips are available; delivery status needs attention";
+  }
+
   return Response.json({
     run: updated,
     settlement,
     webhookDeliveries,
     employeesNotified: notified,
     postReleaseWarnings,
+    receipt,
   });
 }
