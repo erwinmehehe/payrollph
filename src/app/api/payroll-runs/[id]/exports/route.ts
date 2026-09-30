@@ -232,6 +232,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (!event.metadata || typeof event.metadata !== "object") return false;
       return Number((event.metadata as Record<string, unknown>).runId) === run.id;
     });
+    const providerPayout = runEvents.find((event) =>
+      event.action === "Payroll payout submitted via PayMongo"
+      || event.action === "Payroll payout completed via PayMongo"
+      || event.action === "Payroll payout retry submitted via PayMongo"
+    );
+    if (providerPayout) {
+      return Response.json({
+        error: "This payroll run already has a PayMongo payout batch. Reconcile the provider status instead of recording a separate manual completion.",
+      }, { status: 409 });
+    }
+
     const bankExport = runEvents
       .filter((event) => event.action === "bank export generated")
       .find((event) => {
@@ -347,10 +358,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   try {
     const result = await createPaymongoPayrollDisbursement(runId);
-    const completedStatuses = new Set(["completed", "paid", "success", "succeeded"]);
     const everyTransferCompleted =
       result.transfers.length > 0 &&
-      result.transfers.every((transfer) => completedStatuses.has(transfer.status.toLowerCase()));
+      result.transfers.every((transfer) => transfer.status.toLowerCase() === "succeeded");
     const completedAt = everyTransferCompleted ? new Date().toISOString() : null;
     await recordAuditEvent({
       organizationId: run.organizationId,
@@ -365,6 +375,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         provider: result.provider,
         transferCount: result.transfers.length,
         transferStatuses: result.transfers.map((transfer) => transfer.status),
+        transfers: result.transfers,
         completedAt,
         moneyMovedByLinaw: true,
       },
