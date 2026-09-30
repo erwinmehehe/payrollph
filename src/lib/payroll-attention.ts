@@ -15,8 +15,6 @@ export type PayrollAttentionItem = {
   timeFilter?: "incomplete";
 };
 
-const COMPLETE_PUNCH_STATUSES = new Set(["complete", "present", "ok", "approved"]);
-
 export function selectPayrollHandoffRun(
   data: DashboardData,
   role: string | null | undefined,
@@ -45,10 +43,9 @@ export function buildPayrollAttention(
   const items: PayrollAttentionItem[] = [];
 
   if (role === "hr" && rank === 0) {
-    const incompletePunches = (data.punches ?? []).filter((punch) => {
-      if (!punch.timeIn || !punch.timeOut) return true;
-      return !COMPLETE_PUNCH_STATUSES.has(punch.status.toLowerCase());
-    });
+    const incompletePunches = (data.punches ?? []).filter(
+      (punch) => !punch.timeIn || !punch.timeOut,
+    );
     const pendingLeave = (data.leaveRequests ?? []).filter((request) => request.status === "Pending");
     const missingIds = data.employees.filter(
       (employee) =>
