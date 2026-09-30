@@ -581,12 +581,26 @@ export const outbox = pgTable("outbox", {
   subject: varchar("subject", { length: 200 }).notNull(),
   body: text("body").notNull(),
   purpose: varchar("purpose", { length: 60 }).notNull(),
+  dedupeKey: varchar("dedupe_key", { length: 200 }),
   status: varchar("status", { length: 24 }).notNull().default("queued"),
   provider: varchar("provider", { length: 40 }).notNull().default("none"),
+  providerMessageId: varchar("provider_message_id", { length: 200 }),
+  deliveryStatus: varchar("delivery_status", { length: 32 }),
+  deliveryDetail: text("delivery_detail"),
+  deliveryUpdatedAt: timestamp("delivery_updated_at", { withTimezone: true }),
+  metadata: jsonb("metadata").notNull().default({}),
+  attempts: integer("attempts").notNull().default(0),
+  maxAttempts: integer("max_attempts").notNull().default(4),
   error: text("error"),
+  lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
   sentAt: timestamp("sent_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("outbox_dedupe_key_unique").on(table.dedupeKey),
+  index("outbox_org_created_idx").on(table.organizationId, table.createdAt),
+  index("outbox_retry_idx").on(table.status, table.nextAttemptAt),
+]);
 
 export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
