@@ -59,6 +59,8 @@ const GOVERNMENT_DRAFTS = [
 export function PayrollRunView({
   data,
   busy,
+  focusRunId,
+  onFocusRunApplied,
   onNewRun,
   onProcess,
   onRelease,
@@ -69,6 +71,8 @@ export function PayrollRunView({
 }: {
   data: DashboardData;
   busy: boolean;
+  focusRunId?: number | null;
+  onFocusRunApplied?: () => void;
   onNewRun: () => void;
   onProcess: (runId: number) => Promise<void>;
   onRelease: (runId: number, acknowledgeExceptions: boolean) => Promise<void>;
@@ -77,7 +81,18 @@ export function PayrollRunView({
   onRefresh: () => Promise<void>;
   notify: Notify;
 }) {
-  const [selectedId, setSelectedId] = useState<number | undefined>(data.payrollRuns[0]?.id);
+  const [selectedId, setSelectedId] = useState<number | undefined>(
+    focusRunId && data.payrollRuns.some((run) => run.id === focusRunId)
+      ? focusRunId
+      : data.payrollRuns[0]?.id,
+  );
+
+  useEffect(() => {
+    if (!focusRunId || !data.payrollRuns.some((run) => run.id === focusRunId)) return;
+    setSelectedId(focusRunId);
+    setExpanded(null);
+    onFocusRunApplied?.();
+  }, [focusRunId, data.payrollRuns, onFocusRunApplied]);
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<number | null>(null);
   const [explainEmployeeId, setExplainEmployeeId] = useState<number | null>(null);
