@@ -41,8 +41,8 @@ test("the homepage leads with payroll control instead of a module catalogue", ()
   const page = read("src/components/marketing/software-home.tsx");
 
   assert.ok(
-    page.includes("Payroll that feels calm, even when the cutoff isn&apos;t."),
-    "hero must lead with a calm payroll-control value proposition",
+    page.includes("Payroll, finally clear."),
+    "hero must lead with the simplified payroll value proposition",
   );
   assert.ok(page.includes("Know what changed before anyone presses release."), "assurance must be a primary product story");
   assert.ok(page.includes("The rulebook belongs inside the payroll run."), "Philippine compliance must be visible");
