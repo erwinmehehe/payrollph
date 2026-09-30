@@ -20,6 +20,7 @@ import { FREELANCER_HIDDEN, NAVIGATION, groupOf } from "./nav";
 import type { DashboardData, Organization } from "./types";
 import { Avatar, initialsOf, relativeTime } from "./ui";
 import { DEMO_ROLES, demoRoleInfo, type DemoRoleId } from "@/lib/demo-roles";
+import { payrollHandoffRank } from "@/lib/payroll-handoff";
 
 export type Notification = {
   id: string;
@@ -394,8 +395,106 @@ export function WorkspaceShell({
  * Derives the notification tray from real workspace rows. Nothing here is
  * invented, each entry points at a record the user can open.
  */
-export function buildNotifications(data: DashboardData): Notification[] {
+export function buildNotifications(data: DashboardData, role?: string | null): Notification[] {
   const items: Notification[] = [];
+  const effectiveRole = role ?? data.access?.role ?? data.user?.role ?? null;
+  const liveRuns = data.payrollRuns.filter((run) => run.status !== "Released");
+
+  if (effectiveRole === "hr") {
+    const handoffRun = data.payrollHandoffRun;
+    if (handoffRun && payrollHandoffRank(handoffRun.status) === 0) {
+      const pendingLeave = (data.leaveRequests ?? []).filter((request) => request.status === "Pending").length;
+      const attendanceIssues = (data.punches ?? []).filter((punch) => {
+        const status = punch.status.toLowerCase();
+        return !["complete", "present", "ok", "approved"].includes(status);
+      }).length;
+      const missingIds = data.employees.filter(
+        (employee) =>
+          employee.status === "Active" &&
+          (!employee.tin || !employee.sssNo || !employee.philHealthNo || !employee.pagIbigNo),
+      ).length;
+
+      if (pendingLeave > 0) {
+        items.push({
+          id: "handoff-hr-leave",
+          title: `${pendingLeave} leave request${pendingLeave === 1 ? "" : "s"} need HR review`,
+          detail: `Clear leave inputs before ${handoffRun.periodLabel} moves to Payroll.`,
+          tone: "review",
+          page: "Leave",
+        });
+      }
+      if (attendanceIssues > 0) {
+        items.push({
+          id: "handoff-hr-time",
+          title: `${attendanceIssues} attendance issue${attendanceIssues === 1 ? "" : "s"} need context`,
+          detail: `Resolve time inputs before ${handoffRun.periodLabel} moves to Payroll.`,
+          tone: "review",
+          page: "Time & attendance",
+        });
+      }
+      if (missingIds > 0) {
+        items.push({
+          id: "handoff-hr-people",
+          title: `${missingIds} employee record${missingIds === 1 ? "" : "s"} need filing IDs`,
+          detail: "Complete the employee records that can block payroll filings.",
+          tone: "review",
+          page: "People",
+        });
+      }
+    }
+    return items;
+  }
+
+  if (effectiveRole === "payroll") {
+    const run = liveRuns.find((item) => payrollHandoffRank(item.status) === 1);
+    if (run) {
+      items.push({
+        id: `handoff-payroll-${run.id}`,
+        title: run.exceptions > 0
+          ? `Resolve ${run.exceptions} payroll exception${run.exceptions === 1 ? "" : "s"}`
+          : `${run.periodLabel} is ready for checker handoff`,
+        detail: run.exceptions > 0
+          ? `${run.periodLabel} cannot move to Checker until the register is reviewed.`
+          : "Open Payroll and submit the calculated run to an independent checker.",
+        tone: run.exceptions > 0 ? "danger" : "review",
+        page: "Payroll",
+      });
+    }
+    return items;
+  }
+
+  if (effectiveRole === "checker") {
+    const run = liveRuns.find((item) => payrollHandoffRank(item.status) === 2);
+    if (run) {
+      const task = data.tasks
+        .filter((item) => item.status === "Pending" && item.detail.includes(`Payroll run #${run.id}`))
+        .sort((a, b) => b.id - a.id)[0];
+      if (task) {
+        items.push({
+          id: `handoff-checker-${task.id}`,
+          title: `Review ${run.periodLabel} payroll`,
+          detail: `${task.detail} · an independent decision is required before release.`,
+          tone: task.priority === "High" ? "danger" : "review",
+          page: "Approvals",
+        });
+      }
+    }
+    return items;
+  }
+
+  if (effectiveRole === "owner") {
+    const run = liveRuns.find((item) => payrollHandoffRank(item.status) === 3);
+    if (run) {
+      items.push({
+        id: `handoff-owner-${run.id}`,
+        title: `${run.periodLabel} is approved and ready to release`,
+        detail: "Open Payroll to run the final release checklist and release employee payslips.",
+        tone: "success",
+        page: "Payroll",
+      });
+    }
+    return items;
+  }
 
   for (const task of data.tasks.filter((task) => task.status === "Pending").slice(0, 5)) {
     items.push({
@@ -407,34 +506,13 @@ export function buildNotifications(data: DashboardData): Notification[] {
     });
   }
 
-  for (const run of data.payrollRuns.filter((run) => run.exceptions > 0).slice(0, 3)) {
+  for (const run of liveRuns.filter((run) => run.exceptions > 0).slice(0, 3)) {
     items.push({
       id: `run-${run.id}`,
       title: `${run.exceptions} timekeeping exception${run.exceptions === 1 ? "" : "s"} on ${run.periodLabel}`,
       detail: "Incomplete punches derive zero hours and need sign-off before release.",
       tone: "review",
       page: "Payroll",
-    });
-  }
-
-  const openProvisioning = (data.provisioning ?? []).filter((item) => !item.done).length;
-  if (openProvisioning > 0) {
-    items.push({
-      id: "provisioning",
-      title: `${openProvisioning} lifecycle checklist items open`,
-      detail: "Onboarding and offboarding tasks awaiting completion.",
-      tone: "active",
-      page: "People",
-    });
-  }
-
-  for (const advisory of data.advisories.filter((advisory) => advisory.active).slice(0, 2)) {
-    items.push({
-      id: `advisory-${advisory.id}`,
-      title: `Active advisory ${advisory.advisoryNumber}`,
-      detail: `${advisory.policy}, applied automatically during calculation.`,
-      tone: "active",
-      page: "Compliance",
     });
   }
 

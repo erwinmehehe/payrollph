@@ -126,7 +126,7 @@ test("HR receives only an amount-free payroll handoff summary", () => {
     "safe payroll summary must be restricted to company-wide HR",
   );
   assert.ok(dashboard.includes("payrollHandoffRun: handoffRun"), "dashboard must expose the handoff summary");
-  assert.ok(roleOverview.includes("currentRun ?? data.payrollHandoffRun ?? undefined"), "HR dashboard must use the safe summary fallback");
+  assert.ok(roleOverview.includes("return data.payrollHandoffRun ?? fallback;"), "HR dashboard must use the safe summary fallback");
 
   const selectStart = dashboard.indexOf(".select({\n            id: payrollRuns.id");
   const selectEnd = dashboard.indexOf("})\n          .from(payrollRuns)", selectStart);
@@ -208,6 +208,41 @@ test("role dashboards use workspace data rather than hardcoded KPI totals", () =
   ]) {
     assert.ok(dashboard.includes(source), `role dashboard must derive its state from ${source}`);
   }
+});
+
+test("payroll handoff notifications are role-specific and state-derived", () => {
+  const shell = read("src/components/workspace/shell.tsx");
+  const workspace = read("src/components/linaw-workspace.tsx");
+
+  assert.ok(shell.includes("buildNotifications(data: DashboardData, role?: string | null)"));
+  assert.ok(shell.includes('effectiveRole === "hr"'));
+  assert.ok(shell.includes('effectiveRole === "payroll"'));
+  assert.ok(shell.includes('effectiveRole === "checker"'));
+  assert.ok(shell.includes('effectiveRole === "owner"'));
+  assert.ok(shell.includes("Resolve ${run.exceptions} payroll exception"));
+  assert.ok(shell.includes("is approved and ready to release"));
+  assert.ok(workspace.includes("buildNotifications(data, effectiveRole)"));
+});
+
+test("role dashboards expose one direct handoff action without widening permissions", () => {
+  const dashboard = read("src/components/workspace/role-overview.tsx");
+  assert.ok(dashboard.includes("data-handoff-action={role}"));
+  assert.ok(dashboard.includes("Resolve ${payrollExceptions} payroll exception"));
+  assert.ok(dashboard.includes("Submit ${run?.periodLabel ?? \"payroll\"} to Checker"));
+  assert.ok(dashboard.includes("Review ${run?.periodLabel ?? \"submitted payroll\"}"));
+  assert.ok(dashboard.includes("Release ${run?.periodLabel ?? \"approved payroll\"}"));
+  assert.ok(dashboard.includes('page: "Approvals"'));
+  assert.ok(dashboard.includes('page: "Payroll"'));
+});
+
+test("checker and owner dashboards select runs owned by their current lifecycle stage", () => {
+  const dashboard = read("src/components/workspace/role-overview.tsx");
+  assert.ok(dashboard.includes('role === "checker"'));
+  assert.ok(dashboard.includes("payrollHandoffRank(run.status) === 2"));
+  assert.ok(dashboard.includes('role === "owner"'));
+  assert.ok(dashboard.includes("payrollHandoffRank(run.status) === 3"));
+  assert.ok(dashboard.includes('role === "payroll"'));
+  assert.ok(dashboard.includes("payrollHandoffRank(run.status) === 1"));
 });
 
 test("workspace and employee self-service share the same persona sandbox control", () => {
