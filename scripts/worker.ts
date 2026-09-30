@@ -1,5 +1,7 @@
 import "dotenv/config";
 import { pool } from "../src/db";
+import { ensureCoreCompatibilitySchema } from "../src/lib/core-schema-compat";
+import { drainOutboxRetries } from "../src/lib/mailer";
 import { processNextPayrollJob } from "../src/lib/payroll-engine";
 import { drainWebhookRetries } from "../src/lib/webhooks";
 
@@ -13,9 +15,11 @@ function sleep(ms: number) {
 async function tick() {
   const payroll = await processNextPayrollJob("dedicated-worker");
   const webhooks = await drainWebhookRetries(20);
+  const mail = await drainOutboxRetries(25);
   return {
     payrollProcessed: payroll.processed,
     webhookRetries: webhooks.length,
+    mailRetries: mail.length,
   };
 }
 
@@ -27,12 +31,13 @@ async function main() {
   process.on("SIGINT", () => { stopping = true; });
   process.on("SIGTERM", () => { stopping = true; });
 
+  await ensureCoreCompatibilitySchema();
   console.log(`Linaw worker started. Poll interval: ${POLL_MS}ms.`);
 
   while (!stopping) {
     try {
       const result = await tick();
-      if (!result.payrollProcessed && result.webhookRetries === 0) {
+      if (!result.payrollProcessed && result.webhookRetries === 0 && result.mailRetries === 0) {
         await sleep(POLL_MS);
       }
     } catch (error) {
