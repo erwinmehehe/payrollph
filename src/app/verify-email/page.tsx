@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { MailCheck } from "lucide-react";
 import VerifyEmailClient from "./verify-email-client";
+import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 
 export const metadata: Metadata = {
   title: "Verify email | Linaw",
@@ -15,26 +17,26 @@ export default async function VerifyEmailPage({
   const token = Array.isArray(params.token) ? params.token[0] ?? "" : params.token ?? "";
 
   return (
-    <main style={{ minHeight: "100vh", background: "#f7f9f8", padding: "64px 20px" }}>
-      <section
-        style={{
-          maxWidth: 560,
-          margin: "0 auto",
-          background: "white",
-          border: "1px solid #e5ebe8",
-          borderRadius: 20,
-          padding: 28,
-          boxShadow: "0 18px 50px rgba(20, 50, 43, 0.08)",
-        }}
-      >
-        <p style={{ margin: "0 0 8px", color: "#176B5D", fontWeight: 800, fontSize: 13 }}>
-          LINAW ACCOUNT SECURITY
-        </p>
-        <h1 style={{ margin: "0 0 12px", fontSize: 30, letterSpacing: "-0.03em" }}>
-          Verify your new email
-        </h1>
-        <VerifyEmailClient token={token} />
-      </section>
-    </main>
+    <div className="min-h-screen bg-white text-[#0B0D1A]">
+      <SiteNav />
+      <main className="relative overflow-hidden py-16 sm:py-20">
+        <div aria-hidden className="pointer-events-none absolute inset-0">
+          <div className="absolute -right-40 -top-48 h-[560px] w-[620px] rounded-full bg-gradient-to-br from-[#ECECFF] via-[#EAF4FF] to-[#E3FAF0] opacity-75 blur-3xl" />
+        </div>
+        <section className="relative mx-auto max-w-[620px] px-5 sm:px-8">
+          <div className="rounded-[28px] border border-[#E2E4F0] bg-white p-6 shadow-[0_26px_70px_-38px_rgba(30,34,70,.4)] sm:p-8">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#E3FAF0] text-[#0A8A53]">
+              <MailCheck size={19} />
+            </span>
+            <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Account security</p>
+            <h1 className="font-display mt-2 text-[31px] font-semibold tracking-[-0.035em]">Verify your new email.</h1>
+            <div className="mt-5">
+              <VerifyEmailClient token={token} />
+            </div>
+          </div>
+        </section>
+      </main>
+      <SiteFooter />
+    </div>
   );
 }
