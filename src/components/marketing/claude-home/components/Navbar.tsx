@@ -1,0 +1,128 @@
+import { useEffect, useState } from "react";
+import { ArrowRight, Menu, X } from "lucide-react";
+import { cn } from "../utils/cn";
+
+const links = [
+  { label: "Product", href: "#product" },
+  { label: "Live demo", href: "#demo" },
+  { label: "Calculator", href: "#calculator" },
+  { label: "Security", href: "#security" },
+  { label: "Pricing", href: "#pricing" },
+];
+
+export default function Navbar() {
+  const [scrolled, setScrolled] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 12);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  return (
+    <>
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-[#0B0D1A] focus:px-4 focus:py-2 focus:text-white"
+      >
+        Skip to content
+      </a>
+      <header
+        className={cn(
+          "fixed inset-x-0 top-0 z-50 transition-all duration-300",
+          scrolled ? "bg-white/85 shadow-[0_1px_0_#E8EAF3,0_8px_24px_-12px_rgba(16,18,38,0.15)] backdrop-blur-xl" : "bg-white/60 backdrop-blur-sm"
+        )}
+      >
+        <nav aria-label="Primary" className="mx-auto flex h-[68px] max-w-[1200px] items-center justify-between px-5 sm:px-8">
+          <a href="#top" className="group flex items-center gap-2.5" aria-label="Linaw home">
+            <span className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-[#11141F] transition-transform duration-300 group-hover:rotate-[-6deg] group-hover:scale-105">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden>
+                <path d="M3 8.5l3.2 3.2L13 5" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+            <span className="leading-none">
+              <span className="font-display block text-[19px] font-extrabold tracking-tight text-[#0B0D1A]">linaw</span>
+              <span className="block text-[8.5px] font-bold uppercase tracking-[0.18em] text-[#7C82A1]">HR & Payroll</span>
+            </span>
+          </a>
+
+          <div className="hidden items-center gap-1 lg:flex">
+            {links.map((l) => (
+              <a
+                key={l.label}
+                href={l.href}
+                className="rounded-full px-4 py-2 text-[14px] font-medium text-[#2B2F45] transition-colors hover:bg-[#F1F2F8] hover:text-[#0B0D1A]"
+              >
+                {l.label}
+              </a>
+            ))}
+          </div>
+
+          <div className="hidden items-center gap-2 lg:flex">
+            <a
+              href="/login"
+              className="rounded-full px-4 py-2 text-[14px] font-semibold text-[#2B2F45] transition-colors hover:bg-[#F1F2F8]"
+            >
+              Sign in
+            </a>
+            <a
+              href="/signup"
+              className="btn-primary group inline-flex items-center gap-1.5 rounded-full bg-[#11141F] px-5 py-2.5 text-[14px] font-semibold text-white"
+            >
+              Start free
+              <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" aria-hidden />
+            </a>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            aria-expanded={open}
+            aria-label={open ? "Close menu" : "Open menu"}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#E8EAF3] bg-white text-[#0B0D1A] lg:hidden"
+          >
+            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </nav>
+
+        <div
+          className={cn(
+            "overflow-hidden border-b border-[#E8EAF3] bg-white/95 backdrop-blur-xl transition-all duration-300 lg:hidden",
+            open ? "max-h-[420px] opacity-100" : "max-h-0 opacity-0"
+          )}
+        >
+          <div className="space-y-1 px-5 pb-6 pt-2">
+            {links.map((l) => (
+              <a
+                key={l.label}
+                href={l.href}
+                onClick={() => setOpen(false)}
+                className="block rounded-xl px-4 py-3 text-[15px] font-semibold text-[#2B2F45] hover:bg-[#F6F7FB]"
+              >
+                {l.label}
+              </a>
+            ))}
+            <div className="flex gap-2 pt-3">
+              <a
+                href="/login"
+                onClick={() => setOpen(false)}
+                className="flex-1 rounded-full border border-[#E8EAF3] px-5 py-3 text-center text-[14px] font-semibold"
+              >
+                Sign in
+              </a>
+              <a
+                href="/signup"
+                onClick={() => setOpen(false)}
+                className="flex-1 rounded-full bg-[#11141F] px-5 py-3 text-center text-[14px] font-semibold text-white"
+              >
+                Start free
+              </a>
+            </div>
+          </div>
+        </div>
+      </header>
+    </>
+  );
+}
