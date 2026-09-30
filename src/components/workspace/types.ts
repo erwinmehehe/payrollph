@@ -48,6 +48,26 @@ export type Employee = {
   nationality?: string | null;
 };
 
+export type PayrollReleaseReceipt = {
+  runId: number;
+  periodLabel: string;
+  employeeCount: number;
+  totalNetPay: string;
+  releasedAt: string;
+  bankExport: {
+    status: "ready";
+    label: string;
+  };
+  payslips: {
+    status: "ready" | "attention";
+    label: string;
+    available: number;
+    noticesQueued: number;
+    missingEmail: number;
+    warningCount: number;
+  };
+};
+
 export type PayrollRun = {
   id: number;
   periodLabel: string;
