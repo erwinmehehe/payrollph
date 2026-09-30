@@ -568,10 +568,10 @@ export async function recentOutboxWithAttempts(limit = 50, organizationId: numbe
       ...row,
       body: undefined,
       retryCount: retryEvents.length,
-      attemptCount: attemptEvents.length,
-      stateLabel: stateLabel(row, retryEvents.length, deliveryStatus),
+      attemptCount: row.attempts || attemptEvents.length,
+      stateLabel: stateLabel(row, retryEvents.length, row.deliveryStatus ?? deliveryStatus),
       canRetry: canRetryStoredMessage(row),
-      lastAttemptAt: lastAttempt?.createdAt ?? null,
+      lastAttemptAt: row.lastAttemptAt ?? lastAttempt?.createdAt ?? null,
       providerMessageId:
         row.providerMessageId
         ?? (typeof lastAttemptMeta.providerMessageId === "string" ? lastAttemptMeta.providerMessageId : null),
