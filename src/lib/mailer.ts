@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray, lt, lte, or } from "drizzle-orm";
 import nodemailer from "nodemailer";
 import { db } from "@/db";
 import { outbox } from "@/db/schema";
+import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
 
 import { activeMailProvider as detectProvider, deliveryCapable as capable, type MailProvider } from "@/lib/mail-provider";
 
@@ -117,6 +118,7 @@ async function deliver(providerName: MailProvider, row: typeof outbox.$inferSele
  * or operator cannot send the same row while its status is "sending".
  */
 export async function attemptOutboxDelivery(id: number) {
+  await ensureCoreCompatibilitySchema();
   const [existing] = await db.select().from(outbox).where(eq(outbox.id, id)).limit(1);
   if (!existing) return { delivered: false, queued: false, id, reason: "Outbox message not found." };
   if (existing.status === "sent") {
@@ -265,6 +267,7 @@ export async function queueMessage(input: {
   body: string;
   purpose: string;
 }) {
+  await ensureCoreCompatibilitySchema();
   const providerName = provider();
   const [row] = await db.insert(outbox).values({
     organizationId: input.organizationId ?? null,
@@ -284,6 +287,7 @@ export async function queueMessage(input: {
 }
 
 export async function retryOutboxMessage(id: number, organizationId: number) {
+  await ensureCoreCompatibilitySchema();
   const [row] = await db.select().from(outbox).where(and(
     eq(outbox.id, id),
     eq(outbox.organizationId, organizationId),
@@ -295,6 +299,7 @@ export async function retryOutboxMessage(id: number, organizationId: number) {
 }
 
 export async function retryPayrollRunOutbox(organizationId: number, payrollRunId: number) {
+  await ensureCoreCompatibilitySchema();
   const rows = await db.select().from(outbox).where(and(
     eq(outbox.organizationId, organizationId),
     eq(outbox.payrollRunId, payrollRunId),
@@ -309,6 +314,7 @@ export async function retryPayrollRunOutbox(organizationId: number, payrollRunId
 }
 
 export async function drainDueOutboxRetries(limit = 25) {
+  await ensureCoreCompatibilitySchema();
   if (!capableHere()) {
     return { attempted: 0, sent: 0, failed: 0, skipped: "no-provider" as const, results: [] };
   }
@@ -341,6 +347,7 @@ export async function drainDueOutboxRetries(limit = 25) {
 }
 
 export async function payrollRunOutboxHealth(organizationId: number, payrollRunId: number) {
+  await ensureCoreCompatibilitySchema();
   const rows = await db.select().from(outbox).where(and(
     eq(outbox.organizationId, organizationId),
     eq(outbox.payrollRunId, payrollRunId),
@@ -363,6 +370,7 @@ export async function payrollRunOutboxHealth(organizationId: number, payrollRunI
 }
 
 export async function recentOutbox(limit = 25, organizationId?: number) {
+  await ensureCoreCompatibilitySchema();
   if (Number.isInteger(organizationId)) {
     return db
       .select()
