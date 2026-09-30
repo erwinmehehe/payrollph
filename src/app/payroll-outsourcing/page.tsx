@@ -24,172 +24,253 @@ export const metadata: Metadata = {
 
 const PROCESS = [
   {
-    title: "Send the payroll inputs",
-    copy: "Your team provides the approved employee changes, attendance data and other inputs required for the cycle.",
+    title: "Send approved payroll inputs",
+    copy: "Your team provides the employee changes, attendance decisions and other cycle inputs that are already approved internally.",
   },
   {
     title: "We process and validate",
-    copy: "The payroll team runs the cycle, checks the inputs and calculations, and identifies exceptions that need a decision.",
+    copy: "The payroll team calculates the run, checks the inputs and surfaces anything that needs a human decision.",
   },
   {
     title: "You review exceptions",
-    copy: "Anything that needs business judgment comes back to your team instead of being guessed or silently changed.",
+    copy: "Anything that requires business judgment comes back to your authorized team instead of being guessed or silently changed.",
   },
   {
     title: "You approve the run",
-    copy: "Approval authority stays with your business. The service prepares the run for review; your authorized approver decides when it is ready.",
+    copy: "Approval authority stays with your business. We prepare the run for review; your authorized approver decides when it is ready.",
   },
   {
-    title: "You receive the payroll outputs",
-    copy: "After approval, the cycle moves to the reports, payslips and supported payroll outputs required for your process.",
+    title: "We prepare the outputs",
+    copy: "After approval, the cycle moves to payslips, payroll reports and the supported export files required by your process.",
+  },
+];
+
+const SCOPE = [
+  {
+    icon: Gauge,
+    title: "Payroll processing",
+    copy: "Run the cycle from approved inputs and keep the computation trace available for review.",
+    tone: "bg-[#ECECFF] text-[#4A4AE0]",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Validation",
+    copy: "Check calculations and surface exceptions before anyone is asked to approve payroll.",
+    tone: "bg-[#E3FAF0] text-[#0A8A53]",
+  },
+  {
+    icon: FileSpreadsheet,
+    title: "Payroll outputs",
+    copy: "Prepare payslips, payroll reports and supported export files after the run is approved.",
+    tone: "bg-[#E0F7FA] text-[#00838F]",
+  },
+  {
+    icon: MessageSquareText,
+    title: "Cycle coordination",
+    copy: "Keep the cutoff moving when an input is missing or an exception needs your team.",
+    tone: "bg-[#F1EDFF] text-[#6D4DE0]",
   },
 ];
 
 export default function PayrollOutsourcingPage() {
   return (
-    <div className="site outsourcing-page">
+    <div className="min-h-screen bg-white text-[#0B0D1A]">
       <SiteNav />
 
-      <section className="outsourcing-hero">
-        <div className="site-shell outsourcing-hero-grid">
-          <div>
-            <p className="eyebrow">Managed payroll services</p>
-            <h1>Payroll outsourcing for Philippine businesses. We process your payroll. You stay in control.</h1>
-            <p className="outsourcing-lead">
-              Hand off the repetitive payroll work without handing over approval. The payroll team handles processing,
-              validation, statutory calculations, payroll reports and cycle coordination. Your authorized people review
-              exceptions and approve the run.
-            </p>
-
-            <div className="outsourcing-actions">
-              <a className="primary-button" href="#quote">
-                Get a payroll quote <ArrowRight size={14} />
-              </a>
-              <a className="secondary-button" href="#quote">
-                Book a consultation
-              </a>
-            </div>
-
-            <div className="outsourcing-trust">
-              <span><Check size={15} className="i-green" /> Approval stays with your team</span>
-              <span><Check size={15} className="i-green" /> Exceptions are surfaced for review</span>
-              <span><Check size={15} className="i-green" /> Funding and bank credentials stay with your business</span>
-            </div>
+      <main>
+        <section className="relative overflow-hidden border-b border-[#EDEFF7] py-16 sm:py-20">
+          <div aria-hidden className="pointer-events-none absolute inset-0">
+            <div className="absolute -right-32 -top-52 h-[620px] w-[720px] rounded-full bg-gradient-to-br from-[#ECECFF] via-[#EAF4FF] to-[#E3FAF0] opacity-85 blur-3xl" />
           </div>
 
-          <aside className="outsourcing-scope-card">
-            <p className="eyebrow">What gets handed off</p>
-            <h2>The payroll cycle work, not your authority.</h2>
-            <div className="scope-list">
-              <div><Gauge size={17} className="i-blue" /><span><strong>Processing</strong>Run the payroll cycle from the inputs you provide.</span></div>
-              <div><ShieldCheck size={17} className="i-green" /><span><strong>Validation</strong>Check calculations and surface payroll exceptions before approval.</span></div>
-              <div><FileSpreadsheet size={17} className="i-teal" /><span><strong>Outputs</strong>Prepare the payroll reports and supported output files for the approved cycle.</span></div>
-              <div><MessageSquareText size={17} className="i-purple" /><span><strong>Coordination</strong>Keep the cycle moving when an exception or missing input needs your team.</span></div>
-            </div>
-          </aside>
-        </div>
-      </section>
-
-      <section className="section" id="process">
-        <div className="site-shell">
-          <div className="section-head">
-            <p className="eyebrow">How managed payroll works</p>
-            <h2>A clear handoff at every payroll cutoff.</h2>
-            <p>
-              Outsourcing should remove repetitive work without making the payroll process opaque. Each cycle has a defined
-              input, review and approval point.
-            </p>
-          </div>
-
-          <div className="service-process-grid">
-            {PROCESS.map((step, index) => (
-              <article className="service-step" key={step.title}>
-                <span className="service-step-number mono">{String(index + 1).padStart(2, "0")}</span>
-                <h3>{step.title}</h3>
-                <p>{step.copy}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="section alt">
-        <div className="site-shell">
-          <div className="section-head">
-            <p className="eyebrow">Division of responsibility</p>
-            <h2>You outsource the processing. You keep the decisions.</h2>
-            <p>
-              This is a managed payroll service, not a transfer of employer responsibility. Your business remains the
-              approval authority for the payroll it releases.
-            </p>
-          </div>
-
-          <div className="responsibility-grid">
-            <article className="responsibility-card">
-              <span className="feature-icon"><ClipboardCheck size={17} className="i-green" /></span>
-              <p className="eyebrow">Linaw payroll team</p>
-              <h3>We handle the cycle work</h3>
-              <ul>
-                <li>Process the payroll inputs provided for the cycle</li>
-                <li>Validate calculations and identify exceptions</li>
-                <li>Prepare statutory payroll figures supported by the system</li>
-                <li>Prepare payroll reports, payslips and supported outputs after approval</li>
-                <li>Coordinate questions and missing inputs with your payroll contact</li>
-              </ul>
-            </article>
-
-            <article className="responsibility-card">
-              <span className="feature-icon"><Users size={17} className="i-purple" /></span>
-              <p className="eyebrow">Your team</p>
-              <h3>You keep control of the business decisions</h3>
-              <ul>
-                <li>Provide complete and approved payroll inputs</li>
-                <li>Confirm employee changes, attendance decisions and exceptions</li>
-                <li>Review the processed payroll before release</li>
-                <li>Approve the final run through your authorized approver</li>
-                <li>Keep control of funding, banking credentials and employer approvals</li>
-              </ul>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section className="section service-software-bridge">
-        <div className="site-shell">
-          <div className="service-bridge-card">
+          <div className="relative mx-auto grid max-w-[1180px] items-center gap-10 px-5 sm:px-8 lg:grid-cols-[1.05fr_.95fr]">
             <div>
-              <p className="eyebrow">Prefer to run payroll yourself?</p>
-              <h2>Linaw payroll software is a separate product.</h2>
-              <p>
-                If your team wants the system rather than a managed service, the homepage covers the HRIS, attendance,
-                payroll engine, approvals, self-service, interactive demo and database-driven software pricing.
+              <span className="inline-flex items-center gap-2 rounded-full border border-[#DDE0EF] bg-white px-3.5 py-2 text-[12px] font-bold text-[#4A4AE0] shadow-sm">
+                <ShieldCheck size={14} aria-hidden />
+                Managed payroll · approval stays with you
+              </span>
+              <h1 className="font-display mt-6 max-w-[720px] text-balance text-[44px] font-semibold leading-[1.02] tracking-[-0.045em] sm:text-[62px]">
+                Payroll outsourcing without losing control of the run.
+              </h1>
+              <p className="mt-6 max-w-[680px] text-[17px] leading-relaxed text-[#5B6080]">
+                Hand off the repetitive payroll work while your authorized people keep the decisions. Linaw handles cycle
+                processing, validation, statutory calculations, reports and coordination, then returns exceptions and the
+                finished run for your approval.
+              </p>
+
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <a href="#quote" className="group inline-flex items-center justify-center gap-2 rounded-full bg-[#6161FF] px-7 py-4 text-[14.5px] font-semibold text-white">
+                  Get a payroll quote
+                  <ArrowRight size={15} className="transition-transform group-hover:translate-x-0.5" />
+                </a>
+                <Link href="/book-demo" className="inline-flex items-center justify-center rounded-full border border-[#D9DCEC] bg-white px-7 py-4 text-[14.5px] font-semibold text-[#2B2F45]">
+                  Book a consultation
+                </Link>
+              </div>
+
+              <div className="mt-8 grid gap-2.5 text-[13.5px] font-medium text-[#2B2F45] sm:grid-cols-3">
+                {[
+                  "Approval stays with your team",
+                  "Exceptions are surfaced for review",
+                  "Bank credentials stay with you",
+                ].map((item) => (
+                  <span key={item} className="flex items-start gap-2">
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#E3FAF0] text-[#0A8A53]">
+                      <Check size={12} strokeWidth={2.8} />
+                    </span>
+                    {item}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <aside className="rounded-[28px] border border-[#E2E4F0] bg-white p-6 shadow-[0_26px_70px_-38px_rgba(30,34,70,.4)] sm:p-7">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">What gets handed off</p>
+              <h2 className="font-display mt-2 text-[28px] font-semibold tracking-[-0.035em]">The payroll work, not your authority.</h2>
+              <div className="mt-6 grid gap-3">
+                {SCOPE.map(({ icon: Icon, title, copy, tone }) => (
+                  <div key={title} className="flex gap-3.5 rounded-2xl border border-[#EDEFF7] p-4">
+                    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tone}`}>
+                      <Icon size={17} aria-hidden />
+                    </span>
+                    <div>
+                      <strong className="text-[14px] font-semibold">{title}</strong>
+                      <p className="mt-1 text-[12.5px] leading-relaxed text-[#6B718C]">{copy}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section className="py-16 sm:py-20" id="process">
+          <div className="mx-auto max-w-[1180px] px-5 sm:px-8">
+            <div className="max-w-[720px]">
+              <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#7C82A1]">How managed payroll works</p>
+              <h2 className="font-display mt-2 text-[34px] font-semibold tracking-[-0.04em] sm:text-[44px]">A visible handoff at every cutoff.</h2>
+              <p className="mt-4 text-[15px] leading-relaxed text-[#5B6080]">
+                The service removes repetitive work without making the payroll process opaque. Each cycle has a clear input,
+                exception, approval and output point.
               </p>
             </div>
-            <Link className="secondary-button" href="/">
-              See payroll software <ArrowRight size={14} />
-            </Link>
-          </div>
-        </div>
-      </section>
 
-      <section className="section alt" id="quote">
-        <div className="site-shell quote-layout">
-          <div className="quote-copy">
-            <p className="eyebrow">Payroll outsourcing quote</p>
-            <h2>Tell us the payroll you want taken off your plate.</h2>
-            <p>
-              Start with headcount, frequency and number of entities. Add the part of the cycle that currently consumes the
-              most time or creates the most rework.
-            </p>
-            <div className="quote-points">
-              <span><Check size={15} className="i-green" /> No employee personal data is needed for the enquiry</span>
-              <span><Check size={15} className="i-green" /> No bank credentials are requested</span>
-              <span><Check size={15} className="i-green" /> The form reports whether the enquiry was emailed or only queued</span>
+            <div className="mt-9 grid gap-4 md:grid-cols-5">
+              {PROCESS.map((step, index) => (
+                <article key={step.title} className="rounded-[22px] border border-[#E5E7F0] bg-[#FAFBFD] p-5">
+                  <span className="mono text-[11px] font-bold text-[#6161FF]">{String(index + 1).padStart(2, "0")}</span>
+                  <h3 className="font-display mt-4 text-[17px] font-semibold leading-snug">{step.title}</h3>
+                  <p className="mt-2 text-[12.5px] leading-relaxed text-[#6B718C]">{step.copy}</p>
+                </article>
+              ))}
             </div>
           </div>
-          <PayrollQuoteForm />
-        </div>
-      </section>
+        </section>
+
+        <section className="border-y border-[#EDEFF7] bg-[#FAFBFD] py-16 sm:py-20">
+          <div className="mx-auto max-w-[1180px] px-5 sm:px-8">
+            <div className="max-w-[760px]">
+              <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#7C82A1]">Division of responsibility</p>
+              <h2 className="font-display mt-2 text-[34px] font-semibold tracking-[-0.04em] sm:text-[44px]">You outsource the processing. You keep the decisions.</h2>
+              <p className="mt-4 text-[15px] leading-relaxed text-[#5B6080]">
+                Managed payroll does not transfer employer responsibility. It gives each side a clearer operating boundary.
+              </p>
+            </div>
+
+            <div className="mt-9 grid gap-5 lg:grid-cols-2">
+              <article className="rounded-[26px] border border-[#E2E4F0] bg-white p-6 sm:p-7">
+                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#E3FAF0] text-[#0A8A53]">
+                  <ClipboardCheck size={19} />
+                </span>
+                <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Linaw payroll team</p>
+                <h3 className="font-display mt-2 text-[25px] font-semibold tracking-[-0.03em]">We handle the cycle work.</h3>
+                <ul className="mt-5 grid gap-3">
+                  {[
+                    "Process the approved payroll inputs provided for the cycle",
+                    "Validate calculations and identify exceptions",
+                    "Prepare statutory payroll figures supported by the system",
+                    "Prepare reports, payslips and supported outputs after approval",
+                    "Coordinate missing inputs and questions with your payroll contact",
+                  ].map((item) => (
+                    <li key={item} className="flex gap-2.5 text-[14px] leading-relaxed text-[#3E435B]">
+                      <Check size={14} className="mt-1 shrink-0 text-[#0A8A53]" /> {item}
+                    </li>
+                  ))}
+                </ul>
+              </article>
+
+              <article className="rounded-[26px] border border-[#E2E4F0] bg-white p-6 sm:p-7">
+                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#F1EDFF] text-[#6D4DE0]">
+                  <Users size={19} />
+                </span>
+                <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Your team</p>
+                <h3 className="font-display mt-2 text-[25px] font-semibold tracking-[-0.03em]">You keep control of the business decisions.</h3>
+                <ul className="mt-5 grid gap-3">
+                  {[
+                    "Provide complete and approved payroll inputs",
+                    "Confirm employee changes, attendance decisions and exceptions",
+                    "Review the processed payroll before release",
+                    "Approve the final run through your authorized approver",
+                    "Keep control of funding, banking credentials and employer approvals",
+                  ].map((item) => (
+                    <li key={item} className="flex gap-2.5 text-[14px] leading-relaxed text-[#3E435B]">
+                      <Check size={14} className="mt-1 shrink-0 text-[#6D4DE0]" /> {item}
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section className="py-14 sm:py-16">
+          <div className="mx-auto max-w-[1180px] px-5 sm:px-8">
+            <div className="grid gap-5 rounded-[28px] bg-[#11141F] p-6 text-white sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-white/45">Prefer to run payroll yourself?</p>
+                <h2 className="font-display mt-2 text-[28px] font-semibold tracking-[-0.035em]">Use the software instead of the service.</h2>
+                <p className="mt-3 max-w-[720px] text-[14px] leading-relaxed text-white/60">
+                  The product includes the same payroll engine, approvals, employee self-service, exports and role-based workspace.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2.5">
+                <Link href="/demo" className="rounded-full border border-white/18 bg-white/10 px-5 py-3 text-[13.5px] font-semibold text-white">
+                  Explore role demo
+                </Link>
+                <Link href="/" className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-[13.5px] font-semibold text-[#11141F]">
+                  See payroll software <ArrowRight size={14} />
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="border-t border-[#EDEFF7] bg-[#FAFBFD] py-16 sm:py-20" id="quote">
+          <div className="mx-auto grid max-w-[1120px] gap-8 px-5 sm:px-8 lg:grid-cols-[.82fr_1.18fr] lg:items-start">
+            <div className="lg:sticky lg:top-24">
+              <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#7C82A1]">Payroll outsourcing quote</p>
+              <h2 className="font-display mt-2 text-[34px] font-semibold tracking-[-0.04em] sm:text-[42px]">Tell us the payroll you want taken off your plate.</h2>
+              <p className="mt-4 text-[15px] leading-relaxed text-[#5B6080]">
+                Start with headcount, frequency and number of entities. Add the part of the cycle that creates the most rework.
+              </p>
+
+              <div className="mt-6 grid gap-3">
+                {[
+                  "No employee personal data is needed for the enquiry",
+                  "No bank credentials are requested",
+                  "The form reports whether the enquiry was delivered or only queued",
+                ].map((item) => (
+                  <span key={item} className="flex gap-2.5 text-[13.5px] leading-relaxed text-[#3E435B]">
+                    <Check size={14} className="mt-0.5 shrink-0 text-[#0A8A53]" /> {item}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <PayrollQuoteForm />
+          </div>
+        </section>
+      </main>
 
       <SiteFooter />
     </div>

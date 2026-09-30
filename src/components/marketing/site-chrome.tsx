@@ -2,24 +2,19 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Menu, X } from "lucide-react";
+import { ArrowRight, Menu, X } from "lucide-react";
+import { PUBLIC_FOOTER_GROUPS, PUBLIC_PRIMARY_LINKS } from "./public-navigation";
 
-const LINKS = [
-  { href: "/#simulation", label: "Product" },
-  { href: "/#workflow", label: "How it works" },
-  { href: "/#pricing", label: "Pricing" },
-  { href: "/demo", label: "Demo" },
-  { href: "/payroll-outsourcing", label: "Outsourcing" },
-];
-
-export function BrandMark({ size = 30 }: { size?: number }) {
+export function BrandMark({ size = 32 }: { size?: number }) {
   return (
-    <span className="brand-mark" style={{ width: size, height: size }} aria-hidden>
-      <span className="brand-bars">
-        <i />
-        <i />
-        <i />
-      </span>
+    <span
+      className="flex shrink-0 items-center justify-center rounded-[9px] bg-[#11141F] text-white"
+      style={{ width: size, height: size }}
+      aria-hidden
+    >
+      <svg width={Math.round(size * 0.5)} height={Math.round(size * 0.5)} viewBox="0 0 16 16" fill="none">
+        <path d="M3 8.5l3.2 3.2L13 5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
     </span>
   );
 }
@@ -37,115 +32,126 @@ export function SiteNav() {
 
   return (
     <>
-      <header className={`site-nav ${stuck ? "stuck" : ""}`}>
-        <div className="site-nav-inner">
-          <Link className="site-brand" href="/">
-            <BrandMark />
-            <span>
-              <strong>linaw</strong>
-              <small>HR &amp; Payroll</small>
+      <header
+        className={`sticky top-0 z-50 border-b transition-all duration-300 ${
+          stuck
+            ? "border-[#E8EAF3] bg-white/92 shadow-[0_8px_24px_-18px_rgba(16,18,38,.28)] backdrop-blur-xl"
+            : "border-transparent bg-white/85 backdrop-blur-lg"
+        }`}
+      >
+        <nav className="mx-auto flex h-[68px] max-w-[1240px] items-center justify-between gap-5 px-5 sm:px-8" aria-label="Primary">
+          <Link href="/" className="group flex shrink-0 items-center gap-2.5" aria-label="Linaw home">
+            <span className="transition-transform duration-300 group-hover:-rotate-6 group-hover:scale-105">
+              <BrandMark />
+            </span>
+            <span className="leading-none">
+              <span className="font-display block text-[19px] font-semibold tracking-tight text-[#0B0D1A]">linaw</span>
+              <span className="mt-1 block text-[8.5px] font-bold uppercase tracking-[0.18em] text-[#7C82A1]">HR &amp; Payroll</span>
             </span>
           </Link>
 
-          <nav className="site-links" aria-label="Sections">
-            {LINKS.map((link) => (
-              <Link key={link.href} href={link.href}>
+          <div className="hidden min-w-0 items-center justify-center gap-0.5 xl:flex">
+            {PUBLIC_PRIMARY_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="whitespace-nowrap rounded-full px-3.5 py-2 text-[13.5px] font-medium text-[#2B2F45] transition-colors hover:bg-[#F1F2F8] hover:text-[#0B0D1A]"
+              >
                 {link.label}
               </Link>
             ))}
-          </nav>
+          </div>
 
-          <div className="site-nav-cta">
-            <Link className="secondary-button" href="/login">
+          <div className="hidden shrink-0 items-center gap-2 xl:flex">
+            <Link href="/login" className="rounded-full px-4 py-2.5 text-[14px] font-semibold text-[#2B2F45] hover:bg-[#F1F2F8]">
               Sign in
             </Link>
-            <Link className="primary-button" href="/signup">
-              Start free
-            </Link>
-            <button
-              className="icon-button site-burger"
-              onClick={() => setDrawer((current) => !current)}
-              aria-expanded={drawer}
-              aria-label={drawer ? "Close menu" : "Open menu"}
+            <Link
+              href="/signup"
+              className="group inline-flex items-center gap-1.5 rounded-full bg-[#11141F] px-5 py-2.5 text-[14px] font-semibold text-white transition-transform hover:scale-[1.02]"
             >
-              {drawer ? <X size={18} /> : <Menu size={18} />}
-            </button>
+              Start free
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
+            </Link>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setDrawer((current) => !current)}
+            aria-expanded={drawer}
+            aria-label={drawer ? "Close menu" : "Open menu"}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#E8EAF3] bg-white text-[#0B0D1A] xl:hidden"
+          >
+            {drawer ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </nav>
+
+        <div className={`overflow-hidden bg-white transition-all duration-300 xl:hidden ${drawer ? "max-h-[620px] border-t border-[#E8EAF3] opacity-100" : "max-h-0 opacity-0"}`}>
+          <div className="mx-auto max-w-[1240px] px-5 pb-6 pt-3 sm:px-8">
+            <div className="grid gap-1 sm:grid-cols-2">
+              {PUBLIC_PRIMARY_LINKS.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setDrawer(false)}
+                  className="rounded-xl px-4 py-3 text-[15px] font-semibold text-[#2B2F45] hover:bg-[#F6F7FB]"
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+            <div className="mt-3 flex gap-2 border-t border-[#E8EAF3] pt-4">
+              <Link href="/login" onClick={() => setDrawer(false)} className="flex-1 rounded-full border border-[#E8EAF3] px-5 py-3 text-center text-[14px] font-semibold">
+                Sign in
+              </Link>
+              <Link href="/signup" onClick={() => setDrawer(false)} className="flex-1 rounded-full bg-[#11141F] px-5 py-3 text-center text-[14px] font-semibold text-white">
+                Start free
+              </Link>
+            </div>
           </div>
         </div>
       </header>
-
-      <div className={`site-drawer ${drawer ? "open" : ""}`}>
-        {LINKS.map((link) => (
-          <Link key={link.href} href={link.href} onClick={() => setDrawer(false)}>
-            {link.label}
-          </Link>
-        ))}
-        <div className="drawer-cta">
-          <Link className="secondary-button" href="/login">
-            Sign in
-          </Link>
-          <Link className="primary-button" href="/signup" onClick={() => setDrawer(false)}>
-            Start free
-          </Link>
-        </div>
-      </div>
     </>
   );
 }
 
 export function SiteFooter() {
   return (
-    <footer className="site-footer">
-      <div className="site-shell">
-        <div className="footer-grid">
+    <footer className="border-t border-[#EDEFF7] bg-[#FAFBFD]">
+      <div className="mx-auto max-w-[1240px] px-5 pb-10 pt-14 sm:px-8 sm:pt-16">
+        <div className="grid gap-10 md:grid-cols-[1.45fr_1fr_1fr_1fr]">
           <div>
-            <Link className="site-brand" href="/" style={{ color: "#fff" }}>
-              <BrandMark />
-              <span>
-                <strong style={{ color: "#fff" }}>linaw</strong>
-                <small style={{ color: "var(--console-faint)" }}>HR &amp; Payroll</small>
+            <Link href="/" className="flex items-center gap-3" aria-label="Linaw home">
+              <BrandMark size={40} />
+              <span className="leading-none">
+                <span className="font-display block text-[22px] font-semibold tracking-tight text-[#0B0D1A]">linaw</span>
+                <span className="mt-1 block text-[9px] font-bold uppercase tracking-[0.18em] text-[#7C82A1]">HR &amp; Payroll</span>
               </span>
             </Link>
-            <p className="footer-disclosure">
-              Philippine payroll software and HRIS for payroll, attendance, statutory deductions, approvals, payslips and reporting.
+            <p className="mt-5 max-w-[340px] text-[14px] leading-relaxed text-[#5B6080]">
+              Philippine payroll and HRIS for teams that want every run, approval and peso to be traceable.
             </p>
           </div>
 
-          <div>
-            <h4>Product</h4>
-            <ul>
-              <li><Link href="/#workflow">How it works</Link></li>
-              <li><Link href="/demo">Role-based demo</Link></li>
-              <li><Link href="/#simulation">Payroll simulation</Link></li>
-              <li><Link href="/#pricing">Pricing</Link></li>
-              <li><Link href="/payroll-outsourcing">Payroll outsourcing</Link></li>
-            </ul>
-          </div>
-
-          <div>
-            <h4>Trust</h4>
-            <ul>
-              <li><Link href="/scorecard">Capability scorecard</Link></li>
-              <li><Link href="/status">System status</Link></li>
-            </ul>
-          </div>
-
-          <div>
-            <h4>Get started</h4>
-            <ul>
-              <li><Link href="/signup">Start free</Link></li>
-              <li><Link href="/book-demo">Book a demo</Link></li>
-              <li><Link href="/login">Sign in</Link></li>
-            </ul>
-          </div>
+          {PUBLIC_FOOTER_GROUPS.map((group) => (
+            <nav key={group.label} aria-label={group.label}>
+              <p className="text-[12px] font-bold uppercase tracking-[0.13em] text-[#8B90AA]">{group.label}</p>
+              <ul className="mt-4 space-y-3">
+                {group.links.map((link) => (
+                  <li key={link.href}>
+                    <Link href={link.href} className="text-[14px] font-medium text-[#2B2F45] transition-colors hover:text-[#4A4AE0]">
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          ))}
         </div>
 
-        <div className="footer-note">
-          <span>Linaw, Philippine HR and payroll workspace.</span>
-          <span>
-            Statutory computations follow RA 11199 (SSS), RA 11223 (PhilHealth), RA 9679 (Pag-IBIG) and RA 10963 (TRAIN).
-            Government worksheet output is labelled DRAFT.
-          </span>
+        <div className="mt-12 flex flex-col gap-2 border-t border-[#E2E4F0] pt-6 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[13px] font-medium text-[#5B6080]">Linaw · Philippine HR and payroll workspace.</p>
+          <p className="text-[12.5px] text-[#8B90AA]">Government worksheet output is labelled DRAFT until validated.</p>
         </div>
       </div>
     </footer>

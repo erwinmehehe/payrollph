@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ArrowRight, MessageCircle, Minus, Plus } from "lucide-react";
 import { Reveal, SectionHeading } from "./ui";
 import { cn } from "../utils/cn";
+import { PUBLIC_FOOTER_GROUPS } from "@/components/marketing/public-navigation";
 
 const faqs = [
   {
@@ -151,41 +152,12 @@ export function CTA() {
 }
 
 export function Footer() {
-  const cols = [
-    {
-      h: "Product",
-      links: [
-        ["Product overview", "#product"],
-        ["Role-based demo", "/demo"],
-        ["Payroll outsourcing", "/payroll-outsourcing"],
-        ["Pricing", "#pricing"],
-      ],
-    },
-    {
-      h: "Company",
-      links: [
-        ["Capability scorecard", "/scorecard"],
-        ["Security", "#security"],
-        ["System status", "/status"],
-        ["Book a demo", "/book-demo"],
-      ],
-    },
-    {
-      h: "Get started",
-      links: [
-        ["Start free", "/signup"],
-        ["Book a demo", "/book-demo"],
-        ["Sign in", "/login"],
-      ],
-    },
-  ];
-
   return (
     <footer className="border-t border-[#EDEFF7] bg-[#FAFBFD]">
       <div className="mx-auto max-w-[1200px] px-5 pb-12 pt-16 sm:px-8 sm:pt-20">
         <div className="grid gap-12 md:grid-cols-[1.45fr_1fr_1fr_1fr]">
           <div>
-            <a href="#top" className="flex items-center gap-3" aria-label="Linaw home">
+            <a href="/" className="flex items-center gap-3" aria-label="Linaw home">
               <span className="flex h-10 w-10 items-center justify-center rounded-[11px] bg-[#11141F]">
                 <svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden>
                   <path d="M3 8.5l3.2 3.2L13 5" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
@@ -193,7 +165,7 @@ export function Footer() {
               </span>
               <span className="leading-none">
                 <span className="font-display block text-[22px] font-semibold tracking-tight">linaw</span>
-                <span className="mt-1 block text-[9px] font-bold uppercase tracking-[0.18em] text-[#7C82A1]">HR & Payroll</span>
+                <span className="mt-1 block text-[9px] font-bold uppercase tracking-[0.18em] text-[#7C82A1]">HR &amp; Payroll</span>
               </span>
             </a>
             <p className="mt-5 max-w-[330px] text-[14px] leading-relaxed text-[#5B6080]">
@@ -201,14 +173,14 @@ export function Footer() {
             </p>
           </div>
 
-          {cols.map((column) => (
-            <nav key={column.h} aria-label={column.h}>
-              <p className="text-[12px] font-bold uppercase tracking-[0.13em] text-[#8B90AA]">{column.h}</p>
+          {PUBLIC_FOOTER_GROUPS.map((group) => (
+            <nav key={group.label} aria-label={group.label}>
+              <p className="text-[12px] font-bold uppercase tracking-[0.13em] text-[#8B90AA]">{group.label}</p>
               <ul className="mt-4 space-y-3">
-                {column.links.map(([label, href]) => (
-                  <li key={label}>
-                    <a href={href} className="text-[14px] font-medium text-[#2B2F45] transition-colors hover:text-[#4A4AE0]">
-                      {label}
+                {group.links.map((link) => (
+                  <li key={link.href}>
+                    <a href={link.href} className="text-[14px] font-medium text-[#2B2F45] transition-colors hover:text-[#4A4AE0]">
+                      {link.label}
                     </a>
                   </li>
                 ))}
