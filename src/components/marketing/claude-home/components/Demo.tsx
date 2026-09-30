@@ -1,6 +1,7 @@
 import { ArrowRight, CheckCircle2, Lock, Play, ShieldCheck } from "lucide-react";
 import { WorkspacePreview } from "../../workspace-preview";
 import { Reveal, SectionHeading } from "./ui";
+import legacyStyles from "../../software-home.module.css";
 
 export default function Demo() {
   return (
@@ -50,7 +51,9 @@ export default function Demo() {
             </div>
             <div className="bg-[#F7F8FC] p-2 sm:p-3">
               <div className="overflow-hidden rounded-[18px] border border-[#E2E4F0] bg-white">
-                <WorkspacePreview mode="interactive" />
+                <div className={legacyStyles.simulationSurface}>
+                  <WorkspacePreview mode="interactive" />
+                </div>
               </div>
             </div>
           </div>
