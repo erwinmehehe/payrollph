@@ -99,6 +99,7 @@ jobs:
             homepage: [],
             modules: [],
             pricing: [],
+            publicRoutes: [],
             personas: [],
             errors: [],
           };
@@ -187,6 +188,64 @@ jobs:
             }
 
             check(errors.length === 0, `${name}: browser console/page errors: ${errors.join(" | ")}`);
+            await context.close();
+          }
+
+          async function qaPublicRoutes(browser) {
+            const routes = [
+              { path: "/demo", heading: "See Linaw from the seat you actually use." },
+              { path: "/payroll-outsourcing", heading: "Payroll outsourcing without losing control of the run." },
+              { path: "/book-demo", heading: "Bring your actual payroll questions." },
+              { path: "/status", heading: "Linaw system status." },
+              { path: "/scorecard", heading: "Verified claims only." },
+              { path: "/login", heading: "Sign in to the payroll workspace." },
+              { path: "/invite", heading: "Join your team on Linaw." },
+              { path: "/reset-password", heading: "Set a new password." },
+              { path: "/verify-email", heading: "Verify your new email." },
+            ];
+
+            const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+            const page = await context.newPage();
+
+            for (const route of routes) {
+              const errors = [];
+              const pageError = (error) => errors.push(`pageerror: ${error.message}`);
+              const consoleError = (message) => {
+                if (message.type() === "error") errors.push(`console: ${message.text()}`);
+              };
+              page.on("pageerror", pageError);
+              page.on("console", consoleError);
+
+              const response = await page.goto(`${base}${route.path}`, { waitUntil: "networkidle", timeout: 90000 });
+              check(response && response.ok(), `${route.path}: did not return 2xx`);
+
+              const h1 = (await page.locator("h1").first().innerText()).trim();
+              check(h1.includes(route.heading), `${route.path}: expected heading "${route.heading}" not found; saw "${h1}"`);
+              check((await page.getByRole("navigation", { name: "Primary" }).count()) >= 1, `${route.path}: shared primary navigation is missing`);
+              check((await page.locator("footer").count()) >= 1, `${route.path}: shared footer is missing`);
+
+              const overflow = await page.evaluate(() => ({
+                scrollWidth: document.documentElement.scrollWidth,
+                innerWidth: window.innerWidth,
+              }));
+              check(
+                overflow.scrollWidth <= overflow.innerWidth + 1,
+                `${route.path}: horizontal overflow ${overflow.scrollWidth}px > ${overflow.innerWidth}px`,
+              );
+              check(errors.length === 0, `${route.path}: browser console/page errors: ${errors.join(" | ")}`);
+
+              report.publicRoutes.push({ path: route.path, h1, overflow, errors: [...errors] });
+              page.off("pageerror", pageError);
+              page.off("console", consoleError);
+            }
+
+            await page.goto(`${base}/demo`, { waitUntil: "networkidle", timeout: 90000 });
+            const outsourcingLink = page.getByRole("link", { name: "Outsourcing" }).first();
+            check((await outsourcingLink.count()) === 1, "/demo: Outsourcing nav link is missing");
+            await outsourcingLink.click();
+            await page.waitForURL(new RegExp("/payroll-outsourcing(?:$|[?#])"), { timeout: 30000 });
+            check(new URL(page.url()).pathname === "/payroll-outsourcing", "/demo: shared navigation did not reach payroll outsourcing");
+
             await context.close();
           }
 
@@ -557,6 +616,7 @@ jobs:
             try {
               await qaHomepage(browser, "desktop", { width: 1440, height: 1000 });
               await qaHomepage(browser, "mobile-390", { width: 390, height: 844 });
+              await qaPublicRoutes(browser);
 
               for (const persona of personas) {
                 await qaPersona(browser, persona);
