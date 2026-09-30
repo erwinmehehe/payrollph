@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { auditEvents, outbox } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { activeMailProvider as detectProvider, deliveryCapable as capable, type MailProvider } from "@/lib/mail-provider";
+import { ensureOutboxDeliverySchema } from "@/lib/outbox-schema";
 
 export { activeMailProvider, deliveryCapable } from "@/lib/mail-provider";
 export type { MailProvider } from "@/lib/mail-provider";
@@ -163,9 +164,25 @@ async function finishDeliveryAttempt(input: {
   trigger?: "manual" | "automatic";
 }) {
   const now = new Date();
+  const attempts = input.row.attempts + 1;
+  const retryDelay = AUTO_RETRY_DELAYS_MS[Math.min(Math.max(attempts - 1, 0), AUTO_RETRY_DELAYS_MS.length - 1)];
+  const nextAttemptAt =
+    !input.result.ok
+    && input.row.purpose === "payslip-ready"
+    && attempts < input.row.maxAttempts
+      ? new Date(now.getTime() + retryDelay)
+      : null;
+
   await db.update(outbox).set({
     status: input.result.ok ? "sent" : "failed",
     provider: input.providerName,
+    providerMessageId: input.result.ok ? input.result.messageId : null,
+    deliveryStatus: input.result.ok ? "accepted" : "failed",
+    deliveryDetail: input.result.ok ? null : input.result.error,
+    deliveryUpdatedAt: now,
+    attempts,
+    lastAttemptAt: now,
+    nextAttemptAt,
     sentAt: input.result.ok ? now : null,
     error: input.result.ok ? null : input.result.error,
     body: storedBodyAfterAttempt(input.row.purpose, input.row.body),
@@ -217,19 +234,47 @@ export async function queueMessage(input: {
   subject: string;
   body: string;
   purpose: string;
+  dedupeKey?: string | null;
   audit?: MailAuditContext;
 }) {
+  await ensureOutboxDeliverySchema();
   const providerName = provider();
-  const [row] = await db.insert(outbox).values({
+  const [created] = await db.insert(outbox).values({
     organizationId: input.organizationId ?? null,
     channel: input.channel ?? "email",
     recipient: input.recipient,
     subject: input.subject,
     body: input.body,
     purpose: input.purpose,
+    dedupeKey: input.dedupeKey ?? null,
     provider: providerName,
     status: providerName === "none" ? "queued" : "pending",
-  }).returning();
+    metadata: input.audit?.metadata ?? {},
+    maxAttempts: input.purpose === "payslip-ready" ? MAX_AUTOMATIC_RETRIES + 1 : 1,
+  }).onConflictDoNothing().returning();
+
+  if (!created) {
+    if (!input.dedupeKey) throw new Error("Outbox insert conflicted without an idempotency key.");
+    const [existing] = await db
+      .select()
+      .from(outbox)
+      .where(eq(outbox.dedupeKey, input.dedupeKey))
+      .limit(1);
+    if (!existing) throw new Error("Outbox idempotency conflict could not be resolved.");
+
+    return {
+      delivered: existing.status === "sent",
+      queued: existing.status === "queued",
+      provider: existing.provider as MailProvider,
+      id: existing.id,
+      status: existing.status as "queued" | "pending" | "sent" | "failed",
+      reason: existing.error,
+      providerMessageId: existing.providerMessageId,
+      deduplicated: true as const,
+    };
+  }
+
+  const row = created;
 
   if (input.audit) {
     await writeMailAudit({
@@ -281,6 +326,7 @@ export async function queueMessage(input: {
 }
 
 export async function getOutboxMessage(id: number, organizationId: number) {
+  await ensureOutboxDeliverySchema();
   const [row] = await db
     .select()
     .from(outbox)
@@ -405,6 +451,7 @@ function stateLabel(row: OutboxRow, retryCount: number, deliveryStatus?: string 
 }
 
 export async function recentOutbox(limit = 25, organizationId?: number) {
+  await ensureOutboxDeliverySchema();
   if (Number.isInteger(organizationId)) {
     return db
       .select()
@@ -426,13 +473,18 @@ export async function recordEmailProviderEvent(input: {
   occurredAt: string;
   detail?: string | null;
 }) {
+  await ensureOutboxDeliverySchema();
   const [row] = await db
     .select()
     .from(outbox)
     .where(eq(outbox.id, input.outboxId))
     .limit(1);
 
-  if (!row || row.provider !== input.provider) {
+  if (
+    !row
+    || row.provider !== input.provider
+    || (row.providerMessageId && row.providerMessageId !== input.providerMessageId)
+  ) {
     return { matched: false as const, duplicate: false as const };
   }
 
@@ -450,6 +502,13 @@ export async function recordEmailProviderEvent(input: {
   if (duplicate) {
     return { matched: true as const, duplicate: true as const, outboxId: row.id };
   }
+
+  await db.update(outbox).set({
+    providerMessageId: input.providerMessageId,
+    deliveryStatus: input.deliveryStatus,
+    deliveryDetail: input.detail ?? null,
+    deliveryUpdatedAt: new Date(input.occurredAt),
+  }).where(eq(outbox.id, row.id));
 
   await writeMailAudit({
     organizationId: row.organizationId,
@@ -514,12 +573,13 @@ export async function recentOutboxWithAttempts(limit = 50, organizationId: numbe
       canRetry: canRetryStoredMessage(row),
       lastAttemptAt: lastAttempt?.createdAt ?? null,
       providerMessageId:
-        typeof lastAttemptMeta.providerMessageId === "string"
-          ? lastAttemptMeta.providerMessageId
-          : null,
-      deliveryStatus,
-      deliveryEventAt: providerEvent?.createdAt ?? null,
-      deliveryDetail: typeof providerEventMeta.detail === "string" ? providerEventMeta.detail : null,
+        row.providerMessageId
+        ?? (typeof lastAttemptMeta.providerMessageId === "string" ? lastAttemptMeta.providerMessageId : null),
+      deliveryStatus: row.deliveryStatus ?? deliveryStatus,
+      deliveryEventAt: row.deliveryUpdatedAt ?? providerEvent?.createdAt ?? null,
+      deliveryDetail:
+        row.deliveryDetail
+        ?? (typeof providerEventMeta.detail === "string" ? providerEventMeta.detail : null),
       runId: Number.isFinite(Number(context.runId)) ? Number(context.runId) : null,
       employeeId: Number.isFinite(Number(context.employeeId)) ? Number(context.employeeId) : null,
       periodLabel: typeof context.periodLabel === "string" ? context.periodLabel : null,
@@ -533,6 +593,7 @@ export async function recentOutboxWithAttempts(limit = 50, organizationId: numbe
  * must be regenerated instead of replaying stale one-time credentials.
  */
 export async function drainOutboxRetries(limit = 25) {
+  await ensureOutboxDeliverySchema();
   if (!capableHere()) return [];
 
   const candidates = await db
@@ -547,12 +608,6 @@ export async function drainOutboxRetries(limit = 25) {
 
   if (candidates.length === 0) return [];
 
-  const events = await db
-    .select()
-    .from(auditEvents)
-    .where(eq(auditEvents.action, "Outbox delivery retried"))
-    .orderBy(desc(auditEvents.createdAt), desc(auditEvents.id));
-
   const now = Date.now();
   const results: Array<{
     id: number;
@@ -564,24 +619,14 @@ export async function drainOutboxRetries(limit = 25) {
   for (const row of candidates) {
     if (row.organizationId == null) continue;
 
-    const retryEvents = events.filter((event) =>
-      Number(auditMetadata(event).outboxId) === row.id
-      && auditMetadata(event).trigger === "automatic"
-    );
-    if (retryEvents.length >= MAX_AUTOMATIC_RETRIES) {
+    if (row.attempts >= row.maxAttempts) {
       results.push({ id: row.id, status: row.status, retried: false, reason: "automatic-retry-limit" });
       continue;
     }
 
-    if (row.status === "failed") {
-      const delay = AUTO_RETRY_DELAYS_MS[Math.min(retryEvents.length, AUTO_RETRY_DELAYS_MS.length - 1)];
-      const latestRetryAt = retryEvents[0]?.createdAt
-        ? new Date(retryEvents[0].createdAt).getTime()
-        : new Date(row.createdAt).getTime();
-      if (now - latestRetryAt < delay) {
-        results.push({ id: row.id, status: row.status, retried: false, reason: "backoff" });
-        continue;
-      }
+    if (row.status === "failed" && row.nextAttemptAt && now < new Date(row.nextAttemptAt).getTime()) {
+      results.push({ id: row.id, status: row.status, retried: false, reason: "backoff" });
+      continue;
     }
 
     const retry = await retryOutboxMessage({
