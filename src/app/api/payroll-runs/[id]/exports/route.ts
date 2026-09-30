@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { payslips, payrollEntries, payrollRuns } from "@/db/schema";
+import { auditEvents, payslips, payrollEntries, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { generateBankFile, generateGovernmentDraft, generateJournalCsv } from "@/lib/exporters";
@@ -120,7 +120,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     actor,
     action: dryRun && kind === "bank" ? "Bank file dry-run generated" : `${kind} export generated`,
     resource: run.periodLabel,
-    metadata: { template, kind, filename: file.filename, ruleVersion: "PH-2026.01" },
+    metadata: {
+      runId: run.id,
+      template,
+      kind,
+      filename: file.filename,
+      dryRun: kind === "bank" ? dryRun : false,
+      ruleVersion: "PH-2026.01",
+    },
   });
 
   return new Response(file.body, {
@@ -151,7 +158,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) return Response.json({ error: "Payroll run not found" }, { status: 404 });
   const body = await request.json().catch(() => ({}));
-  const mode = body.mode === "preflight" ? "preflight" : "disburse";
+  const mode =
+    body.mode === "preflight"
+      ? "preflight"
+      : body.mode === "complete-manual"
+        ? "complete-manual"
+        : "disburse";
 
   const denied = await assertOrganizationRole(
     user.id,
@@ -159,7 +171,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     mode === "preflight" ? PAYROLL_OPERATOR_ROLES : PAYROLL_DISBURSEMENT_ROLES,
     mode === "preflight"
       ? "Only payroll operators can run a payout preflight."
-      : "Only the workspace owner can trigger a live payroll disbursement.",
+      : mode === "complete-manual"
+        ? "Only the workspace owner can record payroll payout completion."
+        : "Only the workspace owner can trigger a live payroll disbursement.",
   );
   if (denied) return denied;
 
@@ -170,6 +184,91 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         : "Live payroll disbursement is allowed only after the payroll run has been approved and released.",
       status: run.status,
     }, { status: 409 });
+  }
+
+  if (mode === "complete-manual") {
+    const reference = typeof body.reference === "string" ? body.reference.trim() : "";
+    if (reference.length < 4 || reference.length > 120) {
+      return Response.json({
+        error: "Enter the bank confirmation, transaction reference, or upload batch reference (4–120 characters).",
+      }, { status: 400 });
+    }
+    if (body.confirmed !== true) {
+      return Response.json({
+        error: "Confirm that the bank or payment provider shows this payroll payout as completed.",
+      }, { status: 400 });
+    }
+
+    const events = await db
+      .select()
+      .from(auditEvents)
+      .where(eq(auditEvents.organizationId, run.organizationId));
+
+    const runEvents = events.filter((event) => {
+      if (!event.metadata || typeof event.metadata !== "object") return false;
+      return Number((event.metadata as Record<string, unknown>).runId) === run.id;
+    });
+    const bankExport = runEvents
+      .filter((event) => event.action === "bank export generated")
+      .find((event) => {
+        const metadata = event.metadata as Record<string, unknown>;
+        return metadata.kind === "bank" && metadata.dryRun !== true;
+      });
+
+    if (!bankExport) {
+      return Response.json({
+        error: "Generate the final released bank file before recording payout completion.",
+      }, { status: 409 });
+    }
+
+    const existing = runEvents.find((event) =>
+      event.action === "Payroll payout completed manually" ||
+      event.action === "Payroll payout completed via PayMongo"
+    );
+    if (existing) {
+      const existingMetadata = existing.metadata && typeof existing.metadata === "object"
+        ? existing.metadata as Record<string, unknown>
+        : {};
+      return Response.json({
+        completed: true,
+        alreadyRecorded: true,
+        reference:
+          typeof existingMetadata.reference === "string"
+            ? existingMetadata.reference
+            : typeof existingMetadata.batchId === "string"
+              ? existingMetadata.batchId
+              : null,
+        completedAt:
+          typeof existingMetadata.completedAt === "string"
+            ? existingMetadata.completedAt
+            : existing.createdAt,
+      });
+    }
+
+    const completedAt = new Date().toISOString();
+    await recordAuditEvent({
+      organizationId: run.organizationId,
+      actor: user.name,
+      action: "Payroll payout completed manually",
+      resource: run.periodLabel,
+      metadata: {
+        runId: run.id,
+        method: "bank-file",
+        reference,
+        completedAt,
+        bankExportEventId: bankExport.id,
+        moneyMovedByLinaw: false,
+        completionRecordedBy: user.name,
+      },
+    });
+
+    return Response.json({
+      completed: true,
+      reference,
+      completedAt,
+      method: "bank-file",
+      moneyMovedByLinaw: false,
+    });
   }
 
   if (mode === "preflight") {
@@ -192,6 +291,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           employeeCount: result.employeeCount,
           totalAmountCents: result.totalAmountCents,
           banks: result.banks,
+          runId: run.id,
           moneyMoved: false,
         },
       });
@@ -207,7 +307,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         actor: user.name,
         action: "PayMongo payroll preflight failed",
         resource: run.periodLabel,
-        metadata: { error: message, moneyMoved: false },
+        metadata: { runId: run.id, error: message, moneyMoved: false },
       });
       return Response.json({ error: message, moneyMoved: false }, { status: 502 });
     }
@@ -223,14 +323,29 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   try {
     const result = await createPaymongoPayrollDisbursement(runId);
+    const completedStatuses = new Set(["completed", "paid", "success", "succeeded"]);
+    const everyTransferCompleted =
+      result.transfers.length > 0 &&
+      result.transfers.every((transfer) => completedStatuses.has(transfer.status.toLowerCase()));
+    const completedAt = everyTransferCompleted ? new Date().toISOString() : null;
     await recordAuditEvent({
       organizationId: run.organizationId,
       actor: user.name,
-      action: "Payroll disbursed via PayMongo",
+      action: everyTransferCompleted
+        ? "Payroll payout completed via PayMongo"
+        : "Payroll payout submitted via PayMongo",
       resource: run.periodLabel,
-      metadata: { batchId: result.batchId, provider: result.provider, transferCount: result.transfers.length },
+      metadata: {
+        runId: run.id,
+        batchId: result.batchId,
+        provider: result.provider,
+        transferCount: result.transfers.length,
+        transferStatuses: result.transfers.map((transfer) => transfer.status),
+        completedAt,
+        moneyMovedByLinaw: true,
+      },
     });
-    return Response.json(result);
+    return Response.json({ ...result, completed: everyTransferCompleted, completedAt });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Disbursement failed.";
     await recordAuditEvent({
@@ -238,7 +353,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       actor: user.name,
       action: "Payroll disbursement failed",
       resource: run.periodLabel,
-      metadata: { error: message },
+      metadata: { runId: run.id, error: message },
     });
     return Response.json({ error: message }, { status: 502 });
   }
