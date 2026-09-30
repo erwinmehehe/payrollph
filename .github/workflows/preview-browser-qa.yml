@@ -167,7 +167,7 @@ jobs:
 
               const demo = page.locator("#demo");
               check((await demo.count()) === 1, "desktop: live demo section is missing");
-              check((await demo.locator(".pv-shell, [class*=preview], button.nav-item").count()) > 0, "desktop: interactive workspace preview did not render");
+              check((await demo.locator(".pv, button.nav-item").count()) > 0, "desktop: interactive workspace preview did not render");
               report.modules.push({ module: "Claude hero audience selector", active: true });
               report.modules.push({ module: "Interactive workspace demo", active: true });
             }
