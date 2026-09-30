@@ -23,7 +23,7 @@ test("own-payslip PDF checks ownership before rendering", () => {
 });
 
 test("the workspace routes employee accounts away from admin screens", () => {
-  assert.ok(read("src/app/page.tsx").includes('role === "employee"'), "employee role must land on the self-service portal");
+  assert.ok(read("src/app/workspace/page.tsx").includes('role === "employee"'), "employee role must land on the self-service portal");
 });
 
 test("import endpoint enforces the plan and seat limit in this order", () => {
