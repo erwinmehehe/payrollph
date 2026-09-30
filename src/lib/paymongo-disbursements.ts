@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, payrollEntries, payrollRuns } from "@/db/schema";
@@ -122,7 +123,13 @@ export function buildBatchTransferPayload(
 export type BatchDisbursementResult = {
   batchId: string;
   provider: "instapay" | "pesonet";
-  transfers: Array<{ id: string; referenceNumber: string; status: string; amountCents: number }>;
+  transfers: Array<{
+    id: string;
+    referenceNumber: string;
+    status: string;
+    amountCents: number;
+    providerReferenceNumber: string | null;
+  }>;
 };
 
 
@@ -210,11 +217,18 @@ export async function createPaymongoBatchDisbursement(
   return {
     batchId,
     provider,
-    transfers: transfers.map((t: { id: string; reference_number: string; status: string; amount: number }) => ({
+    transfers: transfers.map((t: {
+      id: string;
+      reference_number: string;
+      status: string;
+      amount: number;
+      provider_reference_number?: string | null;
+    }) => ({
       id: t.id,
       referenceNumber: t.reference_number,
       status: t.status,
       amountCents: t.amount,
+      providerReferenceNumber: t.provider_reference_number ?? null,
     })),
   };
 }
@@ -250,4 +264,122 @@ export async function createPaymongoPayrollDisbursement(runId: number): Promise<
     );
   }
   return createPaymongoBatchDisbursement(rows, `payroll-run-${runId}`);
+}
+
+
+/**
+ * Reads PayMongo's current batch state. This is the authoritative provider read
+ * used by payout reconciliation; it never creates or retries a transfer.
+ */
+export async function getPaymongoBatchDisbursement(batchId: string): Promise<BatchDisbursementResult> {
+  if (!/^batch_tr_[A-Za-z0-9_-]+$/.test(batchId)) {
+    throw new Error("Invalid PayMongo batch transfer id.");
+  }
+
+  const secret = requirePaymongoSecret();
+  const response = await fetch(`https://api.paymongo.com/v2/batch_transfers/${encodeURIComponent(batchId)}`, {
+    headers: {
+      Accept: "application/json",
+      Authorization: paymongoAuthorization(secret),
+    },
+    cache: "no-store",
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(
+      payload?.errors?.[0]?.detail ?? `PayMongo returned HTTP ${response.status} reading batch ${batchId}.`,
+    );
+  }
+
+  const returnedBatchId = payload?.data?.id;
+  const transfers = Array.isArray(payload?.data?.transfers) ? payload.data.transfers : [];
+  if (returnedBatchId !== batchId) {
+    throw new Error(`PayMongo returned an unexpected batch id while reconciling ${batchId}.`);
+  }
+  if (transfers.length === 0) {
+    throw new Error(`PayMongo batch ${batchId} returned no transfers.`);
+  }
+
+  const provider = transfers[0]?.provider;
+  if (provider !== "instapay" && provider !== "pesonet") {
+    throw new Error(`PayMongo batch ${batchId} returned an unsupported transfer provider.`);
+  }
+
+  return {
+    batchId,
+    provider,
+    transfers: transfers.map((transfer: {
+      id?: string;
+      reference_number?: string;
+      status?: string;
+      amount?: number;
+      provider?: string;
+      provider_reference_number?: string | null;
+    }) => {
+      if (
+        typeof transfer.id !== "string"
+        || typeof transfer.reference_number !== "string"
+        || typeof transfer.status !== "string"
+        || !Number.isFinite(Number(transfer.amount))
+        || transfer.provider !== provider
+      ) {
+        throw new Error(`PayMongo batch ${batchId} returned a malformed transfer.`);
+      }
+      return {
+        id: transfer.id,
+        referenceNumber: transfer.reference_number,
+        status: transfer.status,
+        amountCents: Number(transfer.amount),
+        providerReferenceNumber:
+          typeof transfer.provider_reference_number === "string"
+            ? transfer.provider_reference_number
+            : null,
+      };
+    }),
+  };
+}
+
+export function buildPayrollRetryIdempotencyKey(
+  runId: number,
+  sourceBatchIds: string[],
+  referenceNumbers: string[],
+) {
+  const digest = createHash("sha256")
+    .update(JSON.stringify({
+      runId,
+      sourceBatchIds: [...sourceBatchIds].sort(),
+      referenceNumbers: [...referenceNumbers].sort(),
+    }))
+    .digest("hex")
+    .slice(0, 24);
+  return `payroll-run-${runId}-retry-${digest}`;
+}
+
+export async function createPaymongoPayrollRetry(input: {
+  runId: number;
+  referenceNumbers: string[];
+  sourceBatchIds: string[];
+}): Promise<BatchDisbursementResult> {
+  const requested = new Set(input.referenceNumbers);
+  if (requested.size === 0) throw new Error("There are no failed transfers to retry.");
+
+  const rows = await loadPayrollPayoutRows(input.runId);
+  const retryRows = rows.filter((row) => requested.has(row.referenceNumber));
+  if (retryRows.length !== requested.size) {
+    const found = new Set(retryRows.map((row) => row.referenceNumber));
+    const missing = [...requested].filter((reference) => !found.has(reference));
+    throw new Error(`Retry references no longer match the released payroll: ${missing.join(", ")}.`);
+  }
+
+  const missingAccounts = retryRows.filter((row) => !row.accountNumber || !row.bankName);
+  if (missingAccounts.length > 0) {
+    throw new Error(
+      `${missingAccounts.length} failed payout(s) now lack bank instructions: ${missingAccounts.map((row) => row.employeeNo).join(", ")}.`,
+    );
+  }
+
+  return createPaymongoBatchDisbursement(
+    retryRows,
+    buildPayrollRetryIdempotencyKey(input.runId, input.sourceBatchIds, input.referenceNumbers),
+  );
 }
