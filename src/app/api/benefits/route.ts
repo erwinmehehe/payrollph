@@ -1,6 +1,7 @@
+import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { db } from "@/db";
-import { assertOrganizationRole, ORG_ADMIN_ROLES, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
+import { assertOrganizationRole, assertScope, getAccess, ORG_ADMIN_ROLES, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { validateContribution, type BenefitPlanInput } from "@/lib/benefits";
@@ -21,6 +22,8 @@ export async function GET(request: Request) {
     "Only People or payroll administrators can manage benefits.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
 
   const [plans, staff] = await Promise.all([
     db.select().from(benefitPlans).where(and(
@@ -30,11 +33,13 @@ export async function GET(request: Request) {
     db.select().from(employees).where(eq(employees.organizationId, organizationId)),
   ]);
 
+  const visibleStaff = access.companyWide ? staff : staff.filter((employee) => employee.orgUnitId === access.orgUnitId);
+  const visibleEmployeeIds = new Set(visibleStaff.map((employee) => employee.id));
   const enrolments = plans.length
-    ? await db.select().from(benefitEnrollments).where(and(
+    ? (await db.select().from(benefitEnrollments).where(and(
         eq(benefitEnrollments.organizationId, organizationId),
         inArray(benefitEnrollments.planId, plans.map((plan) => plan.id)),
-      ))
+      ))).filter((enrolment) => access.companyWide || visibleEmployeeIds.has(enrolment.employeeId))
     : [];
 
   return Response.json({
@@ -42,7 +47,7 @@ export async function GET(request: Request) {
       ...plan,
       enrolled: enrolments.filter((enrolment) => enrolment.planId === plan.id && enrolment.status === "active").length,
     })),
-    employees: staff.map((employee) => ({
+    employees: visibleStaff.map((employee) => ({
       id: employee.id,
       name: `${employee.firstName} ${employee.lastName}`,
       monthlyBasic: employee.basicRate,
@@ -52,6 +57,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
@@ -73,14 +81,18 @@ export async function POST(request: Request) {
     "Only People or payroll administrators can manage benefit enrolments.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
   const [plan] = await db.select().from(benefitPlans).where(and(
     eq(benefitPlans.id, planId),
     or(isNull(benefitPlans.organizationId), eq(benefitPlans.organizationId, organizationId)),
   )).limit(1);
-  const [employee] = await db.select().from(employees).where(eq(employees.id, employeeId)).limit(1);
-  if (!plan || !employee || employee.organizationId !== organizationId) {
+  const [employee] = await db.select().from(employees).where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId))).limit(1);
+  if (!plan || !employee) {
     return Response.json({ error: "Plan or employee not found in this workspace." }, { status: 404 });
   }
+  const scope = assertScope(access, employee.orgUnitId);
+  if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
 
   const planInput: BenefitPlanInput = {
     id: plan.id,
@@ -114,6 +126,9 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const { searchParams } = new URL(request.url);
@@ -129,6 +144,14 @@ export async function DELETE(request: Request) {
     "Only People or payroll administrators can end benefit enrolments.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, row.organizationId);
+  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  const [employee] = await db.select({ orgUnitId: employees.orgUnitId }).from(employees)
+    .where(and(eq(employees.id, row.employeeId), eq(employees.organizationId, row.organizationId)))
+    .limit(1);
+  if (!employee) return Response.json({ error: "Employee not found in this workspace." }, { status: 404 });
+  const scope = assertScope(access, employee.orgUnitId);
+  if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
 
   await db.update(benefitEnrollments).set({ status: "ended", endedOn: new Date().toISOString().slice(0, 10) })
     .where(eq(benefitEnrollments.id, id));
@@ -146,6 +169,9 @@ export async function DELETE(request: Request) {
 
 /** Seeds the default PH benefit catalogue once per deployment. */
 export async function PUT(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
@@ -161,6 +187,10 @@ export async function PUT(request: Request) {
     "Only workspace administrators can seed the benefit catalogue.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Only company-wide administrators can seed the benefit catalogue." }, { status: 403 });
+  }
 
   const existing = await db.select({ value: benefitPlans.id }).from(benefitPlans);
   if (existing.length > 0) return Response.json({ ok: true, seeded: false });

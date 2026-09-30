@@ -261,14 +261,15 @@ test("maker and checker remain separate in the real authorization model", () => 
 });
 
 
-test("official public Vercel hostname can launch the sandbox without enabling demo mode globally", () => {
+test("only explicit public demo hosts can launch the sandbox without enabling demo mode globally", () => {
   assert.equal(OFFICIAL_PUBLIC_DEMO_HOST, "erwinmehehe-payrollph.vercel.app");
   assert.equal(publicDemoHostAllowed("erwinmehehe-payrollph.vercel.app"), true);
   assert.equal(publicDemoHostAllowed("ERWINMEHEHE-PAYROLLPH.VERCEL.APP"), true);
   assert.equal(publicDemoHostAllowed("payrollph-three.vercel.app"), true);
+  assert.equal(publicDemoHostAllowed("payrollph-git-homepage-preview.vercel.app"), false);
   assert.equal(
     publicDemoHostAllowed("payrollph-git-homepage-preview.vercel.app", {
-      deploymentHost: "payrollph-git-homepage-preview.vercel.app",
+      configuredHosts: "payrollph-git-homepage-preview.vercel.app",
     }),
     true,
   );
@@ -277,12 +278,7 @@ test("official public Vercel hostname can launch the sandbox without enabling de
 test("arbitrary customer and self-hosted domains cannot provision the public demo tenant", () => {
   assert.equal(publicDemoHostAllowed("customer.example.com"), false);
   assert.equal(publicDemoHostAllowed("localhost"), false);
-  assert.equal(
-    publicDemoHostAllowed("other-preview.vercel.app", {
-      deploymentHost: "this-preview.vercel.app",
-    }),
-    false,
-  );
+  assert.equal(publicDemoHostAllowed("other-preview.vercel.app"), false);
   assert.equal(
     publicDemoHostAllowed("preview.example.com", { configuredHosts: "preview.example.com" }),
     true,

@@ -1,3 +1,4 @@
+import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -8,7 +9,7 @@ import {
   importBatches,
   leaveBalances,
 } from "@/db/schema";
-import { ORG_ADMIN_ROLES, assertOrganizationRole } from "@/lib/access";
+import { ORG_ADMIN_ROLES, assertOrganizationRole, getAccess } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
@@ -76,6 +77,10 @@ export async function GET(request: Request) {
     "Only organization administrators and bookkeepers can view migration history.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Migration history requires company-wide administrator access." }, { status: 403 });
+  }
 
   await ensureMigrationSchema();
 
@@ -105,6 +110,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   await ensureCoreCompatibilitySchema();
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
@@ -180,6 +188,12 @@ export async function POST(request: Request) {
     "Only organization administrators and bookkeepers can migrate payroll or HR data.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Payroll and HR migrations require company-wide administrator access." }, { status: 403 });
+  }
+  const mfaDenied = requireSensitiveActionMfa(user);
+  if (mfaDenied) return mfaDenied;
 
   await ensureMigrationSchema();
   await ensureEmployeePayProfiles(organizationId);

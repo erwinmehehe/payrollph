@@ -1,8 +1,10 @@
+import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { approvalTasks, auditEvents, payrollEntries, payrollRuns, userOrganizations, users } from "@/db/schema";
 import {
   assertOrganizationRole,
+  assertOrganizationUnitAccess,
   PAYROLL_CHECKER_ROLES,
   PAYROLL_OPERATOR_ROLES,
   roleAllowed,
@@ -13,6 +15,9 @@ import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
 const SUBMITTABLE = ["Needs review", "Processed"];
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const { id } = await params;
   const runId = Number(id);
   if (!Number.isInteger(runId)) {
@@ -32,6 +37,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     "Only payroll operators can submit payroll for review.",
   );
   if (denied) return denied;
+  const scopeDenied = await assertOrganizationUnitAccess(
+    user.id,
+    run.organizationId,
+    run.scopeOrgUnitId,
+    "This payroll run is outside your assigned organization unit.",
+  );
+  if (scopeDenied) return scopeDenied;
 
   if (run.status === "Released") {
     return Response.json({ error: "Released payroll cannot be submitted again." }, { status: 409 });

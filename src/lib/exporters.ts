@@ -2,8 +2,9 @@ import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { bankTemplates, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
 import { computePagIbig, computePhilHealth, computeSss } from "@/lib/payroll-rules";
+import { escapeCsvCell } from "@/lib/csv";
 
-const csv = (value: unknown) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+const csv = escapeCsvCell;
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
 type PaymentSnapshot = {

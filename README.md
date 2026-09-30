@@ -92,7 +92,8 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
 ### Document storage
 - `POST /api/documents` content-sniffs magic bytes (PDF/PNG/JPEG); the declared browser MIME type is never trusted.
 - Disguised executables are rejected with 422. 5 MB cap. Filenames are sanitized against traversal.
-- `scannedClean` is always false until an AV engine is wired: the response says exactly which checks ran.
+- Uploads call an authenticated malware scanner through `MALWARE_SCAN_URL`; production fails closed on scanner timeout, outage, malformed response, or detected malware.
+- A deployable ClamAV scanner service lives in `services/malware-scanner`.
 - Currently stored in Postgres; swap the column write for an S3/R2 PUT before production volume.
 
 ### Embedded benefits administration
@@ -348,11 +349,10 @@ npx tsx --test tests/payroll-rules.test.ts tests/security.test.ts tests/integrat
 - CDN/edge rate limiting (Postgres-distributed, not Cloudflare/nginx)
 - Email provider credentials (Resend/Postmark/SMTP): outbox queues instead of sending
 - Object storage (S3/R2): uploads persist in Postgres with content validation
-- Malware/AV scanning engine on upload
 - SSO / SAML identity provider integration
 - Mandatory MFA for every role (TOTP is available and enforced for the demo account, not org-wide policy)
 - Email/SMS delivery providers (Resend/Postmark/Semaphore/Infobip)
-- Object storage + malware scanning
+- Object storage migration for production document volume
 - Subscription billing (PayMongo/Maya/Stripe)
 - Live bank host-to-host / InstaPay / PESONet submission
 - Certified government portal validation: BIR 2316 and Alphalist outputs are generated but labelled DRAFT
@@ -387,6 +387,12 @@ Set the environment variables before the first deploy, not after:
 | `DATABASE_URL` | Postgres connection string, required |
 | `APP_BASE_URL` | the deployment's own URL, used in email links |
 | `DEMO_MODE` | `false` for anything reachable publicly |
+| `WORKER_TOKEN` | strong random server-to-server secret |
+| `READINESS_TOKEN` | strong random secret for production readiness diagnostics |
+| `SETUP_TOKEN` | strong random first-run bootstrap secret |
+| `TOTP_ENCRYPTION_KEY` | exactly 32 bytes, encoded as 64 hex characters or base64 |
+| `MALWARE_SCAN_URL` | HTTPS scanner endpoint, for example the Railway ClamAV service |
+| `MALWARE_SCAN_TOKEN` | strong random bearer secret shared only with the scanner |
 | `PG_POOL_MAX` | a low number on serverless, where each instance opens its own pool |
 
 Mail is optional: with no provider the outbox queues and reports honestly rather

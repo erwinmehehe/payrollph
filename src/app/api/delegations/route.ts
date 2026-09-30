@@ -1,3 +1,4 @@
+import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { approvalDelegations, userOrganizations, users } from "@/db/schema";
@@ -37,7 +38,7 @@ export async function GET(request: Request) {
 
   const access = await getAccess(user.id, organizationId);
   const visibleRows =
-    access && roleAllowed(access.role, APPROVAL_ADMIN_ROLES)
+    access?.companyWide && roleAllowed(access.role, APPROVAL_ADMIN_ROLES)
       ? rows
       : rows.filter(
           (row) =>
@@ -46,7 +47,7 @@ export async function GET(request: Request) {
         );
 
   const resolved =
-    probe && (access && roleAllowed(access.role, APPROVAL_ADMIN_ROLES) || probe.toLowerCase() === user.name.toLowerCase())
+    probe && (access?.companyWide && roleAllowed(access.role, APPROVAL_ADMIN_ROLES) || probe.toLowerCase() === user.name.toLowerCase())
       ? await resolveEffectiveApprovers(organizationId, probe)
       : null;
 
@@ -54,6 +55,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
@@ -83,19 +87,22 @@ export async function POST(request: Request) {
   if (denied) return denied;
 
   const access = await getAccess(user.id, organizationId);
-  const canAdminister = Boolean(access && roleAllowed(access.role, APPROVAL_ADMIN_ROLES));
+  const canAdminister = Boolean(access?.companyWide && roleAllowed(access.role, APPROVAL_ADMIN_ROLES));
   if (!canAdminister && fromApprover.toLowerCase() !== user.name.toLowerCase()) {
     return Response.json({ error: "You can delegate only approvals assigned to your own account." }, { status: 403 });
   }
 
   const members = await db
-    .select({ id: users.id, name: users.name, role: userOrganizations.role })
+    .select({ id: users.id, name: users.name, role: userOrganizations.role, orgUnitId: userOrganizations.orgUnitId })
     .from(userOrganizations)
     .innerJoin(users, eq(userOrganizations.userId, users.id))
     .where(eq(userOrganizations.organizationId, organizationId));
 
-  const fromUser = members.find((member) => member.name.toLowerCase() === fromApprover.toLowerCase());
-  const toUser = members.find((member) => member.name.toLowerCase() === toApprover.toLowerCase());
+  const visibleMembers = access?.companyWide
+    ? members
+    : members.filter((member) => member.orgUnitId === access?.orgUnitId);
+  const fromUser = visibleMembers.find((member) => member.name.toLowerCase() === fromApprover.toLowerCase());
+  const toUser = visibleMembers.find((member) => member.name.toLowerCase() === toApprover.toLowerCase());
   if (!fromUser || !toUser) {
     return Response.json({ error: "Both the source approver and delegate must be authenticated members of this workspace." }, { status: 422 });
   }
@@ -125,6 +132,9 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
@@ -144,7 +154,7 @@ export async function PATCH(request: Request) {
   if (denied) return denied;
 
   const access = await getAccess(user.id, target.organizationId);
-  const canAdminister = Boolean(access && roleAllowed(access.role, APPROVAL_ADMIN_ROLES));
+  const canAdminister = Boolean(access?.companyWide && roleAllowed(access.role, APPROVAL_ADMIN_ROLES));
   if (!canAdminister && target.fromApprover.toLowerCase() !== user.name.toLowerCase()) {
     return Response.json({ error: "You can change only delegations created from your own approval identity." }, { status: 403 });
   }

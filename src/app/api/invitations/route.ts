@@ -1,11 +1,14 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { invitations, users } from "@/db/schema";
+import { invitations, orgUnits, users } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { deliveryCapable, queueMessage } from "@/lib/mailer";
 import { createInvitation } from "@/lib/tokens";
 import { assertOrganizationRole, getAccess, ORG_ADMIN_ROLES } from "@/lib/access";
+import { publicDemoMutationDenied } from "@/lib/demo-security";
+import { canonicalAppOrigin, enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
+import { rateLimitDistributed } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -40,8 +43,13 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+  const demoDenied = publicDemoMutationDenied(user.email, "Invitations");
+  if (demoDenied) return demoDenied;
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
@@ -56,6 +64,16 @@ export async function POST(request: Request) {
     "Only workspace administrators can invite users.",
   );
   if (deniedInvite) return deniedInvite;
+  const mfaDenied = requireSensitiveActionMfa(user);
+  if (mfaDenied) return mfaDenied;
+
+  const inviteLimit = await rateLimitDistributed(
+    `invite-create:${user.id}:${organizationId}`,
+    { limit: 20, windowMs: 60 * 60_000 },
+  );
+  if (!inviteLimit.allowed) {
+    return Response.json({ error: "Too many invitations created. Try again later." }, { status: 429 });
+  }
 
   const access = await getAccess(user.id, organizationId);
   if (role === "owner" && access?.role !== "owner") {
@@ -78,15 +96,42 @@ export async function POST(request: Request) {
     return Response.json({ error: "An open invitation for that email already exists." }, { status: 409 });
   }
 
+  let orgUnitId: number | null = null;
+  if (body.orgUnitId !== undefined && body.orgUnitId !== null && body.orgUnitId !== "") {
+    const candidate = Number(body.orgUnitId);
+    if (!Number.isInteger(candidate)) {
+      return Response.json({ error: "orgUnitId must be an integer." }, { status: 422 });
+    }
+    const [unit] = await db.select({ id: orgUnits.id }).from(orgUnits)
+      .where(and(eq(orgUnits.id, candidate), eq(orgUnits.organizationId, organizationId)))
+      .limit(1);
+    if (!unit) {
+      return Response.json({ error: "Organization unit not found in this workspace." }, { status: 404 });
+    }
+    orgUnitId = unit.id;
+  }
+
+  if (process.env.NODE_ENV === "production" && !deliveryCapable()) {
+    return Response.json({
+      error: "Invitation delivery is not configured. Configure transactional email before creating production invitations.",
+    }, { status: 503 });
+  }
+
+  let origin: string;
+  try {
+    origin = canonicalAppOrigin(request);
+  } catch {
+    return Response.json({ error: "APP_BASE_URL must be configured before invitations can be sent." }, { status: 503 });
+  }
+
   const { row, token } = await createInvitation({
     organizationId,
     email,
     role,
     invitedBy: user.name,
-    orgUnitId: Number.isInteger(Number(body.orgUnitId)) && body.orgUnitId ? Number(body.orgUnitId) : null,
+    orgUnitId,
   });
 
-  const origin = process.env.APP_BASE_URL ?? new URL(request.url).origin;
   const link = `${origin}/invite?token=${token}`;
 
   const delivery = await queueMessage({
@@ -112,14 +157,14 @@ export async function POST(request: Request) {
     metadata: { role, deliveryConfigured: deliveryCapable(), delivered: delivery.delivered },
   });
 
-  // The raw token is only returned when no mail provider is configured, so an
-  // operator can complete onboarding. It is never returned once delivery works.
+  // Raw invitation tokens are a development-only fallback. Production refuses
+  // to create invitations until transactional delivery is configured.
   return Response.json({
     id: row.id,
     email: row.email,
     role: row.role,
     expiresAt: row.expiresAt,
     delivery: { configured: deliveryCapable(), delivered: delivery.delivered, queued: delivery.queued, provider: delivery.provider, reason: delivery.reason },
-    inviteToken: deliveryCapable() ? undefined : token,
+    inviteToken: process.env.NODE_ENV !== "production" && !deliveryCapable() ? token : undefined,
   }, { status: 201 });
 }

@@ -1,3 +1,4 @@
+import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, asc, desc, eq, gte } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -9,7 +10,7 @@ import {
   payrollEntries,
   payrollRuns,
 } from "@/db/schema";
-import { assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
+import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { seedProvisioning } from "@/lib/provisioning";
@@ -31,6 +32,8 @@ export async function GET(request: Request) {
     "Only People administrators can view the employee directory.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
 
   await ensureEmployeePayProfiles(organizationId);
   const [rows, payProfiles] = await Promise.all([
@@ -41,8 +44,11 @@ export async function GET(request: Request) {
       .where(eq(employeePayProfiles.organizationId, organizationId)),
   ]);
   const payByEmployee = new Map(payProfiles.map((profile) => [profile.employeeId, profile]));
+  const visibleRows = access.companyWide
+    ? rows
+    : rows.filter((employee) => employee.orgUnitId === access.orgUnitId);
 
-  return Response.json(rows.map((employee) => {
+  return Response.json(visibleRows.map((employee) => {
     const profile = payByEmployee.get(employee.id);
     return {
       ...employee,
@@ -60,6 +66,9 @@ export async function GET(request: Request) {
  * from day one, and an optional asset is assigned in the same action.
  */
 export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -80,6 +89,9 @@ export async function POST(request: Request) {
     "Only People administrators can create employee records.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  const employeeOrgUnitId = access.companyWide ? null : access.orgUnitId;
 
   let payProfile;
   try {
@@ -105,6 +117,7 @@ export async function POST(request: Request) {
 
   const [created] = await db.insert(employees).values({
     organizationId,
+    orgUnitId: employeeOrgUnitId,
     employeeNo,
     firstName,
     middleName: middleName || null,
@@ -186,6 +199,9 @@ export async function POST(request: Request) {
  * often completed after the employee account itself is created.
  */
 export async function PATCH(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -212,6 +228,9 @@ export async function PATCH(request: Request) {
     ))
     .limit(1);
   if (!employee) return Response.json({ error: "Employee not found in this organization." }, { status: 404 });
+  const access = await getAccess(user.id, organizationId);
+  const scope = assertScope(access, employee.orgUnitId);
+  if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
   await ensureEmployeePayProfiles(organizationId);
   const [existingPayProfile] = await db.select().from(employeePayProfiles)
     .where(eq(employeePayProfiles.employeeId, employeeId))

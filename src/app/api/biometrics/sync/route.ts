@@ -1,10 +1,12 @@
-import { timingSafeEqual } from "node:crypto";
+import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { biometricDevices, employees, timePunches } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
+import { rateLimitDistributed } from "@/lib/rate-limit";
+import { verifyBiometricDeviceCredential } from "@/lib/biometric-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +46,24 @@ export async function GET(request: Request) {
  * attendance ingestion.
  */
 export async function POST(request: Request) {
+  const authorization = request.headers.get("authorization");
+  let user: Awaited<ReturnType<typeof getSessionUser>> = null;
+
+  if (!authorization) {
+    const originDenied = enforceSameOriginMutation(request);
+    if (originDenied) return originDenied;
+
+    user = await getSessionUser();
+    if (!user) {
+      return Response.json({ error: "Authentication required." }, { status: 401 });
+    }
+  }
+
+  const contentLength = Number(request.headers.get("content-length") ?? "0");
+  if (Number.isFinite(contentLength) && contentLength > 2_000_000) {
+    return Response.json({ error: "Biometric sync payload is too large." }, { status: 413 });
+  }
+
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
   const deviceSerial = String(body.deviceSerial ?? "").trim();
@@ -52,23 +72,26 @@ export async function POST(request: Request) {
   if (!Number.isInteger(organizationId) || !deviceSerial) {
     return Response.json({ error: "organizationId and deviceSerial are required." }, { status: 400 });
   }
+  if (deviceSerial.length > 160) {
+    return Response.json({ error: "deviceSerial is invalid." }, { status: 400 });
+  }
   if (logs.length === 0 || logs.length > 2_000) {
     return Response.json({ error: "Provide between 1 and 2,000 punch logs per request." }, { status: 400 });
   }
 
-  const user = await getSessionUser();
-  const deviceSecretAccepted = acceptsDeviceSecret(request);
-  if (!deviceSecretAccepted) {
-    if (!user) {
-      return Response.json({
-        error: process.env.BIOMETRIC_INGEST_SECRET
-          ? "A valid biometric ingest credential is required."
-          : "Biometric device ingestion is disabled until BIOMETRIC_INGEST_SECRET is configured.",
-      }, { status: process.env.BIOMETRIC_INGEST_SECRET ? 401 : 503 });
-    }
+  const deviceSecretAccepted = Boolean(authorization) &&
+    acceptsDeviceSecret(request, organizationId, deviceSerial);
 
+  if (authorization) {
+    // A gateway credential is bound to one organization + device serial. A
+    // compromised device token therefore cannot be replayed against another
+    // tenant merely by changing request fields.
+    if (!deviceSecretAccepted) {
+      return Response.json({ error: "A valid biometric ingest credential is required." }, { status: 401 });
+    }
+  } else {
     const denied = await assertOrganizationRole(
-      user.id,
+      user!.id,
       organizationId,
       PEOPLE_ADMIN_ROLES,
       "Only People administrators can sync biometric attendance.",
@@ -89,6 +112,16 @@ export async function POST(request: Request) {
     return Response.json({
       error: "Unknown biometric device for this workspace. Register the device before accepting punch logs.",
     }, { status: 404 });
+  }
+
+  const ingestLimit = await rateLimitDistributed(
+    deviceSecretAccepted
+      ? `biometric-sync:device:${device.id}`
+      : `biometric-sync:user:${user!.id}:${organizationId}`,
+    { limit: deviceSecretAccepted ? 120 : 30, windowMs: 60_000 },
+  );
+  if (!ingestLimit.allowed) {
+    return Response.json({ error: "Too many biometric sync requests. Try again shortly." }, { status: 429 });
   }
 
   const staff = await db.select().from(employees).where(eq(employees.organizationId, organizationId));
@@ -217,17 +250,17 @@ export async function POST(request: Request) {
   });
 }
 
-function acceptsDeviceSecret(request: Request) {
-  const configured = process.env.BIOMETRIC_INGEST_SECRET;
-  if (!configured) return false;
-
+function acceptsDeviceSecret(request: Request, organizationId: number, deviceSerial: string) {
   const header = request.headers.get("authorization") ?? "";
   if (!header.toLowerCase().startsWith("bearer ")) return false;
   const supplied = header.slice(7).trim();
 
-  const expectedBytes = Buffer.from(configured);
-  const suppliedBytes = Buffer.from(supplied);
-  return expectedBytes.length === suppliedBytes.length && timingSafeEqual(expectedBytes, suppliedBytes);
+  return verifyBiometricDeviceCredential(
+    supplied,
+    process.env.BIOMETRIC_INGEST_SECRET,
+    organizationId,
+    deviceSerial,
+  );
 }
 
 function localDateFromInput(raw: string, parsed: Date) {

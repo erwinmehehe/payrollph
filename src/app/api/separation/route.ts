@@ -1,3 +1,4 @@
+import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -14,6 +15,8 @@ import { getSessionUser } from "@/lib/auth";
 import {
   APPROVAL_ADMIN_ROLES,
   assertOrganizationRole,
+  assertScope,
+  getAccess,
   PAYROLL_RELEASE_ROLES,
   PEOPLE_PAYROLL_ROLES,
 } from "@/lib/access";
@@ -23,6 +26,7 @@ import { resolvePayProfile } from "@/lib/pay-basis";
 import { computeFinalPay, finalPayDueDate, readBasicAndThirteenth } from "@/lib/final-pay";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { ensureSeparationSchema } from "@/lib/separation-schema";
+import { requireSensitiveActionMfa } from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
 
@@ -210,6 +214,8 @@ export async function GET(request: Request) {
     "Your role is not allowed to manage this HR workflow.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
 
   const filter = employeeId > 0
     ? and(eq(separationRecords.organizationId, organizationId), eq(separationRecords.employeeId, employeeId))
@@ -221,7 +227,7 @@ export async function GET(request: Request) {
   })
     .from(separationRecords)
     .innerJoin(employees, eq(separationRecords.employeeId, employees.id))
-    .where(filter)
+    .where(access.companyWide ? filter : and(filter, eq(employees.orgUnitId, access.orgUnitId!)))
     .orderBy(desc(separationRecords.id));
 
   return Response.json({
@@ -237,6 +243,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
@@ -254,6 +263,8 @@ export async function POST(request: Request) {
     "Your role is not allowed to manage this HR workflow.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
 
   if (!Number.isInteger(employeeId) || !datePattern.test(noticeDate) || !datePattern.test(lastDay)) {
     return Response.json({ error: "employeeId, noticeDate and lastDay are required." }, { status: 400 });
@@ -261,6 +272,8 @@ export async function POST(request: Request) {
 
   try {
     const sources = await loadFinalPaySources({ organizationId, employeeId, lastDay });
+    const scope = assertScope(access, sources.employee.orgUnitId);
+    if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
     if (lastDay < String(sources.employee.startDate)) {
       return Response.json({ error: "Last day cannot be before the employee's hire date." }, { status: 400 });
     }
@@ -475,6 +488,9 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
@@ -495,6 +511,19 @@ export async function PATCH(request: Request) {
     "Your role is not allowed to manage separation and final pay.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, sep.organizationId);
+  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  const [employee] = await db.select({ orgUnitId: employees.orgUnitId }).from(employees)
+    .where(and(eq(employees.id, sep.employeeId), eq(employees.organizationId, sep.organizationId)))
+    .limit(1);
+  if (!employee) return Response.json({ error: "Employee not found in this workspace." }, { status: 404 });
+  const scope = assertScope(access, employee.orgUnitId);
+  if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
+
+  if (action === "approve" || action === "release") {
+    const mfaDenied = requireSensitiveActionMfa(user);
+    if (mfaDenied) return mfaDenied;
+  }
 
   if (action === "approve") {
     const approvalDenied = await assertOrganizationRole(

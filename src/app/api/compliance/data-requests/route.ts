@@ -1,9 +1,10 @@
+import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { dataRequests } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
-import { assertOrganizationRole } from "@/lib/access";
+import { assertOrganizationRole, getAccess } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,10 @@ export async function GET(request: Request) {
     "Only privacy administrators can view data-subject requests.",
   );
   if (deniedList) return deniedList;
+  const access = await getAccess(session.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Data-subject requests require company-wide privacy administrator access." }, { status: 403 });
+  }
 
   const rows = await db.select().from(dataRequests).where(eq(dataRequests.organizationId, organizationId)).orderBy(desc(dataRequests.id));
 
@@ -45,6 +50,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const session = await getSessionUser();
   if (!session) return Response.json({ error: "Authentication required." }, { status: 401 });
 
@@ -65,6 +73,12 @@ export async function POST(request: Request) {
     "Only privacy administrators can create data-subject requests.",
   );
   if (denied) return denied;
+  const access = await getAccess(session.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Data-subject requests require company-wide privacy administrator access." }, { status: 403 });
+  }
+  const mfaDenied = requireSensitiveActionMfa(session);
+  if (mfaDenied) return mfaDenied;
 
   const [row] = await db.insert(dataRequests).values({
     organizationId,
@@ -86,6 +100,9 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const session = await getSessionUser();
   if (!session) return Response.json({ error: "Authentication required." }, { status: 401 });
 
@@ -105,6 +122,12 @@ export async function PATCH(request: Request) {
     "Only privacy administrators can update data-subject requests.",
   );
   if (deniedPatch) return deniedPatch;
+  const access = await getAccess(session.id, existing.organizationId ?? 0);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Data-subject requests require company-wide privacy administrator access." }, { status: 403 });
+  }
+  const mfaDenied = requireSensitiveActionMfa(session);
+  if (mfaDenied) return mfaDenied;
 
   const [row] = await db.update(dataRequests).set({
     status,

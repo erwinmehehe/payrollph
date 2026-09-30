@@ -74,7 +74,7 @@ export async function getDashboardData(organizationId?: number) {
 
   const canViewPayroll = roleAllowed(access.role, PAYROLL_VIEW_ROLES);
   const canViewPeoplePay = roleAllowed(access.role, PEOPLE_PAYROLL_ROLES);
-  const canViewAudit = ["owner", "admin", "bookkeeper", "payroll", "checker"].includes(access.role);
+  const canViewAudit = access.companyWide && ["owner", "admin", "bookkeeper", "payroll", "checker"].includes(access.role);
   const canViewDelegations = roleAllowed(access.role, PAYROLL_CHECKER_ROLES);
 
   const employeeFilter = access && !access.companyWide && access.orgUnitId
@@ -91,9 +91,18 @@ export async function getDashboardData(organizationId?: number) {
       ? db.select().from(employeePayRetroAdjustments).where(eq(employeePayRetroAdjustments.organizationId, selectedOrganization.id)).orderBy(desc(employeePayRetroAdjustments.id))
       : Promise.resolve([]),
     canViewPayroll
-      ? db.select().from(payrollRuns).where(eq(payrollRuns.organizationId, selectedOrganization.id)).orderBy(desc(payrollRuns.id))
+      ? db.select().from(payrollRuns).where(
+          access.companyWide
+            ? eq(payrollRuns.organizationId, selectedOrganization.id)
+            : and(
+                eq(payrollRuns.organizationId, selectedOrganization.id),
+                eq(payrollRuns.scopeOrgUnitId, access.orgUnitId!),
+              ),
+        ).orderBy(desc(payrollRuns.id))
       : Promise.resolve([]),
-    db.select().from(approvalTasks).where(eq(approvalTasks.organizationId, selectedOrganization.id)).orderBy(asc(approvalTasks.id)),
+    access.companyWide || ["manager", "checker"].includes(access.role)
+      ? db.select().from(approvalTasks).where(eq(approvalTasks.organizationId, selectedOrganization.id)).orderBy(asc(approvalTasks.id))
+      : Promise.resolve([]),
     canViewAudit
       ? db.select().from(auditEvents).where(eq(auditEvents.organizationId, selectedOrganization.id)).orderBy(desc(auditEvents.createdAt))
       : Promise.resolve([]),
@@ -109,7 +118,11 @@ export async function getDashboardData(organizationId?: number) {
       : Promise.resolve([]),
     db.select().from(leaveRequests).where(eq(leaveRequests.organizationId, selectedOrganization.id)).orderBy(desc(leaveRequests.id)),
     db.select().from(leavePolicies).where(eq(leavePolicies.organizationId, selectedOrganization.id)).orderBy(asc(leavePolicies.id)),
-    db.select().from(orgUnits).where(eq(orgUnits.organizationId, selectedOrganization.id)),
+    db.select().from(orgUnits).where(
+      access.companyWide
+        ? eq(orgUnits.organizationId, selectedOrganization.id)
+        : and(eq(orgUnits.organizationId, selectedOrganization.id), eq(orgUnits.id, access.orgUnitId!)),
+    ),
     db.select().from(minWageOrders),
     db.select().from(provisioningTasks).where(eq(provisioningTasks.organizationId, selectedOrganization.id)),
   ]);
@@ -218,7 +231,12 @@ export async function getDashboardData(organizationId?: number) {
     templates,
     advisories,
     punches: punchRows,
-    delegations: delegationRows,
+    delegations: access.companyWide
+      ? delegationRows
+      : delegationRows.filter((delegation) =>
+          delegation.fromApprover.toLowerCase() === sessionUser.name.toLowerCase()
+          || delegation.toApprover.toLowerCase() === sessionUser.name.toLowerCase(),
+        ),
     leaveRequests: leaveRows,
     leavePolicies: leavePolicyRows,
     wageOrders: wages,

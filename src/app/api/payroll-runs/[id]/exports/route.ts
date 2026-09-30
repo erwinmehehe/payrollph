@@ -3,9 +3,12 @@ import { db } from "@/db";
 import { auditEvents, payslips, payrollEntries, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
+import { publicDemoMutationDenied } from "@/lib/demo-security";
+import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { generateBankFile, generateGovernmentDraft, generateJournalCsv } from "@/lib/exporters";
 import {
   assertOrganizationRole,
+  assertOrganizationUnitAccess,
   PAYROLL_DISBURSEMENT_ROLES,
   PAYROLL_OPERATOR_ROLES,
 } from "@/lib/access";
@@ -39,6 +42,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     "Only payroll operators can export payroll data.",
   );
   if (deniedExports) return deniedExports;
+  const scopeDenied = await assertOrganizationUnitAccess(
+    user.id,
+    run.organizationId,
+    run.scopeOrgUnitId,
+    "This payroll run is outside your assigned organization unit.",
+  );
+  if (scopeDenied) return scopeDenied;
 
   const actor = user.name;
 
@@ -148,12 +158,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
  * src/lib/paymongo-disbursements.ts for why this can't be auto-detected.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const { id } = await params;
   const runId = Number(id);
   if (!Number.isInteger(runId)) return Response.json({ error: "Invalid run id" }, { status: 400 });
 
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+  const demoDenied = publicDemoMutationDenied(user.email, "Live payroll disbursement");
+  if (demoDenied) return demoDenied;
 
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) return Response.json({ error: "Payroll run not found" }, { status: 404 });
@@ -176,6 +191,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         : "Only the workspace owner can trigger a live payroll disbursement.",
   );
   if (denied) return denied;
+  const scopeDenied = await assertOrganizationUnitAccess(
+    user.id,
+    run.organizationId,
+    run.scopeOrgUnitId,
+    "This payroll run is outside your assigned organization unit.",
+  );
+  if (scopeDenied) return scopeDenied;
+  const mfaDenied = requireSensitiveActionMfa(user);
+  if (mfaDenied) return mfaDenied;
 
   if (run.status !== "Released") {
     return Response.json({

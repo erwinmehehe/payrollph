@@ -13,13 +13,17 @@ test("self-service scoping is server-side, never a request parameter", () => {
 
 test("a privileged account cannot be demoted by linking", () => {
   const route = read("src/app/api/self/payslips/route.ts");
-  assert.ok(route.includes('"admin"') && route.includes('"bookkeeper"'), "admin/bookkeeper must be blocked from linking");
-  assert.ok(route.includes("409"));
+  assert.ok(route.includes('session.role !== "employee"'), "all non-employee roles must be blocked from linking");
+  assert.ok(route.includes("Only employee self-service accounts can link an employee record."));
+  assert.ok(route.includes("403"));
 });
 
 test("own-payslip PDF checks ownership before rendering", () => {
   const route = read("src/app/api/self/payslips/[id]/route.ts");
-  assert.ok(route.includes("entry.employeeId !== session.employeeId"), "ownership must be verified against the session");
+  assert.ok(
+    route.includes("eq(payrollEntries.employeeId, session.employeeId)"),
+    "ownership must be bound to the authenticated employee in the database query",
+  );
 });
 
 test("the workspace routes employee accounts away from admin screens", () => {

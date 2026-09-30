@@ -68,7 +68,7 @@ test("mail provider reports honestly when unconfigured", () => {
 test("readiness cannot treat credentials alone as proof of external integrations", () => {
   const source = readFileSync("src/app/api/readiness/route.ts", "utf8");
   assert.ok(source.includes("const storageIntegrated = false"), "bucket configuration alone must not make object storage green");
-  assert.ok(source.includes("const malwareIntegrated = false"), "scanner URL alone must not claim files were scanned");
+  assert.ok(source.includes("malwareScannerConfigured()"), "malware readiness must use the scanner integration helper");
   assert.ok(source.includes("const samlIntegrated = false"), "SAML metadata alone must not claim SSO exists");
   assert.ok(source.includes("paymongoPreflightProven"), "PayMongo readiness must require a recorded no-money preflight");
 });
@@ -80,6 +80,21 @@ test("manual confirmed payments can prove billing without pretending an online p
     "paid ledger state must be sufficient proof for a legitimate manual payment",
   );
   assert.ok(source.includes("current proof is manual/off-platform"));
+});
+
+test("production documents fail closed unless malware scanning reports clean", () => {
+  const documents = readFileSync("src/app/api/documents/route.ts", "utf8");
+  const storage = readFileSync("src/lib/storage.ts", "utf8");
+  const readiness = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  assert.ok(documents.includes("await scanUpload("));
+  assert.ok(documents.includes("MALWARE_SCAN_UNAVAILABLE"));
+  assert.ok(documents.includes("MALWARE_DETECTED"));
+  assert.ok(storage.includes("MALWARE_SCAN_TOKEN"));
+  assert.ok(storage.includes('redirect: "error"'));
+  assert.ok(storage.includes("controller.abort()"));
+  assert.ok(readiness.includes('key: "malware-scanning"'));
+  assert.ok(readiness.includes("malwareScannerConfigured()"));
+  assert.ok(readiness.includes('blocks: malwareIntegrated ? "none" : "launch"'));
 });
 
 test("dedicated worker drains payroll and webhook queues from a persistent process", () => {

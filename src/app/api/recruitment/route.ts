@@ -1,8 +1,9 @@
+import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { jobApplicants, jobRequisitions } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
+import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,10 @@ export async function GET(request: Request) {
     "Your role is not allowed to manage this HR workflow.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Recruitment records are company-wide until requisitions have explicit unit ownership." }, { status: 403 });
+  }
 
   const reqs = await db.select().from(jobRequisitions)
     .where(eq(jobRequisitions.organizationId, organizationId))
@@ -56,6 +61,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
@@ -70,6 +78,10 @@ export async function POST(request: Request) {
     "Your role is not allowed to manage this HR workflow.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Recruitment records are company-wide until requisitions have explicit unit ownership." }, { status: 403 });
+  }
 
   if (entityType === "requisition") {
     const title = String(body.title ?? "").trim();
@@ -147,6 +159,9 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
@@ -169,6 +184,10 @@ export async function PATCH(request: Request) {
     "Your role is not allowed to manage recruitment.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, applicant.organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Recruitment records are company-wide until requisitions have explicit unit ownership." }, { status: 403 });
+  }
 
   const updateData: Record<string, unknown> = {};
   if (stage) updateData.stage = stage;

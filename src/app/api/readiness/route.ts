@@ -2,7 +2,9 @@ import { count, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, invoices, outbox, subscriptions, users } from "@/db/schema";
 import { activeMailProvider, deliveryCapable } from "@/lib/mail-provider";
-import { hashPassword } from "@/lib/crypto";
+import { verifyPassword } from "@/lib/crypto";
+import { constantTimeSecretEqual } from "@/lib/security-secret";
+import { malwareScannerConfigured } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +19,18 @@ type Gate = { key: string; label: string; ready: boolean; detail: string; blocks
 const configured = (name: string) => Boolean(process.env[name]);
 const enabled = (name: string) => process.env[name] === "true";
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (process.env.NODE_ENV === "production") {
+    const expected = process.env.READINESS_TOKEN ?? process.env.WORKER_TOKEN;
+    if (!expected) {
+      return Response.json({ error: "Readiness diagnostics are disabled until READINESS_TOKEN or WORKER_TOKEN is configured." }, { status: 503 });
+    }
+    const supplied = request.headers.get("x-readiness-token") ?? request.headers.get("x-worker-token");
+    if (!constantTimeSecretEqual(supplied, expected)) {
+      return Response.json({ error: "A valid readiness token is required." }, { status: 401 });
+    }
+  }
+
   const [{ value: userCount }] = await db.select({ value: count() }).from(users);
   const [{ value: queuedMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "queued"));
   const [{ value: sentMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "sent"));
@@ -32,12 +45,11 @@ export async function GET() {
   // customer deployment. Detect it by hashing the known value rather than
   // storing the plaintext anywhere.
   const reviewEmail = "celine@linaw.ph";
-  const reviewHash = hashPassword("LinawDemo2026!");
   const [reviewAccount] = await db.select({
     id: users.id,
     passwordHash: users.passwordHash,
   }).from(users).where(eq(users.email, reviewEmail)).limit(1);
-  const reviewCredentialLive = Boolean(reviewAccount) && reviewAccount!.passwordHash === reviewHash;
+  const reviewCredentialLive = Boolean(reviewAccount) && verifyPassword("LinawDemo2026!", reviewAccount!.passwordHash);
 
   // Billing is proven by ledger state, regardless of whether the customer paid
   // through a processor or the operator recorded a confirmed bank/GCash payment.
@@ -66,10 +78,29 @@ export async function GET() {
   const storageConfigured = configured("S3_BUCKET") || configured("R2_BUCKET");
   const storageIntegrated = false;
   const malwareEndpointConfigured = configured("MALWARE_SCAN_URL");
-  const malwareIntegrated = false;
+  const malwareIntegrated = malwareScannerConfigured();
   const samlIntegrated = false;
 
+  const appBaseUrl = process.env.APP_BASE_URL ?? "";
+  const productionSecurityConfigured =
+    process.env.NODE_ENV !== "production" ||
+    (
+      /^https:\/\//i.test(appBaseUrl) &&
+      configured("WORKER_TOKEN") &&
+      configured("TOTP_ENCRYPTION_KEY") &&
+      configured("READINESS_TOKEN")
+    );
+
   const gates: Gate[] = [
+    {
+      key: "production-security-config",
+      label: "Production security configuration",
+      ready: productionSecurityConfigured,
+      detail: productionSecurityConfigured
+        ? "Canonical HTTPS origin, worker token, TOTP encryption key and readiness token are configured."
+        : "Configure HTTPS APP_BASE_URL, WORKER_TOKEN, TOTP_ENCRYPTION_KEY and READINESS_TOKEN before production launch.",
+      blocks: productionSecurityConfigured ? "none" : "launch",
+    },
     {
       key: "review-credential",
       label: "No publicly known review password",
@@ -176,10 +207,12 @@ export async function GET() {
       key: "malware-scanning",
       label: "Malware scanning on upload",
       ready: malwareIntegrated,
-      detail: malwareEndpointConfigured
-        ? "MALWARE_SCAN_URL is configured, but the upload request path does not call it yet. Files are not AV-cleared."
-        : "Content-type, magic-byte and size checks run on upload. No malware engine is integrated.",
-      blocks: "scale",
+      detail: malwareIntegrated
+        ? "Malware scanning is wired into document uploads and production fails closed unless the scanner reports the file clean."
+        : malwareEndpointConfigured
+          ? "Malware scanning is wired in, but production still needs a valid HTTPS MALWARE_SCAN_URL and MALWARE_SCAN_TOKEN."
+          : "Content-type, magic-byte and size checks run, but production uploads stay disabled until MALWARE_SCAN_URL and MALWARE_SCAN_TOKEN are configured.",
+      blocks: malwareIntegrated ? "none" : "launch",
     },
     {
       key: "sso",

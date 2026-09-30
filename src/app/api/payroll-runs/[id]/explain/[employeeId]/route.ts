@@ -1,7 +1,7 @@
 import { and, desc, eq, lt } from "drizzle-orm";
 import { db } from "@/db";
 import { payrollEntries, payrollRuns } from "@/db/schema";
-import { assertOrganizationRole, PAYROLL_VIEW_ROLES } from "@/lib/access";
+import { assertOrganizationRole, assertOrganizationUnitAccess, PAYROLL_VIEW_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { buildPayExplanation } from "@/lib/payroll-explain";
 
@@ -20,6 +20,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!run) return Response.json({ error: "Payroll run not found." }, { status: 404 });
   const denied = await assertOrganizationRole(user.id, run.organizationId, PAYROLL_VIEW_ROLES, "Your role cannot inspect payroll explanations.");
   if (denied) return denied;
+  const scopeDenied = await assertOrganizationUnitAccess(
+    user.id,
+    run.organizationId,
+    run.scopeOrgUnitId,
+    "This payroll run is outside your assigned organization unit.",
+  );
+  if (scopeDenied) return scopeDenied;
   const [entry] = await db.select().from(payrollEntries).where(and(eq(payrollEntries.payrollRunId, run.id), eq(payrollEntries.employeeId, employeeId))).limit(1);
   if (!entry) return Response.json({ error: "Payroll entry not found for this employee." }, { status: 404 });
   const [previousRun] = await db.select().from(payrollRuns).where(and(

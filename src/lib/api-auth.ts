@@ -2,6 +2,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { apiKeys } from "@/db/schema";
 import { sha256 } from "@/lib/crypto";
+import { rateLimitDistributed } from "@/lib/rate-limit";
 
 export { mintApiKey, requireScope } from "@/lib/api-keys";
 
@@ -21,6 +22,11 @@ export async function authenticateApiKey(request: Request) {
   )).limit(1);
 
   if (!row) return { ok: false as const, status: 401, error: "Invalid or revoked API key." };
+
+  const keyLimit = await rateLimitDistributed(`api-key:${row.id}`, { limit: 120, windowMs: 60_000 });
+  if (!keyLimit.allowed) {
+    return { ok: false as const, status: 429, error: "API key rate limit exceeded." };
+  }
 
   await db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, row.id));
 

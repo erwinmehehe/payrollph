@@ -1,9 +1,10 @@
+import { enforceSameOriginMutation } from "@/lib/security-request";
 import { cookies } from "next/headers";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, organizations, userOrganizations, users } from "@/db/schema";
 import { createSession, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth";
-import { requestMeta } from "@/lib/rate-limit";
+import { clientIp, rateLimitDistributed, requestMeta } from "@/lib/rate-limit";
 import { hashPassword } from "@/lib/crypto";
 import { DEMO_MODE, ensureSeedData } from "@/db/seed";
 import { ensurePublicDemoTenant } from "@/db/public-demo";
@@ -141,7 +142,7 @@ async function ensureDemoAccount(role: DemoRoleId, organizationId: number) {
 }
 
 function publicDemoAllowed(request: Request) {
-  if (DEMO_MODE) return true;
+  if (DEMO_MODE && process.env.NODE_ENV !== "production") return true;
 
   const hostname = new URL(request.url).hostname.toLowerCase();
   if (process.env.NODE_ENV !== "production" && (hostname === "127.0.0.1" || hostname === "localhost")) {
@@ -149,20 +150,26 @@ function publicDemoAllowed(request: Request) {
   }
 
   return publicDemoHostAllowed(hostname, {
-    productionHost: process.env.VERCEL_PROJECT_PRODUCTION_URL,
-    deploymentHost: process.env.VERCEL_URL,
     configuredHosts: process.env.PUBLIC_DEMO_HOSTS,
   });
 }
 
 export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
+  const limited = await rateLimitDistributed(`demo-switch:${clientIp(request)}`, { limit: 20, windowMs: 60_000 });
+  if (!limited.allowed) {
+    return Response.json({ error: "Too many demo session requests. Try again shortly." }, { status: 429 });
+  }
+
   if (!publicDemoAllowed(request)) {
     return Response.json({ error: "Demo accounts are disabled on this deployment." }, { status: 404 });
   }
 
   try {
     await ensureCoreCompatibilitySchema();
-    if (DEMO_MODE) {
+    if (DEMO_MODE && process.env.NODE_ENV !== "production") {
       await ensureSeedData();
     } else {
       await preparePublicDemoTenant();

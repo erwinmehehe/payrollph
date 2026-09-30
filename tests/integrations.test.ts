@@ -39,7 +39,7 @@ test("API keys are hashed, prefixed, and scope-checked", () => {
 
   assert.equal(requireScope(["employees:read"], "employees:read"), true);
   assert.equal(requireScope(["employees:read"], "payroll:read"), false);
-  assert.equal(requireScope(["*"], "payroll:read"), true);
+  assert.equal(requireScope(["*"], "payroll:read"), false, "legacy wildcard keys must not inherit future scopes");
 });
 
 test("report CSV escapes embedded quotes and commas", () => {
@@ -49,4 +49,24 @@ test("report CSV escapes embedded quotes and commas", () => {
   });
   assert.equal(csv.split("\n")[0], '"Metric","Detail"');
   assert.ok(csv.includes('"needs ""review"", urgently"'));
+});
+
+
+test("CSV export neutralizes spreadsheet formula injection", () => {
+  const csv = reportToCsv({
+    columns: ["Name", "Value"],
+    rows: [
+      ["=HYPERLINK(\"https://evil.invalid\",\"click\")", "safe"],
+      ["+SUM(1,2)", "safe"],
+      ["@malicious", "safe"],
+      ["-cmd|' /C calc'!A0", "safe"],
+      ["Normal Name", "-123.45"],
+    ],
+  });
+
+  assert.ok(csv.includes("\"'=HYPERLINK("));
+  assert.ok(csv.includes("\"'+SUM(1,2)\""));
+  assert.ok(csv.includes("\"'@malicious\""));
+  assert.ok(csv.includes("\"'-cmd|' /C calc'!A0\""));
+  assert.ok(csv.includes("\"-123.45\""), "plain negative numeric strings should remain numeric-looking");
 });

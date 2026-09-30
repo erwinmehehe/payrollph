@@ -1,3 +1,4 @@
+import { enforceSameOriginMutation } from "@/lib/security-request";
 import { queueMessage } from "@/lib/mailer";
 import { activeMailProvider, deliveryCapable } from "@/lib/mail-provider";
 import { clientIp, rateLimitDistributed } from "@/lib/rate-limit";
@@ -17,6 +18,9 @@ export const dynamic = "force-dynamic";
 const OPERATOR_INBOX = process.env.DEMO_REQUEST_INBOX ?? "demo-requests@linaw.invalid";
 
 export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const ip = clientIp(request);
   const limited = await rateLimitDistributed(`demo-request:${ip}`, { limit: 5, windowMs: 60 * 60 * 1000 });
   if (!limited.allowed) {

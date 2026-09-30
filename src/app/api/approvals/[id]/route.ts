@@ -1,3 +1,4 @@
+import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { approvalTasks, auditEvents, leaveRequests, payrollRuns } from "@/db/schema";
@@ -8,6 +9,9 @@ import { assertMembership } from "@/lib/access";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const { id } = await params;
   const taskId = Number(id);
   const body = await request.json().catch(() => ({}));

@@ -51,7 +51,7 @@ const people = [
  * Demo data only exists when DEMO_MODE is explicitly enabled.
  * A production instance boots with zero users and goes through /setup instead.
  */
-export const DEMO_MODE = process.env.DEMO_MODE === "true";
+export const DEMO_MODE = process.env.NODE_ENV !== "production" && process.env.DEMO_MODE === "true";
 
 export async function ensureSeedData() {
   const [{ value }] = await db.select({ value: count() }).from(organizations);
