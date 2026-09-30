@@ -1,13 +1,53 @@
 .home-redesign {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  --color-ink-950: #0b0d1a;
+  --color-ink-900: #12141f;
+  --color-ink-700: #2b2f45;
+  --color-ink-500: #5b6080;
+  --color-ink-400: #7c82a1;
+  --color-line: #e8eaf3;
+  --color-mist: #f6f7fb;
+  --color-mist-2: #eef0f8;
+
+  --color-monday-blue: #6161ff;
+  --color-monday-sky: #579bfc;
+  --color-monday-green: #00ca72;
+  --color-monday-mint: #e3faf0;
+  --color-monday-orange: #ff7a29;
+  --color-monday-yellow: #ffcb00;
+  --color-monday-pink: #ff5c7a;
+  --color-monday-purple: #7c5cff;
+  --color-monday-lilac: #f1edff;
+  --color-monday-peach: #fff1e6;
+
+  --shadow-soft: 0 1px 2px rgba(16, 18, 38, 0.05), 0 8px 28px -8px rgba(16, 18, 38, 0.12);
+  --shadow-lift: 0 2px 4px rgba(16, 18, 38, 0.06), 0 20px 48px -12px rgba(80, 80, 255, 0.18);
+  --shadow-card: 0 0 0 1px rgba(16, 18, 38, 0.06), 0 12px 32px -12px rgba(16, 18, 38, 0.14);
+
+  min-height: 100vh;
   background: #ffffff;
-  color: #0b0d1a;
+  color: var(--color-ink-950);
   overflow-x: hidden;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
 
 .home-redesign .font-display {
-  font-family: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-display);
   letter-spacing: -0.03em;
 }
+
+.home-redesign ::selection {
+  background: #6161ff;
+  color: white;
+}
+
+.home-redesign *::-webkit-scrollbar { width: 10px; height: 10px; }
+.home-redesign *::-webkit-scrollbar-track { background: #f1f2f8; }
+.home-redesign *::-webkit-scrollbar-thumb { background: #c9cde3; border-radius: 8px; }
+.home-redesign *::-webkit-scrollbar-thumb:hover { background: #a9aecb; }
 
 .home-redesign .bg-grid {
   background-image:
@@ -32,9 +72,7 @@
 .home-redesign .reveal {
   opacity: 0;
   transform: translateY(28px);
-  transition:
-    opacity 0.8s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 0.8s cubic-bezier(0.22, 1, 0.36, 1), transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
   transition-delay: var(--reveal-delay, 0ms);
   will-change: opacity, transform;
 }
@@ -58,10 +96,7 @@
 }
 
 .home-redesign .card-hover {
-  transition:
-    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.35s ease,
-    border-color 0.25s ease;
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s ease, border-color 0.25s ease;
 }
 
 .home-redesign .card-hover:hover {
@@ -70,14 +105,32 @@
   border-color: #d6d8ec;
 }
 
+.home-redesign .tab-active {
+  position: relative;
+}
+
+.home-redesign .shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.home-redesign .shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.6) 50%, transparent 70%);
+  transform: translateX(-100%);
+  animation: homeShimmerMove 3.2s ease-in-out infinite;
+}
+
 .home-redesign .font-mono,
 .home-redesign .mono {
-  font-family: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
 }
 
-.home-redesign input[type="range"].lin {
+.home-redesign input[type=range].lin {
   -webkit-appearance: none;
   appearance: none;
   height: 8px;
@@ -85,7 +138,7 @@
   background: linear-gradient(to right, #6161ff var(--p), #e8eaf3 var(--p));
 }
 
-.home-redesign input[type="range"].lin::-webkit-slider-thumb {
+.home-redesign input[type=range].lin::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 24px;
   height: 24px;
@@ -96,7 +149,7 @@
   cursor: grab;
 }
 
-.home-redesign input[type="range"].lin::-moz-range-thumb {
+.home-redesign input[type=range].lin::-moz-range-thumb {
   width: 20px;
   height: 20px;
   border-radius: 50%;
@@ -105,25 +158,11 @@
   cursor: grab;
 }
 
-.home-redesign .animate-float {
-  animation: homeFloat 7s ease-in-out infinite;
-}
-
-.home-redesign .animate-float-slow {
-  animation: homeFloat 10s ease-in-out infinite;
-}
-
-.home-redesign .animate-marquee {
-  animation: homeMarquee 32s linear infinite;
-}
-
-.home-redesign .pop-in {
-  animation: homePopIn .4s cubic-bezier(.22,1,.36,1) both;
-}
-
-.home-redesign .stamp {
-  animation: homeStamp .45s cubic-bezier(.22,1,.36,1) both;
-}
+.home-redesign .animate-float { animation: homeFloat 7s ease-in-out infinite; }
+.home-redesign .animate-float-slow { animation: homeFloat 10s ease-in-out infinite; }
+.home-redesign .animate-marquee { animation: homeMarquee 32s linear infinite; }
+.home-redesign .pop-in { animation: homePopIn .4s cubic-bezier(.22,1,.36,1) both; }
+.home-redesign .stamp { animation: homeStamp .45s cubic-bezier(.22,1,.36,1) both; }
 
 .home-redesign :focus-visible {
   outline: 2px solid #6161ff;
@@ -132,13 +171,18 @@
 }
 
 @keyframes homeFloat {
-  0%, 100% { transform: translateY(0); }
+  0%, 100% { transform: translateY(0px); }
   50% { transform: translateY(-12px); }
 }
 
 @keyframes homeMarquee {
   from { transform: translateX(0); }
   to { transform: translateX(-50%); }
+}
+
+@keyframes homeShimmerMove {
+  0% { transform: translateX(-100%); }
+  55%, 100% { transform: translateX(100%); }
 }
 
 @keyframes homePopIn {
