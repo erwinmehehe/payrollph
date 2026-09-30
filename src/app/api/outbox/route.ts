@@ -28,8 +28,8 @@ export async function GET(request: Request) {
   const denied = await assertOrganizationRole(
     user.id,
     organizationId,
-    PAYROLL_OPERATOR_ROLES,
-    "Only payroll operators can view the email outbox.",
+    ORG_ADMIN_ROLES,
+    "Only workspace administrators can view the email delivery dashboard.",
   );
   if (denied) return denied;
 
