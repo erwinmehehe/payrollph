@@ -217,6 +217,7 @@ test("checker and owner notifications exist only while they own the handoff", ()
   const owner = buildPayrollAttention(data, "owner");
   assert.equal(owner.length, 1);
   assert.equal(owner[0].actionLabel, "Release payroll");
+  assert.equal(owner[0].runId, 41);
 
   data.payrollRuns[0].status = "Released";
   assert.equal(buildPayrollAttention(data, "owner").length, 0);
