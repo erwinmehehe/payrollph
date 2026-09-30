@@ -1103,11 +1103,41 @@ function ExportPanel({
   const [template, setTemplate] = useState(templates[0]?.name ?? "BDO DAT");
   const [dryRun, setDryRun] = useState(true);
   const [draft, setDraft] = useState<string>(GOVERNMENT_DRAFTS[0].value);
+  const [exportFailure, setExportFailure] = useState<{ url: string; label: string; error: string } | null>(null);
+  const [exporting, setExporting] = useState<string | null>(null);
   const released = run.status === "Released";
 
-  function download(url: string, label: string) {
-    window.open(url, "_blank", "noopener");
-    notify(`${label} requested, the download is audit-logged.`, "info");
+  async function download(url: string, label: string) {
+    setExporting(label);
+    try {
+      const response = await fetch(url, { cache: "no-store" });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        const error = payload.error ?? `${label} failed with status ${response.status}.`;
+        setExportFailure({ url, label, error });
+        notify(error, "err");
+        return;
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") ?? "";
+      const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] ?? label.replace(/\s+/g, "-").toLowerCase();
+      const href = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = href;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(href);
+      setExportFailure(null);
+      notify(`${label} generated and audit-logged.`, "info");
+    } catch {
+      const error = `${label} could not be generated because the export service could not be reached.`;
+      setExportFailure({ url, label, error });
+      notify(error, "err");
+    } finally {
+      setExporting(null);
+    }
   }
 
   return (
@@ -1125,6 +1155,18 @@ function ExportPanel({
         </div>
 
         <div className="card-body">
+          {exportFailure && (
+            <div className="notice notice-red" data-recovery-state="export-failed" style={{ marginBottom: 12 }}>
+              <AlertTriangle size={15} className="i-red" />
+              <div style={{ flex: 1 }}>
+                <strong>Export failed</strong>
+                <p style={{ margin: "4px 0 0" }}>{exportFailure.error}</p>
+              </div>
+              <button className="secondary-button" disabled={Boolean(exporting)} onClick={() => void download(exportFailure.url, exportFailure.label)}>
+                {exporting ? "Retrying…" : "Retry export"}
+              </button>
+            </div>
+          )}
           <div className="integration-grid">
             <div className="export-card">
               <span className="inline-icon blue" aria-hidden>
@@ -1157,7 +1199,7 @@ function ExportPanel({
                   <button
                     className="secondary-button"
                     onClick={() =>
-                      download(
+                      void download(
                         `/api/payroll-runs/${run.id}/exports?kind=bank&template=${encodeURIComponent(template)}&dryRun=${dryRun}`,
                         dryRun ? `${template} dry-run validation` : `${template} file`,
                       )
@@ -1180,7 +1222,7 @@ function ExportPanel({
                   className="secondary-button"
                   style={{ marginTop: 10 }}
                   disabled={!released}
-                  onClick={() => download(`/api/payroll-runs/${run.id}/exports?kind=journal`, "Journal CSV")}
+                  onClick={() => void download(`/api/payroll-runs/${run.id}/exports?kind=journal`, "Journal CSV")}
                 >
                   <Download size={14} className="i-teal" /> {released ? "Journal CSV" : "Available after release"}
                 </button>
@@ -1213,7 +1255,7 @@ function ExportPanel({
                   <button
                     className="secondary-button"
                     onClick={() =>
-                      download(
+                      void download(
                         `/api/payroll-runs/${run.id}/exports?kind=government&template=${encodeURIComponent(draft)}`,
                         `${draft} draft`,
                       )
