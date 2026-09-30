@@ -601,6 +601,41 @@ export async function recentOutboxWithAttempts(limit = 50, organizationId: numbe
   });
 }
 
+export async function retryFailedPayslipNotices(input: {
+  organizationId: number;
+  actor: string;
+  limit?: number;
+}) {
+  await ensureOutboxDeliverySchema();
+  const rows = await db
+    .select()
+    .from(outbox)
+    .where(and(
+      eq(outbox.organizationId, input.organizationId),
+      eq(outbox.purpose, "payslip-ready"),
+      eq(outbox.status, "failed"),
+    ))
+    .orderBy(asc(outbox.id))
+    .limit(Math.max(1, Math.min(input.limit ?? 100, 250)));
+
+  const results = [];
+  for (const row of rows) {
+    results.push(await retryOutboxMessage({
+      id: row.id,
+      organizationId: input.organizationId,
+      actor: input.actor,
+      trigger: "manual",
+    }));
+  }
+
+  return {
+    requested: rows.length,
+    sent: results.filter((result) => result.ok).length,
+    failed: results.filter((result) => !result.ok).length,
+    results,
+  };
+}
+
 /**
  * Background retry is deliberately narrow: only payslip-ready notices are
  * retried automatically. Password resets, invitations and email-change links
