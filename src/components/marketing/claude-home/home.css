@@ -102,6 +102,18 @@
   transition: transform 0.2s ease, box-shadow 0.25s ease, background 0.2s ease;
 }
 
+.home-redesign .hero-primary-cta,
+.home-redesign .hero-primary-cta:visited,
+.home-redesign .hero-primary-cta:hover,
+.home-redesign .hero-primary-cta:active {
+  color: #ffffff !important;
+}
+
+.home-redesign .hero-primary-cta svg {
+  color: #ffffff !important;
+  stroke: currentColor;
+}
+
 .home-redesign .btn-primary:hover {
   transform: translateY(-1px);
   box-shadow: 0 12px 28px -8px rgba(11, 13, 26, 0.4);
