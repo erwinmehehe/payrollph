@@ -158,7 +158,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     try {
       await queueMessage({
         organizationId: run.organizationId,
-        recipient: person.email,
+        recipient: person.email!,
         subject: `Your payslip for ${run.periodLabel} is ready`,
         purpose: "payslip-ready",
         body: [
