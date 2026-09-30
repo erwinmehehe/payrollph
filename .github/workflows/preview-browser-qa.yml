@@ -31,6 +31,9 @@ jobs:
       DEMO_MODE: "false"
       PUBLIC_DEMO_HOSTS: "127.0.0.1,localhost"
       TRUSTED_APP_ORIGINS: "http://localhost:3000"
+      # Browser QA exercises privileged lifecycle behavior using isolated demo data.
+      # Security HTTP Smoke separately verifies that production MFA enforcement fails closed.
+      REQUIRE_PRIVILEGED_MFA: "false"
       QA_URL: http://localhost:3000
     services:
       postgres:
@@ -386,8 +389,13 @@ jobs:
           }
 
 
+          const sameOriginHeaders = { Origin: base };
+
           async function switchPersona(context, page, role) {
-            const response = await context.request.post(`${base}/api/auth/demo-switch`, { data: { role } });
+            const response = await context.request.post(`${base}/api/auth/demo-switch`, {
+              data: { role },
+              headers: sameOriginHeaders,
+            });
             check(response.ok(), `Lifecycle: switching to ${role} returned ${response.status()}`);
             const payload = await response.json();
             const target = typeof payload.redirectTo === "string" ? payload.redirectTo : `/workspace?demoRole=${role}`;
@@ -441,6 +449,7 @@ jobs:
 
             const submitResponse = await context.request.post(`${base}/api/payroll-runs/${run.id}/submit-review`, {
               data: { approverUserId: checker.id },
+              headers: sameOriginHeaders,
             });
             const submitPayload = await submitResponse.json();
             check(submitResponse.ok(), `Lifecycle: review submission failed: ${submitPayload.error ?? submitResponse.status()}`);
@@ -455,6 +464,7 @@ jobs:
 
             const approveResponse = await context.request.patch(`${base}/api/approvals/${submitPayload.task.id}`, {
               data: { status: "Approved" },
+              headers: sameOriginHeaders,
             });
             const approvePayload = await approveResponse.json();
             check(approveResponse.ok(), `Lifecycle: checker approval failed: ${approvePayload.error ?? approveResponse.status()}`);
@@ -468,6 +478,7 @@ jobs:
 
             const releaseResponse = await context.request.post(`${base}/api/payroll-runs/${run.id}/release`, {
               data: { acknowledgeExceptions: true },
+              headers: sameOriginHeaders,
             });
             const releasePayload = await releaseResponse.json();
             check(releaseResponse.ok(), `Lifecycle: owner release failed: ${releasePayload.error ?? releaseResponse.status()}`);
