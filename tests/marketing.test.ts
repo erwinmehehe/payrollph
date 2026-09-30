@@ -153,6 +153,18 @@ test("homepage simulation keeps colored module navigation and collapsible groups
   assert.ok(!css.includes("background: transparent;\n  color: #8d939d;"), "marketing CSS must not flatten all nav icons back to grey");
 });
 
+test("homepage People simulation can add and inspect employees", () => {
+  const preview = read("src/components/marketing/workspace-preview.tsx");
+  const css = read("src/components/marketing/software-home.module.css");
+  assert.ok(preview.includes("function PeopleDemo"), "People must have a dedicated interactive demo");
+  assert.ok(preview.includes("function addEmployee"), "People demo must support adding a local employee");
+  assert.ok(preview.includes("Import people"), "People demo must link into migration");
+  assert.ok(preview.includes("preview-people-overlay"), "People rows must open an employee detail surface");
+  assert.ok(preview.includes("Government IDs"), "employee detail must show payroll-relevant identity state");
+  assert.ok(css.includes("Product simulation polish pass"), "homepage demo must keep the product polish layer");
+  assert.ok(css.includes(".preview-people-drawer"), "People detail/add flow must have a designed drawer");
+});
+
 test("homepage Leave and Migration modules perform local interactive workflows", () => {
   const preview = read("src/components/marketing/workspace-preview.tsx");
   assert.ok(preview.includes("function PreviewLeave()"), "Leave must have a dedicated interactive preview");
