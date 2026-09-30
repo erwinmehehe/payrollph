@@ -53,7 +53,7 @@ export function ResetPasswordForm() {
       {done ? (
         <>
           <p className="auth-copy">Your password has been changed and every active session was signed out.</p>
-          <Link className="primary-button full" href="/" style={{ justifyContent: "center", display: "inline-flex" }}>
+          <Link className="primary-button full" href="/login" style={{ justifyContent: "center", display: "inline-flex" }}>
             Continue to sign in <ArrowRight size={16} />
           </Link>
         </>
@@ -74,7 +74,7 @@ export function ResetPasswordForm() {
 
           {error && <div className="notice notice-amber"><KeyRound size={15} className="i-amber" /><span><strong>{error}</strong>{problems.length > 0 && <><br />{problems.join(" ")}</>}</span></div>}
           <button className="primary-button full" disabled={busy || !token}>Update password</button>
-          <Link className="link-button" href="/">Back to sign in</Link>
+          <Link className="link-button" href="/login">Back to sign in</Link>
         </form>
       )}
     </section>
