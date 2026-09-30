@@ -52,7 +52,14 @@ export function RoleOverviewView({
   const highPriorityTasks = pendingTasks.filter((task) => task.priority === "High");
   const pendingLeave = (data.leaveRequests ?? []).filter((request) => request.status === "Pending");
   const openProvisioning = (data.provisioning ?? []).filter((task) => !task.done);
-  const payrollExceptions = data.payrollEntries.filter((entry) => entry.status === "Exception");
+  const handoffRun = selectPayrollHandoffRun(data, role) ?? currentRun ?? data.payrollHandoffRun ?? undefined;
+  const dashboardRun = handoffRun
+    ? data.payrollRuns.find((run) => run.id === handoffRun.id) ?? currentRun
+    : currentRun;
+  const payrollExceptions =
+    !handoffRun || !currentRun || handoffRun.id === currentRun.id
+      ? data.payrollEntries.filter((entry) => entry.status === "Exception")
+      : [];
   const pendingRetro = (data.retroAdjustments ?? []).filter((item) => item.status === "pending");
   const attendanceIssues = (data.punches ?? []).filter((punch) => {
     const status = punch.status.toLowerCase();
@@ -65,10 +72,6 @@ export function RoleOverviewView({
   );
   const activeAdvisories = data.advisories.filter((advisory) => advisory.active);
   const attentionItems = buildPayrollAttention(data, role);
-  const handoffRun = selectPayrollHandoffRun(data, role) ?? currentRun ?? data.payrollHandoffRun ?? undefined;
-  const dashboardRun = handoffRun
-    ? data.payrollRuns.find((run) => run.id === handoffRun.id) ?? currentRun
-    : currentRun;
   const payrollApproval = handoffRun
     ? data.tasks
         .filter((task) => task.detail.includes(`Payroll run #${handoffRun.id}`))
@@ -616,7 +619,7 @@ function CheckerDashboard(props: RoleDashboardProps) {
         <RoleCard kicker="Compliance before decision" title="Rule context for the current run" action="Open compliance" onAction={() => onPage("Compliance")}>
           <FocusNumber label="Rule version" value={currentRun?.ruleVersion ?? "PH-2026.01"} detail="The calculation records the rule version used." />
           <FocusNumber label="Active advisories" value={activeAdvisories.length} detail="Premium rules apply only when an advisory covers the work dates." />
-          <FocusNumber label="Payroll exceptions" value={data.payrollEntries.filter((entry) => entry.status === "Exception").length} detail="Use payroll context to understand flags; do not silently clear them." />
+          <FocusNumber label="Payroll exceptions" value={payrollExceptions.length} detail={currentRun?.id === handoffRun?.id ? "Use payroll context to understand flags; do not silently clear them." : "Register details stay with the payroll maker; review the submitted evidence here."} />
         </RoleCard>
 
         <RoleCard kicker="Evidence" title="Recent recorded actions" action="Full audit trail" onAction={() => onPage("Audit trail")}>
