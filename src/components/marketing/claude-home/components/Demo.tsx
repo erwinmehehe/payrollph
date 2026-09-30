@@ -238,19 +238,19 @@ export default function Demo() {
   ];
 
   return (
-    <section id="demo" className="scroll-mt-20 bg-[#F7F8FC] py-20 sm:py-28">
-      <div className="mx-auto max-w-[1240px] px-5 sm:px-8">
-        <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+    <section id="demo" className="scroll-mt-20 bg-[#F7F8FC] py-16 sm:py-20">
+      <div className="mx-auto max-w-[1320px] px-5 sm:px-8">
+        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
           <SectionHeading title={<>Run payroll. <span className="text-[#6161FF]">Try to break it.</span></>} />
           <Reveal delay={120}>
-            <p className="max-w-[400px] text-[15.5px] leading-relaxed text-[#5B6080]">
+            <p className="max-w-[360px] text-[16px] leading-relaxed text-[#5B6080]">
               A playable simulation on the real statutory math. Fix an exception, get it approved, release and export. Switch roles and the server rules push back. Nothing is saved.
             </p>
           </Reveal>
         </div>
 
         <Reveal delay={150}>
-          <div className="relative mt-10 overflow-hidden rounded-[26px] border border-[#E2E4F0] bg-white shadow-[0_2px_6px_rgba(16,18,38,.05),0_40px_90px_-34px_rgba(70,70,190,.35)]">
+          <div className="relative mt-8 overflow-hidden rounded-[28px] border border-[#E2E4F0] bg-white shadow-[0_2px_6px_rgba(16,18,38,.05),0_40px_90px_-34px_rgba(70,70,190,.35)]">
             <div className="flex items-center gap-3 border-b border-[#EDEFF7] bg-[#FAFBFD] px-4 py-2.5">
               <div className="flex gap-1.5" aria-hidden><span className="h-2.5 w-2.5 rounded-full bg-[#FF5F57]" /><span className="h-2.5 w-2.5 rounded-full bg-[#FEBC2E]" /><span className="h-2.5 w-2.5 rounded-full bg-[#28C840]" /></div>
               <span className="mono hidden rounded-lg border border-[#E8EAF3] bg-white px-3 py-1 text-[11.5px] text-[#7C82A1] sm:block">linaw.ph/{page}</span>
@@ -261,7 +261,7 @@ export default function Demo() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3 border-b border-[#EDEFF7] px-4 py-3">
-              <span className="text-[12.5px] font-bold text-[#7C82A1]">Acting as</span>
+              <span className="text-[13px] font-bold text-[#7C82A1]">Acting as</span>
               <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Acting as">
                 {(Object.keys(roles) as Role[]).map((k) => (
                   <button key={k} role="radio" aria-checked={role === k} onClick={() => setRole(k)}
@@ -289,7 +289,7 @@ export default function Demo() {
                     </li>
                   ))}
                 </ul>
-                <p className="mt-5 px-3 text-[11.5px] leading-snug text-[#9AA0BB]">People, Time, Leave and Reports live in the full workspace.</p>
+                <p className="mt-5 px-3 text-[12.5px] leading-relaxed text-[#7C82A1]">People, Time, Leave and Reports live in the full workspace.</p>
               </aside>
 
               <div className="min-w-0 p-4 sm:p-6">
@@ -303,7 +303,7 @@ export default function Demo() {
 
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="text-[12.5px] font-semibold text-[#9AA0BB]">Masigla Foods · Semi-monthly</p>
+                    <p className="text-[13px] font-semibold text-[#7C82A1]">Masigla Foods · Semi-monthly</p>
                     <h3 className="font-display text-[24px] font-extrabold sm:text-[28px]">Mar 1–15, 2026</h3>
                   </div>
                   <div className="flex items-center gap-2">
@@ -324,7 +324,7 @@ export default function Demo() {
                           {done ? <CheckCircle2 key="d" className="stamp h-4 w-4 text-[#0A8A53]" aria-hidden /> : now ? <span className="h-2 w-2 animate-pulse rounded-full bg-[#6161FF]" aria-hidden /> : <Lock className="h-3.5 w-3.5 text-[#B9BDD6]" aria-hidden />}
                           <span className={cn("text-[12px] font-extrabold sm:text-[13px]", done ? "text-[#0A8A53]" : now ? "text-[#4A4AE0]" : "text-[#9AA0BB]")}>{s}</span>
                         </div>
-                        <p className="mt-0.5 hidden text-[11px] text-[#7C82A1] sm:block">{["Payroll officer", "Checker", "Owner", "Owner / Payroll"][i]}</p>
+                        <p className="mt-0.5 hidden text-[12px] text-[#7C82A1] sm:block">{["Payroll officer", "Checker", "Owner", "Owner / Payroll"][i]}</p>
                       </li>
                     );
                   })}
@@ -332,7 +332,7 @@ export default function Demo() {
 
                 <div className="mt-3 flex flex-wrap items-center gap-3 rounded-2xl border border-[#D9D9FF] bg-gradient-to-r from-[#F4F4FF] to-white px-4 py-3" aria-live="polite">
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#6161FF] text-[11px] font-extrabold text-white">→</span>
-                  <p className="min-w-[200px] flex-1 text-[13.5px] font-medium leading-snug text-[#2B2F45]">{hint.t}</p>
+                  <p className="min-w-[200px] flex-1 text-[14px] font-medium leading-relaxed text-[#2B2F45]">{hint.t}</p>
                   {role !== hint.r && (
                     <button onClick={() => setRole(hint.r)} className="inline-flex items-center gap-1.5 rounded-full bg-[#6161FF] px-3.5 py-1.5 text-[12.5px] font-bold text-white transition-transform hover:scale-[1.03]">
                       Switch to {roles[hint.r].label} <ArrowRight className="h-3.5 w-3.5" aria-hidden />

@@ -125,6 +125,14 @@ jobs:
 
             const h1 = (await page.locator("h1").first().innerText()).trim();
             check(h1.includes("Payroll that") && h1.includes("shows its work."), `${name}: expected Claude payroll hero heading not found; saw "${h1}"`);
+            const heroPrimary = page.locator(".hero-primary-cta");
+            check((await heroPrimary.count()) === 1, `${name}: hero primary CTA is missing`);
+            const heroPrimaryStyles = await heroPrimary.evaluate((el) => {
+              const style = getComputedStyle(el);
+              return { color: style.color, backgroundColor: style.backgroundColor };
+            });
+            check(heroPrimaryStyles.color === "rgb(255, 255, 255)", `${name}: hero primary CTA text lost white contrast; saw ${heroPrimaryStyles.color}`);
+            check(heroPrimaryStyles.backgroundColor !== "rgba(0, 0, 0, 0)" && heroPrimaryStyles.backgroundColor !== "rgb(255, 255, 255)", `${name}: hero primary CTA background lost contrast; saw ${heroPrimaryStyles.backgroundColor}`);
 
             const overflow = await page.evaluate(() => ({
               scrollWidth: document.documentElement.scrollWidth,
