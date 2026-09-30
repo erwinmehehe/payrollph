@@ -245,10 +245,15 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         return { error };
       }
       await refresh();
+      const emailDelivery = payload.emailDelivery as { sent?: number; queued?: number; failed?: number; missingEmail?: number } | undefined;
+      const emailSummary = emailDelivery
+        ? `${emailDelivery.sent ?? 0} sent, ${emailDelivery.queued ?? 0} queued, ${emailDelivery.failed ?? 0} failed`
+        : `${payload.employeesNotified ?? 0} notice(s) recorded`;
       notify(
-        `Payroll released. ${payload.employeesNotified ?? 0} payslip-ready notice(s) queued in the outbox${
-          payload.webhookDeliveries ? `, ${payload.webhookDeliveries} webhook delivery attempt(s) logged` : ""
+        `Payroll released. Payslip notices: ${emailSummary}${
+          payload.webhookDeliveries ? `; ${payload.webhookDeliveries} webhook delivery attempt(s) logged` : ""
         }.`,
+        emailDelivery?.failed ? "err" : "info",
       );
       return { receipt: payload.receipt as PayrollReleaseReceipt | undefined };
     } catch {
