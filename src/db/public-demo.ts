@@ -414,8 +414,15 @@ export async function ensurePublicDemoTenant() {
             lineItems: lineItems(gross, deductions),
             trace: {
               ruleVersion: "PH-2026.01",
-              inputs: ["approved attendance", "statutory tables", "semi-monthly payroll"],
+              inputs: ["punches=10", "payBasis=monthly", "approved attendance", "statutory tables", "semi-monthly payroll"],
               payment: paymentSnapshot(employee),
+              payProfile: {
+                payBasis: "monthly",
+                rateAmount: Number(employee.basicRate),
+                standardWorkDaysPerMonth: 22,
+                standardHoursPerDay: 8,
+                monthlyEquivalent: Number(employee.basicRate),
+              },
             },
           };
         }),
