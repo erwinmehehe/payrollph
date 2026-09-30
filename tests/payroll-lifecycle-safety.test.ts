@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { buildPayrollHandoff, employeePayStatusLabel } from "../src/lib/payroll-handoff";
+import { derivePayrollPostReleaseStatus } from "../src/lib/payroll-post-release";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -129,4 +130,67 @@ test("release completion and payroll failure states are explicit and recoverable
   assert.ok(exportsView.includes('data-recovery-state="export-failed"'));
   assert.ok(exportsView.includes("Retry export"));
   assert.ok(!exportsView.includes('window.open(url, "_blank", "noopener")'), "export failures must be observable before download");
+});
+
+
+test("post-release payout trail is exact-run, durable and does not overstate settlement", () => {
+  const run = { id: 77, status: "Released" };
+  const base = [
+    {
+      action: "Payroll release receipt",
+      metadata: { runId: 77 },
+      createdAt: "2026-09-30T01:00:00.000Z",
+    },
+  ];
+
+  assert.equal(derivePayrollPostReleaseStatus(run, base)?.state, "released");
+
+  const exported = derivePayrollPostReleaseStatus(run, [
+    ...base,
+    {
+      action: "bank export generated",
+      metadata: { runId: 77, filename: "bdo-77.dat" },
+      createdAt: "2026-09-30T01:05:00.000Z",
+    },
+    {
+      action: "bank export generated",
+      metadata: { runId: 88, filename: "wrong-run.dat" },
+      createdAt: "2026-09-30T01:06:00.000Z",
+    },
+  ]);
+  assert.equal(exported?.state, "exported");
+  assert.equal(exported?.bankFilename, "bdo-77.dat");
+
+  const submitted = derivePayrollPostReleaseStatus(run, [
+    ...base,
+    {
+      action: "bank export generated",
+      metadata: { runId: 77, filename: "bdo-77.dat" },
+      createdAt: "2026-09-30T01:05:00.000Z",
+    },
+    {
+      action: "Payroll bank upload confirmed",
+      metadata: { runId: 77, settlementVerified: false },
+      createdAt: "2026-09-30T01:10:00.000Z",
+    },
+  ]);
+  assert.equal(submitted?.state, "submitted");
+  assert.match(submitted?.detail ?? "", /not final bank settlement/i);
+
+  const disbursed = derivePayrollPostReleaseStatus(run, [
+    ...base,
+    {
+      action: "Payroll disbursed via PayMongo",
+      metadata: { runId: 77, batchId: "batch_1" },
+      createdAt: "2026-09-30T01:15:00.000Z",
+    },
+  ]);
+  assert.equal(disbursed?.state, "disbursed");
+
+  const confirmation = read("src/app/api/payroll-runs/[id]/payout-confirmation/route.ts");
+  const exportsRoute = read("src/app/api/payroll-runs/[id]/exports/route.ts");
+  assert.ok(confirmation.includes("PAYROLL_DISBURSEMENT_ROLES"));
+  assert.ok(confirmation.includes("Generate the final bank file for this exact payroll run"));
+  assert.ok(confirmation.includes("settlementVerified: false"));
+  assert.ok(exportsRoute.includes("runId: run.id"));
 });
