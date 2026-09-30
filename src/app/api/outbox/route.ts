@@ -10,6 +10,7 @@ import {
   deliveryCapable,
   getOutboxMessage,
   recentOutboxWithAttempts,
+  retryFailedPayslipNotices,
   retryOutboxMessage,
 } from "@/lib/mailer";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
@@ -28,8 +29,8 @@ export async function GET(request: Request) {
   const denied = await assertOrganizationRole(
     user.id,
     organizationId,
-    PAYROLL_OPERATOR_ROLES,
-    "Only payroll operators can view the email outbox.",
+    ORG_ADMIN_ROLES,
+    "Only workspace administrators can view the email delivery dashboard.",
   );
   if (denied) return denied;
 
@@ -41,13 +42,14 @@ export async function GET(request: Request) {
       else if (row.status === "queued") counts.queued += 1;
       else if (row.status === "pending") counts.pending += 1;
       if (row.retryCount > 0) counts.retried += 1;
+      if (row.purpose === "payslip-ready" && row.status === "failed") counts.failedPayslipReady += 1;
       if (row.deliveryStatus === "delivered") counts.delivered += 1;
       if (["bounced", "complained", "failed", "suppressed"].includes(row.deliveryStatus ?? "")) {
         counts.deliveryIssues += 1;
       }
       return counts;
     },
-    { queued: 0, pending: 0, sent: 0, failed: 0, retried: 0, delivered: 0, deliveryIssues: 0 },
+    { queued: 0, pending: 0, sent: 0, failed: 0, failedPayslipReady: 0, retried: 0, delivered: 0, deliveryIssues: 0 },
   );
 
   return Response.json({
@@ -68,8 +70,10 @@ export async function GET(request: Request) {
       createdAt: row.createdAt,
       retryCount: row.retryCount,
       attemptCount: row.attemptCount,
+      maxAttempts: row.maxAttempts,
       canRetry: row.canRetry,
       lastAttemptAt: row.lastAttemptAt,
+      nextAttemptAt: row.nextAttemptAt,
       providerMessageId: row.providerMessageId,
       deliveryStatus: row.deliveryStatus,
       deliveryEventAt: row.deliveryEventAt,
@@ -94,9 +98,38 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
+  if (!Number.isInteger(organizationId)) {
+    return Response.json({ error: "organizationId is required." }, { status: 400 });
+  }
+
+  if (body.mode === "retry-failed-payslips") {
+    const denied = await assertOrganizationRole(
+      user.id,
+      organizationId,
+      ORG_ADMIN_ROLES,
+      "Only workspace administrators can retry failed payslip-ready notices in bulk.",
+    );
+    if (denied) return denied;
+
+    const result = await retryFailedPayslipNotices({
+      organizationId,
+      actor: user.name,
+      limit: 100,
+    });
+
+    return Response.json({
+      retried: result.requested,
+      sent: result.sent,
+      failed: result.failed,
+      message: result.requested === 0
+        ? "No failed payslip-ready notices need retry."
+        : `Retried ${result.requested} failed payslip-ready notice(s): ${result.sent} sent, ${result.failed} still failed.`,
+    });
+  }
+
   const messageId = Number(body.messageId);
-  if (!Number.isInteger(organizationId) || !Number.isInteger(messageId)) {
-    return Response.json({ error: "organizationId and messageId are required." }, { status: 400 });
+  if (!Number.isInteger(messageId)) {
+    return Response.json({ error: "messageId is required." }, { status: 400 });
   }
 
   const row = await getOutboxMessage(messageId, organizationId);

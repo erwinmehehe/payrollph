@@ -178,6 +178,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         recipient: person.email!,
         subject: `Your payslip for ${run.periodLabel} is ready`,
         purpose: "payslip-ready",
+        dedupeKey: `payslip-ready:${run.id}:${person.id}`,
         body: [
           `Hi ${person.firstName},`,
           "",

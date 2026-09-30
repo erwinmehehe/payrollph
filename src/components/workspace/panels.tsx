@@ -443,7 +443,7 @@ function Contribution({ name, value, note }: { name: string; value: string; note
 }
 
 
-export function IntegrationsPage({ onOpenOutbox }: { onOpenOutbox: () => void }) {
+export function IntegrationsPage({ onOpenOutbox }: { onOpenOutbox?: () => void }) {
   const entries = [
     ["Accounting", "Xero / QuickBooks Online", "Journal CSV mapping ready", "File based"],
     ["Banking", "BDO, BPI, UnionBank, GCash", "Versioned templates + byte generators", "Validated"],
@@ -455,7 +455,12 @@ export function IntegrationsPage({ onOpenOutbox }: { onOpenOutbox: () => void })
 
   return (
     <>
-      <PageHeading eyebrow="INTEGRATIONS" title="Connect without pretending." copy="Integration cards clearly state their current mode: template, credential-required, or live." actions={<button className="primary-button" onClick={onOpenOutbox}><Mail size={16} className="i-pink" /> View Email Outbox</button>} />
+      <PageHeading
+        eyebrow="INTEGRATIONS"
+        title="Connect without pretending."
+        copy="Integration cards clearly state their current mode: template, credential-required, or live."
+        actions={onOpenOutbox ? <button className="primary-button" onClick={onOpenOutbox}><Mail size={16} className="i-pink" /> View Email Outbox</button> : undefined}
+      />
       <section className="integration-grid">
         {entries.map(([type, name, copy, state], index) => (
           <article className="card integration-card" key={name}>
@@ -465,7 +470,9 @@ export function IntegrationsPage({ onOpenOutbox }: { onOpenOutbox: () => void })
             <p>{copy}</p>
             <div>
               <Status value={state} />
-              <button className="row-more" onClick={name.includes("Outbox") ? onOpenOutbox : undefined}><ArrowUpRight size={17} /></button>
+              {(!name.includes("Outbox") || onOpenOutbox) && (
+                <button className="row-more" onClick={name.includes("Outbox") ? onOpenOutbox : undefined}><ArrowUpRight size={17} /></button>
+              )}
             </div>
           </article>
         ))}
@@ -932,8 +939,10 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
     createdAt: string;
     retryCount: number;
     attemptCount: number;
+    maxAttempts: number;
     canRetry: boolean;
     lastAttemptAt?: string | null;
+    nextAttemptAt?: string | null;
     providerMessageId?: string | null;
     deliveryStatus?: string | null;
     deliveryEventAt?: string | null;
@@ -948,8 +957,9 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
   const [loaded, setLoaded] = useState(false);
   const [provider, setProvider] = useState("none");
   const [deliveryCapable, setDeliveryCapable] = useState(false);
-  const [summary, setSummary] = useState({ queued: 0, pending: 0, sent: 0, failed: 0, retried: 0, delivered: 0, deliveryIssues: 0 });
+  const [summary, setSummary] = useState({ queued: 0, pending: 0, sent: 0, failed: 0, failedPayslipReady: 0, retried: 0, delivered: 0, deliveryIssues: 0 });
   const [retrying, setRetrying] = useState<number | null>(null);
+  const [bulkRetrying, setBulkRetrying] = useState(false);
   const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
@@ -963,7 +973,7 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
           setMessages(next);
           setProvider(payload.provider ?? "none");
           setDeliveryCapable(Boolean(payload.deliveryCapable));
-          setSummary(payload.summary ?? { queued: 0, pending: 0, sent: 0, failed: 0, retried: 0, delivered: 0, deliveryIssues: 0 });
+          setSummary(payload.summary ?? { queued: 0, pending: 0, sent: 0, failed: 0, failedPayslipReady: 0, retried: 0, delivered: 0, deliveryIssues: 0 });
           setSelectedMsg((current) =>
             current ? next.find((item) => item.id === current.id) ?? next[0] ?? null : next[0] ?? null
           );
@@ -1002,6 +1012,28 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
     }
   }
 
+  async function retryAllFailedPayslips() {
+    setBulkRetrying(true);
+    try {
+      const response = await fetch("/api/outbox", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId, mode: "retry-failed-payslips" }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      setNotice(
+        response.ok
+          ? payload.message ?? "Failed payslip notices retried."
+          : payload.error ?? "Failed payslip notices could not be retried.",
+      );
+      load();
+    } catch {
+      setNotice("Could not reach the failed-payslip retry service.");
+    } finally {
+      setBulkRetrying(false);
+    }
+  }
+
   const statusTone = (message: OutboxMessage) => {
     if (["bounced", "complained", "failed", "suppressed"].includes(message.deliveryStatus ?? "")) {
       return "status-declined";
@@ -1027,7 +1059,7 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
         <div className="run-stats" style={{ margin: "14px 0" }}>
           <div><span>Delivered</span><strong className="green-number">{summary.delivered}</strong><small>{summary.sent} accepted by provider</small></div>
           <div><span>Queued</span><strong>{summary.queued + summary.pending}</strong><small>{summary.pending} currently sending</small></div>
-          <div><span>Needs attention</span><strong style={{ color: summary.failed + summary.deliveryIssues ? "var(--danger)" : undefined }}>{summary.failed + summary.deliveryIssues}</strong><small>{summary.deliveryIssues} provider delivery issue(s)</small></div>
+          <div><span>Needs attention</span><strong style={{ color: summary.failed + summary.deliveryIssues ? "var(--danger)" : undefined }}>{summary.failed + summary.deliveryIssues}</strong><small>{summary.failedPayslipReady} failed payslip notice(s) · {summary.deliveryIssues} provider issue(s)</small></div>
         </div>
 
         <div className={`notice ${deliveryCapable ? "notice-blue" : "notice-amber"}`} style={{ margin: "0 0 14px" }}>
@@ -1038,7 +1070,17 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
               ? "The worker can recover eligible payslip notices automatically."
               : "No delivery provider is active, messages remain queued instead of being reported as sent."}
           </span>
-          <button className="secondary-button" onClick={load} disabled={!loaded || retrying !== null}>
+          {summary.failedPayslipReady > 0 && (
+            <button
+              className="primary-button brand"
+              onClick={() => void retryAllFailedPayslips()}
+              disabled={!loaded || retrying !== null || bulkRetrying}
+            >
+              <RefreshCw size={13} />
+              {bulkRetrying ? "Retrying failed…" : `Retry ${summary.failedPayslipReady} failed payslip notice${summary.failedPayslipReady === 1 ? "" : "s"}`}
+            </button>
+          )}
+          <button className="secondary-button" onClick={load} disabled={!loaded || retrying !== null || bulkRetrying}>
             <RefreshCw size={13} /> Refresh
           </button>
         </div>
@@ -1091,7 +1133,7 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
                 <div className="setting-form" style={{ gridTemplateColumns: "1fr 1fr" }}>
                   <label>State<input readOnly value={selectedMsg.stateLabel} /></label>
                   <label>Provider<input readOnly value={selectedMsg.provider} /></label>
-                  <label>Attempts<input readOnly value={String(selectedMsg.attemptCount)} /></label>
+                  <label>Attempts<input readOnly value={`${selectedMsg.attemptCount} / ${selectedMsg.maxAttempts}`} /></label>
                   <label>Retries<input readOnly value={String(selectedMsg.retryCount)} /></label>
                 </div>
 
@@ -1108,6 +1150,9 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
                 <div style={{ fontSize: 11.5, color: "var(--ink-secondary)", display: "grid", gap: 5 }}>
                   <span>Queued: <strong>{formatTime(selectedMsg.createdAt)}</strong></span>
                   {selectedMsg.lastAttemptAt && <span>Last attempt: <strong>{formatTime(selectedMsg.lastAttemptAt)}</strong></span>}
+                  {selectedMsg.nextAttemptAt && selectedMsg.status === "failed" && (
+                    <span>Next automatic retry: <strong>{formatTime(selectedMsg.nextAttemptAt)}</strong></span>
+                  )}
                   {selectedMsg.sentAt && <span>Provider accepted: <strong>{formatTime(selectedMsg.sentAt)}</strong></span>}
                   {selectedMsg.deliveryEventAt && <span>Latest provider event: <strong>{formatTime(selectedMsg.deliveryEventAt)}</strong></span>}
                   {selectedMsg.deliveryStatus && <span>Delivery outcome: <strong>{selectedMsg.deliveryStatus}</strong></span>}
