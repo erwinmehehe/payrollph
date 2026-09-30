@@ -170,6 +170,25 @@ jobs:
                 check(current === "page", `desktop: ${moduleName} did not become active after click`);
                 report.modules.push({ module: moduleName, active: true });
               }
+
+              const peopleButton = stage.locator("button.nav-item").filter({ hasText: "People" }).first();
+              await peopleButton.click();
+              await page.waitForTimeout(100);
+              const addEmployee = stage.getByRole("button", { name: /^Add employee$/ }).first();
+              check((await addEmployee.count()) === 1, "desktop: People demo is missing Add employee");
+              await addEmployee.click();
+              const peopleDrawer = stage.locator(".preview-people-drawer");
+              check((await peopleDrawer.count()) === 1, "desktop: Add employee drawer did not open");
+              await peopleDrawer.getByLabel("First name").fill("Demo");
+              await peopleDrawer.getByLabel("Last name").fill("Employee");
+              await peopleDrawer.getByLabel("Role").fill("People operations");
+              await peopleDrawer.getByRole("button", { name: /^Add employee$/ }).click();
+              await page.waitForTimeout(100);
+              check((await stage.getByRole("button", { name: "Open Demo Employee" }).count()) === 1, "desktop: added sample employee did not appear");
+              await stage.getByRole("button", { name: "Open Demo Employee" }).click();
+              check((await stage.getByText("Government IDs", { exact: true }).count()) === 1, "desktop: employee detail drawer is missing government identity status");
+              check((await stage.getByText("Payroll status", { exact: true }).count()) === 1, "desktop: employee detail drawer is missing payroll status");
+              await stage.getByRole("button", { name: "Close employee details" }).click();
             }
 
             check(errors.length === 0, `${name}: browser console/page errors: ${errors.join(" | ")}`);
