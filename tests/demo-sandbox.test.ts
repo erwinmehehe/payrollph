@@ -292,3 +292,17 @@ test("public demo provisioning retries transient failures without exposing diagn
   assert.ok(!route.includes("safeProvisioningDiagnostic"), "temporary production diagnostics must be removed");
   assert.ok(!route.includes("diagnostic:"), "demo launch responses must not expose schema diagnostics");
 });
+
+
+test("payroll notifications are lifecycle actions rather than generic workspace noise", () => {
+  const shell = read("src/components/workspace/shell.tsx");
+  const workspace = read("src/components/linaw-workspace.tsx");
+  const roleOverview = read("src/components/workspace/role-overview.tsx");
+
+  assert.ok(shell.includes("buildPayrollAttention(data, role)"), "notification tray must derive from the payroll action queue");
+  assert.ok(!shell.includes("lifecycle checklist items open"), "generic provisioning rows should not create payroll notifications");
+  assert.ok(!shell.includes("Active advisory"), "generic advisories should not create payroll notifications");
+  assert.ok(workspace.includes("buildNotifications(data, effectiveRole)"), "notification queue must be role-aware");
+  assert.ok(workspace.includes("if (item.employeeId) setFocusEmployeeId(item.employeeId)"), "employee-data blockers must deep-link to the affected person");
+  assert.ok(roleOverview.includes("payroll-action-queue"), "role dashboards must show the same actionable handoff queue as the tray");
+});
