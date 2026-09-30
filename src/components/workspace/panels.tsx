@@ -919,77 +919,218 @@ export function NewPayrollModal({
 }
 
 export function OutboxModal({ organizationId, onClose, setNotice }: { organizationId: number; onClose: () => void; setNotice: (message: string) => void }) {
-  const [messages, setMessages] = useState<any[]>([]);
-  const [selectedMsg, setSelectedMsg] = useState<any>(null);
-  const [loaded, setLoaded] = useState(false);
+  type OutboxMessage = {
+    id: number;
+    recipient: string;
+    subject: string;
+    purpose: string;
+    status: string;
+    stateLabel: string;
+    provider: string;
+    error?: string | null;
+    sentAt?: string | null;
+    createdAt: string;
+    retryCount: number;
+    attemptCount: number;
+    canRetry: boolean;
+    lastAttemptAt?: string | null;
+    providerMessageId?: string | null;
+    runId?: number | null;
+    employeeId?: number | null;
+    periodLabel?: string | null;
+  };
 
+  const [messages, setMessages] = useState<OutboxMessage[]>([]);
+  const [selectedMsg, setSelectedMsg] = useState<OutboxMessage | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [provider, setProvider] = useState("none");
+  const [deliveryCapable, setDeliveryCapable] = useState(false);
+  const [summary, setSummary] = useState({ queued: 0, pending: 0, sent: 0, failed: 0, retried: 0 });
+  const [retrying, setRetrying] = useState<number | null>(null);
   const [nonce, setNonce] = useState(0);
+
   useEffect(() => {
     let alive = true;
     (async () => {
       const res = await fetch(`/api/outbox?organizationId=${organizationId}`, { cache: "no-store" });
       if (res.ok) {
-        const data = await res.json();
+        const payload = await res.json();
         if (alive) {
-          setMessages(data.messages ?? []);
-          if (data.messages?.length > 0) setSelectedMsg(data.messages[0]);
+          const next = (payload.messages ?? []) as OutboxMessage[];
+          setMessages(next);
+          setProvider(payload.provider ?? "none");
+          setDeliveryCapable(Boolean(payload.deliveryCapable));
+          setSummary(payload.summary ?? { queued: 0, pending: 0, sent: 0, failed: 0, retried: 0 });
+          setSelectedMsg((current) =>
+            current ? next.find((item) => item.id === current.id) ?? next[0] ?? null : next[0] ?? null
+          );
         }
+      } else if (alive) {
+        setNotice("Could not load the email outbox.");
       }
       if (alive) setLoaded(true);
     })();
     return () => { alive = false; };
-  }, [organizationId, nonce]);
+  }, [organizationId, nonce, setNotice]);
 
   function load() {
     setNonce((n) => n + 1);
   }
 
+  async function retryMessage(message: OutboxMessage) {
+    setRetrying(message.id);
+    try {
+      const response = await fetch("/api/outbox", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId, messageId: message.id }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      setNotice(
+        response.ok
+          ? `Delivery retry completed for ${message.recipient}.`
+          : payload.error ?? "Delivery retry failed.",
+      );
+      load();
+    } catch {
+      setNotice("Could not reach the outbox retry service.");
+    } finally {
+      setRetrying(null);
+    }
+  }
+
+  const statusTone = (message: OutboxMessage) =>
+    message.status === "sent"
+      ? "status-approved"
+      : message.status === "failed"
+        ? "status-declined"
+        : "status-review";
+
   return (
     <div className="modal-backdrop" role="presentation">
-      <section className="modal large" role="dialog" aria-modal="true" aria-label="Outbox Notification Center">
+      <section className="modal large" role="dialog" aria-modal="true" aria-label="Email delivery outbox">
         <button className="modal-close" onClick={onClose}><X size={18} /></button>
         <div className="modal-icon"><Mail size={22} className="i-pink" /></div>
-        <div className="card-kicker">NOTIFICATION CENTER & EMAIL OUTBOX</div>
-        <h2>Transactional Messages Queue</h2>
-        <p>Every invitation, password reset, and payslip-ready notice is recorded in the database outbox. In sandbox mode, view raw rendered messages directly:</p>
+        <div className="card-kicker">EMAIL DELIVERY</div>
+        <h2>Transactional outbox</h2>
+        <p>
+          Durable delivery state for payroll notices and account messages. Payslip-ready failures use bounded automatic retry;
+          one-time security links are never replayed after an attempted send.
+        </p>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.3fr", gap: 14, marginTop: 14 }}>
-          <div style={{ border: "1px solid var(--line)", borderRadius: 10, maxHeight: 340, overflowY: "auto" }}>
-            {messages.length === 0 && <div className="empty-state">No messages in outbox yet.</div>}
+        <div className="run-stats" style={{ margin: "14px 0" }}>
+          <div><span>Sent</span><strong className="green-number">{summary.sent}</strong><small>{summary.retried} retried message(s)</small></div>
+          <div><span>Queued</span><strong>{summary.queued + summary.pending}</strong><small>{summary.pending} currently sending</small></div>
+          <div><span>Failed</span><strong style={{ color: summary.failed ? "var(--danger)" : undefined }}>{summary.failed}</strong><small>eligible rows show Retry</small></div>
+        </div>
+
+        <div className={`notice ${deliveryCapable ? "notice-blue" : "notice-amber"}`} style={{ margin: "0 0 14px" }}>
+          <Mail size={15} />
+          <span>
+            Provider: <strong>{provider}</strong>.{" "}
+            {deliveryCapable
+              ? "The worker can recover eligible payslip notices automatically."
+              : "No delivery provider is active, messages remain queued instead of being reported as sent."}
+          </span>
+          <button className="secondary-button" onClick={load} disabled={!loaded || retrying !== null}>
+            <RefreshCw size={13} /> Refresh
+          </button>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.35fr", gap: 14, marginTop: 14 }}>
+          <div style={{ border: "1px solid var(--line)", borderRadius: 10, maxHeight: 390, overflowY: "auto" }}>
+            {!loaded && <div className="empty-state">Loading outbox…</div>}
+            {loaded && messages.length === 0 && <div className="empty-state">No messages in outbox yet.</div>}
             {messages.map((msg) => (
-              <div
+              <button
+                type="button"
                 key={msg.id}
                 onClick={() => setSelectedMsg(msg)}
                 style={{
+                  width: "100%",
+                  textAlign: "left",
                   padding: "10px 12px",
+                  border: 0,
                   borderBottom: "1px solid var(--line)",
                   cursor: "pointer",
                   background: selectedMsg?.id === msg.id ? "var(--green-light)" : "white",
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--muted)", marginBottom: 2 }}>
-                  <span>{msg.purpose}</span>
-                  <span className={`status status-${msg.status}`}>{msg.status}</span>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 10, color: "var(--muted)", marginBottom: 2 }}>
+                  <span>{msg.periodLabel ?? msg.purpose}</span>
+                  <span className={`status ${statusTone(msg)}`}>{msg.stateLabel}</span>
                 </div>
                 <strong style={{ display: "block", fontSize: 11.5 }}>{msg.recipient}</strong>
-                <span style={{ fontSize: 11, color: "var(--ink-secondary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{msg.subject}</span>
-              </div>
+                <span style={{ fontSize: 11, color: "var(--ink-secondary)", display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {msg.subject}
+                </span>
+                <small style={{ color: "var(--muted)" }}>
+                  {msg.attemptCount} attempt(s){msg.retryCount ? ` · ${msg.retryCount} retry${msg.retryCount === 1 ? "" : "ies"}` : ""}
+                </small>
+              </button>
             ))}
           </div>
 
-          <div style={{ border: "1px solid var(--line)", borderRadius: 10, padding: 14, background: "#fafcfa", maxHeight: 340, overflowY: "auto" }}>
+          <div style={{ border: "1px solid var(--line)", borderRadius: 10, padding: 14, background: "#fafcfa", maxHeight: 390, overflowY: "auto" }}>
             {selectedMsg ? (
-              <>
-                <div style={{ borderBottom: "1px solid var(--line)", paddingBottom: 8, marginBottom: 10 }}>
-                  <span style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", fontWeight: 800 }}>To: {selectedMsg.recipient}</span>
+              <div style={{ display: "grid", gap: 12 }}>
+                <div style={{ borderBottom: "1px solid var(--line)", paddingBottom: 10 }}>
+                  <span style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", fontWeight: 800 }}>
+                    {selectedMsg.purpose}
+                  </span>
                   <strong style={{ display: "block", fontSize: 13, marginTop: 2 }}>{selectedMsg.subject}</strong>
+                  <p style={{ margin: "5px 0 0" }}>To {selectedMsg.recipient}</p>
                 </div>
-                <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: 11, fontFamily: "monospace", color: "var(--ink-secondary)", lineHeight: 1.5 }}>
-                  {selectedMsg.body}
-                </pre>
-              </>
+
+                <div className="setting-form" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                  <label>State<input readOnly value={selectedMsg.stateLabel} /></label>
+                  <label>Provider<input readOnly value={selectedMsg.provider} /></label>
+                  <label>Attempts<input readOnly value={String(selectedMsg.attemptCount)} /></label>
+                  <label>Retries<input readOnly value={String(selectedMsg.retryCount)} /></label>
+                </div>
+
+                {(selectedMsg.runId || selectedMsg.periodLabel) && (
+                  <div className="notice notice-blue" style={{ margin: 0 }}>
+                    <FileSpreadsheet size={14} />
+                    <span>
+                      Payroll {selectedMsg.periodLabel ?? `run #${selectedMsg.runId}`}
+                      {selectedMsg.employeeId ? ` · employee #${selectedMsg.employeeId}` : ""}
+                    </span>
+                  </div>
+                )}
+
+                <div style={{ fontSize: 11.5, color: "var(--ink-secondary)", display: "grid", gap: 5 }}>
+                  <span>Queued: <strong>{formatTime(selectedMsg.createdAt)}</strong></span>
+                  {selectedMsg.lastAttemptAt && <span>Last attempt: <strong>{formatTime(selectedMsg.lastAttemptAt)}</strong></span>}
+                  {selectedMsg.sentAt && <span>Sent: <strong>{formatTime(selectedMsg.sentAt)}</strong></span>}
+                  {selectedMsg.providerMessageId && <span>Provider ID: <span className="mono">{selectedMsg.providerMessageId}</span></span>}
+                </div>
+
+                {selectedMsg.error && (
+                  <div className="notice notice-red" style={{ margin: 0 }}>
+                    <span><strong>Last delivery error:</strong> {selectedMsg.error}</span>
+                  </div>
+                )}
+
+                {selectedMsg.canRetry && (
+                  <button
+                    className="primary-button brand"
+                    disabled={retrying !== null}
+                    onClick={() => void retryMessage(selectedMsg)}
+                  >
+                    <RefreshCw size={14} />
+                    {retrying === selectedMsg.id ? "Retrying…" : "Retry delivery"}
+                  </button>
+                )}
+
+                {!selectedMsg.canRetry && selectedMsg.status === "failed" && (
+                  <p className="field-help">
+                    This message cannot be replayed safely. For one-time account links, generate a fresh link instead.
+                  </p>
+                )}
+              </div>
             ) : (
-              <div className="empty-state">Select a message to view content.</div>
+              <div className="empty-state">Select a message to inspect delivery state.</div>
             )}
           </div>
         </div>
