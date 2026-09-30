@@ -2,6 +2,7 @@ import "dotenv/config";
 import { pool } from "../src/db";
 import { processNextPayrollJob } from "../src/lib/payroll-engine";
 import { drainWebhookRetries } from "../src/lib/webhooks";
+import { drainOutboxRetries } from "../src/lib/mailer";
 
 const POLL_MS = Math.max(1000, Number(process.env.WORKER_POLL_MS ?? "3000"));
 let stopping = false;
@@ -13,9 +14,11 @@ function sleep(ms: number) {
 async function tick() {
   const payroll = await processNextPayrollJob("dedicated-worker");
   const webhooks = await drainWebhookRetries(20);
+  const mail = await drainOutboxRetries(20);
   return {
     payrollProcessed: payroll.processed,
     webhookRetries: webhooks.length,
+    mailRetries: mail.filter((item) => item.retried).length,
   };
 }
 
@@ -32,7 +35,7 @@ async function main() {
   while (!stopping) {
     try {
       const result = await tick();
-      if (!result.payrollProcessed && result.webhookRetries === 0) {
+      if (!result.payrollProcessed && result.webhookRetries === 0 && result.mailRetries === 0) {
         await sleep(POLL_MS);
       }
     } catch (error) {

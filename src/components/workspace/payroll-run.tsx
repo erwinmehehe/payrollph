@@ -452,6 +452,12 @@ export function PayrollRunView({
               <div>
                 <strong>Payslip delivery</strong>
                 <p>{visibleReleaseReceipt.payslips.label}. {visibleReleaseReceipt.payslips.available} payslip(s) are available in self-service.</p>
+                {(visibleReleaseReceipt.payslips.noticesSent !== undefined
+                  || visibleReleaseReceipt.payslips.noticesFailed !== undefined) && (
+                  <small>
+                    {visibleReleaseReceipt.payslips.noticesSent ?? 0} sent · {visibleReleaseReceipt.payslips.noticesQueued} queued · {visibleReleaseReceipt.payslips.noticesFailed ?? 0} failed · {visibleReleaseReceipt.payslips.missingEmail} missing email
+                  </small>
+                )}
               </div>
             </div>
           </div>
@@ -1478,6 +1484,8 @@ function readReleaseReceipt(events: DashboardData["auditEvents"], runId: number)
       label: slips.label,
       available: Number(slips.available ?? 0),
       noticesQueued: Number(slips.noticesQueued ?? 0),
+      noticesSent: Number(slips.noticesSent ?? 0),
+      noticesFailed: Number(slips.noticesFailed ?? 0),
       missingEmail: Number(slips.missingEmail ?? 0),
       warningCount: Number(slips.warningCount ?? 0),
     },

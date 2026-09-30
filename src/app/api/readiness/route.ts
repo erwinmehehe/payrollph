@@ -34,6 +34,7 @@ export async function GET(request: Request) {
   const [{ value: userCount }] = await db.select({ value: count() }).from(users);
   const [{ value: queuedMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "queued"));
   const [{ value: sentMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "sent"));
+  const [{ value: failedMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "failed"));
   const [{ value: paidInvoices }] = await db.select({ value: count() }).from(invoices).where(eq(invoices.status, "paid"));
   const [{ value: activeSubs }] = await db.select({ value: count() }).from(subscriptions).where(eq(subscriptions.status, "active"));
   const [{ value: paymongoPreflightPasses }] = await db.select({ value: count() }).from(auditEvents)
@@ -125,7 +126,7 @@ export async function GET(request: Request) {
       ready: deliveryCapable() && Number(sentMail) > 0,
       detail: deliveryCapable()
         ? Number(sentMail) > 0
-          ? `Active provider: ${provider}. ${sentMail} successful delivery record(s) exist on this deployment.`
+          ? `Active provider: ${provider}. ${sentMail} successful delivery record(s); ${failedMail} message(s) currently failed and visible in the outbox.`
           : `Provider ${provider} is configured, but this deployment has not recorded a successful delivery yet.`
         : "No provider configured. Messages remain queued until a transactional email provider is connected.",
       blocks: deliveryCapable() && Number(sentMail) > 0 ? "none" : "launch",
@@ -254,7 +255,7 @@ export async function GET(request: Request) {
           : `${unworkaroundableBlockers.length} blocker(s) have no manual workaround and must be fixed even for a manual-ops pilot: ${unworkaroundableBlockers.map((g) => g.label).join(", ")}.`,
     },
     gates,
-    counts: { users: userCount, queuedMail, sentMail, paidInvoices, activeSubs, paymongoPreflightPasses },
+    counts: { users: userCount, queuedMail, sentMail, failedMail, paidInvoices, activeSubs, paymongoPreflightPasses },
     generatedAt: new Date().toISOString(),
   });
 }

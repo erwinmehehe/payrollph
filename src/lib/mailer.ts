@@ -1,8 +1,8 @@
-import { desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import nodemailer from "nodemailer";
 import { db } from "@/db";
-import { outbox } from "@/db/schema";
-
+import { auditEvents, outbox } from "@/db/schema";
+import { recordAuditEvent } from "@/lib/audit";
 import { activeMailProvider as detectProvider, deliveryCapable as capable, type MailProvider } from "@/lib/mail-provider";
 
 export { activeMailProvider, deliveryCapable } from "@/lib/mail-provider";
@@ -17,63 +17,65 @@ const SENSITIVE_LINK_PURPOSES = new Set([
   "email-change-verification",
 ]);
 
+const MAX_AUTOMATIC_RETRIES = 3;
+const AUTO_RETRY_DELAYS_MS = [
+  5 * 60 * 1000,
+  30 * 60 * 1000,
+  2 * 60 * 60 * 1000,
+];
+
+type OutboxRow = typeof outbox.$inferSelect;
+
+type MailAuditContext = {
+  actor: string;
+  metadata?: Record<string, unknown>;
+};
+
+type DeliveryResult =
+  | { ok: true; messageId: string | null }
+  | { ok: false; error: string; messageId?: null };
+
 function storedBodyAfterAttempt(purpose: string, body: string) {
   return SENSITIVE_LINK_PURPOSES.has(purpose)
     ? "[redacted after delivery attempt: sensitive one-time link removed]"
     : body;
 }
 
-/**
- * Queues a message and attempts real delivery only when a provider is
- * configured. With no provider the row stays `queued` and is visible in the
- * admin outbox, it is never reported as sent.
- */
-export async function queueMessage(input: {
-  organizationId?: number | null;
-  channel?: "email" | "sms";
-  recipient: string;
-  subject: string;
-  body: string;
+function canRetryStoredMessage(row: OutboxRow) {
+  if (row.channel !== "email") return false;
+  if (row.status === "sent" || row.status === "pending") return false;
+  if (SENSITIVE_LINK_PURPOSES.has(row.purpose) && row.status !== "queued") return false;
+  return row.status === "queued" || row.status === "failed";
+}
+
+async function writeMailAudit(input: {
+  organizationId: number | null;
+  actor: string;
+  action: string;
+  outboxId: number;
   purpose: string;
+  metadata?: Record<string, unknown>;
 }) {
-  const providerName = provider();
-  const [row] = await db.insert(outbox).values({
-    organizationId: input.organizationId ?? null,
-    channel: input.channel ?? "email",
-    recipient: input.recipient,
-    subject: input.subject,
-    body: input.body,
-    purpose: input.purpose,
-    provider: providerName,
-    status: providerName === "none" ? "queued" : "pending",
-  }).returning();
-
-  if (providerName === "none") {
-    return { delivered: false, queued: true, provider: providerName, id: row.id, reason: "No email provider configured (set RESEND_API_KEY, POSTMARK_SERVER_TOKEN, or SMTP_URL)." };
-  }
-
   try {
-    const response = await deliver(providerName, row);
-    await db.update(outbox).set({
-      status: response.ok ? "sent" : "failed",
-      sentAt: response.ok ? new Date() : null,
-      error: response.ok ? null : response.error,
-      body: storedBodyAfterAttempt(row.purpose, row.body),
-    }).where(eq(outbox.id, row.id));
-    return { delivered: response.ok, queued: false, provider: providerName, id: row.id, reason: response.ok ? null : response.error };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "delivery error";
-    await db.update(outbox).set({
-      status: "failed",
-      error: message,
-      body: storedBodyAfterAttempt(row.purpose, row.body),
-    }).where(eq(outbox.id, row.id));
-    return { delivered: false, queued: false, provider: providerName, id: row.id, reason: message };
+    await recordAuditEvent({
+      organizationId: input.organizationId,
+      actor: input.actor,
+      action: input.action,
+      resource: `outbox #${input.outboxId}`,
+      metadata: {
+        outboxId: input.outboxId,
+        purpose: input.purpose,
+        ...(input.metadata ?? {}),
+      },
+    });
+  } catch {
+    // Delivery state is authoritative in the outbox row. Audit enrichment must
+    // never turn a successful financial release or email send into a failure.
   }
 }
 
-async function deliver(provider: MailProvider, row: typeof outbox.$inferSelect) {
-  if (provider === "resend") {
+async function attemptDelivery(providerName: MailProvider, row: OutboxRow): Promise<DeliveryResult> {
+  if (providerName === "resend") {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -87,10 +89,15 @@ async function deliver(provider: MailProvider, row: typeof outbox.$inferSelect) 
         text: row.body,
       }),
     });
-    return response.ok ? { ok: true } : { ok: false, error: `Resend HTTP ${response.status}` };
+    if (!response.ok) return { ok: false, error: `Resend HTTP ${response.status}` };
+    const payload = await response.json().catch(() => ({}));
+    return {
+      ok: true,
+      messageId: typeof payload?.id === "string" ? payload.id : null,
+    };
   }
 
-  if (provider === "postmark") {
+  if (providerName === "postmark") {
     const response = await fetch("https://api.postmarkapp.com/email", {
       method: "POST",
       headers: {
@@ -105,28 +112,278 @@ async function deliver(provider: MailProvider, row: typeof outbox.$inferSelect) 
         MessageStream: "outbound",
       }),
     });
-    return response.ok ? { ok: true } : { ok: false, error: `Postmark HTTP ${response.status}` };
+    if (!response.ok) return { ok: false, error: `Postmark HTTP ${response.status}` };
+    const payload = await response.json().catch(() => ({}));
+    return {
+      ok: true,
+      messageId: typeof payload?.MessageID === "string" ? payload.MessageID : null,
+    };
   }
 
-  if (provider === "smtp") {
+  if (providerName === "smtp") {
     const url = process.env.SMTP_URL;
     if (!url) return { ok: false, error: "SMTP_URL is not configured." };
     try {
       const transport = nodemailer.createTransport(url);
-      await transport.sendMail({
+      const info = await transport.sendMail({
         from: process.env.MAIL_FROM ?? "Linaw <no-reply@linaw.ph>",
         to: row.recipient,
         subject: row.subject,
         text: row.body,
       });
-      return { ok: true };
+      return {
+        ok: true,
+        messageId: typeof info.messageId === "string" ? info.messageId : null,
+      };
     } catch (error) {
       const message = error instanceof Error ? error.message : "SMTP send failed";
       return { ok: false, error: `SMTP: ${message}` };
     }
   }
 
-  return { ok: false, error: `Provider ${provider} is not implemented.` };
+  return { ok: false, error: `Provider ${providerName} is not implemented.` };
+}
+
+async function finishDeliveryAttempt(input: {
+  row: OutboxRow;
+  providerName: MailProvider;
+  result: DeliveryResult;
+  audit?: MailAuditContext;
+  auditAction: "Outbox delivery attempted" | "Outbox delivery retried";
+  trigger?: "manual" | "automatic";
+}) {
+  const now = new Date();
+  await db.update(outbox).set({
+    status: input.result.ok ? "sent" : "failed",
+    provider: input.providerName,
+    sentAt: input.result.ok ? now : null,
+    error: input.result.ok ? null : input.result.error,
+    body: storedBodyAfterAttempt(input.row.purpose, input.row.body),
+  }).where(eq(outbox.id, input.row.id));
+
+  if (input.audit) {
+    await writeMailAudit({
+      organizationId: input.row.organizationId,
+      actor: input.audit.actor,
+      action: input.auditAction,
+      outboxId: input.row.id,
+      purpose: input.row.purpose,
+      metadata: {
+        ...(input.audit.metadata ?? {}),
+        trigger: input.trigger ?? "initial",
+        provider: input.providerName,
+        status: input.result.ok ? "sent" : "failed",
+        providerMessageId: input.result.ok ? input.result.messageId : null,
+        error: input.result.ok ? null : input.result.error,
+        attemptedAt: now.toISOString(),
+      },
+    });
+  }
+
+  return {
+    delivered: input.result.ok,
+    queued: false,
+    provider: input.providerName,
+    id: input.row.id,
+    status: input.result.ok ? "sent" as const : "failed" as const,
+    reason: input.result.ok ? null : input.result.error,
+    providerMessageId: input.result.ok ? input.result.messageId : null,
+  };
+}
+
+/**
+ * Queues a message and attempts real delivery only when a provider is
+ * configured. With no provider the row stays `queued` and is visible in the
+ * admin outbox, it is never reported as sent.
+ *
+ * Optional audit context links operational messages such as payslip-ready
+ * notices to the exact payroll run / employee without expanding the outbox
+ * schema or storing message bodies in the audit trail.
+ */
+export async function queueMessage(input: {
+  organizationId?: number | null;
+  channel?: "email" | "sms";
+  recipient: string;
+  subject: string;
+  body: string;
+  purpose: string;
+  audit?: MailAuditContext;
+}) {
+  const providerName = provider();
+  const [row] = await db.insert(outbox).values({
+    organizationId: input.organizationId ?? null,
+    channel: input.channel ?? "email",
+    recipient: input.recipient,
+    subject: input.subject,
+    body: input.body,
+    purpose: input.purpose,
+    provider: providerName,
+    status: providerName === "none" ? "queued" : "pending",
+  }).returning();
+
+  if (input.audit) {
+    await writeMailAudit({
+      organizationId: row.organizationId,
+      actor: input.audit.actor,
+      action: "Outbox message queued",
+      outboxId: row.id,
+      purpose: row.purpose,
+      metadata: {
+        ...(input.audit.metadata ?? {}),
+        provider: providerName,
+        status: row.status,
+        queuedAt: row.createdAt.toISOString(),
+      },
+    });
+  }
+
+  if (providerName === "none") {
+    return {
+      delivered: false,
+      queued: true,
+      provider: providerName,
+      id: row.id,
+      status: "queued" as const,
+      reason: "No email provider configured (set RESEND_API_KEY, POSTMARK_SERVER_TOKEN, or SMTP_URL).",
+      providerMessageId: null,
+    };
+  }
+
+  try {
+    const result = await attemptDelivery(providerName, row);
+    return finishDeliveryAttempt({
+      row,
+      providerName,
+      result,
+      audit: input.audit,
+      auditAction: "Outbox delivery attempted",
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "delivery error";
+    return finishDeliveryAttempt({
+      row,
+      providerName,
+      result: { ok: false, error: message },
+      audit: input.audit,
+      auditAction: "Outbox delivery attempted",
+    });
+  }
+}
+
+export async function getOutboxMessage(id: number, organizationId: number) {
+  const [row] = await db
+    .select()
+    .from(outbox)
+    .where(and(eq(outbox.id, id), eq(outbox.organizationId, organizationId)))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Retries the same durable outbox row. The status transition to `pending` is
+ * claimed atomically so a worker and an operator cannot send the same message
+ * concurrently.
+ */
+export async function retryOutboxMessage(input: {
+  id: number;
+  organizationId: number;
+  actor: string;
+  trigger: "manual" | "automatic";
+}) {
+  const row = await getOutboxMessage(input.id, input.organizationId);
+  if (!row) {
+    return { ok: false as const, httpStatus: 404, error: "Outbox message not found." };
+  }
+  if (row.status === "sent") {
+    return {
+      ok: true as const,
+      alreadySent: true,
+      id: row.id,
+      httpStatus: 200,
+      deliveryStatus: "sent" as const,
+      provider: row.provider,
+    };
+  }
+  if (row.status === "pending") {
+    return { ok: false as const, httpStatus: 409, error: "This message is already being delivered." };
+  }
+  if (!canRetryStoredMessage(row)) {
+    return {
+      ok: false as const,
+      httpStatus: 409,
+      error: SENSITIVE_LINK_PURPOSES.has(row.purpose)
+        ? "This one-time-link message cannot be retried after an attempt. Generate a new link instead."
+        : "This outbox message is not retryable.",
+    };
+  }
+
+  const providerName = provider();
+  if (providerName === "none") {
+    if (row.status !== "queued") {
+      await db.update(outbox).set({
+        status: "queued",
+        provider: "none",
+        error: "Waiting for an email provider before retry.",
+      }).where(and(eq(outbox.id, row.id), eq(outbox.status, row.status)));
+    }
+    return {
+      ok: false as const,
+      httpStatus: 503,
+      error: "No email provider is configured. The message remains queued.",
+      queued: true as const,
+    };
+  }
+
+  const [claimed] = await db.update(outbox).set({
+    status: "pending",
+    provider: providerName,
+    error: null,
+  }).where(and(eq(outbox.id, row.id), eq(outbox.status, row.status))).returning();
+
+  if (!claimed) {
+    return {
+      ok: false as const,
+      httpStatus: 409,
+      error: "Another delivery attempt already claimed this message.",
+    };
+  }
+
+  const result = await attemptDelivery(providerName, claimed);
+  const finished = await finishDeliveryAttempt({
+    row: claimed,
+    providerName,
+    result,
+    audit: { actor: input.actor },
+    auditAction: "Outbox delivery retried",
+    trigger: input.trigger,
+  });
+
+  return {
+    ok: finished.delivered,
+    httpStatus: finished.delivered ? 200 : 502,
+    deliveryStatus: finished.status,
+    delivered: finished.delivered,
+    queued: finished.queued,
+    provider: finished.provider,
+    id: finished.id,
+    reason: finished.reason,
+    providerMessageId: finished.providerMessageId,
+    error: finished.delivered ? undefined : finished.reason ?? "Delivery retry failed.",
+  };
+}
+
+function auditMetadata(event: typeof auditEvents.$inferSelect) {
+  return event.metadata && typeof event.metadata === "object"
+    ? event.metadata as Record<string, unknown>
+    : {};
+}
+
+function stateLabel(row: OutboxRow, retryCount: number) {
+  if (row.status === "sent") return retryCount > 0 ? "Sent after retry" : "Sent";
+  if (row.status === "failed") return retryCount > 0 ? "Retry failed" : "Failed";
+  if (row.status === "pending") return "Sending";
+  if (row.status === "queued") return retryCount > 0 ? "Queued for retry" : "Queued";
+  return row.status;
 }
 
 export async function recentOutbox(limit = 25, organizationId?: number) {
@@ -139,4 +396,126 @@ export async function recentOutbox(limit = 25, organizationId?: number) {
       .limit(limit);
   }
   return db.select().from(outbox).orderBy(desc(outbox.id)).limit(limit);
+}
+
+export async function recentOutboxWithAttempts(limit = 50, organizationId: number) {
+  const rows = await recentOutbox(limit, organizationId);
+  if (rows.length === 0) return [];
+
+  const events = await db
+    .select()
+    .from(auditEvents)
+    .where(and(
+      eq(auditEvents.organizationId, organizationId),
+      inArray(auditEvents.action, [
+        "Outbox message queued",
+        "Outbox delivery attempted",
+        "Outbox delivery retried",
+      ]),
+    ))
+    .orderBy(desc(auditEvents.createdAt), desc(auditEvents.id));
+
+  return rows.map((row) => {
+    const rowEvents = events.filter((event) => Number(auditMetadata(event).outboxId) === row.id);
+    const retryEvents = rowEvents.filter((event) => event.action === "Outbox delivery retried");
+    const attemptEvents = rowEvents.filter((event) =>
+      event.action === "Outbox delivery attempted" || event.action === "Outbox delivery retried"
+    );
+    const queueEvent = rowEvents.find((event) => event.action === "Outbox message queued");
+    const context = queueEvent ? auditMetadata(queueEvent) : {};
+    const lastAttempt = attemptEvents[0];
+    const lastAttemptMeta = lastAttempt ? auditMetadata(lastAttempt) : {};
+
+    return {
+      ...row,
+      body: undefined,
+      retryCount: retryEvents.length,
+      attemptCount: attemptEvents.length,
+      stateLabel: stateLabel(row, retryEvents.length),
+      canRetry: canRetryStoredMessage(row),
+      lastAttemptAt: lastAttempt?.createdAt ?? null,
+      providerMessageId:
+        typeof lastAttemptMeta.providerMessageId === "string"
+          ? lastAttemptMeta.providerMessageId
+          : null,
+      runId: Number.isFinite(Number(context.runId)) ? Number(context.runId) : null,
+      employeeId: Number.isFinite(Number(context.employeeId)) ? Number(context.employeeId) : null,
+      periodLabel: typeof context.periodLabel === "string" ? context.periodLabel : null,
+    };
+  });
+}
+
+/**
+ * Background retry is deliberately narrow: only payslip-ready notices are
+ * retried automatically. Password resets, invitations and email-change links
+ * must be regenerated instead of replaying stale one-time credentials.
+ */
+export async function drainOutboxRetries(limit = 25) {
+  if (!capableHere()) return [];
+
+  const candidates = await db
+    .select()
+    .from(outbox)
+    .where(and(
+      eq(outbox.purpose, "payslip-ready"),
+      inArray(outbox.status, ["queued", "failed"]),
+    ))
+    .orderBy(asc(outbox.id))
+    .limit(limit);
+
+  if (candidates.length === 0) return [];
+
+  const events = await db
+    .select()
+    .from(auditEvents)
+    .where(eq(auditEvents.action, "Outbox delivery retried"))
+    .orderBy(desc(auditEvents.createdAt), desc(auditEvents.id));
+
+  const now = Date.now();
+  const results: Array<{
+    id: number;
+    status: string;
+    retried: boolean;
+    reason?: string;
+  }> = [];
+
+  for (const row of candidates) {
+    if (row.organizationId == null) continue;
+
+    const retryEvents = events.filter((event) =>
+      Number(auditMetadata(event).outboxId) === row.id
+      && auditMetadata(event).trigger === "automatic"
+    );
+    if (retryEvents.length >= MAX_AUTOMATIC_RETRIES) {
+      results.push({ id: row.id, status: row.status, retried: false, reason: "automatic-retry-limit" });
+      continue;
+    }
+
+    if (row.status === "failed") {
+      const delay = AUTO_RETRY_DELAYS_MS[Math.min(retryEvents.length, AUTO_RETRY_DELAYS_MS.length - 1)];
+      const latestRetryAt = retryEvents[0]?.createdAt
+        ? new Date(retryEvents[0].createdAt).getTime()
+        : new Date(row.createdAt).getTime();
+      if (now - latestRetryAt < delay) {
+        results.push({ id: row.id, status: row.status, retried: false, reason: "backoff" });
+        continue;
+      }
+    }
+
+    const retry = await retryOutboxMessage({
+      id: row.id,
+      organizationId: row.organizationId,
+      actor: "system:mail-worker",
+      trigger: "automatic",
+    });
+
+    results.push({
+      id: row.id,
+      status: retry.ok ? "sent" : "failed",
+      retried: true,
+      reason: retry.ok ? undefined : retry.error,
+    });
+  }
+
+  return results;
 }
