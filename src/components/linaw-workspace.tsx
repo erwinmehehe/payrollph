@@ -64,6 +64,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
   const [busy, setBusy] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [focusEmployeeId, setFocusEmployeeId] = useState<number | null>(null);
+  const [focusPayrollRunId, setFocusPayrollRunId] = useState<number | null>(null);
   const [timeAttentionView, setTimeAttentionView] = useState<"incomplete" | null>(null);
 
   // Modals kept from the original build, all still server-authorised.
@@ -125,6 +126,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
 
   function openNotificationItem(item: Notification) {
     if (item.employeeId) setFocusEmployeeId(item.employeeId);
+    if (item.runId && item.page === "Payroll") setFocusPayrollRunId(item.runId);
     if (item.timeFilter === "incomplete") setTimeAttentionView("incomplete");
     if (item.page && availablePages.includes(item.page)) setPage(item.page);
   }
@@ -375,6 +377,8 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
           <PayrollRunView
             data={data}
             busy={busy}
+            focusRunId={focusPayrollRunId}
+            onFocusRunApplied={() => setFocusPayrollRunId(null)}
             onNewRun={() => setNewPayrollOpen(true)}
             onProcess={processRun}
             onRelease={releaseRun}
