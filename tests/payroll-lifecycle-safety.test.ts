@@ -230,3 +230,41 @@ test("generic provisioning and advisory rows do not create payroll handoff noise
     assert.deepEqual(buildPayrollAttention(data, role), []);
   }
 });
+
+
+test("role attention does not lose an older checker handoff when a newer payroll is already in progress", () => {
+  const data = attentionData("Needs review");
+  data.payrollRuns = [
+    {
+      ...data.payrollRuns[0],
+      id: 42,
+      periodLabel: "Sep 16–30, 2026",
+      status: "Needs review",
+    },
+    {
+      ...data.payrollRuns[0],
+      id: 41,
+      periodLabel: "Sep 1–15, 2026",
+      status: "Pending approval",
+      payDate: "2026-09-18",
+    },
+  ];
+  data.tasks = [{
+    id: 12,
+    title: "Review payroll",
+    detail: "Payroll run #41 · Sep 1–15, 2026",
+    approver: "Mariel Santos",
+    dueLabel: "Today",
+    priority: "High",
+    status: "Pending",
+  }];
+
+  const payroll = buildPayrollAttention(data, "payroll");
+  assert.equal(payroll.length, 1);
+  assert.match(payroll[0].detail, /Sep 16–30, 2026/);
+
+  const checker = buildPayrollAttention(data, "checker");
+  assert.equal(checker.length, 1);
+  assert.match(checker[0].detail, /Sep 1–15, 2026/);
+  assert.equal(checker[0].actionLabel, "Review payroll");
+});
