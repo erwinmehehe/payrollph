@@ -268,3 +268,22 @@ test("role attention does not lose an older checker handoff when a newer payroll
   assert.match(checker[0].detail, /Sep 1–15, 2026/);
   assert.equal(checker[0].actionLabel, "Review payroll");
 });
+
+
+test("complete attendance does not become a blocker just because its label is late or undertime", () => {
+  const data = attentionData("Draft");
+  data.employees[0].tin = "123-456-789";
+  data.employees[0].sssNo = "34-1234567-8";
+  data.employees[0].philHealthNo = "12-345678901-2";
+  data.employees[0].pagIbigNo = "1234-5678-9012";
+  data.punches = [{
+    id: 5,
+    employeeId: 7,
+    workDate: "2026-09-30",
+    status: "Late",
+    timeIn: new Date("2026-09-30T08:17:00+08:00"),
+    timeOut: new Date("2026-09-30T17:00:00+08:00"),
+  }];
+
+  assert.deepEqual(buildPayrollAttention(data, "hr"), []);
+});
