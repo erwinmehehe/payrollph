@@ -292,24 +292,25 @@ export async function retryOutboxMessage(input: {
 }) {
   const row = await getOutboxMessage(input.id, input.organizationId);
   if (!row) {
-    return { ok: false as const, status: 404, error: "Outbox message not found." };
+    return { ok: false as const, httpStatus: 404, error: "Outbox message not found." };
   }
   if (row.status === "sent") {
     return {
       ok: true as const,
       alreadySent: true,
       id: row.id,
-      status: "sent" as const,
+      httpStatus: 200,
+      deliveryStatus: "sent" as const,
       provider: row.provider,
     };
   }
   if (row.status === "pending") {
-    return { ok: false as const, status: 409, error: "This message is already being delivered." };
+    return { ok: false as const, httpStatus: 409, error: "This message is already being delivered." };
   }
   if (!canRetryStoredMessage(row)) {
     return {
       ok: false as const,
-      status: 409,
+      httpStatus: 409,
       error: SENSITIVE_LINK_PURPOSES.has(row.purpose)
         ? "This one-time-link message cannot be retried after an attempt. Generate a new link instead."
         : "This outbox message is not retryable.",
@@ -327,7 +328,7 @@ export async function retryOutboxMessage(input: {
     }
     return {
       ok: false as const,
-      status: 503,
+      httpStatus: 503,
       error: "No email provider is configured. The message remains queued.",
       queued: true as const,
     };
@@ -342,7 +343,7 @@ export async function retryOutboxMessage(input: {
   if (!claimed) {
     return {
       ok: false as const,
-      status: 409,
+      httpStatus: 409,
       error: "Another delivery attempt already claimed this message.",
     };
   }
@@ -359,8 +360,15 @@ export async function retryOutboxMessage(input: {
 
   return {
     ok: finished.delivered,
-    status: finished.delivered ? 200 : 502,
-    ...finished,
+    httpStatus: finished.delivered ? 200 : 502,
+    deliveryStatus: finished.status,
+    delivered: finished.delivered,
+    queued: finished.queued,
+    provider: finished.provider,
+    id: finished.id,
+    reason: finished.reason,
+    providerMessageId: finished.providerMessageId,
+    error: finished.delivered ? undefined : finished.reason ?? "Delivery retry failed.",
   };
 }
 
