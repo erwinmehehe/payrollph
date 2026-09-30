@@ -245,8 +245,9 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         return { error };
       }
       await refresh();
+      const emailDelivery = payload.emailDelivery as { sent?: number; queued?: number; failed?: number } | undefined;
       notify(
-        `Payroll released. ${payload.employeesNotified ?? 0} payslip-ready notice(s) queued in the outbox${
+        `Payroll released. Email notices: ${emailDelivery?.sent ?? 0} sent, ${emailDelivery?.queued ?? 0} queued, ${emailDelivery?.failed ?? 0} failed${
           payload.webhookDeliveries ? `, ${payload.webhookDeliveries} webhook delivery attempt(s) logged` : ""
         }.`,
       );
