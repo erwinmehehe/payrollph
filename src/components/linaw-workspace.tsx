@@ -145,7 +145,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         return;
       }
       const payload = await response.json().catch(() => ({}));
-      window.location.href = typeof payload.redirectTo === "string" ? payload.redirectTo : `/workspace?demoRole=${role}`;
+      window.location.href = typeof payload.redirectTo === "string" ? payload.redirectTo : `/app?demoRole=${role}`;
     } catch {
       notify("Role switch failed.", "err");
     } finally {
