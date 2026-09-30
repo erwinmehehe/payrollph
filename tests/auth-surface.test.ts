@@ -6,11 +6,17 @@ import { activeMailProvider, deliveryCapable } from "../src/lib/mail-provider";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("sign-in has its own route so the product page stays previewable", () => {
+test("sign-in and workspace have dedicated routes so the product page always stays public", () => {
   assert.ok(existsSync("src/app/login/page.tsx"), "/login must exist");
+  assert.ok(existsSync("src/app/workspace/page.tsx"), "/workspace must exist");
   const root = read("src/app/page.tsx");
-  assert.ok(root.includes("if (!user) return <SoftwareHome />"), "logged-out visitors must see the product page, not a login wall");
-  assert.ok(root.includes('user.role === "employee"'), "employees must still reach self-service");
+  const workspace = read("src/app/workspace/page.tsx");
+  const authScreen = read("src/components/auth-screen.tsx");
+  assert.ok(root.includes("<SoftwareHome />"), "root must render the product page");
+  assert.ok(!root.includes("getSessionUser"), "root must not turn into the dashboard for signed-in visitors");
+  assert.ok(workspace.includes("getSessionUser"), "workspace must enforce the authenticated session");
+  assert.ok(workspace.includes('user.role === "employee"'), "employees must still reach self-service");
+  assert.ok(authScreen.includes('window.location.href = "/workspace"'), "successful sign-in must enter the workspace route");
 });
 
 test("login screen never hardcodes demo credentials", () => {
