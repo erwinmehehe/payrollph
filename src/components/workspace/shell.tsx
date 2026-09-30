@@ -30,6 +30,7 @@ export type Notification = {
   tone: "review" | "active" | "danger" | "success";
   page?: string;
   actionLabel?: string;
+  runId?: number;
   employeeId?: number;
   timeFilter?: "incomplete";
 };
