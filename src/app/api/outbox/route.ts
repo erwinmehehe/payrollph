@@ -124,7 +124,7 @@ export async function POST(request: Request) {
         error: result.error,
         queued: "queued" in result ? result.queued : false,
       },
-      { status: result.status },
+      { status: result.httpStatus },
     );
   }
 
@@ -132,7 +132,7 @@ export async function POST(request: Request) {
     retried: true,
     alreadySent: "alreadySent" in result ? result.alreadySent : false,
     id: messageId,
-    status: result.status,
+    status: "deliveryStatus" in result ? result.deliveryStatus : "sent",
     provider: result.provider,
   });
 }
