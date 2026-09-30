@@ -124,7 +124,7 @@ jobs:
             check(response && response.ok(), `${name}: homepage did not return 2xx`);
 
             const h1 = (await page.locator("h1").first().innerText()).trim();
-            check(h1.includes("Run Philippine payroll"), `${name}: expected payroll hero heading not found; saw "${h1}"`);
+            check(h1.includes("Payroll, finally clear."), `${name}: expected simplified payroll hero heading not found; saw "${h1}"`);
 
             const overflow = await page.evaluate(() => ({
               scrollWidth: document.documentElement.scrollWidth,
@@ -227,7 +227,7 @@ jobs:
               const marketingResponse = await marketingPage.goto(base, { waitUntil: "networkidle", timeout: 90000 });
               check(marketingResponse && marketingResponse.ok(), "Owner: signed-in visit to / did not return 2xx");
               const marketingH1 = (await marketingPage.locator("h1").first().innerText()).trim();
-              check(marketingH1.includes("Run Philippine payroll"), `Owner: signed-in / should stay marketing; saw "${marketingH1}"`);
+              check(marketingH1.includes("Payroll, finally clear."), `Owner: signed-in / should stay marketing; saw "${marketingH1}"`);
               await marketingPage.close();
 
               const legacyPage = await context.newPage();

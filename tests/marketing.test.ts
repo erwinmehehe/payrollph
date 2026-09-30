@@ -34,15 +34,15 @@ test("the software homepage keeps the interactive payroll simulation", () => {
   const page = read("src/components/marketing/software-home.tsx");
   assert.ok(page.includes('<WorkspacePreview mode="interactive" />'), "interactive payroll simulation must remain mounted");
   assert.ok(page.includes('id="simulation"'), "homepage must expose a stable simulation section anchor");
-  assert.ok(page.includes("Now try the workspace yourself."), "simulation section must explain what visitors can do");
+  assert.ok(page.includes("Explore the product without sitting through a sales demo."), "simulation section must explain the self-serve product experience");
 });
 
 test("the homepage leads with payroll control instead of a module catalogue", () => {
   const page = read("src/components/marketing/software-home.tsx");
 
   assert.ok(
-    page.includes("Run Philippine payroll with a clear path from draft to release."),
-    "hero must lead with the payroll lifecycle",
+    page.includes("Payroll, finally clear."),
+    "hero must lead with the simplified payroll value proposition",
   );
   assert.ok(page.includes("Know what changed before anyone presses release."), "assurance must be a primary product story");
   assert.ok(page.includes("The rulebook belongs inside the payroll run."), "Philippine compliance must be visible");
