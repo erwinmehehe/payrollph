@@ -21,6 +21,7 @@ import type { DashboardData, Organization } from "./types";
 import { Avatar, initialsOf, relativeTime } from "./ui";
 import { DEMO_ROLES, demoRoleInfo, type DemoRoleId } from "@/lib/demo-roles";
 import { payrollHandoffRank } from "@/lib/payroll-handoff";
+import { derivePayrollPostReleaseStatus } from "@/lib/payroll-post-release";
 
 export type Notification = {
   id: string;
@@ -492,6 +493,32 @@ export function buildNotifications(data: DashboardData, role?: string | null): N
         tone: "success",
         page: "Payroll",
       });
+      return items;
+    }
+
+    const releasedRun = data.payrollRuns.find((item) => {
+      const status = derivePayrollPostReleaseStatus(item, data.auditEvents);
+      return status?.hasReleaseReceipt && status.state !== "submitted" && status.state !== "disbursed";
+    });
+    if (releasedRun) {
+      const status = derivePayrollPostReleaseStatus(releasedRun, data.auditEvents);
+      if (status?.state === "released") {
+        items.push({
+          id: `payout-owner-export-${releasedRun.id}`,
+          title: `Generate the bank file for ${releasedRun.periodLabel}`,
+          detail: "Payroll is released. Create the final, non-dry-run bank file before external payout submission.",
+          tone: "review",
+          page: "Exports",
+        });
+      } else if (status?.state === "exported") {
+        items.push({
+          id: `payout-owner-submit-${releasedRun.id}`,
+          title: `Confirm bank upload for ${releasedRun.periodLabel}`,
+          detail: "The final bank file is generated. After uploading it to the bank portal, record that submission in Linaw.",
+          tone: "review",
+          page: "Exports",
+        });
+      }
     }
     return items;
   }
