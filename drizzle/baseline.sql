@@ -481,10 +481,20 @@ CREATE TABLE "outbox" (
 	"purpose" varchar(60) NOT NULL,
 	"status" varchar(24) DEFAULT 'queued' NOT NULL,
 	"provider" varchar(40) DEFAULT 'none' NOT NULL,
+	"provider_message_id" varchar(200),
+	"delivery_status" varchar(32),
+	"delivery_event_at" timestamp with time zone,
+	"delivery_detail" text,
+	"metadata" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"dedupe_key" varchar(220),
 	"error" text,
 	"sent_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
+--> statement-breakpoint
+CREATE UNIQUE INDEX "outbox_dedupe_key_unique" ON "outbox" USING btree ("dedupe_key");
+--> statement-breakpoint
+CREATE INDEX "outbox_org_created_idx" ON "outbox" USING btree ("organization_id","created_at");
 --> statement-breakpoint
 CREATE TABLE "password_reset_tokens" (
 	"id" serial PRIMARY KEY NOT NULL,
