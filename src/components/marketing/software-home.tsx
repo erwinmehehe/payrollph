@@ -401,16 +401,16 @@ export async function SoftwareHome() {
                 <h2>Now try the workspace yourself.</h2>
               </div>
               <p>
-                Use sample data to open payroll, approve leave, test migration and explore the surrounding modules. The
-                public simulation writes nothing.
+                Use sample data to add an employee, open payroll, approve leave, test migration and explore the surrounding
+                modules. The public simulation writes nothing.
               </p>
             </div>
 
             <div className={styles.simulationHints} aria-label="Things to try in the simulation">
-              <span>Open Payroll</span>
+              <span>Add an employee</span>
+              <span>Open a profile</span>
               <span>Approve Leave</span>
               <span>Try Migration</span>
-              <span>Review Compliance</span>
             </div>
 
             <div className={styles.simulationSurface}>
