@@ -6,14 +6,16 @@ const read = (path: string) => readFileSync(path, "utf8");
 
 test("the root route always owns the public payroll software landing page", () => {
   const root = read("src/app/page.tsx");
-  const workspace = read("src/app/workspace/page.tsx");
+  const app = read("src/app/app/page.tsx");
+  const workspaceRedirect = read("src/app/workspace/page.tsx");
   const welcome = read("src/app/welcome/page.tsx");
   assert.ok(root.includes("SoftwareHome"), "root must render the public product landing page");
   assert.ok(!root.includes("getSessionUser"), "a signed-in session must not replace the public homepage");
   assert.ok(root.includes("Payroll Software Philippines"), "root metadata must target payroll software intent");
-  assert.ok(workspace.includes("getSessionUser"), "/workspace must own authenticated session routing");
-  assert.ok(workspace.includes('redirect("/login")'), "anonymous workspace visitors must be sent to sign in");
-  assert.ok(workspace.includes('user.role === "employee"'), "employee self-service must live under /workspace too");
+  assert.ok(app.includes("getSessionUser"), "/app must own authenticated session routing");
+  assert.ok(app.includes('redirect("/login")'), "anonymous app visitors must be sent to sign in");
+  assert.ok(app.includes('user.role === "employee"'), "employee self-service must live under /app too");
+  assert.ok(workspaceRedirect.includes('permanentRedirect(`/app${suffix}`)'), "legacy /workspace links must redirect to /app");
   assert.ok(welcome.includes('permanentRedirect("/")'), "/welcome must redirect to the canonical root");
 });
 

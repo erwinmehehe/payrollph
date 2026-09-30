@@ -8,15 +8,18 @@ const read = (path: string) => readFileSync(path, "utf8");
 
 test("sign-in and workspace have dedicated routes so the product page always stays public", () => {
   assert.ok(existsSync("src/app/login/page.tsx"), "/login must exist");
-  assert.ok(existsSync("src/app/workspace/page.tsx"), "/workspace must exist");
+  assert.ok(existsSync("src/app/app/page.tsx"), "/app must exist");
+  assert.ok(existsSync("src/app/workspace/page.tsx"), "legacy /workspace redirect must exist");
   const root = read("src/app/page.tsx");
-  const workspace = read("src/app/workspace/page.tsx");
+  const app = read("src/app/app/page.tsx");
+  const workspaceRedirect = read("src/app/workspace/page.tsx");
   const authScreen = read("src/components/auth-screen.tsx");
   assert.ok(root.includes("<SoftwareHome />"), "root must render the product page");
   assert.ok(!root.includes("getSessionUser"), "root must not turn into the dashboard for signed-in visitors");
-  assert.ok(workspace.includes("getSessionUser"), "workspace must enforce the authenticated session");
-  assert.ok(workspace.includes('user.role === "employee"'), "employees must still reach self-service");
-  assert.ok(authScreen.includes('window.location.href = "/workspace"'), "successful sign-in must enter the workspace route");
+  assert.ok(app.includes("getSessionUser"), "app must enforce the authenticated session");
+  assert.ok(app.includes('user.role === "employee"'), "employees must still reach self-service");
+  assert.ok(workspaceRedirect.includes("permanentRedirect"), "legacy workspace route must redirect");
+  assert.ok(authScreen.includes('window.location.href = "/app"'), "successful sign-in must enter the app route");
 });
 
 test("login screen never hardcodes demo credentials", () => {
