@@ -99,17 +99,16 @@ test("employee-facing payroll labels never imply unreleased pay is available", (
 
 function attentionData(status: string): DashboardData {
   return {
-    user: { id: 1, name: "Test User", email: "test@example.com", role: "owner" },
+    user: { id: 1, name: "Test User", email: "test@example.com", role: "owner", totpEnabled: false },
     organizations: [],
     selectedOrganization: {
       id: 1,
       name: "Test Co",
       legalName: "Test Co Inc.",
-      shortName: "Test",
       plan: "Scale",
       accountType: "employer",
-      billingEmail: "billing@example.com",
       employeeCount: 1,
+      color: "#444CE7",
     },
     employees: [
       {
