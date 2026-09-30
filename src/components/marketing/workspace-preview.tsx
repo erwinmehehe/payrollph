@@ -780,7 +780,7 @@ function PeopleDemo({
     setAddOpen(false);
     setFilter("All");
     setQuery("");
-    setSelected(next);
+    setSelected(null);
   }
 
   return (
