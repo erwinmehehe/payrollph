@@ -411,6 +411,33 @@ export function buildNotifications(data: DashboardData, role?: string | null): N
   const effectiveRole = role ?? data.access?.role ?? data.user?.role ?? null;
   const liveRuns = data.payrollRuns.filter((run) => run.status !== "Released");
 
+  const latestMailStateByOutbox = new Map<number, { status: string; purpose: string }>();
+  for (const event of data.auditEvents) {
+    if (event.action !== "Outbox delivery attempted" && event.action !== "Outbox delivery retried") continue;
+    if (!event.metadata || typeof event.metadata !== "object") continue;
+    const meta = event.metadata as Record<string, unknown>;
+    const outboxId = Number(meta.outboxId);
+    if (!Number.isInteger(outboxId) || latestMailStateByOutbox.has(outboxId)) continue;
+    latestMailStateByOutbox.set(outboxId, {
+      status: typeof meta.status === "string" ? meta.status : "unknown",
+      purpose: typeof meta.purpose === "string" ? meta.purpose : "",
+    });
+  }
+  const failedPayslipNotices = [...latestMailStateByOutbox.values()]
+    .filter((item) => item.purpose === "payslip-ready" && item.status === "failed")
+    .length;
+
+  const addMailFailureNotification = () => {
+    if (failedPayslipNotices === 0) return;
+    items.push({
+      id: "payslip-email-delivery-failures",
+      title: `${failedPayslipNotices} payslip email${failedPayslipNotices === 1 ? "" : "s"} need delivery attention`,
+      detail: "Automatic retries are bounded. Open the Email outbox from Search to inspect or retry delivery.",
+      tone: "danger",
+      page: "Exports",
+    });
+  };
+
   if (effectiveRole === "hr") {
     const handoffRun = data.payrollHandoffRun;
     if (handoffRun && payrollHandoffRank(handoffRun.status) === 0) {
@@ -457,6 +484,7 @@ export function buildNotifications(data: DashboardData, role?: string | null): N
   }
 
   if (effectiveRole === "payroll") {
+    addMailFailureNotification();
     const run = liveRuns.find((item) => payrollHandoffRank(item.status) === 1);
     if (run) {
       items.push({
@@ -494,6 +522,7 @@ export function buildNotifications(data: DashboardData, role?: string | null): N
   }
 
   if (effectiveRole === "owner") {
+    addMailFailureNotification();
     const run = liveRuns.find((item) => payrollHandoffRank(item.status) === 3);
     if (run) {
       items.push({
@@ -505,6 +534,10 @@ export function buildNotifications(data: DashboardData, role?: string | null): N
       });
     }
     return items;
+  }
+
+  if (["admin", "bookkeeper"].includes(effectiveRole ?? "")) {
+    addMailFailureNotification();
   }
 
   for (const task of data.tasks.filter((task) => task.status === "Pending").slice(0, 5)) {
