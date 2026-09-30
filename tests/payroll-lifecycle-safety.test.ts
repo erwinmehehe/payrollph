@@ -210,3 +210,52 @@ test("payout completion route requires released bank-file evidence and explicit 
   assert.ok(payrollView.includes("Payout status"));
   assert.ok(payrollView.includes('data-payout-status={visibleReleaseReceipt.payout.status}'));
 });
+
+
+test("payroll payslip email delivery is durable, run-linked and recoverable", () => {
+  const releaseRoute = read("src/app/api/payroll-runs/[id]/release/route.ts");
+  const outboxRoute = read("src/app/api/outbox/route.ts");
+  const mailer = read("src/lib/mailer.ts");
+  const scheduler = read("src/lib/scheduler.ts");
+  const exportsView = read("src/components/workspace/exports.tsx");
+
+  for (const marker of [
+    "payrollRunId: run.id",
+    "employeeId: person.id",
+    "sentNotices",
+    "queuedNotices",
+    "failedNotices",
+    "noticesSent",
+    "noticesFailed",
+  ]) {
+    assert.ok(releaseRoute.includes(marker), `release email accounting is missing ${marker}`);
+  }
+
+  for (const marker of [
+    "attemptOutboxDelivery",
+    'status: "sending"',
+    "attemptCount",
+    "nextAttemptAt",
+    "providerMessageId",
+    "retryPayrollRunOutbox",
+    "drainDueOutboxRetries",
+    "MAX_AUTO_ATTEMPTS",
+  ]) {
+    assert.ok(mailer.includes(marker), `durable outbox is missing ${marker}`);
+  }
+
+  assert.ok(scheduler.includes("drainDueOutboxRetries(25)"), "scheduler must drain due email retries");
+  assert.ok(outboxRoute.includes("payrollRunOutboxHealth"));
+  assert.ok(outboxRoute.includes('action: "Payroll email delivery retried"'));
+
+  for (const marker of [
+    "PAYSLIP EMAIL DELIVERY",
+    "Refresh delivery status",
+    "Retry queued / failed",
+    "data-payroll-email-message-list",
+    "providerMessageId",
+    "attemptCount",
+  ]) {
+    assert.ok(exportsView.includes(marker), `email delivery UX is missing ${marker}`);
+  }
+});
