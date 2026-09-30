@@ -56,3 +56,19 @@ test("employee self-service renders the same payroll handoff used by company rol
   assert.ok(portal.includes("NEXT PAY STATUS"));
   assert.ok(portal.includes("Your pay amount stays private and hidden until payroll is released."));
 });
+
+
+test("newest released payslip is promoted above older pay history", () => {
+  const route = read("src/app/api/self/payslips/route.ts");
+  const portal = read("src/components/self-service-portal.tsx");
+
+  assert.ok(route.includes(".orderBy(desc(payrollRuns.payDate))"), "released payslips must stay newest-first");
+  assert.ok(portal.includes("const latestPayslip = data?.payslips[0] ?? null"));
+  assert.ok(portal.includes('data-latest-payslip'));
+  assert.ok(portal.includes("LATEST PAYSLIP"));
+  assert.ok(portal.includes("Payslip available"));
+  assert.ok(
+    portal.indexOf('data-latest-payslip') < portal.indexOf("PAY HISTORY"),
+    "latest payslip promotion must render before historical payslips",
+  );
+});
