@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ElementType } from "react";
+import Link from "next/link";
 import {
   ArrowRight,
   BriefcaseBusiness,
@@ -9,11 +10,11 @@ import {
   ClipboardCheck,
   LoaderCircle,
   ShieldCheck,
+  Sparkles,
   UserRound,
   UsersRound,
 } from "lucide-react";
 import { DEMO_ROLES, type DemoRoleId } from "@/lib/demo-roles";
-import styles from "./demo-role-picker.module.css";
 
 const ICONS: Record<DemoRoleId, ElementType> = {
   owner: BriefcaseBusiness,
@@ -21,6 +22,14 @@ const ICONS: Record<DemoRoleId, ElementType> = {
   payroll: CircleDollarSign,
   checker: ClipboardCheck,
   employee: UserRound,
+};
+
+const TONES: Record<DemoRoleId, { bg: string; fg: string }> = {
+  owner: { bg: "#ECECFF", fg: "#4A4AE0" },
+  hr: { bg: "#E3FAF0", fg: "#0A8A53" },
+  payroll: { bg: "#E0F7FA", fg: "#00838F" },
+  checker: { bg: "#FFF4D6", fg: "#9A6B00" },
+  employee: { bg: "#F1EDFF", fg: "#6D4DE0" },
 };
 
 export function DemoRolePicker() {
@@ -33,6 +42,7 @@ export function DemoRolePicker() {
     [selectedRole],
   );
   const SelectedIcon = ICONS[selected.id];
+  const selectedTone = TONES[selected.id];
 
   async function openDemo(role: DemoRoleId) {
     setLaunching(role);
@@ -60,150 +70,176 @@ export function DemoRolePicker() {
   }
 
   return (
-    <main className={styles.page}>
-      <section className={styles.hero}>
-        <div className={styles.shell}>
-          <div className={styles.heroInner}>
-            <span className={styles.eyebrow}>
-              <ShieldCheck size={14} aria-hidden />
-              No signup required
-            </span>
-            <h1>See Linaw from the seat you actually use.</h1>
-            <p>
-              Enter the actual sample workspace as Owner, HR Admin, Payroll Officer, Checker or Employee. Each persona has
-              its own permissions, landing page and realistic actions on populated demo data.
-            </p>
+    <main className="bg-white text-[#0B0D1A]">
+      <section className="relative overflow-hidden border-b border-[#EDEFF7] pb-16 pt-16 sm:pb-20 sm:pt-20">
+        <div aria-hidden className="pointer-events-none absolute inset-0">
+          <div className="absolute -right-32 -top-48 h-[560px] w-[620px] rounded-full bg-gradient-to-br from-[#ECECFF] via-[#EAF4FF] to-[#E3FAF0] opacity-80 blur-3xl" />
+        </div>
+        <div className="relative mx-auto max-w-[1120px] px-5 text-center sm:px-8">
+          <span className="inline-flex items-center gap-2 rounded-full border border-[#DDE0EF] bg-white px-3.5 py-2 text-[12px] font-bold text-[#4A4AE0] shadow-sm">
+            <ShieldCheck size={14} aria-hidden />
+            Real permissions · sample data · no signup
+          </span>
+          <h1 className="font-display mx-auto mt-6 max-w-[850px] text-balance text-[44px] font-semibold leading-[1.02] tracking-[-0.045em] sm:text-[64px]">
+            See Linaw from the seat you actually use.
+          </h1>
+          <p className="mx-auto mt-6 max-w-[710px] text-[17px] leading-relaxed text-[#5B6080]">
+            Open the populated payroll workspace as Owner, HR Admin, Payroll Officer, Checker or Employee. The sandbox uses
+            the real role boundaries, so each person sees different work and different actions.
+          </p>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3 text-[13px] font-semibold text-[#5B6080]">
+            <span className="rounded-full bg-[#F4F5FA] px-3 py-2">5 role-specific views</span>
+            <span className="rounded-full bg-[#F4F5FA] px-3 py-2">Populated Philippine payroll</span>
+            <span className="rounded-full bg-[#F4F5FA] px-3 py-2">Switch roles inside the app</span>
           </div>
         </div>
       </section>
 
-      <section className={styles.demoSection}>
-        <div className={styles.shell}>
-          <div className={styles.sectionIntro}>
-            <span className={styles.kicker}>Role-based product demo</span>
-            <h2>Choose a seat.</h2>
-            <p>Pick a persona, complete a realistic task, then switch roles instantly from inside the sandbox.</p>
+      <section className="py-14 sm:py-18">
+        <div className="mx-auto max-w-[1180px] px-5 sm:px-8">
+          <div className="mb-7 max-w-[700px]">
+            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#7C82A1]">Role-based product demo</p>
+            <h2 className="font-display mt-2 text-[32px] font-semibold tracking-[-0.035em] sm:text-[40px]">Choose a seat, then do the work.</h2>
+            <p className="mt-3 text-[15px] leading-relaxed text-[#5B6080]">
+              This is not a screenshot carousel. Each launch creates the matching demo session and opens the real workspace.
+            </p>
           </div>
 
           {error && (
-            <div className={styles.error} role="alert">
+            <div className="mb-5 rounded-2xl border border-[#FFD5DC] bg-[#FFF6F7] px-4 py-3 text-[14px] font-medium text-[#9E2239]" role="alert">
               {error}
             </div>
           )}
 
-          <div className={styles.demoLayout}>
-            <div className={styles.roleList} role="tablist" aria-label="Demo roles">
+          <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
+            <div className="rounded-[24px] border border-[#E5E7F0] bg-[#FAFBFD] p-2" role="tablist" aria-label="Demo roles">
               {DEMO_ROLES.map((role) => {
                 const Icon = ICONS[role.id];
+                const tone = TONES[role.id];
                 const active = role.id === selected.id;
-
                 return (
                   <button
-                    className={`${styles.roleRow} ${active ? styles.active : ""}`}
                     type="button"
                     role="tab"
                     aria-selected={active}
                     key={role.id}
                     onClick={() => setSelectedRole(role.id)}
+                    className={`flex w-full items-center gap-3 rounded-[18px] px-3.5 py-3.5 text-left transition-all ${
+                      active ? "bg-white shadow-[0_10px_28px_-18px_rgba(30,34,70,.45)] ring-1 ring-[#E2E4F0]" : "hover:bg-white/70"
+                    }`}
                   >
-                    <span className={styles.roleIcon} aria-hidden>
-                      <Icon size={16} />
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: tone.bg, color: tone.fg }}>
+                      <Icon size={17} aria-hidden />
                     </span>
-                    <span className={styles.roleText}>
-                      <strong>{role.label}</strong>
-                      <small>{role.person}</small>
+                    <span className="min-w-0 flex-1">
+                      <strong className="block text-[14px] font-semibold text-[#11141F]">{role.label}</strong>
+                      <small className="mt-0.5 block truncate text-[12px] text-[#7C82A1]">{role.person}</small>
                     </span>
-                    {role.id === "owner" && <span className={styles.suggested}>Start here</span>}
-                    <ArrowRight size={14} aria-hidden />
+                    {role.id === "owner" && !active && (
+                      <span className="rounded-full bg-[#ECECFF] px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-[#4A4AE0]">Start</span>
+                    )}
+                    <ArrowRight size={14} className={active ? "text-[#4A4AE0]" : "text-[#A0A5B8]"} aria-hidden />
                   </button>
                 );
               })}
             </div>
 
-            <article className={styles.roleDetail} role="tabpanel">
-              <div className={styles.detailTop}>
-                <span className={styles.detailIcon} aria-hidden>
-                  <SelectedIcon size={20} />
-                </span>
+            <article className="overflow-hidden rounded-[28px] border border-[#E2E4F0] bg-white shadow-[0_22px_60px_-38px_rgba(30,34,70,.38)]" role="tabpanel">
+              <div className="grid gap-8 p-6 sm:p-8 xl:grid-cols-[1.05fr_.95fr]">
                 <div>
-                  <span className={styles.personLabel}>{selected.label}</span>
-                  <h3>{selected.person}</h3>
-                  <p>{selected.description}</p>
-                </div>
-              </div>
-
-              <div className={styles.detailMeta}>
-                <div>
-                  <span>Starts in</span>
-                  <strong>{selected.landingPage}</strong>
-                </div>
-                <div>
-                  <span>Workspace</span>
-                  <strong>Sample Philippine payroll</strong>
-                </div>
-              </div>
-
-              <div className={styles.accessBlock}>
-                <span className={styles.accessLabel}>What you can explore</span>
-                <div className={styles.accessList}>
-                  {selected.access.map((item) => (
-                    <span key={item}>
-                      <Check size={13} aria-hidden />
-                      {item}
+                  <div className="flex items-start gap-4">
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl" style={{ background: selectedTone.bg, color: selectedTone.fg }}>
+                      <SelectedIcon size={21} aria-hidden />
                     </span>
-                  ))}
-                </div>
-              </div>
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: selectedTone.fg }}>{selected.label}</p>
+                      <h3 className="font-display mt-1 text-[27px] font-semibold tracking-[-0.03em]">{selected.person}</h3>
+                    </div>
+                  </div>
 
-              <div className={styles.connectedDemo}>
-                <div>
-                  <span className={styles.accessLabel}>Sandbox task</span>
-                  <strong>Do something the role actually owns.</strong>
-                  <p>
-                    This opens the real product shell against populated demo data. Server permissions still apply, so a
-                    Payroll Officer cannot approve their own payroll and a Checker cannot calculate or release it.
+                  <p className="mt-5 max-w-[600px] text-[15px] leading-[1.75] text-[#5B6080]">{selected.description}</p>
+
+                  <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl bg-[#F7F8FC] p-4">
+                      <span className="text-[10px] font-bold uppercase tracking-[0.13em] text-[#9298AF]">Starts in</span>
+                      <strong className="mt-1 block text-[14px] font-semibold">{selected.landingPage}</strong>
+                    </div>
+                    <div className="rounded-2xl bg-[#F7F8FC] p-4">
+                      <span className="text-[10px] font-bold uppercase tracking-[0.13em] text-[#9298AF]">Workspace</span>
+                      <strong className="mt-1 block text-[14px] font-semibold">Loom &amp; Local demo tenant</strong>
+                    </div>
+                  </div>
+
+                  <div className="mt-7">
+                    <span className="text-[11px] font-bold uppercase tracking-[0.13em] text-[#9298AF]">What this role can explore</span>
+                    <div className="mt-3 grid gap-2">
+                      {selected.access.map((item) => (
+                        <span key={item} className="flex items-start gap-2.5 text-[14px] leading-relaxed text-[#2B2F45]">
+                          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#E3FAF0] text-[#0A8A53]">
+                            <Check size={12} strokeWidth={2.8} aria-hidden />
+                          </span>
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-[22px] bg-[#11141F] p-5 text-white sm:p-6">
+                  <span className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-white/45">
+                    <Sparkles size={13} aria-hidden />
+                    Your sandbox task
+                  </span>
+                  <h4 className="font-display mt-3 text-[23px] font-semibold leading-tight">Do something the role actually owns.</h4>
+                  <p className="mt-3 text-[13.5px] leading-relaxed text-white/60">
+                    Server permissions remain active in the demo. Payroll cannot self-approve. Checker cannot calculate or release.
+                    Employee only reaches their own pay and attendance.
                   </p>
-                </div>
-                <div className={styles.accessList}>
-                  {selected.actions.map((item) => (
-                    <span key={item}>
-                      <Check size={13} aria-hidden />
-                      {item}
-                    </span>
-                  ))}
-                </div>
-                <div className={styles.connectedFlow}>
-                  <span>{selected.label}</span>
-                  <ArrowRight size={13} aria-hidden />
-                  <span>{selected.landingPage}</span>
-                  <ArrowRight size={13} aria-hidden />
-                  <span>Populated workspace</span>
-                </div>
-              </div>
 
-              <div className={styles.detailFooter}>
-                <div>
-                  <strong>Sample data only</strong>
-                  <span>Figures are for demonstration and are not real employee data.</span>
+                  <div className="mt-5 space-y-2.5">
+                    {selected.actions.map((item) => (
+                      <div key={item} className="flex gap-2.5 rounded-xl border border-white/10 bg-white/[0.06] px-3.5 py-3 text-[13px] text-white/85">
+                        <Check size={14} className="mt-0.5 shrink-0 text-[#50D29D]" aria-hidden />
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-5 flex items-center gap-2 text-[11px] font-semibold text-white/45">
+                    <span>{selected.label}</span><ArrowRight size={12} /><span>{selected.landingPage}</span><ArrowRight size={12} /><span>Real shell</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => void openDemo(selected.id)}
+                    disabled={Boolean(launching)}
+                    className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-white px-5 py-3.5 text-[14px] font-semibold text-[#11141F] transition-transform hover:scale-[1.015] disabled:cursor-wait disabled:opacity-65"
+                  >
+                    {launching === selected.id ? (
+                      <>
+                        <LoaderCircle className="animate-spin" size={15} aria-hidden />
+                        Opening…
+                      </>
+                    ) : (
+                      <>
+                        Open {selected.shortLabel} demo <ArrowRight size={15} aria-hidden />
+                      </>
+                    )}
+                  </button>
+                  <p className="mt-3 text-center text-[11px] text-white/38">Sample data only. No real employee information.</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => void openDemo(selected.id)}
-                  disabled={Boolean(launching)}
-                >
-                  {launching === selected.id ? (
-                    <>
-                      <LoaderCircle className={styles.spin} size={15} aria-hidden />
-                      Opening…
-                    </>
-                  ) : (
-                    <>
-                      Open {selected.shortLabel} demo <ArrowRight size={15} aria-hidden />
-                    </>
-                  )}
-                </button>
               </div>
             </article>
+          </div>
+
+          <div className="mt-8 grid gap-4 rounded-[24px] border border-[#E5E7F0] bg-[#FAFBFD] p-5 sm:grid-cols-[1fr_auto] sm:items-center sm:p-6">
+            <div>
+              <strong className="font-display text-[18px] font-semibold">Want us to run the payroll instead?</strong>
+              <p className="mt-1 text-[13.5px] text-[#5B6080]">The managed payroll service uses the same control model, with your team keeping final approval.</p>
+            </div>
+            <Link href="/payroll-outsourcing" className="inline-flex items-center justify-center gap-2 rounded-full border border-[#D9DCEC] bg-white px-5 py-3 text-[13.5px] font-semibold text-[#2B2F45]">
+              Payroll outsourcing <ArrowRight size={14} aria-hidden />
+            </Link>
           </div>
         </div>
       </section>
