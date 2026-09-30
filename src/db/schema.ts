@@ -573,20 +573,33 @@ export const schedulerState = pgTable("scheduler_state", {
   lastResult: jsonb("last_result").notNull().default({}),
 });
 
-export const outbox = pgTable("outbox", {
-  id: serial("id").primaryKey(),
-  organizationId: integer("organization_id"),
-  channel: varchar("channel", { length: 12 }).notNull().default("email"),
-  recipient: varchar("recipient", { length: 200 }).notNull(),
-  subject: varchar("subject", { length: 200 }).notNull(),
-  body: text("body").notNull(),
-  purpose: varchar("purpose", { length: 60 }).notNull(),
-  status: varchar("status", { length: 24 }).notNull().default("queued"),
-  provider: varchar("provider", { length: 40 }).notNull().default("none"),
-  error: text("error"),
-  sentAt: timestamp("sent_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const outbox = pgTable(
+  "outbox",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id"),
+    channel: varchar("channel", { length: 12 }).notNull().default("email"),
+    recipient: varchar("recipient", { length: 200 }).notNull(),
+    subject: varchar("subject", { length: 200 }).notNull(),
+    body: text("body").notNull(),
+    purpose: varchar("purpose", { length: 60 }).notNull(),
+    metadata: jsonb("metadata").notNull().default({}),
+    status: varchar("status", { length: 24 }).notNull().default("queued"),
+    provider: varchar("provider", { length: 40 }).notNull().default("none"),
+    providerMessageId: varchar("provider_message_id", { length: 200 }),
+    attempts: integer("attempts").notNull().default(0),
+    maxAttempts: integer("max_attempts").notNull().default(5),
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
+    error: text("error"),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("outbox_org_created_idx").on(table.organizationId, table.createdAt),
+    index("outbox_retry_idx").on(table.status, table.nextAttemptAt),
+  ],
+);
 
 export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
