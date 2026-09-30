@@ -33,6 +33,8 @@ export function payrollHandoffRank(status: string | null | undefined) {
   if (normalized === "pending approval" || normalized === "submitted") return 2;
   if (
     normalized === "needs review" ||
+    normalized === "queued" ||
+    normalized === "failed" ||
     normalized === "processing" ||
     normalized === "calculating" ||
     normalized === "calculated" ||
