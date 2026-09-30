@@ -356,6 +356,7 @@ jobs:
             const payload = await response.json();
             const target = typeof payload.redirectTo === "string" ? payload.redirectTo : `/?demoRole=${role}`;
             await page.goto(target.startsWith("http") ? target : `${base}${target}`, { waitUntil: "networkidle", timeout: 90000 });
+            return payload;
           }
 
           async function notificationText(page) {
@@ -384,8 +385,10 @@ jobs:
             check((await hrHandoff.locator('[data-handoff-stage="hr"]').getAttribute("class")).includes("done"), "Lifecycle: HR stage should be complete");
             check((await hrHandoff.locator('[data-handoff-stage="payroll"]').getAttribute("class")).includes("current"), "Lifecycle: Payroll should own the run after HR");
 
-            await switchPersona(context, page, "payroll");
-            const dashboardResponse = await context.request.get(`${base}/api/dashboard`);
+            const payrollSession = await switchPersona(context, page, "payroll");
+            const dashboardResponse = await context.request.get(
+              `${base}/api/dashboard?organizationId=${payrollSession.organizationId}`,
+            );
             check(dashboardResponse.ok(), "Lifecycle: payroll dashboard API failed");
             const dashboard = await dashboardResponse.json();
             const run = dashboard.payrollRuns.find((item) => item.periodLabel === period);
