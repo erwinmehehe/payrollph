@@ -71,7 +71,9 @@ export type PayrollReleaseReceipt = {
     status: "ready" | "attention";
     label: string;
     available: number;
+    noticesSent: number;
     noticesQueued: number;
+    noticesFailed: number;
     missingEmail: number;
     warningCount: number;
   };
