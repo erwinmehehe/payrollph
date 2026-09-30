@@ -1,18 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { AlertTriangle, CalendarDays, Check, Inbox } from "lucide-react";
-import { Spinner } from "@/components/workspace/ui";
+import { useState, type ChangeEvent, type FormEvent } from "react";
+import Link from "next/link";
+import { AlertTriangle, ArrowRight, CalendarDays, Check, Inbox, LoaderCircle } from "lucide-react";
 
 type Result = { message: string; queued: boolean; delivered: boolean; provider: string };
 
-/**
- * Book-a-demo intake.
- *
- * The success state reports exactly what happened: with no mail provider
- * configured the request is *queued in the outbox*, and we say that rather than
- * claiming a message was sent.
- */
+const inputClass =
+  "mt-2 w-full rounded-xl border border-[#D9DCEC] bg-white px-3.5 py-3 text-[14px] text-[#11141F] outline-none transition focus:border-[#6161FF] focus:ring-4 focus:ring-[#6161FF]/10";
+
 export function BookDemoForm() {
   const [form, setForm] = useState({ name: "", email: "", company: "", headcount: "", notes: "" });
   const [problems, setProblems] = useState<string[]>([]);
@@ -20,14 +16,17 @@ export function BookDemoForm() {
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
 
-  const set = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
-    setForm((current) => ({ ...current, [key]: event.target.value }));
+  const set =
+    (key: keyof typeof form) =>
+    (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+      setForm((current) => ({ ...current, [key]: event.target.value }));
 
-  async function submit(event: React.FormEvent) {
+  async function submit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
     setProblems([]);
     setError("");
+
     try {
       const response = await fetch("/api/demo-requests", {
         method: "POST",
@@ -35,6 +34,7 @@ export function BookDemoForm() {
         body: JSON.stringify(form),
       });
       const payload = await response.json().catch(() => ({}));
+
       if (response.status === 422) {
         setProblems(payload.problems ?? ["Please check the form."]);
         return;
@@ -43,6 +43,7 @@ export function BookDemoForm() {
         setError(payload.error ?? `The request could not be recorded (${response.status}).`);
         return;
       }
+
       setResult(payload as Result);
     } catch {
       setError("Could not reach the server. Please try again.");
@@ -53,118 +54,120 @@ export function BookDemoForm() {
 
   if (result) {
     return (
-      <div className="card" style={{ padding: 28 }}>
-        <span className="modal-icon" aria-hidden>
-          {result.delivered ? <Check size={18} className="i-green" /> : <Inbox size={18} className="i-amber" />}
+      <div className="rounded-[26px] border border-[#E2E4F0] bg-white p-6 shadow-[0_22px_60px_-38px_rgba(30,34,70,.38)] sm:p-7">
+        <span className={`flex h-11 w-11 items-center justify-center rounded-2xl ${result.delivered ? "bg-[#E3FAF0] text-[#0A8A53]" : "bg-[#FFF4D6] text-[#9A6B00]"}`}>
+          {result.delivered ? <Check size={19} /> : <Inbox size={19} />}
         </span>
-        <h2 style={{ margin: 0, fontSize: 21, fontWeight: 750, letterSpacing: "-0.03em" }}>
-          {result.delivered ? "Request sent." : "Request recorded."}
+        <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Demo request</p>
+        <h2 className="font-display mt-2 text-[28px] font-semibold tracking-[-0.035em] text-[#0B0D1A]">
+          {result.delivered ? "Your request was sent." : "Your request was recorded."}
         </h2>
-        <p style={{ margin: "8px 0 0", color: "var(--muted)", fontSize: 13.5, lineHeight: 1.65 }}>{result.message}</p>
+        <p className="mt-3 text-[14px] leading-relaxed text-[#5B6080]">{result.message}</p>
 
         {!result.delivered && (
-          <div className="notice notice-amber">
-            <AlertTriangle size={15} className="i-red" />
+          <div className="mt-5 flex gap-3 rounded-2xl border border-[#F4D79C] bg-[#FFF9EA] p-4 text-[13px] leading-relaxed text-[#72520A]">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0" />
             <span>
-              Being straight with you: this deployment has no email provider configured, so your request is sitting in the
-              outbox rather than in anyone&apos;s inbox. If you need a reply today, try the live demo or sign in, both work
-              right now.
+              This deployment has no active email provider, so the request is stored in the outbox instead of being delivered to an operator.
             </span>
           </div>
         )}
 
-        <div style={{ display: "flex", gap: 8, marginTop: 18, flexWrap: "wrap" }}>
-          <a className="primary-button" href="/welcome#preview">
-            Play with the workspace preview
-          </a>
-          <a className="secondary-button" href="/signup">
-            Create an account
-          </a>
+        <div className="mt-6 flex flex-wrap gap-2.5">
+          <Link href="/demo" className="inline-flex items-center gap-2 rounded-full bg-[#11141F] px-5 py-3 text-[13.5px] font-semibold text-white">
+            Open role demo <ArrowRight size={14} />
+          </Link>
+          <Link href="/" className="rounded-full border border-[#D9DCEC] px-5 py-3 text-[13.5px] font-semibold text-[#2B2F45]">
+            Back to product
+          </Link>
         </div>
       </div>
     );
   }
 
   return (
-    <form className="card" style={{ padding: 28 }} onSubmit={submit} noValidate>
-      <span className="modal-icon" aria-hidden>
-        <CalendarDays size={18} className="i-cyan" />
+    <form className="rounded-[26px] border border-[#E2E4F0] bg-white p-6 shadow-[0_22px_60px_-38px_rgba(30,34,70,.38)] sm:p-7" onSubmit={submit} noValidate>
+      <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#ECECFF] text-[#4A4AE0]">
+        <CalendarDays size={19} />
       </span>
-      <h2 style={{ margin: 0, fontSize: 21, fontWeight: 750, letterSpacing: "-0.03em" }}>Tell us about your payroll</h2>
-      <p style={{ margin: "8px 0 20px", color: "var(--muted)", fontSize: 13.5, lineHeight: 1.65 }}>
-        A short form so the walkthrough is about your setup, how many people, how many entities, and what you are moving
-        from.
+      <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Book a walkthrough</p>
+      <h2 className="font-display mt-2 text-[28px] font-semibold tracking-[-0.035em] text-[#0B0D1A]">Tell us about your payroll.</h2>
+      <p className="mt-3 text-[14px] leading-relaxed text-[#5B6080]">
+        A short brief helps us use the call on your actual setup instead of giving you a generic product tour.
       </p>
 
       {problems.length > 0 && (
-        <div className="notice notice-red" role="alert">
-          <AlertTriangle size={15} className="i-red" />
-          <div>
-            <strong>Please fix the following:</strong>
-            <ul style={{ margin: "4px 0 0", paddingLeft: 16 }}>
-              {problems.map((problem) => (
-                <li key={problem}>{problem}</li>
-              ))}
-            </ul>
+        <div className="mt-5 rounded-2xl border border-[#FFD5DC] bg-[#FFF6F7] p-4 text-[13px] text-[#9E2239]" role="alert">
+          <div className="flex gap-2.5">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+            <div>
+              <strong>Please fix the following:</strong>
+              <ul className="mt-1 list-disc pl-4">
+                {problems.map((problem) => <li key={problem}>{problem}</li>)}
+              </ul>
+            </div>
           </div>
         </div>
       )}
 
       {error && (
-        <div className="notice notice-red" role="alert">
-          <AlertTriangle size={15} className="i-red" />
+        <div className="mt-5 flex gap-2.5 rounded-2xl border border-[#FFD5DC] bg-[#FFF6F7] p-4 text-[13px] text-[#9E2239]" role="alert">
+          <AlertTriangle size={16} className="mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      <div style={{ display: "grid", gap: 14 }}>
-        <div className="field-row">
-          <label className="field">
-            <span>Your name</span>
-            <input value={form.name} onChange={set("name")} autoComplete="name" required />
+      <div className="mt-6 grid gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="text-[12.5px] font-semibold text-[#2B2F45]">
+            Your name
+            <input className={inputClass} value={form.name} onChange={set("name")} autoComplete="name" required />
           </label>
-          <label className="field">
-            <span>Work email</span>
-            <input type="email" value={form.email} onChange={set("email")} autoComplete="email" required />
+          <label className="text-[12.5px] font-semibold text-[#2B2F45]">
+            Work email
+            <input className={inputClass} type="email" value={form.email} onChange={set("email")} autoComplete="email" required />
           </label>
         </div>
-        <div className="field-row">
-          <label className="field">
-            <span>Company or practice</span>
-            <input value={form.company} onChange={set("company")} autoComplete="organization" required />
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="text-[12.5px] font-semibold text-[#2B2F45]">
+            Company or practice
+            <input className={inputClass} value={form.company} onChange={set("company")} autoComplete="organization" required />
           </label>
-          <label className="field">
-            <span>People on payroll</span>
-            <select value={form.headcount} onChange={set("headcount")}>
+          <label className="text-[12.5px] font-semibold text-[#2B2F45]">
+            People on payroll
+            <select className={inputClass} value={form.headcount} onChange={set("headcount")}>
               <option value="">Select…</option>
               <option value="1">Just me</option>
-              <option value="2-10">2–10</option>
-              <option value="11-50">11–50</option>
-              <option value="51-200">51–200</option>
+              <option value="2-10">2 to 10</option>
+              <option value="11-50">11 to 50</option>
+              <option value="51-200">51 to 200</option>
               <option value="200+">200+</option>
               <option value="multi-client">Multiple client companies</option>
             </select>
           </label>
         </div>
-        <label className="field">
-          <span>What would you like to see?</span>
+
+        <label className="text-[12.5px] font-semibold text-[#2B2F45]">
+          What would you like to see?
           <textarea
+            className={`${inputClass} min-h-[120px] resize-y`}
             value={form.notes}
             onChange={set("notes")}
-            placeholder="e.g. semi-monthly runs across two branches, BIR worksheets, and how approvals work when our approver is on leave"
+            placeholder="Example: semi-monthly payroll across two branches, BIR worksheets, and how approvals work when our approver is on leave."
           />
-          <small>Optional.</small>
+          <small className="mt-2 block text-[11px] font-normal text-[#8B90AA]">Optional. Do not include passwords or employee personal data.</small>
         </label>
       </div>
 
-      <div className="modal-actions">
-        <a className="secondary-button" href="/welcome">
-          Back to the site
-        </a>
-        <button className="primary-button brand" type="submit" disabled={saving}>
-          {saving ? <Spinner label="Submitting" /> : <CalendarDays size={14} className="i-cyan" />} Request a demo
-        </button>
-      </div>
+      <button
+        type="submit"
+        disabled={saving}
+        className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#6161FF] px-5 py-3.5 text-[14px] font-semibold text-white transition-transform hover:scale-[1.01] disabled:cursor-wait disabled:opacity-60"
+      >
+        {saving ? <LoaderCircle size={15} className="animate-spin" /> : <CalendarDays size={15} />}
+        {saving ? "Submitting…" : "Request a demo"}
+      </button>
     </form>
   );
 }
