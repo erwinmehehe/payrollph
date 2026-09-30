@@ -1,6 +1,6 @@
 .home-redesign {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 
   --color-ink-950: #0b0d1a;
   --color-ink-900: #12141f;
@@ -36,7 +36,23 @@
 
 .home-redesign .font-display {
   font-family: var(--font-display);
-  letter-spacing: -0.03em;
+  font-optical-sizing: auto;
+  letter-spacing: -0.025em;
+}
+
+.home-redesign h1.font-display,
+.home-redesign h2.font-display,
+.home-redesign h3.font-display,
+.home-redesign h4.font-display {
+  font-weight: 600 !important;
+}
+
+.home-redesign h1.font-display {
+  letter-spacing: -0.032em;
+}
+
+.home-redesign h2.font-display {
+  letter-spacing: -0.028em;
 }
 
 .home-redesign ::selection {
