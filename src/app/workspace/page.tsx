@@ -1,24 +1,19 @@
-import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import { LinawWorkspace } from "@/components/linaw-workspace";
-import { SelfServicePortal } from "@/components/self-service-portal";
-import { getSessionUser } from "@/lib/auth";
-import { getDashboardData } from "@/lib/dashboard-data";
+import { permanentRedirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-export const metadata: Metadata = {
-  title: "Workspace | Linaw",
-  robots: { index: false, follow: false },
-};
+export default async function LegacyWorkspaceRedirect({ searchParams }: { searchParams: SearchParams }) {
+  const params = await searchParams;
+  const query = new URLSearchParams();
 
-export default async function WorkspacePage() {
-  const user = await getSessionUser();
+  for (const [key, value] of Object.entries(params)) {
+    if (Array.isArray(value)) {
+      for (const item of value) query.append(key, item);
+    } else if (typeof value === "string") {
+      query.set(key, value);
+    }
+  }
 
-  if (!user) redirect("/login");
-
-  if (user.role === "employee") return <SelfServicePortal />;
-
-  const data = await getDashboardData();
-  return <LinawWorkspace initialData={data} />;
+  const suffix = query.size ? `?${query.toString()}` : "";
+  permanentRedirect(`/app${suffix}`);
 }
