@@ -968,6 +968,78 @@
   font-weight: 700;
 }
 
+/* Compact migration + HR support */
+.supportBand {
+  padding: 0 0 118px;
+  background: #fff;
+}
+
+.supportGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.switchCard,
+.hrCard {
+  min-height: 360px;
+  padding: 34px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+}
+
+.switchCard {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(68, 76, 231, .10), transparent 32%),
+    linear-gradient(160deg, #fbfbff, #f8fafc);
+}
+
+.hrCard {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(18, 183, 106, .08), transparent 30%),
+    linear-gradient(160deg, #fbfefc, #f8fafc);
+}
+
+.switchCard h2,
+.hrCard h2 {
+  max-width: 520px;
+  margin: 13px 0 0;
+  color: var(--ink);
+  font-size: clamp(30px, 3vw, 42px);
+  font-weight: 690;
+  line-height: 1.04;
+  letter-spacing: -.045em;
+  text-wrap: balance;
+}
+
+.switchCard p,
+.hrCard p {
+  max-width: 540px;
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.sourceLine,
+.moduleCloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 28px;
+}
+
+.sourceLine span,
+.moduleCloud span {
+  padding: 7px 9px;
+  border: 1px solid rgba(208, 213, 221, .9);
+  border-radius: 999px;
+  background: rgba(255,255,255,.72);
+  color: #667085;
+  font-size: 9.5px;
+  font-weight: 650;
+}
+
 /* Compliance */
 .complianceSection {
   padding: 118px 0;
@@ -1597,7 +1669,8 @@
     display: none;
   }
 
-  .valueGrid {
+  .valueGrid,
+  .supportGrid {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -1669,6 +1742,7 @@
   .productShowcase,
   .workflowSection,
   .valueSection,
+  .supportBand,
   .complianceSection,
   .sandboxSection,
   .pricingSection {
