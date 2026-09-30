@@ -72,6 +72,8 @@ export type PayrollReleaseReceipt = {
     label: string;
     available: number;
     noticesQueued: number;
+    noticesSent?: number;
+    noticesFailed?: number;
     missingEmail: number;
     warningCount: number;
   };
