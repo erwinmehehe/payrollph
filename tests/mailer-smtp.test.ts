@@ -194,7 +194,8 @@ test("failed one-time security links are never replayed from stored redacted con
     });
     assert.equal(retry.ok, false);
     assert.equal(retry.httpStatus, 409);
-    assert.match(retry.error, /cannot be retried/i);
+    assert.ok(retry.error);
+    assert.match(retry.error!, /cannot be retried/i);
   } finally {
     restoreProviders(previous);
     await cleanupOrg(org.id);
