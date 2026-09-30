@@ -126,6 +126,8 @@ export function SelfServicePortal() {
     await load();
   }
 
+  const latestPayslip = data?.payslips[0] ?? null;
+
   return (
     <main className="content-area" style={{ maxWidth: 900 }}>
       <header className="page-heading">
@@ -186,6 +188,26 @@ export function SelfServicePortal() {
 
       {data && (
         <>
+          {latestPayslip && (
+            <section className="employee-pay-next" data-latest-payslip>
+              <div className="employee-pay-next-copy">
+                <span className="card-kicker">LATEST PAYSLIP</span>
+                <h2>Payslip available</h2>
+                <p>
+                  {latestPayslip.period} was released for {payDateLabel(latestPayslip.payDate)}. Your newest payslip is promoted here before older pay history.
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <button className="secondary-button" onClick={() => setOpen(latestPayslip.entryId)}>
+                  <FileText size={15} className="i-teal" /> View details
+                </button>
+                <a className="primary-button" href={`/api/self/payslips/${latestPayslip.entryId}`}>
+                  <Download size={15} className="i-teal" /> Download payslip
+                </a>
+              </div>
+            </section>
+          )}
+
           <section className="employee-pay-next">
             <div className="employee-pay-next-copy">
               <span className="card-kicker">NEXT PAY STATUS</span>

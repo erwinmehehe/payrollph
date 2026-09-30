@@ -93,3 +93,40 @@ test("employee-facing payroll labels never imply unreleased pay is available", (
   assert.equal(employeePayStatusLabel("Ready for release"), "Approved, waiting for release");
   assert.equal(employeePayStatusLabel("Released"), "Payslip available");
 });
+
+
+test("release completion and payroll failure states are explicit and recoverable", () => {
+  const releaseRoute = read("src/app/api/payroll-runs/[id]/release/route.ts");
+  const payrollView = read("src/components/workspace/payroll-run.tsx");
+  const exportsView = read("src/components/workspace/exports.tsx");
+
+  for (const marker of [
+    "Payroll release receipt",
+    "Ready to generate from the released register",
+    "releasedAt",
+    "missingEmail",
+    "warningCount",
+  ]) {
+    assert.ok(releaseRoute.includes(marker), `release receipt is missing ${marker}`);
+  }
+
+  for (const marker of [
+    "data-release-receipt",
+    "Calculation failed",
+    "Retry calculation",
+    "Unresolved payroll exceptions",
+    "Review exceptions",
+    "Checker declined this payroll",
+    "Resubmit to checker",
+    "Release blocked",
+    "Review release checks",
+    'data-recovery-state="export-failed"',
+    "Retry export",
+  ]) {
+    assert.ok(payrollView.includes(marker), `payroll recovery UX is missing ${marker}`);
+  }
+
+  assert.ok(exportsView.includes('data-recovery-state="export-failed"'));
+  assert.ok(exportsView.includes("Retry export"));
+  assert.ok(!exportsView.includes('window.open(url, "_blank", "noopener")'), "export failures must be observable before download");
+});

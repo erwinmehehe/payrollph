@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { buildPayrollHandoff, handoffViewerRole } from "@/lib/payroll-handoff";
-import { readLineItems, readTrace, type BankTemplate, type DashboardData, type Notify, type PayrollEntry, type PayrollLineItem, type PayrollRun, type Task } from "./types";
+import { readLineItems, readTrace, type BankTemplate, type DashboardData, type Notify, type PayrollEntry, type PayrollLineItem, type PayrollReleaseReceipt, type PayrollRun, type Task } from "./types";
 import { PayrollAssurancePanel } from "./payroll-assurance-panel";
 import { ExplainPayDrawer } from "./explain-pay-drawer";
 import {
@@ -71,7 +71,7 @@ export function PayrollRunView({
   busy: boolean;
   onNewRun: () => void;
   onProcess: (runId: number) => Promise<void>;
-  onRelease: (runId: number, acknowledgeExceptions: boolean) => Promise<void>;
+  onRelease: (runId: number, acknowledgeExceptions: boolean) => Promise<{ receipt?: PayrollReleaseReceipt; error?: string }>;
   onDecide: (taskId: number, status: "Approved" | "Declined") => Promise<void>;
   onPage: (page: string) => void;
   onRefresh: () => Promise<void>;
@@ -94,6 +94,8 @@ export function PayrollRunView({
     items: ReleaseChecklistItem[];
     assuranceSummary?: { high: number; medium: number; blocking: number } | null;
   } | null>(null);
+  const [releaseReceipt, setReleaseReceipt] = useState<PayrollReleaseReceipt | null>(null);
+  const [releaseFailure, setReleaseFailure] = useState<{ runId: number; error: string } | null>(null);
 
   // Derived, not synced: if the selected run disappears (client switch, new
   // run) the first run takes over without an effect round-trip.
@@ -283,6 +285,71 @@ export function PayrollRunView({
     (item) => item.blocking && !item.passed && item.acknowledgeable,
   ) ?? false;
 
+  const failedChecklistItem = releaseChecklist?.items.find((item) => item.blocking && !item.passed);
+  const visibleReleaseReceipt =
+    releaseReceipt?.runId === run.id ? releaseReceipt : readReleaseReceipt(data.auditEvents, run.id);
+  const recoveryStates: Array<{
+    key: string;
+    title: string;
+    detail: string;
+    actionLabel: string;
+    onAction: () => void;
+  }> = [];
+
+  if (run.status === "Failed") {
+    recoveryStates.push({
+      key: "calculation-failed",
+      title: "Calculation failed",
+      detail: "The payroll worker could not finish this run. No failed calculation can move forward to checker review or release.",
+      actionLabel: "Retry calculation",
+      onAction: () => void onProcess(run.id),
+    });
+  }
+
+  if (!released && run.status === "Needs review" && exceptionRows.length > 0) {
+    recoveryStates.push({
+      key: "unresolved-exception",
+      title: "Unresolved payroll exceptions",
+      detail: `${exceptionRows.length} payroll entr${exceptionRows.length === 1 ? "y needs" : "ies need"} review before this run should be handed off again.`,
+      actionLabel: "Review exceptions",
+      onAction: () => {
+        setOnlyExceptions(true);
+        document.getElementById("payroll-register")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      },
+    });
+  }
+
+  if (!released && relatedTask?.status === "Declined") {
+    recoveryStates.push({
+      key: "checker-declined",
+      title: "Checker declined this payroll",
+      detail: "The independent checker returned the run to Needs review. Resolve the register or assurance issue, then submit the corrected run again.",
+      actionLabel: "Resubmit to checker",
+      onAction: () => void openReviewSubmission(),
+    });
+  }
+
+  if (releaseFailure?.runId === run.id) {
+    const needsRecalculation = /recalculat|changed after calculation|immutable|register no longer matches/i.test(releaseFailure.error);
+    recoveryStates.push({
+      key: "release-failed",
+      title: "Release blocked",
+      detail: releaseFailure.error,
+      actionLabel: needsRecalculation ? "Recalculate payroll" : "Review release checks",
+      onAction: needsRecalculation
+        ? () => void onProcess(run.id)
+        : () => document.getElementById("release-checklist")?.scrollIntoView({ behavior: "smooth", block: "center" }),
+    });
+  } else if (!released && hardChecklistBlocked && failedChecklistItem) {
+    recoveryStates.push({
+      key: "release-blocked",
+      title: "Release blocked",
+      detail: `${failedChecklistItem.label}: ${failedChecklistItem.detail}`,
+      actionLabel: "Review release checks",
+      onAction: () => document.getElementById("release-checklist")?.scrollIntoView({ behavior: "smooth", block: "center" }),
+    });
+  }
+
   return (
     <>
       <PageHeading
@@ -314,6 +381,70 @@ export function PayrollRunView({
         viewerRole={handoffRole}
         compact
       />
+
+      {visibleReleaseReceipt?.runId === run.id && (
+        <article className="card" data-release-receipt style={{ marginBottom: 16 }}>
+          <div className="card-header">
+            <div>
+              <div className="card-kicker">RELEASE RECEIPT</div>
+              <h2>Payroll released successfully</h2>
+              <p>{visibleReleaseReceipt.periodLabel} is locked and available for downstream payout and employee self-service.</p>
+            </div>
+            <span className="status status-released"><Check size={12} /> Released</span>
+          </div>
+          <div className="run-stats" style={{ marginTop: 0 }}>
+            <div>
+              <span>Employees</span>
+              <strong>{visibleReleaseReceipt.employeeCount}</strong>
+              <small>payslips available</small>
+            </div>
+            <div>
+              <span>Total net payroll</span>
+              <strong className="green-number">{money(visibleReleaseReceipt.totalNetPay)}</strong>
+              <small>released register total</small>
+            </div>
+            <div>
+              <span>Released</span>
+              <strong style={{ fontSize: 14 }}>{displayReleaseTimestamp(visibleReleaseReceipt.releasedAt)}</strong>
+              <small>server-recorded release time</small>
+            </div>
+          </div>
+          <div className="card-body" style={{ paddingTop: 0, display: "grid", gap: 8 }}>
+            <div className="exception-row" style={{ alignItems: "flex-start" }}>
+              <span className="status status-approved" style={{ minWidth: 72, justifyContent: "center" }}>Ready</span>
+              <div>
+                <strong>Bank / export status</strong>
+                <p>{visibleReleaseReceipt.bankExport.label}</p>
+              </div>
+              <button className="secondary-button" onClick={() => setExportsOpen(true)}>Open exports</button>
+            </div>
+            <div className="exception-row" style={{ alignItems: "flex-start" }}>
+              <span className={`status ${visibleReleaseReceipt.payslips.status === "ready" ? "status-approved" : "status-review"}`} style={{ minWidth: 72, justifyContent: "center" }}>
+                {visibleReleaseReceipt.payslips.status === "ready" ? "Ready" : "Check"}
+              </span>
+              <div>
+                <strong>Payslip delivery</strong>
+                <p>{visibleReleaseReceipt.payslips.label}. {visibleReleaseReceipt.payslips.available} payslip(s) are available in self-service.</p>
+              </div>
+            </div>
+          </div>
+        </article>
+      )}
+
+      {recoveryStates.length > 0 && (
+        <section aria-label="Payroll recovery actions" style={{ display: "grid", gap: 10, marginBottom: 16 }}>
+          {recoveryStates.map((item) => (
+            <div className="notice notice-amber" key={item.key} data-recovery-state={item.key}>
+              <AlertTriangle size={16} className="i-red" />
+              <div style={{ flex: 1 }}>
+                <strong>{item.title}</strong>
+                <p style={{ margin: "4px 0 0" }}>{item.detail}</p>
+              </div>
+              <button className="secondary-button" onClick={item.onAction}>{item.actionLabel}</button>
+            </div>
+          ))}
+        </section>
+      )}
 
       <section className="payroll-workspace">
         <article className="card run-list flush">
@@ -412,7 +543,7 @@ export function PayrollRunView({
           <PayrollAssurancePanel runId={run.id} employees={data.employees} />
 
           {releaseChecklist && calculated && (
-            <div className="card-body" style={{ paddingTop: 0 }}>
+            <div className="card-body" id="release-checklist" style={{ paddingTop: 0 }}>
               <div className="line-title" style={{ margin: 0 }}>
                 <div>
                   <strong>Release checklist</strong>
@@ -761,8 +892,17 @@ export function PayrollRunView({
           busy={busy}
           onClose={() => setConfirmRelease(false)}
           onConfirm={async (acknowledge) => {
-            await onRelease(run.id, acknowledge);
-            setConfirmRelease(false);
+            const result = await onRelease(run.id, acknowledge);
+            if (result.receipt) {
+              setReleaseReceipt(result.receipt);
+              setReleaseFailure(null);
+              setConfirmRelease(false);
+              return;
+            }
+            if (result.error) {
+              setReleaseFailure({ runId: run.id, error: result.error });
+              setConfirmRelease(false);
+            }
           }}
         />
       )}
@@ -966,11 +1106,41 @@ function ExportPanel({
   const [template, setTemplate] = useState(templates[0]?.name ?? "BDO DAT");
   const [dryRun, setDryRun] = useState(true);
   const [draft, setDraft] = useState<string>(GOVERNMENT_DRAFTS[0].value);
+  const [exportFailure, setExportFailure] = useState<{ url: string; label: string; error: string } | null>(null);
+  const [exporting, setExporting] = useState<string | null>(null);
   const released = run.status === "Released";
 
-  function download(url: string, label: string) {
-    window.open(url, "_blank", "noopener");
-    notify(`${label} requested, the download is audit-logged.`, "info");
+  async function download(url: string, label: string) {
+    setExporting(label);
+    try {
+      const response = await fetch(url, { cache: "no-store" });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        const error = payload.error ?? `${label} failed with status ${response.status}.`;
+        setExportFailure({ url, label, error });
+        notify(error, "err");
+        return;
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") ?? "";
+      const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] ?? label.replace(/\s+/g, "-").toLowerCase();
+      const href = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = href;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(href);
+      setExportFailure(null);
+      notify(`${label} generated and audit-logged.`, "info");
+    } catch {
+      const error = `${label} could not be generated because the export service could not be reached.`;
+      setExportFailure({ url, label, error });
+      notify(error, "err");
+    } finally {
+      setExporting(null);
+    }
   }
 
   return (
@@ -988,6 +1158,18 @@ function ExportPanel({
         </div>
 
         <div className="card-body">
+          {exportFailure && (
+            <div className="notice notice-red" data-recovery-state="export-failed" style={{ marginBottom: 12 }}>
+              <AlertTriangle size={15} className="i-red" />
+              <div style={{ flex: 1 }}>
+                <strong>Export failed</strong>
+                <p style={{ margin: "4px 0 0" }}>{exportFailure.error}</p>
+              </div>
+              <button className="secondary-button" disabled={Boolean(exporting)} onClick={() => void download(exportFailure.url, exportFailure.label)}>
+                {exporting ? "Retrying…" : "Retry export"}
+              </button>
+            </div>
+          )}
           <div className="integration-grid">
             <div className="export-card">
               <span className="inline-icon blue" aria-hidden>
@@ -1020,7 +1202,7 @@ function ExportPanel({
                   <button
                     className="secondary-button"
                     onClick={() =>
-                      download(
+                      void download(
                         `/api/payroll-runs/${run.id}/exports?kind=bank&template=${encodeURIComponent(template)}&dryRun=${dryRun}`,
                         dryRun ? `${template} dry-run validation` : `${template} file`,
                       )
@@ -1043,7 +1225,7 @@ function ExportPanel({
                   className="secondary-button"
                   style={{ marginTop: 10 }}
                   disabled={!released}
-                  onClick={() => download(`/api/payroll-runs/${run.id}/exports?kind=journal`, "Journal CSV")}
+                  onClick={() => void download(`/api/payroll-runs/${run.id}/exports?kind=journal`, "Journal CSV")}
                 >
                   <Download size={14} className="i-teal" /> {released ? "Journal CSV" : "Available after release"}
                 </button>
@@ -1076,7 +1258,7 @@ function ExportPanel({
                   <button
                     className="secondary-button"
                     onClick={() =>
-                      download(
+                      void download(
                         `/api/payroll-runs/${run.id}/exports?kind=government&template=${encodeURIComponent(draft)}`,
                         `${draft} draft`,
                       )
@@ -1209,6 +1391,63 @@ function findRunApproval(tasks: Task[], run?: PayrollRun) {
   return tasks
     .filter((task) => task.detail.includes(`Payroll run #${run.id}`))
     .sort((a, b) => b.id - a.id)[0];
+}
+
+function readReleaseReceipt(events: DashboardData["auditEvents"], runId: number): PayrollReleaseReceipt | null {
+  const event = events
+    .filter((item) => item.action === "Payroll release receipt")
+    .find((item) => {
+      if (!item.metadata || typeof item.metadata !== "object") return false;
+      return Number((item.metadata as Record<string, unknown>).runId) === runId;
+    });
+  if (!event?.metadata || typeof event.metadata !== "object") return null;
+  const raw = event.metadata as Record<string, unknown>;
+  const bankExport = raw.bankExport;
+  const payslips = raw.payslips;
+  if (
+    typeof raw.periodLabel !== "string" ||
+    typeof raw.totalNetPay !== "string" ||
+    typeof raw.releasedAt !== "string" ||
+    !bankExport || typeof bankExport !== "object" ||
+    !payslips || typeof payslips !== "object"
+  ) return null;
+
+  const bank = bankExport as Record<string, unknown>;
+  const slips = payslips as Record<string, unknown>;
+  if (typeof bank.label !== "string" || typeof slips.label !== "string") return null;
+
+  return {
+    runId,
+    periodLabel: raw.periodLabel,
+    employeeCount: Number(raw.employeeCount ?? 0),
+    totalNetPay: raw.totalNetPay,
+    releasedAt: raw.releasedAt,
+    bankExport: {
+      status: "ready",
+      label: bank.label,
+    },
+    payslips: {
+      status: slips.status === "attention" ? "attention" : "ready",
+      label: slips.label,
+      available: Number(slips.available ?? 0),
+      noticesQueued: Number(slips.noticesQueued ?? 0),
+      missingEmail: Number(slips.missingEmail ?? 0),
+      warningCount: Number(slips.warningCount ?? 0),
+    },
+  };
+}
+
+function displayReleaseTimestamp(value: string) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat("en-PH", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Asia/Manila",
+  }).format(parsed);
 }
 
 const monthOf = (date: string) => {

@@ -223,6 +223,7 @@ export async function POST(request: Request) {
       role: activeUser.role,
       employeeId: activeUser.employeeId,
     },
+    organizationId: loom.id,
     redirectTo: `/?demoRole=${requestedRole}`,
   });
 }

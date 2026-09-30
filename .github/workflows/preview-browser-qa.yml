@@ -8,6 +8,7 @@ on:
       - "src/components/marketing/**"
       - "src/components/workspace/**"
       - "src/components/linaw-workspace.tsx"
+      - "src/components/self-service-portal.tsx"
       - "src/components/demo-sandbox-bar.tsx"
       - "src/app/page.tsx"
       - "src/lib/pricing-catalog.ts"
@@ -229,6 +230,9 @@ jobs:
               }
             }
             if (persona.id === "employee") {
+              check(body.includes("LATEST PAYSLIP"), "Employee: latest released payslip promotion is missing");
+              check(body.includes("Payslip available"), "Employee: released payslip availability state is missing");
+              check((await page.locator("[data-latest-payslip]").count()) === 1, "Employee: latest payslip card is missing");
               check(body.includes("NEXT PAY STATUS"), "Employee: next pay status section is missing");
               check(body.includes("Your pay amount stays private and hidden until payroll is released."), "Employee: unreleased-pay privacy copy is missing");
               const handoff = page.locator("[data-payroll-handoff]").first();
@@ -317,6 +321,11 @@ jobs:
               const afterTask = await page.locator("body").innerText();
               check(afterTask.includes("Rule version"), "Employee: opening the first payslip did not reveal its details");
             } else {
+              if (persona.id === "payroll") {
+                const recovery = page.locator('[data-recovery-state="unresolved-exception"]');
+                check((await recovery.count()) === 1, "Payroll: unresolved exception recovery state is missing");
+                check((await recovery.innerText()).includes("Review exceptions"), "Payroll: exception recovery action is missing");
+              }
               const activeNav = page.locator("aside .nav-item[aria-current='page']").filter({ hasText: persona.taskPage }).first();
               check((await activeNav.count()) === 1, `${persona.label}: first sandbox task did not navigate to ${persona.taskPage}`);
             }
@@ -340,6 +349,139 @@ jobs:
             await context.close();
           }
 
+
+          async function switchPersona(context, page, role) {
+            const response = await context.request.post(`${base}/api/auth/demo-switch`, { data: { role } });
+            check(response.ok(), `Lifecycle: switching to ${role} returned ${response.status()}`);
+            const payload = await response.json();
+            const target = typeof payload.redirectTo === "string" ? payload.redirectTo : `/?demoRole=${role}`;
+            await page.goto(target.startsWith("http") ? target : `${base}${target}`, { waitUntil: "networkidle", timeout: 90000 });
+            return payload;
+          }
+
+          async function notificationText(page) {
+            const bell = page.getByRole("button", { name: /^Notifications/ }).first();
+            check((await bell.count()) === 1, "Lifecycle: notification bell is missing");
+            await bell.click();
+            const tray = page.getByRole("dialog", { name: "Notifications" });
+            check((await tray.count()) === 1, "Lifecycle: notification tray did not open");
+            const text = await tray.innerText();
+            await bell.click();
+            return text;
+          }
+
+          async function qaReleaseCycle(browser) {
+            const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+            const page = await context.newPage();
+            const errors = [];
+            attachErrorCollection(page, errors);
+            const period = "Sep 16–30, 2026";
+
+            // HR has completed the input handoff for this exact run; Payroll owns
+            // the next visible step before the same run moves through review.
+            await switchPersona(context, page, "hr");
+            const hrHandoff = page.locator("[data-payroll-handoff]").first();
+            check((await hrHandoff.count()) === 1, "Lifecycle: HR handoff is missing");
+            check((await hrHandoff.locator('[data-handoff-stage="hr"]').getAttribute("class")).includes("done"), "Lifecycle: HR stage should be complete");
+            check((await hrHandoff.locator('[data-handoff-stage="payroll"]').getAttribute("class")).includes("current"), "Lifecycle: Payroll should own the run after HR");
+
+            const payrollSession = await switchPersona(context, page, "payroll");
+            const dashboardResponse = await context.request.get(
+              `${base}/api/dashboard?organizationId=${payrollSession.organizationId}`,
+            );
+            check(dashboardResponse.ok(), "Lifecycle: payroll dashboard API failed");
+            const dashboard = await dashboardResponse.json();
+            const run = dashboard.payrollRuns.find((item) => item.periodLabel === period);
+            check(run, `Lifecycle: ${period} run is missing`);
+            check(run.status === "Needs review", `Lifecycle: expected Needs review before submission, saw ${run.status}`);
+
+            const approversResponse = await context.request.get(
+              `${base}/api/organizations/${dashboard.selectedOrganization.id}/payroll-approvers`,
+            );
+            check(approversResponse.ok(), "Lifecycle: checker list could not be loaded");
+            const approvers = await approversResponse.json();
+            const checker = approvers.approvers.find((item) => item.role === "checker" || item.name === "Mariel Santos");
+            check(checker, "Lifecycle: seeded checker is missing");
+
+            const submitResponse = await context.request.post(`${base}/api/payroll-runs/${run.id}/submit-review`, {
+              data: { approverUserId: checker.id },
+            });
+            const submitPayload = await submitResponse.json();
+            check(submitResponse.ok(), `Lifecycle: review submission failed: ${submitPayload.error ?? submitResponse.status()}`);
+            check(submitPayload.task?.id, "Lifecycle: review submission returned no approval task");
+            await page.reload({ waitUntil: "networkidle" });
+            const payrollNotifications = await notificationText(page);
+            check(!payrollNotifications.includes("Resolve 2 payroll exceptions"), "Lifecycle: payroll exception notification should disappear after submission");
+
+            await switchPersona(context, page, "checker");
+            const checkerNotificationsBefore = await notificationText(page);
+            check(checkerNotificationsBefore.includes(`Review ${period} payroll`), "Lifecycle: checker did not receive the submitted payroll notification");
+
+            const approveResponse = await context.request.patch(`${base}/api/approvals/${submitPayload.task.id}`, {
+              data: { status: "Approved" },
+            });
+            const approvePayload = await approveResponse.json();
+            check(approveResponse.ok(), `Lifecycle: checker approval failed: ${approvePayload.error ?? approveResponse.status()}`);
+            await page.reload({ waitUntil: "networkidle" });
+            const checkerNotificationsAfter = await notificationText(page);
+            check(!checkerNotificationsAfter.includes(`Review ${period} payroll`), "Lifecycle: checker notification should disappear after approval");
+
+            await switchPersona(context, page, "owner");
+            const ownerNotificationsBefore = await notificationText(page);
+            check(ownerNotificationsBefore.includes(`${period} is approved and ready to release`), "Lifecycle: owner did not receive release-ready notification");
+
+            const releaseResponse = await context.request.post(`${base}/api/payroll-runs/${run.id}/release`, {
+              data: { acknowledgeExceptions: true },
+            });
+            const releasePayload = await releaseResponse.json();
+            check(releaseResponse.ok(), `Lifecycle: owner release failed: ${releasePayload.error ?? releaseResponse.status()}`);
+            check(releasePayload.receipt?.employeeCount > 0, "Lifecycle: release receipt is missing employee count");
+            check(Number(releasePayload.receipt?.totalNetPay) > 0, "Lifecycle: release receipt is missing net payroll");
+            check(releasePayload.receipt?.bankExport?.status === "ready", "Lifecycle: bank/export receipt status is not ready");
+            check(releasePayload.receipt?.payslips?.available > 0, "Lifecycle: payslip availability is missing");
+
+            await page.reload({ waitUntil: "networkidle" });
+            const ownerNotificationsAfter = await notificationText(page);
+            check(!ownerNotificationsAfter.includes(`${period} is approved and ready to release`), "Lifecycle: owner release notification should disappear after release");
+
+            const payrollNav = page.locator("button.nav-item").filter({ hasText: /^Payroll/ }).first();
+            check((await payrollNav.count()) === 1, "Lifecycle: owner payroll navigation is missing");
+            await payrollNav.click();
+            await page.waitForTimeout(200);
+            const runButton = page.locator("button.run-item").filter({ hasText: period }).first();
+            check((await runButton.count()) === 1, "Lifecycle: released run is missing from payroll history");
+            await runButton.click();
+            await page.waitForTimeout(150);
+            const receipt = page.locator("[data-release-receipt]");
+            check((await receipt.count()) === 1, "Lifecycle: persistent owner release receipt is missing");
+            const receiptText = (await receipt.innerText()).toLowerCase();
+            check(receiptText.includes("total net payroll"), "Lifecycle: release receipt does not show net payroll");
+            check(receiptText.includes("bank / export status"), "Lifecycle: release receipt does not show export status");
+            check(receiptText.includes("payslip delivery"), "Lifecycle: release receipt does not show payslip delivery status");
+            check(receiptText.includes(String(releasePayload.receipt.employeeCount)), "Lifecycle: release receipt does not show employee count");
+            check(
+              receiptText.includes(Number(releasePayload.receipt.totalNetPay).toLocaleString("en-PH")),
+              "Lifecycle: release receipt does not show the released net total",
+            );
+
+            await switchPersona(context, page, "employee");
+            const latest = page.locator("[data-latest-payslip]");
+            check((await latest.count()) === 1, "Lifecycle: employee latest payslip card is missing after release");
+            const latestText = await latest.innerText();
+            check(latestText.includes("Payslip available"), "Lifecycle: employee does not see Payslip available");
+            check(latestText.includes(period), "Lifecycle: newly released payslip is not promoted above history");
+
+            check(errors.length === 0, `Lifecycle: browser console/page errors: ${errors.join(" | ")}`);
+            report.personas.push({
+              id: "release-cycle",
+              label: "HR → Payroll → Checker → Owner → Employee",
+              period,
+              firstTask: "passed",
+              errors,
+            });
+            await context.close();
+          }
+
           (async () => {
             const browser = await chromium.launch({ headless: true });
             try {
@@ -349,6 +491,8 @@ jobs:
               for (const persona of personas) {
                 await qaPersona(browser, persona);
               }
+
+              await qaReleaseCycle(browser);
             } catch (error) {
               report.errors.push(error instanceof Error ? error.message : String(error));
               throw error;
