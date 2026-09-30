@@ -167,9 +167,15 @@ jobs:
 
               const demo = page.locator("#demo");
               check((await demo.count()) === 1, "desktop: live demo section is missing");
-              check((await demo.locator(".pv, button.nav-item").count()) > 0, "desktop: interactive workspace preview did not render");
+              check((await demo.getByText("Simulation · saves nothing").count()) === 1, "desktop: uploaded Claude simulation chrome did not render");
+              const actingAs = demo.getByRole("radiogroup", { name: "Acting as" });
+              check((await actingAs.count()) === 1, "desktop: demo role switcher is missing");
+              const checker = actingAs.getByRole("radio", { name: /Checker/i });
+              await checker.click();
+              check((await checker.getAttribute("aria-checked")) === "true", "desktop: demo role switcher did not update");
+              check((await demo.getByText("Mar 1–15, 2026", { exact: true }).count()) >= 1, "desktop: Claude payroll run header is missing");
               report.modules.push({ module: "Claude hero audience selector", active: true });
-              report.modules.push({ module: "Interactive workspace demo", active: true });
+              report.modules.push({ module: "Claude interactive payroll demo", active: true });
             }
 
             check(errors.length === 0, `${name}: browser console/page errors: ${errors.join(" | ")}`);
