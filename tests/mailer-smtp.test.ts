@@ -8,6 +8,8 @@ import {
   drainOutboxRetries,
   queueMessage,
   recentOutboxWithAttempts,
+  recordEmailProviderEvent,
+  retryFailedPayslipNotices,
   retryOutboxMessage,
 } from "../src/lib/mailer";
 
@@ -259,4 +261,154 @@ test("worker, scheduler and release route are wired to durable email recovery", 
   assert.ok(release.includes("employeeId: person.id"));
   assert.ok(outboxRoute.includes("recentOutboxWithAttempts"));
   assert.ok(outboxRoute.includes("retryOutboxMessage"));
+});
+
+
+test("payslip outbox dedupe reuses the same durable row", async () => {
+  const previous = snapshotProviders();
+  clearProviders();
+  const org = await createOrg("Outbox Dedupe Test");
+
+  try {
+    const input = {
+      organizationId: org.id,
+      recipient: "dedupe@example.com",
+      subject: "Payslip ready",
+      body: "Your payslip is ready.",
+      purpose: "payslip-ready",
+      dedupeKey: `payslip-ready:${org.id}:700:701`,
+      audit: {
+        actor: "Payroll Owner",
+        metadata: { runId: 700, employeeId: 701, periodLabel: "Sep 16–30, 2026" },
+      },
+    } as const;
+
+    const first = await queueMessage(input);
+    const second = await queueMessage(input);
+
+    assert.equal(second.id, first.id);
+    assert.equal(second.duplicate, true);
+
+    const rows = await db.select().from(outbox).where(eq(outbox.organizationId, org.id));
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].dedupeKey, input.dedupeKey);
+
+    const events = await db.select().from(auditEvents).where(eq(auditEvents.organizationId, org.id));
+    assert.ok(events.some((event) => event.action === "Outbox duplicate suppressed"));
+  } finally {
+    restoreProviders(previous);
+    await cleanupOrg(org.id);
+  }
+});
+
+test("provider message id and delivery outcome live on the outbox row", async () => {
+  const previous = snapshotProviders();
+  const previousFetch = globalThis.fetch;
+  clearProviders();
+  process.env.RESEND_API_KEY = "re_test_outbox";
+  const org = await createOrg("Outbox Provider State Test");
+
+  try {
+    globalThis.fetch = async (input) => {
+      const url = String(input);
+      assert.equal(url, "https://api.resend.com/emails");
+      return new Response(JSON.stringify({ id: "re_msg_123" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+
+    const sent = await queueMessage({
+      organizationId: org.id,
+      recipient: "provider@example.com",
+      subject: "Payslip ready",
+      body: "Your payslip is ready.",
+      purpose: "payslip-ready",
+      dedupeKey: `payslip-ready:${org.id}:710:711`,
+      audit: {
+        actor: "Payroll Owner",
+        metadata: { runId: 710, employeeId: 711, periodLabel: "Sep 16–30, 2026" },
+      },
+    });
+    assert.equal(sent.status, "sent");
+    assert.equal(sent.providerMessageId, "re_msg_123");
+
+    let [stored] = await db.select().from(outbox).where(eq(outbox.id, sent.id)).limit(1);
+    assert.equal(stored.providerMessageId, "re_msg_123");
+
+    const event = await recordEmailProviderEvent({
+      provider: "resend",
+      eventId: "evt_delivered_123",
+      outboxId: sent.id,
+      providerMessageId: "re_msg_123",
+      eventType: "email.delivered",
+      deliveryStatus: "delivered",
+      occurredAt: "2026-09-30T10:00:00.000Z",
+      detail: null,
+    });
+    assert.equal(event.matched, true);
+
+    [stored] = await db.select().from(outbox).where(eq(outbox.id, sent.id)).limit(1);
+    assert.equal(stored.deliveryStatus, "delivered");
+    assert.equal(stored.deliveryEventAt?.toISOString(), "2026-09-30T10:00:00.000Z");
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreProviders(previous);
+    await cleanupOrg(org.id);
+  }
+});
+
+test("bulk retry selects failed payslip notices only", async () => {
+  const previous = snapshotProviders();
+  clearProviders();
+  process.env.SMTP_URL = "smtp://user:pass@127.0.0.1:1";
+  const org = await createOrg("Outbox Bulk Retry Test");
+
+  try {
+    const payslip = await queueMessage({
+      organizationId: org.id,
+      recipient: "payslip@example.com",
+      subject: "Payslip ready",
+      body: "Your payslip is ready.",
+      purpose: "payslip-ready",
+    });
+    const security = await queueMessage({
+      organizationId: org.id,
+      recipient: "security@example.com",
+      subject: "Reset password",
+      body: "https://example.test/reset?token=one-time",
+      purpose: "password-reset",
+    });
+    assert.equal(payslip.status, "failed");
+    assert.equal(security.status, "failed");
+
+    const result = await retryFailedPayslipNotices({
+      organizationId: org.id,
+      actor: "Payroll Owner",
+    });
+    assert.equal(result.requested, 1);
+    assert.equal(result.failed, 1);
+
+    const [securityRow] = await db.select().from(outbox).where(eq(outbox.id, security.id)).limit(1);
+    assert.equal(securityRow.status, "failed");
+  } finally {
+    restoreProviders(previous);
+    await cleanupOrg(org.id);
+  }
+});
+
+test("release and outbox UI expose durable dedupe and failed-only recovery", () => {
+  const release = readFileSync("src/app/api/payroll-runs/[id]/release/route.ts", "utf8");
+  const route = readFileSync("src/app/api/outbox/route.ts", "utf8");
+  const panels = readFileSync("src/components/workspace/panels.tsx", "utf8");
+  const schema = readFileSync("src/db/schema.ts", "utf8");
+
+  assert.ok(release.includes("dedupeKey: `payslip-ready:"));
+  assert.ok(route.includes('body.mode === "retry-failed-payslips"'));
+  assert.ok(route.includes("retryFailedPayslipNotices"));
+  assert.ok(panels.includes("Retry ${summary.failedPayslipReady} failed payslip notice"));
+  assert.ok(schema.includes("providerMessageId"));
+  assert.ok(schema.includes("deliveryStatus"));
+  assert.ok(schema.includes("dedupeKey"));
+  assert.ok(schema.includes("outbox_dedupe_key_unique"));
 });
