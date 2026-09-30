@@ -286,6 +286,8 @@ export function PayrollRunView({
   ) ?? false;
 
   const failedChecklistItem = releaseChecklist?.items.find((item) => item.blocking && !item.passed);
+  const visibleReleaseReceipt =
+    visibleReleaseReceipt?.runId === run.id ? releaseReceipt : readReleaseReceipt(data.auditEvents, run.id);
   const recoveryStates: Array<{
     key: string;
     title: string;
@@ -380,30 +382,30 @@ export function PayrollRunView({
         compact
       />
 
-      {releaseReceipt?.runId === run.id && (
+      {visibleReleaseReceipt?.runId === run.id && (
         <article className="card" data-release-receipt style={{ marginBottom: 16 }}>
           <div className="card-header">
             <div>
               <div className="card-kicker">RELEASE RECEIPT</div>
               <h2>Payroll released successfully</h2>
-              <p>{releaseReceipt.periodLabel} is locked and available for downstream payout and employee self-service.</p>
+              <p>{visibleReleaseReceipt.periodLabel} is locked and available for downstream payout and employee self-service.</p>
             </div>
             <span className="status status-released"><Check size={12} /> Released</span>
           </div>
           <div className="run-stats" style={{ marginTop: 0 }}>
             <div>
               <span>Employees</span>
-              <strong>{releaseReceipt.employeeCount}</strong>
+              <strong>{visibleReleaseReceipt.employeeCount}</strong>
               <small>payslips available</small>
             </div>
             <div>
               <span>Total net payroll</span>
-              <strong className="green-number">{money(releaseReceipt.totalNetPay)}</strong>
+              <strong className="green-number">{money(visibleReleaseReceipt.totalNetPay)}</strong>
               <small>released register total</small>
             </div>
             <div>
               <span>Released</span>
-              <strong style={{ fontSize: 14 }}>{displayReleaseTimestamp(releaseReceipt.releasedAt)}</strong>
+              <strong style={{ fontSize: 14 }}>{displayReleaseTimestamp(visibleReleaseReceipt.releasedAt)}</strong>
               <small>server-recorded release time</small>
             </div>
           </div>
@@ -412,17 +414,17 @@ export function PayrollRunView({
               <span className="status status-approved" style={{ minWidth: 72, justifyContent: "center" }}>Ready</span>
               <div>
                 <strong>Bank / export status</strong>
-                <p>{releaseReceipt.bankExport.label}</p>
+                <p>{visibleReleaseReceipt.bankExport.label}</p>
               </div>
               <button className="secondary-button" onClick={() => setExportsOpen(true)}>Open exports</button>
             </div>
             <div className="exception-row" style={{ alignItems: "flex-start" }}>
-              <span className={`status ${releaseReceipt.payslips.status === "ready" ? "status-approved" : "status-review"}`} style={{ minWidth: 72, justifyContent: "center" }}>
-                {releaseReceipt.payslips.status === "ready" ? "Ready" : "Check"}
+              <span className={`status ${visibleReleaseReceipt.payslips.status === "ready" ? "status-approved" : "status-review"}`} style={{ minWidth: 72, justifyContent: "center" }}>
+                {visibleReleaseReceipt.payslips.status === "ready" ? "Ready" : "Check"}
               </span>
               <div>
                 <strong>Payslip delivery</strong>
-                <p>{releaseReceipt.payslips.label}. {releaseReceipt.payslips.available} payslip(s) are available in self-service.</p>
+                <p>{visibleReleaseReceipt.payslips.label}. {visibleReleaseReceipt.payslips.available} payslip(s) are available in self-service.</p>
               </div>
             </div>
           </div>
@@ -899,6 +901,7 @@ export function PayrollRunView({
             }
             if (result.error) {
               setReleaseFailure({ runId: run.id, error: result.error });
+              setConfirmRelease(false);
             }
           }}
         />
@@ -1388,6 +1391,50 @@ function findRunApproval(tasks: Task[], run?: PayrollRun) {
   return tasks
     .filter((task) => task.detail.includes(`Payroll run #${run.id}`))
     .sort((a, b) => b.id - a.id)[0];
+}
+
+function readReleaseReceipt(events: DashboardData["auditEvents"], runId: number): PayrollReleaseReceipt | null {
+  const event = events
+    .filter((item) => item.action === "Payroll release receipt")
+    .find((item) => {
+      if (!item.metadata || typeof item.metadata !== "object") return false;
+      return Number((item.metadata as Record<string, unknown>).runId) === runId;
+    });
+  if (!event?.metadata || typeof event.metadata !== "object") return null;
+  const raw = event.metadata as Record<string, unknown>;
+  const bankExport = raw.bankExport;
+  const payslips = raw.payslips;
+  if (
+    typeof raw.periodLabel !== "string" ||
+    typeof raw.totalNetPay !== "string" ||
+    typeof raw.releasedAt !== "string" ||
+    !bankExport || typeof bankExport !== "object" ||
+    !payslips || typeof payslips !== "object"
+  ) return null;
+
+  const bank = bankExport as Record<string, unknown>;
+  const slips = payslips as Record<string, unknown>;
+  if (typeof bank.label !== "string" || typeof slips.label !== "string") return null;
+
+  return {
+    runId,
+    periodLabel: raw.periodLabel,
+    employeeCount: Number(raw.employeeCount ?? 0),
+    totalNetPay: raw.totalNetPay,
+    releasedAt: raw.releasedAt,
+    bankExport: {
+      status: "ready",
+      label: bank.label,
+    },
+    payslips: {
+      status: slips.status === "attention" ? "attention" : "ready",
+      label: slips.label,
+      available: Number(slips.available ?? 0),
+      noticesQueued: Number(slips.noticesQueued ?? 0),
+      missingEmail: Number(slips.missingEmail ?? 0),
+      warningCount: Number(slips.warningCount ?? 0),
+    },
+  };
 }
 
 function displayReleaseTimestamp(value: string) {
