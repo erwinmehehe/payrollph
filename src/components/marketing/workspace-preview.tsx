@@ -1,13 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import {
   AlertTriangle,
   ArrowUpRight,
   Bell,
+  BriefcaseBusiness,
+  Building2,
   CalendarDays,
   Check,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   CircleDollarSign,
   ClipboardCheck,
@@ -18,6 +21,7 @@ import {
   Search,
   Send,
   UploadCloud,
+  UserPlus,
   UsersRound,
   X,
   type LucideIcon,
@@ -28,6 +32,7 @@ import {
   SAMPLE_EMPLOYEES,
   SAMPLE_PUNCHES,
   buildSampleRun,
+  type SampleEmployee,
   type SampleEntry,
 } from "./sample-workspace";
 import { NAVIGATION } from "@/components/workspace/nav";
@@ -71,7 +76,6 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
   const [released, setReleased] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
   const [decided, setDecided] = useState<Record<number, "Approved" | "Declined">>({});
-  const [query, setQuery] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({ Manage: true });
 
   const interactive = mode !== "showcase";
@@ -104,7 +108,7 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
           <i />
         </span>
         <span className="frame-url">
-          <span>linaw.ph/workspace</span>
+          <span>linaw.ph/app</span>
         </span>
         <span className="frame-tag">{interactive ? "Interactive" : "Preview"}</span>
       </div>
@@ -208,6 +212,7 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
                   run={run}
                   decided={decided}
                   onDecide={(id, status) => setDecided((current) => ({ ...current, [id]: status }))}
+                  onNavigate={setTab}
                 />
               ) : (
                 <>
@@ -223,7 +228,7 @@ export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" |
                       onExpand={setExpanded}
                     />
                   )}
-                  {activeTab === "People" && <PreviewPeople query={query} onQuery={setQuery} />}
+                  {activeTab === "People" && <PeopleDemo variant="full" onOpenMigration={() => setTab("Migration")} />}
                   {activeTab === "Migration" && <PreviewMigration run={run} />}
                   {activeTab === "Time & attendance" && <PreviewTime />}
                   {activeTab === "Leave" && <PreviewLeave />}
@@ -252,25 +257,25 @@ function FocusedWorkspacePanel({
   run,
   decided,
   onDecide,
+  onNavigate,
 }: {
   tab: Tab;
   run: ReturnType<typeof buildSampleRun>;
   decided: Record<number, "Approved" | "Declined">;
   onDecide: (id: number, status: "Approved" | "Declined") => void;
+  onNavigate: (tab: Tab) => void;
 }) {
-  const activePeople = SAMPLE_EMPLOYEES.filter((person) => person.status === "Active");
   const openApprovals = SAMPLE_APPROVALS.filter((task) => !decided[task.id]);
+
+  if (tab === "People") {
+    return <PeopleDemo variant="focused" onOpenMigration={() => onNavigate("Migration")} />;
+  }
 
   const titles: Record<string, { eyebrow: string; title: string; copy: string }> = {
     Payroll: {
       eyebrow: "Current payroll",
       title: run.periodLabel,
       copy: "Review the two exceptions before this run can move to checker approval.",
-    },
-    People: {
-      eyebrow: "People",
-      title: `${activePeople.length} active employees`,
-      copy: "Employee records, pay basis and payroll-impacting changes stay together.",
     },
     Migration: {
       eyebrow: "Migration",
@@ -697,66 +702,264 @@ function PreviewPayslip({ entry }: { entry: SampleEntry }) {
   );
 }
 
-function PreviewPeople({ query, onQuery }: { query: string; onQuery: (value: string) => void }) {
+
+type PeopleDemoFilter = "All" | "Active" | "On leave" | "Separation";
+
+const PEOPLE_DEMO_FILTERS: PeopleDemoFilter[] = ["All", "Active", "On leave", "Separation"];
+
+function PeopleDemo({
+  variant,
+  onOpenMigration,
+}: {
+  variant: "focused" | "full";
+  onOpenMigration: () => void;
+}) {
+  const [people, setPeople] = useState<SampleEmployee[]>(SAMPLE_EMPLOYEES);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<PeopleDemoFilter>("All");
+  const [selected, setSelected] = useState<SampleEmployee | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [draft, setDraft] = useState({
+    firstName: "Nina",
+    lastName: "Garcia",
+    title: "HR coordinator",
+    unit: "Makati HQ",
+    employmentType: "Regular",
+    monthlyBasic: "28000",
+  });
+
+  const activeCount = people.filter((person) => person.status === "Active").length;
+  const units = Array.from(new Set(people.map((person) => person.unit)));
   const needle = query.trim().toLowerCase();
-  const rows = SAMPLE_EMPLOYEES.filter((person) =>
-    `${person.firstName} ${person.lastName} ${person.employeeNo} ${person.title} ${person.unit}`.toLowerCase().includes(needle),
-  );
+  const filtered = people.filter((person) => {
+    const filterMatches =
+      filter === "All" ||
+      (filter === "Separation" ? person.status === "Separating" : person.status === filter);
+    if (!filterMatches) return false;
+    if (!needle) return true;
+    return [
+      person.firstName,
+      person.lastName,
+      person.employeeNo,
+      person.title,
+      person.unit,
+      person.employmentType,
+    ].join(" ").toLowerCase().includes(needle);
+  });
+  const rows = filtered.slice(0, variant === "focused" ? 4 : 10);
+
+  function countFor(tab: PeopleDemoFilter) {
+    if (tab === "All") return people.length;
+    if (tab === "Separation") return people.filter((person) => person.status === "Separating").length;
+    return people.filter((person) => person.status === tab).length;
+  }
+
+  function addEmployee(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const firstName = draft.firstName.trim() || "Nina";
+    const lastName = draft.lastName.trim() || "Garcia";
+    const nextId = Math.max(...people.map((person) => person.id), 0) + 1;
+    const next: SampleEmployee = {
+      id: nextId,
+      employeeNo: "MF-" + String(nextId).padStart(4, "0"),
+      firstName,
+      lastName,
+      title: draft.title.trim() || "HR coordinator",
+      unit: draft.unit,
+      employmentType: draft.employmentType,
+      status: "Active",
+      initials: ((firstName[0] || "N") + (lastName[0] || "G")).toUpperCase(),
+      monthlyBasic: Math.max(Number(draft.monthlyBasic) || 28000, 1),
+      overtimeMinutes: 0,
+      nightMinutes: 0,
+      lateMinutes: 0,
+      incompletePunchDays: 0,
+    };
+
+    setPeople((current) => [next, ...current]);
+    setAddOpen(false);
+    setFilter("All");
+    setQuery("");
+    setSelected(next);
+  }
 
   return (
-    <article className="card table-card">
-      <div className="table-toolbar">
-        <div className="search-field">
-          <Search size={15} className="i-slate" />
-          <input value={query} onChange={(event) => onQuery(event.target.value)} placeholder="Search people" aria-label="Search sample people" />
+    <div className={"preview-people-shell " + (variant === "focused" ? "is-focused" : "is-full")}>
+      <div className="preview-people-head">
+        <div>
+          <span className="preview-people-eyebrow">People</span>
+          <h2>{activeCount} active employees</h2>
+          <p>Employee records, pay setup and payroll-impacting changes stay together.</p>
+        </div>
+        <div className="preview-people-actions">
+          <button type="button" className="preview-people-secondary" onClick={onOpenMigration}>
+            <UploadCloud size={13} /> Import people
+          </button>
+          <button type="button" className="preview-people-primary" onClick={() => setAddOpen(true)}>
+            <UserPlus size={13} /> Add employee
+          </button>
         </div>
       </div>
-      <div className="data-table-wrap slim-scroll">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Person</th>
-              <th>Unit</th>
-              <th>Status</th>
-              <th className="right">Monthly basic</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((person) => (
-              <tr key={person.id}>
-                <td>
-                  <div className="person-cell">
-                    <div className={`avatar avatar-${person.id % 5}`} aria-hidden>{person.initials}</div>
-                    <div>
-                      <strong>
-                        {person.firstName} {person.lastName}
-                      </strong>
-                      <span>
-                        <span className="id">{person.employeeNo}</span> · {person.title}
-                      </span>
-                    </div>
-                  </div>
-                </td>
-                <td>{person.unit}</td>
-                <td>
-                  <Status value={person.status} />
-                </td>
-                <td className="right num">
-                  {money(person.monthlyBasic)}
-                  {person.mwe && <small className="mwe-tag">MWE</small>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+
+      <div className="preview-people-summary">
+        <div>
+          <UsersRound size={14} />
+          <span><strong>{people.length}</strong> total people</span>
+        </div>
+        <div>
+          <Building2 size={14} />
+          <span><strong>{units.length}</strong> locations</span>
+        </div>
+        <div>
+          <Check size={14} />
+          <span><strong>{activeCount}</strong> payroll-ready</span>
+        </div>
+      </div>
+
+      <div className="preview-people-controls">
+        <div className="preview-people-tabs" role="tablist" aria-label="Sample people status">
+          {PEOPLE_DEMO_FILTERS.map((tab) => (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={filter === tab}
+              className={filter === tab ? "active" : ""}
+              key={tab}
+              onClick={() => setFilter(tab)}
+            >
+              {tab}<b>{countFor(tab)}</b>
+            </button>
+          ))}
+        </div>
+        <label className="preview-people-search">
+          <Search size={13} />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search people"
+            aria-label="Search sample people"
+          />
+        </label>
+      </div>
+
+      <div className="preview-people-list">
+        {rows.map((person, index) => (
+          <button
+            type="button"
+            className="preview-person-row"
+            key={person.id}
+            onClick={() => setSelected(person)}
+            aria-label={"Open " + person.firstName + " " + person.lastName}
+          >
+            <span className={"avatar avatar-" + (index % 5)} aria-hidden>{person.initials}</span>
+            <span className="preview-person-main">
+              <strong>{person.firstName} {person.lastName}</strong>
+              <small>{person.employeeNo} · {person.title}</small>
+            </span>
+            <span className="preview-person-unit">
+              <BriefcaseBusiness size={12} />
+              {person.unit}
+            </span>
+            <Status value={person.status} />
+            <span className="preview-person-pay">
+              <strong>{money(person.monthlyBasic)}</strong>
+              <small>monthly</small>
+            </span>
+            <ChevronRight size={14} className="preview-person-chevron" aria-hidden />
+          </button>
+        ))}
         {rows.length === 0 && (
-          <div className="empty-state">
-            <Search size={20} className="i-slate" />
-            <strong>No sample people match “{query}”</strong>
+          <div className="preview-people-empty">
+            <Search size={18} />
+            <strong>No sample people match this view.</strong>
+            <button type="button" onClick={() => { setFilter("All"); setQuery(""); }}>Clear filters</button>
           </div>
         )}
       </div>
-    </article>
+
+      {variant === "full" && filtered.length > rows.length && (
+        <div className="preview-people-footer">Showing {rows.length} of {filtered.length} sample employees</div>
+      )}
+
+      {(addOpen || selected) && (
+        <div className="preview-people-overlay" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) {
+            setAddOpen(false);
+            setSelected(null);
+          }
+        }}>
+          <div className={"preview-people-drawer " + (addOpen ? "is-form" : "")}>
+            {addOpen ? (
+              <form onSubmit={addEmployee}>
+                <div className="preview-drawer-head">
+                  <div>
+                    <span>Add employee</span>
+                    <h3>Create a sample employee</h3>
+                    <p>Local demo only. Nothing is saved or sent.</p>
+                  </div>
+                  <button type="button" aria-label="Close add employee" onClick={() => setAddOpen(false)}><X size={15} /></button>
+                </div>
+                <div className="preview-employee-form">
+                  <label>First name<input value={draft.firstName} onChange={(event) => setDraft((current) => ({ ...current, firstName: event.target.value }))} /></label>
+                  <label>Last name<input value={draft.lastName} onChange={(event) => setDraft((current) => ({ ...current, lastName: event.target.value }))} /></label>
+                  <label className="span-2">Role<input value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} /></label>
+                  <label>Location
+                    <select value={draft.unit} onChange={(event) => setDraft((current) => ({ ...current, unit: event.target.value }))}>
+                      <option>Makati HQ</option>
+                      <option>Cebu Hub</option>
+                    </select>
+                  </label>
+                  <label>Employment
+                    <select value={draft.employmentType} onChange={(event) => setDraft((current) => ({ ...current, employmentType: event.target.value }))}>
+                      <option>Regular</option>
+                      <option>Probationary</option>
+                      <option>Project-based</option>
+                    </select>
+                  </label>
+                  <label className="span-2">Monthly basic
+                    <div className="preview-money-input"><span>₱</span><input type="number" min="1" value={draft.monthlyBasic} onChange={(event) => setDraft((current) => ({ ...current, monthlyBasic: event.target.value }))} /></div>
+                  </label>
+                </div>
+                <div className="preview-drawer-actions">
+                  <button type="button" className="preview-people-secondary" onClick={() => setAddOpen(false)}>Cancel</button>
+                  <button type="submit" className="preview-people-primary"><UserPlus size={13} /> Add employee</button>
+                </div>
+              </form>
+            ) : selected ? (
+              <>
+                <div className="preview-drawer-head">
+                  <button type="button" className="preview-back-button" onClick={() => setSelected(null)}>
+                    <ChevronLeft size={14} /> Back
+                  </button>
+                  <button type="button" aria-label="Close employee details" onClick={() => setSelected(null)}><X size={15} /></button>
+                </div>
+                <div className="preview-person-profile">
+                  <span className={"avatar avatar-" + (selected.id % 5)} aria-hidden>{selected.initials}</span>
+                  <div>
+                    <span>{selected.employeeNo}</span>
+                    <h3>{selected.firstName} {selected.lastName}</h3>
+                    <p>{selected.title} · {selected.unit}</p>
+                  </div>
+                  <Status value={selected.status} />
+                </div>
+                <div className="preview-profile-grid">
+                  <div><span>Employment</span><strong>{selected.employmentType}</strong><small>Employee record</small></div>
+                  <div><span>Pay profile</span><strong>{money(selected.monthlyBasic)}</strong><small>Monthly salaried</small></div>
+                  <div><span>Government IDs</span><strong>Complete</strong><small>SSS · PhilHealth · Pag-IBIG · TIN</small></div>
+                  <div><span>Payroll status</span><strong>{selected.incompletePunchDays ? "Needs review" : "Ready"}</strong><small>Current cutoff</small></div>
+                </div>
+                <div className="preview-profile-activity">
+                  <span>Recent activity</span>
+                  <div><Check size={13} /><p><strong>Employee profile verified</strong><small>Pay basis and statutory identity ready</small></p></div>
+                  <div><BriefcaseBusiness size={13} /><p><strong>{selected.unit}</strong><small>Organization assignment</small></p></div>
+                  <div><CalendarDays size={13} /><p><strong>{selected.status === "On leave" ? "Currently on leave" : "Attendance connected"}</strong><small>Flows into the payroll cutoff</small></p></div>
+                </div>
+              </>
+            ) : null}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
