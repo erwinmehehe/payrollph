@@ -646,6 +646,100 @@
   background: #fff;
 }
 
+.productScreen :global(.nav-item),
+.simulationSurface :global(.nav-item) {
+  --preview-nav-ink: #667085;
+  --preview-nav-tint: #f2f4f7;
+  --preview-nav-border: #e4e7ec;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: #667085;
+}
+
+.productScreen :global(.nav-item[data-tone="green"]),
+.simulationSurface :global(.nav-item[data-tone="green"]) {
+  --preview-nav-ink: #079455;
+  --preview-nav-tint: #ecfdf3;
+  --preview-nav-border: #abefc6;
+}
+
+.productScreen :global(.nav-item[data-tone="purple"]),
+.simulationSurface :global(.nav-item[data-tone="purple"]) {
+  --preview-nav-ink: #6938ef;
+  --preview-nav-tint: #f4f3ff;
+  --preview-nav-border: #d9d6fe;
+}
+
+.productScreen :global(.nav-item[data-tone="teal"]),
+.simulationSurface :global(.nav-item[data-tone="teal"]) {
+  --preview-nav-ink: #0e9384;
+  --preview-nav-tint: #f0fdfa;
+  --preview-nav-border: #99f6e0;
+}
+
+.productScreen :global(.nav-item[data-tone="red"]),
+.simulationSurface :global(.nav-item[data-tone="red"]) {
+  --preview-nav-ink: #d92d20;
+  --preview-nav-tint: #fef3f2;
+  --preview-nav-border: #fecdca;
+}
+
+.productScreen :global(.nav-item[data-tone="blue"]),
+.simulationSurface :global(.nav-item[data-tone="blue"]) {
+  --preview-nav-ink: #1570ef;
+  --preview-nav-tint: #eff8ff;
+  --preview-nav-border: #b2ddff;
+}
+
+.productScreen :global(.nav-item[data-tone="amber"]),
+.simulationSurface :global(.nav-item[data-tone="amber"]) {
+  --preview-nav-ink: #dc6803;
+  --preview-nav-tint: #fffaeb;
+  --preview-nav-border: #fedf89;
+}
+
+.productScreen :global(.nav-item[data-tone="cyan"]),
+.simulationSurface :global(.nav-item[data-tone="cyan"]) {
+  --preview-nav-ink: #0e7090;
+  --preview-nav-tint: #ecfdff;
+  --preview-nav-border: #a5f0fc;
+}
+
+.productScreen :global(.nav-item[data-tone="pink"]),
+.simulationSurface :global(.nav-item[data-tone="pink"]) {
+  --preview-nav-ink: #c11574;
+  --preview-nav-tint: #fdf2fa;
+  --preview-nav-border: #fcceee;
+}
+
+.productScreen :global(.nav-item[data-tone="slate"]),
+.simulationSurface :global(.nav-item[data-tone="slate"]) {
+  --preview-nav-ink: #475467;
+  --preview-nav-tint: #f2f4f7;
+  --preview-nav-border: #d0d5dd;
+}
+
+.productScreen :global(.nav-icon),
+.simulationSurface :global(.nav-icon) {
+  border: 1px solid var(--preview-nav-border);
+  background: var(--preview-nav-tint);
+  color: var(--preview-nav-ink);
+}
+
+.productScreen :global(.nav-item.active),
+.simulationSurface :global(.nav-item.active) {
+  border-color: var(--preview-nav-border);
+  background: var(--preview-nav-tint);
+  color: #20242c;
+}
+
+.productScreen :global(.nav-item.active .nav-icon),
+.simulationSurface :global(.nav-item.active .nav-icon) {
+  border-color: var(--preview-nav-ink);
+  background: var(--preview-nav-ink);
+  color: #fff;
+}
+
 .productScreen :global(.card),
 .productScreen :global(.console-strip),
 .productScreen :global(.stat-card),
