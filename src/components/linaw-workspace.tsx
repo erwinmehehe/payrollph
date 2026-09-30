@@ -102,6 +102,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
   const canManageTime = roleCanManageTime(effectiveRole);
   const canDecideApprovals = roleCanDecideApprovals(effectiveRole);
   const canManageDelegations = roleCanManageDelegations(effectiveRole);
+  const canManageDeliveryOutbox = effectiveRole === "owner" || effectiveRole === "admin";
   const canUsePayrollOps = canManagePayroll && availablePages.includes("Payroll");
   const canUsePeopleOps = canManagePeople && availablePages.includes("People");
 
@@ -294,14 +295,14 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
     if (canManageTime && availablePages.includes("Time & attendance")) {
       actions.push({ id: "bundy", label: "Open web bundy", hint: "Record an attendance punch", run: () => setWebBundyOpen(true) });
     }
-    if (availablePages.includes("Exports")) {
+    if (canManageDeliveryOutbox && availablePages.includes("Exports")) {
       actions.push({ id: "outbox", label: "Email outbox", hint: "See what was queued and whether it was really sent", run: () => setOutboxOpen(true) });
     }
     if (availablePages.includes("Compliance")) {
       actions.push({ id: "gov", label: "Government validation status", hint: "Which agency outputs are still labelled DRAFT", run: () => setGovModalOpen(true) });
     }
     return actions;
-  }, [availablePages, canManageTime, canUsePayrollOps, canUsePeopleOps, currentRun, processRun]);
+  }, [availablePages, canManageDeliveryOutbox, canManageTime, canUsePayrollOps, canUsePeopleOps, currentRun, processRun]);
 
   /* --------------------------------------------------------------- render */
 
@@ -313,7 +314,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         onPage={setPage}
         notifications={notifications}
         onOpenPalette={() => setPaletteOpen(true)}
-        onOpenNotification={availablePages.includes("Exports") ? () => setOutboxOpen(true) : undefined}
+        onOpenNotification={canManageDeliveryOutbox && availablePages.includes("Exports") ? () => setOutboxOpen(true) : undefined}
         onSwitchClient={(id) => void changeOrganization(id)}
         onSwitchRole={demoRole ? (role) => void switchDemoRole(role) : undefined}
         onSignOut={() => void signOut()}
@@ -472,7 +473,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         {page === "Assets" && <AssetsPanel organizationId={data.selectedOrganization.id} />}
         {page === "Freelancer hub" && <FreelancerPage data={data} setNotice={noticeAdapter} />}
 
-        {page === "Integrations" && <IntegrationsPage onOpenOutbox={() => setOutboxOpen(true)} />}
+        {page === "Integrations" && <IntegrationsPage onOpenOutbox={canManageDeliveryOutbox ? () => setOutboxOpen(true) : undefined} />}
         {page === "Developer" && <DeveloperPage organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Pricing" && <PricingPage plans={data.plans} onSelectPlan={(plan) => setCheckoutPlan(plan)} />}
         {page === "Audit trail" && <AuditPage events={data.auditEvents} organizationId={data.selectedOrganization.id} />}
@@ -504,7 +505,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
           orgUnits={data.orgUnits ?? []}
         />
       )}
-      {outboxOpen && (
+      {outboxOpen && canManageDeliveryOutbox && (
         <OutboxModal organizationId={data.selectedOrganization.id} onClose={() => setOutboxOpen(false)} setNotice={noticeAdapter} />
       )}
       {checkoutPlan && (
