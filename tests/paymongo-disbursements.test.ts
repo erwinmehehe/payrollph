@@ -1,15 +1,22 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { eq } from "drizzle-orm";
 import { db } from "../src/db";
 import { employees, organizations, payrollEntries, payrollRuns } from "../src/db/schema";
 import {
   buildBatchTransferPayload,
+  buildPayrollRetryIdempotencyKey,
   choosePayrollRail,
   matchReceivingInstitution,
   preflightPaymongoPayrollDisbursement,
   type PayrollPayoutRow,
 } from "../src/lib/paymongo-disbursements";
+import {
+  normalizePaymongoTransferStatus,
+  reconcilePaymongoPayrollTransfers,
+  type PaymongoBatchSnapshot,
+} from "../src/lib/payroll-payout-reconciliation";
 
 function row(overrides: Partial<PayrollPayoutRow> = {}): PayrollPayoutRow {
   return {
@@ -159,4 +166,132 @@ test("PayMongo payroll preflight validates live bank mapping without creating a 
     else process.env.PAYMONGO_SECRET_KEY = previousSecret;
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
+});
+
+
+test("PayMongo transfer reconciliation keeps the newest status for retried references", () => {
+  const expectedRows = [
+    row({ employeeNo: "E-001", referenceNumber: "PAY-77-E-001", amountCents: 1_000_00 }),
+    row({ employeeNo: "E-002", referenceNumber: "PAY-77-E-002", amountCents: 2_000_00 }),
+    row({ employeeNo: "E-003", referenceNumber: "PAY-77-E-003", amountCents: 3_000_00 }),
+  ];
+  const batches: PaymongoBatchSnapshot[] = [
+    {
+      batchId: "batch_tr_original",
+      provider: "pesonet",
+      transfers: [
+        { batchId: "batch_tr_original", transferId: "tr_1", referenceNumber: "PAY-77-E-001", status: "succeeded", amountCents: 1_000_00, providerReferenceNumber: "P-1" },
+        { batchId: "batch_tr_original", transferId: "tr_2", referenceNumber: "PAY-77-E-002", status: "failed", amountCents: 2_000_00, providerReferenceNumber: null },
+        { batchId: "batch_tr_original", transferId: "tr_3", referenceNumber: "PAY-77-E-003", status: "pending", amountCents: 3_000_00, providerReferenceNumber: null },
+      ],
+    },
+    {
+      batchId: "batch_tr_retry",
+      provider: "instapay",
+      transfers: [
+        { batchId: "batch_tr_retry", transferId: "tr_4", referenceNumber: "PAY-77-E-002", status: "succeeded", amountCents: 2_000_00, providerReferenceNumber: "P-4" },
+      ],
+    },
+  ];
+
+  const result = reconcilePaymongoPayrollTransfers({ runId: 77, expectedRows, batches });
+  assert.equal(result.succeeded, 2);
+  assert.equal(result.pending, 1);
+  assert.equal(result.failed, 0);
+  assert.equal(result.completed, false);
+  assert.deepEqual(result.retryableReferences, []);
+  assert.equal(result.transfers.find((transfer) => transfer.employeeNo === "E-002")?.batchId, "batch_tr_retry");
+});
+
+test("PayMongo reconciliation retries failed references only and never pending transfers", () => {
+  const expectedRows = [
+    row({ employeeNo: "E-001", referenceNumber: "PAY-88-E-001", amountCents: 1_000_00 }),
+    row({ employeeNo: "E-002", referenceNumber: "PAY-88-E-002", amountCents: 2_000_00 }),
+  ];
+  const result = reconcilePaymongoPayrollTransfers({
+    runId: 88,
+    expectedRows,
+    batches: [{
+      batchId: "batch_tr_status",
+      provider: "pesonet",
+      transfers: [
+        { batchId: "batch_tr_status", transferId: "tr_a", referenceNumber: "PAY-88-E-001", status: "failed", amountCents: 1_000_00, providerReferenceNumber: null },
+        { batchId: "batch_tr_status", transferId: "tr_b", referenceNumber: "PAY-88-E-002", status: "pending", amountCents: 2_000_00, providerReferenceNumber: null },
+      ],
+    }],
+  });
+
+  assert.deepEqual(result.retryableReferences, ["PAY-88-E-001"]);
+  assert.equal(result.failed, 1);
+  assert.equal(result.pending, 1);
+});
+
+test("PayMongo reconciliation fails closed on unexpected references or changed amounts", () => {
+  const expectedRows = [row({ employeeNo: "E-001", referenceNumber: "PAY-99-E-001", amountCents: 5_000_00 })];
+
+  assert.throws(
+    () => reconcilePaymongoPayrollTransfers({
+      runId: 99,
+      expectedRows,
+      batches: [{
+        batchId: "batch_tr_wrong_ref",
+        provider: "instapay",
+        transfers: [{ batchId: "batch_tr_wrong_ref", transferId: "tr_x", referenceNumber: "PAY-99-E-999", status: "succeeded", amountCents: 5_000_00, providerReferenceNumber: null }],
+      }],
+    }),
+    /does not belong to payroll run/,
+  );
+
+  assert.throws(
+    () => reconcilePaymongoPayrollTransfers({
+      runId: 99,
+      expectedRows,
+      batches: [{
+        batchId: "batch_tr_wrong_amount",
+        provider: "instapay",
+        transfers: [{ batchId: "batch_tr_wrong_amount", transferId: "tr_y", referenceNumber: "PAY-99-E-001", status: "succeeded", amountCents: 4_999_00, providerReferenceNumber: null }],
+      }],
+    }),
+    /amount mismatch/,
+  );
+});
+
+test("retry idempotency is stable for the same failed set and changes for a different operation", () => {
+  const first = buildPayrollRetryIdempotencyKey(77, ["batch_tr_a"], ["PAY-77-E-002", "PAY-77-E-001"]);
+  const reordered = buildPayrollRetryIdempotencyKey(77, ["batch_tr_a"], ["PAY-77-E-001", "PAY-77-E-002"]);
+  const different = buildPayrollRetryIdempotencyKey(77, ["batch_tr_a"], ["PAY-77-E-001"]);
+  assert.equal(first, reordered);
+  assert.notEqual(first, different);
+});
+
+test("provider status normalization recognizes only PayMongo documented settlement states", () => {
+  assert.equal(normalizePaymongoTransferStatus("pending"), "pending");
+  assert.equal(normalizePaymongoTransferStatus("succeeded"), "succeeded");
+  assert.equal(normalizePaymongoTransferStatus("failed"), "failed");
+  assert.equal(normalizePaymongoTransferStatus("paid"), "unknown");
+});
+
+test("payout reconciliation route and UI enforce failed-only retry semantics", () => {
+  const route = readFileSync("src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts", "utf8");
+  const exportRoute = readFileSync("src/app/api/payroll-runs/[id]/exports/route.ts", "utf8");
+  const view = readFileSync("src/components/workspace/exports.tsx", "utf8");
+
+  for (const marker of [
+    "Only the workspace owner can reconcile or retry payroll payouts.",
+    "Pending transfers must not be resent.",
+    'body.action === "retry-failed"',
+    "retryableReferences",
+    "Payroll payout retry submitted via PayMongo",
+    "settlementVerified: input.reconciliation.completed",
+  ]) {
+    assert.ok(route.includes(marker), `reconciliation route is missing ${marker}`);
+  }
+
+  assert.ok(exportRoute.includes("already has a PayMongo payout batch"));
+  assert.ok(exportRoute.includes('transfer.status.toLowerCase() === "succeeded"'));
+  assert.ok(view.includes("PayMongo reconciliation"));
+  assert.ok(view.includes("Refresh PayMongo status"));
+  assert.ok(view.includes("failed only"));
+  assert.ok(view.includes('data-payout-transfer-list'));
+  assert.ok(view.includes('payoutState.reconciliation.provider !== "PayMongo"'));
 });
