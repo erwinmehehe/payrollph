@@ -583,10 +583,19 @@ export const outbox = pgTable("outbox", {
   purpose: varchar("purpose", { length: 60 }).notNull(),
   status: varchar("status", { length: 24 }).notNull().default("queued"),
   provider: varchar("provider", { length: 40 }).notNull().default("none"),
+  providerMessageId: varchar("provider_message_id", { length: 200 }),
+  deliveryStatus: varchar("delivery_status", { length: 32 }),
+  deliveryEventAt: timestamp("delivery_event_at", { withTimezone: true }),
+  deliveryDetail: text("delivery_detail"),
+  metadata: jsonb("metadata").notNull().default({}),
+  dedupeKey: varchar("dedupe_key", { length: 220 }),
   error: text("error"),
   sentAt: timestamp("sent_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("outbox_dedupe_key_unique").on(table.dedupeKey),
+  index("outbox_org_created_idx").on(table.organizationId, table.createdAt),
+]);
 
 export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
