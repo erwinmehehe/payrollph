@@ -165,15 +165,33 @@ async function finishDeliveryAttempt(input: {
 }) {
   await ensureOutboxDeliverySchema();
   const now = new Date();
+  const [current] = await db
+    .select()
+    .from(outbox)
+    .where(eq(outbox.id, input.row.id))
+    .limit(1);
+
+  // A provider webhook may beat this request's response back to the database.
+  // If that happened, the provider already proved acceptance and possibly final
+  // delivery. Preserve that state instead of overwriting it with a network error.
+  const providerConfirmed = Boolean(
+    current?.providerMessageId
+    && current.deliveryStatus
+  );
+  const effectiveOk = input.result.ok || providerConfirmed;
+  const effectiveMessageId = input.result.ok
+    ? input.result.messageId
+    : current?.providerMessageId ?? null;
+
   await db.update(outbox).set({
-    status: input.result.ok ? "sent" : "failed",
+    status: effectiveOk ? "sent" : "failed",
     provider: input.providerName,
-    providerMessageId: input.result.ok ? input.result.messageId : input.row.providerMessageId,
-    deliveryStatus: input.result.ok ? null : "failed",
-    deliveryEventAt: input.result.ok ? null : now,
-    deliveryDetail: input.result.ok ? null : input.result.error,
-    sentAt: input.result.ok ? now : null,
-    error: input.result.ok ? null : input.result.error,
+    providerMessageId: effectiveMessageId,
+    deliveryStatus: providerConfirmed ? current!.deliveryStatus : null,
+    deliveryEventAt: providerConfirmed ? current!.deliveryEventAt : null,
+    deliveryDetail: providerConfirmed ? current!.deliveryDetail : null,
+    sentAt: effectiveOk ? current?.sentAt ?? now : null,
+    error: effectiveOk ? null : input.result.ok ? null : input.result.error,
     body: storedBodyAfterAttempt(input.row.purpose, input.row.body),
   }).where(eq(outbox.id, input.row.id));
 
@@ -188,22 +206,23 @@ async function finishDeliveryAttempt(input: {
         ...(input.audit.metadata ?? {}),
         trigger: input.trigger ?? "initial",
         provider: input.providerName,
-        status: input.result.ok ? "sent" : "failed",
-        providerMessageId: input.result.ok ? input.result.messageId : null,
-        error: input.result.ok ? null : input.result.error,
+        status: effectiveOk ? "sent" : "failed",
+        providerMessageId: effectiveMessageId,
+        error: effectiveOk ? null : input.result.ok ? null : input.result.error,
+        providerConfirmedBeforeAttemptFinalized: providerConfirmed,
         attemptedAt: now.toISOString(),
       },
     });
   }
 
   return {
-    delivered: input.result.ok,
+    delivered: effectiveOk,
     queued: false,
     provider: input.providerName,
     id: input.row.id,
-    status: input.result.ok ? "sent" as const : "failed" as const,
-    reason: input.result.ok ? null : input.result.error,
-    providerMessageId: input.result.ok ? input.result.messageId : null,
+    status: effectiveOk ? "sent" as const : "failed" as const,
+    reason: effectiveOk ? null : input.result.ok ? null : input.result.error,
+    providerMessageId: effectiveMessageId,
   };
 }
 
