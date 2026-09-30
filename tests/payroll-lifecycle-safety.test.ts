@@ -73,6 +73,8 @@ test("payroll handoff maps lifecycle states to the next responsible role", () =>
   const cases = [
     ["Draft", "hr"],
     ["Needs review", "payroll"],
+    ["Queued", "payroll"],
+    ["Failed", "payroll"],
     ["Pending approval", "checker"],
     ["Ready for release", "owner"],
     ["Released", "employee"],
@@ -285,4 +287,18 @@ test("complete attendance does not become a blocker just because its label is la
   }];
 
   assert.deepEqual(buildPayrollAttention(data, "hr"), []);
+});
+
+
+test("payroll attention waits during calculation and surfaces real failed worker jobs", () => {
+  const data = attentionData("Queued");
+  data.payrollJobs = [{ id: 1, status: "queued", chunkIndex: 0 }];
+  assert.deepEqual(buildPayrollAttention(data, "payroll"), [], "queued work should not create a user-action notification");
+
+  data.payrollRuns[0].status = "Failed";
+  data.payrollJobs = [{ id: 1, status: "failed", chunkIndex: 0 }];
+  const failed = buildPayrollAttention(data, "payroll");
+  assert.equal(failed.length, 1);
+  assert.match(failed[0].title, /failed/i);
+  assert.equal(failed[0].actionLabel, "Open payroll");
 });
