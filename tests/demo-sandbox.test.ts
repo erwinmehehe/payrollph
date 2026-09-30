@@ -306,5 +306,7 @@ test("payroll notifications are lifecycle actions rather than generic workspace 
   assert.ok(workspace.includes("if (item.employeeId) setFocusEmployeeId(item.employeeId)"), "employee-data blockers must deep-link to the affected person");
   assert.ok(workspace.includes('if (item.timeFilter === "incomplete") setTimeAttentionView("incomplete")'), "attendance blockers must open the incomplete-punch view");
   assert.ok(workspace.includes("initialView={timeAttentionView ?? undefined}"), "time page must receive the notification filter");
+  assert.ok(workspace.includes('if (item.runId && item.page === "Payroll") setFocusPayrollRunId(item.runId)'), "payroll actions must carry their exact run into the Payroll page");
+  assert.ok(workspace.includes("focusRunId={focusPayrollRunId}"), "PayrollRunView must receive the targeted run");
   assert.ok(roleOverview.includes("payroll-action-queue"), "role dashboards must show the same actionable handoff queue as the tray");
 });
