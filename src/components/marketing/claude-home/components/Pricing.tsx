@@ -61,7 +61,7 @@ export default function Pricing({ plans }: { plans: PublicPlan[] }) {
           <div className="mt-10 flex flex-col gap-5 rounded-3xl border border-[#E2E4F0] bg-[#FAFBFD] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
             <div>
               <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#7C82A1]">Estimate your monthly bill</p>
-              <p className="font-display mt-1 text-[28px] font-extrabold">
+              <p className="pricing-headcount font-display mt-1 text-[28px] font-extrabold">
                 {heads} <span className="text-[18px] font-bold text-[#5B6080]">employee{heads === 1 ? "" : "s"}</span>
               </p>
               <p className="mt-0.5 text-[13px] text-[#7C82A1]">Change headcount and the monthly estimate updates immediately.</p>
@@ -72,6 +72,7 @@ export default function Pricing({ plans }: { plans: PublicPlan[] }) {
                   key={p}
                   onClick={() => setHeads(p)}
                   aria-pressed={heads === p}
+                  data-headcount={p}
                   className={cn(
                     "rounded-full border px-4 py-2 text-[13.5px] font-bold transition-all",
                     heads === p
@@ -114,7 +115,7 @@ export default function Pricing({ plans }: { plans: PublicPlan[] }) {
               <Reveal key={plan.id} delay={i * 100}>
                 <article
                   className={cn(
-                    "relative flex h-full flex-col overflow-hidden rounded-3xl border p-7 transition-all duration-300 hover:-translate-y-1.5",
+                    "pricing-plan-card relative flex h-full flex-col overflow-hidden rounded-3xl border p-7 transition-all duration-300 hover:-translate-y-1.5",
                     featured
                       ? "border-[#11141F] bg-[#11141F] text-white shadow-[0_28px_64px_-20px_rgba(17,20,31,0.5)]"
                       : "card-hover border-[#E8EAF3] bg-white"
@@ -134,7 +135,7 @@ export default function Pricing({ plans }: { plans: PublicPlan[] }) {
 
                   <p className={cn("text-[12px] font-semibold", featured ? "text-white/60" : "text-[#7C82A1]")}>Estimated monthly</p>
                   <p className="mt-1 flex items-baseline gap-1.5">
-                    <span key={total} className="font-display text-[36px] font-extrabold tabular-nums">{peso(total)}</span>
+                    <span key={total} className="pricing-amount font-display text-[36px] font-extrabold tabular-nums">{peso(total)}</span>
                     <span className={cn("text-[13px] font-medium", featured ? "text-white/55" : "text-[#7C82A1]")}>/month</span>
                   </p>
                   <p className={cn("mt-1 font-mono text-[11.5px]", featured ? "text-white/45" : "text-[#9AA0BB]")}>
