@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { buildPayrollHandoff, handoffViewerRole } from "@/lib/payroll-handoff";
-import { readLineItems, readTrace, type BankTemplate, type DashboardData, type Notify, type PayrollEntry, type PayrollLineItem, type PayrollRun, type Task } from "./types";
+import { readLineItems, readTrace, type BankTemplate, type DashboardData, type Notify, type PayrollEntry, type PayrollLineItem, type PayrollReleaseReceipt, type PayrollRun, type Task } from "./types";
 import { PayrollAssurancePanel } from "./payroll-assurance-panel";
 import { ExplainPayDrawer } from "./explain-pay-drawer";
 import {
@@ -71,7 +71,7 @@ export function PayrollRunView({
   busy: boolean;
   onNewRun: () => void;
   onProcess: (runId: number) => Promise<void>;
-  onRelease: (runId: number, acknowledgeExceptions: boolean) => Promise<void>;
+  onRelease: (runId: number, acknowledgeExceptions: boolean) => Promise<{ receipt?: PayrollReleaseReceipt; error?: string }>;
   onDecide: (taskId: number, status: "Approved" | "Declined") => Promise<void>;
   onPage: (page: string) => void;
   onRefresh: () => Promise<void>;
@@ -94,6 +94,8 @@ export function PayrollRunView({
     items: ReleaseChecklistItem[];
     assuranceSummary?: { high: number; medium: number; blocking: number } | null;
   } | null>(null);
+  const [releaseReceipt, setReleaseReceipt] = useState<PayrollReleaseReceipt | null>(null);
+  const [releaseFailure, setReleaseFailure] = useState<{ runId: number; error: string } | null>(null);
 
   // Derived, not synced: if the selected run disappears (client switch, new
   // run) the first run takes over without an effect round-trip.
@@ -283,6 +285,69 @@ export function PayrollRunView({
     (item) => item.blocking && !item.passed && item.acknowledgeable,
   ) ?? false;
 
+  const failedChecklistItem = releaseChecklist?.items.find((item) => item.blocking && !item.passed);
+  const recoveryStates: Array<{
+    key: string;
+    title: string;
+    detail: string;
+    actionLabel: string;
+    onAction: () => void;
+  }> = [];
+
+  if (run.status === "Failed") {
+    recoveryStates.push({
+      key: "calculation-failed",
+      title: "Calculation failed",
+      detail: "The payroll worker could not finish this run. No failed calculation can move forward to checker review or release.",
+      actionLabel: "Retry calculation",
+      onAction: () => void onProcess(run.id),
+    });
+  }
+
+  if (!released && run.status === "Needs review" && exceptionRows.length > 0) {
+    recoveryStates.push({
+      key: "unresolved-exception",
+      title: "Unresolved payroll exceptions",
+      detail: `${exceptionRows.length} payroll entr${exceptionRows.length === 1 ? "y needs" : "ies need"} review before this run should be handed off again.`,
+      actionLabel: "Review exceptions",
+      onAction: () => {
+        setOnlyExceptions(true);
+        document.getElementById("payroll-register")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      },
+    });
+  }
+
+  if (!released && relatedTask?.status === "Declined") {
+    recoveryStates.push({
+      key: "checker-declined",
+      title: "Checker declined this payroll",
+      detail: "The independent checker returned the run to Needs review. Resolve the register or assurance issue, then submit the corrected run again.",
+      actionLabel: "Resubmit to checker",
+      onAction: () => void openReviewSubmission(),
+    });
+  }
+
+  if (releaseFailure?.runId === run.id) {
+    const needsRecalculation = /recalculat|changed after calculation|immutable|register no longer matches/i.test(releaseFailure.error);
+    recoveryStates.push({
+      key: "release-failed",
+      title: "Release blocked",
+      detail: releaseFailure.error,
+      actionLabel: needsRecalculation ? "Recalculate payroll" : "Review release checks",
+      onAction: needsRecalculation
+        ? () => void onProcess(run.id)
+        : () => document.getElementById("release-checklist")?.scrollIntoView({ behavior: "smooth", block: "center" }),
+    });
+  } else if (!released && hardChecklistBlocked && failedChecklistItem) {
+    recoveryStates.push({
+      key: "release-blocked",
+      title: "Release blocked",
+      detail: `${failedChecklistItem.label}: ${failedChecklistItem.detail}`,
+      actionLabel: "Review release checks",
+      onAction: () => document.getElementById("release-checklist")?.scrollIntoView({ behavior: "smooth", block: "center" }),
+    });
+  }
+
   return (
     <>
       <PageHeading
@@ -314,6 +379,70 @@ export function PayrollRunView({
         viewerRole={handoffRole}
         compact
       />
+
+      {releaseReceipt?.runId === run.id && (
+        <article className="card" data-release-receipt style={{ marginBottom: 16 }}>
+          <div className="card-header">
+            <div>
+              <div className="card-kicker">RELEASE RECEIPT</div>
+              <h2>Payroll released successfully</h2>
+              <p>{releaseReceipt.periodLabel} is locked and available for downstream payout and employee self-service.</p>
+            </div>
+            <span className="status status-released"><Check size={12} /> Released</span>
+          </div>
+          <div className="run-stats" style={{ marginTop: 0 }}>
+            <div>
+              <span>Employees</span>
+              <strong>{releaseReceipt.employeeCount}</strong>
+              <small>payslips available</small>
+            </div>
+            <div>
+              <span>Total net payroll</span>
+              <strong className="green-number">{money(releaseReceipt.totalNetPay)}</strong>
+              <small>released register total</small>
+            </div>
+            <div>
+              <span>Released</span>
+              <strong style={{ fontSize: 14 }}>{displayReleaseTimestamp(releaseReceipt.releasedAt)}</strong>
+              <small>server-recorded release time</small>
+            </div>
+          </div>
+          <div className="card-body" style={{ paddingTop: 0, display: "grid", gap: 8 }}>
+            <div className="exception-row" style={{ alignItems: "flex-start" }}>
+              <span className="status status-approved" style={{ minWidth: 72, justifyContent: "center" }}>Ready</span>
+              <div>
+                <strong>Bank / export status</strong>
+                <p>{releaseReceipt.bankExport.label}</p>
+              </div>
+              <button className="secondary-button" onClick={() => setExportsOpen(true)}>Open exports</button>
+            </div>
+            <div className="exception-row" style={{ alignItems: "flex-start" }}>
+              <span className={`status ${releaseReceipt.payslips.status === "ready" ? "status-approved" : "status-review"}`} style={{ minWidth: 72, justifyContent: "center" }}>
+                {releaseReceipt.payslips.status === "ready" ? "Ready" : "Check"}
+              </span>
+              <div>
+                <strong>Payslip delivery</strong>
+                <p>{releaseReceipt.payslips.label}. {releaseReceipt.payslips.available} payslip(s) are available in self-service.</p>
+              </div>
+            </div>
+          </div>
+        </article>
+      )}
+
+      {recoveryStates.length > 0 && (
+        <section aria-label="Payroll recovery actions" style={{ display: "grid", gap: 10, marginBottom: 16 }}>
+          {recoveryStates.map((item) => (
+            <div className="notice notice-amber" key={item.key} data-recovery-state={item.key}>
+              <AlertTriangle size={16} className="i-red" />
+              <div style={{ flex: 1 }}>
+                <strong>{item.title}</strong>
+                <p style={{ margin: "4px 0 0" }}>{item.detail}</p>
+              </div>
+              <button className="secondary-button" onClick={item.onAction}>{item.actionLabel}</button>
+            </div>
+          ))}
+        </section>
+      )}
 
       <section className="payroll-workspace">
         <article className="card run-list flush">
@@ -412,7 +541,7 @@ export function PayrollRunView({
           <PayrollAssurancePanel runId={run.id} employees={data.employees} />
 
           {releaseChecklist && calculated && (
-            <div className="card-body" style={{ paddingTop: 0 }}>
+            <div className="card-body" id="release-checklist" style={{ paddingTop: 0 }}>
               <div className="line-title" style={{ margin: 0 }}>
                 <div>
                   <strong>Release checklist</strong>
@@ -761,8 +890,16 @@ export function PayrollRunView({
           busy={busy}
           onClose={() => setConfirmRelease(false)}
           onConfirm={async (acknowledge) => {
-            await onRelease(run.id, acknowledge);
-            setConfirmRelease(false);
+            const result = await onRelease(run.id, acknowledge);
+            if (result.receipt) {
+              setReleaseReceipt(result.receipt);
+              setReleaseFailure(null);
+              setConfirmRelease(false);
+              return;
+            }
+            if (result.error) {
+              setReleaseFailure({ runId: run.id, error: result.error });
+            }
           }}
         />
       )}
@@ -1209,6 +1346,19 @@ function findRunApproval(tasks: Task[], run?: PayrollRun) {
   return tasks
     .filter((task) => task.detail.includes(`Payroll run #${run.id}`))
     .sort((a, b) => b.id - a.id)[0];
+}
+
+function displayReleaseTimestamp(value: string) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat("en-PH", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Asia/Manila",
+  }).format(parsed);
 }
 
 const monthOf = (date: string) => {
