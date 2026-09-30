@@ -264,7 +264,7 @@ export async function SoftwareHome() {
             <div className={styles.assuranceBand}>
               <div className={styles.assuranceCopy}>
                 <span className={styles.kicker}>Explainable payroll</span>
-                <h2>See what changed before the money moves.</h2>
+                <h2>Know what changed before anyone presses release.</h2>
                 <p>
                   The review surface highlights movement, incomplete inputs and release blockers, so the payroll team can
                   spend time deciding instead of reconciling screens.
@@ -328,12 +328,49 @@ export async function SoftwareHome() {
           </div>
         </section>
 
+        <section className={styles.supportBand}>
+          <div className={styles.shell}>
+            <div className={styles.supportGrid}>
+              <article className={styles.switchCard}>
+                <span className={styles.kicker}>Switch without starting over</span>
+                <h2>Bring your payroll history with you.</h2>
+                <p>
+                  Import employees, payroll history, leave balances and loans. Mid-year history stays preserved instead
+                  of being recalculated under today&apos;s rules.
+                </p>
+                <div className={styles.sourceLine}>
+                  <span>Sprout</span>
+                  <span>Salarium</span>
+                  <span>PayrollHero</span>
+                  <span>Other CSV</span>
+                </div>
+                <a className={styles.textLink} href="#simulation">
+                  Try migration in the sandbox <ArrowRight size={14} aria-hidden />
+                </a>
+              </article>
+
+              <article className={styles.hrCard}>
+                <span className={styles.kicker}>Around payroll</span>
+                <h2>The HR tools stay close, without taking over the story.</h2>
+                <p>
+                  People, attendance, leave, loans, benefits, expenses and separation are there when payroll needs them.
+                </p>
+                <div className={styles.moduleCloud}>
+                  {["People", "Attendance", "Leave", "Loans", "Benefits", "Expenses", "Separation"].map((item) => (
+                    <span key={item}>{item}</span>
+                  ))}
+                </div>
+              </article>
+            </div>
+          </div>
+        </section>
+
         <section className={styles.complianceSection} id="compliance">
           <div className={styles.shell}>
             <div className={styles.complianceHeader}>
               <div>
                 <span className={styles.kicker}>Philippine by design</span>
-                <h2>The rulebook belongs inside payroll.</h2>
+                <h2>The rulebook belongs inside the payroll run.</h2>
               </div>
               <p>
                 Statutory rules stay close to the figures they affect, with enough context for reviewers to understand
