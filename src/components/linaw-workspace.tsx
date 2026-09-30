@@ -227,7 +227,10 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
     }
   }, [refresh, notify]);
 
-  async function releaseRun(runId: number, acknowledgeExceptions: boolean) {
+  async function releaseRun(
+    runId: number,
+    acknowledgeExceptions: boolean,
+  ): Promise<{ receipt?: PayrollReleaseReceipt; error?: string }> {
     setBusy(true);
     try {
       const response = await fetch(`/api/payroll-runs/${runId}/release`, {
@@ -237,8 +240,9 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        notify(payload.error ?? "Release failed.", "err");
-        return;
+        const error = payload.error ?? "Release failed.";
+        notify(error, "err");
+        return { error };
       }
       await refresh();
       notify(
@@ -246,8 +250,11 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
           payload.webhookDeliveries ? `, ${payload.webhookDeliveries} webhook delivery attempt(s) logged` : ""
         }.`,
       );
+      return { receipt: payload.receipt as PayrollReleaseReceipt | undefined };
     } catch {
-      notify("Could not reach the release endpoint.", "err");
+      const error = "Could not reach the release endpoint.";
+      notify(error, "err");
+      return { error };
     } finally {
       setBusy(false);
     }
