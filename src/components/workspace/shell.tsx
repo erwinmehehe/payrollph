@@ -116,35 +116,79 @@ export function WorkspaceShell({
   }
 
   return (
-    <div className={`app-shell ${rail ? "rail" : ""} ${drawer ? "drawer-open" : ""}`}>
+    <div className={`app-shell claude-shell ${rail ? "rail" : ""} ${drawer ? "drawer-open" : ""}`}>
       <button className="nav-scrim" aria-label="Close navigation" onClick={() => setDrawer(false)} tabIndex={drawer ? 0 : -1} />
 
       <aside className="sidebar" aria-label="Workspace navigation">
-        <div className="sidebar-brand">
-          <span className="brand-mark" aria-hidden>
-            <span className="brand-bars">
-              <i />
-              <i />
-              <i />
-            </span>
+        <div className="sidebar-brand claude-brand">
+          <span className="brand-mark claude-brand-mark" aria-hidden>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M3 8.5l3.2 3.2L13 5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </span>
           <div>
             <strong>linaw</strong>
-            <span className="brand-subtitle">HR &amp; Payroll</span>
+            <span className="brand-subtitle mono">v2026.03</span>
           </div>
-          <button
-            className="sidebar-collapse"
-            onClick={() => setRail((current) => !current)}
-            aria-label={rail ? "Expand sidebar" : "Collapse sidebar"}
-            title={rail ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {rail ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-          </button>
         </div>
 
-        <div className="workspace-label">
-          <span className="pulse-dot" aria-hidden />
-          <span>{isFreelancer ? "Solo workspace" : `${roleLabel} workspace`}</span>
+        <div className="sidebar-client-block">
+          <div className="company-switcher-wrap">
+            <button
+              className="company-switcher sidebar-company-switcher"
+              onClick={() => allowClientSwitch && setClientOpen((current) => !current)}
+              aria-expanded={allowClientSwitch ? clientOpen : false}
+              aria-haspopup={allowClientSwitch ? "menu" : undefined}
+              disabled={!allowClientSwitch}
+            >
+              <span className="company-logo" style={{ backgroundColor: data.selectedOrganization.color }} aria-hidden>
+                {data.selectedOrganization.name.slice(0, 1)}
+              </span>
+              <span>
+                <strong>{data.selectedOrganization.name}</strong>
+                <small>{isFreelancer ? "Self-employed" : `${data.employees.length} people`}</small>
+              </span>
+              {allowClientSwitch && <ChevronDown size={14} />}
+            </button>
+            {clientOpen && allowClientSwitch && (
+              <div className="company-popover sidebar-company-popover" role="menu">
+                <p>
+                  Client workspaces <span>{data.organizations.length}</span>
+                </p>
+                {data.organizations.map((organization: Organization) => (
+                  <button
+                    key={organization.id}
+                    role="menuitemradio"
+                    aria-checked={organization.id === data.selectedOrganization.id}
+                    className={organization.id === data.selectedOrganization.id ? "selected" : ""}
+                    onClick={() => {
+                      closeOverlays();
+                      onSwitchClient(organization.id);
+                    }}
+                  >
+                    <span className="company-logo small" style={{ backgroundColor: organization.color }} aria-hidden>
+                      {organization.name.slice(0, 1)}
+                    </span>
+                    <span>
+                      <strong>{organization.name}</strong>
+                      <small>
+                        {organization.accountType === "freelancer"
+                          ? "Self-employed"
+                          : `${organization.employeeCount} people · ${organization.plan}`}
+                      </small>
+                    </span>
+                    {organization.id === data.selectedOrganization.id && <Check size={15} className="i-blue" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button className="sidebar-search-trigger" onClick={onOpenPalette} aria-label="Open command palette">
+            <Search size={14} />
+            <span>Search…</span>
+            <kbd>⌘K</kbd>
+          </button>
         </div>
 
         <nav className="side-navigation slim-scroll">
@@ -213,64 +257,6 @@ export function WorkspaceShell({
               <Menu size={18} />
             </button>
 
-            {/* Current-client indicator */}
-            <div className="company-switcher-wrap">
-              <button
-                className="company-switcher"
-                onClick={() => allowClientSwitch && setClientOpen((current) => !current)}
-                aria-expanded={allowClientSwitch ? clientOpen : false}
-                aria-haspopup={allowClientSwitch ? "menu" : undefined}
-                disabled={!allowClientSwitch}
-              >
-                <span className="company-logo" style={{ backgroundColor: data.selectedOrganization.color }} aria-hidden>
-                  {data.selectedOrganization.name.slice(0, 1)}
-                </span>
-                <span>
-                  <strong>{data.selectedOrganization.name}</strong>
-                  <small>
-                    {data.selectedOrganization.plan} ·{" "}
-                    {isFreelancer ? "self-employed" : `${data.employees.length} people`}
-                  </small>
-                </span>
-                {allowClientSwitch && <ChevronDown size={15} />}
-              </button>
-              {clientOpen && allowClientSwitch && (
-                <div className="company-popover" role="menu">
-                  <p>
-                    Client portfolio <span>{data.organizations.length} accounts</span>
-                  </p>
-                  {data.organizations.map((organization: Organization) => (
-                    <button
-                      key={organization.id}
-                      role="menuitemradio"
-                      aria-checked={organization.id === data.selectedOrganization.id}
-                      className={organization.id === data.selectedOrganization.id ? "selected" : ""}
-                      onClick={() => {
-                        closeOverlays();
-                        onSwitchClient(organization.id);
-                      }}
-                    >
-                      <span className="company-logo small" style={{ backgroundColor: organization.color }} aria-hidden>
-                        {organization.name.slice(0, 1)}
-                      </span>
-                      <span>
-                        <strong>{organization.name}</strong>
-                        <small>
-                          {organization.accountType === "freelancer"
-                            ? "Self-employed"
-                            : `${organization.employeeCount} people · ${organization.plan}`}
-                        </small>
-                      </span>
-                      {organization.id === data.selectedOrganization.id && <Check size={15} className="i-green" />}
-                    </button>
-                  ))}
-                  <button className="popover-footer" onClick={() => go("Settings")}>
-                    <Building2 size={14} className="i-purple" /> Manage client access
-                  </button>
-                </div>
-              )}
-            </div>
-
             {/* Breadcrumbs */}
             <nav className="crumbs" aria-label="Breadcrumb">
               <ChevronRight size={14} />
@@ -281,18 +267,12 @@ export function WorkspaceShell({
           </div>
 
           <div className="topbar-actions">
-            <button className="palette-trigger" onClick={onOpenPalette} aria-label="Open command palette">
-              <Search size={15} className="i-slate" />
-              <span>Search…</span>
-              <kbd>⌘K</kbd>
-            </button>
-
             {headerExtras}
 
             {onSwitchRole && (
               <div className="company-switcher-wrap">
                 <button className="role-pill-btn" onClick={() => setRoleOpen((current) => !current)} aria-expanded={roleOpen} aria-haspopup="menu">
-                  <UserCheck size={14} style={{ color: "var(--brand)" }} />
+                  <UserCheck size={14} className="i-blue" />
                   <span>{displayRole ? `Demo: ${roleLabel}` : roleLabel}</span>
                   <ChevronDown size={13} />
                 </button>
