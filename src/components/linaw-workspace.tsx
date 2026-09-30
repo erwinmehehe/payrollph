@@ -442,7 +442,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         )}
 
         {page === "Analytics" && <AnalyticsView data={data} notify={notify} />}
-        {page === "Exports" && <ExportsView data={data} notify={notify} />}
+        {page === "Exports" && <ExportsView data={data} notify={notify} onRefresh={async () => { await refresh(); }} />}
 
         {page === "Compliance" && (
           <CompliancePage data={data} setNotice={noticeAdapter} onOpenGovModal={() => setGovModalOpen(true)} />
