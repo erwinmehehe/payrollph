@@ -188,7 +188,7 @@ export function DemoRolePicker() {
                 <div className="rounded-[22px] bg-[#11141F] p-5 text-white sm:p-6">
                   <span className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-white/45">
                     <Sparkles size={13} aria-hidden />
-                    Your sandbox task
+                    Sandbox task
                   </span>
                   <h4 className="font-display mt-3 text-[23px] font-semibold leading-tight">Do something the role actually owns.</h4>
                   <p className="mt-3 text-[13.5px] leading-relaxed text-white/60">
