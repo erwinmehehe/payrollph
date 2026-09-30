@@ -196,7 +196,7 @@ export async function SoftwareHome() {
               </p>
             </div>
 
-            <div className={styles.productFrame}>
+            <div className={styles.productFrame} id="hero-product-preview">
               <div className={styles.productFrameBar}>
                 <div>
                   <span className={styles.productOrb} aria-hidden />
