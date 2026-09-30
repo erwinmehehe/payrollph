@@ -31,24 +31,24 @@ test("pricing is read from the database, never hardcoded in the homepage UI", ()
 });
 
 test("the software homepage keeps the interactive payroll simulation", () => {
-  const page = read("src/components/marketing/software-home.tsx");
-  assert.ok(page.includes('<WorkspacePreview mode="interactive" />'), "interactive payroll simulation must remain mounted");
-  assert.ok(page.includes('id="simulation"'), "homepage must expose a stable simulation section anchor");
-  assert.ok(page.includes("Explore the product without sitting through a sales demo."), "simulation section must explain the self-serve product experience");
+  const home = read("src/components/marketing/claude-home/App.tsx");
+  const demo = read("src/components/marketing/claude-home/components/Demo.tsx");
+  assert.ok(home.includes("<Demo />"), "redesigned homepage must mount the live product demo");
+  assert.ok(demo.includes('<WorkspacePreview mode="interactive" />'), "redesigned demo must use the real interactive workspace preview");
+  assert.ok(demo.includes('id="demo"'), "homepage must expose a stable live-demo anchor");
+  assert.ok(demo.includes("A payroll demo you can actually use."), "demo section must explain the self-serve product experience");
 });
 
-test("the homepage leads with payroll control instead of a module catalogue", () => {
-  const page = read("src/components/marketing/software-home.tsx");
+test("the homepage leads with the Claude payroll value proposition", () => {
+  const hero = read("src/components/marketing/claude-home/components/Hero.tsx");
+  const trust = read("src/components/marketing/claude-home/components/Trust.tsx");
+  const product = read("src/components/marketing/claude-home/components/Product.tsx");
 
-  assert.ok(
-    page.includes("Payroll, finally clear."),
-    "hero must lead with the simplified payroll value proposition",
-  );
-  assert.ok(page.includes("Know what changed before anyone presses release."), "assurance must be a primary product story");
-  assert.ok(page.includes("The rulebook belongs inside the payroll run."), "Philippine compliance must be visible");
-  assert.ok(page.includes("Bring your payroll history with you."), "migration must be part of the switching story");
-  assert.ok(page.includes("The HR tools stay close, without taking over the story."), "supporting HR modules must remain secondary");
-  assert.ok(!page.includes("<StatutoryLab"), "the removed statutory lab must not be required by the homepage contract");
+  assert.ok(hero.includes("Payroll that"), "hero must lead with the redesigned payroll value proposition");
+  assert.ok(hero.includes("shows its work."), "hero must emphasize explainable payroll");
+  assert.ok(product.includes("Drag a salary. Watch every deduction explain itself."), "statutory explanation must stay visible");
+  assert.ok(trust.includes("Controls that return 403, not a tooltip."), "security controls must remain a primary product story");
+  assert.ok(trust.includes("We tell you what's missing, too."), "capability honesty must remain visible");
 });
 
 test("a dedicated role-based demo page exists", () => {
@@ -86,15 +86,14 @@ test("homepage simulation uses the real workspace navigation and no dead client 
   assert.ok(!preview.includes("client.id !== 1"), "homepage preview must not branch into disconnected client datasets");
 });
 
-test("homepage pricing uses an operating-model comparison instead of a card wall", () => {
-  const pricing = read("src/components/marketing/pricing-table.tsx");
-  assert.ok(pricing.includes("business-pricing-grid"), "business pricing must keep its stable composition hook");
-  assert.ok(pricing.includes("pricing-comparison"), "business tiers must render as one comparison surface");
-  assert.ok(pricing.includes("pricing-plan-row"), "each business tier must render as a comparison row");
-  assert.ok(pricing.includes("WHO_FOR"), "pricing must explicitly explain who each plan is for");
-  assert.ok(pricing.includes("pricing-estimator"), "pricing must keep a simple headcount estimator");
-  assert.ok(!pricing.includes("price-card"), "business pricing must not return to tall plan cards");
-  assert.ok(!pricing.includes('type="range"'), "pricing must not restore the oversized headcount slider");
+test("homepage pricing keeps persisted plan values inside the redesigned cards", () => {
+  const wrapper = read("src/components/marketing/software-home.tsx");
+  const pricing = read("src/components/marketing/claude-home/components/Pricing.tsx");
+  assert.ok(wrapper.includes("getPublicPricingPlans"), "homepage must continue loading persisted pricing");
+  assert.ok(wrapper.includes("<ClaudeHomepage plans={plans} />"), "database pricing must flow into the redesign");
+  assert.ok(pricing.includes("monthlyBase"), "redesigned pricing must use the persisted monthly base");
+  assert.ok(pricing.includes("perEmployee"), "redesigned pricing must use the persisted per-employee price");
+  assert.ok(!pricing.includes("modules.map"), "redesigned pricing must explain buyer outcomes instead of dumping module names");
 });
 
 test("role demo launches the same product instead of rendering a second fake app", () => {
@@ -177,12 +176,13 @@ test("homepage Leave and Migration modules perform local interactive workflows",
 });
 
 
-test("homepage hero uses a focused payroll showcase before the full interactive demo", () => {
-  const page = read("src/components/marketing/software-home.tsx");
-  const preview = read("src/components/marketing/workspace-preview.tsx");
-  assert.ok(page.includes('<WorkspacePreview mode="focused" />'), "hero product frame must be a focused interactive preview");
-  assert.ok(preview.includes('mode !== "showcase"'), "focused mode must remain interactive");
-  assert.ok(preview.includes('"Payroll", "People", "Migration", "Approvals", "Compliance"'), "showcase nav must stay focused on high-value modules");
+test("homepage hero uses the uploaded Claude payroll console before the full interactive demo", () => {
+  const hero = read("src/components/marketing/claude-home/components/Hero.tsx");
+  const demo = read("src/components/marketing/claude-home/components/Demo.tsx");
+  assert.ok(hero.includes("Mar 1–15, 2026"), "hero must render the redesigned payroll console");
+  assert.ok(hero.includes("Needs decision"), "hero console must expose payroll decision state");
+  assert.ok(hero.includes("Prepare") && hero.includes("Approve") && hero.includes("Release") && hero.includes("Export"), "hero must show the payroll lifecycle");
+  assert.ok(demo.includes('<WorkspacePreview mode="interactive" />'), "full real interactive preview must follow the hero");
 });
 
 test("pricing explains who each plan is for instead of dumping internal module names", () => {
@@ -192,12 +192,13 @@ test("pricing explains who each plan is for instead of dumping internal module n
   assert.ok(!pricing.includes("modules.map"), "pricing must not dump persisted module names directly into the cards");
 });
 
-test("homepage public demo roles match the five real sandbox personas", () => {
-  const page = read("src/components/marketing/software-home.tsx");
-  for (const role of ["Owner", "HR Admin", "Payroll Officer", "Checker", "Employee"]) {
-    assert.ok(page.includes(`"${role}"`), `homepage must expose the ${role} persona`);
-  }
-  for (const removed of ["Bookkeeper", "Manager", "Freelancer"]) {
-    assert.ok(!page.includes(`"${removed}"`), `homepage must not advertise legacy role ${removed}`);
+test("homepage live demo delegates personas to the real sandbox", () => {
+  const demo = read("src/components/marketing/claude-home/components/Demo.tsx");
+  const roles = read("src/lib/demo-roles.ts");
+  assert.ok(demo.includes('<WorkspacePreview mode="interactive" />'), "homepage must use the real workspace preview");
+  assert.ok(demo.includes('href="/demo"'), "homepage must link to the full role-based sandbox");
+  for (const role of ["owner", "hr", "payroll", "checker", "employee"]) {
+    assert.ok(roles.includes(`"${role}"`), `sandbox roles must include ${role}`);
   }
 });
+
