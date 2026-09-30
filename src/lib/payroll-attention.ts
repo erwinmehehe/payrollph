@@ -11,6 +11,7 @@ export type PayrollAttentionItem = {
   tone: PayrollAttentionTone;
   page: string;
   actionLabel: string;
+  runId?: number;
   employeeId?: number;
   timeFilter?: "incomplete";
 };
@@ -62,6 +63,7 @@ export function buildPayrollAttention(
         tone: "danger",
         page: "Time & attendance",
         actionLabel: "Fix attendance",
+        runId: handoffRun.id,
         timeFilter: "incomplete",
       });
     }
@@ -75,6 +77,7 @@ export function buildPayrollAttention(
         tone: "review",
         page: "Leave",
         actionLabel: "Review leave",
+        runId: handoffRun.id,
       });
     }
 
@@ -88,6 +91,7 @@ export function buildPayrollAttention(
         tone: "review",
         page: "People",
         actionLabel: "Open employee",
+        runId: handoffRun.id,
         employeeId: employee.id,
       });
     }
@@ -113,6 +117,7 @@ export function buildPayrollAttention(
         tone: "danger",
         page: "Payroll",
         actionLabel: "Open payroll",
+        runId: handoffRun.id,
       });
       return items;
     }
@@ -130,6 +135,7 @@ export function buildPayrollAttention(
         tone: "danger",
         page: "Payroll",
         actionLabel: "Review exceptions",
+        runId: handoffRun.id,
       });
       return items;
     }
@@ -142,6 +148,7 @@ export function buildPayrollAttention(
       tone: "active",
       page: "Payroll",
       actionLabel: "Submit for review",
+      runId: handoffRun.id,
     });
     return items;
   }
@@ -164,6 +171,7 @@ export function buildPayrollAttention(
         tone: task.priority === "High" ? "danger" : "review",
         page: "Approvals",
         actionLabel: "Review payroll",
+        runId: handoffRun.id,
       });
     }
     return items;
@@ -178,6 +186,7 @@ export function buildPayrollAttention(
       tone: "active",
       page: "Payroll",
       actionLabel: "Release payroll",
+      runId: handoffRun.id,
     });
   }
 
