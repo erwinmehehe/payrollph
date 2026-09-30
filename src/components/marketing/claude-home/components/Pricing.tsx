@@ -2,46 +2,40 @@ import { useState } from "react";
 import { ArrowRight, Minus, Plus, Sparkles, Star } from "lucide-react";
 import { CheckItem, Reveal, SectionHeading } from "./ui";
 import { cn } from "../utils/cn";
+import type { PublicPlan } from "../App";
 
-const plans = [
-  {
-    id: "core",
-    name: "Core",
+const PLAN_COPY = {
+  Core: {
     tagline: "The essentials for one Philippine payroll team",
     desc: "One payroll team, usually 5–40 employees, that wants payroll, attendance and statutory calculations in one place.",
     typical: "Typical fit: 5–40 employees",
-    base: 1500,
-    perHead: 50,
-    features: ["One Philippine payroll workspace", "Employee records, attendance and payslips", "SSS, PhilHealth, Pag-IBIG and TRAIN calculations"],
-    cta: "Start free",
-    featured: false,
+    features: [
+      "One Philippine payroll workspace",
+      "Employee records, attendance and payslips",
+      "SSS, PhilHealth, Pag-IBIG and TRAIN calculations",
+    ],
   },
-  {
-    id: "scale",
-    name: "Scale",
+  Scale: {
     tagline: "More control for growing payroll operations",
     desc: "Growing companies that need checker approvals, an audit trail, or multiple locations without adding payroll spreadsheets.",
     typical: "Typical fit: 25–250 employees",
-    base: 4999,
-    perHead: 59,
-    features: ["Everything in Core", "Checker approvals, audit trail and stronger controls", "Built for growing teams and multi-branch operations"],
-    cta: "Start free",
-    featured: true,
-    badge: "Most popular",
+    features: [
+      "Everything in Core",
+      "Checker approvals, audit trail and stronger controls",
+      "Built for growing teams and multi-branch operations",
+    ],
   },
-  {
-    id: "enterprise",
-    name: "Enterprise",
+  Enterprise: {
     tagline: "Advanced controls for complex organizations",
     desc: "Larger or high-control organizations that need advanced access, migration support, integrations, or stricter operating controls.",
     typical: "Typical fit: Complex or larger teams",
-    base: 12999,
-    perHead: 99,
-    features: ["Everything in Scale", "Advanced controls, migration and integration support", "For larger or more complex payroll operations"],
-    cta: "Start free",
-    featured: false,
+    features: [
+      "Everything in Scale",
+      "Advanced controls, migration and integration support",
+      "For larger or more complex payroll operations",
+    ],
   },
-];
+} as const;
 
 const presets = [10, 25, 50, 100];
 
@@ -49,9 +43,11 @@ function peso(n: number) {
   return "₱" + n.toLocaleString("en-PH");
 }
 
-export default function Pricing() {
+export default function Pricing({ plans }: { plans: PublicPlan[] }) {
   const [heads, setHeads] = useState(25);
   const clamp = (v: number) => Math.min(500, Math.max(1, v));
+  const businessPlans = plans.filter((plan) => plan.name !== "Solo");
+  const hasSolo = plans.some((plan) => plan.name === "Solo");
 
   return (
     <section id="pricing" className="scroll-mt-20 py-20 sm:py-28">
@@ -108,41 +104,45 @@ export default function Pricing() {
         </Reveal>
 
         <div className="mt-4 grid gap-4 lg:grid-cols-3">
-          {plans.map((plan, i) => {
-            const total = plan.base + plan.perHead * heads;
+          {businessPlans.map((plan, i) => {
+            const copy = PLAN_COPY[plan.name as keyof typeof PLAN_COPY] ?? PLAN_COPY.Core;
+            const base = Number(plan.monthlyBase);
+            const perHead = Number(plan.perEmployee);
+            const total = base + perHead * heads;
+            const featured = plan.name === "Scale";
             return (
               <Reveal key={plan.id} delay={i * 100}>
                 <article
                   className={cn(
                     "relative flex h-full flex-col overflow-hidden rounded-3xl border p-7 transition-all duration-300 hover:-translate-y-1.5",
-                    plan.featured
+                    featured
                       ? "border-[#11141F] bg-[#11141F] text-white shadow-[0_28px_64px_-20px_rgba(17,20,31,0.5)]"
                       : "card-hover border-[#E8EAF3] bg-white"
                   )}
                 >
-                  {plan.featured && (
+                  {featured && (
                     <span className="absolute right-5 top-5 inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide text-[#11141F]">
-                      <Sparkles className="h-3 w-3" aria-hidden /> {plan.badge}
+                      <Sparkles className="h-3 w-3" aria-hidden /> Most popular
                     </span>
                   )}
-                  <p className={cn("text-[11px] font-extrabold uppercase tracking-[0.16em]", plan.featured ? "text-white/60" : "text-[#7C82A1]")}>{plan.name}</p>
-                  <h3 className="font-display mt-2 text-[22px] font-extrabold leading-tight">{plan.tagline}</h3>
-                  <p className={cn("mt-2.5 text-[13.5px] leading-relaxed", plan.featured ? "text-white/65" : "text-[#5B6080]")}>{plan.desc}</p>
-                  <p className={cn("mt-2 text-[12px] font-semibold", plan.featured ? "text-white/50" : "text-[#9AA0BB]")}>{plan.typical}</p>
+                  <p className={cn("text-[11px] font-extrabold uppercase tracking-[0.16em]", featured ? "text-white/60" : "text-[#7C82A1]")}>{plan.name}</p>
+                  <h3 className="font-display mt-2 text-[22px] font-extrabold leading-tight">{copy.tagline}</h3>
+                  <p className={cn("mt-2.5 text-[13.5px] leading-relaxed", featured ? "text-white/65" : "text-[#5B6080]")}>{copy.desc}</p>
+                  <p className={cn("mt-2 text-[12px] font-semibold", featured ? "text-white/50" : "text-[#9AA0BB]")}>{copy.typical}</p>
 
-                  <div className={cn("my-5 h-px", plan.featured ? "bg-white/12" : "bg-[#EDEFF7]")} aria-hidden />
+                  <div className={cn("my-5 h-px", featured ? "bg-white/12" : "bg-[#EDEFF7]")} aria-hidden />
 
-                  <p className={cn("text-[12px] font-semibold", plan.featured ? "text-white/60" : "text-[#7C82A1]")}>Estimated monthly</p>
+                  <p className={cn("text-[12px] font-semibold", featured ? "text-white/60" : "text-[#7C82A1]")}>Estimated monthly</p>
                   <p className="mt-1 flex items-baseline gap-1.5">
                     <span key={total} className="font-display text-[36px] font-extrabold tabular-nums">{peso(total)}</span>
-                    <span className={cn("text-[13px] font-medium", plan.featured ? "text-white/55" : "text-[#7C82A1]")}>/month</span>
+                    <span className={cn("text-[13px] font-medium", featured ? "text-white/55" : "text-[#7C82A1]")}>/month</span>
                   </p>
-                  <p className={cn("mt-1 font-mono text-[11.5px]", plan.featured ? "text-white/45" : "text-[#9AA0BB]")}>
-                    {peso(plan.base)} base + {peso(plan.perHead)} × {heads}
+                  <p className={cn("mt-1 font-mono text-[11.5px]", featured ? "text-white/45" : "text-[#9AA0BB]")}>
+                    {peso(base)} base + {peso(perHead)} × {heads}
                   </p>
 
-                  <ul className={cn("mt-5 space-y-2.5", plan.featured && "[&_li]:text-white/85")}>
-                    {plan.features.map((f) => (
+                  <ul className={cn("mt-5 space-y-2.5", featured && "[&_li]:text-white/85")}>
+                    {copy.features.map((f) => (
                       <CheckItem key={f}>{f}</CheckItem>
                     ))}
                   </ul>
@@ -151,12 +151,12 @@ export default function Pricing() {
                     href="/signup"
                     className={cn(
                       "group mt-6 inline-flex items-center justify-center gap-2 rounded-full px-6 py-3.5 text-[14px] font-bold transition-all",
-                      plan.featured
+                      featured
                         ? "bg-white text-[#11141F] hover:bg-[#E8EAF3]"
                         : "border border-[#D9DCEC] bg-white text-[#0B0D1A] hover:border-[#11141F] hover:bg-[#11141F] hover:text-white"
                     )}
                   >
-                    {plan.cta}
+                    Start free
                     <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
                   </a>
                 </article>
@@ -165,21 +165,23 @@ export default function Pricing() {
           })}
         </div>
 
-        <Reveal delay={150}>
-          <div className="mt-4 flex flex-col items-start justify-between gap-4 rounded-3xl border border-[#E2E4F0] bg-gradient-to-r from-[#E3FAF0]/60 via-white to-[#ECECFF]/60 p-6 sm:flex-row sm:items-center">
-            <div>
-              <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#0A8A53]">Solo · Free</p>
-              <p className="font-display mt-1 text-[19px] font-extrabold">Self-employed or working independently?</p>
-              <p className="mt-0.5 text-[13.5px] text-[#5B6080]">For independent and self-employed use. No employee payroll seat required.</p>
+        {hasSolo && (
+          <Reveal delay={150}>
+            <div className="mt-4 flex flex-col items-start justify-between gap-4 rounded-3xl border border-[#E2E4F0] bg-gradient-to-r from-[#E3FAF0]/60 via-white to-[#ECECFF]/60 p-6 sm:flex-row sm:items-center">
+              <div>
+                <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#0A8A53]">Solo · Free</p>
+                <p className="font-display mt-1 text-[19px] font-extrabold">Self-employed or working independently?</p>
+                <p className="mt-0.5 text-[13.5px] text-[#5B6080]">For independent and self-employed use. No employee payroll seat required.</p>
+              </div>
+              <div className="flex items-center gap-4">
+                <p className="font-display text-[26px] font-extrabold">₱0 <span className="text-[13px] font-semibold text-[#7C82A1]">/month</span></p>
+                <a href="/signup" className="rounded-full border border-[#D9DCEC] bg-white px-5 py-2.5 text-[13.5px] font-bold shadow-sm transition-all hover:border-[#11141F]">
+                  Start Solo
+                </a>
+              </div>
             </div>
-            <div className="flex items-center gap-4">
-              <p className="font-display text-[26px] font-extrabold">₱0 <span className="text-[13px] font-semibold text-[#7C82A1]">/month</span></p>
-              <a href="/signup" className="rounded-full border border-[#D9DCEC] bg-white px-5 py-2.5 text-[13.5px] font-bold shadow-sm transition-all hover:border-[#11141F]">
-                Start Solo
-              </a>
-            </div>
-          </div>
-        </Reveal>
+          </Reveal>
+        )}
 
         <Reveal delay={100}>
           <p className="mt-5 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-center text-[13px] font-medium text-[#7C82A1]">
