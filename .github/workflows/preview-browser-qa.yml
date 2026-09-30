@@ -444,7 +444,7 @@ jobs:
             const ownerNotificationsAfter = await notificationText(page);
             check(!ownerNotificationsAfter.includes(`${period} is approved and ready to release`), "Lifecycle: owner release notification should disappear after release");
 
-            const payrollNav = page.locator("aside .nav-item").filter({ hasText: /^Payroll$/ }).first();
+            const payrollNav = page.locator("button.nav-item").filter({ hasText: /^Payroll/ }).first();
             check((await payrollNav.count()) === 1, "Lifecycle: owner payroll navigation is missing");
             await payrollNav.click();
             await page.waitForTimeout(200);
