@@ -7,10 +7,10 @@ export default function Demo() {
     <section id="demo" className="scroll-mt-20 overflow-hidden bg-[#11141F] py-20 text-white sm:py-28">
       <div className="mx-auto max-w-[1320px] px-5 sm:px-8">
         <div className="grid items-end gap-8 lg:grid-cols-[1fr_0.7fr]">
-          <SectionHeading
+          <div className="[&_h2]:!text-white [&_p]:!text-white/65"><SectionHeading
             title={<>A payroll demo you can actually use.</>}
             description="Open the real Linaw simulation, move through payroll, approvals, people and exports, and see how the handoff behaves before you create an account."
-          />
+          /></div>
           <Reveal delay={100}>
             <div className="grid gap-2 text-[13px] text-white/70 sm:grid-cols-3 lg:grid-cols-1">
               {[
