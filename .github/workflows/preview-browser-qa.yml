@@ -242,11 +242,9 @@ jobs:
               check((await tray.count()) === 1, "Payroll: notification tray did not open");
               check((await tray.innerText()).includes("Review exceptions"), "Payroll: tray must mirror the live exception action");
               await tray.locator(".tray-item").first().click();
-              await page.waitForTimeout(100);
-              check(
-                (await page.locator("aside .nav-item[aria-current='page']").filter({ hasText: /^Payroll$/ }).count()) === 1,
-                "Payroll: exception notification did not open Payroll",
-              );
+              await page.getByRole("heading", { name: "Pay confidently, every cycle." }).waitFor({ state: "visible" });
+              const payrollPageText = await page.locator("main, .app-content").first().innerText().catch(() => page.locator("body").innerText());
+              check(payrollPageText.includes("Sep 16–30, 2026"), "Payroll: exception notification did not open the targeted Sep 16–30 run");
               await page.locator("aside .nav-item").filter({ hasText: /^Overview$/ }).first().click();
               await page.waitForTimeout(100);
             }
@@ -259,11 +257,9 @@ jobs:
               check(queueText.includes("Sep 1–15, 2026"), "Checker: action must focus the older run awaiting review");
               const action = queue.locator("button").first();
               await action.click();
-              await page.waitForTimeout(100);
-              check(
-                (await page.locator("aside .nav-item[aria-current='page']").filter({ hasText: /^Approvals/ }).count()) === 1,
-                "Checker: review action did not open Approvals",
-              );
+              await page.getByRole("heading", { name: "Decisions, with a clear trail." }).waitFor({ state: "visible" });
+              const approvalsPageText = await page.locator("body").innerText();
+              check(approvalsPageText.includes("Review Sep 1–15 payroll"), "Checker: review action did not open the assigned payroll approval");
               await page.locator("aside .nav-item").filter({ hasText: /^Overview$/ }).first().click();
               await page.waitForTimeout(100);
             }
