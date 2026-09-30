@@ -120,7 +120,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     actor,
     action: dryRun && kind === "bank" ? "Bank file dry-run generated" : `${kind} export generated`,
     resource: run.periodLabel,
-    metadata: { template, kind, filename: file.filename, ruleVersion: "PH-2026.01" },
+    metadata: { runId: run.id, template, kind, filename: file.filename, ruleVersion: "PH-2026.01" },
   });
 
   return new Response(file.body, {
@@ -188,6 +188,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         action: "PayMongo payroll preflight passed",
         resource: run.periodLabel,
         metadata: {
+          runId: run.id,
           provider: result.provider,
           employeeCount: result.employeeCount,
           totalAmountCents: result.totalAmountCents,
@@ -207,7 +208,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         actor: user.name,
         action: "PayMongo payroll preflight failed",
         resource: run.periodLabel,
-        metadata: { error: message, moneyMoved: false },
+        metadata: { runId: run.id, error: message, moneyMoved: false },
       });
       return Response.json({ error: message, moneyMoved: false }, { status: 502 });
     }
@@ -228,7 +229,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       actor: user.name,
       action: "Payroll disbursed via PayMongo",
       resource: run.periodLabel,
-      metadata: { batchId: result.batchId, provider: result.provider, transferCount: result.transfers.length },
+      metadata: { runId: run.id, batchId: result.batchId, provider: result.provider, transferCount: result.transfers.length },
     });
     return Response.json(result);
   } catch (error) {
@@ -238,7 +239,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       actor: user.name,
       action: "Payroll disbursement failed",
       resource: run.periodLabel,
-      metadata: { error: message },
+      metadata: { runId: run.id, error: message },
     });
     return Response.json({ error: message }, { status: 502 });
   }
