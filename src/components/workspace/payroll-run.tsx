@@ -287,7 +287,7 @@ export function PayrollRunView({
 
   const failedChecklistItem = releaseChecklist?.items.find((item) => item.blocking && !item.passed);
   const visibleReleaseReceipt =
-    visibleReleaseReceipt?.runId === run.id ? releaseReceipt : readReleaseReceipt(data.auditEvents, run.id);
+    releaseReceipt?.runId === run.id ? releaseReceipt : readReleaseReceipt(data.auditEvents, run.id);
   const recoveryStates: Array<{
     key: string;
     title: string;
