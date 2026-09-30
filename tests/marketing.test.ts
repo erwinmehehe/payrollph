@@ -4,12 +4,18 @@ import { existsSync, readFileSync } from "node:fs";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
+// Homepage redesign (2026-09-30): src/app/page.tsx became the direct
+// implementation rather than a thin wrapper around
+// src/components/marketing/software-home.tsx, so the file that file moved
+// out of the render path. software-home.tsx and its module.css are left in
+// place, unreferenced, rather than deleted, other tests in this file still
+// read their content directly and are unaffected by that.
 test("the root route always owns the public payroll software landing page", () => {
   const root = read("src/app/page.tsx");
   const app = read("src/app/app/page.tsx");
   const workspaceRedirect = read("src/app/workspace/page.tsx");
   const welcome = read("src/app/welcome/page.tsx");
-  assert.ok(root.includes("SoftwareHome"), "root must render the public product landing page");
+  assert.ok(root.includes("export default async function HomePage"), "root must render the public product landing page directly");
   assert.ok(!root.includes("getSessionUser"), "a signed-in session must not replace the public homepage");
   assert.ok(root.includes("Payroll Software Philippines"), "root metadata must target payroll software intent");
   assert.ok(app.includes("getSessionUser"), "/app must own authenticated session routing");
@@ -20,7 +26,7 @@ test("the root route always owns the public payroll software landing page", () =
 });
 
 test("pricing is read from the database, never hardcoded in the homepage UI", () => {
-  const page = read("src/components/marketing/software-home.tsx");
+  const page = read("src/app/page.tsx");
   const catalog = read("src/lib/pricing-catalog.ts");
 
   assert.ok(page.includes("getPublicPricingPlans"), "homepage must load pricing through the database pricing helper");
@@ -30,25 +36,28 @@ test("pricing is read from the database, never hardcoded in the homepage UI", ()
   assert.ok(!/₱\s?1,499|₱\s?4,499|₱\s?12,999/.test(page), "prices must not be hardcoded in the page");
 });
 
-test("the software homepage keeps the interactive payroll simulation", () => {
-  const page = read("src/components/marketing/software-home.tsx");
+test("the homepage keeps the interactive payroll simulation", () => {
+  const page = read("src/app/page.tsx");
   assert.ok(page.includes('<WorkspacePreview mode="interactive" />'), "interactive payroll simulation must remain mounted");
-  assert.ok(page.includes('id="simulation"'), "homepage must expose a stable simulation section anchor");
-  assert.ok(page.includes("Explore the product without sitting through a sales demo."), "simulation section must explain the self-serve product experience");
+  assert.ok(page.includes('id="simulation"'), "homepage must expose a stable simulation section anchor, SiteNav links /#simulation");
+  assert.ok(
+    page.includes("arithmetic you would get"),
+    "simulation section must explain that it runs the real rule engine, not a mock",
+  );
 });
 
-test("the homepage leads with payroll control instead of a module catalogue", () => {
-  const page = read("src/components/marketing/software-home.tsx");
+test("the homepage leads with a clear payroll value proposition", () => {
+  const page = read("src/app/page.tsx");
 
+  assert.ok(page.includes("Payroll that"), "hero must lead with the payroll value proposition");
+  assert.ok(page.includes("shows"), "hero must lead with the payroll value proposition");
+  assert.ok(page.includes("every peso has a trace"), "assurance and traceability must be a primary product story");
+  assert.ok(page.includes("SSS under RA 11199"), "Philippine statutory compliance must be visible, not just implied");
   assert.ok(
-    page.includes("Payroll, finally clear."),
-    "hero must lead with the simplified payroll value proposition",
+    page.includes("Onboarding from the spreadsheet you already have"),
+    "migration must be part of the switching story",
   );
-  assert.ok(page.includes("Know what changed before anyone presses release."), "assurance must be a primary product story");
-  assert.ok(page.includes("The rulebook belongs inside the payroll run."), "Philippine compliance must be visible");
-  assert.ok(page.includes("Bring your payroll history with you."), "migration must be part of the switching story");
-  assert.ok(page.includes("The HR tools stay close, without taking over the story."), "supporting HR modules must remain secondary");
-  assert.ok(!page.includes("<StatutoryLab"), "the removed statutory lab must not be required by the homepage contract");
+  assert.ok(page.includes("<StatutoryLab"), "the real statutory calculator is a deliberate part of this design, not removed");
 });
 
 test("a dedicated role-based demo page exists", () => {

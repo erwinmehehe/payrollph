@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { ArrowUpRight, Check, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
 import { needsSetup } from "@/app/api/setup/route";
 import { SetupWizard } from "@/components/setup-wizard";
@@ -53,7 +54,7 @@ export default async function SignupPage() {
               </div>
 
               <div style={{ display: "grid", gap: 12, marginTop: 24 }}>
-                <a className="export-card" href="/welcome#preview" style={{ textDecoration: "none" }}>
+                <Link className="export-card" href="/#simulation" style={{ textDecoration: "none" }}>
                   <span className="inline-icon green" aria-hidden>
                     <Check size={16} />
                   </span>
@@ -63,7 +64,7 @@ export default async function SignupPage() {
                     </h3>
                     <p>Playable, no account needed. Real statutory arithmetic on sample people.</p>
                   </div>
-                </a>
+                </Link>
 
                 <a className="export-card" href="/book-demo" style={{ textDecoration: "none" }}>
                   <span className="inline-icon blue" aria-hidden>

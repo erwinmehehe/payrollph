@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Check, Inbox, ShieldCheck } from "lucide-react";
 import { BookDemoForm } from "@/components/marketing/book-demo-form";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
@@ -69,9 +70,9 @@ export default function BookDemoPage() {
                   <span>
                     <strong>Before you fill this in:</strong> this deployment has no email provider configured, so a request
                     is recorded in the outbox rather than emailed to anyone. If you want to see the product right now, the{" "}
-                    <a className="link-button" href="/welcome#preview">
+                    <Link className="link-button" href="/#simulation">
                       workspace preview
-                    </a>{" "}
+                    </Link>{" "}
                     works immediately.
                   </span>
                 </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { AlertTriangle, CalendarDays, Check, Inbox } from "lucide-react";
 import { Spinner } from "@/components/workspace/ui";
 
@@ -74,12 +75,12 @@ export function BookDemoForm() {
         )}
 
         <div style={{ display: "flex", gap: 8, marginTop: 18, flexWrap: "wrap" }}>
-          <a className="primary-button" href="/welcome#preview">
+          <Link className="primary-button" href="/#simulation">
             Play with the workspace preview
-          </a>
-          <a className="secondary-button" href="/signup">
+          </Link>
+          <Link className="secondary-button" href="/signup">
             Create an account
-          </a>
+          </Link>
         </div>
       </div>
     );

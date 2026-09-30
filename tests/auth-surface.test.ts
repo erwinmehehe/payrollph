@@ -14,7 +14,7 @@ test("sign-in and workspace have dedicated routes so the product page always sta
   const app = read("src/app/app/page.tsx");
   const workspaceRedirect = read("src/app/workspace/page.tsx");
   const authScreen = read("src/components/auth-screen.tsx");
-  assert.ok(root.includes("<SoftwareHome />"), "root must render the product page");
+  assert.ok(root.includes("export default async function HomePage"), "root must render the product page directly");
   assert.ok(!root.includes("getSessionUser"), "root must not turn into the dashboard for signed-in visitors");
   assert.ok(app.includes("getSessionUser"), "app must enforce the authenticated session");
   assert.ok(app.includes('user.role === "employee"'), "employees must still reach self-service");
