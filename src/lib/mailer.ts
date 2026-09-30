@@ -249,6 +249,8 @@ export async function queueMessage(input: {
     dedupeKey: input.dedupeKey ?? null,
     provider: providerName,
     status: providerName === "none" ? "queued" : "pending",
+    deliveryStatus: providerName === "none" ? "queued" : "sending",
+    deliveryUpdatedAt: new Date(),
     metadata: input.audit?.metadata ?? {},
     maxAttempts: input.purpose === "payslip-ready" ? MAX_AUTOMATIC_RETRIES + 1 : 1,
   }).onConflictDoNothing().returning();
@@ -379,6 +381,9 @@ export async function retryOutboxMessage(input: {
       await db.update(outbox).set({
         status: "queued",
         provider: "none",
+        deliveryStatus: "queued",
+        deliveryDetail: "Waiting for an email provider before retry.",
+        deliveryUpdatedAt: new Date(),
         error: "Waiting for an email provider before retry.",
       }).where(and(eq(outbox.id, row.id), eq(outbox.status, row.status)));
     }
@@ -393,6 +398,9 @@ export async function retryOutboxMessage(input: {
   const [claimed] = await db.update(outbox).set({
     status: "pending",
     provider: providerName,
+    deliveryStatus: "sending",
+    deliveryDetail: null,
+    deliveryUpdatedAt: new Date(),
     error: null,
   }).where(and(eq(outbox.id, row.id), eq(outbox.status, row.status))).returning();
 
@@ -437,6 +445,7 @@ function auditMetadata(event: typeof auditEvents.$inferSelect) {
 function stateLabel(row: OutboxRow, retryCount: number, deliveryStatus?: string | null) {
   if (row.status === "sent") {
     if (deliveryStatus === "delivered") return "Delivered";
+    if (deliveryStatus === "accepted") return "Provider accepted";
     if (deliveryStatus === "delayed") return "Delivery delayed";
     if (deliveryStatus === "bounced") return "Bounced";
     if (deliveryStatus === "complained") return "Complaint";
