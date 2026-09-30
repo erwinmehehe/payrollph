@@ -31,7 +31,7 @@ export function SetupWizard({ needsSetup }: { needsSetup: boolean }) {
       setProblems(payload.problems ?? []);
       return;
     }
-    router.push("/");
+    router.push("/app");
     router.refresh();
   }
 
@@ -45,7 +45,7 @@ export function SetupWizard({ needsSetup }: { needsSetup: boolean }) {
   return (
     <main className="content-area" style={{ maxWidth: 560, paddingTop: 60 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 22 }}>
-        <div className="brand-mark" style={{ background: "#123c35", color: "#cbe7dc" }}><span>sa</span></div>
+        <div className="brand-mark" style={{ background: "#11141F", color: "#fff" }}><span>✓</span></div>
         <strong style={{ fontSize: 19, letterSpacing: "-.03em" }}>linaw</strong>
       </div>
 
@@ -54,7 +54,7 @@ export function SetupWizard({ needsSetup }: { needsSetup: boolean }) {
           <div className="card-kicker">ALREADY SET UP</div>
           <h1 style={{ fontSize: 21, letterSpacing: "-.03em", marginTop: 6 }}>This workspace already has an owner.</h1>
           <p className="heading-copy">For security, the setup wizard only runs on an empty instance. Sign in instead, or ask an existing admin to send an invitation.</p>
-          <Link className="primary-button" href="/" style={{ marginTop: 16, display: "inline-flex" }}>Go to sign in</Link>
+          <Link className="primary-button" href="/login" style={{ marginTop: 16, display: "inline-flex" }}>Go to sign in</Link>
         </article>
       ) : (
         <>
