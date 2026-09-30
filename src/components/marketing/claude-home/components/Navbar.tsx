@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { cn } from "../utils/cn";
 
 const links = [
@@ -69,10 +69,9 @@ export default function Navbar() {
             </a>
             <a
               href="/signup"
-              className="btn-primary group inline-flex items-center gap-1.5 rounded-full bg-[#11141F] px-5 py-2.5 text-[14px] font-semibold text-white"
+              className="nav-start-cta inline-flex items-center rounded-[10px] border border-[#D9D9FF] bg-[#F5F5FF] px-4 py-2.5 text-[14px] font-semibold text-[#4A4AE0] transition-all hover:border-[#C5C5FF] hover:bg-[#ECECFF]"
             >
               Start free
-              <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" aria-hidden />
             </a>
           </div>
 
@@ -115,7 +114,7 @@ export default function Navbar() {
               <a
                 href="/signup"
                 onClick={() => setOpen(false)}
-                className="flex-1 rounded-full bg-[#11141F] px-5 py-3 text-center text-[14px] font-semibold text-white"
+                className="flex-1 rounded-[10px] border border-[#D9D9FF] bg-[#F5F5FF] px-5 py-3 text-center text-[14px] font-semibold text-[#4A4AE0]"
               >
                 Start free
               </a>
