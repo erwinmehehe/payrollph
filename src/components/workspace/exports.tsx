@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   Banknote,
@@ -18,6 +18,33 @@ import {
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, PageHeading, Segmented, Status, formatDate, money } from "./ui";
+
+
+type PayrollEmailHealth = {
+  provider: string;
+  deliveryCapable: boolean;
+  health: {
+    total: number;
+    sent: number;
+    failed: number;
+    queued: number;
+    sending: number;
+    healthy: boolean;
+  };
+  messages: Array<{
+    id: number;
+    employeeId: number | null;
+    recipient: string;
+    status: string;
+    provider: string;
+    providerMessageId: string | null;
+    attemptCount: number;
+    lastAttemptAt: string | null;
+    nextAttemptAt: string | null;
+    error: string | null;
+    sentAt: string | null;
+  }>;
+};
 
 const GOVERNMENT_DRAFTS = [
   { template: "1601-C", detail: "Monthly remittance return of income taxes withheld on compensation" },
@@ -46,10 +73,89 @@ export function ExportsView({
   const [recordingPayout, setRecordingPayout] = useState(false);
   const [reconcilingPayout, setReconcilingPayout] = useState(false);
   const [retryingFailedPayouts, setRetryingFailedPayouts] = useState(false);
+  const [emailHealth, setEmailHealth] = useState<PayrollEmailHealth | null>(null);
+  const [emailHealthLoading, setEmailHealthLoading] = useState(false);
+  const [retryingEmails, setRetryingEmails] = useState(false);
 
   const run = runs.find((item) => item.id === runId) ?? runs[0];
   const organizationId = data.selectedOrganization.id;
   const payoutState = run ? derivePayrollPayoutState(data.auditEvents, run.id) : null;
+
+
+  useEffect(() => {
+    if (!run || run.status !== "Released") {
+      setEmailHealth(null);
+      return;
+    }
+
+    let alive = true;
+    setEmailHealthLoading(true);
+    fetch(`/api/outbox?organizationId=${organizationId}&payrollRunId=${run.id}`, { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error ?? "Email delivery health could not be loaded.");
+        if (alive) setEmailHealth(payload as PayrollEmailHealth);
+      })
+      .catch(() => {
+        if (alive) setEmailHealth(null);
+      })
+      .finally(() => {
+        if (alive) setEmailHealthLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [organizationId, run?.id, run?.status]);
+
+  async function refreshEmailHealth() {
+    if (!run) return;
+    setEmailHealthLoading(true);
+    try {
+      const response = await fetch(`/api/outbox?organizationId=${organizationId}&payrollRunId=${run.id}`, { cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        notify(payload.error ?? "Email delivery health could not be loaded.", "err");
+        return;
+      }
+      setEmailHealth(payload as PayrollEmailHealth);
+    } catch {
+      notify("Email delivery health could not be loaded.", "err");
+    } finally {
+      setEmailHealthLoading(false);
+    }
+  }
+
+  async function retryPayrollEmails() {
+    if (!run) return;
+    setRetryingEmails(true);
+    try {
+      const response = await fetch("/api/outbox", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          payrollRunId: run.id,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        notify(payload.error ?? "Payroll email retry failed.", "err");
+        return;
+      }
+      notify(
+        payload.attempted
+          ? `Email retry finished: ${payload.sent} sent, ${payload.queued} queued, ${payload.failed} failed.`
+          : "There are no queued or failed payroll emails to retry.",
+        payload.failed ? "err" : payload.queued ? "info" : "ok",
+      );
+      await refreshEmailHealth();
+    } catch {
+      notify("Payroll email retry failed because the server could not be reached.", "err");
+    } finally {
+      setRetryingEmails(false);
+    }
+  }
 
   async function download(url: string, label: string) {
     setExporting(label);
@@ -437,6 +543,118 @@ export function ExportsView({
                         Use this only after the bank or payment provider shows the payout as completed. Linaw records your confirmation; it does not independently verify the bank transfer.
                       </p>
                     </div>
+                  </div>
+                )}
+              </div>
+            </article>
+          )}
+
+          {run.status === "Released" && (
+            <article className="card" data-payroll-email-health style={{ marginBottom: 16 }}>
+              <div className="card-header">
+                <div>
+                  <div className="card-kicker">PAYSLIP EMAIL DELIVERY</div>
+                  <h2>Know exactly what was delivered</h2>
+                  <p>Each payslip notice is linked to this payroll run and keeps its provider attempt history.</p>
+                </div>
+                <Status
+                  value={
+                    emailHealthLoading
+                      ? "Checking"
+                      : emailHealth?.health.healthy
+                        ? "Healthy"
+                        : emailHealth && (emailHealth.health.failed > 0 || emailHealth.health.queued > 0)
+                          ? "Needs attention"
+                          : "No notices"
+                  }
+                />
+              </div>
+
+              <div className="card-body" style={{ paddingTop: 0 }}>
+                {emailHealth ? (
+                  <>
+                    <div className="run-stats" style={{ margin: 0 }}>
+                      <div>
+                        <span>Sent</span>
+                        <strong className="green-number">{emailHealth.health.sent}</strong>
+                        <small>provider accepted</small>
+                      </div>
+                      <div>
+                        <span>Queued</span>
+                        <strong>{emailHealth.health.queued + emailHealth.health.sending}</strong>
+                        <small>waiting or in progress</small>
+                      </div>
+                      <div>
+                        <span>Failed</span>
+                        <strong className={emailHealth.health.failed ? "red-number" : undefined}>{emailHealth.health.failed}</strong>
+                        <small>automatic retry eligible</small>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+                      <button
+                        className="secondary-button"
+                        disabled={emailHealthLoading || retryingEmails}
+                        onClick={() => void refreshEmailHealth()}
+                      >
+                        <Clock3 size={14} />
+                        {emailHealthLoading ? "Refreshing…" : "Refresh delivery status"}
+                      </button>
+                      {(emailHealth.health.failed > 0 || emailHealth.health.queued > 0) && (
+                        <button
+                          className="primary-button brand"
+                          disabled={emailHealthLoading || retryingEmails || !emailHealth.deliveryCapable}
+                          onClick={() => void retryPayrollEmails()}
+                        >
+                          <AlertTriangle size={14} />
+                          {retryingEmails ? "Retrying emails…" : "Retry queued / failed"}
+                        </button>
+                      )}
+                    </div>
+
+                    {!emailHealth.deliveryCapable && (
+                      <div className="notice notice-amber" style={{ marginTop: 12 }}>
+                        <AlertTriangle size={15} className="i-amber" />
+                        <span>No email provider is configured. Notices stay queued until Resend, Postmark, or SMTP is available.</span>
+                      </div>
+                    )}
+
+                    {emailHealth.messages.length > 0 && (
+                      <div className="audit-list" data-payroll-email-message-list style={{ marginTop: 12 }}>
+                        {emailHealth.messages.map((message) => (
+                          <div className="audit-row" key={message.id}>
+                            <span
+                              className={`audit-dot ${message.status === "sent" ? "dot-green" : message.status === "failed" ? "dot-red" : ""}`}
+                              aria-hidden
+                            />
+                            <div style={{ minWidth: 0 }}>
+                              <strong>{message.recipient}</strong>
+                              <p>
+                                {message.provider} · attempt {message.attemptCount}
+                                {message.providerMessageId ? ` · Provider ID ${message.providerMessageId}` : ""}
+                              </p>
+                              {message.error && <small>{message.error}</small>}
+                            </div>
+                            <Status
+                              value={
+                                message.status === "sent"
+                                  ? "Sent"
+                                  : message.status === "failed"
+                                    ? "Failed"
+                                    : message.status === "sending"
+                                      ? "Sending"
+                                      : "Queued"
+                              }
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="notice notice-blue" style={{ margin: 0 }}>
+                    <Info size={15} className="i-blue" />
+                    <span>{emailHealthLoading ? "Loading payroll email delivery status…" : "No run-linked payslip notices are recorded yet."}</span>
                   </div>
                 )}
               </div>
