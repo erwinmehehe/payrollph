@@ -126,7 +126,7 @@ test("HR receives only an amount-free payroll handoff summary", () => {
     "safe payroll summary must be restricted to company-wide HR",
   );
   assert.ok(dashboard.includes("payrollHandoffRun: handoffRun"), "dashboard must expose the handoff summary");
-  assert.ok(roleOverview.includes("currentRun ?? data.payrollHandoffRun ?? undefined"), "HR dashboard must use the safe summary fallback");
+  assert.ok(roleOverview.includes("return data.payrollHandoffRun ?? fallback;"), "HR dashboard must use the safe summary fallback");
 
   const selectStart = dashboard.indexOf(".select({\n            id: payrollRuns.id");
   const selectEnd = dashboard.indexOf("})\n          .from(payrollRuns)", selectStart);
