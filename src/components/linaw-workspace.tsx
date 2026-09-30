@@ -64,6 +64,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
   const [busy, setBusy] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [focusEmployeeId, setFocusEmployeeId] = useState<number | null>(null);
+  const [timeAttentionView, setTimeAttentionView] = useState<"incomplete" | null>(null);
 
   // Modals kept from the original build, all still server-authorised.
   const [newPayrollOpen, setNewPayrollOpen] = useState(false);
@@ -124,6 +125,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
 
   function openNotificationItem(item: Notification) {
     if (item.employeeId) setFocusEmployeeId(item.employeeId);
+    if (item.timeFilter === "incomplete") setTimeAttentionView("incomplete");
     if (item.page && availablePages.includes(item.page)) setPage(item.page);
   }
 
@@ -414,6 +416,8 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
             onOpenBundy={() => setWebBundyOpen(true)}
             notify={notify}
             canManage={canManageTime}
+            initialView={timeAttentionView ?? undefined}
+            onInitialViewApplied={() => setTimeAttentionView(null)}
           />
         )}
 
