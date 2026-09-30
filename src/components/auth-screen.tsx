@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight, Calculator, CheckCircle2, KeyRound, LockKeyhole, ShieldCheck, Sparkles, UserCheck, Wallet } from "lucide-react";
+import { ArrowRight, CheckCircle2, KeyRound, LockKeyhole, ShieldCheck, Sparkles } from "lucide-react";
 
 type Mode = "login" | "forgot" | "reset";
 
@@ -15,7 +15,6 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
   const [message, setMessage] = useState("Enter your work email and password. TOTP is required after password success when enabled.");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [demoLaunching, setDemoLaunching] = useState<string | null>(null);
 
   async function login(event: React.FormEvent) {
     event.preventDefault();
@@ -72,24 +71,6 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
     }
   }
 
-  async function quickDemo(role: "bookkeeper" | "employee" | "freelancer") {
-    setDemoLaunching(role);
-    try {
-      const res = await fetch("/api/auth/demo-switch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role }),
-      });
-      if (res.ok) {
-        window.location.href = "/app";
-      }
-    } catch {
-      setError("Could not switch role.");
-    } finally {
-      setDemoLaunching(null);
-    }
-  }
-
   return (
     <main className="auth-shell">
       <section className="auth-hero">
@@ -105,48 +86,26 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
           <div><ShieldCheck size={16} className="i-green" /><span>TOTP available per account, not mandatory for every role</span></div>
         </div>
 
-        {/* 1-Click Interactive Launchers */}
         <div style={{ marginTop: 36, padding: "18px 20px", borderRadius: 12, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, color: "#50d29d", fontSize: 11.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-            <Sparkles size={14} className="i-blue" /> Instant 1-Click Sandbox Sign-In
+            <Sparkles size={14} className="i-blue" /> Role-based sandbox
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <button
-              type="button"
-              className="primary-button"
-              style={{ background: "#50d29d", color: "#0e2e28", borderColor: "#50d29d", justifyContent: "flex-start", height: 38 }}
-              onClick={() => quickDemo("bookkeeper")}
-              disabled={demoLaunching !== null}
-            >
-              <UserCheck size={16} className="i-purple" /> <strong>Principal Bookkeeper (Celine Yao)</strong>, 4 Clients
-            </button>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              <button
-                type="button"
-                className="secondary-button"
-                style={{ background: "rgba(255,255,255,0.1)", color: "white", borderColor: "rgba(255,255,255,0.2)", justifyContent: "center" }}
-                onClick={() => quickDemo("employee")}
-                disabled={demoLaunching !== null}
-              >
-                <Wallet size={14} className="i-green" /> Employee Portal
-              </button>
-              <button
-                type="button"
-                className="secondary-button"
-                style={{ background: "rgba(255,255,255,0.1)", color: "white", borderColor: "rgba(255,255,255,0.2)", justifyContent: "center" }}
-                onClick={() => quickDemo("freelancer")}
-                disabled={demoLaunching !== null}
-              >
-                <Calculator size={14} className="i-green" /> Solo Freelancer
-              </button>
-            </div>
-          </div>
+          <p style={{ margin: "0 0 12px", color: "rgba(255,255,255,.68)", fontSize: 12.5, lineHeight: 1.6 }}>
+            Choose Owner, HR Admin, Payroll Officer, Checker or Employee on the dedicated demo page. Every role uses the real permission model.
+          </p>
+          <a
+            className="primary-button"
+            href="/demo"
+            style={{ background: "#50d29d", color: "#0e2e28", borderColor: "#50d29d", justifyContent: "center", height: 38 }}
+          >
+            Explore role-based demo <ArrowRight size={15} />
+          </a>
         </div>
       </section>
 
       <section className="auth-card">
         <div className="card-kicker">{mode === "login" ? "SIGN IN" : mode === "forgot" ? "FORGOT PASSWORD" : "RESET PASSWORD"}</div>
-        <a className="link-button" href="/welcome" style={{ display: "inline-block", marginBottom: 10 }}>← Back to product page</a>
+        <a className="link-button" href="/" style={{ display: "inline-block", marginBottom: 10 }}>← Back to product page</a>
         <h2>{mode === "login" ? "Welcome back" : mode === "forgot" ? "Reset link" : "Choose a new password"}</h2>
         <p className="auth-copy">{message}</p>
         
