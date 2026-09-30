@@ -68,6 +68,10 @@ export function derivePayrollPostReleaseStatus(
   const failureMessage = failed
     ? String(metadataOf(failed).error ?? "The most recent provider disbursement attempt failed.")
     : null;
+  const failureAfterSubmission =
+    failed && bankSubmission && epochOf(failed.createdAt) > epochOf(bankSubmission.createdAt)
+      ? failureMessage
+      : null;
 
   if (disbursed) {
     return {
@@ -95,7 +99,7 @@ export function derivePayrollPostReleaseStatus(
         : null,
       submittedAt: timestampOf(bankSubmission),
       disbursedAt: null,
-      latestFailure: failureMessage,
+      latestFailure: failureAfterSubmission,
       label: "Submitted to bank",
       detail: "The owner confirmed the generated bank file was uploaded externally. Linaw records submission, not final bank settlement.",
     };
