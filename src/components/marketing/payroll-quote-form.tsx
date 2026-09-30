@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
-import { AlertTriangle, Check, Inbox, Send } from "lucide-react";
-import { Spinner } from "@/components/workspace/ui";
+import { AlertTriangle, ArrowRight, Check, Inbox, LoaderCircle, Send } from "lucide-react";
 
 type Result = { message: string; queued: boolean; delivered: boolean; provider: string };
+
+const inputClass =
+  "mt-2 w-full rounded-xl border border-[#D9DCEC] bg-white px-3.5 py-3 text-[14px] text-[#11141F] outline-none transition focus:border-[#6161FF] focus:ring-4 focus:ring-[#6161FF]/10";
 
 export function PayrollQuoteForm() {
   const [form, setForm] = useState({
@@ -24,10 +26,10 @@ export function PayrollQuoteForm() {
 
   const set =
     (key: keyof typeof form) =>
-    (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+    (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
       setForm((current) => ({ ...current, [key]: event.target.value }));
 
-  async function submit(event: React.FormEvent) {
+  async function submit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
     setProblems([]);
@@ -60,79 +62,86 @@ export function PayrollQuoteForm() {
 
   if (result) {
     return (
-      <div className="quote-card">
-        <span className="modal-icon" aria-hidden>
-          {result.delivered ? <Check size={18} className="i-green" /> : <Inbox size={18} className="i-amber" />}
+      <div className="rounded-[26px] border border-[#E2E4F0] bg-white p-6 shadow-[0_22px_60px_-38px_rgba(30,34,70,.38)] sm:p-7">
+        <span className={`flex h-11 w-11 items-center justify-center rounded-2xl ${result.delivered ? "bg-[#E3FAF0] text-[#0A8A53]" : "bg-[#FFF4D6] text-[#9A6B00]"}`}>
+          {result.delivered ? <Check size={19} /> : <Inbox size={19} />}
         </span>
-        <p className="eyebrow">Payroll outsourcing enquiry</p>
-        <h2>{result.delivered ? "Your request was sent." : "Your request was recorded."}</h2>
-        <p>{result.message}</p>
+        <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Payroll outsourcing enquiry</p>
+        <h2 className="font-display mt-2 text-[28px] font-semibold tracking-[-0.035em] text-[#0B0D1A]">
+          {result.delivered ? "Your request was sent." : "Your request was recorded."}
+        </h2>
+        <p className="mt-3 text-[14px] leading-relaxed text-[#5B6080]">{result.message}</p>
 
         {!result.delivered && (
-          <div className="notice notice-amber">
-            <AlertTriangle size={15} className="i-amber" />
+          <div className="mt-5 flex gap-3 rounded-2xl border border-[#F4D79C] bg-[#FFF9EA] p-4 text-[13px] leading-relaxed text-[#72520A]">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0" />
             <span>
-              This deployment does not currently have an email provider configured. Your enquiry is stored in the outbox,
-              but it has not been emailed to an operator yet.
+              This deployment has no active email provider. The enquiry is stored in the outbox, but it has not been delivered to an operator yet.
             </span>
           </div>
         )}
 
-        <div className="quote-actions">
-          <Link className="secondary-button" href="/payroll-outsourcing">Back to payroll outsourcing</Link>
-          <Link className="primary-button" href="/">See payroll software</Link>
+        <div className="mt-6 flex flex-wrap gap-2.5">
+          <Link href="/payroll-outsourcing" className="rounded-full border border-[#D9DCEC] px-5 py-3 text-[13.5px] font-semibold text-[#2B2F45]">
+            Back to outsourcing
+          </Link>
+          <Link href="/demo" className="inline-flex items-center gap-2 rounded-full bg-[#11141F] px-5 py-3 text-[13.5px] font-semibold text-white">
+            Explore the role demo <ArrowRight size={14} />
+          </Link>
         </div>
       </div>
     );
   }
 
   return (
-    <form className="quote-card" onSubmit={submit} noValidate>
-      <p className="eyebrow">Get a payroll quote</p>
-      <h2>Tell us what your payroll cycle looks like.</h2>
-      <p>
-        Give us the basics. The request records your company, headcount, payroll frequency and the work you want handled.
+    <form className="rounded-[26px] border border-[#E2E4F0] bg-white p-6 shadow-[0_22px_60px_-38px_rgba(30,34,70,.38)] sm:p-7" onSubmit={submit} noValidate>
+      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Get a payroll quote</p>
+      <h2 className="font-display mt-2 text-[28px] font-semibold tracking-[-0.035em] text-[#0B0D1A]">Tell us what your payroll cycle looks like.</h2>
+      <p className="mt-3 text-[14px] leading-relaxed text-[#5B6080]">
+        We only need the operating shape: company, headcount, frequency, number of entities and the work you want taken off your plate.
       </p>
 
       {problems.length > 0 && (
-        <div className="notice notice-red" role="alert">
-          <AlertTriangle size={15} className="i-red" />
-          <div>
-            <strong>Please fix the following:</strong>
-            <ul>
-              {problems.map((problem) => <li key={problem}>{problem}</li>)}
-            </ul>
+        <div className="mt-5 rounded-2xl border border-[#FFD5DC] bg-[#FFF6F7] p-4 text-[13px] text-[#9E2239]" role="alert">
+          <div className="flex gap-2.5">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+            <div>
+              <strong>Please fix the following:</strong>
+              <ul className="mt-1 list-disc pl-4">
+                {problems.map((problem) => <li key={problem}>{problem}</li>)}
+              </ul>
+            </div>
           </div>
         </div>
       )}
 
       {error && (
-        <div className="notice notice-red" role="alert">
-          <AlertTriangle size={15} className="i-red" />
+        <div className="mt-5 flex gap-2.5 rounded-2xl border border-[#FFD5DC] bg-[#FFF6F7] p-4 text-[13px] text-[#9E2239]" role="alert">
+          <AlertTriangle size={16} className="mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      <div className="quote-fields">
-        <div className="field-row">
-          <label className="field">
-            <span>Your name</span>
-            <input value={form.name} onChange={set("name")} autoComplete="name" required />
+      <div className="mt-6 grid gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="text-[12.5px] font-semibold text-[#2B2F45]">
+            Your name
+            <input className={inputClass} value={form.name} onChange={set("name")} autoComplete="name" required />
           </label>
-          <label className="field">
-            <span>Work email</span>
-            <input type="email" value={form.email} onChange={set("email")} autoComplete="email" required />
+          <label className="text-[12.5px] font-semibold text-[#2B2F45]">
+            Work email
+            <input className={inputClass} type="email" value={form.email} onChange={set("email")} autoComplete="email" required />
           </label>
         </div>
 
-        <div className="field-row">
-          <label className="field">
-            <span>Company</span>
-            <input value={form.company} onChange={set("company")} autoComplete="organization" required />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="text-[12.5px] font-semibold text-[#2B2F45]">
+            Company
+            <input className={inputClass} value={form.company} onChange={set("company")} autoComplete="organization" required />
           </label>
-          <label className="field">
-            <span>People on payroll</span>
-            <select value={form.headcount} onChange={set("headcount")} required>
+          <label className="text-[12.5px] font-semibold text-[#2B2F45]">
+            People on payroll
+            <select className={inputClass} value={form.headcount} onChange={set("headcount")} required>
               <option value="">Select…</option>
               <option value="1-10">1 to 10</option>
               <option value="11-50">11 to 50</option>
@@ -143,10 +152,10 @@ export function PayrollQuoteForm() {
           </label>
         </div>
 
-        <div className="field-row">
-          <label className="field">
-            <span>Payroll frequency</span>
-            <select value={form.frequency} onChange={set("frequency")}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="text-[12.5px] font-semibold text-[#2B2F45]">
+            Payroll frequency
+            <select className={inputClass} value={form.frequency} onChange={set("frequency")}>
               <option value="">Select…</option>
               <option value="semi-monthly">Semi-monthly</option>
               <option value="monthly">Monthly</option>
@@ -154,9 +163,9 @@ export function PayrollQuoteForm() {
               <option value="other">Other</option>
             </select>
           </label>
-          <label className="field">
-            <span>Entities or companies</span>
-            <select value={form.entities} onChange={set("entities")}>
+          <label className="text-[12.5px] font-semibold text-[#2B2F45]">
+            Entities or companies
+            <select className={inputClass} value={form.entities} onChange={set("entities")}>
               <option value="">Select…</option>
               <option value="1">1</option>
               <option value="2-5">2 to 5</option>
@@ -165,21 +174,29 @@ export function PayrollQuoteForm() {
           </label>
         </div>
 
-        <label className="field">
-          <span>What do you want the payroll team to handle?</span>
+        <label className="text-[12.5px] font-semibold text-[#2B2F45]">
+          What do you want the payroll team to handle?
           <textarea
+            className={`${inputClass} min-h-[120px] resize-y`}
             value={form.notes}
             onChange={set("notes")}
             placeholder="Example: process semi-monthly payroll, validate attendance exceptions, prepare statutory figures and payroll reports, then send the run back to us for approval."
           />
-          <small>Optional. Do not include passwords, bank credentials or employee personal data.</small>
+          <small className="mt-2 block text-[11px] font-normal leading-relaxed text-[#8B90AA]">
+            Optional. Do not include passwords, bank credentials or employee personal data.
+          </small>
         </label>
       </div>
 
-      <button className="primary-button brand quote-submit" type="submit" disabled={saving}>
-        {saving ? <Spinner label="Submitting" /> : <Send size={14} className="i-blue" />}
-        {saving ? "Recording request…" : "Get a payroll quote"}
+      <button
+        type="submit"
+        disabled={saving}
+        className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#6161FF] px-5 py-3.5 text-[14px] font-semibold text-white transition-transform hover:scale-[1.01] disabled:cursor-wait disabled:opacity-60"
+      >
+        {saving ? <LoaderCircle size={15} className="animate-spin" /> : <Send size={15} />}
+        {saving ? "Submitting…" : "Request payroll quote"}
       </button>
+      <p className="mt-3 text-center text-[11px] text-[#8B90AA]">No bank credentials or employee personal data required.</p>
     </form>
   );
 }
