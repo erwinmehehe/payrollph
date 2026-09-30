@@ -169,9 +169,9 @@ async function finishDeliveryAttempt(input: {
     status: input.result.ok ? "sent" : "failed",
     provider: input.providerName,
     providerMessageId: input.result.ok ? input.result.messageId : input.row.providerMessageId,
-    deliveryStatus: input.result.ok ? input.row.deliveryStatus : "failed",
-    deliveryEventAt: input.result.ok ? input.row.deliveryEventAt : now,
-    deliveryDetail: input.result.ok ? input.row.deliveryDetail : input.result.error,
+    deliveryStatus: input.result.ok ? null : "failed",
+    deliveryEventAt: input.result.ok ? null : now,
+    deliveryDetail: input.result.ok ? null : input.result.error,
     sentAt: input.result.ok ? now : null,
     error: input.result.ok ? null : input.result.error,
     body: storedBodyAfterAttempt(input.row.purpose, input.row.body),
@@ -649,6 +649,7 @@ export async function retryFailedPayslipNotices(input: {
  * must be regenerated instead of replaying stale one-time credentials.
  */
 export async function drainOutboxRetries(limit = 25) {
+  await ensureOutboxDeliverySchema();
   if (!capableHere()) return [];
 
   const candidates = await db
