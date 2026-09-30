@@ -114,6 +114,11 @@
   stroke: currentColor;
 }
 
+.home-redesign .hero-primary-cta:hover {
+  background: #4f4fe6 !important;
+  box-shadow: 0 14px 30px -10px rgba(97, 97, 255, 0.55);
+}
+
 .home-redesign .btn-primary:hover {
   transform: translateY(-1px);
   box-shadow: 0 12px 28px -8px rgba(11, 13, 26, 0.4);
