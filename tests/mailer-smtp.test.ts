@@ -281,7 +281,7 @@ test("payslip outbox dedupe reuses the same durable row", async () => {
         actor: "Payroll Owner",
         metadata: { runId: 700, employeeId: 701, periodLabel: "Sep 16–30, 2026" },
       },
-    } as const;
+    };
 
     const first = await queueMessage(input);
     const second = await queueMessage(input);
