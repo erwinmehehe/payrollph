@@ -1,14 +1,9 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, Menu, X } from "lucide-react";
 import { cn } from "../utils/cn";
+import { PUBLIC_PRIMARY_LINKS } from "@/components/marketing/public-navigation";
 
-const links = [
-  { label: "Product", href: "#product" },
-  { label: "Live demo", href: "#demo" },
-  { label: "Calculator", href: "#calculator" },
-  { label: "Security", href: "#security" },
-  { label: "Pricing", href: "#pricing" },
-];
+const links = PUBLIC_PRIMARY_LINKS;
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -36,7 +31,7 @@ export default function Navbar() {
         )}
       >
         <nav aria-label="Primary" className="mx-auto flex h-[68px] max-w-[1200px] items-center justify-between px-5 sm:px-8">
-          <a href="#top" className="group flex items-center gap-2.5" aria-label="Linaw home">
+          <a href="/" className="group flex items-center gap-2.5" aria-label="Linaw home">
             <span className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-[#11141F] transition-transform duration-300 group-hover:rotate-[-6deg] group-hover:scale-105">
               <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden>
                 <path d="M3 8.5l3.2 3.2L13 5" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
