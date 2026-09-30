@@ -9,6 +9,7 @@ import {
   queueMessage,
   recentOutboxWithAttempts,
   recordEmailProviderEvent,
+  retryFailedPayslipNotices,
   retryOutboxMessage,
 } from "../src/lib/mailer";
 
@@ -384,4 +385,54 @@ test("outbox schema keeps durable idempotency and delivery state", () => {
   assert.ok(compat.includes("ensureOutboxDeliverySchema"));
   assert.ok(compat.includes("CREATE UNIQUE INDEX IF NOT EXISTS outbox_dedupe_key_unique"));
   assert.ok(migration.includes("ADD COLUMN IF NOT EXISTS dedupe_key"));
+});
+
+
+test("bulk retry selects failed payslip notices only", async () => {
+  const previous = snapshotProviders();
+  clearProviders();
+  process.env.SMTP_URL = "smtp://user:pass@127.0.0.1:1";
+  const org = await createOrg("Outbox Bulk Retry Test");
+
+  try {
+    const payslip = await queueMessage({
+      organizationId: org.id,
+      recipient: "payslip@example.com",
+      subject: "Payslip ready",
+      body: "Your payslip is ready.",
+      purpose: "payslip-ready",
+    });
+    const security = await queueMessage({
+      organizationId: org.id,
+      recipient: "security@example.com",
+      subject: "Reset password",
+      body: "https://example.test/reset?token=one-time",
+      purpose: "password-reset",
+    });
+    assert.equal(payslip.status, "failed");
+    assert.equal(security.status, "failed");
+
+    const result = await retryFailedPayslipNotices({
+      organizationId: org.id,
+      actor: "Payroll Owner",
+    });
+    assert.equal(result.requested, 1);
+    assert.equal(result.failed, 1);
+
+    const [securityRow] = await db.select().from(outbox).where(eq(outbox.id, security.id)).limit(1);
+    assert.equal(securityRow.status, "failed");
+  } finally {
+    restoreProviders(previous);
+    await cleanupOrg(org.id);
+  }
+});
+
+test("outbox dashboard exposes failed-only payslip recovery to administrators", () => {
+  const route = readFileSync("src/app/api/outbox/route.ts", "utf8");
+  const panels = readFileSync("src/components/workspace/panels.tsx", "utf8");
+  assert.ok(route.includes('body.mode === "retry-failed-payslips"'));
+  assert.ok(route.includes("retryFailedPayslipNotices"));
+  assert.ok(route.includes("ORG_ADMIN_ROLES"));
+  assert.ok(panels.includes("failedPayslipReady"));
+  assert.ok(panels.includes("retryAllFailedPayslips"));
 });
