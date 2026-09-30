@@ -948,8 +948,9 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
   const [loaded, setLoaded] = useState(false);
   const [provider, setProvider] = useState("none");
   const [deliveryCapable, setDeliveryCapable] = useState(false);
-  const [summary, setSummary] = useState({ queued: 0, pending: 0, sent: 0, failed: 0, retried: 0, delivered: 0, deliveryIssues: 0 });
+  const [summary, setSummary] = useState({ queued: 0, pending: 0, sent: 0, failed: 0, failedPayslipReady: 0, retried: 0, delivered: 0, deliveryIssues: 0 });
   const [retrying, setRetrying] = useState<number | null>(null);
+  const [bulkRetrying, setBulkRetrying] = useState(false);
   const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
@@ -963,7 +964,7 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
           setMessages(next);
           setProvider(payload.provider ?? "none");
           setDeliveryCapable(Boolean(payload.deliveryCapable));
-          setSummary(payload.summary ?? { queued: 0, pending: 0, sent: 0, failed: 0, retried: 0, delivered: 0, deliveryIssues: 0 });
+          setSummary(payload.summary ?? { queued: 0, pending: 0, sent: 0, failed: 0, failedPayslipReady: 0, retried: 0, delivered: 0, deliveryIssues: 0 });
           setSelectedMsg((current) =>
             current ? next.find((item) => item.id === current.id) ?? next[0] ?? null : next[0] ?? null
           );
@@ -1002,6 +1003,31 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
     }
   }
 
+  async function retryAllFailedPayslips() {
+    setBulkRetrying(true);
+    try {
+      const response = await fetch("/api/outbox", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          mode: "retry-failed-payslips",
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      setNotice(
+        response.ok
+          ? payload.message ?? "Failed payslip notices retried."
+          : payload.error ?? "Failed payslip notices could not be retried.",
+      );
+      load();
+    } catch {
+      setNotice("Could not reach the failed-payslip retry service.");
+    } finally {
+      setBulkRetrying(false);
+    }
+  }
+
   const statusTone = (message: OutboxMessage) => {
     if (["bounced", "complained", "failed", "suppressed"].includes(message.deliveryStatus ?? "")) {
       return "status-declined";
@@ -1027,7 +1053,7 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
         <div className="run-stats" style={{ margin: "14px 0" }}>
           <div><span>Delivered</span><strong className="green-number">{summary.delivered}</strong><small>{summary.sent} accepted by provider</small></div>
           <div><span>Queued</span><strong>{summary.queued + summary.pending}</strong><small>{summary.pending} currently sending</small></div>
-          <div><span>Needs attention</span><strong style={{ color: summary.failed + summary.deliveryIssues ? "var(--danger)" : undefined }}>{summary.failed + summary.deliveryIssues}</strong><small>{summary.deliveryIssues} provider delivery issue(s)</small></div>
+          <div><span>Needs attention</span><strong style={{ color: summary.failed + summary.deliveryIssues ? "var(--danger)" : undefined }}>{summary.failed + summary.deliveryIssues}</strong><small>{summary.failedPayslipReady} failed payslip notice(s) · {summary.deliveryIssues} provider issue(s)</small></div>
         </div>
 
         <div className={`notice ${deliveryCapable ? "notice-blue" : "notice-amber"}`} style={{ margin: "0 0 14px" }}>
@@ -1038,7 +1064,17 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
               ? "The worker can recover eligible payslip notices automatically."
               : "No delivery provider is active, messages remain queued instead of being reported as sent."}
           </span>
-          <button className="secondary-button" onClick={load} disabled={!loaded || retrying !== null}>
+          {summary.failedPayslipReady > 0 && (
+            <button
+              className="primary-button brand"
+              onClick={() => void retryAllFailedPayslips()}
+              disabled={!loaded || retrying !== null || bulkRetrying}
+            >
+              <RefreshCw size={13} />
+              {bulkRetrying ? "Retrying failed…" : `Retry ${summary.failedPayslipReady} failed payslip notice${summary.failedPayslipReady === 1 ? "" : "s"}`}
+            </button>
+          )}
+          <button className="secondary-button" onClick={load} disabled={!loaded || retrying !== null || bulkRetrying}>
             <RefreshCw size={13} /> Refresh
           </button>
         </div>
