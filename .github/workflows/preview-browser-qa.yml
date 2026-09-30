@@ -142,9 +142,10 @@ jobs:
               const menu = page.getByRole("button", { name: "Open menu" });
               check((await menu.count()) === 1, "mobile-390: menu button is missing");
               await menu.click();
-              check((await page.getByRole("link", { name: "Demo", exact: true }).getAttribute("href")) === "/demo", "mobile-390: menu does not expose role-based demo");
-              check((await page.getByRole("link", { name: "Payroll outsourcing", exact: true }).getAttribute("href")) === "/payroll-outsourcing", "mobile-390: menu does not expose payroll outsourcing");
-              check((await page.getByRole("link", { name: "Trust", exact: true }).getAttribute("href")) === "/scorecard", "mobile-390: menu does not expose scorecard");
+              const mobileHeader = page.getByRole("banner");
+              check((await mobileHeader.getByRole("link", { name: "Demo", exact: true }).getAttribute("href")) === "/demo", "mobile-390: menu does not expose role-based demo");
+              check((await mobileHeader.getByRole("link", { name: "Payroll outsourcing", exact: true }).getAttribute("href")) === "/payroll-outsourcing", "mobile-390: menu does not expose payroll outsourcing");
+              check((await mobileHeader.getByRole("link", { name: "Trust", exact: true }).getAttribute("href")) === "/scorecard", "mobile-390: menu does not expose scorecard");
               await page.getByRole("button", { name: "Close menu" }).click();
             }
 
