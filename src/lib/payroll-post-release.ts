@@ -40,10 +40,16 @@ function timestampOf(event: PayrollPostReleaseAuditEvent | undefined) {
   return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
 }
 
+function epochOf(value: Date | string) {
+  const parsed = value instanceof Date ? value : new Date(value);
+  const time = parsed.getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
 function newest(events: PayrollPostReleaseAuditEvent[], action: string) {
   return events
     .filter((event) => event.action === action)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+    .sort((a, b) => epochOf(b.createdAt) - epochOf(a.createdAt))[0];
 }
 
 export function derivePayrollPostReleaseStatus(
