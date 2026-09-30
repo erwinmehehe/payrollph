@@ -11,6 +11,7 @@ on:
       - "src/components/self-service-portal.tsx"
       - "src/components/demo-sandbox-bar.tsx"
       - "src/app/page.tsx"
+      - "src/app/workspace/page.tsx"
       - "src/lib/pricing-catalog.ts"
       - "src/lib/demo-roles.ts"
       - "tests/marketing.test.ts"
@@ -354,7 +355,7 @@ jobs:
             const response = await context.request.post(`${base}/api/auth/demo-switch`, { data: { role } });
             check(response.ok(), `Lifecycle: switching to ${role} returned ${response.status()}`);
             const payload = await response.json();
-            const target = typeof payload.redirectTo === "string" ? payload.redirectTo : `/?demoRole=${role}`;
+            const target = typeof payload.redirectTo === "string" ? payload.redirectTo : `/workspace?demoRole=${role}`;
             await page.goto(target.startsWith("http") ? target : `${base}${target}`, { waitUntil: "networkidle", timeout: 90000 });
             return payload;
           }
