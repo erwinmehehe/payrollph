@@ -41,7 +41,7 @@ import { PayrollRunView } from "@/components/workspace/payroll-run";
 import { PeopleView } from "@/components/workspace/people";
 import { WorkspaceShell, buildNotifications } from "@/components/workspace/shell";
 import { TimeView } from "@/components/workspace/time";
-import type { DashboardData, PricingPlan } from "@/components/workspace/types";
+import type { DashboardData, PayrollReleaseReceipt, PricingPlan } from "@/components/workspace/types";
 import { ToastStack, useToasts } from "@/components/workspace/ui";
 import { demoRoleInfo, demoRolePages, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
 import { roleCanDecideApprovals, roleCanManageDelegations, roleCanManagePayroll, roleCanManagePeople, roleCanManageTime, workspacePagesForRole } from "@/lib/workspace-role-ui";
