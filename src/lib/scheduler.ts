@@ -6,9 +6,8 @@ import { drainWebhookRetries } from "@/lib/webhooks";
 const MIN_INTERVAL_MS = 30_000;
 
 /**
- * Opportunistic in-process scheduler. Invoked from /api/health and /api/jobs/tick.
- * Not a dedicated worker or OS cron, if no request arrives, nothing runs.
- * Documented as such in the README and on the status page.
+ * Worker-triggered scheduler used by /api/jobs/tick and the dedicated worker.
+ * Public health probes never execute scheduler work or drain queues.
  */
 export async function tickScheduler(force = false) {
   const now = new Date();

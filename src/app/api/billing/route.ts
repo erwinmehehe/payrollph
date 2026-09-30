@@ -2,10 +2,13 @@ import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { invoices, organizations, subscriptions } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { assertOrganizationRole, BILLING_ADMIN_ROLES } from "@/lib/access";
+import { assertOrganizationRole, getAccess, BILLING_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getEntitlements, type PlanId } from "@/lib/billing";
 import { createPaymongoCheckout } from "@/lib/paymongo";
+import { publicDemoMutationDenied } from "@/lib/demo-security";
+import { canonicalAppOrigin, enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
+import { rateLimitDistributed } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +34,10 @@ export async function GET(request: Request) {
     "Only billing administrators can view or change subscription billing.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Subscription billing requires company-wide administrator access." }, { status: 403 });
+  }
 
   const [entitlements, invoiceList, [org]] = await Promise.all([
     getEntitlements(organizationId),
@@ -55,8 +62,13 @@ export async function GET(request: Request) {
  * is configured, it returns a truthful 503 and writes nothing financial.
  */
 export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+  const demoDenied = publicDemoMutationDenied(user.email, "Billing checkout");
+  if (demoDenied) return demoDenied;
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
@@ -73,6 +85,20 @@ export async function POST(request: Request) {
     "Only billing administrators can view or change subscription billing.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Subscription billing requires company-wide administrator access." }, { status: 403 });
+  }
+  const mfaDenied = requireSensitiveActionMfa(user);
+  if (mfaDenied) return mfaDenied;
+
+  const checkoutLimit = await rateLimitDistributed(
+    `billing-checkout:${user.id}:${organizationId}`,
+    { limit: 8, windowMs: 30 * 60_000 },
+  );
+  if (!checkoutLimit.allowed) {
+    return Response.json({ error: "Too many checkout attempts. Try again later." }, { status: 429 });
+  }
 
   if (!process.env.PAYMONGO_SECRET_KEY) {
     return Response.json({
@@ -80,6 +106,13 @@ export async function POST(request: Request) {
       code: "BILLING_NOT_CONFIGURED",
       nextStep: "Set PAYMONGO_SECRET_KEY and PAYMONGO_WEBHOOK_SECRET, then test a PayMongo Checkout Session in test mode.",
     }, { status: 503 });
+  }
+
+  let origin: string;
+  try {
+    origin = canonicalAppOrigin(request);
+  } catch {
+    return Response.json({ error: "APP_BASE_URL must be configured before billing checkout is enabled." }, { status: 503 });
   }
 
   const [org] = await db.select().from(organizations).where(eq(organizations.id, organizationId));
@@ -100,7 +133,6 @@ export async function POST(request: Request) {
   }).returning();
 
   try {
-    const origin = new URL(request.url).origin;
     const checkout = await createPaymongoCheckout({
       amountCents: invoice.amountCents,
       description: `Linaw ${targetPlan} plan · ${billingCycle}`,

@@ -18,6 +18,7 @@ test("account routes exist so settings are not decorative", () => {
     "src/app/api/account/route.ts",
     "src/app/api/account/password/route.ts",
     "src/app/api/account/email/route.ts",
+    "src/app/api/account/email/verify/route.ts",
     "src/app/api/account/profile/route.ts",
     "src/app/api/account/sessions/route.ts",
   ]) {
@@ -44,11 +45,19 @@ test("password change requires the current password and revokes other sessions",
   assert.ok(source.includes("hashPassword(newPassword)"), "must store a fresh hash");
 });
 
-test("email change confirms the password and enforces uniqueness", () => {
-  const source = read("src/app/api/account/email/route.ts");
-  assert.ok(source.includes("verifyPassword"), "must confirm the current password");
-  assert.ok(source.includes("ne(users.id"), "must reject an email already used by another account");
-  assert.ok(source.includes("revokeOtherSessions"), "must revoke other sessions");
+test("email change confirms password and requires proof of the new address", () => {
+  const request = read("src/app/api/account/email/route.ts");
+  const verify = read("src/app/api/account/email/verify/route.ts");
+
+  assert.ok(request.includes("verifyPassword"), "must confirm the current password");
+  assert.ok(request.includes("ne(users.id"), "must reject an email already used by another account");
+  assert.ok(request.includes("emailChangeTokens"), "must create a one-time verification token");
+  assert.ok(request.includes("queueMessage"), "must deliver proof to the new address");
+  assert.ok(!request.includes("db.update(users).set({ email })"), "requesting the change must not alter the login identifier");
+
+  assert.ok(verify.includes("sha256(token)"), "verification must compare only a hashed token");
+  assert.ok(verify.includes("gt(emailChangeTokens.expiresAt"), "verification token must expire");
+  assert.ok(verify.includes("revokeAllSessions"), "successful verification must revoke existing sessions");
 });
 
 test("session revocation is ownership-checked and blocks self-lockout", () => {

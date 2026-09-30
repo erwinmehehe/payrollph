@@ -11,6 +11,18 @@ export type { MailProvider } from "@/lib/mail-provider";
 const provider = (): MailProvider => detectProvider();
 const capableHere = () => capable();
 
+const SENSITIVE_LINK_PURPOSES = new Set([
+  "password-reset",
+  "invitation",
+  "email-change-verification",
+]);
+
+function storedBodyAfterAttempt(purpose: string, body: string) {
+  return SENSITIVE_LINK_PURPOSES.has(purpose)
+    ? "[redacted after delivery attempt: sensitive one-time link removed]"
+    : body;
+}
+
 /**
  * Queues a message and attempts real delivery only when a provider is
  * configured. With no provider the row stays `queued` and is visible in the
@@ -46,11 +58,16 @@ export async function queueMessage(input: {
       status: response.ok ? "sent" : "failed",
       sentAt: response.ok ? new Date() : null,
       error: response.ok ? null : response.error,
+      body: storedBodyAfterAttempt(row.purpose, row.body),
     }).where(eq(outbox.id, row.id));
     return { delivered: response.ok, queued: false, provider: providerName, id: row.id, reason: response.ok ? null : response.error };
   } catch (error) {
     const message = error instanceof Error ? error.message : "delivery error";
-    await db.update(outbox).set({ status: "failed", error: message }).where(eq(outbox.id, row.id));
+    await db.update(outbox).set({
+      status: "failed",
+      error: message,
+      body: storedBodyAfterAttempt(row.purpose, row.body),
+    }).where(eq(outbox.id, row.id));
     return { delivered: false, queued: false, provider: providerName, id: row.id, reason: message };
   }
 }

@@ -30,6 +30,7 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
       DEMO_MODE: "false"
       PUBLIC_DEMO_HOSTS: "127.0.0.1,localhost"
+      TRUSTED_APP_ORIGINS: "http://localhost:3000"
       QA_URL: http://localhost:3000
     services:
       postgres:

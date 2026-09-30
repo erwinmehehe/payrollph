@@ -4,19 +4,24 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { ensureSeedData } from "@/db/seed";
 import { createSession, publicUser, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth";
-import { verifyPassword } from "@/lib/crypto";
+import { hashPassword, passwordNeedsRehash, sha256, verifyPassword } from "@/lib/crypto";
 import { clientIp, rateLimitDistributed, requestMeta } from "@/lib/rate-limit";
-import { generateTotp, verifyTotp } from "@/lib/totp";
+import { verifyTotp } from "@/lib/totp";
+import { enforceSameOriginMutation } from "@/lib/security-request";
+import { decryptTotpSecret, encryptTotpSecret, isEncryptedTotpSecret, totpEncryptionConfigured } from "@/lib/security-secret";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   await ensureSeedData();
   const ip = clientIp(request);
   const limited = await rateLimitDistributed(`login:${ip}`, { limit: 10, windowMs: 60_000 });
   if (!limited.allowed) {
     return Response.json({
-      error: "Too many login attempts. Rate limit is single-instance, not yet distributed.",
+      error: "Too many sign-in attempts. Try again later.",
       retryAfterMs: limited.retryAfterMs,
       rateLimitMode: limited.mode,
     }, { status: 429 });
@@ -31,31 +36,28 @@ export async function POST(request: Request) {
   if (!email || !password) {
     return Response.json({ error: "Email and password are required." }, { status: 400 });
   }
-
-  const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  if (!user) {
+  if (email.length > 180 || password.length > 256) {
     return Response.json({ error: "Invalid email or password." }, { status: 401 });
   }
 
-  if (user.lockedUntil && user.lockedUntil > new Date()) {
-    return Response.json({
-      error: "Account locked after repeated failed attempts.",
-      lockedUntil: user.lockedUntil.toISOString(),
-    }, { status: 423 });
+  const accountLimited = await rateLimitDistributed(`login-account:${sha256(email)}`, { limit: 8, windowMs: 15 * 60_000 });
+  if (!accountLimited.allowed) {
+    return Response.json({ error: "Too many sign-in attempts. Try again later." }, { status: 429 });
+  }
+
+  const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  if (!user) {
+    verifyPassword(password, "scrypt$0123456789abcdef0123456789abcdef$9564d5a180593f4f60ac8b2db7e8966b37a1d6fc22b396d69f4f71972c1820f80cec190209c19b5603fae554eee5a6318a4cadcbc5b3892fd40e2d8df24c3997");
+    return Response.json({ error: "Invalid email or password." }, { status: 401 });
   }
 
   const validPassword = verifyPassword(password, user.passwordHash);
   if (!validPassword) {
-    const attempts = user.failedLoginAttempts + 1;
-    const lockedUntil = attempts >= 5 ? new Date(Date.now() + 15 * 60 * 1000) : null;
     await db.update(users).set({
-      failedLoginAttempts: attempts,
-      lockedUntil,
+      failedLoginAttempts: Math.min(user.failedLoginAttempts + 1, 1000),
+      lockedUntil: null,
     }).where(eq(users.id, user.id));
-    return Response.json({
-      error: lockedUntil ? "Account locked after repeated failed attempts." : "Invalid email or password.",
-      attemptsRemaining: Math.max(0, 5 - attempts),
-    }, { status: lockedUntil ? 423 : 401 });
+    return Response.json({ error: "Invalid email or password." }, { status: 401 });
   }
 
   if (user.totpEnabled) {
@@ -64,21 +66,36 @@ export async function POST(request: Request) {
         requiresTotp: true,
         message: "Password accepted. Enter your authenticator code to finish sign-in.",
         rateLimitMode: limited.mode,
-        // Development convenience only: exposes current TOTP for the seeded demo account.
-        demoTotpCode: user.email === "celine@linaw.ph" && user.totpSecret ? generateTotp(user.totpSecret) : undefined,
       });
     }
 
     let totpOk = false;
     if (totpCode && user.totpSecret) {
-      totpOk = verifyTotp(totpCode, user.totpSecret);
+      let secret: string;
+      try {
+        secret = decryptTotpSecret(user.totpSecret);
+      } catch {
+        return Response.json({ error: "Authenticator security is not configured correctly." }, { status: 503 });
+      }
+      totpOk = verifyTotp(totpCode, secret);
+      if (
+        totpOk &&
+        !isEncryptedTotpSecret(user.totpSecret) &&
+        totpEncryptionConfigured()
+      ) {
+        await db.update(users).set({
+          totpSecret: encryptTotpSecret(secret),
+        }).where(eq(users.id, user.id));
+      }
     }
     if (!totpOk && backupCode) {
       const codes = Array.isArray(user.backupCodes) ? user.backupCodes as string[] : [];
-      if (codes.includes(backupCode)) {
+      const backupHash = sha256(backupCode);
+      const matchedCode = codes.find((code) => code === backupHash || code === backupCode);
+      if (matchedCode) {
         totpOk = true;
         await db.update(users).set({
-          backupCodes: codes.filter((code) => code !== backupCode),
+          backupCodes: codes.filter((code) => code !== matchedCode),
         }).where(eq(users.id, user.id));
       }
     }
@@ -87,8 +104,14 @@ export async function POST(request: Request) {
     }
   }
 
-  await db.update(users).set({ failedLoginAttempts: 0, lockedUntil: null }).where(eq(users.id, user.id));
-  const session = await createSession(user.id, requestMeta(request));
+  await db.update(users).set({
+    failedLoginAttempts: 0,
+    lockedUntil: null,
+    ...(passwordNeedsRehash(user.passwordHash) ? { passwordHash: hashPassword(password) } : {}),
+  }).where(eq(users.id, user.id));
+  const session = await createSession(user.id, requestMeta(request), {
+    mfaVerifiedAt: user.totpEnabled ? new Date() : null,
+  });
   const jar = await cookies();
   jar.set(SESSION_COOKIE, session.token, sessionCookieOptions(session.expiresAt));
 

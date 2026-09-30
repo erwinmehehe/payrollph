@@ -1,7 +1,8 @@
+import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, eq, gte } from "drizzle-orm";
 import { db } from "@/db";
 import { earnedWageRequests, employees, timePunches } from "@/db/schema";
-import { assertMembership, assertOrganizationRole, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
+import { assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { computeEwa } from "@/lib/ewa";
@@ -28,6 +29,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const organizationId = Number(url.searchParams.get("organizationId"));
   let employeeId = Number(url.searchParams.get("employeeId") ?? 0);
+  let adminAccess: Awaited<ReturnType<typeof getAccess>> = null;
   if (!Number.isInteger(organizationId)) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
   }
@@ -45,15 +47,23 @@ export async function GET(request: Request) {
       "Only People or payroll administrators can view earned-wage requests.",
     );
     if (denied) return denied;
+    adminAccess = await getAccess(user.id, organizationId);
+    if (!adminAccess) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
   }
 
   const allRequests = await db.select().from(earnedWageRequests)
     .where(eq(earnedWageRequests.organizationId, organizationId))
     .orderBy(earnedWageRequests.id);
 
-  const requests = user.role === "employee"
+  let requests = user.role === "employee"
     ? allRequests.filter((requestRow) => requestRow.employeeId === employeeId)
     : allRequests;
+  if (user.role !== "employee" && adminAccess && !adminAccess.companyWide) {
+    const staff = await db.select({ id: employees.id, orgUnitId: employees.orgUnitId }).from(employees)
+      .where(eq(employees.organizationId, organizationId));
+    const visibleIds = new Set(staff.filter((employee) => employee.orgUnitId === adminAccess!.orgUnitId).map((employee) => employee.id));
+    requests = requests.filter((requestRow) => visibleIds.has(requestRow.employeeId));
+  }
 
   let eligibility = null;
   if (employeeId > 0) {
@@ -62,6 +72,10 @@ export async function GET(request: Request) {
       .limit(1);
 
     if (employee) {
+      if (user.role !== "employee") {
+        const scope = assertScope(adminAccess, employee.orgUnitId);
+        if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
+      }
       const daysWorked = await earnedDays(employeeId);
       const advances = allRequests
         .filter((row) => row.employeeId === employeeId && row.status === "approved" && row.payrollRunId == null)
@@ -82,12 +96,16 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
   let employeeId = Number(body.employeeId);
+  let adminAccess: Awaited<ReturnType<typeof getAccess>> = null;
   const requested = Number(body.requestedAmount);
 
   if (!Number.isInteger(organizationId) || !Number.isFinite(requested) || requested <= 0) {
@@ -107,6 +125,8 @@ export async function POST(request: Request) {
       "Only People or payroll administrators can submit advances for another employee.",
     );
     if (denied) return denied;
+    adminAccess = await getAccess(user.id, organizationId);
+    if (!adminAccess) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
   }
 
   if (!Number.isInteger(employeeId)) return Response.json({ error: "employeeId is required." }, { status: 400 });
@@ -115,6 +135,10 @@ export async function POST(request: Request) {
     .where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId)))
     .limit(1);
   if (!employee) return Response.json({ error: "Employee not found in this workspace." }, { status: 404 });
+  if (user.role !== "employee") {
+    const scope = assertScope(adminAccess, employee.orgUnitId);
+    if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
+  }
 
   const daysWorked = await earnedDays(employeeId);
   const existing = await db.select().from(earnedWageRequests)
@@ -156,6 +180,9 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -176,6 +203,13 @@ export async function PATCH(request: Request) {
     "Only People or payroll administrators can decide earned-wage requests.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, existing.organizationId);
+  const [employee] = await db.select({ orgUnitId: employees.orgUnitId }).from(employees)
+    .where(and(eq(employees.id, existing.employeeId), eq(employees.organizationId, existing.organizationId)))
+    .limit(1);
+  if (!employee) return Response.json({ error: "Employee not found in this workspace." }, { status: 404 });
+  const scope = assertScope(access, employee.orgUnitId);
+  if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
   if (existing.status !== "pending") {
     return Response.json({ error: `This request is already ${existing.status} and cannot be decided again.` }, { status: 409 });
   }

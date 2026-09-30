@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { userOrganizations, users } from "@/db/schema";
 import {
   assertOrganizationRole,
+  getAccess,
   PAYROLL_CHECKER_ROLES,
   PAYROLL_OPERATOR_ROLES,
   roleAllowed,
@@ -35,13 +36,21 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       name: users.name,
       email: users.email,
       role: userOrganizations.role,
+      orgUnitId: userOrganizations.orgUnitId,
     })
     .from(userOrganizations)
     .innerJoin(users, eq(userOrganizations.userId, users.id))
     .where(eq(userOrganizations.organizationId, organizationId));
 
+  const access = await getAccess(user.id, organizationId);
+  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+
   const approvers = rows
-    .filter((row) => row.id !== user.id && roleAllowed(row.role, PAYROLL_CHECKER_ROLES))
+    .filter((row) =>
+      row.id !== user.id
+      && roleAllowed(row.role, PAYROLL_CHECKER_ROLES)
+      && (access.companyWide || row.orgUnitId === access.orgUnitId),
+    )
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return Response.json({ approvers });

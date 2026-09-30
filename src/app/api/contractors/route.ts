@@ -1,3 +1,4 @@
+import { enforceSameOriginMutation } from "@/lib/security-request";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { contractors } from "@/db/schema";
@@ -27,6 +28,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -60,6 +64,9 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -94,6 +101,9 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 

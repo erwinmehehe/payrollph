@@ -156,24 +156,28 @@ function ChangeEmail({ current, onDone }: { current: string; onDone: () => void 
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [problems, setProblems] = useState<string[]>([]);
+  const [notice, setNotice] = useState("");
 
   async function save() {
     setBusy(true);
     setProblems([]);
+    setNotice("");
     const { ok, data } = await json(await fetch("/api/account/email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     }));
     setBusy(false);
-    if (!ok) return setProblems(data.problems ?? [data.error ?? "Could not change email."]);
+    if (!ok) return setProblems(data.problems ?? [data.error ?? "Could not request the email change."]);
     setPassword("");
     setEmail("");
-    onDone();
+    setNotice(data.message ?? "Verification sent. Your sign-in email stays unchanged until you verify the new address.");
+    // Intentionally do not refresh account data here: the email has not changed yet.
+    void onDone;
   }
 
   return (
-    <Section title="Sign-in email" copy="Changing this changes how you log in and where payslips are sent.">
+    <Section title="Sign-in email" copy="Changing this requires your password and verification from the new address.">
       <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
         <label className="input-label" style={{ margin: 0, flex: 1, minWidth: 180 }}>
           New email (now {current})
@@ -184,9 +188,10 @@ function ChangeEmail({ current, onDone }: { current: string; onDone: () => void 
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
         </label>
         <button className="secondary-button" disabled={busy || !email || !password} onClick={save}>
-          {busy ? "Updating…" : "Change email"}
+          {busy ? "Sending…" : "Send verification"}
         </button>
       </div>
+      {notice && <p style={{ color: "var(--success, #176B5D)", fontSize: 11, margin: "8px 0 0" }}>{notice}</p>}
       {problems.map((p) => <p key={p} style={{ color: "var(--danger)", fontSize: 11, margin: "6px 0 0" }}>{p}</p>)}
     </Section>
   );
@@ -259,6 +264,7 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
 
 function TwoFactor({ enabled, backupCodes, onDone }: { enabled: boolean; backupCodes: number; onDone: () => void }) {
   const [setup, setSetup] = useState<{ otpauthUri: string; secret: string } | null>(null);
+  const [currentPassword, setCurrentPassword] = useState("");
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -266,7 +272,12 @@ function TwoFactor({ enabled, backupCodes, onDone }: { enabled: boolean; backupC
 
   async function begin() {
     setBusy(true);
-    const { ok, data } = await json(await fetch("/api/auth/totp/setup"));
+    setMsg("");
+    const { ok, data } = await json(await fetch("/api/auth/totp/setup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "begin", currentPassword }),
+    }));
     setBusy(false);
     if (!ok) return setMsg(data.error ?? "Could not start setup.");
     setSetup({ otpauthUri: data.otpauthUri, secret: data.secret });
@@ -274,51 +285,73 @@ function TwoFactor({ enabled, backupCodes, onDone }: { enabled: boolean; backupC
 
   async function verify() {
     setBusy(true);
+    setMsg("");
     const { ok, data } = await json(await fetch("/api/auth/totp/setup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({ action: "verify", code, currentPassword }),
     }));
     setBusy(false);
     if (!ok) return setMsg(data.error ?? "Invalid code.");
     setCodes(data.backupCodes ?? []);
     setSetup(null);
+    setCode("");
+    setCurrentPassword("");
     onDone();
   }
 
+  function cancel() {
+    setSetup(null);
+    setCode("");
+    setCurrentPassword("");
+    setMsg("");
+  }
+
   return (
-    <Section title="Two-factor authentication" copy="Time-based one-time codes. Optional today, not enforced for every role.">
+    <Section
+      title="Two-factor authentication"
+      copy="Authenticator setup requires your current password. Privileged production actions require a recently verified factor."
+    >
       {enabled ? (
         <div className="notice notice-green" style={{ margin: 0 }}>
           <ShieldCheck size={16} className="i-green" />
           <span>
-            <strong>Enabled.</strong> {backupCodes} single-use backup codes issued.
+            <strong>Enabled.</strong> {backupCodes} single-use backup codes remain.
           </span>
         </div>
       ) : (
         <>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            {!setup ? (
-              <button className="secondary-button" onClick={begin} disabled={busy}>
+          {!setup ? (
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+              <label className="input-label" style={{ margin: 0, width: 220 }}>
+                Confirm current password
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  autoComplete="current-password"
+                />
+              </label>
+              <button className="secondary-button" onClick={begin} disabled={busy || !currentPassword}>
                 <ShieldCheck size={14} className="i-green" /> {busy ? "Preparing…" : "Enable two-factor"}
               </button>
-            ) : (
-              <>
+            </div>
+          ) : (
+            <>
+              <div style={{ marginBottom: 10 }}>
+                <p style={{ fontSize: 11, color: "var(--muted)", margin: "0 0 4px" }}>Add this key to your authenticator app:</p>
+                <code style={{ display: "block", padding: "8px 10px", background: "var(--canvas-subtle)", borderRadius: 6, fontSize: 10.5, wordBreak: "break-all" }}>{setup.otpauthUri}</code>
+                <p style={{ fontSize: 11, color: "var(--muted)", margin: "6px 0 0" }}>Manual key: <code>{setup.secret}</code></p>
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
                 <label className="input-label" style={{ margin: 0, width: 150 }}>
                   Authenticator code
-                  <input value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" placeholder="123456" />
+                  <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" placeholder="123456" />
                 </label>
-                <button className="primary-button" onClick={verify} disabled={busy || code.length < 6}>Verify &amp; enable</button>
-                <button className="secondary-button" onClick={() => setSetup(null)}>Cancel</button>
-              </>
-            )}
-          </div>
-          {setup && (
-            <div style={{ marginTop: 10 }}>
-              <p style={{ fontSize: 11, color: "var(--muted)", margin: "0 0 4px" }}>Add this key to your authenticator app:</p>
-              <code style={{ display: "block", padding: "8px 10px", background: "var(--canvas-subtle)", borderRadius: 6, fontSize: 10.5, wordBreak: "break-all" }}>{setup.otpauthUri}</code>
-              <p style={{ fontSize: 11, color: "var(--muted)", margin: "6px 0 0" }}>Manual key: <code>{setup.secret}</code> (QR rendering is not built; the URI above works with any TOTP app.)</p>
-            </div>
+                <button className="primary-button" onClick={verify} disabled={busy || code.length !== 6}>Verify &amp; enable</button>
+                <button className="secondary-button" onClick={cancel} disabled={busy}>Cancel</button>
+              </div>
+            </>
           )}
           {codes.length > 0 && (
             <div style={{ marginTop: 10 }}>

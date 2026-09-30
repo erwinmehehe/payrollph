@@ -12,7 +12,7 @@ import { GET } from "../src/app/api/readiness/route";
 // rather than reporting one flat pass/fail.
 
 test("readiness reports which launch blockers have a manual workaround", async () => {
-  const response = await GET();
+  const response = await GET(new Request("http://localhost/api/readiness"));
   const body = await response.json();
 
   const billing = body.gates.find((g: { key: string }) => g.key === "billing");

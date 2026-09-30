@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { webhookDeliveries, webhookEndpoints } from "@/db/schema";
 import { signWebhookPayload, type WebhookEvent } from "@/lib/webhook-signing";
 import { nextBackoffMs } from "@/lib/webhook-backoff";
+import { postValidatedWebhook } from "@/lib/security-network";
 
 export { signWebhookPayload, verifyWebhookSignature, WEBHOOK_EVENTS } from "@/lib/webhook-signing";
 export type { WebhookEvent } from "@/lib/webhook-signing";
@@ -22,10 +23,10 @@ async function attemptDelivery(delivery: {
   const attempts = delivery.attempts + 1;
 
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
-    const response = await fetch(endpoint.url, {
-      method: "POST",
+    // Re-resolve at send time and pin the actual socket to the exact public
+    // address that passed validation. This closes DNS-rebinding/TOCTOU SSRF.
+    const response = await postValidatedWebhook({
+      url: endpoint.url,
       headers: {
         "Content-Type": "application/json",
         "Linaw-Signature": signature,
@@ -33,9 +34,8 @@ async function attemptDelivery(delivery: {
         "Linaw-Attempt": String(attempts),
       },
       body,
-      signal: controller.signal,
+      timeoutMs: 5_000,
     });
-    clearTimeout(timer);
 
     if (response.ok) {
       await db.update(webhookDeliveries).set({

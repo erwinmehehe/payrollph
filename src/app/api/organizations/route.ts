@@ -2,8 +2,10 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { organizations, userOrganizations } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
-import { assertMembership } from "@/lib/access";
+import { assertMembership, getAccess } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
+import { publicDemoMutationDenied } from "@/lib/demo-security";
+import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
 
@@ -11,8 +13,13 @@ export const dynamic = "force-dynamic";
 const ADMINS = new Set(["admin", "owner", "bookkeeper"]);
 
 export async function PUT(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+  const demoDenied = publicDemoMutationDenied(user.email, "Organization settings");
+  if (demoDenied) return demoDenied;
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
@@ -26,6 +33,12 @@ export async function PUT(request: Request) {
   if (!ADMINS.has(role)) {
     return Response.json({ error: `Your role (${role || "member"}) cannot edit the organization profile.` }, { status: 403 });
   }
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Organization-wide settings require company-wide administrator access." }, { status: 403 });
+  }
+  const mfaDenied = requireSensitiveActionMfa(user);
+  if (mfaDenied) return mfaDenied;
 
   const [existing] = await db.select().from(organizations)
     .where(eq(organizations.id, organizationId))

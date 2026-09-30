@@ -1,3 +1,4 @@
+import { enforceSameOriginMutation } from "@/lib/security-request";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, organizations, payrollRuns } from "@/db/schema";
@@ -26,6 +27,9 @@ function digits(value: string | null | undefined) {
  * response is required before any output is submission-ready.
  */
 export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 

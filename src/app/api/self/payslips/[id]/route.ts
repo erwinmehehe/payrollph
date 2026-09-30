@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, payrollEntries, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
@@ -16,16 +16,34 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   }
 
   const entryId = Number((await params).id);
-  const [entry] = await db.select().from(payrollEntries).where(eq(payrollEntries.id, entryId)).limit(1);
-
-  // Ownership is checked against the session's employee id, never a request parameter.
-  if (!entry || entry.employeeId !== session.employeeId) {
+  if (!Number.isInteger(entryId)) {
     return Response.json({ error: "Payslip not found." }, { status: 404 });
   }
 
-  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, entry.payrollRunId)).limit(1);
-  const [employee] = await db.select().from(employees).where(eq(employees.id, session.employeeId)).limit(1);
-  if (!run || !employee) return Response.json({ error: "Payslip unavailable." }, { status: 404 });
+  const [employee] = await db.select().from(employees)
+    .where(eq(employees.id, session.employeeId))
+    .limit(1);
+  if (!employee) return Response.json({ error: "Payslip unavailable." }, { status: 404 });
+
+  // Bind the requested entry to the authenticated employee, that employee's
+  // organization, and a Released run in one query. Draft/review payroll must
+  // never become visible merely because somebody guesses their own entry id.
+  const [row] = await db
+    .select({ entry: payrollEntries, run: payrollRuns })
+    .from(payrollEntries)
+    .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
+    .where(and(
+      eq(payrollEntries.id, entryId),
+      eq(payrollEntries.employeeId, session.employeeId),
+      eq(payrollRuns.organizationId, employee.organizationId),
+      eq(payrollRuns.status, "Released"),
+    ))
+    .limit(1);
+
+  if (!row) {
+    return Response.json({ error: "Payslip not found." }, { status: 404 });
+  }
+  const { entry, run } = row;
 
   const peso = (value: number) => `PHP ${value.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const items = (Array.isArray(entry.lineItems) ? entry.lineItems : []) as LineItem[];

@@ -6,6 +6,7 @@ import { getSessionUser } from "@/lib/auth";
 import { computeBalance } from "@/lib/leave-accrual";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 import { recordAuditEvent } from "@/lib/audit";
+import { enforceSameOriginMutation } from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
 
@@ -107,6 +108,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   await ensureLeavePayrollSchema();

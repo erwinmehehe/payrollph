@@ -1,8 +1,9 @@
+import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { employeeLoans, employees, loanPayments } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { assertOrganizationRole, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
+import { assertOrganizationRole, assertScope, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,8 @@ export async function GET(request: Request) {
     "Only People or payroll administrators can manage employee loans.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
 
   const filter = employeeId > 0
     ? and(eq(employeeLoans.organizationId, organizationId), eq(employeeLoans.employeeId, employeeId))
@@ -34,7 +37,7 @@ export async function GET(request: Request) {
   })
     .from(employeeLoans)
     .innerJoin(employees, eq(employeeLoans.employeeId, employees.id))
-    .where(filter)
+    .where(access.companyWide ? filter : and(filter, eq(employees.orgUnitId, access.orgUnitId!)))
     .orderBy(desc(employeeLoans.id));
 
   const loanIds = loans.map(({ loan }) => loan.id);
@@ -67,6 +70,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
@@ -89,15 +95,19 @@ export async function POST(request: Request) {
     "Only People or payroll administrators can manage employee loans.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
 
   if (!employeeId || !referenceNo || !Number.isFinite(principal) || principal <= 0 || !Number.isFinite(monthlyAmortization) || monthlyAmortization <= 0) {
     return Response.json({ error: "Employee, reference number, positive principal, and monthly amortization are required." }, { status: 400 });
   }
 
-  const [employee] = await db.select().from(employees).where(eq(employees.id, employeeId)).limit(1);
-  if (!employee || employee.organizationId !== organizationId) {
+  const [employee] = await db.select().from(employees).where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId))).limit(1);
+  if (!employee) {
     return Response.json({ error: "Employee not found in this organization." }, { status: 404 });
   }
+  const scope = assertScope(access, employee.orgUnitId);
+  if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
 
   const [loan] = await db.insert(employeeLoans).values({
     organizationId,
@@ -127,6 +137,9 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
@@ -148,6 +161,14 @@ export async function PATCH(request: Request) {
     "Only People or payroll administrators can manage employee loans.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, loan.organizationId);
+  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  const [employee] = await db.select({ orgUnitId: employees.orgUnitId }).from(employees)
+    .where(and(eq(employees.id, loan.employeeId), eq(employees.organizationId, loan.organizationId)))
+    .limit(1);
+  if (!employee) return Response.json({ error: "Employee not found in this organization." }, { status: 404 });
+  const scope = assertScope(access, employee.orgUnitId);
+  if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
 
   if (action === "record_payment") {
     if (!Number.isFinite(manualAmount) || manualAmount <= 0) {

@@ -1,7 +1,7 @@
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { REPORT_DEFINITIONS, reportToCsv, runReport, type ReportKey } from "@/lib/reports";
-import { assertOrganizationRole, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
+import { assertOrganizationRole, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +23,10 @@ export async function GET(request: Request) {
     "Only People or payroll administrators can view company analytics.",
   );
   if (deniedOrg) return deniedOrg;
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Company-wide analytics are not available to unit-scoped roles." }, { status: 403 });
+  }
   const key = (searchParams.get("key") ?? "") as ReportKey;
   const format = searchParams.get("format") ?? "json";
 

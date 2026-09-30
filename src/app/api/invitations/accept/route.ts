@@ -1,9 +1,11 @@
-import { eq } from "drizzle-orm";
+import { enforceSameOriginMutation } from "@/lib/security-request";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { invitations, userOrganizations, users } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { createSession, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth";
-import { generateBackupCodes, hashPassword } from "@/lib/crypto";
+import { requestMeta } from "@/lib/rate-limit";
+import { hashPassword } from "@/lib/crypto";
 import { clientIp, rateLimitDistributed } from "@/lib/rate-limit";
 import { findUsableInvitation, normalizeEmail, passwordIssues, validEmail } from "@/lib/tokens";
 import { cookies } from "next/headers";
@@ -19,6 +21,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const ip = clientIp(request);
   const limited = await rateLimitDistributed(`invite-accept:${ip}`, { limit: 10, windowMs: 60_000 });
   if (!limited.allowed) return Response.json({ error: "Too many attempts." }, { status: 429 });
@@ -36,32 +41,65 @@ export async function POST(request: Request) {
   problems.push(...passwordIssues(password));
   if (problems.length) return Response.json({ error: "Validation failed.", problems }, { status: 422 });
 
-  const [existing] = await db.select().from(users).where(eq(users.email, invitation.email)).limit(1);
-
-  let userId: number;
+  // An invitation is not a password-reset mechanism. Invitation creation already
+  // refuses existing accounts, but enforce that boundary again here so a stale,
+  // manually inserted or legacy invitation can never overwrite credentials.
+  const [existing] = await db.select({ id: users.id }).from(users)
+    .where(eq(users.email, invitation.email))
+    .limit(1);
   if (existing) {
-    await db.update(users).set({ name: name || existing.name, passwordHash: hashPassword(password) }).where(eq(users.id, existing.id));
-    userId = existing.id;
-  } else {
-    const [created] = await db.insert(users).values({
-      email: invitation.email,
-      name,
-      passwordHash: hashPassword(password),
-      role: invitation.role,
-      totpEnabled: false,
-      backupCodes: generateBackupCodes(),
-    }).returning();
-    userId = created.id;
+    return Response.json({
+      error: "This invitation cannot set credentials for an existing Linaw account. Sign in with the existing account and ask an administrator to add the workspace membership.",
+    }, { status: 409 });
   }
 
-  await db.insert(userOrganizations).values({
-    userId,
-    organizationId: invitation.organizationId,
-    role: invitation.role,
-    orgUnitId: invitation.orgUnitId,
-  }).onConflictDoNothing();
+  const passwordHash = hashPassword(password);
+  let userId: number;
+  try {
+    const accepted = await db.transaction(async (tx) => {
+      // Claim the single-use invitation inside the same transaction as account
+      // creation. Concurrent submissions can no longer create two identities or
+      // partially accept an invitation.
+      const [claimed] = await tx.update(invitations)
+        .set({ acceptedAt: new Date() })
+        .where(and(
+          eq(invitations.id, invitation.id),
+          isNull(invitations.acceptedAt),
+          gt(invitations.expiresAt, new Date()),
+        ))
+        .returning({ id: invitations.id });
+      if (!claimed) return null;
 
-  await db.update(invitations).set({ acceptedAt: new Date() }).where(eq(invitations.id, invitation.id));
+      const [created] = await tx.insert(users).values({
+        email: invitation.email,
+        name,
+        passwordHash,
+        role: invitation.role,
+        totpEnabled: false,
+        // Recovery codes are created only when TOTP is actually enrolled, and
+        // are stored hashed by the TOTP setup flow.
+        backupCodes: [],
+      }).returning({ id: users.id });
+
+      await tx.insert(userOrganizations).values({
+        userId: created.id,
+        organizationId: invitation.organizationId,
+        role: invitation.role,
+        orgUnitId: invitation.orgUnitId,
+      });
+
+      return { userId: created.id };
+    });
+
+    if (!accepted) {
+      return Response.json({ error: "Invitation is invalid, already used, or expired." }, { status: 409 });
+    }
+    userId = accepted.userId;
+  } catch {
+    // A unique-email race or any other transactional conflict must fail closed:
+    // no credential on an existing account is ever changed here.
+    return Response.json({ error: "Invitation could not be accepted. Request a new invitation." }, { status: 409 });
+  }
 
   await recordAuditEvent({
     organizationId: invitation.organizationId,
@@ -71,7 +109,7 @@ export async function POST(request: Request) {
     metadata: { role: invitation.role, orgUnitId: invitation.orgUnitId },
   });
 
-  const { token: sessionToken, expiresAt } = await createSession(userId);
+  const { token: sessionToken, expiresAt } = await createSession(userId, requestMeta(request));
   const jar = await cookies();
   jar.set(SESSION_COOKIE, sessionToken, sessionCookieOptions(expiresAt));
 

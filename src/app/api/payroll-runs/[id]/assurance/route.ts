@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { payrollRuns } from "@/db/schema";
-import { assertOrganizationRole, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
+import { assertOrganizationRole, assertOrganizationUnitAccess, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
 
@@ -27,6 +27,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     "Only payroll operators can inspect payroll assurance.",
   );
   if (denied) return denied;
+  const scopeDenied = await assertOrganizationUnitAccess(
+    user.id,
+    run.organizationId,
+    run.scopeOrgUnitId,
+    "This payroll run is outside your assigned organization unit.",
+  );
+  if (scopeDenied) return scopeDenied;
 
   const result = await buildPayrollAssurance(runId);
   if (!result) return Response.json({ error: "Payroll run not found." }, { status: 404 });

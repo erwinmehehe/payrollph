@@ -3,12 +3,13 @@ import { db } from "@/db";
 import { auditEvents, employees, organizations, payrollRuns } from "@/db/schema";
 import { ensureSeedData } from "@/db/seed";
 import { recordAuditEvent } from "@/lib/audit";
-import { assertOrganizationRole, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
+import { assertOrganizationRole, getAccess, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
+import { escapeCsvCell } from "@/lib/csv";
 
 export const dynamic = "force-dynamic";
 
-const csvCell = (value: unknown) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+const csvCell = escapeCsvCell;
 
 export async function GET(request: Request) {
   await ensureSeedData();
@@ -30,14 +31,23 @@ export async function GET(request: Request) {
     "You do not have permission to export this company data.",
   );
   if (deniedOrg) return deniedOrg;
+  const access = await getAccess(user.id, organizationId);
+  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  if (kind !== "employees" && !access.companyWide) {
+    return Response.json({ error: "Company-wide payroll and audit exports are not available to unit-scoped roles." }, { status: 403 });
+  }
   const [organization] = await db.select().from(organizations).where(eq(organizations.id, organizationId));
   if (!organization) return Response.json({ error: "Organization not found" }, { status: 404 });
 
-  const [employeeRows, payrollRows, auditRows] = await Promise.all([
+  const [allEmployeeRows, payrollRows, auditRows] = await Promise.all([
     db.select().from(employees).where(eq(employees.organizationId, organizationId)).orderBy(asc(employees.id)),
     db.select().from(payrollRuns).where(eq(payrollRuns.organizationId, organizationId)).orderBy(asc(payrollRuns.id)),
     db.select().from(auditEvents).where(eq(auditEvents.organizationId, organizationId)).orderBy(asc(auditEvents.id)),
   ]);
+
+  const employeeRows = access.companyWide
+    ? allEmployeeRows
+    : allEmployeeRows.filter((employee) => employee.orgUnitId === access.orgUnitId);
 
   await recordAuditEvent({
     organizationId,

@@ -13,7 +13,9 @@ import {
 } from "@/lib/auth";
 import { hashPassword, verifyPassword } from "@/lib/crypto";
 import { passwordChangeIssues } from "@/lib/account";
+import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { clientIp, rateLimitDistributed, requestMeta } from "@/lib/rate-limit";
+import { enforceSameOriginMutation } from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +27,9 @@ export const dynamic = "force-dynamic";
  * because the endpoint accepts a password.
  */
 export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const ip = clientIp(request);
   const limited = await rateLimitDistributed(`pwchange:${ip}`, { limit: 5, windowMs: 60_000 });
   if (!limited.allowed) {
@@ -33,6 +38,8 @@ export async function POST(request: Request) {
 
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+  const demoDenied = publicDemoMutationDenied(user.email, "Password changes");
+  if (demoDenied) return demoDenied;
 
   const body = await request.json().catch(() => ({}));
   const currentPassword = typeof body.currentPassword === "string" ? body.currentPassword : "";
@@ -72,7 +79,10 @@ export async function POST(request: Request) {
   const { token, expiresAt } = await createSession(
     account.id,
     requestMeta(request),
-    { passwordChangedAt: changedAt },
+    {
+      passwordChangedAt: changedAt,
+      mfaVerifiedAt: user.mfaVerifiedAt ?? null,
+    },
   );
   const jar = await cookies();
   jar.set(SESSION_COOKIE, token, sessionCookieOptions(expiresAt));

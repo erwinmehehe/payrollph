@@ -5,8 +5,9 @@ import { sessions, users } from "@/db/schema";
 import { randomToken, sha256 } from "@/lib/crypto";
 import { shouldRevokeOnCredentialChange } from "@/lib/account";
 
-export const SESSION_COOKIE = "linaw_session";
+export const SESSION_COOKIE = process.env.NODE_ENV === "production" ? "__Host-linaw_session" : "linaw_session";
 const SESSION_DAYS = 14;
+const SESSION_IDLE_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 // Only write a "last seen" timestamp if it is older than this, so the read path
 // does not issue a database write on every single request.
 const LAST_SEEN_WRITE_INTERVAL_MS = 5 * 60 * 1000;
@@ -16,7 +17,7 @@ export type SessionMeta = { userAgent?: string | null; ip?: string | null };
 export async function createSession(
   userId: number,
   meta: SessionMeta = {},
-  options: { passwordChangedAt?: Date } = {},
+  options: { passwordChangedAt?: Date; mfaVerifiedAt?: Date | null } = {},
 ) {
   const token = randomToken(32);
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
@@ -28,6 +29,7 @@ export async function createSession(
     ip: meta.ip ? meta.ip.slice(0, 64) : null,
     lastSeenAt: new Date(),
     passwordChangedAt: options.passwordChangedAt ?? null,
+    mfaVerifiedAt: options.mfaVerifiedAt ?? null,
   });
   return { token, expiresAt };
 }
@@ -95,6 +97,10 @@ export async function getSessionUser() {
   if (!row) return null;
 
   const lastSeen = row.session.lastSeenAt ? new Date(row.session.lastSeenAt).getTime() : 0;
+  if (lastSeen && Date.now() - lastSeen > SESSION_IDLE_TIMEOUT_MS) {
+    await db.update(sessions).set({ revokedAt: new Date() }).where(eq(sessions.id, row.session.id));
+    return null;
+  }
   if (Date.now() - lastSeen > LAST_SEEN_WRITE_INTERVAL_MS) {
     await db.update(sessions).set({ lastSeenAt: new Date() }).where(eq(sessions.id, row.session.id));
   }
@@ -110,6 +116,7 @@ export async function getSessionUser() {
     sessionId: row.session.id,
     sessionExpiresAt: row.session.expiresAt,
     passwordChangedAt: row.session.passwordChangedAt ?? null,
+    mfaVerifiedAt: row.session.mfaVerifiedAt ?? null,
   };
 }
 
@@ -120,6 +127,7 @@ export function sessionCookieOptions(expiresAt: Date) {
     secure: process.env.NODE_ENV === "production",
     path: "/",
     expires: expiresAt,
+    priority: "high" as const,
   };
 }
 

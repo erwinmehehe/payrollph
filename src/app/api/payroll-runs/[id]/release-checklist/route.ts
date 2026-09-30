@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { payrollRuns } from "@/db/schema";
-import { assertOrganizationRole, PAYROLL_VIEW_ROLES } from "@/lib/access";
+import { assertOrganizationRole, assertOrganizationUnitAccess, PAYROLL_VIEW_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { buildPayrollReleaseChecklist } from "@/lib/payroll-release-checklist";
 
@@ -17,6 +17,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!run) return Response.json({ error: "Payroll run not found." }, { status: 404 });
   const denied = await assertOrganizationRole(user.id, run.organizationId, PAYROLL_VIEW_ROLES, "Your role cannot inspect payroll release readiness.");
   if (denied) return denied;
+  const scopeDenied = await assertOrganizationUnitAccess(
+    user.id,
+    run.organizationId,
+    run.scopeOrgUnitId,
+    "This payroll run is outside your assigned organization unit.",
+  );
+  if (scopeDenied) return scopeDenied;
   const checklist = await buildPayrollReleaseChecklist(runId);
   if (!checklist) return Response.json({ error: "Payroll run not found." }, { status: 404 });
   return Response.json({

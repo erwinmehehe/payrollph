@@ -10,7 +10,7 @@ export async function GET() {
       scheme: "Bearer token",
       header: "Authorization: Bearer sk_live_...",
       alternative: "X-API-Key: sk_live_...",
-      scopes: ["employees:read", "employees:write", "payroll:read", "*"],
+      scopes: ["employees:read", "employees:write", "payroll:read"],
     },
     rateLimit: {
       limit: 120,

@@ -69,12 +69,25 @@ export const sessions = pgTable("sessions", {
   ip: varchar("ip", { length: 64 }),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
   passwordChangedAt: timestamp("password_changed_at", { withTimezone: true }),
+  // Records whether this specific session completed MFA. Privileged actions
+  // must never rely on the account-level totpEnabled flag alone.
+  mfaVerifiedAt: timestamp("mfa_verified_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const passwordResetTokens = pgTable("password_reset_tokens", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const emailChangeTokens = pgTable("email_change_tokens", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  newEmail: varchar("new_email", { length: 180 }).notNull(),
   tokenHash: text("token_hash").notNull().unique(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   usedAt: timestamp("used_at", { withTimezone: true }),

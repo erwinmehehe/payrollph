@@ -1,3 +1,4 @@
+import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { employeePayProfiles, employees, importBatches } from "@/db/schema";
@@ -5,19 +6,25 @@ import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { getEntitlements, requireFeature, seatUsage } from "@/lib/billing";
 import { parseEmployeeCsv } from "@/lib/csv-import";
-import { assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
+import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
   const csv = typeof body.csv === "string" ? body.csv : "";
+  if (Buffer.byteLength(csv, "utf8") > 2 * 1024 * 1024) {
+    return Response.json({ error: "CSV import exceeds the 2 MB limit." }, { status: 413 });
+  }
   const fileName = String(body.fileName ?? "upload.csv").slice(0, 200);
   const dryRun = Boolean(body.dryRun);
 
@@ -32,6 +39,12 @@ export async function POST(request: Request) {
     "Only People administrators can import employee records.",
   );
   if (deniedImport) return deniedImport;
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Bulk employee import requires company-wide People administrator access." }, { status: 403 });
+  }
+  const mfaDenied = requireSensitiveActionMfa(user);
+  if (mfaDenied) return mfaDenied;
 
   await ensureMigrationSchema();
   await ensureEmployeePayProfiles(organizationId);
@@ -214,6 +227,10 @@ export async function GET(request: Request) {
     "Only People administrators can view import history.",
   );
   if (deniedList) return deniedList;
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Import history is available only to company-wide People administrators." }, { status: 403 });
+  }
   await ensureMigrationSchema();
   const batches = await db.select().from(importBatches).where(eq(importBatches.organizationId, organizationId));
   return Response.json({ batches: batches.slice(-10).reverse() });

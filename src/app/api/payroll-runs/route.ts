@@ -1,10 +1,11 @@
+import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, orgUnits, payrollEntries, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { drainPayrollQueue, enqueuePayrollRun, getPayrollJobStatus } from "@/lib/payroll-engine";
-import { assertOrganizationRole, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
+import { assertOrganizationRole, assertOrganizationUnitAccess, getAccess, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export async function GET(request: Request) {
   // Job-status and register lookups are resource-addressed, so they are checked
   // against the run's own organization rather than trusting the query string.
   if (runId > 0) {
-    const [target] = await db.select({ organizationId: payrollRuns.organizationId })
+    const [target] = await db.select({ organizationId: payrollRuns.organizationId, scopeOrgUnitId: payrollRuns.scopeOrgUnitId })
       .from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
     if (!target) return Response.json({ error: "Payroll run not found" }, { status: 404 });
     const deniedJob = await assertOrganizationRole(
@@ -28,6 +29,13 @@ export async function GET(request: Request) {
       "Only payroll operators can view payroll runs.",
     );
     if (deniedJob) return deniedJob;
+    const scopeDenied = await assertOrganizationUnitAccess(
+      sessionUser.id,
+      target.organizationId,
+      target.scopeOrgUnitId,
+      "This payroll run is outside your assigned organization unit.",
+    );
+    if (scopeDenied) return scopeDenied;
 
     // The workspace loads one run's register at a time, so it asks for the run
     // it is actually showing instead of relying on the dashboard's single set.
@@ -53,9 +61,16 @@ export async function GET(request: Request) {
     "Only payroll operators can view payroll runs.",
   );
   if (deniedRuns) return deniedRuns;
+  const access = await getAccess(sessionUser.id, organizationId);
+  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
 
   const runs = await db.select().from(payrollRuns)
-    .where(eq(payrollRuns.organizationId, organizationId))
+    .where(access.companyWide
+      ? eq(payrollRuns.organizationId, organizationId)
+      : and(
+          eq(payrollRuns.organizationId, organizationId),
+          eq(payrollRuns.scopeOrgUnitId, access.orgUnitId!),
+        ))
     .orderBy(desc(payrollRuns.id));
   return Response.json({ runs });
 }
@@ -96,6 +111,9 @@ function periodLabelFromDates(periodStart: string, periodEnd: string) {
 }
 
 export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
   const periodStart = typeof body.periodStart === "string" ? body.periodStart.trim() : "";
@@ -142,12 +160,18 @@ export async function POST(request: Request) {
     "Only payroll operators can create payroll runs.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  if (!access.companyWide && rawScopeOrgUnitId !== null && rawScopeOrgUnitId !== access.orgUnitId) {
+    return Response.json({ error: "You can create payroll only for your assigned organization unit." }, { status: 403 });
+  }
+  const effectiveScopeOrgUnitId = access.companyWide ? rawScopeOrgUnitId : access.orgUnitId;
 
   let scopeOrgUnitId: number | null = null;
   let scopeLabel = "All locations";
-  if (rawScopeOrgUnitId !== null) {
+  if (effectiveScopeOrgUnitId !== null) {
     const [scope] = await db.select().from(orgUnits).where(and(
-      eq(orgUnits.id, rawScopeOrgUnitId),
+      eq(orgUnits.id, effectiveScopeOrgUnitId),
       eq(orgUnits.organizationId, organizationId),
     )).limit(1);
     if (!scope) {

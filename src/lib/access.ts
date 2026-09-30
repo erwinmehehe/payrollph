@@ -25,7 +25,10 @@ export async function getAccess(userId: number, organizationId: number): Promise
 
   let orgUnitName: string | null = null;
   if (membership.orgUnitId) {
-    const [unit] = await db.select().from(orgUnits).where(eq(orgUnits.id, membership.orgUnitId)).limit(1);
+    const [unit] = await db.select().from(orgUnits).where(and(
+      eq(orgUnits.id, membership.orgUnitId),
+      eq(orgUnits.organizationId, organizationId),
+    )).limit(1);
     orgUnitName = unit?.name ?? null;
   }
 
@@ -89,6 +92,27 @@ export async function assertMembership(userId: number, organizationId: number): 
 /** Gate for routes addressed by a resource id: checks the resource's own organization. */
 export async function assertResourceAccess(userId: number, resourceOrganizationId: number): Promise<Response | null> {
   return assertMembership(userId, resourceOrganizationId);
+}
+
+/**
+ * Enforces an organization-unit boundary for resources that may be company-wide.
+ * Company-wide memberships can access any unit. Unit-scoped memberships may
+ * access only resources explicitly bound to their own unit; a null resource
+ * scope means company-wide and is therefore denied to unit-scoped users.
+ */
+export async function assertOrganizationUnitAccess(
+  userId: number,
+  organizationId: number,
+  resourceOrgUnitId: number | null,
+  message = "This resource is outside your assigned organization unit.",
+): Promise<Response | null> {
+  const access = await getAccess(userId, organizationId);
+  if (!access) {
+    return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  }
+  if (access.companyWide) return null;
+  if (resourceOrgUnitId != null && resourceOrgUnitId === access.orgUnitId) return null;
+  return Response.json({ error: message }, { status: 403 });
 }
 
 

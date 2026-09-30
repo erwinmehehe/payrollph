@@ -1,7 +1,8 @@
+import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { deMinimisGrants, employees } from "@/db/schema";
-import { assertOrganizationRole, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
+import { assertOrganizationRole, assertScope, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { DE_MINIMIS_2026, deMinimisTreatment, type DeMinimisType } from "@/lib/ph-compliance";
@@ -21,18 +22,23 @@ export async function GET(request: Request) {
     "Only People or payroll administrators can manage de minimis benefits.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
 
   const grants = await db.select().from(deMinimisGrants)
     .where(eq(deMinimisGrants.organizationId, organizationId))
     .orderBy(desc(deMinimisGrants.createdAt));
   const staff = await db.select().from(employees).where(eq(employees.organizationId, organizationId));
+  const visibleStaff = access.companyWide ? staff : staff.filter((employee) => employee.orgUnitId === access.orgUnitId);
+  const visibleIds = new Set(visibleStaff.map((employee) => employee.id));
+  const visibleGrants = access.companyWide ? grants : grants.filter((grant) => visibleIds.has(grant.employeeId));
 
   return Response.json({
     rules: types.map((type) => ({ type, ...DE_MINIMIS_2026[type] })),
-    grants: grants.map((grant) => ({
+    grants: visibleGrants.map((grant) => ({
       ...grant,
-      employeeName: staff.find((employee) => employee.id === grant.employeeId)
-        ? `${staff.find((employee) => employee.id === grant.employeeId)!.firstName} ${staff.find((employee) => employee.id === grant.employeeId)!.lastName}`
+      employeeName: visibleStaff.find((employee) => employee.id === grant.employeeId)
+        ? `${visibleStaff.find((employee) => employee.id === grant.employeeId)!.firstName} ${visibleStaff.find((employee) => employee.id === grant.employeeId)!.lastName}`
         : "Unknown employee",
       treatment: deMinimisTreatment(grant.benefitType as DeMinimisType, Number(grant.amount)),
     })),
@@ -40,6 +46,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const body = await request.json().catch(() => ({}));
@@ -56,12 +65,16 @@ export async function POST(request: Request) {
     "Only People or payroll administrators can manage de minimis benefits.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
   if (!types.includes(benefitType) || !Number.isFinite(amount) || amount <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(effectiveOn)) {
     return Response.json({ error: "Employee, valid RR 29-2025 benefit type, positive amount, and effective date are required." }, { status: 422 });
   }
 
-  const [employee] = await db.select().from(employees).where(eq(employees.id, employeeId));
-  if (!employee || employee.organizationId !== organizationId) return Response.json({ error: "Employee not found in this workspace." }, { status: 404 });
+  const [employee] = await db.select().from(employees).where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId))).limit(1);
+  if (!employee) return Response.json({ error: "Employee not found in this workspace." }, { status: 404 });
+  const scope = assertScope(access, employee.orgUnitId);
+  if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
 
   const rule = DE_MINIMIS_2026[benefitType];
   const [grant] = await db.insert(deMinimisGrants).values({
@@ -86,6 +99,9 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const id = Number(new URL(request.url).searchParams.get("id") ?? 0);
@@ -98,6 +114,13 @@ export async function DELETE(request: Request) {
     "Only People or payroll administrators can end de minimis benefits.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, grant.organizationId);
+  const [employee] = await db.select({ orgUnitId: employees.orgUnitId }).from(employees)
+    .where(and(eq(employees.id, grant.employeeId), eq(employees.organizationId, grant.organizationId)))
+    .limit(1);
+  if (!employee) return Response.json({ error: "Employee not found in this workspace." }, { status: 404 });
+  const scope = assertScope(access, employee.orgUnitId);
+  if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
 
   await db.update(deMinimisGrants).set({ active: false, endedOn: new Date().toISOString().slice(0, 10) })
     .where(eq(deMinimisGrants.id, id));

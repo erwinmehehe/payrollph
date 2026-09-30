@@ -1,6 +1,7 @@
 export function passwordIssues(password: string) {
   const issues: string[] = [];
   if (password.length < 12) issues.push("Must be at least 12 characters.");
+  if (password.length > 256) issues.push("Must be no more than 256 characters.");
   if (!/[a-z]/.test(password)) issues.push("Must include a lowercase letter.");
   if (!/[A-Z]/.test(password)) issues.push("Must include an uppercase letter.");
   if (!/[0-9]/.test(password)) issues.push("Must include a number.");

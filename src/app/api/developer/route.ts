@@ -6,7 +6,11 @@ import { mintApiKey } from "@/lib/api-auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { dispatchWebhook, WEBHOOK_EVENTS } from "@/lib/webhooks";
-import { assertOrganizationRole, DEVELOPER_ADMIN_ROLES } from "@/lib/access";
+import { validateWebhookTarget } from "@/lib/security-network";
+import { publicDemoMutationDenied } from "@/lib/demo-security";
+import { assertOrganizationRole, getAccess, DEVELOPER_ADMIN_ROLES } from "@/lib/access";
+import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
+import { clientIp, rateLimitDistributed } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +27,10 @@ export async function GET(request: Request) {
     "Only workspace administrators can manage API keys and webhooks.",
   );
   if (deniedOrg) return deniedOrg;
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Developer credentials and webhooks require company-wide administrator access." }, { status: 403 });
+  }
 
   const [keys, endpoints, deliveries] = await Promise.all([
     db.select().from(apiKeys).where(eq(apiKeys.organizationId, organizationId)).orderBy(desc(apiKeys.id)),
@@ -51,8 +59,14 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+
+  const demoDenied = publicDemoMutationDenied(user.email, "Developer credentials and webhook mutations");
+  if (demoDenied) return demoDenied;
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
@@ -67,6 +81,20 @@ export async function POST(request: Request) {
     "Only workspace administrators can manage API keys and webhooks.",
   );
   if (deniedDev) return deniedDev;
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Developer credentials and webhooks require company-wide administrator access." }, { status: 403 });
+  }
+  const mfaDenied = requireSensitiveActionMfa(user);
+  if (mfaDenied) return mfaDenied;
+
+  const mutationLimit = await rateLimitDistributed(
+    `developer-mutation:${user.id}:${organizationId}:${clientIp(request)}`,
+    { limit: 30, windowMs: 5 * 60_000 },
+  );
+  if (!mutationLimit.allowed) {
+    return Response.json({ error: "Too many developer-security changes. Try again later." }, { status: 429 });
+  }
 
   if (action === "create-key") {
     const minted = mintApiKey();
@@ -108,8 +136,16 @@ export async function POST(request: Request) {
   }
 
   if (action === "create-webhook") {
-    const url = String(body.url ?? "").trim();
-    if (!/^https?:\/\//i.test(url)) return Response.json({ error: "A valid http(s) URL is required." }, { status: 400 });
+    const rawUrl = String(body.url ?? "").trim();
+    let url: string;
+    try {
+      url = await validateWebhookTarget(rawUrl);
+    } catch (error) {
+      return Response.json(
+        { error: error instanceof Error ? error.message : "Webhook URL is not allowed." },
+        { status: 400 },
+      );
+    }
     const events = Array.isArray(body.events)
       ? body.events.filter((event: unknown): event is string => typeof event === "string" && (WEBHOOK_EVENTS as readonly string[]).includes(event))
       : [];
@@ -119,7 +155,7 @@ export async function POST(request: Request) {
     const [row] = await db.insert(webhookEndpoints).values({
       organizationId,
       url,
-      secret: `whsec_${randomBytes(16).toString("hex")}`,
+      secret: `whsec_${randomBytes(32).toString("hex")}`,
       events,
     }).returning();
 
@@ -140,7 +176,7 @@ export async function POST(request: Request) {
 }
 
 
-const ALLOWED_API_SCOPES = new Set(["employees:read", "employees:write", "payroll:read", "*"]);
+const ALLOWED_API_SCOPES = new Set(["employees:read", "employees:write", "payroll:read"]);
 
 function normalizeScopes(value: unknown) {
   if (!Array.isArray(value) || value.length === 0) return ["employees:read", "payroll:read"];

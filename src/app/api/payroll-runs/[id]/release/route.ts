@@ -4,15 +4,20 @@ import { approvalTasks, employees, organizations, payrollEntries, payrollRuns } 
 import { getSessionUser } from "@/lib/auth";
 import { queueMessage } from "@/lib/mailer";
 import { dispatchWebhook } from "@/lib/webhooks";
-import { assertOrganizationRole, PAYROLL_RELEASE_ROLES } from "@/lib/access";
+import { assertOrganizationRole, assertOrganizationUnitAccess, PAYROLL_RELEASE_ROLES } from "@/lib/access";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
 import { settlePayrollRun } from "@/lib/payroll-settlement";
 import { buildPayrollReleaseChecklist } from "@/lib/payroll-release-checklist";
+import { isPublicDemoIdentity } from "@/lib/demo-security";
+import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { recordAuditEvent } from "@/lib/audit";
 
 const RELEASABLE = ["Ready for release"];
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const { id } = await params;
   const runId = Number(id);
   if (!Number.isInteger(runId)) return Response.json({ error: "Invalid run id." }, { status: 400 });
@@ -29,6 +34,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     "Only an owner or administrator can release payroll.",
   );
   if (deniedOrg) return deniedOrg;
+  const scopeDenied = await assertOrganizationUnitAccess(
+    user.id,
+    run.organizationId,
+    run.scopeOrgUnitId,
+    "This payroll run is outside your assigned organization unit.",
+  );
+  if (scopeDenied) return scopeDenied;
+  const mfaDenied = requireSensitiveActionMfa(user);
+  if (mfaDenied) return mfaDenied;
 
   if (run.status === "Released") {
     return Response.json({ error: "This run is already released." }, { status: 409 });
@@ -150,7 +164,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // response that invites the operator to retry the release.
   const postReleaseWarnings: string[] = [];
   const releasedAt = new Date().toISOString();
-  const activeStaff = staff.filter((person) => person.status === "Active");
+  const sharedDemo = isPublicDemoIdentity(user.email);
+  const activeStaff = (sharedDemo ? [] : staff).filter((person) => person.status === "Active");
   const notifiableStaff = activeStaff.filter((person) => Boolean(person.email));
   const missingEmail = activeStaff.length - notifiableStaff.length;
   let notified = 0;
@@ -177,7 +192,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   let webhookDeliveries = 0;
   try {
-    const deliveries = await dispatchWebhook({
+    const deliveries = sharedDemo ? [] : await dispatchWebhook({
       organizationId: run.organizationId,
       event: "payroll.released",
       data: {

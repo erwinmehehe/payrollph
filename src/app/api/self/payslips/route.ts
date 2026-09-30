@@ -3,6 +3,8 @@ import { db } from "@/db";
 import { employees, organizations, payrollEntries, payrollRuns, payslips, userOrganizations, users } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { employeePayStatusLabel } from "@/lib/payroll-handoff";
+import { recordAuditEvent } from "@/lib/audit";
+import { enforceSameOriginMutation } from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +34,10 @@ export async function GET() {
     .from(payrollEntries)
     .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
     .leftJoin(payslips, eq(payslips.payrollEntryId, payrollEntries.id))
-    .where(eq(payrollEntries.employeeId, session.employeeId))
+    .where(and(
+      eq(payrollEntries.employeeId, session.employeeId),
+      eq(payrollRuns.organizationId, employee.organizationId),
+    ))
     .orderBy(desc(payrollRuns.payDate))
     .limit(52);
 
@@ -97,6 +102,9 @@ export async function GET() {
 
 /** Links (or re-links) a signed-in employee account to their employee record. */
 export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
   const session = await getSessionUser();
   if (!session) return Response.json({ error: "Authentication required." }, { status: 401 });
 
@@ -133,16 +141,25 @@ export async function POST(request: Request) {
     return Response.json({ error: `This employee record is already linked to ${claimed[0].email}.` }, { status: 409 });
   }
 
-  // Never demote a privileged account. Linking is for dedicated employee
-  // logins; an admin following this path would otherwise lose workspace access.
-  if (session.role === "admin" || session.role === "bookkeeper") {
+  // Linking is only for dedicated employee identities. Never let an owner,
+  // HR, payroll, checker, manager, admin or bookkeeper session demote itself by
+  // submitting an employee number.
+  if (session.role !== "employee") {
     return Response.json({
-      error: "This account has administrator access and cannot be converted to a self-service login. Invite a separate employee account instead.",
-      hint: "POST /api/invitations with role=employee",
-    }, { status: 409 });
+      error: "Only employee self-service accounts can link an employee record.",
+      hint: "Invite a separate employee account instead of reusing a privileged account.",
+    }, { status: 403 });
   }
 
-  await db.update(users).set({ employeeId: employee.id, role: "employee" }).where(eq(users.id, session.id));
+  await db.update(users).set({ employeeId: employee.id }).where(eq(users.id, session.id));
+
+  await recordAuditEvent({
+    organizationId: employee.organizationId,
+    actor: session.name,
+    action: "Employee self-service account linked",
+    resource: employee.employeeNo,
+    metadata: { userId: session.id, employeeId: employee.id },
+  });
 
   return Response.json({ ok: true, employeeId: employee.id, employeeNo: employee.employeeNo });
 }

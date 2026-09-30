@@ -1,0 +1,81 @@
+name: Security HTTP Smoke
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  security-http-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      WORKER_TOKEN: ci-worker-token-00000000000000000000000000000000
+      READINESS_TOKEN: ci-readiness-token-0000000000000000000000000000
+      SETUP_TOKEN: ci-setup-token-0000000000000000000000000000000
+      TOTP_ENCRYPTION_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
+      MALWARE_SCAN_URL: https://scanner.invalid/scan
+      MALWARE_SCAN_TOKEN: ci-malware-token-0000000000000000000000000000
+      REQUIRE_PRIVILEGED_MFA: "true"
+      SECURITY_SMOKE_URL: http://127.0.0.1:3000
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+      - name: Validate production security configuration contract
+        env:
+          APP_BASE_URL: https://payroll.example.test
+          MALWARE_SCAN_URL: https://scanner.example.test/scan
+        run: npm run security:preflight
+      - name: Validate scanner service syntax
+        run: node --check services/malware-scanner/server.mjs
+      - run: npm run db:push
+      - run: npm run build
+
+      - name: Start production server
+        shell: bash
+        run: |
+          nohup npm start -- -H 127.0.0.1 > /tmp/payrollph-security.log 2>&1 &
+          echo $! > /tmp/payrollph-security.pid
+          for attempt in {1..40}; do
+            if curl -fsS "$SECURITY_SMOKE_URL" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/payrollph-security.log
+          exit 1
+
+      - name: Run adversarial HTTP smoke probes
+        run: npx tsx scripts/security-http-smoke.ts
+
+      - name: Show server log on failure
+        if: failure()
+        run: cat /tmp/payrollph-security.log || true

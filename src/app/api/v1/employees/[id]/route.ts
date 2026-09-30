@@ -34,7 +34,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if ("error" in gate && gate.error) return gate.error;
   const id = Number((await params).id);
   await ensureEmployeePayProfiles(gate.auth!.organizationId);
-  const [row] = await db.select().from(employees).where(eq(employees.id, id));
+  const [row] = await db.select().from(employees).where(and(
+    eq(employees.id, id),
+    eq(employees.organizationId, gate.auth!.organizationId),
+  ));
   if (!row || row.organizationId !== gate.auth!.organizationId) {
     return Response.json({ error: "Employee not found." }, { status: 404 });
   }
@@ -52,7 +55,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const gate = await authorize(request, "employees:write");
   if ("error" in gate && gate.error) return gate.error;
   const id = Number((await params).id);
-  const [existing] = await db.select().from(employees).where(eq(employees.id, id));
+  const [existing] = await db.select().from(employees).where(and(
+    eq(employees.id, id),
+    eq(employees.organizationId, gate.auth!.organizationId),
+  ));
   if (!existing || existing.organizationId !== gate.auth!.organizationId) {
     return Response.json({ error: "Employee not found." }, { status: 404 });
   }
@@ -327,7 +333,10 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const gate = await authorize(request, "employees:write");
   if ("error" in gate && gate.error) return gate.error;
   const id = Number((await params).id);
-  const [existing] = await db.select().from(employees).where(eq(employees.id, id));
+  const [existing] = await db.select().from(employees).where(and(
+    eq(employees.id, id),
+    eq(employees.organizationId, gate.auth!.organizationId),
+  ));
   if (!existing || existing.organizationId !== gate.auth!.organizationId) {
     return Response.json({ error: "Employee not found." }, { status: 404 });
   }

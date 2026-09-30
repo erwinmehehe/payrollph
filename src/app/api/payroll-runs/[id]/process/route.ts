@@ -1,12 +1,16 @@
+import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { approvalTasks, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { drainPayrollQueue, enqueuePayrollRun } from "@/lib/payroll-engine";
-import { assertOrganizationRole, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
+import { assertOrganizationRole, assertOrganizationUnitAccess, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const originDenied = enforceSameOriginMutation(_request);
+  if (originDenied) return originDenied;
+
   const { id } = await params;
   const runId = Number(id);
   if (!Number.isInteger(runId)) return Response.json({ error: "Invalid run id" }, { status: 400 });
@@ -22,6 +26,13 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     "Only payroll operators can calculate payroll.",
   );
   if (deniedOrg) return deniedOrg;
+  const deniedUnit = await assertOrganizationUnitAccess(
+    user.id,
+    run.organizationId,
+    run.scopeOrgUnitId,
+    "This payroll run is outside your assigned organization unit.",
+  );
+  if (deniedUnit) return deniedUnit;
 
   if (run.status === "Released" || run.status === "Releasing") {
     return Response.json({ error: "Released or releasing payroll is immutable and cannot be recalculated." }, { status: 409 });
