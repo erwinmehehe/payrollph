@@ -88,6 +88,10 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
 - `outbox` table + provider adapter for Resend / Postmark / SMTP.
 - With no provider, rows stay `queued` and `GET /api/outbox` shows them honestly: nothing is reported as sent.
 - Set `RESEND_API_KEY`, `POSTMARK_SERVER_TOKEN`, or `SMTP_URL` to enable real delivery.
+- Resend sends are tagged with the Linaw app + durable outbox id so provider events can be reconciled to the exact message.
+- For Resend, register `<APP_BASE_URL>/api/webhooks/resend` for delivered, delayed, bounced, complained, failed, and suppressed events, then set its signing secret as `RESEND_WEBHOOK_SECRET`.
+- The Resend webhook verifies the raw Svix signature and timestamp before processing; unrelated or untagged account events are ignored.
+- Outbox send status and provider-confirmed delivery status are separate: provider acceptance is not displayed as confirmed delivery.
 
 ### Document storage
 - `POST /api/documents` content-sniffs magic bytes (PDF/PNG/JPEG); the declared browser MIME type is never trusted.
