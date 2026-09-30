@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  AlertTriangle,
   Banknote,
   BookOpen,
   Building2,
@@ -28,13 +29,43 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
   const [runId, setRunId] = useState<number | undefined>(runs[0]?.id);
   const [template, setTemplate] = useState(data.templates[0]?.name ?? "BDO DAT");
   const [mode, setMode] = useState<"dry" | "live">("dry");
+  const [exportFailure, setExportFailure] = useState<{ url: string; label: string; error: string } | null>(null);
+  const [exporting, setExporting] = useState<string | null>(null);
 
   const run = runs.find((item) => item.id === runId) ?? runs[0];
   const organizationId = data.selectedOrganization.id;
 
-  function download(url: string, label: string) {
-    window.open(url, "_blank", "noopener");
-    notify(`${label} requested, generated server-side and written to the audit trail.`, "info");
+  async function download(url: string, label: string) {
+    setExporting(label);
+    try {
+      const response = await fetch(url, { cache: "no-store" });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        const error = payload.error ?? `${label} failed with status ${response.status}.`;
+        setExportFailure({ url, label, error });
+        notify(error, "err");
+        return;
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") ?? "";
+      const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] ?? label.replace(/\s+/g, "-").toLowerCase();
+      const href = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = href;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(href);
+      setExportFailure(null);
+      notify(`${label} generated and written to the audit trail.`, "info");
+    } catch {
+      const error = `${label} could not be generated because the export service could not be reached.`;
+      setExportFailure({ url, label, error });
+      notify(error, "err");
+    } finally {
+      setExporting(null);
+    }
   }
 
   return (
@@ -53,6 +84,18 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
           the gate-by-gate status.
         </span>
       </div>
+      {exportFailure && (
+        <div className="notice notice-red" data-recovery-state="export-failed" style={{ marginTop: 12 }}>
+          <AlertTriangle size={15} className="i-red" />
+          <div style={{ flex: 1 }}>
+            <strong>Export failed</strong>
+            <p style={{ margin: "4px 0 0" }}>{exportFailure.error}</p>
+          </div>
+          <button className="secondary-button" disabled={Boolean(exporting)} onClick={() => void download(exportFailure.url, exportFailure.label)}>
+            {exporting ? "Retrying…" : "Retry export"}
+          </button>
+        </div>
+      )}
 
       {!run ? (
         <article className="card">
@@ -142,7 +185,7 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
                   <button
                     className={mode === "live" ? "primary-button" : "secondary-button"}
                     onClick={() =>
-                      download(
+                      void download(
                         `/api/payroll-runs/${run.id}/exports?kind=bank&template=${encodeURIComponent(template)}&dryRun=${mode === "dry"}`,
                         mode === "dry" ? `${template} validation` : `${template} disbursement file`,
                       )
@@ -166,7 +209,7 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
                 <button
                   className="secondary-button"
                   style={{ marginTop: 12 }}
-                  onClick={() => download(`/api/payroll-runs/${run.id}/exports?kind=journal`, "Journal CSV")}
+                  onClick={() => void download(`/api/payroll-runs/${run.id}/exports?kind=journal`, "Journal CSV")}
                 >
                   <Download size={14} className="i-teal" /> Journal CSV
                 </button>
@@ -196,7 +239,7 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
                         className="secondary-button"
                         style={{ height: 28, fontSize: 11 }}
                         onClick={() =>
-                          download(
+                      void download(
                             `/api/payroll-runs/${run.id}/exports?kind=government&template=${encodeURIComponent(item.template)}`,
                             `${item.template} draft`,
                           )
@@ -224,7 +267,7 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
                   className="secondary-button"
                   style={{ marginTop: 12 }}
                   disabled={run.status !== "Released"}
-                  onClick={() => download(`/api/payroll-runs/${run.id}/exports?kind=payslip`, "Payslip index")}
+                  onClick={() => void download(`/api/payroll-runs/${run.id}/exports?kind=payslip`, "Payslip index")}
                 >
                   <Download size={14} className="i-teal" /> List payslips
                 </button>
@@ -241,7 +284,7 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
                 <button
                   className="secondary-button"
                   style={{ marginTop: 12 }}
-                  onClick={() => download(`/api/exports?organizationId=${organizationId}&kind=employees`, "Employee roster CSV")}
+                  onClick={() => void download(`/api/exports?organizationId=${organizationId}&kind=employees`, "Employee roster CSV")}
                 >
                   <Download size={14} className="i-teal" /> employees.csv
                 </button>
@@ -261,13 +304,13 @@ export function ExportsView({ data, notify }: { data: DashboardData; notify: Not
                 <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
                   <button
                     className="secondary-button"
-                    onClick={() => download(`/api/exports?organizationId=${organizationId}&kind=all`, "Full JSON export")}
+                    onClick={() => void download(`/api/exports?organizationId=${organizationId}&kind=all`, "Full JSON export")}
                   >
                     <Download size={14} className="i-teal" /> JSON
                   </button>
                   <button
                     className="secondary-button"
-                    onClick={() => download(`/api/exports?organizationId=${organizationId}&kind=audit`, "Audit trail CSV")}
+                    onClick={() => void download(`/api/exports?organizationId=${organizationId}&kind=audit`, "Audit trail CSV")}
                   >
                     <Download size={14} className="i-teal" /> Audit CSV
                   </button>
