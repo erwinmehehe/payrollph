@@ -939,8 +939,10 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
     createdAt: string;
     retryCount: number;
     attemptCount: number;
+    maxAttempts: number;
     canRetry: boolean;
     lastAttemptAt?: string | null;
+    nextAttemptAt?: string | null;
     providerMessageId?: string | null;
     deliveryStatus?: string | null;
     deliveryEventAt?: string | null;
@@ -1098,7 +1100,7 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
                 <div className="setting-form" style={{ gridTemplateColumns: "1fr 1fr" }}>
                   <label>State<input readOnly value={selectedMsg.stateLabel} /></label>
                   <label>Provider<input readOnly value={selectedMsg.provider} /></label>
-                  <label>Attempts<input readOnly value={String(selectedMsg.attemptCount)} /></label>
+                  <label>Attempts<input readOnly value={`${selectedMsg.attemptCount} / ${selectedMsg.maxAttempts}`} /></label>
                   <label>Retries<input readOnly value={String(selectedMsg.retryCount)} /></label>
                 </div>
 
@@ -1115,6 +1117,9 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
                 <div style={{ fontSize: 11.5, color: "var(--ink-secondary)", display: "grid", gap: 5 }}>
                   <span>Queued: <strong>{formatTime(selectedMsg.createdAt)}</strong></span>
                   {selectedMsg.lastAttemptAt && <span>Last attempt: <strong>{formatTime(selectedMsg.lastAttemptAt)}</strong></span>}
+                  {selectedMsg.nextAttemptAt && selectedMsg.status === "failed" && (
+                    <span>Next automatic retry: <strong>{formatTime(selectedMsg.nextAttemptAt)}</strong></span>
+                  )}
                   {selectedMsg.sentAt && <span>Provider accepted: <strong>{formatTime(selectedMsg.sentAt)}</strong></span>}
                   {selectedMsg.deliveryEventAt && <span>Latest provider event: <strong>{formatTime(selectedMsg.deliveryEventAt)}</strong></span>}
                   {selectedMsg.deliveryStatus && <span>Delivery outcome: <strong>{selectedMsg.deliveryStatus}</strong></span>}
