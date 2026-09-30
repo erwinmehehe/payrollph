@@ -565,7 +565,12 @@ export async function recentOutboxWithAttempts(limit = 50, organizationId: numbe
     );
     const queueEvent = rowEvents.find((event) => event.action === "Outbox message queued");
     const providerEvent = rowEvents.find((event) => event.action === "Email provider delivery event");
-    const context = queueEvent ? auditMetadata(queueEvent) : {};
+    const storedContext = row.metadata && typeof row.metadata === "object"
+      ? row.metadata as Record<string, unknown>
+      : {};
+    const context = queueEvent
+      ? { ...storedContext, ...auditMetadata(queueEvent) }
+      : storedContext;
     const lastAttempt = attemptEvents[0];
     const lastAttemptMeta = lastAttempt ? auditMetadata(lastAttempt) : {};
     const providerEventMeta = providerEvent ? auditMetadata(providerEvent) : {};
