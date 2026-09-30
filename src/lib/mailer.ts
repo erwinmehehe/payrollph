@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, lte, or } from "drizzle-orm";
 import nodemailer from "nodemailer";
 import { db } from "@/db";
 import { outbox } from "@/db/schema";
@@ -16,6 +16,8 @@ const SENSITIVE_LINK_PURPOSES = new Set([
   "invitation",
   "email-change-verification",
 ]);
+
+const MAX_AUTO_ATTEMPTS = 5;
 
 function storedBodyAfterAttempt(purpose: string, body: string) {
   return SENSITIVE_LINK_PURPOSES.has(purpose)
@@ -217,7 +219,7 @@ export async function attemptOutboxDelivery(id: number) {
     await db.update(outbox).set({
       status: "failed",
       error,
-      nextAttemptAt: retryAt(attemptCount),
+      nextAttemptAt: attemptCount < MAX_AUTO_ATTEMPTS ? retryAt(attemptCount) : null,
       body,
     }).where(and(eq(outbox.id, id), eq(outbox.status, "sending")));
     return {
@@ -234,7 +236,7 @@ export async function attemptOutboxDelivery(id: number) {
     await db.update(outbox).set({
       status: "failed",
       error: message,
-      nextAttemptAt: retryAt(attemptCount),
+      nextAttemptAt: attemptCount < MAX_AUTO_ATTEMPTS ? retryAt(attemptCount) : null,
       body: storedBodyAfterAttempt(claimed.purpose, claimed.body),
     }).where(and(eq(outbox.id, id), eq(outbox.status, "sending")));
     return {
@@ -304,6 +306,38 @@ export async function retryPayrollRunOutbox(organizationId: number, payrollRunId
     results.push(await attemptOutboxDelivery(row.id));
   }
   return results;
+}
+
+export async function drainDueOutboxRetries(limit = 25) {
+  if (!capableHere()) {
+    return { attempted: 0, sent: 0, failed: 0, skipped: "no-provider" as const, results: [] };
+  }
+
+  const now = new Date();
+  const rows = await db.select().from(outbox).where(
+    and(
+      eq(outbox.channel, "email"),
+      lt(outbox.attemptCount, MAX_AUTO_ATTEMPTS),
+      or(
+        eq(outbox.status, "queued"),
+        and(eq(outbox.status, "failed"), lte(outbox.nextAttemptAt, now)),
+      ),
+    ),
+  ).orderBy(asc(outbox.id)).limit(limit);
+
+  const results = [];
+  for (const row of rows) {
+    const result = await attemptOutboxDelivery(row.id);
+    results.push(result);
+  }
+
+  return {
+    attempted: results.length,
+    sent: results.filter((result) => result.delivered).length,
+    failed: results.filter((result) => !result.delivered && !result.queued).length,
+    skipped: null,
+    results,
+  };
 }
 
 export async function payrollRunOutboxHealth(organizationId: number, payrollRunId: number) {
