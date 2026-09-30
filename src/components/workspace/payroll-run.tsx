@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { buildPayrollHandoff, handoffViewerRole } from "@/lib/payroll-handoff";
+import { derivePayrollPostReleaseStatus } from "@/lib/payroll-post-release";
 import { readLineItems, readTrace, type BankTemplate, type DashboardData, type Notify, type PayrollEntry, type PayrollLineItem, type PayrollReleaseReceipt, type PayrollRun, type Task } from "./types";
 import { PayrollAssurancePanel } from "./payroll-assurance-panel";
 import { ExplainPayDrawer } from "./explain-pay-drawer";
@@ -288,6 +289,7 @@ export function PayrollRunView({
   const failedChecklistItem = releaseChecklist?.items.find((item) => item.blocking && !item.passed);
   const visibleReleaseReceipt =
     releaseReceipt?.runId === run.id ? releaseReceipt : readReleaseReceipt(data.auditEvents, run.id);
+  const postReleaseStatus = derivePayrollPostReleaseStatus(run, data.auditEvents);
   const recoveryStates: Array<{
     key: string;
     title: string;
@@ -410,13 +412,38 @@ export function PayrollRunView({
             </div>
           </div>
           <div className="card-body" style={{ paddingTop: 0, display: "grid", gap: 8 }}>
-            <div className="exception-row" style={{ alignItems: "flex-start" }}>
-              <span className="status status-approved" style={{ minWidth: 72, justifyContent: "center" }}>Ready</span>
-              <div>
-                <strong>Bank / export status</strong>
-                <p>{visibleReleaseReceipt.bankExport.label}</p>
+            <div data-post-release-status style={{ display: "grid", gap: 8 }}>
+              <div className="exception-row" style={{ alignItems: "flex-start" }}>
+                <span className="status status-approved" style={{ minWidth: 84, justifyContent: "center" }}>Released</span>
+                <div>
+                  <strong>1. Payroll locked</strong>
+                  <p>The approved register is immutable and employee payslips are available.</p>
+                </div>
               </div>
-              <button className="secondary-button" onClick={() => setExportsOpen(true)}>Open exports</button>
+              <div className="exception-row" style={{ alignItems: "flex-start" }}>
+                <span className={`status ${postReleaseStatus?.state !== "released" ? "status-approved" : "status-review"}`} style={{ minWidth: 84, justifyContent: "center" }}>
+                  {postReleaseStatus?.state !== "released" ? "Generated" : "Next"}
+                </span>
+                <div>
+                  <strong>2. Final bank file</strong>
+                  <p>
+                    {postReleaseStatus?.bankFileGeneratedAt
+                      ? `${postReleaseStatus.bankFilename ?? "Final bank file"} generated ${displayReleaseTimestamp(postReleaseStatus.bankFileGeneratedAt)}.`
+                      : visibleReleaseReceipt.bankExport.label}
+                  </p>
+                </div>
+              </div>
+              <div className="exception-row" style={{ alignItems: "flex-start" }}>
+                <span className={`status ${postReleaseStatus?.state === "submitted" || postReleaseStatus?.state === "disbursed" ? "status-approved" : "status-review"}`} style={{ minWidth: 84, justifyContent: "center" }}>
+                  {postReleaseStatus?.state === "disbursed" ? "Disbursed" : postReleaseStatus?.state === "submitted" ? "Submitted" : "Pending"}
+                </span>
+                <div>
+                  <strong>3. Payout handoff</strong>
+                  <p>{postReleaseStatus?.detail ?? "Generate the bank file, then submit it through the approved payout channel."}</p>
+                  {postReleaseStatus?.latestFailure && <small className="red-number">Latest provider attempt: {postReleaseStatus.latestFailure}</small>}
+                </div>
+                <button className="secondary-button" onClick={() => setExportsOpen(true)}>Open exports</button>
+              </div>
             </div>
             <div className="exception-row" style={{ alignItems: "flex-start" }}>
               <span className={`status ${visibleReleaseReceipt.payslips.status === "ready" ? "status-approved" : "status-review"}`} style={{ minWidth: 72, justifyContent: "center" }}>
@@ -759,7 +786,7 @@ export function PayrollRunView({
             </article>
           )}
 
-          {exportsOpen && <ExportPanel run={run} templates={data.templates} notify={notify} onClose={() => setExportsOpen(false)} />}
+          {exportsOpen && <ExportPanel run={run} templates={data.templates} auditEvents={data.auditEvents} notify={notify} onRefresh={onRefresh} onClose={() => setExportsOpen(false)} />}
 
           {/* Register */}
           <div className="line-title" id="payroll-register">
