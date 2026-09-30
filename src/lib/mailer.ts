@@ -369,7 +369,9 @@ export async function retryOutboxMessage(id: number, organizationId: number) {
   return attemptOutboxDelivery(id);
 }
 
-export function outboxDisplayStatus(row: Pick<typeof outbox.$inferSelect, "status" | "attempts" | "sentAt">) {
+export function outboxDisplayStatus(
+  row: Pick<typeof outbox.$inferSelect, "status" | "attempts" | "sentAt">,
+): "queued" | "sending" | "sent" | "retried" | "failed" {
   if (row.status === "sent") return row.attempts > 1 ? "retried" : "sent";
   if (row.status === "in_flight" || row.status === "pending") return "sending";
   if (row.status === "failed") return "failed";
