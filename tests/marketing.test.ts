@@ -4,11 +4,16 @@ import { existsSync, readFileSync } from "node:fs";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("the root route owns the public payroll software landing page", () => {
+test("the root route always owns the public payroll software landing page", () => {
   const root = read("src/app/page.tsx");
+  const workspace = read("src/app/workspace/page.tsx");
   const welcome = read("src/app/welcome/page.tsx");
-  assert.ok(root.includes("SoftwareHome"), "signed-out root must render the product landing page");
+  assert.ok(root.includes("SoftwareHome"), "root must render the public product landing page");
+  assert.ok(!root.includes("getSessionUser"), "a signed-in session must not replace the public homepage");
   assert.ok(root.includes("Payroll Software Philippines"), "root metadata must target payroll software intent");
+  assert.ok(workspace.includes("getSessionUser"), "/workspace must own authenticated session routing");
+  assert.ok(workspace.includes('redirect("/login")'), "anonymous workspace visitors must be sent to sign in");
+  assert.ok(workspace.includes('user.role === "employee"'), "employee self-service must live under /workspace too");
   assert.ok(welcome.includes('permanentRedirect("/")'), "/welcome must redirect to the canonical root");
 });
 
@@ -121,6 +126,18 @@ test("employee sandbox supports instant persona switching without exposing other
   assert.ok(selfService.includes("/api/self/payslips"), "employee sandbox must stay on the self-scoped payslip API");
 });
 
+
+test("real workspace navigation keeps module colors and profile interaction", () => {
+  const shell = read("src/components/workspace/shell.tsx");
+  const css = read("src/app/workspace-theme.css");
+  assert.ok(shell.includes("data-tone={item.tone}"), "real workspace nav must expose each module tone");
+  assert.ok(css.includes('.nav-item[data-tone="green"]'), "green workspace navigation tint must exist");
+  assert.ok(css.includes('.nav-item[data-tone="purple"]'), "purple workspace navigation tint must exist");
+  assert.ok(css.includes('.nav-item[data-tone="red"]'), "red workspace navigation tint must exist");
+  assert.ok(shell.includes('className="side-profile"'), "profile control must remain interactive");
+  assert.ok(css.includes(".side-profile-avatar > i"), "profile avatar must keep its presence indicator");
+  assert.ok(!css.includes("background: #eeeeef;\n  color: #686d76;"), "avatar variants must not be flattened back to gray");
+});
 
 test("homepage simulation keeps colored module navigation and collapsible groups", () => {
   const preview = read("src/components/marketing/workspace-preview.tsx");
