@@ -16,7 +16,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
-import { buildPayrollHandoff, type PayrollHandoffStage } from "@/lib/payroll-handoff";
+import { buildPayrollHandoff, payrollHandoffRank, type PayrollHandoffStage } from "@/lib/payroll-handoff";
 import type { DashboardData, PayrollHandoffRunSummary, PayrollRun, Task } from "./types";
 import {
   Avatar,
@@ -61,7 +61,10 @@ export function RoleOverviewView({
       (!employee.tin || !employee.sssNo || !employee.philHealthNo || !employee.pagIbigNo),
   );
   const activeAdvisories = data.advisories.filter((advisory) => advisory.active);
-  const handoffRun = currentRun ?? data.payrollHandoffRun ?? undefined;
+  const handoffRun = selectRoleHandoffRun(data, currentRun, role);
+  const roleCurrentRun = handoffRun
+    ? data.payrollRuns.find((run) => run.id === handoffRun.id) ?? currentRun
+    : currentRun;
   const payrollApproval = handoffRun
     ? data.tasks
         .filter((task) => task.detail.includes(`Payroll run #${handoffRun.id}`))
@@ -72,10 +75,18 @@ export function RoleOverviewView({
     payrollExceptions: payrollExceptions.length,
     approvalTask: payrollApproval,
   });
+  const handoffAction = buildHandoffAction({
+    role,
+    run: handoffRun,
+    pendingLeave: pendingLeave.length,
+    attendanceIssues: attendanceIssues.length,
+    missingIds: peopleMissingGovernmentIds.length,
+    payrollExceptions: payrollExceptions.length,
+  });
 
   const common = {
     data,
-    currentRun,
+    currentRun: roleCurrentRun,
     handoffRun,
     firstName,
     activePeople,
@@ -119,6 +130,7 @@ type RoleDashboardProps = {
   peopleMissingGovernmentIds: DashboardData["employees"];
   activeAdvisories: DashboardData["advisories"];
   handoffStages: PayrollHandoffStage[];
+  handoffAction: HandoffAction;
   onPage: (page: string) => void;
   onNewRun: () => void;
 };
@@ -135,6 +147,7 @@ function OwnerDashboard(props: RoleDashboardProps) {
     peopleMissingGovernmentIds,
     activeAdvisories,
     handoffStages,
+    handoffAction,
     onPage,
     onNewRun,
   } = props;
@@ -183,6 +196,8 @@ function OwnerDashboard(props: RoleDashboardProps) {
         payDate={handoffRun?.payDate}
         viewerRole="owner"
       />
+
+      <HandoffActionBanner action={handoffAction} onPage={onPage} role="owner" />
 
       <section className="stats-grid">
         <Metric
@@ -288,6 +303,7 @@ function HrDashboard(props: RoleDashboardProps) {
     attendanceIssues,
     peopleMissingGovernmentIds,
     handoffStages,
+    handoffAction,
     onPage,
   } = props;
 
@@ -324,6 +340,8 @@ function HrDashboard(props: RoleDashboardProps) {
         payDate={handoffRun?.payDate}
         viewerRole="hr"
       />
+
+      <HandoffActionBanner action={handoffAction} onPage={onPage} role="hr" />
 
       <section className="stats-grid">
         <Metric label="Active people" value={String(activePeople.length)} hint={"of " + String(data.employees.length) + " employee records"} icon={<UsersRound size={16} />} tone="purple" />
@@ -410,6 +428,7 @@ function PayrollDashboard(props: RoleDashboardProps) {
     pendingRetro,
     attendanceIssues,
     handoffStages,
+    handoffAction,
     onPage,
     onNewRun,
   } = props;
@@ -461,6 +480,8 @@ function PayrollDashboard(props: RoleDashboardProps) {
         payDate={handoffRun?.payDate}
         viewerRole="payroll"
       />
+
+      <HandoffActionBanner action={handoffAction} onPage={onPage} role="payroll" />
 
       <section className="stats-grid">
         <Metric label="Run status" value={currentRun?.status ?? "No run"} hint={queueDone ? "calculation queue complete" : "calculation still in progress"} icon={<WalletCards size={16} />} tone={currentRun ? "blue" : "slate"} compact />
@@ -532,6 +553,7 @@ function CheckerDashboard(props: RoleDashboardProps) {
     highPriorityTasks,
     activeAdvisories,
     handoffStages,
+    handoffAction,
     onPage,
   } = props;
 
@@ -569,6 +591,8 @@ function CheckerDashboard(props: RoleDashboardProps) {
         viewerRole="checker"
       />
 
+      <HandoffActionBanner action={handoffAction} onPage={onPage} role="checker" />
+
       <section className="stats-grid">
         <Metric label="Assigned reviews" value={String(pendingTasks.length)} hint={pendingTasks.length ? "awaiting your decision" : "queue clear"} icon={<ClipboardCheck size={16} />} tone={pendingTasks.length ? "amber" : "mint"} />
         <Metric label="High priority" value={String(highPriorityTasks.length)} hint={highPriorityTasks.length ? "review these first" : "no urgent item"} icon={<AlertTriangle size={16} />} tone={highPriorityTasks.length ? "amber" : "mint"} />
@@ -597,6 +621,157 @@ function CheckerDashboard(props: RoleDashboardProps) {
         </RoleCard>
       </section>
     </>
+  );
+}
+
+
+type HandoffAction = {
+  title: string;
+  detail: string;
+  page?: string;
+  label?: string;
+  active: boolean;
+};
+
+function selectRoleHandoffRun(
+  data: DashboardData,
+  fallback: PayrollRun | undefined,
+  role: WorkspaceDashboardRole,
+): PayrollHandoffRunSummary | PayrollRun | undefined {
+  const live = data.payrollRuns.filter((run) => run.status !== "Released");
+  if (role === "checker") {
+    return live.find((run) => payrollHandoffRank(run.status) === 2) ?? fallback;
+  }
+  if (role === "owner") {
+    return live.find((run) => payrollHandoffRank(run.status) === 3) ?? fallback;
+  }
+  if (role === "payroll") {
+    return live.find((run) => payrollHandoffRank(run.status) === 1) ?? fallback;
+  }
+  return data.payrollHandoffRun ?? fallback;
+}
+
+function buildHandoffAction({
+  role,
+  run,
+  pendingLeave,
+  attendanceIssues,
+  missingIds,
+  payrollExceptions,
+}: {
+  role: WorkspaceDashboardRole;
+  run?: PayrollHandoffRunSummary | PayrollRun;
+  pendingLeave: number;
+  attendanceIssues: number;
+  missingIds: number;
+  payrollExceptions: number;
+}): HandoffAction {
+  const rank = payrollHandoffRank(run?.status);
+
+  if (role === "hr" && rank === 0) {
+    if (pendingLeave > 0) {
+      return {
+        title: `Review ${pendingLeave} leave request${pendingLeave === 1 ? "" : "s"}`,
+        detail: `Clear leave inputs before ${run?.periodLabel ?? "this payroll"} moves to Payroll.`,
+        page: "Leave",
+        label: "Review leave",
+        active: true,
+      };
+    }
+    if (attendanceIssues > 0) {
+      return {
+        title: `Resolve ${attendanceIssues} attendance issue${attendanceIssues === 1 ? "" : "s"}`,
+        detail: "Add the missing context before Payroll takes the cutoff.",
+        page: "Time & attendance",
+        label: "Fix attendance",
+        active: true,
+      };
+    }
+    if (missingIds > 0) {
+      return {
+        title: `Complete ${missingIds} employee record${missingIds === 1 ? "" : "s"}`,
+        detail: "Government filing IDs should be complete before the payroll handoff.",
+        page: "People",
+        label: "Open people",
+        active: true,
+      };
+    }
+  }
+
+  if (role === "payroll" && rank === 1) {
+    if (payrollExceptions > 0) {
+      return {
+        title: `Resolve ${payrollExceptions} payroll exception${payrollExceptions === 1 ? "" : "s"}`,
+        detail: `${run?.periodLabel ?? "This run"} must be clean enough for an independent checker review.`,
+        page: "Payroll",
+        label: "Review register",
+        active: true,
+      };
+    }
+    return {
+      title: `Submit ${run?.periodLabel ?? "payroll"} to Checker`,
+      detail: "The register has no visible exceptions. Choose an independent checker and hand off the run.",
+      page: "Payroll",
+      label: "Submit to checker",
+      active: true,
+    };
+  }
+
+  if (role === "checker" && rank === 2) {
+    return {
+      title: `Review ${run?.periodLabel ?? "submitted payroll"}`,
+      detail: "Inspect the evidence and record an independent approval or decline decision.",
+      page: "Approvals",
+      label: "Review payroll",
+      active: true,
+    };
+  }
+
+  if (role === "owner" && rank === 3) {
+    return {
+      title: `Release ${run?.periodLabel ?? "approved payroll"}`,
+      detail: "Checker approval is complete. Run the release checklist before employee payslips become available.",
+      page: "Payroll",
+      label: "Release payroll",
+      active: true,
+    };
+  }
+
+  const waitingCopy: Record<WorkspaceDashboardRole, string> = {
+    hr: "Payroll is currently owned by a later stage. HR has no payroll handoff action right now.",
+    payroll: "There is no payroll run currently waiting on the Payroll maker.",
+    checker: "No submitted payroll is waiting for an independent checker decision.",
+    owner: "No checker-approved payroll is waiting for Owner release.",
+  };
+  return {
+    title: "No handoff action required",
+    detail: waitingCopy[role],
+    active: false,
+  };
+}
+
+function HandoffActionBanner({
+  action,
+  onPage,
+  role,
+}: {
+  action: HandoffAction;
+  onPage: (page: string) => void;
+  role: WorkspaceDashboardRole;
+}) {
+  return (
+    <section className={"handoff-next-action " + (action.active ? "active " : "waiting ") + role} data-handoff-action={role}>
+      <div>
+        <span className="card-kicker">{action.active ? "NEXT ACTION" : "HANDOFF STATUS"}</span>
+        <h3>{action.title}</h3>
+        <p>{action.detail}</p>
+      </div>
+      {action.active && action.page && action.label && (
+        <button className="primary-button brand" onClick={() => onPage(action.page!)}>
+          {action.label} <ArrowRight size={13} />
+        </button>
+      )}
+    </section>
   );
 }
 
