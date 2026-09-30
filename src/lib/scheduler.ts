@@ -2,6 +2,7 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { schedulerState } from "@/db/schema";
 import { drainWebhookRetries } from "@/lib/webhooks";
+import { drainDueOutboxRetries } from "@/lib/mailer";
 
 const MIN_INTERVAL_MS = 30_000;
 
@@ -17,11 +18,20 @@ export async function tickScheduler(force = false) {
     return { skipped: true as const, reason: "interval", lastRunAt: row.lastRunAt };
   }
 
-  const results = await drainWebhookRetries(25);
+  const [webhookResults, mailResults] = await Promise.all([
+    drainWebhookRetries(25),
+    drainDueOutboxRetries(25),
+  ]);
   const payload = {
-    drained: results.length,
+    drained: webhookResults.length,
+    emailRetries: {
+      attempted: mailResults.attempted,
+      sent: mailResults.sent,
+      failed: mailResults.failed,
+      skipped: mailResults.skipped,
+    },
     at: now.toISOString(),
-    results: results.slice(0, 10),
+    results: webhookResults.slice(0, 10),
   };
 
   if (row) {
