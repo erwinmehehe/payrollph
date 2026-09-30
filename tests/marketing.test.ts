@@ -216,8 +216,12 @@ test("homepage navigation exposes the real public site", () => {
   for (const route of ["/demo", "/payroll-outsourcing", "/scorecard"]) {
     assert.ok(publicNavigation.includes(`href: "${route}"`), `shared primary nav must expose ${route}`);
   }
-  assert.ok(!publicNavigation.includes('label: "Calculator"'), "calculator should not compete in primary navigation");
-  assert.ok(!publicNavigation.includes('label: "Security"'), "security should not compete in primary navigation");
+  const primaryNavigation = publicNavigation.slice(
+    publicNavigation.indexOf("PUBLIC_PRIMARY_LINKS"),
+    publicNavigation.indexOf("PUBLIC_FOOTER_GROUPS"),
+  );
+  assert.ok(!primaryNavigation.includes('label: "Calculator"'), "calculator should not compete in primary navigation");
+  assert.ok(!primaryNavigation.includes('label: "Security"'), "security should not compete in primary navigation");
   assert.ok(!home.includes("<Benchmarks />"), "benchmarks should not clutter the homepage");
   assert.ok(!home.includes("<Scorecard />"), "scorecard should live on its dedicated route");
   assert.ok(!home.includes("<Developers />"), "developer detail should not clutter the buyer homepage");
