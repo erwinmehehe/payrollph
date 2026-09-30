@@ -1,9 +1,18 @@
+import type { Metadata } from "next";
 import { desc } from "drizzle-orm";
+import { Activity, Clock3, Database, ShieldCheck } from "lucide-react";
 import { db } from "@/db";
 import { healthSnapshots } from "@/db/schema";
 import { currentStatusLabel, summarizeUptime } from "@/lib/status";
+import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "System Status | Linaw",
+  description: "Live health history and database round-trip status for this Linaw deployment.",
+  alternates: { canonical: "/status" },
+};
 
 export default async function StatusPage() {
   let rows: Array<{ ok: boolean; latencyMs: number; createdAt: Date }> = [];
@@ -12,52 +21,107 @@ export default async function StatusPage() {
   } catch {
     rows = [];
   }
-  // All windowing/percentage math lives in src/lib/status.ts so this render
-  // stays pure and the /api/status route reports identical numbers.
+
   const uptime = summarizeUptime(rows);
   const latest = rows[0];
   const status = currentStatusLabel(latest);
+  const healthy = latest?.ok ?? false;
 
   return (
-    <main className="content-area" style={{ maxWidth: 820 }}>
-      <p className="eyebrow">PUBLIC STATUS</p>
-      <h1 style={{ letterSpacing: "-.04em" }}>Linaw uptime</h1>
-      <p className="heading-copy">Recorded from live `/api/health` checks against this instance. Not a third-party status-page vendor.</p>
+    <div className="min-h-screen bg-white text-[#0B0D1A]">
+      <SiteNav />
 
-      <section className="stats-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)", marginTop: 24 }}>
-        <article className="stat-card">
-          <p>CURRENT</p>
-          <h3>{status.label}</h3>
-          <span>{latest ? `${latest.latencyMs} ms · ${new Date(latest.createdAt).toLocaleString("en-PH")}` : "Call /api/health to start history"}</span>
-        </article>
-        <article className="stat-card">
-          <p>24H UPTIME</p>
-          <h3>{uptime.uptimeLabel}</h3>
-          <span>{uptime.samples} samples in window · median {uptime.medianLatencyMs ?? "-"} ms</span>
-        </article>
-        <article className="stat-card">
-          <p>SCHEDULER</p>
-          <h3>Opportunistic</h3>
-          <span>Webhook drain ticks from health checks, not a dedicated cron</span>
-        </article>
-      </section>
+      <main>
+        <section className="border-b border-[#EDEFF7] bg-[#FAFBFD] py-14 sm:py-18">
+          <div className="mx-auto max-w-[1040px] px-5 sm:px-8">
+            <span className={`inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-[12px] font-bold ${
+              healthy ? "bg-[#E3FAF0] text-[#0A8A53]" : "bg-[#FFF4D6] text-[#9A6B00]"
+            }`}>
+              <ShieldCheck size={14} />
+              {status.label}
+            </span>
+            <h1 className="font-display mt-5 text-[42px] font-semibold tracking-[-0.045em] sm:text-[56px]">Linaw system status.</h1>
+            <p className="mt-4 max-w-[700px] text-[15px] leading-relaxed text-[#5B6080]">
+              Recorded from live <span className="mono">/api/health</span> checks against this deployment. This is Linaw&apos;s own
+              recorded health history, not a third-party status-page estimate.
+            </p>
 
-      <article className="card" style={{ marginTop: 20 }}>
-        <div className="card-header"><div><div className="card-kicker">RECENT CHECKS</div><h2>Newest first</h2></div></div>
-        <div className="audit-list">
-          {rows.length === 0 && <div className="empty-state">No snapshots yet.</div>}
-          {rows.map((row, index) => (
-            <div className="audit-row" key={`${row.createdAt}-${index}`}>
-              <span className="audit-dot">{row.ok ? "●" : "!"}</span>
-              <div>
-                <strong>{row.ok ? "Healthy" : "Failed"}</strong>
-                <p>{row.latencyMs} ms database round-trip</p>
-              </div>
-              <time>{new Date(row.createdAt).toLocaleString("en-PH")}</time>
+            <div className="mt-8 grid gap-4 sm:grid-cols-3">
+              {[
+                {
+                  icon: Activity,
+                  label: "Current",
+                  value: status.label,
+                  detail: latest
+                    ? `${latest.latencyMs} ms · ${new Date(latest.createdAt).toLocaleString("en-PH")}`
+                    : "No health snapshot recorded yet",
+                  tone: "bg-[#E3FAF0] text-[#0A8A53]",
+                },
+                {
+                  icon: Clock3,
+                  label: "24h uptime",
+                  value: uptime.uptimeLabel,
+                  detail: `${uptime.samples} samples · median ${uptime.medianLatencyMs ?? "-"} ms`,
+                  tone: "bg-[#ECECFF] text-[#4A4AE0]",
+                },
+                {
+                  icon: Database,
+                  label: "Scheduler",
+                  value: "Opportunistic",
+                  detail: "Webhook drain ticks from health checks, not a dedicated cron",
+                  tone: "bg-[#E0F7FA] text-[#00838F]",
+                },
+              ].map(({ icon: Icon, label, value, detail, tone }) => (
+                <article key={label} className="rounded-[22px] border border-[#E2E4F0] bg-white p-5">
+                  <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${tone}`}>
+                    <Icon size={17} />
+                  </span>
+                  <p className="mt-4 text-[10px] font-bold uppercase tracking-[0.13em] text-[#9298AF]">{label}</p>
+                  <strong className="font-display mt-1 block text-[23px] font-semibold tracking-[-0.03em]">{value}</strong>
+                  <p className="mt-2 text-[12px] leading-relaxed text-[#6B718C]">{detail}</p>
+                </article>
+              ))}
             </div>
-          ))}
-        </div>
-      </article>
-    </main>
+          </div>
+        </section>
+
+        <section className="py-14 sm:py-16">
+          <div className="mx-auto max-w-[1040px] px-5 sm:px-8">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Recent checks</p>
+                <h2 className="font-display mt-2 text-[30px] font-semibold tracking-[-0.035em]">Newest first.</h2>
+              </div>
+              <span className="mono text-[11px] text-[#8B90AA]">{rows.length} snapshots</span>
+            </div>
+
+            <div className="mt-6 overflow-hidden rounded-[24px] border border-[#E2E4F0] bg-white">
+              {rows.length === 0 ? (
+                <div className="p-8 text-center text-[14px] text-[#7C82A1]">No snapshots yet. The next health check will start the history.</div>
+              ) : (
+                <div className="divide-y divide-[#EDEFF7]">
+                  {rows.map((row, index) => (
+                    <div key={`${row.createdAt}-${index}`} className="grid gap-3 px-5 py-4 sm:grid-cols-[auto_1fr_auto] sm:items-center">
+                      <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${
+                        row.ok ? "bg-[#E3FAF0] text-[#0A8A53]" : "bg-[#FFF0F2] text-[#C83250]"
+                      }`}>
+                        {row.ok ? "●" : "!"}
+                      </span>
+                      <div>
+                        <strong className="text-[13.5px] font-semibold">{row.ok ? "Healthy" : "Failed"}</strong>
+                        <p className="mt-0.5 text-[12px] text-[#7C82A1]">{row.latencyMs} ms database round-trip</p>
+                      </div>
+                      <time className="mono text-[11px] text-[#8B90AA]">{new Date(row.createdAt).toLocaleString("en-PH")}</time>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <SiteFooter />
+    </div>
   );
 }
