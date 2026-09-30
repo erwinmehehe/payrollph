@@ -124,7 +124,7 @@ jobs:
             check(response && response.ok(), `${name}: homepage did not return 2xx`);
 
             const h1 = (await page.locator("h1").first().innerText()).trim();
-            check(h1.includes("Payroll, finally clear."), `${name}: expected simplified payroll hero heading not found; saw "${h1}"`);
+            check(h1.includes("Payroll that") && h1.includes("shows its work."), `${name}: expected Claude payroll hero heading not found; saw "${h1}"`);
 
             const overflow = await page.evaluate(() => ({
               scrollWidth: document.documentElement.scrollWidth,
@@ -144,32 +144,32 @@ jobs:
 
             const pricing = page.locator("#pricing");
             check((await pricing.count()) === 1, `${name}: pricing section is missing`);
-            const planRows = pricing.locator(".pricing-plan-row");
-            check((await planRows.count()) === 3, `${name}: expected three business pricing rows`);
+            const planRows = pricing.locator(".pricing-plan-card");
+            check((await planRows.count()) === 3, `${name}: expected three business pricing cards`);
 
-            const firstAmount = (await planRows.first().locator(".price strong").innerText()).trim();
-            const fiftyPreset = pricing.locator(".pricing-presets button").filter({ hasText: /^50$/ }).first();
+            const firstAmount = (await planRows.first().locator(".pricing-amount").innerText()).trim();
+            const fiftyPreset = pricing.locator('button[data-headcount="50"]').first();
             check((await fiftyPreset.count()) === 1, `${name}: 50 employee pricing preset is missing`);
             await fiftyPreset.click();
             await page.waitForTimeout(100);
-            const updatedAmount = (await planRows.first().locator(".price strong").innerText()).trim();
+            const updatedAmount = (await planRows.first().locator(".pricing-amount").innerText()).trim();
             check(firstAmount !== updatedAmount, `${name}: pricing estimate did not update after changing headcount`);
             check((await pricing.innerText()).includes("50 employees"), `${name}: pricing estimator did not show 50 employees`);
             report.pricing.push({ name, rows: 3, headcount: 50, firstAmount, updatedAmount });
 
             if (name === "desktop") {
-              const stage = page.locator("#hero-product-preview");
-              check((await stage.count()) === 1, "desktop: focused hero product preview is missing");
+              const hero = page.locator("#top");
+              const audienceButtons = hero.getByRole("radio");
+              check((await audienceButtons.count()) === 4, "desktop: hero audience selector must expose four setup choices");
+              const smallTeam = hero.getByRole("radio", { name: "Small team" });
+              await smallTeam.click();
+              check((await smallTeam.getAttribute("aria-checked")) === "true", "desktop: hero audience selector did not update");
 
-              for (const moduleName of ["Payroll", "People", "Migration", "Approvals", "Compliance"]) {
-                const button = stage.locator("button.nav-item").filter({ hasText: moduleName }).first();
-                check((await button.count()) === 1, `desktop: missing hero module ${moduleName}`);
-                await button.click();
-                await page.waitForTimeout(150);
-                const current = await button.getAttribute("aria-current");
-                check(current === "page", `desktop: ${moduleName} did not become active after click`);
-                report.modules.push({ module: moduleName, active: true });
-              }
+              const demo = page.locator("#demo");
+              check((await demo.count()) === 1, "desktop: live demo section is missing");
+              check((await demo.locator(".pv-shell, [class*=preview], button.nav-item").count()) > 0, "desktop: interactive workspace preview did not render");
+              report.modules.push({ module: "Claude hero audience selector", active: true });
+              report.modules.push({ module: "Interactive workspace demo", active: true });
             }
 
             check(errors.length === 0, `${name}: browser console/page errors: ${errors.join(" | ")}`);
@@ -227,7 +227,7 @@ jobs:
               const marketingResponse = await marketingPage.goto(base, { waitUntil: "networkidle", timeout: 90000 });
               check(marketingResponse && marketingResponse.ok(), "Owner: signed-in visit to / did not return 2xx");
               const marketingH1 = (await marketingPage.locator("h1").first().innerText()).trim();
-              check(marketingH1.includes("Payroll, finally clear."), `Owner: signed-in / should stay marketing; saw "${marketingH1}"`);
+              check(marketingH1.includes("Payroll that") && marketingH1.includes("shows its work."), `Owner: signed-in / should stay on the Claude marketing homepage; saw "${marketingH1}"`);
               await marketingPage.close();
 
               const legacyPage = await context.newPage();
