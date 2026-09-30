@@ -935,6 +935,9 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
     canRetry: boolean;
     lastAttemptAt?: string | null;
     providerMessageId?: string | null;
+    deliveryStatus?: string | null;
+    deliveryEventAt?: string | null;
+    deliveryDetail?: string | null;
     runId?: number | null;
     employeeId?: number | null;
     periodLabel?: string | null;
@@ -945,7 +948,7 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
   const [loaded, setLoaded] = useState(false);
   const [provider, setProvider] = useState("none");
   const [deliveryCapable, setDeliveryCapable] = useState(false);
-  const [summary, setSummary] = useState({ queued: 0, pending: 0, sent: 0, failed: 0, retried: 0 });
+  const [summary, setSummary] = useState({ queued: 0, pending: 0, sent: 0, failed: 0, retried: 0, delivered: 0, deliveryIssues: 0 });
   const [retrying, setRetrying] = useState<number | null>(null);
   const [nonce, setNonce] = useState(0);
 
@@ -960,7 +963,7 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
           setMessages(next);
           setProvider(payload.provider ?? "none");
           setDeliveryCapable(Boolean(payload.deliveryCapable));
-          setSummary(payload.summary ?? { queued: 0, pending: 0, sent: 0, failed: 0, retried: 0 });
+          setSummary(payload.summary ?? { queued: 0, pending: 0, sent: 0, failed: 0, retried: 0, delivered: 0, deliveryIssues: 0 });
           setSelectedMsg((current) =>
             current ? next.find((item) => item.id === current.id) ?? next[0] ?? null : next[0] ?? null
           );
@@ -999,12 +1002,15 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
     }
   }
 
-  const statusTone = (message: OutboxMessage) =>
-    message.status === "sent"
-      ? "status-approved"
-      : message.status === "failed"
-        ? "status-declined"
-        : "status-review";
+  const statusTone = (message: OutboxMessage) => {
+    if (["bounced", "complained", "failed", "suppressed"].includes(message.deliveryStatus ?? "")) {
+      return "status-declined";
+    }
+    if (message.deliveryStatus === "delivered") return "status-approved";
+    if (message.status === "sent") return "status-approved";
+    if (message.status === "failed") return "status-declined";
+    return "status-review";
+  };
 
   return (
     <div className="modal-backdrop" role="presentation">
@@ -1019,9 +1025,9 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
         </p>
 
         <div className="run-stats" style={{ margin: "14px 0" }}>
-          <div><span>Sent</span><strong className="green-number">{summary.sent}</strong><small>{summary.retried} retried message(s)</small></div>
+          <div><span>Delivered</span><strong className="green-number">{summary.delivered}</strong><small>{summary.sent} accepted by provider</small></div>
           <div><span>Queued</span><strong>{summary.queued + summary.pending}</strong><small>{summary.pending} currently sending</small></div>
-          <div><span>Failed</span><strong style={{ color: summary.failed ? "var(--danger)" : undefined }}>{summary.failed}</strong><small>eligible rows show Retry</small></div>
+          <div><span>Needs attention</span><strong style={{ color: summary.failed + summary.deliveryIssues ? "var(--danger)" : undefined }}>{summary.failed + summary.deliveryIssues}</strong><small>{summary.deliveryIssues} provider delivery issue(s)</small></div>
         </div>
 
         <div className={`notice ${deliveryCapable ? "notice-blue" : "notice-amber"}`} style={{ margin: "0 0 14px" }}>
@@ -1102,13 +1108,21 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
                 <div style={{ fontSize: 11.5, color: "var(--ink-secondary)", display: "grid", gap: 5 }}>
                   <span>Queued: <strong>{formatTime(selectedMsg.createdAt)}</strong></span>
                   {selectedMsg.lastAttemptAt && <span>Last attempt: <strong>{formatTime(selectedMsg.lastAttemptAt)}</strong></span>}
-                  {selectedMsg.sentAt && <span>Sent: <strong>{formatTime(selectedMsg.sentAt)}</strong></span>}
+                  {selectedMsg.sentAt && <span>Provider accepted: <strong>{formatTime(selectedMsg.sentAt)}</strong></span>}
+                  {selectedMsg.deliveryEventAt && <span>Latest provider event: <strong>{formatTime(selectedMsg.deliveryEventAt)}</strong></span>}
+                  {selectedMsg.deliveryStatus && <span>Delivery outcome: <strong>{selectedMsg.deliveryStatus}</strong></span>}
                   {selectedMsg.providerMessageId && <span>Provider ID: <span className="mono">{selectedMsg.providerMessageId}</span></span>}
                 </div>
 
                 {selectedMsg.error && (
                   <div className="notice notice-red" style={{ margin: 0 }}>
-                    <span><strong>Last delivery error:</strong> {selectedMsg.error}</span>
+                    <span><strong>Last send error:</strong> {selectedMsg.error}</span>
+                  </div>
+                )}
+
+                {selectedMsg.deliveryDetail && (
+                  <div className="notice notice-red" style={{ margin: 0 }}>
+                    <span><strong>Provider delivery detail:</strong> {selectedMsg.deliveryDetail}</span>
                   </div>
                 )}
 

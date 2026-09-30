@@ -87,6 +87,11 @@ async function attemptDelivery(providerName: MailProvider, row: OutboxRow): Prom
         to: [row.recipient],
         subject: row.subject,
         text: row.body,
+        tags: [
+          { name: "app", value: "linaw" },
+          { name: "outbox_id", value: String(row.id) },
+          { name: "purpose", value: row.purpose.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 256) },
+        ],
       }),
     });
     if (!response.ok) return { ok: false, error: `Resend HTTP ${response.status}` };
@@ -110,6 +115,11 @@ async function attemptDelivery(providerName: MailProvider, row: OutboxRow): Prom
         Subject: row.subject,
         TextBody: row.body,
         MessageStream: "outbound",
+        Metadata: {
+          app: "linaw",
+          outbox_id: String(row.id),
+          purpose: row.purpose,
+        },
       }),
     });
     if (!response.ok) return { ok: false, error: `Postmark HTTP ${response.status}` };
@@ -378,8 +388,16 @@ function auditMetadata(event: typeof auditEvents.$inferSelect) {
     : {};
 }
 
-function stateLabel(row: OutboxRow, retryCount: number) {
-  if (row.status === "sent") return retryCount > 0 ? "Sent after retry" : "Sent";
+function stateLabel(row: OutboxRow, retryCount: number, deliveryStatus?: string | null) {
+  if (row.status === "sent") {
+    if (deliveryStatus === "delivered") return "Delivered";
+    if (deliveryStatus === "delayed") return "Delivery delayed";
+    if (deliveryStatus === "bounced") return "Bounced";
+    if (deliveryStatus === "complained") return "Complaint";
+    if (deliveryStatus === "failed") return "Provider failed";
+    if (deliveryStatus === "suppressed") return "Suppressed";
+    return retryCount > 0 ? "Sent after retry" : "Sent";
+  }
   if (row.status === "failed") return retryCount > 0 ? "Retry failed" : "Failed";
   if (row.status === "pending") return "Sending";
   if (row.status === "queued") return retryCount > 0 ? "Queued for retry" : "Queued";
@@ -398,6 +416,61 @@ export async function recentOutbox(limit = 25, organizationId?: number) {
   return db.select().from(outbox).orderBy(desc(outbox.id)).limit(limit);
 }
 
+export async function recordEmailProviderEvent(input: {
+  provider: "resend" | "postmark";
+  eventId: string;
+  outboxId: number;
+  providerMessageId: string;
+  eventType: string;
+  deliveryStatus: string;
+  occurredAt: string;
+  detail?: string | null;
+}) {
+  const [row] = await db
+    .select()
+    .from(outbox)
+    .where(eq(outbox.id, input.outboxId))
+    .limit(1);
+
+  if (!row || row.provider !== input.provider) {
+    return { matched: false as const, duplicate: false as const };
+  }
+
+  const events = await db
+    .select()
+    .from(auditEvents)
+    .where(eq(auditEvents.action, "Email provider delivery event"))
+    .orderBy(desc(auditEvents.createdAt), desc(auditEvents.id))
+    .limit(500);
+
+  const duplicate = events.some((event) => {
+    const metadata = auditMetadata(event);
+    return metadata.provider === input.provider && metadata.eventId === input.eventId;
+  });
+  if (duplicate) {
+    return { matched: true as const, duplicate: true as const, outboxId: row.id };
+  }
+
+  await writeMailAudit({
+    organizationId: row.organizationId,
+    actor: `system:${input.provider}-webhook`,
+    action: "Email provider delivery event",
+    outboxId: row.id,
+    purpose: row.purpose,
+    metadata: {
+      provider: input.provider,
+      eventId: input.eventId,
+      providerMessageId: input.providerMessageId,
+      eventType: input.eventType,
+      deliveryStatus: input.deliveryStatus,
+      occurredAt: input.occurredAt,
+      detail: input.detail ?? null,
+    },
+  });
+
+  return { matched: true as const, duplicate: false as const, outboxId: row.id };
+}
+
 export async function recentOutboxWithAttempts(limit = 50, organizationId: number) {
   const rows = await recentOutbox(limit, organizationId);
   if (rows.length === 0) return [];
@@ -411,6 +484,7 @@ export async function recentOutboxWithAttempts(limit = 50, organizationId: numbe
         "Outbox message queued",
         "Outbox delivery attempted",
         "Outbox delivery retried",
+        "Email provider delivery event",
       ]),
     ))
     .orderBy(desc(auditEvents.createdAt), desc(auditEvents.id));
@@ -422,22 +496,30 @@ export async function recentOutboxWithAttempts(limit = 50, organizationId: numbe
       event.action === "Outbox delivery attempted" || event.action === "Outbox delivery retried"
     );
     const queueEvent = rowEvents.find((event) => event.action === "Outbox message queued");
+    const providerEvent = rowEvents.find((event) => event.action === "Email provider delivery event");
     const context = queueEvent ? auditMetadata(queueEvent) : {};
     const lastAttempt = attemptEvents[0];
     const lastAttemptMeta = lastAttempt ? auditMetadata(lastAttempt) : {};
+    const providerEventMeta = providerEvent ? auditMetadata(providerEvent) : {};
+    const deliveryStatus = typeof providerEventMeta.deliveryStatus === "string"
+      ? providerEventMeta.deliveryStatus
+      : null;
 
     return {
       ...row,
       body: undefined,
       retryCount: retryEvents.length,
       attemptCount: attemptEvents.length,
-      stateLabel: stateLabel(row, retryEvents.length),
+      stateLabel: stateLabel(row, retryEvents.length, deliveryStatus),
       canRetry: canRetryStoredMessage(row),
       lastAttemptAt: lastAttempt?.createdAt ?? null,
       providerMessageId:
         typeof lastAttemptMeta.providerMessageId === "string"
           ? lastAttemptMeta.providerMessageId
           : null,
+      deliveryStatus,
+      deliveryEventAt: providerEvent?.createdAt ?? null,
+      deliveryDetail: typeof providerEventMeta.detail === "string" ? providerEventMeta.detail : null,
       runId: Number.isFinite(Number(context.runId)) ? Number(context.runId) : null,
       employeeId: Number.isFinite(Number(context.employeeId)) ? Number(context.employeeId) : null,
       periodLabel: typeof context.periodLabel === "string" ? context.periodLabel : null,
