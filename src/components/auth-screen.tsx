@@ -97,6 +97,7 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
           <div className="mt-7 grid gap-3">
             {[
               [ShieldCheck, "Role-based access", "Owner, HR, Payroll, Checker and Employee permissions remain separate."],
+              [ShieldCheck, "Distributed rate limiting", "Authentication limits are enforced through the distributed limiter across app instances."],
               [LockKeyhole, "Revocable sessions", "Sessions are created server-side and can be invalidated from the workspace."],
               [KeyRound, "TOTP when enabled", "Accounts with TOTP enabled complete the second factor before a session is created."],
             ].map(([Icon, title, copy]) => {
