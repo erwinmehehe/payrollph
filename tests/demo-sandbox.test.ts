@@ -355,16 +355,23 @@ test("public demo provisioning retries transient failures without exposing diagn
 });
 
 
-test("production Vercel project enables the public sandbox regardless of alias", () => {
-  const route = read("src/app/api/auth/demo-switch/route.ts");
-  assert.ok(
-    route.includes('(process.env.VERCEL_ENV ?? "").trim().toLowerCase() === "production"'),
-    "production Vercel deployments must not depend on a hardcoded hostname",
-  );
-  assert.ok(
-    route.indexOf('VERCEL_ENV ?? "").trim().toLowerCase() === "production"')
-      < route.indexOf("publicDemoHostAllowed(hostname"),
-    "production Vercel allowance must happen before hostname fallback",
+test("production Vercel aliases are accepted from forwarded host plus deployment metadata", () => {
+  const request = new Request("http://127.0.0.1/api/auth/demo-switch", {
+    method: "POST",
+    headers: {
+      host: "127.0.0.1",
+      "x-forwarded-host": "new-payrollph-production.vercel.app",
+    },
+  });
+
+  assert.equal(
+    publicDemoRequestAllowed(request, {
+      vercelEnv: "production",
+      vercelUrl: "new-payrollph-production.vercel.app",
+      vercelProductionUrl: "canonical-payrollph.vercel.app",
+    }),
+    true,
+    "production Vercel aliases must not depend on request.url exposing the public hostname",
   );
 });
 
