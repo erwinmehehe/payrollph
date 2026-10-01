@@ -798,7 +798,7 @@ a { color: inherit; text-decoration: none; }
 
 .status-released, .status-ready, .status-active, .status-approved, .status-tested, .status-verified,
 .status-refund, .status-balanced, .status-delivered, .status-ready-for-release, .status-sent, .status-complete,
-.status-green, .status-paid {
+.status-green, .status-paid, .status-accepted {
   color: var(--success); background: var(--success-bg); border-color: var(--success-border);
 }
 .status-needs-review, .status-2-exceptions, .status-incomplete-punch, .status-manager-check,
@@ -814,7 +814,7 @@ a { color: inherit; text-decoration: none; }
   color: var(--delegate); background: var(--delegate-bg); border-color: var(--delegate-border);
 }
 .status-on-leave, .status-discliplinary-review, .status-disciplinary-review, .status-separating,
-.status-failed, .status-exhausted, .status-blocked, .status-absent, .status-overdue {
+.status-failed, .status-rejected, .status-exhausted, .status-blocked, .status-absent, .status-overdue {
   color: var(--danger); background: var(--danger-bg); border-color: var(--danger-border);
 }
 .status-credential-required, .status-not-configured, .status-planned, .status-none, .status-unknown {
