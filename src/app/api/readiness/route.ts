@@ -20,18 +20,7 @@ type Gate = { key: string; label: string; ready: boolean; detail: string; blocks
 const configured = (name: string) => Boolean(process.env[name]);
 const enabled = (name: string) => process.env[name] === "true";
 
-export async function GET(request: Request) {
-  if (process.env.NODE_ENV === "production") {
-    const expected = process.env.READINESS_TOKEN ?? process.env.WORKER_TOKEN;
-    if (!expected) {
-      return Response.json({ error: "Readiness diagnostics are disabled until READINESS_TOKEN or WORKER_TOKEN is configured." }, { status: 503 });
-    }
-    const supplied = request.headers.get("x-readiness-token") ?? request.headers.get("x-worker-token");
-    if (!constantTimeSecretEqual(supplied, expected)) {
-      return Response.json({ error: "A valid readiness token is required." }, { status: 401 });
-    }
-  }
-
+export async function buildReadinessPayload() {
   const [{ value: userCount }] = await db.select({ value: count() }).from(users);
   const [{ value: queuedMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "queued"));
   const [{ value: sentMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "sent"));
@@ -110,9 +99,7 @@ export async function GET(request: Request) {
     process.env.NODE_ENV !== "production" ||
     (
       /^https:\/\//i.test(appBaseUrl) &&
-      configured("WORKER_TOKEN") &&
-      configured("TOTP_ENCRYPTION_KEY") &&
-      configured("READINESS_TOKEN")
+      configured("TOTP_ENCRYPTION_KEY")
     );
 
   const gates: Gate[] = [
@@ -121,9 +108,27 @@ export async function GET(request: Request) {
       label: "Production security configuration",
       ready: productionSecurityConfigured,
       detail: productionSecurityConfigured
-        ? "Canonical HTTPS origin, worker token, TOTP encryption key and readiness token are configured."
-        : "Configure HTTPS APP_BASE_URL, WORKER_TOKEN, TOTP_ENCRYPTION_KEY and READINESS_TOKEN before production launch.",
+        ? "Canonical HTTPS origin and the TOTP encryption key are configured. Optional operator endpoints may remain fail-closed."
+        : "Configure HTTPS APP_BASE_URL and TOTP_ENCRYPTION_KEY before production launch.",
       blocks: productionSecurityConfigured ? "none" : "launch",
+    },
+    {
+      key: "readiness-diagnostics-token",
+      label: "Detailed readiness diagnostics token",
+      ready: configured("READINESS_TOKEN"),
+      detail: configured("READINESS_TOKEN")
+        ? "Detailed readiness diagnostics are protected by a dedicated token."
+        : "Detailed readiness diagnostics remain disabled with HTTP 503. The sanitized pilot-status endpoint can still verify launch state without exposing gate details.",
+      blocks: "none",
+    },
+    {
+      key: "remote-scheduler-token",
+      label: "Remote scheduler token",
+      ready: configured("WORKER_TOKEN"),
+      detail: configured("WORKER_TOKEN")
+        ? "The remote scheduler trigger is protected by a worker token."
+        : "The remote scheduler trigger remains disabled with HTTP 503. Payroll processing and the dedicated worker do not depend on this endpoint.",
+      blocks: "scale",
     },
     {
       key: "review-credential",
@@ -275,7 +280,7 @@ export async function GET(request: Request) {
   const scaleBlockers = gates.filter((gate) => gate.blocks === "scale" && !gate.ready);
   const unworkaroundableBlockers = launchBlockers.filter((gate) => !gate.manualWorkaround);
 
-  return Response.json({
+  return {
     status: launchBlockers.length === 0 ? "launch-ready" : "not-launch-ready",
     launchBlockersRemaining: launchBlockers.length,
     scaleGapsRemaining: scaleBlockers.length,
@@ -293,5 +298,25 @@ export async function GET(request: Request) {
     gates,
     counts: { users: userCount, queuedMail, sentMail, failedMail, paidInvoices, activeSubs, paymongoPreflightPasses, plaintextBankAccounts, plaintextBankSnapshots },
     generatedAt: new Date().toISOString(),
+  };
+}
+
+export async function GET(request: Request) {
+  if (process.env.NODE_ENV === "production") {
+    const expected = process.env.READINESS_TOKEN ?? process.env.WORKER_TOKEN;
+    if (!expected) {
+      return Response.json(
+        { error: "Readiness diagnostics are disabled until READINESS_TOKEN or WORKER_TOKEN is configured." },
+        { status: 503 },
+      );
+    }
+    const supplied = request.headers.get("x-readiness-token") ?? request.headers.get("x-worker-token");
+    if (!constantTimeSecretEqual(supplied, expected)) {
+      return Response.json({ error: "A valid readiness token is required." }, { status: 401 });
+    }
+  }
+
+  return Response.json(await buildReadinessPayload(), {
+    headers: { "Cache-Control": "no-store" },
   });
 }
