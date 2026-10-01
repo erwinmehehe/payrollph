@@ -1,3 +1,4 @@
+import { operationalSecretSource } from "../src/lib/operational-secret";
 import { Buffer } from "node:buffer";
 
 type Check = { key: string; ok: boolean; detail: string };
