@@ -193,6 +193,7 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
                     />
                     <button
                       type="button"
+                      data-testid="password-visibility"
                       aria-label={showPassword ? "Hide password" : "Show password"}
                       onClick={() => setShowPassword((value) => !value)}
                       className="absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-[#858BA0] hover:bg-[#F3F4F8] hover:text-[#4E5368]"
