@@ -229,3 +229,15 @@ test("homepage navigation exposes the real public site", () => {
   assert.ok(publicNavigation.includes('{ label: "System status", href: "/status" }'), "footer must link to the system status route");
   assert.ok(publicNavigation.includes('{ label: "Book a demo", href: "/book-demo" }'), "footer must link to booking");
 });
+
+
+test("login auth screen stays focused and product-consistent", () => {
+  const auth = read("src/components/auth-screen.tsx");
+  assert.ok(auth.includes("Sign in to Linaw."));
+  assert.ok(auth.includes("Welcome back."));
+  assert.ok(auth.includes('bg-[#6161FF]'), "login primary action must use Linaw indigo");
+  assert.ok(auth.includes("Show password") && auth.includes("Hide password"), "login should expose a password visibility control");
+  assert.ok(auth.includes("lg:order-2"), "login form must be mobile-first and move to the right only on desktop");
+  assert.ok(!auth.includes("Distributed rate limiting"), "login should not read like a security marketing page");
+  assert.ok(!auth.includes("rounded-[22px] bg-[#11141F]"), "login should not keep the old heavy black demo promo");
+});
