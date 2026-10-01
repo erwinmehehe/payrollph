@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, payrollEntries, payrollRuns } from "@/db/schema";
+import { decryptBankAccount } from "@/lib/bank-account-crypto";
 import { paymongoAuthorization } from "@/lib/paymongo";
 
 /**
@@ -254,7 +255,7 @@ export async function loadPayrollPayoutRows(runId: number): Promise<PayrollPayou
   return entries.map(({ entry, employee }) => ({
     employeeNo: employee.employeeNo,
     employeeName: `${employee.firstName} ${employee.lastName}`,
-    accountNumber: employee.bankAccount ?? "",
+    accountNumber: decryptBankAccount(employee.bankAccount) ?? "",
     bankName: employee.bankCode ?? "",
     amountCents: Math.round(Number(entry.netPay) * 100),
     referenceNumber: `PAY-${run.id}-${employee.employeeNo}`,
