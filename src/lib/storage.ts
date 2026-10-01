@@ -62,6 +62,15 @@ export function safeFileName(name: string) {
   return base.replace(/[^\w.\-() ]+/g, "_").slice(0, 180) || "upload";
 }
 
+/**
+ * Production document uploads are opt-in. A payroll pilot does not need to
+ * accept arbitrary files, and leaving the feature off is safer than exposing a
+ * route that depends on an unavailable malware scanner.
+ */
+export function documentUploadsEnabled() {
+  return process.env.NODE_ENV !== "production" || process.env.DOCUMENT_UPLOADS_ENABLED === "true";
+}
+
 export function malwareScannerConfigured() {
   const raw = process.env.MALWARE_SCAN_URL?.trim();
   if (!raw) return false;

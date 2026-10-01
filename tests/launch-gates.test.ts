@@ -94,7 +94,7 @@ test("production documents fail closed unless malware scanning reports clean", (
   assert.ok(storage.includes("controller.abort()"));
   assert.ok(readiness.includes('key: "malware-scanning"'));
   assert.ok(readiness.includes("malwareScannerConfigured()"));
-  assert.ok(readiness.includes('blocks: malwareIntegrated ? "none" : "launch"'));
+  assert.ok(readiness.includes('blocks: documentUploadSafetyReady ? "none" : "launch"'));
 });
 
 test("dedicated worker drains payroll and webhook queues from a persistent process", () => {
@@ -123,4 +123,95 @@ test("bank-data readiness covers both employee rows and payroll snapshots", () =
   assert.ok(readiness.includes("plaintextBankSnapshots"));
   assert.ok(readiness.includes("bankEncryptionKeySource"));
   assert.ok(readiness.includes('bankKeySource === "dedicated"'));
+});
+
+
+test("production rollout readiness proves the exact deployed commit and exposes sanitized blocker keys", () => {
+  const pilotStatus = readFileSync("src/app/api/readiness/pilot-status/route.ts", "utf8");
+  const rolloutScript = readFileSync("scripts/live-production-readiness.ts", "utf8");
+  const workflow = readFileSync(".github/workflows/production-rollout-readiness.yml", "utf8");
+  const liveRbac = readFileSync(".github/workflows/live-rbac-sandbox-smoke.yml", "utf8");
+
+  assert.ok(pilotStatus.includes("launchBlockers"));
+  assert.ok(pilotStatus.includes("VERCEL_GIT_COMMIT_SHA"));
+  assert.ok(pilotStatus.includes("manualLaunchReady"));
+
+  assert.ok(rolloutScript.includes("EXPECTED_COMMIT_SHA"));
+  assert.ok(rolloutScript.includes("waitForExpectedDeployment"));
+  assert.ok(rolloutScript.includes("deploymentSha"));
+  assert.ok(rolloutScript.includes("launchBlockers"));
+
+  assert.ok(workflow.includes("EXPECTED_COMMIT_SHA: ${{ github.sha }}"));
+  assert.ok(liveRbac.includes("EXPECTED_COMMIT_SHA: ${{ github.sha }}"));
+  assert.ok(liveRbac.includes("deploymentSha"));
+  assert.ok(liveRbac.includes("Exact production commit is live."));
+});
+
+
+test("production document uploads are opt-in and cannot weaken malware safety", () => {
+  const storage = readFileSync("src/lib/storage.ts", "utf8");
+  const documents = readFileSync("src/app/api/documents/route.ts", "utf8");
+  const readiness = readFileSync("src/app/api/readiness/route.ts", "utf8");
+
+  assert.ok(storage.includes("DOCUMENT_UPLOADS_ENABLED"));
+  assert.ok(storage.includes('process.env.NODE_ENV !== "production"'));
+  assert.ok(documents.includes('code: "DOCUMENT_UPLOADS_DISABLED"'));
+  assert.ok(documents.includes("documentUploadsEnabled()"));
+  assert.ok(readiness.includes("documentUploadSafetyReady"));
+  assert.ok(readiness.includes("Production document uploads are explicitly disabled"));
+});
+
+test("full launch requires a real independently reconciled production payroll pilot", () => {
+  const readiness = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  const signoff = readFileSync("src/app/api/payroll-runs/[id]/pilot-signoff/route.ts", "utf8");
+
+  assert.ok(readiness.includes('key: "production-pilot-signoff"'));
+  assert.ok(readiness.includes('eq(auditEvents.action, "Production payroll pilot signed off")'));
+
+  for (const marker of [
+    'process.env.NODE_ENV !== "production"',
+    "Only the workspace owner can sign off the production payroll pilot.",
+    "requireSensitiveActionMfa(user)",
+    'run.status !== "Released"',
+    "operatorCompletedWithoutDeveloper",
+    "grossPay",
+    "deductions",
+    "netPay",
+    "withholdingTax",
+    "statutoryContributions",
+    "payoutTotal",
+    "payslips",
+    "accountingExport",
+    'event.action === "Payroll release receipt"',
+    'event.action === "Payroll payout completed manually"',
+    'event.action === "Payroll payout completed via PayMongo"',
+    'event.action !== "journal export generated"',
+    'action: "Production payroll pilot signed off"',
+  ]) {
+    assert.ok(signoff.includes(marker), `production pilot sign-off is missing ${marker}`);
+  }
+});
+
+
+test("owners can record production pilot evidence without a developer-only workflow", () => {
+  const card = readFileSync("src/components/workspace/production-pilot-signoff.tsx", "utf8");
+  const workspace = readFileSync("src/components/linaw-workspace.tsx", "utf8");
+
+  assert.ok(card.includes("Sign off the real payroll pilot"));
+  assert.ok(card.includes("Independent evidence reference"));
+  assert.ok(card.includes("The payroll operator completed this cycle without developer intervention"));
+  assert.ok(card.includes("/pilot-signoff"));
+  assert.ok(card.includes("Record production pilot sign-off"));
+  assert.ok(workspace.includes('effectiveRole === "owner"'));
+  assert.ok(workspace.includes("<ProductionPilotSignoffCard"));
+  assert.ok(workspace.includes("!demoRole"));
+});
+
+
+test("launch email proof requires a provider-confirmed delivery, not only an accepted send", () => {
+  const readiness = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  assert.ok(readiness.includes('eq(outbox.deliveryStatus, "delivered")'));
+  assert.ok(readiness.includes("provider-confirmed delivered"));
+  assert.ok(readiness.includes("no provider-confirmed delivered webhook event yet"));
+  assert.ok(readiness.includes("Number(deliveredMail) > 0"));
 });

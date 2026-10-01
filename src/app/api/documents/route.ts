@@ -5,7 +5,7 @@ import { db } from "@/db";
 import { documents, employees } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
-import { MAX_UPLOAD_BYTES, safeFileName, scanUpload, validateUpload } from "@/lib/storage";
+import { documentUploadsEnabled, MAX_UPLOAD_BYTES, safeFileName, scanUpload, validateUpload } from "@/lib/storage";
 import { assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
@@ -91,6 +91,16 @@ export async function POST(request: Request) {
 
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+
+  if (!documentUploadsEnabled()) {
+    return Response.json(
+      {
+        error: "Document uploads are disabled for this production rollout.",
+        code: "DOCUMENT_UPLOADS_DISABLED",
+      },
+      { status: 503 },
+    );
+  }
 
   const declaredLength = Number(request.headers.get("content-length") ?? "0");
   if (Number.isFinite(declaredLength) && declaredLength > MAX_UPLOAD_BYTES + 1024 * 1024) {

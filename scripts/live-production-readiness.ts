@@ -4,12 +4,15 @@ import { mkdirSync, writeFileSync } from "node:fs";
 const baseUrl = (process.env.PRODUCTION_BASE_URL ?? "").replace(/\/$/, "");
 const token = process.env.PRODUCTION_READINESS_TOKEN ?? "";
 const rolloutMode = process.env.ROLLOUT_MODE === "full" ? "full" : "pilot";
+const expectedCommitSha = (process.env.EXPECTED_COMMIT_SHA ?? "").trim();
 
 const report: Record<string, unknown> = {
   baseUrl,
   rolloutMode,
+  expectedCommitSha: expectedCommitSha || null,
   checkedAt: new Date().toISOString(),
   publicSurfaces: [],
+  deployment: null,
   readiness: null,
 };
 
@@ -41,6 +44,55 @@ async function waitForSurface(path: string, expectedText?: RegExp) {
     await new Promise((resolve) => setTimeout(resolve, 10_000));
   }
   throw new Error(`Production surface ${path} did not become healthy (last status ${lastStatus}). Body: ${lastBody.slice(0, 300)}`);
+}
+
+async function waitForExpectedDeployment() {
+  if (!expectedCommitSha) {
+    report.deployment = {
+      verified: false,
+      reason: "EXPECTED_COMMIT_SHA was not supplied; refusing to treat a generic healthy origin as proof of this release.",
+    };
+    throw new Error("EXPECTED_COMMIT_SHA is required for production rollout verification.");
+  }
+
+  let lastDeploymentSha: string | null = null;
+  let lastStatus = 0;
+
+  for (let attempt = 1; attempt <= 24; attempt++) {
+    try {
+      const response = await fetchWithTimeout(`${baseUrl}/api/readiness/pilot-status`);
+      lastStatus = response.status;
+      const payload = await response.json().catch(() => ({}));
+      lastDeploymentSha = typeof payload.deploymentSha === "string" ? payload.deploymentSha : null;
+
+      if (response.ok && lastDeploymentSha === expectedCommitSha) {
+        report.deployment = {
+          verified: true,
+          expectedCommitSha,
+          deploymentSha: lastDeploymentSha,
+          deploymentEnvironment: payload.deploymentEnvironment ?? null,
+          attempt,
+        };
+        return;
+      }
+    } catch {
+      // Keep waiting while the Vercel alias moves to the new production build.
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 10_000));
+  }
+
+  report.deployment = {
+    verified: false,
+    expectedCommitSha,
+    deploymentSha: lastDeploymentSha,
+    lastStatus,
+  };
+  throw new Error(
+    lastDeploymentSha
+      ? `Production is still serving commit ${lastDeploymentSha}; expected ${expectedCommitSha}.`
+      : "Production did not expose VERCEL_GIT_COMMIT_SHA, so this release cannot be proven as the deployed commit.",
+  );
 }
 
 function writeReport() {
@@ -129,13 +181,18 @@ async function verifySanitizedReadiness() {
   const criticalBlockers = Array.isArray(payload.criticalBlockers)
     ? payload.criticalBlockers.filter((value: unknown): value is string => typeof value === "string")
     : [];
+  const launchBlockers = Array.isArray(payload.launchBlockers)
+    ? payload.launchBlockers.filter((value: unknown): value is string => typeof value === "string")
+    : [];
 
   report.readiness = {
     source: "server-internal-sanitized",
     status: payload.status,
     pilotReady: payload.pilotReady === true,
     fullLaunchReady: payload.fullLaunchReady === true,
+    manualLaunchReady: payload.manualLaunchReady === true,
     criticalBlockers,
+    launchBlockers,
     launchBlockersRemaining: payload.launchBlockersRemaining ?? null,
   };
 
@@ -143,13 +200,13 @@ async function verifySanitizedReadiness() {
     assert.equal(
       payload.pilotReady,
       true,
-      `Live pilot is not ready. Critical blockers: ${criticalBlockers.join(", ") || "none reported"}; launch blockers remaining: ${payload.launchBlockersRemaining ?? "unknown"}.`,
+      `Live pilot is not ready. Critical blockers: ${criticalBlockers.join(", ") || "none reported"}; launch blockers: ${launchBlockers.join(", ") || "none reported"}.`,
     );
   } else {
     assert.equal(
       payload.fullLaunchReady,
       true,
-      `Full launch is not ready. Critical blockers: ${criticalBlockers.join(", ") || "none reported"}; launch blockers remaining: ${payload.launchBlockersRemaining ?? "unknown"}.`,
+      `Full launch is not ready. Launch blockers: ${launchBlockers.join(", ") || "none reported"}.`,
     );
   }
 
@@ -158,6 +215,7 @@ async function verifySanitizedReadiness() {
     pilotReady: payload.pilotReady === true,
     fullLaunchReady: payload.fullLaunchReady === true,
     criticalBlockers,
+    launchBlockers,
     launchBlockersRemaining: payload.launchBlockersRemaining ?? null,
   };
 }
@@ -167,6 +225,7 @@ async function main() {
 
   await waitForSurface("/", /Linaw|payroll/i);
   await waitForSurface("/login", /sign in|log in|email/i);
+  await waitForExpectedDeployment();
 
   const unauthenticated = await fetchWithTimeout(`${baseUrl}/api/readiness`);
   assert.ok(
