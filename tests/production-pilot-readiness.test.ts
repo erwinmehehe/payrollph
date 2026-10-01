@@ -149,7 +149,7 @@ test("sanitized pilot readiness can prove production without duplicating the rea
 });
 
 
-test("optional operator tokens fail closed instead of blocking a controlled pilot", () => {
+test("optional operator endpoints stay protected without blocking a controlled pilot", () => {
   const readiness = read("src/app/api/readiness/route.ts");
   const jobs = read("src/app/api/jobs/tick/route.ts");
   const preflight = read("scripts/security-preflight.ts");
@@ -158,8 +158,8 @@ test("optional operator tokens fail closed instead of blocking a controlled pilo
   assert.ok(readiness.includes('key: "remote-scheduler-token"'));
   assert.ok(readiness.includes('blocks: "scale"'));
   assert.ok(readiness.includes('configured("TOTP_ENCRYPTION_KEY")'));
-  assert.ok(!readiness.includes('configured("WORKER_TOKEN") &&\n      configured("TOTP_ENCRYPTION_KEY")'));
-  assert.ok(jobs.includes('Scheduler is disabled until WORKER_TOKEN is configured.'));
-  assert.ok(preflight.includes('optionalStrongSecret("WORKER_TOKEN"'));
-  assert.ok(preflight.includes('optionalStrongSecret("READINESS_TOKEN"'));
+  assert.ok(jobs.includes('operationalSecret("worker")'));
+  assert.ok(jobs.includes("constantTimeSecretEqual"));
+  assert.ok(preflight.includes('operationalSecretSource("worker")'));
+  assert.ok(preflight.includes('operationalSecretSource("readiness")'));
 });
