@@ -129,6 +129,8 @@ export type BatchDisbursementResult = {
     status: string;
     amountCents: number;
     providerReferenceNumber: string | null;
+    providerError: string | null;
+    providerErrorCode: string | null;
   }>;
 };
 
@@ -223,12 +225,16 @@ export async function createPaymongoBatchDisbursement(
       status: string;
       amount: number;
       provider_reference_number?: string | null;
+      provider_error?: string | null;
+      provider_error_code?: string | null;
     }) => ({
       id: t.id,
       referenceNumber: t.reference_number,
       status: t.status,
       amountCents: t.amount,
       providerReferenceNumber: t.provider_reference_number ?? null,
+      providerError: t.provider_error ?? null,
+      providerErrorCode: t.provider_error_code ?? null,
     })),
   };
 }
@@ -315,6 +321,8 @@ export async function getPaymongoBatchDisbursement(batchId: string): Promise<Bat
       amount?: number;
       provider?: string;
       provider_reference_number?: string | null;
+      provider_error?: string | null;
+      provider_error_code?: string | null;
     }) => {
       if (
         typeof transfer.id !== "string"
@@ -333,6 +341,14 @@ export async function getPaymongoBatchDisbursement(batchId: string): Promise<Bat
         providerReferenceNumber:
           typeof transfer.provider_reference_number === "string"
             ? transfer.provider_reference_number
+            : null,
+        providerError:
+          typeof transfer.provider_error === "string" && transfer.provider_error
+            ? transfer.provider_error
+            : null,
+        providerErrorCode:
+          typeof transfer.provider_error_code === "string" && transfer.provider_error_code
+            ? transfer.provider_error_code
             : null,
       };
     }),

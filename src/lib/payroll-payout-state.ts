@@ -1,13 +1,16 @@
 import type { AuditEvent } from "@/components/workspace/types";
 
 export type PayrollPayoutTransferState = {
-  batchId: string;
+  batchId: string | null;
   transferId: string;
   referenceNumber: string;
   employeeNo: string;
   status: "pending" | "succeeded" | "failed" | "unknown";
   amountCents: number;
   providerReferenceNumber: string | null;
+  providerError: string | null;
+  providerErrorCode: string | null;
+  occurredAt: string | null;
 };
 
 export type PayrollPayoutState = {
@@ -39,6 +42,7 @@ export type PayrollPayoutState = {
     unknown: number;
     checkedAt: string | null;
     canRetryFailed: boolean;
+    settlementRegressed: boolean;
     transfers: PayrollPayoutTransferState[];
   };
 };
@@ -72,15 +76,14 @@ function readTransfers(value: unknown): PayrollPayoutTransferState[] {
         ? row.status
         : null;
     if (
-      typeof row.batchId !== "string"
-      || typeof row.transferId !== "string"
+      typeof row.transferId !== "string"
       || typeof row.referenceNumber !== "string"
       || typeof row.employeeNo !== "string"
       || !status
       || !Number.isFinite(Number(row.amountCents))
     ) return [];
     return [{
-      batchId: row.batchId,
+      batchId: typeof row.batchId === "string" ? row.batchId : null,
       transferId: row.transferId,
       referenceNumber: row.referenceNumber,
       employeeNo: row.employeeNo,
@@ -89,15 +92,24 @@ function readTransfers(value: unknown): PayrollPayoutTransferState[] {
       providerReferenceNumber: typeof row.providerReferenceNumber === "string"
         ? row.providerReferenceNumber
         : null,
+      providerError: typeof row.providerError === "string" ? row.providerError : null,
+      providerErrorCode: typeof row.providerErrorCode === "string" ? row.providerErrorCode : null,
+      occurredAt: typeof row.occurredAt === "string" ? row.occurredAt : null,
     }];
   });
+}
+
+function eventTime(event: AuditEvent) {
+  const meta = metadata(event);
+  const occurredAt = typeof meta.occurredAt === "string" ? meta.occurredAt : null;
+  return new Date(occurredAt ?? String(event.createdAt)).getTime();
 }
 
 export function derivePayrollPayoutState(events: AuditEvent[], runId: number): PayrollPayoutState {
   const relevant = events
     .filter((event) => belongsToRun(event, runId))
     .sort((a, b) => {
-      const time = new Date(String(b.createdAt)).getTime() - new Date(String(a.createdAt)).getTime();
+      const time = eventTime(b) - eventTime(a);
       return time || b.id - a.id;
     });
 
@@ -107,52 +119,107 @@ export function derivePayrollPayoutState(events: AuditEvent[], runId: number): P
     return event.action === "bank export generated" && meta.kind === "bank" && meta.dryRun !== true;
   });
 
-  const completion = relevant.find((event) =>
-    event.action === "Payroll payout completed manually"
+  const manualCompletion = relevant.find((event) => event.action === "Payroll payout completed manually");
+  const providerCompletion = relevant.find((event) => event.action === "Payroll payout completed via PayMongo");
+  const providerSnapshot = relevant.find((event) =>
+    event.action === "Payroll payout completed via PayMongo"
+    || event.action === "Payroll payout reconciled via PayMongo"
+  );
+  const providerSubmissions = relevant.filter((event) =>
+    event.action === "Payroll payout submitted via PayMongo"
+    || event.action === "Payroll payout retry submitted via PayMongo"
     || event.action === "Payroll payout completed via PayMongo"
   );
-  const providerEvent = relevant.find((event) =>
+  const webhookEvents = relevant
+    .filter((event) => event.action === "PayMongo transfer webhook received")
+    .sort((a, b) => eventTime(a) - eventTime(b));
+
+  const providerStarted = providerSubmissions.length > 0 || Boolean(providerSnapshot) || webhookEvents.length > 0;
+  const bankMeta = bankFile ? metadata(bankFile) : {};
+  const snapshotMeta = providerSnapshot ? metadata(providerSnapshot) : {};
+
+  const transferMap = new Map<string, PayrollPayoutTransferState>();
+  for (const transfer of readTransfers(snapshotMeta.transfers)) {
+    transferMap.set(transfer.referenceNumber, transfer);
+  }
+
+  for (const webhook of webhookEvents) {
+    const meta = metadata(webhook);
+    const status = meta.status === "succeeded" || meta.status === "failed" ? meta.status : null;
+    if (
+      typeof meta.transferId !== "string"
+      || typeof meta.referenceNumber !== "string"
+      || typeof meta.employeeNo !== "string"
+      || !status
+      || !Number.isFinite(Number(meta.amountCents))
+    ) continue;
+    const previous = transferMap.get(meta.referenceNumber);
+    transferMap.set(meta.referenceNumber, {
+      batchId: typeof meta.batchId === "string" ? meta.batchId : previous?.batchId ?? null,
+      transferId: meta.transferId,
+      referenceNumber: meta.referenceNumber,
+      employeeNo: meta.employeeNo,
+      status,
+      amountCents: Number(meta.amountCents),
+      providerReferenceNumber: typeof meta.providerReferenceNumber === "string"
+        ? meta.providerReferenceNumber
+        : previous?.providerReferenceNumber ?? null,
+      providerError: typeof meta.providerError === "string" ? meta.providerError : null,
+      providerErrorCode: typeof meta.providerErrorCode === "string" ? meta.providerErrorCode : null,
+      occurredAt: typeof meta.occurredAt === "string" ? meta.occurredAt : iso(webhook.createdAt),
+    });
+  }
+
+  const transfers = [...transferMap.values()];
+  const knownTotals = providerSubmissions
+    .map((event) => Number(metadata(event).transferCount))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  const snapshotTotal = Number(snapshotMeta.transferCount);
+  if (Number.isFinite(snapshotTotal) && snapshotTotal > 0) knownTotals.push(snapshotTotal);
+  const total = knownTotals.length > 0 ? Math.max(...knownTotals) : transfers.length;
+
+  const succeeded = transfers.filter((transfer) => transfer.status === "succeeded").length;
+  const failed = transfers.filter((transfer) => transfer.status === "failed").length;
+  const unknown = transfers.filter((transfer) => transfer.status === "unknown").length;
+  const explicitPending = transfers.filter((transfer) => transfer.status === "pending").length;
+  const unreported = Math.max(0, total - succeeded - failed - unknown - explicitPending);
+  const pending = explicitPending + unreported;
+
+  const batchIds: string[] = [];
+  const seenBatchIds = new Set<string>();
+  for (const event of [...providerSubmissions].reverse()) {
+    const batchId = metadata(event).batchId;
+    if (typeof batchId === "string" && !seenBatchIds.has(batchId)) {
+      seenBatchIds.add(batchId);
+      batchIds.push(batchId);
+    }
+  }
+  for (const batchId of readStringArray(snapshotMeta.batchIds)) {
+    if (!seenBatchIds.has(batchId)) {
+      seenBatchIds.add(batchId);
+      batchIds.push(batchId);
+    }
+  }
+
+  const latestProviderLifecycle = relevant.find((event) =>
     event.action === "Payroll payout completed via PayMongo"
     || event.action === "Payroll payout reconciled via PayMongo"
     || event.action === "Payroll payout retry submitted via PayMongo"
     || event.action === "Payroll payout submitted via PayMongo"
+    || event.action === "PayMongo transfer webhook received"
   );
-  const providerSubmission = relevant.find((event) =>
-    event.action === "Payroll payout retry submitted via PayMongo"
-    || event.action === "Payroll payout submitted via PayMongo"
-    || event.action === "Payroll payout completed via PayMongo"
+  const latestMeta = latestProviderLifecycle ? metadata(latestProviderLifecycle) : {};
+  const settlementRegressed = Boolean(
+    providerCompletion
+    && latestProviderLifecycle?.action === "PayMongo transfer webhook received"
+    && latestMeta.status === "failed"
+    && eventTime(latestProviderLifecycle) > eventTime(providerCompletion)
   );
-
-  const completionMeta = completion ? metadata(completion) : {};
-  const providerMeta = providerEvent ? metadata(providerEvent) : {};
-  const submissionMeta = providerSubmission ? metadata(providerSubmission) : {};
-  const bankMeta = bankFile ? metadata(bankFile) : {};
-
-  const transfers = readTransfers(providerMeta.transfers);
-  const total = Number.isFinite(Number(providerMeta.transferCount))
-    ? Number(providerMeta.transferCount)
-    : transfers.length;
-  const succeeded = Number.isFinite(Number(providerMeta.succeeded))
-    ? Number(providerMeta.succeeded)
-    : transfers.filter((transfer) => transfer.status === "succeeded").length;
-  const pending = Number.isFinite(Number(providerMeta.pending))
-    ? Number(providerMeta.pending)
-    : transfers.filter((transfer) => transfer.status === "pending").length;
-  const failed = Number.isFinite(Number(providerMeta.failed))
-    ? Number(providerMeta.failed)
-    : transfers.filter((transfer) => transfer.status === "failed").length;
-  const unknown = Number.isFinite(Number(providerMeta.unknown))
-    ? Number(providerMeta.unknown)
-    : transfers.filter((transfer) => transfer.status === "unknown").length;
-
-  const submissionBatchId = typeof submissionMeta.batchId === "string" ? submissionMeta.batchId : null;
-  const batchIds = readStringArray(providerMeta.batchIds);
-  if (submissionBatchId && !batchIds.includes(submissionBatchId)) batchIds.push(submissionBatchId);
 
   const reconciliationStatus: PayrollPayoutState["reconciliation"]["status"] =
-    !providerEvent
+    !providerStarted
       ? "not-applicable"
-      : completion?.action === "Payroll payout completed via PayMongo" || (total > 0 && succeeded === total)
+      : total > 0 && succeeded === total && failed === 0 && unknown === 0
         ? "settled"
         : failed > 0 || unknown > 0
           ? "attention"
@@ -161,15 +228,30 @@ export function derivePayrollPayoutState(events: AuditEvent[], runId: number): P
             : "awaiting-check";
 
   const providerLabel =
-    reconciliationStatus === "settled"
-      ? `All ${total || transfers.length} PayMongo transfer(s) settled`
-      : reconciliationStatus === "attention"
-        ? failed > 0
-          ? `${failed} PayMongo transfer(s) failed and need attention`
-          : "PayMongo returned a transfer state Linaw does not recognize"
-        : reconciliationStatus === "pending"
-          ? `${pending} PayMongo transfer(s) are still pending`
-          : "PayMongo batch submitted; refresh provider status to confirm settlement";
+    settlementRegressed
+      ? `Settlement changed after completion; ${failed} transfer(s) now report failed. Review as a returned or reversed payout before retrying.`
+      : reconciliationStatus === "settled"
+        ? `All ${total || transfers.length} PayMongo transfer(s) settled`
+        : reconciliationStatus === "attention"
+          ? failed > 0
+            ? `${failed} PayMongo transfer(s) failed and need attention`
+            : "PayMongo returned a transfer state Linaw does not recognize"
+          : reconciliationStatus === "pending"
+            ? `${pending} PayMongo transfer(s) are still pending`
+            : "PayMongo batch submitted; refresh provider status to confirm settlement";
+
+  const latestProviderReference =
+    typeof latestMeta.batchId === "string"
+      ? latestMeta.batchId
+      : batchIds.at(-1) ?? null;
+  const latestCheckedAt =
+    typeof latestMeta.checkedAt === "string"
+      ? latestMeta.checkedAt
+      : typeof latestMeta.occurredAt === "string"
+        ? latestMeta.occurredAt
+        : latestProviderLifecycle
+          ? iso(latestProviderLifecycle.createdAt)
+          : null;
 
   return {
     release: {
@@ -182,35 +264,33 @@ export function derivePayrollPayoutState(events: AuditEvent[], runId: number): P
       template: typeof bankMeta.template === "string" ? bankMeta.template : null,
       generatedAt: bankFile ? iso(bankFile.createdAt) : null,
     },
-    payout: completion
+    payout: manualCompletion
       ? {
           status: "completed",
-          label: completion.action === "Payroll payout completed manually"
-            ? "Payout completion recorded from bank confirmation"
-            : providerLabel,
-          reference:
-            typeof completionMeta.reference === "string"
-              ? completionMeta.reference
-              : typeof completionMeta.batchId === "string"
-                ? completionMeta.batchId
-                : batchIds.at(-1) ?? null,
-          method:
-            typeof completionMeta.method === "string"
-              ? completionMeta.method
-              : completion.action.includes("PayMongo")
-                ? "PayMongo"
-                : null,
-          completedAt: typeof completionMeta.completedAt === "string"
-            ? completionMeta.completedAt
-            : iso(completion.createdAt),
+          label: "Payout completion recorded from bank confirmation",
+          reference: typeof metadata(manualCompletion).reference === "string"
+            ? metadata(manualCompletion).reference as string
+            : null,
+          method: typeof metadata(manualCompletion).method === "string"
+            ? metadata(manualCompletion).method as string
+            : null,
+          completedAt: typeof metadata(manualCompletion).completedAt === "string"
+            ? metadata(manualCompletion).completedAt as string
+            : iso(manualCompletion.createdAt),
         }
-      : providerEvent
+      : providerStarted
         ? {
-            status: "submitted",
+            status: reconciliationStatus === "settled" ? "completed" : "submitted",
             label: providerLabel,
-            reference: batchIds.at(-1) ?? submissionBatchId,
+            reference: latestProviderReference,
             method: "PayMongo",
-            completedAt: null,
+            completedAt: reconciliationStatus === "settled"
+              ? providerCompletion
+                ? typeof metadata(providerCompletion).completedAt === "string"
+                  ? metadata(providerCompletion).completedAt as string
+                  : iso(providerCompletion.createdAt)
+                : latestCheckedAt
+              : null,
           }
         : bankFile
           ? {
@@ -228,7 +308,7 @@ export function derivePayrollPayoutState(events: AuditEvent[], runId: number): P
               completedAt: null,
             },
     reconciliation: {
-      provider: providerEvent ? "PayMongo" : null,
+      provider: providerStarted ? "PayMongo" : null,
       status: reconciliationStatus,
       batchIds,
       total,
@@ -236,13 +316,9 @@ export function derivePayrollPayoutState(events: AuditEvent[], runId: number): P
       pending,
       failed,
       unknown,
-      checkedAt:
-        typeof providerMeta.checkedAt === "string"
-          ? providerMeta.checkedAt
-          : providerEvent
-            ? iso(providerEvent.createdAt)
-            : null,
+      checkedAt: latestCheckedAt,
       canRetryFailed: failed > 0,
+      settlementRegressed,
       transfers,
     },
   };
