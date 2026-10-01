@@ -352,6 +352,7 @@ a { color: inherit; text-decoration: none; }
 .app-shell.rail .sidebar-brand { justify-content: center; padding: 0; }
 .app-shell.rail .sidebar-collapse { margin: 0; }
 .app-shell.rail .workspace-label { justify-content: center; margin: 14px 0 8px; }
+.app-shell.rail .side-profile { justify-content: center; padding-left: 0; padding-right: 0; }
 
 .sidebar-bottom {
   margin-top: auto; padding-top: 8px;
@@ -359,15 +360,49 @@ a { color: inherit; text-decoration: none; }
   display: flex; flex-direction: column; gap: 2px;
 }
 .side-profile {
-  min-height: 44px; display: flex; align-items: center; gap: 9px;
-  padding: 7px 8px; border-radius: 9px;
+  min-height: 56px; display: flex; align-items: center; gap: 11px;
+  padding: 8px; border-radius: 11px;
   color: var(--muted);
-  transition: background .15s;
+  transition: background .15s, box-shadow .15s;
 }
-.side-profile:hover { background: var(--canvas-subtle); }
+.side-profile:hover {
+  background: var(--canvas-subtle);
+  box-shadow: inset 0 0 0 1px var(--line-faint);
+}
+.side-profile-avatar {
+  position: relative;
+  width: 36px; height: 36px; flex: none;
+  display: grid; place-items: center;
+}
+.side-profile-avatar > .avatar {
+  width: 36px; height: 36px;
+  margin: 0;
+  border: 1px solid rgba(84,95,120,.12);
+  box-shadow: 0 2px 8px rgba(16,24,40,.08), inset 0 1px 0 rgba(255,255,255,.65);
+  font-size: 11px; font-weight: 750; line-height: 1;
+  letter-spacing: .01em;
+}
+.side-profile-avatar > i {
+  position: absolute; right: -1px; bottom: 0;
+  width: 10px; height: 10px;
+  border: 2px solid var(--paper); border-radius: 50%;
+  background: var(--success-bright);
+  box-shadow: 0 1px 2px rgba(16,24,40,.16);
+}
 .side-profile > div:nth-child(2) { flex: 1; min-width: 0; }
-.side-profile strong { display: block; color: var(--ink); font-size: 11.5px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.side-profile span { display: block; margin-top: 1px; color: var(--muted-light); font-size: 10px; text-transform: capitalize; }
+.side-profile strong {
+  display: block;
+  color: var(--ink);
+  font-size: 12px; font-weight: 680; line-height: 1.25;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.side-profile > div:nth-child(2) > span {
+  display: block; margin-top: 2px;
+  color: var(--muted);
+  font-size: 10.5px; line-height: 1.25;
+  text-transform: capitalize;
+}
+.side-profile > svg { flex: none; color: var(--muted-light); }
 
 .nav-scrim {
   position: fixed; inset: 0; z-index: 35;
