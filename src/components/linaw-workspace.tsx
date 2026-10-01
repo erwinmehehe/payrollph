@@ -20,6 +20,7 @@ import { AnalyticsView } from "@/components/workspace/analytics";
 import { ApprovalsView } from "@/components/workspace/approvals";
 import { CommandPalette, usePaletteShortcut, type PaletteAction } from "@/components/workspace/command-palette";
 import { ExportsView } from "@/components/workspace/exports";
+import { FirstPayrollReadinessCard } from "@/components/workspace/first-payroll-readiness";
 import { FREELANCER_HIDDEN, NAVIGATION } from "@/components/workspace/nav";
 import { OverviewView } from "@/components/workspace/overview";
 import { RoleOverviewView, type WorkspaceDashboardRole } from "@/components/workspace/role-overview";
@@ -356,23 +357,32 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         )}
 
         {page === "Overview" && (
-          dashboardRole ? (
-            <RoleOverviewView
-              data={data}
-              currentRun={currentRun}
-              role={dashboardRole}
-              onNewRun={() => setNewPayrollOpen(true)}
-              onPage={setPage}
-            />
-          ) : (
-            <OverviewView
-              data={data}
-              currentRun={currentRun}
-              onNewRun={() => setNewPayrollOpen(true)}
-              onPage={setPage}
-              onDecide={(id, status) => void decideTask(id, status)}
-            />
-          )
+          <>
+            {data.firstPayrollReadiness && (
+              <FirstPayrollReadinessCard
+                readiness={data.firstPayrollReadiness}
+                onPage={setPage}
+                onNewRun={() => setNewPayrollOpen(true)}
+              />
+            )}
+            {dashboardRole ? (
+              <RoleOverviewView
+                data={data}
+                currentRun={currentRun}
+                role={dashboardRole}
+                onNewRun={() => setNewPayrollOpen(true)}
+                onPage={setPage}
+              />
+            ) : (
+              <OverviewView
+                data={data}
+                currentRun={currentRun}
+                onNewRun={() => setNewPayrollOpen(true)}
+                onPage={setPage}
+                onDecide={(id, status) => void decideTask(id, status)}
+              />
+            )}
+          </>
         )}
 
         {page === "Payroll" && (
