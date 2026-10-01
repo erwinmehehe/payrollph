@@ -620,7 +620,7 @@ export function AuditPage({ events, organizationId }: { events: AuditEvent[]; or
   );
 }
 
-export function SettingsPage({ data, setNotice }: { data: DashboardData; setNotice: (message: string) => void }) {
+export function SettingsPage({ data, setNotice, initialTab = "organization" }: { data: DashboardData; setNotice: (message: string) => void; initialTab?: "organization" | "team" }) {
   const canManageTeam = ["owner", "admin", "bookkeeper"].includes(data.access?.role ?? "");
   const tabs = [
     { key: "organization", label: "Organization profile", icon: Building2, tone: "i-blue" },
@@ -629,7 +629,7 @@ export function SettingsPage({ data, setNotice }: { data: DashboardData; setNoti
     { key: "security", label: "Security", icon: LockKeyhole, tone: "i-amber" },
     { key: "privacy", label: "Data & privacy", icon: ShieldCheck, tone: "i-green" },
   ];
-  const [tab, setTab] = useState("organization");
+  const [tab, setTab] = useState(initialTab);
   return (
     <>
       <PageHeading eyebrow="SETTINGS" title="Company and account controls." copy="Only the sections your role can change are editable. Everything here writes to the database." />
