@@ -5,6 +5,7 @@ import { bankEncryptionConfigured, bankEncryptionKeySource } from "@/lib/bank-ac
 import { activeMailProvider, deliveryCapable } from "@/lib/mail-provider";
 import { verifyPassword } from "@/lib/crypto";
 import { constantTimeSecretEqual } from "@/lib/security-secret";
+import { operationalSecret, operationalSecretConfigured, operationalSecretSource } from "@/lib/operational-secret";
 import { malwareScannerConfigured } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
@@ -303,10 +304,10 @@ export async function buildReadinessPayload() {
 
 export async function GET(request: Request) {
   if (process.env.NODE_ENV === "production") {
-    const expected = process.env.READINESS_TOKEN ?? process.env.WORKER_TOKEN;
+    const expected = operationalSecret("readiness") ?? operationalSecret("worker");
     if (!expected) {
       return Response.json(
-        { error: "Readiness diagnostics are disabled until READINESS_TOKEN or WORKER_TOKEN is configured." },
+        { error: "Readiness diagnostics are disabled until an operational token or TOTP encryption master is configured." },
         { status: 503 },
       );
     }
