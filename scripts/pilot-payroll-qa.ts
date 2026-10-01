@@ -164,6 +164,8 @@ async function main() {
   const register = await expectOk(payroll, `/api/payroll-runs?runId=${runId}&include=entries`);
   assert.equal(register.entries?.length, 2);
   assert.ok(register.entries.every((entry: any) => Number(entry.netPay) > 0));
+  const employeeEntry = register.entries.find((entry: any) => Number(entry.employeeId) === created[0].id);
+  assert.ok(employeeEntry?.id, "Pilot employee payroll entry is missing from the calculated register.");
 
   const before = await expectOk(payroll, `/api/payroll-runs/${runId}/release-checklist`);
   const blockers = (before.items ?? []).filter((item: any) => item.blocking && !item.passed);
@@ -209,8 +211,8 @@ async function main() {
   (report.lifecycle as string[]).push("external-payout-confirmed");
 
   const self = await expectOk(employee, "/api/self/payslips");
-  const slip = (self.payslips ?? []).find((row: any) => row.payDate === "2026-10-05");
-  assert.ok(slip, "Released payslip is missing from employee self-service.");
+  const slip = (self.payslips ?? []).find((row: any) => Number(row.entryId) === Number(employeeEntry.id));
+  assert.ok(slip, "Released payroll entry is missing from employee self-service.");
   const pdf = await employee.request(`/api/self/payslips/${slip.entryId}`);
   assert.ok(pdf.ok);
   assert.match(pdf.headers.get("content-type") ?? "", /application\/pdf/);
