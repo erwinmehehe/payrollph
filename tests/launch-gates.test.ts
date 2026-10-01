@@ -146,3 +146,48 @@ test("production rollout readiness proves the exact deployed commit and exposes 
   assert.ok(liveRbac.includes("deploymentSha"));
   assert.ok(liveRbac.includes("Exact production commit is live."));
 });
+
+
+test("production document uploads are opt-in and cannot weaken malware safety", () => {
+  const storage = readFileSync("src/lib/storage.ts", "utf8");
+  const documents = readFileSync("src/app/api/documents/route.ts", "utf8");
+  const readiness = readFileSync("src/app/api/readiness/route.ts", "utf8");
+
+  assert.ok(storage.includes("DOCUMENT_UPLOADS_ENABLED"));
+  assert.ok(storage.includes('process.env.NODE_ENV !== "production"'));
+  assert.ok(documents.includes('code: "DOCUMENT_UPLOADS_DISABLED"'));
+  assert.ok(documents.includes("documentUploadsEnabled()"));
+  assert.ok(readiness.includes("documentUploadSafetyReady"));
+  assert.ok(readiness.includes("Production document uploads are explicitly disabled"));
+});
+
+test("full launch requires a real independently reconciled production payroll pilot", () => {
+  const readiness = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  const signoff = readFileSync("src/app/api/payroll-runs/[id]/pilot-signoff/route.ts", "utf8");
+
+  assert.ok(readiness.includes('key: "production-pilot-signoff"'));
+  assert.ok(readiness.includes('eq(auditEvents.action, "Production payroll pilot signed off")'));
+
+  for (const marker of [
+    'process.env.NODE_ENV !== "production"',
+    "Only the workspace owner can sign off the production payroll pilot.",
+    "requireSensitiveActionMfa(user)",
+    'run.status !== "Released"',
+    "operatorCompletedWithoutDeveloper",
+    "grossPay",
+    "deductions",
+    "netPay",
+    "withholdingTax",
+    "statutoryContributions",
+    "payoutTotal",
+    "payslips",
+    "accountingExport",
+    'event.action === "Payroll release receipt"',
+    'event.action === "Payroll payout completed manually"',
+    'event.action === "Payroll payout completed via PayMongo"',
+    'event.action !== "journal export generated"',
+    'action: "Production payroll pilot signed off"',
+  ]) {
+    assert.ok(signoff.includes(marker), `production pilot sign-off is missing ${marker}`);
+  }
+});
