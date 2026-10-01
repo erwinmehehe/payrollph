@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHmac, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from "node:crypto";
 
 /**
  * Field-level encryption for employee bank account numbers.
@@ -84,6 +84,25 @@ export function bankEncryptionKeySource(
 
 export function bankEncryptionConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
   return bankEncryptionKeySource(env) !== null;
+}
+
+/**
+ * Safe rollout identifier for proving that an operator runner and the live app
+ * are using the same high-entropy encryption key. This is deliberately a
+ * one-way, domain-separated fingerprint and never exposes key material.
+ */
+export function bankEncryptionKeyFingerprint(env: NodeJS.ProcessEnv = process.env): string | null {
+  try {
+    const key = configuredKey(env);
+    if (!key) return null;
+    return createHash("sha256")
+      .update("linaw:bank-account-key-fingerprint:v1")
+      .update(key)
+      .digest("hex")
+      .slice(0, 16);
+  } catch {
+    return null;
+  }
 }
 
 /**

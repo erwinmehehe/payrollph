@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import {
   bankEncryptionConfigured,
+  bankEncryptionKeyFingerprint,
   bankEncryptionKeySource,
   decryptBankAccount,
   encryptBankAccount,
@@ -151,6 +152,20 @@ test("bank encryption can derive a domain-separated key from the TOTP master", (
     () => decryptBankAccount(sealed, withTotpMaster(KEY_B)),
     /could not be decrypted/,
   );
+});
+
+test("the rollout fingerprint is stable for the same effective key and changes for a different key", () => {
+  const dedicatedA = bankEncryptionKeyFingerprint(withKey(KEY_A));
+  const dedicatedAAgain = bankEncryptionKeyFingerprint(withKey(KEY_A));
+  const dedicatedB = bankEncryptionKeyFingerprint(withKey(KEY_B));
+  const derivedA = bankEncryptionKeyFingerprint(withTotpMaster(KEY_A));
+
+  assert.match(dedicatedA ?? "", /^[0-9a-f]{16}$/);
+  assert.equal(dedicatedA, dedicatedAAgain);
+  assert.notEqual(dedicatedA, dedicatedB);
+  assert.notEqual(dedicatedA, derivedA, "dedicated and domain-derived keys must not share a fingerprint");
+  assert.equal(bankEncryptionKeyFingerprint(withKey(undefined)), null);
+  assert.equal(bankEncryptionKeyFingerprint(withKey("bad")), null);
 });
 
 test("a dedicated bank key overrides the TOTP-derived key and malformed overrides fail loudly", () => {

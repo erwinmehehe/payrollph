@@ -1,3 +1,4 @@
+import { bankEncryptionKeyFingerprint } from "@/lib/bank-account-crypto";
 import { buildReadinessPayload } from "@/app/api/readiness/route";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +40,7 @@ export async function GET() {
           : null,
       deploymentSha: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
       deploymentEnvironment: process.env.VERCEL_ENV ?? null,
+      bankEncryptionFingerprint: bankEncryptionKeyFingerprint(),
       generatedAt: new Date().toISOString(),
     },
     { headers: { "Cache-Control": "no-store" } },
