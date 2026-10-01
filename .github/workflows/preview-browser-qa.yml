@@ -249,7 +249,7 @@ jobs:
               { path: "/book-demo", heading: "Bring your actual payroll questions." },
               { path: "/status", heading: "Linaw system status." },
               { path: "/scorecard", heading: "Verified claims only." },
-              { path: "/login", heading: "Sign in to the payroll workspace." },
+              { path: "/login", heading: "Sign in to Linaw." },
               { path: "/invite", heading: "Join your team on Linaw." },
               { path: "/reset-password", heading: "Set a new password." },
               { path: "/verify-email", heading: "Verify your new email." },
@@ -286,6 +286,35 @@ jobs:
               check(errors.length === 0, `${route.path}: browser console/page errors: ${errors.join(" | ")}`);
 
               report.publicRoutes.push({ path: route.path, h1, overflow, errors: [...errors] });
+              if (route.path === "/login") {
+                const signInButton = page.getByRole("button", { name: /^Sign in$/ });
+                check((await signInButton.count()) === 1, "/login: primary sign-in button is missing");
+                const signInStyles = await signInButton.evaluate((element) => ({
+                  backgroundColor: getComputedStyle(element).backgroundColor,
+                  color: getComputedStyle(element).color,
+                  borderRadius: getComputedStyle(element).borderRadius,
+                }));
+                check(signInStyles.backgroundColor === "rgb(97, 97, 255)", `/login: primary CTA lost Linaw indigo; saw ${signInStyles.backgroundColor}`);
+                check(signInStyles.color === "rgb(255, 255, 255)", `/login: primary CTA text lost contrast; saw ${signInStyles.color}`);
+                check((await page.getByRole("button", { name: "Show password" }).count()) === 1, "/login: password visibility control is missing");
+                await page.screenshot({ path: `${outDir}/login-desktop.png`, fullPage: true });
+
+                await page.setViewportSize({ width: 390, height: 844 });
+                await page.waitForTimeout(100);
+                const mobileOverflow = await page.evaluate(() => ({
+                  scrollWidth: document.documentElement.scrollWidth,
+                  innerWidth: window.innerWidth,
+                }));
+                check(mobileOverflow.scrollWidth <= mobileOverflow.innerWidth + 1, `/login: mobile horizontal overflow ${mobileOverflow.scrollWidth}px > ${mobileOverflow.innerWidth}px`);
+                const formHeading = page.getByRole("heading", { name: "Welcome back." });
+                const heroHeading = page.getByRole("heading", { name: "Sign in to Linaw." });
+                check((await formHeading.count()) === 1 && (await heroHeading.count()) === 1, "/login: mobile auth hierarchy is incomplete");
+                const formBox = await formHeading.boundingBox();
+                const heroBox = await heroHeading.boundingBox();
+                check(Boolean(formBox && heroBox && formBox.y < heroBox.y), "/login: mobile form should appear before the supporting auth story");
+                await page.screenshot({ path: `${outDir}/login-mobile-390.png`, fullPage: true });
+                await page.setViewportSize({ width: 1280, height: 900 });
+              }
               page.off("pageerror", pageError);
               page.off("console", consoleError);
             }
