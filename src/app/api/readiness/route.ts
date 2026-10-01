@@ -61,8 +61,9 @@ export async function GET(request: Request) {
 
   const directBankConfigured = configured("BANK_HOST_TO_HOST_URL") || configured("INSTAPAY_API_KEY");
   const paymongoDisbursementEnabled = configured("PAYMONGO_SECRET_KEY") && enabled("PAYMONGO_DISBURSEMENTS_ENABLED");
+  const paymongoWebhookConfigured = configured("PAYMONGO_WEBHOOK_SECRET");
   const paymongoPreflightProven = Number(paymongoPreflightPasses) > 0;
-  const bankReady = directBankConfigured || (paymongoDisbursementEnabled && paymongoPreflightProven);
+  const bankReady = directBankConfigured || (paymongoDisbursementEnabled && paymongoPreflightProven && paymongoWebhookConfigured);
 
   // Government filing does not require vendor accreditation for standard
   // file-based submission, BIR publishes the Alphalist .DAT layout and
@@ -148,10 +149,12 @@ export async function GET(request: Request) {
       detail: bankReady
         ? directBankConfigured
           ? "A direct bank payout endpoint is configured."
-          : `PayMongo Disbursements is enabled and a no-money payroll preflight has passed (${paymongoPreflightPasses} recorded pass(es)).`
+          : `PayMongo Disbursements is enabled, a no-money payroll preflight has passed (${paymongoPreflightPasses} recorded pass(es)), and signed transfer webhooks are configured.`
         : paymongoDisbursementEnabled
-          ? "PayMongo Disbursements is enabled, but no no-money payroll preflight has proven credentials and employee bank mappings yet."
-          : "Bank files remain available for manual upload. PayMongo batch-transfer code and a no-money preflight are implemented, but live disbursement is not enabled.",
+          ? !paymongoWebhookConfigured
+            ? "PayMongo Disbursements is enabled, but PAYMONGO_WEBHOOK_SECRET is missing. Configure signed transfer webhooks before treating automated payout settlement as production-ready."
+            : "PayMongo Disbursements is enabled, but no no-money payroll preflight has proven credentials and employee bank mappings yet."
+          : "Bank files remain available for manual upload. PayMongo batch-transfer code, signed transfer webhook handling, and a no-money preflight are implemented, but live disbursement is not enabled.",
       blocks: bankReady ? "none" : "launch",
       manualWorkaround: bankReady ? undefined : "Download the bank file from a released payroll run and upload it manually through the bank or e-wallet business portal.",
     },

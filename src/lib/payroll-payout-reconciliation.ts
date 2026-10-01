@@ -9,6 +9,8 @@ export type PaymongoTransferSnapshot = {
   status: PaymongoTransferStatus;
   amountCents: number;
   providerReferenceNumber: string | null;
+  providerError?: string | null;
+  providerErrorCode?: string | null;
 };
 
 export type PaymongoBatchSnapshot = {

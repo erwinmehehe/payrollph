@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { eq } from "drizzle-orm";
@@ -17,6 +18,11 @@ import {
   reconcilePaymongoPayrollTransfers,
   type PaymongoBatchSnapshot,
 } from "../src/lib/payroll-payout-reconciliation";
+import { derivePayrollPayoutState } from "../src/lib/payroll-payout-state";
+import {
+  normalizePaymongoTransferWebhook,
+  verifyPaymongoWebhookSignature,
+} from "../src/lib/paymongo-transfer-webhook";
 
 function row(overrides: Partial<PayrollPayoutRow> = {}): PayrollPayoutRow {
   return {
@@ -294,4 +300,163 @@ test("payout reconciliation route and UI enforce failed-only retry semantics", (
   assert.ok(view.includes("failed only"));
   assert.ok(view.includes('data-payout-transfer-list'));
   assert.ok(view.includes('payoutState.reconciliation.provider !== "PayMongo"'));
+});
+
+
+test("PayMongo webhook signature verification uses the raw payload and rejects replayed timestamps", () => {
+  const payload = '{"data":{"id":"evt_test","type":"event","attributes":{"type":"transfer.outward.successful"}}}';
+  const secret = "whsec_paymongo_test";
+  const nowMs = Date.parse("2026-10-01T00:00:00Z");
+  const timestamp = String(Math.floor(nowMs / 1000));
+  const signature = createHmac("sha256", secret)
+    .update(`${timestamp}.${payload}`)
+    .digest("hex");
+
+  assert.equal(verifyPaymongoWebhookSignature({
+    payload,
+    signatureHeader: `t=${timestamp},te=${signature},li=`,
+    secret,
+    nowMs,
+  }), true);
+
+  assert.equal(verifyPaymongoWebhookSignature({
+    payload,
+    signatureHeader: `t=${timestamp},te=${signature},li=`,
+    secret,
+    nowMs: nowMs + 10 * 60 * 1000,
+  }), false);
+});
+
+test("PayMongo outward transfer webhooks map only canonical payroll references", () => {
+  const event = normalizePaymongoTransferWebhook({
+    data: {
+      id: "evt_transfer_failed",
+      type: "event",
+      attributes: {
+        type: "transfer.outward.failed",
+        livemode: true,
+        created_at: 1790812800,
+        data: {
+          id: "tr_failed",
+          type: "wallet_transaction",
+          attributes: {
+            transfer_id: "tr_failed",
+            batch_transaction_id: "batch_tr_123",
+            reference_number: "PAY-77-E-002",
+            amount: 2500000,
+            provider: "pesonet",
+            status: "failed",
+            provider_error: "Beneficiary account could not be credited",
+            provider_error_code: "BENEFICIARY_ACCOUNT_INVALID",
+          },
+        },
+      },
+    },
+  });
+
+  assert.ok(event);
+  assert.equal(event.runId, 77);
+  assert.equal(event.employeeNo, "E-002");
+  assert.equal(event.status, "failed");
+  assert.equal(event.providerErrorCode, "BENEFICIARY_ACCOUNT_INVALID");
+
+  assert.equal(normalizePaymongoTransferWebhook({
+    data: {
+      id: "evt_other",
+      attributes: {
+        type: "transfer.outward.successful",
+        data: { attributes: { transfer_id: "tr_x", reference_number: "OTHER-77-E-002", amount: 100, status: "succeeded" } },
+      },
+    },
+  }), null);
+});
+
+test("a verified later transfer failure reopens a previously settled payroll", () => {
+  const events = [
+    {
+      id: 1,
+      actor: "Owner",
+      action: "Payroll payout submitted via PayMongo",
+      resource: "Sep 16-30",
+      metadata: { runId: 77, batchId: "batch_tr_a", transferCount: 1 },
+      createdAt: "2026-10-01T00:00:00Z",
+    },
+    {
+      id: 2,
+      actor: "Owner",
+      action: "Payroll payout completed via PayMongo",
+      resource: "Sep 16-30",
+      metadata: {
+        runId: 77,
+        batchIds: ["batch_tr_a"],
+        transferCount: 1,
+        succeeded: 1,
+        pending: 0,
+        failed: 0,
+        unknown: 0,
+        completedAt: "2026-10-01T00:05:00Z",
+        transfers: [{
+          batchId: "batch_tr_a",
+          transferId: "tr_1",
+          referenceNumber: "PAY-77-E-001",
+          employeeNo: "E-001",
+          status: "succeeded",
+          amountCents: 100000,
+          providerReferenceNumber: "provider-1",
+        }],
+      },
+      createdAt: "2026-10-01T00:05:00Z",
+    },
+    {
+      id: 3,
+      actor: "PayMongo webhook",
+      action: "PayMongo transfer webhook received",
+      resource: "Sep 16-30",
+      metadata: {
+        runId: 77,
+        eventId: "evt_late_failure",
+        batchId: "batch_tr_a",
+        transferId: "tr_1",
+        referenceNumber: "PAY-77-E-001",
+        employeeNo: "E-001",
+        status: "failed",
+        amountCents: 100000,
+        providerErrorCode: "AC03",
+        providerError: "BlockedAccount",
+        occurredAt: "2026-10-01T00:10:00Z",
+      },
+      createdAt: "2026-10-01T00:10:00Z",
+    },
+  ];
+
+  const state = derivePayrollPayoutState(events, 77);
+  assert.equal(state.payout.status, "submitted");
+  assert.equal(state.reconciliation.status, "attention");
+  assert.equal(state.reconciliation.failed, 1);
+  assert.equal(state.reconciliation.settlementRegressed, true);
+  assert.equal(state.reconciliation.transfers[0].providerErrorCode, "AC03");
+});
+
+test("PayMongo transfer webhook route is signed, duplicate-safe and exact-transfer scoped", () => {
+  const route = readFileSync("src/app/api/webhooks/paymongo/transfers/route.ts", "utf8");
+  const reconciliationRoute = readFileSync("src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts", "utf8");
+  const readiness = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  const view = readFileSync("src/components/workspace/exports.tsx", "utf8");
+
+  for (const marker of [
+    "PAYMONGO_WEBHOOK_SECRET",
+    "request.text()",
+    "paymongo-signature",
+    "PayMongo transfer webhook received",
+    "unmatched-payroll-transfer",
+    "duplicate: true",
+  ]) {
+    assert.ok(route.includes(marker), `PayMongo transfer webhook route is missing ${marker}`);
+  }
+
+  assert.ok(reconciliationRoute.includes('searchParams.get("format") !== "csv"'));
+  assert.ok(reconciliationRoute.includes("provider_error_code"));
+  assert.ok(readiness.includes("signed transfer webhooks are configured"));
+  assert.ok(view.includes("Reconciliation CSV"));
+  assert.ok(view.includes("data-payout-settlement-regressed"));
 });

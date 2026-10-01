@@ -347,6 +347,15 @@ export function ExportsView({
                       </div>
                     </div>
 
+                    {payoutState.reconciliation.settlementRegressed && (
+                      <div className="notice notice-red" data-payout-settlement-regressed style={{ margin: 0 }}>
+                        <AlertTriangle size={15} className="i-red" />
+                        <span>
+                          A verified PayMongo update changed a previously settled transfer to failed. Treat this as a returned or reversed payout until the bank/provider issue is reviewed.
+                        </span>
+                      </div>
+                    )}
+
                     {payoutState.reconciliation.unknown > 0 && (
                       <div className="notice notice-amber" style={{ margin: 0 }}>
                         <AlertTriangle size={15} className="i-amber" />
@@ -364,6 +373,16 @@ export function ExportsView({
                       >
                         <Clock3 size={14} />
                         {reconcilingPayout ? "Checking PayMongo…" : "Refresh PayMongo status"}
+                      </button>
+                      <button
+                        className="secondary-button"
+                        disabled={Boolean(exporting)}
+                        onClick={() => void download(
+                          `/api/payroll-runs/${run.id}/payout-reconciliation?format=csv`,
+                          "Payout reconciliation CSV",
+                        )}
+                      >
+                        <Download size={14} /> Reconciliation CSV
                       </button>
                       {payoutState.reconciliation.canRetryFailed && (
                         <button
@@ -393,6 +412,12 @@ export function ExportsView({
                                 {money(transfer.amountCents / 100)} · {transfer.referenceNumber}
                                 {transfer.providerReferenceNumber ? ` · Provider ref ${transfer.providerReferenceNumber}` : ""}
                               </p>
+                              {(transfer.providerErrorCode || transfer.providerError) && (
+                                <small className="error-text">
+                                  {transfer.providerErrorCode ? `${transfer.providerErrorCode}: ` : ""}
+                                  {transfer.providerError ?? "Provider reported a transfer failure."}
+                                </small>
+                              )}
                             </div>
                             <Status
                               value={

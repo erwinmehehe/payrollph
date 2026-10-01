@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, payrollRuns } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
@@ -21,6 +21,7 @@ import {
   type PaymongoPayrollReconciliation,
 } from "@/lib/payroll-payout-reconciliation";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
+import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +77,8 @@ async function reconcileProvider(runId: number, events: AuditRow[]): Promise<Pay
       status: normalizePaymongoTransferStatus(transfer.status),
       amountCents: transfer.amountCents,
       providerReferenceNumber: transfer.providerReferenceNumber,
+      providerError: transfer.providerError,
+      providerErrorCode: transfer.providerErrorCode,
     })),
   }));
 
@@ -116,6 +119,81 @@ async function writeReconciliation(input: {
   });
 
   return checkedAt;
+}
+
+function csvCell(value: unknown) {
+  const text = value == null ? "" : String(value);
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const runId = Number(id);
+  if (!Number.isInteger(runId)) {
+    return Response.json({ error: "Invalid payroll run id." }, { status: 400 });
+  }
+
+  const user = await getSessionUser();
+  if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+
+  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
+  if (!run) return Response.json({ error: "Payroll run not found." }, { status: 404 });
+
+  const denied = await assertOrganizationRole(
+    user.id,
+    run.organizationId,
+    PAYROLL_DISBURSEMENT_ROLES,
+    "Only the workspace owner can view payroll payout reconciliation.",
+  );
+  if (denied) return denied;
+
+  const scopeDenied = await assertOrganizationUnitAccess(
+    user.id,
+    run.organizationId,
+    run.scopeOrgUnitId,
+    "This payroll run is outside your assigned organization unit.",
+  );
+  if (scopeDenied) return scopeDenied;
+
+  const events = await db
+    .select()
+    .from(auditEvents)
+    .where(eq(auditEvents.organizationId, run.organizationId))
+    .orderBy(desc(auditEvents.id));
+  const state = derivePayrollPayoutState(events, run.id);
+  if (state.reconciliation.provider !== "PayMongo") {
+    return Response.json({ error: "No PayMongo payout reconciliation exists for this payroll run." }, { status: 409 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  if (searchParams.get("format") !== "csv") {
+    return Response.json({ runId: run.id, periodLabel: run.periodLabel, payout: state.payout, reconciliation: state.reconciliation });
+  }
+
+  const rows = [
+    ["employee_no", "reference_number", "amount_php", "status", "batch_id", "transfer_id", "provider_reference", "provider_error_code", "provider_error", "occurred_at"],
+    ...state.reconciliation.transfers.map((transfer) => [
+      transfer.employeeNo,
+      transfer.referenceNumber,
+      (transfer.amountCents / 100).toFixed(2),
+      transfer.status,
+      transfer.batchId ?? "",
+      transfer.transferId,
+      transfer.providerReferenceNumber ?? "",
+      transfer.providerErrorCode ?? "",
+      transfer.providerError ?? "",
+      transfer.occurredAt ?? "",
+    ]),
+  ];
+  const body = rows.map((row) => row.map(csvCell).join(",")).join("\n");
+
+  return new Response(body, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="payroll-${run.id}-payout-reconciliation.csv"`,
+      "Cache-Control": "no-store",
+    },
+  });
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
