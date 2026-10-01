@@ -249,7 +249,7 @@ jobs:
               { path: "/book-demo", heading: "Bring your actual payroll questions." },
               { path: "/status", heading: "Linaw system status." },
               { path: "/scorecard", heading: "Verified claims only." },
-              { path: "/login", heading: "Sign in to the payroll workspace." },
+              { path: "/login", heading: "Welcome back." },
               { path: "/invite", heading: "Join your team on Linaw." },
               { path: "/reset-password", heading: "Set a new password." },
               { path: "/verify-email", heading: "Verify your new email." },
@@ -273,7 +273,11 @@ jobs:
               const h1 = (await page.locator("h1").first().innerText()).trim();
               check(h1.includes(route.heading), `${route.path}: expected heading "${route.heading}" not found; saw "${h1}"`);
               check((await page.getByRole("navigation", { name: "Primary" }).count()) >= 1, `${route.path}: shared primary navigation is missing`);
-              check((await page.locator("footer").count()) >= 1, `${route.path}: shared footer is missing`);
+              if (route.path === "/login") {
+                check((await page.locator("footer").count()) === 0, "/login: marketing footer should not distract from authentication");
+              } else {
+                check((await page.locator("footer").count()) >= 1, `${route.path}: shared footer is missing`);
+              }
 
               const overflow = await page.evaluate(() => ({
                 scrollWidth: document.documentElement.scrollWidth,
@@ -286,6 +290,34 @@ jobs:
               check(errors.length === 0, `${route.path}: browser console/page errors: ${errors.join(" | ")}`);
 
               report.publicRoutes.push({ path: route.path, h1, overflow, errors: [...errors] });
+              if (route.path === "/login") {
+                const signInButton = page.getByRole("button", { name: /^Sign in$/ });
+                check((await signInButton.count()) === 1, "/login: primary sign-in button is missing");
+                const signInStyles = await signInButton.evaluate((element) => ({
+                  backgroundColor: getComputedStyle(element).backgroundColor,
+                  color: getComputedStyle(element).color,
+                  borderRadius: getComputedStyle(element).borderRadius,
+                }));
+                check(signInStyles.backgroundColor === "rgb(97, 97, 255)", `/login: primary CTA lost Linaw indigo; saw ${signInStyles.backgroundColor}`);
+                check(signInStyles.color === "rgb(255, 255, 255)", `/login: primary CTA text lost contrast; saw ${signInStyles.color}`);
+                check((await page.locator('[data-testid="password-visibility"]').count()) === 1, "/login: password visibility control is missing");
+                await page.screenshot({ path: `${outDir}/login-desktop.png`, fullPage: true });
+
+                await page.setViewportSize({ width: 390, height: 844 });
+                await page.waitForTimeout(100);
+                const mobileOverflow = await page.evaluate(() => ({
+                  scrollWidth: document.documentElement.scrollWidth,
+                  innerWidth: window.innerWidth,
+                }));
+                check(mobileOverflow.scrollWidth <= mobileOverflow.innerWidth + 1, `/login: mobile horizontal overflow ${mobileOverflow.scrollWidth}px > ${mobileOverflow.innerWidth}px`);
+                const formHeading = page.getByRole("heading", { name: "Welcome back." });
+                check((await formHeading.count()) === 1, "/login: mobile auth heading is missing");
+                const supportHeading = page.locator("h2").filter({ hasText: "Sign in to Linaw." }).first();
+                check((await supportHeading.count()) === 1, "/login: desktop support heading is missing from the DOM");
+                check((await supportHeading.isVisible()) === false, "/login: supporting marketing panel should stay hidden on mobile");
+                await page.screenshot({ path: `${outDir}/login-mobile-390.png`, fullPage: true });
+                await page.setViewportSize({ width: 1280, height: 900 });
+              }
               page.off("pageerror", pageError);
               page.off("console", consoleError);
             }
