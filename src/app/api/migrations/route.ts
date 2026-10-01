@@ -1,3 +1,4 @@
+import { encryptBankAccount } from "@/lib/bank-account-crypto";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -403,7 +404,7 @@ export async function POST(request: Request) {
         region: row.region,
         email: row.email,
         mobile: row.mobile,
-        bankAccount: row.bankAccount,
+        bankAccount: encryptBankAccount(row.bankAccount),
         bankCode: row.bankCode,
         tin: row.tin,
         tinBranchCode: row.tinBranchCode,
