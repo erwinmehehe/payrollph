@@ -15,7 +15,7 @@ import { createHash } from "node:crypto";
  *     Linaw's file is importable, so it is recorded but never counted.
  */
 
-export type FilingAgency = "SSS";
+export type FilingAgency = "SSS" | "BIR";
 
 export type FilingFormDefinition = {
   agency: FilingAgency;
@@ -30,9 +30,26 @@ export type FilingFormDefinition = {
   generatorVersion: string;
   /** What the person should enter as the agency reference. */
   referenceLabel: string;
+  /** Wording the recording form uses. Kept here so the copy is reviewed with the rules. */
+  copy: {
+    title: string;
+    agencyLabel: string;
+    portalLabel: string;
+    /** What "submitted" means for this form, shown for each submission method. */
+    methodLabels: Record<"file_upload" | "manual_entry", string>;
+    /** Why a hand-typed filing does not count. */
+    manualEntryNote: string;
+    /** What the agency says back, so the person knows what to copy. */
+    answerLabel: string;
+    /** Anything that limits what an acceptance proves. Shown above the form. */
+    scopeNote: string | null;
+    /** What has not been confirmed about this route. Shown above the form. */
+    unconfirmedNote: string;
+  };
 };
 
 export const SSS_R3_GENERATOR_VERSION = "sss-r3-worksheet-v1";
+export const BIR_1604C_GENERATOR_VERSION = "bir-1604c-source-v1";
 
 export const FILING_FORMS: readonly FilingFormDefinition[] = [
   {
@@ -41,6 +58,39 @@ export const FILING_FORMS: readonly FilingFormDefinition[] = [
     kind: "sss-r3",
     generatorVersion: SSS_R3_GENERATOR_VERSION,
     referenceLabel: "SSS PRN or acknowledgement number from My.SSS",
+    copy: {
+      title: "SSS R-3: did SSS accept the file?",
+      agencyLabel: "SSS",
+      portalLabel: "My.SSS",
+      methodLabels: {
+        file_upload: "Uploaded the file Linaw generated",
+        manual_entry: "Typed the figures in by hand",
+      },
+      manualEntryNote: "If you retyped the figures into My.SSS, record it as typed in: it is kept, but it does not prove the file works.",
+      answerLabel: "SSS PRN or acknowledgement number",
+      scopeNote: null,
+      unconfirmedNote: "It is not yet confirmed that SSS takes this worksheet at all, so a rejection is useful information, record it.",
+    },
+  },
+  {
+    agency: "BIR",
+    form: "1604-C",
+    kind: "bir-1604c-source",
+    generatorVersion: BIR_1604C_GENERATOR_VERSION,
+    referenceLabel: "BIR validation report or ticket reference from esubmission@bir.gov.ph",
+    copy: {
+      title: "BIR Alphalist (1604-C): did BIR's ADES accept it?",
+      agencyLabel: "BIR",
+      portalLabel: "the BIR Alphalist Data Entry and Validation Module (ADES)",
+      methodLabels: {
+        file_upload: "Loaded Linaw's extract into ADES",
+        manual_entry: "Typed the figures into ADES by hand",
+      },
+      manualEntryNote: "If you typed the figures into ADES, record it as typed in: it is kept, but it does not prove Linaw's extract loads.",
+      answerLabel: "BIR validation report or ticket reference",
+      scopeNote: "Linaw builds this extract from one payroll run, not the whole tax year. An acceptance shows the layout and ID fields validate in ADES. It does not show the annual totals are complete.",
+      unconfirmedNote: "ADES produces the final .DAT you email to BIR; Linaw does not produce that .DAT. It is not confirmed that ADES can load this CSV, so a rejection or a typed-in filing is useful information, record it.",
+    },
   },
 ];
 
@@ -163,6 +213,24 @@ export function provesFileFormat(row: FilingEvidenceRow, definition: FilingFormD
     && row.submissionMethod === "file_upload"
     && row.generatorVersion === definition.generatorVersion
   );
+}
+
+type EvidenceSummary = ReturnType<typeof summarizeFilingEvidence>;
+
+/**
+ * The readiness gate's explanation while a form is not proven. It says which
+ * weaker kinds of evidence exist so nobody is told "nothing" when something is
+ * recorded, and never suggests they count.
+ */
+export function describeEvidenceGap(summary: EvidenceSummary | null, definition: FilingFormDefinition): string {
+  const parts = [`No recorded ${definition.copy.agencyLabel} acceptance of a Linaw-generated ${definition.form} file in the current layout yet.`];
+  if (summary?.acceptedByManualEntry) {
+    parts.push(`${summary.acceptedByManualEntry} filing(s) were typed in by hand, which proves a filing was made but not that the generated file works.`);
+  }
+  if (summary?.acceptedOnOlderLayout) parts.push(`${summary.acceptedOnOlderLayout} acceptance(s) were for an older file layout.`);
+  if (summary?.rejected) parts.push(`${summary.rejected} rejection(s) are recorded.`);
+  parts.push("Create a record on the Exports page, use that file, then record the agency's answer.");
+  return parts.join(" ");
 }
 
 export function summarizeFilingEvidence(rows: FilingEvidenceRow[], definition: FilingFormDefinition) {

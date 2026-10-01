@@ -147,3 +147,36 @@ test("if payroll data changes after a record is made, its file is refused instea
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
 });
+
+test("a BIR 1604-C record is tracked separately and its acceptance never counts for SSS", async () => {
+  const { org, employee, run } = await seedRun("Filing BIR Co");
+  const BIR = findFilingForm("BIR", "1604-C")!;
+  try {
+    // The annual extract fails closed without identity fields, so a record cannot be made from incomplete data.
+    await assert.rejects(
+      recordGeneratedFiling({ organizationId: org.id, runId: run.id, definition: BIR, actor: "Tester" }),
+      /employer BIR TIN/,
+    );
+
+    await db.update(organizations).set({ birTin: "123456789", birBranchCode: "0000" }).where(eq(organizations.id, org.id));
+    await db.update(employees).set({ tin: "987654321", tinBranchCode: "0000" }).where(eq(employees.id, employee.id));
+
+    const sssBefore = (await filingEvidenceSummaries()).find((item) => item.definition.agency === "SSS")!;
+    const birBefore = (await filingEvidenceSummaries()).find((item) => item.definition.agency === "BIR")!;
+
+    const { record, file } = await recordGeneratedFiling({ organizationId: org.id, runId: run.id, definition: BIR, actor: "Tester" });
+    assert.equal(record.agency, "BIR");
+    assert.equal(record.form, "1604-C");
+    assert.equal(record.generatorVersion, BIR.generatorVersion);
+    assert.match(file.filename, /^bir-1604c-annual-source-/);
+
+    await recordFilingOutcome({ organizationId: org.id, id: record.id, actor: "Tester", outcome: acceptance() });
+
+    const sssAfter = (await filingEvidenceSummaries()).find((item) => item.definition.agency === "SSS")!;
+    const birAfter = (await filingEvidenceSummaries()).find((item) => item.definition.agency === "BIR")!;
+    assert.equal(birAfter.provingCount, birBefore.provingCount + 1);
+    assert.equal(sssAfter.provingCount, sssBefore.provingCount, "a BIR acceptance must not turn on the SSS gate");
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});

@@ -20,13 +20,21 @@ import { FilingEvidencePanel } from "./filing-evidence";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, PageHeading, Segmented, Status, formatDate, money } from "./ui";
 
+// `kind` is what generateGovernmentDraft accepts. The visible `template` is only
+// a label: sending the label made every Draft button here fail as an unsupported export.
 const GOVERNMENT_DRAFTS = [
-  { template: "1601-C", detail: "Monthly remittance return of income taxes withheld on compensation" },
-  { template: "Alphalist/2316", detail: "Year-end alphalist and certificate of compensation summary" },
-  { template: "SSS R-3", detail: "Monthly contribution collection list, recomputed from the full monthly MSC" },
-  { template: "PhilHealth RF-1", detail: "Employer remittance report" },
-  { template: "Pag-IBIG MCRF", detail: "Membership contribution remittance form" },
-];
+  { template: "1601-C", kind: "bir-1601c", detail: "Monthly remittance return of income taxes withheld on compensation" },
+  { template: "Alphalist/2316", kind: "bir-1604c-source", detail: "Annual alphalist source extract, to validate in BIR's ADES" },
+  { template: "SSS R-3", kind: "sss-r3", detail: "Monthly contribution collection list, recomputed from the full monthly MSC" },
+  { template: "PhilHealth RF-1", kind: "philhealth-rf1", detail: "Employer remittance report" },
+  { template: "Pag-IBIG MCRF", kind: "pagibig-mcrf", detail: "Membership contribution remittance form" },
+] as const;
+
+// Forms with a recorded-evidence flow. Each one renders its own card.
+const EVIDENCE_FORMS = [
+  { agency: "SSS", form: "R-3" },
+  { agency: "BIR", form: "1604-C" },
+] as const;
 
 export function ExportsView({
   data,
@@ -469,13 +477,17 @@ export function ExportsView({
             </article>
           )}
 
-          <FilingEvidencePanel
-            key={`${organizationId}-${run.id}`}
-            organizationId={organizationId}
-            run={{ id: run.id, periodLabel: run.periodLabel }}
-            notify={notify}
-            onRefresh={onRefresh}
-          />
+          {EVIDENCE_FORMS.map((item) => (
+            <FilingEvidencePanel
+              key={`${organizationId}-${run.id}-${item.agency}-${item.form}`}
+              organizationId={organizationId}
+              agency={item.agency}
+              form={item.form}
+              run={{ id: run.id, periodLabel: run.periodLabel }}
+              notify={notify}
+              onRefresh={onRefresh}
+            />
+          ))}
 
           <section className="integration-grid">
             <article className="export-card">
@@ -571,7 +583,7 @@ export function ExportsView({
                         style={{ height: 28, fontSize: 11 }}
                         onClick={() =>
                       void download(
-                            `/api/payroll-runs/${run.id}/exports?kind=government&template=${encodeURIComponent(item.template)}`,
+                            `/api/payroll-runs/${run.id}/exports?kind=government&template=${encodeURIComponent(item.kind)}`,
                             `${item.template} draft`,
                           )
                         }
