@@ -103,7 +103,8 @@ test("release completion and payroll failure states are explicit and recoverable
 
   for (const marker of [
     "Payroll release receipt",
-    "Ready to generate from the released register",
+    "Final bank file has not been generated yet",
+    "Generate the final bank file before payout can be recorded",
     "releasedAt",
     "missingEmail",
     "warningCount",
@@ -209,4 +210,19 @@ test("payout completion route requires released bank-file evidence and explicit 
 
   assert.ok(payrollView.includes("Payout status"));
   assert.ok(payrollView.includes('data-payout-status={visibleReleaseReceipt.payout.status}'));
+});
+
+
+test("release receipt does not claim bank or payout completion before export", () => {
+  const releaseRoute = read("src/app/api/payroll-runs/[id]/release/route.ts");
+  const payrollView = read("src/components/workspace/payroll-run.tsx");
+  const types = read("src/components/workspace/types.ts");
+
+  assert.ok(releaseRoute.includes('status: "waiting" as const'));
+  assert.ok(releaseRoute.includes('status: "waiting-for-file" as const'));
+  assert.ok(releaseRoute.includes("Final bank file has not been generated yet"));
+  assert.ok(releaseRoute.includes("Generate the final bank file before payout can be recorded"));
+  assert.ok(payrollView.includes('status: "waiting"'));
+  assert.ok(payrollView.includes('? "Generated" : "Waiting"'));
+  assert.ok(types.includes('status: "waiting" | "generated"'));
 });
