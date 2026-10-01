@@ -1,3 +1,4 @@
+import { operationalSecretSource } from "../src/lib/operational-secret";
 import { Buffer } from "node:buffer";
 
 type Check = { key: string; ok: boolean; detail: string };
@@ -48,8 +49,24 @@ function httpsUrl(name: string): Check {
 const checks: Check[] = [
   httpsUrl("APP_BASE_URL"),
   httpsUrl("MALWARE_SCAN_URL"),
-  strongSecret("WORKER_TOKEN"),
-  strongSecret("READINESS_TOKEN"),
+  {
+    key: "WORKER_TOKEN",
+    ok: operationalSecretSource("worker") !== null,
+    detail: operationalSecretSource("worker") === "dedicated"
+      ? "dedicated 32+ byte token"
+      : operationalSecretSource("worker") === "totp-derived"
+        ? "domain-separated token derived from TOTP master"
+        : "missing",
+  },
+  {
+    key: "READINESS_TOKEN",
+    ok: operationalSecretSource("readiness") !== null,
+    detail: operationalSecretSource("readiness") === "dedicated"
+      ? "dedicated 32+ byte token"
+      : operationalSecretSource("readiness") === "totp-derived"
+        ? "domain-separated token derived from TOTP master"
+        : "missing",
+  },
   strongSecret("SETUP_TOKEN"),
   strongSecret("MALWARE_SCAN_TOKEN"),
   validTotpKey(),

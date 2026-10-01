@@ -136,8 +136,8 @@ test("sanitized pilot readiness can prove production without duplicating the rea
   const route = read("src/app/api/readiness/pilot-status/route.ts");
   const script = read("scripts/live-production-readiness.ts");
 
-  assert.ok(route.includes('import { GET as getDetailedReadiness }'));
-  assert.ok(route.includes('"x-readiness-token": token'));
+  assert.ok(route.includes('import { buildReadinessPayload }'));
+  assert.ok(route.includes('await buildReadinessPayload()'));
   assert.ok(route.includes('"Cache-Control": "no-store"'));
   assert.ok(route.includes("criticalBlockers"));
   assert.ok(route.includes("pilotReady"));
@@ -146,4 +146,20 @@ test("sanitized pilot readiness can prove production without duplicating the rea
   assert.ok(script.includes('source: "server-internal-sanitized"'));
   assert.ok(script.includes("token.length >= 24"));
   assert.ok(script.includes("unauthenticated.status"));
+});
+
+
+test("optional operator endpoints stay protected without blocking a controlled pilot", () => {
+  const readiness = read("src/app/api/readiness/route.ts");
+  const jobs = read("src/app/api/jobs/tick/route.ts");
+  const preflight = read("scripts/security-preflight.ts");
+
+  assert.ok(readiness.includes('key: "readiness-diagnostics-token"'));
+  assert.ok(readiness.includes('key: "remote-scheduler-token"'));
+  assert.ok(readiness.includes('blocks: "scale"'));
+  assert.ok(readiness.includes('configured("TOTP_ENCRYPTION_KEY")'));
+  assert.ok(jobs.includes('operationalSecret("worker")'));
+  assert.ok(jobs.includes("constantTimeSecretEqual"));
+  assert.ok(preflight.includes('operationalSecretSource("worker")'));
+  assert.ok(preflight.includes('operationalSecretSource("readiness")'));
 });
