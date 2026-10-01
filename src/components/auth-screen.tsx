@@ -93,16 +93,16 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
       </div>
 
       <div className="relative mx-auto grid min-h-[650px] max-w-[1160px] gap-6 px-5 sm:px-8 lg:grid-cols-[1fr_470px] lg:items-stretch">
-        <section className="order-2 flex min-h-[520px] flex-col justify-between rounded-[28px] border border-[#E4E6F0] bg-white/70 p-6 shadow-[0_24px_70px_-52px_rgba(30,34,70,.35)] backdrop-blur-sm sm:p-8 lg:order-1 lg:p-10">
+        <section className="hidden min-h-[520px] flex-col justify-between rounded-[28px] border border-[#E4E6F0] bg-white/70 p-10 shadow-[0_24px_70px_-52px_rgba(30,34,70,.35)] backdrop-blur-sm lg:flex">
           <div>
             <span className="inline-flex items-center gap-2 rounded-full border border-[#DDDFFF] bg-[#F7F7FF] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-[#5555D8]">
               <ShieldCheck size={13} aria-hidden />
               Secure workspace access
             </span>
 
-            <h1 className="font-display mt-7 max-w-[620px] text-balance text-[42px] font-semibold leading-[1.02] tracking-[-0.045em] text-[#11141F] sm:text-[56px]">
+            <h2 className="font-display mt-7 max-w-[620px] text-balance text-[56px] font-semibold leading-[1.02] tracking-[-0.045em] text-[#11141F]">
               Sign in to Linaw.
-            </h1>
+            </h2>
             <p className="mt-5 max-w-[590px] text-[15px] leading-[1.75] text-[#606780]">
               One workspace for payroll, people, approvals and compliance. Your role decides what you can see and what you can do after sign-in.
             </p>
@@ -139,15 +139,15 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
           </div>
         </section>
 
-        <section className="order-1 flex items-center lg:order-2">
+        <section className="flex items-center">
           <div className="w-full rounded-[28px] border border-[#E0E3ED] bg-white p-6 shadow-[0_30px_80px_-42px_rgba(35,38,80,.38)] sm:p-8">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8D93A8]">
                 {mode === "login" ? "Workspace sign in" : "Password recovery"}
               </p>
-              <h2 className="font-display mt-2 text-[30px] font-semibold tracking-[-0.035em] text-[#11141F]">
+              <h1 className="font-display mt-2 text-[30px] font-semibold tracking-[-0.035em] text-[#11141F]">
                 {mode === "login" ? "Welcome back." : "Reset your password."}
-              </h2>
+              </h1>
               <p className="mt-2.5 text-[13px] leading-relaxed text-[#72788F]">{message}</p>
             </div>
 
