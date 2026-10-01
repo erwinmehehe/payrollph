@@ -1,4 +1,4 @@
-import { GET as getDetailedReadiness } from "@/app/api/readiness/route";
+import { buildReadinessPayload } from "@/app/api/readiness/route";
 
 export const dynamic = "force-dynamic";
 
@@ -12,27 +12,7 @@ const PILOT_CRITICAL_KEYS = new Set([
 ]);
 
 export async function GET() {
-  const token = process.env.READINESS_TOKEN ?? process.env.WORKER_TOKEN;
-  if (!token) {
-    return Response.json(
-      { status: "unavailable", pilotReady: false, fullLaunchReady: false },
-      { status: 503, headers: { "Cache-Control": "no-store" } },
-    );
-  }
-
-  const internalRequest = new Request("http://internal/api/readiness", {
-    headers: { "x-readiness-token": token },
-  });
-  const response = await getDetailedReadiness(internalRequest);
-  const payload = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    return Response.json(
-      { status: "unavailable", pilotReady: false, fullLaunchReady: false },
-      { status: 503, headers: { "Cache-Control": "no-store" } },
-    );
-  }
-
+  const payload = await buildReadinessPayload();
   const gates = Array.isArray(payload.gates) ? payload.gates : [];
   const criticalBlockers = gates
     .filter((gate: any) => PILOT_CRITICAL_KEYS.has(String(gate.key)) && gate.ready !== true)
