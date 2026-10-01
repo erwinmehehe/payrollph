@@ -346,6 +346,96 @@ jobs:
             { id: "employee", label: "Employee", short: "Employee", person: "Jonas Reyes", landing: "My pay", taskPage: "My pay", dashboardRole: null },
           ];
 
+          async function inspectPersonaViewport(page, persona, width, height, suffix) {
+            await page.setViewportSize({ width, height });
+            await page.waitForTimeout(120);
+
+            const overflow = await page.evaluate(() => ({
+              scrollWidth: document.documentElement.scrollWidth,
+              innerWidth: window.innerWidth,
+            }));
+            check(
+              overflow.scrollWidth <= overflow.innerWidth + 1,
+              `${persona.label}: ${suffix} horizontal overflow ${overflow.scrollWidth}px > ${overflow.innerWidth}px`,
+            );
+
+            const sandbox = page.locator("section.card").filter({ hasText: "ROLE SANDBOX" }).first();
+            check((await sandbox.count()) === 1, `${persona.label}: ${suffix} sandbox is missing`);
+            const sandboxLayout = await sandbox.evaluate((element) => {
+              const rect = element.getBoundingClientRect();
+              return {
+                left: rect.left,
+                right: rect.right,
+                scrollWidth: element.scrollWidth,
+                clientWidth: element.clientWidth,
+              };
+            });
+            check(sandboxLayout.left >= -1, `${persona.label}: ${suffix} sandbox escapes the left viewport edge`);
+            check(sandboxLayout.right <= width + 1, `${persona.label}: ${suffix} sandbox escapes the right viewport edge`);
+            check(
+              sandboxLayout.scrollWidth <= sandboxLayout.clientWidth + 1,
+              `${persona.label}: ${suffix} sandbox clips internally`,
+            );
+
+            const responsiveControls = page.locator(".demo-role-button, .demo-access-chip, .demo-task-card");
+            for (const control of await responsiveControls.all()) {
+              const layout = await control.evaluate((element) => ({
+                scrollWidth: element.scrollWidth,
+                clientWidth: element.clientWidth,
+              }));
+              check(
+                layout.scrollWidth <= layout.clientWidth + 1,
+                `${persona.label}: ${suffix} sandbox control clips ${layout.scrollWidth}px > ${layout.clientWidth}px`,
+              );
+            }
+
+            const handoffs = page.locator("[data-payroll-handoff]");
+            for (const handoff of await handoffs.all()) {
+              const layout = await handoff.evaluate((element) => ({
+                scrollWidth: element.scrollWidth,
+                clientWidth: element.clientWidth,
+              }));
+              check(
+                layout.scrollWidth <= layout.clientWidth + 1,
+                `${persona.label}: ${suffix} payroll handoff clips ${layout.scrollWidth}px > ${layout.clientWidth}px`,
+              );
+            }
+
+            const topbar = page.locator(".topbar").first();
+            if (await topbar.count()) {
+              const layout = await topbar.evaluate((element) => ({
+                scrollWidth: element.scrollWidth,
+                clientWidth: element.clientWidth,
+              }));
+              check(
+                layout.scrollWidth <= layout.clientWidth + 1,
+                `${persona.label}: ${suffix} topbar clips ${layout.scrollWidth}px > ${layout.clientWidth}px`,
+              );
+            }
+
+            if (persona.id === "employee") {
+              const employeeActions = page.locator(".employee-self-service-actions").first();
+              check((await employeeActions.count()) === 1, "Employee: responsive header actions are missing");
+              const actionLayout = await employeeActions.evaluate((element) => ({
+                scrollWidth: element.scrollWidth,
+                clientWidth: element.clientWidth,
+              }));
+              check(
+                actionLayout.scrollWidth <= actionLayout.clientWidth + 1,
+                `Employee: ${suffix} header actions clip ${actionLayout.scrollWidth}px > ${actionLayout.clientWidth}px`,
+              );
+            } else if (width <= 768) {
+              const drawerButton = page.getByRole("button", { name: "Open navigation" }).first();
+              check((await drawerButton.count()) === 1, `${persona.label}: ${suffix} mobile/tablet navigation trigger is missing`);
+              check(await drawerButton.isVisible(), `${persona.label}: ${suffix} navigation trigger is not visible`);
+            }
+
+            await page.screenshot({
+              path: `${outDir}/persona-${persona.id}-landing-${suffix}.png`,
+              fullPage: true,
+            });
+          }
+
           async function qaPersona(browser, persona) {
             const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
             const page = await context.newPage();
@@ -502,22 +592,10 @@ jobs:
             }
 
             if (persona.dashboardRole || persona.id === "employee") {
-              await page.setViewportSize({ width: 390, height: 844 });
-              await page.waitForTimeout(100);
-              const mobileOverflow = await page.evaluate(() => ({
-                scrollWidth: document.documentElement.scrollWidth,
-                innerWidth: window.innerWidth,
-              }));
-              check(
-                mobileOverflow.scrollWidth <= mobileOverflow.innerWidth + 1,
-                `${persona.label}: mobile workspace horizontal overflow ${mobileOverflow.scrollWidth}px > ${mobileOverflow.innerWidth}px`,
-              );
-              await page.screenshot({
-                path: `${outDir}/persona-${persona.id}-landing-mobile-390.png`,
-                fullPage: true,
-              });
+              await inspectPersonaViewport(page, persona, 768, 1024, "tablet-768");
+              await inspectPersonaViewport(page, persona, 390, 844, "mobile-390");
               await page.setViewportSize({ width: 1440, height: 1000 });
-              await page.waitForTimeout(100);
+              await page.waitForTimeout(120);
             }
 
             const sandbox = page.locator("section.card").filter({ hasText: "ROLE SANDBOX" }).first();
@@ -574,6 +652,23 @@ jobs:
               path: `${outDir}/persona-${persona.id}.png`,
               fullPage: true,
             });
+
+            await page.setViewportSize({ width: 768, height: 1024 });
+            await page.waitForTimeout(120);
+            const taskTabletOverflow = await page.evaluate(() => ({
+              scrollWidth: document.documentElement.scrollWidth,
+              innerWidth: window.innerWidth,
+            }));
+            check(
+              taskTabletOverflow.scrollWidth <= taskTabletOverflow.innerWidth + 1,
+              `${persona.label}: tablet task page horizontal overflow ${taskTabletOverflow.scrollWidth}px > ${taskTabletOverflow.innerWidth}px`,
+            );
+            await page.screenshot({
+              path: `${outDir}/persona-${persona.id}-task-tablet-768.png`,
+              fullPage: true,
+            });
+            await page.setViewportSize({ width: 1440, height: 1000 });
+            await page.waitForTimeout(120);
 
             check(errors.length === 0, `${persona.label}: browser console/page errors: ${errors.join(" | ")}`);
 

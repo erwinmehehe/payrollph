@@ -475,3 +475,20 @@ test("demo sandbox uses dedicated wrapping-safe controls", () => {
   assert.ok(styles.includes("white-space: normal;"), "sandbox copy must be allowed to wrap");
   assert.ok(styles.includes("grid-template-columns: repeat(3, minmax(0, 1fr))"), "desktop sandbox tasks should use a balanced three-column layout");
 });
+
+
+test("sandbox task grid keeps a balanced tablet composition", () => {
+  const styles = read("src/app/globals.css");
+  assert.ok(
+    !styles.includes("@media (max-width: 900px) {\n  .demo-task-grid"),
+    "768px tablet should not collapse the three task cards into an awkward 2+1 layout",
+  );
+  assert.ok(
+    styles.includes("@media (max-width: 720px) {\n  .demo-task-grid {\n    grid-template-columns: repeat(2, minmax(0, 1fr));"),
+    "mid-width sandbox should use two task columns",
+  );
+  assert.ok(
+    styles.includes("@media (max-width: 520px)"),
+    "mobile breakpoint must remain explicit",
+  );
+});
