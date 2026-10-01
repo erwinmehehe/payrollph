@@ -1,3 +1,4 @@
+import { maskBankAccount } from "@/lib/bank-account-crypto";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -199,6 +200,9 @@ export async function getDashboardData(organizationId?: number) {
     const profile = payProfileByEmployee.get(employee.id);
     return {
       ...employee,
+      // The browser never needs the full account number, and it used to receive
+      // it for every employee. Last four only; the real value stays server-side.
+      bankAccount: maskBankAccount(employee.bankAccount),
       payBasis: profile?.payBasis ?? "monthly",
       payRate: profile?.rateAmount ?? employee.basicRate,
       standardWorkDaysPerMonth: profile?.standardWorkDaysPerMonth ?? "22.00",
