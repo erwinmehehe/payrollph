@@ -194,9 +194,9 @@ async function main() {
   (report.lifecycle as string[]).push("owner-released-payroll");
 
   const bank = await owner.request(`/api/payroll-runs/${runId}/exports?kind=bank&template=${encodeURIComponent("BDO DAT")}&dryRun=false`);
-  assert.ok(bank.ok, `Final bank file failed (${bank.status}): ${await bank.text()}`);
-  assert.equal(bank.headers.get("x-linaw-dry-run"), "false");
   const bankBody = await bank.text();
+  assert.ok(bank.ok, `Final bank file failed (${bank.status}): ${bankBody}`);
+  assert.equal(bank.headers.get("x-linaw-dry-run"), "false");
   assert.ok(payoutAccounts.every((account) => bankBody.includes(account)), "Final bank file did not decrypt captured payout destinations.");
   (report.lifecycle as string[]).push("final-bank-file-generated");
 
