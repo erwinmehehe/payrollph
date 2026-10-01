@@ -15,7 +15,7 @@ import { createHash } from "node:crypto";
  *     Linaw's file is importable, so it is recorded but never counted.
  */
 
-export type FilingAgency = "SSS";
+export type FilingAgency = "SSS" | "BIR" | "PhilHealth" | "Pag-IBIG";
 
 export type FilingFormDefinition = {
   agency: FilingAgency;
@@ -30,9 +30,28 @@ export type FilingFormDefinition = {
   generatorVersion: string;
   /** What the person should enter as the agency reference. */
   referenceLabel: string;
+  /** Wording the recording form uses. Kept here so the copy is reviewed with the rules. */
+  copy: {
+    title: string;
+    agencyLabel: string;
+    portalLabel: string;
+    /** What "submitted" means for this form, shown for each submission method. */
+    methodLabels: Record<"file_upload" | "manual_entry", string>;
+    /** Why a hand-typed filing does not count. */
+    manualEntryNote: string;
+    /** What the agency says back, so the person knows what to copy. */
+    answerLabel: string;
+    /** Anything that limits what an acceptance proves. Shown above the form. */
+    scopeNote: string | null;
+    /** What has not been confirmed about this route. Shown above the form. */
+    unconfirmedNote: string;
+  };
 };
 
 export const SSS_R3_GENERATOR_VERSION = "sss-r3-worksheet-v1";
+export const BIR_1604C_GENERATOR_VERSION = "bir-1604c-source-v1";
+export const PHILHEALTH_RF1_GENERATOR_VERSION = "philhealth-rf1-worksheet-v1";
+export const PAGIBIG_MCRF_GENERATOR_VERSION = "pagibig-mcrf-worksheet-v1";
 
 export const FILING_FORMS: readonly FilingFormDefinition[] = [
   {
@@ -41,6 +60,79 @@ export const FILING_FORMS: readonly FilingFormDefinition[] = [
     kind: "sss-r3",
     generatorVersion: SSS_R3_GENERATOR_VERSION,
     referenceLabel: "SSS PRN or acknowledgement number from My.SSS",
+    copy: {
+      title: "SSS R-3: did SSS accept the file?",
+      agencyLabel: "SSS",
+      portalLabel: "My.SSS",
+      methodLabels: {
+        file_upload: "Uploaded the file Linaw generated",
+        manual_entry: "Typed the figures in by hand",
+      },
+      manualEntryNote: "If you retyped the figures into My.SSS, record it as typed in: it is kept, but it does not prove the file works.",
+      answerLabel: "SSS PRN or acknowledgement number",
+      scopeNote: null,
+      unconfirmedNote: "It is not yet confirmed that SSS takes this worksheet at all, so a rejection is useful information, record it.",
+    },
+  },
+  {
+    agency: "BIR",
+    form: "1604-C",
+    kind: "bir-1604c-source",
+    generatorVersion: BIR_1604C_GENERATOR_VERSION,
+    referenceLabel: "BIR validation report or ticket reference from esubmission@bir.gov.ph",
+    copy: {
+      title: "BIR Alphalist (1604-C): did BIR's ADES accept it?",
+      agencyLabel: "BIR",
+      portalLabel: "the BIR Alphalist Data Entry and Validation Module (ADES)",
+      methodLabels: {
+        file_upload: "Loaded Linaw's extract into ADES",
+        manual_entry: "Typed the figures into ADES by hand",
+      },
+      manualEntryNote: "If you typed the figures into ADES, record it as typed in: it is kept, but it does not prove Linaw's extract loads.",
+      answerLabel: "BIR validation report or ticket reference",
+      scopeNote: "Linaw builds this extract from one payroll run, not the whole tax year. An acceptance shows the layout and ID fields validate in ADES. It does not show the annual totals are complete.",
+      unconfirmedNote: "ADES produces the final .DAT you email to BIR; Linaw does not produce that .DAT. It is not confirmed that ADES can load this CSV, so a rejection or a typed-in filing is useful information, record it.",
+    },
+  },
+  {
+    agency: "PhilHealth",
+    form: "RF-1",
+    kind: "philhealth-rf1",
+    generatorVersion: PHILHEALTH_RF1_GENERATOR_VERSION,
+    referenceLabel: "PhilHealth acknowledgement receipt (ePAR) number from EPRS",
+    copy: {
+      title: "PhilHealth RF-1: did EPRS accept the report?",
+      agencyLabel: "PhilHealth",
+      portalLabel: "PhilHealth's EPRS",
+      methodLabels: {
+        file_upload: "Loaded Linaw's file into EPRS",
+        manual_entry: "Typed the figures into EPRS by hand",
+      },
+      manualEntryNote: "If you typed the figures into EPRS, record it as typed in: it is kept, but it does not prove Linaw's file loads.",
+      answerLabel: "PhilHealth acknowledgement receipt (ePAR) number",
+      scopeNote: "PhilHealth issues the acknowledgement receipt when the premium is paid, so the number shows the report was filed and paid in EPRS. Linaw's figures are recomputed from monthly basic salary, so check they match the amount you actually remitted.",
+      unconfirmedNote: "EPRS takes RF-1 data in its own prescribed template. It is not confirmed that Linaw's CSV matches it, so a rejection or a typed-in filing is useful information, record it.",
+    },
+  },
+  {
+    agency: "Pag-IBIG",
+    form: "MCRF",
+    kind: "pagibig-mcrf",
+    generatorVersion: PAGIBIG_MCRF_GENERATOR_VERSION,
+    referenceLabel: "Pag-IBIG online payment instruction number (OPIN) or the confirmation reference you were given",
+    copy: {
+      title: "Pag-IBIG MCRF: did Pag-IBIG accept the remittance file?",
+      agencyLabel: "Pag-IBIG",
+      portalLabel: "Pag-IBIG eSRS or your bank's Pag-IBIG upload facility",
+      methodLabels: {
+        file_upload: "Uploaded the file Linaw generated",
+        manual_entry: "Typed the figures in by hand",
+      },
+      manualEntryNote: "If you typed the figures in, record it as typed in: it is kept, but it does not prove Linaw's file loads.",
+      answerLabel: "Pag-IBIG payment instruction number (OPIN) or confirmation reference",
+      scopeNote: "A payment instruction number shows Pag-IBIG or your bank validated the file and set up a payment. It does not show the remittance was posted to your Pag-IBIG account, so confirm that separately. eSRS is open only to employers with at most 30 employees; larger employers upload through a bank facility.",
+      unconfirmedNote: "These upload routes take a CSV in Pag-IBIG's own prescribed layout, and Pag-IBIG's official pages could not be read when this was written. It is not confirmed that Linaw's CSV matches, so a rejection or a typed-in filing is useful information, record it.",
+    },
   },
 ];
 
@@ -163,6 +255,24 @@ export function provesFileFormat(row: FilingEvidenceRow, definition: FilingFormD
     && row.submissionMethod === "file_upload"
     && row.generatorVersion === definition.generatorVersion
   );
+}
+
+type EvidenceSummary = ReturnType<typeof summarizeFilingEvidence>;
+
+/**
+ * The readiness gate's explanation while a form is not proven. It says which
+ * weaker kinds of evidence exist so nobody is told "nothing" when something is
+ * recorded, and never suggests they count.
+ */
+export function describeEvidenceGap(summary: EvidenceSummary | null, definition: FilingFormDefinition): string {
+  const parts = [`No recorded ${definition.copy.agencyLabel} acceptance of a Linaw-generated ${definition.form} file in the current layout yet.`];
+  if (summary?.acceptedByManualEntry) {
+    parts.push(`${summary.acceptedByManualEntry} filing(s) were typed in by hand, which proves a filing was made but not that the generated file works.`);
+  }
+  if (summary?.acceptedOnOlderLayout) parts.push(`${summary.acceptedOnOlderLayout} acceptance(s) were for an older file layout.`);
+  if (summary?.rejected) parts.push(`${summary.rejected} rejection(s) are recorded.`);
+  parts.push("Create a record on the Exports page, use that file, then record the agency's answer.");
+  return parts.join(" ");
 }
 
 export function summarizeFilingEvidence(rows: FilingEvidenceRow[], definition: FilingFormDefinition) {
