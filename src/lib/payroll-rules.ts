@@ -79,13 +79,22 @@ export function computeSemiMonthlyWithholdingTax(semiMonthlyTaxableIncome: numbe
   return round(computeMonthlyWithholdingTax(period * 2, isMwe) / 2);
 }
 
+/**
+ * Labor Code Art. 87: overtime is +25% of the hourly rate on an ordinary day,
+ * +30% on a rest day, special day, or holiday, applied to that day's already-
+ * premium rate (DOLE Handbook "Guide Computations", multiplicative method).
+ * "Double holiday" (two regular holidays on the same calendar date, 300% /
+ * 390% OT) is not representable here, HolidayType has no "double" case; this
+ * function is never called for one today.
+ */
 export function holidayMultiplier(input: { holiday: HolidayType; worked: boolean; restDay?: boolean; overtime?: boolean }) {
   if (!input.worked) return input.holiday === "regular" ? 1 : 0;
+  const isPremiumDay = input.holiday === "regular" || input.holiday === "special" || Boolean(input.restDay);
   let multiplier = input.holiday === "regular" ? 2 : input.holiday === "special" ? 1.3 : 1;
   if (input.restDay) {
     multiplier = input.holiday === "regular" ? 2.6 : input.holiday === "special" ? 1.5 : 1.3;
   }
-  return round(multiplier * (input.overtime ? 1.3 : 1));
+  return round(multiplier * (input.overtime ? (isPremiumDay ? 1.3 : 1.25) : 1));
 }
 
 export type ClockPunch = { timeIn?: string | null; timeOut?: string | null };

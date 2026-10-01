@@ -40,3 +40,5 @@ SOFTWARE.
 
 Also used by `tests/wage-13th-crosscheck.test.ts`: `data/13th_month_pay.json`,
 `data/min_wage_2025.json`.
+
+Also used by `tests/premium-pay-crosscheck.test.ts`: `data/premium_pay.json`.
