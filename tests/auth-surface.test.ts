@@ -79,3 +79,20 @@ test("employees can carry an email so payslip mail is addressable", () => {
   const schema = read("src/db/schema.ts");
   assert.ok(/employees = pgTable[\s\S]*?email: varchar\("email"/.test(schema));
 });
+
+
+test("employee self-service signs out with POST instead of navigating to the API route", () => {
+  const selfService = read("src/components/self-service-portal.tsx");
+  assert.ok(
+    selfService.includes('fetch("/api/auth/logout", { method: "POST" })'),
+    "employee sign out must call the POST-only logout endpoint",
+  );
+  assert.ok(
+    selfService.includes('window.location.href = "/login"'),
+    "successful employee sign out must return to login",
+  );
+  assert.ok(
+    !selfService.includes('href="/api/auth/logout"'),
+    "employee sign out must never navigate to the POST-only API route with GET",
+  );
+});
