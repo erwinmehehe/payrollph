@@ -148,6 +148,21 @@ test("production rollout readiness proves the exact deployed commit and exposes 
 });
 
 
+test("production bank migration refuses to encrypt with a key that does not match the live app", () => {
+  const pilotStatus = readFileSync("src/app/api/readiness/pilot-status/route.ts", "utf8");
+  const workflow = readFileSync(".github/workflows/production-bank-encryption.yml", "utf8");
+  const prepare = readFileSync("scripts/prepare-bank-encryption.ts", "utf8");
+
+  assert.ok(pilotStatus.includes("bankEncryptionKeyFingerprint"));
+  assert.ok(pilotStatus.includes("bankEncryptionFingerprint"));
+  assert.ok(workflow.includes("Prove runner key matches live production"));
+  assert.ok(workflow.includes('if [ "$local_fp" != "$live_fp" ]'));
+  assert.ok(workflow.includes("Refusing to touch bank data"));
+  assert.ok(workflow.includes("scripts/encrypt-bank-accounts.ts --apply"));
+  assert.ok(workflow.includes("Verify zero plaintext bank data remains"));
+  assert.ok(prepare.includes("ALTER TABLE employees ALTER COLUMN bank_account TYPE varchar(160)"));
+});
+
 test("production document uploads are opt-in and cannot weaken malware safety", () => {
   const storage = readFileSync("src/lib/storage.ts", "utf8");
   const documents = readFileSync("src/app/api/documents/route.ts", "utf8");
