@@ -1,7 +1,7 @@
 import { and, count, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { auditEvents, employees, invoices, outbox, subscriptions, users } from "@/db/schema";
-import { bankEncryptionConfigured } from "@/lib/bank-account-crypto";
+import { auditEvents, employees, invoices, outbox, payrollEntries, subscriptions, users } from "@/db/schema";
+import { bankEncryptionConfigured, bankEncryptionKeySource } from "@/lib/bank-account-crypto";
 import { activeMailProvider, deliveryCapable } from "@/lib/mail-provider";
 import { verifyPassword } from "@/lib/crypto";
 import { constantTimeSecretEqual } from "@/lib/security-secret";
@@ -48,6 +48,13 @@ export async function GET(request: Request) {
       sql`${employees.bankAccount} not like 'enc:v1:%'`,
     ));
 
+  const [{ value: plaintextBankSnapshots }] = await db
+    .select({ value: count() })
+    .from(payrollEntries)
+    .where(sql`${payrollEntries.trace} #>> '{payment,bankAccount}' is not null
+      and ${payrollEntries.trace} #>> '{payment,bankAccount}' <> ''
+      and ${payrollEntries.trace} #>> '{payment,bankAccount}' not like 'enc:v1:%'`);
+
   const provider = activeMailProvider();
 
   // A review account with a publicly known password must never survive into a
@@ -74,7 +81,11 @@ export async function GET(request: Request) {
   const bankReady = directBankConfigured || (paymongoDisbursementEnabled && paymongoPreflightProven && paymongoWebhookConfigured);
 
   const bankKeyConfigured = bankEncryptionConfigured();
-  const bankDataProtected = bankKeyConfigured && Number(plaintextBankAccounts) === 0;
+  const bankKeySource = bankEncryptionKeySource();
+  const bankDataProtected =
+    bankKeyConfigured
+    && Number(plaintextBankAccounts) === 0
+    && Number(plaintextBankSnapshots) === 0;
 
   // Government filing does not require vendor accreditation for standard
   // file-based submission, BIR publishes the Alphalist .DAT layout and
@@ -174,10 +185,10 @@ export async function GET(request: Request) {
       label: "Bank account numbers encrypted at rest",
       ready: bankDataProtected,
       detail: bankDataProtected
-        ? "BANK_DATA_ENCRYPTION_KEY is configured and no employee bank account remains in plaintext."
+        ? `Bank data is encrypted at rest using the ${bankKeySource === "dedicated" ? "dedicated bank-data key" : "domain-separated key derived from the TOTP master"}; no employee account or payroll payment snapshot remains in plaintext.`
         : bankKeyConfigured
-          ? `${plaintextBankAccounts} employee bank account number(s) remain in plaintext. Run scripts/encrypt-bank-accounts.ts --apply before launch.`
-          : `BANK_DATA_ENCRYPTION_KEY is not configured. Apply the bank-account envelope migration, configure a 32-byte key, and encrypt existing records before launch.`,
+          ? `${plaintextBankAccounts} employee bank account number(s) and ${plaintextBankSnapshots} payroll payment snapshot(s) remain in plaintext. The compatibility upgrader will seal them automatically on the next authenticated/demo bootstrap.`
+          : "No usable bank-data encryption key is available. Configure BANK_DATA_ENCRYPTION_KEY or the required TOTP_ENCRYPTION_KEY before launch.",
       blocks: bankDataProtected ? "none" : "launch",
     },
     {
@@ -280,7 +291,7 @@ export async function GET(request: Request) {
           : `${unworkaroundableBlockers.length} blocker(s) have no manual workaround and must be fixed even for a manual-ops pilot: ${unworkaroundableBlockers.map((g) => g.label).join(", ")}.`,
     },
     gates,
-    counts: { users: userCount, queuedMail, sentMail, failedMail, paidInvoices, activeSubs, paymongoPreflightPasses, plaintextBankAccounts },
+    counts: { users: userCount, queuedMail, sentMail, failedMail, paidInvoices, activeSubs, paymongoPreflightPasses, plaintextBankAccounts, plaintextBankSnapshots },
     generatedAt: new Date().toISOString(),
   });
 }
