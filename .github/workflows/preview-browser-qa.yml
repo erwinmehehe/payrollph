@@ -16,6 +16,7 @@ on:
       - "src/app/api/auth/demo-switch/route.ts"
       - "src/db/public-demo.ts"
       - "src/lib/demo-host.ts"
+      - "src/lib/security-request.ts"
       - "src/lib/pricing-catalog.ts"
       - "src/lib/demo-roles.ts"
       - "package.json"
