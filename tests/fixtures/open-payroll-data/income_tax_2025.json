@@ -1,0 +1,149 @@
+{
+  "topic": "Graduated income tax / withholding on compensation (2023-onward TRAIN)",
+  "country": "PH",
+  "effective_date": "2023-01-01",
+  "currency": "PHP",
+  "volatility": "stable",
+  "source": {
+    "issuance": "BIR Revenue Regulations No. 8-2018 (RA 10963 / TRAIN)",
+    "source_tier": "primary",
+    "last_verified": "2026-06-24",
+    "url": "https://bir-cdn.bir.gov.ph/local/pdf/Digest%20RR%208-2018_copy.pdf",
+    "markdown": "ph/bir/income_tax_table_2025.md"
+  },
+  "notes": "Tax on annual taxable income = base_tax + rate * (income - of_excess_over). Monthly = annual/12 brackets; semi_monthly = annual/24. Minimum-wage earners are fully exempt.",
+  "annual": [
+    {
+      "over": 0,
+      "not_over": 250000,
+      "base_tax": 0,
+      "rate": 0,
+      "of_excess_over": 0
+    },
+    {
+      "over": 250000,
+      "not_over": 400000,
+      "base_tax": 0,
+      "rate": 0.15,
+      "of_excess_over": 250000
+    },
+    {
+      "over": 400000,
+      "not_over": 800000,
+      "base_tax": 22500,
+      "rate": 0.2,
+      "of_excess_over": 400000
+    },
+    {
+      "over": 800000,
+      "not_over": 2000000,
+      "base_tax": 102500,
+      "rate": 0.25,
+      "of_excess_over": 800000
+    },
+    {
+      "over": 2000000,
+      "not_over": 8000000,
+      "base_tax": 402500,
+      "rate": 0.3,
+      "of_excess_over": 2000000
+    },
+    {
+      "over": 8000000,
+      "not_over": null,
+      "base_tax": 2202500,
+      "rate": 0.35,
+      "of_excess_over": 8000000
+    }
+  ],
+  "monthly": [
+    {
+      "over": 0,
+      "not_over": 20833,
+      "base_tax": 0,
+      "rate": 0,
+      "of_excess_over": 0
+    },
+    {
+      "over": 20833,
+      "not_over": 33333,
+      "base_tax": 0,
+      "rate": 0.15,
+      "of_excess_over": 20833
+    },
+    {
+      "over": 33333,
+      "not_over": 66667,
+      "base_tax": 1875,
+      "rate": 0.2,
+      "of_excess_over": 33333
+    },
+    {
+      "over": 66667,
+      "not_over": 166667,
+      "base_tax": 8542,
+      "rate": 0.25,
+      "of_excess_over": 66667
+    },
+    {
+      "over": 166667,
+      "not_over": 666667,
+      "base_tax": 33542,
+      "rate": 0.3,
+      "of_excess_over": 166667
+    },
+    {
+      "over": 666667,
+      "not_over": null,
+      "base_tax": 183542,
+      "rate": 0.35,
+      "of_excess_over": 666667
+    }
+  ],
+  "semi_monthly": [
+    {
+      "over": 0,
+      "not_over": 10417,
+      "base_tax": 0,
+      "rate": 0,
+      "of_excess_over": 0
+    },
+    {
+      "over": 10417,
+      "not_over": 16667,
+      "base_tax": 0,
+      "rate": 0.15,
+      "of_excess_over": 10417
+    },
+    {
+      "over": 16667,
+      "not_over": 33333,
+      "base_tax": 937.5,
+      "rate": 0.2,
+      "of_excess_over": 16667
+    },
+    {
+      "over": 33333,
+      "not_over": 83333,
+      "base_tax": 4271,
+      "rate": 0.25,
+      "of_excess_over": 33333
+    },
+    {
+      "over": 83333,
+      "not_over": 333333,
+      "base_tax": 16771,
+      "rate": 0.3,
+      "of_excess_over": 83333
+    },
+    {
+      "over": 333333,
+      "not_over": null,
+      "base_tax": 91771,
+      "rate": 0.35,
+      "of_excess_over": 333333
+    }
+  ],
+  "formula": "tax = base_tax + rate * (taxable_income - of_excess_over), using the table for the pay period (annual / monthly / semi_monthly)",
+  "taxable_base": "taxable_income = gross compensation - employee SSS/PhilHealth/Pag-IBIG contributions - non-taxable items (de minimis within ceilings; 13th-month + other bonuses up to 90,000). Apply the table to taxable_income, NOT to gross pay."
+}
