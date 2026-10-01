@@ -49,8 +49,24 @@ function httpsUrl(name: string): Check {
 const checks: Check[] = [
   httpsUrl("APP_BASE_URL"),
   httpsUrl("MALWARE_SCAN_URL"),
-  optionalStrongSecret("WORKER_TOKEN", "not configured; remote scheduler endpoint remains disabled"),
-  optionalStrongSecret("READINESS_TOKEN", "not configured; detailed readiness endpoint remains disabled"),
+  {
+    key: "WORKER_TOKEN",
+    ok: operationalSecretSource("worker") !== null,
+    detail: operationalSecretSource("worker") === "dedicated"
+      ? "dedicated 32+ byte token"
+      : operationalSecretSource("worker") === "totp-derived"
+        ? "domain-separated token derived from TOTP master"
+        : "missing",
+  },
+  {
+    key: "READINESS_TOKEN",
+    ok: operationalSecretSource("readiness") !== null,
+    detail: operationalSecretSource("readiness") === "dedicated"
+      ? "dedicated 32+ byte token"
+      : operationalSecretSource("readiness") === "totp-derived"
+        ? "domain-separated token derived from TOTP master"
+        : "missing",
+  },
   strongSecret("SETUP_TOKEN"),
   strongSecret("MALWARE_SCAN_TOKEN"),
   validTotpKey(),
