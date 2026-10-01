@@ -35,6 +35,7 @@ import { NATIONAL_HOLIDAYS_2026, WAGE_ORDERS } from "@/lib/wage-orders";
 import { ensureSubscription } from "@/lib/billing";
 import { DEFAULT_PRICING_PLANS } from "@/lib/pricing-catalog";
 import { generateBackupCodes, hashPassword } from "@/lib/crypto";
+import { encryptBankAccount } from "@/lib/bank-account-crypto";
 
 const people = [
   ["Mariel", "Santos", "Operations Lead", "MS", "Active", "Regular", "38500.00", false, "1234567890", "BDO", "09171230001"],
@@ -119,7 +120,7 @@ export async function ensureSeedData() {
       employmentType: person[5],
       basicRate: person[6],
       mwe: person[7],
-      bankAccount: person[8],
+      bankAccount: encryptBankAccount(person[8]),
       bankCode: person[9],
       mobile: person[10],
       email: `${person[0]}.${person[1]}`.toLowerCase().replace(/[^a-z.]/g, "") + "@linaw.ph",
