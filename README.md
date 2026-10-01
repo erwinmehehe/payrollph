@@ -217,7 +217,7 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
 - `/api/readiness` now exposes one gate per agency (`gov-bir-alphalist`, `gov-sss-r3`,
   `gov-philhealth-rf1`, `gov-pagibig-mcrf`) instead of one aggregate gate, each set by a
   human confirming that run's output actually validated in the agency's own free tool.
-  `gov-sss-r3`, `gov-bir-alphalist` and `gov-philhealth-rf1` are the exceptions: they read recorded evidence
+  All four gates (`gov-sss-r3`, `gov-bir-alphalist`, `gov-philhealth-rf1`, `gov-pagibig-mcrf`) now read recorded evidence
   (`government_filing_validations`, migration `drizzle/0005_government_filing_validations.sql`)
   instead of an env flag. Record results from the Exports page.
 - `generateGovernmentDraft`'s Alphalist branch now splits the TIN into BIR's documented

@@ -15,7 +15,7 @@ import { createHash } from "node:crypto";
  *     Linaw's file is importable, so it is recorded but never counted.
  */
 
-export type FilingAgency = "SSS" | "BIR" | "PhilHealth";
+export type FilingAgency = "SSS" | "BIR" | "PhilHealth" | "Pag-IBIG";
 
 export type FilingFormDefinition = {
   agency: FilingAgency;
@@ -51,6 +51,7 @@ export type FilingFormDefinition = {
 export const SSS_R3_GENERATOR_VERSION = "sss-r3-worksheet-v1";
 export const BIR_1604C_GENERATOR_VERSION = "bir-1604c-source-v1";
 export const PHILHEALTH_RF1_GENERATOR_VERSION = "philhealth-rf1-worksheet-v1";
+export const PAGIBIG_MCRF_GENERATOR_VERSION = "pagibig-mcrf-worksheet-v1";
 
 export const FILING_FORMS: readonly FilingFormDefinition[] = [
   {
@@ -111,6 +112,26 @@ export const FILING_FORMS: readonly FilingFormDefinition[] = [
       answerLabel: "PhilHealth acknowledgement receipt (ePAR) number",
       scopeNote: "PhilHealth issues the acknowledgement receipt when the premium is paid, so the number shows the report was filed and paid in EPRS. Linaw's figures are recomputed from monthly basic salary, so check they match the amount you actually remitted.",
       unconfirmedNote: "EPRS takes RF-1 data in its own prescribed template. It is not confirmed that Linaw's CSV matches it, so a rejection or a typed-in filing is useful information, record it.",
+    },
+  },
+  {
+    agency: "Pag-IBIG",
+    form: "MCRF",
+    kind: "pagibig-mcrf",
+    generatorVersion: PAGIBIG_MCRF_GENERATOR_VERSION,
+    referenceLabel: "Pag-IBIG online payment instruction number (OPIN) or the confirmation reference you were given",
+    copy: {
+      title: "Pag-IBIG MCRF: did Pag-IBIG accept the remittance file?",
+      agencyLabel: "Pag-IBIG",
+      portalLabel: "Pag-IBIG eSRS or your bank's Pag-IBIG upload facility",
+      methodLabels: {
+        file_upload: "Uploaded the file Linaw generated",
+        manual_entry: "Typed the figures in by hand",
+      },
+      manualEntryNote: "If you typed the figures in, record it as typed in: it is kept, but it does not prove Linaw's file loads.",
+      answerLabel: "Pag-IBIG payment instruction number (OPIN) or confirmation reference",
+      scopeNote: "A payment instruction number shows Pag-IBIG or your bank validated the file and set up a payment. It does not show the remittance was posted to your Pag-IBIG account, so confirm that separately. eSRS is open only to employers with at most 30 employees; larger employers upload through a bank facility.",
+      unconfirmedNote: "These upload routes take a CSV in Pag-IBIG's own prescribed layout, and Pag-IBIG's official pages could not be read when this was written. It is not confirmed that Linaw's CSV matches, so a rejection or a typed-in filing is useful information, record it.",
     },
   },
 ];

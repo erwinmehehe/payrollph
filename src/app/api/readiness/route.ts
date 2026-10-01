@@ -65,6 +65,7 @@ export async function buildReadinessPayload() {
   const sssEvidence = evidenceFor("SSS", "R-3");
   const birEvidence = evidenceFor("BIR", "1604-C");
   const philhealthEvidence = evidenceFor("PhilHealth", "RF-1");
+  const pagibigEvidence = evidenceFor("Pag-IBIG", "MCRF");
 
   const provider = activeMailProvider();
 
@@ -109,7 +110,7 @@ export async function buildReadinessPayload() {
   const birAlphalistValidated = Boolean(birEvidence?.proven);
   const sssR3Validated = Boolean(sssEvidence?.proven);
   const philhealthValidated = Boolean(philhealthEvidence?.proven);
-  const pagibigValidated = enabled("PAGIBIG_MCRF_VALIDATED");
+  const pagibigValidated = Boolean(pagibigEvidence?.proven);
   const storageConfigured = configured("S3_BUCKET") || configured("R2_BUCKET");
   const storageIntegrated = false;
   const malwareEndpointConfigured = configured("MALWARE_SCAN_URL");
@@ -272,10 +273,11 @@ export async function buildReadinessPayload() {
       label: "Pag-IBIG MCRF validated",
       ready: pagibigValidated,
       detail: pagibigValidated
-        ? "A generated remittance schedule has been accepted through Pag-IBIG employer e-services."
-        : "The draft now uses each employee's real Pag-IBIG MID and full monthly employee/employer contribution. It remains an eSRS/employer-portal entry aid until a real employer acknowledgement is recorded.",
+        ? `Pag-IBIG (eSRS or a bank upload facility) accepted a Linaw-generated MCRF file in the current layout (${pagibigEvidence?.provingCount} recorded acceptance(s)${pagibigEvidence?.latest?.agencyReference ? `, latest reference ${pagibigEvidence.latest.agencyReference}` : ""}). A payment instruction shows the file was validated, not that the remittance was posted to the employer's account.`
+        : filingEvidenceError
+          ?? `${describeEvidenceGap(pagibigEvidence, findFilingForm("Pag-IBIG", "MCRF")!)} The draft uses each employee's real Pag-IBIG MID and full monthly contributions; it is an eSRS/employer-portal entry aid until an acceptance is recorded.`,
       blocks: pagibigValidated ? "none" : "launch",
-      manualWorkaround: pagibigValidated ? undefined : "Enter the DRAFT figures by hand into eSRS (employers with at most 30 employees) or Pag-IBIG's Virtual employer e-services portal.",
+      manualWorkaround: pagibigValidated ? undefined : "Enter the DRAFT figures by hand into eSRS (employers with at most 30 employees) or Pag-IBIG's Virtual employer e-services portal, then record the result under /api/compliance/filing-validations.",
     },
     {
       key: "object-storage",

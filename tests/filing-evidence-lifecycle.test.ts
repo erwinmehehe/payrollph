@@ -220,3 +220,43 @@ test("a PhilHealth RF-1 record fails closed without a PIN, then counts only for 
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
 });
+
+test("a Pag-IBIG MCRF record fails closed without a MID, then counts only for Pag-IBIG", async () => {
+  const { org, employee, run } = await seedRun("Filing PagIBIG Co");
+  const PI = findFilingForm("Pag-IBIG", "MCRF")!;
+  try {
+    await assert.rejects(
+      recordGeneratedFiling({ organizationId: org.id, runId: run.id, definition: PI, actor: "Tester" }),
+      /missing a Pag-IBIG MID/,
+    );
+    await db.update(employees).set({ pagIbigNo: "1234-5678-9012" }).where(eq(employees.id, employee.id));
+
+    const before = await filingEvidenceSummaries();
+    const piBefore = before.find((item) => item.definition.agency === "Pag-IBIG")!;
+    const othersBefore = before.filter((item) => item.definition.agency !== "Pag-IBIG").map((item) => item.provingCount);
+
+    const { record, file } = await recordGeneratedFiling({ organizationId: org.id, runId: run.id, definition: PI, actor: "Tester" });
+    assert.equal(record.agency, "Pag-IBIG");
+    assert.equal(record.form, "MCRF");
+    assert.match(file.filename, /^pagibig-mcrf-esrs-worksheet-/);
+
+    // A rejection needs a reason and is kept; it never counts.
+    const rejected = parseFilingOutcome({ outcome: "rejected", submissionMethod: "file_upload", note: "Header row not recognised" });
+    assert.ok(rejected.ok);
+    const resolved = await recordFilingOutcome({ organizationId: org.id, id: record.id, actor: "Tester", outcome: rejected.ok ? rejected.value : (undefined as never) });
+    assert.equal(resolved?.status, "rejected");
+    assert.equal((await filingEvidenceSummaries()).find((item) => item.definition.agency === "Pag-IBIG")!.rejected, piBefore.rejected + 1);
+
+    // The fix is a new file, hence a new record; accepting that upload counts for Pag-IBIG only.
+    await db.update(employees).set({ basicRate: "25000" }).where(eq(employees.id, employee.id));
+    const second = await recordGeneratedFiling({ organizationId: org.id, runId: run.id, definition: PI, actor: "Tester" });
+    assert.equal(second.created, true);
+    await recordFilingOutcome({ organizationId: org.id, id: second.record.id, actor: "Tester", outcome: acceptance("file_upload") });
+
+    const after = await filingEvidenceSummaries();
+    assert.equal(after.find((item) => item.definition.agency === "Pag-IBIG")!.provingCount, piBefore.provingCount + 1);
+    assert.deepEqual(after.filter((item) => item.definition.agency !== "Pag-IBIG").map((item) => item.provingCount), othersBefore);
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});

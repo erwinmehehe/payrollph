@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   BIR_1604C_GENERATOR_VERSION,
+  PAGIBIG_MCRF_GENERATOR_VERSION,
   PHILHEALTH_RF1_GENERATOR_VERSION,
   describeEvidenceGap,
   FILING_FORMS,
@@ -102,7 +103,8 @@ test("the file hash is stable and sensitive to a single changed byte", () => {
 test("only forms Linaw actually generates can be tracked", () => {
   assert.equal(findFilingForm("SSS", "R-3")?.kind, "sss-r3");
   assert.equal(findFilingForm("BIR", "1601-C"), null, "no evidence rows for a form with no evidence flow yet");
-  assert.equal(findFilingForm("Pag-IBIG", "MCRF"), null);
+  assert.equal(findFilingForm("Pag-IBIG", "STL"), null, "loan files are not tracked");
+  assert.equal(findFilingForm("Pag-IBIG", "MCRF")?.kind, "pagibig-mcrf");
   assert.equal(findFilingForm("PhilHealth", "RF-1")?.kind, "philhealth-rf1");
   assert.equal(findFilingForm("BIR", "1604-C")?.kind, "bir-1604c-source");
   assert.equal(findFilingForm(undefined, undefined), null);
@@ -115,6 +117,7 @@ test("changing a tracked file's columns forces a generator version bump", () => 
   const source = readFileSync("src/lib/exporters.ts", "utf8");
   const pins = [
     { form: "SSS R-3", pattern: /"(SSSNo,LastName[^"]+)"/, version: SSS_R3_GENERATOR_VERSION, expected: "sss-r3-worksheet-v1|SSSNo,LastName,FirstName,MiddleName,MSC,SS_Regular,SS_MPF,SS_Employee,SS_Employer,EC_Employer,Total_Contribution" },
+    { form: "Pag-IBIG MCRF", pattern: /"(PagIBIGMID,LastName[^"]+)"/, version: PAGIBIG_MCRF_GENERATOR_VERSION, expected: "pagibig-mcrf-worksheet-v1|PagIBIGMID,LastName,FirstName,MiddleName,FundSalary,EmployeeShare,EmployerShare,TotalContribution" },
     { form: "PhilHealth RF-1", pattern: /"(PIN,LastName[^"]+)"/, version: PHILHEALTH_RF1_GENERATOR_VERSION, expected: "philhealth-rf1-worksheet-v1|PIN,LastName,FirstName,MiddleName,MonthlySalaryBase,EmployeeShare,EmployerShare,TotalPremium" },
     { form: "BIR 1604-C", pattern: /"(EmployerTIN,EmployerBranchCode[^"]+)"/, version: BIR_1604C_GENERATOR_VERSION, expected: "bir-1604c-source-v1|EmployerTIN,EmployerBranchCode,EmployeeTIN,EmployeeBranchCode,LastName,FirstName,MiddleName,Nationality,GrossCompensation,TaxWithheld,MWE,Status" },
   ];
@@ -154,6 +157,30 @@ test("PhilHealth evidence follows the same rules and stays separate from SSS and
   assert.equal(parseFilingOutcome({ outcome: "accepted", submissionMethod: "file_upload", agencyReference: "EPAR-2026-000123", submittedAt: "2026-09-10" }, NOW).ok, true);
 });
 
+test("Pag-IBIG evidence follows the same rules and every agency stays separate", () => {
+  const pi = findFilingForm("Pag-IBIG", "MCRF")!;
+  assert.equal(pi.kind, "pagibig-mcrf");
+  assert.equal(pi.agency, "Pag-IBIG");
+  const row = (overrides: Partial<FilingEvidenceRow> = {}) =>
+    accepted({ agency: "Pag-IBIG", form: "MCRF", generatorVersion: PAGIBIG_MCRF_GENERATOR_VERSION, agencyReference: "OPIN-20260930-0042", ...overrides });
+  assert.equal(provesFileFormat(row(), pi), true);
+  assert.equal(provesFileFormat(row({ submissionMethod: "manual_entry" }), pi), false);
+  assert.equal(provesFileFormat(row({ generatorVersion: "pagibig-mcrf-worksheet-v0" }), pi), false);
+  assert.equal(provesFileFormat(row({ status: "generated" }), pi), false);
+
+  // No agency's acceptance can turn on another agency's gate.
+  const rows = FILING_FORMS.map((definition) => accepted({
+    agency: definition.agency,
+    form: definition.form,
+    generatorVersion: definition.generatorVersion,
+  }));
+  for (const definition of FILING_FORMS) {
+    const others = rows.filter((item) => item.agency !== definition.agency);
+    assert.equal(summarizeFilingEvidence(others, definition).proven, false, `${definition.agency} was proven by another agency's rows`);
+    assert.equal(summarizeFilingEvidence(rows, definition).provingCount, 1);
+  }
+});
+
 test("the gap explanation names weaker evidence without counting it", () => {
   const bir = findFilingForm("BIR", "1604-C")!;
   assert.match(describeEvidenceGap(summarizeFilingEvidence([], bir), bir), /No recorded BIR acceptance/);
@@ -172,6 +199,8 @@ test("readiness reads recorded evidence and no longer trusts an environment flag
   assert.ok(!readiness.includes('enabled("SSS_R3_VALIDATED")'), "SSS_R3_VALIDATED must not decide readiness any more");
   assert.ok(!readiness.includes('enabled("BIR_ALPHALIST_VALIDATED")'), "BIR_ALPHALIST_VALIDATED must not decide readiness any more");
   assert.ok(!readiness.includes('enabled("PHILHEALTH_RF1_VALIDATED")'), "PHILHEALTH_RF1_VALIDATED must not decide readiness any more");
+  assert.ok(!readiness.includes('enabled("PAGIBIG_MCRF_VALIDATED")'), "PAGIBIG_MCRF_VALIDATED must not decide readiness any more");
+  assert.ok(!/enabled\("[A-Z0-9_]*_VALIDATED"\)/.test(readiness), "no government filing gate may be decided by an env flag");
   assert.ok(readiness.includes("filingEvidenceError"), "a missing table must read as not proven, not crash readiness");
 });
 
