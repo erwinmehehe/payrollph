@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { invitations, orgUnits, users } from "@/db/schema";
+import { invitations, orgUnits, userOrganizations, users } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { deliveryCapable, queueMessage } from "@/lib/mailer";
@@ -9,6 +9,7 @@ import { assertOrganizationRole, getAccess, ORG_ADMIN_ROLES } from "@/lib/access
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { canonicalAppOrigin, enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { rateLimitDistributed } from "@/lib/rate-limit";
+import { isInvitableRole } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -25,11 +26,24 @@ export async function GET(request: Request) {
     "Only workspace administrators can view invitations.",
   );
   if (deniedInviteList) return deniedInviteList;
-  const rows = await db.select().from(invitations)
-    .where(eq(invitations.organizationId, organizationId))
-    .orderBy(desc(invitations.id));
+  const [rows, memberRows] = await Promise.all([
+    db.select().from(invitations)
+      .where(eq(invitations.organizationId, organizationId))
+      .orderBy(desc(invitations.id)),
+    db.select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      role: userOrganizations.role,
+      orgUnitId: userOrganizations.orgUnitId,
+    })
+      .from(userOrganizations)
+      .innerJoin(users, eq(userOrganizations.userId, users.id))
+      .where(eq(userOrganizations.organizationId, organizationId)),
+  ]);
 
   return Response.json({
+    members: memberRows,
     invitations: rows.map((row) => ({
       id: row.id,
       email: row.email,
@@ -54,7 +68,10 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-  const role = ["owner", "admin", "hr", "bookkeeper", "employee"].includes(String(body.role)) ? String(body.role) : "admin";
+  const role = String(body.role ?? "").trim();
+  if (!isInvitableRole(role)) {
+    return Response.json({ error: "Choose a supported workspace role." }, { status: 422 });
+  }
 
   if (!Number.isInteger(organizationId)) return Response.json({ error: "organizationId is required." }, { status: 400 });
   const deniedInvite = await assertOrganizationRole(

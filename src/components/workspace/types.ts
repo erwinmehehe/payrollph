@@ -40,6 +40,9 @@ export type Employee = {
   region?: string | null;
   orgUnitId?: number | null;
   email?: string | null;
+  bankAccount?: string | null;
+  bankCode?: string | null;
+  mobile?: string | null;
   tin?: string | null;
   tinBranchCode?: string | null;
   sssNo?: string | null;

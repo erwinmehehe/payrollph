@@ -21,6 +21,9 @@ export function NewHireModal({
     firstName: "",
     lastName: "",
     email: "",
+    bankAccount: "",
+    bankCode: "",
+    mobile: "",
     title: "",
     payBasis: "monthly",
     rateAmount: "",
@@ -83,6 +86,9 @@ export function NewHireModal({
             <label>Last name<input required value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} /></label>
             <label>Work email<input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="for payslip delivery" /></label>
             <label>Job title<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label>
+            <label>Bank / payout code<input value={form.bankCode} onChange={(e) => setForm({ ...form, bankCode: e.target.value.toUpperCase() })} placeholder="BDO / BPI / UB / ..." /></label>
+            <label>Account number<input value={form.bankAccount} onChange={(e) => setForm({ ...form, bankAccount: e.target.value })} placeholder="encrypted after save" autoComplete="off" /></label>
+            <label>Mobile payout number<input value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} placeholder="optional" /></label>
             <label>Pay basis
               <select value={form.payBasis} onChange={(e) => setForm({ ...form, payBasis: e.target.value })}>
                 <option value="monthly">Monthly salaried</option>
@@ -118,6 +124,9 @@ export function NewHireModal({
             <label>Serial number<input value={form.serialNumber} onChange={(e) => setForm({ ...form, serialNumber: e.target.value })} /></label>
           </div>
           <div className="modal-note" style={{ marginTop: 12 }}>
+            Bank account and bank code are required together for payout readiness. The account number is encrypted at rest and is not returned in plaintext after save.
+          </div>
+          <div className="modal-note" style={{ marginTop: 8 }}>
             Payroll uses the selected pay basis directly. Monthly staff keep a fixed cutoff salary, while daily/hourly staff are paid from worked regular time. Workdays and hours also define the traceable daily/hourly equivalents used by payroll.
           </div>
           <div className="modal-actions">

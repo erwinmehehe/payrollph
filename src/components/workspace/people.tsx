@@ -369,6 +369,12 @@ function PersonDrawer({
   const [pagIbigNo, setPagIbigNo] = useState(employee.pagIbigNo ?? "");
   const [nationality, setNationality] = useState(employee.nationality ?? "Filipino");
   const [governmentError, setGovernmentError] = useState("");
+  const [editingPayout, setEditingPayout] = useState(false);
+  const [savingPayout, setSavingPayout] = useState(false);
+  const [replacementBankAccount, setReplacementBankAccount] = useState("");
+  const [bankCode, setBankCode] = useState(employee.bankCode ?? "");
+  const [mobile, setMobile] = useState(employee.mobile ?? "");
+  const [payoutError, setPayoutError] = useState("");
 
   async function savePayProfile() {
     setSavingPay(true);
@@ -397,6 +403,34 @@ function PersonDrawer({
       onClose();
     } finally {
       setSavingPay(false);
+    }
+  }
+
+  async function savePayoutDetails() {
+    setSavingPayout(true);
+    setPayoutError("");
+    try {
+      const response = await fetch("/api/employees", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId: data.selectedOrganization.id,
+          employeeId: employee.id,
+          ...(replacementBankAccount.trim() ? { bankAccount: replacementBankAccount.trim() } : {}),
+          bankCode,
+          mobile,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setPayoutError(payload.error ?? "Could not save payout details.");
+        return;
+      }
+      setReplacementBankAccount("");
+      await onRefresh();
+      onClose();
+    } finally {
+      setSavingPayout(false);
     }
   }
 
@@ -593,6 +627,58 @@ function PersonDrawer({
               </div>
             )}
           </div>
+        </section>
+
+        <section className="card" style={{ margin: "0 0 16px", boxShadow: "none" }}>
+          <div className="card-header">
+            <div>
+              <div className="card-kicker">PAYOUT DETAILS</div>
+              <h2 style={{ fontSize: 14 }}>Payroll destination</h2>
+              <p>Release is blocked until every positive-net employee has a complete payout destination.</p>
+            </div>
+            {canManage && (
+              <button className="secondary-button" onClick={() => setEditingPayout((value) => !value)}>
+                {editingPayout ? "Cancel" : "Edit payout"}
+              </button>
+            )}
+          </div>
+          {editingPayout ? (
+            <>
+              <div className="setting-form">
+                <label>Bank / payout code
+                  <input value={bankCode} onChange={(event) => setBankCode(event.target.value.toUpperCase())} placeholder="BDO / BPI / UB / ..." />
+                </label>
+                <label>New account number
+                  <input
+                    value={replacementBankAccount}
+                    onChange={(event) => setReplacementBankAccount(event.target.value)}
+                    placeholder={employee.bankAccount ? `Replace ${employee.bankAccount}` : "Enter account number"}
+                    autoComplete="off"
+                  />
+                </label>
+                <label>Mobile payout number
+                  <input value={mobile} onChange={(event) => setMobile(event.target.value)} placeholder="optional" />
+                </label>
+              </div>
+              <div className="modal-note" style={{ margin: "0 16px 10px" }}>
+                Leave account number blank to keep the saved destination. New account numbers are encrypted server-side; only a masked value returns to the browser and final payout exports decrypt on the server.
+              </div>
+              {payoutError && <div className="notice notice-amber" style={{ margin: "0 16px 10px" }}><span>{payoutError}</span></div>}
+              <div className="run-actions">
+                <button className="primary-button" disabled={savingPayout || !bankCode.trim()} onClick={() => void savePayoutDetails()}>
+                  <Check size={14} /> {savingPayout ? "Saving…" : "Save payout details"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="card-body">
+              <div className="run-stats" style={{ margin: 0 }}>
+                <div><span>Destination</span><strong style={{ fontSize: 12 }}>{employee.bankAccount || "Missing"}</strong><small>masked account</small></div>
+                <div><span>Bank / payout code</span><strong style={{ fontSize: 12 }}>{employee.bankCode || "Missing"}</strong><small>used by final export mapping</small></div>
+                <div><span>Mobile</span><strong style={{ fontSize: 12 }}>{employee.mobile || "Not set"}</strong><small>used only for supported mobile payout rails</small></div>
+              </div>
+            </div>
+          )}
         </section>
 
         <section className="card" style={{ margin: "0 0 16px", boxShadow: "none" }}>

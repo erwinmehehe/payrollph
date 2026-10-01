@@ -43,6 +43,7 @@ import {
   X,
 } from "lucide-react";
 import { AccountPanel } from "@/components/account-panel";
+import { INVITABLE_ROLES, invitableRoleLabel } from "@/lib/roles";
 import type { AuditEvent, DashboardData, Employee, OrgUnit, PayrollEntry, PayrollRun, PricingPlan } from "./types";
 import { Avatar, Metric, PageHeading, Status, formatDate, formatDateTime as formatTime, money } from "./ui";
 export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData; setNotice: (message: string) => void; onRefresh: () => Promise<void> }) {
@@ -620,8 +621,10 @@ export function AuditPage({ events, organizationId }: { events: AuditEvent[]; or
 }
 
 export function SettingsPage({ data, setNotice }: { data: DashboardData; setNotice: (message: string) => void }) {
+  const canManageTeam = ["owner", "admin", "bookkeeper"].includes(data.access?.role ?? "");
   const tabs = [
     { key: "organization", label: "Organization profile", icon: Building2, tone: "i-blue" },
+    ...(canManageTeam ? [{ key: "team", label: "Team & access", icon: UsersRound, tone: "i-teal" }] : []),
     { key: "account", label: "My account", icon: UserCheck, tone: "i-purple" },
     { key: "security", label: "Security", icon: LockKeyhole, tone: "i-amber" },
     { key: "privacy", label: "Data & privacy", icon: ShieldCheck, tone: "i-green" },
@@ -643,6 +646,7 @@ export function SettingsPage({ data, setNotice }: { data: DashboardData; setNoti
         </article>
         <article className="card settings-detail">
           {tab === "organization" && <OrganizationSettings data={data} setNotice={setNotice} />}
+          {tab === "team" && canManageTeam && <TeamAccessSettings data={data} setNotice={setNotice} />}
           {tab === "account" && (
             <div>
               <div className="card-header"><div><div className="card-kicker">MY ACCOUNT</div><h2>Sign-in &amp; sessions</h2><p>Change your name, email, password, and revoke devices.</p></div></div>
@@ -654,6 +658,150 @@ export function SettingsPage({ data, setNotice }: { data: DashboardData; setNoti
         </article>
       </section>
     </>
+  );
+}
+
+type TeamMember = { id: number; name: string; email: string; role: string; orgUnitId: number | null };
+type TeamInvitation = {
+  id: number;
+  email: string;
+  role: string;
+  accepted: boolean;
+  expired: boolean;
+  invitedBy: string;
+  createdAt: string;
+};
+
+function TeamAccessSettings({ data, setNotice }: { data: DashboardData; setNotice: (message: string) => void }) {
+  const organizationId = data.selectedOrganization.id;
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [invitations, setInvitations] = useState<TeamInvitation[]>([]);
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState("payroll");
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function loadTeam() {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/invitations?organizationId=${organizationId}`, { cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(payload.error ?? "Could not load workspace access.");
+        return;
+      }
+      setMembers(Array.isArray(payload.members) ? payload.members : []);
+      setInvitations(Array.isArray(payload.invitations) ? payload.invitations : []);
+    } catch {
+      setError("Could not reach the workspace access service.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadTeam();
+    // The organization id is the only external input for this panel.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [organizationId]);
+
+  async function invite() {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
+      setError("Enter the teammate's email address.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch("/api/invitations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId, email: cleanEmail, role }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(payload.error ?? "Could not send the invitation.");
+        return;
+      }
+      setEmail("");
+      await loadTeam();
+      setNotice(`Invitation created for ${cleanEmail} as ${invitableRoleLabel(role)}.`);
+    } catch {
+      setError("Could not reach the invitation service.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const openInvitations = invitations.filter((invitation) => !invitation.accepted && !invitation.expired);
+
+  return (
+    <div>
+      <div className="card-header">
+        <div>
+          <div className="card-kicker">TEAM &amp; ACCESS</div>
+          <h2>Real payroll roles</h2>
+          <p>Invite separate operators for payroll preparation, independent checking, HR, administration, and employee self-service.</p>
+        </div>
+      </div>
+
+      <div className="setting-form">
+        <label>Email
+          <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@company.com" />
+        </label>
+        <label>Role
+          <select value={role} onChange={(event) => setRole(event.target.value)}>
+            {INVITABLE_ROLES.map((item) => (
+              <option key={item.id} value={item.id}>{item.label}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="modal-note" style={{ margin: "0 16px 12px" }}>
+        Payroll Officer prepares and submits payroll. Checker independently reviews it. Owner or Administrator releases it. Production invitations require transactional email and never expose raw invite tokens.
+      </div>
+      {error && <div className="notice notice-amber" style={{ margin: "0 16px 12px" }}><span>{error}</span></div>}
+      <div className="run-actions">
+        <button className="primary-button" disabled={busy || loading || !email.trim()} onClick={() => void invite()}>
+          <Send size={15} /> {busy ? "Inviting…" : "Invite teammate"}
+        </button>
+      </div>
+
+      <div className="card-header" style={{ paddingTop: 8 }}>
+        <div><div className="card-kicker">ACTIVE ACCESS</div><h2>Workspace members</h2></div>
+      </div>
+      <div className="worksheet-list">
+        {loading ? (
+          <div><CloudCog size={16} className="i-blue" /><span>Loading workspace access…</span></div>
+        ) : members.length === 0 ? (
+          <div><UsersRound size={16} className="i-purple" /><span>No workspace members found.</span></div>
+        ) : members.map((member) => (
+          <div key={member.id}>
+            <UserCheck size={16} className="i-green" />
+            <span>{member.name}<small>{member.email}</small></span>
+            <Status value={invitableRoleLabel(member.role)} />
+          </div>
+        ))}
+      </div>
+
+      <div className="card-header" style={{ paddingTop: 8 }}>
+        <div><div className="card-kicker">PENDING</div><h2>Open invitations</h2></div>
+      </div>
+      <div className="worksheet-list">
+        {openInvitations.length === 0 ? (
+          <div><Mail size={16} className="i-slate" /><span>No open invitations.</span></div>
+        ) : openInvitations.map((invitation) => (
+          <div key={invitation.id}>
+            <Mail size={16} className="i-cyan" />
+            <span>{invitation.email}<small>Invited by {invitation.invitedBy}</small></span>
+            <Status value={invitableRoleLabel(invitation.role)} />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

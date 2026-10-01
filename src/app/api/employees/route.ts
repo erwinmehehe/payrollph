@@ -1,4 +1,4 @@
-import { maskBankAccount } from "@/lib/bank-account-crypto";
+import { encryptBankAccount, maskBankAccount } from "@/lib/bank-account-crypto";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, asc, desc, eq, gte } from "drizzle-orm";
 import { db } from "@/db";
@@ -83,6 +83,15 @@ export async function POST(request: Request) {
   const title = String(body.title ?? "").trim();
   const rateAmount = Number(body.rateAmount ?? body.basicRate);
   const startDate = String(body.startDate ?? "").trim();
+  const bankAccount = String(body.bankAccount ?? "").trim();
+  const bankCode = String(body.bankCode ?? "").trim().toUpperCase();
+  const mobile = String(body.mobile ?? "").trim();
+
+  if (Boolean(bankAccount) !== Boolean(bankCode)) {
+    return Response.json({
+      error: "Bank account and bank code must be provided together for payroll payout.",
+    }, { status: 422 });
+  }
 
   const denied = await assertOrganizationRole(
     user.id,
@@ -132,7 +141,9 @@ export async function POST(request: Request) {
     mwe: Boolean(body.mwe),
     region: String(body.region ?? "NCR"),
     email: email || null,
-    mobile: String(body.mobile ?? "").trim() || null,
+    bankAccount: encryptBankAccount(bankAccount),
+    bankCode: bankCode || null,
+    mobile: mobile || null,
     tin: String(body.tin ?? "").trim() || null,
     tinBranchCode: String(body.tinBranchCode ?? "").replace(/\D/g, "").padStart(4, "0").slice(-4) || null,
     sssNo: String(body.sssNo ?? "").trim() || null,
@@ -188,10 +199,18 @@ export async function POST(request: Request) {
       payBasis: payProfile.payBasis,
       rateAmount: payProfile.rateAmount,
       monthlyEquivalent: payProfile.monthlyEquivalent,
+      payoutDetailsProvided: Boolean(bankAccount && bankCode),
     },
   });
 
-  return Response.json({ employee: created, onboarding, asset: assignedAsset }, { status: 201 });
+  return Response.json({
+    employee: {
+      ...created,
+      bankAccount: maskBankAccount(created.bankAccount),
+    },
+    onboarding,
+    asset: assignedAsset,
+  }, { status: 201 });
 }
 
 
@@ -297,6 +316,23 @@ export async function PATCH(request: Request) {
     }
   }
 
+  const replacementBankAccount =
+    typeof body.bankAccount === "string" && body.bankAccount.trim()
+      ? body.bankAccount.trim()
+      : null;
+  const wantsPayoutUpdate =
+    body.bankAccount !== undefined ||
+    body.bankCode !== undefined ||
+    body.mobile !== undefined;
+  const nextBankCode =
+    body.bankCode === undefined ? employee.bankCode : String(body.bankCode ?? "").trim().toUpperCase() || null;
+  const resultingBankAccount = replacementBankAccount ? replacementBankAccount : employee.bankAccount;
+  if (wantsPayoutUpdate && Boolean(resultingBankAccount) !== Boolean(nextBankCode)) {
+    return Response.json({
+      error: "Bank account and bank code must be complete together before payroll payout.",
+    }, { status: 422 });
+  }
+
   const updates = {
     middleName: clean(body.middleName),
     tin: clean(body.tin),
@@ -307,6 +343,9 @@ export async function PATCH(request: Request) {
     philHealthNo: clean(body.philHealthNo),
     pagIbigNo: clean(body.pagIbigNo),
     nationality: body.nationality === undefined ? undefined : String(body.nationality ?? "").trim() || "Filipino",
+    bankAccount: replacementBankAccount ? encryptBankAccount(replacementBankAccount) : undefined,
+    bankCode: body.bankCode === undefined ? undefined : nextBankCode,
+    mobile: body.mobile === undefined ? undefined : clean(body.mobile),
   };
 
   const patch = Object.fromEntries(
@@ -488,10 +527,22 @@ export async function PATCH(request: Request) {
   });
   const updated = result.updated;
 
+  const governmentFields = ["middleName", "tin", "tinBranchCode", "sssNo", "philHealthNo", "pagIbigNo", "nationality"];
+  const changedGovernment = governmentFields.some((field) => field in patch);
+  const action = nextPayProfile
+    ? wantsPayoutUpdate || changedGovernment
+      ? "Employee profile updated"
+      : "Employee payroll profile updated"
+    : wantsPayoutUpdate
+      ? changedGovernment
+        ? "Employee profile updated"
+        : "Employee payout details updated"
+      : "Employee government identity updated";
+
   await recordAuditEvent({
     organizationId,
     actor: user.name,
-    action: nextPayProfile ? "Employee payroll profile updated" : "Employee government identity updated",
+    action,
     resource: `${employee.firstName} ${employee.lastName} (${employee.employeeNo})`,
     metadata: {
       employeeId,
@@ -508,6 +559,7 @@ export async function PATCH(request: Request) {
   return Response.json({
     employee: {
       ...updated,
+      bankAccount: maskBankAccount(updated.bankAccount),
       payBasis: nextPayProfile?.payBasis ?? existingPayProfile?.payBasis ?? "monthly",
       payRate: (nextPayProfile?.rateAmount ?? Number(existingPayProfile?.rateAmount ?? updated.basicRate)).toFixed(2),
       standardWorkDaysPerMonth: (nextPayProfile?.standardWorkDaysPerMonth ?? Number(existingPayProfile?.standardWorkDaysPerMonth ?? 22)).toFixed(2),

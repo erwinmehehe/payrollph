@@ -1,0 +1,102 @@
+name: Production Pilot Payroll QA
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/app/api/employees/route.ts"
+      - "src/app/api/invitations/**"
+      - "src/app/api/payroll-runs/**"
+      - "src/app/api/approvals/**"
+      - "src/app/api/self/**"
+      - "src/app/api/setup/**"
+      - "src/components/new-hire-modal.tsx"
+      - "src/components/workspace/**"
+      - "src/lib/access.ts"
+      - "src/lib/bank-account-crypto.ts"
+      - "src/lib/payroll-**"
+      - "src/lib/roles.ts"
+      - "src/db/**"
+      - "scripts/pilot-payroll-qa.ts"
+      - "tests/production-pilot-readiness.test.ts"
+      - ".github/workflows/pilot-payroll-qa.yml"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pilot-payroll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      WORKER_TOKEN: ci-worker-token-00000000000000000000000000000000
+      READINESS_TOKEN: ci-readiness-token-0000000000000000000000000000
+      SETUP_TOKEN: ci-setup-token-0000000000000000000000000000000
+      TOTP_ENCRYPTION_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
+      # Functional lifecycle QA disables privileged MFA only for its fresh,
+      # isolated tenant. Security HTTP Smoke separately proves production MFA
+      # enforcement fails closed.
+      REQUIRE_PRIVILEGED_MFA: "false"
+      QA_URL: http://127.0.0.1:3000
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+      - run: npm run db:push
+      - run: npm run build
+
+      - name: Start production build
+        shell: bash
+        run: |
+          nohup npm start -- -H 127.0.0.1 > /tmp/payrollph-pilot.log 2>&1 &
+          echo $! > /tmp/payrollph-pilot.pid
+          for attempt in {1..40}; do
+            if curl -fsS "$QA_URL" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/payrollph-pilot.log
+          exit 1
+
+      - name: Run fresh tenant payroll pilot
+        run: npx tsx scripts/pilot-payroll-qa.ts
+
+      - name: Show server log on failure
+        if: failure()
+        run: cat /tmp/payrollph-pilot.log || true
+
+      - name: Upload pilot report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: payrollph-production-pilot-report
+          path: qa-artifacts/pilot-payroll-report.json
+          retention-days: 7
