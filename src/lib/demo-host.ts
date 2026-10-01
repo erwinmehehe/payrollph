@@ -4,17 +4,45 @@ export const OFFICIAL_PUBLIC_DEMO_HOSTS = new Set([
   "payrollph-three.vercel.app",
 ]);
 
+function normalizeHost(value: string | null | undefined) {
+  if (!value) return "";
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .split("/")[0]
+    .replace(/:\d+$/, "");
+}
+
 export function publicDemoHostAllowed(
   hostname: string,
   options: {
     configuredHosts?: string | null;
+    vercelEnv?: string | null;
+    vercelUrl?: string | null;
+    vercelProductionUrl?: string | null;
   } = {},
 ) {
-  const normalized = hostname.trim().toLowerCase();
+  const normalized = normalizeHost(hostname);
   const configuredHosts = (options.configuredHosts ?? "")
     .split(",")
-    .map((value) => value.trim().toLowerCase())
+    .map(normalizeHost)
     .filter(Boolean);
 
-  return OFFICIAL_PUBLIC_DEMO_HOSTS.has(normalized) || configuredHosts.includes(normalized);
+  if (OFFICIAL_PUBLIC_DEMO_HOSTS.has(normalized) || configuredHosts.includes(normalized)) {
+    return true;
+  }
+
+  // Vercel production aliases can change over time. Trust only URLs Vercel says
+  // belong to the current *production* deployment, never arbitrary preview URLs.
+  if ((options.vercelEnv ?? "").trim().toLowerCase() !== "production") {
+    return false;
+  }
+
+  const productionHosts = [
+    normalizeHost(options.vercelUrl),
+    normalizeHost(options.vercelProductionUrl),
+  ].filter(Boolean);
+
+  return productionHosts.includes(normalized);
 }
