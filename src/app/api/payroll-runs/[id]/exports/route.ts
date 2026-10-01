@@ -319,13 +319,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       await recordAuditEvent({
         organizationId: run.organizationId,
         actor: user.name,
-        action: "PayMongo payroll preflight passed",
+        action: result.ready ? "PayMongo payroll preflight passed" : "PayMongo payroll preflight blocked: wallet underfunded",
         resource: run.periodLabel,
         metadata: {
           provider: result.provider,
           employeeCount: result.employeeCount,
           totalAmountCents: result.totalAmountCents,
           banks: result.banks,
+          wallet: result.wallet,
+          ready: result.ready,
           runId: run.id,
           moneyMoved: false,
         },
@@ -333,7 +335,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return Response.json({
         ...result,
         moneyMoved: false,
-        message: "PayMongo credentials and bank mappings were verified without creating a transfer.",
+        message: result.ready
+          ? "PayMongo credentials, bank mappings and wallet funding were verified without creating a transfer."
+          : `Bank mappings are valid but the PayMongo wallet is short by ${(result.wallet.shortfallCents / 100).toFixed(2)} PHP. Top it up before submitting.`,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "PayMongo preflight failed.";
