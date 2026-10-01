@@ -590,6 +590,30 @@ jobs:
           }
 
 
+          async function qaEmployeeLogout(browser) {
+            const logoutContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+            try {
+              const launch = await logoutContext.request.post(`${base}/api/auth/demo-switch`, {
+                data: { role: "employee" },
+                headers: { Origin: base },
+              });
+              check(launch.ok(), `Employee logout QA: demo launch returned ${launch.status()}`);
+              const payload = await launch.json();
+              const logoutPage = await logoutContext.newPage();
+              const target = typeof payload.redirectTo === "string" ? payload.redirectTo : "/app?demoRole=employee";
+              await logoutPage.goto(target.startsWith("http") ? target : `${base}${target}`, { waitUntil: "networkidle", timeout: 90000 });
+              const signOut = logoutPage.getByRole("button", { name: /^Sign out$/ }).first();
+              check((await signOut.count()) === 1, "Employee logout QA: Sign out button is missing");
+              await Promise.all([
+                logoutPage.waitForURL(/\/login(?:\?|$)/, { timeout: 15000 }),
+                signOut.click(),
+              ]);
+              check(new URL(logoutPage.url()).pathname === "/login", "Employee logout QA: sign out did not return to /login");
+            } finally {
+              await logoutContext.close();
+            }
+          }
+
           const sameOriginHeaders = { Origin: base };
 
           async function switchPersona(context, page, role) {
@@ -741,6 +765,7 @@ jobs:
                 await qaPersona(browser, persona);
               }
 
+              await qaEmployeeLogout(browser);
               await qaReleaseCycle(browser);
             } catch (error) {
               report.errors.push(error instanceof Error ? error.message : String(error));
