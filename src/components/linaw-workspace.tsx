@@ -64,6 +64,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
   const [page, setPage] = useState(initialPage);
   const [busy, setBusy] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<"organization" | "team">("organization");
   const [focusEmployeeId, setFocusEmployeeId] = useState<number | null>(null);
 
   // Modals kept from the original build, all still server-authorised.
@@ -108,6 +109,10 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
   const canUsePeopleOps = canManagePeople && availablePages.includes("People");
 
   usePaletteShortcut(() => setPaletteOpen(true));
+
+  useEffect(() => {
+    if (page !== "Settings") setSettingsInitialTab("organization");
+  }, [page]);
 
   /* ------------------------------------------------------------- data ops */
 
@@ -361,7 +366,10 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
             {data.firstPayrollReadiness && (
               <FirstPayrollReadinessCard
                 readiness={data.firstPayrollReadiness}
-                onPage={setPage}
+                onPage={(targetPage) => {
+                  if (targetPage === "Settings") setSettingsInitialTab("team");
+                  setPage(targetPage);
+                }}
                 onNewRun={() => setNewPayrollOpen(true)}
               />
             )}
@@ -487,7 +495,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         {page === "Developer" && <DeveloperPage organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Pricing" && <PricingPage plans={data.plans} onSelectPlan={(plan) => setCheckoutPlan(plan)} />}
         {page === "Audit trail" && <AuditPage events={data.auditEvents} organizationId={data.selectedOrganization.id} />}
-        {page === "Settings" && <SettingsPage data={data} setNotice={noticeAdapter} />}
+        {page === "Settings" && <SettingsPage data={data} setNotice={noticeAdapter} initialTab={settingsInitialTab} />}
       </WorkspaceShell>
 
       <ToastStack toasts={toasts} onDismiss={dismiss} />
