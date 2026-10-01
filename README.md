@@ -395,6 +395,7 @@ Set the environment variables before the first deploy, not after:
 | `READINESS_TOKEN` | strong random secret for production readiness diagnostics |
 | `SETUP_TOKEN` | strong random first-run bootstrap secret |
 | `TOTP_ENCRYPTION_KEY` | exactly 32 bytes, encoded as 64 hex characters or base64 |
+| `BANK_DATA_ENCRYPTION_KEY` | exactly 32 bytes (64 hex or base64) for AES-256-GCM employee bank-account encryption; keep it outside the database and do not rotate it without re-encrypting existing values |
 | `MALWARE_SCAN_URL` | HTTPS scanner endpoint, for example the Railway ClamAV service |
 | `MALWARE_SCAN_TOKEN` | strong random bearer secret shared only with the scanner |
 | `PG_POOL_MAX` | a low number on serverless, where each instance opens its own pool |
@@ -406,6 +407,8 @@ only.
 
 Apply the schema (see `drizzle/README.md`) before the first request, then visit
 `/setup` to create the owner account.
+
+For an existing production database, apply `drizzle/0004_bank_account_envelope.sql`, set `BANK_DATA_ENCRYPTION_KEY`, run `npx tsx scripts/encrypt-bank-accounts.ts` as a dry run, then rerun it with `--apply`. `/api/readiness` remains launch-blocked until the key is configured and no employee bank account remains in plaintext.
 
 ## Validation sequence
 
