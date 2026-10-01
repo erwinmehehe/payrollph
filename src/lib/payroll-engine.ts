@@ -712,7 +712,19 @@ function calculateEmployeePay(input: {
     if (punchProfile.payBasis !== "monthly") {
       workedBasicPay += (workedRegular / 60) * punchProfile.hourlyRate;
     }
-    overtimePay += (derived.overtimeMinutes / 60) * punchProfile.hourlyRate * 1.25;
+
+    // Overtime is +25% of the hourly rate on an ordinary day, +30% on a rest
+    // day, special day, or holiday, applied to that day's own premium rate
+    // (Labor Code Art. 87; DOLE Handbook "Guide Computations", multiplicative
+    // method — e.g. regular-holiday OT = 200% x 1.30 = 260%, not a flat 125%
+    // regardless of day). holidayMultiplier(..., overtime: true) returns that
+    // combined rate; on a plain ordinary day it is 1.25, so this is a no-op
+    // there. Rest-day pay is not modeled (no rest-day concept exists on an
+    // employee/shift today), so restDay is always false here, same as before.
+    const holiday = holidayOn(punch.workDate);
+    const holidayKind = holiday ? (holiday.kind === "regular" ? "regular" as const : "special" as const) : "ordinary" as const;
+    const otMultiplier = holidayMultiplier({ holiday: holidayKind, worked: true, overtime: true });
+    overtimePay += (derived.overtimeMinutes / 60) * punchProfile.hourlyRate * otMultiplier;
     nightDiffPay += (derived.nightDifferentialMinutes / 60) * punchProfile.hourlyRate * 0.1;
     const attendanceDeduction = attendanceDeductionsForCutoff(
       punchProfile,
@@ -724,16 +736,18 @@ function calculateEmployeePay(input: {
     flags.push(...derived.flags);
     if (derived.flags.length) punchNotes.push(`${punch.workDate}: ${derived.flags.join("; ")}`);
 
-    const holiday = holidayOn(punch.workDate);
     if (holiday && derived.workedMinutes > 0) {
-      const multiplier = holidayMultiplier({
-        holiday: holiday.kind === "regular" ? "regular" : "special",
-        worked: true,
-        overtime: derived.overtimeMinutes > 0,
-      });
-      const extra = ((workedRegular / 60) * punchProfile.hourlyRate) * (multiplier - 1);
+      // The non-OT portion of the day's premium. Always the base (non-OT)
+      // multiplier for the REGULAR hours, independent of whether this same
+      // punch also had overtime (previously, any OT that day bumped this
+      // multiplier to the OT variant and applied it to the regular hours too,
+      // overpaying them; the OT hours themselves got none of this and were
+      // priced flat above, underpaying them).
+      const regularMultiplier = holidayMultiplier({ holiday: holidayKind, worked: true, overtime: false });
+      const extra = ((workedRegular / 60) * punchProfile.hourlyRate) * (regularMultiplier - 1);
       holidayPremium += extra;
-      holidayNotes.push(`${punch.workDate} ${holiday.name} (${holiday.kind}) ×${multiplier} → +${money(extra)}`);
+      const otNote = derived.overtimeMinutes > 0 ? ` (overtime that day priced separately at ×${otMultiplier})` : "";
+      holidayNotes.push(`${punch.workDate} ${holiday.name} (${holiday.kind}) ×${regularMultiplier} → +${money(extra)}${otNote}`);
     }
   }
 
@@ -936,7 +950,7 @@ function calculateEmployeePay(input: {
   const lineItems = [
     { code: "BASIC", label: "Basic / worked pay", amount: money(baseBasicPay) },
     ...leaveLines,
-    { code: "OT", label: "Overtime (25%)", amount: money(overtimePay) },
+    { code: "OT", label: "Overtime", amount: money(overtimePay) },
     { code: "ND", label: "Night differential (10%)", amount: money(nightDiffPay) },
     { code: "HOLIDAY", label: "Holiday / rest-day premium", amount: money(holidayPremium), notes: holidayNotes },
     { code: "CALAMITY", label: "Calamity / hazard premium", amount: money(calamityPay), notes: calamityNotes },
