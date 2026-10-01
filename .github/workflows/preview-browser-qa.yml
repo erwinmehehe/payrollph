@@ -792,7 +792,7 @@ jobs:
             const checkerNotificationsAfter = await notificationText(page);
             check(!checkerNotificationsAfter.includes(`Review ${period} payroll`), "Lifecycle: checker notification should disappear after approval");
 
-            await switchPersona(context, page, "owner");
+            const ownerSession = await switchPersona(context, page, "owner");
             const ownerNotificationsBefore = await notificationText(page);
             check(ownerNotificationsBefore.includes(`${period} is approved and ready to release`), "Lifecycle: owner did not receive release-ready notification");
 
@@ -804,7 +804,8 @@ jobs:
             check(releaseResponse.ok(), `Lifecycle: owner release failed: ${releasePayload.error ?? releaseResponse.status()}`);
             check(releasePayload.receipt?.employeeCount > 0, "Lifecycle: release receipt is missing employee count");
             check(Number(releasePayload.receipt?.totalNetPay) > 0, "Lifecycle: release receipt is missing net payroll");
-            check(releasePayload.receipt?.bankExport?.status === "ready", "Lifecycle: bank/export receipt status is not ready");
+            check(releasePayload.receipt?.bankExport?.status === "waiting", "Lifecycle: release receipt should wait for the final bank file");
+            check(releasePayload.receipt?.payout?.status === "waiting-for-file", "Lifecycle: payout should wait for the final bank file immediately after release");
             check(releasePayload.receipt?.payslips?.available > 0, "Lifecycle: payslip availability is missing");
 
             await page.reload({ waitUntil: "networkidle" });
@@ -830,6 +831,40 @@ jobs:
               receiptText.includes(Number(releasePayload.receipt.totalNetPay).toLocaleString("en-PH")),
               "Lifecycle: release receipt does not show the released net total",
             );
+            check(receiptText.includes("waiting"), "Lifecycle: receipt should show bank export waiting before the final file exists");
+            check((await receipt.locator('[data-payout-status="waiting-for-file"]').count()) === 1, "Lifecycle: receipt payout state should wait for the final bank file");
+
+            const bankExportResponse = await context.request.get(
+              `${base}/api/payroll-runs/${run.id}/exports?kind=bank&template=${encodeURIComponent("BDO DAT")}&dryRun=false`,
+            );
+            check(bankExportResponse.ok(), `Lifecycle: final bank export failed: ${bankExportResponse.status()}`);
+            const bankDisposition = bankExportResponse.headers()["content-disposition"] ?? "";
+            check(bankDisposition.toLowerCase().includes("attachment"), "Lifecycle: final bank export did not return a downloadable file");
+
+            const postExportDashboardResponse = await context.request.get(
+              `${base}/api/dashboard?organizationId=${ownerSession.organizationId}`,
+            );
+            check(postExportDashboardResponse.ok(), "Lifecycle: dashboard refresh after bank export failed");
+            const postExportDashboard = await postExportDashboardResponse.json();
+            const bankAudit = postExportDashboard.auditEvents.find((event) =>
+              event.action === "bank export generated"
+              && Number(event.metadata?.runId) === run.id
+              && event.metadata?.dryRun !== true
+            );
+            check(bankAudit, "Lifecycle: final bank export was not audit-logged");
+
+            await switchPersona(context, page, "owner");
+            const payrollNavAfterExport = page.locator("button.nav-item").filter({ hasText: /^Payroll/ }).first();
+            await payrollNavAfterExport.click();
+            await page.waitForTimeout(200);
+            const runAfterExport = page.locator("button.run-item").filter({ hasText: period }).first();
+            await runAfterExport.click();
+            await page.waitForTimeout(150);
+            const receiptAfterExport = page.locator("[data-release-receipt]");
+            check((await receiptAfterExport.count()) === 1, "Lifecycle: release receipt disappeared after bank export");
+            const receiptAfterExportText = (await receiptAfterExport.innerText()).toLowerCase();
+            check(receiptAfterExportText.includes("generated"), "Lifecycle: bank/export receipt did not advance to generated");
+            check((await receiptAfterExport.locator('[data-payout-status="ready"]').count()) === 1, "Lifecycle: payout did not advance to ready after final bank export");
 
             await switchPersona(context, page, "employee");
             const latest = page.locator("[data-latest-payslip]");
@@ -841,7 +876,7 @@ jobs:
             check(errors.length === 0, `Lifecycle: browser console/page errors: ${errors.join(" | ")}`);
             report.personas.push({
               id: "release-cycle",
-              label: "HR → Payroll → Checker → Owner → Employee",
+              label: "HR → Payroll → Checker → Owner → Bank export → Employee",
               period,
               firstTask: "passed",
               errors,

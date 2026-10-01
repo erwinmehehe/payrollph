@@ -55,7 +55,7 @@ export type PayrollReleaseReceipt = {
   totalNetPay: string;
   releasedAt: string;
   bankExport: {
-    status: "ready" | "generated";
+    status: "waiting" | "generated";
     label: string;
     filename?: string | null;
     generatedAt?: string | null;

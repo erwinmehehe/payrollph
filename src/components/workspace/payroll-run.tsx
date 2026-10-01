@@ -417,7 +417,7 @@ export function PayrollRunView({
                 className={`status ${visibleReleaseReceipt.bankExport.status === "generated" ? "status-approved" : "status-review"}`}
                 style={{ minWidth: 72, justifyContent: "center" }}
               >
-                {visibleReleaseReceipt.bankExport.status === "generated" ? "Generated" : "Ready"}
+                {visibleReleaseReceipt.bankExport.status === "generated" ? "Generated" : "Waiting"}
               </span>
               <div>
                 <strong>Bank / export status</strong>
@@ -1475,7 +1475,7 @@ function readReleaseReceipt(events: DashboardData["auditEvents"], runId: number)
           generatedAt: payout.bankFile.generatedAt,
         }
       : {
-          status: "ready",
+          status: "waiting",
           label: bank.label,
         },
     payout: payout.payout,
