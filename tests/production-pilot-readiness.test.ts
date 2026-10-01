@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { INVITABLE_ROLES, isInvitableRole } from "../src/lib/roles";
+import { buildFirstPayrollReadiness } from "../src/lib/first-payroll-readiness";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -81,4 +82,51 @@ test("production rollout verifier requires protected live readiness and critical
   assert.ok(workflow.includes('secrets.PRODUCTION_READINESS_TOKEN'));
   assert.ok(workflow.includes('rollout_mode'));
   assert.ok(workflow.includes('scripts/live-production-readiness.ts'));
+});
+
+
+test("first payroll readiness is computed from real workspace state", () => {
+  const readiness = read("src/lib/first-payroll-readiness.ts");
+  const dashboard = read("src/lib/dashboard-data.ts");
+  const workspace = read("src/components/linaw-workspace.tsx");
+
+  assert.ok(readiness.includes('"payroll-officer"'));
+  assert.ok(readiness.includes('"checker"'));
+  assert.ok(readiness.includes('"payout"'));
+  assert.ok(readiness.includes('employee.bankAccount?.trim()'));
+  assert.ok(readiness.includes('employee.bankCode?.trim()'));
+  assert.ok(dashboard.includes("buildFirstPayrollReadiness"));
+  assert.ok(dashboard.includes("userOrganizations.role"));
+  assert.ok(workspace.includes("<FirstPayrollReadinessCard"));
+  assert.ok(workspace.includes('onNewRun={() => setNewPayrollOpen(true)}'));
+});
+
+test("payroll creation fails closed when active employee payout details are incomplete", () => {
+  const route = read("src/app/api/payroll-runs/route.ts");
+  assert.ok(route.includes('"PAYOUT_DETAILS_REQUIRED"'));
+  assert.ok(route.includes("missingEmployeeIds"));
+  assert.ok(route.includes("Complete payout details before starting payroll"));
+});
+
+
+test("first payroll readiness only turns green when all operational prerequisites exist", () => {
+  const blocked = buildFirstPayrollReadiness({
+    workspaceName: "Acme Philippines Inc.",
+    employees: [{ status: "Active", bankAccount: null, bankCode: null }],
+    memberships: [{ role: "owner" }],
+    payrollStatuses: [],
+  });
+  assert.equal(blocked.ready, false);
+  assert.equal(blocked.employeesMissingPayout, 1);
+  assert.equal(blocked.payrollOfficerCount, 0);
+  assert.equal(blocked.checkerCount, 0);
+
+  const ready = buildFirstPayrollReadiness({
+    workspaceName: "Acme Philippines Inc.",
+    employees: [{ status: "Active", bankAccount: "enc:v1:test", bankCode: "BPI" }],
+    memberships: [{ role: "owner" }, { role: "payroll" }, { role: "checker" }],
+    payrollStatuses: [],
+  });
+  assert.equal(ready.ready, true);
+  assert.equal(ready.completed, ready.total);
 });

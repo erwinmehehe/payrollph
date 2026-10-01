@@ -1,3 +1,5 @@
+import type { FirstPayrollReadiness } from "@/lib/first-payroll-readiness";
+
 /**
  * Shapes returned by `getDashboardData()` / `GET /api/dashboard`.
  *
@@ -283,6 +285,7 @@ export type FreelancerProfile = {
 } | null;
 
 export type DashboardData = {
+  firstPayrollReadiness?: FirstPayrollReadiness | null;
   user: SessionUser | null;
   organizations: Organization[];
   selectedOrganization: Organization;

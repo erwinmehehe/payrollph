@@ -20,6 +20,7 @@ import { AnalyticsView } from "@/components/workspace/analytics";
 import { ApprovalsView } from "@/components/workspace/approvals";
 import { CommandPalette, usePaletteShortcut, type PaletteAction } from "@/components/workspace/command-palette";
 import { ExportsView } from "@/components/workspace/exports";
+import { FirstPayrollReadinessCard } from "@/components/workspace/first-payroll-readiness";
 import { FREELANCER_HIDDEN, NAVIGATION } from "@/components/workspace/nav";
 import { OverviewView } from "@/components/workspace/overview";
 import { RoleOverviewView, type WorkspaceDashboardRole } from "@/components/workspace/role-overview";
@@ -63,6 +64,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
   const [page, setPage] = useState(initialPage);
   const [busy, setBusy] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<"organization" | "team">("organization");
   const [focusEmployeeId, setFocusEmployeeId] = useState<number | null>(null);
 
   // Modals kept from the original build, all still server-authorised.
@@ -107,6 +109,10 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
   const canUsePeopleOps = canManagePeople && availablePages.includes("People");
 
   usePaletteShortcut(() => setPaletteOpen(true));
+
+  useEffect(() => {
+    if (page !== "Settings") setSettingsInitialTab("organization");
+  }, [page]);
 
   /* ------------------------------------------------------------- data ops */
 
@@ -356,23 +362,35 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         )}
 
         {page === "Overview" && (
-          dashboardRole ? (
-            <RoleOverviewView
-              data={data}
-              currentRun={currentRun}
-              role={dashboardRole}
-              onNewRun={() => setNewPayrollOpen(true)}
-              onPage={setPage}
-            />
-          ) : (
-            <OverviewView
-              data={data}
-              currentRun={currentRun}
-              onNewRun={() => setNewPayrollOpen(true)}
-              onPage={setPage}
-              onDecide={(id, status) => void decideTask(id, status)}
-            />
-          )
+          <>
+            {data.firstPayrollReadiness && (
+              <FirstPayrollReadinessCard
+                readiness={data.firstPayrollReadiness}
+                onPage={(targetPage) => {
+                  if (targetPage === "Settings") setSettingsInitialTab("team");
+                  setPage(targetPage);
+                }}
+                onNewRun={() => setNewPayrollOpen(true)}
+              />
+            )}
+            {dashboardRole ? (
+              <RoleOverviewView
+                data={data}
+                currentRun={currentRun}
+                role={dashboardRole}
+                onNewRun={() => setNewPayrollOpen(true)}
+                onPage={setPage}
+              />
+            ) : (
+              <OverviewView
+                data={data}
+                currentRun={currentRun}
+                onNewRun={() => setNewPayrollOpen(true)}
+                onPage={setPage}
+                onDecide={(id, status) => void decideTask(id, status)}
+              />
+            )}
+          </>
         )}
 
         {page === "Payroll" && (
@@ -477,7 +495,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         {page === "Developer" && <DeveloperPage organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Pricing" && <PricingPage plans={data.plans} onSelectPlan={(plan) => setCheckoutPlan(plan)} />}
         {page === "Audit trail" && <AuditPage events={data.auditEvents} organizationId={data.selectedOrganization.id} />}
-        {page === "Settings" && <SettingsPage data={data} setNotice={noticeAdapter} />}
+        {page === "Settings" && <SettingsPage data={data} setNotice={noticeAdapter} initialTab={settingsInitialTab} />}
       </WorkspaceShell>
 
       <ToastStack toasts={toasts} onDismiss={dismiss} />
