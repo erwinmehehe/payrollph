@@ -62,8 +62,12 @@ required, using the same PayMongo account already wired for billing:
    Methods.
 2. Confirm the Wallet is "Enabled" (not Closed-loop) under Money Movement →
    Wallets, and fund it. A disbursement debits the wallet balance directly.
-3. Set `PAYMONGO_DISBURSEMENTS_ENABLED=true` alongside your existing
-   `PAYMONGO_SECRET_KEY`.
+3. Set `PAYMONGO_DISBURSEMENTS_ENABLED=true` and `PAYMONGO_WALLET_ID` (the wallet
+   id from Money Movement → Wallets) alongside your existing
+   `PAYMONGO_SECRET_KEY`. PayMongo requires a source account on every transfer;
+   Linaw reads it from that wallet. The preflight and the submit both read the
+   available balance and stop with the exact shortfall if the wallet cannot
+   cover the run.
 4. `POST /api/payroll-runs/<id>/exports` (an owner/admin/bookkeeper session)
    submits the run as one PayMongo batch transfer. PESONet by default for
    real payroll batches, InstaPay only for a single small correction payout.
