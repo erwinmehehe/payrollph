@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { enforceSameOriginMutation } from "../src/lib/security-request";
 
+const mutableEnv = process.env as Record<string, string | undefined>;
+
 function restoreEnv(name: string, value: string | undefined) {
   if (value === undefined) delete process.env[name];
   else process.env[name] = value;
@@ -15,7 +17,7 @@ test("production same-origin Vercel alias is accepted even when APP_BASE_URL nam
     TRUSTED_APP_ORIGINS: process.env.TRUSTED_APP_ORIGINS,
   };
 
-  process.env.NODE_ENV = "production";
+  mutableEnv.NODE_ENV = "production";
   process.env.APP_BASE_URL = "https://erwinmehehe-payrollph.vercel.app";
   process.env.VERCEL_PROJECT_PRODUCTION_URL = "erwinmehehe-payrollph.vercel.app";
   delete process.env.TRUSTED_APP_ORIGINS;
@@ -48,7 +50,7 @@ test("same-origin hint cannot authorize an Origin that does not match the reques
     TRUSTED_APP_ORIGINS: process.env.TRUSTED_APP_ORIGINS,
   };
 
-  process.env.NODE_ENV = "production";
+  mutableEnv.NODE_ENV = "production";
   process.env.APP_BASE_URL = "https://erwinmehehe-payrollph.vercel.app";
   process.env.VERCEL_PROJECT_PRODUCTION_URL = "erwinmehehe-payrollph.vercel.app";
   delete process.env.TRUSTED_APP_ORIGINS;
@@ -77,7 +79,7 @@ test("same-origin hint cannot authorize an Origin that does not match the reques
 
 test("cross-site mutations remain blocked even when forwarded host is a production alias", () => {
   const previous = process.env.NODE_ENV;
-  process.env.NODE_ENV = "production";
+  mutableEnv.NODE_ENV = "production";
 
   try {
     const request = new Request("http://127.0.0.1/api/auth/demo-switch", {
