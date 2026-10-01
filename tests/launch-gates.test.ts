@@ -130,6 +130,7 @@ test("production rollout readiness proves the exact deployed commit and exposes 
   const pilotStatus = readFileSync("src/app/api/readiness/pilot-status/route.ts", "utf8");
   const rolloutScript = readFileSync("scripts/live-production-readiness.ts", "utf8");
   const workflow = readFileSync(".github/workflows/production-rollout-readiness.yml", "utf8");
+  const liveRbac = readFileSync(".github/workflows/live-rbac-sandbox-smoke.yml", "utf8");
 
   assert.ok(pilotStatus.includes("launchBlockers"));
   assert.ok(pilotStatus.includes("VERCEL_GIT_COMMIT_SHA"));
@@ -141,4 +142,7 @@ test("production rollout readiness proves the exact deployed commit and exposes 
   assert.ok(rolloutScript.includes("launchBlockers"));
 
   assert.ok(workflow.includes("EXPECTED_COMMIT_SHA: ${{ github.sha }}"));
+  assert.ok(liveRbac.includes("EXPECTED_COMMIT_SHA: ${{ github.sha }}"));
+  assert.ok(liveRbac.includes("deploymentSha"));
+  assert.ok(liveRbac.includes("Exact production commit is live."));
 });
