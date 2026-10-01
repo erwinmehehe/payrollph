@@ -94,7 +94,7 @@ test("production documents fail closed unless malware scanning reports clean", (
   assert.ok(storage.includes("controller.abort()"));
   assert.ok(readiness.includes('key: "malware-scanning"'));
   assert.ok(readiness.includes("malwareScannerConfigured()"));
-  assert.ok(readiness.includes('blocks: malwareIntegrated ? "none" : "launch"'));
+  assert.ok(readiness.includes('blocks: documentUploadSafetyReady ? "none" : "launch"'));
 });
 
 test("dedicated worker drains payroll and webhook queues from a persistent process", () => {
