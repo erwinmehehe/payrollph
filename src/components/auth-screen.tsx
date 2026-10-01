@@ -214,7 +214,8 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
                 )}
 
                 <button
-                  className="mt-1 inline-flex h-12 w-full items-center justify-center gap-2 rounded-[12px] bg-[#6161FF] px-5 text-[13.5px] font-semibold text-white shadow-[0_12px_28px_-16px_rgba(97,97,255,.8)] transition hover:bg-[#5050E8] disabled:cursor-wait disabled:opacity-60"
+                  className="mt-1 inline-flex h-12 w-full items-center justify-center gap-2 rounded-[12px] px-5 text-[13.5px] font-semibold shadow-[0_12px_28px_-16px_rgba(97,97,255,.8)] transition hover:brightness-95 disabled:cursor-wait disabled:opacity-60"
+                  style={{ backgroundColor: "#6161FF", color: "#FFFFFF" }}
                   disabled={busy}
                 >
                   {requiresTotp ? "Verify & sign in" : "Sign in"} <ArrowRight size={15} aria-hidden />
@@ -229,7 +230,11 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
                     <input className={inputClass} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.ph" required />
                   </span>
                 </label>
-                <button className="inline-flex h-12 w-full items-center justify-center rounded-[12px] bg-[#6161FF] px-5 text-[13.5px] font-semibold text-white hover:bg-[#5050E8] disabled:opacity-60" disabled={busy}>
+                <button
+                  className="inline-flex h-12 w-full items-center justify-center rounded-[12px] px-5 text-[13.5px] font-semibold transition hover:brightness-95 disabled:opacity-60"
+                  style={{ backgroundColor: "#6161FF", color: "#FFFFFF" }}
+                  disabled={busy}
+                >
                   Send reset link
                 </button>
                 <button type="button" onClick={() => setMode("login")} className="text-center text-[12px] font-semibold text-[#5A5AE0]">
