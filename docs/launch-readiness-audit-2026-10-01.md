@@ -223,3 +223,79 @@ PayrollPH may be described as **launch ready** only when all of the following ar
 - the operator completes the cycle without developer intervention
 
 Until then, use **pre-launch / production pilot** rather than **launch ready**.
+
+
+## Remediation order
+
+Close the blockers in this sequence so later QA is not invalidated by basic production configuration failures.
+
+### P0. Production secrets and bank-data encryption
+
+1. Set a canonical HTTPS `APP_BASE_URL`.
+2. Set a production `TOTP_ENCRYPTION_KEY`.
+3. Set a separate 32-byte `BANK_DATA_ENCRYPTION_KEY`.
+4. Apply `drizzle/0004_bank_account_envelope.sql`.
+5. Run:
+   - `npx tsx scripts/encrypt-bank-accounts.ts` as a dry run.
+   - review the plaintext employee and payroll-snapshot counts.
+   - `npx tsx scripts/encrypt-bank-accounts.ts --apply`.
+6. Do not continue until the `bank-data-encryption` readiness gate is green.
+
+This is the blocker currently preventing the Owner production sandbox from opening.
+
+### P0. Transactional email proof
+
+1. Configure one production provider, preferably the existing Resend integration.
+2. Configure `MAIL_FROM` and `RESEND_WEBHOOK_SECRET`.
+3. Send a real low-risk transactional message to an authorized test recipient.
+4. Confirm a persisted successful delivery event in the outbox.
+5. Exercise one failed delivery and failed-only retry during the controlled pilot.
+
+The gate should remain red until production records a successful delivery. Credentials alone are not enough.
+
+### P0. Malware scanner
+
+1. Deploy `services/malware-scanner` on a host with at least 4 GiB RAM.
+2. Configure a strong `SCANNER_TOKEN`.
+3. Verify:
+   - `/health` is healthy only after scanner self-test.
+   - unauthenticated `/scan` returns 401.
+   - an authenticated clean file succeeds.
+   - EICAR is rejected.
+4. Only then set `MALWARE_SCAN_URL` and `MALWARE_SCAN_TOKEN` in PayrollPH.
+
+Keep document uploads fail-closed until all four checks pass.
+
+### P1. Re-run live production gates
+
+After the P0 items:
+
+1. Production Rollout Readiness must pass against the exact deployed Git SHA.
+2. Live RBAC Sandbox Smoke must pass for Owner, HR, Payroll Officer, Checker and Employee.
+3. Run the fresh non-demo payroll pilot.
+4. Record the first real email delivery proof and low-value payout proof.
+
+### P1. Independent payroll reconciliation
+
+Run a representative payroll set independently outside Linaw. At minimum include:
+
+- ordinary monthly employee
+- daily or hourly employee
+- overtime and premium pay
+- absence / unpaid leave
+- mid-period hire or signed-off exception
+- statutory contribution boundary cases
+- withholding-tax boundary cases
+- 13th-month treatment
+- retro adjustment
+- final-pay case
+
+Store the independent expected figures with the pilot evidence. A Linaw-generated expected result does not count.
+
+## Dependency cleanup status
+
+PRs #52–#59 are no longer open. The selected safe updates were consolidated into the current dependency set while the risky standalone major bumps were closed rather than blindly merged.
+
+Current CI still reports four **moderate** npm advisories and peer-resolution warnings because ESLint 10 is newer than the peer ranges declared by several packages bundled under `eslint-config-next`. CI explicitly blocks high and critical advisories and currently passes that gate.
+
+This is a maintenance issue, not one of the four live pilot-critical blockers above, but it should be cleaned before broad GA if the upstream Next.js ESLint stack has not resolved the peer ranges by then.
