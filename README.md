@@ -418,3 +418,13 @@ npm exec tsc -- --noEmit --pretty false
 npx tsx --test tests/payroll-rules.test.ts tests/security.test.ts
 npm run build
 ```
+
+
+### Production rollout readiness
+- `scripts/live-production-readiness.ts` verifies the actual HTTPS deployment rather than a local simulation.
+- The probe confirms the homepage and login surface are reachable, verifies `/api/readiness` is protected without a token, then evaluates the authenticated live readiness gates.
+- `.github/workflows/production-rollout-readiness.yml` is intentionally manual so a missing GitHub secret cannot make every normal `main` push red.
+- Add the same production readiness credential to GitHub Actions as `PRODUCTION_READINESS_TOKEN`, then run **Production Rollout Readiness**.
+- **pilot** mode requires the security-critical gates to be green and permits only readiness gates that already document a manual operational workaround.
+- **full** mode requires `status: launch-ready`; no launch blocker may remain.
+- The workflow uploads a seven-day JSON report and never writes the readiness token into the artifact.

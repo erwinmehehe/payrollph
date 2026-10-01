@@ -62,3 +62,23 @@ test("fresh tenant pilot stays out of demo provisioning and proves the five hand
   assert.ok(workflow.includes('DEMO_MODE: "false"'));
   assert.ok(workflow.includes("scripts/pilot-payroll-qa.ts"));
 });
+
+
+test("production rollout verifier requires protected live readiness and critical pilot gates", () => {
+  const script = read("scripts/live-production-readiness.ts");
+  const workflow = read(".github/workflows/production-rollout-readiness.yml");
+
+  assert.ok(script.includes('unauthenticated.status'));
+  assert.ok(script.includes('PRODUCTION_READINESS_TOKEN'));
+  assert.ok(script.includes('"production-security-config"'));
+  assert.ok(script.includes('"seeded-credentials"'));
+  assert.ok(script.includes('"email-delivery"'));
+  assert.ok(script.includes('"bank-data-encryption"'));
+  assert.ok(script.includes('"malware-scanning"'));
+  assert.ok(script.includes('payload.manualLaunch?.ready'));
+  assert.ok(script.includes('payload.status'));
+  assert.ok(workflow.includes('workflow_dispatch'));
+  assert.ok(workflow.includes('secrets.PRODUCTION_READINESS_TOKEN'));
+  assert.ok(workflow.includes('rollout_mode'));
+  assert.ok(workflow.includes('scripts/live-production-readiness.ts'));
+});
