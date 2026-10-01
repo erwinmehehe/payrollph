@@ -34,6 +34,20 @@ export async function ensureCoreCompatibilitySchema() {
           ADD COLUMN IF NOT EXISTS nationality varchar(60) NOT NULL DEFAULT 'Filipino'
       `);
 
+      // Session/device fields were added after the first production schema.
+      // Demo launch creates a real authenticated session, so these must exist
+      // before createSession() inserts or getSessionUser() selects them.
+      await client.query(`
+        ALTER TABLE sessions
+          ADD COLUMN IF NOT EXISTS revoked_at timestamptz,
+          ADD COLUMN IF NOT EXISTS user_agent text,
+          ADD COLUMN IF NOT EXISTS ip varchar(64),
+          ADD COLUMN IF NOT EXISTS last_seen_at timestamptz,
+          ADD COLUMN IF NOT EXISTS password_changed_at timestamptz,
+          ADD COLUMN IF NOT EXISTS mfa_verified_at timestamptz,
+          ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT NOW()
+      `);
+
       await client.query(`
         ALTER TABLE payroll_runs
           ADD COLUMN IF NOT EXISTS period_start date,
