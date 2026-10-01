@@ -10,7 +10,7 @@ import { DEMO_MODE, ensureSeedData } from "@/db/seed";
 import { ensurePublicDemoTenant } from "@/db/public-demo";
 import { DEMO_ROLE_IDS, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
 import { publicDemoRequestAllowed } from "@/lib/demo-host";
-import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
+import { bankDataEncryptionReady, ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
 
 export const dynamic = "force-dynamic";
 
@@ -233,8 +233,11 @@ export async function POST(request: Request) {
     );
   }
 
+  const bankEncryptionReady = await bankDataEncryptionReady();
+
   return Response.json({
     ok: true,
+    bankDataEncryptionReady: bankEncryptionReady,
     user: {
       id: activeUser.id,
       email: activeUser.email,
