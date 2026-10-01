@@ -115,3 +115,12 @@ test("production readiness blocks launch until employee bank data is encrypted a
   assert.ok(crypto.includes('createCipheriv("aes-256-gcm"'));
   assert.ok(crypto.includes("randomBytes(12)"));
 });
+
+
+test("bank-data readiness covers both employee rows and payroll snapshots", () => {
+  const readiness = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  assert.ok(readiness.includes("plaintextBankAccounts"));
+  assert.ok(readiness.includes("plaintextBankSnapshots"));
+  assert.ok(readiness.includes("bankEncryptionKeySource"));
+  assert.ok(readiness.includes('bankKeySource === "dedicated"'));
+});
