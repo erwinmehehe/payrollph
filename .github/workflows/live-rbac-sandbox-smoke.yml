@@ -1,0 +1,44 @@
+name: Live RBAC Sandbox Smoke
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/live-rbac-sandbox-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-sandbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      BASE_URL: https://erwinmehehe-payrollph.vercel.app
+    steps:
+      - name: Verify demo page is live
+        run: |
+          set -euo pipefail
+          curl -fsS "$BASE_URL/demo" -o /tmp/demo.html
+          grep -q "See Linaw from the seat you actually use" /tmp/demo.html
+
+      - name: Launch Owner sandbox on production
+        run: |
+          set -u
+          status=$(curl -sS             -D /tmp/demo-switch-headers.txt             -c /tmp/demo-cookies.txt             -o /tmp/demo-switch-body.txt             -w "%{http_code}"             -X POST "$BASE_URL/api/auth/demo-switch"             -H "Origin: $BASE_URL"             -H "Sec-Fetch-Site: same-origin"             -H "Content-Type: application/json"             --data '{"role":"owner"}')
+          echo "HTTP_STATUS=$status"
+          echo "--- response headers ---"
+          sed -E 's/^(set-cookie:).*/\1 [redacted]/I' /tmp/demo-switch-headers.txt
+          echo "--- response body ---"
+          cat /tmp/demo-switch-body.txt
+          echo
+          test "$status" -ge 200 && test "$status" -lt 300
+          grep -q '"ok":true' /tmp/demo-switch-body.txt
+          grep -q '"redirectTo":"/app?demoRole=owner"' /tmp/demo-switch-body.txt
+
+      - name: Verify authenticated Owner workspace
+        run: |
+          set -euo pipefail
+          curl -fsS -b /tmp/demo-cookies.txt "$BASE_URL/app?demoRole=owner" -o /tmp/owner.html
+          grep -q "ROLE SANDBOX" /tmp/owner.html
