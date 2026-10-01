@@ -312,7 +312,7 @@ jobs:
                 check(mobileOverflow.scrollWidth <= mobileOverflow.innerWidth + 1, `/login: mobile horizontal overflow ${mobileOverflow.scrollWidth}px > ${mobileOverflow.innerWidth}px`);
                 const formHeading = page.getByRole("heading", { name: "Welcome back." });
                 check((await formHeading.count()) === 1, "/login: mobile auth heading is missing");
-                const supportHeading = page.getByRole("heading", { name: "Sign in to Linaw." });
+                const supportHeading = page.locator("h2").filter({ hasText: "Sign in to Linaw." }).first();
                 check((await supportHeading.count()) === 1, "/login: desktop support heading is missing from the DOM");
                 check((await supportHeading.isVisible()) === false, "/login: supporting marketing panel should stay hidden on mobile");
                 await page.screenshot({ path: `${outDir}/login-mobile-390.png`, fullPage: true });
