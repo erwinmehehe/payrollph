@@ -9,7 +9,7 @@ import { hashPassword } from "@/lib/crypto";
 import { DEMO_MODE, ensureSeedData } from "@/db/seed";
 import { ensurePublicDemoTenant } from "@/db/public-demo";
 import { DEMO_ROLE_IDS, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
-import { publicDemoHostAllowed } from "@/lib/demo-host";
+import { publicDemoRequestAllowed } from "@/lib/demo-host";
 import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
 
 export const dynamic = "force-dynamic";
@@ -144,19 +144,7 @@ async function ensureDemoAccount(role: DemoRoleId, organizationId: number) {
 function publicDemoAllowed(request: Request) {
   if (DEMO_MODE && process.env.NODE_ENV !== "production") return true;
 
-  // The public sandbox is intentionally available on this Vercel production
-  // project. Production can be served through multiple aliases, so do not tie
-  // demo availability to one hostname. Preview deployments remain gated below.
-  if ((process.env.VERCEL_ENV ?? "").trim().toLowerCase() === "production") {
-    return true;
-  }
-
-  const hostname = new URL(request.url).hostname.toLowerCase();
-  if (process.env.NODE_ENV !== "production" && (hostname === "127.0.0.1" || hostname === "localhost")) {
-    return true;
-  }
-
-  return publicDemoHostAllowed(hostname, {
+  return publicDemoRequestAllowed(request, {
     configuredHosts: process.env.PUBLIC_DEMO_HOSTS,
     vercelEnv: process.env.VERCEL_ENV,
     vercelUrl: process.env.VERCEL_URL,

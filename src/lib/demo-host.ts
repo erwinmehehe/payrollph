@@ -46,3 +46,22 @@ export function publicDemoHostAllowed(
 
   return productionHosts.includes(normalized);
 }
+
+
+export function publicDemoRequestAllowed(
+  request: Request,
+  options: {
+    configuredHosts?: string | null;
+    vercelEnv?: string | null;
+    vercelUrl?: string | null;
+    vercelProductionUrl?: string | null;
+  } = {},
+) {
+  const requestUrlHost = normalizeHost(new URL(request.url).hostname);
+  const forwardedHost = normalizeHost(request.headers.get("x-forwarded-host")?.split(",")[0]);
+  const hostHeader = normalizeHost(request.headers.get("host"));
+
+  const candidates = [...new Set([requestUrlHost, forwardedHost, hostHeader].filter(Boolean))];
+
+  return candidates.some((hostname) => publicDemoHostAllowed(hostname, options));
+}

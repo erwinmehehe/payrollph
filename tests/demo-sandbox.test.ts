@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { OFFICIAL_PUBLIC_DEMO_HOST, publicDemoHostAllowed } from "../src/lib/demo-host";
+import { OFFICIAL_PUBLIC_DEMO_HOST, publicDemoHostAllowed, publicDemoRequestAllowed } from "../src/lib/demo-host";
 import { DEMO_ROLE_PAGES } from "../src/lib/demo-roles";
 import {
   REAL_ROLE_PAGE_ACCESS,
@@ -319,7 +319,7 @@ test("production demo switch provisions only the isolated public demo tenant whe
   const route = read("src/app/api/auth/demo-switch/route.ts");
   const publicDemo = read("src/db/public-demo.ts");
   assert.ok(route.includes("ensurePublicDemoTenant"), "production demo path must provision the isolated public demo tenant");
-  assert.ok(route.includes("publicDemoHostAllowed"), "production demo path must be host-gated");
+  assert.ok(route.includes("publicDemoRequestAllowed"), "production demo path must honor public/forwarded host gating");
   assert.ok(publicDemo.includes("pg_advisory_xact_lock"), "first-launch provisioning must be concurrency-safe");
   assert.ok(publicDemo.includes('const PUBLIC_DEMO_ORG = "Loom & Local"'), "public demo must stay in the dedicated tenant");
   assert.ok(!publicDemo.includes("Mantra Studio"), "public production demo must not seed unrelated demo organizations");
@@ -355,16 +355,23 @@ test("public demo provisioning retries transient failures without exposing diagn
 });
 
 
-test("production Vercel project enables the public sandbox regardless of alias", () => {
-  const route = read("src/app/api/auth/demo-switch/route.ts");
-  assert.ok(
-    route.includes('(process.env.VERCEL_ENV ?? "").trim().toLowerCase() === "production"'),
-    "production Vercel deployments must not depend on a hardcoded hostname",
-  );
-  assert.ok(
-    route.indexOf('VERCEL_ENV ?? "").trim().toLowerCase() === "production"')
-      < route.indexOf("publicDemoHostAllowed(hostname"),
-    "production Vercel allowance must happen before hostname fallback",
+test("production Vercel aliases are accepted from forwarded host plus deployment metadata", () => {
+  const request = new Request("http://127.0.0.1/api/auth/demo-switch", {
+    method: "POST",
+    headers: {
+      host: "127.0.0.1",
+      "x-forwarded-host": "new-payrollph-production.vercel.app",
+    },
+  });
+
+  assert.equal(
+    publicDemoRequestAllowed(request, {
+      vercelEnv: "production",
+      vercelUrl: "new-payrollph-production.vercel.app",
+      vercelProductionUrl: "canonical-payrollph.vercel.app",
+    }),
+    true,
+    "production Vercel aliases must not depend on request.url exposing the public hostname",
   );
 });
 
@@ -384,4 +391,37 @@ test("public demo repairs stale employees before persona provisioning", () => {
   assert.ok(demo.includes("email = employeeEmail"));
   assert.ok(route.includes("Launch the requested persona first"));
   assert.ok(route.includes("Secondary demo persona provisioning skipped"));
+});
+
+
+test("Vercel forwarded host can authorize the canonical public sandbox", () => {
+  const request = new Request("http://127.0.0.1/api/auth/demo-switch", {
+    method: "POST",
+    headers: {
+      host: "127.0.0.1",
+      "x-forwarded-host": "erwinmehehe-payrollph.vercel.app",
+    },
+  });
+
+  assert.equal(publicDemoRequestAllowed(request), true);
+});
+
+test("forwarded host fallback does not allow arbitrary preview or customer domains", () => {
+  const preview = new Request("http://127.0.0.1/api/auth/demo-switch", {
+    method: "POST",
+    headers: {
+      host: "127.0.0.1",
+      "x-forwarded-host": "payrollph-git-random-preview.vercel.app",
+    },
+  });
+  const customer = new Request("http://127.0.0.1/api/auth/demo-switch", {
+    method: "POST",
+    headers: {
+      host: "127.0.0.1",
+      "x-forwarded-host": "customer.example.com",
+    },
+  });
+
+  assert.equal(publicDemoRequestAllowed(preview), false);
+  assert.equal(publicDemoRequestAllowed(customer), false);
 });
