@@ -106,3 +106,26 @@ test("payroll creation fails closed when active employee payout details are inco
   assert.ok(route.includes("missingEmployeeIds"));
   assert.ok(route.includes("Complete payout details before starting payroll"));
 });
+
+
+test("first payroll readiness only turns green when all operational prerequisites exist", () => {
+  const blocked = buildFirstPayrollReadiness({
+    workspaceName: "Acme Philippines Inc.",
+    employees: [{ status: "Active", bankAccount: null, bankCode: null }],
+    memberships: [{ role: "owner" }],
+    payrollStatuses: [],
+  });
+  assert.equal(blocked.ready, false);
+  assert.equal(blocked.employeesMissingPayout, 1);
+  assert.equal(blocked.payrollOfficerCount, 0);
+  assert.equal(blocked.checkerCount, 0);
+
+  const ready = buildFirstPayrollReadiness({
+    workspaceName: "Acme Philippines Inc.",
+    employees: [{ status: "Active", bankAccount: "enc:v1:test", bankCode: "BPI" }],
+    memberships: [{ role: "owner" }, { role: "payroll" }, { role: "checker" }],
+    payrollStatuses: [],
+  });
+  assert.equal(ready.ready, true);
+  assert.equal(ready.completed, ready.total);
+});
