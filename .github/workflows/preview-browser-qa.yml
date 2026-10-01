@@ -15,6 +15,7 @@ on:
       - "src/app/workspace/page.tsx"
       - "src/app/api/auth/demo-switch/route.ts"
       - "src/db/public-demo.ts"
+      - "src/db/seed.ts"
       - "src/lib/demo-host.ts"
       - "src/lib/security-request.ts"
       - "src/lib/core-schema-compat.ts"
@@ -470,6 +471,13 @@ jobs:
               throw new Error(`${persona.label}: demo switch returned ${switchResponse.status()} ${switchText}`);
             }
             await page.waitForURL(new RegExp(`[?&]demoRole=${persona.id}(?:&|$)`), { timeout: 30000 });
+            const encryptionProbe = await context.request.post(`${base}/api/auth/demo-switch`, {
+              data: { role: persona.id },
+              headers: { Origin: base },
+            });
+            check(encryptionProbe.ok(), `${persona.label}: encryption readiness probe returned ${encryptionProbe.status()}`);
+            const encryptionPayload = await encryptionProbe.json();
+            check(encryptionPayload.bankDataEncryptionReady === true, `${persona.label}: demo provisioning left plaintext bank data behind`);
             await page.waitForLoadState("networkidle");
 
             const body = await page.locator("body").innerText();
@@ -722,6 +730,7 @@ jobs:
             });
             check(response.ok(), `Lifecycle: switching to ${role} returned ${response.status()}`);
             const payload = await response.json();
+            check(payload.bankDataEncryptionReady === true, `Lifecycle: switching to ${role} left plaintext bank data behind`);
             const target = typeof payload.redirectTo === "string" ? payload.redirectTo : `/app?demoRole=${role}`;
             await page.goto(target.startsWith("http") ? target : `${base}${target}`, { waitUntil: "networkidle", timeout: 90000 });
             return payload;

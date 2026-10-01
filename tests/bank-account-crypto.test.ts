@@ -122,6 +122,12 @@ test("every place that reads or writes the number goes through the crypto module
     assert.ok(!/bankAccount: row\.bankAccount,/.test(source), `${path} must not store the raw number`);
   }
 
+  const publicDemo = read("src/db/public-demo.ts");
+  assert.ok(publicDemo.includes("bankAccount: encryptBankAccount(person.bankAccount)"), "public demo must not reintroduce plaintext bank data");
+
+  const localSeed = read("src/db/seed.ts");
+  assert.ok(localSeed.includes("bankAccount: encryptBankAccount(person[8])"), "local demo seed must encrypt bank accounts when a key is available");
+
   for (const path of ["src/lib/dashboard-data.ts", "src/app/api/employees/route.ts"]) {
     assert.ok(read(path).includes("bankAccount: maskBankAccount(employee.bankAccount)"), `${path} must not send the account number to the browser`);
   }

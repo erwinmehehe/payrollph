@@ -15,6 +15,7 @@ import {
   timePunches,
 } from "@/db/schema";
 import { ensureSubscription } from "@/lib/billing";
+import { encryptBankAccount } from "@/lib/bank-account-crypto";
 
 const PUBLIC_DEMO_ORG = "Loom & Local";
 
@@ -346,7 +347,7 @@ export async function ensurePublicDemoTenant() {
         avatarInitials: person.initials,
         basicRate: person.basicRate,
         mwe: index === 5,
-        bankAccount: person.bankAccount,
+        bankAccount: encryptBankAccount(person.bankAccount),
         bankCode: person.bankCode,
         mobile: person.mobile,
         email,
