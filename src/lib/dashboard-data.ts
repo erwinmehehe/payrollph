@@ -31,6 +31,7 @@ import { getSessionUser, publicUser } from "@/lib/auth";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
+import { buildFirstPayrollReadiness } from "@/lib/first-payroll-readiness";
 
 export async function getDashboardData(organizationId?: number) {
   await ensureCoreCompatibilitySchema();
@@ -195,6 +196,25 @@ export async function getDashboardData(organizationId?: number) {
     developer: accountType !== "freelancer",
   };
 
+  const canViewFirstPayrollReadiness =
+    accountType !== "freelancer"
+    && access.companyWide
+    && ["owner", "admin", "bookkeeper", "payroll"].includes(access.role);
+  const firstPayrollMemberships = canViewFirstPayrollReadiness
+    ? await db
+        .select({ role: userOrganizations.role })
+        .from(userOrganizations)
+        .where(eq(userOrganizations.organizationId, selectedOrganization.id))
+    : [];
+  const firstPayrollReadiness = canViewFirstPayrollReadiness
+    ? buildFirstPayrollReadiness({
+        workspaceName: selectedOrganization.legalName || selectedOrganization.name,
+        employees: employeeRows,
+        memberships: firstPayrollMemberships,
+        payrollStatuses: runRows.map((run) => run.status),
+      })
+    : null;
+
   const payProfileByEmployee = new Map(payProfileRows.map((profile) => [profile.employeeId, profile]));
   const employeesWithPayBasis = employeeRows.map((employee) => {
     const profile = payProfileByEmployee.get(employee.id);
@@ -211,6 +231,7 @@ export async function getDashboardData(organizationId?: number) {
   });
 
   return {
+    firstPayrollReadiness,
     user: sessionUser ? publicUser(sessionUser) : null,
     access,
     capabilities,
