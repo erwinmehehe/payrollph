@@ -289,6 +289,31 @@ test("only explicit public demo hosts can launch the sandbox without enabling de
   );
 });
 
+test("canonical APP_BASE_URL can authorize a custom production demo host", () => {
+  assert.equal(
+    publicDemoHostAllowed("payroll.example.com", {
+      appBaseUrl: "https://payroll.example.com",
+    }),
+    true,
+  );
+
+  const request = new Request("http://127.0.0.1/api/auth/demo-switch", {
+    method: "POST",
+    headers: {
+      host: "127.0.0.1",
+      "x-forwarded-host": "payroll.example.com",
+    },
+  });
+
+  assert.equal(
+    publicDemoRequestAllowed(request, {
+      appBaseUrl: "https://payroll.example.com",
+    }),
+    true,
+    "the canonical production app host must not need a second PUBLIC_DEMO_HOSTS entry",
+  );
+});
+
 test("arbitrary customer and self-hosted domains cannot provision the public demo tenant", () => {
   assert.equal(publicDemoHostAllowed("customer.example.com"), false);
   assert.equal(publicDemoHostAllowed("localhost"), false);
@@ -320,6 +345,7 @@ test("production demo switch provisions only the isolated public demo tenant whe
   const publicDemo = read("src/db/public-demo.ts");
   assert.ok(route.includes("ensurePublicDemoTenant"), "production demo path must provision the isolated public demo tenant");
   assert.ok(route.includes("publicDemoRequestAllowed"), "production demo path must honor public/forwarded host gating");
+  assert.ok(route.includes("appBaseUrl: process.env.APP_BASE_URL"), "production demo path must trust the configured canonical app host");
   assert.ok(publicDemo.includes("pg_advisory_xact_lock"), "first-launch provisioning must be concurrency-safe");
   assert.ok(publicDemo.includes('const PUBLIC_DEMO_ORG = "Loom & Local"'), "public demo must stay in the dedicated tenant");
   assert.ok(!publicDemo.includes("Mantra Studio"), "public production demo must not seed unrelated demo organizations");

@@ -4,6 +4,14 @@ export const OFFICIAL_PUBLIC_DEMO_HOSTS = new Set([
   "payrollph-three.vercel.app",
 ]);
 
+export type PublicDemoHostOptions = {
+  configuredHosts?: string | null;
+  appBaseUrl?: string | null;
+  vercelEnv?: string | null;
+  vercelUrl?: string | null;
+  vercelProductionUrl?: string | null;
+};
+
 function normalizeHost(value: string | null | undefined) {
   if (!value) return "";
   return value
@@ -16,20 +24,20 @@ function normalizeHost(value: string | null | undefined) {
 
 export function publicDemoHostAllowed(
   hostname: string,
-  options: {
-    configuredHosts?: string | null;
-    vercelEnv?: string | null;
-    vercelUrl?: string | null;
-    vercelProductionUrl?: string | null;
-  } = {},
+  options: PublicDemoHostOptions = {},
 ) {
   const normalized = normalizeHost(hostname);
   const configuredHosts = (options.configuredHosts ?? "")
     .split(",")
     .map(normalizeHost)
     .filter(Boolean);
+  const canonicalAppHost = normalizeHost(options.appBaseUrl);
 
-  if (OFFICIAL_PUBLIC_DEMO_HOSTS.has(normalized) || configuredHosts.includes(normalized)) {
+  if (
+    OFFICIAL_PUBLIC_DEMO_HOSTS.has(normalized) ||
+    configuredHosts.includes(normalized) ||
+    (canonicalAppHost && canonicalAppHost === normalized)
+  ) {
     return true;
   }
 
@@ -50,12 +58,7 @@ export function publicDemoHostAllowed(
 
 export function publicDemoRequestAllowed(
   request: Request,
-  options: {
-    configuredHosts?: string | null;
-    vercelEnv?: string | null;
-    vercelUrl?: string | null;
-    vercelProductionUrl?: string | null;
-  } = {},
+  options: PublicDemoHostOptions = {},
 ) {
   const requestUrlHost = normalizeHost(new URL(request.url).hostname);
   const forwardedHost = normalizeHost(request.headers.get("x-forwarded-host")?.split(",")[0]);

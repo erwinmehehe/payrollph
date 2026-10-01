@@ -146,6 +146,7 @@ function publicDemoAllowed(request: Request) {
 
   return publicDemoRequestAllowed(request, {
     configuredHosts: process.env.PUBLIC_DEMO_HOSTS,
+    appBaseUrl: process.env.APP_BASE_URL,
     vercelEnv: process.env.VERCEL_ENV,
     vercelUrl: process.env.VERCEL_URL,
     vercelProductionUrl: process.env.VERCEL_PROJECT_PRODUCTION_URL,
