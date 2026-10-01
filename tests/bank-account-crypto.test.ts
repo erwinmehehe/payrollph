@@ -1,0 +1,132 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { readFileSync } from "node:fs";
+import {
+  bankEncryptionConfigured,
+  decryptBankAccount,
+  encryptBankAccount,
+  isEncryptedBankAccount,
+  maskBankAccount,
+  parseBankEncryptionKey,
+  sameBankAccount,
+} from "../src/lib/bank-account-crypto";
+
+const KEY_A = "a".repeat(64);
+const KEY_B = "b".repeat(64);
+const withKey = (key?: string) => ({ BANK_DATA_ENCRYPTION_KEY: key }) as unknown as NodeJS.ProcessEnv;
+
+test("an account number round-trips and is not stored readable", () => {
+  const sealed = encryptBankAccount("1234567890", withKey(KEY_A));
+  assert.ok(sealed && isEncryptedBankAccount(sealed));
+  assert.ok(!sealed.includes("1234567890"), "the plaintext must not appear in the stored value");
+  assert.equal(decryptBankAccount(sealed, withKey(KEY_A)), "1234567890");
+});
+
+test("the same number encrypts differently every time", () => {
+  const first = encryptBankAccount("1234567890", withKey(KEY_A));
+  const second = encryptBankAccount("1234567890", withKey(KEY_A));
+  assert.notEqual(first, second, "a fixed IV would let equal account numbers be spotted");
+});
+
+test("a stored value fits the widened column", () => {
+  const longest = encryptBankAccount("9".repeat(40), withKey(KEY_A))!;
+  assert.ok(longest.length <= 160, `envelope is ${longest.length} chars, column is varchar(160)`);
+  assert.ok(longest.length > 40, "the old varchar(40) column could not hold it");
+});
+
+test("the wrong key and tampering both fail instead of returning garbage", () => {
+  const sealed = encryptBankAccount("1234567890", withKey(KEY_A))!;
+  assert.throws(() => decryptBankAccount(sealed, withKey(KEY_B)), /could not be decrypted/);
+
+  const parts = sealed.split(":");
+  const flipped = parts[4].startsWith("A") ? `B${parts[4].slice(1)}` : `A${parts[4].slice(1)}`;
+  const tampered = [...parts.slice(0, 4), flipped].join(":");
+  assert.throws(() => decryptBankAccount(tampered, withKey(KEY_A)), /could not be decrypted/);
+});
+
+test("an encrypted value with no key configured is an error, never a silent blank", () => {
+  const sealed = encryptBankAccount("1234567890", withKey(KEY_A))!;
+  assert.throws(() => decryptBankAccount(sealed, withKey(undefined)), /not configured/);
+});
+
+test("rollout is non-breaking: legacy plaintext reads, and writes pass through without a key", () => {
+  assert.equal(decryptBankAccount("1234567890", withKey(KEY_A)), "1234567890");
+  assert.equal(decryptBankAccount("1234567890", withKey(undefined)), "1234567890");
+  assert.equal(encryptBankAccount("1234567890", withKey(undefined)), "1234567890");
+});
+
+test("saving twice never double-encrypts, and empty stays null", () => {
+  const once = encryptBankAccount("1234567890", withKey(KEY_A))!;
+  assert.equal(encryptBankAccount(once, withKey(KEY_A)), once);
+  assert.equal(encryptBankAccount("", withKey(KEY_A)), null);
+  assert.equal(encryptBankAccount("   ", withKey(KEY_A)), null);
+  assert.equal(encryptBankAccount(null, withKey(KEY_A)), null);
+  assert.equal(decryptBankAccount(null, withKey(KEY_A)), null);
+});
+
+test("a malformed key is rejected loudly instead of silently storing plaintext", () => {
+  assert.throws(() => encryptBankAccount("1234567890", withKey("too-short")), /32 bytes/);
+  assert.equal(bankEncryptionConfigured(withKey("too-short")), false);
+  assert.equal(bankEncryptionConfigured(withKey(KEY_A)), true);
+  assert.equal(bankEncryptionConfigured(withKey(undefined)), false);
+});
+
+test("keys are accepted as 64 hex characters or as base64", () => {
+  assert.equal(parseBankEncryptionKey(KEY_A)?.length, 32);
+  assert.equal(parseBankEncryptionKey(Buffer.alloc(32, 7).toString("base64"))?.length, 32);
+  assert.equal(parseBankEncryptionKey(Buffer.alloc(16, 7).toString("base64")), null);
+  assert.equal(parseBankEncryptionKey(undefined), null);
+});
+
+test("what the browser receives shows the last four digits and nothing usable", () => {
+  const sealed = encryptBankAccount("1234567890", withKey(KEY_A))!;
+  assert.equal(maskBankAccount(sealed, withKey(KEY_A)), "••••7890");
+  assert.equal(maskBankAccount("1234567890", withKey(undefined)), "••••7890");
+  assert.equal(maskBankAccount("123", withKey(undefined)), "••••");
+  assert.equal(maskBankAccount(null, withKey(undefined)), null);
+  // An unreadable value must not break a whole dashboard payload.
+  assert.equal(maskBankAccount(sealed, withKey(KEY_B)), "••••");
+  assert.ok(!String(maskBankAccount("1234567890", withKey(undefined))).includes("123456"));
+});
+
+test("the release guard compares decrypted values, so re-encrypting is not a 'change'", () => {
+  const first = encryptBankAccount("1234567890", withKey(KEY_A))!;
+  const second = encryptBankAccount("1234567890", withKey(KEY_A))!;
+  assert.notEqual(first, second);
+  assert.equal(sameBankAccount(first, second, withKey(KEY_A)), true, "same number, different envelope");
+  assert.equal(sameBankAccount(first, "1234567890", withKey(KEY_A)), true, "plaintext snapshot vs sealed row");
+  assert.equal(sameBankAccount(first, encryptBankAccount("1234567891", withKey(KEY_A)), withKey(KEY_A)), false);
+  assert.equal(sameBankAccount(null, null, withKey(KEY_A)), true);
+  assert.equal(sameBankAccount(null, "1234567890", withKey(KEY_A)), false);
+  // An unreadable value must never count as unchanged, not even against itself.
+  assert.equal(sameBankAccount(first, first, withKey(KEY_B)), false);
+});
+
+test("every place that reads or writes the number goes through the crypto module", () => {
+  const read = (path: string) => readFileSync(path, "utf8");
+
+  const payout = read("src/lib/paymongo-disbursements.ts");
+  assert.ok(payout.includes("decryptBankAccount(employee.bankAccount)"), "PayMongo transfers must use the decrypted number");
+
+  const exporter = read("src/lib/exporters.ts");
+  assert.ok(exporter.includes("decryptBankAccount(payment.bankAccount)"), "bank files must use the decrypted number");
+
+  const settlement = read("src/lib/payroll-settlement.ts");
+  assert.ok(settlement.includes("sameBankAccount(snapshot.bankAccount, employee.bankAccount)"), "release guard must compare decrypted values");
+
+  for (const path of ["src/app/api/employees/import/route.ts", "src/app/api/migrations/route.ts"]) {
+    const source = read(path);
+    assert.ok(source.includes("encryptBankAccount(row.bankAccount)"), `${path} must encrypt on write`);
+    assert.ok(!/bankAccount: row\.bankAccount,/.test(source), `${path} must not store the raw number`);
+  }
+
+  for (const path of ["src/lib/dashboard-data.ts", "src/app/api/employees/route.ts"]) {
+    assert.ok(read(path).includes("bankAccount: maskBankAccount(employee.bankAccount)"), `${path} must not send the account number to the browser`);
+  }
+});
+
+test("the schema, baseline and migration agree on the widened column", () => {
+  assert.ok(readFileSync("src/db/schema.ts", "utf8").includes('varchar("bank_account", { length: 160 })'));
+  assert.ok(readFileSync("drizzle/baseline.sql", "utf8").includes('"bank_account" varchar(160)'));
+  assert.ok(readFileSync("drizzle/0004_bank_account_envelope.sql", "utf8").includes("ALTER COLUMN bank_account TYPE varchar(160)"));
+});
