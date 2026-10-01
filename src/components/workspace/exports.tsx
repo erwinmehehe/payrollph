@@ -16,6 +16,7 @@ import {
   Clock3,
 } from "lucide-react";
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
+import { FilingEvidencePanel } from "./filing-evidence";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, PageHeading, Segmented, Status, formatDate, money } from "./ui";
 
@@ -467,6 +468,14 @@ export function ExportsView({
               </div>
             </article>
           )}
+
+          <FilingEvidencePanel
+            key={`${organizationId}-${run.id}`}
+            organizationId={organizationId}
+            run={{ id: run.id, periodLabel: run.periodLabel }}
+            notify={notify}
+            onRefresh={onRefresh}
+          />
 
           <section className="integration-grid">
             <article className="export-card">
