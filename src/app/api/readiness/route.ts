@@ -95,7 +95,7 @@ export async function buildReadinessPayload() {
   const malwareIntegrated = malwareScannerConfigured();
   const samlIntegrated = false;
 
-  const appBaseUrl = process.env.APP_BASE_URL ?? "";
+  const appBaseUrl = process.env.APP_BASE_URL ?? (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "");
   const productionSecurityConfigured =
     process.env.NODE_ENV !== "production" ||
     (
