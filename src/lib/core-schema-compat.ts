@@ -1,7 +1,86 @@
+import type { PoolClient } from "pg";
 import { pool } from "@/db";
+import { bankEncryptionConfigured, decryptBankAccount, encryptBankAccount, isEncryptedBankAccount } from "@/lib/bank-account-crypto";
 
 let coreSchemaReady = false;
 let coreSchemaInFlight: Promise<void> | null = null;
+
+async function backfillBankDataEncryption(client: PoolClient) {
+  if (!bankEncryptionConfigured()) return { employees: 0, snapshots: 0 };
+
+  const employeeRows = await client.query<{ id: number; bank_account: string }>(`
+    SELECT id, bank_account
+    FROM employees
+    WHERE bank_account IS NOT NULL
+      AND bank_account <> ''
+      AND bank_account NOT LIKE 'enc:v1:%'
+    ORDER BY id
+  `);
+
+  let employeesEncrypted = 0;
+  for (const row of employeeRows.rows) {
+    const plain = row.bank_account.trim();
+    if (!plain) continue;
+    const sealed = encryptBankAccount(plain);
+    if (!sealed || !isEncryptedBankAccount(sealed) || decryptBankAccount(sealed) !== plain) {
+      throw new Error(`Bank-account encryption round-trip failed for employee id ${row.id}.`);
+    }
+    await client.query("UPDATE employees SET bank_account = $1 WHERE id = $2", [sealed, row.id]);
+    employeesEncrypted += 1;
+  }
+
+  const snapshotRows = await client.query<{ id: number; bank_account: string }>(`
+    SELECT id, trace #>> '{payment,bankAccount}' AS bank_account
+    FROM payroll_entries
+    WHERE trace #>> '{payment,bankAccount}' IS NOT NULL
+      AND trace #>> '{payment,bankAccount}' <> ''
+      AND trace #>> '{payment,bankAccount}' NOT LIKE 'enc:v1:%'
+    ORDER BY id
+  `);
+
+  let snapshotsEncrypted = 0;
+  for (const row of snapshotRows.rows) {
+    const plain = row.bank_account.trim();
+    if (!plain) continue;
+    const sealed = encryptBankAccount(plain);
+    if (!sealed || !isEncryptedBankAccount(sealed) || decryptBankAccount(sealed) !== plain) {
+      throw new Error(`Bank-account snapshot encryption round-trip failed for payroll entry ${row.id}.`);
+    }
+    await client.query(
+      `UPDATE payroll_entries
+       SET trace = jsonb_set(trace, '{payment,bankAccount}', to_jsonb($1::text), true)
+       WHERE id = $2`,
+      [sealed, row.id],
+    );
+    snapshotsEncrypted += 1;
+  }
+
+  if (employeesEncrypted > 0 || snapshotsEncrypted > 0) {
+    console.info(
+      `Bank-data compatibility backfill encrypted ${employeesEncrypted} employee account(s) and ${snapshotsEncrypted} payroll snapshot(s).`,
+    );
+  }
+
+  return { employees: employeesEncrypted, snapshots: snapshotsEncrypted };
+}
+
+export async function bankDataEncryptionReady() {
+  if (!bankEncryptionConfigured()) return false;
+  const result = await pool.query<{ remaining: number }>(`
+    SELECT (
+      (SELECT COUNT(*) FROM employees
+       WHERE bank_account IS NOT NULL
+         AND bank_account <> ''
+         AND bank_account NOT LIKE 'enc:v1:%')
+      +
+      (SELECT COUNT(*) FROM payroll_entries
+       WHERE trace #>> '{payment,bankAccount}' IS NOT NULL
+         AND trace #>> '{payment,bankAccount}' <> ''
+         AND trace #>> '{payment,bankAccount}' NOT LIKE 'enc:v1:%')
+    )::int AS remaining
+  `);
+  return Number(result.rows[0]?.remaining ?? 0) === 0;
+}
 
 /**
  * Production on Vercel does not run drizzle db:push automatically.
@@ -38,6 +117,12 @@ export async function ensureCoreCompatibilitySchema() {
       // the legacy varchar(40) account-number column. Widening is non-destructive
       // and idempotent, and prevents production-only insert failures after rollout.
       await client.query("ALTER TABLE employees ALTER COLUMN bank_account TYPE varchar(160)");
+
+      // Once a stable encryption key is available, seal legacy plaintext in the
+      // same advisory-locked transaction as the compatibility schema upgrade.
+      // This makes rollout idempotent and prevents a split state where the app
+      // is deployed but old database rows remain readable.
+      await backfillBankDataEncryption(client);
 
       // Session/device fields were added after the first production schema.
       // Demo launch creates a real authenticated session, so these must exist
