@@ -1,0 +1,51 @@
+name: Production Rollout Readiness
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Production origin to verify
+        required: true
+        default: https://erwinmehehe-payrollph.vercel.app
+        type: string
+      rollout_mode:
+        description: Pilot allows documented manual workarounds; full requires every launch gate green
+        required: true
+        default: pilot
+        type: choice
+        options:
+          - pilot
+          - full
+
+permissions:
+  contents: read
+
+jobs:
+  production-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      PRODUCTION_BASE_URL: ${{ inputs.base_url }}
+      ROLLOUT_MODE: ${{ inputs.rollout_mode }}
+      PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Verify live production rollout
+        run: npx tsx scripts/live-production-readiness.ts
+
+      - name: Upload readiness report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: payrollph-production-rollout-readiness
+          path: qa-artifacts/production-rollout-readiness.json
+          retention-days: 7
+          if-no-files-found: warn
