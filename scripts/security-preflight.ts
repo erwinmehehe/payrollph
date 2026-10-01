@@ -48,8 +48,8 @@ function httpsUrl(name: string): Check {
 const checks: Check[] = [
   httpsUrl("APP_BASE_URL"),
   httpsUrl("MALWARE_SCAN_URL"),
-  strongSecret("WORKER_TOKEN"),
-  strongSecret("READINESS_TOKEN"),
+  optionalStrongSecret("WORKER_TOKEN", "not configured; remote scheduler endpoint remains disabled"),
+  optionalStrongSecret("READINESS_TOKEN", "not configured; detailed readiness endpoint remains disabled"),
   strongSecret("SETUP_TOKEN"),
   strongSecret("MALWARE_SCAN_TOKEN"),
   validTotpKey(),
