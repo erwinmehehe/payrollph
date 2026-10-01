@@ -84,12 +84,13 @@ test("anonymous health checks cannot create monitoring snapshots", () => {
   assert.ok(source.includes("HEALTH_TOKEN"));
 });
 
-test("production worker endpoints require WORKER_TOKEN", () => {
+test("production worker endpoints require a strong operational worker token", () => {
   for (const path of ["src/app/api/jobs/tick/route.ts", "src/app/api/webhooks/drain/route.ts"]) {
     const source = readFileSync(path, "utf8");
     assert.ok(source.includes('process.env.NODE_ENV === "production"'));
-    assert.ok(source.includes("WORKER_TOKEN"));
+    assert.ok(source.includes('operationalSecret("worker")'));
     assert.ok(source.includes("constantTimeSecretEqual"));
+    assert.ok(source.includes("status: 503"));
   }
 });
 
