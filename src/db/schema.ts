@@ -763,6 +763,42 @@ export const auditEvents = pgTable("audit_events", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Evidence that a file Linaw generated was actually accepted by an agency.
+ * A row is created when a filing file is generated (status "generated", tied to
+ * the file's SHA-256), and is later marked accepted or rejected by a person who
+ * has the agency's own acknowledgement. Readiness reads this table instead of
+ * trusting an environment flag. Rows are never deleted by the app, and an
+ * accepted row cannot be edited.
+ */
+export const governmentFilingValidations = pgTable(
+  "government_filing_validations",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    payrollRunId: integer("payroll_run_id").references(() => payrollRuns.id, { onDelete: "set null" }),
+    agency: varchar("agency", { length: 16 }).notNull(),
+    form: varchar("form", { length: 24 }).notNull(),
+    periodLabel: varchar("period_label", { length: 80 }).notNull(),
+    fileName: varchar("file_name", { length: 160 }).notNull(),
+    fileSha256: varchar("file_sha256", { length: 64 }).notNull(),
+    generatorVersion: varchar("generator_version", { length: 48 }).notNull(),
+    status: varchar("status", { length: 16 }).notNull().default("generated"),
+    submissionMethod: varchar("submission_method", { length: 16 }),
+    agencyReference: varchar("agency_reference", { length: 80 }),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    outcomeNote: text("outcome_note"),
+    generatedBy: varchar("generated_by", { length: 120 }).notNull(),
+    recordedBy: varchar("recorded_by", { length: 120 }),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("government_filing_file_unique").on(table.organizationId, table.agency, table.form, table.fileSha256),
+    index("government_filing_status_idx").on(table.agency, table.form, table.status),
+  ],
+);
+
 export const employeeLoans = pgTable("employee_loans", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),

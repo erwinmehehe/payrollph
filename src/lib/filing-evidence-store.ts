@@ -1,0 +1,144 @@
+import { and, desc, eq } from "drizzle-orm";
+import { db } from "@/db";
+import { governmentFilingValidations, payrollRuns } from "@/db/schema";
+import { generateGovernmentDraft } from "@/lib/exporters";
+import {
+  FILING_FORMS,
+  sha256Hex,
+  summarizeFilingEvidence,
+  type FilingFormDefinition,
+  type FilingOutcomeInput,
+} from "@/lib/filing-evidence";
+
+export type FilingValidationRow = typeof governmentFilingValidations.$inferSelect;
+
+/**
+ * Generates the filing file for a payroll run and records it, identified by the
+ * SHA-256 of its bytes. Generating the same unchanged file twice returns the
+ * same record instead of a duplicate.
+ */
+export async function recordGeneratedFiling(input: {
+  organizationId: number;
+  runId: number;
+  definition: FilingFormDefinition;
+  actor: string;
+}) {
+  const [run] = await db
+    .select()
+    .from(payrollRuns)
+    .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.organizationId, input.organizationId)))
+    .limit(1);
+  if (!run) throw new Error("Payroll run not found in this workspace.");
+
+  const file = await generateGovernmentDraft(run.id, input.definition.kind);
+  const fileSha256 = sha256Hex(file.body);
+
+  const [inserted] = await db
+    .insert(governmentFilingValidations)
+    .values({
+      organizationId: input.organizationId,
+      payrollRunId: run.id,
+      agency: input.definition.agency,
+      form: input.definition.form,
+      periodLabel: run.periodLabel,
+      fileName: file.filename,
+      fileSha256,
+      generatorVersion: input.definition.generatorVersion,
+      generatedBy: input.actor,
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  if (inserted) return { record: inserted, created: true, file };
+
+  const [existing] = await db
+    .select()
+    .from(governmentFilingValidations)
+    .where(and(
+      eq(governmentFilingValidations.organizationId, input.organizationId),
+      eq(governmentFilingValidations.agency, input.definition.agency),
+      eq(governmentFilingValidations.form, input.definition.form),
+      eq(governmentFilingValidations.fileSha256, fileSha256),
+    ))
+    .limit(1);
+  return { record: existing, created: false, file };
+}
+
+export async function listFilingValidations(organizationId: number) {
+  return db
+    .select()
+    .from(governmentFilingValidations)
+    .where(eq(governmentFilingValidations.organizationId, organizationId))
+    .orderBy(desc(governmentFilingValidations.createdAt), desc(governmentFilingValidations.id))
+    .limit(100);
+}
+
+export async function getFilingValidation(organizationId: number, id: number) {
+  const [row] = await db
+    .select()
+    .from(governmentFilingValidations)
+    .where(and(eq(governmentFilingValidations.id, id), eq(governmentFilingValidations.organizationId, organizationId)))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Re-generates the file for a record and confirms its bytes still match the
+ * hash that was recorded. If payroll data changed since, the person must not
+ * upload this file and then attach the acceptance to a record for different
+ * bytes, so a mismatch is an error rather than a silent re-hash.
+ */
+export async function regenerateRecordedFile(row: FilingValidationRow) {
+  const definition = FILING_FORMS.find((item) => item.agency === row.agency && item.form === row.form);
+  if (!definition || !row.payrollRunId) {
+    throw new Error("This filing record can no longer be regenerated.");
+  }
+  const file = await generateGovernmentDraft(row.payrollRunId, definition.kind);
+  if (sha256Hex(file.body) !== row.fileSha256) {
+    throw new Error(
+      "Payroll data has changed since this record was created, so the file no longer matches it. Generate a new record and submit that file instead.",
+    );
+  }
+  return file;
+}
+
+/**
+ * Records what the agency said. Only a "generated" record can be resolved, and
+ * the update is conditional on that so two people cannot both resolve it and an
+ * accepted record can never be edited afterwards.
+ */
+export async function recordFilingOutcome(input: {
+  organizationId: number;
+  id: number;
+  actor: string;
+  outcome: FilingOutcomeInput;
+}) {
+  const { outcome } = input;
+  const [updated] = await db
+    .update(governmentFilingValidations)
+    .set({
+      status: outcome.outcome,
+      submissionMethod: outcome.submissionMethod,
+      agencyReference: outcome.agencyReference,
+      submittedAt: outcome.submittedAt,
+      outcomeNote: outcome.note,
+      recordedBy: input.actor,
+      recordedAt: new Date(),
+    })
+    .where(and(
+      eq(governmentFilingValidations.id, input.id),
+      eq(governmentFilingValidations.organizationId, input.organizationId),
+      eq(governmentFilingValidations.status, "generated"),
+    ))
+    .returning();
+  return updated ?? null;
+}
+
+/** Evidence summary per supported filing form, across every workspace. */
+export async function filingEvidenceSummaries() {
+  const rows = await db.select().from(governmentFilingValidations);
+  return FILING_FORMS.map((definition) => ({
+    definition,
+    ...summarizeFilingEvidence(rows, definition),
+  }));
+}

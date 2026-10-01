@@ -145,7 +145,7 @@ export async function buildCapabilityReport() {
       status: BANK_DISBURSEMENT_READY ? "partial" : "absent",
       proof: BANK_DISBURSEMENT_READY ? "PAYMONGO_DISBURSEMENTS_ENABLED=true" : "requires PayMongo Wallet verification, not a bank relationship",
     },
-    { id: "govfiling", area: "Compliance", label: "Certified government filing", detail: "2316, Alphalist, R-3, RF-1, MCRF generated as DRAFT only.", status: "absent", proof: "requires BIR/SSS portal validation" },
+    { id: "govfiling", area: "Compliance", label: "Certified government filing", detail: "2316, Alphalist, R-3, RF-1, MCRF generated as DRAFT only. SSS R-3 now has an evidence trail (the gov-sss-r3 readiness gate turns on only after an SSS acceptance of an uploaded file is recorded); BIR, PhilHealth and Pag-IBIG have none yet.", status: "absent", proof: "requires a recorded agency acceptance per form" },
     {
       id: "email",
       area: "Platform",

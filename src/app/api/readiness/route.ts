@@ -2,6 +2,7 @@ import { and, count, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, employees, invoices, outbox, payrollEntries, subscriptions, users } from "@/db/schema";
 import { bankEncryptionConfigured, bankEncryptionKeySource } from "@/lib/bank-account-crypto";
+import { filingEvidenceSummaries } from "@/lib/filing-evidence-store";
 import { activeMailProvider, deliveryCapable } from "@/lib/mail-provider";
 import { verifyPassword } from "@/lib/crypto";
 import { constantTimeSecretEqual } from "@/lib/security-secret";
@@ -48,6 +49,17 @@ export async function buildReadinessPayload() {
       and ${payrollEntries.trace} #>> '{payment,bankAccount}' <> ''
       and ${payrollEntries.trace} #>> '{payment,bankAccount}' not like 'enc:v1:%'`);
 
+  // SSS R-3 readiness comes from recorded agency acceptance, not an env flag.
+  // The table can be missing on a database that has not been upgraded yet, and
+  // that must read as "not proven" rather than taking readiness down.
+  let sssEvidence: Awaited<ReturnType<typeof filingEvidenceSummaries>>[number] | null = null;
+  let sssEvidenceError: string | null = null;
+  try {
+    sssEvidence = (await filingEvidenceSummaries()).find((item) => item.definition.agency === "SSS" && item.definition.form === "R-3") ?? null;
+  } catch {
+    sssEvidenceError = "The filing evidence table is not available yet. Apply drizzle/0005_government_filing_validations.sql.";
+  }
+
   const provider = activeMailProvider();
 
   // A review account with a publicly known password must never survive into a
@@ -89,7 +101,7 @@ export async function buildReadinessPayload() {
   // records, set by whoever does that check, not by us detecting it.
   const demoMode = enabled("DEMO_MODE");
   const birAlphalistValidated = enabled("BIR_ALPHALIST_VALIDATED");
-  const sssR3Validated = enabled("SSS_R3_VALIDATED");
+  const sssR3Validated = Boolean(sssEvidence?.proven);
   const philhealthValidated = enabled("PHILHEALTH_RF1_VALIDATED");
   const pagibigValidated = enabled("PAGIBIG_MCRF_VALIDATED");
   const storageConfigured = configured("S3_BUCKET") || configured("R2_BUCKET");
@@ -231,10 +243,11 @@ export async function buildReadinessPayload() {
       label: "SSS R-3 validated",
       ready: sssR3Validated,
       detail: sssR3Validated
-        ? "A generated R-3 dataset has been accepted by the SSS employer workflow."
-        : "The R-3 draft now uses each employee's real SSS number and full monthly employee/employer/EC amounts. Acceptance in the official R3 File Generator / My.SSS employer workflow is still pending.",
+        ? `SSS accepted an upload of a Linaw-generated R-3 file in the current layout (${sssEvidence?.provingCount} recorded acceptance(s)${sssEvidence?.latest?.agencyReference ? `, latest reference ${sssEvidence.latest.agencyReference}` : ""}).`
+        : sssEvidenceError
+          ?? `No recorded SSS acceptance of a Linaw-generated R-3 file in the current layout yet.${sssEvidence?.acceptedByManualEntry ? ` ${sssEvidence.acceptedByManualEntry} filing(s) were entered by hand, which proves a filing was made but not that the generated file imports.` : ""}${sssEvidence?.acceptedOnOlderLayout ? ` ${sssEvidence.acceptedOnOlderLayout} acceptance(s) were for an older file layout.` : ""}${sssEvidence?.rejected ? ` ${sssEvidence.rejected} rejection(s) are recorded.` : ""} Generate a record, upload that file in My.SSS, then record the PRN or acknowledgement.`,
       blocks: sssR3Validated ? "none" : "launch",
-      manualWorkaround: sssR3Validated ? undefined : "Enter the DRAFT figures into SSS's free R3 File Generator or My.SSS upload by hand.",
+      manualWorkaround: sssR3Validated ? undefined : "Enter the DRAFT figures into SSS's free R3 File Generator or My.SSS upload by hand, or upload the generated file and record the result under /api/compliance/filing-validations.",
     },
     {
       key: "gov-philhealth-rf1",
