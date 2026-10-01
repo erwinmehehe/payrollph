@@ -237,8 +237,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     totalNetPay: run.netPay,
     releasedAt,
     bankExport: {
-      status: "ready" as const,
-      label: "Ready to generate from the released register",
+      status: "waiting" as const,
+      label: "Final bank file has not been generated yet",
+    },
+    payout: {
+      status: "waiting-for-file" as const,
+      label: "Generate the final bank file before payout can be recorded",
+      reference: null,
+      method: null,
+      completedAt: null,
     },
     payslips: {
       status: postReleaseWarnings.length > 0 ? "attention" as const : "ready" as const,
