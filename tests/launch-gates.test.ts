@@ -191,3 +191,18 @@ test("full launch requires a real independently reconciled production payroll pi
     assert.ok(signoff.includes(marker), `production pilot sign-off is missing ${marker}`);
   }
 });
+
+
+test("owners can record production pilot evidence without a developer-only workflow", () => {
+  const card = readFileSync("src/components/workspace/production-pilot-signoff.tsx", "utf8");
+  const workspace = readFileSync("src/components/linaw-workspace.tsx", "utf8");
+
+  assert.ok(card.includes("Sign off the real payroll pilot"));
+  assert.ok(card.includes("Independent evidence reference"));
+  assert.ok(card.includes("The payroll operator completed this cycle without developer intervention"));
+  assert.ok(card.includes("/pilot-signoff"));
+  assert.ok(card.includes("Record production pilot sign-off"));
+  assert.ok(workspace.includes('effectiveRole === "owner"'));
+  assert.ok(workspace.includes("<ProductionPilotSignoffCard"));
+  assert.ok(workspace.includes("!demoRole"));
+});
