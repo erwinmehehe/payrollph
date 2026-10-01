@@ -124,3 +124,21 @@ test("bank-data readiness covers both employee rows and payroll snapshots", () =
   assert.ok(readiness.includes("bankEncryptionKeySource"));
   assert.ok(readiness.includes('bankKeySource === "dedicated"'));
 });
+
+
+test("production rollout readiness proves the exact deployed commit and exposes sanitized blocker keys", () => {
+  const pilotStatus = readFileSync("src/app/api/readiness/pilot-status/route.ts", "utf8");
+  const rolloutScript = readFileSync("scripts/live-production-readiness.ts", "utf8");
+  const workflow = readFileSync(".github/workflows/production-rollout-readiness.yml", "utf8");
+
+  assert.ok(pilotStatus.includes("launchBlockers"));
+  assert.ok(pilotStatus.includes("VERCEL_GIT_COMMIT_SHA"));
+  assert.ok(pilotStatus.includes("manualLaunchReady"));
+
+  assert.ok(rolloutScript.includes("EXPECTED_COMMIT_SHA"));
+  assert.ok(rolloutScript.includes("waitForExpectedDeployment"));
+  assert.ok(rolloutScript.includes("deploymentSha"));
+  assert.ok(rolloutScript.includes("launchBlockers"));
+
+  assert.ok(workflow.includes("EXPECTED_COMMIT_SHA: ${{ github.sha }}"));
+});
