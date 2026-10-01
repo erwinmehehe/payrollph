@@ -151,6 +151,9 @@ function publicDemoAllowed(request: Request) {
 
   return publicDemoHostAllowed(hostname, {
     configuredHosts: process.env.PUBLIC_DEMO_HOSTS,
+    vercelEnv: process.env.VERCEL_ENV,
+    vercelUrl: process.env.VERCEL_URL,
+    vercelProductionUrl: process.env.VERCEL_PROJECT_PRODUCTION_URL,
   });
 }
 

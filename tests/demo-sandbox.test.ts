@@ -273,12 +273,42 @@ test("only explicit public demo hosts can launch the sandbox without enabling de
     }),
     true,
   );
+  assert.equal(
+    publicDemoHostAllowed("new-payrollph-production.vercel.app", {
+      vercelEnv: "production",
+      vercelUrl: "new-payrollph-production.vercel.app",
+    }),
+    true,
+  );
+  assert.equal(
+    publicDemoHostAllowed("canonical-payrollph.vercel.app", {
+      vercelEnv: "production",
+      vercelProductionUrl: "https://canonical-payrollph.vercel.app",
+    }),
+    true,
+  );
 });
 
 test("arbitrary customer and self-hosted domains cannot provision the public demo tenant", () => {
   assert.equal(publicDemoHostAllowed("customer.example.com"), false);
   assert.equal(publicDemoHostAllowed("localhost"), false);
   assert.equal(publicDemoHostAllowed("other-preview.vercel.app"), false);
+  assert.equal(
+    publicDemoHostAllowed("other-preview.vercel.app", {
+      vercelEnv: "preview",
+      vercelUrl: "other-preview.vercel.app",
+      vercelProductionUrl: "canonical-payrollph.vercel.app",
+    }),
+    false,
+  );
+  assert.equal(
+    publicDemoHostAllowed("customer.example.com", {
+      vercelEnv: "production",
+      vercelUrl: "production-deployment.vercel.app",
+      vercelProductionUrl: "canonical-payrollph.vercel.app",
+    }),
+    false,
+  );
   assert.equal(
     publicDemoHostAllowed("preview.example.com", { configuredHosts: "preview.example.com" }),
     true,
