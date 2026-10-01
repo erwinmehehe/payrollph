@@ -6508,13 +6508,10 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
   color: var(--muted-light);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 720px) {
   .demo-task-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-}
-
-@media (max-width: 720px) {
   .employee-self-service .page-heading,
   .demo-sandbox-head {
     align-items: stretch;
@@ -6552,6 +6549,9 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius
   .demo-role-switcher {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .demo-task-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
   .demo-role-button {
     width: 100%;
