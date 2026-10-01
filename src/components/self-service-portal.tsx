@@ -108,6 +108,22 @@ export function SelfServicePortal() {
     }
   }
 
+  async function signOut() {
+    setBusy(true);
+    try {
+      const response = await fetch("/api/auth/logout", { method: "POST" });
+      if (!response.ok) {
+        setError("Could not sign out. Please try again.");
+        return;
+      }
+      window.location.href = "/login";
+    } catch {
+      setError("Could not sign out. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function link(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -142,7 +158,9 @@ export function SelfServicePortal() {
           <button className="primary-button" style={{ background: "var(--deep)", borderColor: "var(--green)" }} onClick={() => setWebBundyOpen(true)}>
             <Clock size={15} className="i-cyan" /> Clock IN / OUT
           </button>
-          <a className="secondary-button" href="/api/auth/logout"><LogOut size={15} className="i-slate" /> Sign out</a>
+          <button className="secondary-button" type="button" disabled={busy} onClick={() => void signOut()}>
+            <LogOut size={15} className="i-slate" /> {busy ? "Signing out…" : "Sign out"}
+          </button>
         </div>
       </header>
 
