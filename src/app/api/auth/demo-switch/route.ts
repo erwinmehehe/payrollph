@@ -11,6 +11,7 @@ import { ensurePublicDemoTenant } from "@/db/public-demo";
 import { DEMO_ROLE_IDS, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
 import { publicDemoRequestAllowed } from "@/lib/demo-host";
 import { bankDataEncryptionReady, ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
+import { bankEncryptionConfigured } from "@/lib/bank-account-crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -166,6 +167,16 @@ export async function POST(request: Request) {
     return Response.json({ error: "Demo accounts are disabled on this deployment." }, { status: 404 });
   }
 
+  if (process.env.NODE_ENV === "production" && !bankEncryptionConfigured()) {
+    return Response.json(
+      {
+        error: "The production demo is unavailable until encrypted payout storage is configured.",
+        code: "BANK_DATA_ENCRYPTION_REQUIRED",
+      },
+      { status: 503 },
+    );
+  }
+
   try {
     await ensureCoreCompatibilitySchema();
     if (DEMO_MODE && process.env.NODE_ENV !== "production") {
@@ -177,6 +188,17 @@ export async function POST(request: Request) {
     console.error("Public demo provisioning failed", error);
     return Response.json(
       { error: "The demo workspace could not be prepared. Please try again in a moment." },
+      { status: 503 },
+    );
+  }
+
+  const bankEncryptionReady = await bankDataEncryptionReady();
+  if (process.env.NODE_ENV === "production" && !bankEncryptionReady) {
+    return Response.json(
+      {
+        error: "The production demo is unavailable while encrypted payout storage is being finalized.",
+        code: "BANK_DATA_ENCRYPTION_NOT_READY",
+      },
       { status: 503 },
     );
   }
@@ -232,8 +254,6 @@ export async function POST(request: Request) {
       { status: 503 },
     );
   }
-
-  const bankEncryptionReady = await bankDataEncryptionReady();
 
   return Response.json({
     ok: true,

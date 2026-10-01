@@ -492,3 +492,14 @@ test("sandbox task grid keeps a balanced tablet composition", () => {
     "mobile breakpoint must remain explicit",
   );
 });
+
+test("production demo fails closed until encrypted payout storage is ready", () => {
+  const route = read("src/app/api/auth/demo-switch/route.ts");
+  assert.ok(route.includes("bankEncryptionConfigured()"), "production demo must require a usable encryption key");
+  assert.ok(route.includes('"BANK_DATA_ENCRYPTION_REQUIRED"'), "missing encryption key needs a controlled service-unavailable code");
+  assert.ok(route.includes('"BANK_DATA_ENCRYPTION_NOT_READY"'), "legacy plaintext must block the production session until backfill completes");
+  assert.ok(
+    route.indexOf("const bankEncryptionReady = await bankDataEncryptionReady()") < route.indexOf("createSession(activeUser.id"),
+    "bank-data readiness must be proven before a production demo session is issued",
+  );
+});
