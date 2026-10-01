@@ -3,7 +3,7 @@ name: Production Rollout Readiness
 on:
   push:
     branches:
-      - ops/live-readiness-check
+      - main
   workflow_dispatch:
     inputs:
       base_url:
