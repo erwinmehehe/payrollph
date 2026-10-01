@@ -240,7 +240,7 @@ CREATE TABLE "employees" (
 	"avatar_initials" varchar(4) NOT NULL,
 	"basic_rate" numeric(12, 2) NOT NULL,
 	"mwe" boolean DEFAULT false NOT NULL,
-	"bank_account" varchar(40),
+	"bank_account" varchar(160),
 	"bank_code" varchar(16),
 	"mobile" varchar(24),
 	"email" varchar(200),
