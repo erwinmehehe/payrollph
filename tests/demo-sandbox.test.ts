@@ -451,3 +451,12 @@ test("forwarded host fallback does not allow arbitrary preview or customer domai
   assert.equal(publicDemoRequestAllowed(preview), false);
   assert.equal(publicDemoRequestAllowed(customer), false);
 });
+
+
+test("workspace sidebar profile keeps avatar styling separate from the role label", () => {
+  const styles = read("src/app/globals.css");
+  assert.ok(styles.includes(".side-profile-avatar > .avatar"), "sidebar avatar needs a dedicated size/visual treatment");
+  assert.ok(styles.includes(".side-profile-avatar > i"), "sidebar avatar needs a dedicated online-status indicator");
+  assert.ok(styles.includes(".side-profile > div:nth-child(2) > span"), "role label styling must target only the profile text");
+  assert.ok(!styles.includes(".side-profile span {"), "broad descendant span styling must not override the nested avatar");
+});
