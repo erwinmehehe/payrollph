@@ -82,3 +82,27 @@ test("production rollout verifier requires protected live readiness and critical
   assert.ok(workflow.includes('rollout_mode'));
   assert.ok(workflow.includes('scripts/live-production-readiness.ts'));
 });
+
+
+test("first payroll readiness is computed from real workspace state", () => {
+  const readiness = read("src/lib/first-payroll-readiness.ts");
+  const dashboard = read("src/lib/dashboard-data.ts");
+  const workspace = read("src/components/linaw-workspace.tsx");
+
+  assert.ok(readiness.includes('"payroll-officer"'));
+  assert.ok(readiness.includes('"checker"'));
+  assert.ok(readiness.includes('"payout"'));
+  assert.ok(readiness.includes('employee.bankAccount?.trim()'));
+  assert.ok(readiness.includes('employee.bankCode?.trim()'));
+  assert.ok(dashboard.includes("buildFirstPayrollReadiness"));
+  assert.ok(dashboard.includes("userOrganizations.role"));
+  assert.ok(workspace.includes("<FirstPayrollReadinessCard"));
+  assert.ok(workspace.includes('onNewRun={() => setNewPayrollOpen(true)}'));
+});
+
+test("payroll creation fails closed when active employee payout details are incomplete", () => {
+  const route = read("src/app/api/payroll-runs/route.ts");
+  assert.ok(route.includes('"PAYOUT_DETAILS_REQUIRED"'));
+  assert.ok(route.includes("missingEmployeeIds"));
+  assert.ok(route.includes("Complete payout details before starting payroll"));
+});
