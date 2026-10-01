@@ -24,7 +24,9 @@ import { paymongoAuthorization } from "@/lib/paymongo";
  *   2. The Wallet is "Enabled" (not Closed-loop), check the banner under
  *      Money Movement -> Wallets in the PayMongo Dashboard.
  *   3. The wallet is funded, a disbursement debits the wallet balance, it
- *      does not draw from your card-payment proceeds directly.
+ *      does not draw from your card-payment proceeds directly. Linaw checks
+ *      the available balance before submitting and stops on a shortfall.
+ *   4. PAYMONGO_WALLET_ID is set. The source account is read from that wallet.
  */
 
 export type PayrollPayoutRow = {
@@ -95,10 +97,134 @@ export function matchReceivingInstitution(bankName: string, institutions: Receiv
   return match;
 }
 
+/**
+ * PayMongo's create-batch-transfer schema makes `source_account` (number, name,
+ * bic) mandatory on every transfer; omitting it is a 422. It must be one of the
+ * accounts attached to the wallet being debited, so it is read from the wallet
+ * itself rather than typed into configuration where it could drift.
+ *
+ * Docs: https://docs.paymongo.com/reference/retrieve-a-wallet
+ *       https://docs.paymongo.com/reference/create-batch-transfer
+ */
+export type PaymongoSourceAccount = { number: string; name: string; bic: string };
+
+export type PaymongoWallet = {
+  id: string;
+  status: string | null;
+  availableCents: number;
+  pendingCents: number;
+  sourceAccount: PaymongoSourceAccount;
+};
+
+/** PayMongo's documented BIC for every PayMongo wallet account. */
+const PAYMONGO_WALLET_BIC = "PAEYPHM2XXX";
+
+function centavos(value: unknown): number | null {
+  const amount = typeof value === "string" && value.trim() !== "" ? Number(value) : value;
+  return typeof amount === "number" && Number.isFinite(amount) && Number.isInteger(amount) ? amount : null;
+}
+
+/**
+ * Reads a Retrieve Wallet response. Fails closed on any field it cannot read:
+ * a guessed balance or account number would either block real payroll or point
+ * a transfer at the wrong source, and this module never invents either.
+ */
+export function parsePaymongoWallet(payload: unknown): PaymongoWallet {
+  const root = (payload && typeof payload === "object" ? payload : {}) as Record<string, any>;
+  const data = root.data && typeof root.data === "object" ? root.data : root;
+  const wallet = (data.attributes && typeof data.attributes === "object" ? data.attributes : data) as Record<string, any>;
+
+  const id = typeof data.id === "string" ? data.id : typeof wallet.id === "string" ? wallet.id : null;
+  const available = centavos(wallet.balance?.available ?? wallet.available_balance);
+  const pending = centavos(wallet.balance?.pending ?? wallet.pending_balance) ?? 0;
+  const number = wallet.account?.account_number;
+  const name = wallet.account?.account_name;
+
+  if (!id || available === null || typeof number !== "string" || !number || typeof name !== "string" || !name) {
+    throw new Error(
+      "PayMongo's wallet response did not include the balance and source account Linaw needs. No transfer was attempted.",
+    );
+  }
+
+  return {
+    id,
+    status: typeof wallet.status === "string" ? wallet.status : null,
+    availableCents: available,
+    pendingCents: pending,
+    sourceAccount: { number, name, bic: PAYMONGO_WALLET_BIC },
+  };
+}
+
+export async function getPaymongoWallet(): Promise<PaymongoWallet> {
+  const secret = requirePaymongoSecret();
+  const walletId = process.env.PAYMONGO_WALLET_ID?.trim();
+  if (!walletId || !/^[A-Za-z0-9_-]+$/.test(walletId)) {
+    throw new Error(
+      "PAYMONGO_WALLET_ID is not configured. Set it to the wallet id shown under Money Movement -> Wallets in the PayMongo Dashboard.",
+    );
+  }
+
+  const response = await fetch(`https://api.paymongo.com/v2/wallets/${encodeURIComponent(walletId)}`, {
+    headers: { Accept: "application/json", Authorization: paymongoAuthorization(secret) },
+    cache: "no-store",
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.errors?.[0]?.detail ?? `PayMongo returned HTTP ${response.status} reading wallet ${walletId}.`);
+  }
+  const wallet = parsePaymongoWallet(payload);
+  if (wallet.id !== walletId) {
+    throw new Error(`PayMongo returned a different wallet than ${walletId}. No transfer was attempted.`);
+  }
+  return wallet;
+}
+
+export type WalletFunding = {
+  availableCents: number;
+  pendingCents: number;
+  requiredCents: number;
+  shortfallCents: number;
+  sufficient: boolean;
+};
+
+/**
+ * Only the available balance counts. Pending funds have not cleared, so
+ * counting them would let a payout start that PayMongo then fails part-way.
+ */
+export function assessWalletFunding(wallet: PaymongoWallet, requiredCents: number): WalletFunding {
+  const shortfallCents = Math.max(0, requiredCents - wallet.availableCents);
+  return {
+    availableCents: wallet.availableCents,
+    pendingCents: wallet.pendingCents,
+    requiredCents,
+    shortfallCents,
+    sufficient: shortfallCents === 0,
+  };
+}
+
+function formatPeso(cents: number) {
+  return `PHP ${(cents / 100).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** Throws before any transfer is created when the wallet cannot cover the batch. */
+export function assertWalletFunded(wallet: PaymongoWallet, requiredCents: number): WalletFunding {
+  if (wallet.status?.toLowerCase() === "deactivated") {
+    throw new Error("The PayMongo wallet is deactivated. No transfer was attempted.");
+  }
+  const funding = assessWalletFunding(wallet, requiredCents);
+  if (!funding.sufficient) {
+    throw new Error(
+      `The PayMongo wallet has ${formatPeso(funding.availableCents)} available but this payout needs ${formatPeso(requiredCents)}. Top up at least ${formatPeso(funding.shortfallCents)} and try again. No transfer was attempted.`,
+    );
+  }
+  return funding;
+}
+
 export function buildBatchTransferPayload(
   rows: PayrollPayoutRow[],
   provider: "instapay" | "pesonet",
   bicByBankName: Map<string, string>,
+  sourceAccount: PaymongoSourceAccount,
 ) {
   return {
     transfers: rows.map((row) => {
@@ -108,6 +234,7 @@ export function buildBatchTransferPayload(
         provider,
         amount: row.amountCents,
         currency: "PHP",
+        source_account: sourceAccount,
         destination_account: {
           number: row.accountNumber,
           name: row.employeeName,
@@ -141,13 +268,16 @@ export type PayrollDisbursementPreflight = {
   employeeCount: number;
   totalAmountCents: number;
   banks: Array<{ bankName: string; bic: string }>;
-  ready: true;
+  wallet: WalletFunding & { id: string };
+  /** False when the wallet cannot cover the run. Anything else failing throws. */
+  ready: boolean;
 };
 
 /**
  * Safe live preflight: verifies credentials can read PayMongo's current
- * receiving-institution list and that every employee bank name resolves.
- * It never calls the batch-transfer endpoint and therefore cannot move money.
+ * receiving-institution list, that every employee bank name resolves, and that
+ * the wallet holds enough available funds. It only reads, and never calls the
+ * batch-transfer endpoint, so it cannot move money.
  */
 export async function preflightPaymongoPayrollDisbursement(runId: number): Promise<PayrollDisbursementPreflight> {
   const rows = await loadPayrollPayoutRows(runId);
@@ -167,12 +297,17 @@ export async function preflightPaymongoPayrollDisbursement(runId: number): Promi
     return { bankName, bic: institution.bic };
   });
 
+  const totalAmountCents = rows.reduce((sum, row) => sum + row.amountCents, 0);
+  const wallet = await getPaymongoWallet();
+  const funding = assessWalletFunding(wallet, totalAmountCents);
+
   return {
     provider,
     employeeCount: rows.length,
-    totalAmountCents: rows.reduce((sum, row) => sum + row.amountCents, 0),
+    totalAmountCents,
     banks,
-    ready: true,
+    wallet: { id: wallet.id, ...funding },
+    ready: funding.sufficient && wallet.status?.toLowerCase() !== "deactivated",
   };
 }
 
@@ -198,6 +333,11 @@ export async function createPaymongoBatchDisbursement(
     bicByBankName.set(bankName, matchReceivingInstitution(bankName, institutions).bic);
   }
 
+  // Read the wallet last, right before money moves, so the balance is as fresh
+  // as it can be and a shortfall stops the run before any transfer exists.
+  const wallet = await getPaymongoWallet();
+  assertWalletFunded(wallet, rows.reduce((sum, row) => sum + row.amountCents, 0));
+
   const response = await fetch("https://api.paymongo.com/v2/batch_transfers", {
     method: "POST",
     headers: {
@@ -205,7 +345,7 @@ export async function createPaymongoBatchDisbursement(
       Authorization: paymongoAuthorization(secret),
       "Idempotency-Key": idempotencyKey,
     },
-    body: JSON.stringify(buildBatchTransferPayload(rows, provider, bicByBankName)),
+    body: JSON.stringify(buildBatchTransferPayload(rows, provider, bicByBankName, wallet.sourceAccount)),
   });
 
   const payload = await response.json().catch(() => ({}));

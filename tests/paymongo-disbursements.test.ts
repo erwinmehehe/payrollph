@@ -6,10 +6,13 @@ import { eq } from "drizzle-orm";
 import { db } from "../src/db";
 import { employees, organizations, payrollEntries, payrollRuns } from "../src/db/schema";
 import {
+  assertWalletFunded,
+  assessWalletFunding,
   buildBatchTransferPayload,
   buildPayrollRetryIdempotencyKey,
   choosePayrollRail,
   matchReceivingInstitution,
+  parsePaymongoWallet,
   preflightPaymongoPayrollDisbursement,
   type PayrollPayoutRow,
 } from "../src/lib/paymongo-disbursements";
@@ -23,6 +26,8 @@ import {
   normalizePaymongoTransferWebhook,
   verifyPaymongoWebhookSignature,
 } from "../src/lib/paymongo-transfer-webhook";
+
+const SOURCE = { number: "0000000001", name: "Acme Inc.", bic: "PAEYPHM2XXX" };
 
 function row(overrides: Partial<PayrollPayoutRow> = {}): PayrollPayoutRow {
   return {
@@ -82,13 +87,14 @@ test("buildBatchTransferPayload produces the documented Transfer V2 field shape"
     ["BDO", "BNORPHMM"],
     ["BPI", "BOPIPHMM"],
   ]);
-  const payload = buildBatchTransferPayload(rows, "pesonet", bics);
+  const payload = buildBatchTransferPayload(rows, "pesonet", bics, SOURCE);
 
   assert.equal(payload.transfers.length, 2);
   assert.deepEqual(payload.transfers[0], {
     provider: "pesonet",
     amount: 5_000_00,
     currency: "PHP",
+    source_account: SOURCE,
     destination_account: {
       number: "1234567890",
       name: "Juan Dela Cruz",
@@ -103,9 +109,55 @@ test("buildBatchTransferPayload produces the documented Transfer V2 field shape"
 
 test("buildBatchTransferPayload refuses to silently omit a BIC it couldn't resolve", () => {
   const rows = [row({ bankName: "Unmapped Bank" })];
-  assert.throws(() => buildBatchTransferPayload(rows, "pesonet", new Map()), /No resolved BIC/);
+  assert.throws(() => buildBatchTransferPayload(rows, "pesonet", new Map(), SOURCE), /No resolved BIC/);
 });
 
+const WALLET_RESPONSE = {
+  data: {
+    id: "wallet_abc123",
+    type: "wallet",
+    attributes: {
+      status: "active",
+      balance: { available: 2_600_000, pending: 100_000 },
+      account: { provider: "paymongo", account_name: "Acme Inc.", account_number: "0000000001", currency: "PHP" },
+    },
+  },
+};
+
+test("a wallet response yields the balance and the source account the batch needs", () => {
+  const wallet = parsePaymongoWallet(WALLET_RESPONSE);
+  assert.equal(wallet.id, "wallet_abc123");
+  assert.equal(wallet.availableCents, 2_600_000);
+  assert.equal(wallet.pendingCents, 100_000);
+  assert.deepEqual(wallet.sourceAccount, { number: "0000000001", name: "Acme Inc.", bic: "PAEYPHM2XXX" });
+  // Same data without the JSON:API attributes wrapper.
+  assert.equal(parsePaymongoWallet({ data: { id: "w", ...WALLET_RESPONSE.data.attributes } }).availableCents, 2_600_000);
+});
+
+test("an unreadable wallet response fails closed instead of guessing a balance or account", () => {
+  for (const bad of [null, {}, { data: { id: "w" } }, { data: { id: "w", balance: { available: "lots" }, account: {} } }]) {
+    assert.throws(() => parsePaymongoWallet(bad), /did not include the balance and source account/);
+  }
+});
+
+test("only available funds count, and a shortfall is reported to the centavo", () => {
+  const wallet = parsePaymongoWallet(WALLET_RESPONSE);
+  assert.equal(assessWalletFunding(wallet, 2_600_000).sufficient, true, "exactly enough is enough");
+  const short = assessWalletFunding(wallet, 2_650_001);
+  assert.equal(short.sufficient, false);
+  assert.equal(short.shortfallCents, 50_001, "pending funds must not cover a payout");
+  assert.throws(() => assertWalletFunded(wallet, 2_650_001), /Top up at least PHP 500\.01.*No transfer was attempted/);
+  assert.throws(() => assertWalletFunded({ ...wallet, status: "deactivated" }, 1), /deactivated/);
+  assert.doesNotThrow(() => assertWalletFunded(wallet, 2_600_000));
+});
+
+test("submission reads the wallet before creating the batch and attaches its source account", () => {
+  const source = readFileSync("src/lib/paymongo-disbursements.ts", "utf8");
+  const walletRead = source.search(/await getPaymongoWallet\(\);\s+assertWalletFunded/);
+  const batchPost = source.indexOf('fetch("https://api.paymongo.com/v2/batch_transfers"');
+  assert.ok(walletRead > 0 && batchPost > walletRead, "the funding check must run before the batch POST");
+  assert.ok(source.includes("wallet.sourceAccount"), "transfers must use the wallet's own source account");
+});
 
 test("PayMongo payroll preflight validates live bank mapping without creating a transfer", async () => {
   const [org] = await db.insert(organizations).values({
@@ -149,11 +201,16 @@ test("PayMongo payroll preflight validates live bank mapping without creating a 
     });
 
     process.env.PAYMONGO_SECRET_KEY = "sk_test_preflight_only";
-    globalThis.fetch = async (input) => {
+    process.env.PAYMONGO_WALLET_ID = "wallet_abc123";
+    globalThis.fetch = async (input, init) => {
       const url = String(input);
       requestedUrls.push(url);
-      assert.ok(url.includes("/v2/transfers/receiving_institutions"), "preflight must only read receiving institutions");
       assert.ok(!url.includes("/v2/batch_transfers"), "preflight must never create a batch transfer");
+      assert.ok(!init?.method || init.method === "GET", "preflight must only read");
+      if (url.endsWith("/v2/wallets/wallet_abc123")) {
+        return new Response(JSON.stringify(WALLET_RESPONSE), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      assert.ok(url.includes("/v2/transfers/receiving_institutions"), "preflight must only read institutions and the wallet");
       return new Response(JSON.stringify({
         data: [{ attributes: { name: "BDO Unibank", bic: "BNORPHMM" } }],
       }), { status: 200, headers: { "Content-Type": "application/json" } });
@@ -161,13 +218,16 @@ test("PayMongo payroll preflight validates live bank mapping without creating a 
 
     const result = await preflightPaymongoPayrollDisbursement(run.id);
     assert.equal(result.ready, true);
+    assert.equal(result.wallet.availableCents, 2_600_000);
+    assert.equal(result.wallet.shortfallCents, 0);
     assert.equal(result.employeeCount, 1);
     assert.equal(result.totalAmountCents, 2_500_000);
     assert.equal(result.provider, "instapay");
     assert.deepEqual(result.banks, [{ bankName: "BDO", bic: "BNORPHMM" }]);
-    assert.equal(requestedUrls.length, 1);
+    assert.equal(requestedUrls.length, 2, "one institutions read and one wallet read");
   } finally {
     globalThis.fetch = previousFetch;
+    delete process.env.PAYMONGO_WALLET_ID;
     if (previousSecret === undefined) delete process.env.PAYMONGO_SECRET_KEY;
     else process.env.PAYMONGO_SECRET_KEY = previousSecret;
     await db.delete(organizations).where(eq(organizations.id, org.id));
