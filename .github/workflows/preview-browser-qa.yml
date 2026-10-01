@@ -17,6 +17,9 @@ on:
       - "src/db/public-demo.ts"
       - "src/lib/demo-host.ts"
       - "src/lib/security-request.ts"
+      - "src/lib/core-schema-compat.ts"
+      - "src/lib/bank-account-crypto.ts"
+      - "src/app/api/readiness/route.ts"
       - "src/lib/pricing-catalog.ts"
       - "src/lib/demo-roles.ts"
       - "package.json"
@@ -38,6 +41,7 @@ jobs:
       DEMO_MODE: "false"
       APP_BASE_URL: "http://localhost:3000"
       TRUSTED_APP_ORIGINS: "http://localhost:3000"
+      TOTP_ENCRYPTION_KEY: "2222222222222222222222222222222222222222222222222222222222222222"
       # Browser QA exercises privileged lifecycle behavior using isolated demo data.
       # Security HTTP Smoke separately verifies that production MFA enforcement fails closed.
       REQUIRE_PRIVILEGED_MFA: "false"

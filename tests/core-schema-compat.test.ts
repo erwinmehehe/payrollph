@@ -55,3 +55,14 @@ test("core compatibility widens legacy bank account storage for encrypted envelo
     "production compatibility must widen the legacy bank-account column before encrypted writes",
   );
 });
+
+
+test("core compatibility automatically seals legacy bank data and payroll snapshots", () => {
+  const source = read("src/lib/core-schema-compat.ts");
+  assert.ok(source.includes("backfillBankDataEncryption"));
+  assert.ok(source.includes("bank_account NOT LIKE 'enc:v1:%'"));
+  assert.ok(source.includes("trace #>> '{payment,bankAccount}'"));
+  assert.ok(source.includes("jsonb_set(trace, '{payment,bankAccount}'"));
+  assert.ok(source.includes("decryptBankAccount(sealed) !== plain"));
+  assert.ok(source.includes("export async function bankDataEncryptionReady()"));
+});

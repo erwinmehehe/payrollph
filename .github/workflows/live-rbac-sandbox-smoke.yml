@@ -43,6 +43,7 @@ jobs:
 
               if [ "$status" -ge 200 ] && [ "$status" -lt 300 ] &&
                  grep -q '"ok":true' /tmp/demo-switch-body.txt &&
+                 grep -q '"bankDataEncryptionReady":true' /tmp/demo-switch-body.txt &&
                  grep -q "\"redirectTo\":\"/app?demoRole=${role}\"" /tmp/demo-switch-body.txt; then
                 success=true
                 break

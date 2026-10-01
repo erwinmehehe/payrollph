@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import {
   bankEncryptionConfigured,
+  bankEncryptionKeySource,
   decryptBankAccount,
   encryptBankAccount,
   isEncryptedBankAccount,
@@ -14,6 +15,7 @@ import {
 const KEY_A = "a".repeat(64);
 const KEY_B = "b".repeat(64);
 const withKey = (key?: string) => ({ BANK_DATA_ENCRYPTION_KEY: key }) as unknown as NodeJS.ProcessEnv;
+const withTotpMaster = (key?: string) => ({ TOTP_ENCRYPTION_KEY: key }) as unknown as NodeJS.ProcessEnv;
 
 test("an account number round-trips and is not stored readable", () => {
   const sealed = encryptBankAccount("1234567890", withKey(KEY_A));
@@ -129,4 +131,35 @@ test("the schema, baseline and migration agree on the widened column", () => {
   assert.ok(readFileSync("src/db/schema.ts", "utf8").includes('varchar("bank_account", { length: 160 })'));
   assert.ok(readFileSync("drizzle/baseline.sql", "utf8").includes('"bank_account" varchar(160)'));
   assert.ok(readFileSync("drizzle/0004_bank_account_envelope.sql", "utf8").includes("ALTER COLUMN bank_account TYPE varchar(160)"));
+});
+
+
+test("bank encryption can derive a domain-separated key from the TOTP master", () => {
+  const env = withTotpMaster(KEY_A);
+  const sealed = encryptBankAccount("1234567890", env);
+  assert.ok(sealed && isEncryptedBankAccount(sealed));
+  assert.equal(decryptBankAccount(sealed, env), "1234567890");
+  assert.equal(bankEncryptionConfigured(env), true);
+  assert.equal(bankEncryptionKeySource(env), "totp-derived");
+  assert.throws(
+    () => decryptBankAccount(sealed, withTotpMaster(KEY_B)),
+    /could not be decrypted/,
+  );
+});
+
+test("a dedicated bank key overrides the TOTP-derived key and malformed overrides fail loudly", () => {
+  const dedicated = {
+    BANK_DATA_ENCRYPTION_KEY: KEY_A,
+    TOTP_ENCRYPTION_KEY: KEY_B,
+  } as unknown as NodeJS.ProcessEnv;
+  assert.equal(bankEncryptionKeySource(dedicated), "dedicated");
+  const sealed = encryptBankAccount("1234567890", dedicated);
+  assert.equal(decryptBankAccount(sealed, dedicated), "1234567890");
+
+  const malformed = {
+    BANK_DATA_ENCRYPTION_KEY: "bad",
+    TOTP_ENCRYPTION_KEY: KEY_B,
+  } as unknown as NodeJS.ProcessEnv;
+  assert.equal(bankEncryptionConfigured(malformed), false);
+  assert.throws(() => encryptBankAccount("1234567890", malformed), /BANK_DATA_ENCRYPTION_KEY/);
 });

@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHmac, randomBytes } from "node:crypto";
 
 /**
  * Field-level encryption for employee bank account numbers.
@@ -16,19 +16,23 @@ import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
  * Rollout is deliberately non-breaking:
  *   - Reads accept both encrypted values and legacy plaintext, so nothing has
  *     to be migrated in one step.
- *   - Writes encrypt only when BANK_DATA_ENCRYPTION_KEY is configured. Without
- *     it they pass through unchanged, and /api/readiness reports the gap
- *     honestly instead of this module pretending to protect data it is not.
+ *   - BANK_DATA_ENCRYPTION_KEY is the explicit override. When it is absent,
+ *     production can derive a domain-separated bank key from the already-required
+ *     TOTP_ENCRYPTION_KEY. Without either one, writes stay plaintext and readiness
+ *     reports the gap instead of pretending the data is protected.
  *   - scripts/encrypt-bank-accounts.ts backfills existing rows.
  *
  * Key rotation is not implemented: the "v1" tag leaves room for it, but a
- * rotation would need a re-encryption pass, so do not change the key without
- * decrypting first. A wrong or missing key makes encrypted values unreadable,
+ * rotation would need a re-encryption pass. Do not change BANK_DATA_ENCRYPTION_KEY
+ * or, when using the derived-key fallback, TOTP_ENCRYPTION_KEY without re-encrypting
+ * first. A wrong or missing key makes encrypted values unreadable,
  * and this module throws rather than returning garbage into a payout file.
  */
 
 const PREFIX = "enc:v1:";
 const KEY_ENV = "BANK_DATA_ENCRYPTION_KEY";
+const MASTER_KEY_ENV = "TOTP_ENCRYPTION_KEY";
+const BANK_KEY_DERIVATION_LABEL = "linaw:bank-account:v1";
 
 export function isEncryptedBankAccount(value: string | null | undefined): boolean {
   return typeof value === "string" && value.startsWith(PREFIX);
@@ -48,17 +52,38 @@ export function parseBankEncryptionKey(raw: string | undefined): Buffer | null {
 }
 
 function configuredKey(env: NodeJS.ProcessEnv = process.env): Buffer | null {
-  const raw = env[KEY_ENV];
-  if (!raw) return null;
-  const key = parseBankEncryptionKey(raw);
-  // A key that is set but malformed is a deployment mistake. Silently storing
-  // plaintext would hide it, so fail loudly instead.
-  if (!key) throw new Error(`${KEY_ENV} must be 32 bytes, as 64 hex characters or base64.`);
-  return key;
+  const dedicatedRaw = env[KEY_ENV];
+  if (dedicatedRaw) {
+    const dedicated = parseBankEncryptionKey(dedicatedRaw);
+    // A key that is set but malformed is a deployment mistake. Never silently
+    // fall back to another secret because that could make an already-encrypted
+    // database unreadable after a bad environment-variable edit.
+    if (!dedicated) throw new Error(`${KEY_ENV} must be 32 bytes, as 64 hex characters or base64.`);
+    return dedicated;
+  }
+
+  const masterRaw = env[MASTER_KEY_ENV];
+  if (!masterRaw) return null;
+  const master = parseBankEncryptionKey(masterRaw);
+  if (!master) throw new Error(`${MASTER_KEY_ENV} must be 32 bytes, as 64 hex characters or base64.`);
+
+  // Domain separation: the TOTP master secret is never used directly as an
+  // AES key for bank data. A deterministic HMAC-derived 32-byte subkey gives
+  // the bank field its own cryptographic domain while avoiding a second secret
+  // that cannot currently be provisioned through the connected Vercel tooling.
+  return createHmac("sha256", master).update(BANK_KEY_DERIVATION_LABEL).digest();
+}
+
+export function bankEncryptionKeySource(
+  env: NodeJS.ProcessEnv = process.env,
+): "dedicated" | "totp-derived" | null {
+  if (env[KEY_ENV]) return parseBankEncryptionKey(env[KEY_ENV]) ? "dedicated" : null;
+  if (env[MASTER_KEY_ENV]) return parseBankEncryptionKey(env[MASTER_KEY_ENV]) ? "totp-derived" : null;
+  return null;
 }
 
 export function bankEncryptionConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
-  return Boolean(env[KEY_ENV]) && parseBankEncryptionKey(env[KEY_ENV]) !== null;
+  return bankEncryptionKeySource(env) !== null;
 }
 
 /**
