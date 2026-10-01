@@ -6,7 +6,7 @@ import { activeMailProvider, deliveryCapable } from "@/lib/mail-provider";
 import { verifyPassword } from "@/lib/crypto";
 import { constantTimeSecretEqual } from "@/lib/security-secret";
 import { operationalSecret, operationalSecretConfigured, operationalSecretSource } from "@/lib/operational-secret";
-import { malwareScannerConfigured } from "@/lib/storage";
+import { documentUploadsEnabled, malwareScannerConfigured } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +30,8 @@ export async function buildReadinessPayload() {
   const [{ value: activeSubs }] = await db.select({ value: count() }).from(subscriptions).where(eq(subscriptions.status, "active"));
   const [{ value: paymongoPreflightPasses }] = await db.select({ value: count() }).from(auditEvents)
     .where(eq(auditEvents.action, "PayMongo payroll preflight passed"));
+  const [{ value: productionPilotSignoffs }] = await db.select({ value: count() }).from(auditEvents)
+    .where(eq(auditEvents.action, "Production payroll pilot signed off"));
 
   const [{ value: plaintextBankAccounts }] = await db.select({ value: count() }).from(employees)
     .where(and(
@@ -92,7 +94,9 @@ export async function buildReadinessPayload() {
   const storageConfigured = configured("S3_BUCKET") || configured("R2_BUCKET");
   const storageIntegrated = false;
   const malwareEndpointConfigured = configured("MALWARE_SCAN_URL");
+  const uploadsEnabled = documentUploadsEnabled();
   const malwareIntegrated = malwareScannerConfigured();
+  const documentUploadSafetyReady = !uploadsEnabled || malwareIntegrated;
   const samlIntegrated = false;
 
   const appBaseUrl = process.env.APP_BASE_URL ?? (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "");
@@ -198,6 +202,18 @@ export async function buildReadinessPayload() {
       blocks: bankDataProtected ? "none" : "launch",
     },
     {
+      key: "production-pilot-signoff",
+      label: "Independent production payroll pilot signed off",
+      ready: Number(productionPilotSignoffs) > 0,
+      detail: Number(productionPilotSignoffs) > 0
+        ? `${productionPilotSignoffs} production payroll pilot sign-off(s) are recorded with independent reconciliation evidence.`
+        : "No Owner has signed off a released production payroll against independently prepared expected figures yet.",
+      blocks: Number(productionPilotSignoffs) > 0 ? "none" : "launch",
+      manualWorkaround: Number(productionPilotSignoffs) > 0
+        ? undefined
+        : "Complete one controlled production payroll, reconcile it independently, then record the production pilot sign-off before broad launch.",
+    },
+    {
       key: "gov-bir-alphalist",
       label: "BIR Alphalist / 2316 validated in ADES",
       ready: birAlphalistValidated,
@@ -248,14 +264,16 @@ export async function buildReadinessPayload() {
     },
     {
       key: "malware-scanning",
-      label: "Malware scanning on upload",
-      ready: malwareIntegrated,
-      detail: malwareIntegrated
-        ? "Malware scanning is wired into document uploads and production fails closed unless the scanner reports the file clean."
-        : malwareEndpointConfigured
-          ? "Malware scanning is wired in, but production still needs a valid HTTPS MALWARE_SCAN_URL and MALWARE_SCAN_TOKEN."
-          : "Content-type, magic-byte and size checks run, but production uploads stay disabled until MALWARE_SCAN_URL and MALWARE_SCAN_TOKEN are configured.",
-      blocks: malwareIntegrated ? "none" : "launch",
+      label: "Document upload malware safety",
+      ready: documentUploadSafetyReady,
+      detail: !uploadsEnabled
+        ? "Production document uploads are explicitly disabled. Malware scanning is not required until the upload feature is enabled."
+        : malwareIntegrated
+          ? "Malware scanning is wired into document uploads and production fails closed unless the scanner reports the file clean."
+          : malwareEndpointConfigured
+            ? "Document uploads are enabled, but production still needs a valid HTTPS MALWARE_SCAN_URL and MALWARE_SCAN_TOKEN."
+            : "Document uploads are enabled without a configured malware scanner. Disable uploads or configure the scanner before launch.",
+      blocks: documentUploadSafetyReady ? "none" : "launch",
     },
     {
       key: "sso",
@@ -297,7 +315,7 @@ export async function buildReadinessPayload() {
           : `${unworkaroundableBlockers.length} blocker(s) have no manual workaround and must be fixed even for a manual-ops pilot: ${unworkaroundableBlockers.map((g) => g.label).join(", ")}.`,
     },
     gates,
-    counts: { users: userCount, queuedMail, sentMail, failedMail, paidInvoices, activeSubs, paymongoPreflightPasses, plaintextBankAccounts, plaintextBankSnapshots },
+    counts: { users: userCount, queuedMail, sentMail, failedMail, paidInvoices, activeSubs, paymongoPreflightPasses, productionPilotSignoffs, plaintextBankAccounts, plaintextBankSnapshots },
     generatedAt: new Date().toISOString(),
   };
 }
