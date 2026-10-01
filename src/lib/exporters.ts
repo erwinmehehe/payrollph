@@ -1,6 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { bankTemplates, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
+import { decryptBankAccount } from "@/lib/bank-account-crypto";
 import { computePagIbig, computePhilHealth, computeSss } from "@/lib/payroll-rules";
 import { escapeCsvCell } from "@/lib/csv";
 
@@ -61,7 +62,7 @@ export async function generateBankFile(runId: number, templateName: string, dryR
     return {
       employee_name: payment.employeeName,
       employee_no: payment.employeeNo,
-      account_number: payment.bankAccount ?? "0000000000",
+      account_number: decryptBankAccount(payment.bankAccount) ?? "0000000000",
       bank_code: payment.bankCode ?? "",
       mobile: payment.mobile ?? "09000000000",
       net_pay: entry.netPay,

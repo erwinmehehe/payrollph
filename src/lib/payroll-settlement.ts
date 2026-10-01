@@ -1,5 +1,6 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db";
+import { sameBankAccount } from "@/lib/bank-account-crypto";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import {
   auditEvents,
@@ -210,7 +211,7 @@ export async function settlePayrollRun(
       const paymentChanged =
         !samePaymentValue(snapshot.employeeName, currentName) ||
         !samePaymentValue(snapshot.employeeNo, employee.employeeNo) ||
-        !samePaymentValue(snapshot.bankAccount, employee.bankAccount) ||
+        !sameBankAccount(snapshot.bankAccount, employee.bankAccount) ||
         !samePaymentValue(snapshot.bankCode, employee.bankCode) ||
         !samePaymentValue(snapshot.mobile, employee.mobile);
 

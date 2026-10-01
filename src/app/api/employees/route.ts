@@ -1,3 +1,4 @@
+import { maskBankAccount } from "@/lib/bank-account-crypto";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, asc, desc, eq, gte } from "drizzle-orm";
 import { db } from "@/db";
@@ -52,6 +53,7 @@ export async function GET(request: Request) {
     const profile = payByEmployee.get(employee.id);
     return {
       ...employee,
+      bankAccount: maskBankAccount(employee.bankAccount),
       payBasis: profile?.payBasis ?? "monthly",
       payRate: profile?.rateAmount ?? employee.basicRate,
       standardWorkDaysPerMonth: profile?.standardWorkDaysPerMonth ?? "22.00",

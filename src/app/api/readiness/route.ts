@@ -1,6 +1,7 @@
-import { count, eq } from "drizzle-orm";
+import { and, count, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { auditEvents, invoices, outbox, subscriptions, users } from "@/db/schema";
+import { auditEvents, employees, invoices, outbox, subscriptions, users } from "@/db/schema";
+import { bankEncryptionConfigured } from "@/lib/bank-account-crypto";
 import { activeMailProvider, deliveryCapable } from "@/lib/mail-provider";
 import { verifyPassword } from "@/lib/crypto";
 import { constantTimeSecretEqual } from "@/lib/security-secret";
@@ -40,6 +41,13 @@ export async function GET(request: Request) {
   const [{ value: paymongoPreflightPasses }] = await db.select({ value: count() }).from(auditEvents)
     .where(eq(auditEvents.action, "PayMongo payroll preflight passed"));
 
+  const [{ value: plaintextBankAccounts }] = await db.select({ value: count() }).from(employees)
+    .where(and(
+      isNotNull(employees.bankAccount),
+      sql`${employees.bankAccount} <> ''`,
+      sql`${employees.bankAccount} not like 'enc:v1:%'`,
+    ));
+
   const provider = activeMailProvider();
 
   // A review account with a publicly known password must never survive into a
@@ -64,6 +72,9 @@ export async function GET(request: Request) {
   const paymongoWebhookConfigured = configured("PAYMONGO_WEBHOOK_SECRET");
   const paymongoPreflightProven = Number(paymongoPreflightPasses) > 0;
   const bankReady = directBankConfigured || (paymongoDisbursementEnabled && paymongoPreflightProven && paymongoWebhookConfigured);
+
+  const bankKeyConfigured = bankEncryptionConfigured();
+  const bankDataProtected = bankKeyConfigured && Number(plaintextBankAccounts) === 0;
 
   // Government filing does not require vendor accreditation for standard
   // file-based submission, BIR publishes the Alphalist .DAT layout and
@@ -157,6 +168,17 @@ export async function GET(request: Request) {
           : "Bank files remain available for manual upload. PayMongo batch-transfer code, signed transfer webhook handling, and a no-money preflight are implemented, but live disbursement is not enabled.",
       blocks: bankReady ? "none" : "launch",
       manualWorkaround: bankReady ? undefined : "Download the bank file from a released payroll run and upload it manually through the bank or e-wallet business portal.",
+    },
+    {
+      key: "bank-data-encryption",
+      label: "Bank account numbers encrypted at rest",
+      ready: bankDataProtected,
+      detail: bankDataProtected
+        ? "BANK_DATA_ENCRYPTION_KEY is configured and no employee bank account remains in plaintext."
+        : bankKeyConfigured
+          ? `${plaintextBankAccounts} employee bank account number(s) remain in plaintext. Run scripts/encrypt-bank-accounts.ts --apply before launch.`
+          : `BANK_DATA_ENCRYPTION_KEY is not configured. Apply the bank-account envelope migration, configure a 32-byte key, and encrypt existing records before launch.`,
+      blocks: bankDataProtected ? "none" : "launch",
     },
     {
       key: "gov-bir-alphalist",
@@ -258,7 +280,7 @@ export async function GET(request: Request) {
           : `${unworkaroundableBlockers.length} blocker(s) have no manual workaround and must be fixed even for a manual-ops pilot: ${unworkaroundableBlockers.map((g) => g.label).join(", ")}.`,
     },
     gates,
-    counts: { users: userCount, queuedMail, sentMail, failedMail, paidInvoices, activeSubs, paymongoPreflightPasses },
+    counts: { users: userCount, queuedMail, sentMail, failedMail, paidInvoices, activeSubs, paymongoPreflightPasses, plaintextBankAccounts },
     generatedAt: new Date().toISOString(),
   });
 }

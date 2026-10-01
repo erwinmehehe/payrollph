@@ -46,3 +46,12 @@ test("demo launch and authenticated dashboard apply core compatibility before Dr
     "dashboard must upgrade schema before selecting current organization fields",
   );
 });
+
+
+test("core compatibility widens legacy bank account storage for encrypted envelopes", () => {
+  const source = read("src/lib/core-schema-compat.ts");
+  assert.ok(
+    source.includes("ALTER TABLE employees ALTER COLUMN bank_account TYPE varchar(160)"),
+    "production compatibility must widen the legacy bank-account column before encrypted writes",
+  );
+});

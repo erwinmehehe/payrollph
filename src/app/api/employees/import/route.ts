@@ -1,3 +1,4 @@
+import { encryptBankAccount } from "@/lib/bank-account-crypto";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
@@ -107,7 +108,7 @@ export async function POST(request: Request) {
           region: row.region,
           email: row.email,
           mobile: row.mobile,
-          bankAccount: row.bankAccount,
+          bankAccount: encryptBankAccount(row.bankAccount),
           bankCode: row.bankCode,
         }).where(and(eq(employees.organizationId, organizationId), eq(employees.employeeNo, row.employeeNo)))
           .returning({ id: employees.id });
@@ -149,7 +150,7 @@ export async function POST(request: Request) {
       region: row.region,
       email: row.email,
       mobile: row.mobile,
-      bankAccount: row.bankAccount,
+      bankAccount: encryptBankAccount(row.bankAccount),
       bankCode: row.bankCode,
       startDate: new Date().toISOString().slice(0, 10),
     });

@@ -34,6 +34,11 @@ export async function ensureCoreCompatibilitySchema() {
           ADD COLUMN IF NOT EXISTS nationality varchar(60) NOT NULL DEFAULT 'Filipino'
       `);
 
+      // BANK_DATA_ENCRYPTION_KEY stores AES-GCM envelopes that are longer than
+      // the legacy varchar(40) account-number column. Widening is non-destructive
+      // and idempotent, and prevents production-only insert failures after rollout.
+      await client.query("ALTER TABLE employees ALTER COLUMN bank_account TYPE varchar(160)");
+
       // Session/device fields were added after the first production schema.
       // Demo launch creates a real authenticated session, so these must exist
       // before createSession() inserts or getSessionUser() selects them.
