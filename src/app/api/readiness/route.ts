@@ -25,6 +25,7 @@ export async function buildReadinessPayload() {
   const [{ value: userCount }] = await db.select({ value: count() }).from(users);
   const [{ value: queuedMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "queued"));
   const [{ value: sentMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "sent"));
+  const [{ value: deliveredMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.deliveryStatus, "delivered"));
   const [{ value: failedMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "failed"));
   const [{ value: paidInvoices }] = await db.select({ value: count() }).from(invoices).where(eq(invoices.status, "paid"));
   const [{ value: activeSubs }] = await db.select({ value: count() }).from(subscriptions).where(eq(subscriptions.status, "active"));
@@ -156,13 +157,15 @@ export async function buildReadinessPayload() {
     {
       key: "email-delivery",
       label: "Transactional email provider",
-      ready: deliveryCapable() && Number(sentMail) > 0,
+      ready: deliveryCapable() && Number(deliveredMail) > 0,
       detail: deliveryCapable()
-        ? Number(sentMail) > 0
-          ? `Active provider: ${provider}. ${sentMail} successful delivery record(s); ${failedMail} message(s) currently failed and visible in the outbox.`
-          : `Provider ${provider} is configured, but this deployment has not recorded a successful delivery yet.`
+        ? Number(deliveredMail) > 0
+          ? `Active provider: ${provider}. ${deliveredMail} provider-confirmed delivered message(s), ${sentMail} accepted send(s), and ${failedMail} currently failed message(s).`
+          : Number(sentMail) > 0
+            ? `Provider ${provider} accepted ${sentMail} send(s), but this deployment has no provider-confirmed delivered webhook event yet.`
+            : `Provider ${provider} is configured, but this deployment has not recorded a successful send or verified delivery yet.`
         : "No provider configured. Messages remain queued until a transactional email provider is connected.",
-      blocks: deliveryCapable() && Number(sentMail) > 0 ? "none" : "launch",
+      blocks: deliveryCapable() && Number(deliveredMail) > 0 ? "none" : "launch",
     },
     {
       key: "billing",
@@ -315,7 +318,7 @@ export async function buildReadinessPayload() {
           : `${unworkaroundableBlockers.length} blocker(s) have no manual workaround and must be fixed even for a manual-ops pilot: ${unworkaroundableBlockers.map((g) => g.label).join(", ")}.`,
     },
     gates,
-    counts: { users: userCount, queuedMail, sentMail, failedMail, paidInvoices, activeSubs, paymongoPreflightPasses, productionPilotSignoffs, plaintextBankAccounts, plaintextBankSnapshots },
+    counts: { users: userCount, queuedMail, sentMail, deliveredMail, failedMail, paidInvoices, activeSubs, paymongoPreflightPasses, productionPilotSignoffs, plaintextBankAccounts, plaintextBankSnapshots },
     generatedAt: new Date().toISOString(),
   };
 }
