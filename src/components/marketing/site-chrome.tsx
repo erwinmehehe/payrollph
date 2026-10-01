@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { PUBLIC_FOOTER_GROUPS, PUBLIC_PRIMARY_LINKS } from "./public-navigation";
 
 export function BrandMark({ size = 32 }: { size?: number }) {
@@ -68,10 +68,9 @@ export function SiteNav() {
             </Link>
             <Link
               href="/signup"
-              className="group inline-flex items-center gap-1.5 rounded-full bg-[#11141F] px-5 py-2.5 text-[14px] font-semibold text-white transition-transform hover:scale-[1.02]"
+              className="inline-flex items-center rounded-[10px] border border-[#D9D9FF] bg-[#F5F5FF] px-4 py-2.5 text-[14px] font-semibold text-[#4A4AE0] transition-all hover:border-[#C5C5FF] hover:bg-[#ECECFF]"
             >
               Start free
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
             </Link>
           </div>
 
@@ -104,7 +103,7 @@ export function SiteNav() {
               <Link href="/login" onClick={() => setDrawer(false)} className="flex-1 rounded-full border border-[#E8EAF3] px-5 py-3 text-center text-[14px] font-semibold">
                 Sign in
               </Link>
-              <Link href="/signup" onClick={() => setDrawer(false)} className="flex-1 rounded-full bg-[#11141F] px-5 py-3 text-center text-[14px] font-semibold text-white">
+              <Link href="/signup" onClick={() => setDrawer(false)} className="flex-1 rounded-[10px] border border-[#D9D9FF] bg-[#F5F5FF] px-5 py-3 text-center text-[14px] font-semibold text-[#4A4AE0]">
                 Start free
               </Link>
             </div>

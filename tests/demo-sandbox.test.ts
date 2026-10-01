@@ -353,3 +353,24 @@ test("public demo provisioning retries transient failures without exposing diagn
   assert.ok(!route.includes("safeProvisioningDiagnostic"), "temporary production diagnostics must be removed");
   assert.ok(!route.includes("diagnostic:"), "demo launch responses must not expose schema diagnostics");
 });
+
+
+test("production Vercel project enables the public sandbox regardless of alias", () => {
+  const route = read("src/app/api/auth/demo-switch/route.ts");
+  assert.ok(
+    route.includes('(process.env.VERCEL_ENV ?? "").trim().toLowerCase() === "production"'),
+    "production Vercel deployments must not depend on a hardcoded hostname",
+  );
+  assert.ok(
+    route.indexOf('VERCEL_ENV ?? "").trim().toLowerCase() === "production"')
+      < route.indexOf("publicDemoHostAllowed(hostname"),
+    "production Vercel allowance must happen before hostname fallback",
+  );
+});
+
+test("shared public nav uses the same soft-indigo start CTA as the homepage", () => {
+  const chrome = read("src/components/marketing/site-chrome.tsx");
+  assert.ok(chrome.includes('bg-[#F5F5FF]'));
+  assert.ok(chrome.includes('text-[#4A4AE0]'));
+  assert.ok(!chrome.includes('bg-[#11141F] px-5 py-2.5 text-[14px] font-semibold text-white'));
+});
