@@ -83,7 +83,9 @@ export async function buildReadinessPayload() {
   const paymongoDisbursementEnabled = configured("PAYMONGO_SECRET_KEY") && enabled("PAYMONGO_DISBURSEMENTS_ENABLED");
   const paymongoWebhookConfigured = configured("PAYMONGO_WEBHOOK_SECRET");
   const paymongoPreflightProven = Number(paymongoPreflightPasses) > 0;
-  const bankReady = directBankConfigured || (paymongoDisbursementEnabled && paymongoPreflightProven && paymongoWebhookConfigured);
+  // The batch needs a source account, which Linaw reads from this wallet.
+  const paymongoWalletConfigured = configured("PAYMONGO_WALLET_ID");
+  const bankReady = directBankConfigured || (paymongoDisbursementEnabled && paymongoWalletConfigured && paymongoPreflightProven && paymongoWebhookConfigured);
 
   const bankKeyConfigured = bankEncryptionConfigured();
   const bankKeySource = bankEncryptionKeySource();
@@ -196,9 +198,11 @@ export async function buildReadinessPayload() {
       detail: bankReady
         ? directBankConfigured
           ? "A direct bank payout endpoint is configured."
-          : `PayMongo Disbursements is enabled, a no-money payroll preflight has passed (${paymongoPreflightPasses} recorded pass(es)), and signed transfer webhooks are configured.`
+          : `PayMongo Disbursements is enabled, a no-money payroll preflight (bank mappings and wallet funding) has passed (${paymongoPreflightPasses} recorded pass(es)), and signed transfer webhooks are configured.`
         : paymongoDisbursementEnabled
-          ? !paymongoWebhookConfigured
+          ? !paymongoWalletConfigured
+            ? "PayMongo Disbursements is enabled, but PAYMONGO_WALLET_ID is missing. PayMongo requires a source account on every transfer, and Linaw reads it from this wallet."
+          : !paymongoWebhookConfigured
             ? "PayMongo Disbursements is enabled, but PAYMONGO_WEBHOOK_SECRET is missing. Configure signed transfer webhooks before treating automated payout settlement as production-ready."
             : "PayMongo Disbursements is enabled, but no no-money payroll preflight has proven credentials and employee bank mappings yet."
           : "Bank files remain available for manual upload. PayMongo batch-transfer code, signed transfer webhook handling, and a no-money preflight are implemented, but live disbursement is not enabled.",
