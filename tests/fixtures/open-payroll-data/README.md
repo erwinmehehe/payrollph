@@ -37,3 +37,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+Also used by `tests/wage-13th-crosscheck.test.ts`: `data/13th_month_pay.json`,
+`data/min_wage_2025.json`.

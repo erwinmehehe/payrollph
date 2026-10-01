@@ -1,0 +1,20 @@
+{
+  "topic": "13th-month pay — mandate, computation, tax treatment",
+  "country": "PH",
+  "effective_date": "2018-01-01",
+  "currency": "PHP",
+  "volatility": "stable",
+  "source": {
+    "issuance": "Presidential Decree 851 (mandate); RA 10963 / TRAIN (₱90,000 tax-free ceiling)",
+    "source_tier": "primary",
+    "last_verified": "2026-06-24",
+    "markdown": "ph/benefits/13th_month_pay.md"
+  },
+  "mandatory": true,
+  "computation": "total_basic_salary_earned_in_year / 12",
+  "pay_deadline": "12-24",
+  "tax_exempt_ceiling": 90000,
+  "ceiling_scope": "combined across 13th-month pay + Christmas/14th-month + mid-year + performance/productivity bonuses + similar benefits",
+  "excess_treatment": "amount above 90,000 is added to taxable compensation and taxed at the graduated income-tax rates",
+  "notes": "The ₱90,000 is a combined annual ceiling for all bonuses of a similar nature, not per benefit."
+}
