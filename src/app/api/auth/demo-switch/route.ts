@@ -220,9 +220,18 @@ export async function POST(request: Request) {
     }
   }
 
-  const { token, expiresAt } = await createSession(activeUser.id, requestMeta(request));
-  const jar = await cookies();
-  jar.set(SESSION_COOKIE, token, sessionCookieOptions(expiresAt));
+  let session: Awaited<ReturnType<typeof createSession>>;
+  try {
+    session = await createSession(activeUser.id, requestMeta(request));
+    const jar = await cookies();
+    jar.set(SESSION_COOKIE, session.token, sessionCookieOptions(session.expiresAt));
+  } catch (error) {
+    console.error("Public demo session creation failed", requestedRole, error);
+    return Response.json(
+      { error: "The demo session could not be created. Please try again in a moment." },
+      { status: 503 },
+    );
+  }
 
   return Response.json({
     ok: true,
