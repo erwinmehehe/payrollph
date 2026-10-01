@@ -117,7 +117,9 @@ export const employees = pgTable("employees", {
   avatarInitials: varchar("avatar_initials", { length: 4 }).notNull(),
   basicRate: numeric("basic_rate", { precision: 12, scale: 2 }).notNull(),
   mwe: boolean("mwe").notNull().default(false),
-  bankAccount: varchar("bank_account", { length: 40 }),
+  // Holds an AES-256-GCM envelope ("enc:v1:...", about 75-105 chars) when
+  // BANK_DATA_ENCRYPTION_KEY is set, so this is wider than a raw account number.
+  bankAccount: varchar("bank_account", { length: 160 }),
   bankCode: varchar("bank_code", { length: 16 }),
   mobile: varchar("mobile", { length: 24 }),
   email: varchar("email", { length: 200 }),
