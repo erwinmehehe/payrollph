@@ -15,6 +15,7 @@ on:
       - "src/app/workspace/page.tsx"
       - "src/app/api/auth/demo-switch/route.ts"
       - "src/db/public-demo.ts"
+      - "src/db/seed.ts"
       - "src/lib/demo-host.ts"
       - "src/lib/security-request.ts"
       - "src/lib/core-schema-compat.ts"
@@ -469,6 +470,8 @@ jobs:
               const switchText = await switchResponse.text().catch(() => "<response body unavailable>");
               throw new Error(`${persona.label}: demo switch returned ${switchResponse.status()} ${switchText}`);
             }
+            const switchPayload = await switchResponse.json();
+            check(switchPayload.bankDataEncryptionReady === true, `${persona.label}: demo provisioning left plaintext bank data behind`);
             await page.waitForURL(new RegExp(`[?&]demoRole=${persona.id}(?:&|$)`), { timeout: 30000 });
             await page.waitForLoadState("networkidle");
 
@@ -722,6 +725,7 @@ jobs:
             });
             check(response.ok(), `Lifecycle: switching to ${role} returned ${response.status()}`);
             const payload = await response.json();
+            check(payload.bankDataEncryptionReady === true, `Lifecycle: switching to ${role} left plaintext bank data behind`);
             const target = typeof payload.redirectTo === "string" ? payload.redirectTo : `/app?demoRole=${role}`;
             await page.goto(target.startsWith("http") ? target : `${base}${target}`, { waitUntil: "networkidle", timeout: 90000 });
             return payload;
