@@ -1,17 +1,18 @@
 import { getSessionUser } from "@/lib/auth";
 import { tickScheduler } from "@/lib/scheduler";
 import { constantTimeSecretEqual } from "@/lib/security-secret";
+import { operationalSecret } from "@/lib/operational-secret";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   const workerToken = request.headers.get("x-worker-token");
-  const expected = process.env.WORKER_TOKEN;
+  const expected = operationalSecret("worker");
 
   if (process.env.NODE_ENV === "production") {
     if (!expected) {
-      return Response.json({ error: "Scheduler is disabled until WORKER_TOKEN is configured." }, { status: 503 });
+      return Response.json({ error: "Scheduler is disabled until a worker token or TOTP encryption master is configured." }, { status: 503 });
     }
     if (!constantTimeSecretEqual(workerToken, expected)) {
       return Response.json({ error: "A valid worker token is required." }, { status: 401 });
