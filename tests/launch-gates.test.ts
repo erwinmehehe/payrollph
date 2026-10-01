@@ -206,3 +206,12 @@ test("owners can record production pilot evidence without a developer-only workf
   assert.ok(workspace.includes("<ProductionPilotSignoffCard"));
   assert.ok(workspace.includes("!demoRole"));
 });
+
+
+test("launch email proof requires a provider-confirmed delivery, not only an accepted send", () => {
+  const readiness = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  assert.ok(readiness.includes('eq(outbox.deliveryStatus, "delivered")'));
+  assert.ok(readiness.includes("provider-confirmed delivered"));
+  assert.ok(readiness.includes("no provider-confirmed delivered webhook event yet"));
+  assert.ok(readiness.includes("Number(deliveredMail) > 0"));
+});
