@@ -1,6 +1,7 @@
 import { getSessionUser } from "@/lib/auth";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { constantTimeSecretEqual } from "@/lib/security-secret";
+import { operationalSecret } from "@/lib/operational-secret";
 import { drainWebhookRetries } from "@/lib/webhooks";
 
 export const dynamic = "force-dynamic";
@@ -12,13 +13,13 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(request: Request) {
   const workerToken = request.headers.get("x-worker-token");
-  const expected = process.env.WORKER_TOKEN;
+  const expected = operationalSecret("worker");
   const validWorkerToken = constantTimeSecretEqual(workerToken, expected);
 
   if (process.env.NODE_ENV === "production") {
     if (!expected) {
       return Response.json(
-        { error: "Webhook worker is disabled until WORKER_TOKEN is configured." },
+        { error: "Webhook worker is disabled until a worker token or TOTP encryption master is configured." },
         { status: 503 },
       );
     }
