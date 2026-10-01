@@ -1,0 +1,66 @@
+name: Live RBAC Sandbox Smoke
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-sandbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      BASE_URL: https://erwinmehehe-payrollph.vercel.app
+    steps:
+      - name: Wait for production demo page
+        run: |
+          set -euo pipefail
+          for attempt in {1..24}; do
+            if curl -fsS "$BASE_URL/demo" -o /tmp/demo.html &&
+               grep -q "See Linaw from the seat you actually use" /tmp/demo.html; then
+              echo "Production demo page is live."
+              exit 0
+            fi
+            echo "Waiting for production deployment ($attempt/24)..."
+            sleep 10
+          done
+          exit 1
+
+      - name: Verify all five RBAC personas on production
+        run: |
+          set -euo pipefail
+          roles=(owner hr payroll checker employee)
+
+          for role in "${roles[@]}"; do
+            success=false
+            for attempt in {1..24}; do
+              status=$(curl -sS                 -D /tmp/demo-switch-headers.txt                 -c /tmp/demo-cookies.txt                 -o /tmp/demo-switch-body.txt                 -w "%{http_code}"                 -X POST "$BASE_URL/api/auth/demo-switch"                 -H "Origin: $BASE_URL"                 -H "Sec-Fetch-Site: same-origin"                 -H "Content-Type: application/json"                 --data "{\"role\":\"${role}\"}")
+
+              echo "role=${role} attempt=${attempt} status=${status}"
+
+              if [ "$status" -ge 200 ] && [ "$status" -lt 300 ] &&
+                 grep -q '"ok":true' /tmp/demo-switch-body.txt &&
+                 grep -q "\"redirectTo\":\"/app?demoRole=${role}\"" /tmp/demo-switch-body.txt; then
+                success=true
+                break
+              fi
+
+              echo "--- response headers ---"
+              sed -E 's/^(set-cookie:).*/\1 [redacted]/I' /tmp/demo-switch-headers.txt || true
+              echo "--- response body ---"
+              cat /tmp/demo-switch-body.txt || true
+              echo
+              sleep 10
+            done
+
+            if [ "$success" != "true" ]; then
+              echo "RBAC sandbox failed for role: ${role}"
+              exit 1
+            fi
+
+            curl -fsS -b /tmp/demo-cookies.txt "$BASE_URL/app?demoRole=${role}" -o "/tmp/${role}.html"
+            grep -q "ROLE SANDBOX" "/tmp/${role}.html"
+          done

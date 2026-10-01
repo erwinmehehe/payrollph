@@ -11,6 +11,10 @@ test("core schema compatibility upgrades fields used by production demo and dash
     "ADD COLUMN IF NOT EXISTS bir_tin",
     "ADD COLUMN IF NOT EXISTS middle_name",
     "ADD COLUMN IF NOT EXISTS nationality",
+    "ADD COLUMN IF NOT EXISTS user_agent",
+    "ADD COLUMN IF NOT EXISTS last_seen_at",
+    "ADD COLUMN IF NOT EXISTS password_changed_at",
+    "ADD COLUMN IF NOT EXISTS mfa_verified_at",
     "ADD COLUMN IF NOT EXISTS period_start",
     "ADD COLUMN IF NOT EXISTS period_end",
     "ADD COLUMN IF NOT EXISTS scope_org_unit_id",
@@ -23,6 +27,7 @@ test("core schema compatibility upgrades fields used by production demo and dash
 
   assert.ok(source.includes("COALESCE(period_start, pay_date)"), "legacy payroll runs must get a non-null period start");
   assert.ok(source.includes("COALESCE(period_end, pay_date)"), "legacy payroll runs must get a non-null period end");
+  assert.ok(source.includes("ALTER TABLE sessions"), "legacy production auth schema must be upgraded before demo session creation");
 });
 
 test("demo launch and authenticated dashboard apply core compatibility before Drizzle selects", () => {
