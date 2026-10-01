@@ -104,3 +104,14 @@ test("dedicated worker drains payroll and webhook queues from a persistent proce
   assert.ok(worker.includes("drainWebhookRetries"));
   assert.equal(pkg.scripts.worker, "tsx scripts/worker.ts");
 });
+
+
+test("production readiness blocks launch until employee bank data is encrypted at rest", () => {
+  const readiness = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  const crypto = readFileSync("src/lib/bank-account-crypto.ts", "utf8");
+  assert.ok(readiness.includes('key: "bank-data-encryption"'));
+  assert.ok(readiness.includes('blocks: bankDataProtected ? "none" : "launch"'));
+  assert.ok(readiness.includes("plaintextBankAccounts"));
+  assert.ok(crypto.includes('createCipheriv("aes-256-gcm"'));
+  assert.ok(crypto.includes("randomBytes(12)"));
+});
