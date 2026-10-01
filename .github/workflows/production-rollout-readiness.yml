@@ -1,6 +1,9 @@
 name: Production Rollout Readiness
 
 on:
+  push:
+    branches:
+      - ops/live-readiness-check
   workflow_dispatch:
     inputs:
       base_url:
@@ -25,8 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
-      PRODUCTION_BASE_URL: ${{ inputs.base_url }}
-      ROLLOUT_MODE: ${{ inputs.rollout_mode }}
+      PRODUCTION_BASE_URL: ${{ inputs.base_url || 'https://erwinmehehe-payrollph.vercel.app' }}
+      ROLLOUT_MODE: ${{ inputs.rollout_mode || 'pilot' }}
       PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}
     steps:
       - uses: actions/checkout@v7
