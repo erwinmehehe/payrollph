@@ -451,3 +451,27 @@ test("forwarded host fallback does not allow arbitrary preview or customer domai
   assert.equal(publicDemoRequestAllowed(preview), false);
   assert.equal(publicDemoRequestAllowed(customer), false);
 });
+
+
+test("workspace sidebar profile keeps avatar styling separate from the role label", () => {
+  const styles = read("src/app/globals.css");
+  assert.ok(styles.includes(".side-profile-avatar > .avatar"), "sidebar avatar needs a dedicated size/visual treatment");
+  assert.ok(styles.includes(".side-profile-avatar > i"), "sidebar avatar needs a dedicated online-status indicator");
+  assert.ok(styles.includes(".side-profile > div:nth-child(2) > span"), "role label styling must target only the profile text");
+  assert.ok(!styles.includes(".side-profile span {"), "broad descendant span styling must not override the nested avatar");
+});
+
+
+test("demo sandbox uses dedicated wrapping-safe controls", () => {
+  const bar = read("src/components/demo-sandbox-bar.tsx");
+  const selfService = read("src/components/self-service-portal.tsx");
+  const styles = read("src/app/globals.css");
+
+  assert.ok(bar.includes("demo-persona-badge"), "live persona should not reuse the generic status pill");
+  assert.ok(bar.includes("demo-access-chip"), "role access labels need wrapping-safe chips");
+  assert.ok(bar.includes("demo-task-card"), "sandbox tasks need dedicated card layout");
+  assert.ok(selfService.includes("employee-self-service"), "employee page should use the wider responsive container");
+  assert.ok(styles.includes(".demo-task-card.secondary-button"), "task cards need a dedicated button override");
+  assert.ok(styles.includes("white-space: normal;"), "sandbox copy must be allowed to wrap");
+  assert.ok(styles.includes("grid-template-columns: repeat(3, minmax(0, 1fr))"), "desktop sandbox tasks should use a balanced three-column layout");
+});

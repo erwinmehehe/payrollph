@@ -129,7 +129,7 @@ export function SelfServicePortal() {
   const latestPayslip = data?.payslips[0] ?? null;
 
   return (
-    <main className="content-area" style={{ maxWidth: 900 }}>
+    <main className="content-area employee-self-service">
       <header className="page-heading">
         <div>
           <p className="eyebrow">MY PAY</p>
@@ -138,8 +138,7 @@ export function SelfServicePortal() {
             {data?.employer?.name ?? "Your employer"} · you can only ever see your own records here.
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-
+        <div className="employee-self-service-actions">
           <button className="primary-button" style={{ background: "var(--deep)", borderColor: "var(--green)" }} onClick={() => setWebBundyOpen(true)}>
             <Clock size={15} className="i-cyan" /> Clock IN / OUT
           </button>
