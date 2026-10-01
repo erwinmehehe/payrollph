@@ -34,6 +34,7 @@ const GOVERNMENT_DRAFTS = [
 const EVIDENCE_FORMS = [
   { agency: "SSS", form: "R-3" },
   { agency: "BIR", form: "1604-C" },
+  { agency: "PhilHealth", form: "RF-1" },
 ] as const;
 
 export function ExportsView({

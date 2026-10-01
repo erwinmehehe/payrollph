@@ -56,6 +56,14 @@ test("BIR's card says what an acceptance does not prove", () => {
   assert.ok(panel.includes("copy.scopeNote"), "the panel must show the scope note");
 });
 
+test("PhilHealth's card says what the receipt does and does not show", () => {
+  const ph = FILING_FORMS.find((item) => item.agency === "PhilHealth")!;
+  assert.match(ph.copy.answerLabel, /ePAR/);
+  assert.match(ph.copy.scopeNote ?? "", /issues the acknowledgement receipt when the premium is paid/);
+  assert.match(ph.copy.scopeNote ?? "", /match the amount you actually remitted/);
+  assert.match(ph.copy.unconfirmedNote, /not confirmed that Linaw's CSV matches/);
+});
+
 test("every Draft button on the exports page sends a kind the generator accepts", () => {
   const exporters = readFileSync("src/lib/exporters.ts", "utf8");
   const list = exporters.match(/const supportedKinds = new Set\(\[([\s\S]*?)\]\)/)?.[1] ?? "";

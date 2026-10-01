@@ -64,6 +64,7 @@ export async function buildReadinessPayload() {
     filingEvidence.find((item) => item.definition.agency === agency && item.definition.form === form) ?? null;
   const sssEvidence = evidenceFor("SSS", "R-3");
   const birEvidence = evidenceFor("BIR", "1604-C");
+  const philhealthEvidence = evidenceFor("PhilHealth", "RF-1");
 
   const provider = activeMailProvider();
 
@@ -107,7 +108,7 @@ export async function buildReadinessPayload() {
   const demoMode = enabled("DEMO_MODE");
   const birAlphalistValidated = Boolean(birEvidence?.proven);
   const sssR3Validated = Boolean(sssEvidence?.proven);
-  const philhealthValidated = enabled("PHILHEALTH_RF1_VALIDATED");
+  const philhealthValidated = Boolean(philhealthEvidence?.proven);
   const pagibigValidated = enabled("PAGIBIG_MCRF_VALIDATED");
   const storageConfigured = configured("S3_BUCKET") || configured("R2_BUCKET");
   const storageIntegrated = false;
@@ -260,10 +261,11 @@ export async function buildReadinessPayload() {
       label: "PhilHealth RF-1 validated",
       ready: philhealthValidated,
       detail: philhealthValidated
-        ? "A generated remittance dataset has been accepted through PhilHealth's employer reporting workflow."
-        : "The draft now uses each employee's real PhilHealth PIN and recomputes full monthly employee/employer premium shares. PhilHealth EPRS acknowledgement is still required; the current CSV is a portal-entry aid, not a claimed EPRS import file.",
+        ? `PhilHealth's EPRS accepted a Linaw-generated RF-1 file in the current layout (${philhealthEvidence?.provingCount} recorded acceptance(s)${philhealthEvidence?.latest?.agencyReference ? `, latest receipt ${philhealthEvidence.latest.agencyReference}` : ""}). The receipt is issued on payment, so it shows the report was filed and paid, and Linaw's figures are recomputed from basic salary.`
+        : filingEvidenceError
+          ?? `${describeEvidenceGap(philhealthEvidence, findFilingForm("PhilHealth", "RF-1")!)} The draft uses each employee's real PhilHealth PIN and recomputes full monthly premium shares; the CSV is a portal-entry aid, not a claimed EPRS import file.`,
       blocks: philhealthValidated ? "none" : "launch",
-      manualWorkaround: philhealthValidated ? undefined : "Enter the DRAFT figures into PhilHealth's EPRS by hand (or their RF-1 Excel template, if you obtain the current column spec from PhilHealth directly).",
+      manualWorkaround: philhealthValidated ? undefined : "Enter the DRAFT figures into PhilHealth's EPRS by hand (or their RF-1 Excel template, if you obtain the current column spec from PhilHealth directly), then record the acknowledgement receipt under /api/compliance/filing-validations.",
     },
     {
       key: "gov-pagibig-mcrf",

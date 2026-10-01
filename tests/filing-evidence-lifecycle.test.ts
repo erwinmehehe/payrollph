@@ -180,3 +180,43 @@ test("a BIR 1604-C record is tracked separately and its acceptance never counts 
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
 });
+
+test("a PhilHealth RF-1 record fails closed without a PIN, then counts only for PhilHealth", async () => {
+  const { org, employee, run } = await seedRun("Filing PhilHealth Co");
+  const PH = findFilingForm("PhilHealth", "RF-1")!;
+  try {
+    await assert.rejects(
+      recordGeneratedFiling({ organizationId: org.id, runId: run.id, definition: PH, actor: "Tester" }),
+      /missing a PhilHealth PIN/,
+    );
+    await db.update(employees).set({ philHealthNo: "12-345678901-2" }).where(eq(employees.id, employee.id));
+
+    const before = await filingEvidenceSummaries();
+    const phBefore = before.find((item) => item.definition.agency === "PhilHealth")!;
+    const sssBefore = before.find((item) => item.definition.agency === "SSS")!;
+
+    const { record, file } = await recordGeneratedFiling({ organizationId: org.id, runId: run.id, definition: PH, actor: "Tester" });
+    assert.equal(record.agency, "PhilHealth");
+    assert.equal(record.form, "RF-1");
+    assert.match(file.filename, /^philhealth-eprs-rf1-worksheet-/);
+
+    // A typed-in filing is kept but does not count.
+    const manual = await recordFilingOutcome({ organizationId: org.id, id: record.id, actor: "Tester", outcome: acceptance("manual_entry") });
+    assert.equal(manual?.status, "accepted");
+    const mid = (await filingEvidenceSummaries()).find((item) => item.definition.agency === "PhilHealth")!;
+    assert.equal(mid.provingCount, phBefore.provingCount);
+    assert.equal(mid.acceptedByManualEntry, phBefore.acceptedByManualEntry + 1);
+
+    // Changing a figure creates a new record; accepting that one as an upload counts for PhilHealth only.
+    await db.update(employees).set({ basicRate: "18000" }).where(eq(employees.id, employee.id));
+    const second = await recordGeneratedFiling({ organizationId: org.id, runId: run.id, definition: PH, actor: "Tester" });
+    assert.equal(second.created, true);
+    await recordFilingOutcome({ organizationId: org.id, id: second.record.id, actor: "Tester", outcome: acceptance("file_upload") });
+
+    const after = await filingEvidenceSummaries();
+    assert.equal(after.find((item) => item.definition.agency === "PhilHealth")!.provingCount, phBefore.provingCount + 1);
+    assert.equal(after.find((item) => item.definition.agency === "SSS")!.provingCount, sssBefore.provingCount);
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});

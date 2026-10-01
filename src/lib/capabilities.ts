@@ -145,7 +145,7 @@ export async function buildCapabilityReport() {
       status: BANK_DISBURSEMENT_READY ? "partial" : "absent",
       proof: BANK_DISBURSEMENT_READY ? "PAYMONGO_DISBURSEMENTS_ENABLED=true" : "requires PayMongo Wallet verification, not a bank relationship",
     },
-    { id: "govfiling", area: "Compliance", label: "Certified government filing", detail: "2316, Alphalist, R-3, RF-1, MCRF generated as DRAFT only. SSS R-3 and the BIR Alphalist extract now have an evidence trail (their readiness gates turn on only after the agency's acceptance of the generated file is recorded); PhilHealth and Pag-IBIG have none yet.", status: "absent", proof: "requires a recorded agency acceptance per form" },
+    { id: "govfiling", area: "Compliance", label: "Certified government filing", detail: "2316, Alphalist, R-3, RF-1, MCRF generated as DRAFT only. SSS R-3, the BIR Alphalist extract and PhilHealth RF-1 now have an evidence trail (their readiness gates turn on only after the agency's acceptance of the generated file is recorded); Pag-IBIG has none yet.", status: "absent", proof: "requires a recorded agency acceptance per form" },
     {
       id: "email",
       area: "Platform",

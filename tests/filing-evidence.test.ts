@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   BIR_1604C_GENERATOR_VERSION,
+  PHILHEALTH_RF1_GENERATOR_VERSION,
   describeEvidenceGap,
   FILING_FORMS,
   SSS_R3_GENERATOR_VERSION,
@@ -101,7 +102,8 @@ test("the file hash is stable and sensitive to a single changed byte", () => {
 test("only forms Linaw actually generates can be tracked", () => {
   assert.equal(findFilingForm("SSS", "R-3")?.kind, "sss-r3");
   assert.equal(findFilingForm("BIR", "1601-C"), null, "no evidence rows for a form with no evidence flow yet");
-  assert.equal(findFilingForm("PhilHealth", "RF-1"), null);
+  assert.equal(findFilingForm("Pag-IBIG", "MCRF"), null);
+  assert.equal(findFilingForm("PhilHealth", "RF-1")?.kind, "philhealth-rf1");
   assert.equal(findFilingForm("BIR", "1604-C")?.kind, "bir-1604c-source");
   assert.equal(findFilingForm(undefined, undefined), null);
 });
@@ -113,6 +115,7 @@ test("changing a tracked file's columns forces a generator version bump", () => 
   const source = readFileSync("src/lib/exporters.ts", "utf8");
   const pins = [
     { form: "SSS R-3", pattern: /"(SSSNo,LastName[^"]+)"/, version: SSS_R3_GENERATOR_VERSION, expected: "sss-r3-worksheet-v1|SSSNo,LastName,FirstName,MiddleName,MSC,SS_Regular,SS_MPF,SS_Employee,SS_Employer,EC_Employer,Total_Contribution" },
+    { form: "PhilHealth RF-1", pattern: /"(PIN,LastName[^"]+)"/, version: PHILHEALTH_RF1_GENERATOR_VERSION, expected: "philhealth-rf1-worksheet-v1|PIN,LastName,FirstName,MiddleName,MonthlySalaryBase,EmployeeShare,EmployerShare,TotalPremium" },
     { form: "BIR 1604-C", pattern: /"(EmployerTIN,EmployerBranchCode[^"]+)"/, version: BIR_1604C_GENERATOR_VERSION, expected: "bir-1604c-source-v1|EmployerTIN,EmployerBranchCode,EmployeeTIN,EmployeeBranchCode,LastName,FirstName,MiddleName,Nationality,GrossCompensation,TaxWithheld,MWE,Status" },
   ];
   for (const pin of pins) {
@@ -135,6 +138,22 @@ test("BIR evidence follows the same rules and never borrows SSS's acceptance", (
   assert.equal(summarizeFilingEvidence([accepted()], bir).proven, false);
 });
 
+test("PhilHealth evidence follows the same rules and stays separate from SSS and BIR", () => {
+  const ph = findFilingForm("PhilHealth", "RF-1")!;
+  assert.equal(ph.kind, "philhealth-rf1");
+  assert.equal(ph.agency, "PhilHealth");
+  const row = (overrides: Partial<FilingEvidenceRow> = {}) =>
+    accepted({ agency: "PhilHealth", form: "RF-1", generatorVersion: PHILHEALTH_RF1_GENERATOR_VERSION, agencyReference: "EPAR-2026-000123", ...overrides });
+  assert.equal(provesFileFormat(row(), ph), true);
+  assert.equal(provesFileFormat(row({ submissionMethod: "manual_entry" }), ph), false);
+  assert.equal(provesFileFormat(row({ generatorVersion: "philhealth-rf1-worksheet-v0" }), ph), false);
+  assert.equal(provesFileFormat(row({ status: "rejected" }), ph), false);
+  assert.equal(provesFileFormat(accepted(), ph), false, "an SSS acceptance must not turn on the PhilHealth gate");
+  assert.equal(provesFileFormat(row(), SSS), false, "a PhilHealth acceptance must not turn on the SSS gate");
+  assert.equal(provesFileFormat(row(), findFilingForm("BIR", "1604-C")!), false);
+  assert.equal(parseFilingOutcome({ outcome: "accepted", submissionMethod: "file_upload", agencyReference: "EPAR-2026-000123", submittedAt: "2026-09-10" }, NOW).ok, true);
+});
+
 test("the gap explanation names weaker evidence without counting it", () => {
   const bir = findFilingForm("BIR", "1604-C")!;
   assert.match(describeEvidenceGap(summarizeFilingEvidence([], bir), bir), /No recorded BIR acceptance/);
@@ -152,6 +171,7 @@ test("readiness reads recorded evidence and no longer trusts an environment flag
   assert.ok(readiness.includes("filingEvidenceSummaries"));
   assert.ok(!readiness.includes('enabled("SSS_R3_VALIDATED")'), "SSS_R3_VALIDATED must not decide readiness any more");
   assert.ok(!readiness.includes('enabled("BIR_ALPHALIST_VALIDATED")'), "BIR_ALPHALIST_VALIDATED must not decide readiness any more");
+  assert.ok(!readiness.includes('enabled("PHILHEALTH_RF1_VALIDATED")'), "PHILHEALTH_RF1_VALIDATED must not decide readiness any more");
   assert.ok(readiness.includes("filingEvidenceError"), "a missing table must read as not proven, not crash readiness");
 });
 

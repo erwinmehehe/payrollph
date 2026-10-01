@@ -15,7 +15,7 @@ import { createHash } from "node:crypto";
  *     Linaw's file is importable, so it is recorded but never counted.
  */
 
-export type FilingAgency = "SSS" | "BIR";
+export type FilingAgency = "SSS" | "BIR" | "PhilHealth";
 
 export type FilingFormDefinition = {
   agency: FilingAgency;
@@ -50,6 +50,7 @@ export type FilingFormDefinition = {
 
 export const SSS_R3_GENERATOR_VERSION = "sss-r3-worksheet-v1";
 export const BIR_1604C_GENERATOR_VERSION = "bir-1604c-source-v1";
+export const PHILHEALTH_RF1_GENERATOR_VERSION = "philhealth-rf1-worksheet-v1";
 
 export const FILING_FORMS: readonly FilingFormDefinition[] = [
   {
@@ -90,6 +91,26 @@ export const FILING_FORMS: readonly FilingFormDefinition[] = [
       answerLabel: "BIR validation report or ticket reference",
       scopeNote: "Linaw builds this extract from one payroll run, not the whole tax year. An acceptance shows the layout and ID fields validate in ADES. It does not show the annual totals are complete.",
       unconfirmedNote: "ADES produces the final .DAT you email to BIR; Linaw does not produce that .DAT. It is not confirmed that ADES can load this CSV, so a rejection or a typed-in filing is useful information, record it.",
+    },
+  },
+  {
+    agency: "PhilHealth",
+    form: "RF-1",
+    kind: "philhealth-rf1",
+    generatorVersion: PHILHEALTH_RF1_GENERATOR_VERSION,
+    referenceLabel: "PhilHealth acknowledgement receipt (ePAR) number from EPRS",
+    copy: {
+      title: "PhilHealth RF-1: did EPRS accept the report?",
+      agencyLabel: "PhilHealth",
+      portalLabel: "PhilHealth's EPRS",
+      methodLabels: {
+        file_upload: "Loaded Linaw's file into EPRS",
+        manual_entry: "Typed the figures into EPRS by hand",
+      },
+      manualEntryNote: "If you typed the figures into EPRS, record it as typed in: it is kept, but it does not prove Linaw's file loads.",
+      answerLabel: "PhilHealth acknowledgement receipt (ePAR) number",
+      scopeNote: "PhilHealth issues the acknowledgement receipt when the premium is paid, so the number shows the report was filed and paid in EPRS. Linaw's figures are recomputed from monthly basic salary, so check they match the amount you actually remitted.",
+      unconfirmedNote: "EPRS takes RF-1 data in its own prescribed template. It is not confirmed that Linaw's CSV matches it, so a rejection or a typed-in filing is useful information, record it.",
     },
   },
 ];
