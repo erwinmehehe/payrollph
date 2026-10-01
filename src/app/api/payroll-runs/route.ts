@@ -191,13 +191,29 @@ export async function POST(request: Request) {
         eq(employees.organizationId, organizationId),
         eq(employees.status, "Active"),
       );
-  const [employeeInScope] = await db
-    .select({ id: employees.id })
+  const employeesInScope = await db
+    .select({
+      id: employees.id,
+      firstName: employees.firstName,
+      lastName: employees.lastName,
+      bankAccount: employees.bankAccount,
+      bankCode: employees.bankCode,
+    })
     .from(employees)
-    .where(employeeScope)
-    .limit(1);
-  if (!employeeInScope) {
+    .where(employeeScope);
+  if (employeesInScope.length === 0) {
     return Response.json({ error: "The selected payroll scope has no active employees." }, { status: 400 });
+  }
+
+  const missingPayout = employeesInScope.filter(
+    (employee) => !employee.bankAccount?.trim() || !employee.bankCode?.trim(),
+  );
+  if (missingPayout.length > 0) {
+    return Response.json({
+      error: `${missingPayout.length} active employee${missingPayout.length === 1 ? " is" : "s are"} missing bank or payout details. Complete payout details before starting payroll.`,
+      code: "PAYOUT_DETAILS_REQUIRED",
+      missingEmployeeIds: missingPayout.map((employee) => employee.id),
+    }, { status: 422 });
   }
 
   const periodLabel = periodLabelFromDates(periodStart, periodEnd);
