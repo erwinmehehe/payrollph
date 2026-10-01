@@ -304,53 +304,67 @@ export async function ensurePublicDemoTenant() {
         .returning();
     }
 
+    let units = await tx
+      .select()
+      .from(orgUnits)
+      .where(eq(orgUnits.organizationId, organization.id));
+
+    if (units.length === 0) {
+      units = await tx
+        .insert(orgUnits)
+        .values([
+          { organizationId: organization.id, type: "Branch", name: "Makati HQ", code: "MKT" },
+          { organizationId: organization.id, type: "Branch", name: "Cebu Hub", code: "CEB" },
+          { organizationId: organization.id, type: "Department", name: "Operations", code: "OPS" },
+        ])
+        .returning();
+    }
+
     let staff = await tx
       .select()
       .from(employees)
       .where(eq(employees.organizationId, organization.id));
 
-    if (staff.length === 0) {
-      let units = await tx
-        .select()
-        .from(orgUnits)
-        .where(eq(orgUnits.organizationId, organization.id));
+    // Repair older demo tenants in-place instead of assuming an empty tenant.
+    // This keeps production sandboxes launchable after schema/seed changes.
+    for (const [index, person] of people.entries()) {
+      const email = employeeEmail(person.firstName, person.lastName);
+      const existing = staff.find(
+        (employee) =>
+          employee.firstName === person.firstName &&
+          employee.lastName === person.lastName,
+      );
+      const values = {
+        organizationId: organization.id,
+        orgUnitId: index < 3 ? units[0]?.id ?? null : index < 5 ? units[1]?.id ?? null : units[2]?.id ?? null,
+        employeeNo: `LL-${String(index + 101).padStart(3, "0")}`,
+        firstName: person.firstName,
+        lastName: person.lastName,
+        title: person.title,
+        employmentType: index === 4 ? "Probationary" : "Regular",
+        status: person.status,
+        avatarInitials: person.initials,
+        basicRate: person.basicRate,
+        mwe: index === 5,
+        bankAccount: person.bankAccount,
+        bankCode: person.bankCode,
+        mobile: person.mobile,
+        email,
+        region: "NCR",
+        startDate: `202${(index % 4) + 1}-0${(index % 8) + 1}-15`,
+      };
 
-      if (units.length === 0) {
-        units = await tx
-          .insert(orgUnits)
-          .values([
-            { organizationId: organization.id, type: "Branch", name: "Makati HQ", code: "MKT" },
-            { organizationId: organization.id, type: "Branch", name: "Cebu Hub", code: "CEB" },
-            { organizationId: organization.id, type: "Department", name: "Operations", code: "OPS" },
-          ])
-          .returning();
+      if (existing) {
+        await tx.update(employees).set(values).where(eq(employees.id, existing.id));
+      } else {
+        await tx.insert(employees).values(values);
       }
-
-      staff = await tx
-        .insert(employees)
-        .values(
-          people.map((person, index) => ({
-            organizationId: organization.id,
-            orgUnitId: index < 3 ? units[0]?.id ?? null : index < 5 ? units[1]?.id ?? null : units[2]?.id ?? null,
-            employeeNo: `LL-${String(index + 101).padStart(3, "0")}`,
-            firstName: person.firstName,
-            lastName: person.lastName,
-            title: person.title,
-            employmentType: index === 4 ? "Probationary" : "Regular",
-            status: person.status,
-            avatarInitials: person.initials,
-            basicRate: person.basicRate,
-            mwe: index === 5,
-            bankAccount: person.bankAccount,
-            bankCode: person.bankCode,
-            mobile: person.mobile,
-            email: employeeEmail(person.firstName, person.lastName),
-            region: "NCR",
-            startDate: `202${(index % 4) + 1}-0${(index % 8) + 1}-15`,
-          })),
-        )
-        .returning();
     }
+
+    staff = await tx
+      .select()
+      .from(employees)
+      .where(eq(employees.organizationId, organization.id));
 
     const activeStaff = staff.filter((employee) => employee.status === "Active");
     const existingRuns = await tx
