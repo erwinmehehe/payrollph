@@ -1,0 +1,121 @@
+name: Production Bank Encryption
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Dry-run only, or apply encryption after all guards pass
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - apply
+      base_url:
+        description: Exact production origin whose key must match this runner
+        required: true
+        default: https://erwinmehehe-payrollph.vercel.app
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: payrollph-production-bank-encryption
+  cancel-in-progress: false
+
+jobs:
+  encrypt-bank-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL || secrets.DATABASE_URL }}
+      BANK_DATA_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_BANK_DATA_ENCRYPTION_KEY || secrets.BANK_DATA_ENCRYPTION_KEY }}
+      TOTP_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_TOTP_ENCRYPTION_KEY || secrets.TOTP_ENCRYPTION_KEY }}
+      PRODUCTION_BASE_URL: ${{ inputs.base_url }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Validate required production secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "Missing PRODUCTION_DATABASE_URL (or DATABASE_URL) secret."
+            exit 1
+          fi
+          if [ -z "${BANK_DATA_ENCRYPTION_KEY:-}" ] && [ -z "${TOTP_ENCRYPTION_KEY:-}" ]; then
+            echo "Missing production bank encryption key material."
+            exit 1
+          fi
+          echo "Required database and encryption secret material is present."
+
+      - name: Prepare bank-account column safely
+        run: npx tsx scripts/prepare-bank-encryption.ts
+
+      - name: Prove runner key matches live production
+        id: key_match
+        shell: bash
+        run: |
+          set -euo pipefail
+          local_fp=$(npx tsx -e 'import { bankEncryptionKeyFingerprint } from "./src/lib/bank-account-crypto"; const fp = bankEncryptionKeyFingerprint(); if (!fp) process.exit(2); console.log(fp);')
+          body=$(curl --fail --silent --show-error --max-time 20 "${PRODUCTION_BASE_URL%/}/api/readiness/pilot-status")
+          live_fp=$(printf '%s' "$body" | jq -r '.bankEncryptionFingerprint // empty')
+
+          if [ -z "$live_fp" ]; then
+            echo "Live production does not report a bank-encryption fingerprint."
+            echo "Configure the production encryption key first and wait for that deployment to become live."
+            exit 1
+          fi
+
+          if [ "$local_fp" != "$live_fp" ]; then
+            echo "Encryption-key fingerprint mismatch. Refusing to touch bank data."
+            exit 1
+          fi
+
+          echo "Live production and this runner use the same bank-encryption key fingerprint."
+
+      - name: Dry-run legacy plaintext scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx tsx scripts/encrypt-bank-accounts.ts | tee /tmp/bank-encryption-dry-run.txt
+
+      - name: Encrypt legacy bank data
+        if: ${{ inputs.mode == 'apply' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx tsx scripts/encrypt-bank-accounts.ts --apply
+
+      - name: Verify zero plaintext bank data remains
+        if: ${{ inputs.mode == 'apply' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx tsx scripts/encrypt-bank-accounts.ts | tee /tmp/bank-encryption-verify.txt
+          grep -Eq '0 to encrypt\.$' /tmp/bank-encryption-verify.txt
+          grep -Eq '^0 payroll payment snapshot\(s\) also hold a plaintext account number\.$' /tmp/bank-encryption-verify.txt
+          echo "All legacy employee bank accounts and payroll payment snapshots are encrypted."
+
+      - name: Verify live readiness sees encrypted bank data
+        if: ${{ inputs.mode == 'apply' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          body=$(curl --fail --silent --show-error --max-time 20 "${PRODUCTION_BASE_URL%/}/api/readiness/pilot-status")
+          if printf '%s' "$body" | jq -e '.criticalBlockers | index("bank-data-encryption") != null' >/dev/null; then
+            echo "Production still reports bank-data-encryption as a critical blocker."
+            printf '%s' "$body" | jq '{status, criticalBlockers, launchBlockers, deploymentSha}'
+            exit 1
+          fi
+          printf '%s' "$body" | jq '{status, criticalBlockers, launchBlockers, deploymentSha}'
+          echo "Production bank-data encryption readiness is green."
