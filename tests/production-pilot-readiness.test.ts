@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { INVITABLE_ROLES, isInvitableRole } from "../src/lib/roles";
+import { buildFirstPayrollReadiness } from "../src/lib/first-payroll-readiness";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
