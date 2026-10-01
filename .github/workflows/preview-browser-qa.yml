@@ -522,6 +522,36 @@ jobs:
 
             const sandbox = page.locator("section.card").filter({ hasText: "ROLE SANDBOX" }).first();
             check((await sandbox.count()) === 1, `${persona.label}: sandbox task panel is missing`);
+
+            if (persona.id === "employee") {
+              const liveBadge = sandbox.locator(".demo-persona-badge");
+              check((await liveBadge.count()) === 1, "Employee: live persona badge is missing");
+
+              const accessChips = sandbox.locator(".demo-access-chip");
+              check((await accessChips.count()) >= 3, "Employee: role access chips are missing");
+              for (const chip of await accessChips.all()) {
+                const layout = await chip.evaluate((element) => ({
+                  whiteSpace: getComputedStyle(element).whiteSpace,
+                  scrollWidth: element.scrollWidth,
+                  clientWidth: element.clientWidth,
+                }));
+                check(layout.whiteSpace !== "nowrap", "Employee: an access chip still forces nowrap");
+                check(layout.scrollWidth <= layout.clientWidth + 1, `Employee: access chip clips ${layout.scrollWidth}px > ${layout.clientWidth}px`);
+              }
+
+              const taskCards = sandbox.locator(".demo-task-card");
+              check((await taskCards.count()) === 3, "Employee: expected three sandbox task cards");
+              for (const card of await taskCards.all()) {
+                const layout = await card.evaluate((element) => ({
+                  whiteSpace: getComputedStyle(element).whiteSpace,
+                  scrollWidth: element.scrollWidth,
+                  clientWidth: element.clientWidth,
+                }));
+                check(layout.whiteSpace !== "nowrap", "Employee: a sandbox task still forces nowrap");
+                check(layout.scrollWidth <= layout.clientWidth + 1, `Employee: sandbox task clips ${layout.scrollWidth}px > ${layout.clientWidth}px`);
+              }
+            }
+
             const firstTask = sandbox.getByRole("button").filter({ hasText: /^1\./ }).first();
             check((await firstTask.count()) === 1, `${persona.label}: first sandbox task is missing`);
             await firstTask.click();
