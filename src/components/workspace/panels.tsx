@@ -626,7 +626,7 @@ export function SettingsPage({ data, setNotice, initialTab = "organization" }: {
   const canManageTeam = ["owner", "admin", "bookkeeper"].includes(data.access?.role ?? "");
   const tabs: Array<{ key: SettingsTab; label: string; icon: typeof Building2; tone: string }> = [
     { key: "organization", label: "Organization profile", icon: Building2, tone: "i-blue" },
-    ...(canManageTeam ? [{ key: "team", label: "Team & access", icon: UsersRound, tone: "i-teal" }] : []),
+    ...(canManageTeam ? [{ key: "team" as const, label: "Team & access", icon: UsersRound, tone: "i-teal" }] : []),
     { key: "account", label: "My account", icon: UserCheck, tone: "i-purple" },
     { key: "security", label: "Security", icon: LockKeyhole, tone: "i-amber" },
     { key: "privacy", label: "Data & privacy", icon: ShieldCheck, tone: "i-green" },
