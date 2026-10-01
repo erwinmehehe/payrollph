@@ -36,27 +36,22 @@ async function waitForSurface(path: string, expectedText?: RegExp) {
         return;
       }
     } catch {
-      // Deployment may still be propagating. Retry below.
+      // Production may still be propagating after the main merge.
     }
     await new Promise((resolve) => setTimeout(resolve, 10_000));
   }
   throw new Error(`Production surface ${path} did not become healthy (last status ${lastStatus}). Body: ${lastBody.slice(0, 300)}`);
 }
 
-async function main() {
-  assert.match(baseUrl, /^https:\/\//, "PRODUCTION_BASE_URL must be an HTTPS origin.");
-  assert.ok(token.length >= 24, "PRODUCTION_READINESS_TOKEN must be configured as a GitHub Actions secret.");
-
-  await waitForSurface("/", /Linaw|payroll/i);
-  await waitForSurface("/login", /sign in|log in|email/i);
-
-  const unauthenticated = await fetchWithTimeout(`${baseUrl}/api/readiness`);
-  assert.equal(
-    unauthenticated.status,
-    401,
-    `Unauthenticated readiness probe should be protected in production, got ${unauthenticated.status}.`,
+function writeReport() {
+  mkdirSync("qa-artifacts", { recursive: true });
+  writeFileSync(
+    "qa-artifacts/production-rollout-readiness.json",
+    JSON.stringify(report, null, 2),
   );
+}
 
+async function verifyDetailedReadiness() {
   const response = await fetchWithTimeout(`${baseUrl}/api/readiness`, {
     headers: { "x-readiness-token": token },
   });
@@ -87,6 +82,7 @@ async function main() {
     }));
 
   report.readiness = {
+    source: "authenticated-detailed",
     status: payload.status,
     launchBlockersRemaining: payload.launchBlockersRemaining,
     scaleGapsRemaining: payload.scaleGapsRemaining,
@@ -114,31 +110,82 @@ async function main() {
     );
   }
 
-  mkdirSync("qa-artifacts", { recursive: true });
-  writeFileSync(
-    "qa-artifacts/production-rollout-readiness.json",
-    JSON.stringify(report, null, 2),
+  return {
+    status: payload.status,
+    manualLaunchReady: payload.manualLaunch?.ready === true,
+    launchBlockersRemaining: payload.launchBlockersRemaining,
+    launchBlockers,
+  };
+}
+
+async function verifySanitizedReadiness() {
+  const response = await fetchWithTimeout(`${baseUrl}/api/readiness/pilot-status`);
+  const payload = await response.json().catch(() => ({}));
+  assert.ok(
+    response.ok,
+    `Sanitized production readiness probe failed (${response.status}): ${JSON.stringify(payload)}`,
   );
 
-  console.log(
-    JSON.stringify({
-      ok: true,
-      rolloutMode,
-      status: payload.status,
-      manualLaunchReady: payload.manualLaunch?.ready === true,
-      launchBlockersRemaining: payload.launchBlockersRemaining,
-      launchBlockers,
-    }, null, 2),
+  const criticalBlockers = Array.isArray(payload.criticalBlockers)
+    ? payload.criticalBlockers.filter((value: unknown): value is string => typeof value === "string")
+    : [];
+
+  report.readiness = {
+    source: "server-internal-sanitized",
+    status: payload.status,
+    pilotReady: payload.pilotReady === true,
+    fullLaunchReady: payload.fullLaunchReady === true,
+    criticalBlockers,
+    launchBlockersRemaining: payload.launchBlockersRemaining ?? null,
+  };
+
+  if (rolloutMode === "pilot") {
+    assert.equal(
+      payload.pilotReady,
+      true,
+      `Live pilot is not ready. Critical blockers: ${criticalBlockers.join(", ") || "none reported"}; launch blockers remaining: ${payload.launchBlockersRemaining ?? "unknown"}.`,
+    );
+  } else {
+    assert.equal(
+      payload.fullLaunchReady,
+      true,
+      `Full launch is not ready. Critical blockers: ${criticalBlockers.join(", ") || "none reported"}; launch blockers remaining: ${payload.launchBlockersRemaining ?? "unknown"}.`,
+    );
+  }
+
+  return {
+    status: payload.status,
+    pilotReady: payload.pilotReady === true,
+    fullLaunchReady: payload.fullLaunchReady === true,
+    criticalBlockers,
+    launchBlockersRemaining: payload.launchBlockersRemaining ?? null,
+  };
+}
+
+async function main() {
+  assert.match(baseUrl, /^https:\/\//, "PRODUCTION_BASE_URL must be an HTTPS origin.");
+
+  await waitForSurface("/", /Linaw|payroll/i);
+  await waitForSurface("/login", /sign in|log in|email/i);
+
+  const unauthenticated = await fetchWithTimeout(`${baseUrl}/api/readiness`);
+  assert.equal(
+    unauthenticated.status,
+    401,
+    `Unauthenticated detailed readiness must remain protected in production, got ${unauthenticated.status}.`,
   );
+
+  const result = token.length >= 24
+    ? await verifyDetailedReadiness()
+    : await verifySanitizedReadiness();
+
+  writeReport();
+  console.log(JSON.stringify({ ok: true, rolloutMode, ...result }, null, 2));
 }
 
 main().catch((error) => {
-  mkdirSync("qa-artifacts", { recursive: true });
   report.error = error instanceof Error ? error.message : String(error);
-  writeFileSync(
-    "qa-artifacts/production-rollout-readiness.json",
-    JSON.stringify(report, null, 2),
-  );
+  writeReport();
   console.error(error);
   process.exitCode = 1;
 });
