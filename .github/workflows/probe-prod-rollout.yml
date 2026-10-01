@@ -1,0 +1,30 @@
+name: Probe production rollout access
+
+on:
+  push:
+    branches:
+      - ops/bank-encryption-rollout
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+    steps:
+      - name: Report available production rollout credentials
+        shell: bash
+        run: |
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID DATABASE_URL PRODUCTION_DATABASE_URL; do
+            if [ -n "${!name:-}" ]; then
+              echo "${name}=present"
+            else
+              echo "${name}=absent"
+            fi
+          done
