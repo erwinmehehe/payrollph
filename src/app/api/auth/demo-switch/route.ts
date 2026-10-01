@@ -208,23 +208,27 @@ export async function POST(request: Request) {
     return Response.json({ error: "Demo company data is unavailable." }, { status: 503 });
   }
 
-  // Provision all five identities together so a Payroll Officer can immediately
-  // submit to the Checker even if nobody has opened the Checker persona yet.
-  const personaUsers = new Map<DemoRoleId, Awaited<ReturnType<typeof ensureDemoAccount>>>();
+  // Launch the requested persona first. A stale secondary persona must never
+  // block Owner/HR/Payroll/Checker from opening the sandbox.
+  let activeUser: Awaited<ReturnType<typeof ensureDemoAccount>>;
   try {
-    for (const role of DEMO_ROLE_IDS) {
-      personaUsers.set(role, await ensureDemoAccount(role, loom.id));
-    }
+    activeUser = await ensureDemoAccount(requestedRole, loom.id);
   } catch (error) {
+    console.error("Requested demo persona provisioning failed", requestedRole, error);
     return Response.json(
-      { error: error instanceof Error ? error.message : "Demo personas could not be prepared." },
+      { error: "This demo role could not be prepared. Please try again in a moment." },
       { status: 503 },
     );
   }
 
-  const activeUser = personaUsers.get(requestedRole);
-  if (!activeUser) {
-    return Response.json({ error: "Demo persona is unavailable." }, { status: 503 });
+  // Warm the other identities best-effort so cross-role handoffs work immediately.
+  for (const role of DEMO_ROLE_IDS) {
+    if (role === requestedRole) continue;
+    try {
+      await ensureDemoAccount(role, loom.id);
+    } catch (error) {
+      console.warn("Secondary demo persona provisioning skipped", role, error);
+    }
   }
 
   const { token, expiresAt } = await createSession(activeUser.id, requestMeta(request));
