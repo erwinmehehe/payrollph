@@ -296,7 +296,7 @@ jobs:
                 }));
                 check(signInStyles.backgroundColor === "rgb(97, 97, 255)", `/login: primary CTA lost Linaw indigo; saw ${signInStyles.backgroundColor}`);
                 check(signInStyles.color === "rgb(255, 255, 255)", `/login: primary CTA text lost contrast; saw ${signInStyles.color}`);
-                check((await page.getByRole("button", { name: "Show password" }).count()) === 1, "/login: password visibility control is missing");
+                check((await page.locator('[data-testid="password-visibility"]').count()) === 1, "/login: password visibility control is missing");
                 await page.screenshot({ path: `${outDir}/login-desktop.png`, fullPage: true });
 
                 await page.setViewportSize({ width: 390, height: 844 });
