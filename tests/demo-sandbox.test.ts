@@ -374,3 +374,14 @@ test("shared public nav uses the same soft-indigo start CTA as the homepage", ()
   assert.ok(chrome.includes('text-[#4A4AE0]'));
   assert.ok(!chrome.includes('bg-[#11141F] px-5 py-2.5 text-[14px] font-semibold text-white'));
 });
+
+
+test("public demo repairs stale employees before persona provisioning", () => {
+  const demo = read("src/db/public-demo.ts");
+  const route = read("src/app/api/auth/demo-switch/route.ts");
+  assert.ok(demo.includes("Repair older demo tenants in-place"));
+  assert.ok(demo.includes("await tx.update(employees).set(values)"));
+  assert.ok(demo.includes("email = employeeEmail"));
+  assert.ok(route.includes("Launch the requested persona first"));
+  assert.ok(route.includes("Secondary demo persona provisioning skipped"));
+});
