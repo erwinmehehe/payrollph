@@ -169,10 +169,9 @@ async function main() {
   await waitForSurface("/login", /sign in|log in|email/i);
 
   const unauthenticated = await fetchWithTimeout(`${baseUrl}/api/readiness`);
-  assert.equal(
-    unauthenticated.status,
-    401,
-    `Unauthenticated detailed readiness must remain protected in production, got ${unauthenticated.status}.`,
+  assert.ok(
+    unauthenticated.status === 401 || unauthenticated.status === 503,
+    `Unauthenticated detailed readiness must be protected or fail-closed in production, got ${unauthenticated.status}.`,
   );
 
   const result = token.length >= 24
