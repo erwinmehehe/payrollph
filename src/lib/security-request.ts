@@ -31,6 +31,30 @@ function configuredOrigins(request: Request) {
   return origins;
 }
 
+function requestTargetOrigins(request: Request) {
+  const origins = new Set<string>();
+  const direct = normalizeOrigin(request.url);
+  if (direct) origins.add(direct);
+
+  // Vercel may normalize request.url to an internal/canonical host while the
+  // browser is using another production alias. Treat that forwarded alias as
+  // the request target, but only for a browser request that also reports
+  // Sec-Fetch-Site: same-origin below.
+  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const forwardedProtoHeader = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase();
+  if (forwardedHost) {
+    const directProtocol = new URL(request.url).protocol.replace(":", "").toLowerCase();
+    const protocol =
+      forwardedProtoHeader === "https" || forwardedProtoHeader === "http"
+        ? forwardedProtoHeader
+        : directProtocol;
+    const forwarded = normalizeOrigin(`${protocol}://${forwardedHost}`);
+    if (forwarded) origins.add(forwarded);
+  }
+
+  return origins;
+}
+
 export function enforceSameOriginMutation(request: Request) {
   if (!MUTATION_METHODS.has(request.method.toUpperCase())) return null;
 
@@ -55,7 +79,10 @@ export function enforceSameOriginMutation(request: Request) {
     return null;
   }
 
-  if (!allowed.has(origin)) {
+  const browserSameOrigin =
+    fetchSite === "same-origin" && requestTargetOrigins(request).has(origin);
+
+  if (!allowed.has(origin) && !browserSameOrigin) {
     return Response.json({ error: "Request origin is not allowed." }, { status: 403 });
   }
 
