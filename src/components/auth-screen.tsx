@@ -133,7 +133,7 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
           </div>
 
           <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-[#ECEEF4] pt-5 text-[12px] font-medium text-[#6C7288]">
-            <span className="inline-flex items-center gap-2"><Check size={13} className="text-[#0A8A53]" /> Server-side sessions</span>
+            <span className="inline-flex items-center gap-2"><Check size={13} className="text-[#0A8A53]" /> Distributed sign-in protection</span>
             <span className="inline-flex items-center gap-2"><Check size={13} className="text-[#0A8A53]" /> Role permissions</span>
             <span className="inline-flex items-center gap-2"><Check size={13} className="text-[#0A8A53]" /> TOTP when enabled</span>
           </div>
