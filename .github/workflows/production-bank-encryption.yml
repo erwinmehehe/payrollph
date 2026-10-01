@@ -11,11 +11,6 @@ on:
         options:
           - dry-run
           - apply
-      base_url:
-        description: Exact production origin whose key must match this runner
-        required: true
-        default: https://erwinmehehe-payrollph.vercel.app
-        type: string
 
 permissions:
   contents: read
@@ -33,7 +28,7 @@ jobs:
       DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL || secrets.DATABASE_URL }}
       BANK_DATA_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_BANK_DATA_ENCRYPTION_KEY || secrets.BANK_DATA_ENCRYPTION_KEY }}
       TOTP_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_TOTP_ENCRYPTION_KEY || secrets.TOTP_ENCRYPTION_KEY }}
-      PRODUCTION_BASE_URL: ${{ inputs.base_url }}
+      PRODUCTION_BASE_URL: https://erwinmehehe-payrollph.vercel.app
     steps:
       - uses: actions/checkout@v7
 
