@@ -209,7 +209,7 @@ async function main() {
   (report.lifecycle as string[]).push("external-payout-confirmed");
 
   const self = await expectOk(employee, "/api/self/payslips");
-  const slip = (self.payslips ?? []).find((row: any) => row.period.includes("Sep 16") && row.period.includes("Sep 30"));
+  const slip = (self.payslips ?? []).find((row: any) => row.payDate === "2026-10-05");
   assert.ok(slip, "Released payslip is missing from employee self-service.");
   const pdf = await employee.request(`/api/self/payslips/${slip.entryId}`);
   assert.ok(pdf.ok);
