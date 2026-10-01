@@ -130,3 +130,20 @@ test("first payroll readiness only turns green when all operational prerequisite
   assert.equal(ready.ready, true);
   assert.equal(ready.completed, ready.total);
 });
+
+
+test("sanitized pilot readiness can prove production without duplicating the readiness secret into CI", () => {
+  const route = read("src/app/api/readiness/pilot-status/route.ts");
+  const script = read("scripts/live-production-readiness.ts");
+
+  assert.ok(route.includes('import { GET as getDetailedReadiness }'));
+  assert.ok(route.includes('"x-readiness-token": token'));
+  assert.ok(route.includes('"Cache-Control": "no-store"'));
+  assert.ok(route.includes("criticalBlockers"));
+  assert.ok(route.includes("pilotReady"));
+  assert.ok(route.includes("fullLaunchReady"));
+  assert.ok(script.includes("/api/readiness/pilot-status"));
+  assert.ok(script.includes('source: "server-internal-sanitized"'));
+  assert.ok(script.includes("token.length >= 24"));
+  assert.ok(script.includes("unauthenticated.status"));
+});
