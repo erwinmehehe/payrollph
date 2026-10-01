@@ -144,6 +144,13 @@ async function ensureDemoAccount(role: DemoRoleId, organizationId: number) {
 function publicDemoAllowed(request: Request) {
   if (DEMO_MODE && process.env.NODE_ENV !== "production") return true;
 
+  // The public sandbox is intentionally available on this Vercel production
+  // project. Production can be served through multiple aliases, so do not tie
+  // demo availability to one hostname. Preview deployments remain gated below.
+  if ((process.env.VERCEL_ENV ?? "").trim().toLowerCase() === "production") {
+    return true;
+  }
+
   const hostname = new URL(request.url).hostname.toLowerCase();
   if (process.env.NODE_ENV !== "production" && (hostname === "127.0.0.1" || hostname === "localhost")) {
     return true;
