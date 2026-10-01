@@ -299,3 +299,51 @@ PRs #52–#59 are no longer open. The selected safe updates were consolidated in
 Current CI still reports four **moderate** npm advisories and peer-resolution warnings because ESLint 10 is newer than the peer ranges declared by several packages bundled under `eslint-config-next`. CI explicitly blocks high and critical advisories and currently passes that gate.
 
 This is a maintenance issue, not one of the four live pilot-critical blockers above, but it should be cleaned before broad GA if the upstream Next.js ESLint stack has not resolved the peer ranges by then.
+
+
+## Hardening added after the initial audit
+
+The remediation branch now closes two process gaps that the first audit exposed.
+
+### Production document uploads are opt-in
+
+Production no longer treats "scanner unavailable" as a reason to expose a half-working upload feature. Document uploads are disabled unless `DOCUMENT_UPLOADS_ENABLED=true`.
+
+- With uploads disabled, the POST document route returns `DOCUMENT_UPLOADS_DISABLED` before parsing file content.
+- The malware-safety gate is green while uploads are explicitly disabled.
+- If uploads are enabled, a valid production malware scanner immediately becomes launch-blocking again.
+- This lets the payroll pilot proceed without paying for a 4 GiB scanner host while keeping arbitrary file ingestion unavailable.
+
+This does **not** claim malware scanning is complete. It removes the upload feature from the rollout until the scanner can be hosted safely.
+
+### Independent production payroll sign-off is now a real gate
+
+Full launch now requires an audit event named `Production payroll pilot signed off`.
+
+The sign-off endpoint and Owner UI require all of the following:
+
+- the exact payroll run is already Released
+- a release receipt exists
+- payout completion evidence exists
+- every released entry has a payslip
+- an accounting journal export exists
+- the Owner has recent MFA
+- the account is not a public demo identity
+- independent expected figures were prepared outside Linaw
+- gross pay, deductions, net pay, withholding tax, statutory contributions, payout total, payslip values, and accounting export totals were each confirmed to match
+- the payroll operator confirms the cycle was completed without developer intervention
+- an external evidence reference and independent preparer are recorded
+
+This prevents a future green CI run from being treated as proof that a real payroll cycle has been independently reconciled.
+
+### What code cannot honestly fix
+
+These remain environment or real-world proof tasks:
+
+- configure production `TOTP_ENCRYPTION_KEY`
+- configure a dedicated `BANK_DATA_ENCRYPTION_KEY` and seal any legacy plaintext payout data
+- prove at least one real transactional email delivery
+- complete the controlled production payroll pilot and record the independent sign-off
+- validate government filing outputs in the relevant official workflows before claiming filing-ready status
+
+The connected Vercel account available in this ChatGPT session does not have authorization to the `payrollph` Vercel team, so production secrets cannot be changed or verified from this session. GitHub reports successful Vercel deployments, but that is not a substitute for inspecting the production environment itself.
