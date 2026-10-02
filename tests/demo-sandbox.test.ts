@@ -531,8 +531,9 @@ test("workspace dashboard matches the PayrollPH mockup using modular real-data c
   const styles = read("src/app/workspace-theme.css");
 
   assert.ok(shell.includes("PayrollPH"), "workspace brand must match the PayrollPH mockup");
-  assert.ok(shell.includes("OVERVIEW_NAV_ORDER"), "dashboard landing must use the compact seven-item navigation");
-  assert.ok(shell.includes("navigationGroups"), "dashboard landing must swap to the compact navigation set");
+  assert.ok(shell.includes("PRIMARY_NAV_ORDER"), "workspace must use the focused seven-item primary navigation");
+  assert.ok(shell.includes("secondaryGroups"), "specialist modules must remain available outside the primary navigation");
+  assert.ok(shell.includes("More tools"), "secondary modules must be collapsed behind More tools instead of crowding the sidebar");
   assert.ok(shell.includes("Search employees, payroll, reports"), "top search should use the mockup wording");
   assert.ok(dashboard.includes("DashboardAlertBanner"), "role dashboards must use the shared alert banner");
   assert.ok(dashboard.includes("DashboardStatCard"), "role dashboards must use the shared metric card");
