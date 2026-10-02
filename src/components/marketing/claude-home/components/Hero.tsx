@@ -9,7 +9,7 @@ import {
   UsersRound,
   WalletCards,
 } from "lucide-react";
-import { PayrollOwlArt } from "@/components/payroll-owl";
+import { PayrollOwl, PayrollOwlArt } from "@/components/payroll-owl";
 import { Reveal } from "./ui";
 
 const trustPoints = [
@@ -82,7 +82,7 @@ export default function Hero() {
             </div>
 
             <div className="payroll-hero-owl">
-              <PayrollOwlArt className="payroll-hero-owl-art" alt="PayrollPH owl mascot" />
+              <PayrollOwl state="welcome" className="payroll-hero-owl-vector" label="PayrollPH owl mascot" />
             </div>
 
             <div className="payroll-hero-laptop">
