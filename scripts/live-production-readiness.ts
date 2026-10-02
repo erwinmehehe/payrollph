@@ -6,6 +6,76 @@ const token = process.env.PRODUCTION_READINESS_TOKEN ?? "";
 const rolloutMode = process.env.ROLLOUT_MODE === "full" ? "full" : "pilot";
 const expectedCommitSha = (process.env.EXPECTED_COMMIT_SHA ?? "").trim();
 
+type RemediationOwner = "deployment" | "operations" | "payroll" | "compliance";
+type Remediation = { key: string; owner: RemediationOwner; action: string };
+
+const blockerRemediation: Record<string, Omit<Remediation, "key">> = {
+  "production-security-config": {
+    owner: "deployment",
+    action: "Set APP_BASE_URL to the canonical HTTPS production origin and configure a valid 32-byte TOTP_ENCRYPTION_KEY, then redeploy.",
+  },
+  "review-credential": {
+    owner: "operations",
+    action: "Rotate the public review account password so no production user can authenticate with the documented demo credential.",
+  },
+  "seeded-credentials": {
+    owner: "deployment",
+    action: "Set DEMO_MODE=false in production and redeploy so shared demo credentials are never provisioned into a customer deployment.",
+  },
+  "email-delivery": {
+    owner: "deployment",
+    action: "Configure the transactional mail provider plus its delivery webhook secret, send a real test/invite, and confirm a provider-delivered event is recorded.",
+  },
+  "bank-data-encryption": {
+    owner: "deployment",
+    action: "Configure BANK_DATA_ENCRYPTION_KEY (or the production TOTP master), then run the Production Bank Encryption workflow in dry-run and apply modes until zero plaintext bank values remain.",
+  },
+  "malware-scanning": {
+    owner: "deployment",
+    action: "Keep document uploads disabled, or configure and verify the malware scanner before enabling uploads.",
+  },
+  billing: {
+    owner: "operations",
+    action: "Complete one real paid invoice/subscription, or run manual-activate-subscription only after independently confirming the customer payment.",
+  },
+  "bank-validation": {
+    owner: "payroll",
+    action: "For automated payout, configure the live payout provider, wallet/source account, signed webhook, and pass the no-money preflight. Manual bank-file upload remains the pilot workaround.",
+  },
+  "production-pilot-signoff": {
+    owner: "payroll",
+    action: "Release one controlled production payroll, reconcile it against independently prepared figures, and record the Owner production-pilot sign-off.",
+  },
+  "gov-bir-alphalist": {
+    owner: "compliance",
+    action: "Use the generated BIR file/extract with the agency workflow and record an accepted file-upload validation with its agency reference.",
+  },
+  "gov-sss-r3": {
+    owner: "compliance",
+    action: "Upload the generated SSS R-3 file and record an accepted validation with the PRN or acknowledgement reference.",
+  },
+  "gov-philhealth-rf1": {
+    owner: "compliance",
+    action: "Use the generated PhilHealth RF-1 file with the agency workflow and record an accepted file-upload validation with the ePAR/acknowledgement reference.",
+  },
+  "gov-pagibig-mcrf": {
+    owner: "compliance",
+    action: "Use the generated Pag-IBIG MCRF file with the applicable employer workflow and record an accepted file-upload validation with its OPIN/confirmation reference.",
+  },
+};
+
+function remediationFor(keys: string[]): Remediation[] {
+  return [...new Set(keys)]
+    .map((key) => blockerRemediation[key] ? { key, ...blockerRemediation[key] } : null)
+    .filter((item): item is Remediation => item !== null);
+}
+
+function remediationSummary(items: Remediation[]) {
+  return items.length === 0
+    ? "No mapped remediation is available."
+    : items.map((item, index) => `${index + 1}. [${item.owner}] ${item.key}: ${item.action}`).join("\n");
+}
+
 const report: Record<string, unknown> = {
   baseUrl,
   rolloutMode,
@@ -133,32 +203,39 @@ async function verifyDetailedReadiness() {
       manualWorkaround: gate.manualWorkaround ?? null,
     }));
 
+  const criticalFailureKeys = criticalFailures.map((gate: any) => gate?.key ?? "missing-gate");
+  const remediation = remediationFor([
+    ...criticalFailureKeys,
+    ...launchBlockers.map((gate: any) => String(gate.key)),
+  ]);
+
   report.readiness = {
     source: "authenticated-detailed",
     status: payload.status,
     launchBlockersRemaining: payload.launchBlockersRemaining,
     scaleGapsRemaining: payload.scaleGapsRemaining,
     manualLaunchReady: payload.manualLaunch?.ready === true,
-    criticalFailures: criticalFailures.map((gate: any) => gate?.key ?? "missing-gate"),
+    criticalFailures: criticalFailureKeys,
     launchBlockers,
+    remediation,
   };
 
   if (rolloutMode === "pilot") {
     assert.equal(
       criticalFailures.length,
       0,
-      `Pilot has critical launch failures: ${criticalFailures.map((gate: any) => gate?.label ?? gate?.key ?? "missing gate").join(", ")}`,
+      `Pilot has critical launch failures: ${criticalFailures.map((gate: any) => gate?.label ?? gate?.key ?? "missing gate").join(", ")}.\nNext steps:\n${remediationSummary(remediation)}`,
     );
     assert.equal(
       payload.manualLaunch?.ready,
       true,
-      `Manual pilot is not ready: ${payload.manualLaunch?.summary ?? "No summary returned."}`,
+      `Manual pilot is not ready: ${payload.manualLaunch?.summary ?? "No summary returned."}\nNext steps:\n${remediationSummary(remediation)}`,
     );
   } else {
     assert.equal(
       payload.status,
       "launch-ready",
-      `Full launch is blocked by: ${launchBlockers.map((gate: any) => gate.label).join(", ")}`,
+      `Full launch is blocked by: ${launchBlockers.map((gate: any) => gate.label).join(", ")}.\nNext steps:\n${remediationSummary(remediation)}`,
     );
   }
 
@@ -185,6 +262,8 @@ async function verifySanitizedReadiness() {
     ? payload.launchBlockers.filter((value: unknown): value is string => typeof value === "string")
     : [];
 
+  const remediation = remediationFor([...criticalBlockers, ...launchBlockers]);
+
   report.readiness = {
     source: "server-internal-sanitized",
     status: payload.status,
@@ -194,19 +273,20 @@ async function verifySanitizedReadiness() {
     criticalBlockers,
     launchBlockers,
     launchBlockersRemaining: payload.launchBlockersRemaining ?? null,
+    remediation,
   };
 
   if (rolloutMode === "pilot") {
     assert.equal(
       payload.pilotReady,
       true,
-      `Live pilot is not ready. Critical blockers: ${criticalBlockers.join(", ") || "none reported"}; launch blockers: ${launchBlockers.join(", ") || "none reported"}.`,
+      `Live pilot is not ready. Critical blockers: ${criticalBlockers.join(", ") || "none reported"}; launch blockers: ${launchBlockers.join(", ") || "none reported"}.\nNext steps:\n${remediationSummary(remediation)}`,
     );
   } else {
     assert.equal(
       payload.fullLaunchReady,
       true,
-      `Full launch is not ready. Launch blockers: ${launchBlockers.join(", ") || "none reported"}.`,
+      `Full launch is not ready. Launch blockers: ${launchBlockers.join(", ") || "none reported"}.\nNext steps:\n${remediationSummary(remediation)}`,
     );
   }
 

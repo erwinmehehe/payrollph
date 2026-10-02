@@ -82,6 +82,23 @@ test("production rollout verifier requires protected live readiness and critical
   assert.ok(workflow.includes('secrets.PRODUCTION_READINESS_TOKEN'));
   assert.ok(workflow.includes('rollout_mode'));
   assert.ok(workflow.includes('scripts/live-production-readiness.ts'));
+  assert.ok(script.includes("blockerRemediation"));
+  assert.ok(script.includes("remediationSummary"));
+  assert.ok(script.includes("Production Bank Encryption"));
+  assert.ok(script.includes("provider-delivered event"));
+});
+
+test("manual launch playbook matches evidence-based production gates", () => {
+  const playbook = read("MANUAL_LAUNCH.md");
+
+  assert.ok(playbook.includes("Clear the critical production gates first"));
+  assert.ok(playbook.includes("APP_BASE_URL"));
+  assert.ok(playbook.includes("TOTP_ENCRYPTION_KEY"));
+  assert.ok(playbook.includes("Production Bank Encryption"));
+  assert.ok(playbook.includes("RESEND_WEBHOOK_SECRET"));
+  assert.ok(playbook.includes("/api/webhooks/resend"));
+  assert.ok(playbook.includes("provider reports the message as delivered"));
+  assert.ok(!playbook.includes("Set `RESEND_API_KEY` in your environment and redeploy.\n5. Confirm"));
 });
 
 
