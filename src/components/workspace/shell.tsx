@@ -504,7 +504,7 @@ export function buildNotifications(data: DashboardData, role?: string | null): N
       title: `${failedPayslipNotices} payslip email${failedPayslipNotices === 1 ? "" : "s"} need delivery attention`,
       detail: "Automatic retries are bounded. Open the Email outbox from Search to inspect or retry delivery.",
       tone: "danger",
-      page: "Exports",
+      page: ["owner", "admin", "bookkeeper"].includes(effectiveRole ?? "") ? "Operations" : "Exports",
     });
   };
 
