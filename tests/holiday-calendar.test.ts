@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   holidayPayContextOn,
@@ -41,4 +42,12 @@ test("mixed regular and special collision does not invent an unsupported combine
   assert.equal(context.holidays.length, 2);
   assert.match(context.label ?? "", /Regular D/);
   assert.doesNotMatch(context.label ?? "", /double/);
+});
+
+
+test("payroll engine consumes the classified holiday context instead of a single calendar row", () => {
+  const engine = readFileSync("src/lib/payroll-engine.ts", "utf8");
+  assert.ok(engine.includes("holidayPayContextOn(punch.workDate)"));
+  assert.ok(engine.includes("holiday: holidayContext.holiday"));
+  assert.ok(engine.includes("holidayContext.holidays.length > 0"));
 });
