@@ -124,6 +124,9 @@ export const employees = pgTable("employees", {
   mobile: varchar("mobile", { length: 24 }),
   email: varchar("email", { length: 200 }),
   region: varchar("region", { length: 32 }).notNull().default("NCR"),
+  // Employer-designated fixed weekly rest day. Null means not configured;
+  // payroll must never guess this because a wrong default changes computed pay.
+  restDay: varchar("rest_day", { length: 10 }),
   tin: varchar("tin", { length: 32 }),
   tinBranchCode: varchar("tin_branch_code", { length: 4 }),
   sssNo: varchar("sss_no", { length: 32 }),

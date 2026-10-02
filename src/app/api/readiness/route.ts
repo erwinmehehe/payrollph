@@ -52,6 +52,10 @@ export async function buildReadinessPayload() {
       and ${payrollEntries.trace} #>> '{payment,bankAccount}' <> ''
       and ${payrollEntries.trace} #>> '{payment,bankAccount}' not like 'enc:v1:%'`);
 
+  const [{ value: totalEmployees }] = await db.select({ value: count() }).from(employees);
+  const [{ value: employeesMissingRestDay }] = await db.select({ value: count() }).from(employees)
+    .where(sql`${employees.restDay} is null`);
+
   // SSS R-3 and the BIR Alphalist readiness come from recorded agency acceptance, not env flags.
   // The table can be missing on a database that has not been upgraded yet, and
   // that must read as "not proven" rather than taking readiness down.
@@ -324,6 +328,16 @@ export async function buildReadinessPayload() {
         ? "Dedicated worker is enabled; scripts/worker.ts drains payroll jobs and webhook retries."
         : "Dedicated worker code exists at scripts/worker.ts. Set WORKER_ENABLED=true and run npm run worker in a persistent worker service to activate it.",
       blocks: "scale",
+    },
+    {
+      key: "employee-rest-day-coverage",
+      label: "Employee rest-day assignment",
+      ready: employeesMissingRestDay === 0,
+      detail: employeesMissingRestDay === 0
+        ? `All ${totalEmployees} employee(s) have a designated weekly rest day, so rest-day premium pay can be computed for them.`
+        : `${employeesMissingRestDay} of ${totalEmployees} employee(s) have no designated rest day, so Linaw cannot compute rest-day premium pay for those records. Exempt categories are not modeled, so this is informational rather than a precise compliance count.`,
+      blocks: "scale",
+      manualWorkaround: employeesMissingRestDay === 0 ? undefined : "Set the rest day at hire time for new employees; for existing employees without one, compute rest-day premium manually until an edit flow is added.",
     },
   ];
 

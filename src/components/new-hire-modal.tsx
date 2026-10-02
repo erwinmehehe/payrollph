@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ArrowRight, Layers, X } from "lucide-react";
 import { WAGE_ORDERS } from "@/lib/wage-orders";
+import { REST_DAY_NAMES } from "@/lib/payroll-rules";
 
 /**
  * Rippling-style new-hire onboarding: creating the employee also generates the
@@ -32,6 +33,7 @@ export function NewHireModal({
     standardHoursPerDay: "8",
     startDate: new Date().toISOString().slice(0, 10),
     region: "NCR",
+    restDay: "",
     mwe: false,
     assetType: "Laptop",
     assetName: "",
@@ -113,6 +115,14 @@ export function NewHireModal({
                   <option key={order.region} value={order.region}>
                     {order.region}{order.verified ? "" : " (rate unverified)"}
                   </option>
+                ))}
+              </select>
+            </label>
+            <label>Rest day
+              <select value={form.restDay} onChange={(e) => setForm({ ...form, restDay: e.target.value })}>
+                <option value="">Not set</option>
+                {REST_DAY_NAMES.map((day) => (
+                  <option key={day} value={day}>{day}</option>
                 ))}
               </select>
             </label>
