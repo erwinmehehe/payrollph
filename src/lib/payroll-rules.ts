@@ -89,6 +89,23 @@ export function holidayMultiplier(input: { holiday: HolidayType; worked: boolean
   return round(multiplier * (input.overtime ? (premiumDay ? 1.3 : 1.25) : 1));
 }
 
+export const REST_DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
+export type RestDayName = (typeof REST_DAY_NAMES)[number];
+
+const REST_DAY_INDEX: Record<string, number> = Object.fromEntries(
+  REST_DAY_NAMES.map((name, index) => [name, index]),
+);
+
+/** Pure day-of-week check, independent of the host process timezone. */
+export function isRestDayOfWeek(workDate: string, restDay: string | null | undefined): boolean {
+  if (!restDay) return false;
+  const index = REST_DAY_INDEX[restDay];
+  if (index === undefined) return false;
+  const [year, month, day] = workDate.split("-").map(Number);
+  if (!year || !month || !day) return false;
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay() === index;
+}
+
 export type ClockPunch = { timeIn?: string | null; timeOut?: string | null };
 export type ShiftSchedule = { start: string; end: string; breakMinutes?: number; graceMinutes?: number };
 
