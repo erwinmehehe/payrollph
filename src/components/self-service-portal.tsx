@@ -6,6 +6,7 @@ import { CalendarDays, Clock, Download, FileText, LogOut, ShieldCheck, WalletCar
 import { WebBundyModal } from "@/components/web-bundy-modal";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { PayrollHandoff } from "@/components/payroll-handoff";
+import { PayrollGuide } from "@/components/payroll-owl";
 import { type DemoRoleId } from "@/lib/demo-roles";
 import { buildPayrollHandoff } from "@/lib/payroll-handoff";
 
@@ -163,6 +164,18 @@ export function SelfServicePortal() {
           </button>
         </div>
       </header>
+
+      {data && (
+        <PayrollGuide
+          role="employee"
+          state={latestPayslip ? "released" : "welcome"}
+          eyebrow="My Payroll Guide"
+          title={latestPayslip ? `Your ${latestPayslip.period} payslip is ready` : "Your payroll updates will appear here"}
+          detail={latestPayslip ? "You can review your latest net pay and download the released payslip without seeing anyone else’s payroll." : "When your employer releases payroll, your payslip and pay history will appear here automatically."}
+          actionLabel={latestPayslip ? "View payslip" : undefined}
+          onAction={latestPayslip ? () => setOpen(latestPayslip.entryId) : undefined}
+        />
+      )}
 
       {isDemo && (
         <DemoSandboxBar
