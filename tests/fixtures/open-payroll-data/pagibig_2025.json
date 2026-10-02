@@ -1,0 +1,32 @@
+{
+  "topic": "Pag-IBIG (HDMF) monthly contribution",
+  "country": "PH",
+  "effective_date": "2024-02-01",
+  "currency": "PHP",
+  "volatility": "stable",
+  "source": {
+    "issuance": "HDMF Circular No. 460 (via DBM Circular Letter 2024-2)",
+    "source_tier": "primary",
+    "last_verified": "2026-06-24",
+    "url": "https://www.dbm.gov.ph/wp-content/uploads/Issuances/2024/Circular-Letter/CIRCULAR-LETTER-NO-2024-2-DATED-FEBRUARY-01-2024.pdf",
+    "markdown": "ph/pagibig/contribution_table_2025.md"
+  },
+  "mfs_cap": 10000,
+  "max_each": 200,
+  "tiers": [
+    {
+      "comp_min": 0,
+      "comp_max": 1500,
+      "employee_rate": 0.01,
+      "employer_rate": 0.02
+    },
+    {
+      "comp_min": 1500.01,
+      "comp_max": null,
+      "employee_rate": 0.02,
+      "employer_rate": 0.02
+    }
+  ],
+  "notes": "Contribution base is capped at the Maximum Fund Salary (MFS) of ₱10,000, so each side maxes at ₱200. employee = min(comp, 10000) * employee_rate (for comp > 1500). Employees may add voluntary contributions above ₱200.",
+  "formula": "base = min(comp, 10000); employee = base * employee_rate; employer = base * employer_rate"
+}

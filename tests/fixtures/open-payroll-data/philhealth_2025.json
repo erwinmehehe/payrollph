@@ -1,0 +1,23 @@
+{
+  "topic": "PhilHealth monthly premium",
+  "country": "PH",
+  "effective_date": "2025-01-01",
+  "currency": "PHP",
+  "volatility": "stable",
+  "source": {
+    "issuance": "PhilHealth Advisory No. PA2025-0002 (RA 11223)",
+    "source_tier": "primary",
+    "last_verified": "2026-06-24",
+    "url": "https://www.philhealth.gov.ph/advisories/2025/PA2025-0002.pdf",
+    "markdown": "ph/philhealth/contribution_rate_2025.md"
+  },
+  "rate": 0.05,
+  "employee_rate": 0.025,
+  "employer_rate": 0.025,
+  "salary_floor": 10000,
+  "salary_ceiling": 100000,
+  "min_premium_total": 500,
+  "max_premium_total": 5000,
+  "notes": "premium = clamp(monthly_basic_salary, 10000, 100000) * 0.05; employee = that / 2. 5% is the final UHC tranche (RA 11223 ceiling) — continues for 2026.",
+  "formula": "msb = min(max(basic,10000),100000); total = msb*0.05; employee = msb*0.025"
+}
