@@ -13,6 +13,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Search,
+  Settings2,
   ShieldCheck,
   UserCheck,
 } from "lucide-react";
@@ -146,7 +147,6 @@ export function WorkspaceShell({
       return live ? String(live) : null;
     }
     if (kind === "api") return "API";
-    if (kind === "attention") return notifications.length ? String(Math.min(notifications.length, 99)) : null;
     return null;
   }
 
@@ -236,6 +236,12 @@ export function WorkspaceShell({
         </nav>
 
         <div className="sidebar-bottom">
+          {visiblePages?.includes("Settings") && (
+            <button className={`nav-item ${page === "Settings" ? "active" : ""}`} onClick={() => go("Settings")} aria-current={page === "Settings" ? "page" : undefined}>
+              <span className="nav-icon t-slate" aria-hidden><Settings2 size={14} /></span>
+              <span>Settings</span>
+            </button>
+          )}
           <button className="nav-item" onClick={onSignOut}>
             <LogOut size={16} className="i-slate" />
             <span>Sign out</span>
