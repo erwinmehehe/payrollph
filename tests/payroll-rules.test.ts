@@ -77,10 +77,23 @@ test("clock derivation handles grace, OT, night work, and missing pairs", () => 
   assert.equal(overnight.tardinessMinutes, 0);
   assert.equal(overnight.overtimeMinutes, 30);
   assert.equal(overnight.nightDifferentialMinutes, 480);
+  assert.equal(overnight.nightRegularMinutes, 480);
+  assert.equal(overnight.nightOvertimeMinutes, 0);
 
   const incomplete = deriveClockHours({ timeIn: "2026-03-10T09:00" }, { start: "09:00", end: "18:00" });
   assert.equal(incomplete.workedMinutes, 0);
   assert.equal(incomplete.flags.length, 1);
+});
+
+test("night differential splits at the overtime boundary", () => {
+  const evening = deriveClockHours(
+    { timeIn: "2026-03-10T14:00", timeOut: "2026-03-11T01:00" },
+    { start: "14:00", end: "23:00", breakMinutes: 60, graceMinutes: 5 },
+  );
+  assert.equal(evening.overtimeMinutes, 120);
+  assert.equal(evening.nightRegularMinutes, 60);
+  assert.equal(evening.nightOvertimeMinutes, 120);
+  assert.equal(evening.nightDifferentialMinutes, 180);
 });
 
 test("freelancer comparison recommends the lower modeled option", () => {
