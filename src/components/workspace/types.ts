@@ -262,6 +262,17 @@ export type PayRevision = {
   createdAt: Date | string;
 };
 
+export type RestDayRevision = {
+  id: number;
+  employeeId: number;
+  effectiveDate: string;
+  previousRestDay?: string | null;
+  newRestDay?: string | null;
+  reason: string;
+  createdBy: string;
+  createdAt: Date | string;
+};
+
 export type RetroAdjustment = {
   id: number;
   employeeId: number;
@@ -315,6 +326,7 @@ export type DashboardData = {
   };
   provisioning?: ProvisioningTask[];
   payRevisions?: PayRevision[];
+  restDayRevisions?: RestDayRevision[];
   retroAdjustments?: RetroAdjustment[];
   freelancer: FreelancerProfile;
   security?: {
