@@ -2,6 +2,7 @@ import { useState } from "react";
 import { AlertTriangle, ArrowRight, Check, CheckCircle2, Clock, Download, Lock, Play, ShieldCheck } from "lucide-react";
 import { Reveal } from "./ui";
 import { cn } from "../utils/cn";
+import { PayrollOwl } from "@/components/payroll-owl";
 
 const audiences = [
   { id: "freelancer", label: "Freelancer", nav: ["Overview", "Taxes", "Documents"], note: "People, payroll and approvals stay hidden until you need them." },
@@ -73,6 +74,17 @@ export default function Hero() {
         </div>
 
         <Reveal delay={150} className="relative">
+          <div className="mb-4 flex items-center gap-3 rounded-[18px] border border-[#DDE7F1] bg-white/95 p-3 shadow-[0_18px_48px_-32px_rgba(11,35,66,.4)] backdrop-blur sm:max-w-[420px]">
+            <div className="h-[72px] w-[72px] shrink-0 rounded-[16px] bg-gradient-to-br from-[#EEF8FB] to-[#F7FBFD] p-1">
+              <PayrollOwl state="review" className="h-full w-full" label="PayrollPH owl payroll guide" />
+            </div>
+            <div>
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-[#0F8F8A]">Payroll Guide</p>
+              <p className="mt-1 text-[13px] font-extrabold leading-snug text-[#102A4C]">I’ll help you see what needs attention before payday.</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-[#727A91]">Clear prompts, real payroll state, no noisy pop-ups.</p>
+            </div>
+          </div>
+
           <div className="relative overflow-hidden rounded-[22px] border border-[#E2E4F0] bg-white shadow-[0_2px_6px_rgba(16,18,38,.05),0_40px_90px_-30px_rgba(70,70,190,.35)]">
             <div className="grid grid-cols-[150px_1fr] max-sm:grid-cols-1">
               <aside className="border-r border-[#EDEFF7] bg-[#FAFBFD] p-3 max-sm:hidden">
