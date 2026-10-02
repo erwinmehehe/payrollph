@@ -51,7 +51,7 @@ export const PARITY: Array<{
   { capability: "Semi-monthly + monthly payroll", linaw: "verified", competitors: { Sprout: "yes", PayrollHero: "yes", "GreatDay HR": "yes", Kazam: "limited" } },
   { capability: "SSS / PhilHealth / Pag-IBIG / TRAIN engine", linaw: "verified", competitors: { Sprout: "yes", PayrollHero: "yes", "GreatDay HR": "yes", Kazam: "yes" } },
   { capability: "MWE exemption cascading", linaw: "verified", competitors: { Sprout: "limited", PayrollHero: "yes", "GreatDay HR": "yes", Kazam: "unknown" } },
-  { capability: "Holiday premium stacking", linaw: "verified", competitors: { Sprout: "yes", PayrollHero: "yes", "GreatDay HR": "limited", Kazam: "unknown" } },
+  { capability: "Holiday premium stacking (including double regular holiday)", linaw: "verified", competitors: { Sprout: "yes", PayrollHero: "yes", "GreatDay HR": "limited", Kazam: "unknown" } },
   // One fixed weekly day per employee, editable by authorized People admins.
   // Exempt categories and rotating/substitute rest days are not modeled yet.
   { capability: "Rest-day premium pay", linaw: "partial", competitors: { Sprout: "yes", PayrollHero: "yes", "GreatDay HR": "limited", Kazam: "unknown" } },
@@ -100,7 +100,7 @@ export async function buildCapabilityReport() {
   const emailCapable = deliveryCapable();
 
   const capabilities: Capability[] = [
-    { id: "engine", area: "Payroll", label: "Semi-monthly calculation engine", detail: "SSS, PhilHealth, Pag-IBIG, TRAIN brackets, MWE exemption, holiday stacking, night differential.", status: "verified", proof: `${runs} run(s) on record · tests/payroll-rules.test.ts` },
+    { id: "engine", area: "Payroll", label: "Semi-monthly calculation engine", detail: "SSS, PhilHealth, Pag-IBIG, TRAIN brackets, MWE exemption, regular/special/double-regular holiday stacking, rest-day premiums and compounded night differential.", status: "verified", proof: `${runs} run(s) on record · tests/payroll-rules.test.ts · tests/premium-pay-crosscheck.test.ts · tests/holiday-calendar.test.ts` },
     { id: "queue", area: "Scale", label: "Chunked background queue", detail: "Postgres FOR UPDATE SKIP LOCKED, resumable and idempotent per run.", status: "verified", proof: codeProof("src/lib/payroll-engine.ts") },
     { id: "tenancy", area: "Security", label: "Tenant isolation", detail: "Every session route is membership-gated; resource routes check the record's own org.", status: "verified", proof: "tests/tenancy.test.ts" },
     { id: "auth", area: "Security", label: "Password + TOTP + revocable sessions", detail: "scrypt hashing, RFC 6238 challenge between password and session, distributed rate limiting.", status: "verified", proof: codeProof("src/lib/totp.ts") },
