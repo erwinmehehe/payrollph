@@ -534,6 +534,8 @@ test("workspace dashboard matches the PayrollPH mockup using modular real-data c
   const styles = read("src/app/workspace-theme.css");
 
   assert.ok(shell.includes("PayrollPH"), "workspace brand must match the PayrollPH mockup");
+  assert.ok(shell.includes("OVERVIEW_NAV_ORDER"), "dashboard landing must use the compact seven-item navigation");
+  assert.ok(shell.includes("navigationGroups"), "dashboard landing must swap to the compact navigation set");
   assert.ok(shell.includes("Search employees, payroll, reports"), "top search should use the mockup wording");
   assert.ok(dashboard.includes("DashboardAlertBanner"), "role dashboards must use the shared alert banner");
   assert.ok(dashboard.includes("DashboardStatCard"), "role dashboards must use the shared metric card");
@@ -555,6 +557,8 @@ test("employee self-service uses the same PayrollPH mascot language without expo
   const mascot = read("src/components/payroll-owl.tsx");
   assert.ok(mascot.includes('| "employee"'), "Payroll Guide role type must support employee");
   assert.ok(selfService.includes("<PayrollGuide"), "employee payslip view must use the shared mascot guide");
+  assert.ok(selfService.includes("employee-dashboard-metrics"), "employee landing needs the same four-KPI hierarchy as the mockup");
+  assert.ok(selfService.includes("employee-deep-details"), "long-form pay history must stay below a compact disclosure");
   assert.ok(selfService.includes('role="employee"'), "employee guide must identify the employee context");
   assert.ok(!selfService.includes("RecentPayrollRuns"), "employee view must not expose company payroll run history");
 });
