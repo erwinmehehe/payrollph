@@ -2930,3 +2930,34 @@
     padding-top: 16px;
   }
 }
+
+
+/* Final mockup fidelity pass. */
+.app-shell[data-workspace-page="Overview"] .sidebar-bottom {
+  display: none;
+}
+
+.app-shell[data-workspace-page="Overview"] .dashboard-alert-owl {
+  width: 118px;
+  height: 126px;
+  align-self: center;
+}
+
+.app-shell[data-workspace-page="Overview"] .dashboard-alert-owl svg {
+  width: 122px;
+  height: 122px;
+  transform: translateY(3px);
+}
+
+@media (max-width: 720px) {
+  .app-shell[data-workspace-page="Overview"] .dashboard-alert-owl {
+    width: 74px;
+    height: 84px;
+  }
+
+  .app-shell[data-workspace-page="Overview"] .dashboard-alert-owl svg {
+    width: 80px;
+    height: 80px;
+    transform: translate(-4px, 1px);
+  }
+}
