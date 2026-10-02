@@ -25,33 +25,46 @@ type FilingRecord = {
   createdAt: string;
 };
 
-type FilingForm = { agency: string; form: string; generatorVersion: string; referenceLabel: string };
-
-const AGENCY = "SSS";
-const FORM = "R-3";
-
-const METHOD_LABEL = {
-  file_upload: "Uploaded the file Linaw generated",
-  manual_entry: "Typed the figures in by hand",
-} as const;
+type FilingForm = {
+  agency: string;
+  form: string;
+  generatorVersion: string;
+  referenceLabel: string;
+  copy: {
+    title: string;
+    agencyLabel: string;
+    portalLabel: string;
+    methodLabels: { file_upload: string; manual_entry: string };
+    manualEntryNote: string;
+    answerLabel: string;
+    scopeNote: string | null;
+    unconfirmedNote: string;
+  };
+};
 
 function todayInput() {
   return new Date().toISOString().slice(0, 10);
 }
 
 /**
- * Records what SSS said about a generated R-3 file. The three steps are on one
+ * Records what an agency said about a file Linaw generated. The wording comes
+ * from the form's definition on the server (src/lib/filing-evidence.ts), so the
+ * claims on screen are reviewed with the rules that decide what counts. The three steps are on one
  * card on purpose: create the record, download exactly that file, then record
  * the answer. Only an accepted upload of the generated file turns the readiness
  * gate on, and the form says so before anyone clicks.
  */
 export function FilingEvidencePanel({
   organizationId,
+  agency,
+  form,
   run,
   notify,
   onRefresh,
 }: {
   organizationId: number;
+  agency: string;
+  form: string;
   run: { id: number; periodLabel: string };
   notify: Notify;
   onRefresh: () => Promise<void>;
@@ -86,7 +99,7 @@ export function FilingEvidencePanel({
         }
         setLoadError(null);
         setRecords(payload.records ?? []);
-        setDefinition((payload.forms ?? []).find((item: FilingForm) => item.agency === AGENCY && item.form === FORM) ?? null);
+        setDefinition((payload.forms ?? []).find((item: FilingForm) => item.agency === agency && item.form === form) ?? null);
       })
       .catch(() => {
         if (!active) return;
@@ -96,10 +109,12 @@ export function FilingEvidencePanel({
     return () => {
       active = false;
     };
-  }, [organizationId, reloadKey]);
+  }, [organizationId, agency, form, reloadKey]);
 
-  const forRun = (records ?? []).filter((item) => item.agency === AGENCY && item.form === FORM && item.payrollRunId === run.id);
+  const forRun = (records ?? []).filter((item) => item.agency === agency && item.form === form && item.payrollRunId === run.id);
   const currentVersion = definition?.generatorVersion;
+  const copy = definition?.copy;
+  const agencyLabel = copy?.agencyLabel ?? agency;
 
   function reset() {
     setOutcome("accepted");
@@ -115,16 +130,16 @@ export function FilingEvidencePanel({
       const response = await fetch("/api/compliance/filing-validations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ organizationId, runId: run.id, agency: AGENCY, form: FORM }),
+        body: JSON.stringify({ organizationId, runId: run.id, agency, form }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        notify(payload.error ?? "The SSS R-3 record could not be created.", "err");
+        notify(payload.error ?? `The ${agency} ${form} record could not be created.`, "err");
         return;
       }
       notify(
         payload.created
-          ? "SSS R-3 record created. Download that file, submit it to SSS, then record the result here."
+          ? `${agency} ${form} record created. Download that file, use it with ${copy?.portalLabel ?? agencyLabel}, then record the result here.`
           : "This exact file already has a record. Nothing was duplicated.",
         "ok",
       );
@@ -166,11 +181,11 @@ export function FilingEvidencePanel({
 
   async function saveResult(record: FilingRecord) {
     if (outcome === "accepted" && reference.trim().length < 4) {
-      notify("Enter the reference number SSS gave you before recording an acceptance.", "err");
+      notify(`Enter the reference ${agencyLabel} gave you before recording an acceptance.`, "err");
       return;
     }
     if (outcome === "rejected" && !note.trim()) {
-      notify("Say what SSS rejected, so the next attempt can fix it.", "err");
+      notify(`Say what ${agencyLabel} rejected, so the next attempt can fix it.`, "err");
       return;
     }
 
@@ -197,7 +212,7 @@ export function FilingEvidencePanel({
       notify(
         outcome === "accepted"
           ? method === "file_upload"
-            ? "Acceptance recorded. This counts toward the SSS R-3 readiness gate."
+            ? `Acceptance recorded. This counts toward the ${agency} ${form} readiness gate.`
             : "Filing recorded. Because the figures were typed in, it does not count as proof the generated file imports."
           : "Rejection recorded. Fix the cause, then create a new record for the corrected file.",
         "ok",
@@ -215,9 +230,9 @@ export function FilingEvidencePanel({
 
   function evidenceLabel(record: FilingRecord) {
     if (record.status !== "accepted") return null;
-    if (record.submissionMethod !== "file_upload") return { tone: "amber", text: "Recorded, but typed in by hand, so it does not prove the file imports." };
+    if (record.submissionMethod !== "file_upload") return { tone: "amber", text: "Recorded, but typed in by hand, so it does not prove the generated file works." };
     if (currentVersion && record.generatorVersion !== currentVersion) return { tone: "amber", text: "Accepted for an older file layout, so it no longer counts." };
-    return { tone: "green", text: "Counts toward the SSS R-3 readiness gate." };
+    return { tone: "green", text: `Counts toward the ${agency} ${form} readiness gate.` };
   }
 
   return (
@@ -225,10 +240,10 @@ export function FilingEvidencePanel({
       <div className="card-header">
         <div>
           <div className="card-kicker">AGENCY EVIDENCE</div>
-          <h2>SSS R-3: did SSS accept the file?</h2>
+          <h2>{copy?.title ?? `${agency} ${form}`}</h2>
           <p>
-            Linaw does not submit to SSS. This keeps proof of what happened when you did: the exact file, the
-            reference SSS gave you, and who recorded it.
+            Linaw does not submit to {agencyLabel}. This keeps proof of what happened when you did: the exact file, the
+            reference {agencyLabel} gave you, and who recorded it.
           </p>
         </div>
         <FileCheck2 size={18} className="i-teal" aria-hidden />
@@ -238,11 +253,17 @@ export function FilingEvidencePanel({
         <div className="notice notice-blue" style={{ margin: 0 }}>
           <Info size={15} className="i-blue" />
           <span>
-            Only an accepted <strong>upload of the file Linaw generated</strong> turns the readiness gate on. If you
-            retyped the figures into My.SSS, record it as typed in: it is kept, but it does not prove the file works.
-            It is not yet confirmed that SSS takes this worksheet at all, so a rejection is useful information, record it.
+            Only an accepted <strong>use of the file Linaw generated</strong> turns the readiness gate on.{" "}
+            {copy?.manualEntryNote} {copy?.unconfirmedNote}
           </span>
         </div>
+
+        {copy?.scopeNote && (
+          <div className="notice notice-amber" style={{ margin: 0 }}>
+            <AlertTriangle size={15} className="i-amber" />
+            <span>{copy.scopeNote}</span>
+          </div>
+        )}
 
         {loadError && (
           <div className="notice notice-red" style={{ margin: 0 }}>
@@ -254,7 +275,7 @@ export function FilingEvidencePanel({
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <button className="secondary-button" disabled={creating || records === null} onClick={() => void createRecord()}>
             <FileCheck2 size={14} className="i-teal" />
-            {creating ? "Creating record…" : `Create SSS R-3 record for ${run.periodLabel}`}
+            {creating ? "Creating record…" : `Create ${agency} ${form} record for ${run.periodLabel}`}
           </button>
           <small className="field-help" style={{ margin: 0 }}>
             Uses this run&apos;s data as it is now. Creating it again with unchanged data returns the same record.
@@ -262,7 +283,7 @@ export function FilingEvidencePanel({
         </div>
 
         {records !== null && forRun.length === 0 && !loadError && (
-          <p className="field-help" style={{ margin: 0 }}>No SSS R-3 records for this run yet.</p>
+          <p className="field-help" style={{ margin: 0 }}>No {agency} {form} records for this run yet.</p>
         )}
 
         {forRun.map((record) => {
@@ -295,14 +316,14 @@ export function FilingEvidencePanel({
                         setOpenId(isOpen ? null : record.id);
                       }}
                     >
-                      <Check size={14} /> {isOpen ? "Cancel" : "2. Record SSS's answer"}
+                      <Check size={14} /> {isOpen ? "Cancel" : `2. Record ${agencyLabel}'s answer`}
                     </button>
                   </div>
 
                   {isOpen && (
                     <div style={{ display: "grid", gap: 10 }}>
                       <Segmented
-                        label="What SSS said"
+                        label={`What ${agencyLabel} said`}
                         value={outcome}
                         onChange={setOutcome}
                         options={[
@@ -313,18 +334,18 @@ export function FilingEvidencePanel({
                       <label className="field">
                         <span>How it was submitted</span>
                         <select value={method} onChange={(event) => setMethod(event.target.value as typeof method)}>
-                          <option value="file_upload">{METHOD_LABEL.file_upload}</option>
-                          <option value="manual_entry">{METHOD_LABEL.manual_entry}</option>
+                          <option value="file_upload">{copy?.methodLabels.file_upload}</option>
+                          <option value="manual_entry">{copy?.methodLabels.manual_entry}</option>
                         </select>
                       </label>
                       {outcome === "accepted" ? (
                         <>
                           <label className="field">
-                            <span>{definition?.referenceLabel ?? "SSS PRN or acknowledgement number"}</span>
+                            <span>{copy?.answerLabel ?? "Agency reference"}</span>
                             <input
                               value={reference}
                               onChange={(event) => setReference(event.target.value)}
-                              placeholder="Copy it exactly from My.SSS"
+                              placeholder={`Copy it exactly as ${agencyLabel} gave it to you`}
                               maxLength={60}
                             />
                           </label>
@@ -339,12 +360,12 @@ export function FilingEvidencePanel({
                         </>
                       ) : (
                         <label className="field">
-                          <span>What did SSS reject, and why?</span>
+                          <span>What did {agencyLabel} reject, and why?</span>
                           <textarea
                             value={note}
                             onChange={(event) => setNote(event.target.value)}
                             maxLength={2000}
-                            placeholder="Paste the error message or the column SSS did not accept"
+                            placeholder={`Paste the error message or the field ${agencyLabel} did not accept`}
                           />
                         </label>
                       )}
@@ -354,7 +375,7 @@ export function FilingEvidencePanel({
                         </button>
                         <p className="field-help">
                           This is a permanent, audited entry and cannot be edited afterwards. Record an acceptance only if
-                          My.SSS actually shows one; Linaw cannot check SSS for you. If you are asked to confirm your identity,
+                          {agencyLabel} actually gave you one; Linaw cannot check {agencyLabel} for you. If you are asked to confirm your identity,
                           that is the usual extra check for sensitive payroll actions.
                         </p>
                       </div>
@@ -367,7 +388,7 @@ export function FilingEvidencePanel({
                 <div style={{ display: "grid", gap: 4 }}>
                   <p style={{ margin: 0 }}>
                     {record.status === "accepted" ? "Accepted" : "Rejected"}
-                    {record.submissionMethod ? ` · ${METHOD_LABEL[record.submissionMethod].toLowerCase()}` : ""}
+                    {record.submissionMethod && copy ? ` · ${copy.methodLabels[record.submissionMethod].toLowerCase()}` : ""}
                     {record.agencyReference ? ` · reference ${record.agencyReference}` : ""}
                     {record.submittedAt ? ` · submitted ${formatDate(record.submittedAt)}` : ""}
                     {record.recordedBy ? ` · recorded by ${record.recordedBy}` : ""}

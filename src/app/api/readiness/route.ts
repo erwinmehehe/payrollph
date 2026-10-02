@@ -2,6 +2,7 @@ import { and, count, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, employees, invoices, outbox, payrollEntries, subscriptions, users } from "@/db/schema";
 import { bankEncryptionConfigured, bankEncryptionKeySource } from "@/lib/bank-account-crypto";
+import { describeEvidenceGap, findFilingForm } from "@/lib/filing-evidence";
 import { filingEvidenceSummaries } from "@/lib/filing-evidence-store";
 import { activeMailProvider, deliveryCapable } from "@/lib/mail-provider";
 import { verifyPassword } from "@/lib/crypto";
@@ -49,16 +50,22 @@ export async function buildReadinessPayload() {
       and ${payrollEntries.trace} #>> '{payment,bankAccount}' <> ''
       and ${payrollEntries.trace} #>> '{payment,bankAccount}' not like 'enc:v1:%'`);
 
-  // SSS R-3 readiness comes from recorded agency acceptance, not an env flag.
+  // SSS R-3 and the BIR Alphalist readiness come from recorded agency acceptance, not env flags.
   // The table can be missing on a database that has not been upgraded yet, and
   // that must read as "not proven" rather than taking readiness down.
-  let sssEvidence: Awaited<ReturnType<typeof filingEvidenceSummaries>>[number] | null = null;
-  let sssEvidenceError: string | null = null;
+  let filingEvidence: Awaited<ReturnType<typeof filingEvidenceSummaries>> = [];
+  let filingEvidenceError: string | null = null;
   try {
-    sssEvidence = (await filingEvidenceSummaries()).find((item) => item.definition.agency === "SSS" && item.definition.form === "R-3") ?? null;
+    filingEvidence = await filingEvidenceSummaries();
   } catch {
-    sssEvidenceError = "The filing evidence table is not available yet. Apply drizzle/0005_government_filing_validations.sql.";
+    filingEvidenceError = "The filing evidence table is not available yet. Apply drizzle/0005_government_filing_validations.sql.";
   }
+  const evidenceFor = (agency: string, form: string) =>
+    filingEvidence.find((item) => item.definition.agency === agency && item.definition.form === form) ?? null;
+  const sssEvidence = evidenceFor("SSS", "R-3");
+  const birEvidence = evidenceFor("BIR", "1604-C");
+  const philhealthEvidence = evidenceFor("PhilHealth", "RF-1");
+  const pagibigEvidence = evidenceFor("Pag-IBIG", "MCRF");
 
   const provider = activeMailProvider();
 
@@ -102,10 +109,10 @@ export async function buildReadinessPayload() {
   // validator and confirmed it passes", that's what each flag below
   // records, set by whoever does that check, not by us detecting it.
   const demoMode = enabled("DEMO_MODE");
-  const birAlphalistValidated = enabled("BIR_ALPHALIST_VALIDATED");
+  const birAlphalistValidated = Boolean(birEvidence?.proven);
   const sssR3Validated = Boolean(sssEvidence?.proven);
-  const philhealthValidated = enabled("PHILHEALTH_RF1_VALIDATED");
-  const pagibigValidated = enabled("PAGIBIG_MCRF_VALIDATED");
+  const philhealthValidated = Boolean(philhealthEvidence?.proven);
+  const pagibigValidated = Boolean(pagibigEvidence?.proven);
   const storageConfigured = configured("S3_BUCKET") || configured("R2_BUCKET");
   const storageIntegrated = false;
   const malwareEndpointConfigured = configured("MALWARE_SCAN_URL");
@@ -237,10 +244,11 @@ export async function buildReadinessPayload() {
       label: "BIR Alphalist / 2316 validated in ADES",
       ready: birAlphalistValidated,
       detail: birAlphalistValidated
-        ? "A generated annual extract has been validated in the current BIR Alphalist module."
-        : "Employee middle name, employee TIN, and employer TIN/branch fields are now modeled and preflighted. Exact current 1604-C/ADES DAT generation and an actual ADES acceptance result are still required before filing-ready status.",
+        ? `BIR's ADES validated a Linaw-generated annual extract in the current layout (${birEvidence?.provingCount} recorded acceptance(s)${birEvidence?.latest?.agencyReference ? `, latest reference ${birEvidence.latest.agencyReference}` : ""}). The extract is built from a single payroll run, so this proves the layout and ID fields, not full-year totals, and Linaw does not produce the final .DAT.`
+        : filingEvidenceError
+          ?? `${describeEvidenceGap(birEvidence, findFilingForm("BIR", "1604-C")!)} Employee middle name, TIN and employer TIN/branch fields are modeled and preflighted; Linaw does not produce ADES's final .DAT.`,
       blocks: birAlphalistValidated ? "none" : "launch",
-      manualWorkaround: birAlphalistValidated ? undefined : "Enter the DRAFT figures into BIR's free ADES tool by hand and file via eAFS once it validates.",
+      manualWorkaround: birAlphalistValidated ? undefined : "Enter the DRAFT figures into BIR's free ADES tool by hand and file via eAFS once it validates, or load the extract into ADES and record the result under /api/compliance/filing-validations.",
     },
     {
       key: "gov-sss-r3",
@@ -248,8 +256,8 @@ export async function buildReadinessPayload() {
       ready: sssR3Validated,
       detail: sssR3Validated
         ? `SSS accepted an upload of a Linaw-generated R-3 file in the current layout (${sssEvidence?.provingCount} recorded acceptance(s)${sssEvidence?.latest?.agencyReference ? `, latest reference ${sssEvidence.latest.agencyReference}` : ""}).`
-        : sssEvidenceError
-          ?? `No recorded SSS acceptance of a Linaw-generated R-3 file in the current layout yet.${sssEvidence?.acceptedByManualEntry ? ` ${sssEvidence.acceptedByManualEntry} filing(s) were entered by hand, which proves a filing was made but not that the generated file imports.` : ""}${sssEvidence?.acceptedOnOlderLayout ? ` ${sssEvidence.acceptedOnOlderLayout} acceptance(s) were for an older file layout.` : ""}${sssEvidence?.rejected ? ` ${sssEvidence.rejected} rejection(s) are recorded.` : ""} Generate a record, upload that file in My.SSS, then record the PRN or acknowledgement.`,
+        : filingEvidenceError
+          ?? describeEvidenceGap(sssEvidence, findFilingForm("SSS", "R-3")!),
       blocks: sssR3Validated ? "none" : "launch",
       manualWorkaround: sssR3Validated ? undefined : "Enter the DRAFT figures into SSS's free R3 File Generator or My.SSS upload by hand, or upload the generated file and record the result under /api/compliance/filing-validations.",
     },
@@ -258,20 +266,22 @@ export async function buildReadinessPayload() {
       label: "PhilHealth RF-1 validated",
       ready: philhealthValidated,
       detail: philhealthValidated
-        ? "A generated remittance dataset has been accepted through PhilHealth's employer reporting workflow."
-        : "The draft now uses each employee's real PhilHealth PIN and recomputes full monthly employee/employer premium shares. PhilHealth EPRS acknowledgement is still required; the current CSV is a portal-entry aid, not a claimed EPRS import file.",
+        ? `PhilHealth's EPRS accepted a Linaw-generated RF-1 file in the current layout (${philhealthEvidence?.provingCount} recorded acceptance(s)${philhealthEvidence?.latest?.agencyReference ? `, latest receipt ${philhealthEvidence.latest.agencyReference}` : ""}). The receipt is issued on payment, so it shows the report was filed and paid, and Linaw's figures are recomputed from basic salary.`
+        : filingEvidenceError
+          ?? `${describeEvidenceGap(philhealthEvidence, findFilingForm("PhilHealth", "RF-1")!)} The draft uses each employee's real PhilHealth PIN and recomputes full monthly premium shares; the CSV is a portal-entry aid, not a claimed EPRS import file.`,
       blocks: philhealthValidated ? "none" : "launch",
-      manualWorkaround: philhealthValidated ? undefined : "Enter the DRAFT figures into PhilHealth's EPRS by hand (or their RF-1 Excel template, if you obtain the current column spec from PhilHealth directly).",
+      manualWorkaround: philhealthValidated ? undefined : "Enter the DRAFT figures into PhilHealth's EPRS by hand (or their RF-1 Excel template, if you obtain the current column spec from PhilHealth directly), then record the acknowledgement receipt under /api/compliance/filing-validations.",
     },
     {
       key: "gov-pagibig-mcrf",
       label: "Pag-IBIG MCRF validated",
       ready: pagibigValidated,
       detail: pagibigValidated
-        ? "A generated remittance schedule has been accepted through Pag-IBIG employer e-services."
-        : "The draft now uses each employee's real Pag-IBIG MID and full monthly employee/employer contribution. It remains an eSRS/employer-portal entry aid until a real employer acknowledgement is recorded.",
+        ? `Pag-IBIG (eSRS or a bank upload facility) accepted a Linaw-generated MCRF file in the current layout (${pagibigEvidence?.provingCount} recorded acceptance(s)${pagibigEvidence?.latest?.agencyReference ? `, latest reference ${pagibigEvidence.latest.agencyReference}` : ""}). A payment instruction shows the file was validated, not that the remittance was posted to the employer's account.`
+        : filingEvidenceError
+          ?? `${describeEvidenceGap(pagibigEvidence, findFilingForm("Pag-IBIG", "MCRF")!)} The draft uses each employee's real Pag-IBIG MID and full monthly contributions; it is an eSRS/employer-portal entry aid until an acceptance is recorded.`,
       blocks: pagibigValidated ? "none" : "launch",
-      manualWorkaround: pagibigValidated ? undefined : "Enter the DRAFT figures by hand into eSRS (employers with at most 30 employees) or Pag-IBIG's Virtual employer e-services portal.",
+      manualWorkaround: pagibigValidated ? undefined : "Enter the DRAFT figures by hand into eSRS (employers with at most 30 employees) or Pag-IBIG's Virtual employer e-services portal, then record the result under /api/compliance/filing-validations.",
     },
     {
       key: "object-storage",
