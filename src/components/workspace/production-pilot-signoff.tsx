@@ -5,16 +5,17 @@ import { Check, ClipboardCheck, ShieldCheck } from "lucide-react";
 import type { DashboardData, Notify } from "@/components/workspace/types";
 import { Status, money } from "@/components/workspace/ui";
 
-const CHECKS = [
-  ["grossPay", "Gross pay"],
-  ["deductions", "Deductions"],
-  ["netPay", "Net pay"],
-  ["withholdingTax", "Withholding tax"],
-  ["statutoryContributions", "SSS / PhilHealth / Pag-IBIG"],
-  ["payoutTotal", "Payout total"],
-  ["payslips", "Payslip values"],
-  ["accountingExport", "Accounting export totals"],
+const FIGURES = [
+  ["grossPay", "Gross pay", "peso"],
+  ["deductions", "Total deductions", "peso"],
+  ["netPay", "Net pay", "peso"],
+  ["withholdingTax", "Withholding tax", "peso"],
+  ["statutoryContributions", "SSS / PhilHealth / Pag-IBIG", "peso"],
+  ["payoutTotal", "Payout total", "peso"],
+  ["employeeCount", "Employee count", "count"],
 ] as const;
+
+type FigureKey = (typeof FIGURES)[number][0];
 
 export function ProductionPilotSignoffCard({
   data,
@@ -37,26 +38,45 @@ export function ProductionPilotSignoffCard({
 
   const [evidenceReference, setEvidenceReference] = useState("");
   const [independentPreparedBy, setIndependentPreparedBy] = useState("");
+  const [independentSourceConfirmed, setIndependentSourceConfirmed] = useState(false);
   const [operatorCompletedWithoutDeveloper, setOperatorCompletedWithoutDeveloper] = useState(false);
-  const [checks, setChecks] = useState<Record<string, boolean>>({});
+  const [figures, setFigures] = useState<Record<FigureKey, string>>({
+    grossPay: "",
+    deductions: "",
+    netPay: "",
+    withholdingTax: "",
+    statutoryContributions: "",
+    payoutTotal: "",
+    employeeCount: "",
+  });
   const [saving, setSaving] = useState(false);
 
   if (!releasedRun) return null;
 
-  const allChecked = CHECKS.every(([key]) => checks[key] === true);
+  const allFiguresPresent = FIGURES.every(([key, , kind]) => {
+    const value = figures[key].trim();
+    if (!value) return false;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0) return false;
+    return kind === "count" ? Number.isInteger(parsed) && parsed > 0 : true;
+  });
 
   async function signOff() {
     if (!releasedRun) return;
     setSaving(true);
     try {
+      const independentFigures = Object.fromEntries(
+        FIGURES.map(([key]) => [key, Number(figures[key])]),
+      );
       const response = await fetch(`/api/payroll-runs/${releasedRun.id}/pilot-signoff`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           evidenceReference: evidenceReference.trim(),
           independentPreparedBy: independentPreparedBy.trim(),
+          independentSourceConfirmed,
           operatorCompletedWithoutDeveloper,
-          checks,
+          independentFigures,
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -67,7 +87,7 @@ export function ProductionPilotSignoffCard({
       notify(
         payload.alreadyRecorded
           ? "Production pilot sign-off was already recorded."
-          : "Independent production payroll pilot evidence recorded.",
+          : "Independent production payroll figures matched and the pilot was signed off.",
         "ok",
       );
       await onRefresh();
@@ -79,6 +99,9 @@ export function ProductionPilotSignoffCard({
   }
 
   if (existing) {
+    const metadata = existing.metadata && typeof existing.metadata === "object"
+      ? existing.metadata as Record<string, unknown>
+      : {};
     return (
       <article className="card" data-production-pilot-signoff="complete" style={{ marginBottom: 16 }}>
         <div className="card-header">
@@ -86,8 +109,11 @@ export function ProductionPilotSignoffCard({
             <div className="card-kicker"><ShieldCheck size={14} /> PRODUCTION PILOT</div>
             <h2>Independent payroll pilot signed off</h2>
             <p>
-              A released payroll cycle has independent reconciliation evidence on the audit trail.
+              The released cycle has server-verified reconciliation figures and payout/export evidence on the audit trail.
             </p>
+            {typeof metadata.evidenceReference === "string" && (
+              <small>Evidence: {metadata.evidenceReference}</small>
+            )}
           </div>
           <Status value="Signed off" />
         </div>
@@ -100,9 +126,9 @@ export function ProductionPilotSignoffCard({
       <div className="card-header">
         <div>
           <div className="card-kicker"><ClipboardCheck size={14} /> LAUNCH EVIDENCE</div>
-          <h2>Sign off the real payroll pilot</h2>
+          <h2>Reconcile and sign off the real payroll pilot</h2>
           <p>
-            Do this only after an independent calculation outside Linaw matches the released cycle and the operator completed it without developer intervention.
+            Enter totals from an independently prepared worksheet. Linaw will compare them to the released payroll server-side before accepting launch evidence.
           </p>
         </div>
         <Status value="Required" />
@@ -118,12 +144,12 @@ export function ProductionPilotSignoffCard({
           <div>
             <span>Employees</span>
             <strong>{releasedRun.employeeCount}</strong>
-            <small>released entries</small>
+            <small>Linaw released count</small>
           </div>
           <div>
             <span>Net payroll</span>
             <strong className="green-number">{money(releasedRun.netPay)}</strong>
-            <small>must match independent proof</small>
+            <small>Linaw released total</small>
           </div>
         </div>
 
@@ -134,7 +160,7 @@ export function ProductionPilotSignoffCard({
               value={evidenceReference}
               maxLength={200}
               onChange={(event) => setEvidenceReference(event.target.value)}
-              placeholder="e.g. External workbook / accountant review reference"
+              placeholder="External workbook / accountant review reference"
             />
           </label>
           <label>
@@ -148,18 +174,36 @@ export function ProductionPilotSignoffCard({
           </label>
         </div>
 
+        <div>
+          <div className="card-kicker" style={{ marginBottom: 8 }}>INDEPENDENT FIGURES</div>
+          <div className="setting-form">
+            {FIGURES.map(([key, label, kind]) => (
+              <label key={key}>
+                {label}
+                <input
+                  type="number"
+                  min={kind === "count" ? 1 : 0}
+                  step={kind === "count" ? 1 : "0.01"}
+                  inputMode={kind === "count" ? "numeric" : "decimal"}
+                  value={figures[key]}
+                  onChange={(event) => setFigures((current) => ({ ...current, [key]: event.target.value }))}
+                  placeholder={kind === "count" ? "Independent headcount" : "0.00"}
+                />
+              </label>
+            ))}
+          </div>
+        </div>
+
         <div style={{ display: "grid", gap: 8 }}>
-          {CHECKS.map(([key, label]) => (
-            <label className="switch" key={key}>
-              <input
-                type="checkbox"
-                checked={checks[key] === true}
-                onChange={(event) => setChecks((current) => ({ ...current, [key]: event.target.checked }))}
-              />
-              <i aria-hidden />
-              <span>{label} matches the independently prepared expected result</span>
-            </label>
-          ))}
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={independentSourceConfirmed}
+              onChange={(event) => setIndependentSourceConfirmed(event.target.checked)}
+            />
+            <i aria-hidden />
+            <span>These figures were prepared independently and were not copied from Linaw</span>
+          </label>
           <label className="switch">
             <input
               type="checkbox"
@@ -174,7 +218,7 @@ export function ProductionPilotSignoffCard({
         <div className="notice notice-amber" style={{ margin: 0 }}>
           <ClipboardCheck size={15} />
           <span>
-            Linaw verifies that the selected run was released, has payout-completion evidence, payslips for every released entry, and an accounting journal export before accepting this sign-off.
+            Sign-off is accepted only when every independent total matches the released payroll to the cent, employee count matches exactly, payout is completed, every payslip exists, and the accounting journal export was generated.
           </span>
         </div>
 
@@ -185,12 +229,13 @@ export function ProductionPilotSignoffCard({
               saving
               || evidenceReference.trim().length < 8
               || independentPreparedBy.trim().length < 3
-              || !allChecked
+              || !allFiguresPresent
+              || !independentSourceConfirmed
               || !operatorCompletedWithoutDeveloper
             }
             onClick={() => void signOff()}
           >
-            {saving ? "Recording evidence…" : <><Check size={14} /> Record production pilot sign-off</>}
+            {saving ? "Verifying reconciliation…" : <><Check size={14} /> Verify figures & sign off pilot</>}
           </button>
         </div>
       </div>

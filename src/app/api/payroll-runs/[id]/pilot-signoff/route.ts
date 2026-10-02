@@ -13,22 +13,62 @@ import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/secu
 
 export const dynamic = "force-dynamic";
 
-const REQUIRED_CHECKS = [
+const MONEY_FIGURES = [
   "grossPay",
   "deductions",
   "netPay",
   "withholdingTax",
   "statutoryContributions",
   "payoutTotal",
-  "payslips",
-  "accountingExport",
 ] as const;
 
-type PilotCheck = (typeof REQUIRED_CHECKS)[number];
+type MoneyFigure = (typeof MONEY_FIGURES)[number];
+type IndependentFigures = Record<MoneyFigure, number> & { employeeCount: number };
 
 function eventBelongsToRun(event: typeof auditEvents.$inferSelect, runId: number) {
   if (!event.metadata || typeof event.metadata !== "object") return false;
   return Number((event.metadata as Record<string, unknown>).runId) === runId;
+}
+
+function asMoney(value: unknown): number | null {
+  if (typeof value !== "number" && typeof value !== "string") return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return Math.round((parsed + Number.EPSILON) * 100) / 100;
+}
+
+function asEmployeeCount(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function lineAmount(entry: typeof payrollEntries.$inferSelect, codes: Set<string>) {
+  if (!Array.isArray(entry.lineItems)) return 0;
+  return entry.lineItems.reduce((total, raw) => {
+    if (!raw || typeof raw !== "object") return total;
+    const item = raw as Record<string, unknown>;
+    if (typeof item.code !== "string" || !codes.has(item.code)) return total;
+    const amount = Number(item.amount);
+    return Number.isFinite(amount) ? total + Math.abs(amount) : total;
+  }, 0);
+}
+
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function figuresFromEntries(entries: Array<typeof payrollEntries.$inferSelect>): IndependentFigures {
+  const withholdingCodes = new Set(["WHT"]);
+  const statutoryCodes = new Set(["SSS", "PHIC", "HDMF"]);
+  return {
+    grossPay: roundMoney(entries.reduce((sum, entry) => sum + Number(entry.grossPay), 0)),
+    deductions: roundMoney(entries.reduce((sum, entry) => sum + Number(entry.deductions), 0)),
+    netPay: roundMoney(entries.reduce((sum, entry) => sum + Number(entry.netPay), 0)),
+    withholdingTax: roundMoney(entries.reduce((sum, entry) => sum + lineAmount(entry, withholdingCodes), 0)),
+    statutoryContributions: roundMoney(entries.reduce((sum, entry) => sum + lineAmount(entry, statutoryCodes), 0)),
+    payoutTotal: roundMoney(entries.reduce((sum, entry) => sum + Number(entry.netPay), 0)),
+    employeeCount: entries.length,
+  };
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -86,8 +126,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const body = await request.json().catch(() => ({}));
   const evidenceReference = typeof body.evidenceReference === "string" ? body.evidenceReference.trim() : "";
   const independentPreparedBy = typeof body.independentPreparedBy === "string" ? body.independentPreparedBy.trim() : "";
-  const checks = body.checks && typeof body.checks === "object"
-    ? body.checks as Record<string, unknown>
+  const supplied = body.independentFigures && typeof body.independentFigures === "object"
+    ? body.independentFigures as Record<string, unknown>
     : {};
 
   if (evidenceReference.length < 8 || evidenceReference.length > 200) {
@@ -102,6 +142,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       { status: 400 },
     );
   }
+  if (body.independentSourceConfirmed !== true) {
+    return Response.json(
+      { error: "Confirm that the figures were prepared independently and were not copied from Linaw." },
+      { status: 400 },
+    );
+  }
   if (body.operatorCompletedWithoutDeveloper !== true) {
     return Response.json(
       { error: "Confirm that the payroll operator completed the cycle without developer intervention." },
@@ -109,16 +155,28 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     );
   }
 
-  const missingChecks = REQUIRED_CHECKS.filter((key) => checks[key] !== true);
-  if (missingChecks.length > 0) {
+  const independentFigures = {} as IndependentFigures;
+  for (const key of MONEY_FIGURES) {
+    const value = asMoney(supplied[key]);
+    if (value === null) {
+      return Response.json(
+        { error: `Independent figure ${key} must be a non-negative peso amount with at most cent precision.` },
+        { status: 400 },
+      );
+    }
+    independentFigures[key] = value;
+  }
+  const employeeCount = asEmployeeCount(supplied.employeeCount);
+  if (employeeCount === null) {
     return Response.json(
-      { error: `Independent reconciliation is incomplete: ${missingChecks.join(", ")}.` },
+      { error: "Independent employee count must be a positive whole number." },
       { status: 400 },
     );
   }
+  independentFigures.employeeCount = employeeCount;
 
   const [entries, slips, orgEvents] = await Promise.all([
-    db.select({ id: payrollEntries.id }).from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id)),
+    db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id)),
     db.select({ id: payslips.id })
       .from(payslips)
       .innerJoin(payrollEntries, eq(payslips.payrollEntryId, payrollEntries.id))
@@ -171,6 +229,41 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     );
   }
 
+  const verifiedFigures = figuresFromEntries(entries);
+  const systemConsistencyFailures: string[] = [];
+  if (Math.abs(verifiedFigures.grossPay - Number(run.grossPay)) > 0.01) systemConsistencyFailures.push("grossPay");
+  if (Math.abs(verifiedFigures.netPay - Number(run.netPay)) > 0.01) systemConsistencyFailures.push("netPay");
+  if (verifiedFigures.employeeCount !== run.employeeCount) systemConsistencyFailures.push("employeeCount");
+  if (systemConsistencyFailures.length > 0) {
+    return Response.json(
+      {
+        error: `The released payroll is internally inconsistent and cannot be used as launch evidence: ${systemConsistencyFailures.join(", ")}.`,
+        systemConsistencyFailures,
+      },
+      { status: 409 },
+    );
+  }
+
+  const mismatches: string[] = [];
+  const variances: Record<string, number> = {};
+  for (const key of MONEY_FIGURES) {
+    const variance = roundMoney(independentFigures[key] - verifiedFigures[key]);
+    variances[key] = variance;
+    if (Math.abs(variance) > 0.01) mismatches.push(key);
+  }
+  variances.employeeCount = independentFigures.employeeCount - verifiedFigures.employeeCount;
+  if (independentFigures.employeeCount !== verifiedFigures.employeeCount) mismatches.push("employeeCount");
+
+  if (mismatches.length > 0) {
+    return Response.json(
+      {
+        error: `Independent reconciliation does not match the released payroll: ${mismatches.join(", ")}.`,
+        mismatches,
+      },
+      { status: 409 },
+    );
+  }
+
   const signedAt = new Date().toISOString();
   const event = await recordAuditEvent({
     organizationId: run.organizationId,
@@ -181,8 +274,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       runId: run.id,
       evidenceReference,
       independentPreparedBy,
+      independentSourceConfirmed: true,
       operatorCompletedWithoutDeveloper: true,
-      independentChecks: Object.fromEntries(REQUIRED_CHECKS.map((key: PilotCheck) => [key, true])),
+      independentFigures,
+      verifiedFigures,
+      reconciliationVariances: variances,
       employeeCount: entries.length,
       payslipCount: slips.length,
       releasedGrossPay: run.grossPay,
@@ -198,5 +294,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     auditEventId: event?.id ?? null,
     signedAt,
     evidenceReference,
+    verifiedFigures,
   });
 }

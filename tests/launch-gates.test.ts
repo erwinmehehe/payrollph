@@ -220,11 +220,13 @@ test("owners can record production pilot evidence without a developer-only workf
   const card = readFileSync("src/components/workspace/production-pilot-signoff.tsx", "utf8");
   const workspace = readFileSync("src/components/linaw-workspace.tsx", "utf8");
 
-  assert.ok(card.includes("Sign off the real payroll pilot"));
+  assert.ok(card.includes("Reconcile and sign off the real payroll pilot"));
   assert.ok(card.includes("Independent evidence reference"));
+  assert.ok(card.includes("INDEPENDENT FIGURES"));
+  assert.ok(card.includes("independentSourceConfirmed"));
   assert.ok(card.includes("The payroll operator completed this cycle without developer intervention"));
   assert.ok(card.includes("/pilot-signoff"));
-  assert.ok(card.includes("Record production pilot sign-off"));
+  assert.ok(card.includes("Verify figures & sign off pilot"));
   assert.ok(workspace.includes('effectiveRole === "owner"'));
   assert.ok(workspace.includes("<ProductionPilotSignoffCard"));
   assert.ok(workspace.includes("!demoRole"));
