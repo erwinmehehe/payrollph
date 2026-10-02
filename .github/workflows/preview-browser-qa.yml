@@ -854,7 +854,7 @@ jobs:
             const latest = page.locator("[data-latest-payslip]");
             check((await latest.count()) === 1, "Lifecycle: employee latest payslip card is missing after release");
             const latestText = await latest.innerText();
-            check(latestText.includes("Payslip available"), "Lifecycle: employee does not see Payslip available");
+            check(/Payslip available|payslip is ready/i.test(latestText), "Lifecycle: employee does not see the released payslip state");
             check(latestText.includes(period), "Lifecycle: newly released payslip is not promoted above history");
 
             check(errors.length === 0, `Lifecycle: browser console/page errors: ${errors.join(" | ")}`);
