@@ -2508,10 +2508,6 @@
   display: none !important;
 }
 
-.app-shell:has(.payrollph-dashboard) .nav-item[data-nav-name]:not([data-nav-name="Overview"]):not([data-nav-name="People"]):not([data-nav-name="Payroll"]):not([data-nav-name="Approvals"]):not([data-nav-name="Compliance"]):not([data-nav-name="Analytics"]):not([data-nav-name="Settings"]) {
-  display: none !important;
-}
-
 .app-shell:has(.payrollph-dashboard) .side-navigation {
   padding-top: 10px;
 }
@@ -2682,10 +2678,6 @@
 .app-shell[data-workspace-page="Overview"] .topbar-link,
 .app-shell[data-workspace-page="Overview"] .role-switcher-wrap {
   display: none !important;
-}
-
-.app-shell[data-workspace-page="Overview"] .side-navigation .nav-item:not([data-nav-name="Overview"]):not([data-nav-name="People"]):not([data-nav-name="Payroll"]):not([data-nav-name="Approvals"]):not([data-nav-name="Compliance"]):not([data-nav-name="Analytics"]):not([data-nav-name="Settings"]) {
-  display: none;
 }
 
 .app-shell[data-workspace-page="Overview"] .side-navigation .nav-group:has(.nav-item[data-nav-name="Overview"]) > p {
