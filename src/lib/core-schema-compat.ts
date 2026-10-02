@@ -110,7 +110,8 @@ export async function ensureCoreCompatibilitySchema() {
         ALTER TABLE employees
           ADD COLUMN IF NOT EXISTS middle_name varchar(80),
           ADD COLUMN IF NOT EXISTS tin_branch_code varchar(4),
-          ADD COLUMN IF NOT EXISTS nationality varchar(60) NOT NULL DEFAULT 'Filipino'
+          ADD COLUMN IF NOT EXISTS nationality varchar(60) NOT NULL DEFAULT 'Filipino',
+          ADD COLUMN IF NOT EXISTS rest_day varchar(10)
       `);
 
       // BANK_DATA_ENCRYPTION_KEY stores AES-GCM envelopes that are longer than

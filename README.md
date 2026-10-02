@@ -195,6 +195,8 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
 - DOLE wage orders (NCR WO-NCR-26 ₱695/day, effective 18 July 2025, and selected regions) live in `src/lib/wage-orders.ts`
 - A rate below the regional floor is treated as MWE for tax exemption cascading
 - Punch dates matching 2026 national holidays (plus a demo 11 Mar special day) apply the holiday multiplier matrix as a HOLIDAY line item
+- Overtime and night differential compound with the day's holiday/rest-day multiplier (DOLE Handbook "Guide Computations"), not a flat 125%/+10% regardless of day
+- `employees.restDay` is a nullable, per-employee weekly rest day (Labor Code Art. 91), set at hire time only (no edit screen yet, same gap `region` has); worked-rest-day premium and its compounding with a holiday both reuse `holidayMultiplier`'s existing `restDay` branch. No default: an unconfigured employee computes exactly as before
 
 ### Progressive disclosure
 - Freelancer accounts hide People, Payroll, Time, Leave, Approvals and Developer nav

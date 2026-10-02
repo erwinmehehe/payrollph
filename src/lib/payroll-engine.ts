@@ -28,6 +28,7 @@ import {
   computeSss,
   deriveClockHours,
   holidayMultiplier,
+  isRestDayOfWeek,
 } from "@/lib/payroll-rules";
 import { holidayOn, isBelowMinimum } from "@/lib/wage-orders";
 import { deMinimisPerSemiMonthlyPeriod, deMinimisTreatment, type DeMinimisType } from "@/lib/ph-compliance";
@@ -719,12 +720,14 @@ function calculateEmployeePay(input: {
     // method — e.g. regular-holiday OT = 200% x 1.30 = 260%, not a flat 125%
     // regardless of day). holidayMultiplier(..., overtime: true) returns that
     // combined rate; on a plain ordinary day it is 1.25, so this is a no-op
-    // there. Rest-day pay is not modeled (no rest-day concept exists on an
-    // employee/shift today), so restDay is always false here, same as before.
+    // there. isRestDay reflects employees.restDay, which is nullable with no
+    // default (see its schema comment), so an employee with no configured
+    // rest day behaves exactly as before: always false here.
     const holiday = holidayOn(punch.workDate);
     const holidayKind = holiday ? (holiday.kind === "regular" ? "regular" as const : "special" as const) : "ordinary" as const;
-    const otMultiplier = holidayMultiplier({ holiday: holidayKind, worked: true, overtime: true });
-    const regularMultiplier = holidayMultiplier({ holiday: holidayKind, worked: true, overtime: false });
+    const isRestDay = isRestDayOfWeek(punch.workDate, input.employee.restDay);
+    const otMultiplier = holidayMultiplier({ holiday: holidayKind, worked: true, overtime: true, restDay: isRestDay });
+    const regularMultiplier = holidayMultiplier({ holiday: holidayKind, worked: true, overtime: false, restDay: isRestDay });
     overtimePay += (derived.overtimeMinutes / 60) * punchProfile.hourlyRate * otMultiplier;
 
     // Night differential is +10% of whatever that minute otherwise earns, not
@@ -746,17 +749,20 @@ function calculateEmployeePay(input: {
     flags.push(...derived.flags);
     if (derived.flags.length) punchNotes.push(`${punch.workDate}: ${derived.flags.join("; ")}`);
 
-    if (holiday && derived.workedMinutes > 0) {
-      // The non-OT portion of the day's premium. Always the base (non-OT)
-      // multiplier for the REGULAR hours, independent of whether this same
-      // punch also had overtime (previously, any OT that day bumped this
-      // multiplier to the OT variant and applied it to the regular hours too,
-      // overpaying them; the OT hours themselves got none of this and were
-      // priced flat above, underpaying them).
+    if ((holiday || isRestDay) && derived.workedMinutes > 0) {
+      // The non-OT portion of the day's premium (holiday, rest day, or both
+      // at once — holidayMultiplier's restDay branch already covers that
+      // combination). Always the base (non-OT) multiplier for the REGULAR
+      // hours, independent of whether this same punch also had overtime
+      // (previously, any OT that day bumped this multiplier to the OT
+      // variant and applied it to the regular hours too, overpaying them;
+      // the OT hours themselves got none of this and were priced flat
+      // above, underpaying them).
       const extra = ((workedRegular / 60) * punchProfile.hourlyRate) * (regularMultiplier - 1);
       holidayPremium += extra;
       const otNote = derived.overtimeMinutes > 0 ? ` (overtime that day priced separately at ×${otMultiplier})` : "";
-      holidayNotes.push(`${punch.workDate} ${holiday.name} (${holiday.kind}) ×${regularMultiplier} → +${money(extra)}${otNote}`);
+      const dayLabel = holiday ? `${holiday.name} (${holiday.kind}${isRestDay ? ", rest day" : ""})` : "rest day";
+      holidayNotes.push(`${punch.workDate} ${dayLabel} ×${regularMultiplier} → +${money(extra)}${otNote}`);
     }
   }
 

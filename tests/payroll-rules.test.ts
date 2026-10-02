@@ -8,6 +8,8 @@ import {
   computeSss,
   deriveClockHours,
   holidayMultiplier,
+  isRestDayOfWeek,
+  REST_DAY_NAMES,
 } from "../src/lib/payroll-rules";
 
 test("SSS respects the 2025/2026 salary credit floor, cap, and EC employer premium", () => {
@@ -108,6 +110,23 @@ test("night-differential minutes split exactly at the overtime boundary, and the
   );
   assert.equal(daytime.nightRegularMinutes, 0);
   assert.equal(daytime.nightOvertimeMinutes, 0);
+});
+
+test("isRestDayOfWeek is a pure, timezone-independent day-of-week check", () => {
+  assert.equal(REST_DAY_NAMES.length, 7);
+  // 2026-01-04 is a Sunday.
+  assert.equal(isRestDayOfWeek("2026-01-04", "Sunday"), true);
+  assert.equal(isRestDayOfWeek("2026-01-04", "Monday"), false);
+  // 2026-01-01 is a Thursday.
+  assert.equal(isRestDayOfWeek("2026-01-01", "Thursday"), true);
+  assert.equal(isRestDayOfWeek("2026-01-01", "Sunday"), false);
+  // No rest day configured, same as before this existed, must never match.
+  assert.equal(isRestDayOfWeek("2026-01-04", null), false);
+  assert.equal(isRestDayOfWeek("2026-01-04", undefined), false);
+  assert.equal(isRestDayOfWeek("2026-01-04", ""), false);
+  // A bad value fails closed rather than throwing or matching anything.
+  assert.equal(isRestDayOfWeek("2026-01-04", "Sundayy"), false);
+  assert.equal(isRestDayOfWeek("not-a-date", "Sunday"), false);
 });
 
 test("freelancer comparison recommends the lower modeled option", () => {
