@@ -2310,3 +2310,147 @@
     white-space: normal;
   }
 }
+
+
+/* Tighten the approved mockup pass */
+.dashboard-alert-owl-art {
+  width: 112px;
+  height: 150px;
+  object-fit: contain;
+  object-position: center bottom;
+  filter: drop-shadow(0 10px 16px rgba(15, 42, 76, .14));
+}
+
+.dashboard-alert-owl svg { display: none; }
+
+.payrollph-dashboard .eyebrow { display: none; }
+
+.dashboard-deep-details {
+  margin-top: 14px;
+  border-top: 1px solid #e8eef5;
+}
+
+.dashboard-deep-details > summary {
+  width: max-content;
+  margin: 10px 0 0 auto;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+
+.dashboard-deep-details > summary::-webkit-details-marker { display: none; }
+.dashboard-deep-details:not([open]) > .dashboard-secondary-controls,
+.dashboard-deep-details:not([open]) > .role-dashboard-grid { display: none; }
+
+.demo-sandbox.collapsed {
+  margin-bottom: 14px;
+  border-color: #e2e8f0;
+  box-shadow: none;
+}
+
+.demo-sandbox.collapsed .demo-sandbox-head {
+  min-height: 42px;
+  padding: 7px 10px;
+}
+
+.demo-sandbox-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.demo-sandbox-person {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.demo-sandbox-toggle {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  border: 1px solid #dbe4ef;
+  border-radius: 7px;
+  color: #475569;
+  font-size: 9.5px;
+  font-weight: 700;
+  background: #fff;
+}
+
+.demo-sandbox-toggle svg { transition: transform .16s ease; }
+.demo-sandbox.expanded .demo-sandbox-toggle svg { transform: rotate(180deg); }
+
+.demo-sandbox-expanded {
+  border-top: 1px solid #edf2f7;
+}
+
+.demo-sandbox-intro {
+  padding: 12px 14px 0;
+}
+
+.app-shell[data-workspace-page="Overview"] .client-switcher-wrap,
+.app-shell[data-workspace-page="Overview"] .role-switcher-wrap,
+.app-shell[data-workspace-page="Overview"] .topbar-link {
+  display: none;
+}
+
+.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Migration"],
+.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Time & attendance"],
+.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Leave"],
+.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Exports"],
+.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Loans"],
+.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Benefits"],
+.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="De minimis"],
+.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Expenses"],
+.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Earned wage"],
+.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Recruitment"],
+.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Discipline"],
+.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Separation"],
+.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Contractors"],
+.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Assets"],
+.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Integrations"],
+.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Developer"],
+.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Pricing"],
+.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Audit trail"] {
+  display: none;
+}
+
+.app-shell[data-workspace-page="Overview"] .workspace-label { margin-top: 10px; }
+
+.payrollph-dashboard {
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.dashboard-alert-banner {
+  min-height: 132px;
+  grid-template-columns: 112px minmax(0,1fr) auto;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.dashboard-alert-owl {
+  width: 112px;
+  height: 122px;
+}
+
+.dashboard-alert-copy h2 { font-size: 17px; }
+.dashboard-alert-copy > p { margin-bottom: 8px; }
+
+.dashboard-metrics-grid { gap: 8px; }
+.dashboard-stat-card { min-height: 72px; padding: 10px; }
+
+.dashboard-payroll-card { margin-bottom: 0; }
+
+@media (max-width: 720px) {
+  .demo-sandbox-person { display: none; }
+  .dashboard-alert-owl-art {
+    width: 76px;
+    height: 96px;
+  }
+  .payrollph-dashboard { max-width: none; }
+}
