@@ -23,8 +23,8 @@ export function PayrollOwlArt({
       src="/mascots/payroll-owl.webp"
       alt={alt}
       className={className}
-      width={140}
-      height={250}
+      width={352}
+      height={628}
       loading="eager"
       decoding="async"
     />
