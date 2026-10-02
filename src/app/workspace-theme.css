@@ -2850,3 +2850,83 @@
     display: none;
   }
 }
+
+
+/* Dashboard landing fidelity: keep the overview as focused as the approved mockup. */
+.app-shell[data-workspace-page="Overview"] .demo-sandbox,
+.app-shell[data-workspace-page="Overview"] .dashboard-secondary-controls,
+.app-shell[data-workspace-page="Overview"] .payrollph-dashboard .role-dashboard-grid,
+.app-shell[data-workspace-page="Overview"] .client-switcher-wrap,
+.app-shell[data-workspace-page="Overview"] .topbar-link,
+.app-shell[data-workspace-page="Overview"] .role-switcher-wrap {
+  display: none !important;
+}
+
+.app-shell[data-workspace-page="Overview"] .side-navigation .nav-item:not([data-nav-name="Overview"]):not([data-nav-name="People"]):not([data-nav-name="Payroll"]):not([data-nav-name="Approvals"]):not([data-nav-name="Compliance"]):not([data-nav-name="Analytics"]):not([data-nav-name="Settings"]) {
+  display: none;
+}
+
+.app-shell[data-workspace-page="Overview"] .side-navigation .nav-group:has(.nav-item[data-nav-name="Overview"]) > p {
+  display: none;
+}
+
+.app-shell[data-workspace-page="Overview"] .workspace-label {
+  margin-top: 12px;
+  margin-bottom: 10px;
+}
+
+.app-shell[data-workspace-page="Overview"] .topbar-left {
+  flex: 0 0 auto;
+}
+
+.app-shell[data-workspace-page="Overview"] .topbar-actions {
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.app-shell[data-workspace-page="Overview"] .palette-trigger {
+  margin-right: auto;
+  min-width: min(430px, 42vw);
+}
+
+.app-shell[data-workspace-page="Overview"] .content-area {
+  max-width: none;
+  padding-top: 22px;
+}
+
+.app-shell[data-workspace-page="Overview"] .payrollph-dashboard {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.app-shell[data-workspace-page="Overview"] .payrollph-dashboard .page-heading {
+  margin-bottom: 14px;
+}
+
+.app-shell[data-workspace-page="Overview"] .payrollph-dashboard .page-heading .eyebrow {
+  display: none;
+}
+
+.app-shell[data-workspace-page="Overview"] .dashboard-alert-banner {
+  min-height: 150px;
+  padding-right: 14px;
+}
+
+.app-shell[data-workspace-page="Overview"] .dashboard-payroll-card {
+  margin-bottom: 0;
+}
+
+@media (max-width: 720px) {
+  .app-shell[data-workspace-page="Overview"] .palette-trigger {
+    margin-right: 0;
+    min-width: 38px;
+  }
+
+  .app-shell[data-workspace-page="Overview"] .topbar-actions {
+    flex: 0 0 auto;
+  }
+
+  .app-shell[data-workspace-page="Overview"] .content-area {
+    padding-top: 16px;
+  }
+}
