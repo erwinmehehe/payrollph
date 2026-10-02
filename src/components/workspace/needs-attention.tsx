@@ -34,6 +34,7 @@ export function NeedsAttentionView({
   notifications,
   availablePages,
   canRetryPayroll,
+  canManagePeople,
   canOpenOutbox,
   onPage,
   onRetryPayroll,
@@ -43,6 +44,7 @@ export function NeedsAttentionView({
   notifications: Notification[];
   availablePages: readonly string[];
   canRetryPayroll: boolean;
+  canManagePeople: boolean;
   canOpenOutbox: boolean;
   onPage: (page: string) => void;
   onRetryPayroll: (runId: number) => void;
@@ -106,7 +108,7 @@ export function NeedsAttentionView({
       id: "missing-payout-details",
       title: `${missingPayout} employee${missingPayout === 1 ? "" : "s"} missing payout details`,
       detail: "Complete bank information before generating the final payout file.",
-      action: "Fix employee records",
+      action: canManagePeople ? "Fix employee records" : "Open employees",
       page: "People",
       tone: "danger",
       icon: Building2,
@@ -118,7 +120,7 @@ export function NeedsAttentionView({
       id: "missing-government-ids",
       title: `${missingGovernmentIds} employee${missingGovernmentIds === 1 ? "" : "s"} missing filing IDs`,
       detail: "TIN, SSS, PhilHealth and Pag-IBIG identifiers affect statutory outputs.",
-      action: "Complete records",
+      action: canManagePeople ? "Complete records" : "Open employees",
       page: "People",
       tone: "warning",
       icon: ShieldAlert,
