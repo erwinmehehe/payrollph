@@ -167,7 +167,7 @@ function OwnerDashboard(props: RoleDashboardProps) {
   if (payrollExceptions.length) ownerAlertItems.push({ id: "exceptions", label: `${payrollExceptions.length} payroll exception${payrollExceptions.length === 1 ? "" : "s"} need review`, tone: "warning" });
   if (pendingTasks.length) ownerAlertItems.push({ id: "approval", label: `${pendingTasks.length} approval item${pendingTasks.length === 1 ? "" : "s"} waiting`, tone: "info" });
   if (!ownerAlertItems.length) ownerAlertItems.push({ id: "clear", label: "No release blocker is visible in this workspace", tone: "success" });
-  const ownerIssueCount = missingBankDetails + payrollExceptions.length + pendingTasks.length;
+  const ownerIssueCount = ownerAlertItems.filter((item) => item.tone !== "success").length;
 
   return (
     <div className="payrollph-dashboard" data-dashboard-variant="owner">
@@ -289,6 +289,7 @@ function HrDashboard(props: RoleDashboardProps) {
   if (attendanceIssues.length) hrAlertItems.push({ id: "attendance", label: `${attendanceIssues.length} attendance issue${attendanceIssues.length === 1 ? "" : "s"} need context`, tone: "info" });
   if (!hrAlertItems.length) hrAlertItems.push({ id: "clear", label: "People records are ready for payroll handoff", tone: "success" });
   const withBankDetails = Math.max(activePeople.length - missingBankDetails, 0);
+  const hrIssueCount = [missingBankDetails, pendingLeave.length, attendanceIssues.length].filter((count) => count > 0).length;
 
   return (
     <div className="payrollph-dashboard" data-dashboard-variant="hr">
@@ -299,8 +300,8 @@ function HrDashboard(props: RoleDashboardProps) {
       />
 
       <DashboardAlertBanner
-        title={missingBankDetails ? `${missingBankDetails} employee${missingBankDetails === 1 ? "" : "s"} need payout details` : "People inputs look ready"}
-        detail={missingBankDetails ? "Complete bank accounts so payroll can be processed on time." : "No current HR data issue is blocking the payroll handoff."}
+        title={missingBankDetails ? `${missingBankDetails} employee${missingBankDetails === 1 ? "" : "s"} need payout details` : hrIssueCount ? `${hrIssueCount} people item${hrIssueCount === 1 ? "" : "s"} need attention` : "People inputs look ready"}
+        detail={missingBankDetails ? "Complete bank accounts so payroll can be processed on time." : hrIssueCount ? "Clear the remaining people inputs before the next payroll handoff." : "No current HR data issue is blocking the payroll handoff."}
         items={hrAlertItems}
         state={missingBankDetails || pendingLeave.length || attendanceIssues.length ? "attention" : "approved"}
         actionLabel="View employees"
