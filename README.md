@@ -195,6 +195,8 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
 - DOLE wage orders for all 17 NWPC regions live in `src/lib/wage-orders.ts`, transcribed from a third-party reference and marked `verified: false`; only someone reading the cited NWPC matrix directly can flip that
 - A rate below the regional floor is treated as MWE for tax exemption cascading
 - Punch dates matching 2026 national holidays (plus a demo 11 Mar special day) apply the holiday multiplier matrix as a HOLIDAY line item
+- Overtime and night differential compound with the day's holiday/rest-day multiplier (DOLE Handbook "Guide Computations"), not a flat 125%/+10% regardless of day
+- `employees.restDay` is a nullable, per-employee weekly rest day (Labor Code Art. 91), set at hire time only; worked-rest-day premium and holiday/rest-day compounding reuse `holidayMultiplier`'s existing `restDay` branch. No default: an unconfigured employee computes exactly as before
 
 ### Progressive disclosure
 - Freelancer accounts hide People, Payroll, Time, Leave, Approvals and Developer nav
