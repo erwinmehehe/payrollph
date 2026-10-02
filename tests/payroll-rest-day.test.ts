@@ -166,3 +166,21 @@ test("a special holiday that also falls on the employee's rest day compounds to 
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
 });
+
+
+test("existing employees can edit or clear their rest day through the authorized People flow", () => {
+  const route = readFileSync("src/app/api/employees/route.ts", "utf8");
+  const people = readFileSync("src/components/workspace/people.tsx", "utf8");
+  const types = readFileSync("src/components/workspace/types.ts", "utf8");
+
+  assert.ok(route.includes("const wantsRestDayUpdate = body.restDay !== undefined"), "PATCH must distinguish omitted restDay from clearing it");
+  assert.ok(route.includes("REST_DAY_NAMES.includes"), "PATCH must reject invalid weekday names");
+  assert.ok(route.includes("restDay: wantsRestDayUpdate ? nextRestDay : undefined"), "PATCH must persist rest-day edits and clears");
+  assert.ok(route.includes('"Employee work schedule updated"'), "rest-day-only changes need an explicit audit action");
+  assert.ok(route.includes("previousRestDay: changedRestDay ? employee.restDay"), "audit metadata must retain the previous rest day");
+  assert.ok(route.includes("newRestDay: changedRestDay ? updated.restDay"), "audit metadata must retain the new rest day");
+  assert.ok(people.includes("WORK SCHEDULE"), "employee drawer must expose the work-schedule section");
+  assert.ok(people.includes("Save work schedule"), "authorized People users need a clear save action");
+  assert.ok(people.includes("REST_DAY_NAMES.map"), "UI must use the same seven-day contract as the payroll engine");
+  assert.ok(types.includes("restDay?: string | null"), "workspace employee data must carry the stored rest day");
+});
