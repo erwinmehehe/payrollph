@@ -30,6 +30,7 @@ export const DEMO_ROLES: DemoRoleInfo[] = [
     access: ["Company-wide overview", "Payroll and people", "Compliance, settings and audit"],
     actions: ["Create a payroll run", "Review company exceptions", "Release an approved payroll"],
     landingPage: "Overview",
+    "Needs attention",
     tasks: [
       { id: "owner-review", label: "Review the company", detail: "Open payroll status, exceptions and pending approvals.", page: "Overview", cta: "Open overview" },
       { id: "owner-release", label: "Release approved payroll", detail: "Open the payroll run and release it only after checker approval.", page: "Payroll", cta: "Open payroll" },
@@ -45,6 +46,7 @@ export const DEMO_ROLES: DemoRoleInfo[] = [
     access: ["People records and company overview", "Time, leave and lifecycle work", "Benefits, loans and compliance context"],
     actions: ["Open an employee record", "Review leave and attendance", "Work through lifecycle tasks"],
     landingPage: "Overview",
+    "Needs attention",
     tasks: [
       { id: "hr-person", label: "Review an employee 201 file", detail: "Open a populated employee record with statutory and employment details.", page: "People", cta: "Open people" },
       { id: "hr-leave", label: "Review leave", detail: "Inspect the pending leave request and balance context.", page: "Leave", cta: "Open leave" },
@@ -60,6 +62,7 @@ export const DEMO_ROLES: DemoRoleInfo[] = [
     access: ["Payroll runs and people context", "Time, benefits, loans and payroll inputs", "Exports, compliance and audit"],
     actions: ["Inspect the live register", "Recalculate the run", "Submit payroll for checker review"],
     landingPage: "Overview",
+    "Needs attention",
     tasks: [
       { id: "payroll-register", label: "Inspect the live register", detail: "Open the populated payroll run and review totals and exceptions.", page: "Payroll", cta: "Open payroll" },
       { id: "payroll-recalc", label: "Recalculate safely", detail: "Use the real recalculation action and verify the register refreshes.", page: "Payroll", cta: "Open calculation" },
@@ -75,6 +78,7 @@ export const DEMO_ROLES: DemoRoleInfo[] = [
     access: ["Assigned approvals", "Payroll review context", "Compliance checks"],
     actions: ["Open an assigned review", "Approve or decline it", "Confirm the audit trail"],
     landingPage: "Overview",
+    "Needs attention",
     tasks: [
       { id: "checker-open", label: "Open assigned payroll review", detail: "Review the maker's submitted payroll and assurance context.", page: "Approvals", cta: "Open approvals" },
       { id: "checker-decide", label: "Approve or decline", detail: "Record an independent decision using the real approval endpoint.", page: "Approvals", cta: "Review decision" },
@@ -109,6 +113,7 @@ export function demoRoleInfo(role: string | null | undefined) {
 export const DEMO_ROLE_PAGES: Partial<Record<DemoRoleId, readonly string[]>> = {
   owner: [
     "Overview",
+    "Needs attention",
     "Payroll",
     "People",
     "Migration",
@@ -135,6 +140,7 @@ export const DEMO_ROLE_PAGES: Partial<Record<DemoRoleId, readonly string[]>> = {
   ],
   payroll: [
     "Overview",
+    "Needs attention",
     "Payroll",
     "People",
     "Time & attendance",
@@ -150,6 +156,7 @@ export const DEMO_ROLE_PAGES: Partial<Record<DemoRoleId, readonly string[]>> = {
   ],
   hr: [
     "Overview",
+    "Needs attention",
     "People",
     "Time & attendance",
     "Leave",
@@ -167,6 +174,7 @@ export const DEMO_ROLE_PAGES: Partial<Record<DemoRoleId, readonly string[]>> = {
   ],
   checker: [
     "Overview",
+    "Needs attention",
     "Approvals",
     "Compliance",
     "Audit trail",
