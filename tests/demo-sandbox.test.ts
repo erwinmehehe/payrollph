@@ -550,6 +550,8 @@ test("workspace dashboard matches the PayrollPH mockup using modular real-data c
   assert.ok(styles.includes(".payrollph-dashboard"), "workspace theme must include the mockup dashboard composition");
   assert.ok(styles.includes(".dashboard-metrics-grid"), "workspace theme must include responsive metric cards");
   assert.ok(styles.includes(".dashboard-payroll-table-wrap"), "workspace theme must include responsive payroll table styling");
+  assert.ok(styles.includes('.app-shell[data-workspace-page="Overview"] .demo-sandbox'), "overview must hide the bulky demo sandbox");
+  assert.ok(styles.includes('.payrollph-dashboard .role-dashboard-grid'), "legacy detail grid must remain available off the focused landing composition");
 });
 
 test("employee self-service uses the same PayrollPH mascot language without exposing company controls", () => {
