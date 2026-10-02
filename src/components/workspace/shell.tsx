@@ -16,7 +16,7 @@ import {
   ShieldCheck,
   UserCheck,
 } from "lucide-react";
-import { FREELANCER_HIDDEN, NAVIGATION, groupOf } from "./nav";
+import { FREELANCER_HIDDEN, NAVIGATION, groupOf, itemOf } from "./nav";
 import type { DashboardData, Organization } from "./types";
 import { Avatar, initialsOf, relativeTime } from "./ui";
 import { DEMO_ROLES, demoRoleInfo, type DemoRoleId } from "@/lib/demo-roles";
@@ -32,7 +32,7 @@ export type Notification = {
   page?: string;
 };
 
-const WORKSPACE_LABELS: Record<string, string> = {
+const OVERVIEW_NAV_ORDER = ["Overview", "People", "Payroll", "Approvals", "Compliance", "Analytics", "Settings"] as const;\n\nconst WORKSPACE_LABELS: Record<string, string> = {
   Overview: "Dashboard",
   People: "Employees",
   Compliance: "Government Reports",
@@ -88,6 +88,8 @@ export function WorkspaceShell({
   const avatarRole = displayRole ?? data.user?.role ?? "member";
   const profileAvatarIndex = ({ owner: 0, admin: 0, hr: 1, payroll: 2, checker: 3, employee: 4 } as Record<string, number>)[avatarRole] ?? 0;
   const defaultPage = visiblePages?.[0] ?? "Overview";
+  const overviewItems = OVERVIEW_NAV_ORDER.map((name) => itemOf(name)).filter((item) => item !== undefined);
+  const navigationGroups = page === "Overview" ? [{ label: "", items: overviewItems }] : NAVIGATION;
 
   function closeOverlays() {
     setDrawer(false);
@@ -156,7 +158,7 @@ export function WorkspaceShell({
         </div>
 
         <nav className="side-navigation slim-scroll">
-          {NAVIGATION.map((group) => {
+          {navigationGroups.map((group) => {
             const items = group.items
               .filter((item) => !(isFreelancer && FREELANCER_HIDDEN.has(item.name)))
               .filter((item) => !visiblePages || visiblePages.includes(item.name));
@@ -173,6 +175,7 @@ export function WorkspaceShell({
                       key={item.name}
                       className={`nav-item ${active ? "active" : ""}`}
                       data-tone={item.tone}
+                      data-nav-name={item.name}
                       onClick={() => go(item.name)}
                       aria-current={active ? "page" : undefined}
                       title={rail ? item.name : undefined}
