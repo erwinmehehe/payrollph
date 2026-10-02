@@ -21,6 +21,7 @@ import type { DashboardData, Organization } from "./types";
 import { Avatar, initialsOf, relativeTime } from "./ui";
 import { DEMO_ROLES, demoRoleInfo, type DemoRoleId } from "@/lib/demo-roles";
 import { payrollHandoffRank } from "@/lib/payroll-handoff";
+import { PayrollOwlMark } from "@/components/payroll-owl";
 
 export type Notification = {
   id: string;
@@ -30,6 +31,17 @@ export type Notification = {
   tone: "review" | "active" | "danger" | "success";
   page?: string;
 };
+
+const WORKSPACE_LABELS: Record<string, string> = {
+  Overview: "Dashboard",
+  People: "Employees",
+  Compliance: "Government Reports",
+  Analytics: "Reports",
+};
+
+function workspaceLabel(page: string) {
+  return WORKSPACE_LABELS[page] ?? page;
+}
 
 export function WorkspaceShell({
   data,
@@ -122,15 +134,11 @@ export function WorkspaceShell({
       <aside className="sidebar" aria-label="Workspace navigation">
         <div className="sidebar-brand">
           <span className="brand-mark" aria-hidden>
-            <span className="brand-bars">
-              <i />
-              <i />
-              <i />
-            </span>
+            <PayrollOwlMark className="sidebar-owl-mark" />
           </span>
           <div>
-            <strong>linaw</strong>
-            <span className="brand-subtitle">HR &amp; Payroll</span>
+            <strong>PayrollPH</strong>
+            <span className="brand-subtitle">Payroll &amp; HR</span>
           </div>
           <button
             className="sidebar-collapse"
@@ -172,7 +180,7 @@ export function WorkspaceShell({
                       <span className={`nav-icon t-${item.tone}`} aria-hidden>
                         <Icon size={14} strokeWidth={active ? 2.3 : 2} />
                       </span>
-                      <span>{item.name}</span>
+                      <span>{workspaceLabel(item.name)}</span>
                       {badge && <b>{badge}</b>}
                     </button>
                   );
@@ -276,14 +284,14 @@ export function WorkspaceShell({
               <ChevronRight size={14} />
               <button onClick={() => go(defaultPage)}>{groupOf(page)}</button>
               <ChevronRight size={14} />
-              <span aria-current="page">{page}</span>
+              <span aria-current="page">{workspaceLabel(page)}</span>
             </nav>
           </div>
 
           <div className="topbar-actions">
             <button className="palette-trigger" onClick={onOpenPalette} aria-label="Open command palette">
               <Search size={15} className="i-slate" />
-              <span>Search…</span>
+              <span>Search employees, payroll, reports...</span>
               <kbd>⌘K</kbd>
             </button>
 
@@ -384,12 +392,16 @@ export function WorkspaceShell({
             </div>
 
             <button
-              className={`top-avatar avatar-${profileAvatarIndex}`}
+              className="top-profile-button"
               onClick={() => go(visiblePages?.includes("Settings") ? "Settings" : defaultPage)}
               title={visiblePages?.includes("Settings") ? "Account settings" : `Return to ${defaultPage}`}
               aria-label={visiblePages?.includes("Settings") ? "Account settings" : `Return to ${defaultPage}`}
             >
-              {initialsOf(userName)}
+              <span className={`top-avatar avatar-${profileAvatarIndex}`}>{initialsOf(userName)}</span>
+              <span className="top-profile-copy">
+                <strong>{userName}</strong>
+                <small>{roleLabel}</small>
+              </span>
             </button>
           </div>
         </header>
