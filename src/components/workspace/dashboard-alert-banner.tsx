@@ -33,7 +33,7 @@ export function DashboardAlertBanner({
   onAction: () => void;
 }) {
   return (
-    <section className="dashboard-alert-banner" aria-label={title}>
+    <section className="dashboard-alert-banner" data-owl-state={state} aria-label={title}>
       <div className="dashboard-alert-owl" aria-hidden>
         <PayrollOwlArt className="dashboard-alert-owl-art" alt="" />
       </div>
