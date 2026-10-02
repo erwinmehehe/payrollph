@@ -11,6 +11,7 @@ import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { DisciplinePanel } from "@/components/discipline-panel";
 import { LoansPanel } from "@/components/loans-panel";
 import { MigrationCenter } from "@/components/migration-center";
+import { NeedsAttentionView } from "@/components/workspace/needs-attention";
 import { NewHireModal } from "@/components/new-hire-modal";
 import { RecruitmentPanel } from "@/components/recruitment-panel";
 import { SeparationPanel } from "@/components/separation-panel";
@@ -401,6 +402,19 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
               />
             )}
           </>
+        )}
+
+        {page === "Needs attention" && (
+          <NeedsAttentionView
+            data={data}
+            notifications={notifications}
+            availablePages={availablePages}
+            canRetryPayroll={canManagePayroll}
+            canOpenOutbox={canManageDeliveryOutbox}
+            onPage={setPage}
+            onRetryPayroll={(runId) => void processRun(runId)}
+            onOpenOutbox={() => setOutboxOpen(true)}
+          />
         )}
 
         {page === "Payroll" && (
