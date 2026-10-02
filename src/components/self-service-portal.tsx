@@ -168,15 +168,18 @@ export function SelfServicePortal() {
       </header>
 
       {data && (
-        <PayrollGuide
-          role="employee"
-          state={latestPayslip ? "released" : "welcome"}
-          eyebrow="My Payroll Guide"
-          title={latestPayslip ? `Your ${latestPayslip.period} payslip is ready` : "Your payroll updates will appear here"}
-          detail={latestPayslip ? "You can review your latest net pay and download the released payslip without seeing anyone else’s payroll." : "When your employer releases payroll, your payslip and pay history will appear here automatically."}
-          actionLabel={latestPayslip ? "View payslip" : undefined}
-          onAction={latestPayslip ? () => { setOpen(latestPayslip.entryId); setDetailsOpen(true); } : undefined}
-        />
+        <section data-latest-payslip={latestPayslip ? "" : undefined} className="employee-pay-guide">
+          {latestPayslip ? <span className="employee-payslip-status"><ShieldCheck size={12} aria-hidden /> Payslip available</span> : null}
+          <PayrollGuide
+            role="employee"
+            state={latestPayslip ? "released" : "welcome"}
+            eyebrow="My Payroll Guide"
+            title={latestPayslip ? `Your ${latestPayslip.period} payslip is ready` : "Your payroll updates will appear here"}
+            detail={latestPayslip ? "You can review your latest net pay and download the released payslip without seeing anyone else’s payroll." : "When your employer releases payroll, your payslip and pay history will appear here automatically."}
+            actionLabel={latestPayslip ? "View payslip" : undefined}
+            onAction={latestPayslip ? () => { setOpen(latestPayslip.entryId); setDetailsOpen(true); } : undefined}
+          />
+        </section>
       )}
 
       {data && (
@@ -260,7 +263,7 @@ export function SelfServicePortal() {
           <summary>View pay details</summary>
           <div className="employee-deep-details-body">
           {latestPayslip && (
-            <section className="employee-pay-next" data-latest-payslip>
+            <section className="employee-pay-next">
               <div className="employee-pay-next-copy">
                 <span className="card-kicker">LATEST PAYSLIP</span>
                 <h2>Payslip available</h2>
