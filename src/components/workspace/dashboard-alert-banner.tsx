@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { AlertTriangle, ArrowRight, CheckCircle2, Info, XCircle } from "lucide-react";
-import { PayrollOwl, type PayrollOwlState } from "@/components/payroll-owl";
+import { PayrollOwlArt, type PayrollOwlState } from "@/components/payroll-owl";
 
 export type DashboardAlertItem = {
   id: string;
@@ -35,7 +35,7 @@ export function DashboardAlertBanner({
   return (
     <section className="dashboard-alert-banner" aria-label={title}>
       <div className="dashboard-alert-owl" aria-hidden>
-        <PayrollOwl state={state} />
+        <PayrollOwlArt className="dashboard-alert-owl-art" alt="" />
       </div>
       <div className="dashboard-alert-copy">
         <h2>{title}</h2>
