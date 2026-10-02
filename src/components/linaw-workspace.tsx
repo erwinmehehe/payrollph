@@ -21,6 +21,7 @@ import { ApprovalsView } from "@/components/workspace/approvals";
 import { CommandPalette, usePaletteShortcut, type PaletteAction } from "@/components/workspace/command-palette";
 import { ExportsView } from "@/components/workspace/exports";
 import { FirstPayrollReadinessCard } from "@/components/workspace/first-payroll-readiness";
+import { NeedsAttentionCenter } from "@/components/workspace/needs-attention";
 import { ProductionPilotSignoffCard } from "@/components/workspace/production-pilot-signoff";
 import { FREELANCER_HIDDEN, NAVIGATION } from "@/components/workspace/nav";
 import { OverviewView } from "@/components/workspace/overview";
@@ -372,6 +373,13 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
                   setPage(targetPage);
                 }}
                 onNewRun={() => setNewPayrollOpen(true)}
+              />
+            )}
+            {data.operationsAttention && (
+              <NeedsAttentionCenter
+                state={data.operationsAttention}
+                onPage={setPage}
+                onOpenOutbox={canManageDeliveryOutbox ? () => setOutboxOpen(true) : undefined}
               />
             )}
             {!demoRole && effectiveRole === "owner" && (
