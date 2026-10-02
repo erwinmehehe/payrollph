@@ -1,20 +1,32 @@
 # open-payroll-data fixtures
 
-Pinned copies of four reference tables, used only by `tests/rates-crosscheck.test.ts`
-to check Linaw's SSS, PhilHealth, Pag-IBIG and withholding-tax functions against an
-independent transcription of the same government tables.
+Pinned reference data used only by PayrollPH's independent cross-check tests.
 
 - Source: https://github.com/open-payroll-data/philippines-payroll-data
 - Pinned commit: `89513baa13c1d382a2567965eb122995db6e28e8` (2026-06-30)
-- Files: `data/sss_2025.json`, `data/philhealth_2025.json`, `data/pagibig_2025.json`, `data/income_tax_2025.json`
 - Licence: MIT, Copyright (c) 2026 Philippine Payroll Knowledge Base maintainers
+- Tests:
+  - `tests/rates-crosscheck.test.ts`
+  - `tests/wage-13th-crosscheck.test.ts`
+  - `tests/premium-pay-crosscheck.test.ts`
 
-Files are unmodified. Each cites the government issuance it was transcribed from; those
-citations have not been independently verified here. These fixtures are test data, not a
-source of truth: when a cross-check fails, read the cited circular before changing anything.
-To update, re-download from a newer commit, update the pin above, and review any new failures.
+The fixture set covers SSS, PhilHealth, Pag-IBIG, TRAIN withholding,
+13th-month rules, the regional minimum-wage matrix, and premium-pay
+multipliers.
 
-```
+These are **independent transcriptions, not PayrollPH's source of truth**.
+A passing cross-check means two maintained datasets agree; it does not replace
+verification against the cited SSS/BIR/PhilHealth/HDMF/DOLE/NWPC issuance.
+When a cross-check fails, inspect the cited primary source before changing
+production payroll logic.
+
+The minimum-wage fixture is intentionally date-pinned and volatile. PayrollPH
+keeps `verified: false` on wage rows until the cited government source is
+checked directly.
+
+To refresh these files, re-download them from a reviewed upstream commit,
+update the pin above, and review every resulting test difference.
+
 MIT License
 
 Copyright (c) 2026 Philippine Payroll Knowledge Base maintainers
@@ -36,9 +48,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-```
-
-Also used by `tests/wage-13th-crosscheck.test.ts`: `data/13th_month_pay.json`,
-`data/min_wage_2025.json`.
-
-Also used by `tests/premium-pay-crosscheck.test.ts`: `data/premium_pay.json`.
