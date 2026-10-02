@@ -510,6 +510,9 @@ test("role dashboards use the owl inside the state-driven attention banner", () 
   assert.ok(alert.includes("<PayrollOwl"), "attention banner must render the shared owl");
   assert.ok(mascot.includes("data-owl-state={state}"), "owl state must be inspectable and deterministic");
   assert.ok(styles.includes(".dashboard-alert-banner"), "workspace must include designed owl alert styling");
+  assert.ok(alert.includes("PayrollOwlArt"), "dashboard alert must use the polished 3D owl artwork");
+  assert.ok(styles.includes(".demo-sandbox.collapsed"), "demo controls should stay compact on the landing dashboard");
+  assert.ok(styles.includes(".dashboard-deep-details"), "deep operational panels should stay collapsed by default");
   assert.ok(styles.includes("@media (max-width: 720px)"), "owl banner must include an explicit mobile layout");
 });
 
