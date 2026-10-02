@@ -507,7 +507,7 @@ test("role dashboards use the owl inside the state-driven attention banner", () 
   const styles = read("src/app/workspace-theme.css");
 
   assert.ok(dashboard.includes("DashboardAlertBanner"), "role dashboards must use the shared owl alert banner");
-  assert.ok(alert.includes("<PayrollOwl"), "attention banner must render the shared owl");
+  assert.ok(alert.includes("<PayrollOwlArt"), "attention banner must render the shared owl artwork");
   assert.ok(mascot.includes("data-owl-state={state}"), "owl state must be inspectable and deterministic");
   assert.ok(styles.includes(".dashboard-alert-banner"), "workspace must include designed owl alert styling");
   assert.ok(alert.includes("PayrollOwlArt"), "dashboard alert must use the polished 3D owl artwork");
