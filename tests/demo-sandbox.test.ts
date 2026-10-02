@@ -503,3 +503,18 @@ test("production demo fails closed until encrypted payout storage is ready", () 
     "bank-data readiness must be proven before a production demo session is issued",
   );
 });
+
+
+test("role dashboards use the owl as a state-driven payroll guide", () => {
+  const dashboard = read("src/components/workspace/role-overview.tsx");
+  const mascot = read("src/components/payroll-owl.tsx");
+  const styles = read("src/app/globals.css");
+
+  assert.ok(dashboard.includes("PayrollGuide"), "role dashboards must use the shared payroll guide");
+  for (const role of ["owner", "hr", "payroll", "checker"]) {
+    assert.ok(dashboard.includes(`role="${role}"`), `missing owl guide for ${role}`);
+  }
+  assert.ok(mascot.includes("data-owl-state={state}"), "owl state must be inspectable and deterministic");
+  assert.ok(styles.includes(".payroll-guide"), "workspace must include a designed payroll guide surface");
+  assert.ok(styles.includes("@media (max-width: 720px)"), "owl guide must inherit an explicit mobile layout");
+});
