@@ -337,7 +337,7 @@ export async function buildReadinessPayload() {
         ? `All ${totalEmployees} employee(s) have a designated weekly rest day, so rest-day premium pay can be computed for them.`
         : `${employeesMissingRestDay} of ${totalEmployees} employee(s) have no designated rest day, so Linaw cannot compute rest-day premium pay for those records. Exempt categories are not modeled, so this is informational rather than a precise compliance count.`,
       blocks: "scale",
-      manualWorkaround: employeesMissingRestDay === 0 ? undefined : "Set the rest day at hire time for new employees; for existing employees without one, compute rest-day premium manually until an edit flow is added.",
+      manualWorkaround: employeesMissingRestDay === 0 ? undefined : "Open People, select the employee, and set the weekly rest day in Work schedule before recalculating payroll.",
     },
   ];
 

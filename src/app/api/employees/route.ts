@@ -323,6 +323,16 @@ export async function PATCH(request: Request) {
     }
   }
 
+  const wantsRestDayUpdate = body.restDay !== undefined;
+  let nextRestDay: string | null | undefined;
+  if (wantsRestDayUpdate) {
+    const restDayInput = String(body.restDay ?? "").trim();
+    if (restDayInput && !REST_DAY_NAMES.includes(restDayInput as (typeof REST_DAY_NAMES)[number])) {
+      return Response.json({ error: `restDay must be empty or one of: ${REST_DAY_NAMES.join(", ")}.` }, { status: 400 });
+    }
+    nextRestDay = restDayInput || null;
+  }
+
   const replacementBankAccount =
     typeof body.bankAccount === "string" && body.bankAccount.trim()
       ? body.bankAccount.trim()
@@ -350,6 +360,7 @@ export async function PATCH(request: Request) {
     philHealthNo: clean(body.philHealthNo),
     pagIbigNo: clean(body.pagIbigNo),
     nationality: body.nationality === undefined ? undefined : String(body.nationality ?? "").trim() || "Filipino",
+    restDay: wantsRestDayUpdate ? nextRestDay : undefined,
     bankAccount: replacementBankAccount ? encryptBankAccount(replacementBankAccount) : undefined,
     bankCode: body.bankCode === undefined ? undefined : nextBankCode,
     mobile: body.mobile === undefined ? undefined : clean(body.mobile),
@@ -536,15 +547,17 @@ export async function PATCH(request: Request) {
 
   const governmentFields = ["middleName", "tin", "tinBranchCode", "sssNo", "philHealthNo", "pagIbigNo", "nationality"];
   const changedGovernment = governmentFields.some((field) => field in patch);
-  const action = nextPayProfile
-    ? wantsPayoutUpdate || changedGovernment
-      ? "Employee profile updated"
-      : "Employee payroll profile updated"
-    : wantsPayoutUpdate
-      ? changedGovernment
-        ? "Employee profile updated"
-        : "Employee payout details updated"
-      : "Employee government identity updated";
+  const changedRestDay = "restDay" in patch;
+  const changeKinds = [Boolean(nextPayProfile), wantsPayoutUpdate, changedGovernment, changedRestDay].filter(Boolean).length;
+  const action = changeKinds > 1
+    ? "Employee profile updated"
+    : nextPayProfile
+      ? "Employee payroll profile updated"
+      : wantsPayoutUpdate
+        ? "Employee payout details updated"
+        : changedGovernment
+          ? "Employee government identity updated"
+          : "Employee work schedule updated";
 
   await recordAuditEvent({
     organizationId,
@@ -560,6 +573,8 @@ export async function PATCH(request: Request) {
       payRevisionId: result.revisionId,
       retroAdjustments: result.retroAdjustments,
       retroTotal: result.retroTotal,
+      previousRestDay: changedRestDay ? employee.restDay : undefined,
+      newRestDay: changedRestDay ? updated.restDay : undefined,
     },
   });
 
