@@ -2454,3 +2454,149 @@
   }
   .payrollph-dashboard { max-width: none; }
 }
+
+
+/* Reference-faithful landing cleanup */
+.app-shell[data-workspace-page="Overview"] .workspace-label,
+.app-shell[data-workspace-page="Overview"] .nav-group > p {
+  display: none;
+}
+
+.app-shell[data-workspace-page="Overview"] .side-navigation {
+  padding-top: 12px;
+}
+
+.app-shell[data-workspace-page="Overview"] .nav-group {
+  margin-bottom: 0;
+}
+
+.app-shell[data-workspace-page="Overview"] .nav-item {
+  margin-bottom: 4px;
+}
+
+.app-shell[data-workspace-page="Overview"] .demo-sandbox {
+  display: none;
+}
+
+.payrollph-dashboard .page-heading h1 {
+  font-size: clamp(22px, 2vw, 27px);
+}
+
+.payrollph-dashboard .page-heading {
+  margin-bottom: 14px;
+}
+
+.dashboard-alert-banner {
+  min-height: 120px;
+  padding: 8px 16px 8px 6px;
+}
+
+.dashboard-alert-owl,
+.dashboard-alert-owl-art {
+  width: 104px;
+  height: 112px;
+}
+
+.dashboard-alert-copy h2 {
+  font-size: 16px;
+}
+
+.dashboard-stat-card {
+  min-height: 66px;
+  padding: 9px 10px;
+}
+
+.dashboard-stat-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.dashboard-stat-card strong {
+  font-size: 14px;
+}
+
+.dashboard-deep-details {
+  display: none;
+}
+
+.employee-self-service {
+  max-width: 980px;
+}
+
+.employee-self-service .page-heading {
+  margin-bottom: 14px;
+}
+
+.employee-self-service .page-heading h1 {
+  font-size: clamp(22px, 2vw, 27px);
+}
+
+.employee-self-service .payroll-guide {
+  min-height: 126px;
+  margin-bottom: 12px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.payroll-guide-owl-art {
+  width: 98px;
+  height: 116px;
+  object-fit: contain;
+  object-position: center bottom;
+  filter: drop-shadow(0 8px 14px rgba(15,42,76,.12));
+}
+
+.payroll-guide-owl svg {
+  display: none;
+}
+
+.employee-dashboard-metrics {
+  margin-bottom: 12px;
+}
+
+.employee-self-service .demo-sandbox {
+  display: none;
+}
+
+.employee-deep-details {
+  margin-top: 8px;
+}
+
+.employee-deep-details > summary {
+  width: max-content;
+  margin-left: auto;
+  padding: 6px 0;
+  color: #2563eb;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+
+.employee-deep-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.employee-deep-details:not([open]) .employee-deep-details-body {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .dashboard-alert-banner {
+    min-height: 106px;
+  }
+
+  .dashboard-alert-owl,
+  .dashboard-alert-owl-art {
+    width: 76px;
+    height: 88px;
+  }
+
+  .employee-self-service .page-heading {
+    align-items: flex-start;
+  }
+
+  .employee-self-service-actions {
+    gap: 6px;
+  }
+}
