@@ -2,7 +2,6 @@
 
 import type { ReactNode } from "react";
 import { AlertTriangle, ArrowRight, CheckCircle2, Info, XCircle } from "lucide-react";
-import { PayrollOwlArt, type PayrollOwlState } from "@/components/payroll-owl";
 
 export type DashboardAlertItem = {
   id: string;
@@ -21,21 +20,21 @@ export function DashboardAlertBanner({
   title,
   detail,
   items,
-  state = "attention",
   actionLabel,
   onAction,
 }: {
   title: string;
   detail: string;
   items: DashboardAlertItem[];
-  state?: PayrollOwlState;
   actionLabel: string;
   onAction: () => void;
 }) {
+  const needsAttention = items.some((item) => item.tone === "danger" || item.tone === "warning");
+
   return (
-    <section className="dashboard-alert-banner" data-owl-state={state} aria-label={title}>
-      <div className="dashboard-alert-owl" aria-hidden>
-        <PayrollOwlArt className="dashboard-alert-owl-art" alt="" />
+    <section className="dashboard-alert-banner" aria-label={title}>
+      <div className="dashboard-alert-symbol" data-tone={needsAttention ? "warning" : "success"} aria-hidden>
+        {needsAttention ? <AlertTriangle size={22} /> : <CheckCircle2 size={22} />}
       </div>
       <div className="dashboard-alert-copy">
         <h2>{title}</h2>
