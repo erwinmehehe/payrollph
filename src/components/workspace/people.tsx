@@ -506,6 +506,7 @@ function PersonDrawer({
   const leave = (data.leaveRequests ?? []).filter((request) => request.employeeId === employee.id);
   const checklist = (data.provisioning ?? []).filter((item) => item.employeeId === employee.id);
   const payRevisions = (data.payRevisions ?? []).filter((revision) => revision.employeeId === employee.id).slice(0, 5);
+  const restDayRevisions = (data.restDayRevisions ?? []).filter((revision) => revision.employeeId === employee.id).slice(0, 5);
   const retroAdjustments = (data.retroAdjustments ?? []).filter((retro) => retro.employeeId === employee.id);
   const pendingRetro = retroAdjustments.filter((retro) => retro.status === "pending");
   const pendingRetroTotal = pendingRetro.reduce((sum, retro) => sum + Number(retro.amount), 0);
@@ -720,6 +721,20 @@ function PersonDrawer({
                   <small>{employee.restDay ? "used for rest-day premium calculations" : "rest-day premium cannot be inferred"}</small>
                 </div>
               </div>
+              {restDayRevisions.length > 0 && (
+                <div style={{ marginTop: 14 }}>
+                  <div className="card-kicker" style={{ marginBottom: 6 }}>SCHEDULE HISTORY</div>
+                  {restDayRevisions.map((revision) => (
+                    <div className="payslip-line" key={revision.id} style={{ gridTemplateColumns: "1fr auto" }}>
+                      <span>
+                        {revision.previousRestDay || "Not set"} → {revision.newRestDay || "Not set"}
+                        <em>effective {formatDate(revision.effectiveDate)} · {revision.reason}</em>
+                      </span>
+                      <b>{revision.createdBy}</b>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </section>
