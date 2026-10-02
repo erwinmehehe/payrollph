@@ -7,7 +7,6 @@ import { WebBundyModal } from "@/components/web-bundy-modal";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { DashboardStatCard } from "@/components/workspace/dashboard-stat-card";
-import { PayrollGuide } from "@/components/payroll-owl";
 import { type DemoRoleId } from "@/lib/demo-roles";
 import { buildPayrollHandoff } from "@/lib/payroll-handoff";
 
@@ -169,16 +168,24 @@ export function SelfServicePortal() {
 
       {data && (
         <section data-latest-payslip={latestPayslip ? "" : undefined} className="employee-pay-guide">
-          {latestPayslip ? <span className="employee-payslip-status"><ShieldCheck size={12} aria-hidden /> Payslip available</span> : null}
-          <PayrollGuide
-            role="employee"
-            state={latestPayslip ? "released" : "welcome"}
-            eyebrow="My Payroll Guide"
-            title={latestPayslip ? `Your ${latestPayslip.period} payslip is ready` : "Your payroll updates will appear here"}
-            detail={latestPayslip ? "You can review your latest net pay and download the released payslip without seeing anyone else’s payroll." : "When your employer releases payroll, your payslip and pay history will appear here automatically."}
-            actionLabel={latestPayslip ? "View payslip" : undefined}
-            onAction={latestPayslip ? () => { setOpen(latestPayslip.entryId); setDetailsOpen(true); } : undefined}
-          />
+          <div className="employee-pay-guide-card">
+            <div className="employee-pay-guide-icon" aria-hidden>
+              <FileText size={20} />
+            </div>
+            <div className="employee-pay-guide-copy">
+              <span className="card-kicker">MY PAY</span>
+              <h2>{latestPayslip ? `Your ${latestPayslip.period} payslip is ready` : "Your payroll updates will appear here"}</h2>
+              <p>{latestPayslip ? "Review your latest net pay and download the released payslip here." : "When payroll is released, your payslip and pay history will appear here automatically."}</p>
+            </div>
+            {latestPayslip ? (
+              <div className="employee-pay-guide-actions">
+                <span className="employee-payslip-status"><ShieldCheck size={12} aria-hidden /> Payslip available</span>
+                <button className="secondary-button" type="button" onClick={() => { setOpen(latestPayslip.entryId); setDetailsOpen(true); }}>
+                  View payslip
+                </button>
+              </div>
+            ) : null}
+          </div>
         </section>
       )}
 
