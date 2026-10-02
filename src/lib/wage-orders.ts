@@ -3,27 +3,58 @@ export type WageOrder = {
   dailyRate: number;
   wageOrder: string;
   effectiveOn: string;
+  /**
+   * False means this row has NOT been confirmed against the region's own
+   * RTWPB/NWPC wage order directly, see the module comment below. UI and
+   * reports that show a wage order should say so when this is false.
+   */
+  verified: boolean;
 };
 
 /**
  * DOLE regional daily minimums used by this build.
  *
- * NCR has been updated to Wage Order NCR-26 (PHP 695, effective 18 July 2025).
- * Other regional rows are the latest values previously configured in this demo;
- * they remain versioned, but should be verified against the relevant RTWPB order
- * before a customer relies on them. The readiness/copy therefore never claims a
- * complete nationally certified wage-order registry.
+ * All 17 regions below (16 regional boards plus BARMM) are transcribed from a
+ * third-party reference (open-payroll-data/philippines-payroll-data, MIT,
+ * commit 89513baa), itself citing NWPC's "Latest Wage Orders" matrix as of
+ * 2026-02-25: https://nwpc.dole.gov.ph/wp-content/uploads/2026/03/Latest-Wage-Orders-Matrix-2024-2025-As-of-25-February-2026.pdf
+ *
+ * `verified: false` on every row below means exactly that: nobody has opened
+ * the cited NWPC matrix (or the region's own RTWPB order) directly and
+ * confirmed these figures against it. This repo's own rule is to never present
+ * a transcribed government figure as fact, so readiness/copy must not claim a
+ * complete or confirmed wage-order registry, and `dailyRate` here must not be
+ * used to automatically flag underpayment without a human check. The source
+ * table gives a low and a high figure per region (the two private-sector
+ * coverage tiers in that matrix); `dailyRate` uses the HIGH figure for every
+ * region, for consistency with the one row (NCR) this file's prior values
+ * already used, not because the high tier is confirmed to be the correct one
+ * for every affected employer. `tests/wage-13th-crosscheck.test.ts` pins the
+ * wage-order numbers this file was transcribed from, so a future update is a
+ * deliberate, reviewed change rather than something that drifts unnoticed.
  *
  * MWE classification is explicit on the employee record; a rate below the
  * configured regional floor is additionally treated as MWE-adjacent for the
  * withholding exemption cascade (OT / holiday / night differential stay untaxed).
  */
 export const WAGE_ORDERS: WageOrder[] = [
-  { region: "NCR", dailyRate: 695, wageOrder: "WO-NCR-26", effectiveOn: "2025-07-18" },
-  { region: "III", dailyRate: 500, wageOrder: "WO-RB-III-24", effectiveOn: "2024-10-01" },
-  { region: "IV-A", dailyRate: 550, wageOrder: "WO-RB-IVA-20", effectiveOn: "2024-07-01" },
-  { region: "VII", dailyRate: 501, wageOrder: "WO-RO-VII-23", effectiveOn: "2024-10-05" },
-  { region: "XI", dailyRate: 456, wageOrder: "WO-XI-21", effectiveOn: "2024-09-16" },
+  { region: "NCR", dailyRate: 695, wageOrder: "WO-NCR-26", effectiveOn: "2025-07-18", verified: false },
+  { region: "CAR", dailyRate: 500, wageOrder: "WO-CAR-24", effectiveOn: "2025-12-30", verified: false },
+  { region: "I", dailyRate: 505, wageOrder: "WO-RB I-24", effectiveOn: "2025-11-19", verified: false },
+  { region: "II", dailyRate: 505, wageOrder: "WO-RTWPB 2-24", effectiveOn: "2025-11-17", verified: false },
+  { region: "III", dailyRate: 600, wageOrder: "WO-RBIII-26", effectiveOn: "2025-10-30", verified: false },
+  { region: "IV-A", dailyRate: 600, wageOrder: "WO-IVA-22", effectiveOn: "2025-09-29", verified: false },
+  { region: "IV-B", dailyRate: 455, wageOrder: "WO-MIMAROPA-13", effectiveOn: "2026-01-01", verified: false },
+  { region: "V", dailyRate: 435, wageOrder: "WO-RBV-22", effectiveOn: "2025-04-05", verified: false },
+  { region: "VI", dailyRate: 550, wageOrder: "WO-RBVI-29", effectiveOn: "2025-11-19", verified: false },
+  { region: "VII", dailyRate: 540, wageOrder: "WO-ROVII-26", effectiveOn: "2025-10-04", verified: false },
+  { region: "VIII", dailyRate: 470, wageOrder: "WO-RB VIII-25", effectiveOn: "2025-12-08", verified: false },
+  { region: "IX", dailyRate: 464, wageOrder: "WO-RIX-24", effectiveOn: "2026-01-01", verified: false },
+  { region: "X", dailyRate: 500, wageOrder: "WO-RX-24", effectiveOn: "2026-01-16", verified: false },
+  { region: "XI", dailyRate: 540, wageOrder: "WO-RB XI-24", effectiveOn: "2026-03-13", verified: false },
+  { region: "XII", dailyRate: 460, wageOrder: "WO-RB XII-25", effectiveOn: "2026-03-03", verified: false },
+  { region: "XIII", dailyRate: 475, wageOrder: "WO-RXIII-20", effectiveOn: "2026-01-03", verified: false },
+  { region: "BARMM", dailyRate: 411, wageOrder: "WO-BARMM-04", effectiveOn: "2025-07-17", verified: false },
 ];
 
 export function wageOrderFor(region: string) {

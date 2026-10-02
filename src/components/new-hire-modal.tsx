@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ArrowRight, Layers, X } from "lucide-react";
+import { WAGE_ORDERS } from "@/lib/wage-orders";
 
 /**
  * Rippling-style new-hire onboarding: creating the employee also generates the
@@ -108,7 +109,11 @@ export function NewHireModal({
             <label>Start date<input type="date" required value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} /></label>
             <label>Region
               <select value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })}>
-                <option>NCR</option><option>III</option><option>IV-A</option><option>VII</option><option>XI</option>
+                {WAGE_ORDERS.map((order) => (
+                  <option key={order.region} value={order.region}>
+                    {order.region}{order.verified ? "" : " (rate unverified)"}
+                  </option>
+                ))}
               </select>
             </label>
             <label style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "end" }}>
