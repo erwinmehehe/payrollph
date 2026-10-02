@@ -9,7 +9,6 @@ import {
   UsersRound,
   WalletCards,
 } from "lucide-react";
-import { PayrollOwlArt } from "@/components/payroll-owl";
 import { Reveal } from "./ui";
 
 const trustPoints = [
@@ -76,15 +75,6 @@ export default function Hero() {
 
         <Reveal delay={150} className="payroll-home-visual-wrap">
           <div className="payroll-home-visual" aria-label="PayrollPH dashboard preview">
-            <div className="payroll-hero-speech">
-              <strong>Let’s make payroll easier</strong>
-              <span>for your team! 👋</span>
-            </div>
-
-            <div className="payroll-hero-owl">
-              <PayrollOwlArt className="payroll-hero-owl-art" alt="PayrollPH owl mascot" />
-            </div>
-
             <div className="payroll-hero-laptop">
               <div className="payroll-hero-screen">
                 <div className="payroll-hero-appbar">
@@ -129,8 +119,8 @@ export default function Hero() {
                     </div>
 
                     <div className="payroll-hero-alert">
-                      <div className="payroll-hero-mini-owl">
-                        <PayrollOwlArt alt="" />
+                      <div className="payroll-hero-alert-icon" aria-hidden>
+                        <AlertTriangle size={18} />
                       </div>
                       <div className="payroll-hero-alert-copy">
                         <strong>3 things need attention</strong>
