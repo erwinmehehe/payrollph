@@ -195,7 +195,7 @@ function OwnerDashboard(props: RoleDashboardProps) {
 
       <RecentPayrollRuns runs={data.payrollRuns} onViewAll={() => onPage("Payroll")} />
 
-      <div className="dashboard-secondary-controls">
+      <details className="dashboard-deep-details"><summary>More payroll details</summary><div className="dashboard-secondary-controls">
         <PayrollHandoff
           stages={handoffStages}
           period={handoffRun?.periodLabel ?? "Next payroll"}
@@ -261,7 +261,7 @@ function OwnerDashboard(props: RoleDashboardProps) {
         <RoleCard kicker="Recorded control" title="Latest audit activity" action="Open audit trail" onAction={() => onPage("Audit trail")}>
           <AuditRows data={data} />
         </RoleCard>
-      </section>
+      </section></details>
     </div>
   );
 }
@@ -315,7 +315,7 @@ function HrDashboard(props: RoleDashboardProps) {
         <DashboardStatCard icon={<ClipboardCheck size={18} />} label="For Onboarding" value={String(openProvisioning.length)} hint={openProvisioning.length ? "Open lifecycle tasks" : "Queue clear"} tone={openProvisioning.length ? "amber" : "green"} />
       </section>
 
-      <div className="dashboard-secondary-controls">
+      <details className="dashboard-deep-details"><summary>More payroll details</summary><div className="dashboard-secondary-controls">
         <PayrollHandoff
           stages={handoffStages}
           period={handoffRun?.periodLabel ?? "Next payroll"}
@@ -388,7 +388,7 @@ function HrDashboard(props: RoleDashboardProps) {
           ]}
           onPage={onPage}
         />
-      </section>
+      </section></details>
     </div>
   );
 }
@@ -447,7 +447,7 @@ function PayrollDashboard(props: RoleDashboardProps) {
 
       <RecentPayrollRuns runs={data.payrollRuns} onViewAll={() => onPage("Payroll")} />
 
-      <div className="dashboard-secondary-controls">
+      <details className="dashboard-deep-details"><summary>More payroll details</summary><div className="dashboard-secondary-controls">
         <PayrollHandoff
           stages={handoffStages}
           period={handoffRun?.periodLabel ?? "Next payroll"}
@@ -506,7 +506,7 @@ function PayrollDashboard(props: RoleDashboardProps) {
           ]}
           onPage={onPage}
         />
-      </section>
+      </section></details>
     </div>
   );
 }
@@ -558,7 +558,7 @@ function CheckerDashboard(props: RoleDashboardProps) {
 
       <RecentPayrollRuns runs={data.payrollRuns} onViewAll={() => onPage("Approvals")} />
 
-      <div className="dashboard-secondary-controls">
+      <details className="dashboard-deep-details"><summary>More payroll details</summary><div className="dashboard-secondary-controls">
         <PayrollHandoff
           stages={handoffStages}
           period={handoffRun?.periodLabel ?? "Next payroll"}
@@ -588,7 +588,7 @@ function CheckerDashboard(props: RoleDashboardProps) {
         <RoleCard kicker="Evidence" title="Recent recorded actions" action="Full audit trail" onAction={() => onPage("Audit trail")}>
           <AuditRows data={data} />
         </RoleCard>
-      </section>
+      </section></details>
     </div>
   );
 }
