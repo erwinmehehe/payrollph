@@ -40,6 +40,7 @@ export type Employee = {
   standardHoursPerDay?: string;
   mwe: boolean;
   region?: string | null;
+  restDay?: string | null;
   orgUnitId?: number | null;
   email?: string | null;
   bankAccount?: string | null;
