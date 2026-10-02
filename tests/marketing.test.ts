@@ -248,3 +248,15 @@ test("login route omits the marketing footer", () => {
   assert.ok(login.includes("<SiteNav />"), "login should keep shared navigation");
   assert.ok(!login.includes("<SiteFooter />"), "login should not render the full marketing footer");
 });
+
+
+test("homepage introduces the PayrollPH owl without replacing the product preview", () => {
+  const hero = read("src/components/marketing/claude-home/components/Hero.tsx");
+  const mascot = read("src/components/payroll-owl.tsx");
+  assert.ok(hero.includes('from "@/components/payroll-owl"'), "homepage hero must use the shared owl component");
+  assert.ok(hero.includes("<PayrollOwl"), "homepage hero must render the owl beside the product story");
+  assert.ok(hero.includes("Payroll Guide"), "homepage owl callout must explain its product role");
+  assert.ok(hero.includes("Mar 1–15, 2026"), "real payroll product preview must remain in the hero");
+  assert.ok(mascot.includes('state?: "welcome" | "review" | "attention" | "compliance" | "approved" | "released" | "help"'));
+  assert.ok(mascot.includes('viewBox="0 0 220 220"'), "owl must be a lightweight scalable SVG");
+});
