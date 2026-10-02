@@ -24,6 +24,7 @@ import { FirstPayrollReadinessCard } from "@/components/workspace/first-payroll-
 import { ProductionPilotSignoffCard } from "@/components/workspace/production-pilot-signoff";
 import { FREELANCER_HIDDEN, NAVIGATION } from "@/components/workspace/nav";
 import { OverviewView } from "@/components/workspace/overview";
+import { OperationsView } from "@/components/workspace/operations";
 import { RoleOverviewView, type WorkspaceDashboardRole } from "@/components/workspace/role-overview";
 import {
   AuditPage,
@@ -471,6 +472,15 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
             onRefresh={async () => {
               await refresh();
             }}
+            notify={notify}
+          />
+        )}
+
+        {page === "Operations" && (
+          <OperationsView
+            data={data}
+            onPage={setPage}
+            onOpenOutbox={() => setOutboxOpen(true)}
             notify={notify}
           />
         )}
