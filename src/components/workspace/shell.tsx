@@ -32,7 +32,9 @@ export type Notification = {
   page?: string;
 };
 
-const OVERVIEW_NAV_ORDER = ["Overview", "People", "Payroll", "Approvals", "Compliance", "Analytics", "Settings"] as const;\n\nconst WORKSPACE_LABELS: Record<string, string> = {
+const OVERVIEW_NAV_ORDER = ["Overview", "People", "Payroll", "Approvals", "Compliance", "Analytics", "Settings"] as const;
+
+const WORKSPACE_LABELS: Record<string, string> = {
   Overview: "Dashboard",
   People: "Employees",
   Compliance: "Government Reports",
