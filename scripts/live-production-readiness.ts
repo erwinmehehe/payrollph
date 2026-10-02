@@ -60,7 +60,7 @@ async function waitForExpectedDeployment() {
 
   for (let attempt = 1; attempt <= 24; attempt++) {
     try {
-      const response = await fetchWithTimeout(`${baseUrl}/api/readiness/pilot-status`);
+      const response = await fetchWithTimeout(`${baseUrl}/api/readiness/deployment`);
       lastStatus = response.status;
       const payload = await response.json().catch(() => ({}));
       lastDeploymentSha = typeof payload.deploymentSha === "string" ? payload.deploymentSha : null;

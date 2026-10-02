@@ -128,6 +128,7 @@ test("bank-data readiness covers both employee rows and payroll snapshots", () =
 
 test("production rollout readiness proves the exact deployed commit and exposes sanitized blocker keys", () => {
   const pilotStatus = readFileSync("src/app/api/readiness/pilot-status/route.ts", "utf8");
+  const deploymentStatus = readFileSync("src/app/api/readiness/deployment/route.ts", "utf8");
   const rolloutScript = readFileSync("scripts/live-production-readiness.ts", "utf8");
   const workflow = readFileSync(".github/workflows/production-rollout-readiness.yml", "utf8");
   const liveRbac = readFileSync(".github/workflows/live-rbac-sandbox-smoke.yml", "utf8");
@@ -135,8 +136,11 @@ test("production rollout readiness proves the exact deployed commit and exposes 
   assert.ok(pilotStatus.includes("launchBlockers"));
   assert.ok(pilotStatus.includes("VERCEL_GIT_COMMIT_SHA"));
   assert.ok(pilotStatus.includes("manualLaunchReady"));
+  assert.ok(deploymentStatus.includes("VERCEL_GIT_COMMIT_SHA"));
+  assert.ok(deploymentStatus.includes("VERCEL_ENV"));
 
   assert.ok(rolloutScript.includes("EXPECTED_COMMIT_SHA"));
+  assert.ok(rolloutScript.includes("/api/readiness/deployment"));
   assert.ok(rolloutScript.includes("waitForExpectedDeployment"));
   assert.ok(rolloutScript.includes("deploymentSha"));
   assert.ok(rolloutScript.includes("launchBlockers"));
@@ -144,6 +148,7 @@ test("production rollout readiness proves the exact deployed commit and exposes 
   assert.ok(workflow.includes("EXPECTED_COMMIT_SHA: ${{ github.sha }}"));
   assert.ok(liveRbac.includes("EXPECTED_COMMIT_SHA: ${{ github.sha }}"));
   assert.ok(liveRbac.includes("deploymentSha"));
+  assert.ok(liveRbac.includes("/api/readiness/deployment"));
   assert.ok(liveRbac.includes("Exact production commit is live."));
 });
 
