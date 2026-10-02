@@ -2,7 +2,6 @@ import {
   AlertTriangle,
   ArrowRight,
   Bell,
-  Check,
   CheckCircle2,
   ClipboardCheck,
   Search,
