@@ -39,7 +39,7 @@ export type NavItem = {
   /** Icon colour, so a destination is recognisable before the label is read. */
   tone: NavTone;
   /** Live badge source, resolved by the shell against real data. */
-  badge?: "approvals" | "people" | "runs" | "api";
+  badge?: "approvals" | "people" | "runs" | "api" | "operations";
 };
 
 export type NavGroup = { label: string; items: NavItem[] };
@@ -60,6 +60,7 @@ export const NAVIGATION: NavGroup[] = [
       { name: "Time & attendance", icon: Clock3, hint: "Punches, exceptions and derived hours", tone: "cyan" },
       { name: "Leave", icon: CalendarDays, hint: "Leave requests and balances", tone: "pink" },
       { name: "Approvals", icon: ClipboardCheck, hint: "Decisions assigned to you or your delegates", tone: "amber", badge: "approvals" },
+      { name: "Operations", icon: AlertCircle, hint: "One queue for payroll, people, delivery and compliance issues", tone: "red", badge: "operations" },
     ],
   },
   {
@@ -121,3 +122,21 @@ export function groupOf(page: string) {
 export function itemOf(page: string) {
   return ALL_ITEMS.find((item) => item.name === page);
 }
+
+
+/**
+ * The sidebar intentionally exposes only the core payroll workflow. Everything
+ * else stays available through "More tools" and the command palette, so
+ * capabilities are not removed just because the primary navigation is calmer.
+ */
+export const PRIMARY_NAV_ORDER = [
+  "Overview",
+  "People",
+  "Payroll",
+  "Time & attendance",
+  "Approvals",
+  "Operations",
+  "Settings",
+] as const;
+
+export const PRIMARY_NAV_NAMES = new Set<string>(PRIMARY_NAV_ORDER);
