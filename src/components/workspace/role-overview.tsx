@@ -181,7 +181,6 @@ function OwnerDashboard(props: RoleDashboardProps) {
         title={ownerIssueCount ? `${ownerIssueCount} thing${ownerIssueCount === 1 ? "" : "s"} need attention` : "Payroll looks ready"}
         detail={ownerIssueCount ? "Resolve these before sending or releasing payroll." : "The visible payroll checks are clear. Review the run before release."}
         items={ownerAlertItems}
-        state={ownerIssueCount ? "attention" : currentRun?.status === "Released" ? "released" : "approved"}
         actionLabel={ownerIssueCount ? "Review issues" : "Open payroll"}
         onAction={() => onPage(missingBankDetails ? "People" : payrollExceptions.length ? "Payroll" : pendingTasks.length ? "Approvals" : "Payroll")}
       />
@@ -303,7 +302,6 @@ function HrDashboard(props: RoleDashboardProps) {
         title={missingBankDetails ? `${missingBankDetails} employee${missingBankDetails === 1 ? "" : "s"} need payout details` : hrIssueCount ? `${hrIssueCount} people item${hrIssueCount === 1 ? "" : "s"} need attention` : "People inputs look ready"}
         detail={missingBankDetails ? "Complete bank accounts so payroll can be processed on time." : hrIssueCount ? "Clear the remaining people inputs before the next payroll handoff." : "No current HR data issue is blocking the payroll handoff."}
         items={hrAlertItems}
-        state={missingBankDetails || pendingLeave.length || attendanceIssues.length ? "attention" : "approved"}
         actionLabel="View employees"
         onAction={() => onPage("People")}
       />
@@ -433,7 +431,6 @@ function PayrollDashboard(props: RoleDashboardProps) {
         title={failedJobs.length ? "Payroll calculation needs recovery" : queueDone ? "Payroll calculation is complete" : "Payroll calculation is in progress"}
         detail={payrollExceptions.length ? `${payrollExceptions.length} exception${payrollExceptions.length === 1 ? "" : "s"} need review before you can submit for approval.` : "Review the calculated register before the maker-checker handoff."}
         items={payrollAlertItems}
-        state={failedJobs.length || payrollExceptions.length ? "attention" : queueDone ? "review" : "welcome"}
         actionLabel={currentRun ? "Review exceptions" : "Create payroll"}
         onAction={currentRun ? () => onPage("Payroll") : onNewRun}
       />
@@ -544,7 +541,6 @@ function CheckerDashboard(props: RoleDashboardProps) {
         title={pendingTasks.length ? `${pendingTasks.length} payroll run${pendingTasks.length === 1 ? "" : "s"} need your approval` : "Your review queue is clear"}
         detail={pendingTasks.length ? "Review the computed payroll and resolve any remaining items before recording your decision." : "Nothing is waiting for your independent payroll decision right now."}
         items={checkerAlertItems}
-        state={pendingTasks.length ? "review" : "approved"}
         actionLabel="Review payroll"
         onAction={() => onPage("Approvals")}
       />
