@@ -230,6 +230,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const verifiedFigures = figuresFromEntries(entries);
+  const systemConsistencyFailures: string[] = [];
+  if (Math.abs(verifiedFigures.grossPay - Number(run.grossPay)) > 0.01) systemConsistencyFailures.push("grossPay");
+  if (Math.abs(verifiedFigures.netPay - Number(run.netPay)) > 0.01) systemConsistencyFailures.push("netPay");
+  if (verifiedFigures.employeeCount !== run.employeeCount) systemConsistencyFailures.push("employeeCount");
+  if (systemConsistencyFailures.length > 0) {
+    return Response.json(
+      {
+        error: `The released payroll is internally inconsistent and cannot be used as launch evidence: ${systemConsistencyFailures.join(", ")}.`,
+        systemConsistencyFailures,
+      },
+      { status: 409 },
+    );
+  }
+
   const mismatches: string[] = [];
   const variances: Record<string, number> = {};
   for (const key of MONEY_FIGURES) {
