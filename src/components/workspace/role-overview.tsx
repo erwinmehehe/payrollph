@@ -16,6 +16,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
+import { PayrollGuide } from "@/components/payroll-owl";
 import { buildPayrollHandoff, payrollHandoffRank, type PayrollHandoffStage } from "@/lib/payroll-handoff";
 import type { DashboardData, PayrollHandoffRunSummary, PayrollRun, Task } from "./types";
 import {
@@ -172,6 +173,31 @@ function OwnerDashboard(props: RoleDashboardProps) {
         }
       />
 
+      <PayrollGuide
+        role="owner"
+        state={currentRun?.status === "Released" ? "released" : releaseBlocked ? "attention" : "approved"}
+        title={
+          currentRun
+            ? releaseBlocked
+              ? "Clear the remaining release checks"
+              : currentRun.status === "Released"
+                ? "Payroll is complete"
+                : "Visible release checks are clear"
+            : "Ready when your next cutoff closes"
+        }
+        detail={
+          currentRun
+            ? releaseBlocked
+              ? "I’ll keep the release risks visible so you can resolve them before money moves."
+              : currentRun.status === "Released"
+                ? "Payslips and release records are ready for the team."
+                : "Review the final owner controls before release."
+            : "Create the next payroll when HR and payroll inputs are ready."
+        }
+        actionLabel={currentRun ? "Review payroll" : "Create payroll"}
+        onAction={currentRun ? () => onPage("Payroll") : onNewRun}
+      />
+
       <RoleStrip
         kicker="Owner focus"
         title={currentRun ? currentRun.periodLabel + " · " + currentRun.status : "No payroll is in progress"}
@@ -322,6 +348,23 @@ function HrDashboard(props: RoleDashboardProps) {
         }
       />
 
+      <PayrollGuide
+        role="hr"
+        state={pendingLeave.length + attendanceIssues.length + peopleMissingGovernmentIds.length > 0 ? "attention" : "approved"}
+        title={
+          pendingLeave.length + attendanceIssues.length + peopleMissingGovernmentIds.length > 0
+            ? "People inputs need attention before cutoff"
+            : "People inputs look ready for payroll"
+        }
+        detail={
+          pendingLeave.length + attendanceIssues.length + peopleMissingGovernmentIds.length > 0
+            ? "I’ll surface leave, attendance and filing-ID gaps before they become payroll exceptions."
+            : "No current HR data issue is blocking the next payroll handoff."
+        }
+        actionLabel="Review people"
+        onAction={() => onPage("People")}
+      />
+
       <RoleStrip
         kicker="HR focus"
         title={String(activePeople.length) + " active people · " + String(pendingLeave.length + attendanceIssues.length + openProvisioning.length) + " open people items"}
@@ -456,6 +499,27 @@ function PayrollDashboard(props: RoleDashboardProps) {
         }
       />
 
+      <PayrollGuide
+        role="payroll"
+        state={failedJobs.length || payrollExceptions.length ? "attention" : queueDone && currentRun ? "review" : "welcome"}
+        title={
+          failedJobs.length
+            ? "A payroll job needs recovery"
+            : payrollExceptions.length
+              ? `${payrollExceptions.length} payroll exception${payrollExceptions.length === 1 ? "" : "s"} need review`
+              : currentRun
+                ? "The register is ready for your final review"
+                : "Start with a clean payroll cutoff"
+        }
+        detail={
+          failedJobs.length || payrollExceptions.length
+            ? "Resolve the flagged calculation or employee entries before sending anything to Checker."
+            : "I’ll keep calculation state, exceptions and maker-checker handoff visible."
+        }
+        actionLabel={currentRun ? "Open payroll" : "Create payroll"}
+        onAction={currentRun ? () => onPage("Payroll") : onNewRun}
+      />
+
       <RoleStrip
         kicker="Payroll focus"
         title={currentRun ? currentRun.periodLabel + " · " + currentRun.status : "No open payroll run"}
@@ -570,6 +634,19 @@ function CheckerDashboard(props: RoleDashboardProps) {
             <button className="primary-button brand" onClick={() => onPage("Approvals")}>Open approvals</button>
           </>
         }
+      />
+
+      <PayrollGuide
+        role="checker"
+        state={pendingTasks.length ? "review" : "approved"}
+        title={pendingTasks.length ? "Independent review is waiting for you" : "Your review queue is clear"}
+        detail={
+          pendingTasks.length
+            ? "Check the submitted payroll, compliance context and evidence before recording your decision."
+            : "Nothing is waiting for an independent payroll decision right now."
+        }
+        actionLabel="Open approvals"
+        onAction={() => onPage("Approvals")}
       />
 
       <RoleStrip
