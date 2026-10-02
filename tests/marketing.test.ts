@@ -40,16 +40,21 @@ test("the software homepage uses the real Linaw workspace preview", () => {
   assert.ok(demo.includes("Open role-based sandbox"), "homepage demo must hand off to the real role-based sandbox");
 });
 
-test("the homepage leads with the Claude payroll value proposition", () => {
+test("the homepage leads with the approved PayrollPH hero", () => {
   const hero = read("src/components/marketing/claude-home/components/Hero.tsx");
   const trust = read("src/components/marketing/claude-home/components/Trust.tsx");
   const product = read("src/components/marketing/claude-home/components/Product.tsx");
 
-  assert.ok(hero.includes("Payroll that"), "hero must lead with the redesigned payroll value proposition");
-  assert.ok(hero.includes("shows its work."), "hero must emphasize explainable payroll");
-  assert.ok(product.includes("Drag a salary. Watch every deduction explain itself."), "statutory explanation must stay visible");
+  assert.ok(hero.includes("Payroll that stays clear"), "hero must lead with the approved payroll headline");
+  assert.ok(hero.includes("compliant, and under control."), "hero must complete the approved headline");
+  assert.ok(hero.includes("Try Live Demo"), "hero must expose the primary live-demo CTA");
+  assert.ok(hero.includes("See Pricing"), "hero must expose the pricing CTA");
+  assert.ok(hero.includes("DOLE-compliant calculations"), "hero must show the first trust point");
+  assert.ok(hero.includes("Government reports ready"), "hero must show the second trust point");
+  assert.ok(hero.includes("Secure and confidential"), "hero must show the third trust point");
+  assert.ok(hero.includes("Let’s make payroll easier"), "hero must include the owl speech bubble");
+  assert.ok(product.includes("Drag a salary. Watch every deduction explain itself."), "statutory explanation must stay visible below the fold");
   assert.ok(trust.includes("Controls that return 403, not a tooltip."), "security controls must remain a primary product story");
-  assert.ok(trust.includes("We tell you what's missing, too."), "capability honesty must remain visible");
 });
 
 test("a dedicated role-based demo page exists", () => {
@@ -177,12 +182,13 @@ test("homepage Leave and Migration modules perform local interactive workflows",
 });
 
 
-test("homepage hero preserves the payroll story while the demo uses the shared product system", () => {
+test("homepage hero uses the PayrollPH dashboard visual while the deeper demo stays interactive", () => {
   const hero = read("src/components/marketing/claude-home/components/Hero.tsx");
   const demo = read("src/components/marketing/claude-home/components/Demo.tsx");
-  assert.ok(hero.includes("Mar 1–15, 2026"), "hero must render the payroll console");
-  assert.ok(hero.includes("Needs decision"), "hero console must expose payroll decision state");
-  assert.ok(hero.includes("Prepare") && hero.includes("Approve") && hero.includes("Release") && hero.includes("Export"), "hero must show the payroll lifecycle");
+  assert.ok(hero.includes("Good morning, Maria!"), "hero visual must use the approved PayrollPH dashboard composition");
+  assert.ok(hero.includes("3 things need attention"), "hero visual must show the attention card");
+  assert.ok(hero.includes("Recent Payroll Runs"), "hero visual must include recent payroll history");
+  assert.ok(hero.includes("Ready for review"), "hero visual must include payroll status");
   assert.ok(demo.includes("WorkspacePreview"), "homepage demo must render the shared workspace preview");
   assert.ok(demo.includes("actual Linaw workspace"), "homepage demo must explain that it is showing the product system");
 });
@@ -250,13 +256,12 @@ test("login route omits the marketing footer", () => {
 });
 
 
-test("homepage introduces the PayrollPH owl without replacing the product preview", () => {
+test("homepage uses the shared PayrollPH owl inside the approved hero composition", () => {
   const hero = read("src/components/marketing/claude-home/components/Hero.tsx");
   const mascot = read("src/components/payroll-owl.tsx");
-  assert.ok(hero.includes('from "@/components/payroll-owl"'), "homepage hero must use the shared owl component");
-  assert.ok(hero.includes("<PayrollOwl"), "homepage hero must render the owl beside the product story");
-  assert.ok(hero.includes("Payroll Guide"), "homepage owl callout must explain its product role");
-  assert.ok(hero.includes("Mar 1–15, 2026"), "real payroll product preview must remain in the hero");
-  assert.ok(mascot.includes('state?: "welcome" | "review" | "attention" | "compliance" | "approved" | "released" | "help"'));
-  assert.ok(mascot.includes('viewBox="0 0 220 220"'), "owl must be a lightweight scalable SVG");
+  assert.ok(hero.includes('from "@/components/payroll-owl"'), "homepage hero must use the shared owl asset");
+  assert.ok(hero.includes("<PayrollOwlArt"), "homepage hero must render the polished owl artwork");
+  assert.ok(hero.includes("payroll-hero-laptop"), "homepage must render the laptop/dashboard stage");
+  assert.ok(hero.includes("payroll-hero-speech"), "homepage must render the owl speech bubble");
+  assert.ok(mascot.includes("PayrollOwlArt"), "shared mascot component must remain available");
 });
