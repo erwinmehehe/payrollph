@@ -11,15 +11,13 @@ Linaw is a database-backed multi-client Philippine HRIS and payroll workspace. C
 
 ### Authentication & security (request-path enforced)
 - scrypt password hashing with timing-safe verification
-- Account lockout after repeated failed logins
+- Durable account lockout after 5 failed password attempts, with a 15-minute lock window stored in Postgres
 - Real TOTP second factor (RFC 6238-style HOTP/SHA1) inserted **between password success and session creation**
 - Backup codes
 - Server-side revocable sessions (hashed tokens in `sessions`)
 - Forgot/reset password with hashed, time-limited tokens
-- In-memory per-IP sliding-window rate limiting on `/api/auth/*`
-  - UI/docs explicitly say: **single-instance, not yet distributed**
-- Demo account: `celine@linaw.ph` / `LinawDemo2026!`
-  - After password success, the login API returns a development-only current TOTP code so the second factor can be completed in this sandbox without a physical authenticator
+- Postgres-backed distributed login rate limits shared across app instances, with a per-process fallback only when the database limiter is unavailable
+- Demo identities are seeded only when `DEMO_MODE=true` outside production; login never returns a generated TOTP code
 
 ### Payroll processing
 - Semi-monthly run model

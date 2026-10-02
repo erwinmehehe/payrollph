@@ -1,5 +1,5 @@
 {
-  "name": "nextjs-postgresql-template",
+  "name": "linaw-payrollph",
   "private": true,
   "scripts": {
     "dev": "next dev",

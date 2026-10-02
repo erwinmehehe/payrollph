@@ -157,6 +157,7 @@ test("shared public demo cannot mutate credentials or trigger real external side
     "src/app/api/billing/route.ts",
     "src/app/api/organizations/route.ts",
     "src/app/api/developer/route.ts",
+    "src/app/api/delegations/route.ts",
     "src/app/api/payroll-runs/[id]/exports/route.ts",
   ]) {
     const source = readFileSync(path, "utf8");
@@ -214,6 +215,7 @@ test("sensitive cookie-authenticated mutations use the shared same-origin guard"
     "src/app/api/auth/totp/setup/route.ts",
     "src/app/api/billing/route.ts",
     "src/app/api/developer/route.ts",
+    "src/app/api/delegations/route.ts",
     "src/app/api/invitations/route.ts",
     "src/app/api/organizations/route.ts",
     "src/app/api/payroll-runs/[id]/release/route.ts",
@@ -228,6 +230,7 @@ test("high-risk administrative actions require MFA in production", () => {
   for (const path of [
     "src/app/api/billing/route.ts",
     "src/app/api/developer/route.ts",
+    "src/app/api/delegations/route.ts",
     "src/app/api/invitations/route.ts",
     "src/app/api/organizations/route.ts",
     "src/app/api/payroll-runs/[id]/release/route.ts",
