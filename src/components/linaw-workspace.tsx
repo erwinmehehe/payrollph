@@ -410,6 +410,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
             notifications={notifications}
             availablePages={availablePages}
             canRetryPayroll={canManagePayroll}
+            canManagePeople={canManagePeople}
             canOpenOutbox={canManageDeliveryOutbox}
             onPage={setPage}
             onRetryPayroll={(runId) => void processRun(runId)}
