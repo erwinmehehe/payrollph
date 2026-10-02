@@ -18,6 +18,7 @@ import {
   minWageOrders,
   organizations,
   orgUnits,
+  outbox,
   payrollEntries,
   payrollJobs,
   payrollRuns,
@@ -25,14 +26,17 @@ import {
   provisioningTasks,
   timePunches,
   userOrganizations,
+  webhookDeliveries,
 } from "@/db/schema";
 import { ensureSeedData } from "@/db/seed";
-import { getAccess, PAYROLL_CHECKER_ROLES, PAYROLL_VIEW_ROLES, PEOPLE_PAYROLL_ROLES, roleAllowed } from "@/lib/access";
+import { DEVELOPER_ADMIN_ROLES, getAccess, ORG_ADMIN_ROLES, PAYROLL_CHECKER_ROLES, PAYROLL_VIEW_ROLES, PEOPLE_PAYROLL_ROLES, roleAllowed } from "@/lib/access";
 import { getSessionUser, publicUser } from "@/lib/auth";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
 import { buildFirstPayrollReadiness } from "@/lib/first-payroll-readiness";
+import { buildOperationsAttention } from "@/lib/operations-attention";
+import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
 
 export async function getDashboardData(organizationId?: number) {
   await ensureCoreCompatibilitySchema();
@@ -84,7 +88,7 @@ export async function getDashboardData(organizationId?: number) {
     ? and(eq(employees.organizationId, selectedOrganization.id), eq(employees.orgUnitId, access.orgUnitId))
     : eq(employees.organizationId, selectedOrganization.id);
 
-  const [employeeRows, payProfileRows, payRevisionRowsRaw, restDayRevisionRowsRaw, retroRowsRaw, runRows, taskRowsRaw, auditRows, plans, templates, advisories, freelancer, punchRowsRaw, delegationRows, leaveRowsRaw, leavePolicyRows, units, wages, provisionRowsRaw] = await Promise.all([
+  const [employeeRows, payProfileRows, payRevisionRowsRaw, restDayRevisionRowsRaw, retroRowsRaw, runRows, taskRowsRaw, auditRows, plans, templates, advisories, freelancer, punchRowsRaw, delegationRows, leaveRowsRaw, leavePolicyRows, units, wages, provisionRowsRaw, mailStateRows, webhookStateRows] = await Promise.all([
     db.select().from(employees).where(employeeFilter).orderBy(asc(employees.id)),
     db.select().from(employeePayProfiles).where(eq(employeePayProfiles.organizationId, selectedOrganization.id)),
     canViewPeoplePay
@@ -131,6 +135,20 @@ export async function getDashboardData(organizationId?: number) {
     ),
     db.select().from(minWageOrders),
     db.select().from(provisioningTasks).where(eq(provisioningTasks.organizationId, selectedOrganization.id)),
+    access.companyWide && roleAllowed(access.role, ORG_ADMIN_ROLES)
+      ? db.select({ status: outbox.status, deliveryStatus: outbox.deliveryStatus })
+          .from(outbox)
+          .where(eq(outbox.organizationId, selectedOrganization.id))
+          .orderBy(desc(outbox.createdAt))
+          .limit(100)
+      : Promise.resolve([]),
+    access.companyWide && roleAllowed(access.role, DEVELOPER_ADMIN_ROLES)
+      ? db.select({ status: webhookDeliveries.status })
+          .from(webhookDeliveries)
+          .where(eq(webhookDeliveries.organizationId, selectedOrganization.id))
+          .orderBy(desc(webhookDeliveries.createdAt))
+          .limit(100)
+      : Promise.resolve([]),
   ]);
 
   const handoffRunRows = canViewPayroll
@@ -194,6 +212,39 @@ export async function getDashboardData(organizationId?: number) {
     ? await db.select().from(payrollJobs).where(eq(payrollJobs.payrollRunId, currentRun.id))
     : [];
 
+  const activeEmployees = employeeRows.filter((employee) => employee.status === "Active");
+  const missingBankDetails = activeEmployees.filter((employee) => !employee.bankAccount || !employee.bankCode).length;
+  const missingGovernmentIds = activeEmployees.filter(
+    (employee) => !employee.tin || !employee.sssNo || !employee.philHealthNo || !employee.pagIbigNo,
+  ).length;
+  const emailFailures = mailStateRows.filter((row) => row.status === "failed").length;
+  const emailDeliveryIssues = mailStateRows.filter((row) =>
+    ["bounced", "complained", "failed", "suppressed"].includes(row.deliveryStatus ?? ""),
+  ).length;
+  const webhookRetrying = webhookStateRows.filter((row) =>
+    row.status === "retrying" || row.status === "in_flight",
+  ).length;
+  const webhookExhausted = webhookStateRows.filter((row) => row.status === "exhausted").length;
+  const payoutState =
+    access.role === "owner" && currentRun
+      ? derivePayrollPayoutState(auditRows, currentRun.id)
+      : null;
+  const operationsAttention = buildOperationsAttention({
+    role: access.role,
+    missingBankDetails,
+    missingGovernmentIds,
+    pendingApprovals: taskRows.filter((task) => task.status === "Pending").length,
+    payrollExceptions: Number(currentRun?.exceptions ?? 0),
+    failedPayrollJobs: jobs.filter((job) => job.status === "Failed").length,
+    emailFailures,
+    emailDeliveryIssues,
+    webhookRetrying,
+    webhookExhausted,
+    payoutFailed: payoutState?.reconciliation.failed ?? 0,
+    payoutPending: payoutState?.reconciliation.pending ?? 0,
+    payoutRegressed: payoutState?.reconciliation.settlementRegressed ?? false,
+  });
+
   const accountType = selectedOrganization.accountType;
   const capabilities = {
     orgStructure: accountType !== "freelancer",
@@ -239,6 +290,7 @@ export async function getDashboardData(organizationId?: number) {
 
   return {
     firstPayrollReadiness,
+    operationsAttention,
     user: sessionUser ? publicUser(sessionUser) : null,
     access,
     capabilities,
