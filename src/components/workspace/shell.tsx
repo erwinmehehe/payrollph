@@ -16,7 +16,7 @@ import {
   ShieldCheck,
   UserCheck,
 } from "lucide-react";
-import { FREELANCER_HIDDEN, NAVIGATION, groupOf, itemOf } from "./nav";
+import { FREELANCER_HIDDEN, PRIMARY_NAVIGATION, SECONDARY_NAVIGATION, groupOf } from "./nav";
 import type { DashboardData, Organization } from "./types";
 import { Avatar, initialsOf, relativeTime } from "./ui";
 import { DEMO_ROLES, demoRoleInfo, type DemoRoleId } from "@/lib/demo-roles";
@@ -31,7 +31,6 @@ export type Notification = {
   page?: string;
 };
 
-const OVERVIEW_NAV_ORDER = ["Overview", "People", "Payroll", "Approvals", "Compliance", "Analytics", "Settings"] as const;
 
 const WORKSPACE_LABELS: Record<string, string> = {
   Overview: "Dashboard",
@@ -80,6 +79,7 @@ export function WorkspaceShell({
   const [clientOpen, setClientOpen] = useState(false);
   const [roleOpen, setRoleOpen] = useState(false);
   const [trayOpen, setTrayOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const isFreelancer = data.selectedOrganization.accountType === "freelancer";
   const openApprovals = data.tasks.filter((task) => task.status === "Pending").length;
@@ -89,8 +89,15 @@ export function WorkspaceShell({
   const avatarRole = displayRole ?? data.user?.role ?? "member";
   const profileAvatarIndex = ({ owner: 0, admin: 0, hr: 1, payroll: 2, checker: 3, employee: 4 } as Record<string, number>)[avatarRole] ?? 0;
   const defaultPage = visiblePages?.[0] ?? "Overview";
-  const overviewItems = OVERVIEW_NAV_ORDER.map((name) => itemOf(name)).filter((item) => item !== undefined);
-  const navigationGroups = page === "Overview" ? [{ label: "", items: overviewItems }] : NAVIGATION;
+  const navItemVisible = (name: string) =>
+    !(isFreelancer && FREELANCER_HIDDEN.has(name))
+    && (!visiblePages || visiblePages.includes(name));
+  const secondaryHasVisibleItems = SECONDARY_NAVIGATION.some((group) =>
+    group.items.some((item) => navItemVisible(item.name)),
+  );
+  const secondaryPageActive = SECONDARY_NAVIGATION.some((group) =>
+    group.items.some((item) => item.name === page && navItemVisible(item.name)),
+  );
 
   function closeOverlays() {
     setDrawer(false);
@@ -104,6 +111,10 @@ export function WorkspaceShell({
     closeOverlays();
     onPage(next);
   }
+
+  useEffect(() => {
+    if (secondaryPageActive) setMoreOpen(true);
+  }, [secondaryPageActive]);
 
   // One Escape handler for all three popovers.
   useEffect(() => {
@@ -159,10 +170,8 @@ export function WorkspaceShell({
         </div>
 
         <nav className="side-navigation slim-scroll">
-          {navigationGroups.map((group) => {
-            const items = group.items
-              .filter((item) => !(isFreelancer && FREELANCER_HIDDEN.has(item.name)))
-              .filter((item) => !visiblePages || visiblePages.includes(item.name));
+          {PRIMARY_NAVIGATION.map((group) => {
+            const items = group.items.filter((item) => navItemVisible(item.name));
             if (!items.length) return null;
             return (
               <div className="nav-group" key={group.label}>
@@ -192,6 +201,53 @@ export function WorkspaceShell({
               </div>
             );
           })}
+
+          {secondaryHasVisibleItems && (
+            <div className="nav-more">
+              <button
+                type="button"
+                className={`nav-more-toggle ${secondaryPageActive ? "active" : ""}`}
+                onClick={() => setMoreOpen((current) => !current)}
+                aria-expanded={moreOpen}
+              >
+                <span className="nav-more-icon"><MoreHorizontal size={15} /></span>
+                <span>More</span>
+                <ChevronDown size={14} className={moreOpen ? "is-open" : ""} />
+              </button>
+
+              {moreOpen && SECONDARY_NAVIGATION.map((group) => {
+                const items = group.items.filter((item) => navItemVisible(item.name));
+                if (!items.length) return null;
+                return (
+                  <div className="nav-group nav-group-secondary" key={group.label}>
+                    <p>{group.label}</p>
+                    {items.map((item) => {
+                      const Icon = item.icon;
+                      const active = page === item.name;
+                      const badge = badgeFor(item.badge);
+                      return (
+                        <button
+                          key={item.name}
+                          className={`nav-item ${active ? "active" : ""}`}
+                          data-tone={item.tone}
+                          data-nav-name={item.name}
+                          onClick={() => go(item.name)}
+                          aria-current={active ? "page" : undefined}
+                          title={rail ? item.name : undefined}
+                        >
+                          <span className={`nav-icon t-${item.tone}`} aria-hidden>
+                            <Icon size={14} strokeWidth={active ? 2.3 : 2} />
+                          </span>
+                          <span>{workspaceLabel(item.name)}</span>
+                          {badge && <b>{badge}</b>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </nav>
 
         <div className="sidebar-bottom">
