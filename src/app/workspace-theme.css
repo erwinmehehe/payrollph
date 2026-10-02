@@ -2961,3 +2961,37 @@
     transform: translate(-4px, 1px);
   }
 }
+
+
+.employee-pay-guide {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.employee-pay-guide .payroll-guide {
+  margin-bottom: 0;
+}
+
+.employee-payslip-status {
+  position: absolute;
+  z-index: 2;
+  top: 12px;
+  right: 14px;
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #d1fae5;
+  color: #047857;
+  font-size: 9.5px;
+  font-weight: 760;
+}
+
+@media (max-width: 720px) {
+  .employee-payslip-status {
+    position: static;
+    margin: 0 0 6px 8px;
+  }
+}
