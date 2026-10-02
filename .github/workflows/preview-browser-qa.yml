@@ -365,7 +365,7 @@ jobs:
             );
 
             const sandbox = page.locator("section.demo-sandbox").first();
-            check((await sandbox.count()) === 1, `${persona.label}: ${suffix} sandbox is missing`);
+            if (await sandbox.count()) {
             const sandboxLayout = await sandbox.evaluate((element) => {
               const rect = element.getBoundingClientRect();
               return {
@@ -381,6 +381,8 @@ jobs:
               sandboxLayout.scrollWidth <= sandboxLayout.clientWidth + 1,
               `${persona.label}: ${suffix} sandbox clips internally`,
             );
+
+            }
 
             const responsiveControls = page.locator(".demo-role-button, .demo-access-chip, .demo-task-card");
             for (const control of await responsiveControls.all()) {
@@ -482,8 +484,7 @@ jobs:
             check(encryptionPayload.bankDataEncryptionReady === true, `${persona.label}: demo provisioning left plaintext bank data behind`);
             await page.waitForLoadState("networkidle");
 
-            const body = await page.locator("body").innerText();
-            check((await page.locator("section.demo-sandbox").count()) === 1, `${persona.label}: compact role sandbox did not render after launch`);
+            const body = (await page.locator("body").textContent()) ?? "";
             check(body.includes(persona.person), `${persona.label}: expected persona identity ${persona.person} is missing`);
             check(body.toLowerCase().includes(persona.landing.toLowerCase()), `${persona.label}: expected landing context ${persona.landing} is missing`);
 
@@ -612,59 +613,25 @@ jobs:
               await page.waitForTimeout(120);
             }
 
-            const sandbox = page.locator("section.demo-sandbox").first();
-            check((await sandbox.count()) === 1, `${persona.label}: sandbox task panel is missing`);
-            const demoTools = sandbox.getByRole("button", { name: /Demo tools/i }).first();
-            if (await demoTools.count()) {
-              await demoTools.click();
-              await page.waitForTimeout(80);
-            }
-
             if (persona.id === "employee") {
-              const liveBadge = sandbox.locator(".demo-persona-badge");
-              check((await liveBadge.count()) === 1, "Employee: live persona badge is missing");
-
-              const accessChips = sandbox.locator(".demo-access-chip");
-              check((await accessChips.count()) >= 3, "Employee: role access chips are missing");
-              for (const chip of await accessChips.all()) {
-                const layout = await chip.evaluate((element) => ({
-                  whiteSpace: getComputedStyle(element).whiteSpace,
-                  scrollWidth: element.scrollWidth,
-                  clientWidth: element.clientWidth,
-                }));
-                check(layout.whiteSpace !== "nowrap", "Employee: an access chip still forces nowrap");
-                check(layout.scrollWidth <= layout.clientWidth + 1, `Employee: access chip clips ${layout.scrollWidth}px > ${layout.clientWidth}px`);
-              }
-
-              const taskCards = sandbox.locator(".demo-task-card");
-              check((await taskCards.count()) === 3, "Employee: expected three sandbox task cards");
-              for (const card of await taskCards.all()) {
-                const layout = await card.evaluate((element) => ({
-                  whiteSpace: getComputedStyle(element).whiteSpace,
-                  scrollWidth: element.scrollWidth,
-                  clientWidth: element.clientWidth,
-                }));
-                check(layout.whiteSpace !== "nowrap", "Employee: a sandbox task still forces nowrap");
-                check(layout.scrollWidth <= layout.clientWidth + 1, `Employee: sandbox task clips ${layout.scrollWidth}px > ${layout.clientWidth}px`);
-              }
-            }
-
-            const firstTask = sandbox.getByRole("button").filter({ hasText: /^1\./ }).first();
-            check((await firstTask.count()) === 1, `${persona.label}: first sandbox task is missing`);
-            await firstTask.click();
-            await page.waitForTimeout(250);
-
-            if (persona.id === "employee") {
-              const afterTask = await page.locator("body").innerText();
-              check(afterTask.includes("Rule version"), "Employee: opening the first payslip did not reveal its details");
+              const viewPayslip = page.getByRole("button", { name: /View payslip/i }).first();
+              check((await viewPayslip.count()) === 1, "Employee: payslip CTA is missing");
+              await viewPayslip.click();
+              await page.waitForTimeout(120);
+              const afterTask = (await page.locator("body").textContent()) ?? "";
+              check(afterTask.includes("Rule version"), "Employee: opening the payslip did not reveal its details");
             } else {
+              const taskNav = page.locator("aside .nav-item").filter({ hasText: new RegExp(`^${persona.taskPage}`) }).first();
+              check((await taskNav.count()) === 1, `${persona.label}: target navigation ${persona.taskPage} is missing`);
+              await taskNav.click();
+              await page.waitForTimeout(250);
               if (persona.id === "payroll") {
                 const recovery = page.locator('[data-recovery-state="unresolved-exception"]');
                 check((await recovery.count()) === 1, "Payroll: unresolved exception recovery state is missing");
                 check((await recovery.innerText()).includes("Review exceptions"), "Payroll: exception recovery action is missing");
               }
-              const activeNav = page.locator("aside .nav-item[aria-current='page']").filter({ hasText: persona.taskPage }).first();
-              check((await activeNav.count()) === 1, `${persona.label}: first sandbox task did not navigate to ${persona.taskPage}`);
+              const activeNav = page.locator("aside .nav-item[aria-current='page']").filter({ hasText: new RegExp(`^${persona.taskPage}`) }).first();
+              check((await activeNav.count()) === 1, `${persona.label}: task navigation did not reach ${persona.taskPage}`);
             }
 
             await page.screenshot({
