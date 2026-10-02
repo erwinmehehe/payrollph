@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { ImportPanel } from "@/components/import-panel";
 import type { DashboardData, Employee } from "./types";
+import { REST_DAY_NAMES } from "@/lib/payroll-rules";
 import { Avatar, EmptyState, PageHeading, Status, formatDate, formatTimeOnly, money } from "./ui";
 
 type SortKey = "name" | "basicRate" | "status";
@@ -359,6 +360,10 @@ function PersonDrawer({
   });
   const [payChangeReason, setPayChangeReason] = useState("Salary adjustment");
   const [payError, setPayError] = useState("");
+  const [editingSchedule, setEditingSchedule] = useState(false);
+  const [savingSchedule, setSavingSchedule] = useState(false);
+  const [restDay, setRestDay] = useState(employee.restDay ?? "");
+  const [scheduleError, setScheduleError] = useState("");
   const [editingGovernment, setEditingGovernment] = useState(false);
   const [savingGovernment, setSavingGovernment] = useState(false);
   const [middleName, setMiddleName] = useState(employee.middleName ?? "");
@@ -403,6 +408,31 @@ function PersonDrawer({
       onClose();
     } finally {
       setSavingPay(false);
+    }
+  }
+
+  async function saveWorkSchedule() {
+    setSavingSchedule(true);
+    setScheduleError("");
+    try {
+      const response = await fetch("/api/employees", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId: data.selectedOrganization.id,
+          employeeId: employee.id,
+          restDay,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setScheduleError(payload.error ?? "Could not save the work schedule.");
+        return;
+      }
+      await onRefresh();
+      onClose();
+    } finally {
+      setSavingSchedule(false);
     }
   }
 
@@ -627,6 +657,54 @@ function PersonDrawer({
               </div>
             )}
           </div>
+        </section>
+
+        <section className="card" style={{ margin: "0 0 16px", boxShadow: "none" }}>
+          <div className="card-header">
+            <div>
+              <div className="card-kicker">WORK SCHEDULE</div>
+              <h2 style={{ fontSize: 14 }}>Weekly rest day</h2>
+              <p>Payroll uses this day when pricing rest-day work, overtime, and holiday/rest-day stacking. Released payroll is never rewritten.</p>
+            </div>
+            {canManage && (
+              <button className="secondary-button" onClick={() => setEditingSchedule((value) => !value)}>
+                {editingSchedule ? "Cancel" : "Edit schedule"}
+              </button>
+            )}
+          </div>
+          {editingSchedule ? (
+            <>
+              <div className="setting-form">
+                <label>Rest day
+                  <select value={restDay} onChange={(event) => setRestDay(event.target.value)}>
+                    <option value="">Not set</option>
+                    {REST_DAY_NAMES.map((day) => (
+                      <option key={day} value={day}>{day}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="modal-note" style={{ margin: "0 16px 10px" }}>
+                Changing this affects future calculations and any draft payroll that is recalculated. Released payroll stays immutable.
+              </div>
+              {scheduleError && <div className="notice notice-amber" style={{ margin: "0 16px 10px" }}><span>{scheduleError}</span></div>}
+              <div className="run-actions">
+                <button className="primary-button" disabled={savingSchedule} onClick={() => void saveWorkSchedule()}>
+                  <Check size={14} /> {savingSchedule ? "Saving…" : "Save work schedule"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="card-body">
+              <div className="run-stats" style={{ margin: 0 }}>
+                <div>
+                  <span>Rest day</span>
+                  <strong style={{ fontSize: 13 }}>{employee.restDay || "Not set"}</strong>
+                  <small>{employee.restDay ? "used for rest-day premium calculations" : "rest-day premium cannot be inferred"}</small>
+                </div>
+              </div>
+            </div>
+          )}
         </section>
 
         <section className="card" style={{ margin: "0 0 16px", boxShadow: "none" }}>
