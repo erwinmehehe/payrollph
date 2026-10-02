@@ -52,6 +52,16 @@ export async function buildReadinessPayload() {
       and ${payrollEntries.trace} #>> '{payment,bankAccount}' <> ''
       and ${payrollEntries.trace} #>> '{payment,bankAccount}' not like 'enc:v1:%'`);
 
+  // Labor Code Art. 91: every employee is entitled to one designated weekly
+  // rest day. employees.restDay is nullable with no default (never guessed),
+  // so this count is purely informational, not a claim that everyone without
+  // one is non-compliant: the Art. 82 exempt categories (managerial, field
+  // personnel, etc.) aren't modeled here at all, so some of this count may be
+  // employees who were never owed one in the first place.
+  const [{ value: totalEmployees }] = await db.select({ value: count() }).from(employees);
+  const [{ value: employeesMissingRestDay }] = await db.select({ value: count() }).from(employees)
+    .where(sql`${employees.restDay} is null`);
+
   // SSS R-3 and the BIR Alphalist readiness come from recorded agency acceptance, not env flags.
   // The table can be missing on a database that has not been upgraded yet, and
   // that must read as "not proven" rather than taking readiness down.
@@ -324,6 +334,16 @@ export async function buildReadinessPayload() {
         ? "Dedicated worker is enabled; scripts/worker.ts drains payroll jobs and webhook retries."
         : "Dedicated worker code exists at scripts/worker.ts. Set WORKER_ENABLED=true and run npm run worker in a persistent worker service to activate it.",
       blocks: "scale",
+    },
+    {
+      key: "employee-rest-day-coverage",
+      label: "Employee rest-day assignment",
+      ready: employeesMissingRestDay === 0,
+      detail: employeesMissingRestDay === 0
+        ? `All ${totalEmployees} employee(s) have a designated weekly rest day, so rest-day premium pay (src/lib/payroll-rules.ts) can actually be computed for them.`
+        : `${employeesMissingRestDay} of ${totalEmployees} employee(s) have no designated rest day, so Linaw cannot compute rest-day premium pay for them even when they work one. Some of this count may be exempt categories (managerial, field personnel) that Linaw does not model, so this is informational, not a precise compliance count.`,
+      blocks: "scale",
+      manualWorkaround: employeesMissingRestDay === 0 ? undefined : "There is no edit screen for an existing employee's rest day yet (same gap region already has); compute rest-day premium pay manually for now, or set it at hire time going forward.",
     },
   ];
 

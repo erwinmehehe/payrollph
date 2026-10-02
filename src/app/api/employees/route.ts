@@ -17,6 +17,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { seedProvisioning } from "@/lib/provisioning";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { fixedMonthlyBasicForTimeline, resolvePayProfile, resolvePayTimeline } from "@/lib/pay-basis";
+import { REST_DAY_NAMES } from "@/lib/payroll-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -120,6 +121,15 @@ export async function POST(request: Request) {
     return Response.json({ error: "firstName, lastName and YYYY-MM-DD startDate are required." }, { status: 400 });
   }
 
+  // No default: which day is the employer's to designate (Labor Code Art.
+  // 91), not something to guess. Empty/omitted stays null; anything else
+  // must be a real weekday name so a typo doesn't silently compute as
+  // "no rest day" instead of failing loudly.
+  const restDayInput = String(body.restDay ?? "").trim();
+  if (restDayInput && !REST_DAY_NAMES.includes(restDayInput as (typeof REST_DAY_NAMES)[number])) {
+    return Response.json({ error: `restDay must be empty or one of: ${REST_DAY_NAMES.join(", ")}.` }, { status: 400 });
+  }
+
   await ensureEmployeePayProfiles(organizationId);
 
   const existingRows = await db.select({ id: employees.id }).from(employees).where(eq(employees.organizationId, organizationId));
@@ -140,6 +150,7 @@ export async function POST(request: Request) {
     basicRate: payProfile.monthlyEquivalent.toFixed(2),
     mwe: Boolean(body.mwe),
     region: String(body.region ?? "NCR"),
+    restDay: restDayInput || null,
     email: email || null,
     bankAccount: encryptBankAccount(bankAccount),
     bankCode: bankCode || null,

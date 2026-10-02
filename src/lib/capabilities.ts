@@ -51,7 +51,13 @@ export const PARITY: Array<{
   { capability: "Semi-monthly + monthly payroll", linaw: "verified", competitors: { Sprout: "yes", PayrollHero: "yes", "GreatDay HR": "yes", Kazam: "limited" } },
   { capability: "SSS / PhilHealth / Pag-IBIG / TRAIN engine", linaw: "verified", competitors: { Sprout: "yes", PayrollHero: "yes", "GreatDay HR": "yes", Kazam: "yes" } },
   { capability: "MWE exemption cascading", linaw: "verified", competitors: { Sprout: "limited", PayrollHero: "yes", "GreatDay HR": "yes", Kazam: "unknown" } },
-  { capability: "Holiday / rest-day premium stacking", linaw: "verified", competitors: { Sprout: "yes", PayrollHero: "yes", "GreatDay HR": "limited", Kazam: "unknown" } },
+  { capability: "Holiday premium stacking", linaw: "verified", competitors: { Sprout: "yes", PayrollHero: "yes", "GreatDay HR": "limited", Kazam: "unknown" } },
+  // Was previously listed combined with holiday premium as "verified," which
+  // overclaimed: rest-day pay was never reachable in the engine until this
+  // field existed. One fixed weekly day per employee, nullable with no
+  // default so it's never guessed; no edit screen for an existing employee
+  // yet; exempt categories (managerial, field personnel) are not modeled.
+  { capability: "Rest-day premium pay", linaw: "partial", competitors: { Sprout: "yes", PayrollHero: "yes", "GreatDay HR": "limited", Kazam: "unknown" } },
   { capability: "Auto-derived tardiness / OT / night diff", linaw: "verified", competitors: { Sprout: "limited", PayrollHero: "yes", "GreatDay HR": "limited", Kazam: "unknown" } },
   { capability: "Calamity / hazard pay auto-applied", linaw: "verified", competitors: { Sprout: "limited", PayrollHero: "limited", "GreatDay HR": "limited", Kazam: "unknown" } },
   { capability: "Year-end annualization + 2316 draft", linaw: "verified", competitors: { Sprout: "yes", PayrollHero: "yes", "GreatDay HR": "yes", Kazam: "yes" } },

@@ -89,6 +89,32 @@ export function holidayMultiplier(input: { holiday: HolidayType; worked: boolean
   return round(multiplier * (input.overtime ? (premiumDay ? 1.3 : 1.25) : 1));
 }
 
+/**
+ * Labor Code Art. 91: every employee is entitled to one designated rest day
+ * per week. Linaw models exactly one fixed weekday per employee (no rotating
+ * or substitute rest day for a week where they're required to work it
+ * instead) and nothing distinguishes the exempt categories in Art. 82
+ * (managerial, field personnel, etc.) from everyone else, so this says
+ * "scheduled rest day," not "legally entitled to rest-day pay for this
+ * person." employees.restDay is nullable with no default: which day is the
+ * employer's to designate, and a wrong guess here would silently change
+ * computed pay, so an unset rest day means "not configured," never a guess.
+ */
+export const REST_DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
+export type RestDayName = (typeof REST_DAY_NAMES)[number];
+
+const REST_DAY_INDEX: Record<string, number> = Object.fromEntries(REST_DAY_NAMES.map((name, index) => [name, index]));
+
+/** Pure day-of-week check, independent of the host process's own timezone. */
+export function isRestDayOfWeek(workDate: string, restDay: string | null | undefined): boolean {
+  if (!restDay) return false;
+  const index = REST_DAY_INDEX[restDay];
+  if (index === undefined) return false;
+  const [year, month, day] = workDate.split("-").map(Number);
+  if (!year || !month || !day) return false;
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay() === index;
+}
+
 export type ClockPunch = { timeIn?: string | null; timeOut?: string | null };
 export type ShiftSchedule = { start: string; end: string; breakMinutes?: number; graceMinutes?: number };
 

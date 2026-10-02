@@ -124,6 +124,11 @@ export const employees = pgTable("employees", {
   mobile: varchar("mobile", { length: 24 }),
   email: varchar("email", { length: 200 }),
   region: varchar("region", { length: 32 }).notNull().default("NCR"),
+  // One employer-designated weekday (e.g. "Sunday"), nullable with no default:
+  // see the comment on isRestDayOfWeek in payroll-rules.ts for why this is
+  // never guessed. Null means "not configured," and rest-day premium pay is
+  // simply not computed for that employee until someone sets it.
+  restDay: varchar("rest_day", { length: 10 }),
   tin: varchar("tin", { length: 32 }),
   tinBranchCode: varchar("tin_branch_code", { length: 4 }),
   sssNo: varchar("sss_no", { length: 32 }),
