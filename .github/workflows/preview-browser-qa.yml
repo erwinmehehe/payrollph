@@ -364,7 +364,7 @@ jobs:
               `${persona.label}: ${suffix} horizontal overflow ${overflow.scrollWidth}px > ${overflow.innerWidth}px`,
             );
 
-            const sandbox = page.locator("section.card").filter({ hasText: "ROLE SANDBOX" }).first();
+            const sandbox = page.locator("section.demo-sandbox").first();
             check((await sandbox.count()) === 1, `${persona.label}: ${suffix} sandbox is missing`);
             const sandboxLayout = await sandbox.evaluate((element) => {
               const rect = element.getBoundingClientRect();
@@ -384,6 +384,7 @@ jobs:
 
             const responsiveControls = page.locator(".demo-role-button, .demo-access-chip, .demo-task-card");
             for (const control of await responsiveControls.all()) {
+              if (!(await control.isVisible())) continue;
               const layout = await control.evaluate((element) => ({
                 scrollWidth: element.scrollWidth,
                 clientWidth: element.clientWidth,
@@ -396,6 +397,7 @@ jobs:
 
             const handoffs = page.locator("[data-payroll-handoff]");
             for (const handoff of await handoffs.all()) {
+              if (!(await handoff.isVisible())) continue;
               const layout = await handoff.evaluate((element) => ({
                 scrollWidth: element.scrollWidth,
                 clientWidth: element.clientWidth,
@@ -481,7 +483,7 @@ jobs:
             await page.waitForLoadState("networkidle");
 
             const body = await page.locator("body").innerText();
-            check(body.includes("ROLE SANDBOX"), `${persona.label}: role sandbox did not render after launch`);
+            check((await page.locator("section.demo-sandbox").count()) === 1, `${persona.label}: compact role sandbox did not render after launch`);
             check(body.includes(persona.person), `${persona.label}: expected persona identity ${persona.person} is missing`);
             check(body.toLowerCase().includes(persona.landing.toLowerCase()), `${persona.label}: expected landing context ${persona.landing} is missing`);
 
@@ -610,8 +612,13 @@ jobs:
               await page.waitForTimeout(120);
             }
 
-            const sandbox = page.locator("section.card").filter({ hasText: "ROLE SANDBOX" }).first();
+            const sandbox = page.locator("section.demo-sandbox").first();
             check((await sandbox.count()) === 1, `${persona.label}: sandbox task panel is missing`);
+            const demoTools = sandbox.getByRole("button", { name: /Demo tools/i }).first();
+            if (await demoTools.count()) {
+              await demoTools.click();
+              await page.waitForTimeout(80);
+            }
 
             if (persona.id === "employee") {
               const liveBadge = sandbox.locator(".demo-persona-badge");
@@ -642,11 +649,6 @@ jobs:
               }
             }
 
-            const demoTools = sandbox.getByRole("button", { name: /Demo tools/i }).first();
-            if (await demoTools.count()) {
-              await demoTools.click();
-              await page.waitForTimeout(80);
-            }
             const firstTask = sandbox.getByRole("button").filter({ hasText: /^1\./ }).first();
             check((await firstTask.count()) === 1, `${persona.label}: first sandbox task is missing`);
             await firstTask.click();
