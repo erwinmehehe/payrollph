@@ -107,6 +107,7 @@ function shiftBoundary(base: Date, time: string, nextDay = false) {
 }
 
 function nightMinutesBetween(start: Date, end: Date) {
+  if (end <= start) return 0;
   let total = 0;
   const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate() - 1, 22, 0);
   while (cursor < end) {
@@ -121,14 +122,25 @@ function nightMinutesBetween(start: Date, end: Date) {
   return Math.round(total);
 }
 
+const EMPTY_CLOCK_RESULT = {
+  workedMinutes: 0,
+  tardinessMinutes: 0,
+  undertimeMinutes: 0,
+  overtimeMinutes: 0,
+  nightDifferentialMinutes: 0,
+  nightRegularMinutes: 0,
+  nightOvertimeMinutes: 0,
+  flags: [] as string[],
+};
+
 export function deriveClockHours(punch: ClockPunch, shift: ShiftSchedule) {
   if (!punch.timeIn || !punch.timeOut) {
-    return { workedMinutes: 0, tardinessMinutes: 0, undertimeMinutes: 0, overtimeMinutes: 0, nightDifferentialMinutes: 0, flags: ["Incomplete punch pair, reviewer sign-off required"] };
+    return { ...EMPTY_CLOCK_RESULT, flags: ["Incomplete punch pair, reviewer sign-off required"] };
   }
   const actualIn = asLocalDate(punch.timeIn);
   const actualOut = asLocalDate(punch.timeOut);
   if (actualOut <= actualIn) {
-    return { workedMinutes: 0, tardinessMinutes: 0, undertimeMinutes: 0, overtimeMinutes: 0, nightDifferentialMinutes: 0, flags: ["Invalid punch sequence, reviewer sign-off required"] };
+    return { ...EMPTY_CLOCK_RESULT, flags: ["Invalid punch sequence, reviewer sign-off required"] };
   }
   const shiftStart = shiftBoundary(actualIn, shift.start);
   const spansOvernight = shift.end <= shift.start;
@@ -139,12 +151,18 @@ export function deriveClockHours(punch: ClockPunch, shift: ShiftSchedule) {
   const tardinessMinutes = Math.max(0, Math.round((actualIn.getTime() - (shiftStart.getTime() + grace * 60_000)) / 60_000));
   const undertimeMinutes = Math.max(0, Math.round((shiftEnd.getTime() - actualOut.getTime()) / 60_000));
   const overtimeMinutes = Math.max(0, Math.round((actualOut.getTime() - shiftEnd.getTime()) / 60_000));
+  const regularRangeEnd = new Date(Math.min(actualOut.getTime(), shiftEnd.getTime()));
+  const overtimeRangeStart = new Date(Math.max(actualIn.getTime(), shiftEnd.getTime()));
+  const nightRegularMinutes = nightMinutesBetween(actualIn, regularRangeEnd);
+  const nightOvertimeMinutes = nightMinutesBetween(overtimeRangeStart, actualOut);
   return {
     workedMinutes: Math.max(0, grossWorked - breakMinutes),
     tardinessMinutes,
     undertimeMinutes,
     overtimeMinutes,
-    nightDifferentialMinutes: nightMinutesBetween(actualIn, actualOut),
+    nightDifferentialMinutes: nightRegularMinutes + nightOvertimeMinutes,
+    nightRegularMinutes,
+    nightOvertimeMinutes,
     flags: [] as string[],
   };
 }
