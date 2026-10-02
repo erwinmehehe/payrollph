@@ -1,0 +1,163 @@
+{
+  "topic": "Daily minimum wage by region (private sector, non-agri high / agri-small low)",
+  "country": "PH",
+  "currency": "PHP",
+  "volatility": "continuously-changing",
+  "matrix_as_of": "2026-02-25",
+  "source": {
+    "issuance": "NWPC \"Latest Wage Orders\" matrix",
+    "source_tier": "primary",
+    "last_verified": "2026-06-24",
+    "url": "https://nwpc.dole.gov.ph/wp-content/uploads/2026/03/Latest-Wage-Orders-Matrix-2024-2025-As-of-25-February-2026.pdf",
+    "markdown": "ph/min-wage/by_region_2025.md"
+  },
+  "warning": "VOLATILE: regions issue Wage Orders year-round. Re-pull the NWPC matrix (source.url) before relying on a rate — these figures are exact only as of matrix_as_of.",
+  "regions": [
+    {
+      "region": "NCR",
+      "wage_order": "NCR-26",
+      "daily_min_low": 658,
+      "daily_min_high": 695,
+      "effective": "2025-07-18"
+    },
+    {
+      "region": "CAR",
+      "wage_order": "CAR-24",
+      "daily_min_low": 480,
+      "daily_min_high": 500,
+      "effective": "2025-12-30"
+    },
+    {
+      "region": "Region I",
+      "wage_order": "RB I-24",
+      "daily_min_low": 480,
+      "daily_min_high": 505,
+      "effective": "2025-11-19"
+    },
+    {
+      "region": "Region II",
+      "wage_order": "RTWPB 2-24",
+      "daily_min_low": 480,
+      "daily_min_high": 505,
+      "effective": "2025-11-17"
+    },
+    {
+      "region": "Region III",
+      "wage_order": "RBIII-26",
+      "daily_min_low": 515,
+      "daily_min_high": 600,
+      "effective": "2025-10-30"
+    },
+    {
+      "region": "Region IV-A",
+      "wage_order": "IVA-22",
+      "daily_min_low": 508,
+      "daily_min_high": 600,
+      "effective": "2025-09-29"
+    },
+    {
+      "region": "Region IV-B",
+      "wage_order": "MIMAROPA-13",
+      "daily_min_low": 455,
+      "daily_min_high": 455,
+      "effective": "2026-01-01"
+    },
+    {
+      "region": "Region V",
+      "wage_order": "RBV-22",
+      "daily_min_low": 435,
+      "daily_min_high": 435,
+      "effective": "2025-04-05"
+    },
+    {
+      "region": "Region VI",
+      "wage_order": "RBVI-29",
+      "daily_min_low": 520,
+      "daily_min_high": 550,
+      "effective": "2025-11-19"
+    },
+    {
+      "region": "Region VII",
+      "wage_order": "ROVII-26",
+      "daily_min_low": 500,
+      "daily_min_high": 540,
+      "effective": "2025-10-04"
+    },
+    {
+      "region": "Region VIII",
+      "wage_order": "RB VIII-25",
+      "daily_min_low": 440,
+      "daily_min_high": 470,
+      "effective": "2025-12-08"
+    },
+    {
+      "region": "Region IX",
+      "wage_order": "RIX-24",
+      "daily_min_low": 451,
+      "daily_min_high": 464,
+      "effective": "2026-01-01"
+    },
+    {
+      "region": "Region X",
+      "wage_order": "RX-24",
+      "daily_min_low": 485,
+      "daily_min_high": 500,
+      "effective": "2026-01-16"
+    },
+    {
+      "region": "Region XI",
+      "wage_order": "RB XI-24",
+      "daily_min_low": 525,
+      "daily_min_high": 540,
+      "effective": "2026-03-13"
+    },
+    {
+      "region": "Region XII",
+      "wage_order": "RB XII-25",
+      "daily_min_low": 443,
+      "daily_min_high": 460,
+      "effective": "2026-03-03"
+    },
+    {
+      "region": "Region XIII",
+      "wage_order": "RXIII-20",
+      "daily_min_low": 475,
+      "daily_min_high": 475,
+      "effective": "2026-01-03"
+    },
+    {
+      "region": "BARMM",
+      "wage_order": "BARMM-04",
+      "daily_min_low": 366,
+      "daily_min_high": 411,
+      "effective": "2025-07-17"
+    }
+  ],
+  "kasambahay_monthly": [
+    {
+      "region": "NCR",
+      "wage_order": "NCR-DW-06",
+      "monthly_min": 7800
+    },
+    {
+      "region": "Region IV-A",
+      "wage_order": "RB IVA-DW-05",
+      "monthly_min": 6750
+    },
+    {
+      "region": "Region VI",
+      "wage_order": "RBVI-DW-07",
+      "monthly_min": 6500
+    },
+    {
+      "region": "Region X",
+      "wage_order": "RX-DW-06",
+      "monthly_min": 6500
+    },
+    {
+      "region": "BARMM",
+      "wage_order": "BARMM-DW-01",
+      "monthly_min": 5000
+    }
+  ]
+}
