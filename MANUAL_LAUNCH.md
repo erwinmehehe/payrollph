@@ -5,6 +5,26 @@ automated integrations (email, billing, bank submission, government filing)
 are wired to live providers. Check current status any time at `GET /api/readiness`
 The `manualLaunch` field tells you honestly whether you're clear to do this.
 
+## 0. Clear the critical production gates first
+
+Before any pilot customer payroll, production must have the non-negotiable
+security and data-protection gates green:
+
+1. Set `APP_BASE_URL` to the canonical HTTPS production origin.
+2. Configure a valid 32-byte `TOTP_ENCRYPTION_KEY`.
+3. Keep `DEMO_MODE=false` and rotate any public review credential.
+4. Configure bank-data encryption using either a dedicated
+   `BANK_DATA_ENCRYPTION_KEY` or the production TOTP master. Then run the
+   **Production Bank Encryption** GitHub Actions workflow in `dry-run` mode,
+   followed by `apply` only after the key fingerprint matches live production.
+   Re-run the dry scan and confirm there are zero plaintext employee bank
+   accounts and zero plaintext payroll payment snapshots.
+5. Keep document uploads disabled unless the malware scanner is configured and
+   verified.
+
+The production rollout workflow treats these as critical. Do not bypass them
+with manual process notes.
+
 ## 1. Email: get this wired first, don't work around it
 
 Unlike the other three, there's no acceptable manual substitute: password
@@ -13,9 +33,16 @@ This is also the cheapest fix on the list.
 
 1. Sign up at https://resend.com (free tier covers a pilot's volume).
 2. Verify a sending domain (or use their sandbox domain for the first few users).
-3. Create an API key.
-4. Set `RESEND_API_KEY` in your environment and redeploy.
-5. Confirm: `GET /api/readiness` → the `email-delivery` gate should flip to `ready: true`.
+3. Create an API key and a webhook signing secret.
+4. Set `MAIL_FROM`, `RESEND_API_KEY`, and `RESEND_WEBHOOK_SECRET` in the
+   production environment, then redeploy.
+5. In Resend, point the webhook at `/api/webhooks/resend` on the production
+   origin and enable delivery events.
+6. Send a real invitation or password-reset email to an address you control.
+7. Confirm the provider reports the message as delivered and Linaw records the
+   delivered webhook event. A provider accepting the send is not enough.
+8. Confirm: `GET /api/readiness` → the `email-delivery` gate flips to
+   `ready: true` only after at least one provider-confirmed delivery exists.
 
 ## 2. Billing: manual invoicing
 
