@@ -126,6 +126,40 @@ export function isRestDayOfWeek(workDate: string, restDay: string | null | undef
   return new Date(Date.UTC(year, month - 1, day)).getUTCDay() === index;
 }
 
+export type EffectiveRestDayRevisionInput = {
+  effectiveDate: string;
+  previousRestDay: string | null;
+  newRestDay: string | null;
+};
+
+function normalizedRestDay(value: string | null | undefined): RestDayName | null {
+  return value && REST_DAY_INDEX[value] !== undefined ? value as RestDayName : null;
+}
+
+/**
+ * Resolves the weekly rest day that was in force on a historical work date.
+ * The employee row stores today's value; the first later revision preserves
+ * the previous value so recalculating an older period never rewrites history.
+ */
+export function restDayForDate(
+  currentRestDay: string | null | undefined,
+  revisions: EffectiveRestDayRevisionInput[],
+  workDate: string,
+): RestDayName | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return normalizedRestDay(currentRestDay);
+  const ordered = [...revisions]
+    .filter((revision) => /^\d{4}-\d{2}-\d{2}$/.test(revision.effectiveDate))
+    .sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
+
+  const applied = ordered.filter((revision) => revision.effectiveDate <= workDate);
+  if (applied.length > 0) return normalizedRestDay(applied[applied.length - 1].newRestDay);
+
+  const firstLater = ordered.find((revision) => revision.effectiveDate > workDate);
+  if (firstLater) return normalizedRestDay(firstLater.previousRestDay);
+
+  return normalizedRestDay(currentRestDay);
+}
+
 export type ClockPunch = { timeIn?: string | null; timeOut?: string | null };
 export type ShiftSchedule = { start: string; end: string; breakMinutes?: number; graceMinutes?: number };
 
