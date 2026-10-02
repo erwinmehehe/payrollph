@@ -5,6 +5,7 @@ import { users } from "@/db/schema";
 import { ensureSeedData } from "@/db/seed";
 import { createSession, publicUser, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth";
 import { hashPassword, passwordNeedsRehash, sha256, verifyPassword } from "@/lib/crypto";
+import { currentLoginLock, nextFailedLoginState } from "@/lib/login-lockout";
 import { clientIp, rateLimitDistributed, requestMeta } from "@/lib/rate-limit";
 import { verifyTotp } from "@/lib/totp";
 import { enforceSameOriginMutation } from "@/lib/security-request";
@@ -51,11 +52,24 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid email or password." }, { status: 401 });
   }
 
+  // Enforce the durable account lock without changing the outward response.
+  // Returning the same generic 401 avoids making the lock state an account-
+  // enumeration signal while still preventing password guesses during the lock.
+  const lock = currentLoginLock(user.lockedUntil);
+  if (lock.locked) {
+    verifyPassword(password, user.passwordHash);
+    return Response.json({ error: "Invalid email or password." }, { status: 401 });
+  }
+
   const validPassword = verifyPassword(password, user.passwordHash);
   if (!validPassword) {
+    const failure = nextFailedLoginState({
+      failedLoginAttempts: user.failedLoginAttempts,
+      lockedUntil: user.lockedUntil,
+    });
     await db.update(users).set({
-      failedLoginAttempts: Math.min(user.failedLoginAttempts + 1, 1000),
-      lockedUntil: null,
+      failedLoginAttempts: failure.failedLoginAttempts,
+      lockedUntil: failure.lockedUntil,
     }).where(eq(users.id, user.id));
     return Response.json({ error: "Invalid email or password." }, { status: 401 });
   }
