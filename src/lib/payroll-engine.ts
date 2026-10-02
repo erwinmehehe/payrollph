@@ -715,8 +715,11 @@ function calculateEmployeePay(input: {
     const holiday = holidayOn(punch.workDate);
     const holidayKind = holiday ? (holiday.kind === "regular" ? "regular" as const : "special" as const) : "ordinary" as const;
     const otMultiplier = holidayMultiplier({ holiday: holidayKind, worked: true, overtime: true });
+    const regularMultiplier = holidayMultiplier({ holiday: holidayKind, worked: true, overtime: false });
     overtimePay += (derived.overtimeMinutes / 60) * punchProfile.hourlyRate * otMultiplier;
-    nightDiffPay += (derived.nightDifferentialMinutes / 60) * punchProfile.hourlyRate * 0.1;
+    nightDiffPay +=
+      (derived.nightRegularMinutes / 60) * punchProfile.hourlyRate * regularMultiplier * 0.1
+      + (derived.nightOvertimeMinutes / 60) * punchProfile.hourlyRate * otMultiplier * 0.1;
     const attendanceDeduction = attendanceDeductionsForCutoff(
       punchProfile,
       derived.tardinessMinutes,
@@ -728,7 +731,6 @@ function calculateEmployeePay(input: {
     if (derived.flags.length) punchNotes.push(`${punch.workDate}: ${derived.flags.join("; ")}`);
 
     if (holiday && derived.workedMinutes > 0) {
-      const regularMultiplier = holidayMultiplier({ holiday: holidayKind, worked: true, overtime: false });
       const extra = ((workedRegular / 60) * punchProfile.hourlyRate) * (regularMultiplier - 1);
       holidayPremium += extra;
       const otNote = derived.overtimeMinutes > 0 ? ` (overtime that day priced separately at ×${otMultiplier})` : "";
