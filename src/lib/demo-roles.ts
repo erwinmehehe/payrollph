@@ -115,6 +115,7 @@ export const DEMO_ROLE_PAGES: Partial<Record<DemoRoleId, readonly string[]>> = {
     "Time & attendance",
     "Leave",
     "Approvals",
+    "Operations",
     "Analytics",
     "Exports",
     "Compliance",
