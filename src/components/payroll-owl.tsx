@@ -171,7 +171,7 @@ export function PayrollGuide({
   return (
     <section className="payroll-guide" data-payroll-guide-role={role}>
       <div className="payroll-guide-owl" aria-hidden>
-        <PayrollOwl state={state} />
+        <PayrollOwlArt className="payroll-guide-owl-art" alt="" />
       </div>
       <div className="payroll-guide-copy">
         <span>{eyebrow}</span>
