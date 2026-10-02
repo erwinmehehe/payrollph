@@ -54,7 +54,7 @@ test("admin delivery notifications route into the operations queue", () => {
 });
 
 
-test("overview styling cannot hide focused primary navigation destinations", () => {
+test("workspace styling cannot override the structural navigation contract", () => {
   const styles = readFileSync("src/app/workspace-theme.css", "utf8");
   for (const page of ["Time & attendance", "Operations"]) {
     assert.ok(
@@ -62,4 +62,12 @@ test("overview styling cannot hide focused primary navigation destinations", () 
       `Overview CSS must not hide primary destination ${page}`,
     );
   }
+  assert.ok(
+    !styles.includes('.app-shell:has(.payrollph-dashboard) .nav-item[data-nav-name]:not('),
+    "dashboard fidelity CSS must not hard-code a second navigation allowlist",
+  );
+  assert.ok(
+    !styles.includes('.app-shell[data-workspace-page="Overview"] .side-navigation .nav-item:not('),
+    "Overview CSS must not hard-code a second navigation allowlist",
+  );
 });
