@@ -712,7 +712,10 @@ function calculateEmployeePay(input: {
     if (punchProfile.payBasis !== "monthly") {
       workedBasicPay += (workedRegular / 60) * punchProfile.hourlyRate;
     }
-    overtimePay += (derived.overtimeMinutes / 60) * punchProfile.hourlyRate * 1.25;
+    const holiday = holidayOn(punch.workDate);
+    const holidayKind = holiday ? (holiday.kind === "regular" ? "regular" as const : "special" as const) : "ordinary" as const;
+    const otMultiplier = holidayMultiplier({ holiday: holidayKind, worked: true, overtime: true });
+    overtimePay += (derived.overtimeMinutes / 60) * punchProfile.hourlyRate * otMultiplier;
     nightDiffPay += (derived.nightDifferentialMinutes / 60) * punchProfile.hourlyRate * 0.1;
     const attendanceDeduction = attendanceDeductionsForCutoff(
       punchProfile,
@@ -724,16 +727,12 @@ function calculateEmployeePay(input: {
     flags.push(...derived.flags);
     if (derived.flags.length) punchNotes.push(`${punch.workDate}: ${derived.flags.join("; ")}`);
 
-    const holiday = holidayOn(punch.workDate);
     if (holiday && derived.workedMinutes > 0) {
-      const multiplier = holidayMultiplier({
-        holiday: holiday.kind === "regular" ? "regular" : "special",
-        worked: true,
-        overtime: derived.overtimeMinutes > 0,
-      });
-      const extra = ((workedRegular / 60) * punchProfile.hourlyRate) * (multiplier - 1);
+      const regularMultiplier = holidayMultiplier({ holiday: holidayKind, worked: true, overtime: false });
+      const extra = ((workedRegular / 60) * punchProfile.hourlyRate) * (regularMultiplier - 1);
       holidayPremium += extra;
-      holidayNotes.push(`${punch.workDate} ${holiday.name} (${holiday.kind}) ×${multiplier} → +${money(extra)}`);
+      const otNote = derived.overtimeMinutes > 0 ? ` (overtime that day priced separately at ×${otMultiplier})` : "";
+      holidayNotes.push(`${punch.workDate} ${holiday.name} (${holiday.kind}) ×${regularMultiplier} → +${money(extra)}${otNote}`);
     }
   }
 
@@ -936,7 +935,7 @@ function calculateEmployeePay(input: {
   const lineItems = [
     { code: "BASIC", label: "Basic / worked pay", amount: money(baseBasicPay) },
     ...leaveLines,
-    { code: "OT", label: "Overtime (25%)", amount: money(overtimePay) },
+    { code: "OT", label: "Overtime", amount: money(overtimePay) },
     { code: "ND", label: "Night differential (10%)", amount: money(nightDiffPay) },
     { code: "HOLIDAY", label: "Holiday / rest-day premium", amount: money(holidayPremium), notes: holidayNotes },
     { code: "CALAMITY", label: "Calamity / hazard premium", amount: money(calamityPay), notes: calamityNotes },

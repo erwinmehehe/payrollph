@@ -81,11 +81,12 @@ export function computeSemiMonthlyWithholdingTax(semiMonthlyTaxableIncome: numbe
 
 export function holidayMultiplier(input: { holiday: HolidayType; worked: boolean; restDay?: boolean; overtime?: boolean }) {
   if (!input.worked) return input.holiday === "regular" ? 1 : 0;
+  const premiumDay = input.holiday !== "ordinary" || Boolean(input.restDay);
   let multiplier = input.holiday === "regular" ? 2 : input.holiday === "special" ? 1.3 : 1;
   if (input.restDay) {
     multiplier = input.holiday === "regular" ? 2.6 : input.holiday === "special" ? 1.5 : 1.3;
   }
-  return round(multiplier * (input.overtime ? 1.3 : 1));
+  return round(multiplier * (input.overtime ? (premiumDay ? 1.3 : 1.25) : 1));
 }
 
 export type ClockPunch = { timeIn?: string | null; timeOut?: string | null };
