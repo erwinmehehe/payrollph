@@ -183,6 +183,25 @@ export const employeePayRevisions = pgTable(
   ],
 );
 
+export const employeeRestDayRevisions = pgTable(
+  "employee_rest_day_revisions",
+  {
+    id: serial("id").primaryKey(),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    effectiveDate: date("effective_date").notNull(),
+    previousRestDay: varchar("previous_rest_day", { length: 10 }),
+    newRestDay: varchar("new_rest_day", { length: 10 }),
+    reason: varchar("reason", { length: 240 }).notNull().default("Work schedule change"),
+    createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("employee_rest_day_revisions_org_employee_idx").on(table.organizationId, table.employeeId),
+    uniqueIndex("employee_rest_day_revisions_employee_effective_idx").on(table.employeeId, table.effectiveDate),
+  ],
+);
+
 export const timePunches = pgTable("time_punches", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
