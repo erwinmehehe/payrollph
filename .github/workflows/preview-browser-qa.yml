@@ -642,6 +642,11 @@ jobs:
               }
             }
 
+            const demoTools = sandbox.getByRole("button", { name: /Demo tools/i }).first();
+            if (await demoTools.count()) {
+              await demoTools.click();
+              await page.waitForTimeout(80);
+            }
             const firstTask = sandbox.getByRole("button").filter({ hasText: /^1\./ }).first();
             check((await firstTask.count()) === 1, `${persona.label}: first sandbox task is missing`);
             await firstTask.click();
