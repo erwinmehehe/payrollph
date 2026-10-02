@@ -1,6 +1,7 @@
 export const REAL_ROLE_PAGE_ACCESS: Partial<Record<string, readonly string[]>> = {
   hr: [
     "Overview",
+    "Needs attention",
     "People",
     "Time & attendance",
     "Leave",
@@ -18,6 +19,7 @@ export const REAL_ROLE_PAGE_ACCESS: Partial<Record<string, readonly string[]>> =
   ],
   payroll: [
     "Overview",
+    "Needs attention",
     "Payroll",
     "People",
     "Time & attendance",
@@ -33,6 +35,7 @@ export const REAL_ROLE_PAGE_ACCESS: Partial<Record<string, readonly string[]>> =
   ],
   checker: [
     "Overview",
+    "Needs attention",
     "Approvals",
     "Compliance",
     "Audit trail",
