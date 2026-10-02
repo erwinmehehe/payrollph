@@ -252,3 +252,12 @@ test("launch email proof requires a provider-confirmed delivery, not only an acc
   assert.ok(readiness.includes("no provider-confirmed delivered webhook event yet"));
   assert.ok(readiness.includes("Number(deliveredMail) > 0"));
 });
+
+
+test("capability report requires provider-confirmed email delivery before calling email verified", () => {
+  const source = readFileSync("src/lib/capabilities.ts", "utf8");
+  assert.ok(source.includes('eq(outbox.deliveryStatus, "delivered")'), "capability report must count confirmed deliveries");
+  assert.ok(source.includes('emailCapable && mailDelivered > 0 ? "verified" : "partial"'), "email must stay partial until a confirmed delivery exists");
+  assert.ok(source.includes("${mailDelivered} delivered"), "scorecard proof must expose the delivered count");
+  assert.ok(!source.includes('status: "verified",\n      proof: emailCapable'), "email capability must not be unconditionally verified");
+});
