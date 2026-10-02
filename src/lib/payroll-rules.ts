@@ -1,4 +1,4 @@
-export type HolidayType = "ordinary" | "regular" | "special";
+export type HolidayType = "ordinary" | "regular" | "special" | "double";
 
 /**
  * SSS Circular 2024-006 schedule effective January 2025 and unchanged in 2026.
@@ -80,12 +80,32 @@ export function computeSemiMonthlyWithholdingTax(semiMonthlyTaxableIncome: numbe
 }
 
 export function holidayMultiplier(input: { holiday: HolidayType; worked: boolean; restDay?: boolean; overtime?: boolean }) {
-  if (!input.worked) return input.holiday === "regular" ? 1 : 0;
-  const premiumDay = input.holiday !== "ordinary" || Boolean(input.restDay);
-  let multiplier = input.holiday === "regular" ? 2 : input.holiday === "special" ? 1.3 : 1;
-  if (input.restDay) {
-    multiplier = input.holiday === "regular" ? 2.6 : input.holiday === "special" ? 1.5 : 1.3;
+  if (!input.worked) {
+    if (input.holiday === "double") return 2;
+    return input.holiday === "regular" ? 1 : 0;
   }
+
+  const premiumDay = input.holiday !== "ordinary" || Boolean(input.restDay);
+  let multiplier =
+    input.holiday === "double"
+      ? 3
+      : input.holiday === "regular"
+        ? 2
+        : input.holiday === "special"
+          ? 1.3
+          : 1;
+
+  if (input.restDay) {
+    multiplier =
+      input.holiday === "double"
+        ? 3.9
+        : input.holiday === "regular"
+          ? 2.6
+          : input.holiday === "special"
+            ? 1.5
+            : 1.3;
+  }
+
   return round(multiplier * (input.overtime ? (premiumDay ? 1.3 : 1.25) : 1));
 }
 

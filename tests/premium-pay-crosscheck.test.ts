@@ -51,6 +51,8 @@ const CASES: Array<{
   { label: "special day on rest day", holiday: "special", restDay: true, matrixDay: "special_on_rest_day" },
   { label: "regular holiday", holiday: "regular", restDay: false, matrixDay: "regular_holiday" },
   { label: "regular holiday on rest day", holiday: "regular", restDay: true, matrixDay: "regular_holiday_on_rest_day" },
+  { label: "double regular holiday", holiday: "double", restDay: false, matrixDay: "double_holiday" },
+  { label: "double regular holiday on rest day", holiday: "double", restDay: true, matrixDay: "double_holiday_on_rest_day" },
 ];
 
 const milli = (value: number) => Math.round((value + Number.EPSILON) * 1000) / 1000;
@@ -91,16 +93,9 @@ test("night differential compounds with the same regular and OT premium multipli
   }
 });
 
-test("unworked regular holiday pays 100%; unworked special/ordinary day pays zero", () => {
+test("unworked regular holiday pays 100%, double regular holiday 200%, special/ordinary zero", () => {
   assert.equal(holidayMultiplier({ holiday: "regular", worked: false }), 1);
+  assert.equal(holidayMultiplier({ holiday: "double", worked: false }), 2);
   assert.equal(holidayMultiplier({ holiday: "special", worked: false }), 0);
   assert.equal(holidayMultiplier({ holiday: "ordinary", worked: false }), 0);
-});
-
-test("double holiday remains an explicit unsupported matrix case", () => {
-  const holidayTypes: HolidayType[] = ["ordinary", "regular", "special"];
-  assert.ok(!(holidayTypes as string[]).includes("double"));
-  assert.equal(row("double_holiday").regular, 3);
-  assert.equal(row("double_holiday").overtime, 3.9);
-  assert.equal(row("double_holiday_on_rest_day").overtime, 5.07);
 });
