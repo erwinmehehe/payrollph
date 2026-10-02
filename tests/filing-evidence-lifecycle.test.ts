@@ -247,8 +247,8 @@ test("a Pag-IBIG MCRF record fails closed without a MID, then counts only for Pa
     assert.equal(resolved?.status, "rejected");
     assert.equal((await filingEvidenceSummaries()).find((item) => item.definition.agency === "Pag-IBIG")!.rejected, piBefore.rejected + 1);
 
-    // The fix is a new file, hence a new record; accepting that upload counts for Pag-IBIG only.
-    await db.update(employees).set({ basicRate: "25000" }).where(eq(employees.id, employee.id));
+    // Correct the member ID so the regenerated MCRF bytes actually change; accepting that upload counts for Pag-IBIG only.
+    await db.update(employees).set({ pagIbigNo: "9876-5432-1098" }).where(eq(employees.id, employee.id));
     const second = await recordGeneratedFiling({ organizationId: org.id, runId: run.id, definition: PI, actor: "Tester" });
     assert.equal(second.created, true);
     await recordFilingOutcome({ organizationId: org.id, id: second.record.id, actor: "Tester", outcome: acceptance("file_upload") });
