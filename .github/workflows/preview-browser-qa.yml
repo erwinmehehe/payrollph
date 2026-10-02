@@ -504,6 +504,19 @@ jobs:
               check(legacyUrl.searchParams.get("demoRole") === "owner", "Owner: legacy /workspace redirect dropped demoRole");
               await legacyPage.close();
 
+              const primaryWorkspaceNav = page.locator("aside .side-navigation > .nav-group > .nav-item");
+              check((await primaryWorkspaceNav.count()) === 7, `Owner: expected 7 primary workspace destinations; saw ${await primaryWorkspaceNav.count()}`);
+              check((await page.locator("aside .nav-more > summary").filter({ hasText: "More tools" }).count()) === 1, "Owner: More tools disclosure is missing");
+              const operationsNav = primaryWorkspaceNav.filter({ hasText: /^Operations/ }).first();
+              check((await operationsNav.count()) === 1, "Owner: Operations primary navigation is missing");
+              await operationsNav.click();
+              await page.waitForTimeout(150);
+              check((await page.locator('.app-shell[data-workspace-page="Operations"]').count()) === 1, "Owner: Operations page did not open");
+              check((await page.locator(".operations-metrics").count()) === 1, "Owner: Operations summary metrics are missing");
+              const dashboardNavAfterOperations = page.locator("aside .side-navigation > .nav-group > .nav-item").filter({ hasText: /^Dashboard$/ }).first();
+              await dashboardNavAfterOperations.click();
+              await page.waitForTimeout(120);
+
               const tonedItems = page.locator("aside .nav-item[data-tone]");
               check((await tonedItems.count()) >= 5, "Owner: real sidebar is missing module tone data");
               const firstIcon = tonedItems.nth(0).locator(".nav-icon");
