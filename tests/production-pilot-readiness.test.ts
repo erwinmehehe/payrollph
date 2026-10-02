@@ -163,3 +163,23 @@ test("optional operator endpoints stay protected without blocking a controlled p
   assert.ok(preflight.includes('operationalSecretSource("worker")'));
   assert.ok(preflight.includes('operationalSecretSource("readiness")'));
 });
+
+
+test("production pilot sign-off verifies independent figures server-side instead of trusting checkboxes", () => {
+  const route = read("src/app/api/payroll-runs/[id]/pilot-signoff/route.ts");
+  const card = read("src/components/workspace/production-pilot-signoff.tsx");
+
+  assert.ok(route.includes("figuresFromEntries"), "server must derive reconciliation totals from stored payroll entries");
+  assert.ok(route.includes('new Set(["WHT"])'), "server must independently total withholding tax");
+  assert.ok(route.includes('new Set(["SSS", "PHIC", "HDMF"])'), "server must independently total statutory contributions");
+  assert.ok(route.includes("Math.abs(variance) > 0.01"), "money reconciliation must fail outside one-cent tolerance");
+  assert.ok(route.includes('mismatches.push("employeeCount")'), "employee count must match exactly");
+  assert.ok(route.includes("independentSourceConfirmed"), "sign-off must confirm figures came from an independent source");
+  assert.ok(route.includes("independentFigures"), "audit evidence must preserve the submitted independent totals");
+  assert.ok(route.includes("verifiedFigures"), "audit evidence must preserve the server-derived totals");
+  assert.ok(route.includes("reconciliationVariances"), "audit evidence must preserve reconciliation variances");
+  assert.ok(!route.includes("REQUIRED_CHECKS"), "server must not accept checkbox-only reconciliation");
+  assert.ok(card.includes("INDEPENDENT FIGURES"), "owner UI must collect the external reconciliation totals");
+  assert.ok(card.includes("Verify figures & sign off pilot"), "owner UI must make server verification explicit");
+  assert.ok(!card.includes("matches the independently prepared expected result"), "old trust-me match toggles must be removed");
+});
