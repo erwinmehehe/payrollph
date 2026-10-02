@@ -114,6 +114,28 @@ export async function ensureCoreCompatibilitySchema() {
           ADD COLUMN IF NOT EXISTS rest_day varchar(10)
       `);
 
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS employee_rest_day_revisions (
+          id serial PRIMARY KEY,
+          employee_id integer NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          effective_date date NOT NULL,
+          previous_rest_day varchar(10),
+          new_rest_day varchar(10),
+          reason varchar(240) NOT NULL DEFAULT 'Work schedule change',
+          created_by varchar(120) NOT NULL DEFAULT 'System',
+          created_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS employee_rest_day_revisions_org_employee_idx
+        ON employee_rest_day_revisions(organization_id, employee_id)
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS employee_rest_day_revisions_employee_effective_idx
+        ON employee_rest_day_revisions(employee_id, effective_date)
+      `);
+
       // BANK_DATA_ENCRYPTION_KEY stores AES-GCM envelopes that are longer than
       // the legacy varchar(40) account-number column. Widening is non-destructive
       // and idempotent, and prevents production-only insert failures after rollout.

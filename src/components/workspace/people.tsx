@@ -363,6 +363,11 @@ function PersonDrawer({
   const [editingSchedule, setEditingSchedule] = useState(false);
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [restDay, setRestDay] = useState(employee.restDay ?? "");
+  const [restDayEffectiveDate, setRestDayEffectiveDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+  });
+  const [restDayChangeReason, setRestDayChangeReason] = useState("Work schedule change");
   const [scheduleError, setScheduleError] = useState("");
   const [editingGovernment, setEditingGovernment] = useState(false);
   const [savingGovernment, setSavingGovernment] = useState(false);
@@ -422,6 +427,8 @@ function PersonDrawer({
           organizationId: data.selectedOrganization.id,
           employeeId: employee.id,
           restDay,
+          restDayEffectiveDate,
+          restDayChangeReason,
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -499,6 +506,7 @@ function PersonDrawer({
   const leave = (data.leaveRequests ?? []).filter((request) => request.employeeId === employee.id);
   const checklist = (data.provisioning ?? []).filter((item) => item.employeeId === employee.id);
   const payRevisions = (data.payRevisions ?? []).filter((revision) => revision.employeeId === employee.id).slice(0, 5);
+  const restDayRevisions = (data.restDayRevisions ?? []).filter((revision) => revision.employeeId === employee.id).slice(0, 5);
   const retroAdjustments = (data.retroAdjustments ?? []).filter((retro) => retro.employeeId === employee.id);
   const pendingRetro = retroAdjustments.filter((retro) => retro.status === "pending");
   const pendingRetroTotal = pendingRetro.reduce((sum, retro) => sum + Number(retro.amount), 0);
@@ -683,13 +691,23 @@ function PersonDrawer({
                     ))}
                   </select>
                 </label>
+                <label>Effective date
+                  <input type="date" value={restDayEffectiveDate} onChange={(event) => setRestDayEffectiveDate(event.target.value)} />
+                </label>
+                <label>Reason
+                  <input value={restDayChangeReason} onChange={(event) => setRestDayChangeReason(event.target.value)} placeholder="e.g. Team schedule change" />
+                </label>
               </div>
               <div className="modal-note" style={{ margin: "0 16px 10px" }}>
-                Changing this affects future calculations and any draft payroll that is recalculated. Released payroll stays immutable.
+                The effective date preserves the previous weekly rest day for older work dates, so recalculating historical payroll uses the schedule that was actually in force. Released payroll stays immutable.
               </div>
               {scheduleError && <div className="notice notice-amber" style={{ margin: "0 16px 10px" }}><span>{scheduleError}</span></div>}
               <div className="run-actions">
-                <button className="primary-button" disabled={savingSchedule} onClick={() => void saveWorkSchedule()}>
+                <button
+                  className="primary-button"
+                  disabled={savingSchedule || restDay === (employee.restDay ?? "") || !restDayEffectiveDate || !restDayChangeReason.trim()}
+                  onClick={() => void saveWorkSchedule()}
+                >
                   <Check size={14} /> {savingSchedule ? "Saving…" : "Save work schedule"}
                 </button>
               </div>
@@ -703,6 +721,20 @@ function PersonDrawer({
                   <small>{employee.restDay ? "used for rest-day premium calculations" : "rest-day premium cannot be inferred"}</small>
                 </div>
               </div>
+              {restDayRevisions.length > 0 && (
+                <div style={{ marginTop: 14 }}>
+                  <div className="card-kicker" style={{ marginBottom: 6 }}>SCHEDULE HISTORY</div>
+                  {restDayRevisions.map((revision) => (
+                    <div className="payslip-line" key={revision.id} style={{ gridTemplateColumns: "1fr auto" }}>
+                      <span>
+                        {revision.previousRestDay || "Not set"} → {revision.newRestDay || "Not set"}
+                        <em>effective {formatDate(revision.effectiveDate)} · {revision.reason}</em>
+                      </span>
+                      <b>{revision.createdBy}</b>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </section>

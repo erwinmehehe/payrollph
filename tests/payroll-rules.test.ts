@@ -10,6 +10,7 @@ import {
   holidayMultiplier,
   isRestDayOfWeek,
   REST_DAY_NAMES,
+  restDayForDate,
 } from "../src/lib/payroll-rules";
 
 test("SSS respects the 2025/2026 salary credit floor, cap, and EC employer premium", () => {
@@ -108,6 +109,18 @@ test("isRestDayOfWeek is a pure, timezone-independent day-of-week check", () => 
   assert.equal(isRestDayOfWeek("2026-01-04", ""), false);
   assert.equal(isRestDayOfWeek("2026-01-04", "Sundayy"), false);
   assert.equal(isRestDayOfWeek("not-a-date", "Sunday"), false);
+});
+
+test("restDayForDate preserves the schedule that was effective on each work date", () => {
+  const revisions = [
+    { effectiveDate: "2026-02-01", previousRestDay: "Sunday", newRestDay: "Monday" },
+    { effectiveDate: "2026-03-01", previousRestDay: "Monday", newRestDay: "Saturday" },
+  ];
+
+  assert.equal(restDayForDate("Saturday", revisions, "2026-01-15"), "Sunday");
+  assert.equal(restDayForDate("Saturday", revisions, "2026-02-15"), "Monday");
+  assert.equal(restDayForDate("Saturday", revisions, "2026-03-15"), "Saturday");
+  assert.equal(restDayForDate("Saturday", [], "2026-01-15"), "Saturday");
 });
 
 test("freelancer comparison recommends the lower modeled option", () => {

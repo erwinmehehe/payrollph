@@ -197,7 +197,7 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
 - Punch dates matching 2026 national holidays (plus a demo 11 Mar special day) apply the holiday multiplier matrix as a HOLIDAY line item
 - Two regular holidays on the same date are classified as a double regular holiday for worked-time premiums: 300% regular hours, 390% overtime, or 390% / 507% when the date is also the employee's rest day
 - Overtime and night differential compound with the day's holiday/rest-day multiplier (DOLE Handbook "Guide Computations"), not a flat 125%/+10% regardless of day
-- `employees.restDay` is a nullable, per-employee weekly rest day (Labor Code Art. 91), set at hire time or edited later by authorized People admins; worked-rest-day premium and holiday/rest-day compounding reuse `holidayMultiplier`'s existing `restDay` branch. No default: an unconfigured employee computes exactly as before
+- `employees.restDay` is a nullable, per-employee weekly rest day (Labor Code Art. 91), set at hire time or edited later by authorized People admins. Changes are effective-dated in `employee_rest_day_revisions`, so historical recalculation resolves the weekday that was in force on each work date instead of applying today's schedule retroactively. No default: an unconfigured employee computes exactly as before
 
 ### Progressive disclosure
 - Freelancer accounts hide People, Payroll, Time, Leave, Approvals and Developer nav

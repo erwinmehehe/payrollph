@@ -9,6 +9,7 @@ import {
   calamityAdvisories,
   employeePayProfiles,
   employeePayRevisions,
+  employeeRestDayRevisions,
   employeePayRetroAdjustments,
   employees,
   freelancerProfiles,
@@ -83,11 +84,14 @@ export async function getDashboardData(organizationId?: number) {
     ? and(eq(employees.organizationId, selectedOrganization.id), eq(employees.orgUnitId, access.orgUnitId))
     : eq(employees.organizationId, selectedOrganization.id);
 
-  const [employeeRows, payProfileRows, payRevisionRowsRaw, retroRowsRaw, runRows, taskRowsRaw, auditRows, plans, templates, advisories, freelancer, punchRowsRaw, delegationRows, leaveRowsRaw, leavePolicyRows, units, wages, provisionRowsRaw] = await Promise.all([
+  const [employeeRows, payProfileRows, payRevisionRowsRaw, restDayRevisionRowsRaw, retroRowsRaw, runRows, taskRowsRaw, auditRows, plans, templates, advisories, freelancer, punchRowsRaw, delegationRows, leaveRowsRaw, leavePolicyRows, units, wages, provisionRowsRaw] = await Promise.all([
     db.select().from(employees).where(employeeFilter).orderBy(asc(employees.id)),
     db.select().from(employeePayProfiles).where(eq(employeePayProfiles.organizationId, selectedOrganization.id)),
     canViewPeoplePay
       ? db.select().from(employeePayRevisions).where(eq(employeePayRevisions.organizationId, selectedOrganization.id)).orderBy(desc(employeePayRevisions.effectiveDate), desc(employeePayRevisions.id))
+      : Promise.resolve([]),
+    canViewPeoplePay
+      ? db.select().from(employeeRestDayRevisions).where(eq(employeeRestDayRevisions.organizationId, selectedOrganization.id)).orderBy(desc(employeeRestDayRevisions.effectiveDate), desc(employeeRestDayRevisions.id))
       : Promise.resolve([]),
     canViewPeoplePay
       ? db.select().from(employeePayRetroAdjustments).where(eq(employeePayRetroAdjustments.organizationId, selectedOrganization.id)).orderBy(desc(employeePayRetroAdjustments.id))
@@ -161,6 +165,9 @@ export async function getDashboardData(organizationId?: number) {
   const payRevisionRows = access.companyWide
     ? payRevisionRowsRaw
     : payRevisionRowsRaw.filter((revision) => visibleEmployeeIds.has(revision.employeeId));
+  const restDayRevisionRows = access.companyWide
+    ? restDayRevisionRowsRaw
+    : restDayRevisionRowsRaw.filter((revision) => visibleEmployeeIds.has(revision.employeeId));
   const retroRows = access.companyWide
     ? retroRowsRaw
     : retroRowsRaw.filter((retro) => visibleEmployeeIds.has(retro.employeeId));
@@ -267,6 +274,7 @@ export async function getDashboardData(organizationId?: number) {
     wageOrders: wages,
     provisioning: provisionRows,
     payRevisions: payRevisionRows,
+    restDayRevisions: restDayRevisionRows,
     retroAdjustments: retroRows,
     freelancer: freelancer[0] ?? null,
     security: {
