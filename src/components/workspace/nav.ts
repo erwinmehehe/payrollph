@@ -39,7 +39,7 @@ export type NavItem = {
   /** Icon colour, so a destination is recognisable before the label is read. */
   tone: NavTone;
   /** Live badge source, resolved by the shell against real data. */
-  badge?: "approvals" | "people" | "runs" | "api";
+  badge?: "approvals" | "people" | "runs" | "api" | "attention";
 };
 
 export type NavGroup = { label: string; items: NavItem[] };
@@ -54,6 +54,7 @@ export const NAVIGATION: NavGroup[] = [
     label: "Workspace",
     items: [
       { name: "Overview", icon: LayoutDashboard, hint: "Payroll status, approvals and cost at a glance", tone: "blue" },
+      { name: "Needs attention", icon: AlertCircle, hint: "Operational issues and the next recovery action", tone: "red", badge: "attention" },
       { name: "Payroll", icon: WalletCards, hint: "Prepare, approve, release and export a run", tone: "green", badge: "runs" },
       { name: "People", icon: UsersRound, hint: "Employee directory, import and structure", tone: "purple", badge: "people" },
       { name: "Migration", icon: RefreshCcw, hint: "Switch from another payroll or HRIS with validated imports", tone: "teal" },
