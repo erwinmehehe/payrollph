@@ -183,14 +183,9 @@ test("workspace renders distinct owner, HR, payroll and checker dashboards", () 
 
   assert.ok(workspace.includes("normalizeDashboardRole"), "workspace must normalize the real/demo role");
   assert.ok(workspace.includes("<RoleOverviewView"), "workspace must render the role-specific overview");
-  for (const marker of [
-    'data-role-dashboard={role}',
-    "Company control center",
-    "People operations today",
-    "Cutoff control center",
-    "Independent review queue",
-  ]) {
-    assert.ok(dashboard.includes(marker), `role dashboard missing ${marker}`);
+  assert.ok(dashboard.includes('title={"Good morning, " + firstName + "!"}'), "role dashboards must share the approved greeting hierarchy");
+  for (const role of ["owner", "hr", "payroll", "checker"]) {
+    assert.ok(dashboard.includes(`data-dashboard-variant="${role}"`), `role dashboard missing ${role} composition`);
   }
 });
 
@@ -505,18 +500,17 @@ test("production demo fails closed until encrypted payout storage is ready", () 
 });
 
 
-test("role dashboards use the owl as a state-driven payroll guide", () => {
+test("role dashboards use the owl inside the state-driven attention banner", () => {
   const dashboard = read("src/components/workspace/role-overview.tsx");
+  const alert = read("src/components/workspace/dashboard-alert-banner.tsx");
   const mascot = read("src/components/payroll-owl.tsx");
-  const styles = read("src/app/globals.css");
+  const styles = read("src/app/workspace-theme.css");
 
-  assert.ok(dashboard.includes("PayrollGuide"), "role dashboards must use the shared payroll guide");
-  for (const role of ["owner", "hr", "payroll", "checker"]) {
-    assert.ok(dashboard.includes(`role="${role}"`), `missing owl guide for ${role}`);
-  }
+  assert.ok(dashboard.includes("DashboardAlertBanner"), "role dashboards must use the shared owl alert banner");
+  assert.ok(alert.includes("<PayrollOwl"), "attention banner must render the shared owl");
   assert.ok(mascot.includes("data-owl-state={state}"), "owl state must be inspectable and deterministic");
-  assert.ok(styles.includes(".payroll-guide"), "workspace must include a designed payroll guide surface");
-  assert.ok(styles.includes("@media (max-width: 720px)"), "owl guide must inherit an explicit mobile layout");
+  assert.ok(styles.includes(".dashboard-alert-banner"), "workspace must include designed owl alert styling");
+  assert.ok(styles.includes("@media (max-width: 720px)"), "owl banner must include an explicit mobile layout");
 });
 
 
