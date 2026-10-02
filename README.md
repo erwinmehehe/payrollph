@@ -192,7 +192,7 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
 - The people directory states the restriction instead of pretending the user sees everyone
 
 ### Regional minimum wage + holiday stacking in payroll
-- DOLE wage orders (NCR WO-NCR-26 ₱695/day, effective 18 July 2025, and selected regions) live in `src/lib/wage-orders.ts`
+- DOLE wage orders for all 17 NWPC regions live in `src/lib/wage-orders.ts`, transcribed from a third-party reference and marked `verified: false`; only someone reading the cited NWPC matrix directly can flip that
 - A rate below the regional floor is treated as MWE for tax exemption cascading
 - Punch dates matching 2026 national holidays (plus a demo 11 Mar special day) apply the holiday multiplier matrix as a HOLIDAY line item
 
