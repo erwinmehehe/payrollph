@@ -52,7 +52,7 @@ test("the homepage leads with the approved PayrollPH hero", () => {
   assert.ok(hero.includes("DOLE-compliant calculations"), "hero must show the first trust point");
   assert.ok(hero.includes("Government reports ready"), "hero must show the second trust point");
   assert.ok(hero.includes("Secure and confidential"), "hero must show the third trust point");
-  assert.ok(hero.includes("Let’s make payroll easier"), "hero must include the owl speech bubble");
+  assert.ok(!hero.includes("Let’s make payroll easier"), "hero must stay mascot-free");
   assert.ok(product.includes("Drag a salary. Watch every deduction explain itself."), "statutory explanation must stay visible below the fold");
   assert.ok(trust.includes("Controls that return 403, not a tooltip."), "security controls must remain a primary product story");
 });
@@ -256,13 +256,11 @@ test("login route omits the marketing footer", () => {
 });
 
 
-test("homepage uses the shared PayrollPH owl inside the approved hero composition", () => {
+test("homepage hero stays product-first without a mascot", () => {
   const hero = read("src/components/marketing/claude-home/components/Hero.tsx");
-  const mascot = read("src/components/payroll-owl.tsx");
-  assert.ok(hero.includes('from "@/components/payroll-owl"'), "homepage hero must use the shared owl asset");
-  assert.ok(hero.includes('<PayrollOwlArt className="payroll-hero-owl-art"'), "large hero mascot must use the polished raster owl");
-  assert.ok(!hero.includes("payroll-hero-owl-vector"), "homepage must not fall back to the flat vector mascot");
-  assert.ok(hero.includes("payroll-hero-laptop"), "homepage must render the laptop/dashboard stage");
-  assert.ok(hero.includes("payroll-hero-speech"), "homepage must render the owl speech bubble");
-  assert.ok(mascot.includes("PayrollOwlArt"), "shared mascot component must remain available");
+  assert.ok(!hero.includes('from "@/components/payroll-owl"'), "homepage hero must not import mascot assets");
+  assert.ok(!hero.includes("PayrollOwlArt"), "homepage hero must not render an owl mascot");
+  assert.ok(!hero.includes("payroll-hero-speech"), "homepage hero must not render mascot speech");
+  assert.ok(hero.includes("payroll-hero-laptop"), "homepage must keep the PayrollPH product visual");
+  assert.ok(hero.includes("payroll-hero-alert-icon"), "attention card must keep a neutral product icon");
 });
