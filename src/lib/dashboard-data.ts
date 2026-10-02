@@ -219,7 +219,8 @@ export async function getDashboardData(organizationId?: number) {
   ).length;
   const emailFailures = mailStateRows.filter((row) => row.status === "failed").length;
   const emailDeliveryIssues = mailStateRows.filter((row) =>
-    ["bounced", "complained", "failed", "suppressed"].includes(row.deliveryStatus ?? ""),
+    row.status !== "failed"
+    && ["bounced", "complained", "failed", "suppressed"].includes(row.deliveryStatus ?? ""),
   ).length;
   const webhookRetrying = webhookStateRows.filter((row) =>
     row.status === "retrying" || row.status === "in_flight",
