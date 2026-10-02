@@ -77,10 +77,37 @@ test("clock derivation handles grace, OT, night work, and missing pairs", () => 
   assert.equal(overnight.tardinessMinutes, 0);
   assert.equal(overnight.overtimeMinutes, 30);
   assert.equal(overnight.nightDifferentialMinutes, 480);
+  // Here the night window (22:00-06:00) ends exactly where the shift does, so
+  // all of it falls on the regular side and none on the 30-minute OT tail.
+  assert.equal(overnight.nightRegularMinutes, 480);
+  assert.equal(overnight.nightOvertimeMinutes, 0);
 
   const incomplete = deriveClockHours({ timeIn: "2026-03-10T09:00" }, { start: "09:00", end: "18:00" });
   assert.equal(incomplete.workedMinutes, 0);
   assert.equal(incomplete.flags.length, 1);
+});
+
+test("night-differential minutes split exactly at the overtime boundary, and the two sides always sum to the total", () => {
+  // Shift 14:00-23:00, worked until 01:00 the next day: 2h overtime (23:00-01:00).
+  // The 22:00-06:00 night window therefore has 1h on the regular side
+  // (22:00-23:00) and 2h on the overtime side (23:00-01:00).
+  const evening = deriveClockHours(
+    { timeIn: "2026-03-10T14:00", timeOut: "2026-03-11T01:00" },
+    { start: "14:00", end: "23:00", breakMinutes: 60, graceMinutes: 5 },
+  );
+  assert.equal(evening.overtimeMinutes, 120);
+  assert.equal(evening.nightRegularMinutes, 60);
+  assert.equal(evening.nightOvertimeMinutes, 120);
+  assert.equal(evening.nightDifferentialMinutes, evening.nightRegularMinutes + evening.nightOvertimeMinutes);
+
+  // A shift that ends before the night window even opens has no night
+  // minutes on either side, overtime or not.
+  const daytime = deriveClockHours(
+    { timeIn: "2026-03-10T09:00", timeOut: "2026-03-10T20:00" },
+    { start: "09:00", end: "18:00", breakMinutes: 60, graceMinutes: 5 },
+  );
+  assert.equal(daytime.nightRegularMinutes, 0);
+  assert.equal(daytime.nightOvertimeMinutes, 0);
 });
 
 test("freelancer comparison recommends the lower modeled option", () => {

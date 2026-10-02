@@ -724,8 +724,18 @@ function calculateEmployeePay(input: {
     const holiday = holidayOn(punch.workDate);
     const holidayKind = holiday ? (holiday.kind === "regular" ? "regular" as const : "special" as const) : "ordinary" as const;
     const otMultiplier = holidayMultiplier({ holiday: holidayKind, worked: true, overtime: true });
+    const regularMultiplier = holidayMultiplier({ holiday: holidayKind, worked: true, overtime: false });
     overtimePay += (derived.overtimeMinutes / 60) * punchProfile.hourlyRate * otMultiplier;
-    nightDiffPay += (derived.nightDifferentialMinutes / 60) * punchProfile.hourlyRate * 0.1;
+
+    // Night differential is +10% of whatever that minute otherwise earns, not
+    // a flat +10% of the plain hourly rate (DOLE Handbook: regular-holiday
+    // night = 220% = 200% x 1.10, not 200% + 10%). The base 100%/OT 25-30%
+    // portions of each minute are already priced above and via
+    // workedBasicPay/holidayPremium below; this line is only the additional
+    // 10%, scaled by the same day/OT multiplier as the minute it falls on.
+    nightDiffPay +=
+      (derived.nightRegularMinutes / 60) * punchProfile.hourlyRate * regularMultiplier * 0.1
+      + (derived.nightOvertimeMinutes / 60) * punchProfile.hourlyRate * otMultiplier * 0.1;
     const attendanceDeduction = attendanceDeductionsForCutoff(
       punchProfile,
       derived.tardinessMinutes,
@@ -743,7 +753,6 @@ function calculateEmployeePay(input: {
       // multiplier to the OT variant and applied it to the regular hours too,
       // overpaying them; the OT hours themselves got none of this and were
       // priced flat above, underpaying them).
-      const regularMultiplier = holidayMultiplier({ holiday: holidayKind, worked: true, overtime: false });
       const extra = ((workedRegular / 60) * punchProfile.hourlyRate) * (regularMultiplier - 1);
       holidayPremium += extra;
       const otNote = derived.overtimeMinutes > 0 ? ` (overtime that day priced separately at ×${otMultiplier})` : "";
