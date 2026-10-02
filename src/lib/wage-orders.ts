@@ -1,3 +1,5 @@
+import type { HolidayType } from "@/lib/payroll-rules";
+
 export type WageOrder = {
   region: string;
   dailyRate: number;
@@ -72,8 +74,9 @@ export function isBelowMinimum(monthlyBasic: number, region: string, daysPerMont
 }
 
 export type HolidayKind = "regular" | "special" | "rest";
+export type HolidayCalendarEntry = { date: string; name: string; kind: HolidayKind };
 
-export const NATIONAL_HOLIDAYS_2026: Array<{ date: string; name: string; kind: HolidayKind }> = [
+export const NATIONAL_HOLIDAYS_2026: HolidayCalendarEntry[] = [
   { date: "2026-01-01", name: "New Year's Day", kind: "regular" },
   { date: "2026-04-02", name: "Maundy Thursday", kind: "regular" },
   { date: "2026-04-03", name: "Good Friday", kind: "regular" },
@@ -92,6 +95,53 @@ export const NATIONAL_HOLIDAYS_2026: Array<{ date: string; name: string; kind: H
   { date: "2026-03-11", name: "Company special non-working (demo)", kind: "special" },
 ];
 
+export function holidaysOn(date: string, calendar: readonly HolidayCalendarEntry[] = NATIONAL_HOLIDAYS_2026) {
+  return calendar.filter((row) => row.date === date);
+}
+
+/**
+ * Classifies the statutory premium context for one calendar date.
+ *
+ * Two regular holidays on the same date are the DOLE "double regular holiday"
+ * case. We intentionally do not invent a multiplier for mixed regular/special
+ * collisions; one regular holiday remains the controlling representable case.
+ */
+export function holidayPayContextOn(
+  date: string,
+  calendar: readonly HolidayCalendarEntry[] = NATIONAL_HOLIDAYS_2026,
+): { holiday: HolidayType; holidays: HolidayCalendarEntry[]; label: string | null } {
+  const holidays = holidaysOn(date, calendar);
+  const regular = holidays.filter((row) => row.kind === "regular");
+
+  if (regular.length >= 2) {
+    return {
+      holiday: "double",
+      holidays,
+      label: `${regular.map((row) => row.name).join(" + ")} (double regular holiday)`,
+    };
+  }
+
+  if (regular.length === 1) {
+    return {
+      holiday: "regular",
+      holidays,
+      label: `${regular[0].name} (regular)`,
+    };
+  }
+
+  const special = holidays.find((row) => row.kind === "special");
+  if (special) {
+    return {
+      holiday: "special",
+      holidays,
+      label: `${special.name} (special)`,
+    };
+  }
+
+  return { holiday: "ordinary", holidays, label: null };
+}
+
+/** Backward-compatible single-holiday lookup for non-payroll display callers. */
 export function holidayOn(date: string) {
   return NATIONAL_HOLIDAYS_2026.find((row) => row.date === date) ?? null;
 }
