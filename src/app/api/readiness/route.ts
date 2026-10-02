@@ -9,6 +9,7 @@ import { verifyPassword } from "@/lib/crypto";
 import { constantTimeSecretEqual } from "@/lib/security-secret";
 import { operationalSecret, operationalSecretConfigured, operationalSecretSource } from "@/lib/operational-secret";
 import { documentUploadsEnabled, malwareScannerConfigured } from "@/lib/storage";
+import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ const configured = (name: string) => Boolean(process.env[name]);
 const enabled = (name: string) => process.env[name] === "true";
 
 export async function buildReadinessPayload() {
+  await ensureCoreCompatibilitySchema();
   const [{ value: userCount }] = await db.select({ value: count() }).from(users);
   const [{ value: queuedMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "queued"));
   const [{ value: sentMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "sent"));
