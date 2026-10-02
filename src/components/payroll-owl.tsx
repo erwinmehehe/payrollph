@@ -11,6 +11,26 @@ export type PayrollOwlState =
 
 export type PayrollOwlRole = "owner" | "hr" | "payroll" | "checker" | "employee";
 
+export function PayrollOwlArt({
+  className = "",
+  alt = "",
+}: {
+  className?: string;
+  alt?: string;
+}) {
+  return (
+    <img
+      src="/mascots/payroll-owl.webp"
+      alt={alt}
+      className={className}
+      width={140}
+      height={250}
+      loading="eager"
+      decoding="async"
+    />
+  );
+}
+
 export function PayrollOwlMark({ className = "" }: { className?: string }) {
   return (
     <svg viewBox="0 0 64 64" className={className} aria-hidden>
