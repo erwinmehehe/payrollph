@@ -2036,3 +2036,63 @@
   }
 }
 
+
+
+/* Homepage hero without mascot */
+.home-redesign .payroll-home-visual {
+  min-height: 500px;
+}
+
+.home-redesign .payroll-hero-laptop {
+  width: min(690px, 98%);
+  right: 0;
+  top: 46px;
+}
+
+.home-redesign .payroll-hero-alert {
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  padding-left: 8px;
+}
+
+.home-redesign .payroll-hero-alert-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 9px;
+  background: #fff3cd;
+  color: #d97706;
+}
+
+@media (max-width: 960px) {
+  .home-redesign .payroll-home-visual {
+    min-height: 500px;
+  }
+
+  .home-redesign .payroll-hero-laptop {
+    max-width: 94%;
+    right: 2%;
+    top: 50px;
+  }
+}
+
+@media (max-width: 700px) {
+  .home-redesign .payroll-home-visual {
+    min-height: 380px;
+  }
+
+  .home-redesign .payroll-hero-laptop {
+    right: -8%;
+    top: 54px;
+  }
+}
+
+@media (max-width: 480px) {
+  .home-redesign .payroll-home-visual {
+    min-height: 330px;
+  }
+
+  .home-redesign .payroll-hero-laptop {
+    right: -205px;
+  }
+}
