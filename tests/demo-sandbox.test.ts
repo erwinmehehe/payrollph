@@ -565,3 +565,42 @@ test("PayrollPH no longer ships the owl mascot component or asset", () => {
   assert.equal(existsSync("src/components/payroll-owl.tsx"), false, "owl component should be removed");
   assert.equal(existsSync("public/mascots/payroll-owl.webp"), false, "owl raster asset should be removed");
 });
+
+
+test("workspace keeps a focused primary nav and collapses secondary modules", () => {
+  const shell = read("src/components/workspace/shell.tsx");
+  const nav = read("src/components/workspace/nav.ts");
+
+  assert.ok(nav.includes('{ name: "Needs attention"'), "operations queue must be a first-class workspace destination");
+  assert.ok(
+    shell.includes('const PRIMARY_NAV_ORDER = ["Overview", "Needs attention", "People", "Payroll", "Time & attendance", "Approvals", "Analytics"]'),
+    "primary navigation should stay limited to the core payroll workflow",
+  );
+  assert.ok(shell.includes("More tools"), "secondary HR/admin modules must remain accessible behind More tools");
+  assert.ok(shell.includes("secondaryGroups"), "secondary navigation should be derived from the same navigation contract");
+  assert.ok(!shell.includes('page === "Overview" ? [{ label: "", items: overviewItems }] : NAVIGATION'),
+    "sidebar must not expand into the full module tree after leaving Overview");
+});
+
+test("needs-attention center consolidates blockers and direct recovery actions", () => {
+  const center = read("src/components/workspace/needs-attention.tsx");
+  const workspace = read("src/components/linaw-workspace.tsx");
+
+  for (const signal of [
+    "failed-payroll-jobs",
+    "payroll-exceptions",
+    "pending-approvals",
+    "missing-payout-details",
+    "missing-government-ids",
+    "attendance-issues",
+    "payslip-email-delivery-failures",
+  ]) {
+    assert.ok(center.includes(signal), `attention center must cover ${signal}`);
+  }
+  assert.ok(center.includes("Retry calculation"), "failed payroll calculation needs a direct recovery action");
+  assert.ok(center.includes("Open email outbox"), "delivery failures need a direct outbox action");
+  assert.ok(center.includes("canManagePeople ?"), "read-only payroll users must not be told they can edit people data");
+  assert.ok(workspace.includes('page === "Needs attention"'), "workspace must render the operations queue");
+  assert.ok(workspace.includes("onRetryPayroll"), "attention center must use the real payroll recovery action");
+  assert.ok(workspace.includes("onOpenOutbox"), "attention center must open the existing durable delivery outbox");
+});
