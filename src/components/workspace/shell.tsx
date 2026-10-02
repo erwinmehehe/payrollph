@@ -16,7 +16,7 @@ import {
   ShieldCheck,
   UserCheck,
 } from "lucide-react";
-import { FREELANCER_HIDDEN, NAVIGATION, groupOf, itemOf } from "./nav";
+import { FREELANCER_HIDDEN, NAVIGATION, PRIMARY_NAV_NAMES, PRIMARY_NAV_ORDER, groupOf, itemOf } from "./nav";
 import type { DashboardData, Organization } from "./types";
 import { Avatar, initialsOf, relativeTime } from "./ui";
 import { DEMO_ROLES, demoRoleInfo, type DemoRoleId } from "@/lib/demo-roles";
@@ -30,8 +30,6 @@ export type Notification = {
   tone: "review" | "active" | "danger" | "success";
   page?: string;
 };
-
-const OVERVIEW_NAV_ORDER = ["Overview", "People", "Payroll", "Approvals", "Compliance", "Analytics", "Settings"] as const;
 
 const WORKSPACE_LABELS: Record<string, string> = {
   Overview: "Dashboard",
@@ -80,6 +78,7 @@ export function WorkspaceShell({
   const [clientOpen, setClientOpen] = useState(false);
   const [roleOpen, setRoleOpen] = useState(false);
   const [trayOpen, setTrayOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const isFreelancer = data.selectedOrganization.accountType === "freelancer";
   const openApprovals = data.tasks.filter((task) => task.status === "Pending").length;
@@ -89,14 +88,28 @@ export function WorkspaceShell({
   const avatarRole = displayRole ?? data.user?.role ?? "member";
   const profileAvatarIndex = ({ owner: 0, admin: 0, hr: 1, payroll: 2, checker: 3, employee: 4 } as Record<string, number>)[avatarRole] ?? 0;
   const defaultPage = visiblePages?.[0] ?? "Overview";
-  const overviewItems = OVERVIEW_NAV_ORDER.map((name) => itemOf(name)).filter((item) => item !== undefined);
-  const navigationGroups = page === "Overview" ? [{ label: "", items: overviewItems }] : NAVIGATION;
+  const primaryItems = PRIMARY_NAV_ORDER
+    .map((name) => itemOf(name))
+    .filter((item) => item !== undefined)
+    .filter((item) => !(isFreelancer && FREELANCER_HIDDEN.has(item.name)))
+    .filter((item) => !visiblePages || visiblePages.includes(item.name));
+  const secondaryGroups = NAVIGATION
+    .map((group) => ({
+      ...group,
+      items: group.items
+        .filter((item) => !PRIMARY_NAV_NAMES.has(item.name))
+        .filter((item) => !(isFreelancer && FREELANCER_HIDDEN.has(item.name)))
+        .filter((item) => !visiblePages || visiblePages.includes(item.name)),
+    }))
+    .filter((group) => group.items.length > 0);
+  const secondaryActive = !PRIMARY_NAV_NAMES.has(page);
 
   function closeOverlays() {
     setDrawer(false);
     setClientOpen(false);
     setRoleOpen(false);
     setTrayOpen(false);
+    setMoreOpen(false);
   }
 
   /** Navigating always dismisses the drawer and every open popover. */
@@ -125,6 +138,13 @@ export function WorkspaceShell({
     if (kind === "runs") {
       const live = data.payrollRuns.filter((run) => run.status !== "Released").length;
       return live ? String(live) : null;
+    }
+    if (kind === "operations") {
+      const failedJobs = (data.payrollJobs ?? []).filter((job) => job.status === "Failed").length;
+      const missingBank = data.employees.filter((employee) => employee.status === "Active" && (!employee.bankAccount || !employee.bankCode)).length;
+      const liveExceptions = data.payrollRuns.find((run) => run.status !== "Released")?.exceptions ?? 0;
+      const attentionAreas = [failedJobs > 0, missingBank > 0, liveExceptions > 0, openApprovals > 0].filter(Boolean).length;
+      return attentionAreas ? String(attentionAreas) : null;
     }
     if (kind === "api") return "API";
     return null;
@@ -159,39 +179,73 @@ export function WorkspaceShell({
         </div>
 
         <nav className="side-navigation slim-scroll">
-          {navigationGroups.map((group) => {
-            const items = group.items
-              .filter((item) => !(isFreelancer && FREELANCER_HIDDEN.has(item.name)))
-              .filter((item) => !visiblePages || visiblePages.includes(item.name));
-            if (!items.length) return null;
-            return (
-              <div className="nav-group" key={group.label}>
-                <p>{group.label}</p>
-                {items.map((item) => {
-                  const Icon = item.icon;
-                  const active = page === item.name;
-                  const badge = badgeFor(item.badge);
-                  return (
-                    <button
-                      key={item.name}
-                      className={`nav-item ${active ? "active" : ""}`}
-                      data-tone={item.tone}
-                      data-nav-name={item.name}
-                      onClick={() => go(item.name)}
-                      aria-current={active ? "page" : undefined}
-                      title={rail ? item.name : undefined}
-                    >
-                      <span className={`nav-icon t-${item.tone}`} aria-hidden>
-                        <Icon size={14} strokeWidth={active ? 2.3 : 2} />
-                      </span>
-                      <span>{workspaceLabel(item.name)}</span>
-                      {badge && <b>{badge}</b>}
-                    </button>
-                  );
-                })}
+          <div className="nav-group">
+            <p>Workspace</p>
+            {primaryItems.map((item) => {
+              const Icon = item.icon;
+              const active = page === item.name;
+              const badge = badgeFor(item.badge);
+              return (
+                <button
+                  key={item.name}
+                  className={`nav-item ${active ? "active" : ""}`}
+                  data-tone={item.tone}
+                  data-nav-name={item.name}
+                  onClick={() => go(item.name)}
+                  aria-current={active ? "page" : undefined}
+                  title={rail ? item.name : undefined}
+                >
+                  <span className={`nav-icon t-${item.tone}`} aria-hidden>
+                    <Icon size={14} strokeWidth={active ? 2.3 : 2} />
+                  </span>
+                  <span>{workspaceLabel(item.name)}</span>
+                  {badge && <b>{badge}</b>}
+                </button>
+              );
+            })}
+          </div>
+
+          {secondaryGroups.length > 0 && (
+            <details
+              className="nav-more"
+              open={moreOpen || secondaryActive}
+              onToggle={(event) => setMoreOpen(event.currentTarget.open)}
+            >
+              <summary>
+                <span>More tools</span>
+                <ChevronDown size={13} aria-hidden />
+              </summary>
+              <div className="nav-more-groups">
+                {secondaryGroups.map((group) => (
+                  <div className="nav-group" key={group.label}>
+                    <p>{group.label}</p>
+                    {group.items.map((item) => {
+                      const Icon = item.icon;
+                      const active = page === item.name;
+                      const badge = badgeFor(item.badge);
+                      return (
+                        <button
+                          key={item.name}
+                          className={`nav-item ${active ? "active" : ""}`}
+                          data-tone={item.tone}
+                          data-nav-name={item.name}
+                          onClick={() => go(item.name)}
+                          aria-current={active ? "page" : undefined}
+                          title={rail ? item.name : undefined}
+                        >
+                          <span className={`nav-icon t-${item.tone}`} aria-hidden>
+                            <Icon size={14} strokeWidth={active ? 2.3 : 2} />
+                          </span>
+                          <span>{workspaceLabel(item.name)}</span>
+                          {badge && <b>{badge}</b>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
               </div>
-            );
-          })}
+            </details>
+          )}
         </nav>
 
         <div className="sidebar-bottom">
