@@ -52,8 +52,8 @@ export const PARITY: Array<{
   { capability: "SSS / PhilHealth / Pag-IBIG / TRAIN engine", linaw: "verified", competitors: { Sprout: "yes", PayrollHero: "yes", "GreatDay HR": "yes", Kazam: "yes" } },
   { capability: "MWE exemption cascading", linaw: "verified", competitors: { Sprout: "limited", PayrollHero: "yes", "GreatDay HR": "yes", Kazam: "unknown" } },
   { capability: "Holiday premium stacking", linaw: "verified", competitors: { Sprout: "yes", PayrollHero: "yes", "GreatDay HR": "limited", Kazam: "unknown" } },
-  // One fixed weekly day per employee, set at hire time only for now. Exempt
-  // categories and rotating/substitute rest days are not modeled yet.
+  // One fixed weekly day per employee, editable by authorized People admins.
+  // Exempt categories and rotating/substitute rest days are not modeled yet.
   { capability: "Rest-day premium pay", linaw: "partial", competitors: { Sprout: "yes", PayrollHero: "yes", "GreatDay HR": "limited", Kazam: "unknown" } },
   { capability: "Auto-derived tardiness / OT / night diff", linaw: "verified", competitors: { Sprout: "limited", PayrollHero: "yes", "GreatDay HR": "limited", Kazam: "unknown" } },
   { capability: "Calamity / hazard pay auto-applied", linaw: "verified", competitors: { Sprout: "limited", PayrollHero: "limited", "GreatDay HR": "limited", Kazam: "unknown" } },
