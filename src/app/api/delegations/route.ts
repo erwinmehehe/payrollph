@@ -1,10 +1,11 @@
-import { enforceSameOriginMutation } from "@/lib/security-request";
+import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { approvalDelegations, userOrganizations, users } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { resolveEffectiveApprovers } from "@/lib/delegation";
+import { publicDemoMutationDenied } from "@/lib/demo-security";
 import {
   APPROVAL_ADMIN_ROLES,
   assertOrganizationRole,
@@ -60,6 +61,10 @@ export async function POST(request: Request) {
 
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+  const demoDenied = publicDemoMutationDenied(user.email, "Approval delegation changes");
+  if (demoDenied) return demoDenied;
+  const mfaDenied = requireSensitiveActionMfa(user);
+  if (mfaDenied) return mfaDenied;
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
@@ -137,6 +142,10 @@ export async function PATCH(request: Request) {
 
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+  const demoDenied = publicDemoMutationDenied(user.email, "Approval delegation changes");
+  if (demoDenied) return demoDenied;
+  const mfaDenied = requireSensitiveActionMfa(user);
+  if (mfaDenied) return mfaDenied;
 
   const body = await request.json().catch(() => ({}));
   const id = Number(body.id);
