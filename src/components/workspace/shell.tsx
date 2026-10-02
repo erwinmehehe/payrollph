@@ -222,7 +222,7 @@ export function WorkspaceShell({
             </button>
 
             {/* Current-client indicator */}
-            <div className="company-switcher-wrap">
+            <div className="company-switcher-wrap client-switcher-wrap">
               <button
                 className="company-switcher"
                 onClick={() => allowClientSwitch && setClientOpen((current) => !current)}
@@ -298,7 +298,7 @@ export function WorkspaceShell({
             {headerExtras}
 
             {onSwitchRole && (
-              <div className="company-switcher-wrap">
+              <div className="company-switcher-wrap role-switcher-wrap">
                 <button className="role-pill-btn" onClick={() => setRoleOpen((current) => !current)} aria-expanded={roleOpen} aria-haspopup="menu">
                   <UserCheck size={14} style={{ color: "var(--brand)" }} />
                   <span>{displayRole ? `Demo: ${roleLabel}` : roleLabel}</span>
@@ -333,7 +333,7 @@ export function WorkspaceShell({
               </div>
             )}
 
-            <div className="company-switcher-wrap">
+            <div className="company-switcher-wrap notification-switcher-wrap">
               <button
                 className="icon-button relative"
                 onClick={() => setTrayOpen((current) => !current)}
