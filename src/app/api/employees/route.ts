@@ -6,6 +6,7 @@ import {
   assets,
   employeePayProfiles,
   employeePayRevisions,
+  employeeRestDayRevisions,
   employeePayRetroAdjustments,
   employees,
   payrollEntries,
@@ -325,13 +326,47 @@ export async function PATCH(request: Request) {
 
   const wantsRestDayUpdate = body.restDay !== undefined;
   let nextRestDay: string | null | undefined;
+  let restDayEffectiveDate: string | null = null;
+  let restDayChangeReason: string | null = null;
+  let latestRestDayRevision: typeof employeeRestDayRevisions.$inferSelect | null = null;
   if (wantsRestDayUpdate) {
     const restDayInput = String(body.restDay ?? "").trim();
     if (restDayInput && !REST_DAY_NAMES.includes(restDayInput as (typeof REST_DAY_NAMES)[number])) {
       return Response.json({ error: `restDay must be empty or one of: ${REST_DAY_NAMES.join(", ")}.` }, { status: 400 });
     }
     nextRestDay = restDayInput || null;
+
+    const todayPh = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
+    restDayEffectiveDate = String(body.restDayEffectiveDate ?? todayPh).trim();
+    restDayChangeReason = String(body.restDayChangeReason ?? "Work schedule change").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(restDayEffectiveDate)) {
+      return Response.json({ error: "Rest-day effective date must use YYYY-MM-DD." }, { status: 400 });
+    }
+    if (restDayEffectiveDate < String(employee.startDate)) {
+      return Response.json({ error: "Rest-day effective date cannot be before the employee start date." }, { status: 400 });
+    }
+    if (restDayEffectiveDate > todayPh) {
+      return Response.json({ error: "Future rest-day changes are not applied early. Save the change on its effective date." }, { status: 400 });
+    }
+    if (!restDayChangeReason) {
+      return Response.json({ error: "A reason is required for a rest-day change." }, { status: 400 });
+    }
+
+    const [latest] = await db.select().from(employeeRestDayRevisions)
+      .where(and(
+        eq(employeeRestDayRevisions.organizationId, organizationId),
+        eq(employeeRestDayRevisions.employeeId, employeeId),
+      ))
+      .orderBy(desc(employeeRestDayRevisions.effectiveDate), desc(employeeRestDayRevisions.id))
+      .limit(1);
+    latestRestDayRevision = latest ?? null;
+    if (latest && restDayEffectiveDate < String(latest.effectiveDate)) {
+      return Response.json({
+        error: `This employee already has a later rest-day change effective ${latest.effectiveDate}. Add schedule changes in chronological order so historical payroll stays unambiguous.`,
+      }, { status: 409 });
+    }
   }
+  const changedRestDay = wantsRestDayUpdate && nextRestDay !== employee.restDay;
 
   const replacementBankAccount =
     typeof body.bankAccount === "string" && body.bankAccount.trim()
@@ -360,7 +395,7 @@ export async function PATCH(request: Request) {
     philHealthNo: clean(body.philHealthNo),
     pagIbigNo: clean(body.pagIbigNo),
     nationality: body.nationality === undefined ? undefined : String(body.nationality ?? "").trim() || "Filipino",
-    restDay: wantsRestDayUpdate ? nextRestDay : undefined,
+    restDay: changedRestDay ? nextRestDay : undefined,
     bankAccount: replacementBankAccount ? encryptBankAccount(replacementBankAccount) : undefined,
     bankCode: body.bankCode === undefined ? undefined : nextBankCode,
     mobile: body.mobile === undefined ? undefined : clean(body.mobile),
@@ -388,8 +423,41 @@ export async function PATCH(request: Request) {
       .returning();
 
     let revisionId: number | null = null;
+    let restDayRevisionId: number | null = null;
     let retroAdjustments = 0;
     let retroTotal = 0;
+
+    if (changedRestDay && restDayEffectiveDate) {
+      const [sameDayRevision] = await tx.select().from(employeeRestDayRevisions)
+        .where(and(
+          eq(employeeRestDayRevisions.employeeId, employeeId),
+          eq(employeeRestDayRevisions.effectiveDate, restDayEffectiveDate),
+        ))
+        .limit(1);
+      const previousRestDay =
+        sameDayRevision?.previousRestDay
+        ?? latestRestDayRevision?.newRestDay
+        ?? employee.restDay;
+
+      const [restDayRevision] = await tx.insert(employeeRestDayRevisions).values({
+        employeeId,
+        organizationId,
+        effectiveDate: restDayEffectiveDate,
+        previousRestDay,
+        newRestDay: nextRestDay ?? null,
+        reason: restDayChangeReason ?? "Work schedule change",
+        createdBy: user.name,
+      }).onConflictDoUpdate({
+        target: [employeeRestDayRevisions.employeeId, employeeRestDayRevisions.effectiveDate],
+        set: {
+          newRestDay: nextRestDay ?? null,
+          reason: restDayChangeReason ?? "Work schedule change",
+          createdBy: user.name,
+          createdAt: new Date(),
+        },
+      }).returning({ id: employeeRestDayRevisions.id });
+      restDayRevisionId = restDayRevision.id;
+    }
 
     if (nextPayProfile && payEffectiveDate) {
       const [sameDayRevision] = await tx.select().from(employeePayRevisions)
@@ -541,13 +609,12 @@ export async function PATCH(request: Request) {
       }
     }
 
-    return { updated, revisionId, retroAdjustments, retroTotal };
+    return { updated, revisionId, restDayRevisionId, retroAdjustments, retroTotal };
   });
   const updated = result.updated;
 
   const governmentFields = ["middleName", "tin", "tinBranchCode", "sssNo", "philHealthNo", "pagIbigNo", "nationality"];
   const changedGovernment = governmentFields.some((field) => field in patch);
-  const changedRestDay = "restDay" in patch;
   const changeKinds = [Boolean(nextPayProfile), wantsPayoutUpdate, changedGovernment, changedRestDay].filter(Boolean).length;
   const action = changeKinds > 1
     ? "Employee profile updated"
@@ -575,6 +642,9 @@ export async function PATCH(request: Request) {
       retroTotal: result.retroTotal,
       previousRestDay: changedRestDay ? employee.restDay : undefined,
       newRestDay: changedRestDay ? updated.restDay : undefined,
+      restDayEffectiveDate: changedRestDay ? restDayEffectiveDate : undefined,
+      restDayChangeReason: changedRestDay ? restDayChangeReason : undefined,
+      restDayRevisionId: changedRestDay ? result.restDayRevisionId : undefined,
     },
   });
 
@@ -593,6 +663,13 @@ export async function PATCH(request: Request) {
       revisionId: result.revisionId,
       retroAdjustments: result.retroAdjustments,
       retroTotal: Number(result.retroTotal.toFixed(2)),
+    } : null,
+    scheduleChange: changedRestDay ? {
+      effectiveDate: restDayEffectiveDate,
+      reason: restDayChangeReason,
+      revisionId: result.restDayRevisionId,
+      previousRestDay: employee.restDay,
+      newRestDay: updated.restDay,
     } : null,
   });
 }
