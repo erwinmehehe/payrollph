@@ -52,3 +52,14 @@ test("admin delivery notifications route into the operations queue", () => {
   const source = readFileSync("src/components/workspace/shell.tsx", "utf8");
   assert.ok(source.includes('["owner", "admin", "bookkeeper"].includes(effectiveRole ?? "") ? "Operations" : "Exports"'));
 });
+
+
+test("overview styling cannot hide focused primary navigation destinations", () => {
+  const styles = readFileSync("src/app/workspace-theme.css", "utf8");
+  for (const page of ["Time & attendance", "Operations"]) {
+    assert.ok(
+      !styles.includes(`.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="${page}"]`),
+      `Overview CSS must not hide primary destination ${page}`,
+    );
+  }
+});
