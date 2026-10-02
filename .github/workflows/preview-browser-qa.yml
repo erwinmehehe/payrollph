@@ -532,17 +532,14 @@ jobs:
             if (persona.dashboardRole) {
               const dashboard = page.locator(`[data-role-dashboard="${persona.dashboardRole}"]`);
               check((await dashboard.count()) === 1, `${persona.label}: role-specific dashboard did not render`);
-              const handoff = dashboard.locator("[data-payroll-handoff]").first();
-              check((await handoff.count()) === 1, `${persona.label}: payroll handoff is missing from the role dashboard`);
-              check((await handoff.locator(".handoff-step").count()) === 5, `${persona.label}: payroll handoff must show all five owners`);
-              const handoffAction = dashboard.locator(`[data-handoff-action="${persona.dashboardRole}"]`);
-              check((await handoffAction.count()) === 1, `${persona.label}: direct handoff action/status is missing`);
-              if (persona.id === "payroll") {
-                check(((await handoffAction.textContent()) ?? "").includes("Resolve 2 payroll exceptions"), "Payroll: exception handoff action is not specific");
+              check((await dashboard.locator(".dashboard-alert-banner").count()) === 1, `${persona.label}: focused owl alert banner is missing`);
+              check((await dashboard.locator(".dashboard-stat-card").count()) === 4, `${persona.label}: dashboard must show exactly four primary metrics`);
+              const sandbox = page.locator(".demo-sandbox").first();
+              if (await sandbox.count()) {
+                check((await sandbox.isVisible()) === false, `${persona.label}: bulky demo sandbox must stay off the landing view`);
               }
-              if (persona.id === "checker") {
-                check(((await handoffAction.textContent()) ?? "").includes("Review Sep 1–15, 2026"), "Checker: submitted payroll handoff is not selected");
-              }
+              check((await dashboard.locator(".dashboard-secondary-controls:visible").count()) === 0, `${persona.label}: legacy handoff controls must stay off the focused landing view`);
+              check((await dashboard.locator(".role-dashboard-grid:visible").count()) === 0, `${persona.label}: legacy detail grid must stay off the focused landing view`);
             }
             if (persona.id === "employee") {
               check(body.includes("LATEST PAYSLIP"), "Employee: latest released payslip promotion is missing");
