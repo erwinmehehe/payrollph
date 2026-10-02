@@ -136,7 +136,7 @@ jobs:
             check(response && response.ok(), `${name}: homepage did not return 2xx`);
 
             const h1 = (await page.locator("h1").first().innerText()).trim();
-            check(h1.includes("Payroll that") && h1.includes("shows its work."), `${name}: expected Claude payroll hero heading not found; saw "${h1}"`);
+            check(h1.includes("Payroll that stays clear") && h1.includes("under control."), `${name}: expected PayrollPH hero heading not found; saw "${h1}"`);
             const heroPrimary = page.locator(".hero-primary-cta");
             check((await heroPrimary.count()) === 1, `${name}: hero primary CTA is missing`);
             const heroPrimaryStyles = await heroPrimary.evaluate((el) => {
@@ -194,11 +194,10 @@ jobs:
 
             if (name === "desktop") {
               const hero = page.locator("#top");
-              const audienceButtons = hero.getByRole("radio");
-              check((await audienceButtons.count()) === 4, "desktop: hero audience selector must expose four setup choices");
-              const smallTeam = hero.getByRole("radio", { name: "Small team" });
-              await smallTeam.click();
-              check((await smallTeam.getAttribute("aria-checked")) === "true", "desktop: hero audience selector did not update");
+              check((await hero.locator(".payroll-hero-laptop").count()) === 1, "desktop: PayrollPH laptop visual is missing");
+              check((await hero.locator(".payroll-hero-owl").count()) === 1, "desktop: PayrollPH owl mascot is missing");
+              check((await hero.locator(".payroll-hero-speech").count()) === 1, "desktop: owl speech bubble is missing");
+              check((await hero.locator(".payroll-home-trust li").count()) === 3, "desktop: hero trust list must expose three proof points");
 
               const demo = page.locator("#demo");
               check((await demo.count()) === 1, "desktop: live demo section is missing");
@@ -245,7 +244,7 @@ jobs:
               check(migrationStyles.columns !== "none", "desktop: Migration preview has no grid columns");
               check(migrationStyles.scrollWidth <= migrationStyles.width + 1, `desktop: Migration preview overflows ${migrationStyles.scrollWidth}px > ${migrationStyles.width}px`);
               check((await demo.getByRole("link", { name: /Open role-based sandbox/i }).count()) === 1, "desktop: role-based sandbox handoff is missing");
-              report.modules.push({ module: "Claude hero audience selector", active: true });
+              report.modules.push({ module: "PayrollPH owl laptop hero", active: true });
               report.modules.push({ module: "Shared Linaw workspace preview", active: true });
             }
 
@@ -494,7 +493,7 @@ jobs:
               const marketingResponse = await marketingPage.goto(base, { waitUntil: "networkidle", timeout: 90000 });
               check(marketingResponse && marketingResponse.ok(), "Owner: signed-in visit to / did not return 2xx");
               const marketingH1 = (await marketingPage.locator("h1").first().innerText()).trim();
-              check(marketingH1.includes("Payroll that") && marketingH1.includes("shows its work."), `Owner: signed-in / should stay on the Claude marketing homepage; saw "${marketingH1}"`);
+              check(marketingH1.includes("Payroll that stays clear") && marketingH1.includes("under control."), `Owner: signed-in / should stay on the PayrollPH marketing homepage; saw "${marketingH1}"`);
               await marketingPage.close();
 
               const legacyPage = await context.newPage();
