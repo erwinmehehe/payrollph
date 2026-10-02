@@ -30,7 +30,7 @@ import {
   holidayMultiplier,
   isRestDayOfWeek,
 } from "@/lib/payroll-rules";
-import { holidayOn, isBelowMinimum } from "@/lib/wage-orders";
+import { holidayPayContextOn, isBelowMinimum } from "@/lib/wage-orders";
 import { deMinimisPerSemiMonthlyPeriod, deMinimisTreatment, type DeMinimisType } from "@/lib/ph-compliance";
 import { calculateBenefits, type EnrollmentInput } from "@/lib/benefits";
 import { benefitEnrollments, benefitPlans } from "@/db/schema";
@@ -713,11 +713,10 @@ function calculateEmployeePay(input: {
     if (punchProfile.payBasis !== "monthly") {
       workedBasicPay += (workedRegular / 60) * punchProfile.hourlyRate;
     }
-    const holiday = holidayOn(punch.workDate);
-    const holidayKind = holiday ? (holiday.kind === "regular" ? "regular" as const : "special" as const) : "ordinary" as const;
+    const holidayContext = holidayPayContextOn(punch.workDate);
     const isRestDay = isRestDayOfWeek(punch.workDate, input.employee.restDay);
-    const otMultiplier = holidayMultiplier({ holiday: holidayKind, worked: true, overtime: true, restDay: isRestDay });
-    const regularMultiplier = holidayMultiplier({ holiday: holidayKind, worked: true, overtime: false, restDay: isRestDay });
+    const otMultiplier = holidayMultiplier({ holiday: holidayContext.holiday, worked: true, overtime: true, restDay: isRestDay });
+    const regularMultiplier = holidayMultiplier({ holiday: holidayContext.holiday, worked: true, overtime: false, restDay: isRestDay });
     overtimePay += (derived.overtimeMinutes / 60) * punchProfile.hourlyRate * otMultiplier;
     nightDiffPay +=
       (derived.nightRegularMinutes / 60) * punchProfile.hourlyRate * regularMultiplier * 0.1
@@ -732,11 +731,13 @@ function calculateEmployeePay(input: {
     flags.push(...derived.flags);
     if (derived.flags.length) punchNotes.push(`${punch.workDate}: ${derived.flags.join("; ")}`);
 
-    if ((holiday || isRestDay) && derived.workedMinutes > 0) {
+    if ((holidayContext.holidays.length > 0 || isRestDay) && derived.workedMinutes > 0) {
       const extra = ((workedRegular / 60) * punchProfile.hourlyRate) * (regularMultiplier - 1);
       holidayPremium += extra;
       const otNote = derived.overtimeMinutes > 0 ? ` (overtime that day priced separately at ×${otMultiplier})` : "";
-      const dayLabel = holiday ? `${holiday.name} (${holiday.kind}${isRestDay ? ", rest day" : ""})` : "rest day";
+      const dayLabel = holidayContext.label
+        ? `${holidayContext.label}${isRestDay ? ", rest day" : ""}`
+        : "rest day";
       holidayNotes.push(`${punch.workDate} ${dayLabel} ×${regularMultiplier} → +${money(extra)}${otNote}`);
     }
   }
