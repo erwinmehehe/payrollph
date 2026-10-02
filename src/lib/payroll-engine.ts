@@ -7,6 +7,7 @@ import {
   employeeLoans,
   employeePayProfiles,
   employeePayRevisions,
+  employeeRestDayRevisions,
   employeePayRetroAdjustments,
   employees,
   expenseClaims,
@@ -29,6 +30,8 @@ import {
   deriveClockHours,
   holidayMultiplier,
   isRestDayOfWeek,
+  restDayForDate,
+  type EffectiveRestDayRevisionInput,
 } from "@/lib/payroll-rules";
 import { holidayPayContextOn, isBelowMinimum } from "@/lib/wage-orders";
 import { deMinimisPerSemiMonthlyPeriod, deMinimisTreatment, type DeMinimisType } from "@/lib/ph-compliance";
@@ -304,10 +307,20 @@ async function processPayrollChunk(input: {
         lte(employeePayRevisions.effectiveDate, run.periodEnd),
       )).orderBy(asc(employeePayRevisions.effectiveDate), asc(employeePayRevisions.id))
     : [];
+  const restDayRevisionRows = chunkIds.length
+    ? await db.select().from(employeeRestDayRevisions).where(and(
+        eq(employeeRestDayRevisions.organizationId, input.organizationId),
+        inArray(employeeRestDayRevisions.employeeId, chunkIds),
+      )).orderBy(asc(employeeRestDayRevisions.effectiveDate), asc(employeeRestDayRevisions.id))
+    : [];
   const payProfileByEmployee = new Map(payProfileRows.map((profile) => [profile.employeeId, profile]));
   const payRevisionsByEmployee = new Map<number, typeof payRevisionRows>();
   for (const revision of payRevisionRows) {
     payRevisionsByEmployee.set(revision.employeeId, [...(payRevisionsByEmployee.get(revision.employeeId) ?? []), revision]);
+  }
+  const restDayRevisionsByEmployee = new Map<number, typeof restDayRevisionRows>();
+  for (const revision of restDayRevisionRows) {
+    restDayRevisionsByEmployee.set(revision.employeeId, [...(restDayRevisionsByEmployee.get(revision.employeeId) ?? []), revision]);
   }
   if (chunk.length === 0) {
     await finalizeRun(input.runId);
@@ -553,6 +566,11 @@ async function processPayrollChunk(input: {
         newStandardHoursPerDay: revision.newStandardHoursPerDay,
         reason: revision.reason,
       })),
+      restDayRevisions: (restDayRevisionsByEmployee.get(employee.id) ?? []).map((revision) => ({
+        effectiveDate: String(revision.effectiveDate),
+        previousRestDay: revision.previousRestDay,
+        newRestDay: revision.newRestDay,
+      })),
       periodStart: String(run.periodStart),
       periodEnd: String(run.periodEnd),
     });
@@ -660,6 +678,7 @@ function calculateEmployeePay(input: {
   retroAdjustments?: Array<{ id: number; amount: number; sourcePeriodLabel: string }>;
   payProfile: EmployeePayProfileInput;
   payRevisions?: EffectivePayRevisionInput[];
+  restDayRevisions?: EffectiveRestDayRevisionInput[];
   periodStart: string;
   periodEnd: string;
 }) {
@@ -714,7 +733,8 @@ function calculateEmployeePay(input: {
       workedBasicPay += (workedRegular / 60) * punchProfile.hourlyRate;
     }
     const holidayContext = holidayPayContextOn(punch.workDate);
-    const isRestDay = isRestDayOfWeek(punch.workDate, input.employee.restDay);
+    const restDay = restDayForDate(input.employee.restDay, input.restDayRevisions ?? [], String(punch.workDate));
+    const isRestDay = isRestDayOfWeek(String(punch.workDate), restDay);
     const otMultiplier = holidayMultiplier({ holiday: holidayContext.holiday, worked: true, overtime: true, restDay: isRestDay });
     const regularMultiplier = holidayMultiplier({ holiday: holidayContext.holiday, worked: true, overtime: false, restDay: isRestDay });
     overtimePay += (derived.overtimeMinutes / 60) * punchProfile.hourlyRate * otMultiplier;
