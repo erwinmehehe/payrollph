@@ -52,7 +52,7 @@ test("the homepage leads with the approved PayrollPH hero", () => {
   assert.ok(hero.includes("DOLE-compliant calculations"), "hero must show the first trust point");
   assert.ok(hero.includes("Government reports ready"), "hero must show the second trust point");
   assert.ok(hero.includes("Secure and confidential"), "hero must show the third trust point");
-  assert.ok(hero.includes("Let’s make payroll easier"), "hero must include the owl speech bubble");
+  assert.ok(!hero.includes("Let’s make payroll easier"), "hero must stay mascot-free");
   assert.ok(product.includes("Drag a salary. Watch every deduction explain itself."), "statutory explanation must stay visible below the fold");
   assert.ok(trust.includes("Controls that return 403, not a tooltip."), "security controls must remain a primary product story");
 });
