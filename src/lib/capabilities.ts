@@ -90,9 +90,10 @@ export async function buildCapabilityReport() {
     db.select({ value: count() }).from(yearEndAdjustments),
     db.select({ value: count() }).from(healthSnapshots),
     db.select({ value: count() }).from(outbox).where(eq(outbox.status, "sent")),
+    db.select({ value: count() }).from(outbox).where(eq(outbox.deliveryStatus, "delivered")),
   ]);
   const [
-    runs, audits, delegations, keys, hooks, enrollments, annualizations, snapshots, mailSent,
+    runs, audits, delegations, keys, hooks, enrollments, annualizations, snapshots, mailSent, mailDelivered,
   ] = rows.map((row) => Number(row[0].value));
   // A configured provider that has never actually delivered is the same
   // "built but unproven" situation as the other partial rows here: the surface
@@ -154,13 +155,15 @@ export async function buildCapabilityReport() {
       area: "Platform",
       label: "Transactional email",
       detail: emailCapable
-        ? mailSent > 0
-          ? "Provider adapters are implemented and this deployment has delivered mail."
-          : "Provider adapters are implemented and configured; no successful delivery is recorded yet."
+        ? mailDelivered > 0
+          ? "Provider adapters are implemented and this deployment has a provider-confirmed delivered message."
+          : mailSent > 0
+            ? "Provider adapters are implemented and messages have been accepted for sending, but no provider-confirmed delivery is recorded yet."
+            : "Provider adapters are implemented and configured; no live send or provider-confirmed delivery is recorded yet."
         : "Resend, Postmark and SMTP adapters are implemented; live delivery still needs a provider key on this deployment.",
-      status: "verified",
+      status: emailCapable && mailDelivered > 0 ? "verified" : "partial",
       proof: emailCapable
-        ? `tests/mailer-smtp.test.ts · ${mailSent} sent · src/lib/mailer.ts`
+        ? `tests/mailer-smtp.test.ts · ${mailSent} sent · ${mailDelivered} delivered · src/lib/mailer.ts`
         : "tests/mailer-smtp.test.ts · src/lib/mailer.ts · live provider not configured",
     },
   ];
@@ -171,5 +174,5 @@ export async function buildCapabilityReport() {
     absent: capabilities.filter((capability) => capability.status === "absent").length,
   };
 
-  return { capabilities, counts, parity: PARITY, competitors: COMPETITORS, evidence: { runs, audits, delegations, apiKeys: keys, webhookEndpoints: hooks, benefitEnrollments: enrollments, annualizations, healthSnapshots: snapshots } };
+  return { capabilities, counts, parity: PARITY, competitors: COMPETITORS, evidence: { runs, audits, delegations, apiKeys: keys, webhookEndpoints: hooks, benefitEnrollments: enrollments, annualizations, healthSnapshots: snapshots, mailSent, mailDelivered } };
 }
