@@ -195,8 +195,8 @@ jobs:
             if (name === "desktop") {
               const hero = page.locator("#top");
               check((await hero.locator(".payroll-hero-laptop").count()) === 1, "desktop: PayrollPH laptop visual is missing");
-              check((await hero.locator(".payroll-hero-owl").count()) === 1, "desktop: PayrollPH owl mascot is missing");
-              check((await hero.locator(".payroll-hero-speech").count()) === 1, "desktop: owl speech bubble is missing");
+              check((await hero.locator(".payroll-hero-owl").count()) === 0, "desktop: homepage mascot must stay removed");
+              check((await hero.locator(".payroll-hero-speech").count()) === 0, "desktop: mascot speech bubble must stay removed");
               check((await hero.locator(".payroll-home-trust li").count()) === 3, "desktop: hero trust list must expose three proof points");
 
               const demo = page.locator("#demo");
@@ -244,7 +244,7 @@ jobs:
               check(migrationStyles.columns !== "none", "desktop: Migration preview has no grid columns");
               check(migrationStyles.scrollWidth <= migrationStyles.width + 1, `desktop: Migration preview overflows ${migrationStyles.scrollWidth}px > ${migrationStyles.width}px`);
               check((await demo.getByRole("link", { name: /Open role-based sandbox/i }).count()) === 1, "desktop: role-based sandbox handoff is missing");
-              report.modules.push({ module: "PayrollPH owl laptop hero", active: true });
+              report.modules.push({ module: "PayrollPH product-first laptop hero", active: true });
               report.modules.push({ module: "Shared Linaw workspace preview", active: true });
             }
 
