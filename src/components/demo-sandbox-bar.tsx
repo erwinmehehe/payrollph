@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowRight, CheckCircle2, RotateCcw, ShieldCheck, UserCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, ChevronDown, RotateCcw, ShieldCheck, UserCheck } from "lucide-react";
+import { useState } from "react";
 import { DEMO_ROLES, demoRoleInfo, type DemoRoleId } from "@/lib/demo-roles";
 
 export function DemoSandboxBar({
@@ -15,21 +16,38 @@ export function DemoSandboxBar({
   busyRole?: DemoRoleId | null;
 }) {
   const info = demoRoleInfo(role);
+  const [expanded, setExpanded] = useState(false);
   if (!info) return null;
 
   return (
-    <section className="card demo-sandbox">
+    <section className={`card demo-sandbox ${expanded ? "expanded" : "collapsed"}`}>
       <div className="card-header demo-sandbox-head">
-        <div>
-          <div className="card-kicker">ROLE SANDBOX</div>
-          <h2>{info.label} · {info.person}</h2>
-          <p>{info.description}</p>
+        <div className="demo-sandbox-summary">
+          <span className="demo-persona-badge">
+            <UserCheck size={13} aria-hidden />
+            Demo: {info.shortLabel}
+          </span>
+          <span className="demo-sandbox-person">{info.person}</span>
         </div>
-        <span className="demo-persona-badge">
-          <UserCheck size={13} aria-hidden />
-          Live persona
-        </span>
+        <button
+          type="button"
+          className="demo-sandbox-toggle"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded ? "Hide demo tools" : "Demo tools"}
+          <ChevronDown size={14} aria-hidden />
+        </button>
       </div>
+      {expanded && (
+        <div className="demo-sandbox-expanded">
+          <div className="demo-sandbox-intro">
+            <div>
+              <div className="card-kicker">ROLE SANDBOX</div>
+              <h2>{info.label} · {info.person}</h2>
+              <p>{info.description}</p>
+            </div>
+          </div>
 
       <div className="demo-sandbox-body">
         <div className="demo-role-switcher" aria-label="Demo personas">
@@ -88,6 +106,8 @@ export function DemoSandboxBar({
           ))}
         </div>
       </div>
+        </div>
+      )}
     </section>
   );
 }

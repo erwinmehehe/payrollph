@@ -6,6 +6,8 @@ import { CalendarDays, Clock, Download, FileText, LogOut, ShieldCheck, WalletCar
 import { WebBundyModal } from "@/components/web-bundy-modal";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { PayrollHandoff } from "@/components/payroll-handoff";
+import { DashboardStatCard } from "@/components/workspace/dashboard-stat-card";
+import { PayrollGuide } from "@/components/payroll-owl";
 import { type DemoRoleId } from "@/lib/demo-roles";
 import { buildPayrollHandoff } from "@/lib/payroll-handoff";
 
@@ -49,6 +51,7 @@ export function SelfServicePortal() {
   const [linked, setLinked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [webBundyOpen, setWebBundyOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [switchingRole, setSwitchingRole] = useState<DemoRoleId | null>(null);
 
   async function load() {
@@ -149,7 +152,7 @@ export function SelfServicePortal() {
       <header className="page-heading">
         <div>
           <p className="eyebrow">MY PAY</p>
-          <h1>{data ? `Hello, ${data.employee.firstName}.` : "My payslips"}</h1>
+          <h1>{data ? `Good morning, ${data.employee.firstName}!` : "My payslips"}</h1>
           <p className="heading-copy">
             {data?.employer?.name ?? "Your employer"} · you can only ever see your own records here.
           </p>
@@ -163,6 +166,54 @@ export function SelfServicePortal() {
           </button>
         </div>
       </header>
+
+      {data && (
+        <section data-latest-payslip={latestPayslip ? "" : undefined} className="employee-pay-guide">
+          {latestPayslip ? <span className="employee-payslip-status"><ShieldCheck size={12} aria-hidden /> Payslip available</span> : null}
+          <PayrollGuide
+            role="employee"
+            state={latestPayslip ? "released" : "welcome"}
+            eyebrow="My Payroll Guide"
+            title={latestPayslip ? `Your ${latestPayslip.period} payslip is ready` : "Your payroll updates will appear here"}
+            detail={latestPayslip ? "You can review your latest net pay and download the released payslip without seeing anyone else’s payroll." : "When your employer releases payroll, your payslip and pay history will appear here automatically."}
+            actionLabel={latestPayslip ? "View payslip" : undefined}
+            onAction={latestPayslip ? () => { setOpen(latestPayslip.entryId); setDetailsOpen(true); } : undefined}
+          />
+        </section>
+      )}
+
+      {data && (
+        <section className="dashboard-metrics-grid employee-dashboard-metrics">
+          <DashboardStatCard
+            icon={<CalendarDays size={18} />}
+            label="Latest Payslip"
+            value={latestPayslip?.period ?? "Not available"}
+            hint={latestPayslip ? "Released and ready" : "Waiting for release"}
+            tone={latestPayslip ? "green" : "slate"}
+          />
+          <DashboardStatCard
+            icon={<WalletCards size={18} />}
+            label="Net Pay"
+            value={latestPayslip ? peso(latestPayslip.net) : "—"}
+            hint="Latest released payroll"
+            tone="blue"
+          />
+          <DashboardStatCard
+            icon={<FileText size={18} />}
+            label="Year to Date"
+            value={peso(data.yearToDate.net)}
+            hint={`${data.yearToDate.periodsPaid} released period${data.yearToDate.periodsPaid === 1 ? "" : "s"}`}
+            tone="blue"
+          />
+          <DashboardStatCard
+            icon={<ShieldCheck size={18} />}
+            label="Employment Status"
+            value={data.employee.status}
+            hint={data.employee.employmentType}
+            tone="green"
+          />
+        </section>
+      )}
 
       {isDemo && (
         <DemoSandboxBar
@@ -204,9 +255,15 @@ export function SelfServicePortal() {
       )}
 
       {data && (
-        <>
+        <details
+          className="employee-deep-details"
+          open={detailsOpen}
+          onToggle={(event) => setDetailsOpen(event.currentTarget.open)}
+        >
+          <summary>View pay details</summary>
+          <div className="employee-deep-details-body">
           {latestPayslip && (
-            <section className="employee-pay-next" data-latest-payslip>
+            <section className="employee-pay-next">
               <div className="employee-pay-next-copy">
                 <span className="card-kicker">LATEST PAYSLIP</span>
                 <h2>Payslip available</h2>
@@ -329,7 +386,8 @@ export function SelfServicePortal() {
             <ShieldCheck size={17} className="i-green" />
             <span><strong>Privacy:</strong> this page is scoped to your single employee record in the database query itself. You cannot view another employee&apos;s pay, even by editing the request.</span>
           </div>
-        </>
+          </div>
+        </details>
       )}
     </main>
   );

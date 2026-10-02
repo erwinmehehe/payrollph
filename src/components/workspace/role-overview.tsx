@@ -16,7 +16,9 @@ import {
   WalletCards,
 } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
-import { PayrollGuide } from "@/components/payroll-owl";
+import { DashboardAlertBanner, type DashboardAlertItem } from "./dashboard-alert-banner";
+import { DashboardStatCard } from "./dashboard-stat-card";
+import { RecentPayrollRuns } from "./recent-payroll-runs";
 import { buildPayrollHandoff, payrollHandoffRank, type PayrollHandoffStage } from "@/lib/payroll-handoff";
 import type { DashboardData, PayrollHandoffRunSummary, PayrollRun, Task } from "./types";
 import {
@@ -159,104 +161,50 @@ function OwnerDashboard(props: RoleDashboardProps) {
     (currentRun.status !== "Released" &&
       (payrollExceptions.length > 0 || pendingTasks.length > 0 || currentRun.status !== "Approved"));
 
+  const missingBankDetails = activePeople.filter((employee) => !employee.bankAccount || !employee.bankCode).length;
+  const ownerAlertItems: DashboardAlertItem[] = [];
+  if (missingBankDetails) ownerAlertItems.push({ id: "bank", label: `${missingBankDetails} employee${missingBankDetails === 1 ? "" : "s"} missing bank details`, tone: "danger" });
+  if (payrollExceptions.length) ownerAlertItems.push({ id: "exceptions", label: `${payrollExceptions.length} payroll exception${payrollExceptions.length === 1 ? "" : "s"} need review`, tone: "warning" });
+  if (pendingTasks.length) ownerAlertItems.push({ id: "approval", label: `${pendingTasks.length} approval item${pendingTasks.length === 1 ? "" : "s"} waiting`, tone: "info" });
+  if (!ownerAlertItems.length) ownerAlertItems.push({ id: "clear", label: "No release blocker is visible in this workspace", tone: "success" });
+  const ownerIssueCount = ownerAlertItems.filter((item) => item.tone !== "success").length;
+
   return (
-    <>
+    <div className="payrollph-dashboard" data-dashboard-variant="owner">
       <PageHeading
         eyebrow={data.selectedOrganization.legalName + " · Owner"}
-        title={"Company control center, " + firstName + "."}
-        copy="See payroll release risk, people health and recorded decisions without working through every module."
-        actions={
-          <>
-            <button className="secondary-button" onClick={() => onPage("Analytics")}>Analytics</button>
-            <button className="primary-button brand" onClick={onNewRun}>New payroll</button>
-          </>
-        }
+        title={"Good morning, " + firstName + "!"}
+        copy="Here’s what needs attention before payroll can be released."
       />
 
-      <PayrollGuide
-        role="owner"
-        state={currentRun?.status === "Released" ? "released" : releaseBlocked ? "attention" : "approved"}
-        title={
-          currentRun
-            ? releaseBlocked
-              ? "Clear the remaining release checks"
-              : currentRun.status === "Released"
-                ? "Payroll is complete"
-                : "Visible release checks are clear"
-            : "Ready when your next cutoff closes"
-        }
-        detail={
-          currentRun
-            ? releaseBlocked
-              ? "I’ll keep the release risks visible so you can resolve them before money moves."
-              : currentRun.status === "Released"
-                ? "Payslips and release records are ready for the team."
-                : "Review the final owner controls before release."
-            : "Create the next payroll when HR and payroll inputs are ready."
-        }
-        actionLabel={currentRun ? "Review payroll" : "Create payroll"}
-        onAction={currentRun ? () => onPage("Payroll") : onNewRun}
+      <DashboardAlertBanner
+        title={ownerIssueCount ? `${ownerIssueCount} thing${ownerIssueCount === 1 ? "" : "s"} need attention` : "Payroll looks ready"}
+        detail={ownerIssueCount ? "Resolve these before sending or releasing payroll." : "The visible payroll checks are clear. Review the run before release."}
+        items={ownerAlertItems}
+        state={ownerIssueCount ? "attention" : currentRun?.status === "Released" ? "released" : "approved"}
+        actionLabel={ownerIssueCount ? "Review issues" : "Open payroll"}
+        onAction={() => onPage(missingBankDetails ? "People" : payrollExceptions.length ? "Payroll" : pendingTasks.length ? "Approvals" : "Payroll")}
       />
 
-      <RoleStrip
-        kicker="Owner focus"
-        title={currentRun ? currentRun.periodLabel + " · " + currentRun.status : "No payroll is in progress"}
-        copy={
-          currentRun
-            ? releaseBlocked
-              ? "This run still has conditions to clear before release."
-              : "The current run has cleared the visible release gates."
-            : "Create the next payroll when the cutoff is ready."
-        }
-        figures={[
-          ["Net payroll", currentRun ? shortMoney(currentRun.netPay) : "—"],
-          ["Open decisions", String(pendingTasks.length)],
-          ["People", String(activePeople.length)],
-        ]}
-        tone="owner"
-      />
-
-      <PayrollHandoff
-        stages={handoffStages}
-        period={handoffRun?.periodLabel ?? "Next payroll"}
-        status={handoffRun?.status ?? "Waiting for inputs"}
-        payDate={handoffRun?.payDate}
-        viewerRole="owner"
-      />
-
-      <HandoffActionBanner action={handoffAction} onPage={onPage} role="owner" />
-
-      <section className="stats-grid">
-        <Metric
-          label="Release status"
-          value={currentRun?.status ?? "No run"}
-          hint={releaseBlocked ? "still needs attention" : "visible gates are clear"}
-          icon={<WalletCards size={16} />}
-          tone={releaseBlocked ? "amber" : "mint"}
-          compact
-        />
-        <Metric
-          label="Payroll exceptions"
-          value={String(payrollExceptions.length)}
-          hint={payrollExceptions.length ? "must be understood before release" : "no entry exceptions"}
-          icon={<AlertTriangle size={16} />}
-          tone={payrollExceptions.length ? "amber" : "mint"}
-        />
-        <Metric
-          label="People data gaps"
-          value={String(peopleMissingGovernmentIds.length)}
-          hint="active people missing at least one filing ID"
-          icon={<UsersRound size={16} />}
-          tone={peopleMissingGovernmentIds.length ? "purple" : "mint"}
-        />
-        <Metric
-          label="Active advisories"
-          value={String(activeAdvisories.length)}
-          hint={activeAdvisories.length ? "may affect payroll rules" : "no active hazard advisory"}
-          icon={<ShieldCheck size={16} />}
-          tone={activeAdvisories.length ? "amber" : "blue"}
-        />
+      <section className="dashboard-metrics-grid">
+        <DashboardStatCard icon={<WalletCards size={18} />} label="Payroll Status" value={currentRun?.status ?? "No run"} hint={currentRun?.periodLabel ?? "No payroll in progress"} tone={releaseBlocked ? "amber" : "green"} />
+        <DashboardStatCard icon={<UsersRound size={18} />} label="Employees" value={String(activePeople.length)} hint="Active employee records" tone="blue" />
+        <DashboardStatCard icon={<AlertTriangle size={18} />} label="Exceptions" value={String(payrollExceptions.length)} hint={payrollExceptions.length ? "Needs review" : "No current exceptions"} tone={payrollExceptions.length ? "red" : "green"} />
+        <DashboardStatCard icon={<ClipboardCheck size={18} />} label="For Approval" value={String(pendingTasks.length)} hint={pendingTasks.length ? "Decision required" : "Queue clear"} tone={pendingTasks.length ? "amber" : "green"} />
       </section>
+
+      <RecentPayrollRuns runs={data.payrollRuns} onViewAll={() => onPage("Payroll")} />
+
+      <details className="dashboard-deep-details"><summary>More payroll details</summary><div className="dashboard-secondary-controls">
+        <PayrollHandoff
+          stages={handoffStages}
+          period={handoffRun?.periodLabel ?? "Next payroll"}
+          status={handoffRun?.status ?? "Waiting for inputs"}
+          payDate={handoffRun?.payDate}
+          viewerRole="owner"
+        />
+        <HandoffActionBanner action={handoffAction} onPage={onPage} role="owner" />
+      </div>
 
       <section className="role-dashboard-grid">
         <RoleCard kicker="Release readiness" title="What has to be true before money moves" action="Open payroll" onAction={() => onPage("Payroll")}>
@@ -313,8 +261,8 @@ function OwnerDashboard(props: RoleDashboardProps) {
         <RoleCard kicker="Recorded control" title="Latest audit activity" action="Open audit trail" onAction={() => onPage("Audit trail")}>
           <AuditRows data={data} />
         </RoleCard>
-      </section>
-    </>
+      </section></details>
+    </div>
   );
 }
 
@@ -334,65 +282,49 @@ function HrDashboard(props: RoleDashboardProps) {
     onPage,
   } = props;
 
+  const missingBankDetails = activePeople.filter((employee) => !employee.bankAccount || !employee.bankCode).length;
+  const hrAlertItems: DashboardAlertItem[] = [];
+  if (missingBankDetails) hrAlertItems.push({ id: "bank", label: `${missingBankDetails} employee${missingBankDetails === 1 ? "" : "s"} need payout details`, tone: "danger" });
+  if (pendingLeave.length) hrAlertItems.push({ id: "leave", label: `${pendingLeave.length} leave request${pendingLeave.length === 1 ? "" : "s"} need review`, tone: "warning" });
+  if (attendanceIssues.length) hrAlertItems.push({ id: "attendance", label: `${attendanceIssues.length} attendance issue${attendanceIssues.length === 1 ? "" : "s"} need context`, tone: "info" });
+  if (!hrAlertItems.length) hrAlertItems.push({ id: "clear", label: "People records are ready for payroll handoff", tone: "success" });
+  const withBankDetails = Math.max(activePeople.length - missingBankDetails, 0);
+  const hrIssueCount = [missingBankDetails, pendingLeave.length, attendanceIssues.length].filter((count) => count > 0).length;
+
   return (
-    <>
+    <div className="payrollph-dashboard" data-dashboard-variant="hr">
       <PageHeading
         eyebrow={data.selectedOrganization.legalName + " · HR Admin"}
-        title={"People operations today, " + firstName + "."}
-        copy="Work the people issues that can block attendance, leave, onboarding and the next payroll cutoff."
-        actions={
-          <>
-            <button className="secondary-button" onClick={() => onPage("Time & attendance")}>Attendance</button>
-            <button className="primary-button brand" onClick={() => onPage("People")}>Open people</button>
-          </>
-        }
+        title={"Good morning, " + firstName + "!"}
+        copy="Here’s your HR setup progress before the next payroll cutoff."
       />
 
-      <PayrollGuide
-        role="hr"
-        state={pendingLeave.length + attendanceIssues.length + peopleMissingGovernmentIds.length > 0 ? "attention" : "approved"}
-        title={
-          pendingLeave.length + attendanceIssues.length + peopleMissingGovernmentIds.length > 0
-            ? "People inputs need attention before cutoff"
-            : "People inputs look ready for payroll"
-        }
-        detail={
-          pendingLeave.length + attendanceIssues.length + peopleMissingGovernmentIds.length > 0
-            ? "I’ll surface leave, attendance and filing-ID gaps before they become payroll exceptions."
-            : "No current HR data issue is blocking the next payroll handoff."
-        }
-        actionLabel="Review people"
+      <DashboardAlertBanner
+        title={missingBankDetails ? `${missingBankDetails} employee${missingBankDetails === 1 ? "" : "s"} need payout details` : hrIssueCount ? `${hrIssueCount} people item${hrIssueCount === 1 ? "" : "s"} need attention` : "People inputs look ready"}
+        detail={missingBankDetails ? "Complete bank accounts so payroll can be processed on time." : hrIssueCount ? "Clear the remaining people inputs before the next payroll handoff." : "No current HR data issue is blocking the payroll handoff."}
+        items={hrAlertItems}
+        state={missingBankDetails || pendingLeave.length || attendanceIssues.length ? "attention" : "approved"}
+        actionLabel="View employees"
         onAction={() => onPage("People")}
       />
 
-      <RoleStrip
-        kicker="HR focus"
-        title={String(activePeople.length) + " active people · " + String(pendingLeave.length + attendanceIssues.length + openProvisioning.length) + " open people items"}
-        copy="Prioritize records and attendance that affect payroll before the cutoff reaches the payroll officer."
-        figures={[
-          ["Leave waiting", String(pendingLeave.length)],
-          ["Attendance issues", String(attendanceIssues.length)],
-          ["Onboarding items", String(openProvisioning.length)],
-        ]}
-        tone="hr"
-      />
-
-      <PayrollHandoff
-        stages={handoffStages}
-        period={handoffRun?.periodLabel ?? "Next payroll"}
-        status={handoffRun?.status ?? "Waiting for inputs"}
-        payDate={handoffRun?.payDate}
-        viewerRole="hr"
-      />
-
-      <HandoffActionBanner action={handoffAction} onPage={onPage} role="hr" />
-
-      <section className="stats-grid">
-        <Metric label="Active people" value={String(activePeople.length)} hint={"of " + String(data.employees.length) + " employee records"} icon={<UsersRound size={16} />} tone="purple" />
-        <Metric label="Pending leave" value={String(pendingLeave.length)} hint={pendingLeave.length ? "needs HR review" : "leave queue clear"} icon={<CalendarClock size={16} />} tone={pendingLeave.length ? "amber" : "mint"} />
-        <Metric label="Attendance issues" value={String(attendanceIssues.length)} hint={attendanceIssues.length ? "punches need context" : "no current punch issues"} icon={<Clock3 size={16} />} tone={attendanceIssues.length ? "amber" : "blue"} />
-        <Metric label="Missing filing IDs" value={String(peopleMissingGovernmentIds.length)} hint="active people with an incomplete government identity" icon={<FileWarning size={16} />} tone={peopleMissingGovernmentIds.length ? "amber" : "mint"} />
+      <section className="dashboard-metrics-grid">
+        <DashboardStatCard icon={<UsersRound size={18} />} label="Total Employees" value={String(activePeople.length)} hint="Active people" tone="blue" />
+        <DashboardStatCard icon={<BadgeCheck size={18} />} label="With Bank Details" value={String(withBankDetails)} hint="Ready for payout" tone="green" />
+        <DashboardStatCard icon={<FileWarning size={18} />} label="Missing Details" value={String(missingBankDetails)} hint="Bank details incomplete" tone={missingBankDetails ? "red" : "green"} />
+        <DashboardStatCard icon={<ClipboardCheck size={18} />} label="For Onboarding" value={String(openProvisioning.length)} hint={openProvisioning.length ? "Open lifecycle tasks" : "Queue clear"} tone={openProvisioning.length ? "amber" : "green"} />
       </section>
+
+      <details className="dashboard-deep-details"><summary>More payroll details</summary><div className="dashboard-secondary-controls">
+        <PayrollHandoff
+          stages={handoffStages}
+          period={handoffRun?.periodLabel ?? "Next payroll"}
+          status={handoffRun?.status ?? "Waiting for inputs"}
+          payDate={handoffRun?.payDate}
+          viewerRole="hr"
+        />
+        <HandoffActionBanner action={handoffAction} onPage={onPage} role="hr" />
+      </div>
 
       <section className="role-dashboard-grid">
         <RoleCard kicker="People requiring attention" title="Fix records before they become payroll problems" action="Open people" onAction={() => onPage("People")}>
@@ -456,8 +388,8 @@ function HrDashboard(props: RoleDashboardProps) {
           ]}
           onPage={onPage}
         />
-      </section>
-    </>
+      </section></details>
+    </div>
   );
 }
 
@@ -483,77 +415,48 @@ function PayrollDashboard(props: RoleDashboardProps) {
     ? (currentRun.processedChunks ?? 0) >= currentRun.totalChunks
     : data.payrollEntries.length > 0;
 
+  const payrollAlertItems: DashboardAlertItem[] = [];
+  if (failedJobs.length) payrollAlertItems.push({ id: "failed", label: `${failedJobs.length} payroll job${failedJobs.length === 1 ? "" : "s"} failed`, tone: "danger" });
+  if (payrollExceptions.length) payrollAlertItems.push({ id: "exceptions", label: `${payrollExceptions.length} exception${payrollExceptions.length === 1 ? "" : "s"} need review`, tone: "warning" });
+  if (pendingTasks.length) payrollAlertItems.push({ id: "approval", label: `${pendingTasks.length} checker item${pendingTasks.length === 1 ? "" : "s"} waiting`, tone: "info" });
+  if (!payrollAlertItems.length) payrollAlertItems.push({ id: "clear", label: "The payroll register is ready for the next handoff", tone: "success" });
+
   return (
-    <>
+    <div className="payrollph-dashboard" data-dashboard-variant="payroll">
       <PageHeading
         eyebrow={data.selectedOrganization.legalName + " · Payroll Officer"}
-        title={"Cutoff control center, " + firstName + "."}
-        copy="Resolve payroll inputs, calculate the register and hand the run to an independent checker. Release stays outside the payroll-maker role."
-        actions={
-          <>
-            <button className="secondary-button" onClick={() => onPage("Exports")}>Exports</button>
-            <button className="primary-button brand" onClick={currentRun ? () => onPage("Payroll") : onNewRun}>
-              {currentRun ? "Open payroll" : "New payroll"}
-            </button>
-          </>
-        }
+        title={"Good morning, " + firstName + "!"}
+        copy="Your payroll is almost ready. Resolve the remaining items before checker review."
       />
 
-      <PayrollGuide
-        role="payroll"
-        state={failedJobs.length || payrollExceptions.length ? "attention" : queueDone && currentRun ? "review" : "welcome"}
-        title={
-          failedJobs.length
-            ? "A payroll job needs recovery"
-            : payrollExceptions.length
-              ? `${payrollExceptions.length} payroll exception${payrollExceptions.length === 1 ? "" : "s"} need review`
-              : currentRun
-                ? "The register is ready for your final review"
-                : "Start with a clean payroll cutoff"
-        }
-        detail={
-          failedJobs.length || payrollExceptions.length
-            ? "Resolve the flagged calculation or employee entries before sending anything to Checker."
-            : "I’ll keep calculation state, exceptions and maker-checker handoff visible."
-        }
-        actionLabel={currentRun ? "Open payroll" : "Create payroll"}
+      <DashboardAlertBanner
+        title={failedJobs.length ? "Payroll calculation needs recovery" : queueDone ? "Payroll calculation is complete" : "Payroll calculation is in progress"}
+        detail={payrollExceptions.length ? `${payrollExceptions.length} exception${payrollExceptions.length === 1 ? "" : "s"} need review before you can submit for approval.` : "Review the calculated register before the maker-checker handoff."}
+        items={payrollAlertItems}
+        state={failedJobs.length || payrollExceptions.length ? "attention" : queueDone ? "review" : "welcome"}
+        actionLabel={currentRun ? "Review exceptions" : "Create payroll"}
         onAction={currentRun ? () => onPage("Payroll") : onNewRun}
       />
 
-      <RoleStrip
-        kicker="Payroll focus"
-        title={currentRun ? currentRun.periodLabel + " · " + currentRun.status : "No open payroll run"}
-        copy={
-          currentRun
-            ? payrollExceptions.length
-              ? "Resolve " + String(payrollExceptions.length) + " exception(s), then send the run to checker review."
-              : "The register has no entry exceptions. Confirm cutoff inputs before submission."
-            : "Create the next run after HR closes the cutoff inputs."
-        }
-        figures={[
-          ["Net pay", currentRun ? shortMoney(currentRun.netPay) : "—"],
-          ["Exceptions", String(payrollExceptions.length)],
-          ["Retro items", String(pendingRetro.length)],
-        ]}
-        tone="payroll"
-      />
-
-      <PayrollHandoff
-        stages={handoffStages}
-        period={handoffRun?.periodLabel ?? "Next payroll"}
-        status={handoffRun?.status ?? "Waiting for inputs"}
-        payDate={handoffRun?.payDate}
-        viewerRole="payroll"
-      />
-
-      <HandoffActionBanner action={handoffAction} onPage={onPage} role="payroll" />
-
-      <section className="stats-grid">
-        <Metric label="Run status" value={currentRun?.status ?? "No run"} hint={queueDone ? "calculation queue complete" : "calculation still in progress"} icon={<WalletCards size={16} />} tone={currentRun ? "blue" : "slate"} compact />
-        <Metric label="Entry exceptions" value={String(payrollExceptions.length)} hint={payrollExceptions.length ? "review before checker handoff" : "register is clean"} icon={<AlertTriangle size={16} />} tone={payrollExceptions.length ? "amber" : "mint"} />
-        <Metric label="Pending retro" value={String(pendingRetro.length)} hint="effective-dated corrections waiting for settlement" icon={<History size={16} />} tone={pendingRetro.length ? "purple" : "mint"} />
-        <Metric label="Checker queue" value={String(pendingTasks.length)} hint={pendingTasks.length ? "approval items still open" : "no pending approval"} icon={<ClipboardCheck size={16} />} tone={pendingTasks.length ? "amber" : "mint"} />
+      <section className="dashboard-metrics-grid">
+        <DashboardStatCard icon={<UsersRound size={18} />} label="Employees" value={String(currentRun?.employeeCount ?? data.employees.length)} hint="In payroll scope" tone="blue" />
+        <DashboardStatCard icon={<CircleDollarSign size={18} />} label="Calculated" value={currentRun ? shortMoney(currentRun.netPay) : "—"} hint="Net payroll" tone="amber" />
+        <DashboardStatCard icon={<AlertTriangle size={18} />} label="Exceptions" value={String(payrollExceptions.length)} hint={payrollExceptions.length ? "Needs review" : "Register clean"} tone={payrollExceptions.length ? "red" : "green"} />
+        <DashboardStatCard icon={<BadgeCheck size={18} />} label="Ready to Submit" value={queueDone && !failedJobs.length && !payrollExceptions.length ? "Yes" : "Not yet"} hint="Checker handoff" tone={queueDone && !failedJobs.length && !payrollExceptions.length ? "green" : "amber"} />
       </section>
+
+      <RecentPayrollRuns runs={data.payrollRuns} onViewAll={() => onPage("Payroll")} />
+
+      <details className="dashboard-deep-details"><summary>More payroll details</summary><div className="dashboard-secondary-controls">
+        <PayrollHandoff
+          stages={handoffStages}
+          period={handoffRun?.periodLabel ?? "Next payroll"}
+          status={handoffRun?.status ?? "Waiting for inputs"}
+          payDate={handoffRun?.payDate}
+          viewerRole="payroll"
+        />
+        <HandoffActionBanner action={handoffAction} onPage={onPage} role="payroll" />
+      </div>
 
       <section className="role-dashboard-grid">
         <RoleCard kicker="Run readiness" title="Prepare the handoff to checker" action="Open payroll" onAction={() => onPage("Payroll")}>
@@ -603,8 +506,8 @@ function PayrollDashboard(props: RoleDashboardProps) {
           ]}
           onPage={onPage}
         />
-      </section>
-    </>
+      </section></details>
+    </div>
   );
 }
 
@@ -622,61 +525,49 @@ function CheckerDashboard(props: RoleDashboardProps) {
     onPage,
   } = props;
 
+  const checkerExceptions = data.payrollEntries.filter((entry) => entry.status === "Exception").length;
+  const checkerAlertItems: DashboardAlertItem[] = [];
+  if (pendingTasks.length) checkerAlertItems.push({ id: "approval", label: `${pendingTasks.length} payroll run${pendingTasks.length === 1 ? "" : "s"} need your approval`, tone: "warning" });
+  if (checkerExceptions) checkerAlertItems.push({ id: "exceptions", label: `${checkerExceptions} payroll exception${checkerExceptions === 1 ? "" : "s"} remain visible`, tone: "danger" });
+  if (activeAdvisories.length) checkerAlertItems.push({ id: "advisory", label: `${activeAdvisories.length} active compliance advisor${activeAdvisories.length === 1 ? "y" : "ies"}`, tone: "info" });
+  if (!checkerAlertItems.length) checkerAlertItems.push({ id: "clear", label: "No payroll is waiting for an independent decision", tone: "success" });
+
   return (
-    <>
+    <div className="payrollph-dashboard" data-dashboard-variant="checker">
       <PageHeading
         eyebrow={data.selectedOrganization.legalName + " · Checker"}
-        title={"Independent review queue, " + firstName + "."}
-        copy="Review what the payroll maker submitted, inspect compliance context and record an independent decision. You do not prepare or release payroll."
-        actions={
-          <>
-            <button className="secondary-button" onClick={() => onPage("Audit trail")}>Audit trail</button>
-            <button className="primary-button brand" onClick={() => onPage("Approvals")}>Open approvals</button>
-          </>
-        }
+        title={"Good morning, " + firstName + "!"}
+        copy="Pending payroll items for your independent review."
       />
 
-      <PayrollGuide
-        role="checker"
+      <DashboardAlertBanner
+        title={pendingTasks.length ? `${pendingTasks.length} payroll run${pendingTasks.length === 1 ? "" : "s"} need your approval` : "Your review queue is clear"}
+        detail={pendingTasks.length ? "Review the computed payroll and resolve any remaining items before recording your decision." : "Nothing is waiting for your independent payroll decision right now."}
+        items={checkerAlertItems}
         state={pendingTasks.length ? "review" : "approved"}
-        title={pendingTasks.length ? "Independent review is waiting for you" : "Your review queue is clear"}
-        detail={
-          pendingTasks.length
-            ? "Check the submitted payroll, compliance context and evidence before recording your decision."
-            : "Nothing is waiting for an independent payroll decision right now."
-        }
-        actionLabel="Open approvals"
+        actionLabel="Review payroll"
         onAction={() => onPage("Approvals")}
       />
 
-      <RoleStrip
-        kicker="Checker focus"
-        title={pendingTasks.length ? String(pendingTasks.length) + " review item(s) waiting" : "Your review queue is clear"}
-        copy={pendingTasks.length ? "Work high-priority items first, then verify compliance context before deciding." : "There is nothing waiting for your independent decision right now."}
-        figures={[
-          ["High priority", String(highPriorityTasks.length)],
-          ["Run status", currentRun?.status ?? "No run"],
-          ["Advisories", String(activeAdvisories.length)],
-        ]}
-        tone="checker"
-      />
-
-      <PayrollHandoff
-        stages={handoffStages}
-        period={handoffRun?.periodLabel ?? "Next payroll"}
-        status={handoffRun?.status ?? "Waiting for inputs"}
-        payDate={handoffRun?.payDate}
-        viewerRole="checker"
-      />
-
-      <HandoffActionBanner action={handoffAction} onPage={onPage} role="checker" />
-
-      <section className="stats-grid">
-        <Metric label="Assigned reviews" value={String(pendingTasks.length)} hint={pendingTasks.length ? "awaiting your decision" : "queue clear"} icon={<ClipboardCheck size={16} />} tone={pendingTasks.length ? "amber" : "mint"} />
-        <Metric label="High priority" value={String(highPriorityTasks.length)} hint={highPriorityTasks.length ? "review these first" : "no urgent item"} icon={<AlertTriangle size={16} />} tone={highPriorityTasks.length ? "amber" : "mint"} />
-        <Metric label="Payroll context" value={currentRun?.status ?? "No run"} hint={currentRun?.periodLabel ?? "no payroll currently visible"} icon={<CircleDollarSign size={16} />} tone="blue" compact />
-        <Metric label="Active advisories" value={String(activeAdvisories.length)} hint={activeAdvisories.length ? "check rule impact before approval" : "no active hazard advisory"} icon={<ShieldCheck size={16} />} tone={activeAdvisories.length ? "amber" : "mint"} />
+      <section className="dashboard-metrics-grid">
+        <DashboardStatCard icon={<ClipboardCheck size={18} />} label="For Approval" value={String(pendingTasks.length)} hint={pendingTasks.length ? "Awaiting your decision" : "Queue clear"} tone={pendingTasks.length ? "amber" : "green"} />
+        <DashboardStatCard icon={<UsersRound size={18} />} label="Employees" value={String(currentRun?.employeeCount ?? data.employees.length)} hint="In current payroll context" tone="blue" />
+        <DashboardStatCard icon={<AlertTriangle size={18} />} label="Exceptions" value={String(checkerExceptions)} hint={checkerExceptions ? "Visible for review" : "No current exceptions"} tone={checkerExceptions ? "red" : "green"} />
+        <DashboardStatCard icon={<CircleDollarSign size={18} />} label="Total Amount" value={currentRun ? shortMoney(currentRun.netPay) : "—"} hint="Net payroll under review" tone="blue" />
       </section>
+
+      <RecentPayrollRuns runs={data.payrollRuns} onViewAll={() => onPage("Approvals")} />
+
+      <details className="dashboard-deep-details"><summary>More payroll details</summary><div className="dashboard-secondary-controls">
+        <PayrollHandoff
+          stages={handoffStages}
+          period={handoffRun?.periodLabel ?? "Next payroll"}
+          status={handoffRun?.status ?? "Waiting for inputs"}
+          payDate={handoffRun?.payDate}
+          viewerRole="checker"
+        />
+        <HandoffActionBanner action={handoffAction} onPage={onPage} role="checker" />
+      </div>
 
       <section className="role-dashboard-grid">
         <TaskQueue title="Assigned review queue" tasks={pendingTasks} empty="No approval item is currently assigned to you." onOpen={() => onPage("Approvals")} />
@@ -697,8 +588,8 @@ function CheckerDashboard(props: RoleDashboardProps) {
         <RoleCard kicker="Evidence" title="Recent recorded actions" action="Full audit trail" onAction={() => onPage("Audit trail")}>
           <AuditRows data={data} />
         </RoleCard>
-      </section>
-    </>
+      </section></details>
+    </div>
   );
 }
 

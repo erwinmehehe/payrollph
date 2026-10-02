@@ -2,7 +2,7 @@ import { useState } from "react";
 import { AlertTriangle, ArrowRight, Check, CheckCircle2, Clock, Download, Lock, Play, ShieldCheck } from "lucide-react";
 import { Reveal } from "./ui";
 import { cn } from "../utils/cn";
-import { PayrollOwl } from "@/components/payroll-owl";
+import { PayrollOwlArt } from "@/components/payroll-owl";
 
 const audiences = [
   { id: "freelancer", label: "Freelancer", nav: ["Overview", "Taxes", "Documents"], note: "People, payroll and approvals stay hidden until you need them." },
@@ -76,7 +76,7 @@ export default function Hero() {
         <Reveal delay={150} className="relative">
           <div className="mb-4 flex items-center gap-3 rounded-[18px] border border-[#DDE7F1] bg-white/95 p-3 shadow-[0_18px_48px_-32px_rgba(11,35,66,.4)] backdrop-blur sm:max-w-[420px]">
             <div className="h-[72px] w-[72px] shrink-0 rounded-[16px] bg-gradient-to-br from-[#EEF8FB] to-[#F7FBFD] p-1">
-              <PayrollOwl state="review" className="h-full w-full" label="PayrollPH owl payroll guide" />
+              <PayrollOwlArt className="h-full w-full object-contain" alt="PayrollPH owl payroll guide" />
             </div>
             <div>
               <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-[#0F8F8A]">Payroll Guide</p>

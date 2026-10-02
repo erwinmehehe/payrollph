@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { OFFICIAL_PUBLIC_DEMO_HOST, publicDemoHostAllowed, publicDemoRequestAllowed } from "../src/lib/demo-host";
 import { DEMO_ROLE_PAGES } from "../src/lib/demo-roles";
 import {
@@ -183,14 +183,9 @@ test("workspace renders distinct owner, HR, payroll and checker dashboards", () 
 
   assert.ok(workspace.includes("normalizeDashboardRole"), "workspace must normalize the real/demo role");
   assert.ok(workspace.includes("<RoleOverviewView"), "workspace must render the role-specific overview");
-  for (const marker of [
-    'data-role-dashboard={role}',
-    "Company control center",
-    "People operations today",
-    "Cutoff control center",
-    "Independent review queue",
-  ]) {
-    assert.ok(dashboard.includes(marker), `role dashboard missing ${marker}`);
+  assert.ok(dashboard.includes('title={"Good morning, " + firstName + "!"}'), "role dashboards must share the approved greeting hierarchy");
+  for (const role of ["owner", "hr", "payroll", "checker"]) {
+    assert.ok(dashboard.includes(`data-dashboard-variant="${role}"`), `role dashboard missing ${role} composition`);
   }
 });
 
@@ -505,16 +500,67 @@ test("production demo fails closed until encrypted payout storage is ready", () 
 });
 
 
-test("role dashboards use the owl as a state-driven payroll guide", () => {
+test("role dashboards use the owl inside the state-driven attention banner", () => {
   const dashboard = read("src/components/workspace/role-overview.tsx");
+  const alert = read("src/components/workspace/dashboard-alert-banner.tsx");
   const mascot = read("src/components/payroll-owl.tsx");
-  const styles = read("src/app/globals.css");
+  const styles = read("src/app/workspace-theme.css");
 
-  assert.ok(dashboard.includes("PayrollGuide"), "role dashboards must use the shared payroll guide");
-  for (const role of ["owner", "hr", "payroll", "checker"]) {
-    assert.ok(dashboard.includes(`role="${role}"`), `missing owl guide for ${role}`);
-  }
+  assert.ok(dashboard.includes("DashboardAlertBanner"), "role dashboards must use the shared owl alert banner");
+  assert.ok(alert.includes("<PayrollOwlArt"), "attention banner must render the shared owl artwork");
   assert.ok(mascot.includes("data-owl-state={state}"), "owl state must be inspectable and deterministic");
-  assert.ok(styles.includes(".payroll-guide"), "workspace must include a designed payroll guide surface");
-  assert.ok(styles.includes("@media (max-width: 720px)"), "owl guide must inherit an explicit mobile layout");
+  assert.ok(styles.includes(".dashboard-alert-banner"), "workspace must include designed owl alert styling");
+  assert.ok(alert.includes("PayrollOwlArt"), "dashboard alert must use the polished 3D owl artwork");
+  assert.ok(styles.includes(".demo-sandbox.collapsed"), "demo controls should stay compact on the landing dashboard");
+  assert.ok(styles.includes(".dashboard-deep-details"), "deep operational panels should stay collapsed by default");
+  assert.ok(styles.includes("@media (max-width: 720px)"), "owl banner must include an explicit mobile layout");
+});
+
+
+test("workspace dashboard matches the PayrollPH mockup using modular real-data components", () => {
+  for (const path of [
+    "src/components/workspace/dashboard-alert-banner.tsx",
+    "src/components/workspace/dashboard-stat-card.tsx",
+    "src/components/workspace/recent-payroll-runs.tsx",
+  ]) {
+    assert.equal(existsSync(path), true, `missing dashboard module: ${path}`);
+  }
+
+  const dashboard = read("src/components/workspace/role-overview.tsx");
+  const shell = read("src/components/workspace/shell.tsx");
+  const alert = read("src/components/workspace/dashboard-alert-banner.tsx");
+  const stats = read("src/components/workspace/dashboard-stat-card.tsx");
+  const runs = read("src/components/workspace/recent-payroll-runs.tsx");
+  const styles = read("src/app/workspace-theme.css");
+
+  assert.ok(shell.includes("PayrollPH"), "workspace brand must match the PayrollPH mockup");
+  assert.ok(shell.includes("OVERVIEW_NAV_ORDER"), "dashboard landing must use the compact seven-item navigation");
+  assert.ok(shell.includes("navigationGroups"), "dashboard landing must swap to the compact navigation set");
+  assert.ok(shell.includes("Search employees, payroll, reports"), "top search should use the mockup wording");
+  assert.ok(dashboard.includes("DashboardAlertBanner"), "role dashboards must use the shared alert banner");
+  assert.ok(dashboard.includes("DashboardStatCard"), "role dashboards must use the shared metric card");
+  assert.ok(dashboard.includes("RecentPayrollRuns"), "owner dashboard must use the shared payroll table");
+  for (const role of ["owner", "hr", "payroll", "checker"]) {
+    assert.ok(dashboard.includes(`data-dashboard-variant="${role}"`), `missing mockup composition for ${role}`);
+  }
+  assert.ok(alert.includes("items.map"), "alert banner must render state-derived items");
+  assert.ok(stats.includes("tone"), "stat cards must expose semantic status tones");
+  assert.ok(runs.includes("runs.slice(0, 3)"), "recent payroll table must use real recent run data");
+  assert.ok(!runs.includes("September 2024"), "recent payroll table must not hardcode screenshot rows");
+  assert.ok(styles.includes(".payrollph-dashboard"), "workspace theme must include the mockup dashboard composition");
+  assert.ok(styles.includes(".dashboard-metrics-grid"), "workspace theme must include responsive metric cards");
+  assert.ok(styles.includes(".dashboard-payroll-table-wrap"), "workspace theme must include responsive payroll table styling");
+  assert.ok(styles.includes('.app-shell[data-workspace-page="Overview"] .demo-sandbox'), "overview must hide the bulky demo sandbox");
+  assert.ok(styles.includes('.payrollph-dashboard .role-dashboard-grid'), "legacy detail grid must remain available off the focused landing composition");
+});
+
+test("employee self-service uses the same PayrollPH mascot language without exposing company controls", () => {
+  const selfService = read("src/components/self-service-portal.tsx");
+  const mascot = read("src/components/payroll-owl.tsx");
+  assert.ok(mascot.includes('| "employee"'), "Payroll Guide role type must support employee");
+  assert.ok(selfService.includes("<PayrollGuide"), "employee payslip view must use the shared mascot guide");
+  assert.ok(selfService.includes("employee-dashboard-metrics"), "employee landing needs the same four-KPI hierarchy as the mockup");
+  assert.ok(selfService.includes("employee-deep-details"), "long-form pay history must stay below a compact disclosure");
+  assert.ok(selfService.includes('role="employee"'), "employee guide must identify the employee context");
+  assert.ok(!selfService.includes("RecentPayrollRuns"), "employee view must not expose company payroll run history");
 });

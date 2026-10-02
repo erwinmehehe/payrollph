@@ -9,7 +9,47 @@ export type PayrollOwlState =
   | "released"
   | "help";
 
-export type PayrollOwlRole = "owner" | "hr" | "payroll" | "checker";
+export type PayrollOwlRole = "owner" | "hr" | "payroll" | "checker" | "employee";
+
+export function PayrollOwlArt({
+  className = "",
+  alt = "",
+}: {
+  className?: string;
+  alt?: string;
+}) {
+  return (
+    <img
+      src="/mascots/payroll-owl.webp"
+      alt={alt}
+      className={className}
+      width={140}
+      height={250}
+      loading="eager"
+      decoding="async"
+    />
+  );
+}
+
+export function PayrollOwlMark({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 64 64" className={className} aria-hidden>
+      <path d="M12 23 8 9l13 8c4-4 18-4 22 0l13-8-4 14c5 6 7 12 7 20 0 12-12 18-27 18S5 55 5 43c0-8 2-14 7-20Z" fill="#102A4C" />
+      <ellipse cx="23" cy="33" rx="12" ry="13" fill="#FFF7EC" />
+      <ellipse cx="41" cy="33" rx="12" ry="13" fill="#FFF7EC" />
+      <circle cx="24" cy="34" r="6.5" fill="#0F172A" />
+      <circle cx="40" cy="34" r="6.5" fill="#0F172A" />
+      <circle cx="22" cy="31" r="2" fill="#fff" />
+      <circle cx="38" cy="31" r="2" fill="#fff" />
+      <path d="m32 39-5 5 5 4 5-4-5-5Z" fill="#F59E0B" />
+      <g fill="none" stroke="#7DD3FC" strokeWidth="2.8">
+        <circle cx="23" cy="33" r="10" />
+        <circle cx="41" cy="33" r="10" />
+        <path d="M33 31h-2" />
+      </g>
+    </svg>
+  );
+}
 
 export function PayrollOwl({
   state = "welcome",
@@ -131,7 +171,7 @@ export function PayrollGuide({
   return (
     <section className="payroll-guide" data-payroll-guide-role={role}>
       <div className="payroll-guide-owl" aria-hidden>
-        <PayrollOwl state={state} />
+        <PayrollOwlArt className="payroll-guide-owl-art" alt="" />
       </div>
       <div className="payroll-guide-copy">
         <span>{eyebrow}</span>

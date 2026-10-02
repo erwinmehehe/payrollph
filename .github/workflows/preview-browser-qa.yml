@@ -344,10 +344,10 @@ jobs:
           }
 
           const personas = [
-            { id: "owner", label: "Owner", short: "Owner", person: "Andrea Lim", landing: "Company control center", taskPage: "Overview", dashboardRole: "owner" },
-            { id: "hr", label: "HR Admin", short: "HR Admin", person: "Aira Villanueva", landing: "People operations today", taskPage: "People", dashboardRole: "hr" },
-            { id: "payroll", label: "Payroll Officer", short: "Payroll", person: "Paolo Cruz", landing: "Cutoff control center", taskPage: "Payroll", dashboardRole: "payroll" },
-            { id: "checker", label: "Checker", short: "Checker", person: "Mariel Santos", landing: "Independent review queue", taskPage: "Approvals", dashboardRole: "checker" },
+            { id: "owner", label: "Owner", short: "Owner", person: "Andrea Lim", landing: "Good morning, Andrea", taskPage: "Dashboard", dashboardRole: "owner" },
+            { id: "hr", label: "HR Admin", short: "HR Admin", person: "Aira Villanueva", landing: "Good morning, Aira", taskPage: "Employees", dashboardRole: "hr" },
+            { id: "payroll", label: "Payroll Officer", short: "Payroll", person: "Paolo Cruz", landing: "Good morning, Paolo", taskPage: "Payroll", dashboardRole: "payroll" },
+            { id: "checker", label: "Checker", short: "Checker", person: "Mariel Santos", landing: "Good morning, Mariel", taskPage: "Approvals", dashboardRole: "checker" },
             { id: "employee", label: "Employee", short: "Employee", person: "Jonas Reyes", landing: "My pay", taskPage: "My pay", dashboardRole: null },
           ];
 
@@ -364,8 +364,8 @@ jobs:
               `${persona.label}: ${suffix} horizontal overflow ${overflow.scrollWidth}px > ${overflow.innerWidth}px`,
             );
 
-            const sandbox = page.locator("section.card").filter({ hasText: "ROLE SANDBOX" }).first();
-            check((await sandbox.count()) === 1, `${persona.label}: ${suffix} sandbox is missing`);
+            const sandbox = page.locator("section.demo-sandbox").first();
+            if (await sandbox.count()) {
             const sandboxLayout = await sandbox.evaluate((element) => {
               const rect = element.getBoundingClientRect();
               return {
@@ -382,8 +382,11 @@ jobs:
               `${persona.label}: ${suffix} sandbox clips internally`,
             );
 
+            }
+
             const responsiveControls = page.locator(".demo-role-button, .demo-access-chip, .demo-task-card");
             for (const control of await responsiveControls.all()) {
+              if (!(await control.isVisible())) continue;
               const layout = await control.evaluate((element) => ({
                 scrollWidth: element.scrollWidth,
                 clientWidth: element.clientWidth,
@@ -396,6 +399,7 @@ jobs:
 
             const handoffs = page.locator("[data-payroll-handoff]");
             for (const handoff of await handoffs.all()) {
+              if (!(await handoff.isVisible())) continue;
               const layout = await handoff.evaluate((element) => ({
                 scrollWidth: element.scrollWidth,
                 clientWidth: element.clientWidth,
@@ -480,8 +484,7 @@ jobs:
             check(encryptionPayload.bankDataEncryptionReady === true, `${persona.label}: demo provisioning left plaintext bank data behind`);
             await page.waitForLoadState("networkidle");
 
-            const body = await page.locator("body").innerText();
-            check(body.includes("ROLE SANDBOX"), `${persona.label}: role sandbox did not render after launch`);
+            const body = (await page.locator("body").textContent()) ?? "";
             check(body.includes(persona.person), `${persona.label}: expected persona identity ${persona.person} is missing`);
             check(body.toLowerCase().includes(persona.landing.toLowerCase()), `${persona.label}: expected landing context ${persona.landing} is missing`);
 
@@ -529,17 +532,14 @@ jobs:
             if (persona.dashboardRole) {
               const dashboard = page.locator(`[data-role-dashboard="${persona.dashboardRole}"]`);
               check((await dashboard.count()) === 1, `${persona.label}: role-specific dashboard did not render`);
-              const handoff = dashboard.locator("[data-payroll-handoff]").first();
-              check((await handoff.count()) === 1, `${persona.label}: payroll handoff is missing from the role dashboard`);
-              check((await handoff.locator(".handoff-step").count()) === 5, `${persona.label}: payroll handoff must show all five owners`);
-              const handoffAction = dashboard.locator(`[data-handoff-action="${persona.dashboardRole}"]`);
-              check((await handoffAction.count()) === 1, `${persona.label}: direct handoff action/status is missing`);
-              if (persona.id === "payroll") {
-                check((await handoffAction.innerText()).includes("Resolve 2 payroll exceptions"), "Payroll: exception handoff action is not specific");
+              check((await dashboard.locator(".dashboard-alert-banner").count()) === 1, `${persona.label}: focused owl alert banner is missing`);
+              check((await dashboard.locator(".dashboard-stat-card").count()) === 4, `${persona.label}: dashboard must show exactly four primary metrics`);
+              const sandbox = page.locator(".demo-sandbox").first();
+              if (await sandbox.count()) {
+                check((await sandbox.isVisible()) === false, `${persona.label}: bulky demo sandbox must stay off the landing view`);
               }
-              if (persona.id === "checker") {
-                check((await handoffAction.innerText()).includes("Review Sep 1–15, 2026"), "Checker: submitted payroll handoff is not selected");
-              }
+              check((await dashboard.locator(".dashboard-secondary-controls:visible").count()) === 0, `${persona.label}: legacy handoff controls must stay off the focused landing view`);
+              check((await dashboard.locator(".role-dashboard-grid:visible").count()) === 0, `${persona.label}: legacy detail grid must stay off the focused landing view`);
             }
             if (persona.id === "employee") {
               check(body.includes("LATEST PAYSLIP"), "Employee: latest released payslip promotion is missing");
@@ -585,7 +585,7 @@ jobs:
               check((await sidebar.locator(".nav-item").filter({ hasText: /^Migration$/ }).count()) === 0, "HR: migration admin navigation must stay hidden");
             }
             if (persona.id === "checker") {
-              check((await sidebar.locator(".nav-item").filter({ hasText: /^People$/ }).count()) === 0, "Checker: people administration must stay hidden");
+              check((await sidebar.locator(".nav-item").filter({ hasText: /^Employees$/ }).count()) === 0, "Checker: people administration must stay hidden");
               check((await sidebar.locator(".nav-item").filter({ hasText: /^Payroll$/ }).count()) === 0, "Checker: unsafe payroll-maker page must stay hidden");
             }
             if (persona.id === "payroll") {
@@ -598,7 +598,7 @@ jobs:
               check((await page.getByRole("button", { name: /^Decline$/ }).count()) === 0, "Payroll: Decline action must be hidden");
               check((await page.getByRole("button", { name: /Delegation settings/i }).count()) === 0, "Payroll: delegation controls must be hidden");
               check((await page.locator("[data-payroll-handoff]").count()) >= 1, "Payroll: approvals page should retain the shared handoff context");
-              const overviewNav = sidebar.locator(".nav-item").filter({ hasText: /^Overview$/ }).first();
+              const overviewNav = sidebar.locator(".nav-item").filter({ hasText: /^Dashboard$/ }).first();
               await overviewNav.click();
               await page.waitForTimeout(100);
             }
@@ -610,54 +610,25 @@ jobs:
               await page.waitForTimeout(120);
             }
 
-            const sandbox = page.locator("section.card").filter({ hasText: "ROLE SANDBOX" }).first();
-            check((await sandbox.count()) === 1, `${persona.label}: sandbox task panel is missing`);
-
             if (persona.id === "employee") {
-              const liveBadge = sandbox.locator(".demo-persona-badge");
-              check((await liveBadge.count()) === 1, "Employee: live persona badge is missing");
-
-              const accessChips = sandbox.locator(".demo-access-chip");
-              check((await accessChips.count()) >= 3, "Employee: role access chips are missing");
-              for (const chip of await accessChips.all()) {
-                const layout = await chip.evaluate((element) => ({
-                  whiteSpace: getComputedStyle(element).whiteSpace,
-                  scrollWidth: element.scrollWidth,
-                  clientWidth: element.clientWidth,
-                }));
-                check(layout.whiteSpace !== "nowrap", "Employee: an access chip still forces nowrap");
-                check(layout.scrollWidth <= layout.clientWidth + 1, `Employee: access chip clips ${layout.scrollWidth}px > ${layout.clientWidth}px`);
-              }
-
-              const taskCards = sandbox.locator(".demo-task-card");
-              check((await taskCards.count()) === 3, "Employee: expected three sandbox task cards");
-              for (const card of await taskCards.all()) {
-                const layout = await card.evaluate((element) => ({
-                  whiteSpace: getComputedStyle(element).whiteSpace,
-                  scrollWidth: element.scrollWidth,
-                  clientWidth: element.clientWidth,
-                }));
-                check(layout.whiteSpace !== "nowrap", "Employee: a sandbox task still forces nowrap");
-                check(layout.scrollWidth <= layout.clientWidth + 1, `Employee: sandbox task clips ${layout.scrollWidth}px > ${layout.clientWidth}px`);
-              }
-            }
-
-            const firstTask = sandbox.getByRole("button").filter({ hasText: /^1\./ }).first();
-            check((await firstTask.count()) === 1, `${persona.label}: first sandbox task is missing`);
-            await firstTask.click();
-            await page.waitForTimeout(250);
-
-            if (persona.id === "employee") {
-              const afterTask = await page.locator("body").innerText();
-              check(afterTask.includes("Rule version"), "Employee: opening the first payslip did not reveal its details");
+              const viewPayslip = page.getByRole("button", { name: /View payslip/i }).first();
+              check((await viewPayslip.count()) === 1, "Employee: payslip CTA is missing");
+              await viewPayslip.click();
+              await page.waitForTimeout(120);
+              const afterTask = (await page.locator("body").textContent()) ?? "";
+              check(afterTask.includes("Rule version"), "Employee: opening the payslip did not reveal its details");
             } else {
+              const taskNav = page.locator("aside .nav-item").filter({ hasText: new RegExp(`^${persona.taskPage}`) }).first();
+              check((await taskNav.count()) === 1, `${persona.label}: target navigation ${persona.taskPage} is missing`);
+              await taskNav.click();
+              await page.waitForTimeout(250);
               if (persona.id === "payroll") {
                 const recovery = page.locator('[data-recovery-state="unresolved-exception"]');
                 check((await recovery.count()) === 1, "Payroll: unresolved exception recovery state is missing");
                 check((await recovery.innerText()).includes("Review exceptions"), "Payroll: exception recovery action is missing");
               }
-              const activeNav = page.locator("aside .nav-item[aria-current='page']").filter({ hasText: persona.taskPage }).first();
-              check((await activeNav.count()) === 1, `${persona.label}: first sandbox task did not navigate to ${persona.taskPage}`);
+              const activeNav = page.locator("aside .nav-item[aria-current='page']").filter({ hasText: new RegExp(`^${persona.taskPage}`) }).first();
+              check((await activeNav.count()) === 1, `${persona.label}: task navigation did not reach ${persona.taskPage}`);
             }
 
             await page.screenshot({
@@ -883,7 +854,7 @@ jobs:
             const latest = page.locator("[data-latest-payslip]");
             check((await latest.count()) === 1, "Lifecycle: employee latest payslip card is missing after release");
             const latestText = await latest.innerText();
-            check(latestText.includes("Payslip available"), "Lifecycle: employee does not see Payslip available");
+            check(/Payslip available|payslip is ready/i.test(latestText), "Lifecycle: employee does not see the released payslip state");
             check(latestText.includes(period), "Lifecycle: newly released payslip is not promoted above history");
 
             check(errors.length === 0, `Lifecycle: browser console/page errors: ${errors.join(" | ")}`);

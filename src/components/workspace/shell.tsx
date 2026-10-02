@@ -16,11 +16,12 @@ import {
   ShieldCheck,
   UserCheck,
 } from "lucide-react";
-import { FREELANCER_HIDDEN, NAVIGATION, groupOf } from "./nav";
+import { FREELANCER_HIDDEN, NAVIGATION, groupOf, itemOf } from "./nav";
 import type { DashboardData, Organization } from "./types";
 import { Avatar, initialsOf, relativeTime } from "./ui";
 import { DEMO_ROLES, demoRoleInfo, type DemoRoleId } from "@/lib/demo-roles";
 import { payrollHandoffRank } from "@/lib/payroll-handoff";
+import { PayrollOwlMark } from "@/components/payroll-owl";
 
 export type Notification = {
   id: string;
@@ -30,6 +31,19 @@ export type Notification = {
   tone: "review" | "active" | "danger" | "success";
   page?: string;
 };
+
+const OVERVIEW_NAV_ORDER = ["Overview", "People", "Payroll", "Approvals", "Compliance", "Analytics", "Settings"] as const;
+
+const WORKSPACE_LABELS: Record<string, string> = {
+  Overview: "Dashboard",
+  People: "Employees",
+  Compliance: "Government Reports",
+  Analytics: "Reports",
+};
+
+function workspaceLabel(page: string) {
+  return WORKSPACE_LABELS[page] ?? page;
+}
 
 export function WorkspaceShell({
   data,
@@ -76,6 +90,8 @@ export function WorkspaceShell({
   const avatarRole = displayRole ?? data.user?.role ?? "member";
   const profileAvatarIndex = ({ owner: 0, admin: 0, hr: 1, payroll: 2, checker: 3, employee: 4 } as Record<string, number>)[avatarRole] ?? 0;
   const defaultPage = visiblePages?.[0] ?? "Overview";
+  const overviewItems = OVERVIEW_NAV_ORDER.map((name) => itemOf(name)).filter((item) => item !== undefined);
+  const navigationGroups = page === "Overview" ? [{ label: "", items: overviewItems }] : NAVIGATION;
 
   function closeOverlays() {
     setDrawer(false);
@@ -116,21 +132,17 @@ export function WorkspaceShell({
   }
 
   return (
-    <div className={`app-shell ${rail ? "rail" : ""} ${drawer ? "drawer-open" : ""}`}>
+    <div className={`app-shell ${rail ? "rail" : ""} ${drawer ? "drawer-open" : ""}`} data-workspace-page={page}>
       <button className="nav-scrim" aria-label="Close navigation" onClick={() => setDrawer(false)} tabIndex={drawer ? 0 : -1} />
 
       <aside className="sidebar" aria-label="Workspace navigation">
         <div className="sidebar-brand">
           <span className="brand-mark" aria-hidden>
-            <span className="brand-bars">
-              <i />
-              <i />
-              <i />
-            </span>
+            <PayrollOwlMark className="sidebar-owl-mark" />
           </span>
           <div>
-            <strong>linaw</strong>
-            <span className="brand-subtitle">HR &amp; Payroll</span>
+            <strong>PayrollPH</strong>
+            <span className="brand-subtitle">Payroll &amp; HR</span>
           </div>
           <button
             className="sidebar-collapse"
@@ -148,7 +160,7 @@ export function WorkspaceShell({
         </div>
 
         <nav className="side-navigation slim-scroll">
-          {NAVIGATION.map((group) => {
+          {navigationGroups.map((group) => {
             const items = group.items
               .filter((item) => !(isFreelancer && FREELANCER_HIDDEN.has(item.name)))
               .filter((item) => !visiblePages || visiblePages.includes(item.name));
@@ -165,6 +177,7 @@ export function WorkspaceShell({
                       key={item.name}
                       className={`nav-item ${active ? "active" : ""}`}
                       data-tone={item.tone}
+                      data-nav-name={item.name}
                       onClick={() => go(item.name)}
                       aria-current={active ? "page" : undefined}
                       title={rail ? item.name : undefined}
@@ -172,7 +185,7 @@ export function WorkspaceShell({
                       <span className={`nav-icon t-${item.tone}`} aria-hidden>
                         <Icon size={14} strokeWidth={active ? 2.3 : 2} />
                       </span>
-                      <span>{item.name}</span>
+                      <span>{workspaceLabel(item.name)}</span>
                       {badge && <b>{badge}</b>}
                     </button>
                   );
@@ -214,7 +227,7 @@ export function WorkspaceShell({
             </button>
 
             {/* Current-client indicator */}
-            <div className="company-switcher-wrap">
+            <div className="company-switcher-wrap client-switcher-wrap">
               <button
                 className="company-switcher"
                 onClick={() => allowClientSwitch && setClientOpen((current) => !current)}
@@ -276,21 +289,21 @@ export function WorkspaceShell({
               <ChevronRight size={14} />
               <button onClick={() => go(defaultPage)}>{groupOf(page)}</button>
               <ChevronRight size={14} />
-              <span aria-current="page">{page}</span>
+              <span aria-current="page">{workspaceLabel(page)}</span>
             </nav>
           </div>
 
           <div className="topbar-actions">
             <button className="palette-trigger" onClick={onOpenPalette} aria-label="Open command palette">
               <Search size={15} className="i-slate" />
-              <span>Search…</span>
+              <span>Search employees, payroll, reports...</span>
               <kbd>⌘K</kbd>
             </button>
 
             {headerExtras}
 
             {onSwitchRole && (
-              <div className="company-switcher-wrap">
+              <div className="company-switcher-wrap role-switcher-wrap">
                 <button className="role-pill-btn" onClick={() => setRoleOpen((current) => !current)} aria-expanded={roleOpen} aria-haspopup="menu">
                   <UserCheck size={14} style={{ color: "var(--brand)" }} />
                   <span>{displayRole ? `Demo: ${roleLabel}` : roleLabel}</span>
@@ -325,7 +338,7 @@ export function WorkspaceShell({
               </div>
             )}
 
-            <div className="company-switcher-wrap">
+            <div className="company-switcher-wrap notification-switcher-wrap">
               <button
                 className="icon-button relative"
                 onClick={() => setTrayOpen((current) => !current)}
@@ -384,12 +397,16 @@ export function WorkspaceShell({
             </div>
 
             <button
-              className={`top-avatar avatar-${profileAvatarIndex}`}
+              className="top-profile-button"
               onClick={() => go(visiblePages?.includes("Settings") ? "Settings" : defaultPage)}
               title={visiblePages?.includes("Settings") ? "Account settings" : `Return to ${defaultPage}`}
               aria-label={visiblePages?.includes("Settings") ? "Account settings" : `Return to ${defaultPage}`}
             >
-              {initialsOf(userName)}
+              <span className={`top-avatar avatar-${profileAvatarIndex}`}>{initialsOf(userName)}</span>
+              <span className="top-profile-copy">
+                <strong>{userName}</strong>
+                <small>{roleLabel}</small>
+              </span>
             </button>
           </div>
         </header>
