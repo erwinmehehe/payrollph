@@ -260,8 +260,8 @@ test("homepage uses the shared PayrollPH owl inside the approved hero compositio
   const hero = read("src/components/marketing/claude-home/components/Hero.tsx");
   const mascot = read("src/components/payroll-owl.tsx");
   assert.ok(hero.includes('from "@/components/payroll-owl"'), "homepage hero must use the shared owl asset");
-  assert.ok(hero.includes('<PayrollOwl state="welcome" className="payroll-hero-owl-vector"'), "large hero mascot must use the crisp vector owl");
-  assert.ok(hero.includes("<PayrollOwlArt"), "small dashboard preview can keep the polished raster owl artwork");
+  assert.ok(hero.includes('<PayrollOwlArt className="payroll-hero-owl-art"'), "large hero mascot must use the polished raster owl");
+  assert.ok(!hero.includes("payroll-hero-owl-vector"), "homepage must not fall back to the flat vector mascot");
   assert.ok(hero.includes("payroll-hero-laptop"), "homepage must render the laptop/dashboard stage");
   assert.ok(hero.includes("payroll-hero-speech"), "homepage must render the owl speech bubble");
   assert.ok(mascot.includes("PayrollOwlArt"), "shared mascot component must remain available");
