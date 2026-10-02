@@ -136,6 +136,8 @@ test("production rollout readiness proves the exact deployed commit and exposes 
   assert.ok(pilotStatus.includes("launchBlockers"));
   assert.ok(pilotStatus.includes("VERCEL_GIT_COMMIT_SHA"));
   assert.ok(pilotStatus.includes("manualLaunchReady"));
+  assert.ok(pilotStatus.includes('criticalBlockers: ["readiness-internal-error"]'));
+  assert.ok(pilotStatus.includes('console.error("Sanitized readiness evaluation failed"'));
   assert.ok(deploymentStatus.includes("VERCEL_GIT_COMMIT_SHA"));
   assert.ok(deploymentStatus.includes("VERCEL_ENV"));
 
@@ -150,6 +152,7 @@ test("production rollout readiness proves the exact deployed commit and exposes 
   assert.ok(liveRbac.includes("deploymentSha"));
   assert.ok(liveRbac.includes("/api/readiness/deployment"));
   assert.ok(liveRbac.includes("Exact production commit is live."));
+  assert.ok(liveRbac.includes("BANK_DATA_ENCRYPTION_(REQUIRED|NOT_READY)"));
 });
 
 
