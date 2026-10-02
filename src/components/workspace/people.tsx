@@ -363,6 +363,11 @@ function PersonDrawer({
   const [editingSchedule, setEditingSchedule] = useState(false);
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [restDay, setRestDay] = useState(employee.restDay ?? "");
+  const [restDayEffectiveDate, setRestDayEffectiveDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+  });
+  const [restDayChangeReason, setRestDayChangeReason] = useState("Work schedule change");
   const [scheduleError, setScheduleError] = useState("");
   const [editingGovernment, setEditingGovernment] = useState(false);
   const [savingGovernment, setSavingGovernment] = useState(false);
@@ -422,6 +427,8 @@ function PersonDrawer({
           organizationId: data.selectedOrganization.id,
           employeeId: employee.id,
           restDay,
+          restDayEffectiveDate,
+          restDayChangeReason,
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -683,13 +690,23 @@ function PersonDrawer({
                     ))}
                   </select>
                 </label>
+                <label>Effective date
+                  <input type="date" value={restDayEffectiveDate} onChange={(event) => setRestDayEffectiveDate(event.target.value)} />
+                </label>
+                <label>Reason
+                  <input value={restDayChangeReason} onChange={(event) => setRestDayChangeReason(event.target.value)} placeholder="e.g. Team schedule change" />
+                </label>
               </div>
               <div className="modal-note" style={{ margin: "0 16px 10px" }}>
-                Changing this affects future calculations and any draft payroll that is recalculated. Released payroll stays immutable.
+                The effective date preserves the previous weekly rest day for older work dates, so recalculating historical payroll uses the schedule that was actually in force. Released payroll stays immutable.
               </div>
               {scheduleError && <div className="notice notice-amber" style={{ margin: "0 16px 10px" }}><span>{scheduleError}</span></div>}
               <div className="run-actions">
-                <button className="primary-button" disabled={savingSchedule} onClick={() => void saveWorkSchedule()}>
+                <button
+                  className="primary-button"
+                  disabled={savingSchedule || restDay === (employee.restDay ?? "") || !restDayEffectiveDate || !restDayChangeReason.trim()}
+                  onClick={() => void saveWorkSchedule()}
+                >
                   <Check size={14} /> {savingSchedule ? "Saving…" : "Save work schedule"}
                 </button>
               </div>
