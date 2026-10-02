@@ -27,52 +27,51 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-/** Icon hues. Each maps to a `.t-*` class in the stylesheet. */
 export type NavTone = "green" | "blue" | "amber" | "red" | "purple" | "cyan" | "teal" | "pink" | "slate";
 
 export type NavItem = {
-  /** Stable page key, also the label shown in the sidebar and breadcrumb. */
   name: string;
   icon: LucideIcon;
-  /** Short line used by the command palette. */
   hint: string;
-  /** Icon colour, so a destination is recognisable before the label is read. */
   tone: NavTone;
-  /** Live badge source, resolved by the shell against real data. */
   badge?: "approvals" | "people" | "runs" | "api";
 };
 
 export type NavGroup = { label: string; items: NavItem[] };
 
-/**
- * The workspace information architecture. Order and grouping are the
- * navigation contract, the command palette, breadcrumbs and the mobile drawer
- * all read this same list so they can never disagree with the sidebar.
- */
-export const NAVIGATION: NavGroup[] = [
+export const PRIMARY_NAVIGATION: NavGroup[] = [
   {
     label: "Workspace",
     items: [
-      { name: "Overview", icon: LayoutDashboard, hint: "Payroll status, approvals and cost at a glance", tone: "blue" },
-      { name: "Payroll", icon: WalletCards, hint: "Prepare, approve, release and export a run", tone: "green", badge: "runs" },
-      { name: "People", icon: UsersRound, hint: "Employee directory, import and structure", tone: "purple", badge: "people" },
-      { name: "Migration", icon: RefreshCcw, hint: "Switch from another payroll or HRIS with validated imports", tone: "teal" },
+      { name: "Overview", icon: LayoutDashboard, hint: "Payroll status, blockers and next actions", tone: "blue" },
+      { name: "People", icon: UsersRound, hint: "Employee records, payout details and structure", tone: "purple", badge: "people" },
+      { name: "Payroll", icon: WalletCards, hint: "Prepare, approve, release and recover payroll", tone: "green", badge: "runs" },
       { name: "Time & attendance", icon: Clock3, hint: "Punches, exceptions and derived hours", tone: "cyan" },
-      { name: "Leave", icon: CalendarDays, hint: "Leave requests and balances", tone: "pink" },
-      { name: "Approvals", icon: ClipboardCheck, hint: "Decisions assigned to you or your delegates", tone: "amber", badge: "approvals" },
+      { name: "Approvals", icon: ClipboardCheck, hint: "Payroll decisions assigned to you or your delegates", tone: "amber", badge: "approvals" },
+      { name: "Analytics", icon: FileBarChart2, hint: "Payroll, headcount and exception reports", tone: "blue" },
+      { name: "Settings", icon: Settings2, hint: "Organization, team access and security", tone: "slate" },
     ],
   },
+];
+
+export const SECONDARY_NAVIGATION: NavGroup[] = [
   {
-    label: "Operate",
+    label: "Payroll tools",
     items: [
-      { name: "Analytics", icon: FileBarChart2, hint: "Headcount, cost, turnover and exception reports", tone: "blue" },
+      { name: "Migration", icon: RefreshCcw, hint: "Switch from another payroll or HRIS with validated imports", tone: "teal" },
+      { name: "Leave", icon: CalendarDays, hint: "Leave requests and balances", tone: "pink" },
       { name: "Exports", icon: UploadCloud, hint: "Bank files, journals and government worksheets", tone: "teal" },
       { name: "Compliance", icon: ShieldCheck, hint: "Statutory rulebook, advisories and year-end", tone: "green" },
       { name: "Loans", icon: Banknote, hint: "Salary loans and amortisation", tone: "amber" },
-      { name: "Benefits", icon: HandCoins, hint: "Plans and enrolments that deduct on the next run", tone: "pink" },
+      { name: "Benefits", icon: HandCoins, hint: "Plans and enrolments that deduct on payroll", tone: "pink" },
       { name: "De minimis", icon: Sparkles, hint: "Tax-exempt allowances and ceilings", tone: "purple" },
       { name: "Expenses", icon: ReceiptText, hint: "Reimbursement claims", tone: "cyan" },
       { name: "Earned wage", icon: CircleDollarSign, hint: "Earned-wage advances", tone: "green" },
+    ],
+  },
+  {
+    label: "People tools",
+    items: [
       { name: "Recruitment", icon: UserPlus, hint: "Pipeline and offers", tone: "blue" },
       { name: "Discipline", icon: AlertCircle, hint: "Disciplinary cases", tone: "red" },
       { name: "Separation", icon: UserX, hint: "Offboarding and final pay", tone: "red" },
@@ -82,18 +81,18 @@ export const NAVIGATION: NavGroup[] = [
     ],
   },
   {
-    label: "Manage",
+    label: "Administration",
     items: [
       { name: "Integrations", icon: CloudCog, hint: "Email provider, accounting and bank connections", tone: "cyan" },
       { name: "Developer", icon: Webhook, hint: "API keys, webhooks and delivery log", tone: "slate", badge: "api" },
       { name: "Pricing", icon: CreditCard, hint: "Plans, seats and invoices", tone: "green" },
       { name: "Audit trail", icon: ReceiptText, hint: "Every recorded action, exportable", tone: "slate" },
-      { name: "Settings", icon: Settings2, hint: "Organization, security and privacy", tone: "slate" },
     ],
   },
 ];
 
-/** Pages a freelancer (solo) workspace does not have. Mirrors the server's capability flags. */
+export const NAVIGATION: NavGroup[] = [...PRIMARY_NAVIGATION, ...SECONDARY_NAVIGATION];
+
 export const FREELANCER_HIDDEN = new Set([
   "People",
   "Migration",
