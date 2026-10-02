@@ -239,6 +239,7 @@ test("historical recalculation keeps the rest day that was effective on the work
     await drainPayrollQueue(10, run.id);
 
     const [entry] = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
+    assert.ok(entry, "historical payroll entry was not created");
     const line = holidayLine(entry);
     assert.ok(line, "the pre-change Sunday must retain its historical rest-day premium");
     assert.equal(line!.amount, money(8 * 200 * 0.3));
@@ -265,5 +266,7 @@ test("existing employees can edit or clear their rest day through the authorized
   assert.ok(people.includes("REST_DAY_NAMES.map"), "UI must use the same seven-day contract as the payroll engine");
   assert.ok(people.includes("restDayEffectiveDate"), "UI must collect the schedule effective date");
   assert.ok(people.includes("restDayChangeReason"), "UI must collect a change reason");
+  assert.ok(people.includes("SCHEDULE HISTORY"), "employee drawer must expose effective-dated rest-day history");
   assert.ok(types.includes("restDay?: string | null"), "workspace employee data must carry the stored rest day");
+  assert.ok(types.includes("restDayRevisions?: RestDayRevision[]"), "workspace payload must carry schedule history");
 });
