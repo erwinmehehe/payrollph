@@ -21,7 +21,6 @@ import type { DashboardData, Organization } from "./types";
 import { Avatar, initialsOf, relativeTime } from "./ui";
 import { DEMO_ROLES, demoRoleInfo, type DemoRoleId } from "@/lib/demo-roles";
 import { payrollHandoffRank } from "@/lib/payroll-handoff";
-import { PayrollOwlMark } from "@/components/payroll-owl";
 
 export type Notification = {
   id: string;
@@ -138,7 +137,7 @@ export function WorkspaceShell({
       <aside className="sidebar" aria-label="Workspace navigation">
         <div className="sidebar-brand">
           <span className="brand-mark" aria-hidden>
-            <PayrollOwlMark className="sidebar-owl-mark" />
+            <ShieldCheck size={20} aria-hidden />
           </span>
           <div>
             <strong>PayrollPH</strong>

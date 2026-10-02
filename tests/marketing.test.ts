@@ -264,3 +264,12 @@ test("homepage hero stays product-first without a mascot", () => {
   assert.ok(hero.includes("payroll-hero-laptop"), "homepage must keep the PayrollPH product visual");
   assert.ok(hero.includes("payroll-hero-alert-icon"), "attention card must keep a neutral product icon");
 });
+
+
+test("PayrollPH public navigation uses product branding without a mascot mark", () => {
+  const nav = read("src/components/marketing/claude-home/components/Navbar.tsx");
+  assert.ok(nav.includes("PayrollPH"), "public navigation must retain PayrollPH branding");
+  assert.ok(nav.includes("ShieldCheck"), "public navigation should use the neutral product mark");
+  assert.ok(!nav.includes("PayrollOwl"), "public navigation must not use mascot branding");
+  assert.ok(!nav.includes("payroll-owl"), "public navigation must not import mascot assets");
+});

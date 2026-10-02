@@ -500,20 +500,17 @@ test("production demo fails closed until encrypted payout storage is ready", () 
 });
 
 
-test("role dashboards use the owl inside the state-driven attention banner", () => {
+test("role dashboards use product status banners without mascot dependencies", () => {
   const dashboard = read("src/components/workspace/role-overview.tsx");
   const alert = read("src/components/workspace/dashboard-alert-banner.tsx");
-  const mascot = read("src/components/payroll-owl.tsx");
+  const shell = read("src/components/workspace/shell.tsx");
   const styles = read("src/app/workspace-theme.css");
 
-  assert.ok(dashboard.includes("DashboardAlertBanner"), "role dashboards must use the shared owl alert banner");
-  assert.ok(alert.includes("<PayrollOwlArt"), "attention banner must render the shared owl artwork");
-  assert.ok(mascot.includes("data-owl-state={state}"), "owl state must be inspectable and deterministic");
-  assert.ok(styles.includes(".dashboard-alert-banner"), "workspace must include designed owl alert styling");
-  assert.ok(alert.includes("PayrollOwlArt"), "dashboard alert must use the polished 3D owl artwork");
-  assert.ok(styles.includes(".demo-sandbox.collapsed"), "demo controls should stay compact on the landing dashboard");
-  assert.ok(styles.includes(".dashboard-deep-details"), "deep operational panels should stay collapsed by default");
-  assert.ok(styles.includes("@media (max-width: 720px)"), "owl banner must include an explicit mobile layout");
+  assert.ok(dashboard.includes("DashboardAlertBanner"), "role dashboards must keep the shared status banner");
+  assert.ok(alert.includes("dashboard-alert-symbol"), "attention banner must render a neutral status symbol");
+  assert.ok(!alert.includes("PayrollOwl"), "attention banner must not depend on mascot code");
+  assert.ok(!shell.includes("PayrollOwlMark"), "workspace brand must not use the owl mark");
+  assert.ok(styles.includes(".dashboard-alert-symbol"), "workspace must style the neutral status symbol");
 });
 
 
@@ -554,13 +551,17 @@ test("workspace dashboard matches the PayrollPH mockup using modular real-data c
   assert.ok(styles.includes('.payrollph-dashboard .role-dashboard-grid'), "legacy detail grid must remain available off the focused landing composition");
 });
 
-test("employee self-service uses the same PayrollPH mascot language without exposing company controls", () => {
+test("employee self-service keeps the payslip summary without mascot dependencies", () => {
   const selfService = read("src/components/self-service-portal.tsx");
-  const mascot = read("src/components/payroll-owl.tsx");
-  assert.ok(mascot.includes('| "employee"'), "Payroll Guide role type must support employee");
-  assert.ok(selfService.includes("<PayrollGuide"), "employee payslip view must use the shared mascot guide");
-  assert.ok(selfService.includes("employee-dashboard-metrics"), "employee landing needs the same four-KPI hierarchy as the mockup");
-  assert.ok(selfService.includes("employee-deep-details"), "long-form pay history must stay below a compact disclosure");
-  assert.ok(selfService.includes('role="employee"'), "employee guide must identify the employee context");
+  assert.ok(selfService.includes("employee-pay-guide-card"), "employee view must keep the latest-payslip summary card");
+  assert.ok(selfService.includes("Payslip available"), "released payslip status must stay explicit");
+  assert.ok(!selfService.includes("PayrollGuide"), "employee view must not use the mascot guide");
+  assert.ok(!selfService.includes("payroll-owl"), "employee view must not import mascot assets");
   assert.ok(!selfService.includes("RecentPayrollRuns"), "employee view must not expose company payroll run history");
+});
+
+
+test("PayrollPH no longer ships the owl mascot component or asset", () => {
+  assert.equal(existsSync("src/components/payroll-owl.tsx"), false, "owl component should be removed");
+  assert.equal(existsSync("public/mascots/payroll-owl.webp"), false, "owl raster asset should be removed");
 });
