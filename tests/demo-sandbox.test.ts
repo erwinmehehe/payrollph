@@ -525,14 +525,17 @@ test("workspace dashboard matches the PayrollPH mockup using modular real-data c
 
   const dashboard = read("src/components/workspace/role-overview.tsx");
   const shell = read("src/components/workspace/shell.tsx");
+  const nav = read("src/components/workspace/nav.ts");
   const alert = read("src/components/workspace/dashboard-alert-banner.tsx");
   const stats = read("src/components/workspace/dashboard-stat-card.tsx");
   const runs = read("src/components/workspace/recent-payroll-runs.tsx");
   const styles = read("src/app/workspace-theme.css");
 
   assert.ok(shell.includes("PayrollPH"), "workspace brand must match the PayrollPH mockup");
-  assert.ok(shell.includes("OVERVIEW_NAV_ORDER"), "dashboard landing must use the compact seven-item navigation");
-  assert.ok(shell.includes("navigationGroups"), "dashboard landing must swap to the compact navigation set");
+  assert.ok(nav.includes("PRIMARY_NAVIGATION"), "workspace must define the compact seven-item primary navigation");
+  assert.ok(shell.includes("PRIMARY_NAVIGATION"), "sidebar must render the focused primary navigation");
+  assert.ok(shell.includes("SECONDARY_NAVIGATION"), "secondary modules must remain available");
+  assert.ok(shell.includes(">More</span>"), "secondary modules must sit behind one explicit More control");
   assert.ok(shell.includes("Search employees, payroll, reports"), "top search should use the mockup wording");
   assert.ok(dashboard.includes("DashboardAlertBanner"), "role dashboards must use the shared alert banner");
   assert.ok(dashboard.includes("DashboardStatCard"), "role dashboards must use the shared metric card");
