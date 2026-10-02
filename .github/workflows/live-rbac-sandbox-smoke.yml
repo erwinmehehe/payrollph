@@ -71,6 +71,10 @@ jobs:
               echo "--- response body ---"
               cat /tmp/demo-switch-body.txt || true
               echo
+              if grep -Eq '"code":"BANK_DATA_ENCRYPTION_(REQUIRED|NOT_READY)"' /tmp/demo-switch-body.txt; then
+                echo "Production bank-data encryption is a hard prerequisite for the RBAC sandbox."
+                exit 1
+              fi
               sleep 10
             done
 
