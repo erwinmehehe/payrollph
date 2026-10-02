@@ -351,7 +351,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
           </>
         }
       >
-        {demoRole && demoInfo && (
+        {demoRole && demoInfo && page !== "Overview" && (
           <DemoSandboxBar
             role={demoRole}
             busyRole={demoSwitching}
