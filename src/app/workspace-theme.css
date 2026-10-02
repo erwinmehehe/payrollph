@@ -2346,27 +2346,6 @@
   display: none;
 }
 
-.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Migration"],
-.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Time & attendance"],
-.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Leave"],
-.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Exports"],
-.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Loans"],
-.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Benefits"],
-.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="De minimis"],
-.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Expenses"],
-.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Earned wage"],
-.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Recruitment"],
-.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Discipline"],
-.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Separation"],
-.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Contractors"],
-.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Assets"],
-.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Integrations"],
-.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Developer"],
-.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Pricing"],
-.app-shell[data-workspace-page="Overview"] .nav-item[data-nav-name="Audit trail"] {
-  display: none;
-}
-
 .app-shell[data-workspace-page="Overview"] .workspace-label { margin-top: 10px; }
 
 .payrollph-dashboard {
