@@ -132,3 +132,27 @@ test("deletion DSR completion requires concrete disposition and retention assess
   assert.ok(source.includes("retentionAssessment"));
   assert.ok(source.includes("legalRetentionApplied"));
 });
+
+
+test("privacy correction and deletion can execute in-app without mutating payroll history", () => {
+  const source = read("src/app/api/compliance/data-requests/route.ts");
+  assert.ok(source.includes("executeInApp"));
+  assert.ok(source.includes('"corrected-in-app"'));
+  assert.ok(source.includes("payoutDestinationChanged: false"));
+  assert.ok(source.includes("payrollHistoryChanged: false"));
+  assert.ok(source.includes("In-app deletion is limited to separated/inactive employees"));
+  assert.ok(source.includes("retainedRecordClasses"));
+  assert.ok(source.includes("Non-essential contact, payout-destination"));
+});
+
+test("sensitive field encryption supports explicit one-key rotation", () => {
+  const bank = read("src/lib/bank-account-crypto.ts");
+  const gov = read("src/lib/government-id-crypto.ts");
+  const operator = read("scripts/rotate-sensitive-encryption.ts");
+  assert.ok(bank.includes("BANK_DATA_ENCRYPTION_KEY_PREVIOUS"));
+  assert.ok(bank.includes("rotateBankAccountEncryption"));
+  assert.ok(gov.includes("PII_ENCRYPTION_KEY_PREVIOUS"));
+  assert.ok(gov.includes("rotateGovernmentIdEncryption"));
+  assert.ok(operator.includes("currentOnlyEnv"));
+  assert.ok(operator.includes("--apply"));
+});
