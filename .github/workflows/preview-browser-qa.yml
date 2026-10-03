@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "src/components/marketing/**"
+      - "src/app/workspace-theme.css"
       - "src/components/workspace/**"
       - "src/components/linaw-workspace.tsx"
       - "src/components/self-service-portal.tsx"
