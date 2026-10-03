@@ -93,6 +93,22 @@ function addDays(dateText: string, days: number) {
   return date.toISOString().slice(0, 10);
 }
 
+function orgUnitAncestors(
+  orgUnitId: number | null,
+  unitMap: Map<number, typeof orgUnits.$inferSelect>,
+) {
+  const ids = new Set<number>();
+  let cursor = orgUnitId;
+  let guard = 0;
+  while (cursor != null && guard < 50) {
+    if (ids.has(cursor)) break;
+    ids.add(cursor);
+    cursor = unitMap.get(cursor)?.parentId ?? null;
+    guard += 1;
+  }
+  return ids;
+}
+
 function precedingScheduledWorkDate(input: {
   holidayDate: string;
   currentRestDay: string | null | undefined;
@@ -654,10 +670,11 @@ async function processPayrollChunk(input: {
   let chunkExceptions = 0;
 
   for (const employee of chunk) {
+    const employeeHolidayScopeIds = orgUnitAncestors(employee.orgUnitId, unitMap);
     const employeeHolidayCalendar: HolidayCalendarEntry[] = [
       ...NATIONAL_HOLIDAYS_2026,
       ...localHolidayRows
-        .filter((holiday) => holiday.orgUnitId == null || holiday.orgUnitId === employee.orgUnitId)
+        .filter((holiday) => holiday.orgUnitId == null || employeeHolidayScopeIds.has(holiday.orgUnitId))
         .map(({ orgUnitId: _orgUnitId, ...holiday }) => holiday)
         .filter((local) => !NATIONAL_HOLIDAYS_2026.some(
           (national) => national.date === local.date && national.name === local.name && national.kind === local.kind,
