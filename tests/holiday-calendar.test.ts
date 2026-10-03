@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   holidayPayContextOn,
   holidaysOn,
+  NATIONAL_HOLIDAYS_2026,
   type HolidayCalendarEntry,
 } from "../src/lib/wage-orders";
 
@@ -47,7 +48,18 @@ test("mixed regular and special collision does not invent an unsupported combine
 
 test("payroll engine consumes the classified holiday context instead of a single calendar row", () => {
   const engine = readFileSync("src/lib/payroll-engine.ts", "utf8");
-  assert.ok(engine.includes("holidayPayContextOn(punch.workDate)"));
+  assert.ok(engine.includes("holidayPayContextOn(punch.workDate,"));
   assert.ok(engine.includes("holiday: holidayContext.holiday"));
   assert.ok(engine.includes("holidayContext.holidays.length > 0"));
+});
+
+
+test("2026 national calendar contains the actual additional non-working days and no demo holiday", () => {
+  const byDate = (date: string) => NATIONAL_HOLIDAYS_2026.filter((row) => row.date === date);
+  assert.equal(byDate("2026-03-20").some((row) => row.kind === "regular" && /Fitr/.test(row.name)), true);
+  assert.equal(byDate("2026-04-04").some((row) => row.kind === "special" && /Black Saturday/.test(row.name)), true);
+  assert.equal(byDate("2026-05-27").some((row) => row.kind === "regular" && /Adha/.test(row.name)), true);
+  assert.equal(byDate("2026-11-02").some((row) => row.kind === "special"), true);
+  assert.equal(byDate("2026-12-24").some((row) => row.kind === "special"), true);
+  assert.equal(byDate("2026-03-11").length, 0);
 });
