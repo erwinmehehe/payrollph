@@ -490,6 +490,28 @@ export function WorkspaceShell({
           {children}
         </main>
       </div>
+
+      <nav className="mobile-bottom-nav" aria-label="Mobile workspace navigation">
+        {primaryItems.slice(0, 5).map((item) => {
+          const Icon = item.icon;
+          const active = page === item.name;
+          return (
+            <button
+              key={item.name}
+              type="button"
+              className={active ? "active" : ""}
+              data-tone={item.tone}
+              onClick={() => go(item.name)}
+              aria-current={active ? "page" : undefined}
+            >
+              <span className={`nav-icon t-${item.tone}`} aria-hidden>
+                <Icon size={16} strokeWidth={active ? 2.3 : 2} />
+              </span>
+              <span>{workspaceLabel(item.name, workspaceRole)}</span>
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 }
