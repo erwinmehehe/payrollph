@@ -8,6 +8,7 @@ import { getSessionUser } from "@/lib/auth";
 import { toCsv } from "@/lib/csv";
 import { runYearEndAnnualization } from "@/lib/year-end";
 import { assertOrganizationRole, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
+import { recordAuditEvent } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -74,10 +75,23 @@ export async function GET(request: Request) {
       employeeTin: `${digits(match.employee.tin, true)}-${digits(match.employee.tinBranchCode, true)}`,
       result: match.adjustment.breakdown as never,
     });
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "Year-end BIR 2316 draft generated",
+      resource: `${match.employee.employeeNo} · ${taxYear}`,
+      metadata: {
+        employeeId: match.employee.id,
+        taxYear,
+        plaintextCertificatePersisted: false,
+      },
+    });
     return new Response(body, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "Content-Disposition": `attachment; filename=bir-2316-draft-${match.employee.employeeNo}-${taxYear}.txt`,
+        "Cache-Control": "no-store, private",
+        "X-Content-Type-Options": "nosniff",
       },
     });
   }
@@ -131,12 +145,26 @@ export async function GET(request: Request) {
         row.adjustment.outcome,
       ]),
     });
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "Year-end Alphalist source extract generated",
+      resource: `Tax year ${taxYear}`,
+      metadata: {
+        taxYear,
+        employeeCount: rows.length,
+        containsFullTin: true,
+        plaintextFilePersisted: false,
+      },
+    });
     return new Response(
       `DRAFT ALPHALIST SOURCE EXTRACT ${taxYear} - not an ADES .DAT file and not portal validated\n${csv}`,
       {
         headers: {
           "Content-Type": "text/csv",
           "Content-Disposition": `attachment; filename=alphalist-source-draft-${taxYear}.csv`,
+          "Cache-Control": "no-store, private",
+          "X-Content-Type-Options": "nosniff",
         },
       },
     );
