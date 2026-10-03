@@ -81,14 +81,6 @@ function addDays(dateText: string, days: number) {
   return date.toISOString().slice(0, 10);
 }
 
-function datesInRange(startDate: string, endDate: string) {
-  const dates: string[] = [];
-  for (let cursor = startDate; cursor <= endDate; cursor = addDays(cursor, 1)) {
-    dates.push(cursor);
-  }
-  return dates;
-}
-
 function precedingScheduledWorkDate(input: {
   holidayDate: string;
   currentRestDay: string | null | undefined;
