@@ -11,6 +11,7 @@ import { constantTimeSecretEqual } from "@/lib/security-secret";
 import { operationalSecret, operationalSecretConfigured, operationalSecretSource } from "@/lib/operational-secret";
 import { documentUploadsEnabled, malwareScannerConfigured } from "@/lib/storage";
 import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
+import { acceptedBankFileValidationCount } from "@/lib/bank-evidence-store";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,7 @@ export async function buildReadinessPayload() {
     .where(eq(auditEvents.action, "PayMongo payroll preflight passed"));
   const [{ value: productionPilotSignoffs }] = await db.select({ value: count() }).from(auditEvents)
     .where(eq(auditEvents.action, "Production payroll pilot signed off"));
+  const acceptedBankFileValidations = await acceptedBankFileValidationCount();
 
   const [{ value: plaintextBankAccounts }] = await db.select({ value: count() }).from(employees)
     .where(and(
@@ -113,7 +115,11 @@ export async function buildReadinessPayload() {
   const paymongoPreflightProven = Number(paymongoPreflightPasses) > 0;
   // The batch needs a source account, which Linaw reads from this wallet.
   const paymongoWalletConfigured = configured("PAYMONGO_WALLET_ID");
-  const bankReady = directBankConfigured || (paymongoDisbursementEnabled && paymongoWalletConfigured && paymongoPreflightProven && paymongoWebhookConfigured);
+  const manualBankUatProven = acceptedBankFileValidations > 0;
+  const bankReady =
+    directBankConfigured
+    || manualBankUatProven
+    || (paymongoDisbursementEnabled && paymongoWalletConfigured && paymongoPreflightProven && paymongoWebhookConfigured);
 
   const bankKeyConfigured = bankEncryptionConfigured();
   const bankKeySource = bankEncryptionKeySource();
@@ -232,7 +238,9 @@ export async function buildReadinessPayload() {
       detail: bankReady
         ? directBankConfigured
           ? "A direct bank payout endpoint is configured."
-          : `PayMongo Disbursements is enabled, a no-money payroll preflight (bank mappings and wallet funding) has passed (${paymongoPreflightPasses} recorded pass(es)), and signed transfer webhooks are configured.`
+          : manualBankUatProven
+            ? `${acceptedBankFileValidations} exact Linaw-generated bank payroll file(s) have recorded corporate-portal acceptance evidence.`
+            : `PayMongo Disbursements is enabled, a no-money payroll preflight (bank mappings and wallet funding) has passed (${paymongoPreflightPasses} recorded pass(es)), and signed transfer webhooks are configured.`
         : paymongoDisbursementEnabled
           ? !paymongoWalletConfigured
             ? "PayMongo Disbursements is enabled, but PAYMONGO_WALLET_ID is missing. PayMongo requires a source account on every transfer, and Linaw reads it from this wallet."
@@ -241,7 +249,7 @@ export async function buildReadinessPayload() {
             : "PayMongo Disbursements is enabled, but no no-money payroll preflight has proven credentials and employee bank mappings yet."
           : "Bank files remain available for manual upload. PayMongo batch-transfer code, signed transfer webhook handling, and a no-money preflight are implemented, but live disbursement is not enabled.",
       blocks: bankReady ? "none" : "launch",
-      manualWorkaround: bankReady ? undefined : "Download the bank file from a released payroll run and upload it manually through the bank or e-wallet business portal.",
+      manualWorkaround: bankReady ? undefined : "Generate a bank validation record for a released payroll, upload that exact hashed file to the corporate bank portal, then record the portal acceptance under /api/compliance/bank-validations.",
     },
     {
       key: "bank-data-encryption",
