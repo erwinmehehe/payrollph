@@ -1,6 +1,6 @@
 import { and, eq, isNotNull } from "drizzle-orm";
 import { db, pool } from "../src/db";
-import { employees } from "../src/db/schema";
+import { contractors, employees } from "../src/db/schema";
 import {
   encryptGovernmentId,
   governmentIdEncryptionConfigured,
@@ -39,7 +39,25 @@ async function main() {
     }).where(and(eq(employees.id, row.id), eq(employees.organizationId, row.organizationId)));
   }
 
-  console.log(JSON.stringify({ apply, employeesWithPlaintextGovernmentIds: changed }, null, 2));
+  const contractorRows = await db.select().from(contractors).where(isNotNull(contractors.id));
+  let contractorsChanged = 0;
+  for (const contractor of contractorRows) {
+    if (!contractor.tin || isEncryptedGovernmentId(contractor.tin)) continue;
+    contractorsChanged += 1;
+    if (!apply) continue;
+    await db.update(contractors).set({
+      tin: encryptGovernmentId(contractor.tin, { required: true }),
+    }).where(and(
+      eq(contractors.id, contractor.id),
+      eq(contractors.organizationId, contractor.organizationId),
+    ));
+  }
+
+  console.log(JSON.stringify({
+    apply,
+    employeesWithPlaintextGovernmentIds: changed,
+    contractorsWithPlaintextTin: contractorsChanged,
+  }, null, 2));
 }
 
 main().finally(async () => {
