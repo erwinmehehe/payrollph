@@ -11,7 +11,7 @@ import {
   separationRecords,
 } from "@/db/schema";
 import { decryptBankAccount } from "@/lib/bank-account-crypto";
-import { decryptGovernmentId } from "@/lib/government-id-crypto";
+import { decryptGovernmentId, encryptGovernmentId } from "@/lib/government-id-crypto";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess } from "@/lib/access";
@@ -226,12 +226,167 @@ export async function PATCH(request: Request) {
   const mfaDenied = requireSensitiveActionMfa(session);
   if (mfaDenied) return mfaDenied;
 
-  const fulfillmentAction = String(body.fulfillmentAction ?? "").trim().slice(0, 64);
-  const fulfillmentEvidence =
+  let fulfillmentAction = String(body.fulfillmentAction ?? "").trim().slice(0, 64);
+  let fulfillmentEvidence =
     body.fulfillmentEvidence && typeof body.fulfillmentEvidence === "object" && !Array.isArray(body.fulfillmentEvidence)
       ? body.fulfillmentEvidence as Record<string, unknown>
       : {};
-  const legalRetentionApplied = Boolean(body.legalRetentionApplied);
+  let legalRetentionApplied = Boolean(body.legalRetentionApplied);
+
+  const executeInApp = Boolean(body.executeInApp);
+  if (executeInApp && existing.requestType === "correction") {
+    const correction =
+      body.correction && typeof body.correction === "object" && !Array.isArray(body.correction)
+        ? body.correction as Record<string, unknown>
+        : {};
+
+    const allowedFields = new Set([
+      "firstName",
+      "middleName",
+      "lastName",
+      "mobile",
+      "email",
+      "nationality",
+      "birthDate",
+      "emergencyContact",
+      "emergencyPhone",
+      "education",
+      "tin",
+      "tinBranchCode",
+      "sssNo",
+      "philHealthNo",
+      "pagIbigNo",
+    ]);
+    const requestedFields = Object.keys(correction);
+    const disallowed = requestedFields.filter((field) => !allowedFields.has(field));
+    if (requestedFields.length === 0 || disallowed.length > 0) {
+      return Response.json({
+        error: "Correction execution requires at least one supported profile field and cannot change payroll, role, status, rate, or payout-destination fields.",
+        allowedFields: [...allowedFields],
+        disallowed,
+      }, { status: 400 });
+    }
+
+    const subjectEmployees = await db.select().from(employees).where(and(
+      eq(employees.organizationId, existing.organizationId ?? 0),
+      eq(employees.email, existing.subjectEmail),
+    ));
+    if (subjectEmployees.length === 0) {
+      return Response.json({ error: "No employee record matches this request's subject email." }, { status: 404 });
+    }
+
+    const clean = (value: unknown, max: number) => {
+      const next = String(value ?? "").trim();
+      return next ? next.slice(0, max) : null;
+    };
+    const patch: Partial<typeof employees.$inferInsert> = {};
+    if ("firstName" in correction) {
+      const value = clean(correction.firstName, 80);
+      if (!value) return Response.json({ error: "firstName cannot be blank." }, { status: 400 });
+      patch.firstName = value;
+    }
+    if ("middleName" in correction) patch.middleName = clean(correction.middleName, 80);
+    if ("lastName" in correction) {
+      const value = clean(correction.lastName, 80);
+      if (!value) return Response.json({ error: "lastName cannot be blank." }, { status: 400 });
+      patch.lastName = value;
+    }
+    if ("mobile" in correction) patch.mobile = clean(correction.mobile, 24);
+    if ("email" in correction) {
+      const value = clean(correction.email, 200)?.toLowerCase() ?? null;
+      if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        return Response.json({ error: "Corrected email is invalid." }, { status: 400 });
+      }
+      patch.email = value;
+    }
+    if ("nationality" in correction) patch.nationality = clean(correction.nationality, 60) ?? "Filipino";
+    if ("birthDate" in correction) {
+      const value = clean(correction.birthDate, 10);
+      if (value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        return Response.json({ error: "birthDate must be YYYY-MM-DD." }, { status: 400 });
+      }
+      patch.birthDate = value;
+    }
+    if ("emergencyContact" in correction) patch.emergencyContact = clean(correction.emergencyContact, 120);
+    if ("emergencyPhone" in correction) patch.emergencyPhone = clean(correction.emergencyPhone, 32);
+    if ("education" in correction) patch.education = clean(correction.education, 120);
+
+    const sealGovernmentId = (value: unknown) =>
+      encryptGovernmentId(clean(value, 80), { required: process.env.NODE_ENV === "production" });
+    if ("tin" in correction) patch.tin = sealGovernmentId(correction.tin);
+    if ("tinBranchCode" in correction) patch.tinBranchCode = sealGovernmentId(correction.tinBranchCode);
+    if ("sssNo" in correction) patch.sssNo = sealGovernmentId(correction.sssNo);
+    if ("philHealthNo" in correction) patch.philHealthNo = sealGovernmentId(correction.philHealthNo);
+    if ("pagIbigNo" in correction) patch.pagIbigNo = sealGovernmentId(correction.pagIbigNo);
+
+    for (const employee of subjectEmployees) {
+      await db.update(employees).set(patch).where(and(
+        eq(employees.id, employee.id),
+        eq(employees.organizationId, existing.organizationId ?? 0),
+      ));
+    }
+
+    fulfillmentAction = "corrected-in-app";
+    fulfillmentEvidence = {
+      executedAt: new Date().toISOString(),
+      employeeIds: subjectEmployees.map((employee) => employee.id),
+      correctedFields: requestedFields,
+      payoutDestinationChanged: false,
+      payrollHistoryChanged: false,
+    };
+  }
+
+  if (executeInApp && existing.requestType === "deletion") {
+    const subjectEmployees = await db.select().from(employees).where(and(
+      eq(employees.organizationId, existing.organizationId ?? 0),
+      eq(employees.email, existing.subjectEmail),
+    ));
+    if (subjectEmployees.length === 0) {
+      return Response.json({ error: "No employee record matches this request's subject email." }, { status: 404 });
+    }
+    const active = subjectEmployees.filter((employee) => employee.status === "Active");
+    if (active.length > 0) {
+      return Response.json({
+        error: "In-app deletion is limited to separated/inactive employees. Active employment records have an ongoing payroll and employment purpose.",
+        employeeIds: active.map((employee) => employee.id),
+      }, { status: 409 });
+    }
+
+    for (const employee of subjectEmployees) {
+      await db.update(employees).set({
+        bankAccount: null,
+        bankCode: null,
+        mobile: null,
+        email: null,
+        emergencyContact: null,
+        emergencyPhone: null,
+        education: null,
+      }).where(and(
+        eq(employees.id, employee.id),
+        eq(employees.organizationId, existing.organizationId ?? 0),
+      ));
+    }
+
+    fulfillmentAction = "restricted";
+    legalRetentionApplied = true;
+    fulfillmentEvidence = {
+      executedAt: new Date().toISOString(),
+      employeeIds: subjectEmployees.map((employee) => employee.id),
+      deletedProfileFields: [
+        "bankAccount",
+        "bankCode",
+        "mobile",
+        "email",
+        "emergencyContact",
+        "emergencyPhone",
+        "education",
+      ],
+      retainedRecordClasses: ["payrollAccountingTax", "employmentLaborRecords"],
+      retentionAssessment:
+        "Non-essential contact, payout-destination, emergency-contact and education profile data was cleared in-app. Payroll, tax, statutory-identification and employment records remain restricted to their legal/accountability retention schedule and any legal hold.",
+      payrollHistoryChanged: false,
+    };
+  }
 
   if (status === "completed") {
     if (existing.requestType === "access" || existing.requestType === "portability") {
