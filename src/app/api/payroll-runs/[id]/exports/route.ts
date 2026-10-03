@@ -1,6 +1,13 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { auditEvents, payslips, payrollEntries, payrollRuns } from "@/db/schema";
+import {
+  auditEvents,
+  bankFileValidations,
+  bankTemplates,
+  payslips,
+  payrollEntries,
+  payrollRuns,
+} from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { isPublicDemoIdentity, publicDemoMutationDenied } from "@/lib/demo-security";
@@ -275,6 +282,45 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       }, { status: 409 });
     }
 
+    const bankExportMetadata = bankExport.metadata && typeof bankExport.metadata === "object"
+      ? bankExport.metadata as Record<string, unknown>
+      : {};
+    const bankTemplateName = typeof bankExportMetadata.template === "string"
+      ? bankExportMetadata.template.trim()
+      : "";
+    if (!bankTemplateName) {
+      return Response.json({
+        error: "The final bank export audit record has no template identity. Regenerate the final bank file before recording payout completion.",
+      }, { status: 409 });
+    }
+
+    const [bankTemplate] = await db.select().from(bankTemplates)
+      .where(and(
+        eq(bankTemplates.name, bankTemplateName),
+        eq(bankTemplates.active, true),
+      ))
+      .limit(1);
+    if (!bankTemplate) {
+      return Response.json({
+        error: `Bank template "${bankTemplateName}" is missing or inactive. Restore a reviewed template before recording payout completion.`,
+      }, { status: 409 });
+    }
+
+    const [acceptedTemplateValidation] = await db.select({ id: bankFileValidations.id })
+      .from(bankFileValidations)
+      .where(and(
+        eq(bankFileValidations.organizationId, run.organizationId),
+        eq(bankFileValidations.templateName, bankTemplate.name),
+        eq(bankFileValidations.templateVersion, bankTemplate.version),
+        eq(bankFileValidations.status, "accepted"),
+      ))
+      .limit(1);
+    if (!acceptedTemplateValidation) {
+      return Response.json({
+        error: `Bank template "${bankTemplate.name}" version ${bankTemplate.version} has not passed recorded bank-portal UAT. Submit a validation file under Compliance → Bank validations and record the bank's accepted reference before using this template for a completed live payout.`,
+      }, { status: 409 });
+    }
+
     const existing = runEvents.find((event) =>
       event.action === "Payroll payout completed manually" ||
       event.action === "Payroll payout completed via PayMongo"
@@ -311,6 +357,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         reference,
         completedAt,
         bankExportEventId: bankExport.id,
+        bankTemplateName: bankTemplate.name,
+        bankTemplateVersion: bankTemplate.version,
+        bankValidationId: acceptedTemplateValidation.id,
         moneyMovedByLinaw: false,
         completionRecordedBy: user.name,
       },
