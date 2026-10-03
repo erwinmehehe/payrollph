@@ -38,3 +38,24 @@ test("release settlement reconciles supplementary earnings before marking them s
   assert.ok(source.includes("A new supplementary earning was added after calculation"));
   assert.ok(source.includes('status: "settled", payrollRunId: run.id'));
 });
+
+
+test("holiday mutations invalidate unreleased payroll and supersede approvals", () => {
+  const source = readFileSync("src/app/api/holidays/route.ts", "utf8");
+  assert.ok(source.includes("assertHolidayMutationNotRacingPayroll"));
+  assert.ok(source.includes("invalidateAffectedPayroll"));
+  assert.ok(source.includes('status: "Draft"'));
+  assert.ok(source.includes('status: "Superseded"'));
+  assert.ok(source.includes("payrollEntries"));
+  assert.ok(source.includes('"HOLIDAY_PAYROLL_BUSY"'));
+});
+
+test("payroll release fingerprints the employee-effective holiday calendar", () => {
+  const engine = readFileSync("src/lib/payroll-engine.ts", "utf8");
+  const settlement = readFileSync("src/lib/payroll-settlement.ts", "utf8");
+  assert.ok(engine.includes("holidayCalendarFingerprint(employeeHolidayCalendar)"));
+  assert.ok(engine.includes("holidayCalendarFingerprint="));
+  assert.ok(settlement.includes('traceInputString(entry.trace, "holidayCalendarFingerprint")'));
+  assert.ok(settlement.includes("currentHolidayFingerprint"));
+  assert.ok(settlement.includes("changed after payroll calculation; recalculate before release"));
+});
