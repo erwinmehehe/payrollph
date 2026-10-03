@@ -558,10 +558,31 @@ export const contractors = pgTable("contractors", {
   rate: numeric("rate", { precision: 12, scale: 2 }).notNull(),
   rateType: varchar("rate_type", { length: 20 }).notNull().default("monthly"),
   status: varchar("status", { length: 32 }).notNull().default("active"),
+  tin: varchar("tin", { length: 180 }),
+  withholdingAtc: varchar("withholding_atc", { length: 24 }),
+  withholdingRate: numeric("withholding_rate", { precision: 6, scale: 3 }),
   contractStart: date("contract_start"),
   contractEnd: date("contract_end"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const contractorPayments = pgTable("contractor_payments", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  contractorId: integer("contractor_id").notNull().references(() => contractors.id, { onDelete: "restrict" }),
+  paymentDate: date("payment_date").notNull(),
+  grossAmountPhp: numeric("gross_amount_php", { precision: 14, scale: 2 }).notNull(),
+  withholdingAtc: varchar("withholding_atc", { length: 24 }).notNull(),
+  withholdingRate: numeric("withholding_rate", { precision: 6, scale: 3 }).notNull(),
+  withholdingAmount: numeric("withholding_amount", { precision: 14, scale: 2 }).notNull(),
+  netAmountPhp: numeric("net_amount_php", { precision: 14, scale: 2 }).notNull(),
+  reference: varchar("reference", { length: 160 }),
+  createdBy: varchar("created_by", { length: 120 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("contractor_payment_org_date_idx").on(table.organizationId, table.paymentDate),
+  index("contractor_payment_contractor_idx").on(table.contractorId),
+]);
 
 export const assets = pgTable("assets", {
   id: serial("id").primaryKey(),
