@@ -171,6 +171,9 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
     basicSalaryEarned: number;
     thirteenthEntitlement: number;
     thirteenthAlreadyPaid: number;
+    deMinimisExempt: number;
+    otherBenefitsPool: number;
+    mweExemptCompensation: number;
   }> = [];
 
   for (const employee of staff) {
@@ -204,6 +207,9 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
       basicSalaryEarned: bucket.basic,
       thirteenthEntitlement,
       thirteenthAlreadyPaid: bucket.thirteenthPaid,
+      deMinimisExempt: bucket.deMinimisExempt,
+      otherBenefitsPool: bucket.otherBenefitsPool,
+      mweExemptCompensation: employee.mwe ? bucket.mweExemptCompensation : 0,
     });
   }
 
@@ -216,6 +222,9 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
       basicSalaryEarned,
       thirteenthEntitlement,
       thirteenthAlreadyPaid,
+      deMinimisExempt,
+      otherBenefitsPool,
+      mweExemptCompensation,
     }) => ({
       organizationId,
       employeeId: employee.id,
@@ -239,9 +248,9 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
         thirteenthEntitlement,
         thirteenthAlreadyPaid,
         thirteenthStillDue: Math.max(0, thirteenthEntitlement - thirteenthAlreadyPaid),
-        deMinimisExempt: bucket.deMinimisExempt,
-        otherBenefitsPool: bucket.otherBenefitsPool,
-        mweExemptCompensation: employee.mwe ? bucket.mweExemptCompensation : 0,
+        deMinimisExempt,
+        otherBenefitsPool,
+        mweExemptCompensation,
       },
       ruleVersion: ANNUALIZATION_RULE_VERSION,
     })));
