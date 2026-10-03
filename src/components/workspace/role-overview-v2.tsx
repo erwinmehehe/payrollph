@@ -30,6 +30,7 @@ export function RoleOverviewV2({
   const pendingLeave = (data.leaveRequests ?? []).filter((request) => request.status === "Pending");
   const openProvisioning = (data.provisioning ?? []).filter((task) => !task.done);
   const payrollExceptions = data.payrollEntries.filter((entry) => entry.status === "Exception");
+  const pendingRetro = (data.retroAdjustments ?? []).filter((item) => item.status === "pending");
   const attendanceIssues = (data.punches ?? []).filter((punch) => {
     const status = punch.status.toLowerCase();
     return !["complete", "present", "ok", "approved"].includes(status);
@@ -47,6 +48,7 @@ export function RoleOverviewV2({
     pendingLeave,
     openProvisioning,
     payrollExceptions,
+    pendingRetro,
     attendanceIssues,
     peopleMissingGovernmentIds,
     onPage,
@@ -73,6 +75,7 @@ type CommonProps = {
   pendingLeave: NonNullable<DashboardData["leaveRequests"]>;
   openProvisioning: NonNullable<DashboardData["provisioning"]>;
   payrollExceptions: DashboardData["payrollEntries"];
+  pendingRetro: NonNullable<DashboardData["retroAdjustments"]>;
   attendanceIssues: NonNullable<DashboardData["punches"]>;
   peopleMissingGovernmentIds: DashboardData["employees"];
   onPage: (page: string) => void;
@@ -179,6 +182,7 @@ function PayrollOfficerV2({
   firstName,
   activePeople,
   payrollExceptions,
+  pendingRetro,
   attendanceIssues,
   onPage,
   onNewRun,
@@ -188,7 +192,7 @@ function PayrollOfficerV2({
   const calculated = currentRun?.totalChunks
     ? (currentRun.processedChunks ?? 0) >= currentRun.totalChunks
     : data.payrollEntries.length > 0;
-  const issueCount = payrollExceptions.length + failedJobs.length;
+  const issueCount = payrollExceptions.length + pendingRetro.length + failedJobs.length;
   const totalEmployees = currentRun?.employeeCount ?? activePeople.length;
   const readyEmployees = Math.max(0, totalEmployees - issueCount);
   const progress = totalEmployees ? Math.max(0, Math.min(100, Math.round((readyEmployees / totalEmployees) * 100))) : 0;
@@ -242,7 +246,18 @@ function PayrollOfficerV2({
               </div>
             );
           })}
-          {!payrollExceptions.length && failedJobs.slice(0, 4).map((job) => (
+          {payrollExceptions.length < 4 && pendingRetro.slice(0, Math.max(0, 4 - payrollExceptions.length)).map((item) => {
+            const employee = data.employees.find((person) => person.id === item.employeeId);
+            return (
+              <div className="role-v2-table-row" key={"retro-" + String(item.id)}>
+                <PersonCell employee={employee} fallback={"Employee #" + String(item.employeeId)} />
+                <span>Retro adjustment</span>
+                <span>{money(item.amount)} adjustment</span>
+                <button className="link-button" onClick={() => onPage("Payroll")}>Review <ArrowRight size={12} /></button>
+              </div>
+            );
+          })}
+          {!payrollExceptions.length && !pendingRetro.length && failedJobs.slice(0, 4).map((job) => (
             <div className="role-v2-table-row" key={job.id}>
               <strong>Payroll job #{job.id}</strong><span>Calculation failed</span><span>Run blocked</span><button className="link-button" onClick={() => onPage("Payroll")}>Recover <ArrowRight size={12} /></button>
             </div>
