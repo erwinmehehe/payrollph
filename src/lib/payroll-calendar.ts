@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import type { HolidayCalendarEntry } from "@/lib/wage-orders";
+
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 function dateParts(value: string) {
@@ -26,4 +29,20 @@ export function isCanonicalPhSemiMonthlyPeriod(periodStart: string, periodEnd: s
 export function phSemiMonthlyCutoff(periodStart: string, periodEnd: string) {
   if (!isCanonicalPhSemiMonthlyPeriod(periodStart, periodEnd)) return null;
   return Number(periodStart.slice(8, 10)) === 1 ? "first" as const : "second" as const;
+}
+
+
+export function holidayCalendarFingerprint(calendar: readonly HolidayCalendarEntry[]) {
+  const normalized = calendar
+    .map((holiday) => ({
+      date: holiday.date,
+      kind: holiday.kind,
+      name: holiday.name.trim(),
+    }))
+    .sort((a, b) =>
+      a.date.localeCompare(b.date)
+      || a.kind.localeCompare(b.kind)
+      || a.name.localeCompare(b.name)
+    );
+  return createHash("sha256").update(JSON.stringify(normalized)).digest("hex");
 }
