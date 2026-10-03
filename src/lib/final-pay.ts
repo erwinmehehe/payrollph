@@ -71,6 +71,7 @@ export function computeFinalPay(input: {
   statutoryContributionsYtd: number;
   taxWithheldYtd: number;
   mwe: boolean;
+  mweTaxableSupplementaryCompensationYtd?: number;
   leaveMonetizationPay: number;
   taxableLeaveMonetizationPay?: number;
   separationPay: number;
@@ -101,6 +102,11 @@ export function computeFinalPay(input: {
       + Math.max(0, input.taxableRetirementPay ?? input.retirementPay)
       + Math.max(0, input.otherBenefits),
   );
+  const finalTaxableSupplementaryCompensation = round2(
+    Math.max(0, input.taxableLeaveMonetizationPay ?? input.leaveMonetizationPay)
+      + Math.max(0, input.taxableSeparationPay ?? input.separationPay)
+      + Math.max(0, input.taxableRetirementPay ?? input.retirementPay),
+  );
   const annualized = annualize({
     grossCompensation: grossForAnnualization,
     thirteenthMonth: thirteenthPaidYtd + thirteenthDue,
@@ -110,6 +116,9 @@ export function computeFinalPay(input: {
     statutoryContributions: Math.max(0, input.statutoryContributionsYtd) + finalStatutoryDeductions,
     taxWithheld: Math.max(0, input.taxWithheldYtd),
     mwe: input.mwe,
+    mweTaxableSupplementaryCompensation:
+      Math.max(0, input.mweTaxableSupplementaryCompensationYtd ?? 0)
+      + finalTaxableSupplementaryCompensation,
   });
 
   // annualize().adjustment is taxDue - taxWithheld:
