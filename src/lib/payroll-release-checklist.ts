@@ -12,7 +12,7 @@ export type PayrollReleaseChecklistItem = {
   detail: string;
 };
 
-export async function buildPayrollReleaseChecklist(runId: number, options: { acknowledgeExceptions?: boolean } = {}) {
+export async function buildPayrollReleaseChecklist(runId: number, options: { acknowledgeExceptions?: boolean; allowRedactedDemoPayout?: boolean } = {}) {
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
   if (!run) return null;
 
@@ -46,7 +46,7 @@ export async function buildPayrollReleaseChecklist(runId: number, options: { ack
     Boolean(employee.employeeNo?.trim()) && Number(employee.basicRate) > 0 && Boolean(employee.startDate)
   );
   const attendancePassed = missingAttendance.length === 0 || Boolean(options.acknowledgeExceptions);
-  const bankPassed = rows.length > 0 && missingBank.length === 0;
+  const bankPassed = Boolean(options.allowRedactedDemoPayout) || (rows.length > 0 && missingBank.length === 0);
   const statutoryPassed = statutoryReview.length === 0;
   const approvalPassed = approval?.status === "Approved";
   const nonBankBlockers = blockers.filter((finding) => finding.code !== "MISSING_BANK_DETAILS");
@@ -59,7 +59,7 @@ export async function buildPayrollReleaseChecklist(runId: number, options: { ack
     { key:"exceptions", label:"Exceptions", passed:exceptionPassed, blocking:true, acknowledgeable: nonBankBlockers.length === 0 && Number(run.exceptions) > 0, detail:exceptionPassed ? "No unresolved release-blocking payroll exception remains." : `${nonBankBlockers.length} blocking assurance finding(s) and/or ${run.exceptions} engine exception(s) still require action.` },
     { key:"statutory", label:"Statutory calculations", passed:statutoryPassed, blocking:true, detail:statutoryPassed ? "SSS, PhilHealth and Pag-IBIG treatment is present where compensation requires it." : `${statutoryReview.length} employee(s) need statutory treatment confirmation.` },
     { key:"approval", label:"Checker approval", passed:approvalPassed, blocking:true, detail:approvalPassed ? `Approved by ${approval?.decidedBy ?? approval?.approver ?? "the assigned checker"}.` : approval?.status === "Pending" ? `Waiting for ${approval.approver}.` : "No current approved checker task exists for this run." },
-    { key:"bank", label:"Payout readiness", passed:bankPassed, blocking:true, detail:bankPassed ? "Every positive-net employee has complete payout details." : `${missingBank.length} positive-net employee(s) have incomplete bank details.` },
+    { key:"bank", label:"Payout readiness", passed:bankPassed, blocking:true, detail: options.allowRedactedDemoPayout ? "Public sandbox payout destinations are intentionally redacted. Any generated bank file uses synthetic demo-only destinations and live disbursement remains disabled." : bankPassed ? "Every positive-net employee has complete payout details." : `${missingBank.length} positive-net employee(s) have incomplete bank details.` },
   ];
 
   return {
