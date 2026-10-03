@@ -10934,7 +10934,7 @@
   border-radius: 10px;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .app-shell .content-area {
     padding-bottom: 96px;
   }
