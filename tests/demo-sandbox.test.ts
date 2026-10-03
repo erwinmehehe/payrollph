@@ -191,7 +191,9 @@ test("workspace renders distinct owner, HR, payroll and checker dashboards", () 
 });
 
 test("role dashboards use workspace data rather than hardcoded KPI totals", () => {
-  const dashboard = read("src/components/workspace/role-overview.tsx");
+  const dashboard =
+    read("src/components/workspace/role-overview.tsx") +
+    read("src/components/workspace/role-overview-v2.tsx");
   for (const source of [
     "data.employees.filter",
     "data.tasks.filter",
