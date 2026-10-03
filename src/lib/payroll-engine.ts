@@ -1053,21 +1053,21 @@ function calculateEmployeePay(input: {
     const periodAmount = deMinimisPerSemiMonthlyPeriod(grant.amount, grant.frequency);
     const treatment = deMinimisTreatment(grant.benefitType, grant.amount);
     const periodsPerGrant = grant.frequency === "month" ? 2 : grant.frequency === "semester" ? 12 : 24;
-    const periodOtherBenefitsExcess = roundToCents(treatment.excess / periodsPerGrant);
+    const periodOtherBenefitsPool = roundToCents(treatment.excess / periodsPerGrant);
     return {
       code: `DM-${grant.id}`,
       label: `De minimis, ${treatment.label}`,
       amount: money(periodAmount),
       notes: [
         `${treatment.period} ceiling ₱${treatment.ceiling.toFixed(2)}`,
-        `other-benefits pool excess this period ₱${periodOtherBenefitsExcess.toFixed(2)}`,
+        `other-benefits pool excess this period ₱${periodOtherBenefitsPool.toFixed(2)}`,
       ],
       periodAmount,
-      periodOtherBenefitsExcess,
+      periodOtherBenefitsPool,
     };
   });
   const deMinimisTotal = deMinimisLines.reduce((sum, line) => sum + line.periodAmount, 0);
-  const deMinimisOtherBenefitsPool = deMinimisLines.reduce((sum, line) => sum + line.periodOtherBenefitsExcess, 0);
+  const deMinimisOtherBenefitsPool = deMinimisLines.reduce((sum, line) => sum + line.periodOtherBenefitsPool, 0);
 
   // Leave Cash Conversions (monetization of vacation / service incentive leaves)
   const conversionLines = (input.leaveConversions ?? []).map((conv) => ({
@@ -1224,7 +1224,7 @@ function calculateEmployeePay(input: {
     { code: "LATE", label: "Tardiness", amount: money(-tardinessDeduction) },
     { code: "UT", label: "Undertime", amount: money(-undertimeDeduction) },
     ...expenseLines,
-    ...deMinimisLines.map(({ periodAmount: _periodAmount, periodOtherBenefitsExcess: _periodOtherBenefitsExcess, ...line }) => line),
+    ...deMinimisLines.map(({ periodAmount: _periodAmount, ...line }) => line),
     ...advanceLines,
     ...loanLines.map(({ deductAmount: _deductAmount, requestedDeduction: _requestedDeduction, ...l }) => l),
     ...benefitLines.map((line) => ({
