@@ -56,7 +56,7 @@ import {
   type EmployeePayProfileInput,
 } from "@/lib/pay-basis";
 
-const RULE_VERSION = "PH-2026.01";
+const RULE_VERSION = "PH-2026.03";
 const DEFAULT_CHUNK = 25;
 
 function money(value: number) {
@@ -95,10 +95,12 @@ export async function enqueuePayrollRun(runId: number, chunkSize = DEFAULT_CHUNK
         eq(employees.organizationId, run.organizationId),
         eq(employees.orgUnitId, run.scopeOrgUnitId),
         eq(employees.status, "Active"),
+        lte(employees.startDate, run.periodEnd),
       )
     : and(
         eq(employees.organizationId, run.organizationId),
         eq(employees.status, "Active"),
+        lte(employees.startDate, run.periodEnd),
       );
   const employeeRows = await db.select().from(employees).where(employeeWhere).orderBy(asc(employees.id));
   if (employeeRows.length === 0) {
@@ -281,10 +283,12 @@ async function processPayrollChunk(input: {
         eq(employees.organizationId, input.organizationId),
         eq(employees.orgUnitId, run.scopeOrgUnitId),
         eq(employees.status, "Active"),
+        lte(employees.startDate, run.periodEnd),
       )
     : and(
         eq(employees.organizationId, input.organizationId),
         eq(employees.status, "Active"),
+        lte(employees.startDate, run.periodEnd),
       );
   const allEmployees = await db.select().from(employees)
     .where(employeeWhere)
@@ -682,14 +686,23 @@ function calculateEmployeePay(input: {
   periodStart: string;
   periodEnd: string;
 }) {
+  const employeeStartDate = String(input.employee.startDate);
+  const employmentStart = employeeStartDate > input.periodStart ? employeeStartDate : input.periodStart;
+  if (employmentStart > input.periodEnd) {
+    throw new Error(`Employee #${input.employee.id} starts after this payroll cutoff and must not be included.`);
+  }
+
   const timeline = resolvePayTimeline({
     currentProfile: input.payProfile,
     revisions: input.payRevisions ?? [],
-    periodStart: input.periodStart,
+    periodStart: employmentStart,
     periodEnd: input.periodEnd,
   });
   const payProfile = profileForDate(timeline, input.periodEnd);
   const monthly = payProfile.monthlyEquivalent;
+  // The denominator remains the full cutoff while timeline coverage begins on
+  // the actual employment start date, so a mid-cutoff hire receives only the
+  // earned fraction of the semi-monthly salary.
   const semiMonthlyBasic = fixedMonthlyBasicForTimeline(timeline, input.periodStart, input.periodEnd);
   const dailyRate = payProfile.dailyRate;
   const hourlyRate = payProfile.hourlyRate;
@@ -709,7 +722,8 @@ function calculateEmployeePay(input: {
   const punchNotes: string[] = [];
   const holidayNotes: string[] = [];
 
-  for (const punch of input.punches) {
+  const eligiblePunches = eligiblePunches.filter((punch) => String(punch.workDate) >= employmentStart);
+  for (const punch of eligiblePunches) {
     const derived = deriveClockHours(
       {
         timeIn: punch.timeIn ? toLocalIso(new Date(punch.timeIn)) : null,
@@ -769,6 +783,12 @@ function calculateEmployeePay(input: {
   const baseBasicPay = semiMonthlyBasic + workedBasicPay;
 
   const approvedLeave = input.approvedLeave ?? [];
+  const invalidPreEmploymentLeave = approvedLeave.find((leave) => leave.startDate < employmentStart);
+  if (invalidPreEmploymentLeave) {
+    throw new Error(
+      `Approved ${invalidPreEmploymentLeave.leaveType} leave #${invalidPreEmploymentLeave.id} begins before employee #${input.employee.id}'s employment start date. Correct the leave record before calculating payroll.`,
+    );
+  }
   if (timeline.length > 1 && approvedLeave.length > 0) {
     for (const leave of approvedLeave) {
       const touchedSegments = timeline.filter((segment) =>
@@ -786,7 +806,7 @@ function calculateEmployeePay(input: {
     leaveNotes.push(
       `Leave #${leave.id} ${leave.leaveType}: ${leave.overlapDays}d in cutoff · ${leave.paidPercentage}% paid`,
     );
-    const overlappingPunches = input.punches.filter((punch) =>
+    const overlappingPunches = eligiblePunches.filter((punch) =>
       leaveRangeContainsDate(leave, String(punch.workDate)),
     );
     if (overlappingPunches.length > 0) {
@@ -801,7 +821,7 @@ function calculateEmployeePay(input: {
     desiredAmount: leaveAdjustmentForCutoff({
       profile: profileForDate(
         timeline,
-        leave.startDate < input.periodStart ? input.periodStart : leave.startDate,
+        leave.startDate < employmentStart ? employmentStart : leave.startDate,
       ),
       paidDays: leave.paidDays,
       unpaidDays: leave.unpaidDays,
@@ -1008,7 +1028,8 @@ function calculateEmployeePay(input: {
       `leavePayAdjustment=${money(leaveAdjustmentTotal)}`,
       `retroPay=${money(retroTotal)}`,
       `retroAdjustments=${retroLines.length}`,
-      `punches=${input.punches.length}`,
+      `punches=${eligiblePunches.length}`,
+      `employmentStart=${employmentStart}`,
       `regularMinutes=${regularMinutes}`,
       `overtimeMinutes=${overtimeMinutes}`,
       `nightMinutes=${nightMinutes}`,
