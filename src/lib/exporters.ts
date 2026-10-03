@@ -190,6 +190,10 @@ export async function generateBankFile(runId: number, templateName: string, dryR
     // Maya Business Payroll CSV
     const header = ["Recipient_Mobile", "Recipient_Name", "Disbursement_Amount", "Batch_Reference"];
     body = [header.join(","), ...rows.map((row) => [row.mobile, row.employee_name, row.amount, `MAYA-${run.id}-${row.employee_no}`].map(csv).join(","))].join("\n");
+  } else if (tName.includes("rcbc")) {
+    throw new Error(
+      "RCBC payroll export is not certified or implemented yet. Use a validated bank template instead of silently falling back to the generic CSV.",
+    );
   } else if (tName.includes("america") || tName.includes("cashpro")) {
     // Bank of America CashPro (ACH / PBR)
     const header = ["Receiving_Account", "Account_Holder", "Amount", "Currency", "PBR_Reference"];
@@ -213,15 +217,135 @@ export async function generateBankFile(runId: number, templateName: string, dryR
 export async function generateJournalCsv(runId: number) {
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) throw new Error("Payroll run not found");
-  const gross = Number(run.grossPay);
-  const net = Number(run.netPay);
-  const deductions = gross - net;
+
+  const entries = await db.select({
+    entry: payrollEntries,
+    employee: employees,
+  })
+    .from(payrollEntries)
+    .innerJoin(employees, eq(payrollEntries.employeeId, employees.id))
+    .where(eq(payrollEntries.payrollRunId, runId))
+    .orderBy(asc(employees.id));
+
+  const totals = {
+    gross: 0,
+    net: 0,
+    attendanceReductions: 0,
+    reimbursements: 0,
+    deMinimis: 0,
+    sssEe: 0,
+    philHealthEe: 0,
+    pagIbigEe: 0,
+    birWht: 0,
+    governmentLoans: 0,
+    companyLoans: 0,
+    advances: 0,
+    benefitDeductions: 0,
+    sssEr: 0,
+    ecEr: 0,
+    philHealthEr: 0,
+    pagIbigEr: 0,
+  };
+
+  const traceNumber = (trace: unknown, prefix: string) => {
+    if (!trace || typeof trace !== "object") return null;
+    const inputs = (trace as Record<string, unknown>).inputs;
+    if (!Array.isArray(inputs)) return null;
+    const line = inputs.find((item) => typeof item === "string" && item.startsWith(prefix));
+    if (typeof line !== "string") return null;
+    const value = Number(line.slice(prefix.length));
+    return Number.isFinite(value) ? value : null;
+  };
+
+  for (const { entry, employee } of entries) {
+    totals.gross += Number(entry.grossPay);
+    totals.net += Number(entry.netPay);
+    const lines = Array.isArray(entry.lineItems)
+      ? entry.lineItems as Array<{ code?: string; amount?: string | number; label?: string }>
+      : [];
+
+    for (const line of lines) {
+      const code = String(line.code ?? "").toUpperCase();
+      const amount = Number(line.amount ?? 0);
+      if (!Number.isFinite(amount)) continue;
+      const abs = Math.abs(amount);
+
+      if (code === "LATE" || code === "UT") totals.attendanceReductions += abs;
+      else if (code.startsWith("EXP-")) totals.reimbursements += Math.max(0, amount);
+      else if (code.startsWith("DM-")) totals.deMinimis += Math.max(0, amount);
+      else if (code === "SSS") totals.sssEe += abs;
+      else if (code === "PHIC") totals.philHealthEe += abs;
+      else if (code === "HDMF") totals.pagIbigEe += abs;
+      else if (code === "WHT") totals.birWht += abs;
+      else if (code.startsWith("LOAN-")) {
+        if (/SSS|PAG-IBIG|HDMF/i.test(String(line.label ?? ""))) totals.governmentLoans += abs;
+        else totals.companyLoans += abs;
+      } else if (code.startsWith("EWA-")) totals.advances += abs;
+      else if (code.startsWith("BENEFIT-") || code.startsWith("BEN-")) totals.benefitDeductions += abs;
+    }
+
+    const monthlyRemuneration =
+      traceNumber(entry.trace, "statutoryMonthlyRemuneration=")
+      ?? Number(employee.basicRate);
+    const philHealthBase =
+      traceNumber(entry.trace, "philHealthContributionBase=")
+      ?? Number(employee.basicRate);
+
+    const sssRule = computeSss(monthlyRemuneration);
+    const phRule = computePhilHealth(philHealthBase);
+    const hdmfRule = computePagIbig(monthlyRemuneration);
+
+    // Employer SS excluding EC is always twice the employee's 5% SS share for
+    // the same collected cutoff amount. EC is employer-only and split across
+    // the two standard semi-monthly cutoffs.
+    totals.sssEr += totals.sssEe >= 0 ? Math.max(0, lines.find((line) => String(line.code).toUpperCase() === "SSS") ? 2 * Math.abs(Number(lines.find((line) => String(line.code).toUpperCase() === "SSS")?.amount ?? 0)) : 0) : 0;
+    totals.ecEr += round2(sssRule.employerEC / 2);
+    totals.philHealthEr += round2(phRule.employer / 2);
+    totals.pagIbigEr += round2(hdmfRule.employer / 2);
+  }
+
+  const salaryExpense = round2(totals.gross - totals.reimbursements - totals.deMinimis - totals.attendanceReductions);
+  const employerStatutoryExpense = round2(totals.sssEr + totals.ecEr + totals.philHealthEr + totals.pagIbigEr);
+
   const header = ["Date", "Journal", "Account", "Debit", "Credit", "Description"];
-  const rows = [
-    [run.payDate, "PAYROLL", "Salaries Expense", gross.toFixed(2), "", run.periodLabel],
-    [run.payDate, "PAYROLL", "SSS/PhilHealth/Pag-IBIG/Tax Payable", "", deductions.toFixed(2), "Statutory & tax deductions"],
-    [run.payDate, "PAYROLL", "Cash/Bank", "", net.toFixed(2), "Net pay disbursement"],
-  ];
+  const rows: Array<Array<string>> = [];
+  const debit = (account: string, amount: number, description: string) => {
+    if (amount > 0.004) rows.push([String(run.payDate), "PAYROLL", account, amount.toFixed(2), "", description]);
+  };
+  const credit = (account: string, amount: number, description: string) => {
+    if (amount > 0.004) rows.push([String(run.payDate), "PAYROLL", account, "", amount.toFixed(2), description]);
+  };
+
+  debit("Salaries and Wages Expense", salaryExpense, run.periodLabel);
+  debit("Employee Reimbursements Expense", totals.reimbursements, run.periodLabel);
+  debit("Employee Benefits / De Minimis Expense", totals.deMinimis, run.periodLabel);
+  debit("Employer SSS Expense", totals.sssEr, "Employer statutory share");
+  debit("Employer EC Expense", totals.ecEr, "Employer compensation contribution");
+  debit("Employer PhilHealth Expense", totals.philHealthEr, "Employer statutory share");
+  debit("Employer Pag-IBIG Expense", totals.pagIbigEr, "Employer statutory share");
+
+  credit("SSS Employee Contributions Payable", totals.sssEe, "Employee statutory share");
+  credit("SSS Employer Contributions Payable", totals.sssEr, "Employer statutory share");
+  credit("Employees Compensation Payable", totals.ecEr, "Employer EC contribution");
+  credit("PhilHealth Employee Contributions Payable", totals.philHealthEe, "Employee statutory share");
+  credit("PhilHealth Employer Contributions Payable", totals.philHealthEr, "Employer statutory share");
+  credit("Pag-IBIG Employee Contributions Payable", totals.pagIbigEe, "Employee statutory share");
+  credit("Pag-IBIG Employer Contributions Payable", totals.pagIbigEr, "Employer statutory share");
+  credit("BIR Withholding Tax Payable", totals.birWht, "Compensation withholding");
+  credit("Government Loan Deductions Payable", totals.governmentLoans, "SSS / Pag-IBIG loan deductions");
+  credit("Company Loan Receivable", totals.companyLoans, "Employee company-loan recovery");
+  credit("Employee Advances Receivable", totals.advances, "Earned-wage advance recovery");
+  credit("Employee Benefit Deductions Payable", totals.benefitDeductions, "Employee benefit deductions");
+  credit("Cash/Bank", totals.net, "Net payroll disbursement");
+
+  const debitTotal = rows.reduce((sum, row) => sum + Number(row[3] || 0), 0);
+  const creditTotal = rows.reduce((sum, row) => sum + Number(row[4] || 0), 0);
+  if (Math.abs(debitTotal - creditTotal) > 0.02) {
+    throw new Error(
+      `Payroll journal does not balance: debit ₱${debitTotal.toFixed(2)} vs credit ₱${creditTotal.toFixed(2)}. Review unclassified payroll lines before export.`,
+    );
+  }
+
   return {
     filename: `xero-qbo-journal-${run.id}.csv`,
     contentType: "text/csv",
