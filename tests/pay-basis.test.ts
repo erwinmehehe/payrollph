@@ -318,6 +318,29 @@ test("effective-dated monthly pay prorates the cutoff without rewriting earlier 
   }), 1066.67);
 });
 
+test("monthly salary is prorated when employment starts partway through a cutoff", () => {
+  const timeline = resolvePayTimeline({
+    currentProfile: {
+      payBasis: "monthly",
+      rateAmount: 30_000,
+      standardWorkDaysPerMonth: 22,
+      standardHoursPerDay: 8,
+    },
+    revisions: [],
+    periodStart: "2026-10-01",
+    periodEnd: "2026-10-15",
+  });
+
+  assert.equal(
+    fixedMonthlyBasicForTimeline(timeline, "2026-10-01", "2026-10-15", "2026-10-10"),
+    6_000,
+  );
+  assert.equal(
+    fixedMonthlyBasicForTimeline(timeline, "2026-10-01", "2026-10-15", "2026-10-16"),
+    0,
+  );
+});
+
 test("payroll engine applies a monthly raise from its exact effective date", async () => {
   const [org] = await db.insert(organizations).values({
     name: "Effective Pay Timeline Test",
