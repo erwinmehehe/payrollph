@@ -1,6 +1,6 @@
 import { computeAnnualWithholdingTax } from "@/lib/payroll-rules";
 
-export const ANNUALIZATION_RULE_VERSION = "PH-2026.01";
+export const ANNUALIZATION_RULE_VERSION = "PH-2026.02";
 
 /**
  * TRAIN law: 13th month pay + other benefits are exempt up to PHP 90,000.
@@ -9,19 +9,31 @@ export const ANNUALIZATION_RULE_VERSION = "PH-2026.01";
 export const THIRTEENTH_MONTH_EXEMPTION_CAP = 90_000;
 
 export type AnnualizationInput = {
+  /** Total compensation already includes 13th-month and other-benefit amounts. */
   grossCompensation: number;
   thirteenthMonth: number;
+  /** Other benefits that share the PHP 90,000 annual exemption with 13th month. */
+  otherBenefits?: number;
   statutoryContributions: number;
   taxWithheld: number;
   mwe: boolean;
+  /** Benefits that remain de minimis after category ceilings are applied. */
   deMinimis?: number;
+  /** Statutory minimum wage plus qualifying MWE holiday/OT/NSD/hazard pay. */
+  mweExemptCompensation?: number;
 };
 
 export type AnnualizationResult = {
   grossCompensation: number;
   thirteenthMonth: number;
+  otherBenefits: number;
+  combinedOtherBenefits: number;
   exemptThirteenthMonth: number;
+  exemptOtherBenefits: number;
+  exemptCombinedOtherBenefits: number;
   taxableThirteenthMonth: number;
+  taxableOtherBenefits: number;
+  taxableCombinedOtherBenefits: number;
   deMinimis: number;
   nonTaxable: number;
   statutoryContributions: number;
@@ -49,33 +61,53 @@ const round2 = (value: number) => Math.round((value + Number.EPSILON) * 100) / 1
  *     Negative delta => refund to employee in December.
  *     Positive delta => collect from the December payout.
  *
- * A Minimum Wage Earner is fully exempt: statutory minimum wage, holiday pay,
- * overtime, night differential and hazard pay all stay untaxed, so tax due is
- * zero and anything withheld in error is refunded in full.
+ * For a Minimum Wage Earner, only statutory minimum wage and qualifying
+ * holiday/overtime/night-differential/hazard components are exempt. Other
+ * taxable compensation remains subject to the annual TRAIN brackets.
  */
 export function annualize(input: AnnualizationInput): AnnualizationResult {
   const grossCompensation = round2(Math.max(0, input.grossCompensation));
   const thirteenthMonth = round2(Math.max(0, input.thirteenthMonth));
+  const otherBenefits = round2(Math.max(0, input.otherBenefits ?? 0));
+  const combinedOtherBenefits = round2(thirteenthMonth + otherBenefits);
   const deMinimis = round2(Math.max(0, input.deMinimis ?? 0));
   const statutoryContributions = round2(Math.max(0, input.statutoryContributions));
   const taxWithheld = round2(Math.max(0, input.taxWithheld));
+  const mweExemptCompensation = round2(Math.max(0, input.mweExemptCompensation ?? 0));
 
-  const exemptThirteenthMonth = round2(Math.min(thirteenthMonth, THIRTEENTH_MONTH_EXEMPTION_CAP));
-  const taxableThirteenthMonth = round2(Math.max(0, thirteenthMonth - THIRTEENTH_MONTH_EXEMPTION_CAP));
-  const nonTaxable = round2(exemptThirteenthMonth + deMinimis + statutoryContributions);
+  const exemptCombinedOtherBenefits = round2(
+    Math.min(combinedOtherBenefits, THIRTEENTH_MONTH_EXEMPTION_CAP),
+  );
+  const exemptThirteenthMonth = round2(Math.min(thirteenthMonth, exemptCombinedOtherBenefits));
+  const exemptOtherBenefits = round2(Math.max(0, exemptCombinedOtherBenefits - exemptThirteenthMonth));
+  const taxableThirteenthMonth = round2(Math.max(0, thirteenthMonth - exemptThirteenthMonth));
+  const taxableOtherBenefits = round2(Math.max(0, otherBenefits - exemptOtherBenefits));
+  const taxableCombinedOtherBenefits = round2(taxableThirteenthMonth + taxableOtherBenefits);
+  const nonTaxable = round2(
+    exemptCombinedOtherBenefits
+      + deMinimis
+      + statutoryContributions
+      + (input.mwe ? mweExemptCompensation : 0),
+  );
 
-  const taxableIncome = input.mwe
-    ? 0
-    : round2(Math.max(0, grossCompensation + taxableThirteenthMonth - nonTaxable));
+  // grossCompensation already contains 13th-month and other-benefit amounts.
+  // Their taxable excess stays in gross; subtract the exempt portion once.
+  const taxableIncome = round2(Math.max(0, grossCompensation - nonTaxable));
 
-  const taxDue = input.mwe ? 0 : round2(computeAnnualWithholdingTax(taxableIncome, false));
+  const taxDue = round2(computeAnnualWithholdingTax(taxableIncome, false));
   const adjustment = round2(taxDue - taxWithheld);
 
   return {
     grossCompensation,
     thirteenthMonth,
+    otherBenefits,
+    combinedOtherBenefits,
     exemptThirteenthMonth,
+    exemptOtherBenefits,
+    exemptCombinedOtherBenefits,
     taxableThirteenthMonth,
+    taxableOtherBenefits,
+    taxableCombinedOtherBenefits,
     deMinimis,
     nonTaxable,
     statutoryContributions,
@@ -113,13 +145,15 @@ export function renderForm2316(input: {
     `Employer TIN ...... ${input.employerTin ?? "(not on file)"}`,
     `Employee .......... ${input.employeeName} (${input.employeeNo})`,
     `Employee TIN ...... ${input.employeeTin ?? "(not on file)"}`,
-    `MWE status ........ ${r.mwe ? "Minimum Wage Earner - fully exempt" : "Not an MWE"}`,
+    `MWE status ........ ${r.mwe ? "Minimum Wage Earner - statutory wage/premiums exempt" : "Not an MWE"}`,
     "",
     "PART IV-A  SUMMARY",
     line("Gross compensation income", money(r.grossCompensation)),
-    line("13th month pay and other benefits", money(r.thirteenthMonth)),
-    line("  Exempt portion (cap 90,000.00)", money(r.exemptThirteenthMonth)),
-    line("  Taxable excess", money(r.taxableThirteenthMonth)),
+    line("13th month pay", money(r.thirteenthMonth)),
+    line("Other benefits sharing the 90,000 pool", money(r.otherBenefits)),
+    line("Combined 13th month + other benefits", money(r.combinedOtherBenefits)),
+    line("  Exempt combined portion (cap 90,000.00)", money(r.exemptCombinedOtherBenefits)),
+    line("  Taxable combined excess", money(r.taxableCombinedOtherBenefits)),
     line("De minimis benefits", money(r.deMinimis)),
     line("SSS / PhilHealth / Pag-IBIG (employee share)", money(r.statutoryContributions)),
     line("Total non-taxable / exempt", money(r.nonTaxable)),
