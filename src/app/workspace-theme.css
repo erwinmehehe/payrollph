@@ -11158,3 +11158,423 @@
     color: #0b806d;
   }
 }
+
+
+/* ------------------------------------------------ PayrollPH reference fidelity: final shell pass
+ * Deep navy navigation, white work surface, blue utility chrome and emerald
+ * payroll actions. Kept as scoped overrides so role workflows stay untouched.
+ */
+
+.app-shell {
+  --canvas: #f8fafc;
+  --canvas-subtle: #f1f5f9;
+  --canvas-sunken: #e2e8f0;
+  --ink: #0f172a;
+  --ink-secondary: #334155;
+  --muted: #64748b;
+  --muted-light: #94a3b8;
+  --line: #e2e8f0;
+  --line-strong: #cbd5e1;
+  --brand: #2563eb;
+  --brand-hover: #1d4ed8;
+  --brand-bright: #3b82f6;
+  --brand-deep: #1e40af;
+  --brand-bg: #eff6ff;
+  --brand-border: #bfdbfe;
+  --success: #059669;
+  --success-bright: #10b981;
+  --success-bg: #ecfdf5;
+  --success-border: #a7f3d0;
+  --sidebar-w: 232px;
+  --topbar-h: 60px;
+  background: var(--canvas);
+}
+
+.app-shell .sidebar {
+  padding: 14px 10px 12px;
+  border-right-color: #1e293b;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.app-shell .sidebar-brand {
+  min-height: 42px;
+  padding-inline: 8px 6px;
+}
+
+.app-shell .brand-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #fff;
+}
+
+.app-shell .sidebar-brand strong {
+  color: #f8fafc;
+  font-size: 15px;
+  font-weight: 720;
+}
+
+.app-shell .sidebar-collapse,
+.app-shell .workspace-label,
+.app-shell .nav-group > p {
+  color: #94a3b8;
+}
+
+.app-shell .workspace-label .pulse-dot {
+  background: #34d399;
+}
+
+.app-shell .nav-item {
+  --nav-ink: #dbeafe;
+  --nav-soft: rgba(255,255,255,.075);
+  --nav-border: rgba(255,255,255,.09);
+  min-height: 38px;
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+.app-shell .nav-item[data-tone] {
+  --nav-ink: #dbeafe;
+  --nav-soft: rgba(37,99,235,.16);
+  --nav-border: rgba(96,165,250,.2);
+}
+
+.app-shell .nav-item:hover {
+  background: rgba(255,255,255,.075);
+  border-color: rgba(255,255,255,.08);
+  color: #fff;
+  transform: none;
+}
+
+.app-shell .nav-item.active {
+  background: rgba(37,99,235,.2);
+  border-color: rgba(96,165,250,.22);
+  color: #fff;
+  box-shadow: inset 3px 0 0 #60a5fa;
+}
+
+.app-shell .nav-icon,
+.app-shell .nav-item.active .nav-icon,
+.app-shell .nav-item:hover .nav-icon {
+  border-color: rgba(255,255,255,.1);
+  background: rgba(255,255,255,.08);
+  color: #cbd5e1;
+  box-shadow: none;
+  transform: none;
+}
+
+.app-shell .nav-item.active .nav-icon {
+  background: rgba(37,99,235,.28);
+  color: #bfdbfe;
+}
+
+.app-shell .nav-item b,
+.app-shell .nav-item.active b {
+  border-color: rgba(255,255,255,.1);
+  background: rgba(255,255,255,.08);
+  color: #cbd5e1;
+}
+
+.app-shell .sidebar-bottom {
+  border-top-color: #1e293b;
+}
+
+.app-shell .side-profile {
+  color: #e2e8f0;
+}
+
+.app-shell .side-profile:hover {
+  border-color: #334155;
+  background: #172033;
+  box-shadow: none;
+  transform: none;
+}
+
+.app-shell .side-profile strong {
+  color: #f8fafc;
+}
+
+.app-shell .side-profile > div > span {
+  color: #94a3b8;
+}
+
+.app-shell .topbar {
+  height: var(--topbar-h);
+  padding: 0 22px;
+  border-bottom-color: #e2e8f0;
+  background: rgba(255,255,255,.98);
+}
+
+.app-shell .palette-trigger {
+  min-width: 190px;
+  height: 34px;
+  border-color: #dbe2ea;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.app-shell .role-pill-btn,
+.app-shell .topbar-link {
+  height: 32px;
+  border-color: #dbe2ea;
+  border-radius: 8px;
+  color: #475569;
+}
+
+.app-shell .role-pill-btn:hover,
+.app-shell .topbar-link:hover,
+.app-shell .topbar-link.active {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.app-shell .content-area {
+  max-width: 1440px;
+  padding: 28px 32px 72px;
+}
+
+.app-shell .page-heading {
+  margin-bottom: 22px;
+}
+
+.app-shell .page-heading h1,
+.app-shell .role-workspace-heading h1 {
+  color: #0f172a;
+  font-weight: 690;
+  letter-spacing: -.035em;
+}
+
+.app-shell .heading-copy,
+.app-shell .role-workspace-heading p {
+  color: #64748b;
+}
+
+.app-shell .card,
+.app-shell .stat-card,
+.app-shell .data-table-wrap,
+.app-shell .register,
+.app-shell .role-decision-hero,
+.app-shell .role-signal-card {
+  border-color: #e2e8f0;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15,23,42,.025);
+}
+
+.app-shell .card {
+  border-radius: 12px;
+}
+
+.app-shell .stat-card {
+  min-height: 96px;
+  border-radius: 10px;
+}
+
+.app-shell .primary-button.brand,
+.app-shell .role-primary-cta {
+  border-color: #059669;
+  background: #059669;
+  color: #fff;
+  box-shadow: none;
+}
+
+.app-shell .primary-button.brand:hover,
+.app-shell .role-primary-cta:hover {
+  border-color: #047857;
+  background: #047857;
+}
+
+.app-shell .secondary-button,
+.app-shell .filter-button {
+  border-color: #dbe2ea;
+  background: #fff;
+  color: #475569;
+}
+
+.app-shell .status-released,
+.app-shell .status-ready,
+.app-shell .status-active,
+.app-shell .status-approved,
+.app-shell .status-tested,
+.app-shell .status-verified,
+.app-shell .status-balanced,
+.app-shell .status-delivered,
+.app-shell .status-ready-for-release,
+.app-shell .status-sent,
+.app-shell .status-complete,
+.app-shell .status-green,
+.app-shell .status-paid {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.app-shell .data-table th,
+.app-shell .register-head {
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 8.5px;
+}
+
+.app-shell .data-table td,
+.app-shell .register-row {
+  color: #334155;
+  font-size: 11px;
+}
+
+.app-shell .data-table tbody tr:hover,
+.app-shell .register-row:hover {
+  background: #f8fafc;
+}
+
+.app-shell .role-decision-hero {
+  border-radius: 14px;
+  box-shadow: none;
+}
+
+.app-shell .role-decision-main {
+  padding: 22px 24px 20px;
+}
+
+.app-shell .role-money-value {
+  color: #0f172a;
+  font-size: clamp(34px, 4.5vw, 48px);
+}
+
+.app-shell .role-money-breakdown {
+  border-color: #e2e8f0;
+  background: #e2e8f0;
+}
+
+.app-shell .role-money-breakdown > div {
+  background: #f8fafc;
+}
+
+.app-shell .assurance-item.ok {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.app-shell .assurance-item.pending {
+  background: #fffbeb;
+  color: #a16207;
+}
+
+/* Employee uses the exact same PayrollPH shell language. */
+.app-shell.employee-workspace-shell {
+  grid-template-columns: var(--sidebar-w) minmax(0,1fr);
+  background: var(--canvas);
+  color: var(--ink);
+}
+
+.app-shell.employee-workspace-shell .employee-workspace-sidebar {
+  width: var(--sidebar-w);
+  padding: 14px 10px 12px;
+  border-right: 1px solid #1e293b;
+  background: #0f172a;
+}
+
+.app-shell.employee-workspace-shell .employee-shell-brand {
+  min-height: 42px;
+  padding: 0 8px;
+}
+
+.app-shell.employee-workspace-shell .employee-shell-brandmark {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #2563eb;
+}
+
+.app-shell.employee-workspace-shell .employee-shell-brand > div strong {
+  color: #f8fafc;
+  font-size: 15px;
+  font-weight: 720;
+}
+
+.app-shell.employee-workspace-shell .employee-workspace-label {
+  color: #94a3b8;
+}
+
+.app-shell.employee-workspace-shell .employee-workspace-label > span {
+  background: #34d399;
+}
+
+.app-shell.employee-workspace-shell .employee-side-nav .nav-item {
+  min-height: 38px;
+  color: #cbd5e1;
+}
+
+.app-shell.employee-workspace-shell .employee-side-nav .nav-item .nav-icon {
+  border-color: rgba(255,255,255,.1);
+  background: rgba(255,255,255,.08);
+  color: #cbd5e1;
+}
+
+.app-shell.employee-workspace-shell .employee-side-nav .nav-item.active {
+  border-color: rgba(96,165,250,.22);
+  background: rgba(37,99,235,.2);
+  color: #fff;
+  box-shadow: inset 3px 0 0 #60a5fa;
+}
+
+.app-shell.employee-workspace-shell .employee-side-nav .nav-item.active .nav-icon {
+  background: rgba(37,99,235,.28);
+  color: #bfdbfe;
+}
+
+.app-shell.employee-workspace-shell .employee-workspace-topbar {
+  height: var(--topbar-h);
+  min-height: var(--topbar-h);
+  padding: 0 22px;
+  border-bottom-color: #e2e8f0;
+  background: rgba(255,255,255,.98);
+}
+
+.app-shell.employee-workspace-shell .employee-self-service.content-area {
+  max-width: 1440px;
+  padding: 28px 32px 72px;
+}
+
+.app-shell.employee-workspace-shell .employee-clock-button {
+  border-color: #059669;
+  background: #059669;
+  color: #fff;
+}
+
+@media (max-width: 1024px) {
+  .app-shell {
+    --sidebar-w: 208px;
+  }
+
+  .app-shell .content-area,
+  .app-shell.employee-workspace-shell .employee-self-service.content-area {
+    padding-inline: 22px;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-shell .mobile-bottom-nav,
+  .app-shell.employee-workspace-shell .employee-tabs {
+    border-top-color: #dbe2ea;
+    background: rgba(255,255,255,.985);
+    box-shadow: 0 -8px 24px rgba(15,23,42,.07);
+  }
+
+  .app-shell .mobile-bottom-nav > button.active,
+  .app-shell.employee-workspace-shell .employee-tabs button.active {
+    background: #eff6ff;
+    color: #1d4ed8;
+  }
+
+  .app-shell .mobile-bottom-nav > button.active .nav-icon {
+    background: #dbeafe;
+    color: #1d4ed8;
+  }
+
+  .app-shell.employee-workspace-shell .employee-self-service.content-area {
+    padding: 18px 14px 96px;
+  }
+}
