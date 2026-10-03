@@ -131,7 +131,7 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
     bucket.tax += parsed.tax;
     bucket.thirteenthPaid += parsed.thirteenth;
     bucket.deMinimisExempt += parsed.deMinimisExempt;
-    bucket.otherBenefitsPool += parsed.otherBenefitsPool;
+    bucket.otherBenefitsPool += parsed.deMinimisExcess;
     bucket.mweTaxableSupplementaryCompensation += parsed.mweTaxableSupplementaryCompensation;
     bucket.periods += 1;
     totals.set(entry.employeeId, bucket);
@@ -182,6 +182,12 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
     // that inaccurate.
     const thirteenthEntitlement = Math.round(((bucket.basic / 12) + Number.EPSILON) * 100) / 100;
     const annualThirteenth = Math.max(thirteenthEntitlement, bucket.thirteenthPaid);
+
+    if (employee.mwe && bucket.importedPeriods > 0) {
+      throw new Error(
+        `Imported payroll history for MWE employee ${employee.employeeNo} does not contain the statutory-wage versus taxable-supplementary breakdown required for safe annualization. Import the detailed breakdown or annualize this employee outside Linaw and record the verified adjustment.`,
+      );
+    }
 
     const unpaidThirteenthAccrual = Math.max(0, annualThirteenth - bucket.thirteenthPaid);
     const result = annualize({
