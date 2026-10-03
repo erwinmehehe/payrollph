@@ -166,46 +166,6 @@ export async function settlePayrollRun(
     const calculatedRetroIds = new Set<number>();
     for (const entry of entries) {
       for (const line of storedLines(entry.lineItems)) {
-        const earningId = numericId(line.code, "EARN-");
-        if (earningId) {
-          const [earning] = await tx.select().from(supplementaryEarnings)
-            .where(and(
-              eq(supplementaryEarnings.id, earningId),
-              eq(supplementaryEarnings.organizationId, run.organizationId),
-            ))
-            .limit(1);
-          if (!earning || earning.employeeId !== entry.employeeId) {
-            throw new Error(`Supplementary earning ${earningId} no longer matches this payroll entry.`);
-          }
-          if (earning.status === "settled" && earning.payrollRunId === run.id) continue;
-          if (earning.status !== "approved" || earning.payrollRunId != null) {
-            throw new Error(
-              `Supplementary earning ${earningId} was already settled or changed; recalculate payroll before release.`,
-            );
-          }
-          if (!samePayrollNumber(earning.amount, line.amount)) {
-            throw new Error(
-              `Supplementary earning ${earningId} amount changed after calculation; recalculate before release.`,
-            );
-          }
-          const [settledEarning] = await tx.update(supplementaryEarnings)
-            .set({ status: "settled", payrollRunId: run.id })
-            .where(and(
-              eq(supplementaryEarnings.id, earningId),
-              eq(supplementaryEarnings.organizationId, run.organizationId),
-              eq(supplementaryEarnings.status, "approved"),
-              isNull(supplementaryEarnings.payrollRunId),
-            ))
-            .returning({ id: supplementaryEarnings.id });
-          if (!settledEarning) {
-            throw new Error(
-              `Supplementary earning ${earningId} changed while payroll was being released; recalculate before release.`,
-            );
-          }
-          supplementaryEarningsSettled += 1;
-          continue;
-        }
-
         const retroId = numericId(line.code, "RETRO-");
         if (!retroId) continue;
         calculatedRetroIds.add(retroId);
@@ -440,6 +400,46 @@ export async function settlePayrollRun(
             throw new Error(`Leave conversion ${conversionId} changed while payroll was being released; recalculate before release.`);
           }
           leaveConversionsSettled += 1;
+          continue;
+        }
+
+        const earningId = numericId(line.code, "EARN-");
+        if (earningId) {
+          const [earning] = await tx.select().from(supplementaryEarnings)
+            .where(and(
+              eq(supplementaryEarnings.id, earningId),
+              eq(supplementaryEarnings.organizationId, run.organizationId),
+            ))
+            .limit(1);
+          if (!earning || earning.employeeId !== entry.employeeId) {
+            throw new Error(`Supplementary earning ${earningId} no longer matches this payroll entry.`);
+          }
+          if (earning.status === "settled" && earning.payrollRunId === run.id) continue;
+          if (earning.status !== "approved" || earning.payrollRunId != null) {
+            throw new Error(
+              `Supplementary earning ${earningId} was already settled or changed; recalculate payroll before release.`,
+            );
+          }
+          if (!samePayrollNumber(earning.amount, line.amount)) {
+            throw new Error(
+              `Supplementary earning ${earningId} amount changed after calculation; recalculate before release.`,
+            );
+          }
+          const [settledEarning] = await tx.update(supplementaryEarnings)
+            .set({ status: "settled", payrollRunId: run.id })
+            .where(and(
+              eq(supplementaryEarnings.id, earningId),
+              eq(supplementaryEarnings.organizationId, run.organizationId),
+              eq(supplementaryEarnings.status, "approved"),
+              isNull(supplementaryEarnings.payrollRunId),
+            ))
+            .returning({ id: supplementaryEarnings.id });
+          if (!settledEarning) {
+            throw new Error(
+              `Supplementary earning ${earningId} changed while payroll was being released; recalculate before release.`,
+            );
+          }
+          supplementaryEarningsSettled += 1;
           continue;
         }
 
