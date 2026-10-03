@@ -665,7 +665,10 @@ async function processPayrollChunk(input: {
         fee: Number(a.fee),
       })),
       deMinimis: (deMinimisByEmployee.get(employee.id) ?? [])
-        .filter((g) => !g.endedOn || String(g.endedOn) >= String(run.payDate))
+        .filter((g) =>
+          String(g.effectiveOn) <= String(run.payDate)
+          && (!g.endedOn || String(g.endedOn) >= String(run.payDate))
+        )
         .map((g) => ({
           id: g.id,
           benefitType: g.benefitType as DeMinimisType,
