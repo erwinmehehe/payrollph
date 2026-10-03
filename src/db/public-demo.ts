@@ -4,6 +4,7 @@ import {
   approvalTasks,
   auditEvents,
   employees,
+  holidays,
   leaveBalances,
   leavePolicies,
   leaveRequests,
@@ -16,6 +17,8 @@ import {
 } from "@/db/schema";
 import { ensureSubscription } from "@/lib/billing";
 import { encryptBankAccount } from "@/lib/bank-account-crypto";
+import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
+import { NATIONAL_HOLIDAYS_2026, type HolidayCalendarEntry } from "@/lib/wage-orders";
 
 const PUBLIC_DEMO_ORG = "Loom & Local";
 
@@ -368,6 +371,38 @@ export async function ensurePublicDemoTenant() {
       .where(eq(employees.organizationId, organization.id));
 
     const activeStaff = staff.filter((employee) => employee.status === "Active");
+    const holidayRows = await tx.select().from(holidays).where(eq(holidays.organizationId, organization.id));
+    const unitById = new Map(units.map((unit) => [unit.id, unit]));
+    const holidayFingerprintForEmployee = (employee: typeof employees.$inferSelect) => {
+      const scopeIds = new Set<number>();
+      let cursor = employee.orgUnitId;
+      let guard = 0;
+      while (cursor != null && guard < 50) {
+        if (scopeIds.has(cursor)) break;
+        scopeIds.add(cursor);
+        cursor = unitById.get(cursor)?.parentId ?? null;
+        guard += 1;
+      }
+      const local: HolidayCalendarEntry[] = holidayRows
+        .filter((holiday) => holiday.orgUnitId == null || scopeIds.has(holiday.orgUnitId))
+        .flatMap((holiday) =>
+          holiday.kind === "regular" || holiday.kind === "special"
+            ? [{
+                date: String(holiday.holidayDate),
+                name: holiday.name,
+                kind: holiday.kind as "regular" | "special",
+              }]
+            : []
+        )
+        .filter((localHoliday) => !NATIONAL_HOLIDAYS_2026.some(
+          (national) =>
+            national.date === localHoliday.date
+            && national.name === localHoliday.name
+            && national.kind === localHoliday.kind
+        ));
+      return holidayCalendarFingerprint([...NATIONAL_HOLIDAYS_2026, ...local]);
+    };
+
     const existingRuns = await tx
       .select()
       .from(payrollRuns)
@@ -429,7 +464,14 @@ export async function ensurePublicDemoTenant() {
             lineItems: lineItems(gross, deductions),
             trace: {
               ruleVersion: "PH-2026.01",
-              inputs: ["punches=10", "payBasis=monthly", "approved attendance", "statutory tables", "semi-monthly payroll"],
+              inputs: [
+                "punches=10",
+                "payBasis=monthly",
+                "approved attendance",
+                "statutory tables",
+                "semi-monthly payroll",
+                `holidayCalendarFingerprint=${holidayFingerprintForEmployee(employee)}`,
+              ],
               payment: paymentSnapshot(employee),
               payProfile: {
                 payBasis: "monthly",
@@ -442,6 +484,31 @@ export async function ensurePublicDemoTenant() {
           };
         }),
       );
+    }
+
+    const demoEntries = await tx
+      .select()
+      .from(payrollEntries)
+      .where(eq(payrollEntries.payrollRunId, workRun.id));
+    for (const entry of demoEntries) {
+      const employee = activeStaff.find((person) => person.id === entry.employeeId);
+      if (!employee) continue;
+      const trace = entry.trace && typeof entry.trace === "object"
+        ? entry.trace as Record<string, unknown>
+        : {};
+      const inputs = Array.isArray(trace.inputs)
+        ? trace.inputs.filter((item): item is string => typeof item === "string")
+        : [];
+      const withoutFingerprint = inputs.filter((item) => !item.startsWith("holidayCalendarFingerprint="));
+      await tx.update(payrollEntries).set({
+        trace: {
+          ...trace,
+          inputs: [
+            ...withoutFingerprint,
+            `holidayCalendarFingerprint=${holidayFingerprintForEmployee(employee)}`,
+          ],
+        },
+      }).where(eq(payrollEntries.id, entry.id));
     }
 
     const tasks = await tx
