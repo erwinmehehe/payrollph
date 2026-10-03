@@ -3689,3 +3689,12 @@
     justify-self: end;
   }
 }
+
+
+.app-shell:has(.payrollph-dashboard) .payroll-readiness-focus {
+  padding-bottom: 24px;
+}
+
+.app-shell:has(.payrollph-dashboard) .payroll-readiness-focus .readiness-progress > span {
+  background: #176b5d;
+}
