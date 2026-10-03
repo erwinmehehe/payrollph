@@ -1,12 +1,15 @@
+import { createHash } from "node:crypto";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  documents,
   employeeLoans,
   employeePayProfiles,
   employees,
   historicalPayrollEntries,
   loanPayments,
+  organizations,
   payrollEntries,
   payrollRuns,
   separationRecords,
@@ -24,6 +27,8 @@ import { recordAuditEvent } from "@/lib/audit";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { resolvePayProfile } from "@/lib/pay-basis";
 import { computeFinalPay, finalPayDueDate, readBasicAndThirteenth } from "@/lib/final-pay";
+import { renderForm2316, type AnnualizationResult } from "@/lib/annualization";
+import { decryptGovernmentId } from "@/lib/government-id-crypto";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { ensureSeparationSchema } from "@/lib/separation-schema";
 import { requireSensitiveActionMfa } from "@/lib/security-request";
@@ -372,6 +377,7 @@ export async function POST(request: Request) {
       separationPayTaxExempt,
       retirementPayTaxExempt,
       activeLoanBalanceAtComputation: sources.totals.activeLoanBalance,
+      annualization: result.annualization,
       importedHistoryRows: sources.historical.length,
       releasedPayrollEntries: sources.released.length,
       payBasis: sources.resolvedPayProfile.payBasis,
@@ -706,6 +712,47 @@ export async function PATCH(request: Request) {
       return updated;
     });
 
+    let form2316DocumentId: number | null = null;
+    const approvedSnapshot = (released.computationSnapshot ?? {}) as Record<string, unknown>;
+    const annualization = approvedSnapshot.annualization as AnnualizationResult | undefined;
+    if (annualization) {
+      const [organization] = await db.select().from(organizations)
+        .where(eq(organizations.id, sep.organizationId))
+        .limit(1);
+      const digits = (value: string | null | undefined) => (value ?? "").replace(/\D/g, "");
+      const employerTin = digits(organization?.birTin);
+      const employerBranch = digits(organization?.birBranchCode).padStart(4, "0");
+      const employeeTin = digits(decryptGovernmentId(sources.employee.tin));
+      const employeeBranch = digits(decryptGovernmentId(sources.employee.tinBranchCode)).padStart(4, "0");
+      const taxYear = Number(String(sep.lastDay).slice(0, 4));
+      const form2316 = renderForm2316({
+        taxYear,
+        employerName: organization?.legalName ?? organization?.name ?? "Employer",
+        employerTin: employerTin.length === 9 ? `${employerTin}-${employerBranch}` : undefined,
+        employeeName: [sources.employee.firstName, sources.employee.middleName, sources.employee.lastName]
+          .filter(Boolean)
+          .join(" "),
+        employeeNo: sources.employee.employeeNo,
+        employeeTin: employeeTin.length === 9 ? `${employeeTin}-${employeeBranch}` : undefined,
+        result: annualization,
+      });
+      const sha256 = createHash("sha256").update(form2316).digest("hex");
+      const [document] = await db.insert(documents).values({
+        organizationId: sep.organizationId,
+        employeeId: sep.employeeId,
+        kind: "bir-2316-draft-final-pay",
+        fileName: `bir-2316-draft-${sources.employee.employeeNo}-${taxYear}.txt`,
+        mimeType: "text/plain",
+        byteSize: Buffer.byteLength(form2316),
+        sha256,
+        scannedClean: true,
+        scanNote: "System-generated from the approved final-pay annualization snapshot.",
+        uploadedBy: user.name,
+        content: form2316,
+      }).returning({ id: documents.id });
+      form2316DocumentId = document.id;
+    }
+
     await recordAuditEvent({
       organizationId: sep.organizationId,
       actor: user.name,
@@ -719,10 +766,11 @@ export async function PATCH(request: Request) {
         loanDeductions: Number(sep.loanDeductions),
         deferredLoanBalance: Number((sep.computationSnapshot as Record<string, unknown> | null)?.deferredLoanBalance ?? 0),
         releaseReference: releaseReference.slice(0, 160),
+        form2316DocumentId,
       },
     });
 
-    return Response.json(released);
+    return Response.json({ ...released, form2316DocumentId });
   }
 
   return Response.json({ error: "Unknown action." }, { status: 400 });
