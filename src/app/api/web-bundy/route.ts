@@ -82,8 +82,11 @@ export async function POST(request: Request) {
   const location = String(body.location ?? "Web Bundy Clock (Browser)").slice(0, 160);
   const ip = clientIp(request);
 
-  if (!Number.isInteger(organizationId) || !["clock_in", "clock_out"].includes(actionType)) {
-    return Response.json({ error: "organizationId and actionType clock_in/clock_out are required." }, { status: 400 });
+  const validActions = ["clock_in", "break_start", "break_end", "clock_out"];
+  if (!Number.isInteger(organizationId) || !validActions.includes(actionType)) {
+    return Response.json({
+      error: "organizationId and actionType clock_in/break_start/break_end/clock_out are required.",
+    }, { status: 400 });
   }
 
   if (user.role === "employee") {
@@ -118,6 +121,50 @@ export async function POST(request: Request) {
       eq(timePunches.workDate, todayStr),
     ),
   ).limit(1);
+
+  if (actionType === "break_start") {
+    if (!existingPunch?.timeIn || existingPunch.timeOut) {
+      return Response.json({ error: "Clock in before starting a break, and breaks cannot be added after clock-out." }, { status: 409 });
+    }
+    if (existingPunch.breakStart) {
+      return Response.json({ error: "A break has already been started for this attendance record." }, { status: 409 });
+    }
+    const [updated] = await db.update(timePunches).set({
+      breakStart: now,
+      notes: (existingPunch.notes ? existingPunch.notes + " · " : "") + "Break started via Web Bundy",
+    }).where(eq(timePunches.id, existingPunch.id)).returning();
+
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "Web Bundy Break START",
+      resource: `${employee.firstName} ${employee.lastName}`,
+      metadata: { employeeId, workDate: todayStr, breakStart: now.toISOString(), ip },
+    });
+    return Response.json({ ok: true, action: "break_start", punch: updated });
+  }
+
+  if (actionType === "break_end") {
+    if (!existingPunch?.timeIn || !existingPunch.breakStart || existingPunch.timeOut) {
+      return Response.json({ error: "Start a break before ending it, and end the break before clock-out." }, { status: 409 });
+    }
+    if (existingPunch.breakEnd) {
+      return Response.json({ error: "This break has already ended." }, { status: 409 });
+    }
+    const [updated] = await db.update(timePunches).set({
+      breakEnd: now,
+      notes: (existingPunch.notes ? existingPunch.notes + " · " : "") + "Break ended via Web Bundy",
+    }).where(eq(timePunches.id, existingPunch.id)).returning();
+
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "Web Bundy Break END",
+      resource: `${employee.firstName} ${employee.lastName}`,
+      metadata: { employeeId, workDate: todayStr, breakEnd: now.toISOString(), ip },
+    });
+    return Response.json({ ok: true, action: "break_end", punch: updated });
+  }
 
   if (actionType === "clock_in") {
     if (existingPunch?.timeIn) {
@@ -191,6 +238,12 @@ export async function POST(request: Request) {
       punch: created,
       warning: "Clock out recorded without prior clock-in.",
     }, { status: 201 });
+  }
+
+  if (existingPunch.breakStart && !existingPunch.breakEnd) {
+    return Response.json({
+      error: "End the active break before clocking out so paid hours and night differential can be calculated correctly.",
+    }, { status: 409 });
   }
 
   if (existingPunch.timeOut) {
