@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   compareFreelancerTax,
   computeAnnualWithholdingTax,
+  computeCutoffStatutoryDeduction,
   computePagIbig,
   computePhilHealth,
   computeSemiMonthlyWithholdingTax,
@@ -33,6 +34,53 @@ test("SSS respects the 2025/2026 salary credit floor, cap, and EC employer premi
   assert.equal(high.employerRegular, 2_000);
   assert.equal(high.employerMpf, 1_500);
   assert.equal(computeSss(24_260).monthlySalaryCredit, 24_500);
+});
+
+test("statutory deduction timing supports split, first-cutoff and second-cutoff policies with true-up", () => {
+  assert.equal(computeCutoffStatutoryDeduction({
+    monthlyTarget: 1_750,
+    priorCollected: 0,
+    timing: "split",
+    isSecondCutoff: false,
+  }), 875);
+  assert.equal(computeCutoffStatutoryDeduction({
+    monthlyTarget: 1_750,
+    priorCollected: 875,
+    timing: "split",
+    isSecondCutoff: true,
+  }), 875);
+
+  assert.equal(computeCutoffStatutoryDeduction({
+    monthlyTarget: 1_750,
+    priorCollected: 0,
+    timing: "first_cutoff",
+    isSecondCutoff: false,
+  }), 1_750);
+  assert.equal(computeCutoffStatutoryDeduction({
+    monthlyTarget: 1_750,
+    priorCollected: 1_750,
+    timing: "first_cutoff",
+    isSecondCutoff: true,
+  }), 0);
+  assert.equal(computeCutoffStatutoryDeduction({
+    monthlyTarget: 1_800,
+    priorCollected: 1_750,
+    timing: "first_cutoff",
+    isSecondCutoff: true,
+  }), 50);
+
+  assert.equal(computeCutoffStatutoryDeduction({
+    monthlyTarget: 1_750,
+    priorCollected: 0,
+    timing: "second_cutoff",
+    isSecondCutoff: false,
+  }), 0);
+  assert.equal(computeCutoffStatutoryDeduction({
+    monthlyTarget: 1_750,
+    priorCollected: 0,
+    timing: "second_cutoff",
+    isSecondCutoff: true,
+  }), 1_750);
 });
 
 test("PhilHealth splits the capped five percent premium and reconciles odd centavos", () => {
