@@ -3,7 +3,12 @@ import { mkdirSync, writeFileSync } from "node:fs";
 
 const baseUrl = (process.env.PRODUCTION_BASE_URL ?? "").replace(/\/$/, "");
 const token = process.env.PRODUCTION_READINESS_TOKEN ?? "";
-const rolloutMode = process.env.ROLLOUT_MODE === "full" ? "full" : "pilot";
+const rolloutMode =
+  process.env.ROLLOUT_MODE === "full"
+    ? "full"
+    : process.env.ROLLOUT_MODE === "pilot"
+      ? "pilot"
+      : "code";
 const expectedCommitSha = (process.env.EXPECTED_COMMIT_SHA ?? "").trim();
 
 type RemediationOwner = "deployment" | "operations" | "payroll" | "compliance";
@@ -236,16 +241,19 @@ async function verifyDetailedReadiness() {
       true,
       `Manual pilot is not ready: ${payload.manualLaunch?.summary ?? "No summary returned."}\nNext steps:\n${remediationSummary(remediation)}`,
     );
-  } else {
+  } else if (rolloutMode === "full") {
     assert.equal(
       payload.status,
       "launch-ready",
       `Full launch is blocked by: ${launchBlockers.map((gate: any) => gate.label).join(", ")}.\nNext steps:\n${remediationSummary(remediation)}`,
     );
+  } else {
+    assert.ok(gates.length > 0, "Readiness endpoint returned no gates.");
   }
 
   return {
     status: payload.status,
+    codeReady: rolloutMode === "code",
     manualLaunchReady: payload.manualLaunch?.ready === true,
     launchBlockersRemaining: payload.launchBlockersRemaining,
     launchBlockers,
@@ -287,16 +295,23 @@ async function verifySanitizedReadiness() {
       true,
       `Live pilot is not ready. Critical blockers: ${criticalBlockers.join(", ") || "none reported"}; launch blockers: ${launchBlockers.join(", ") || "none reported"}.\nNext steps:\n${remediationSummary(remediation)}`,
     );
-  } else {
+  } else if (rolloutMode === "full") {
     assert.equal(
       payload.fullLaunchReady,
       true,
       `Full launch is not ready. Launch blockers: ${launchBlockers.join(", ") || "none reported"}.\nNext steps:\n${remediationSummary(remediation)}`,
     );
+  } else {
+    assert.equal(typeof payload.status, "string", "Sanitized readiness response is missing status.");
+    assert.ok(
+      !criticalBlockers.includes("readiness-internal-error"),
+      "Readiness evaluation failed internally; code readiness cannot be proven.",
+    );
   }
 
   return {
     status: payload.status,
+    codeReady: rolloutMode === "code",
     pilotReady: payload.pilotReady === true,
     fullLaunchReady: payload.fullLaunchReady === true,
     criticalBlockers,

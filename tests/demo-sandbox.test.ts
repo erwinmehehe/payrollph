@@ -486,15 +486,22 @@ test("sandbox task grid keeps a balanced tablet composition", () => {
   );
 });
 
-test("production demo fails closed until encrypted payout storage is ready", () => {
+test("production demo is isolated from real sensitive-data prerequisites", () => {
   const route = read("src/app/api/auth/demo-switch/route.ts");
-  assert.ok(route.includes("bankEncryptionConfigured()"), "production demo must require a usable encryption key");
-  assert.ok(route.includes('"BANK_DATA_ENCRYPTION_REQUIRED"'), "missing encryption key needs a controlled service-unavailable code");
-  assert.ok(route.includes('"BANK_DATA_ENCRYPTION_NOT_READY"'), "legacy plaintext must block the production session until backfill completes");
-  assert.ok(
-    route.indexOf("const bankEncryptionReady = await bankDataEncryptionReady()") < route.indexOf("createSession(activeUser.id"),
-    "bank-data readiness must be proven before a production demo session is issued",
-  );
+  const publicDemo = read("src/db/public-demo.ts");
+
+  assert.ok(route.includes('demoDataMode: "synthetic-redacted"'), "demo responses must declare the redacted data mode");
+  assert.ok(route.includes("sensitiveFieldsPersisted: false"), "demo responses must prove that sensitive fields are not persisted");
+  assert.ok(!route.includes("BANK_DATA_ENCRYPTION_REQUIRED"), "missing real bank keys must not block the isolated sandbox");
+  assert.ok(!route.includes("BANK_DATA_ENCRYPTION_NOT_READY"), "legacy real-data migration state must not block the isolated sandbox");
+
+  assert.ok(publicDemo.includes("bankAccount: null"), "public demo employees and payment snapshots must not persist bank-account values");
+  assert.ok(publicDemo.includes("tin: null"), "public demo employees must not persist TIN values");
+  assert.ok(publicDemo.includes("sssNo: null"), "public demo employees must not persist SSS values");
+  assert.ok(publicDemo.includes("philHealthNo: null"), "public demo employees must not persist PhilHealth values");
+  assert.ok(publicDemo.includes("pagIbigNo: null"), "public demo employees must not persist Pag-IBIG values");
+  assert.ok(!publicDemo.includes("encryptBankAccount("), "public demo must not need production bank encryption");
+  assert.ok(!publicDemo.includes("encryptGovernmentId("), "public demo must not need production PII encryption");
 });
 
 

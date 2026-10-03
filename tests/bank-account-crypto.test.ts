@@ -126,7 +126,8 @@ test("every place that reads or writes the number goes through the crypto module
   }
 
   const publicDemo = read("src/db/public-demo.ts");
-  assert.ok(publicDemo.includes("bankAccount: encryptBankAccount(person.bankAccount)"), "public demo must not reintroduce plaintext bank data");
+  assert.ok(publicDemo.includes("bankAccount: null"), "public demo must not persist bank-account data at all");
+  assert.ok(!publicDemo.includes("encryptBankAccount(person.bankAccount)"), "public demo must not depend on production bank encryption keys");
 
   const localSeed = read("src/db/seed.ts");
   assert.ok(localSeed.includes("bankAccount: encryptBankAccount(person[8])"), "local demo seed must encrypt bank accounts when a key is available");

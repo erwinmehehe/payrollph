@@ -7,6 +7,7 @@ import { canDecide } from "@/lib/delegation";
 import { dispatchWebhook } from "@/lib/webhooks";
 import { assertMembership } from "@/lib/access";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
+import { isPublicDemoIdentity } from "@/lib/demo-security";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const originDenied = enforceSameOriginMutation(request);
@@ -29,6 +30,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const sessionUser = await getSessionUser();
   if (!sessionUser) return Response.json({ error: "Authentication required." }, { status: 401 });
+  const sharedDemo = isPublicDemoIdentity(sessionUser.email);
   const deniedOrg = await assertMembership(sessionUser.id, task.organizationId);
   if (deniedOrg) return deniedOrg;
   const actor = sessionUser.name;
@@ -82,7 +84,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     if (status === "Approved") {
       const assuranceResult = await buildPayrollAssurance(payrollRunId);
-      const blockers = assuranceResult?.assurance.findings.filter((finding) => finding.blocking) ?? [];
+      const blockers = assuranceResult?.assurance.findings.filter(
+        (finding) => finding.blocking && !(sharedDemo && finding.code === "MISSING_BANK_DETAILS"),
+      ) ?? [];
       if (blockers.length > 0) {
         return Response.json({
           error: `Payroll assurance found ${blockers.length} blocking issue(s). Resolve them before approval.`,
@@ -171,7 +175,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     throw error;
   }
 
-  const deliveries = await dispatchWebhook({
+  const deliveries = sharedDemo ? [] : await dispatchWebhook({
     organizationId: task.organizationId,
     event: "approval.decided",
     data: { taskId, title: task.title, status, decidedBy: actor, onBehalfOf: onBehalf },
@@ -183,7 +187,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       status,
       decidedBy: actor,
     }).where(eq(leaveRequests.id, linkedLeave.id));
-    if (status === "Approved") {
+    if (status === "Approved" && !sharedDemo) {
       await dispatchWebhook({
         organizationId: task.organizationId,
         event: "leave.approved",

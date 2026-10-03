@@ -11,6 +11,7 @@ import {
 } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { buildPayrollReleaseChecklist } from "@/lib/payroll-release-checklist";
+import { isPublicDemoIdentity } from "@/lib/demo-security";
 
 const SUBMITTABLE = ["Needs review", "Processed"];
 
@@ -26,6 +27,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+  const sharedDemo = isPublicDemoIdentity(user.email);
 
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
   if (!run) return Response.json({ error: "Payroll run not found." }, { status: 404 });
@@ -90,7 +92,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return Response.json({ error: "That account is not an authorized payroll checker for this workspace." }, { status: 422 });
   }
 
-  const reviewReadiness = await buildPayrollReleaseChecklist(runId);
+  const reviewReadiness = await buildPayrollReleaseChecklist(runId, {
+    allowRedactedDemoPayout: sharedDemo,
+  });
   if (!reviewReadiness) {
     return Response.json({ error: "Payroll review readiness could not be loaded." }, { status: 409 });
   }
@@ -106,7 +110,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const assuranceResult = reviewReadiness.assurance;
-  const blockers = assuranceResult?.findings.filter((finding) => finding.blocking) ?? [];
+  const blockers = assuranceResult?.findings.filter(
+    (finding) => finding.blocking && !(sharedDemo && finding.code === "MISSING_BANK_DETAILS"),
+  ) ?? [];
   if (blockers.length > 0) {
     return Response.json({
       error: `Payroll assurance found ${blockers.length} blocking issue(s). Resolve them before submitting for approval.`,

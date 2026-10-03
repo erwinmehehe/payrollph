@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { auditEvents, payslips, payrollEntries, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
-import { publicDemoMutationDenied } from "@/lib/demo-security";
+import { isPublicDemoIdentity, publicDemoMutationDenied } from "@/lib/demo-security";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -126,7 +126,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     } else if (kind === "government") {
       file = await generateGovernmentDraft(runId, template);
     } else {
-      file = await generateBankFile(runId, template, dryRun);
+      file = await generateBankFile(runId, template, dryRun, {
+        allowSyntheticDemoDestinations: isPublicDemoIdentity(user.email),
+      });
     }
   } catch (error) {
     return Response.json({

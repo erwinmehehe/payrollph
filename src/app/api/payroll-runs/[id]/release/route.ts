@@ -28,6 +28,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+  const sharedDemo = isPublicDemoIdentity(user.email);
 
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) return Response.json({ error: "Payroll run not found." }, { status: 404 });
@@ -85,7 +86,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const assuranceResult = await buildPayrollAssurance(runId);
-  const blockingFindings = assuranceResult?.assurance.findings.filter((finding) => finding.blocking) ?? [];
+  const blockingFindings = assuranceResult?.assurance.findings.filter(
+    (finding) => finding.blocking && !(sharedDemo && finding.code === "MISSING_BANK_DETAILS"),
+  ) ?? [];
   if (blockingFindings.length > 0) {
     return Response.json({
       error: `Payroll assurance found ${blockingFindings.length} blocking issue(s). Resolve them before release.`,
@@ -103,6 +106,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const releaseChecklist = await buildPayrollReleaseChecklist(runId, {
     acknowledgeExceptions: Boolean(body.acknowledgeExceptions),
+    allowRedactedDemoPayout: sharedDemo,
   });
   if (!releaseChecklist?.ready) {
     const failedItems = releaseChecklist?.items.filter((item) => item.blocking && !item.passed) ?? [];
@@ -176,7 +180,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // response that invites the operator to retry the release.
   const postReleaseWarnings: string[] = [];
   const releasedAt = new Date().toISOString();
-  const sharedDemo = isPublicDemoIdentity(user.email);
   const activeStaff = (sharedDemo ? [] : staff).filter((person) => person.status === "Active");
   const notifiableStaff = activeStaff.filter((person) => Boolean(person.email));
   const missingEmail = activeStaff.length - notifiableStaff.length;

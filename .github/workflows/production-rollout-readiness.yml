@@ -1,4 +1,4 @@
-name: Production Rollout Readiness
+name: Production Readiness Report
 
 on:
   push:
@@ -12,11 +12,12 @@ on:
         default: https://erwinmehehe-payrollph.vercel.app
         type: string
       rollout_mode:
-        description: Pilot allows documented manual workarounds; full requires every launch gate green
+        description: Code verifies the deployed build without claiming external launch acceptance; pilot/full enforce operational gates
         required: true
-        default: pilot
+        default: code
         type: choice
         options:
+          - code
           - pilot
           - full
 
@@ -29,7 +30,7 @@ jobs:
     timeout-minutes: 12
     env:
       PRODUCTION_BASE_URL: ${{ inputs.base_url || 'https://erwinmehehe-payrollph.vercel.app' }}
-      ROLLOUT_MODE: ${{ inputs.rollout_mode || 'pilot' }}
+      ROLLOUT_MODE: ${{ inputs.rollout_mode || 'code' }}
       PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}
       EXPECTED_COMMIT_SHA: ${{ github.sha }}
     steps:

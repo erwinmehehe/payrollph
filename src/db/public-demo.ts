@@ -1,4 +1,4 @@
-import { count, eq, sql } from "drizzle-orm";
+import { count, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalTasks,
@@ -16,22 +16,20 @@ import {
   timePunches,
 } from "@/db/schema";
 import { ensureSubscription } from "@/lib/billing";
-import { encryptBankAccount } from "@/lib/bank-account-crypto";
-import { encryptGovernmentId } from "@/lib/government-id-crypto";
 import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
 import { NATIONAL_HOLIDAYS_2026, type HolidayCalendarEntry } from "@/lib/wage-orders";
 
 const PUBLIC_DEMO_ORG = "Loom & Local";
 
 const people = [
-  { firstName: "Mariel", lastName: "Santos", title: "Operations Lead", initials: "MS", status: "Active", basicRate: "38500.00", bankAccount: "1234567890", bankCode: "BDO", mobile: "09171230001" },
-  { firstName: "Jonas", lastName: "Reyes", title: "Customer Experience", initials: "JR", status: "Active", basicRate: "29200.00", bankAccount: "2234567890", bankCode: "BPI", mobile: "09171230002" },
-  { firstName: "Aira", lastName: "Villanueva", title: "People Operations", initials: "AV", status: "On leave", basicRate: "36500.00", bankAccount: "3234567890", bankCode: "UB", mobile: "09171230003" },
-  { firstName: "Paolo", lastName: "Cruz", title: "Finance Associate", initials: "PC", status: "Active", basicRate: "32500.00", bankAccount: "4234567890", bankCode: "BDO", mobile: "09171230004" },
-  { firstName: "Nina", lastName: "Garcia", title: "Support Specialist", initials: "NG", status: "Active", basicRate: "24500.00", bankAccount: "5234567890", bankCode: "BPI", mobile: "09171230005" },
-  { firstName: "Rico", lastName: "Mendoza", title: "Warehouse Officer", initials: "RM", status: "Active", basicRate: "21800.00", bankAccount: "6234567890", bankCode: "BDO", mobile: "09171230006" },
-  { firstName: "Trish", lastName: "Dela Cruz", title: "Account Executive", initials: "TD", status: "Separating", basicRate: "41000.00", bankAccount: "7234567890", bankCode: "GCASH", mobile: "09171230007" },
-  { firstName: "Eli", lastName: "Tan", title: "Implementation Analyst", initials: "ET", status: "Active", basicRate: "34800.00", bankAccount: "8234567890", bankCode: "UB", mobile: "09171230008" },
+  { firstName: "Mariel", lastName: "Santos", title: "Operations Lead", initials: "MS", status: "Active", basicRate: "38500.00", mobile: "09171230001" },
+  { firstName: "Jonas", lastName: "Reyes", title: "Customer Experience", initials: "JR", status: "Active", basicRate: "29200.00", mobile: "09171230002" },
+  { firstName: "Aira", lastName: "Villanueva", title: "People Operations", initials: "AV", status: "On leave", basicRate: "36500.00", mobile: "09171230003" },
+  { firstName: "Paolo", lastName: "Cruz", title: "Finance Associate", initials: "PC", status: "Active", basicRate: "32500.00", mobile: "09171230004" },
+  { firstName: "Nina", lastName: "Garcia", title: "Support Specialist", initials: "NG", status: "Active", basicRate: "24500.00", mobile: "09171230005" },
+  { firstName: "Rico", lastName: "Mendoza", title: "Warehouse Officer", initials: "RM", status: "Active", basicRate: "21800.00", mobile: "09171230006" },
+  { firstName: "Trish", lastName: "Dela Cruz", title: "Account Executive", initials: "TD", status: "Separating", basicRate: "41000.00", mobile: "09171230007" },
+  { firstName: "Eli", lastName: "Tan", title: "Implementation Analyst", initials: "ET", status: "Active", basicRate: "34800.00", mobile: "09171230008" },
 ] as const;
 
 const periods = {
@@ -75,16 +73,15 @@ function paymentSnapshot(employee: {
   firstName: string;
   lastName: string;
   employeeNo: string;
-  bankAccount: string | null;
-  bankCode: string | null;
   mobile: string | null;
 }) {
   return {
     employeeName: `${employee.firstName} ${employee.lastName}`,
     employeeNo: employee.employeeNo,
-    bankAccount: employee.bankAccount,
-    bankCode: employee.bankCode,
+    bankAccount: null,
+    bankCode: null,
     mobile: employee.mobile,
+    demoDataMode: "synthetic-redacted",
   };
 }
 
@@ -351,15 +348,18 @@ export async function ensurePublicDemoTenant() {
         avatarInitials: person.initials,
         basicRate: person.basicRate,
         mwe: index === 5,
-        bankAccount: encryptBankAccount(person.bankAccount),
-        bankCode: person.bankCode,
+        // The hosted sandbox contains no payout destination or government-ID
+        // values at all. This keeps the public demo usable without production
+        // encryption keys without weakening any real-customer storage rule.
+        bankAccount: null,
+        bankCode: null,
         mobile: person.mobile,
         email,
         region: "NCR",
-        tin: index === 5 ? null : encryptGovernmentId(`123-456-78${index}-000`, { required: true }),
-        sssNo: index === 5 ? null : encryptGovernmentId(`34-123456${index}-${index}`, { required: true }),
-        philHealthNo: index === 5 ? null : encryptGovernmentId(`12-34567890-${10 + index}`, { required: true }),
-        pagIbigNo: index === 5 ? null : encryptGovernmentId(`1234-5678-${9010 + index}`, { required: true }),
+        tin: null,
+        sssNo: null,
+        philHealthNo: null,
+        pagIbigNo: null,
         startDate: `202${(index % 4) + 1}-0${(index % 8) + 1}-15`,
       };
 
@@ -489,6 +489,35 @@ export async function ensurePublicDemoTenant() {
           };
         }),
       );
+    }
+
+    // Repair historical public-demo snapshots too. Older demo builds stored
+    // realistic-looking fake bank numbers in trace.payment. They are not real
+    // customer data, but keeping them would unnecessarily couple sandbox access
+    // to production key configuration and would make encryption audits noisy.
+    const demoRunIds = [releasedRun.id, checkerRun.id, workRun.id];
+    const allDemoEntries = await tx
+      .select()
+      .from(payrollEntries)
+      .where(inArray(payrollEntries.payrollRunId, demoRunIds));
+    for (const entry of allDemoEntries) {
+      const trace = entry.trace && typeof entry.trace === "object"
+        ? entry.trace as Record<string, unknown>
+        : {};
+      const payment = trace.payment && typeof trace.payment === "object"
+        ? trace.payment as Record<string, unknown>
+        : {};
+      await tx.update(payrollEntries).set({
+        trace: {
+          ...trace,
+          payment: {
+            ...payment,
+            bankAccount: null,
+            bankCode: null,
+            demoDataMode: "synthetic-redacted",
+          },
+        },
+      }).where(eq(payrollEntries.id, entry.id));
     }
 
     const demoEntries = await tx

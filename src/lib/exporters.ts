@@ -35,7 +35,12 @@ function readPaymentSnapshot(value: unknown): PaymentSnapshot | null {
   };
 }
 
-export async function generateBankFile(runId: number, templateName: string, dryRun = true) {
+export async function generateBankFile(
+  runId: number,
+  templateName: string,
+  dryRun = true,
+  options: { allowSyntheticDemoDestinations?: boolean } = {},
+) {
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) throw new Error("Payroll run not found");
   const [template] = await db.select().from(bankTemplates).where(eq(bankTemplates.name, templateName));
@@ -59,12 +64,16 @@ export async function generateBankFile(runId: number, templateName: string, dryR
       bankCode: employee.bankCode,
       mobile: employee.mobile,
     };
+    const storedAccount = decryptBankAccount(payment.bankAccount);
+    const syntheticDemoAccount = options.allowSyntheticDemoDestinations
+      ? `99${String(employee.id).padStart(8, "0").slice(-8)}`
+      : null;
 
     return {
       employee_name: payment.employeeName,
       employee_no: payment.employeeNo,
-      account_number: decryptBankAccount(payment.bankAccount) ?? "0000000000",
-      bank_code: payment.bankCode ?? "",
+      account_number: storedAccount ?? syntheticDemoAccount ?? "0000000000",
+      bank_code: payment.bankCode ?? (options.allowSyntheticDemoDestinations ? "DEMO" : ""),
       mobile: payment.mobile ?? "09000000000",
       net_pay: entry.netPay,
       amount: entry.netPay,
@@ -83,6 +92,7 @@ export async function generateBankFile(runId: number, templateName: string, dryR
     missingAccounts: rows.filter((row) => row.account_number === "0000000000").length,
     missingMobiles: rows.filter((row) => row.mobile === "09000000000").length,
     missingPaymentSnapshots: rows.filter((row) => !row.paymentSnapshotPresent).length,
+    syntheticDemoDestinations: options.allowSyntheticDemoDestinations === true,
   };
 
   if (!dryRun) {
@@ -206,10 +216,10 @@ export async function generateBankFile(runId: number, templateName: string, dryR
   }
 
   return {
-    filename: `${template.name.replaceAll(" ", "-").toLowerCase()}-${run.id}.${template.format.toLowerCase()}`,
+    filename: `${options.allowSyntheticDemoDestinations ? "demo-" : ""}${template.name.replaceAll(" ", "-").toLowerCase()}-${run.id}.${template.format.toLowerCase()}`,
     contentType: template.format === "CSV" ? "text/csv" : "text/plain",
     body: dryRun
-      ? `# DRY-RUN VALIDATION\n# template=${template.name} version=${template.version}\n# rows=${validation.rowCount} totalNet=${validation.totalNet}\n# missingAccounts=${validation.missingAccounts} missingMobiles=${validation.missingMobiles} missingPaymentSnapshots=${validation.missingPaymentSnapshots}\n# This is a preview. Final files require a released run and immutable payment snapshots.\n${body}`
+      ? `# DRY-RUN VALIDATION\n# template=${template.name} version=${template.version}\n# rows=${validation.rowCount} totalNet=${validation.totalNet}\n# missingAccounts=${validation.missingAccounts} missingMobiles=${validation.missingMobiles} missingPaymentSnapshots=${validation.missingPaymentSnapshots}\n# syntheticDemoDestinations=${validation.syntheticDemoDestinations}\n# This is a preview. Final files require a released run and immutable payment snapshots.\n${body}`
       : body,
     validation,
   };
