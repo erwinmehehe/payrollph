@@ -18,6 +18,7 @@ import {
   orgUnits,
   organizations,
   payrollEntries,
+  historicalPayrollEntries,
   payrollJobs,
   payrollRuns,
   payslips,
@@ -617,6 +618,20 @@ async function processPayrollChunk(input: {
     : [];
 
   const taxYearStart = `${String(run.payDate).slice(0, 4)}-01-01`;
+  const priorImportedPayrollEmployees = new Set<number>(
+    chunkIds.length
+      ? (await db.select({ employeeId: historicalPayrollEntries.employeeId })
+          .from(historicalPayrollEntries)
+          .where(and(
+            eq(historicalPayrollEntries.organizationId, input.organizationId),
+            inArray(historicalPayrollEntries.employeeId, chunkIds),
+            gte(historicalPayrollEntries.payDate, taxYearStart),
+            lt(historicalPayrollEntries.payDate, run.payDate),
+          )))
+          .map((row) => row.employeeId)
+      : [],
+  );
+
   const priorDeMinimisEntries = chunkIds.length
     ? await db.select({
         employeeId: payrollEntries.employeeId,
@@ -830,6 +845,7 @@ async function processPayrollChunk(input: {
           frequency: g.frequency as "month" | "semester" | "year",
         })),
       priorDeMinimisPaid: priorDeMinimisByEmployee.get(employee.id) ?? {},
+      importedPayrollHistoryBeforeCutoff: priorImportedPayrollEmployees.has(employee.id),
 
       loans: (loansByEmployee.get(employee.id) ?? [])
         .filter((l) =>
@@ -998,6 +1014,7 @@ function calculateEmployeePay(input: {
   }>;
   deMinimis?: Array<{ id: number; benefitType: DeMinimisType; amount: number; frequency: "month" | "semester" | "year" }>;
   priorDeMinimisPaid?: Partial<Record<DeMinimisType, number>>;
+  importedPayrollHistoryBeforeCutoff?: boolean;
   loans?: Array<{ id: number; loanType: string; referenceNo: string; cutoffDeduction: number; remainingBalance: number }>;
   leaveConversions?: Array<{ id: number; leaveType: string; daysConverted: number; dailyRate: number; cashAmount: number; taxExempt: boolean }>;
   approvedLeave?: ResolvedPayrollLeave[];
@@ -1334,9 +1351,16 @@ function calculateEmployeePay(input: {
   }));
   const advanceRequestedTotal = requestedAdvanceLines.reduce((sum, line) => sum + line.requestedDeduction, 0);
 
-  // RR 29-2025 ceilings apply once per statutory benefit category, not once per
-  // database row. Aggregate duplicate/parallel grants before applying the
-  // category ceiling, then normalize the result to one semi-monthly cutoff.
+  // RR 29-2025 ceilings apply once per statutory benefit category. Imported
+  // payroll history from older versions has no category-level de minimis
+  // breakdown, so a current de minimis grant cannot be safely calculated
+  // against that unknown prior-period consumption.
+  if (input.importedPayrollHistoryBeforeCutoff && (input.deMinimis?.length ?? 0) > 0) {
+    flags.push(
+      "Imported payroll history exists earlier in this tax year but has no de minimis category breakdown. De minimis tax treatment cannot be proven safely; import the category totals or resolve this employee outside Linaw before release.",
+    );
+  }
+
   const deMinimisLines = aggregateDeMinimisForSemiMonthly(
     input.deMinimis ?? [],
     input.priorDeMinimisPaid ?? {},
