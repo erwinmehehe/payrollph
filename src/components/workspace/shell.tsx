@@ -16,7 +16,7 @@ import {
   ShieldCheck,
   UserCheck,
 } from "lucide-react";
-import { FREELANCER_HIDDEN, NAVIGATION, groupOf, itemOf } from "./nav";
+import { FREELANCER_HIDDEN, NAVIGATION, groupOf } from "./nav";
 import type { DashboardData, Organization } from "./types";
 import { Avatar, initialsOf, relativeTime } from "./ui";
 import { DEMO_ROLES, demoRoleInfo, type DemoRoleId } from "@/lib/demo-roles";
