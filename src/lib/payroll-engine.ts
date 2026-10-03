@@ -395,7 +395,7 @@ async function processPayrollChunk(input: {
     return kind ? [{
       date,
       name: row.name,
-      kind,
+      kind: kind as "regular" | "special",
       orgUnitId: row.orgUnitId,
     }] : [];
   });
