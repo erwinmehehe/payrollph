@@ -95,6 +95,14 @@ export function PayrollRunView({
     ready: boolean;
     items: ReleaseChecklistItem[];
     assuranceSummary?: { high: number; medium: number; blocking: number } | null;
+    assuranceFindings?: Array<{
+      code: string;
+      severity: "high" | "medium" | "info";
+      blocking: boolean;
+      title: string;
+      detail: string;
+      employeeId: number | null;
+    }>;
   } | null>(null);
   const [releaseReceipt, setReleaseReceipt] = useState<PayrollReleaseReceipt | null>(null);
   const [releaseFailure, setReleaseFailure] = useState<{ runId: number; error: string } | null>(null);
@@ -383,14 +391,16 @@ export function PayrollRunView({
         }
       />
 
-      <PayrollHandoff
-        stages={handoffStages}
-        period={run.periodLabel}
-        status={run.status}
-        payDate={formatDate(run.payDate)}
-        viewerRole={handoffRole}
-        compact
-      />
+      {!payrollOfficerMode && (
+        <PayrollHandoff
+          stages={handoffStages}
+          period={run.periodLabel}
+          status={run.status}
+          payDate={formatDate(run.payDate)}
+          viewerRole={handoffRole}
+          compact
+        />
+      )}
 
       {payrollOfficerMode && (
         <PayrollOfficerWorkspace
@@ -398,6 +408,7 @@ export function PayrollRunView({
           run={run}
           entries={entries}
           checklist={releaseChecklist?.items ?? null}
+          assuranceFindings={releaseChecklist?.assuranceFindings ?? []}
           relatedTask={relatedTask}
           calculated={calculated}
           busy={busy}
