@@ -9,6 +9,19 @@ export const DEMO_ROLE_IDS = [
 
 export type DemoRoleId = (typeof DEMO_ROLE_IDS)[number];
 
+const DEMO_ROLE_PATHS: Record<DemoRoleId, string> = {
+  owner: "/app?demoRole=owner",
+  hr: "/app?demoRole=hr",
+  payroll: "/app?demoRole=payroll",
+  checker: "/app?demoRole=checker",
+  bookkeeper: "/app?demoRole=bookkeeper",
+  employee: "/app?demoRole=employee",
+};
+
+export function demoRolePath(role: DemoRoleId) {
+  return DEMO_ROLE_PATHS[role];
+}
+
 export type DemoRoleInfo = {
   id: DemoRoleId;
   label: string;
