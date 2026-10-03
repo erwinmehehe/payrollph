@@ -14,7 +14,7 @@ export async function buildPayrollAssurance(runId: number) {
     .where(eq(payrollEntries.payrollRunId, run.id))
     .orderBy(asc(payrollEntries.id));
 
-  const [previousRun] = await db
+  const priorRuns = await db
     .select()
     .from(payrollRuns)
     .where(and(
@@ -23,7 +23,10 @@ export async function buildPayrollAssurance(runId: number) {
       lt(payrollRuns.payDate, run.payDate),
     ))
     .orderBy(desc(payrollRuns.payDate), desc(payrollRuns.id))
-    .limit(1);
+    .limit(24);
+  const previousRun = priorRuns.find(
+    (candidate) => candidate.scopeOrgUnitId === run.scopeOrgUnitId,
+  ) ?? null;
 
   const previousEntries = previousRun
     ? await db
@@ -70,14 +73,37 @@ export async function buildPayrollAssurance(runId: number) {
     };
   });
 
+  const assurance = evaluatePayrollAssurance(currentEntries, previousEntries, {
+    periodStart: run.periodStart,
+    periodEnd: run.periodEnd,
+    payDate: run.payDate,
+    employees: employeeContext,
+  });
+
+  const expectedEntries = Number(run.employeeCount ?? 0);
+  const totalChunks = Number(run.totalChunks ?? 0);
+  const processedChunks = Number(run.processedChunks ?? 0);
+  const incompleteCoverage =
+    expectedEntries <= 0
+    || currentEntries.length !== expectedEntries
+    || totalChunks <= 0
+    || processedChunks < totalChunks;
+
+  if (incompleteCoverage) {
+    assurance.findings.unshift({
+      code: "INCOMPLETE_PAYROLL_RUN",
+      severity: "high",
+      blocking: true,
+      title: "Payroll calculation is incomplete",
+      detail: `Stored coverage is ${currentEntries.length}/${expectedEntries} employee entries and ${processedChunks}/${totalChunks} processing chunks. Complete or recalculate the run before checker approval.`,
+    });
+    assurance.summary.high += 1;
+    assurance.summary.blocking += 1;
+  }
+
   return {
     run,
     previousRun: previousRun ?? null,
-    assurance: evaluatePayrollAssurance(currentEntries, previousEntries, {
-      periodStart: run.periodStart,
-      periodEnd: run.periodEnd,
-      payDate: run.payDate,
-      employees: employeeContext,
-    }),
+    assurance,
   };
 }
