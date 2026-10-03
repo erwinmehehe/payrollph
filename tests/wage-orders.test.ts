@@ -20,10 +20,11 @@ test("a ₱38,500 monthly rate is above the NCR floor", () => {
   assert.equal(isBelowMinimum(38_500, "NCR").below, false);
 });
 
-test("demo special non-working day on 2026-03-11 is recognized", () => {
-  const holiday = holidayOn("2026-03-11");
+test("Black Saturday 2026 is recognized and no demo holiday leaks into the national calendar", () => {
+  const holiday = holidayOn("2026-04-04");
   assert.ok(holiday);
   assert.equal(holiday?.kind, "special");
+  assert.equal(holidayOn("2026-03-11"), null);
   const multiplier = holidayMultiplier({ holiday: "special", worked: true });
   assert.equal(multiplier, 1.3);
 });
