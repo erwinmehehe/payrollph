@@ -90,6 +90,7 @@ export function computeFinalPay(input: {
   const annualized = annualize({
     grossCompensation: grossForAnnualization,
     thirteenthMonth: thirteenthPaidYtd + thirteenthDue,
+    otherBenefits: Math.max(0, input.otherBenefits),
     statutoryContributions: Math.max(0, input.statutoryContributionsYtd) + finalStatutoryDeductions,
     taxWithheld: Math.max(0, input.taxWithheldYtd),
     mwe: input.mwe,
