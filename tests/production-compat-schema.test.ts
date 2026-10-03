@@ -16,6 +16,9 @@ test("production compatibility schema includes all compliance-hardening migratio
     "CREATE TABLE IF NOT EXISTS contractor_payments",
     "break_start",
     "break_end",
+    "payroll_calendar_mode",
+    "org_unit_id",
+    "CREATE TABLE IF NOT EXISTS supplementary_earnings",
     "ALTER COLUMN tin TYPE varchar(180)",
     "ALTER COLUMN tin_branch_code TYPE varchar(180)",
     "ALTER COLUMN sss_no TYPE varchar(180)",
@@ -36,7 +39,7 @@ test("production compatibility schema only backfills government IDs when a stabl
 });
 
 test("production compatibility migration remains advisory-locked and idempotent", () => {
-  assert.ok(source.includes("linaw_core_schema_compat_v3"));
+  assert.ok(source.includes("linaw_core_schema_compat_v4"));
   assert.ok(source.includes("pg_advisory_xact_lock"));
   assert.ok(source.includes("ADD COLUMN IF NOT EXISTS"));
   assert.ok(source.includes("CREATE TABLE IF NOT EXISTS"));
