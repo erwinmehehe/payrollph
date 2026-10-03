@@ -12,10 +12,112 @@ const round2 = (value: number) => Math.round(value * 100) / 100;
 type PaymentSnapshot = {
   employeeName: string;
   employeeNo: string;
+  firstName: string | null;
+  middleName: string | null;
+  lastName: string | null;
+  email: string | null;
   bankAccount: string | null;
   bankCode: string | null;
   mobile: string | null;
+  identityFieldsCaptured: boolean;
 };
+
+const MAPPED_BANK_FIELDS = [
+  "account_number",
+  "employee_name",
+  "employee_no",
+  "first_name",
+  "middle_name",
+  "last_name",
+  "email",
+  "mobile",
+  "bank_code",
+  "amount",
+  "net_pay",
+  "payment_date",
+  "reference",
+] as const;
+
+type MappedBankField = (typeof MAPPED_BANK_FIELDS)[number];
+
+type DelimitedBankMapping = {
+  columns: MappedBankField[];
+  headers: Partial<Record<MappedBankField, string>>;
+  delimiter: "," | "\t" | "|" | ";";
+  includeHeader: boolean;
+  lineEnding: "\n" | "\r\n";
+};
+
+export type MappedBankRow = Record<MappedBankField, string | number>;
+
+function readDelimitedBankMapping(value: unknown): DelimitedBankMapping | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  if (!Array.isArray(raw.columns) || raw.columns.length === 0) return null;
+
+  const columns = raw.columns.map(String);
+  const invalid = columns.find((field) => !MAPPED_BANK_FIELDS.includes(field as MappedBankField));
+  if (invalid) {
+    throw new Error(
+      `Bank template mapping contains unsupported column "${invalid}". Allowed fields: ${MAPPED_BANK_FIELDS.join(", ")}.`,
+    );
+  }
+
+  const delimiterRaw = typeof raw.delimiter === "string" ? raw.delimiter : ",";
+  const delimiter = delimiterRaw === "\\t" ? "\t" : delimiterRaw;
+  if (![",", "\t", "|", ";"].includes(delimiter)) {
+    throw new Error("Bank template delimiter must be comma, tab, pipe, or semicolon.");
+  }
+
+  const headersRaw =
+    raw.headers && typeof raw.headers === "object"
+      ? raw.headers as Record<string, unknown>
+      : {};
+  const headers: Partial<Record<MappedBankField, string>> = {};
+  for (const field of columns as MappedBankField[]) {
+    const header = headersRaw[field];
+    if (typeof header === "string" && header.trim()) headers[field] = header.trim();
+  }
+
+  return {
+    columns: columns as MappedBankField[],
+    headers,
+    delimiter: delimiter as DelimitedBankMapping["delimiter"],
+    includeHeader: raw.includeHeader !== false,
+    lineEnding: raw.lineEnding === "CRLF" ? "\r\n" : "\n",
+  };
+}
+
+export function renderMappedBankRows(rows: MappedBankRow[], mapping: DelimitedBankMapping) {
+  const escape = (value: string | number) => {
+    const text = String(value ?? "");
+    if (mapping.delimiter === ",") return csv(text);
+    if (
+      text.includes(mapping.delimiter)
+      || text.includes("\n")
+      || text.includes("\r")
+      || text.includes('"')
+    ) {
+      return `"${text.replaceAll('"', '""')}"`;
+    }
+    return text;
+  };
+
+  const lines: string[] = [];
+  if (mapping.includeHeader) {
+    lines.push(
+      mapping.columns
+        .map((field) => escape(mapping.headers[field] ?? field))
+        .join(mapping.delimiter),
+    );
+  }
+  lines.push(
+    ...rows.map((row) =>
+      mapping.columns.map((field) => escape(row[field])).join(mapping.delimiter)
+    ),
+  );
+  return lines.join(mapping.lineEnding);
+}
 
 function readPaymentSnapshot(value: unknown): PaymentSnapshot | null {
   if (!value || typeof value !== "object") return null;
@@ -26,12 +128,19 @@ function readPaymentSnapshot(value: unknown): PaymentSnapshot | null {
   const employeeNo = typeof row.employeeNo === "string" ? row.employeeNo.trim() : "";
   if (!employeeName || !employeeNo) return null;
   const nullable = (field: unknown) => typeof field === "string" && field.trim() ? field.trim() : null;
+  const identityFieldsCaptured = ["firstName", "middleName", "lastName", "email"]
+    .every((field) => Object.prototype.hasOwnProperty.call(row, field));
   return {
     employeeName,
     employeeNo,
+    firstName: nullable(row.firstName),
+    middleName: nullable(row.middleName),
+    lastName: nullable(row.lastName),
+    email: nullable(row.email),
     bankAccount: nullable(row.bankAccount),
     bankCode: nullable(row.bankCode),
     mobile: nullable(row.mobile),
+    identityFieldsCaptured,
   };
 }
 
@@ -45,6 +154,7 @@ export async function generateBankFile(
   if (!run) throw new Error("Payroll run not found");
   const [template] = await db.select().from(bankTemplates).where(eq(bankTemplates.name, templateName));
   if (!template) throw new Error("Bank template not found");
+  if (!template.active) throw new Error("Bank template is inactive.");
 
   const entries = await db.select({
     entry: payrollEntries,
@@ -60,9 +170,14 @@ export async function generateBankFile(
     const payment = snapshot ?? {
       employeeName: `${employee.firstName} ${employee.lastName}`,
       employeeNo: employee.employeeNo,
+      firstName: employee.firstName,
+      middleName: employee.middleName,
+      lastName: employee.lastName,
+      email: employee.email,
       bankAccount: employee.bankAccount,
       bankCode: employee.bankCode,
       mobile: employee.mobile,
+      identityFieldsCaptured: false,
     };
     const storedAccount = decryptBankAccount(payment.bankAccount);
     const syntheticDemoAccount = options.allowSyntheticDemoDestinations
@@ -72,12 +187,19 @@ export async function generateBankFile(
     return {
       employee_name: payment.employeeName,
       employee_no: payment.employeeNo,
+      first_name: payment.firstName ?? employee.firstName,
+      middle_name: payment.middleName ?? employee.middleName ?? "",
+      last_name: payment.lastName ?? employee.lastName,
+      email: payment.email ?? employee.email ?? "",
       account_number: storedAccount ?? syntheticDemoAccount ?? "0000000000",
       bank_code: payment.bankCode ?? (options.allowSyntheticDemoDestinations ? "DEMO" : ""),
       mobile: payment.mobile ?? "09000000000",
       net_pay: entry.netPay,
       amount: entry.netPay,
+      payment_date: String(run.payDate),
+      reference: `PAY-${run.id}-${payment.employeeNo}`,
       paymentSnapshotPresent: Boolean(snapshot),
+      immutableIdentitySnapshotPresent: Boolean(snapshot?.identityFieldsCaptured),
     };
   });
 
@@ -202,8 +324,46 @@ export async function generateBankFile(
     const header = ["Recipient_Mobile", "Recipient_Name", "Disbursement_Amount", "Batch_Reference"];
     body = [header.join(","), ...rows.map((row) => [row.mobile, row.employee_name, row.amount, `MAYA-${run.id}-${row.employee_no}`].map(csv).join(","))].join("\n");
   } else if (tName.includes("rcbc")) {
-    throw new Error(
-      "RCBC payroll export is not certified or implemented yet. Use a validated bank template instead of silently falling back to the generic CSV.",
+    const mapping = readDelimitedBankMapping(template.mappings);
+    if (!mapping) {
+      throw new Error(
+        "RCBC ROC payroll export requires an explicit validated template mapping. Configure bank_templates.mappings with columns and delimiter from the bank-provided payroll file specification; PayrollPH will not guess a proprietary upload layout.",
+      );
+    }
+
+    const identityFields = new Set<MappedBankField>([
+      "first_name",
+      "middle_name",
+      "last_name",
+      "email",
+    ]);
+    const needsIdentitySnapshot = mapping.columns.some((field) => identityFields.has(field));
+    if (!dryRun && needsIdentitySnapshot) {
+      const missingIdentitySnapshots = rows.filter((row) => !row.immutableIdentitySnapshotPresent).length;
+      if (missingIdentitySnapshots > 0) {
+        throw new Error(
+          `Final RCBC file cannot be generated: ${missingIdentitySnapshots} payroll entr${missingIdentitySnapshots === 1 ? "y was" : "ies were"} calculated before immutable first/middle/last-name and email fields were captured. Recalculate before release.`,
+        );
+      }
+    }
+
+    body = renderMappedBankRows(
+      rows.map((row) => ({
+        account_number: row.account_number,
+        employee_name: row.employee_name,
+        employee_no: row.employee_no,
+        first_name: row.first_name,
+        middle_name: row.middle_name,
+        last_name: row.last_name,
+        email: row.email,
+        mobile: row.mobile,
+        bank_code: row.bank_code,
+        amount: Number(row.amount).toFixed(2),
+        net_pay: Number(row.net_pay).toFixed(2),
+        payment_date: row.payment_date,
+        reference: row.reference,
+      })),
+      mapping,
     );
   } else if (tName.includes("america") || tName.includes("cashpro")) {
     // Bank of America CashPro (ACH / PBR)
