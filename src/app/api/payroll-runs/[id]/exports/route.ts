@@ -32,6 +32,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const template = searchParams.get("template") ?? "BDO DAT";
   const dryRun = searchParams.get("dryRun") !== "false";
   const payslipId = Number(searchParams.get("payslipId") ?? "0");
+  if (kind === "bank" || kind === "government" || kind === "payslip") {
+    const mfaDenied = requireSensitiveActionMfa(user);
+    if (mfaDenied) return mfaDenied;
+  }
 
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) return Response.json({ error: "Payroll run not found" }, { status: 404 });
