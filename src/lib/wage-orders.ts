@@ -76,6 +76,13 @@ export function isBelowMinimum(monthlyBasic: number, region: string, daysPerMont
 export type HolidayKind = "regular" | "special" | "rest";
 export type HolidayCalendarEntry = { date: string; name: string; kind: HolidayKind };
 
+/**
+ * National non-working calendar for 2026.
+ * Proclamation 1006 supplies the fixed calendar; Proclamation 1189 and
+ * Proclamation 1264 add the 2026 Eid'l Fitr / Eid'l Adha regular holidays.
+ * Organization/local declarations are merged at payroll-calculation time and
+ * must never be hard-coded into this national list.
+ */
 export const NATIONAL_HOLIDAYS_2026: HolidayCalendarEntry[] = [
   { date: "2026-01-01", name: "New Year's Day", kind: "regular" },
   { date: "2026-04-02", name: "Maundy Thursday", kind: "regular" },
@@ -87,12 +94,16 @@ export const NATIONAL_HOLIDAYS_2026: HolidayCalendarEntry[] = [
   { date: "2026-11-30", name: "Bonifacio Day", kind: "regular" },
   { date: "2026-12-25", name: "Christmas Day", kind: "regular" },
   { date: "2026-12-30", name: "Rizal Day", kind: "regular" },
+  { date: "2026-03-20", name: "Eid'l Fitr", kind: "regular" },
+  { date: "2026-05-27", name: "Eid'l Adha", kind: "regular" },
   { date: "2026-02-17", name: "Chinese New Year", kind: "special" },
+  { date: "2026-04-04", name: "Black Saturday", kind: "special" },
   { date: "2026-08-21", name: "Ninoy Aquino Day", kind: "special" },
   { date: "2026-11-01", name: "All Saints' Day", kind: "special" },
+  { date: "2026-11-02", name: "All Souls' Day", kind: "special" },
   { date: "2026-12-08", name: "Feast of the Immaculate Conception", kind: "special" },
+  { date: "2026-12-24", name: "Christmas Eve", kind: "special" },
   { date: "2026-12-31", name: "Last Day of the Year", kind: "special" },
-  { date: "2026-03-11", name: "Company special non-working (demo)", kind: "special" },
 ];
 
 export function holidaysOn(date: string, calendar: readonly HolidayCalendarEntry[] = NATIONAL_HOLIDAYS_2026) {
