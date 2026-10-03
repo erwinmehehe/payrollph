@@ -2,6 +2,7 @@ import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { bankTemplates, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
 import { decryptBankAccount } from "@/lib/bank-account-crypto";
+import { decryptGovernmentId } from "@/lib/government-id-crypto";
 import { computePagIbig, computePhilHealth, computeSss } from "@/lib/payroll-rules";
 import { escapeCsvCell } from "@/lib/csv";
 
@@ -375,6 +376,17 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     .where(eq(payrollEntries.payrollRunId, runId))
     .orderBy(asc(employees.id));
 
+  const traceNumber = (trace: unknown, prefix: string) => {
+    if (!trace || typeof trace !== "object") return null;
+    const inputs = (trace as Record<string, unknown>).inputs;
+    if (!Array.isArray(inputs)) return null;
+    const line = inputs.find((item) => typeof item === "string" && item.startsWith(prefix));
+    if (typeof line !== "string") return null;
+    const value = Number(line.slice(prefix.length));
+    return Number.isFinite(value) ? value : null;
+  };
+  const govId = (value: string | null | undefined) => decryptGovernmentId(value) ?? "";
+
   const headerNote = [
     "# DRAFT ONLY, not a certified government submission file",
     `# kind=${kind}`,
@@ -395,8 +407,7 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     // ₱10.00 for every employee regardless of their actual MSC (correct EC is
     // ₱30 at MSC ≥ ₱15,000, most employees above roughly ₱15,000/month basic
     // pay were being under-reported).
-    const REGULAR_SS_CAP = 20_000;
-    const missingSss = entries.filter(({ employee }) => !employee.sssNo);
+    const missingSss = entries.filter(({ employee }) => !govId(employee.sssNo));
     if (missingSss.length > 0) {
       throw new Error(
         `SSS R-3 cannot be generated: ${missingSss.length} employee(s) are missing an SSS number: ${missingSss.map(({ employee }) => employee.employeeNo).join(", ")}.`,
@@ -404,24 +415,24 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     }
 
     const body = [
-      "SSSNo,LastName,FirstName,MiddleName,MSC,SS_Regular,SS_MPF,SS_Employee,SS_Employer,EC_Employer,Total_Contribution",
+      "SSSNo,LastName,FirstName,MiddleName,MSC,RegularMSC,MPFMSC,SS_EE_Regular,SS_EE_MPF,SS_ER_Regular,SS_ER_MPF,EC_Employer,Total_Contribution",
       ...entries.map(({ employee, entry }) => {
-        const monthlyBasic = Number(employee.basicRate ?? entry.grossPay ?? 0);
-        const sss = computeSss(monthlyBasic);
-        const regularMsc = Math.min(sss.monthlySalaryCredit, REGULAR_SS_CAP);
-        const mpfMsc = Math.max(0, sss.monthlySalaryCredit - REGULAR_SS_CAP);
-        const employeeRegular = round2(sss.employee * (regularMsc / sss.monthlySalaryCredit));
-        const employeeMpf = round2(sss.employee - employeeRegular);
+        const monthlyRemuneration =
+          traceNumber(entry.trace, "statutoryMonthlyRemuneration=")
+          ?? Number(employee.basicRate ?? entry.grossPay ?? 0);
+        const sss = computeSss(monthlyRemuneration);
         return [
-          employee.sssNo,
+          govId(employee.sssNo),
           employee.lastName,
           employee.firstName,
           employee.middleName ?? "",
           sss.monthlySalaryCredit.toFixed(2),
-          employeeRegular.toFixed(2),
-          employeeMpf.toFixed(2),
-          sss.employee.toFixed(2),
-          sss.employer.toFixed(2),
+          sss.regularMsc.toFixed(2),
+          sss.mpfMsc.toFixed(2),
+          sss.employeeRegular.toFixed(2),
+          sss.employeeMpf.toFixed(2),
+          sss.employerRegular.toFixed(2),
+          sss.employerMpf.toFixed(2),
           sss.employerEC.toFixed(2),
           sss.total.toFixed(2),
         ].map(csv).join(",");
@@ -435,7 +446,7 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
   }
 
   if (kind === "philhealth-rf1") {
-    const missingPins = entries.filter(({ employee }) => !employee.philHealthNo);
+    const missingPins = entries.filter(({ employee }) => !govId(employee.philHealthNo));
     if (missingPins.length > 0) {
       throw new Error(
         `PhilHealth RF-1 cannot be generated: ${missingPins.length} employee(s) are missing a PhilHealth PIN: ${missingPins.map(({ employee }) => employee.employeeNo).join(", ")}.`,
@@ -448,14 +459,14 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
         const monthlyBasic = Number(employee.basicRate ?? entry.grossPay ?? 0);
         const ph = computePhilHealth(monthlyBasic);
         return [
-          employee.philHealthNo,
+          govId(employee.philHealthNo),
           employee.lastName,
           employee.firstName,
           employee.middleName ?? "",
           ph.base.toFixed(2),
           ph.employee.toFixed(2),
           ph.employer.toFixed(2),
-          (ph.employee + ph.employer).toFixed(2),
+          ph.total.toFixed(2),
         ].map(csv).join(",");
       }),
     ].join("\n");
@@ -467,7 +478,7 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
   }
 
   if (kind === "pagibig-mcrf") {
-    const missingMids = entries.filter(({ employee }) => !employee.pagIbigNo);
+    const missingMids = entries.filter(({ employee }) => !govId(employee.pagIbigNo));
     if (missingMids.length > 0) {
       throw new Error(
         `Pag-IBIG MCRF cannot be generated: ${missingMids.length} employee(s) are missing a Pag-IBIG MID: ${missingMids.map(({ employee }) => employee.employeeNo).join(", ")}.`,
@@ -477,10 +488,12 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     const body = [
       "PagIBIGMID,LastName,FirstName,MiddleName,FundSalary,EmployeeShare,EmployerShare,TotalContribution",
       ...entries.map(({ employee, entry }) => {
-        const monthlyBasic = Number(employee.basicRate ?? entry.grossPay ?? 0);
-        const hd = computePagIbig(monthlyBasic);
+        const monthlyRemuneration =
+          traceNumber(entry.trace, "statutoryMonthlyRemuneration=")
+          ?? Number(employee.basicRate ?? entry.grossPay ?? 0);
+        const hd = computePagIbig(monthlyRemuneration);
         return [
-          employee.pagIbigNo,
+          govId(employee.pagIbigNo),
           employee.lastName,
           employee.firstName,
           employee.middleName ?? "",
@@ -527,8 +540,8 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     throw new Error("BIR annual draft cannot be generated: employer BIR TIN and 4-digit branch code are required.");
   }
 
-  const missingTin = entries.filter(({ employee }) => (employee.tin ?? "").replace(/\D/g, "").length !== 9);
-  const missingBranch = entries.filter(({ employee }) => (employee.tinBranchCode ?? "").replace(/\D/g, "").length !== 4);
+  const missingTin = entries.filter(({ employee }) => govId(employee.tin).replace(/\D/g, "").length !== 9);
+  const missingBranch = entries.filter(({ employee }) => govId(employee.tinBranchCode).replace(/\D/g, "").length !== 4);
   if (missingTin.length > 0) {
     throw new Error(
       `BIR annual draft cannot be generated: ${missingTin.length} employee(s) are missing a valid 9-digit TIN: ${missingTin.map(({ employee }) => employee.employeeNo).join(", ")}.`,
@@ -545,8 +558,8 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     ...entries.map(({ employee, entry }) => [
       employerTin,
       employerBranchCode,
-      (employee.tin ?? "").replace(/\D/g, ""),
-      (employee.tinBranchCode ?? "").replace(/\D/g, ""),
+      govId(employee.tin).replace(/\D/g, ""),
+      govId(employee.tinBranchCode).replace(/\D/g, ""),
       employee.lastName,
       employee.firstName,
       employee.middleName ?? "",
