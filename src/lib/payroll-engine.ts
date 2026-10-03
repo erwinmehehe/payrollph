@@ -381,6 +381,7 @@ async function processPayrollChunk(input: {
     lte(calamityAdvisories.startDate, run.periodEnd),
     gte(calamityAdvisories.endDate, run.periodStart),
   ));
+  const holidayEligibilityLookbackStart = addDays(String(run.periodStart), -14);
   const holidayRows = await db.select().from(holidays).where(and(
     or(isNull(holidays.organizationId), eq(holidays.organizationId, input.organizationId)),
     gte(holidays.holidayDate, holidayEligibilityLookbackStart),
@@ -551,7 +552,6 @@ async function processPayrollChunk(input: {
   // Monthly statutory contributions are ultimately reconciled against actual
   // remuneration. For the final cutoff of a month, use the released earlier
   // cutoff as the immutable ledger baseline instead of guessing current × 2.
-  const holidayEligibilityLookbackStart = addDays(String(run.periodStart), -14);
   const periodEndText = String(run.periodEnd);
   const periodEndDate = new Date(`${periodEndText}T00:00:00Z`);
   const nextDay = new Date(periodEndDate);
