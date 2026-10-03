@@ -4,7 +4,11 @@ import { auditEvents, payslips, payrollEntries, payrollRuns } from "@/db/schema"
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
-import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
+import {
+  enforceSameOriginMutation,
+  enforceSensitiveActionRateLimit,
+  requireSensitiveActionMfa,
+} from "@/lib/security-request";
 import { generateBankFile, generateGovernmentDraft, generateJournalCsv } from "@/lib/exporters";
 import {
   assertOrganizationRole,
@@ -16,6 +20,7 @@ import {
   createPaymongoPayrollDisbursement,
   preflightPaymongoPayrollDisbursement,
 } from "@/lib/paymongo-disbursements";
+import { withPayrollPayoutSubmissionLock } from "@/lib/payout-submission-lock";
 
 export const dynamic = "force-dynamic";
 
@@ -204,6 +209,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (scopeDenied) return scopeDenied;
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
+  const rateDenied = await enforceSensitiveActionRateLimit(request, {
+    userId: user.id,
+    action: mode === "preflight" ? "payout-preflight" : "payout-submit",
+    resourceId: runId,
+    limit: mode === "preflight" ? 20 : 5,
+    windowMs: mode === "preflight" ? 10 * 60_000 : 10 * 60_000,
+  });
+  if (rateDenied) return rateDenied;
 
   if (run.status !== "Released") {
     return Response.json({
@@ -365,7 +378,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   try {
-    const result = await createPaymongoPayrollDisbursement(runId);
+    const result = await withPayrollPayoutSubmissionLock(
+      () => createPaymongoPayrollDisbursement(runId),
+    );
     const everyTransferCompleted =
       result.transfers.length > 0 &&
       result.transfers.every((transfer) => transfer.status.toLowerCase() === "succeeded");

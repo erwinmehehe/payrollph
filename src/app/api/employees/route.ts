@@ -1,6 +1,10 @@
 import { encryptBankAccount, maskBankAccount } from "@/lib/bank-account-crypto";
 import { encryptGovernmentId, maskGovernmentId } from "@/lib/government-id-crypto";
-import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
+import {
+  enforceSameOriginMutation,
+  enforceSensitiveActionRateLimit,
+  requireSensitiveActionMfa,
+} from "@/lib/security-request";
 import { and, asc, desc, eq, gte } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -406,6 +410,14 @@ export async function PATCH(request: Request) {
   if (wantsPayoutUpdate) {
     const mfaDenied = requireSensitiveActionMfa(user);
     if (mfaDenied) return mfaDenied;
+    const rateDenied = await enforceSensitiveActionRateLimit(request, {
+      userId: user.id,
+      action: "employee-payout-destination-change",
+      resourceId: employeeId,
+      limit: 6,
+      windowMs: 15 * 60_000,
+    });
+    if (rateDenied) return rateDenied;
   }
 
   let nextPagIbigVoluntaryMonthly: string | undefined;

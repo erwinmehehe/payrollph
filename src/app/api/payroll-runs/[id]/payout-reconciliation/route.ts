@@ -20,8 +20,13 @@ import {
   type PaymongoBatchSnapshot,
   type PaymongoPayrollReconciliation,
 } from "@/lib/payroll-payout-reconciliation";
-import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
+import {
+  enforceSameOriginMutation,
+  enforceSensitiveActionRateLimit,
+  requireSensitiveActionMfa,
+} from "@/lib/security-request";
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
+import { withPayrollPayoutSubmissionLock } from "@/lib/payout-submission-lock";
 
 export const dynamic = "force-dynamic";
 
@@ -233,6 +238,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
+  const rateDenied = await enforceSensitiveActionRateLimit(request, {
+    userId: user.id,
+    action: "payout-reconciliation",
+    resourceId: runId,
+    limit: 10,
+    windowMs: 10 * 60_000,
+  });
+  if (rateDenied) return rateDenied;
 
   if (run.status !== "Released") {
     return Response.json(
@@ -309,11 +322,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   try {
-    const retry = await createPaymongoPayrollRetry({
-      runId: run.id,
-      referenceNumbers: reconciliation.retryableReferences,
-      sourceBatchIds: reconciliation.batchIds,
-    });
+    const retry = await withPayrollPayoutSubmissionLock(
+      () => createPaymongoPayrollRetry({
+        runId: run.id,
+        referenceNumbers: reconciliation.retryableReferences,
+        sourceBatchIds: reconciliation.batchIds,
+      }),
+    );
 
     await recordAuditEvent({
       organizationId: run.organizationId,

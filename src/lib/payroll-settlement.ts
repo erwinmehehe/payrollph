@@ -1,6 +1,8 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import { sameBankAccount } from "@/lib/bank-account-crypto";
+import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
+import { NATIONAL_HOLIDAYS_2026, type HolidayCalendarEntry } from "@/lib/wage-orders";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import {
   auditEvents,
@@ -10,10 +12,13 @@ import {
   employeePayRetroAdjustments,
   employees,
   expenseClaims,
+  holidays,
+  orgUnits,
   leaveConversions,
   loanPayments,
   payrollEntries,
   payrollRuns,
+  supplementaryEarnings,
 } from "@/db/schema";
 
 function money(value: number) {
@@ -96,6 +101,31 @@ function readPayProfileSnapshot(value: unknown): PayProfileSnapshot | null {
   return { payBasis, rateAmount, standardWorkDaysPerMonth, standardHoursPerDay, monthlyEquivalent };
 }
 
+function traceInputString(trace: unknown, key: string) {
+  if (!trace || typeof trace !== "object") return null;
+  const inputs = (trace as { inputs?: unknown }).inputs;
+  if (!Array.isArray(inputs)) return null;
+  const prefix = `${key}=`;
+  const raw = inputs.find((item) => typeof item === "string" && item.startsWith(prefix));
+  return typeof raw === "string" ? raw.slice(prefix.length) : null;
+}
+
+function orgUnitAncestorIds(
+  orgUnitId: number | null,
+  unitMap: Map<number, typeof orgUnits.$inferSelect>,
+) {
+  const ids = new Set<number>();
+  let cursor = orgUnitId;
+  let guard = 0;
+  while (cursor != null && guard < 50) {
+    if (ids.has(cursor)) break;
+    ids.add(cursor);
+    cursor = unitMap.get(cursor)?.parentId ?? null;
+    guard += 1;
+  }
+  return ids;
+}
+
 function samePayrollNumber(left: string | number | null | undefined, right: string | number | null | undefined) {
   const a = Number(left);
   const b = Number(right);
@@ -147,6 +177,24 @@ export async function settlePayrollRun(
         ))
       : [];
     const employeeById = new Map(currentEmployees.map((employee) => [employee.id, employee]));
+
+    const [holidayRows, unitRows] = await Promise.all([
+      tx.select().from(holidays).where(and(
+        or(isNull(holidays.organizationId), eq(holidays.organizationId, run.organizationId)),
+        lte(holidays.holidayDate, run.periodEnd),
+      )),
+      tx.select().from(orgUnits).where(eq(orgUnits.organizationId, run.organizationId)),
+    ]);
+    const unitMap = new Map(unitRows.map((unit) => [unit.id, unit]));
+    const localHolidayRows = holidayRows.flatMap((row) => {
+      const kind = row.kind === "regular" || row.kind === "special" ? row.kind : null;
+      return kind ? [{
+        date: String(row.holidayDate),
+        name: row.name,
+        kind: kind as "regular" | "special",
+        orgUnitId: row.orgUnitId,
+      }] : [];
+    });
     const currentPayProfiles = employeeIds.length
       ? await tx.select().from(employeePayProfiles).where(and(
           eq(employeePayProfiles.organizationId, run.organizationId),
@@ -183,6 +231,44 @@ export async function settlePayrollRun(
       );
     }
 
+    const currentSupplementary = employeeIds.length
+      ? await tx.select().from(supplementaryEarnings).where(and(
+          eq(supplementaryEarnings.organizationId, run.organizationId),
+          eq(supplementaryEarnings.status, "approved"),
+          inArray(supplementaryEarnings.employeeId, employeeIds),
+          gte(supplementaryEarnings.effectiveDate, run.periodStart),
+          lte(supplementaryEarnings.effectiveDate, run.periodEnd),
+          isNull(supplementaryEarnings.payrollRunId),
+        ))
+      : [];
+    const supplementaryById = new Map(currentSupplementary.map((earning) => [earning.id, earning]));
+    const calculatedSupplementaryIds = new Set<number>();
+    for (const entry of entries) {
+      for (const line of storedLines(entry.lineItems)) {
+        const earningId = numericId(line.code, "EARN-");
+        if (!earningId) continue;
+        calculatedSupplementaryIds.add(earningId);
+        const current = supplementaryById.get(earningId);
+        if (
+          !current
+          || current.employeeId !== entry.employeeId
+          || !samePayrollNumber(current.amount, line.amount)
+        ) {
+          throw new Error(
+            `Supplementary earning ${earningId} changed after calculation; recalculate before release so the approved register matches the earnings ledger.`,
+          );
+        }
+      }
+    }
+    const missingSupplementary = currentSupplementary.find(
+      (earning) => !calculatedSupplementaryIds.has(earning.id),
+    );
+    if (missingSupplementary) {
+      throw new Error(
+        `A new supplementary earning was added after calculation; recalculate before release so earning #${missingSupplementary.id} is included.`,
+      );
+    }
+
     for (const entry of entries) {
       const employee = employeeById.get(entry.employeeId);
       if (!employee) {
@@ -194,7 +280,28 @@ export async function settlePayrollRun(
         );
       }
 
-      const snapshot = readPaymentSnapshot(entry.trace);
+      const holidayScopeIds = orgUnitAncestorIds(employee.orgUnitId, unitMap);
+      const currentHolidayCalendar: HolidayCalendarEntry[] = [
+        ...NATIONAL_HOLIDAYS_2026,
+        ...localHolidayRows
+          .filter((holiday) => holiday.orgUnitId == null || holidayScopeIds.has(holiday.orgUnitId))
+          .map(({ orgUnitId: _orgUnitId, ...holiday }) => holiday)
+          .filter((local) => !NATIONAL_HOLIDAYS_2026.some(
+            (national) =>
+              national.date === local.date
+              && national.name === local.name
+              && national.kind === local.kind
+          )),
+      ];
+      const storedHolidayFingerprint = traceInputString(entry.trace, "holidayCalendarFingerprint");
+      const currentHolidayFingerprint = holidayCalendarFingerprint(currentHolidayCalendar);
+      if (!storedHolidayFingerprint || storedHolidayFingerprint !== currentHolidayFingerprint) {
+        throw new Error(
+          `Holiday calendar for ${employee.firstName} ${employee.lastName} changed after payroll calculation; recalculate before release.`,
+        );
+      }
+
+            const snapshot = readPaymentSnapshot(entry.trace);
       if (!snapshot) {
         throw new Error(
           `Payroll entry for ${employee.firstName} ${employee.lastName} lacks an immutable payment snapshot; recalculate before release.`,
@@ -252,6 +359,7 @@ export async function settlePayrollRun(
     let loanPaymentsSettled = 0;
     let leaveConversionsSettled = 0;
     let retroAdjustmentsSettled = 0;
+    let supplementaryEarningsSettled = 0;
 
     for (const entry of entries) {
       for (const line of storedLines(entry.lineItems)) {
@@ -360,6 +468,46 @@ export async function settlePayrollRun(
             throw new Error(`Leave conversion ${conversionId} changed while payroll was being released; recalculate before release.`);
           }
           leaveConversionsSettled += 1;
+          continue;
+        }
+
+        const earningId = numericId(line.code, "EARN-");
+        if (earningId) {
+          const [earning] = await tx.select().from(supplementaryEarnings)
+            .where(and(
+              eq(supplementaryEarnings.id, earningId),
+              eq(supplementaryEarnings.organizationId, run.organizationId),
+            ))
+            .limit(1);
+          if (!earning || earning.employeeId !== entry.employeeId) {
+            throw new Error(`Supplementary earning ${earningId} no longer matches this payroll entry.`);
+          }
+          if (earning.status === "settled" && earning.payrollRunId === run.id) continue;
+          if (earning.status !== "approved" || earning.payrollRunId != null) {
+            throw new Error(
+              `Supplementary earning ${earningId} was already settled or changed; recalculate payroll before release.`,
+            );
+          }
+          if (!samePayrollNumber(earning.amount, line.amount)) {
+            throw new Error(
+              `Supplementary earning ${earningId} amount changed after calculation; recalculate before release.`,
+            );
+          }
+          const [settledEarning] = await tx.update(supplementaryEarnings)
+            .set({ status: "settled", payrollRunId: run.id })
+            .where(and(
+              eq(supplementaryEarnings.id, earningId),
+              eq(supplementaryEarnings.organizationId, run.organizationId),
+              eq(supplementaryEarnings.status, "approved"),
+              isNull(supplementaryEarnings.payrollRunId),
+            ))
+            .returning({ id: supplementaryEarnings.id });
+          if (!settledEarning) {
+            throw new Error(
+              `Supplementary earning ${earningId} changed while payroll was being released; recalculate before release.`,
+            );
+          }
+          supplementaryEarningsSettled += 1;
           continue;
         }
 
@@ -482,6 +630,7 @@ export async function settlePayrollRun(
       loanPaymentsSettled,
       leaveConversionsSettled,
       retroAdjustmentsSettled,
+      supplementaryEarningsSettled,
     };
 
     // The release audit is part of the same transaction as the ledger changes.

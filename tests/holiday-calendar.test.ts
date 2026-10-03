@@ -51,8 +51,9 @@ test("payroll engine consumes the classified holiday context instead of a single
   assert.ok(engine.includes("holidayPayContextOn(punch.workDate, input.holidayCalendar ?? NATIONAL_HOLIDAYS_2026)"));
   assert.ok(engine.includes("holiday: holidayContext.holiday"));
   assert.ok(engine.includes("holidayContext.holidays.length > 0"));
-  assert.ok(engine.includes("const holidayCalendar = ["));
-  assert.ok(engine.includes("localHolidayCalendar"));
+  assert.ok(engine.includes("const employeeHolidayCalendar: HolidayCalendarEntry[] = ["));
+  assert.ok(engine.includes("localHolidayRows"));
+  assert.ok(engine.includes("holiday.orgUnitId == null || employeeHolidayScopeIds.has(holiday.orgUnitId)"));
 });
 
 

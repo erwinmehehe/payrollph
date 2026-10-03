@@ -5,11 +5,13 @@ import {
   bankEncryptionConfigured,
   bankEncryptionKeyFingerprint,
   bankEncryptionKeySource,
+  bankEncryptionPreviousKeyConfigured,
   decryptBankAccount,
   encryptBankAccount,
   isEncryptedBankAccount,
   maskBankAccount,
   parseBankEncryptionKey,
+  rotateBankAccountEncryption,
   sameBankAccount,
 } from "../src/lib/bank-account-crypto";
 
@@ -49,7 +51,7 @@ test("the wrong key and tampering both fail instead of returning garbage", () =>
 
 test("an encrypted value with no key configured is an error, never a silent blank", () => {
   const sealed = encryptBankAccount("1234567890", withKey(KEY_A))!;
-  assert.throws(() => decryptBankAccount(sealed, withKey(undefined)), /not configured/);
+  assert.throws(() => decryptBankAccount(sealed, withKey(undefined)), /configured/);
 });
 
 test("rollout is non-breaking: legacy plaintext reads, and writes pass through without a key", () => {
@@ -183,4 +185,35 @@ test("a dedicated bank key overrides the TOTP-derived key and malformed override
   } as unknown as NodeJS.ProcessEnv;
   assert.equal(bankEncryptionConfigured(malformed), false);
   assert.throws(() => encryptBankAccount("1234567890", malformed), /BANK_DATA_ENCRYPTION_KEY/);
+});
+
+
+test("bank account envelopes can be read through a one-key rotation window and rewrapped", () => {
+  const oldEnv = withKey(KEY_A);
+  const sealedOld = encryptBankAccount("1234567890", oldEnv)!;
+  const rotatingEnv = {
+    BANK_DATA_ENCRYPTION_KEY: KEY_B,
+    BANK_DATA_ENCRYPTION_KEY_PREVIOUS: KEY_A,
+  } as unknown as NodeJS.ProcessEnv;
+
+  assert.equal(bankEncryptionPreviousKeyConfigured(rotatingEnv), true);
+  assert.equal(decryptBankAccount(sealedOld, rotatingEnv), "1234567890");
+
+  const rotated = rotateBankAccountEncryption(sealedOld, rotatingEnv)!;
+  assert.notEqual(rotated, sealedOld);
+  assert.equal(decryptBankAccount(rotated, withKey(KEY_B)), "1234567890");
+  assert.throws(() => decryptBankAccount(rotated, withKey(KEY_A)), /could not be decrypted/);
+});
+
+test("bank rotation also supports a previous TOTP-derived bank key", () => {
+  const oldDerived = withTotpMaster(KEY_A);
+  const sealedOld = encryptBankAccount("1234567890", oldDerived)!;
+  const rotatingEnv = {
+    BANK_DATA_ENCRYPTION_KEY: KEY_B,
+    TOTP_ENCRYPTION_KEY_PREVIOUS: KEY_A,
+  } as unknown as NodeJS.ProcessEnv;
+
+  assert.equal(decryptBankAccount(sealedOld, rotatingEnv), "1234567890");
+  const rotated = rotateBankAccountEncryption(sealedOld, rotatingEnv)!;
+  assert.equal(decryptBankAccount(rotated, withKey(KEY_B)), "1234567890");
 });

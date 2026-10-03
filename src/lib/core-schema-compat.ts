@@ -185,7 +185,7 @@ export async function ensureCoreCompatibilitySchema() {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v3'))");
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v6'))");
 
       await client.query(`
         ALTER TABLE organizations
@@ -194,7 +194,8 @@ export async function ensureCoreCompatibilitySchema() {
           ADD COLUMN IF NOT EXISTS sss_employer_no varchar(24),
           ADD COLUMN IF NOT EXISTS philhealth_employer_no varchar(24),
           ADD COLUMN IF NOT EXISTS pagibig_employer_no varchar(24),
-          ADD COLUMN IF NOT EXISTS statutory_deduction_timing varchar(24) NOT NULL DEFAULT 'split'
+          ADD COLUMN IF NOT EXISTS statutory_deduction_timing varchar(24) NOT NULL DEFAULT 'split',
+          ADD COLUMN IF NOT EXISTS payroll_calendar_mode varchar(24) NOT NULL DEFAULT 'flexible'
       `);
       await client.query(`
         DO $compat$
@@ -206,6 +207,20 @@ export async function ensureCoreCompatibilitySchema() {
             ALTER TABLE organizations
               ADD CONSTRAINT organizations_statutory_deduction_timing_check
               CHECK (statutory_deduction_timing IN ('split', 'first_cutoff', 'second_cutoff'));
+          END IF;
+        END
+        $compat$;
+      `);
+      await client.query(`
+        DO $compat$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'organizations_payroll_calendar_mode_check'
+          ) THEN
+            ALTER TABLE organizations
+              ADD CONSTRAINT organizations_payroll_calendar_mode_check
+              CHECK (payroll_calendar_mode IN ('flexible', 'ph_semi_monthly'));
           END IF;
         END
         $compat$;
@@ -290,6 +305,56 @@ export async function ensureCoreCompatibilitySchema() {
         ALTER TABLE time_punches
           ADD COLUMN IF NOT EXISTS break_start timestamptz,
           ADD COLUMN IF NOT EXISTS break_end timestamptz
+      `);
+
+      await client.query(`
+        ALTER TABLE holidays
+          ADD COLUMN IF NOT EXISTS org_unit_id integer REFERENCES org_units(id) ON DELETE CASCADE
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS holidays_org_unit_date_idx
+        ON holidays(organization_id, org_unit_id, holiday_date)
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS supplementary_earnings (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          employee_id integer NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+          earning_type varchar(32) NOT NULL,
+          label varchar(120) NOT NULL,
+          amount numeric(12,2) NOT NULL,
+          taxable boolean NOT NULL DEFAULT true,
+          include_in_sss_base boolean NOT NULL DEFAULT true,
+          include_in_pagibig_base boolean NOT NULL DEFAULT true,
+          effective_date date NOT NULL,
+          status varchar(24) NOT NULL DEFAULT 'approved',
+          payroll_run_id integer REFERENCES payroll_runs(id) ON DELETE SET NULL,
+          created_by varchar(120) NOT NULL DEFAULT 'System',
+          created_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS supplementary_earnings_org_employee_idx
+        ON supplementary_earnings(organization_id, employee_id)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS supplementary_earnings_status_effective_idx
+        ON supplementary_earnings(status, effective_date)
+      `);
+      await client.query(`
+        DO $compat$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'supplementary_earnings_status_check'
+          ) THEN
+            ALTER TABLE supplementary_earnings
+              ADD CONSTRAINT supplementary_earnings_status_check
+              CHECK (status IN ('pending', 'approved', 'settled', 'void'));
+          END IF;
+        END
+        $compat$;
       `);
 
       // Government identifiers now use AES-GCM envelopes. Widen first, then
@@ -402,6 +467,55 @@ export async function ensureCoreCompatibilitySchema() {
           source_system,
           source_reference
         )
+      `);
+
+      await client.query(`
+        ALTER TABLE historical_payroll_entries
+          ADD COLUMN IF NOT EXISTS de_minimis_breakdown jsonb
+      `);
+
+      // Evidence that a corporate bank portal accepted an exact Linaw-generated
+      // payroll file. Only the hash/reference is retained, never file contents.
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS bank_file_validations (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          payroll_run_id integer REFERENCES payroll_runs(id) ON DELETE SET NULL,
+          template_name varchar(100) NOT NULL,
+          template_version varchar(32) NOT NULL,
+          file_name varchar(180) NOT NULL,
+          file_sha256 varchar(64) NOT NULL,
+          status varchar(16) NOT NULL DEFAULT 'generated',
+          portal_reference varchar(120),
+          submitted_at timestamptz,
+          outcome_note text,
+          generated_by varchar(120) NOT NULL,
+          recorded_by varchar(120),
+          recorded_at timestamptz,
+          created_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS bank_file_validation_unique
+        ON bank_file_validations(organization_id, template_name, template_version, file_sha256)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS bank_file_validation_status_idx
+        ON bank_file_validations(status, template_name)
+      `);
+      await client.query(`
+        DO $compat$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'bank_file_validations_status_check'
+          ) THEN
+            ALTER TABLE bank_file_validations
+              ADD CONSTRAINT bank_file_validations_status_check
+              CHECK (status IN ('generated', 'accepted', 'rejected'));
+          END IF;
+        END
+        $compat$;
       `);
 
       // Evidence that agencies accepted files Linaw generated. Readiness reads

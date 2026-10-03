@@ -584,3 +584,19 @@ test("production malware scanner configuration requires authenticated HTTPS", ()
     else env.NODE_ENV = previousNodeEnv;
   }
 });
+
+
+test("privileged payroll money actions use distributed sensitive-action rate limits", async () => {
+  const { readFileSync } = await import("node:fs");
+  const helper = readFileSync("src/lib/security-request.ts", "utf8");
+  const release = readFileSync("src/app/api/payroll-runs/[id]/release/route.ts", "utf8");
+  const payout = readFileSync("src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts", "utf8");
+  const employees = readFileSync("src/app/api/employees/route.ts", "utf8");
+
+  assert.ok(helper.includes("rateLimitDistributed"));
+  assert.ok(helper.includes("SENSITIVE_ACTION_RATE_LIMITED"));
+  assert.ok(helper.includes('"Retry-After"'));
+  assert.ok(release.includes('action: "payroll-release"'));
+  assert.ok(payout.includes('action: "payout-reconciliation"'));
+  assert.ok(employees.includes('action: "employee-payout-destination-change"'));
+});

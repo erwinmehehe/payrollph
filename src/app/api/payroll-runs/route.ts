@@ -1,11 +1,12 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, orgUnits, payrollEntries, payrollRuns } from "@/db/schema";
+import { employees, organizations, orgUnits, payrollEntries, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
-import { drainPayrollQueue, enqueuePayrollRun, getPayrollJobStatus } from "@/lib/payroll-engine";
+import { drainPayrollQueue, enqueuePayrollRun, getPayrollJobStatus, PAYROLL_RULE_VERSION } from "@/lib/payroll-engine";
 import { assertOrganizationRole, assertOrganizationUnitAccess, getAccess, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
+import { isCanonicalPhSemiMonthlyPeriod } from "@/lib/payroll-calendar";
 
 export const dynamic = "force-dynamic";
 
@@ -162,6 +163,20 @@ export async function POST(request: Request) {
   if (denied) return denied;
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+
+  const [organization] = await db.select().from(organizations)
+    .where(eq(organizations.id, organizationId))
+    .limit(1);
+  if (!organization) return Response.json({ error: "Organization not found." }, { status: 404 });
+  if (
+    organization.payrollCalendarMode === "ph_semi_monthly"
+    && !isCanonicalPhSemiMonthlyPeriod(periodStart, periodEnd)
+  ) {
+    return Response.json({
+      error: "This organization uses the Philippine semi-monthly calendar. Payroll periods must be exactly the 1st–15th or the 16th–end of month.",
+      code: "INVALID_PH_SEMI_MONTHLY_PERIOD",
+    }, { status: 422 });
+  }
   if (!access.companyWide && rawScopeOrgUnitId !== null && rawScopeOrgUnitId !== access.orgUnitId) {
     return Response.json({ error: "You can create payroll only for your assigned organization unit." }, { status: 403 });
   }
@@ -233,7 +248,7 @@ export async function POST(request: Request) {
     grossPay: "0",
     netPay: "0",
     exceptions: 0,
-    ruleVersion: "PH-2026.01",
+    ruleVersion: PAYROLL_RULE_VERSION,
   }).returning();
 
   await recordAuditEvent({
@@ -247,7 +262,7 @@ export async function POST(request: Request) {
       payDate,
       scope: scopeLabel,
       scopeOrgUnitId,
-      ruleVersion: "PH-2026.01",
+      ruleVersion: PAYROLL_RULE_VERSION,
     },
   });
 

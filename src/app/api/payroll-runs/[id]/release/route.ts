@@ -9,7 +9,11 @@ import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
 import { settlePayrollRun } from "@/lib/payroll-settlement";
 import { buildPayrollReleaseChecklist } from "@/lib/payroll-release-checklist";
 import { isPublicDemoIdentity } from "@/lib/demo-security";
-import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
+import {
+  enforceSameOriginMutation,
+  enforceSensitiveActionRateLimit,
+  requireSensitiveActionMfa,
+} from "@/lib/security-request";
 import { recordAuditEvent } from "@/lib/audit";
 
 const RELEASABLE = ["Ready for release"];
@@ -43,6 +47,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (scopeDenied) return scopeDenied;
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
+  const rateDenied = await enforceSensitiveActionRateLimit(request, {
+    userId: user.id,
+    action: "payroll-release",
+    resourceId: runId,
+    limit: 5,
+    windowMs: 5 * 60_000,
+  });
+  if (rateDenied) return rateDenied;
 
   if (run.status === "Released") {
     return Response.json({ error: "This run is already released." }, { status: 409 });

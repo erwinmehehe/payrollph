@@ -1,3 +1,4 @@
+import { clientIp, rateLimitDistributed } from "@/lib/rate-limit";
 const MUTATION_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 function normalizeOrigin(value: string | null | undefined) {
@@ -87,6 +88,38 @@ export function enforceSameOriginMutation(request: Request) {
   }
 
   return null;
+}
+
+export async function enforceSensitiveActionRateLimit(
+  request: Request,
+  input: {
+    userId: number;
+    action: string;
+    resourceId?: string | number | null;
+    limit?: number;
+    windowMs?: number;
+  },
+) {
+  const resource = input.resourceId == null ? "global" : String(input.resourceId);
+  const bucket = `sensitive:${input.action}:user:${input.userId}:resource:${resource}:ip:${clientIp(request)}`;
+  const result = await rateLimitDistributed(bucket, {
+    limit: input.limit ?? 8,
+    windowMs: input.windowMs ?? 5 * 60_000,
+  });
+  if (result.allowed) return null;
+
+  const retryAfterSeconds = Math.max(1, Math.ceil(result.retryAfterMs / 1000));
+  return Response.json(
+    {
+      error: "Too many sensitive-action attempts. Retry after the cooldown.",
+      code: "SENSITIVE_ACTION_RATE_LIMITED",
+      retryAfterSeconds,
+    },
+    {
+      status: 429,
+      headers: { "Retry-After": String(retryAfterSeconds) },
+    },
+  );
 }
 
 export function requireSensitiveActionMfa(user: {

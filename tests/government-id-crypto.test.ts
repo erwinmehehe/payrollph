@@ -4,8 +4,10 @@ import {
   decryptGovernmentId,
   encryptGovernmentId,
   governmentIdEncryptionConfigured,
+  governmentIdPreviousKeyConfigured,
   isEncryptedGovernmentId,
   maskGovernmentId,
+  rotateGovernmentIdEncryption,
 } from "../src/lib/government-id-crypto";
 
 const env = {
@@ -44,5 +46,33 @@ test("production-style required encryption refuses plaintext writes without a ke
   assert.throws(
     () => encryptGovernmentId("123456789", { required: true, env: noKey }),
     /required before government identifiers can be stored/,
+  );
+});
+
+
+test("government identifiers support a one-key rotation window and rewrap", () => {
+  const oldEnv = {
+    ...process.env,
+    PII_ENCRYPTION_KEY: "11".repeat(32),
+    BANK_DATA_ENCRYPTION_KEY: "",
+    TOTP_ENCRYPTION_KEY: "",
+  };
+  const sealedOld = encryptGovernmentId("123-456-789", { required: true, env: oldEnv })!;
+  const rotatingEnv = {
+    ...process.env,
+    PII_ENCRYPTION_KEY: "22".repeat(32),
+    PII_ENCRYPTION_KEY_PREVIOUS: "11".repeat(32),
+    BANK_DATA_ENCRYPTION_KEY: "",
+    TOTP_ENCRYPTION_KEY: "",
+  };
+
+  assert.equal(governmentIdPreviousKeyConfigured(rotatingEnv), true);
+  assert.equal(decryptGovernmentId(sealedOld, rotatingEnv), "123-456-789");
+
+  const rotated = rotateGovernmentIdEncryption(sealedOld, { env: rotatingEnv })!;
+  assert.equal(decryptGovernmentId(rotated, rotatingEnv), "123-456-789");
+  assert.throws(
+    () => decryptGovernmentId(rotated, oldEnv),
+    /could not be decrypted/,
   );
 });

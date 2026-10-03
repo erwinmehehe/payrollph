@@ -22,16 +22,19 @@ import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes }
  *     reports the gap instead of pretending the data is protected.
  *   - scripts/encrypt-bank-accounts.ts backfills existing rows.
  *
- * Key rotation is not implemented: the "v1" tag leaves room for it, but a
- * rotation would need a re-encryption pass. Do not change BANK_DATA_ENCRYPTION_KEY
- * or, when using the derived-key fallback, TOTP_ENCRYPTION_KEY without re-encrypting
- * first. A wrong or missing key makes encrypted values unreadable,
- * and this module throws rather than returning garbage into a payout file.
+ * Key rotation is supported with a one-key grace window. Configure the new
+ * BANK_DATA_ENCRYPTION_KEY (or TOTP_ENCRYPTION_KEY), place the old key in
+ * BANK_DATA_ENCRYPTION_KEY_PREVIOUS (or TOTP_ENCRYPTION_KEY_PREVIOUS), run the
+ * rewrap operator pass, verify zero old-key rows remain, then remove the
+ * previous-key variable. Reads try current then previous; writes always use the
+ * current key. A wrong or missing key still fails closed.
  */
 
 const PREFIX = "enc:v1:";
 const KEY_ENV = "BANK_DATA_ENCRYPTION_KEY";
+const PREVIOUS_KEY_ENV = "BANK_DATA_ENCRYPTION_KEY_PREVIOUS";
 const MASTER_KEY_ENV = "TOTP_ENCRYPTION_KEY";
+const PREVIOUS_MASTER_KEY_ENV = "TOTP_ENCRYPTION_KEY_PREVIOUS";
 const BANK_KEY_DERIVATION_LABEL = "linaw:bank-account:v1";
 
 export function isEncryptedBankAccount(value: string | null | undefined): boolean {
@@ -72,6 +75,29 @@ function configuredKey(env: NodeJS.ProcessEnv = process.env): Buffer | null {
   // the bank field its own cryptographic domain while avoiding a second secret
   // that cannot currently be provisioned through the connected Vercel tooling.
   return createHmac("sha256", master).update(BANK_KEY_DERIVATION_LABEL).digest();
+}
+
+function configuredPreviousKey(env: NodeJS.ProcessEnv = process.env): Buffer | null {
+  const dedicatedRaw = env[PREVIOUS_KEY_ENV];
+  if (dedicatedRaw) {
+    const dedicated = parseBankEncryptionKey(dedicatedRaw);
+    if (!dedicated) throw new Error(`${PREVIOUS_KEY_ENV} must be 32 bytes, as 64 hex characters or base64.`);
+    return dedicated;
+  }
+
+  const masterRaw = env[PREVIOUS_MASTER_KEY_ENV];
+  if (!masterRaw) return null;
+  const master = parseBankEncryptionKey(masterRaw);
+  if (!master) throw new Error(`${PREVIOUS_MASTER_KEY_ENV} must be 32 bytes, as 64 hex characters or base64.`);
+  return createHmac("sha256", master).update(BANK_KEY_DERIVATION_LABEL).digest();
+}
+
+export function bankEncryptionPreviousKeyConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
+  try {
+    return configuredPreviousKey(env) !== null;
+  } catch {
+    return false;
+  }
 }
 
 export function bankEncryptionKeySource(
@@ -144,21 +170,26 @@ export function decryptBankAccount(
   if (!stored) return null;
   if (!isEncryptedBankAccount(stored)) return stored;
 
-  const key = configuredKey(env);
-  if (!key) {
-    throw new Error(`A bank account is stored encrypted but ${KEY_ENV} is not configured.`);
+  const currentKey = configuredKey(env);
+  const previousKey = configuredPreviousKey(env);
+  const keys = [currentKey, previousKey].filter((key): key is Buffer => Boolean(key));
+  if (keys.length === 0) {
+    throw new Error(`A bank account is stored encrypted but neither ${KEY_ENV} nor a rotation key is configured.`);
   }
 
   const [iv, tag, ciphertext] = stored.slice(PREFIX.length).split(":");
   if (!iv || !tag || !ciphertext) throw new Error("Stored bank account is malformed.");
 
-  try {
-    const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(iv, "base64url"));
-    decipher.setAuthTag(Buffer.from(tag, "base64url"));
-    return Buffer.concat([decipher.update(Buffer.from(ciphertext, "base64url")), decipher.final()]).toString("utf8");
-  } catch {
-    throw new Error("A stored bank account could not be decrypted. Check that the key has not changed.");
+  for (const key of keys) {
+    try {
+      const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(iv, "base64url"));
+      decipher.setAuthTag(Buffer.from(tag, "base64url"));
+      return Buffer.concat([decipher.update(Buffer.from(ciphertext, "base64url")), decipher.final()]).toString("utf8");
+    } catch {
+      // Try the previous rotation key, if configured.
+    }
   }
+  throw new Error("A stored bank account could not be decrypted with the current or previous rotation key.");
 }
 
 /**
@@ -199,4 +230,22 @@ export function sameBankAccount(
   const a = read(left);
   const b = read(right);
   return a !== null && b !== null && a === b;
+}
+
+
+/**
+ * Re-seals a bank account with the current key. During a rotation this accepts
+ * envelopes encrypted by the configured previous key; plaintext legacy values
+ * are also sealed. It never preserves the old ciphertext.
+ */
+export function rotateBankAccountEncryption(
+  value: string | null | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): string | null {
+  if (value == null || !value.trim()) return null;
+  if (!configuredKey(env)) {
+    throw new Error(`${KEY_ENV} (or ${MASTER_KEY_ENV}) must be configured as the current key before rotation.`);
+  }
+  const plain = decryptBankAccount(value, env);
+  return encryptBankAccount(plain, env);
 }

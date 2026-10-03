@@ -27,6 +27,7 @@ export const organizations = pgTable("organizations", {
   philHealthEmployerNo: varchar("philhealth_employer_no", { length: 24 }),
   pagIbigEmployerNo: varchar("pagibig_employer_no", { length: 24 }),
   statutoryDeductionTiming: varchar("statutory_deduction_timing", { length: 24 }).notNull().default("split"),
+  payrollCalendarMode: varchar("payroll_calendar_mode", { length: 24 }).notNull().default("flexible"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -343,6 +344,36 @@ export const bankTemplates = pgTable("bank_templates", {
   active: boolean("active").notNull().default(true),
 });
 
+export const bankFileValidations = pgTable(
+  "bank_file_validations",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    payrollRunId: integer("payroll_run_id").references(() => payrollRuns.id, { onDelete: "set null" }),
+    templateName: varchar("template_name", { length: 100 }).notNull(),
+    templateVersion: varchar("template_version", { length: 32 }).notNull(),
+    fileName: varchar("file_name", { length: 180 }).notNull(),
+    fileSha256: varchar("file_sha256", { length: 64 }).notNull(),
+    status: varchar("status", { length: 16 }).notNull().default("generated"),
+    portalReference: varchar("portal_reference", { length: 120 }),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    outcomeNote: text("outcome_note"),
+    generatedBy: varchar("generated_by", { length: 120 }).notNull(),
+    recordedBy: varchar("recorded_by", { length: 120 }),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("bank_file_validation_unique").on(
+      table.organizationId,
+      table.templateName,
+      table.templateVersion,
+      table.fileSha256,
+    ),
+    index("bank_file_validation_status_idx").on(table.status, table.templateName),
+  ],
+);
+
 export const approvalTasks = pgTable("approval_tasks", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
@@ -541,6 +572,26 @@ export const deMinimisGrants = pgTable("de_minimis_grants", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const supplementaryEarnings = pgTable("supplementary_earnings", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  earningType: varchar("earning_type", { length: 32 }).notNull(),
+  label: varchar("label", { length: 120 }).notNull(),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  taxable: boolean("taxable").notNull().default(true),
+  includeInSssBase: boolean("include_in_sss_base").notNull().default(true),
+  includeInPagIbigBase: boolean("include_in_pagibig_base").notNull().default(true),
+  effectiveDate: date("effective_date").notNull(),
+  status: varchar("status", { length: 24 }).notNull().default("approved"),
+  payrollRunId: integer("payroll_run_id").references(() => payrollRuns.id, { onDelete: "set null" }),
+  createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("supplementary_earnings_org_employee_idx").on(table.organizationId, table.employeeId),
+  index("supplementary_earnings_status_effective_idx").on(table.status, table.effectiveDate),
+]);
+
 export const minWageOrders = pgTable("min_wage_orders", {
   id: serial("id").primaryKey(),
   region: varchar("region", { length: 32 }).notNull(),
@@ -602,6 +653,7 @@ export const assets = pgTable("assets", {
 export const holidays = pgTable("holidays", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id"),
+  orgUnitId: integer("org_unit_id").references(() => orgUnits.id, { onDelete: "cascade" }),
   holidayDate: date("holiday_date").notNull(),
   name: varchar("name", { length: 120 }).notNull(),
   kind: varchar("kind", { length: 24 }).notNull().default("regular"),
@@ -761,6 +813,9 @@ export const historicalPayrollEntries = pgTable("historical_payroll_entries", {
   philHealthEmployee: numeric("philhealth_employee", { precision: 14, scale: 2 }).notNull().default("0"),
   pagIbigEmployee: numeric("pagibig_employee", { precision: 14, scale: 2 }).notNull().default("0"),
   thirteenthMonth: numeric("thirteenth_month", { precision: 14, scale: 2 }).notNull().default("0"),
+  // Null means the prior provider did not supply category-level de minimis
+  // detail. An explicit {} means the source confirmed there was none.
+  deMinimisBreakdown: jsonb("de_minimis_breakdown"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex("historical_payroll_source_unique").on(
