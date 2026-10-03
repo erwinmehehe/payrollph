@@ -26,6 +26,7 @@ export const organizations = pgTable("organizations", {
   sssEmployerNo: varchar("sss_employer_no", { length: 24 }),
   philHealthEmployerNo: varchar("philhealth_employer_no", { length: 24 }),
   pagIbigEmployerNo: varchar("pagibig_employer_no", { length: 24 }),
+  statutoryDeductionTiming: varchar("statutory_deduction_timing", { length: 24 }).notNull().default("split"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -127,11 +128,12 @@ export const employees = pgTable("employees", {
   // Employer-designated fixed weekly rest day. Null means not configured;
   // payroll must never guess this because a wrong default changes computed pay.
   restDay: varchar("rest_day", { length: 10 }),
-  tin: varchar("tin", { length: 32 }),
-  tinBranchCode: varchar("tin_branch_code", { length: 4 }),
-  sssNo: varchar("sss_no", { length: 32 }),
-  philHealthNo: varchar("philhealth_no", { length: 32 }),
-  pagIbigNo: varchar("pagibig_no", { length: 32 }),
+  tin: varchar("tin", { length: 180 }),
+  tinBranchCode: varchar("tin_branch_code", { length: 180 }),
+  sssNo: varchar("sss_no", { length: 180 }),
+  philHealthNo: varchar("philhealth_no", { length: 180 }),
+  pagIbigNo: varchar("pagibig_no", { length: 180 }),
+  pagIbigVoluntaryMonthly: numeric("pagibig_voluntary_monthly", { precision: 10, scale: 2 }).notNull().default("0"),
   nationality: varchar("nationality", { length: 60 }).notNull().default("Filipino"),
   birthDate: date("birth_date"),
   emergencyContact: varchar("emergency_contact", { length: 120 }),
@@ -209,6 +211,8 @@ export const timePunches = pgTable("time_punches", {
   workDate: date("work_date").notNull(),
   timeIn: timestamp("time_in", { withTimezone: true }),
   timeOut: timestamp("time_out", { withTimezone: true }),
+  breakStart: timestamp("break_start", { withTimezone: true }),
+  breakEnd: timestamp("break_end", { withTimezone: true }),
   shiftStart: varchar("shift_start", { length: 8 }).notNull().default("09:00"),
   shiftEnd: varchar("shift_end", { length: 8 }).notNull().default("18:00"),
   status: varchar("status", { length: 32 }).notNull().default("Complete"),
@@ -556,10 +560,31 @@ export const contractors = pgTable("contractors", {
   rate: numeric("rate", { precision: 12, scale: 2 }).notNull(),
   rateType: varchar("rate_type", { length: 20 }).notNull().default("monthly"),
   status: varchar("status", { length: 32 }).notNull().default("active"),
+  tin: varchar("tin", { length: 180 }),
+  withholdingAtc: varchar("withholding_atc", { length: 24 }),
+  withholdingRate: numeric("withholding_rate", { precision: 6, scale: 3 }),
   contractStart: date("contract_start"),
   contractEnd: date("contract_end"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const contractorPayments = pgTable("contractor_payments", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  contractorId: integer("contractor_id").notNull().references(() => contractors.id, { onDelete: "restrict" }),
+  paymentDate: date("payment_date").notNull(),
+  grossAmountPhp: numeric("gross_amount_php", { precision: 14, scale: 2 }).notNull(),
+  withholdingAtc: varchar("withholding_atc", { length: 24 }).notNull(),
+  withholdingRate: numeric("withholding_rate", { precision: 6, scale: 3 }).notNull(),
+  withholdingAmount: numeric("withholding_amount", { precision: 14, scale: 2 }).notNull(),
+  netAmountPhp: numeric("net_amount_php", { precision: 14, scale: 2 }).notNull(),
+  reference: varchar("reference", { length: 160 }),
+  createdBy: varchar("created_by", { length: 120 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("contractor_payment_org_date_idx").on(table.organizationId, table.paymentDate),
+  index("contractor_payment_contractor_idx").on(table.contractorId),
+]);
 
 export const assets = pgTable("assets", {
   id: serial("id").primaryKey(),
@@ -698,6 +723,9 @@ export const dataRequests = pgTable("data_requests", {
   completedAt: timestamp("completed_at", { withTimezone: true }),
   handledBy: varchar("handled_by", { length: 120 }),
   notes: varchar("notes", { length: 400 }),
+  fulfillmentAction: varchar("fulfillment_action", { length: 64 }),
+  fulfillmentEvidence: jsonb("fulfillment_evidence").notNull().default({}),
+  legalRetentionApplied: boolean("legal_retention_applied").notNull().default(false),
 });
 
 export const importBatches = pgTable("import_batches", {

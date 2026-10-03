@@ -49,8 +49,8 @@ export const PARITY: Array<{
   competitors: Record<(typeof COMPETITORS)[number], "yes" | "no" | "limited" | "unknown">;
 }> = [
   { capability: "Semi-monthly + monthly payroll", linaw: "verified", competitors: { Sprout: "yes", PayrollHero: "yes", "GreatDay HR": "yes", Kazam: "limited" } },
-  { capability: "SSS / PhilHealth / Pag-IBIG / TRAIN engine", linaw: "verified", competitors: { Sprout: "yes", PayrollHero: "yes", "GreatDay HR": "yes", Kazam: "yes" } },
-  { capability: "MWE exemption cascading", linaw: "verified", competitors: { Sprout: "limited", PayrollHero: "yes", "GreatDay HR": "yes", Kazam: "unknown" } },
+  { capability: "SSS / PhilHealth / Pag-IBIG / TRAIN engine", linaw: "partial", competitors: { Sprout: "yes", PayrollHero: "yes", "GreatDay HR": "yes", Kazam: "yes" } },
+  { capability: "MWE exemption handling", linaw: "partial", competitors: { Sprout: "limited", PayrollHero: "yes", "GreatDay HR": "yes", Kazam: "unknown" } },
   { capability: "Holiday premium stacking (including double regular holiday)", linaw: "verified", competitors: { Sprout: "yes", PayrollHero: "yes", "GreatDay HR": "limited", Kazam: "unknown" } },
   // One fixed weekly day per employee, editable by authorized People admins
   // with effective-dated history. Exempt categories and rotating/substitute
@@ -58,13 +58,13 @@ export const PARITY: Array<{
   { capability: "Rest-day premium pay", linaw: "partial", competitors: { Sprout: "yes", PayrollHero: "yes", "GreatDay HR": "limited", Kazam: "unknown" } },
   { capability: "Auto-derived tardiness / OT / night diff", linaw: "verified", competitors: { Sprout: "limited", PayrollHero: "yes", "GreatDay HR": "limited", Kazam: "unknown" } },
   { capability: "Calamity / hazard pay auto-applied", linaw: "verified", competitors: { Sprout: "limited", PayrollHero: "limited", "GreatDay HR": "limited", Kazam: "unknown" } },
-  { capability: "Year-end annualization + 2316 draft", linaw: "verified", competitors: { Sprout: "yes", PayrollHero: "yes", "GreatDay HR": "yes", Kazam: "yes" } },
+  { capability: "Year-end annualization + 2316 draft", linaw: "partial", competitors: { Sprout: "yes", PayrollHero: "yes", "GreatDay HR": "yes", Kazam: "yes" } },
   { capability: "Certified government filing", linaw: "absent", competitors: { Sprout: "yes", PayrollHero: "yes", "GreatDay HR": "yes", Kazam: "yes" } },
   { capability: "Freelancer / self-employed product", linaw: "verified", competitors: { Sprout: "no", PayrollHero: "no", "GreatDay HR": "no", Kazam: "no" } },
   { capability: "Multi-client bookkeeper hub", linaw: "verified", competitors: { Sprout: "limited", PayrollHero: "limited", "GreatDay HR": "limited", Kazam: "no" } },
   { capability: "Multi-branch / department hierarchy", linaw: "verified", competitors: { Sprout: "yes", PayrollHero: "limited", "GreatDay HR": "limited", Kazam: "limited" } },
   { capability: "Department-scoped RBAC + delegation", linaw: "verified", competitors: { Sprout: "limited", PayrollHero: "limited", "GreatDay HR": "limited", Kazam: "no" } },
-  { capability: "Tenant isolation (IDOR-safe)", linaw: "verified", competitors: { Sprout: "unknown", PayrollHero: "unknown", "GreatDay HR": "unknown", Kazam: "unknown" } },
+  { capability: "Tenant-scoped authorization", linaw: "verified", competitors: { Sprout: "unknown", PayrollHero: "unknown", "GreatDay HR": "unknown", Kazam: "unknown" } },
   { capability: "Chunked background payroll queue", linaw: "verified", competitors: { Sprout: "limited", PayrollHero: "limited", "GreatDay HR": "limited", Kazam: "no" } },
   { capability: "Employee self-service portal", linaw: "verified", competitors: { Sprout: "yes", PayrollHero: "yes", "GreatDay HR": "yes", Kazam: "yes" } },
   { capability: "Embedded benefits (HMO / MP2 / Flexi)", linaw: "verified", competitors: { Sprout: "limited", PayrollHero: "limited", "GreatDay HR": "limited", Kazam: "no" } },
@@ -102,9 +102,9 @@ export async function buildCapabilityReport() {
   const emailCapable = deliveryCapable();
 
   const capabilities: Capability[] = [
-    { id: "engine", area: "Payroll", label: "Semi-monthly calculation engine", detail: "SSS, PhilHealth, Pag-IBIG, TRAIN brackets, MWE exemption, regular/special/double-regular holiday stacking, rest-day premiums and compounded night differential.", status: "verified", proof: `${runs} run(s) on record · tests/payroll-rules.test.ts · tests/premium-pay-crosscheck.test.ts · tests/holiday-calendar.test.ts` },
+    { id: "engine", area: "Payroll", label: "Semi-monthly calculation engine", detail: "Automated SSS, PhilHealth, Pag-IBIG, TRAIN, MWE, holiday/rest-day and night-differential logic is implemented and regression-tested. Independent production payroll reconciliation remains a launch gate.", status: "partial", proof: `${runs} run(s) on record · automated statutory tests · independent production sign-off still required` },
     { id: "queue", area: "Scale", label: "Chunked background queue", detail: "Postgres FOR UPDATE SKIP LOCKED, resumable and idempotent per run.", status: "verified", proof: codeProof("src/lib/payroll-engine.ts") },
-    { id: "tenancy", area: "Security", label: "Tenant isolation", detail: "Every session route is membership-gated; resource routes check the record's own org.", status: "verified", proof: "tests/tenancy.test.ts" },
+    { id: "tenancy", area: "Security", label: "Tenant-scoped authorization", detail: "Session and resource routes are covered by organization/org-unit authorization checks and automated cross-tenant regression tests. This is an implementation claim, not an absolute penetration-test guarantee.", status: "verified", proof: "tests/tenancy.test.ts" },
     { id: "auth", area: "Security", label: "Password + TOTP + revocable sessions", detail: "scrypt hashing, RFC 6238 challenge between password and session, distributed rate limiting.", status: "verified", proof: codeProof("src/lib/totp.ts") },
     { id: "freelancer", area: "Tiers", label: "Self-employed product", detail: "Voluntary contributions planner with 8% flat vs graduated comparison.", status: "verified", proof: codeProof("src/lib/payroll-rules.ts") },
     { id: "multiclient", area: "Tiers", label: "Multi-client bookkeeper hub", detail: "Portfolio switcher with cross-client permission scoping.", status: "verified", proof: codeProof("src/lib/access.ts") },
@@ -122,8 +122,8 @@ export async function buildCapabilityReport() {
       area: "Compliance",
       label: "Year-end annualization",
       detail: "13th-month exemption, refund/collection, 2316 draft.",
-      status: "verified",
-      proof: "tests/annualization.test.ts · src/lib/annualization.ts",
+      status: "partial",
+      proof: "tests/annualization.test.ts · src/lib/annualization.ts · BIR filing/certificate validation still required",
     },
     {
       id: "delegation",

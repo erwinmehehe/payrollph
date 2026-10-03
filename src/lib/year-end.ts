@@ -6,28 +6,72 @@ import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { annualize, ANNUALIZATION_RULE_VERSION, type AnnualizationResult } from "@/lib/annualization";
 import { readBasicAndThirteenth } from "@/lib/final-pay";
 
-type LineItem = { code?: string; label?: string; amount?: number | string };
+type LineItem = {
+  code?: string;
+  label?: string;
+  amount?: number | string;
+  periodOtherBenefitsPool?: number;
+};
 
-function sumContributionsAndTax(lineItems: unknown) {
+function traceNumber(trace: unknown, prefix: string) {
+  if (!trace || typeof trace !== "object") return 0;
+  const inputs = (trace as { inputs?: unknown }).inputs;
+  if (!Array.isArray(inputs)) return 0;
+  const raw = inputs.find((item) => typeof item === "string" && item.startsWith(prefix));
+  if (typeof raw !== "string") return 0;
+  const value = Number(raw.slice(prefix.length));
+  return Number.isFinite(value) ? value : 0;
+}
+
+function sumContributionsAndTax(lineItems: unknown, trace?: unknown) {
   const items = Array.isArray(lineItems) ? (lineItems as LineItem[]) : [];
   let contributions = 0;
   let tax = 0;
   let thirteenth = 0;
+  let reimbursements = 0;
+  let deMinimisExempt = 0;
+  let otherBenefitsPool = 0;
+  let mweTaxableSupplementaryCompensation = traceNumber(trace, "mweTaxableSupplementaryCompensation=");
 
   for (const item of items) {
-    const amount = Math.abs(Number(item.amount ?? 0));
+    const signedAmount = Number(item.amount ?? 0);
+    const amount = Math.abs(signedAmount);
     if (!Number.isFinite(amount)) continue;
+    const code = String(item.code ?? "").toUpperCase();
     const label = `${item.code ?? ""} ${item.label ?? ""}`.toLowerCase();
-    if (label.includes("sss") || label.includes("philhealth") || label.includes("pag-ibig") || label.includes("pagibig")) {
+
+    if (
+      code !== "HDMF_VOL"
+      && (label.includes("sss") || label.includes("philhealth") || label.includes("pag-ibig") || label.includes("pagibig"))
+    ) {
       contributions += amount;
     } else if (label.includes("withholding") || label.includes("tax")) {
       tax += amount;
     } else if (label.includes("13th") || label.includes("thirteenth")) {
-      thirteenth += amount;
+      thirteenth += Math.max(0, signedAmount);
     }
+
+    if (code.startsWith("EXP-")) {
+      reimbursements += Math.max(0, signedAmount);
+    }
+
+    if (code.startsWith("DM-")) {
+      const poolAmount = Math.max(0, Number(item.periodOtherBenefitsPool ?? 0));
+      otherBenefitsPool += poolAmount;
+      deMinimisExempt += Math.max(0, signedAmount - poolAmount);
+    }
+
   }
 
-  return { contributions, tax, thirteenth };
+  return {
+    contributions,
+    tax,
+    thirteenth,
+    reimbursements,
+    deMinimisExempt,
+    deMinimisExcess: otherBenefitsPool,
+    mweTaxableSupplementaryCompensation: Math.max(0, mweTaxableSupplementaryCompensation),
+  };
 }
 
 /**
@@ -71,24 +115,30 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
     contributions: number;
     tax: number;
     thirteenthPaid: number;
+    deMinimisExempt: number;
+    otherBenefitsPool: number;
+    mweTaxableSupplementaryCompensation: number;
     periods: number;
     importedPeriods: number;
   }>();
   for (const entry of entries) {
-    const bucket = totals.get(entry.employeeId) ?? { gross: 0, basic: 0, contributions: 0, tax: 0, thirteenthPaid: 0, periods: 0, importedPeriods: 0 };
-    const parsed = sumContributionsAndTax(entry.lineItems);
+    const bucket = totals.get(entry.employeeId) ?? { gross: 0, basic: 0, contributions: 0, tax: 0, thirteenthPaid: 0, deMinimisExempt: 0, otherBenefitsPool: 0, mweTaxableSupplementaryCompensation: 0, periods: 0, importedPeriods: 0 };
+    const parsed = sumContributionsAndTax(entry.lineItems, entry.trace);
     const basic = readBasicAndThirteenth(entry.lineItems);
-    bucket.gross += Number(entry.grossPay);
+    bucket.gross += Math.max(0, Number(entry.grossPay) - parsed.reimbursements);
     bucket.basic += basic.basic;
     bucket.contributions += parsed.contributions;
     bucket.tax += parsed.tax;
     bucket.thirteenthPaid += parsed.thirteenth;
+    bucket.deMinimisExempt += parsed.deMinimisExempt;
+    bucket.otherBenefitsPool += parsed.deMinimisExcess;
+    bucket.mweTaxableSupplementaryCompensation += parsed.mweTaxableSupplementaryCompensation;
     bucket.periods += 1;
     totals.set(entry.employeeId, bucket);
   }
 
   for (const entry of importedHistory) {
-    const bucket = totals.get(entry.employeeId) ?? { gross: 0, basic: 0, contributions: 0, tax: 0, thirteenthPaid: 0, periods: 0, importedPeriods: 0 };
+    const bucket = totals.get(entry.employeeId) ?? { gross: 0, basic: 0, contributions: 0, tax: 0, thirteenthPaid: 0, deMinimisExempt: 0, otherBenefitsPool: 0, mweTaxableSupplementaryCompensation: 0, periods: 0, importedPeriods: 0 };
     if (entry.basicSalary == null) {
       throw new Error(
         `Imported payroll history row #${entry.id} is missing basic salary earned. Re-import payroll history with Basic Salary Earned before running year-end annualization.`,
@@ -117,6 +167,9 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
     basicSalaryEarned: number;
     thirteenthEntitlement: number;
     thirteenthAlreadyPaid: number;
+    deMinimisExempt: number;
+    otherBenefitsPool: number;
+    mweTaxableSupplementaryCompensation: number;
   }> = [];
 
   for (const employee of staff) {
@@ -130,13 +183,25 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
     const thirteenthEntitlement = Math.round(((bucket.basic / 12) + Number.EPSILON) * 100) / 100;
     const annualThirteenth = Math.max(thirteenthEntitlement, bucket.thirteenthPaid);
 
+    if (employee.mwe && bucket.importedPeriods > 0) {
+      throw new Error(
+        `Imported payroll history for MWE employee ${employee.employeeNo} does not contain the statutory-wage versus taxable-supplementary breakdown required for safe annualization. Import the detailed breakdown or annualize this employee outside Linaw and record the verified adjustment.`,
+      );
+    }
+
     const unpaidThirteenthAccrual = Math.max(0, annualThirteenth - bucket.thirteenthPaid);
     const result = annualize({
       grossCompensation: bucket.gross + unpaidThirteenthAccrual,
       thirteenthMonth: annualThirteenth,
+      otherBenefits: 0,
+      deMinimis: bucket.deMinimisExempt,
+      deMinimisExcess: bucket.otherBenefitsPool,
       statutoryContributions: bucket.contributions,
       taxWithheld: bucket.tax,
       mwe: employee.mwe,
+      mweTaxableSupplementaryCompensation: employee.mwe
+        ? bucket.mweTaxableSupplementaryCompensation
+        : 0,
     });
 
     rows.push({
@@ -147,6 +212,11 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
       basicSalaryEarned: bucket.basic,
       thirteenthEntitlement,
       thirteenthAlreadyPaid: bucket.thirteenthPaid,
+      deMinimisExempt: bucket.deMinimisExempt,
+      otherBenefitsPool: bucket.otherBenefitsPool,
+      mweTaxableSupplementaryCompensation: employee.mwe
+        ? bucket.mweTaxableSupplementaryCompensation
+        : 0,
     });
   }
 
@@ -159,6 +229,9 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
       basicSalaryEarned,
       thirteenthEntitlement,
       thirteenthAlreadyPaid,
+      deMinimisExempt,
+      otherBenefitsPool,
+      mweTaxableSupplementaryCompensation,
     }) => ({
       organizationId,
       employeeId: employee.id,
@@ -182,6 +255,9 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
         thirteenthEntitlement,
         thirteenthAlreadyPaid,
         thirteenthStillDue: Math.max(0, thirteenthEntitlement - thirteenthAlreadyPaid),
+        deMinimisExempt,
+        otherBenefitsPool,
+        mweTaxableSupplementaryCompensation,
       },
       ruleVersion: ANNUALIZATION_RULE_VERSION,
     })));

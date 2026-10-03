@@ -1,7 +1,6 @@
 import { round2 } from "@/lib/round";
 
 export const PH_COMPLIANCE_RULE_VERSION = "PH-2026.02";
-export const STATUTORY_REMITTANCE_DUE_DAY = 10;
 export const THIRTEENTH_MONTH_DUE_MONTH = 12;
 export const THIRTEENTH_MONTH_DUE_DAY = 24;
 
@@ -60,13 +59,13 @@ export function thirteenthMonthDeadline(year: number) {
   return `${year}-${String(THIRTEENTH_MONTH_DUE_MONTH).padStart(2, "0")}-${String(THIRTEENTH_MONTH_DUE_DAY).padStart(2, "0")}`;
 }
 
-/** Contributions / 1601-C are due on the 10th of the month after coverage. */
-export function statutoryDueDate(coverageYear: number, coverageMonth: number) {
-  // coverageMonth is 1–12. JS Date's month index naturally carries December to January.
-  const date = new Date(Date.UTC(coverageYear, coverageMonth, STATUTORY_REMITTANCE_DUE_DAY));
-  return date.toISOString().slice(0, 10);
-}
-
+/**
+ * Government remittance deadlines are intentionally NOT reduced to one date.
+ * SSS, PhilHealth, Pag-IBIG and BIR follow different filing/payment calendars,
+ * and some deadlines depend on employer/account identifiers or filing channel.
+ * Operational reminders must be produced by an agency-specific rule or entered
+ * from the employer's verified filing calendar.
+ */
 /**
  * Payroll intervals must be no more than 16 calendar days (Labor Code rule).
  * Inclusive dates: Mar 1–15 is a 15-day interval.

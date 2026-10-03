@@ -132,10 +132,14 @@ export function computeFinalPay(input: {
       + Math.max(0, input.retirementPay)
       + Math.max(0, input.otherBenefits),
   );
-  const netFinalPay = round2(Math.max(
+  const preLoanNet = round2(Math.max(
     0,
-    grossFinalPay + taxAdjustment - finalStatutoryDeductions - Math.max(0, input.loanDeductions),
+    grossFinalPay + taxAdjustment - finalStatutoryDeductions,
   ));
+  const requestedLoanDeductions = round2(Math.max(0, input.loanDeductions));
+  const loanDeductions = round2(Math.min(preLoanNet, requestedLoanDeductions));
+  const deferredLoanBalance = round2(Math.max(0, requestedLoanDeductions - loanDeductions));
+  const netFinalPay = round2(Math.max(0, preLoanNet - loanDeductions));
 
   return {
     basicSalaryEarnedYtd,
@@ -153,7 +157,9 @@ export function computeFinalPay(input: {
     retirementPay: round2(Math.max(0, input.retirementPay)),
     otherBenefits: round2(Math.max(0, input.otherBenefits)),
     finalStatutoryDeductions,
-    loanDeductions: round2(Math.max(0, input.loanDeductions)),
+    requestedLoanDeductions,
+    loanDeductions,
+    deferredLoanBalance,
     netFinalPay,
   };
 }

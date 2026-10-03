@@ -1,7 +1,17 @@
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { dataRequests } from "@/db/schema";
+import {
+  auditEvents,
+  dataRequests,
+  employeeLoans,
+  employees,
+  payrollEntries,
+  payrollRuns,
+  separationRecords,
+} from "@/db/schema";
+import { decryptBankAccount } from "@/lib/bank-account-crypto";
+import { decryptGovernmentId } from "@/lib/government-id-crypto";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess } from "@/lib/access";
@@ -9,12 +19,14 @@ import { assertOrganizationRole, getAccess } from "@/lib/access";
 export const dynamic = "force-dynamic";
 
 /**
- * Data Privacy Act of 2012 data-subject requests.
- * NPC rules require responding to access/correction/deletion requests within
- * 30 days, so every request gets a computed due date and a tracked status
- * instead of living in someone's inbox.
+ * Data Privacy Act data-subject request register.
+ *
+ * The 30-day value below is Linaw's internal service-level target. It is not
+ * presented as a universal statutory NPC deadline because the DPA/IRR applies
+ * different duties to different rights and requires appropriate handling
+ * rather than one blanket response period for every request type.
  */
-const STATUTORY_DAYS = 30;
+const INTERNAL_RESPONSE_TARGET_DAYS = 30;
 
 export async function GET(request: Request) {
   const session = await getSessionUser();
@@ -34,11 +46,94 @@ export async function GET(request: Request) {
     return Response.json({ error: "Data-subject requests require company-wide privacy administrator access." }, { status: 403 });
   }
 
+  const requestId = Number(searchParams.get("requestId") ?? "0");
+  const format = searchParams.get("format");
+  if (Number.isInteger(requestId) && requestId > 0 && format === "export") {
+    const mfaDenied = requireSensitiveActionMfa(session);
+    if (mfaDenied) return mfaDenied;
+
+    const [privacyRequest] = await db.select().from(dataRequests).where(and(
+      eq(dataRequests.id, requestId),
+      eq(dataRequests.organizationId, organizationId),
+    )).limit(1);
+    if (!privacyRequest) return Response.json({ error: "Data-subject request not found." }, { status: 404 });
+    if (!["access", "portability"].includes(privacyRequest.requestType)) {
+      return Response.json({ error: "A structured export is available only for access or portability requests." }, { status: 409 });
+    }
+
+    const subjectEmployees = await db.select().from(employees).where(and(
+      eq(employees.organizationId, organizationId),
+      eq(employees.email, privacyRequest.subjectEmail),
+    ));
+    const employeeIds = subjectEmployees.map((employee) => employee.id);
+    const payroll = employeeIds.length
+      ? await db.select({ entry: payrollEntries, run: payrollRuns })
+          .from(payrollEntries)
+          .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
+          .where(eq(payrollRuns.organizationId, organizationId))
+      : [];
+    const subjectPayroll = payroll.filter((row) => employeeIds.includes(row.entry.employeeId));
+    const loans = employeeIds.length
+      ? (await db.select().from(employeeLoans).where(eq(employeeLoans.organizationId, organizationId)))
+          .filter((loan) => employeeIds.includes(loan.employeeId))
+      : [];
+    const separations = employeeIds.length
+      ? (await db.select().from(separationRecords).where(eq(separationRecords.organizationId, organizationId)))
+          .filter((record) => employeeIds.includes(record.employeeId))
+      : [];
+
+    const exportedAt = new Date().toISOString();
+    const payload = {
+      request: {
+        id: privacyRequest.id,
+        type: privacyRequest.requestType,
+        subjectEmail: privacyRequest.subjectEmail,
+        requestedAt: privacyRequest.requestedAt,
+        exportedAt,
+      },
+      employees: subjectEmployees.map((employee) => ({
+        ...employee,
+        bankAccount: decryptBankAccount(employee.bankAccount),
+        tin: decryptGovernmentId(employee.tin),
+        tinBranchCode: decryptGovernmentId(employee.tinBranchCode),
+        sssNo: decryptGovernmentId(employee.sssNo),
+        philHealthNo: decryptGovernmentId(employee.philHealthNo),
+        pagIbigNo: decryptGovernmentId(employee.pagIbigNo),
+      })),
+      payroll: subjectPayroll,
+      loans,
+      separations,
+    };
+
+    await recordAuditEvent({
+      organizationId,
+      actor: session.name,
+      action: "Data subject access export generated",
+      resource: `${privacyRequest.requestType} · ${privacyRequest.subjectEmail}`,
+      metadata: {
+        requestId: privacyRequest.id,
+        exportedAt,
+        employeeRecords: subjectEmployees.length,
+        payrollEntries: subjectPayroll.length,
+        loans: loans.length,
+        separations: separations.length,
+      },
+    });
+
+    return new Response(JSON.stringify(payload, null, 2), {
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Disposition": `attachment; filename="data-subject-request-${privacyRequest.id}.json"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
   const rows = await db.select().from(dataRequests).where(eq(dataRequests.organizationId, organizationId)).orderBy(desc(dataRequests.id));
 
   const now = Date.now();
   return Response.json({
-    statutoryDays: STATUTORY_DAYS,
+    internalResponseTargetDays: INTERNAL_RESPONSE_TARGET_DAYS,
     open: rows.filter((row) => row.status === "received" || row.status === "in_progress").length,
     overdue: rows.filter((row) => row.status !== "completed" && new Date(row.dueAt).getTime() < now).length,
     requests: rows.map((row) => ({
@@ -85,7 +180,7 @@ export async function POST(request: Request) {
     subjectEmail,
     requestType,
     status: "received",
-    dueAt: new Date(Date.now() + STATUTORY_DAYS * 86_400_000),
+    dueAt: new Date(Date.now() + INTERNAL_RESPONSE_TARGET_DAYS * 86_400_000),
   }).returning();
 
   await recordAuditEvent({
@@ -93,10 +188,10 @@ export async function POST(request: Request) {
     actor: session.name,
     action: "Data subject request logged",
     resource: `${requestType} · ${subjectEmail}`,
-    metadata: { requestId: row.id, dueAt: row.dueAt, statutoryDays: STATUTORY_DAYS },
+    metadata: { requestId: row.id, dueAt: row.dueAt, internalResponseTargetDays: INTERNAL_RESPONSE_TARGET_DAYS },
   });
 
-  return Response.json({ ...row, daysRemaining: STATUTORY_DAYS }, { status: 201 });
+  return Response.json({ ...row, daysRemaining: INTERNAL_RESPONSE_TARGET_DAYS }, { status: 201 });
 }
 
 export async function PATCH(request: Request) {
@@ -113,7 +208,7 @@ export async function PATCH(request: Request) {
     return Response.json({ error: "id and a valid status are required." }, { status: 400 });
   }
 
-  const [existing] = await db.select({ organizationId: dataRequests.organizationId }).from(dataRequests).where(eq(dataRequests.id, id)).limit(1);
+  const [existing] = await db.select().from(dataRequests).where(eq(dataRequests.id, id)).limit(1);
   if (!existing) return Response.json({ error: "Request not found." }, { status: 404 });
   const deniedPatch = await assertOrganizationRole(
     session.id,
@@ -129,11 +224,43 @@ export async function PATCH(request: Request) {
   const mfaDenied = requireSensitiveActionMfa(session);
   if (mfaDenied) return mfaDenied;
 
+  const fulfillmentAction = String(body.fulfillmentAction ?? "").trim().slice(0, 64);
+  const fulfillmentEvidence =
+    body.fulfillmentEvidence && typeof body.fulfillmentEvidence === "object" && !Array.isArray(body.fulfillmentEvidence)
+      ? body.fulfillmentEvidence as Record<string, unknown>
+      : {};
+  const legalRetentionApplied = Boolean(body.legalRetentionApplied);
+
+  if (status === "completed") {
+    if (existing.requestType === "access" || existing.requestType === "portability") {
+      const evidenceOrganizationId = existing.organizationId ?? 0;
+      const evidence = await db.select().from(auditEvents).where(eq(auditEvents.organizationId, evidenceOrganizationId));
+      const exportExists = evidence.some((event) =>
+        event.action === "Data subject access export generated"
+        && event.metadata
+        && typeof event.metadata === "object"
+        && Number((event.metadata as Record<string, unknown>).requestId) === existing.id
+      );
+      if (!exportExists) {
+        return Response.json({
+          error: "Generate the subject access/portability export before marking this request completed.",
+        }, { status: 409 });
+      }
+    } else if (!fulfillmentAction || Object.keys(fulfillmentEvidence).length === 0) {
+      return Response.json({
+        error: "Correction, deletion, and objection requests require a fulfillment action and evidence before completion.",
+      }, { status: 409 });
+    }
+  }
+
   const [row] = await db.update(dataRequests).set({
     status,
     completedAt: status === "completed" ? new Date() : null,
     handledBy: session.name,
     notes: String(body.notes ?? "").slice(0, 400) || undefined,
+    fulfillmentAction: fulfillmentAction || undefined,
+    fulfillmentEvidence,
+    legalRetentionApplied,
   }).where(eq(dataRequests.id, id)).returning();
 
   if (!row) return Response.json({ error: "Request not found." }, { status: 404 });
@@ -143,7 +270,12 @@ export async function PATCH(request: Request) {
     actor: session.name,
     action: `Data request ${status.replace("_", " ")}`,
     resource: `${row.requestType} · ${row.subjectEmail}`,
-    metadata: { requestId: row.id },
+    metadata: {
+      requestId: row.id,
+      fulfillmentAction: row.fulfillmentAction,
+      legalRetentionApplied: row.legalRetentionApplied,
+      evidenceRecorded: Boolean(row.fulfillmentEvidence && Object.keys(row.fulfillmentEvidence as Record<string, unknown>).length),
+    },
   });
 
   return Response.json(row);

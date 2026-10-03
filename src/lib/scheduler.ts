@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { schedulerState } from "@/db/schema";
 import { drainWebhookRetries } from "@/lib/webhooks";
 import { drainOutboxRetries } from "@/lib/mailer";
+import { purgeExpiredOperationalData } from "@/lib/data-retention";
 
 const MIN_INTERVAL_MS = 30_000;
 
@@ -21,10 +22,36 @@ export async function tickScheduler(force = false) {
   const webhookResults = await drainWebhookRetries(25);
   const mailResults = await drainOutboxRetries(25);
   const mailRetried = mailResults.filter((item) => item.retried);
+
+  const [retentionState] = await db.select().from(schedulerState)
+    .where(eq(schedulerState.jobName, "retention-purge"))
+    .limit(1);
+  const retentionDue =
+    !retentionState?.lastRunAt
+    || now.getTime() - retentionState.lastRunAt.getTime() >= 24 * 60 * 60 * 1000;
+  const retention = retentionDue ? await purgeExpiredOperationalData(now.getTime()) : null;
+
+  if (retentionDue) {
+    const retentionPayload = { at: now.toISOString(), deleted: retention };
+    if (retentionState) {
+      await db.update(schedulerState).set({
+        lastRunAt: now,
+        lastResult: retentionPayload,
+      }).where(eq(schedulerState.id, retentionState.id));
+    } else {
+      await db.insert(schedulerState).values({
+        jobName: "retention-purge",
+        lastRunAt: now,
+        lastResult: retentionPayload,
+      });
+    }
+  }
+
   const payload = {
     drained: webhookResults.length + mailRetried.length,
     webhookRetries: webhookResults.length,
     mailRetries: mailRetried.length,
+    retentionPurge: retention,
     at: now.toISOString(),
     results: {
       webhooks: webhookResults.slice(0, 10),

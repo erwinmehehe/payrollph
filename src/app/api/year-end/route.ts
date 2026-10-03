@@ -1,12 +1,14 @@
-import { enforceSameOriginMutation } from "@/lib/security-request";
+import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, organizations, yearEndAdjustments } from "@/db/schema";
 import { renderForm2316 } from "@/lib/annualization";
+import { decryptGovernmentId } from "@/lib/government-id-crypto";
 import { getSessionUser } from "@/lib/auth";
 import { toCsv } from "@/lib/csv";
 import { runYearEndAnnualization } from "@/lib/year-end";
-import { assertOrganizationRole, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
+import { assertOrganizationRole, getAccess, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
+import { recordAuditEvent } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -23,9 +25,17 @@ export async function GET(request: Request) {
     "Only payroll operators can view year-end tax annualization.",
   );
   if (deniedOrg) return deniedOrg;
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Year-end tax reporting requires company-wide payroll access." }, { status: 403 });
+  }
   const taxYear = Number(searchParams.get("taxYear") ?? new Date().getFullYear());
   const format = searchParams.get("format") ?? "json";
   const employeeId = Number(searchParams.get("employeeId") ?? 0);
+  if (format === "2316" || format === "alphalist") {
+    const mfaDenied = requireSensitiveActionMfa(user);
+    if (mfaDenied) return mfaDenied;
+  }
 
   const rows = await db
     .select({ adjustment: yearEndAdjustments, employee: employees })
@@ -41,12 +51,13 @@ export async function GET(request: Request) {
     .where(eq(organizations.id, organizationId))
     .limit(1);
 
-  const digits = (value: string | null | undefined) => (value ?? "").replace(/\D/g, "");
+  const digits = (value: string | null | undefined, encrypted = false) =>
+    (encrypted ? decryptGovernmentId(value) ?? "" : value ?? "").replace(/\D/g, "");
   const employerTin = digits(organization?.birTin);
   const employerBranch = digits(organization?.birBranchCode).padStart(4, "0");
   const missingBirIdentity = rows.filter((row) =>
-    digits(row.employee.tin).length !== 9 ||
-    digits(row.employee.tinBranchCode).length !== 4
+    digits(row.employee.tin, true).length !== 9 ||
+    digits(row.employee.tinBranchCode, true).length !== 4
   );
 
   if (format === "2316") {
@@ -55,7 +66,7 @@ export async function GET(request: Request) {
     if (employerTin.length !== 9 || employerBranch.length !== 4) {
       return Response.json({ error: "Employer BIR TIN and 4-digit branch code are required before generating Form 2316." }, { status: 422 });
     }
-    if (digits(match.employee.tin).length !== 9 || digits(match.employee.tinBranchCode).length !== 4) {
+    if (digits(match.employee.tin, true).length !== 9 || digits(match.employee.tinBranchCode, true).length !== 4) {
       return Response.json({ error: "Employee BIR TIN and 4-digit branch code are required before generating Form 2316." }, { status: 422 });
     }
 
@@ -65,13 +76,26 @@ export async function GET(request: Request) {
       employerTin: `${employerTin}-${employerBranch}`,
       employeeName: [match.employee.firstName, match.employee.middleName, match.employee.lastName].filter(Boolean).join(" "),
       employeeNo: match.employee.employeeNo,
-      employeeTin: `${digits(match.employee.tin)}-${digits(match.employee.tinBranchCode)}`,
+      employeeTin: `${digits(match.employee.tin, true)}-${digits(match.employee.tinBranchCode, true)}`,
       result: match.adjustment.breakdown as never,
+    });
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "Year-end BIR 2316 draft generated",
+      resource: `${match.employee.employeeNo} · ${taxYear}`,
+      metadata: {
+        employeeId: match.employee.id,
+        taxYear,
+        plaintextCertificatePersisted: false,
+      },
     });
     return new Response(body, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "Content-Disposition": `attachment; filename=bir-2316-draft-${match.employee.employeeNo}-${taxYear}.txt`,
+        "Cache-Control": "no-store, private",
+        "X-Content-Type-Options": "nosniff",
       },
     });
   }
@@ -109,8 +133,8 @@ export async function GET(request: Request) {
       rows: rows.map((row) => [
         employerTin,
         employerBranch,
-        digits(row.employee.tin),
-        digits(row.employee.tinBranchCode),
+        digits(row.employee.tin, true),
+        digits(row.employee.tinBranchCode, true),
         row.employee.lastName,
         row.employee.firstName,
         row.employee.middleName ?? "",
@@ -125,12 +149,26 @@ export async function GET(request: Request) {
         row.adjustment.outcome,
       ]),
     });
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "Year-end Alphalist source extract generated",
+      resource: `Tax year ${taxYear}`,
+      metadata: {
+        taxYear,
+        employeeCount: rows.length,
+        containsFullTin: true,
+        plaintextFilePersisted: false,
+      },
+    });
     return new Response(
       `DRAFT ALPHALIST SOURCE EXTRACT ${taxYear} - not an ADES .DAT file and not portal validated\n${csv}`,
       {
         headers: {
           "Content-Type": "text/csv",
           "Content-Disposition": `attachment; filename=alphalist-source-draft-${taxYear}.csv`,
+          "Cache-Control": "no-store, private",
+          "X-Content-Type-Options": "nosniff",
         },
       },
     );
@@ -178,13 +216,26 @@ export async function POST(request: Request) {
     "Only payroll operators can run year-end tax annualization.",
   );
   if (deniedWrite) return deniedWrite;
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Year-end tax annualization requires company-wide payroll access." }, { status: 403 });
+  }
 
   const summary = await runYearEndAnnualization(organizationId, taxYear, user.name);
   if (summary.employees === 0) {
     return Response.json({
       ...summary,
+      generated2316Drafts: 0,
+      available2316Drafts: 0,
       warning: `No released payroll runs found with a ${taxYear} pay date, so there is nothing to annualize.`,
     });
   }
-  return Response.json(summary);
+
+  return Response.json({
+    ...summary,
+    generated2316Drafts: 0,
+    available2316Drafts: summary.employees,
+    certificateStorage: "not-persisted",
+    certificateAccess: "Generate each draft on demand with format=2316&employeeId=... after recent MFA.",
+  });
 }

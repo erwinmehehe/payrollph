@@ -46,7 +46,13 @@ export async function GET() {
     .filter((row) => row.run.status !== "Released")
     .sort((a, b) => a.run.payDate.localeCompare(b.run.payDate))[0];
 
-  const yearToDate = released.reduce(
+  const currentTaxYear = new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    timeZone: "Asia/Manila",
+  }).format(new Date());
+  const releasedThisYear = released.filter((row) => String(row.run.payDate).startsWith(`${currentTaxYear}-`));
+
+  const yearToDate = releasedThisYear.reduce(
     (totals, row) => {
       const items = Array.isArray(row.entry.lineItems) ? row.entry.lineItems as Array<{ code?: string; amount?: number }> : [];
       for (const item of items) {
@@ -77,7 +83,7 @@ export async function GET() {
       net: yearToDate.net.toFixed(2),
       deductions: yearToDate.deductions.toFixed(2),
       tax: yearToDate.tax.toFixed(2),
-      periodsPaid: released.length,
+      periodsPaid: releasedThisYear.length,
     },
     nextPay: upcoming
       ? {

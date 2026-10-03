@@ -240,11 +240,34 @@ export function fixedMonthlyBasicForTimeline(
   timeline: PayTimelineSegment[],
   periodStart: string,
   periodEnd: string,
+  employmentStart?: string | null,
+  employmentEnd?: string | null,
 ) {
   const totalDays = daysInclusive(periodStart, periodEnd);
+  const activeStart =
+    employmentStart && dateValue(employmentStart) > dateValue(periodStart)
+      ? employmentStart
+      : periodStart;
+  const activeEnd =
+    employmentEnd && dateValue(employmentEnd) < dateValue(periodEnd)
+      ? employmentEnd
+      : periodEnd;
+
+  if (dateValue(activeEnd) < dateValue(activeStart)) return 0;
+
   return timeline.reduce((sum, segment) => {
     if (segment.profile.payBasis !== "monthly") return sum;
-    const coveredDays = daysInclusive(segment.startDate, segment.endDate);
+    const segmentStart =
+      dateValue(segment.startDate) > dateValue(activeStart)
+        ? segment.startDate
+        : activeStart;
+    const segmentEnd =
+      dateValue(segment.endDate) < dateValue(activeEnd)
+        ? segment.endDate
+        : activeEnd;
+    if (dateValue(segmentEnd) < dateValue(segmentStart)) return sum;
+
+    const coveredDays = daysInclusive(segmentStart, segmentEnd);
     return sum + (segment.profile.rateAmount / 2) * (coveredDays / totalDays);
   }, 0);
 }

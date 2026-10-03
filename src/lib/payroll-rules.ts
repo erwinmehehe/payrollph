@@ -7,11 +7,23 @@ export type HolidayType = "ordinary" | "regular" | "special" | "double";
  */
 export function computeSss(monthlySalary: number) {
   const msc = Math.min(35_000, Math.max(5_000, Math.round(monthlySalary / 500) * 500));
-  const employee = round(msc * 0.05);
-  const employer = round(msc * 0.1);
+  const regularMsc = Math.min(20_000, msc);
+  const mpfMsc = Math.max(0, msc - regularMsc);
+  const employeeRegular = round(regularMsc * 0.05);
+  const employeeMpf = round(mpfMsc * 0.05);
+  const employerRegular = round(regularMsc * 0.1);
+  const employerMpf = round(mpfMsc * 0.1);
+  const employee = round(employeeRegular + employeeMpf);
+  const employer = round(employerRegular + employerMpf);
   const employerEC = msc < 15_000 ? 10 : 30;
   return {
     monthlySalaryCredit: msc,
+    regularMsc,
+    mpfMsc,
+    employeeRegular,
+    employeeMpf,
+    employerRegular,
+    employerMpf,
     employee,
     employer,
     employerEC,
@@ -23,7 +35,11 @@ export function computeSss(monthlySalary: number) {
 export function computePhilHealth(monthlySalary: number) {
   const base = Math.min(100_000, Math.max(10_000, monthlySalary));
   const total = round(base * 0.05);
-  return { base, employee: round(total / 2), employer: round(total / 2) };
+  const employee = round(total / 2);
+  // Put any one-centavo rounding remainder on the employer share so EE + ER
+  // always reconciles exactly to the statutory 5% premium.
+  const employer = round(total - employee);
+  return { base, total, employee, employer };
 }
 
 /**
@@ -31,6 +47,30 @@ export function computePhilHealth(monthlySalary: number) {
  * PHP 10,000. Employee pays 1% up to PHP 1,500 then 2%; employer is always
  * 2%. Practical ceiling: PHP 200 employee + PHP 200 employer monthly.
  */
+export type StatutoryDeductionTiming = "split" | "first_cutoff" | "second_cutoff";
+
+export function computeCutoffStatutoryDeduction(input: {
+  monthlyTarget: number;
+  priorCollected: number;
+  timing: StatutoryDeductionTiming;
+  isSecondCutoff: boolean;
+}) {
+  const target = round(Math.max(0, input.monthlyTarget));
+  const prior = round(Math.max(0, input.priorCollected));
+
+  if (input.timing === "second_cutoff") {
+    return input.isSecondCutoff ? round(Math.max(0, target - prior)) : 0;
+  }
+  if (input.timing === "first_cutoff") {
+    // First cutoff collects the current target; second cutoff performs only a
+    // true-up when later variable remuneration increases that monthly target.
+    return input.isSecondCutoff ? round(Math.max(0, target - prior)) : target;
+  }
+  return input.isSecondCutoff
+    ? round(Math.max(0, target - prior))
+    : round(target / 2);
+}
+
 export function computePagIbig(monthlySalary: number) {
   const fundSalary = Math.min(10_000, Math.max(0, monthlySalary));
   const employeeRate = monthlySalary <= 1_500 ? 0.01 : 0.02;
@@ -69,14 +109,17 @@ export function computeMonthlyWithholdingTax(monthlyTaxableIncome: number, isMwe
 }
 
 /**
- * BIR Revised Withholding Tax Table, Semi-monthly. Equivalent to calculating
- * monthly taxable compensation from the two cutoffs and dividing its monthly
- * withholding in half. This keeps the exact 20,833 / 33,333 table constants
- * visible rather than hiding them in a generic annual approximation.
+ * BIR Revised Withholding Tax Table, Semi-monthly (RR 11-2018, 2023 onward).
+ * This is the published semi-monthly table, not a monthly-table approximation.
  */
 export function computeSemiMonthlyWithholdingTax(semiMonthlyTaxableIncome: number, isMwe = false) {
-  const period = Math.max(0, Number(semiMonthlyTaxableIncome) || 0);
-  return round(computeMonthlyWithholdingTax(period * 2, isMwe) / 2);
+  const income = Math.max(0, Number(semiMonthlyTaxableIncome) || 0);
+  if (isMwe || income <= 10_417) return 0;
+  if (income <= 16_667) return round((income - 10_417) * 0.15);
+  if (income <= 33_333) return round(937.5 + (income - 16_667) * 0.2);
+  if (income <= 83_333) return round(4_270.7 + (income - 33_333) * 0.25);
+  if (income <= 333_333) return round(16_770.7 + (income - 83_333) * 0.3);
+  return round(91_770.7 + (income - 333_333) * 0.35);
 }
 
 export function holidayMultiplier(input: { holiday: HolidayType; worked: boolean; restDay?: boolean; overtime?: boolean }) {
@@ -160,7 +203,12 @@ export function restDayForDate(
   return normalizedRestDay(currentRestDay);
 }
 
-export type ClockPunch = { timeIn?: string | null; timeOut?: string | null };
+export type ClockPunch = {
+  timeIn?: string | null;
+  timeOut?: string | null;
+  breakStart?: string | null;
+  breakEnd?: string | null;
+};
 export type ShiftSchedule = { start: string; end: string; breakMinutes?: number; graceMinutes?: number };
 
 function asLocalDate(value: string) {
@@ -175,6 +223,17 @@ function shiftBoundary(base: Date, time: string, nextDay = false) {
   const point = new Date(base.getFullYear(), base.getMonth(), base.getDate(), hours, minutes, 0, 0);
   if (nextDay) point.setDate(point.getDate() + 1);
   return point;
+}
+
+function overlapMinutes(
+  rangeStart: Date,
+  rangeEnd: Date,
+  overlapStart: Date,
+  overlapEnd: Date,
+) {
+  const start = Math.max(rangeStart.getTime(), overlapStart.getTime());
+  const end = Math.min(rangeEnd.getTime(), overlapEnd.getTime());
+  return end > start ? Math.round((end - start) / 60_000) : 0;
 }
 
 function nightMinutesBetween(start: Date, end: Date) {
@@ -217,24 +276,62 @@ export function deriveClockHours(punch: ClockPunch, shift: ShiftSchedule) {
   const spansOvernight = shift.end <= shift.start;
   const shiftEnd = shiftBoundary(actualIn, shift.end, spansOvernight);
   const grace = shift.graceMinutes ?? 5;
-  const breakMinutes = shift.breakMinutes ?? 60;
+  const scheduledBreakMinutes = Math.max(0, shift.breakMinutes ?? 60);
   const grossWorked = Math.round((actualOut.getTime() - actualIn.getTime()) / 60_000);
   const tardinessMinutes = Math.max(0, Math.round((actualIn.getTime() - (shiftStart.getTime() + grace * 60_000)) / 60_000));
   const undertimeMinutes = Math.max(0, Math.round((shiftEnd.getTime() - actualOut.getTime()) / 60_000));
   const overtimeMinutes = Math.max(0, Math.round((actualOut.getTime() - shiftEnd.getTime()) / 60_000));
   const regularRangeEnd = new Date(Math.min(actualOut.getTime(), shiftEnd.getTime()));
   const overtimeRangeStart = new Date(Math.max(actualIn.getTime(), shiftEnd.getTime()));
-  const nightRegularMinutes = nightMinutesBetween(actualIn, regularRangeEnd);
-  const nightOvertimeMinutes = nightMinutesBetween(overtimeRangeStart, actualOut);
+
+  const rawNightRegularMinutes = nightMinutesBetween(actualIn, regularRangeEnd);
+  const rawNightOvertimeMinutes = nightMinutesBetween(overtimeRangeStart, actualOut);
+
+  let actualBreakMinutes = scheduledBreakMinutes;
+  let nightBreakRegular = 0;
+  let nightBreakOvertime = 0;
+  const flags: string[] = [];
+
+  if (punch.breakStart && punch.breakEnd) {
+    const breakStart = asLocalDate(punch.breakStart);
+    const breakEnd = asLocalDate(punch.breakEnd);
+    if (
+      breakEnd <= breakStart
+      || breakStart < actualIn
+      || breakEnd > actualOut
+    ) {
+      flags.push("Invalid break punch pair, reviewer sign-off required");
+    } else {
+      actualBreakMinutes = overlapMinutes(actualIn, actualOut, breakStart, breakEnd);
+      const breakNightMinutes = nightMinutesBetween(breakStart, breakEnd);
+      nightBreakRegular = Math.min(
+        breakNightMinutes,
+        overlapMinutes(actualIn, regularRangeEnd, breakStart, breakEnd),
+      );
+      nightBreakOvertime = Math.max(
+        0,
+        breakNightMinutes - nightBreakRegular,
+      );
+    }
+  } else if (punch.breakStart || punch.breakEnd) {
+    flags.push("Incomplete break punch pair, reviewer sign-off required");
+  } else if ((rawNightRegularMinutes + rawNightOvertimeMinutes) > 0 && scheduledBreakMinutes > 0) {
+    flags.push(
+      "Night differential overlaps an unlocated meal break; record break start/end before release",
+    );
+  }
+
+  const nightRegularMinutes = Math.max(0, rawNightRegularMinutes - nightBreakRegular);
+  const nightOvertimeMinutes = Math.max(0, rawNightOvertimeMinutes - nightBreakOvertime);
   return {
-    workedMinutes: Math.max(0, grossWorked - breakMinutes),
+    workedMinutes: Math.max(0, grossWorked - actualBreakMinutes),
     tardinessMinutes,
     undertimeMinutes,
     overtimeMinutes,
     nightDifferentialMinutes: nightRegularMinutes + nightOvertimeMinutes,
     nightRegularMinutes,
     nightOvertimeMinutes,
-    flags: [] as string[],
+    flags,
   };
 }
 

@@ -198,6 +198,7 @@ export async function POST(request: Request) {
       lastName: employees.lastName,
       bankAccount: employees.bankAccount,
       bankCode: employees.bankCode,
+      mobile: employees.mobile,
     })
     .from(employees)
     .where(employeeScope);
@@ -205,12 +206,14 @@ export async function POST(request: Request) {
     return Response.json({ error: "The selected payroll scope has no active employees." }, { status: 400 });
   }
 
-  const missingPayout = employeesInScope.filter(
-    (employee) => !employee.bankAccount?.trim() || !employee.bankCode?.trim(),
-  );
+  const missingPayout = employeesInScope.filter((employee) => {
+    const hasBank = Boolean(employee.bankAccount?.trim() && employee.bankCode?.trim());
+    const hasMobileWallet = Boolean(employee.mobile?.trim());
+    return !hasBank && !hasMobileWallet;
+  });
   if (missingPayout.length > 0) {
     return Response.json({
-      error: `${missingPayout.length} active employee${missingPayout.length === 1 ? " is" : "s are"} missing bank or payout details. Complete payout details before starting payroll.`,
+      error: `${missingPayout.length} active employee${missingPayout.length === 1 ? " is" : "s are"} missing a usable bank account or mobile-wallet destination. Complete payout details before starting payroll.`,
       code: "PAYOUT_DETAILS_REQUIRED",
       missingEmployeeIds: missingPayout.map((employee) => employee.id),
     }, { status: 422 });

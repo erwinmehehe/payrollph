@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, payrollEntries, payrollRuns } from "@/db/schema";
+import { employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { renderPayslipPdf } from "@/lib/payslip-pdf";
 
@@ -24,6 +24,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     .where(eq(employees.id, session.employeeId))
     .limit(1);
   if (!employee) return Response.json({ error: "Payslip unavailable." }, { status: 404 });
+  const [organization] = await db.select().from(organizations)
+    .where(eq(organizations.id, employee.organizationId))
+    .limit(1);
 
   // Bind the requested entry to the authenticated employee, that employee's
   // organization, and a Released run in one query. Draft/review payroll must
@@ -53,7 +56,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     .map((item) => ({ label: item.label ?? item.code ?? "Deduction", amount: peso(Math.abs(Number(item.amount ?? 0))), note: (item.notes ?? []).join(" · ") || undefined }));
 
   const buffer = renderPayslipPdf({
-    employerName: "Your employer",
+    employerName: organization?.legalName ?? organization?.name ?? "Employer",
     employeeName: `${employee.firstName} ${employee.lastName}`,
     employeeNo: employee.employeeNo,
     title: employee.title,

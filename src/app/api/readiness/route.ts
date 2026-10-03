@@ -1,7 +1,8 @@
 import { and, count, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { auditEvents, employees, invoices, outbox, payrollEntries, subscriptions, users } from "@/db/schema";
+import { auditEvents, contractors, employees, invoices, outbox, payrollEntries, subscriptions, users } from "@/db/schema";
 import { bankEncryptionConfigured, bankEncryptionKeySource } from "@/lib/bank-account-crypto";
+import { governmentIdEncryptionConfigured } from "@/lib/government-id-crypto";
 import { describeEvidenceGap, findFilingForm } from "@/lib/filing-evidence";
 import { filingEvidenceSummaries } from "@/lib/filing-evidence-store";
 import { activeMailProvider, deliveryCapable } from "@/lib/mail-provider";
@@ -51,6 +52,20 @@ export async function buildReadinessPayload() {
     .where(sql`${payrollEntries.trace} #>> '{payment,bankAccount}' is not null
       and ${payrollEntries.trace} #>> '{payment,bankAccount}' <> ''
       and ${payrollEntries.trace} #>> '{payment,bankAccount}' not like 'enc:v1:%'`);
+
+  const [{ value: plaintextEmployeeGovernmentIds }] = await db.select({ value: count() }).from(employees)
+    .where(sql`(
+      (${employees.tin} is not null and ${employees.tin} <> '' and ${employees.tin} not like 'enc:govid:v1:%')
+      or (${employees.tinBranchCode} is not null and ${employees.tinBranchCode} <> '' and ${employees.tinBranchCode} not like 'enc:govid:v1:%')
+      or (${employees.sssNo} is not null and ${employees.sssNo} <> '' and ${employees.sssNo} not like 'enc:govid:v1:%')
+      or (${employees.philHealthNo} is not null and ${employees.philHealthNo} <> '' and ${employees.philHealthNo} not like 'enc:govid:v1:%')
+      or (${employees.pagIbigNo} is not null and ${employees.pagIbigNo} <> '' and ${employees.pagIbigNo} not like 'enc:govid:v1:%')
+    )`);
+
+  const [{ value: plaintextContractorTins }] = await db.select({ value: count() }).from(contractors)
+    .where(sql`${contractors.tin} is not null
+      and ${contractors.tin} <> ''
+      and ${contractors.tin} not like 'enc:govid:v1:%'`);
 
   const [{ value: totalEmployees }] = await db.select({ value: count() }).from(employees);
   const [{ value: employeesMissingRestDay }] = await db.select({ value: count() }).from(employees)
@@ -106,6 +121,12 @@ export async function buildReadinessPayload() {
     bankKeyConfigured
     && Number(plaintextBankAccounts) === 0
     && Number(plaintextBankSnapshots) === 0;
+
+  const governmentIdKeyConfigured = governmentIdEncryptionConfigured();
+  const governmentIdsProtected =
+    governmentIdKeyConfigured
+    && Number(plaintextEmployeeGovernmentIds) === 0
+    && Number(plaintextContractorTins) === 0;
 
   // Government filing does not require vendor accreditation for standard
   // file-based submission, BIR publishes the Alphalist .DAT layout and
@@ -232,6 +253,17 @@ export async function buildReadinessPayload() {
           ? `${plaintextBankAccounts} employee bank account number(s) and ${plaintextBankSnapshots} payroll payment snapshot(s) remain in plaintext. The compatibility upgrader will seal them automatically on the next authenticated/demo bootstrap.`
           : "No usable bank-data encryption key is available. Configure BANK_DATA_ENCRYPTION_KEY or the required TOTP_ENCRYPTION_KEY before launch.",
       blocks: bankDataProtected ? "none" : "launch",
+    },
+    {
+      key: "government-id-encryption",
+      label: "Government identifiers encrypted at rest",
+      ready: governmentIdsProtected,
+      detail: governmentIdsProtected
+        ? "Employee TIN/SSS/PhilHealth/Pag-IBIG identifiers and contractor TINs are encrypted at rest; browser payloads use masked values by default."
+        : governmentIdKeyConfigured
+          ? `${plaintextEmployeeGovernmentIds} employee record(s) and ${plaintextContractorTins} contractor record(s) still contain plaintext government identifiers. Run the government-ID encryption migration before launch.`
+          : "No usable PII encryption key is available. Configure PII_ENCRYPTION_KEY or a valid domain-separated fallback before launch.",
+      blocks: governmentIdsProtected ? "none" : "launch",
     },
     {
       key: "production-pilot-signoff",

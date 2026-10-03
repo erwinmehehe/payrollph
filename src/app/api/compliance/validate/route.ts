@@ -3,9 +3,10 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, organizations, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { assertOrganizationRole, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
+import { assertOrganizationRole, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
-import { DE_MINIMIS_2026, PH_COMPLIANCE_RULE_VERSION, statutoryDueDate, thirteenthMonthDeadline } from "@/lib/ph-compliance";
+import { DE_MINIMIS_2026, PH_COMPLIANCE_RULE_VERSION, thirteenthMonthDeadline } from "@/lib/ph-compliance";
+import { decryptGovernmentId } from "@/lib/government-id-crypto";
 import { WAGE_ORDERS } from "@/lib/wage-orders";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +43,10 @@ export async function POST(request: Request) {
     "Only People or payroll administrators can run government filing preflight.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Government filing preflight requires company-wide payroll access." }, { status: 403 });
+  }
 
   const [org] = await db.select().from(organizations).where(eq(organizations.id, organizationId));
   if (!org) return Response.json({ error: "Organization not found." }, { status: 404 });
@@ -54,12 +59,13 @@ export async function POST(request: Request) {
 
   const birTin = digits(org.birTin);
   const birBranchCode = digits(org.birBranchCode).padStart(4, "0").slice(-4);
-  const missingEmployeeTin = staff.filter((employee) => digits(employee.tin).length !== 9);
-  const missingEmployeeTinBranch = staff.filter((employee) => digits(employee.tinBranchCode).length !== 4);
+  const employeeDigits = (value: string | null | undefined) => digits(decryptGovernmentId(value));
+  const missingEmployeeTin = staff.filter((employee) => employeeDigits(employee.tin).length !== 9);
+  const missingEmployeeTinBranch = staff.filter((employee) => employeeDigits(employee.tinBranchCode).length !== 4);
   const missingMiddleName = staff.filter((employee) => !employee.middleName?.trim());
-  const missingSss = staff.filter((employee) => !employee.sssNo?.trim());
-  const missingPhilHealth = staff.filter((employee) => !employee.philHealthNo?.trim());
-  const missingPagIbig = staff.filter((employee) => !employee.pagIbigNo?.trim());
+  const missingSss = staff.filter((employee) => employeeDigits(employee.sssNo).length === 0);
+  const missingPhilHealth = staff.filter((employee) => employeeDigits(employee.philHealthNo).length === 0);
+  const missingPagIbig = staff.filter((employee) => employeeDigits(employee.pagIbigNo).length === 0);
   const employerSssReady = Boolean(org.sssEmployerNo?.trim());
   const employerPhilHealthReady = Boolean(org.philHealthEmployerNo?.trim());
   const employerPagIbigReady = Boolean(org.pagIbigEmployerNo?.trim());
@@ -96,7 +102,7 @@ export async function POST(request: Request) {
     {
       rule: "TRAIN annual brackets",
       passed: true,
-      message: "Local engine applies annual TRAIN brackets and MWE zero-tax treatment.",
+      message: "Local engine applies annual TRAIN brackets and preserves taxable supplementary compensation for MWEs.",
     },
     {
       rule: "13th month / other-benefits pool",
@@ -111,7 +117,7 @@ export async function POST(request: Request) {
     {
       rule: "Minimum wage earner treatment",
       passed: true,
-      message: `${mweCount} MWE employee(s) use the exemption cascade in local calculations.`,
+      message: `${mweCount} employee(s) are explicitly classified as MWE; wage references do not auto-assign tax status.`,
     },
   ];
 
@@ -150,7 +156,7 @@ export async function POST(request: Request) {
     {
       rule: "Monthly contribution basis",
       passed: true,
-      message: "R-3 draft recomputes the full monthly SSS contribution and EC from monthly basic salary instead of reusing one semi-monthly deduction.",
+      message: "R-3 draft recomputes the full monthly SSS contribution, mandatory MPF and EC from the payroll remuneration trace instead of reusing one cutoff deduction.",
     },
     {
       rule: "2026 contribution engine",
@@ -210,7 +216,7 @@ export async function POST(request: Request) {
     {
       rule: "Monthly contribution basis",
       passed: true,
-      message: "MCRF/eSRS draft recomputes the full monthly employee and employer contribution from monthly basic salary.",
+      message: "MCRF/eSRS draft recomputes mandatory employee/employer contribution from the payroll compensation trace and keeps voluntary employee contribution separate.",
     },
     {
       rule: "Mandatory contribution engine",
@@ -295,7 +301,8 @@ export async function POST(request: Request) {
     overallStatus: "LOCAL_PREFLIGHT_COMPLETE_NOT_PORTAL_VALIDATED",
     portalValidated: false,
     statutoryDeadlines: {
-      nextMonthlyRemittanceExample: statutoryDueDate(2026, 3),
+      agencySpecific: true,
+      note: "SSS, PhilHealth, Pag-IBIG and BIR use different remittance calendars. Verify deadlines per agency and employer account rather than applying one universal day.",
       thirteenthMonth2026: thirteenthMonthDeadline(2026),
     },
     dataCompleteness: {

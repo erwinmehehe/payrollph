@@ -214,6 +214,7 @@ test("employee money and final-pay workflows enforce organization-unit scope", (
     "src/app/api/earned-wage/route.ts",
     "src/app/api/de-minimis/route.ts",
     "src/app/api/separation/route.ts",
+  "src/app/api/separation/[id]/2316/route.ts",
   ]) {
     const source = read(path);
     assert.ok(source.includes("getAccess("), `${path} must resolve organization-unit access`);

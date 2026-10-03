@@ -395,6 +395,10 @@ export async function POST(request: Request) {
       deMinimisExcessYtd: sources.totals.deMinimisExcessYtd,
       mweTaxableSupplementaryCompensationYtd: sources.totals.mweTaxableSupplementaryCompensationYtd,
       deductOutstandingLoans,
+      requestedLoanDeductions: result.requestedLoanDeductions,
+      collectibleLoanDeductions: result.loanDeductions,
+      deferredLoanBalance: result.deferredLoanBalance,
+      annualization: result.annualization,
       specialPayTaxReviewed,
       separationPayTaxExempt,
       retirementPayTaxExempt,
@@ -506,7 +510,9 @@ export async function POST(request: Request) {
         finalStatutoryDeductions,
         finalStatutoryReviewed,
         taxAdjustment: result.taxAdjustment,
-        loanDeductions,
+        requestedLoanDeductions: result.requestedLoanDeductions,
+        loanDeductions: result.loanDeductions,
+        deferredLoanBalance: result.deferredLoanBalance,
         netFinalPay: result.netFinalPay,
       },
     });
@@ -668,9 +674,19 @@ export async function PATCH(request: Request) {
 
       const deductOutstandingLoans = Boolean(freshSnapshot.deductOutstandingLoans);
       if (deductOutstandingLoans) {
-        for (const loan of sources.loans) {
-          const amount = Number(loan.remainingBalance);
+        let collectible = Number(fresh.loanDeductions);
+        const orderedLoans = [...sources.loans].sort((a, b) => {
+          const aGovernment = /SSS|Pag-IBIG|HDMF/i.test(a.loanType) ? 0 : 1;
+          const bGovernment = /SSS|Pag-IBIG|HDMF/i.test(b.loanType) ? 0 : 1;
+          return aGovernment - bGovernment || a.id - b.id;
+        });
+
+        for (const loan of orderedLoans) {
+          if (collectible <= 0.004) break;
+          const remaining = Number(loan.remainingBalance);
+          const amount = Math.min(remaining, collectible);
           if (amount <= 0) continue;
+
           await tx.insert(loanPayments).values({
             loanId: loan.id,
             payrollRunId: null,
@@ -678,18 +694,28 @@ export async function PATCH(request: Request) {
             paymentDate: String(fresh.lastDay),
             reference: `Final pay separation #${fresh.id}`,
           });
+
+          const newBalance = Math.max(0, remaining - amount);
           const [settledLoan] = await tx.update(employeeLoans).set({
             totalPaid: money(Number(loan.totalPaid) + amount),
-            remainingBalance: "0.00",
-            status: "paid_off",
+            remainingBalance: money(newBalance),
+            status: newBalance <= 0.004 ? "paid_off" : "active",
           }).where(and(
             eq(employeeLoans.id, loan.id),
             eq(employeeLoans.status, "active"),
             eq(employeeLoans.remainingBalance, loan.remainingBalance),
           )).returning({ id: employeeLoans.id });
+
           if (!settledLoan) {
             throw new Error(`Loan ${loan.id} changed during final-pay release. Recompute the package before release.`);
           }
+          collectible = Math.max(0, collectible - amount);
+        }
+
+        if (collectible > 0.01) {
+          throw new Error(
+            `Final-pay loan collection has ₱${collectible.toFixed(2)} that cannot be matched to an active loan. Recompute before release.`,
+          );
         }
       }
 
@@ -722,11 +748,23 @@ export async function PATCH(request: Request) {
         finalPayDueDate: sep.finalPayDueDate,
         netFinalPay: Number(sep.netFinalPay),
         loanDeductions: Number(sep.loanDeductions),
+        deferredLoanBalance: Number(
+          (sep.computationSnapshot as Record<string, unknown> | null)?.deferredLoanBalance ?? 0,
+        ),
         releaseReference: releaseReference.slice(0, 160),
+        offboarding2316Available: true,
       },
     });
 
-    return Response.json(released);
+    return Response.json({
+      ...released,
+      offboarding2316: {
+        status: "available",
+        href: `/api/separation/${released.id}/2316`,
+        requiresRecentMfa: true,
+        draftOnly: true,
+      },
+    });
   }
 
   return Response.json({ error: "Unknown action." }, { status: 400 });
