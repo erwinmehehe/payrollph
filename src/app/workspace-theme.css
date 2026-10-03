@@ -11025,8 +11025,12 @@
     z-index: 72;
     left: 0;
     right: 0;
+    top: auto !important;
     bottom: 0;
+    height: 64px;
+    min-height: 64px;
     display: grid !important;
+    align-items: stretch;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     max-width: none;
     margin: 0;
