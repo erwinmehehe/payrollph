@@ -3,6 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, organizations, yearEndAdjustments } from "@/db/schema";
 import { renderForm2316 } from "@/lib/annualization";
+import { decryptGovernmentId } from "@/lib/government-id-crypto";
 import { getSessionUser } from "@/lib/auth";
 import { toCsv } from "@/lib/csv";
 import { runYearEndAnnualization } from "@/lib/year-end";
@@ -41,12 +42,13 @@ export async function GET(request: Request) {
     .where(eq(organizations.id, organizationId))
     .limit(1);
 
-  const digits = (value: string | null | undefined) => (value ?? "").replace(/\D/g, "");
+  const digits = (value: string | null | undefined, encrypted = false) =>
+    (encrypted ? decryptGovernmentId(value) ?? "" : value ?? "").replace(/\D/g, "");
   const employerTin = digits(organization?.birTin);
   const employerBranch = digits(organization?.birBranchCode).padStart(4, "0");
   const missingBirIdentity = rows.filter((row) =>
-    digits(row.employee.tin).length !== 9 ||
-    digits(row.employee.tinBranchCode).length !== 4
+    digits(row.employee.tin, true).length !== 9 ||
+    digits(row.employee.tinBranchCode, true).length !== 4
   );
 
   if (format === "2316") {
@@ -55,7 +57,7 @@ export async function GET(request: Request) {
     if (employerTin.length !== 9 || employerBranch.length !== 4) {
       return Response.json({ error: "Employer BIR TIN and 4-digit branch code are required before generating Form 2316." }, { status: 422 });
     }
-    if (digits(match.employee.tin).length !== 9 || digits(match.employee.tinBranchCode).length !== 4) {
+    if (digits(match.employee.tin, true).length !== 9 || digits(match.employee.tinBranchCode, true).length !== 4) {
       return Response.json({ error: "Employee BIR TIN and 4-digit branch code are required before generating Form 2316." }, { status: 422 });
     }
 
@@ -65,7 +67,7 @@ export async function GET(request: Request) {
       employerTin: `${employerTin}-${employerBranch}`,
       employeeName: [match.employee.firstName, match.employee.middleName, match.employee.lastName].filter(Boolean).join(" "),
       employeeNo: match.employee.employeeNo,
-      employeeTin: `${digits(match.employee.tin)}-${digits(match.employee.tinBranchCode)}`,
+      employeeTin: `${digits(match.employee.tin, true)}-${digits(match.employee.tinBranchCode, true)}`,
       result: match.adjustment.breakdown as never,
     });
     return new Response(body, {
@@ -109,8 +111,8 @@ export async function GET(request: Request) {
       rows: rows.map((row) => [
         employerTin,
         employerBranch,
-        digits(row.employee.tin),
-        digits(row.employee.tinBranchCode),
+        digits(row.employee.tin, true),
+        digits(row.employee.tinBranchCode, true),
         row.employee.lastName,
         row.employee.firstName,
         row.employee.middleName ?? "",
