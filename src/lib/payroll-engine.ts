@@ -25,6 +25,7 @@ import {
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import {
+  computeCutoffStatutoryDeduction,
   computePagIbig,
   computePhilHealth,
   computeSemiMonthlyWithholdingTax,
@@ -1097,21 +1098,13 @@ function calculateEmployeePay(input: {
       ? input.statutoryDeductionTiming
       : "split";
 
-  const scheduledContribution = (monthlyTarget: number, priorCollected: number) => {
-    if (timing === "second_cutoff") {
-      return isSecondCutoff ? roundToCents(Math.max(0, monthlyTarget - priorCollected)) : 0;
-    }
-    if (timing === "first_cutoff") {
-      // The first cutoff collects the current monthly target. A second-cutoff
-      // true-up is still allowed if variable remuneration increased that target.
-      return isSecondCutoff
-        ? roundToCents(Math.max(0, monthlyTarget - priorCollected))
-        : roundToCents(monthlyTarget);
-    }
-    return isSecondCutoff
-      ? roundToCents(Math.max(0, monthlyTarget - priorCollected))
-      : roundToCents(monthlyTarget / 2);
-  };
+  const scheduledContribution = (monthlyTarget: number, priorCollected: number) =>
+    computeCutoffStatutoryDeduction({
+      monthlyTarget,
+      priorCollected,
+      timing,
+      isSecondCutoff,
+    });
 
   const sss = scheduledContribution(sssRule.employee, priorMonth.sssEmployee);
   const philhealth = scheduledContribution(philHealthRule.employee, priorMonth.philHealthEmployee);
