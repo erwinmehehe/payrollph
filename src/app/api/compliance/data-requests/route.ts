@@ -246,10 +246,21 @@ export async function PATCH(request: Request) {
           error: "Generate the subject access/portability export before marking this request completed.",
         }, { status: 409 });
       }
-    } else if (!fulfillmentAction || Object.keys(fulfillmentEvidence).length === 0) {
-      return Response.json({
-        error: "Correction, deletion, and objection requests require a fulfillment action and evidence before completion.",
-      }, { status: 409 });
+    } else {
+      const evidenceOrganizationId = existing.organizationId ?? 0;
+      const evidence = await db.select().from(auditEvents)
+        .where(eq(auditEvents.organizationId, evidenceOrganizationId));
+      const executionExists = evidence.some((event) =>
+        event.action === "Data request fulfillment executed"
+        && event.metadata
+        && typeof event.metadata === "object"
+        && Number((event.metadata as Record<string, unknown>).requestId) === existing.id
+      );
+      if (!executionExists) {
+        return Response.json({
+          error: "Execute the correction/deletion/objection through the audited fulfillment endpoint before marking this request completed.",
+        }, { status: 409 });
+      }
     }
   }
 
