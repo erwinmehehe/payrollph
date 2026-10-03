@@ -41,7 +41,7 @@ test("input and exception attention are surfaced without inventing new payroll r
   assert.equal(result.steps.inputs.state, "attention");
   assert.equal(result.steps.exceptions.state, "attention");
   assert.equal(result.exceptionIssues, 2);
-  assert.equal(result.canSubmit, true);
+  assert.equal(result.canSubmit, false);
 });
 
 test("submission stage reflects the maker-checker state", () => {
@@ -97,4 +97,36 @@ test("generic statutory attention never opens the first employee by accident", a
   assert.ok(!source.includes("onExplainEmployee(entries[0].employeeId)"));
   assert.ok(source.includes("hasStatutoryFinding"));
   assert.ok(source.includes("hasAttendanceFinding"));
+});
+
+
+test("reviewable exceptions can still be handed to Checker once required inputs and calculation are complete", () => {
+  const result = buildPayrollOfficerWorkflow({
+    runStatus: "Needs review",
+    calculated: true,
+    processedChunks: 2,
+    totalChunks: 2,
+    exceptionCount: 2,
+    checklist: [
+      { key: "inputs", passed: true, blocking: true, detail: "ok" },
+      { key: "attendance", passed: true, blocking: true, detail: "ok" },
+      { key: "calculation", passed: true, blocking: true, detail: "complete" },
+      { key: "statutory", passed: false, blocking: true, detail: "review" },
+      { key: "exceptions", passed: false, blocking: true, acknowledgeable: true, detail: "review" },
+    ],
+  });
+
+  assert.equal(result.steps.inputs.state, "done");
+  assert.equal(result.steps.exceptions.state, "attention");
+  assert.equal(result.steps.submit.state, "now");
+  assert.equal(result.canSubmit, true);
+});
+
+test("checker submission endpoint enforces required input and calculation readiness server-side", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync("src/app/api/payroll-runs/[id]/submit-review/route.ts", "utf8");
+  assert.ok(source.includes("buildPayrollReleaseChecklist"));
+  assert.ok(source.includes('item.key === "inputs" || item.key === "calculation"'));
+  assert.ok(source.includes("Payroll inputs and calculation must be complete before checker submission."));
+  assert.ok(source.includes("blockingWorkflowItems"));
 });
