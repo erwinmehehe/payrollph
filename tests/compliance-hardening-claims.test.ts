@@ -46,7 +46,7 @@ test("data-subject completion requires fulfillment evidence instead of status-on
   assert.ok(source.includes("internal service-level target"));
   assert.ok(source.includes("fulfillmentEvidence"));
   assert.ok(source.includes("Generate the subject access/portability export before marking this request completed."));
-  assert.ok(source.includes("require a fulfillment action and evidence before completion"));
+  assert.ok(source.includes("audited fulfillment endpoint before marking this request completed"));
 });
 
 
@@ -111,4 +111,35 @@ test("launch readiness blocks on plaintext government identifiers", () => {
   assert.ok(readiness.includes("plaintextEmployeeGovernmentIds"));
   assert.ok(readiness.includes("plaintextContractorTins"));
   assert.ok(pilot.includes('"government-id-encryption"'));
+});
+
+
+test("correction deletion and objection have executable audited fulfillment paths", () => {
+  const source = read("src/app/api/compliance/data-requests/[id]/fulfill/route.ts");
+  assert.ok(source.includes('"apply_correction"'));
+  assert.ok(source.includes('"restrict_processing"'));
+  assert.ok(source.includes('"redact_non_retained_profile"'));
+  assert.ok(source.includes("privacyRestricted: true"));
+  assert.ok(source.includes("retainedRecordCounts"));
+  assert.ok(source.includes("missingRetentionClasses"));
+  assert.ok(source.includes('action: "Data request fulfillment executed"'));
+});
+
+test("retention policy is an approved record-class schedule and a launch gate", () => {
+  const api = read("src/app/api/compliance/retention/route.ts");
+  const readiness = read("src/app/api/readiness/route.ts");
+  const pilot = read("src/app/api/readiness/pilot-status/route.ts");
+  assert.ok(api.includes("retentionYears"));
+  assert.ok(api.includes("legalBasis"));
+  assert.ok(api.includes("legalHold"));
+  assert.ok(api.includes("requireSensitiveActionMfa"));
+  assert.ok(readiness.includes('key: "privacy-retention-schedule"'));
+  assert.ok(pilot.includes('"privacy-retention-schedule"'));
+});
+
+test("privacy-restricted employees are excluded from payroll creation and calculation", () => {
+  const create = read("src/app/api/payroll-runs/route.ts");
+  const engine = read("src/lib/payroll-engine.ts");
+  assert.ok(create.includes("eq(employees.privacyRestricted, false)"));
+  assert.ok(engine.includes("eq(employees.privacyRestricted, false)"));
 });
