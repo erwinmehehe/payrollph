@@ -12,9 +12,9 @@ test("13th month and other benefits share one PHP 90,000 annual exemption pool",
     mwe: false,
   });
 
-  assert.equal(result.combinedOtherBenefits, 100_000);
-  assert.equal(result.exemptCombinedOtherBenefits, 90_000);
-  assert.equal(result.taxableCombinedOtherBenefits, 10_000);
+  assert.equal(result.benefitPool, 100_000);
+  assert.equal(result.exemptBenefitPool, 90_000);
+  assert.equal(result.taxableBenefitPool, 10_000);
   assert.equal(result.taxableIncome, 560_000);
 });
 
@@ -27,9 +27,26 @@ test("taxable 13th-month excess remains in gross exactly once", () => {
     mwe: false,
   });
 
-  assert.equal(result.exemptCombinedOtherBenefits, 90_000);
-  assert.equal(result.taxableCombinedOtherBenefits, 40_000);
+  assert.equal(result.exemptBenefitPool, 90_000);
+  assert.equal(result.taxableBenefitPool, 40_000);
   assert.equal(result.taxableIncome, 560_000);
+});
+
+test("de minimis excess joins the same PHP 90,000 benefits pool", () => {
+  const result = annualize({
+    grossCompensation: 650_000,
+    thirteenthMonth: 80_000,
+    deMinimis: 24_000,
+    deMinimisExcess: 20_000,
+    statutoryContributions: 0,
+    taxWithheld: 0,
+    mwe: false,
+  });
+
+  assert.equal(result.benefitPool, 100_000);
+  assert.equal(result.exemptBenefitPool, 90_000);
+  assert.equal(result.taxableBenefitPool, 10_000);
+  assert.equal(result.nonTaxable, 114_000);
 });
 
 test("MWE additional taxable compensation is not globally exempted", () => {
@@ -39,7 +56,7 @@ test("MWE additional taxable compensation is not globally exempted", () => {
     statutoryContributions: 20_000,
     taxWithheld: 0,
     mwe: true,
-    mweExemptCompensation: 200_000,
+    mweTaxableSupplementaryCompensation: 280_000,
   });
 
   assert.equal(result.taxableIncome, 260_000);
