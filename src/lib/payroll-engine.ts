@@ -376,18 +376,17 @@ async function processPayrollChunk(input: {
   const holidayRows = await db.select().from(holidays).where(
     or(isNull(holidays.organizationId), eq(holidays.organizationId, input.organizationId)),
   );
-  const localHolidayCalendar: HolidayCalendarEntry[] = holidayRows.flatMap((row) => {
+  const localHolidayRows = holidayRows.flatMap((row) => {
     const date = String(row.holidayDate);
     if (date > String(run.periodEnd)) return [];
     const kind = row.kind === "regular" || row.kind === "special" ? row.kind : null;
-    return kind ? [{ date, name: row.name, kind }] : [];
+    return kind ? [{
+      date,
+      name: row.name,
+      kind,
+      orgUnitId: row.orgUnitId,
+    }] : [];
   });
-  const holidayCalendar = [
-    ...NATIONAL_HOLIDAYS_2026,
-    ...localHolidayCalendar.filter((local) => !NATIONAL_HOLIDAYS_2026.some(
-      (national) => national.date === local.date && national.name === local.name && national.kind === local.kind,
-    )),
-  ];
 
   const units = await db.select().from(orgUnits).where(eq(orgUnits.organizationId, input.organizationId));
   const unitMap = new Map(units.map((unit) => [unit.id, unit]));
@@ -606,6 +605,16 @@ async function processPayrollChunk(input: {
   let chunkExceptions = 0;
 
   for (const employee of chunk) {
+    const employeeHolidayCalendar: HolidayCalendarEntry[] = [
+      ...NATIONAL_HOLIDAYS_2026,
+      ...localHolidayRows
+        .filter((holiday) => holiday.orgUnitId == null || holiday.orgUnitId === employee.orgUnitId)
+        .map(({ orgUnitId: _orgUnitId, ...holiday }) => holiday)
+        .filter((local) => !NATIONAL_HOLIDAYS_2026.some(
+          (national) => national.date === local.date && national.name === local.name && national.kind === local.kind,
+        )),
+    ];
+
     const punches = await db.select().from(timePunches).where(and(
       eq(timePunches.organizationId, input.organizationId),
       eq(timePunches.employeeId, employee.id),
@@ -619,18 +628,18 @@ async function processPayrollChunk(input: {
       newRestDay: revision.newRestDay,
     }));
     const holidayEligibilityDates = [...new Set(
-      holidayCalendar
+      employeeHolidayCalendar
         .map((holiday) => holiday.date)
         .filter((date) => date >= String(run.periodStart) && date <= String(run.periodEnd))
         .filter((date) => {
-          const context = holidayPayContextOn(date, holidayCalendar);
+          const context = holidayPayContextOn(date, employeeHolidayCalendar);
           return context.holiday === "regular" || context.holiday === "double";
         })
         .map((holidayDate) => precedingScheduledWorkDate({
           holidayDate,
           currentRestDay: employee.restDay,
           restDayRevisions: employeeRestDayRevisions,
-          holidayCalendar,
+          holidayCalendar: employeeHolidayCalendar,
           employeeStartDate: String(employee.startDate),
         }))
         .filter((date): date is string => Boolean(date)),
@@ -742,7 +751,7 @@ async function processPayrollChunk(input: {
         newStandardHoursPerDay: revision.newStandardHoursPerDay,
         reason: revision.reason,
       })),
-      holidayCalendar,
+      holidayCalendar: employeeHolidayCalendar,
       holidayEligibilityAttendanceDates,
       holidayEligibilityPaidLeaveDates,
       statutoryDeductionTiming: organization.statutoryDeductionTiming,
