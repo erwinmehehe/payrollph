@@ -986,7 +986,12 @@ function calculateEmployeePay(input: {
   // The denominator remains the full cutoff while timeline coverage begins on
   // the actual employment start date, so a mid-cutoff hire receives only the
   // earned fraction of the semi-monthly salary.
-  const semiMonthlyBasic = fixedMonthlyBasicForTimeline(timeline, input.periodStart, input.periodEnd);
+  const semiMonthlyBasic = fixedMonthlyBasicForTimeline(
+    timeline,
+    input.periodStart,
+    input.periodEnd,
+    employeeStartDate,
+  );
   const dailyRate = payProfile.dailyRate;
   const hourlyRate = payProfile.hourlyRate;
 
@@ -1574,6 +1579,11 @@ function calculateEmployeePay(input: {
       `deMinimisPaid=${money(deMinimisTotal)}`,
       `deMinimisOtherBenefitsPool=${money(deMinimisOtherBenefitsPool)}`,
       `mweTaxableSupplementaryCompensation=${money(mweTaxableSupplementaryCompensation)}`,
+      // Backward-compatible trace alias. Historically SSS/Pag-IBIG shared one
+      // remuneration basis; keep the legacy key mapped to SSS remuneration so
+      // older audit/report tooling remains readable while the explicit split
+      // keys carry the authoritative bases.
+      `statutoryMonthlyCompensation=${money(statutoryMonthlySssCompensation)}`,
       `statutoryMonthlySssCompensation=${money(statutoryMonthlySssCompensation)}`,
       `statutoryMonthlyPagIbigCompensation=${money(statutoryMonthlyPagIbigCompensation)}`,
       `statutoryReconciliation=${statutoryReconciliationMode}`,
