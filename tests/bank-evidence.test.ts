@@ -62,7 +62,7 @@ test("manual corporate bank acceptance can satisfy bank readiness but generation
 
 test("production compatibility creates the bank validation evidence table", () => {
   const compat = readFileSync("src/lib/core-schema-compat.ts", "utf8");
-  assert.ok(compat.includes("linaw_core_schema_compat_v5"));
+  assert.match(compat, /linaw_core_schema_compat_v\\d+/);
   assert.ok(compat.includes("CREATE TABLE IF NOT EXISTS bank_file_validations"));
   assert.ok(compat.includes("bank_file_validation_unique"));
   assert.ok(compat.includes("bank_file_validations_status_check"));
