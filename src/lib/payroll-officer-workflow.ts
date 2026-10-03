@@ -17,6 +17,7 @@ export function buildPayrollOfficerWorkflow(input: {
   approvalStatus?: string | null;
   checklist?: PayrollOfficerChecklistItem[] | null;
 }) {
+  const hasChecklist = input.checklist != null;
   const checklist = new Map((input.checklist ?? []).map((item) => [item.key, item]));
   const inputChecks = ["inputs", "attendance"].map((key) => checklist.get(key)).filter(Boolean) as PayrollOfficerChecklistItem[];
   const inputIssues = inputChecks.filter((item) => !item.passed);
@@ -45,7 +46,7 @@ export function buildPayrollOfficerWorkflow(input: {
     canSubmit,
     steps: {
       inputs: {
-        state: inputIssues.length > 0 ? "attention" as const : "done" as const,
+        state: !hasChecklist ? "now" as const : inputIssues.length > 0 ? "attention" as const : "done" as const,
       },
       calculate: {
         state: calculationReady ? "done" as const : "now" as const,
