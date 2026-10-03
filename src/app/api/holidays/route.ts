@@ -1,6 +1,6 @@
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { holidays, orgUnits } from "@/db/schema";
+import { approvalTasks, holidays, orgUnits, payrollEntries, payrollRuns } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import {
@@ -14,6 +14,69 @@ export const dynamic = "force-dynamic";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const HOLIDAY_KINDS = new Set(["regular", "special"]);
+
+const BUSY_PAYROLL_STATUSES = new Set(["Queued", "Processing", "Recalculating", "Releasing"]);
+
+async function affectedPayrollRuns(organizationId: number, dates: string[]) {
+  const rows = await db.select().from(payrollRuns)
+    .where(eq(payrollRuns.organizationId, organizationId));
+  return rows.filter((run) =>
+    dates.some((date) => String(run.periodStart) <= date && String(run.periodEnd) >= date)
+  );
+}
+
+async function assertHolidayMutationNotRacingPayroll(organizationId: number, dates: string[]) {
+  const affected = await affectedPayrollRuns(organizationId, dates);
+  const busy = affected.filter((run) => BUSY_PAYROLL_STATUSES.has(run.status));
+  if (busy.length > 0) {
+    throw new Error(
+      `Holiday calendar cannot change while overlapping payroll is processing or releasing (run #${busy[0].id}, ${busy[0].status}). Retry after that payroll action finishes.`,
+    );
+  }
+  return affected;
+}
+
+async function invalidateAffectedPayroll(
+  organizationId: number,
+  affected: Awaited<ReturnType<typeof affectedPayrollRuns>>,
+) {
+  const stale = affected.filter((run) =>
+    run.status !== "Released" && !BUSY_PAYROLL_STATUSES.has(run.status)
+  );
+  if (stale.length === 0) return [] as number[];
+
+  const tasks = await db.select().from(approvalTasks)
+    .where(eq(approvalTasks.organizationId, organizationId));
+  const invalidated: number[] = [];
+
+  await db.transaction(async (tx) => {
+    for (const run of stale) {
+      await tx.delete(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
+      const [updated] = await tx.update(payrollRuns).set({
+        status: "Draft",
+        employeeCount: 0,
+        grossPay: "0",
+        netPay: "0",
+        exceptions: 0,
+        processedChunks: 0,
+        totalChunks: 0,
+      }).where(eq(payrollRuns.id, run.id)).returning({ id: payrollRuns.id });
+      if (updated) invalidated.push(updated.id);
+
+      for (const task of tasks) {
+        if (!task.detail.includes(`Payroll run #${run.id}`)) continue;
+        if (task.status !== "Pending" && task.status !== "Approved") continue;
+        await tx.update(approvalTasks).set({
+          status: "Superseded",
+          decidedBy: "System",
+          decidedAt: new Date(),
+        }).where(eq(approvalTasks.id, task.id));
+      }
+    }
+  });
+
+  return invalidated;
+}
 
 async function validateOrgUnit(organizationId: number, value: unknown) {
   if (value == null || value === "") return null;
