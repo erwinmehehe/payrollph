@@ -5,6 +5,9 @@ import { ensureSeedData } from "@/db/seed";
 import { recordAuditEvent } from "@/lib/audit";
 import { assertOrganizationRole, getAccess, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
+import { maskBankAccount } from "@/lib/bank-account-crypto";
+import { maskGovernmentId } from "@/lib/government-id-crypto";
+import { requireSensitiveActionMfa } from "@/lib/security-request";
 import { escapeCsvCell } from "@/lib/csv";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +36,10 @@ export async function GET(request: Request) {
   if (deniedOrg) return deniedOrg;
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  if (kind === "all" || kind === "audit") {
+    const mfaDenied = requireSensitiveActionMfa(user);
+    if (mfaDenied) return mfaDenied;
+  }
   if (kind !== "employees" && !access.companyWide) {
     return Response.json({ error: "Company-wide payroll and audit exports are not available to unit-scoped roles." }, { status: 403 });
   }
@@ -87,7 +94,27 @@ export async function GET(request: Request) {
     return new Response(text, { headers: { "Content-Type": "text/csv", "Content-Disposition": "attachment; filename=payroll-register.csv" } });
   }
 
-  return new Response(JSON.stringify({ exportedAt: new Date().toISOString(), organization, employees: employeeRows, payrollRuns: payrollRows, auditEvents: auditRows }, null, 2), {
-    headers: { "Content-Type": "application/json", "Content-Disposition": "attachment; filename=linaw-data-export.json" },
+  const safeEmployeeRows = employeeRows.map((employee) => ({
+    ...employee,
+    bankAccount: maskBankAccount(employee.bankAccount),
+    tin: maskGovernmentId(employee.tin),
+    tinBranchCode: maskGovernmentId(employee.tinBranchCode),
+    sssNo: maskGovernmentId(employee.sssNo),
+    philHealthNo: maskGovernmentId(employee.philHealthNo),
+    pagIbigNo: maskGovernmentId(employee.pagIbigNo),
+  }));
+  return new Response(JSON.stringify({
+    exportedAt: new Date().toISOString(),
+    organization,
+    employees: safeEmployeeRows,
+    payrollRuns: payrollRows,
+    auditEvents: auditRows,
+  }, null, 2), {
+    headers: {
+      "Content-Type": "application/json",
+      "Content-Disposition": "attachment; filename=linaw-data-export.json",
+      "Cache-Control": "no-store, private",
+      "X-Content-Type-Options": "nosniff",
+    },
   });
 }
