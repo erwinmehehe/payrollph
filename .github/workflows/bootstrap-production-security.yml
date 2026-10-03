@@ -1,0 +1,226 @@
+name: Bootstrap Production Security
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/bootstrap-production-security.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: payrollph-production-security-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      PRODUCTION_URL: https://erwinmehehe-payrollph.vercel.app
+      VERCEL_TOKEN: ${{ secrets.PRODUCTION_VERCEL_TOKEN || secrets.VERCEL_TOKEN }}
+      TOTP_MASTER: ${{ secrets.PRODUCTION_TOTP_ENCRYPTION_KEY || secrets.TOTP_ENCRYPTION_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Validate bootstrap credentials before any mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${VERCEL_TOKEN:-}" ]; then
+            echo "No PRODUCTION_VERCEL_TOKEN or VERCEL_TOKEN GitHub secret is configured. No production changes were made."
+            exit 1
+          fi
+          if [ -z "${TOTP_MASTER:-}" ]; then
+            echo "No PRODUCTION_TOTP_ENCRYPTION_KEY or TOTP_ENCRYPTION_KEY GitHub secret is configured. No production changes were made."
+            exit 1
+          fi
+          TOTP_ENCRYPTION_KEY="$TOTP_MASTER" npx tsx -e '
+            import { parseBankEncryptionKey } from "./src/lib/bank-account-crypto";
+            if (!parseBankEncryptionKey(process.env.TOTP_ENCRYPTION_KEY)) {
+              console.error("The configured production TOTP master is not a valid 32-byte key.");
+              process.exit(1);
+            }
+          '
+          echo "Required Vercel and encryption credentials are present."
+
+      - name: Discover and verify the exact production project
+        id: project
+        shell: bash
+        run: |
+          set -euo pipefail
+          host="${PRODUCTION_URL#https://}"
+          deployment_file="$(mktemp)"
+          trap 'rm -f "$deployment_file"' EXIT
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v13/deployments/$host" > "$deployment_file"
+
+          project_id="$(jq -r '.projectId // empty' "$deployment_file")"
+          owner_id="$(jq -r '.ownerId // empty' "$deployment_file")"
+          target="$(jq -r '.target // empty' "$deployment_file")"
+          deployment_url="$(jq -r '.url // empty' "$deployment_file")"
+
+          if [ -z "$project_id" ] || [ "$target" != "production" ]; then
+            echo "The Vercel token did not resolve the known PayrollPH production deployment. No changes were made."
+            exit 1
+          fi
+          if [ "$deployment_url" != "$host" ]; then
+            echo "Resolved deployment URL does not match the known PayrollPH production deployment. No changes were made."
+            exit 1
+          fi
+
+          echo "project_id=$project_id" >> "$GITHUB_OUTPUT"
+          echo "owner_id=$owner_id" >> "$GITHUB_OUTPUT"
+          echo "Verified PayrollPH production project without exposing credentials."
+
+      - name: Inspect production environment without reading secret values
+        id: environment
+        shell: bash
+        env:
+          PROJECT_ID: ${{ steps.project.outputs.project_id }}
+          OWNER_ID: ${{ steps.project.outputs.owner_id }}
+        run: |
+          set -euo pipefail
+          scope=""
+          if [[ "$OWNER_ID" == team_* ]]; then
+            scope="?teamId=$OWNER_ID"
+          fi
+
+          env_file="$(mktemp)"
+          trap 'rm -f "$env_file"' EXIT
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v9/projects/$PROJECT_ID/env$scope" > "$env_file"
+
+          if jq -e '[.envs[]? | select(.key == "TOTP_ENCRYPTION_KEY")] | length > 0' "$env_file" >/dev/null; then
+            echo "totp_exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "totp_exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Prove an existing live TOTP key matches the protected GitHub master
+        if: ${{ steps.environment.outputs.totp_exists == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="$(
+            TOTP_ENCRYPTION_KEY="$TOTP_MASTER" npx tsx -e '
+              import { bankEncryptionKeyFingerprint } from "./src/lib/bank-account-crypto";
+              const value = bankEncryptionKeyFingerprint();
+              if (!value) process.exit(2);
+              process.stdout.write(value);
+            '
+          )"
+          live="$(
+            curl --fail --silent --show-error --max-time 20 "$PRODUCTION_URL/api/readiness/pilot-status" \
+              | jq -r '.bankEncryptionFingerprint // empty'
+          )"
+
+          if [ -z "$live" ] || [ "$expected" != "$live" ]; then
+            echo "An existing production TOTP key is absent, malformed, or does not match the protected GitHub master. Refusing to overwrite it."
+            exit 1
+          fi
+          echo "Existing live encryption master matches the protected GitHub master."
+
+      - name: Configure canonical production origin
+        shell: bash
+        env:
+          PROJECT_ID: ${{ steps.project.outputs.project_id }}
+          OWNER_ID: ${{ steps.project.outputs.owner_id }}
+        run: |
+          set -euo pipefail
+          query="?upsert=true"
+          if [[ "$OWNER_ID" == team_* ]]; then
+            query="$query&teamId=$OWNER_ID"
+          fi
+          payload="$(jq -cn --arg value "$PRODUCTION_URL" '{
+            key: "APP_BASE_URL",
+            value: $value,
+            type: "plain",
+            target: ["production"],
+            comment: "Canonical PayrollPH production origin"
+          }')"
+          curl --fail --silent --show-error \
+            -o /dev/null \
+            -X POST \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data "$payload" \
+            "https://api.vercel.com/v10/projects/$PROJECT_ID/env$query"
+          echo "Canonical APP_BASE_URL is configured."
+
+      - name: Seed production TOTP master only when none exists
+        if: ${{ steps.environment.outputs.totp_exists == 'false' }}
+        shell: bash
+        env:
+          PROJECT_ID: ${{ steps.project.outputs.project_id }}
+          OWNER_ID: ${{ steps.project.outputs.owner_id }}
+        run: |
+          set -euo pipefail
+          query="?upsert=false"
+          if [[ "$OWNER_ID" == team_* ]]; then
+            query="$query&teamId=$OWNER_ID"
+          fi
+          payload="$(jq -cn --arg value "$TOTP_MASTER" '{
+            key: "TOTP_ENCRYPTION_KEY",
+            value: $value,
+            type: "sensitive",
+            target: ["production"],
+            comment: "PayrollPH production encryption master; protected copy retained in GitHub Actions secret"
+          }')"
+          curl --fail --silent --show-error \
+            -o /dev/null \
+            -X POST \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data "$payload" \
+            "https://api.vercel.com/v10/projects/$PROJECT_ID/env$query"
+          unset payload
+          echo "Production TOTP master was seeded from the protected GitHub secret. Secret value was not printed."
+
+      - name: Redeploy the exact current production deployment with the secured environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          CI=1 npx --yes vercel@latest redeploy "$PRODUCTION_URL" --token "$VERCEL_TOKEN" >/tmp/vercel-redeploy.log 2>&1
+          grep -Eo 'https://[^ ]+\.vercel\.app' /tmp/vercel-redeploy.log | tail -1 | sed 's/^/Redeployed: /' || true
+          rm -f /tmp/vercel-redeploy.log
+
+      - name: Verify deployment and encryption readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..30}; do
+            deployment="$(curl --fail --silent --show-error --max-time 20 "$PRODUCTION_URL/api/readiness/deployment" || true)"
+            sha="$(printf '%s' "$deployment" | jq -r '.deploymentSha // empty' 2>/dev/null || true)"
+            if [ "$sha" = "$GITHUB_SHA" ]; then
+              readiness="$(curl --fail --silent --show-error --max-time 20 "$PRODUCTION_URL/api/readiness/pilot-status")"
+              blockers="$(printf '%s' "$readiness" | jq -c '.criticalBlockers // []')"
+              if ! printf '%s' "$readiness" | jq -e '
+                (.criticalBlockers // []) |
+                (index("production-security-config") == null) and
+                (index("bank-data-encryption") == null) and
+                (index("government-id-encryption") == null)
+              ' >/dev/null; then
+                echo "Deployment is live, but security/encryption readiness is still blocked: $blockers"
+                exit 1
+              fi
+              printf '%s' "$readiness" | jq '{status, criticalBlockers, launchBlockers, deploymentSha}'
+              echo "Production origin and encryption-at-rest gates are green."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Secured redeployment did not expose the expected Git commit in time."
+          exit 1
