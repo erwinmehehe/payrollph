@@ -76,6 +76,17 @@ function roundToCents(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+function traceInputNumber(trace: unknown, key: string) {
+  if (!trace || typeof trace !== "object") return 0;
+  const inputs = (trace as { inputs?: unknown }).inputs;
+  if (!Array.isArray(inputs)) return 0;
+  const prefix = `${key}=`;
+  const raw = inputs.find((item) => typeof item === "string" && item.startsWith(prefix));
+  if (typeof raw !== "string") return 0;
+  const value = Number(raw.slice(prefix.length));
+  return Number.isFinite(value) ? value : 0;
+}
+
 function addDays(dateText: string, days: number) {
   const date = new Date(`${dateText}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + days);
@@ -570,6 +581,7 @@ async function processPayrollChunk(input: {
         employeeId: payrollEntries.employeeId,
         grossPay: payrollEntries.grossPay,
         lineItems: payrollEntries.lineItems,
+        trace: payrollEntries.trace,
       })
         .from(payrollEntries)
         .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
@@ -606,8 +618,15 @@ async function processPayrollChunk(input: {
       pagIbigEmployee: 0,
       pagIbigVoluntaryEmployee: 0,
     };
+    const priorExcludedSupplementary = traceInputNumber(
+      prior.trace,
+      "supplementaryExcludedFromStatutory",
+    );
     previous.remuneration = roundToCents(
-      previous.remuneration + Math.max(0, Number(prior.grossPay) - expenseReimbursements),
+      previous.remuneration + Math.max(
+        0,
+        Number(prior.grossPay) - expenseReimbursements - priorExcludedSupplementary,
+      ),
     );
     previous.sssEmployee = roundToCents(previous.sssEmployee + deduction("SSS"));
     previous.philHealthEmployee = roundToCents(previous.philHealthEmployee + deduction("PHIC"));
