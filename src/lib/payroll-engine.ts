@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db, pool } from "@/db";
 import {
   calamityAdvisories,
@@ -14,6 +14,7 @@ import {
   leaveConversions,
   leavePolicies,
   leaveRequests,
+  holidays,
   orgUnits,
   payrollEntries,
   payrollJobs,
@@ -33,7 +34,12 @@ import {
   restDayForDate,
   type EffectiveRestDayRevisionInput,
 } from "@/lib/payroll-rules";
-import { holidayPayContextOn, isBelowMinimum } from "@/lib/wage-orders";
+import {
+  holidayPayContextOn,
+  isBelowMinimum,
+  NATIONAL_HOLIDAYS_2026,
+  type HolidayCalendarEntry,
+} from "@/lib/wage-orders";
 import { deMinimisPerSemiMonthlyPeriod, deMinimisTreatment, type DeMinimisType } from "@/lib/ph-compliance";
 import { calculateBenefits, type EnrollmentInput } from "@/lib/benefits";
 import { benefitEnrollments, benefitPlans } from "@/db/schema";
@@ -56,7 +62,7 @@ import {
   type EmployeePayProfileInput,
 } from "@/lib/pay-basis";
 
-const RULE_VERSION = "PH-2026.01";
+const RULE_VERSION = "PH-2026.02";
 const DEFAULT_CHUNK = 25;
 
 function money(value: number) {
@@ -95,10 +101,12 @@ export async function enqueuePayrollRun(runId: number, chunkSize = DEFAULT_CHUNK
         eq(employees.organizationId, run.organizationId),
         eq(employees.orgUnitId, run.scopeOrgUnitId),
         eq(employees.status, "Active"),
+        lte(employees.startDate, run.periodEnd),
       )
     : and(
         eq(employees.organizationId, run.organizationId),
         eq(employees.status, "Active"),
+        lte(employees.startDate, run.periodEnd),
       );
   const employeeRows = await db.select().from(employees).where(employeeWhere).orderBy(asc(employees.id));
   if (employeeRows.length === 0) {
@@ -281,10 +289,12 @@ async function processPayrollChunk(input: {
         eq(employees.organizationId, input.organizationId),
         eq(employees.orgUnitId, run.scopeOrgUnitId),
         eq(employees.status, "Active"),
+        lte(employees.startDate, run.periodEnd),
       )
     : and(
         eq(employees.organizationId, input.organizationId),
         eq(employees.status, "Active"),
+        lte(employees.startDate, run.periodEnd),
       );
   const allEmployees = await db.select().from(employees)
     .where(employeeWhere)
@@ -333,6 +343,22 @@ async function processPayrollChunk(input: {
     lte(calamityAdvisories.startDate, run.periodEnd),
     gte(calamityAdvisories.endDate, run.periodStart),
   ));
+  const holidayRows = await db.select().from(holidays).where(and(
+    or(isNull(holidays.organizationId), eq(holidays.organizationId, input.organizationId)),
+    gte(holidays.holidayDate, run.periodStart),
+    lte(holidays.holidayDate, run.periodEnd),
+  ));
+  const localHolidayCalendar: HolidayCalendarEntry[] = holidayRows.flatMap((row) => {
+    const kind = row.kind === "regular" || row.kind === "special" ? row.kind : null;
+    return kind ? [{ date: String(row.holidayDate), name: row.name, kind }] : [];
+  });
+  const holidayCalendar = [
+    ...NATIONAL_HOLIDAYS_2026,
+    ...localHolidayCalendar.filter((local) => !NATIONAL_HOLIDAYS_2026.some(
+      (national) => national.date === local.date && national.name === local.name && national.kind === local.kind,
+    )),
+  ];
+
   const units = await db.select().from(orgUnits).where(eq(orgUnits.organizationId, input.organizationId));
   const unitMap = new Map(units.map((unit) => [unit.id, unit]));
 
@@ -523,13 +549,18 @@ async function processPayrollChunk(input: {
           amount: Number(g.amount),
           frequency: g.frequency as "month" | "semester" | "year",
         })),
-      loans: (loansByEmployee.get(employee.id) ?? []).map((l) => ({
-        id: l.id,
-        loanType: l.loanType,
-        referenceNo: l.referenceNo,
-        cutoffDeduction: Number(l.cutoffDeduction),
-        remainingBalance: Number(l.remainingBalance),
-      })),
+      loans: (loansByEmployee.get(employee.id) ?? [])
+        .filter((l) =>
+          (!l.startDate || String(l.startDate) <= String(run.periodEnd))
+          && (!l.endDate || String(l.endDate) >= String(run.periodStart))
+        )
+        .map((l) => ({
+          id: l.id,
+          loanType: l.loanType,
+          referenceNo: l.referenceNo,
+          cutoffDeduction: Number(l.cutoffDeduction),
+          remainingBalance: Number(l.remainingBalance),
+        })),
       leaveConversions: (conversionsByEmployee.get(employee.id) ?? []).map((c) => ({
         id: c.id,
         leaveType: c.leaveType,
@@ -566,6 +597,7 @@ async function processPayrollChunk(input: {
         newStandardHoursPerDay: revision.newStandardHoursPerDay,
         reason: revision.reason,
       })),
+      holidayCalendar,
       restDayRevisions: (restDayRevisionsByEmployee.get(employee.id) ?? []).map((revision) => ({
         effectiveDate: String(revision.effectiveDate),
         previousRestDay: revision.previousRestDay,
@@ -678,6 +710,7 @@ function calculateEmployeePay(input: {
   retroAdjustments?: Array<{ id: number; amount: number; sourcePeriodLabel: string }>;
   payProfile: EmployeePayProfileInput;
   payRevisions?: EffectivePayRevisionInput[];
+  holidayCalendar?: HolidayCalendarEntry[];
   restDayRevisions?: EffectiveRestDayRevisionInput[];
   periodStart: string;
   periodEnd: string;
@@ -690,7 +723,12 @@ function calculateEmployeePay(input: {
   });
   const payProfile = profileForDate(timeline, input.periodEnd);
   const monthly = payProfile.monthlyEquivalent;
-  const semiMonthlyBasic = fixedMonthlyBasicForTimeline(timeline, input.periodStart, input.periodEnd);
+  const semiMonthlyBasic = fixedMonthlyBasicForTimeline(
+    timeline,
+    input.periodStart,
+    input.periodEnd,
+    String(input.employee.startDate),
+  );
   const dailyRate = payProfile.dailyRate;
   const hourlyRate = payProfile.hourlyRate;
 
@@ -732,7 +770,7 @@ function calculateEmployeePay(input: {
     if (punchProfile.payBasis !== "monthly") {
       workedBasicPay += (workedRegular / 60) * punchProfile.hourlyRate;
     }
-    const holidayContext = holidayPayContextOn(punch.workDate);
+    const holidayContext = holidayPayContextOn(punch.workDate, input.holidayCalendar ?? NATIONAL_HOLIDAYS_2026);
     const restDay = restDayForDate(input.employee.restDay, input.restDayRevisions ?? [], String(punch.workDate));
     const isRestDay = isRestDayOfWeek(String(punch.workDate), restDay);
     const otMultiplier = holidayMultiplier({ holiday: holidayContext.holiday, worked: true, overtime: true, restDay: isRestDay });
@@ -838,7 +876,12 @@ function calculateEmployeePay(input: {
   const leaveAdjustmentTotal = leaveLines.reduce((sum, line) => sum + Number(line.amount), 0);
 
   const wageCheck = isBelowMinimum(monthly, input.employee.region ?? "NCR", payProfile.standardWorkDaysPerMonth);
-  const treatAsMwe = input.employee.mwe || wageCheck.below;
+  const treatAsMwe = input.employee.mwe;
+  if (wageCheck.below && !input.employee.mwe) {
+    flags.push(
+      `Rate appears below the configured ${wageCheck.order.region} wage reference (${wageCheck.order.wageOrder}), but the reference is not verified; MWE tax treatment was not inferred automatically.`,
+    );
+  }
 
   let calamityPay = 0;
   const calamityNotes: string[] = [];
@@ -889,22 +932,25 @@ function calculateEmployeePay(input: {
   // annual other-benefits pool; the line item keeps both numbers traceable.
   const deMinimisLines = (input.deMinimis ?? []).map((grant) => {
     const periodAmount = deMinimisPerSemiMonthlyPeriod(grant.amount, grant.frequency);
-    const annualizedGrant = grant.frequency === "month" ? grant.amount * 12
-      : grant.frequency === "semester" ? grant.amount * 2
-        : grant.amount;
-    const treatment = deMinimisTreatment(grant.benefitType, annualizedGrant);
-    const periodTaxableExcess = treatment.excess === 0 ? 0 : roundToCents(treatment.excess / 24);
+    const treatment = deMinimisTreatment(grant.benefitType, grant.amount);
+    const periodsPerGrant = grant.frequency === "month" ? 2 : grant.frequency === "semester" ? 12 : 24;
+    const periodOtherBenefitsPool = roundToCents(treatment.excess / periodsPerGrant);
     return {
       code: `DM-${grant.id}`,
       label: `De minimis, ${treatment.label}`,
       amount: money(periodAmount),
-      notes: [`${treatment.period} ceiling ₱${treatment.ceiling.toFixed(2)}`, `taxable excess this period ₱${periodTaxableExcess.toFixed(2)}`],
+      notes: [
+        `${treatment.period} ceiling ₱${treatment.ceiling.toFixed(2)}`,
+        periodOtherBenefitsPool > 0
+          ? `excess ₱${periodOtherBenefitsPool.toFixed(2)} joins the shared ₱90,000 13th-month/other-benefits annual pool`
+          : "fully within de minimis ceiling",
+      ],
       periodAmount,
-      periodTaxableExcess,
+      periodOtherBenefitsPool,
     };
   });
   const deMinimisTotal = deMinimisLines.reduce((sum, line) => sum + line.periodAmount, 0);
-  const deMinimisTaxable = deMinimisLines.reduce((sum, line) => sum + line.periodTaxableExcess, 0);
+  const deMinimisOtherBenefitsPool = deMinimisLines.reduce((sum, line) => sum + line.periodOtherBenefitsPool, 0);
 
   // Leave Cash Conversions (monetization of vacation / service incentive leaves)
   const conversionLines = (input.leaveConversions ?? []).map((conv) => ({
@@ -924,38 +970,86 @@ function calculateEmployeePay(input: {
     0,
   );
 
-  // Employee Loans (SSS Salary Loan, Pag-IBIG MPL/Calamity, Company Loan)
-  const loanLines = (input.loans ?? []).map((loan) => {
-    const deductAmount = Math.min(Number(loan.cutoffDeduction), Number(loan.remainingBalance));
+  const gross = Math.max(0, baseBasicPay + leaveAdjustmentTotal + overtimePay + nightDiffPay + calamityPay + holidayPremium + retroTotal + expenseTotal + deMinimisTotal + conversionTotal);
+
+  // SSS and Pag-IBIG use compensation/remuneration rather than PhilHealth's
+  // narrower monthly-basic-salary basis. The monthly equivalent remains the
+  // floor for a salaried employee; variable remuneration can move the
+  // contribution base upward, while expense reimbursements never do.
+  const monthlyRemuneration = Math.max(monthly, Math.max(0, gross - expenseTotal) * 2);
+  const sssRule = computeSss(monthlyRemuneration);
+  const philHealthRule = computePhilHealth(monthly);
+  const pagIbigRule = computePagIbig(monthlyRemuneration);
+  const sss = roundToCents(sssRule.employee / 2);
+  const philhealth = roundToCents(philHealthRule.employee / 2);
+  const pagibig = roundToCents(pagIbigRule.employee / 2);
+
+  // MWE statutory minimum wage plus its OT/holiday/NSD/hazard premiums remain
+  // exempt, but additional taxable compensation must still reach the BIR table.
+  const mweExemptCompensation = treatAsMwe
+    ? Math.max(0, baseBasicPay + leaveAdjustmentTotal + overtimePay + nightDiffPay + calamityPay + holidayPremium)
+    : 0;
+
+  // De minimis excess belongs to the shared ₱90k annual other-benefits pool.
+  // The period engine must not immediately tax that excess as if the annual
+  // exemption did not exist. Year-end/final-pay annualization is the authority
+  // for any amount that ultimately exceeds the annual pool.
+  const taxableCompensation = Math.max(
+    0,
+    gross
+      - expenseTotal
+      - deMinimisTotal
+      - conversionTaxExemptTotal
+      - mweExemptCompensation
+      - sss
+      - philhealth
+      - pagibig,
+  );
+  const withholding = computeSemiMonthlyWithholdingTax(taxableCompensation, false);
+  const benefitLines = calculateBenefits(input.benefits ?? []);
+  const benefitTotal = benefitLines.reduce((sum, line) => sum + Math.abs(line.amount), 0);
+
+  const nonLoanDeductions =
+    sss + philhealth + pagibig + withholding
+    + tardinessDeduction + undertimeDeduction
+    + benefitTotal + advanceTotal;
+  let loanCapacity = Math.max(0, gross - nonLoanDeductions);
+  const plannedLoans = (input.loans ?? [])
+    .map((loan) => ({
+      loan,
+      planned: Math.min(Number(loan.cutoffDeduction), Number(loan.remainingBalance)),
+      governmentPriority: /SSS|Pag-IBIG|HDMF/i.test(loan.loanType) ? 0 : 1,
+    }))
+    .sort((a, b) => a.governmentPriority - b.governmentPriority || a.loan.id - b.loan.id);
+
+  const loanLines = plannedLoans.map(({ loan, planned }) => {
+    const deductAmount = roundToCents(Math.min(planned, loanCapacity));
+    loanCapacity = roundToCents(Math.max(0, loanCapacity - deductAmount));
+    if (deductAmount + 0.005 < planned) {
+      flags.push(
+        `Loan ${loan.referenceNo} deduction reduced from ₱${planned.toFixed(2)} to ₱${deductAmount.toFixed(2)} because disposable pay was insufficient; the unpaid balance remains outstanding.`,
+      );
+    }
     return {
       code: `LOAN-${loan.id}`,
       label: `Loan, ${loan.loanType}`,
       amount: money(-deductAmount),
-      notes: [`Ref: ${loan.referenceNo}`, `Bal: ₱${Number(loan.remainingBalance).toFixed(2)}`],
+      notes: [
+        `Ref: ${loan.referenceNo}`,
+        `Bal: ₱${Number(loan.remainingBalance).toFixed(2)}`,
+        deductAmount + 0.005 < planned ? "Partial deduction; remaining amount deferred" : "Scheduled deduction collected",
+      ],
       deductAmount,
     };
   });
-  const loanTotal = loanLines.reduce((sum, l) => sum + l.deductAmount, 0);
-
-  const gross = Math.max(0, baseBasicPay + leaveAdjustmentTotal + overtimePay + nightDiffPay + calamityPay + holidayPremium + retroTotal + expenseTotal + deMinimisTotal + conversionTotal);
-  const sssRule = computeSss(monthly);
-  const philHealthRule = computePhilHealth(monthly);
-  const pagIbigRule = computePagIbig(monthly);
-  const sss = sssRule.employee / 2;
-  const philhealth = philHealthRule.employee / 2;
-  const pagibig = pagIbigRule.employee / 2;
-
-  // BIR taxable compensation is compensation earnings less employee statutory
-  // shares. Expense reimbursement is a non-taxable pass-through, not salary.
-  const taxableCompensation = Math.max(
-    0,
-    gross - expenseTotal - deMinimisTotal - conversionTaxExemptTotal + deMinimisTaxable - sss - philhealth - pagibig,
-  );
-  const withholding = computeSemiMonthlyWithholdingTax(taxableCompensation, treatAsMwe);
-  const benefitLines = calculateBenefits(input.benefits ?? []);
-  const benefitTotal = benefitLines.reduce((sum, line) => sum + Math.abs(line.amount), 0);
-  const deductions = sss + philhealth + pagibig + withholding + tardinessDeduction + undertimeDeduction + benefitTotal + advanceTotal + loanTotal;
-  const net = Math.max(0, gross - deductions);
+  const loanTotal = loanLines.reduce((sum, line) => sum + line.deductAmount, 0);
+  const deductions = roundToCents(nonLoanDeductions + loanTotal);
+  const net = roundToCents(Math.max(0, gross - deductions));
+  if (nonLoanDeductions > gross + 0.005) {
+    flags.push(
+      `Mandatory/non-loan deductions exceed gross pay by ₱${(nonLoanDeductions - gross).toFixed(2)}; payroll requires review before release.`,
+    );
+  }
   const status = flags.length > 0 ? "Exception" : "Ready";
 
   const lineItems = [
@@ -974,7 +1068,7 @@ function calculateEmployeePay(input: {
     { code: "LATE", label: "Tardiness", amount: money(-tardinessDeduction) },
     { code: "UT", label: "Undertime", amount: money(-undertimeDeduction) },
     ...expenseLines,
-    ...deMinimisLines.map(({ periodAmount: _periodAmount, periodTaxableExcess: _periodTaxableExcess, ...line }) => line),
+    ...deMinimisLines.map(({ periodAmount: _periodAmount, ...line }) => line),
     ...advanceLines,
     ...loanLines.map(({ deductAmount: _deductAmount, ...l }) => l),
     ...benefitLines.map((line) => ({
@@ -1000,7 +1094,7 @@ function calculateEmployeePay(input: {
       `hourlyRate=${money(hourlyRate)}`,
       `taxableCompensation=${money(taxableCompensation)}`,
       `deMinimisPaid=${money(deMinimisTotal)}`,
-      `deMinimisTaxableExcess=${money(deMinimisTaxable)}`,
+      `deMinimisOtherBenefitsPool=${money(deMinimisOtherBenefitsPool)}`,
       `leaveConversionTaxExempt=${money(conversionTaxExemptTotal)}`,
       `approvedLeaveDays=${money(approvedLeave.reduce((sum, leave) => sum + leave.overlapDays, 0))}`,
       `paidLeaveDays=${money(approvedLeave.reduce((sum, leave) => sum + leave.paidDays, 0))}`,
@@ -1015,13 +1109,17 @@ function calculateEmployeePay(input: {
       `tardinessMinutes=${tardinessMinutes}`,
       `undertimeMinutes=${undertimeMinutes}`,
       `sssMonthlySalaryCredit=${money(sssRule.monthlySalaryCredit)}`,
+      `sssRegularMsc=${money(sssRule.regularMsc)}`,
+      `sssMpfMsc=${money(sssRule.mpfMsc)}`,
       `philHealthContributionBase=${money(philHealthRule.base)}`,
+      `philHealthMonthlyPremium=${money(philHealthRule.total)}`,
       `pagIbigFundSalary=${money(pagIbigRule.fundSalary)}`,
+      `statutoryMonthlyRemuneration=${money(monthlyRemuneration)}`,
       `pagIbigEmployeeRate=${pagIbigRule.employeeRate}`,
       `withholdingTable=RR11-2018-revised-2023+`,
       `region=${input.employee.region ?? "NCR"}`,
-      `mwe=${treatAsMwe}${wageCheck.below && !input.employee.mwe ? " (inferred from wage order " + wageCheck.order.wageOrder + ")" : ""}`,
-      `employerStatutoryCost=${money((sssRule.employerTotal + philHealthRule.employer + pagIbigRule.employer) / 2)}`,
+      `mwe=${treatAsMwe}${wageCheck.below && !input.employee.mwe ? " (wage reference flagged for human review; not auto-inferred)" : ""}`,
+      `employerStatutoryCost=${money(roundToCents(sssRule.employerTotal / 2) + roundToCents(philHealthRule.employer / 2) + roundToCents(pagIbigRule.employer / 2))}`,
       ...holidayNotes,
       ...calamityNotes,
       ...leaveNotes,
