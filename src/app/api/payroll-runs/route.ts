@@ -201,10 +201,12 @@ export async function POST(request: Request) {
         eq(employees.organizationId, organizationId),
         eq(employees.orgUnitId, scopeOrgUnitId),
         eq(employees.status, "Active"),
+        eq(employees.privacyRestricted, false),
       )
     : and(
         eq(employees.organizationId, organizationId),
         eq(employees.status, "Active"),
+        eq(employees.privacyRestricted, false),
       );
   const employeesInScope = await db
     .select({
