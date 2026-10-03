@@ -26,18 +26,40 @@ export type DeMinimisGrantInput = {
   frequency: "month" | "semester" | "year";
 };
 
-const PERIODS_PER_YEAR = {
-  month: 12,
-  semester: 2,
-  year: 1,
-} as const;
+/**
+ * Returns the first date of the statutory ceiling period that contains payDate.
+ * Monthly benefits reset each month, semester benefits reset Jan/Jul, while
+ * annual categories reset every January.
+ */
+export function deMinimisStatutoryPeriodStart(type: DeMinimisType, payDate: string) {
+  const rule = DE_MINIMIS_2026[type];
+  const year = Number(payDate.slice(0, 4));
+  const month = Number(payDate.slice(5, 7));
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+    throw new Error("payDate must be YYYY-MM-DD.");
+  }
+  if (rule.period === "month") {
+    return `${year}-${String(month).padStart(2, "0")}-01`;
+  }
+  if (rule.period === "semester") {
+    return `${year}-${month <= 6 ? "01" : "07"}-01`;
+  }
+  return `${year}-01-01`;
+}
 
 /**
- * Aggregates every active grant in the same statutory category BEFORE applying
- * its RR 29-2025 ceiling. This prevents duplicate grant rows from each claiming
- * a fresh exemption ceiling. Output is normalized to one semi-monthly cutoff.
+ * Aggregates every active grant in the same statutory category, then applies
+ * only the ceiling still available in the CURRENT statutory period.
+ *
+ * priorPaidInStatutoryPeriod must come from already released payrolls in the
+ * same month / semester / year as applicable. This avoids both duplicate-grant
+ * exemptions and the former error of projecting a newly changed grant amount
+ * across the entire year.
  */
-export function aggregateDeMinimisForSemiMonthly(grants: DeMinimisGrantInput[]) {
+export function aggregateDeMinimisForSemiMonthly(
+  grants: DeMinimisGrantInput[],
+  priorPaidInStatutoryPeriod: Partial<Record<DeMinimisType, number>> = {},
+) {
   const byType = new Map<DeMinimisType, DeMinimisGrantInput[]>();
   for (const grant of grants) {
     byType.set(grant.benefitType, [...(byType.get(grant.benefitType) ?? []), grant]);
@@ -45,26 +67,29 @@ export function aggregateDeMinimisForSemiMonthly(grants: DeMinimisGrantInput[]) 
 
   return [...byType.entries()].map(([benefitType, rows]) => {
     const rule = DE_MINIMIS_2026[benefitType];
-    const annualGranted = round2(rows.reduce(
-      (sum, row) => sum + Math.max(0, Number(row.amount) || 0) * PERIODS_PER_YEAR[row.frequency],
+    const semiMonthlyGranted = round2(rows.reduce(
+      (sum, row) => sum + deMinimisPerSemiMonthlyPeriod(row.amount, row.frequency),
       0,
     ));
-    const annualCeiling = round2(rule.ceiling * PERIODS_PER_YEAR[rule.period]);
-    const annualExempt = round2(Math.min(annualGranted, annualCeiling));
-    const annualExcess = round2(Math.max(0, annualGranted - annualExempt));
+    const priorPaid = round2(Math.max(0, Number(priorPaidInStatutoryPeriod[benefitType] ?? 0)));
+    const ceilingConsumed = Math.min(priorPaid, rule.ceiling);
+    const remainingCeiling = round2(Math.max(0, rule.ceiling - ceilingConsumed));
+    const semiMonthlyExempt = round2(Math.min(semiMonthlyGranted, remainingCeiling));
+    const semiMonthlyOtherBenefitsPool = round2(
+      Math.max(0, semiMonthlyGranted - semiMonthlyExempt),
+    );
 
     return {
       benefitType,
       label: rule.label,
       statutoryPeriod: rule.period,
       grantIds: rows.map((row) => row.id),
-      semiMonthlyGranted: round2(annualGranted / 24),
-      semiMonthlyExempt: round2(annualExempt / 24),
-      semiMonthlyOtherBenefitsPool: round2(annualExcess / 24),
-      annualGranted,
-      annualCeiling,
-      annualExempt,
-      annualExcess,
+      semiMonthlyGranted,
+      semiMonthlyExempt,
+      semiMonthlyOtherBenefitsPool,
+      priorPaidInStatutoryPeriod: priorPaid,
+      statutoryPeriodCeiling: rule.ceiling,
+      remainingCeilingBeforeCutoff: remainingCeiling,
     };
   });
 }
