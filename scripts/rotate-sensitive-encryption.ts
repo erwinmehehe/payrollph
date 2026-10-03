@@ -69,19 +69,24 @@ async function main() {
     }
 
     if (rotateGov) {
-      for (const [field, value] of Object.entries({
-        tin: employee.tin,
-        tinBranchCode: employee.tinBranchCode,
-        sssNo: employee.sssNo,
-        philHealthNo: employee.philHealthNo,
-        pagIbigNo: employee.pagIbigNo,
-      })) {
-        if (!value?.trim()) continue;
+      const rotateGovernmentField = (value: string | null | undefined) => {
+        if (!value?.trim()) return undefined;
         const next = rotateGovernmentIdEncryption(value, { required: true });
         verifyGov(next);
-        patch[field] = next;
         governmentRows += 1;
-      }
+        return next;
+      };
+
+      const tin = rotateGovernmentField(employee.tin);
+      const tinBranchCode = rotateGovernmentField(employee.tinBranchCode);
+      const sssNo = rotateGovernmentField(employee.sssNo);
+      const philHealthNo = rotateGovernmentField(employee.philHealthNo);
+      const pagIbigNo = rotateGovernmentField(employee.pagIbigNo);
+      if (tin !== undefined) patch.tin = tin;
+      if (tinBranchCode !== undefined) patch.tinBranchCode = tinBranchCode;
+      if (sssNo !== undefined) patch.sssNo = sssNo;
+      if (philHealthNo !== undefined) patch.philHealthNo = philHealthNo;
+      if (pagIbigNo !== undefined) patch.pagIbigNo = pagIbigNo;
     }
 
     if (apply && Object.keys(patch).length > 0) {
