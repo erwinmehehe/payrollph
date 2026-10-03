@@ -410,8 +410,6 @@ async function processPayrollChunk(input: {
       })),
       periodStart: String(run.periodStart),
       periodEnd: String(run.periodEnd),
-      priorStatutory: priorStatutoryByEmployee.get(employee.id),
-      isFinalCutoffOfMonth,
     });
     approvedLeaveByEmployee.set(employeeId, resolved);
   }
@@ -637,6 +635,8 @@ async function processPayrollChunk(input: {
       })),
       periodStart: String(run.periodStart),
       periodEnd: String(run.periodEnd),
+      priorStatutory: priorStatutoryByEmployee.get(employee.id),
+      isFinalCutoffOfMonth,
     });
 
     chunkGross += calc.gross;
