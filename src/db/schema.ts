@@ -813,6 +813,9 @@ export const historicalPayrollEntries = pgTable("historical_payroll_entries", {
   philHealthEmployee: numeric("philhealth_employee", { precision: 14, scale: 2 }).notNull().default("0"),
   pagIbigEmployee: numeric("pagibig_employee", { precision: 14, scale: 2 }).notNull().default("0"),
   thirteenthMonth: numeric("thirteenth_month", { precision: 14, scale: 2 }).notNull().default("0"),
+  // Null means the prior provider did not supply category-level de minimis
+  // detail. An explicit {} means the source confirmed there was none.
+  deMinimisBreakdown: jsonb("de_minimis_breakdown"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex("historical_payroll_source_unique").on(
