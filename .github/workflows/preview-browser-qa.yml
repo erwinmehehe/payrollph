@@ -487,13 +487,14 @@ jobs:
               throw new Error(`${persona.label}: demo switch returned ${switchResponse.status()} ${switchText}`);
             }
             await page.waitForURL(new RegExp(`[?&]demoRole=${persona.id}(?:&|$)`), { timeout: 30000 });
-            const encryptionProbe = await context.request.post(`${base}/api/auth/demo-switch`, {
+            const demoProbe = await context.request.post(`${base}/api/auth/demo-switch`, {
               data: { role: persona.id },
               headers: { Origin: base },
             });
-            check(encryptionProbe.ok(), `${persona.label}: encryption readiness probe returned ${encryptionProbe.status()}`);
-            const encryptionPayload = await encryptionProbe.json();
-            check(encryptionPayload.bankDataEncryptionReady === true, `${persona.label}: demo provisioning left plaintext bank data behind`);
+            check(demoProbe.ok(), `${persona.label}: redacted demo probe returned ${demoProbe.status()}`);
+            const demoPayload = await demoProbe.json();
+            check(demoPayload.demoDataMode === "synthetic-redacted", `${persona.label}: demo is not using the redacted data contract`);
+            check(demoPayload.sensitiveFieldsPersisted === false, `${persona.label}: demo claims sensitive fields are persisted`);
             await page.waitForLoadState("networkidle");
 
             const body = (await page.locator("body").textContent()) ?? "";
