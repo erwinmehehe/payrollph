@@ -924,6 +924,10 @@ async function processPayrollChunk(input: {
         payment: {
           employeeName: `${employee.firstName} ${employee.lastName}`,
           employeeNo: employee.employeeNo,
+          firstName: employee.firstName,
+          middleName: employee.middleName,
+          lastName: employee.lastName,
+          email: employee.email,
           bankAccount: employee.bankAccount,
           bankCode: employee.bankCode,
           mobile: employee.mobile,
