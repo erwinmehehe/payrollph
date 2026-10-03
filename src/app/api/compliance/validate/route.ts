@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, organizations, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { assertOrganizationRole, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
+import { assertOrganizationRole, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { DE_MINIMIS_2026, PH_COMPLIANCE_RULE_VERSION, thirteenthMonthDeadline } from "@/lib/ph-compliance";
 import { decryptGovernmentId } from "@/lib/government-id-crypto";
@@ -43,6 +43,10 @@ export async function POST(request: Request) {
     "Only People or payroll administrators can run government filing preflight.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Government filing preflight requires company-wide payroll access." }, { status: 403 });
+  }
 
   const [org] = await db.select().from(organizations).where(eq(organizations.id, organizationId));
   if (!org) return Response.json({ error: "Organization not found." }, { status: 404 });
