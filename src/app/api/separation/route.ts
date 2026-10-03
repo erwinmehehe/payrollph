@@ -71,6 +71,7 @@ async function loadFinalPaySources(input: {
     payDate: payrollRuns.payDate,
     grossPay: payrollEntries.grossPay,
     lineItems: payrollEntries.lineItems,
+    trace: payrollEntries.trace,
   })
     .from(payrollEntries)
     .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
@@ -120,6 +121,17 @@ async function loadFinalPaySources(input: {
   let taxWithheldYtd = 0;
   let deMinimisPaidYtd = 0;
   let deMinimisExcessYtd = 0;
+  let mweTaxableSupplementaryCompensationYtd = 0;
+
+  const traceNumber = (trace: unknown, prefix: string) => {
+    if (!trace || typeof trace !== "object") return 0;
+    const inputs = (trace as { inputs?: unknown }).inputs;
+    if (!Array.isArray(inputs)) return 0;
+    const raw = inputs.find((item) => typeof item === "string" && item.startsWith(prefix));
+    if (typeof raw !== "string") return 0;
+    const value = Number(raw.slice(prefix.length));
+    return Number.isFinite(value) ? value : 0;
+  };
 
   for (const row of released) {
     const parsed = readBasicAndThirteenth(row.lineItems);
@@ -129,6 +141,10 @@ async function loadFinalPaySources(input: {
     taxWithheldYtd += parsed.taxWithheld;
     deMinimisPaidYtd += parsed.deMinimisPaid;
     deMinimisExcessYtd += parsed.deMinimisExcess;
+    mweTaxableSupplementaryCompensationYtd += traceNumber(
+      row.trace,
+      "mweTaxableSupplementaryCompensation=",
+    );
     ordinaryGrossYtd += Math.max(0, Number(row.grossPay) - parsed.thirteenthPaid);
   }
 
@@ -161,6 +177,7 @@ async function loadFinalPaySources(input: {
       taxWithheldYtd: Number(money(taxWithheldYtd)),
       deMinimisYtd: Number(money(Math.max(0, deMinimisPaidYtd - deMinimisExcessYtd))),
       deMinimisExcessYtd: Number(money(deMinimisExcessYtd)),
+      mweTaxableSupplementaryCompensationYtd: Number(money(mweTaxableSupplementaryCompensationYtd)),
       activeLoanBalance: Number(money(loans.reduce((sum, loan) => sum + Number(loan.remainingBalance), 0))),
     },
   };
@@ -183,6 +200,7 @@ function fingerprint(sources: Awaited<ReturnType<typeof loadFinalPaySources>>) {
       grossPay: Number(row.grossPay),
       periodEnd: String(row.periodEnd),
       lineItems: row.lineItems,
+      trace: row.trace,
     })),
     historical: sources.historical.map((row) => ({
       id: row.id,
@@ -347,6 +365,7 @@ export async function POST(request: Request) {
       statutoryContributionsYtd: sources.totals.statutoryContributionsYtd,
       taxWithheldYtd: sources.totals.taxWithheldYtd,
       mwe: sources.employee.mwe,
+      mweTaxableSupplementaryCompensationYtd: sources.totals.mweTaxableSupplementaryCompensationYtd,
       leaveMonetizationPay,
       taxableLeaveMonetizationPay: leaveMonetizationTaxExempt ? 0 : leaveMonetizationPay,
       separationPay,
@@ -374,6 +393,7 @@ export async function POST(request: Request) {
       thirteenthEntitlement: result.thirteenthEntitlement,
       deMinimisYtd: sources.totals.deMinimisYtd,
       deMinimisExcessYtd: sources.totals.deMinimisExcessYtd,
+      mweTaxableSupplementaryCompensationYtd: sources.totals.mweTaxableSupplementaryCompensationYtd,
       deductOutstandingLoans,
       specialPayTaxReviewed,
       separationPayTaxExempt,
