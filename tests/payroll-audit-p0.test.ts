@@ -113,7 +113,7 @@ test("daily employee holiday pay requires proven preceding scheduled workday acr
         title: "Associate",
         avatarInitials: "ED",
         basicRate: "13200.00",
-        restDay: "Sunday",
+        restDay: "Wednesday",
         startDate: "2025-01-01",
       },
       {
@@ -124,7 +124,7 @@ test("daily employee holiday pay requires proven preceding scheduled workday acr
         title: "Associate",
         avatarInitials: "UD",
         basicRate: "13200.00",
-        restDay: "Sunday",
+        restDay: "Wednesday",
         startDate: "2025-01-01",
       },
     ]).returning();
@@ -161,12 +161,12 @@ test("daily employee holiday pay requires proven preceding scheduled workday acr
 
     const [run] = await db.insert(payrollRuns).values({
       organizationId: org.id,
-      periodLabel: "Jan 1-15, 2026 holiday audit",
-      periodStart: "2026-01-01",
-      periodEnd: "2026-01-15",
+      periodLabel: "Apr 2-15, 2026 holiday audit",
+      periodStart: "2026-04-02",
+      periodEnd: "2026-04-15",
       scopeLabel: "All locations",
       status: "Draft",
-      payDate: "2026-01-15",
+      payDate: "2026-04-15",
     }).returning();
 
     await enqueuePayrollRun(run.id);
@@ -180,7 +180,7 @@ test("daily employee holiday pay requires proven preceding scheduled workday acr
     assert.equal(line(unresolvedEntry, "HOLIDAY_UNWORKED"), undefined);
     assert.equal(unresolvedEntry.status, "Exception");
     const flags = (unresolvedEntry.trace as { flags?: string[] }).flags ?? [];
-    assert.ok(flags.some((flag) => flag.includes("eligibility") && flag.includes("2025-12-30")));
+    assert.ok(flags.some((flag) => flag.includes("eligibility") && flag.includes("2026-03-31")));
   } finally {
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
