@@ -35,9 +35,9 @@ export type WageOrder = {
  * wage-order numbers this file was transcribed from, so a future update is a
  * deliberate, reviewed change rather than something that drifts unnoticed.
  *
- * MWE classification is explicit on the employee record; a rate below the
- * configured regional floor is additionally treated as MWE-adjacent for the
- * withholding exemption cascade (OT / holiday / night differential stay untaxed).
+ * MWE classification is explicit on the employee record. A rate below the
+ * unverified reference figure may raise a human-review flag, but it never
+ * changes MWE tax status or withholding treatment automatically.
  */
 export const WAGE_ORDERS: WageOrder[] = [
   { region: "NCR", dailyRate: 695, wageOrder: "WO-NCR-26", effectiveOn: "2025-07-18", verified: false },
