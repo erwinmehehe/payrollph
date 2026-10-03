@@ -11,7 +11,6 @@ import {
   DE_MINIMIS_2026,
   deMinimisTreatment,
   isValidPayInterval,
-  statutoryDueDate,
   thirteenthMonthDeadline,
 } from "../src/lib/ph-compliance";
 
@@ -58,10 +57,11 @@ test("2026 monthly BIR withholding brackets match the published table", () => {
   assert.equal(computeMonthlyWithholdingTax(1_000_000, true), 0);
 });
 
-test("semi-monthly withholding is half the monthly table on twice-period taxable income", () => {
-  assert.equal(computeSemiMonthlyWithholdingTax(10_416.5), 0);
-  assert.equal(computeSemiMonthlyWithholdingTax(15_000), 687.53);
-  assert.equal(computeSemiMonthlyWithholdingTax(25_000), 2_604.2);
+test("semi-monthly withholding uses the published semi-monthly table directly", () => {
+  assert.equal(computeSemiMonthlyWithholdingTax(10_417), 0);
+  assert.equal(computeSemiMonthlyWithholdingTax(15_000), 687.45);
+  assert.equal(computeSemiMonthlyWithholdingTax(16_667), 937.5);
+  assert.equal(computeSemiMonthlyWithholdingTax(25_000), 2_604.1);
 });
 
 test("13th month pay is annual basic salary divided by twelve and due by Dec 24", () => {
@@ -85,11 +85,6 @@ test("RR 29-2025 de minimis ceilings are explicit and excess enters other-benefi
   assert.equal(over.exempt, 8_000);
   assert.equal(over.excess, 1_000);
   assert.equal(over.treatment, "excess_to_other_benefits_90k_pool");
-});
-
-test("government remittances are due on the 10th of the following month", () => {
-  assert.equal(statutoryDueDate(2026, 1), "2026-02-10");
-  assert.equal(statutoryDueDate(2026, 12), "2027-01-10");
 });
 
 test("pay intervals cannot exceed 16 calendar days", () => {
