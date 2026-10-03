@@ -734,7 +734,8 @@ jobs:
             });
             check(response.ok(), `Lifecycle: switching to ${role} returned ${response.status()}`);
             const payload = await response.json();
-            check(payload.bankDataEncryptionReady === true, `Lifecycle: switching to ${role} left plaintext bank data behind`);
+            check(payload.demoDataMode === "synthetic-redacted", `Lifecycle: switching to ${role} left the redacted demo contract`);
+            check(payload.sensitiveFieldsPersisted === false, `Lifecycle: switching to ${role} persisted sensitive demo fields`);
             const target = typeof payload.redirectTo === "string" ? payload.redirectTo : `/app?demoRole=${role}`;
             await page.goto(target.startsWith("http") ? target : `${base}${target}`, { waitUntil: "networkidle", timeout: 90000 });
             return payload;
