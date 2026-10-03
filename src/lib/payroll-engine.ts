@@ -139,11 +139,13 @@ export async function enqueuePayrollRun(runId: number, chunkSize = DEFAULT_CHUNK
         eq(employees.organizationId, run.organizationId),
         eq(employees.orgUnitId, run.scopeOrgUnitId),
         eq(employees.status, "Active"),
+        eq(employees.privacyRestricted, false),
         lte(employees.startDate, run.periodEnd),
       )
     : and(
         eq(employees.organizationId, run.organizationId),
         eq(employees.status, "Active"),
+        eq(employees.privacyRestricted, false),
         lte(employees.startDate, run.periodEnd),
       );
   const employeeRows = await db.select().from(employees).where(employeeWhere).orderBy(asc(employees.id));
@@ -331,11 +333,13 @@ async function processPayrollChunk(input: {
         eq(employees.organizationId, input.organizationId),
         eq(employees.orgUnitId, run.scopeOrgUnitId),
         eq(employees.status, "Active"),
+        eq(employees.privacyRestricted, false),
         lte(employees.startDate, run.periodEnd),
       )
     : and(
         eq(employees.organizationId, input.organizationId),
         eq(employees.status, "Active"),
+        eq(employees.privacyRestricted, false),
         lte(employees.startDate, run.periodEnd),
       );
   const allEmployees = await db.select().from(employees)
