@@ -152,7 +152,9 @@ test("production rollout readiness proves the exact deployed commit and exposes 
   assert.ok(liveRbac.includes("deploymentSha"));
   assert.ok(liveRbac.includes("/api/readiness/deployment"));
   assert.ok(liveRbac.includes("Exact production commit is live."));
-  assert.ok(liveRbac.includes("BANK_DATA_ENCRYPTION_(REQUIRED|NOT_READY)"));
+  assert.ok(liveRbac.includes('demoDataMode":"synthetic-redacted'));
+  assert.ok(liveRbac.includes('sensitiveFieldsPersisted":false'));
+  assert.ok(liveRbac.includes("roles=(owner hr payroll checker bookkeeper employee)"));
 });
 
 
