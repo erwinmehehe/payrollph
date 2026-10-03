@@ -17,7 +17,8 @@ test("taxable supplementary earnings are employee scoped and immutable after set
   assert.ok(source.includes("PAYROLL_OPERATOR_ROLES"));
   assert.ok(source.includes("assertScope(access, employee.orgUnitId)"));
   assert.ok(source.includes("taxable: true"));
-  assert.ok(source.includes("includeInStatutoryBase"));
+  assert.ok(source.includes("includeInSssBase"));
+  assert.ok(source.includes("includeInPagIbigBase"));
   assert.ok(source.includes("A settled supplementary earning is immutable."));
 });
 
