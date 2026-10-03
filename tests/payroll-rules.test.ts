@@ -5,6 +5,7 @@ import {
   computeAnnualWithholdingTax,
   computePagIbig,
   computePhilHealth,
+  computeSemiMonthlyWithholdingTax,
   computeSss,
   deriveClockHours,
   holidayMultiplier,
@@ -25,13 +26,24 @@ test("SSS respects the 2025/2026 salary credit floor, cap, and EC employer premi
   assert.equal(high.employee, 1750);
   assert.equal(high.employer, 3500);
   assert.equal(high.employerEC, 30);
+  assert.equal(high.regularMsc, 20_000);
+  assert.equal(high.mpfMsc, 15_000);
+  assert.equal(high.employeeRegular, 1_000);
+  assert.equal(high.employeeMpf, 750);
+  assert.equal(high.employerRegular, 2_000);
+  assert.equal(high.employerMpf, 1_500);
   assert.equal(computeSss(24_260).monthlySalaryCredit, 24_500);
 });
 
-test("PhilHealth splits the capped five percent premium", () => {
-  assert.deepEqual(computePhilHealth(8_000), { base: 10_000, employee: 250, employer: 250 });
-  assert.deepEqual(computePhilHealth(40_000), { base: 40_000, employee: 1000, employer: 1000 });
+test("PhilHealth splits the capped five percent premium and reconciles odd centavos", () => {
+  assert.deepEqual(computePhilHealth(8_000), { base: 10_000, total: 500, employee: 250, employer: 250 });
+  assert.deepEqual(computePhilHealth(40_000), { base: 40_000, total: 2000, employee: 1000, employer: 1000 });
   assert.equal(computePhilHealth(150_000).employee, 2500);
+
+  const odd = computePhilHealth(10_000.20);
+  assert.equal(odd.total, 500.01);
+  assert.equal(odd.employee + odd.employer, odd.total);
+  assert.deepEqual([odd.employee, odd.employer], [250.01, 250]);
 });
 
 test("Pag-IBIG uses the 2026 PHP 10,000 fund-salary cap", () => {
@@ -40,6 +52,16 @@ test("Pag-IBIG uses the 2026 PHP 10,000 fund-salary cap", () => {
   assert.equal(computePagIbig(5_000).employee, 100);
   assert.equal(computePagIbig(10_000).employee, 200);
   assert.equal(computePagIbig(40_000).employee, 200);
+});
+
+test("published semi-monthly TRAIN boundaries are implemented directly", () => {
+  assert.equal(computeSemiMonthlyWithholdingTax(10_417), 0);
+  assert.equal(computeSemiMonthlyWithholdingTax(10_417.01), 0);
+  assert.equal(computeSemiMonthlyWithholdingTax(16_667), 937.5);
+  assert.equal(computeSemiMonthlyWithholdingTax(16_667.01), 937.5);
+  assert.equal(computeSemiMonthlyWithholdingTax(33_333), 4_270.7);
+  assert.equal(computeSemiMonthlyWithholdingTax(83_333), 16_770.7);
+  assert.equal(computeSemiMonthlyWithholdingTax(333_333), 91_770.7);
 });
 
 test("TRAIN withholding brackets and MWE exemption are explicit", () => {
