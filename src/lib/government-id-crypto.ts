@@ -100,6 +100,7 @@ export function maskGovernmentId(
     return "••••";
   }
   if (!plain) return null;
-  const compact = plain.replace(/\s+/g, "");
+  const digits = plain.replace(/\D/g, "");
+  const compact = digits || plain.replace(/\s+/g, "");
   return compact.length <= 4 ? "••••" : `••••${compact.slice(-4)}`;
 }
