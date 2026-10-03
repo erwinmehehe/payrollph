@@ -48,3 +48,31 @@ test("data-subject completion requires fulfillment evidence instead of status-on
   assert.ok(source.includes("Generate the subject access/portability export before marking this request completed."));
   assert.ok(source.includes("require a fulfillment action and evidence before completion"));
 });
+
+
+test("contractor EWT is a separate BIR workflow rather than freelancer-income-tax logic", () => {
+  const source = read("src/app/api/contractors/payments/route.ts");
+  assert.ok(source.includes('"0619-E"'));
+  assert.ok(source.includes('"1601-EQ"'));
+  assert.ok(source.includes("withholdingAtc"));
+  assert.ok(source.includes("withholdingRate"));
+  assert.ok(source.includes("filingReady: false"));
+  assert.ok(source.includes("NOT A BIR IMPORTABLE/FILED RETURN"));
+});
+
+test("employee payslip UX uses legal employer name and true calendar-year YTD", () => {
+  const detail = read("src/app/api/self/payslips/[id]/route.ts");
+  const list = read("src/app/api/self/payslips/route.ts");
+  assert.ok(detail.includes("organization?.legalName ?? organization?.name ?? \"Employer\""));
+  assert.ok(list.includes("currentTaxYear"));
+  assert.ok(list.includes("releasedThisYear"));
+  assert.ok(list.includes("periodsPaid: releasedThisYear.length"));
+});
+
+test("statutory cutoff timing is explicitly configurable at organization level", () => {
+  const source = read("src/app/api/organizations/route.ts");
+  assert.ok(source.includes("statutoryDeductionTiming"));
+  for (const mode of ["split", "first_cutoff", "second_cutoff"]) {
+    assert.ok(source.includes(`\"${mode}\"`));
+  }
+});
