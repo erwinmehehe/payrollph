@@ -3,6 +3,7 @@ export const DEMO_ROLE_IDS = [
   "hr",
   "payroll",
   "checker",
+  "bookkeeper",
   "employee",
 ] as const;
 
@@ -79,6 +80,21 @@ export const DEMO_ROLES: DemoRoleInfo[] = [
       { id: "checker-open", label: "Open assigned payroll review", detail: "Review the maker's submitted payroll and assurance context.", page: "Approvals", cta: "Open approvals" },
       { id: "checker-decide", label: "Approve or decline", detail: "Record an independent decision using the real approval endpoint.", page: "Approvals", cta: "Review decision" },
       { id: "checker-compliance", label: "Check compliance context", detail: "Inspect statutory and year-end controls before approval.", page: "Compliance", cta: "Open compliance" },
+    ],
+  },
+  {
+    id: "bookkeeper",
+    label: "Bookkeeper",
+    shortLabel: "Bookkeeper",
+    person: "Bea Mendoza",
+    description: "Reconcile released payroll, export accounting journals, review statutory evidence and finish the payroll close.",
+    access: ["Payroll close and payout evidence", "Accounting exports and journals", "Compliance and filing evidence"],
+    actions: ["Review payroll close status", "Export the accounting journal", "Inspect statutory filing evidence"],
+    landingPage: "Overview",
+    tasks: [
+      { id: "bookkeeper-close", label: "Review payroll close", detail: "See payout, reconciliation, journal and statutory close controls.", page: "Overview", cta: "Open close" },
+      { id: "bookkeeper-journal", label: "Export accounting records", detail: "Open payroll exports and generate the journal from stored payroll results.", page: "Exports", cta: "Open exports" },
+      { id: "bookkeeper-compliance", label: "Review filing evidence", detail: "Inspect government-report preparation and filing evidence without assuming acceptance.", page: "Compliance", cta: "Open compliance" },
     ],
   },
   {
@@ -170,6 +186,14 @@ export const DEMO_ROLE_PAGES: Partial<Record<DemoRoleId, readonly string[]>> = {
     "Approvals",
     "Compliance",
     "Audit trail",
+  ],
+  bookkeeper: [
+    "Overview",
+    "Payroll",
+    "Exports",
+    "Compliance",
+    "Analytics",
+    "Settings",
   ],
 };
 
