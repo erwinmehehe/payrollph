@@ -64,7 +64,7 @@ import {
   type EmployeePayProfileInput,
 } from "@/lib/pay-basis";
 
-const RULE_VERSION = "PH-2026.03";
+const RULE_VERSION = "PH-2026.04";
 const DEFAULT_CHUNK = 25;
 
 function money(value: number) {
@@ -1489,7 +1489,7 @@ function buildPayslipText(input: {
     "",
     ...(input.notes.length ? ["Notes:", ...input.notes] : ["Notes: none"]),
     "",
-    "Traceable line items generated from approved punches and PH-2026.03 rules.",
+    "Traceable line items generated from approved punches and PH-2026.04 rules.",
   ];
 
   // Build a simple text-based PDF content stream.
