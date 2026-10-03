@@ -532,7 +532,7 @@ async function processPayrollChunk(input: {
       .filter((line) => String(line.code ?? "").startsWith("EXP-"))
       .reduce((sum, line) => sum + Math.max(0, Number(line.amount ?? 0) || 0), 0);
     const deduction = (code: string) =>
-      Math.abs(Number(lines.find((line) => String(line.code ?? "").toUpperCase() === code)?.amount ?? 0) || 0);
+      -(Number(lines.find((line) => String(line.code ?? "").toUpperCase() === code)?.amount ?? 0) || 0);
     const previous = priorStatutoryByEmployee.get(prior.employeeId) ?? {
       remuneration: 0,
       sssEmployee: 0,
