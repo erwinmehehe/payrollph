@@ -824,6 +824,8 @@ function calculateEmployeePay(input: {
       {
         timeIn: punch.timeIn ? toLocalIso(new Date(punch.timeIn)) : null,
         timeOut: punch.timeOut ? toLocalIso(new Date(punch.timeOut)) : null,
+        breakStart: punch.breakStart ? toLocalIso(new Date(punch.breakStart)) : null,
+        breakEnd: punch.breakEnd ? toLocalIso(new Date(punch.breakEnd)) : null,
       },
       {
         start: punch.shiftStart,
