@@ -367,6 +367,23 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
 
         {page === "Overview" && (
           <>
+            {dashboardRole ? (
+              <RoleOverviewView
+                data={data}
+                currentRun={currentRun}
+                role={dashboardRole}
+                onNewRun={() => setNewPayrollOpen(true)}
+                onPage={setPage}
+              />
+            ) : (
+              <OverviewView
+                data={data}
+                currentRun={currentRun}
+                onNewRun={() => setNewPayrollOpen(true)}
+                onPage={setPage}
+                onDecide={(id, status) => void decideTask(id, status)}
+              />
+            )}
             {data.firstPayrollReadiness && (
               <FirstPayrollReadinessCard
                 readiness={data.firstPayrollReadiness}
@@ -384,23 +401,6 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
                 onRefresh={async () => {
                   await refresh();
                 }}
-              />
-            )}
-            {dashboardRole ? (
-              <RoleOverviewView
-                data={data}
-                currentRun={currentRun}
-                role={dashboardRole}
-                onNewRun={() => setNewPayrollOpen(true)}
-                onPage={setPage}
-              />
-            ) : (
-              <OverviewView
-                data={data}
-                currentRun={currentRun}
-                onNewRun={() => setNewPayrollOpen(true)}
-                onPage={setPage}
-                onDecide={(id, status) => void decideTask(id, status)}
               />
             )}
           </>
