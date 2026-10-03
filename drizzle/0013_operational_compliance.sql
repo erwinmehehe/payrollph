@@ -93,3 +93,7 @@ BEGIN
   END IF;
 END
 $compat$;
+
+
+ALTER TABLE historical_payroll_entries
+  ADD COLUMN IF NOT EXISTS de_minimis_breakdown jsonb;
