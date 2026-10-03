@@ -140,6 +140,85 @@ type RoleDashboardProps = {
   onNewRun: () => void;
 };
 
+function PayrollFocusCard({
+  title,
+  status,
+  payDate,
+  employees,
+  gross,
+  net,
+  actionLabel,
+  onAction,
+  comparison,
+}: {
+  title: string;
+  status: string;
+  payDate?: string;
+  employees?: number;
+  gross?: string | number;
+  net?: string | number;
+  actionLabel: string;
+  onAction: () => void;
+  comparison?: string;
+}) {
+  return (
+    <section className="payroll-focus-card">
+      <div className="payroll-focus-main">
+        <span className="dashboard-section-kicker">Current payroll</span>
+        <div className="payroll-focus-title-row">
+          <h2>{title}</h2>
+          <Status value={status} />
+        </div>
+        <div className="payroll-focus-meta">
+          {payDate && <span><CalendarClock size={13} /> Pay date {payDate}</span>}
+          {employees !== undefined && <span><UsersRound size={13} /> {employees} employees</span>}
+          {comparison && <span><History size={13} /> {comparison}</span>}
+        </div>
+      </div>
+      <div className="payroll-focus-money">
+        {gross !== undefined && <div><span>Gross payroll</span><strong>{shortMoney(gross)}</strong></div>}
+        {net !== undefined && <div><span>Net salaries</span><strong>{shortMoney(net)}</strong></div>}
+      </div>
+      <button className="payroll-focus-action" type="button" onClick={onAction}>
+        {actionLabel} <ArrowRight size={14} />
+      </button>
+    </section>
+  );
+}
+
+function HrReadinessCard({
+  ready,
+  total,
+  issues,
+  onAction,
+}: {
+  ready: number;
+  total: number;
+  issues: number;
+  onAction: () => void;
+}) {
+  const percentage = total > 0 ? Math.round((ready / total) * 100) : 0;
+  return (
+    <section className="payroll-focus-card payroll-readiness-focus">
+      <div className="payroll-focus-main">
+        <span className="dashboard-section-kicker">Payroll input readiness</span>
+        <div className="payroll-focus-title-row">
+          <h2>{ready} of {total} employees ready</h2>
+          <Status value={issues ? "Needs attention" : "Ready"} />
+        </div>
+        <p>{issues ? `${issues} people or attendance item${issues === 1 ? "" : "s"} should be cleared before payroll handoff.` : "Core employee and attendance inputs are ready for payroll."}</p>
+        <div className="readiness-progress" aria-label={`${percentage}% ready`}>
+          <span style={{ width: `${percentage}%` }} />
+        </div>
+      </div>
+      <button className="payroll-focus-action" type="button" onClick={onAction}>
+        {issues ? "Resolve issues" : "Open people"} <ArrowRight size={14} />
+      </button>
+    </section>
+  );
+}
+
+
 function OwnerDashboard(props: RoleDashboardProps) {
   const {
     data,
@@ -178,6 +257,17 @@ function OwnerDashboard(props: RoleDashboardProps) {
         copy="Here’s what needs attention before payroll can be released."
       />
 
+      <PayrollFocusCard
+        title={currentRun?.periodLabel ?? "Next payroll"}
+        status={currentRun?.status ?? "Not started"}
+        payDate={currentRun?.payDate}
+        employees={currentRun?.employeeCount ?? activePeople.length}
+        gross={currentRun?.grossPay}
+        net={currentRun?.netPay}
+        actionLabel={currentRun ? "Open payroll" : "Create payroll"}
+        onAction={currentRun ? () => onPage("Payroll") : onNewRun}
+      />
+
       <DashboardAlertBanner
         title={ownerIssueCount ? `${ownerIssueCount} thing${ownerIssueCount === 1 ? "" : "s"} need attention` : "Payroll looks ready"}
         detail={ownerIssueCount ? "Resolve these before sending or releasing payroll." : "The visible payroll checks are clear. Review the run before release."}
@@ -187,10 +277,10 @@ function OwnerDashboard(props: RoleDashboardProps) {
       />
 
       <section className="dashboard-metrics-grid">
-        <DashboardStatCard icon={<WalletCards size={18} />} label="Payroll Status" value={currentRun?.status ?? "No run"} hint={currentRun?.periodLabel ?? "No payroll in progress"} tone={releaseBlocked ? "amber" : "green"} />
+        <DashboardStatCard icon={<CircleDollarSign size={18} />} label="Gross Payroll" value={currentRun ? shortMoney(currentRun.grossPay) : "—"} hint={currentRun?.periodLabel ?? "No payroll in progress"} tone="blue" />
+        <DashboardStatCard icon={<WalletCards size={18} />} label="Deductions" value={currentRun ? shortMoney(Math.max(0, Number(currentRun.grossPay) - Number(currentRun.netPay))) : "—"} hint="Employee deductions and tax" tone="amber" />
+        <DashboardStatCard icon={<BadgeCheck size={18} />} label="Net Salaries" value={currentRun ? shortMoney(currentRun.netPay) : "—"} hint="Amount payable to employees" tone={releaseBlocked ? "amber" : "green"} />
         <DashboardStatCard icon={<UsersRound size={18} />} label="Employees" value={String(activePeople.length)} hint="Active employee records" tone="blue" />
-        <DashboardStatCard icon={<AlertTriangle size={18} />} label="Exceptions" value={String(payrollExceptions.length)} hint={payrollExceptions.length ? "Needs review" : "No current exceptions"} tone={payrollExceptions.length ? "red" : "green"} />
-        <DashboardStatCard icon={<ClipboardCheck size={18} />} label="For Approval" value={String(pendingTasks.length)} hint={pendingTasks.length ? "Decision required" : "Queue clear"} tone={pendingTasks.length ? "amber" : "green"} />
       </section>
 
       <RecentPayrollRuns runs={data.payrollRuns} onViewAll={() => onPage("Payroll")} />
@@ -290,6 +380,12 @@ function HrDashboard(props: RoleDashboardProps) {
   if (!hrAlertItems.length) hrAlertItems.push({ id: "clear", label: "People records are ready for payroll handoff", tone: "success" });
   const withBankDetails = Math.max(activePeople.length - missingBankDetails, 0);
   const hrIssueCount = [missingBankDetails, pendingLeave.length, attendanceIssues.length].filter((count) => count > 0).length;
+  const incompleteEmployeeIds = new Set([
+    ...activePeople.filter((employee) => !employee.bankAccount || !employee.bankCode).map((employee) => employee.id),
+    ...peopleMissingGovernmentIds.map((employee) => employee.id),
+  ]);
+  const readyEmployees = Math.max(0, activePeople.length - incompleteEmployeeIds.size);
+  const readinessIssues = incompleteEmployeeIds.size + pendingLeave.length + attendanceIssues.length;
 
   return (
     <div className="payrollph-dashboard" data-dashboard-variant="hr">
@@ -297,6 +393,13 @@ function HrDashboard(props: RoleDashboardProps) {
         eyebrow={data.selectedOrganization.legalName + " · HR Admin"}
         title={"Good morning, " + firstName + "!"}
         copy="Here’s your HR setup progress before the next payroll cutoff."
+      />
+
+      <HrReadinessCard
+        ready={readyEmployees}
+        total={activePeople.length}
+        issues={readinessIssues}
+        onAction={() => onPage("People")}
       />
 
       <DashboardAlertBanner
@@ -428,6 +531,17 @@ function PayrollDashboard(props: RoleDashboardProps) {
         copy="Your payroll is almost ready. Resolve the remaining items before checker review."
       />
 
+      <PayrollFocusCard
+        title={currentRun?.periodLabel ?? "Next payroll"}
+        status={currentRun?.status ?? "Not started"}
+        payDate={currentRun?.payDate}
+        employees={currentRun?.employeeCount ?? data.employees.length}
+        gross={currentRun?.grossPay}
+        net={currentRun?.netPay}
+        actionLabel={currentRun ? "Review payroll" : "Create payroll"}
+        onAction={currentRun ? () => onPage("Payroll") : onNewRun}
+      />
+
       <DashboardAlertBanner
         title={failedJobs.length ? "Payroll calculation needs recovery" : queueDone ? "Payroll calculation is complete" : "Payroll calculation is in progress"}
         detail={payrollExceptions.length ? `${payrollExceptions.length} exception${payrollExceptions.length === 1 ? "" : "s"} need review before you can submit for approval.` : "Review the calculated register before the maker-checker handoff."}
@@ -524,6 +638,13 @@ function CheckerDashboard(props: RoleDashboardProps) {
   } = props;
 
   const checkerExceptions = data.payrollEntries.filter((entry) => entry.status === "Exception").length;
+  const previousReleasedRun = data.payrollRuns.find((run) => run.id !== currentRun?.id && run.status === "Released");
+  const currentNet = Number(currentRun?.netPay ?? 0);
+  const previousNet = Number(previousReleasedRun?.netPay ?? 0);
+  const netDelta = currentNet - previousNet;
+  const comparison = previousReleasedRun
+    ? `${netDelta >= 0 ? "+" : ""}${shortMoney(netDelta)} vs ${previousReleasedRun.periodLabel}`
+    : "No previous released payroll";
   const checkerAlertItems: DashboardAlertItem[] = [];
   if (pendingTasks.length) checkerAlertItems.push({ id: "approval", label: `${pendingTasks.length} payroll run${pendingTasks.length === 1 ? "" : "s"} need your approval`, tone: "warning" });
   if (checkerExceptions) checkerAlertItems.push({ id: "exceptions", label: `${checkerExceptions} payroll exception${checkerExceptions === 1 ? "" : "s"} remain visible`, tone: "danger" });
@@ -536,6 +657,17 @@ function CheckerDashboard(props: RoleDashboardProps) {
         eyebrow={data.selectedOrganization.legalName + " · Checker"}
         title={"Good morning, " + firstName + "!"}
         copy="Pending payroll items for your independent review."
+      />
+
+      <PayrollFocusCard
+        title={currentRun?.periodLabel ?? "Payroll review"}
+        status={pendingTasks.length ? "Awaiting review" : currentRun?.status ?? "No review"}
+        payDate={currentRun?.payDate}
+        employees={currentRun?.employeeCount ?? data.employees.length}
+        net={currentRun?.netPay}
+        comparison={comparison}
+        actionLabel={pendingTasks.length ? "Review changes" : "Open approvals"}
+        onAction={() => onPage("Approvals")}
       />
 
       <DashboardAlertBanner
@@ -632,6 +764,17 @@ function BookkeeperDashboard(props: RoleDashboardProps) {
         eyebrow={data.selectedOrganization.legalName + " · Bookkeeper"}
         title={"Good morning, " + firstName + "!"}
         copy="Reconcile the payroll, payout, accounting export and statutory close from one place."
+      />
+
+      <PayrollFocusCard
+        title={currentRun?.periodLabel ?? "Latest payroll"}
+        status={currentRun?.status ?? "No run"}
+        payDate={currentRun?.payDate}
+        employees={currentRun?.employeeCount}
+        gross={currentRun?.grossPay}
+        net={currentRun?.netPay}
+        actionLabel={released ? "Open accounting" : "Open payroll"}
+        onAction={() => onPage(released ? "Exports" : "Payroll")}
       />
 
       <DashboardAlertBanner
