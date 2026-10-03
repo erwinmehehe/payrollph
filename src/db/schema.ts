@@ -344,6 +344,36 @@ export const bankTemplates = pgTable("bank_templates", {
   active: boolean("active").notNull().default(true),
 });
 
+export const bankFileValidations = pgTable(
+  "bank_file_validations",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    payrollRunId: integer("payroll_run_id").references(() => payrollRuns.id, { onDelete: "set null" }),
+    templateName: varchar("template_name", { length: 100 }).notNull(),
+    templateVersion: varchar("template_version", { length: 32 }).notNull(),
+    fileName: varchar("file_name", { length: 180 }).notNull(),
+    fileSha256: varchar("file_sha256", { length: 64 }).notNull(),
+    status: varchar("status", { length: 16 }).notNull().default("generated"),
+    portalReference: varchar("portal_reference", { length: 120 }),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    outcomeNote: text("outcome_note"),
+    generatedBy: varchar("generated_by", { length: 120 }).notNull(),
+    recordedBy: varchar("recorded_by", { length: 120 }),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("bank_file_validation_unique").on(
+      table.organizationId,
+      table.templateName,
+      table.templateVersion,
+      table.fileSha256,
+    ),
+    index("bank_file_validation_status_idx").on(table.status, table.templateName),
+  ],
+);
+
 export const approvalTasks = pgTable("approval_tasks", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
