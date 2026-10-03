@@ -1,8 +1,7 @@
-import { createHash } from "node:crypto";
-import { enforceSameOriginMutation } from "@/lib/security-request";
+import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { documents, employees, organizations, yearEndAdjustments } from "@/db/schema";
+import { employees, organizations, yearEndAdjustments } from "@/db/schema";
 import { renderForm2316 } from "@/lib/annualization";
 import { decryptGovernmentId } from "@/lib/government-id-crypto";
 import { getSessionUser } from "@/lib/auth";
@@ -28,6 +27,10 @@ export async function GET(request: Request) {
   const taxYear = Number(searchParams.get("taxYear") ?? new Date().getFullYear());
   const format = searchParams.get("format") ?? "json";
   const employeeId = Number(searchParams.get("employeeId") ?? 0);
+  if (format === "2316" || format === "alphalist") {
+    const mfaDenied = requireSensitiveActionMfa(user);
+    if (mfaDenied) return mfaDenied;
+  }
 
   const rows = await db
     .select({ adjustment: yearEndAdjustments, employee: employees })
@@ -187,75 +190,16 @@ export async function POST(request: Request) {
     return Response.json({
       ...summary,
       generated2316Drafts: 0,
+      available2316Drafts: 0,
       warning: `No released payroll runs found with a ${taxYear} pay date, so there is nothing to annualize.`,
     });
   }
 
-  const [organization] = await db.select().from(organizations)
-    .where(eq(organizations.id, organizationId))
-    .limit(1);
-  const annualizedRows = await db
-    .select({ adjustment: yearEndAdjustments, employee: employees })
-    .from(yearEndAdjustments)
-    .innerJoin(employees, eq(yearEndAdjustments.employeeId, employees.id))
-    .where(and(
-      eq(yearEndAdjustments.organizationId, organizationId),
-      eq(yearEndAdjustments.taxYear, taxYear),
-    ));
-
-  const digits = (value: string | null | undefined, encrypted = false) =>
-    (encrypted ? decryptGovernmentId(value) ?? "" : value ?? "").replace(/\D/g, "");
-  const employerTin = digits(organization?.birTin);
-  const employerBranch = digits(organization?.birBranchCode).padStart(4, "0");
-  let generated2316Drafts = 0;
-
-  for (const row of annualizedRows) {
-    const employeeTin = digits(row.employee.tin, true);
-    const employeeBranch = digits(row.employee.tinBranchCode, true).padStart(4, "0");
-    const body = renderForm2316({
-      taxYear,
-      employerName: organization?.legalName ?? organization?.name ?? "Employer",
-      employerTin: employerTin.length === 9 ? `${employerTin}-${employerBranch}` : undefined,
-      employeeName: [row.employee.firstName, row.employee.middleName, row.employee.lastName].filter(Boolean).join(" "),
-      employeeNo: row.employee.employeeNo,
-      employeeTin: employeeTin.length === 9 ? `${employeeTin}-${employeeBranch}` : undefined,
-      result: row.adjustment.breakdown as never,
-    });
-    const fileName = `bir-2316-draft-${row.employee.employeeNo}-${taxYear}.txt`;
-    const sha256 = createHash("sha256").update(body).digest("hex");
-    const [existingDocument] = await db.select().from(documents).where(and(
-      eq(documents.organizationId, organizationId),
-      eq(documents.employeeId, row.employee.id),
-      eq(documents.kind, "bir-2316-draft-year-end"),
-      eq(documents.fileName, fileName),
-    )).limit(1);
-
-    if (existingDocument) {
-      await db.update(documents).set({
-        byteSize: Buffer.byteLength(body),
-        sha256,
-        scannedClean: true,
-        scanNote: "System-generated from year-end annualization.",
-        uploadedBy: user.name,
-        content: body,
-      }).where(eq(documents.id, existingDocument.id));
-    } else {
-      await db.insert(documents).values({
-        organizationId,
-        employeeId: row.employee.id,
-        kind: "bir-2316-draft-year-end",
-        fileName,
-        mimeType: "text/plain",
-        byteSize: Buffer.byteLength(body),
-        sha256,
-        scannedClean: true,
-        scanNote: "System-generated from year-end annualization.",
-        uploadedBy: user.name,
-        content: body,
-      });
-    }
-    generated2316Drafts += 1;
-  }
-
-  return Response.json({ ...summary, generated2316Drafts });
+  return Response.json({
+    ...summary,
+    generated2316Drafts: 0,
+    available2316Drafts: summary.employees,
+    certificateStorage: "not-persisted",
+    certificateAccess: "Generate each draft on demand with format=2316&employeeId=... after recent MFA.",
+  });
 }
