@@ -176,7 +176,14 @@ test("daily employee holiday pay requires proven preceding scheduled workday acr
     const eligibleEntry = entries.find((entry) => entry.employeeId === eligible.id)!;
     const unresolvedEntry = entries.find((entry) => entry.employeeId === unresolved.id)!;
 
-    assert.equal(Number(line(eligibleEntry, "HOLIDAY_UNWORKED")?.amount), 600);
+    const eligibleHolidayLine = line(eligibleEntry, "HOLIDAY_UNWORKED");
+    assert.ok(
+      eligibleHolidayLine,
+      `expected holiday entitlement; lineItems=${JSON.stringify(eligibleEntry.lineItems)} trace=${JSON.stringify(eligibleEntry.trace)}`,
+    );
+    // Apr 2 (Maundy Thursday) and Apr 3 (Good Friday) are both regular
+    // holidays and share the same proven Mar 31 preceding scheduled workday.
+    assert.equal(Number(eligibleHolidayLine.amount), 1200);
     assert.equal(line(unresolvedEntry, "HOLIDAY_UNWORKED"), undefined);
     assert.equal(unresolvedEntry.status, "Exception");
     const flags = (unresolvedEntry.trace as { flags?: string[] }).flags ?? [];
