@@ -64,7 +64,7 @@ import {
   type EmployeePayProfileInput,
 } from "@/lib/pay-basis";
 
-const RULE_VERSION = "PH-2026.04";
+export const PAYROLL_PAYROLL_RULE_VERSION = "PH-2026.04";
 const DEFAULT_CHUNK = 25;
 
 function money(value: number) {
@@ -151,7 +151,7 @@ export async function enqueuePayrollRun(runId: number, chunkSize = DEFAULT_CHUNK
     exceptions: 0,
     processedChunks: 0,
     totalChunks,
-    ruleVersion: RULE_VERSION,
+    ruleVersion: PAYROLL_RULE_VERSION,
   }).where(eq(payrollRuns.id, runId));
 
   await db.insert(payrollJobs).values({
@@ -172,7 +172,7 @@ export async function enqueuePayrollRun(runId: number, chunkSize = DEFAULT_CHUNK
       runId,
       totalChunks,
       chunkSize,
-      ruleVersion: RULE_VERSION,
+      ruleVersion: PAYROLL_RULE_VERSION,
       periodStart: run.periodStart,
       periodEnd: run.periodEnd,
       scopeOrgUnitId: run.scopeOrgUnitId,
@@ -790,7 +790,7 @@ async function processPayrollChunk(input: {
       employeeId: employee.id,
       periodLabel: run.periodLabel,
       content: calc.payslipText,
-      ruleVersion: RULE_VERSION,
+      ruleVersion: PAYROLL_RULE_VERSION,
     });
 
   }
@@ -835,7 +835,7 @@ async function finalizeRun(runId: number) {
       runId,
       employeeCount: run.employeeCount,
       exceptions: run.exceptions,
-      ruleVersion: RULE_VERSION,
+      ruleVersion: PAYROLL_RULE_VERSION,
     },
   });
 }
@@ -1388,7 +1388,7 @@ function calculateEmployeePay(input: {
   ].filter((item) => Number(item.amount) !== 0);
 
   const trace = {
-    ruleVersion: RULE_VERSION,
+    ruleVersion: PAYROLL_RULE_VERSION,
     inputs: [
       `payTimeline=${payTimelineTrace(timeline).join("|")}`,
       `effectivePayChanges=${Math.max(0, timeline.length - 1)}`,
@@ -1465,7 +1465,7 @@ function calculateEmployeePay(input: {
     deductions,
     net,
     lineItems,
-    ruleVersion: RULE_VERSION,
+    ruleVersion: PAYROLL_RULE_VERSION,
     notes: [...holidayNotes, ...calamityNotes, ...leaveNotes, ...punchNotes],
   });
 
