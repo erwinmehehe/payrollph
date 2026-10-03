@@ -27,6 +27,7 @@ export const organizations = pgTable("organizations", {
   philHealthEmployerNo: varchar("philhealth_employer_no", { length: 24 }),
   pagIbigEmployerNo: varchar("pagibig_employer_no", { length: 24 }),
   statutoryDeductionTiming: varchar("statutory_deduction_timing", { length: 24 }).notNull().default("split"),
+  payrollCalendarMode: varchar("payroll_calendar_mode", { length: 24 }).notNull().default("flexible"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -541,6 +542,25 @@ export const deMinimisGrants = pgTable("de_minimis_grants", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const supplementaryEarnings = pgTable("supplementary_earnings", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  earningType: varchar("earning_type", { length: 32 }).notNull(),
+  label: varchar("label", { length: 120 }).notNull(),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  taxable: boolean("taxable").notNull().default(true),
+  includeInStatutoryBase: boolean("include_in_statutory_base").notNull().default(true),
+  effectiveDate: date("effective_date").notNull(),
+  status: varchar("status", { length: 24 }).notNull().default("approved"),
+  payrollRunId: integer("payroll_run_id").references(() => payrollRuns.id, { onDelete: "set null" }),
+  createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("supplementary_earnings_org_employee_idx").on(table.organizationId, table.employeeId),
+  index("supplementary_earnings_status_effective_idx").on(table.status, table.effectiveDate),
+]);
+
 export const minWageOrders = pgTable("min_wage_orders", {
   id: serial("id").primaryKey(),
   region: varchar("region", { length: 32 }).notNull(),
@@ -602,6 +622,7 @@ export const assets = pgTable("assets", {
 export const holidays = pgTable("holidays", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id"),
+  orgUnitId: integer("org_unit_id").references(() => orgUnits.id, { onDelete: "cascade" }),
   holidayDate: date("holiday_date").notNull(),
   name: varchar("name", { length: 120 }).notNull(),
   kind: varchar("kind", { length: 24 }).notNull().default("regular"),
