@@ -15,7 +15,10 @@ import {
   getAccess,
   PAYROLL_OPERATOR_ROLES,
 } from "@/lib/access";
-import { enforceSameOriginMutation } from "@/lib/security-request";
+import {
+  enforceSameOriginMutation,
+  enforceSensitiveActionRateLimit,
+} from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
 
@@ -213,6 +216,14 @@ export async function POST(request: Request) {
   const access = await getAccess(session.id, organizationId);
   const scope = assertScope(access, employee.orgUnitId);
   if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
+  const rateDenied = await enforceSensitiveActionRateLimit(request, {
+    userId: session.id,
+    action: "supplementary-earning-create",
+    resourceId: employeeId,
+    limit: 20,
+    windowMs: 5 * 60_000,
+  });
+  if (rateDenied) return rateDenied;
 
   let overlappingRuns: Awaited<ReturnType<typeof prepareSupplementaryEarningMutation>>;
   try {
@@ -300,6 +311,14 @@ export async function PATCH(request: Request) {
   const access = await getAccess(session.id, existing.organizationId);
   const scope = assertScope(access, employee?.orgUnitId ?? null);
   if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
+  const rateDenied = await enforceSensitiveActionRateLimit(request, {
+    userId: session.id,
+    action: "supplementary-earning-void",
+    resourceId: id,
+    limit: 12,
+    windowMs: 5 * 60_000,
+  });
+  if (rateDenied) return rateDenied;
 
   if (existing.payrollRunId != null || existing.status === "settled") {
     return Response.json({
