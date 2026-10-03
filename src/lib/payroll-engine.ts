@@ -64,7 +64,7 @@ import {
   type EmployeePayProfileInput,
 } from "@/lib/pay-basis";
 
-export const PAYROLL_PAYROLL_RULE_VERSION = "PH-2026.04";
+export const PAYROLL_RULE_VERSION = "PH-2026.04";
 const DEFAULT_CHUNK = 25;
 
 function money(value: number) {
