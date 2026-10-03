@@ -264,7 +264,7 @@ function OwnerDashboard(props: RoleDashboardProps) {
         employees={currentRun?.employeeCount ?? activePeople.length}
         gross={currentRun?.grossPay}
         net={currentRun?.netPay}
-        actionLabel={currentRun ? "Open payroll" : "Create payroll"}
+        actionLabel={!currentRun ? "Create payroll" : currentRun.status === "Approved" ? "Release payroll" : "Continue payroll"}
         onAction={currentRun ? () => onPage("Payroll") : onNewRun}
       />
 
@@ -538,7 +538,7 @@ function PayrollDashboard(props: RoleDashboardProps) {
         employees={currentRun?.employeeCount ?? data.employees.length}
         gross={currentRun?.grossPay}
         net={currentRun?.netPay}
-        actionLabel={currentRun ? "Review payroll" : "Create payroll"}
+        actionLabel={!currentRun ? "Create payroll" : payrollExceptions.length ? "Review exceptions" : "Continue payroll"}
         onAction={currentRun ? () => onPage("Payroll") : onNewRun}
       />
 
