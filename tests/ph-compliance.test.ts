@@ -7,6 +7,7 @@ import {
   computeSss,
 } from "../src/lib/payroll-rules";
 import {
+  aggregateDeMinimisForSemiMonthly,
   computeThirteenthMonthPay,
   DE_MINIMIS_2026,
   deMinimisTreatment,
@@ -92,4 +93,20 @@ test("pay intervals cannot exceed 16 calendar days", () => {
   assert.equal(isValidPayInterval("2026-03-16", "2026-03-31"), true);
   assert.equal(isValidPayInterval("2026-03-01", "2026-03-17"), false);
   assert.equal(isValidPayInterval("2026-03-17", "2026-03-01"), false);
+});
+
+
+test("duplicate de minimis grants share one statutory category ceiling", () => {
+  const [rice] = aggregateDeMinimisForSemiMonthly([
+    { id: 1, benefitType: "riceSubsidy", amount: 2_000, frequency: "month" },
+    { id: 2, benefitType: "riceSubsidy", amount: 2_000, frequency: "month" },
+  ]);
+
+  assert.equal(rice.annualGranted, 48_000);
+  assert.equal(rice.annualCeiling, 30_000);
+  assert.equal(rice.annualExempt, 30_000);
+  assert.equal(rice.annualExcess, 18_000);
+  assert.equal(rice.semiMonthlyGranted, 2_000);
+  assert.equal(rice.semiMonthlyExempt, 1_250);
+  assert.equal(rice.semiMonthlyOtherBenefitsPool, 750);
 });
