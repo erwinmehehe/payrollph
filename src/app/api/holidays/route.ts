@@ -186,13 +186,23 @@ export async function POST(request: Request) {
   }).returning();
 
   const invalidatedPayrollRunIds = await invalidateAffectedPayroll(organizationId, affectedRuns!);
+  const releasedPayrollRunIdsRequiringRetroReview = affectedRuns!
+    .filter((run) => run.status === "Released")
+    .map((run) => run.id);
 
   await recordAuditEvent({
     organizationId,
     actor: session.name,
     action: "Payroll holiday declared",
     resource: `${holidayDate} · ${name}`,
-    metadata: { holidayId: row.id, holidayDate, kind, orgUnitId, invalidatedPayrollRunIds },
+    metadata: {
+      holidayId: row.id,
+      holidayDate,
+      kind,
+      orgUnitId,
+      invalidatedPayrollRunIds,
+      releasedPayrollRunIdsRequiringRetroReview,
+    },
   });
 
   return Response.json(row, { status: 201 });
@@ -270,6 +280,9 @@ export async function PATCH(request: Request) {
   )).returning();
 
   const invalidatedPayrollRunIds = await invalidateAffectedPayroll(existing.organizationId, affectedRuns!);
+  const releasedPayrollRunIdsRequiringRetroReview = affectedRuns!
+    .filter((run) => run.status === "Released")
+    .map((run) => run.id);
 
   await recordAuditEvent({
     organizationId: existing.organizationId,
@@ -286,6 +299,7 @@ export async function PATCH(request: Request) {
       },
       after: { holidayDate, name, kind, orgUnitId },
       invalidatedPayrollRunIds,
+      releasedPayrollRunIdsRequiringRetroReview,
     },
   });
 
@@ -340,6 +354,9 @@ export async function DELETE(request: Request) {
   ));
 
   const invalidatedPayrollRunIds = await invalidateAffectedPayroll(existing.organizationId, affectedRuns!);
+  const releasedPayrollRunIdsRequiringRetroReview = affectedRuns!
+    .filter((run) => run.status === "Released")
+    .map((run) => run.id);
 
   await recordAuditEvent({
     organizationId: existing.organizationId,
@@ -351,6 +368,7 @@ export async function DELETE(request: Request) {
       orgUnitId: existing.orgUnitId,
       kind: existing.kind,
       invalidatedPayrollRunIds,
+      releasedPayrollRunIdsRequiringRetroReview,
     },
   });
 
