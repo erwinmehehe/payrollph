@@ -31,7 +31,7 @@ export function readBasicAndThirteenth(lineItems: unknown) {
     if (code.includes("13TH") || code.includes("THIRTEENTH") || label.includes("13th month") || label.includes("thirteenth month")) {
       thirteenthPaid += Math.max(0, amount);
     }
-    if (["SSS", "PHIC", "HDMF", "PAGIBIG", "PAG-IBIG"].includes(code)) contributions += Math.abs(amount);
+    if (["SSS", "PHIC", "HDMF", "PAGIBIG", "PAG-IBIG"].includes(code)) contributions += -amount;
     if (code === "WHT" || code === "TAX" || label.includes("withholding tax")) taxWithheld += Math.abs(amount);
     if (code.startsWith("DM-")) {
       deMinimisPaid += Math.max(0, amount);
