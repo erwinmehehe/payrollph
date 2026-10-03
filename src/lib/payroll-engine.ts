@@ -75,6 +75,38 @@ function roundToCents(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+function addDays(dateText: string, days: number) {
+  const date = new Date(`${dateText}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function datesInRange(startDate: string, endDate: string) {
+  const dates: string[] = [];
+  for (let cursor = startDate; cursor <= endDate; cursor = addDays(cursor, 1)) {
+    dates.push(cursor);
+  }
+  return dates;
+}
+
+function precedingScheduledWorkDate(input: {
+  holidayDate: string;
+  currentRestDay: string | null | undefined;
+  restDayRevisions: EffectiveRestDayRevisionInput[];
+  holidayCalendar: HolidayCalendarEntry[];
+  employeeStartDate: string;
+}) {
+  for (let offset = 1; offset <= 14; offset += 1) {
+    const date = addDays(input.holidayDate, -offset);
+    if (date < input.employeeStartDate) return null;
+    const restDay = restDayForDate(input.currentRestDay, input.restDayRevisions, date);
+    if (isRestDayOfWeek(date, restDay)) continue;
+    if (holidayPayContextOn(date, input.holidayCalendar).holiday !== "ordinary") continue;
+    return date;
+  }
+  return null;
+}
+
 const PHILIPPINE_TIME = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Manila",
   year: "numeric",
@@ -351,7 +383,7 @@ async function processPayrollChunk(input: {
   ));
   const holidayRows = await db.select().from(holidays).where(and(
     or(isNull(holidays.organizationId), eq(holidays.organizationId, input.organizationId)),
-    gte(holidays.holidayDate, run.periodStart),
+    gte(holidays.holidayDate, holidayEligibilityLookbackStart),
     lte(holidays.holidayDate, run.periodEnd),
   ));
   const localHolidayCalendar: HolidayCalendarEntry[] = holidayRows.flatMap((row) => {
@@ -412,7 +444,7 @@ async function processPayrollChunk(input: {
           eq(leaveRequests.status, "Approved"),
           inArray(leaveRequests.employeeId, chunkIds),
           lte(leaveRequests.startDate, run.periodEnd),
-          gte(leaveRequests.endDate, run.periodStart),
+          gte(leaveRequests.endDate, holidayEligibilityLookbackStart),
         ))
       : Promise.resolve([]),
   ]);
@@ -519,6 +551,7 @@ async function processPayrollChunk(input: {
   // Monthly statutory contributions are ultimately reconciled against actual
   // remuneration. For the final cutoff of a month, use the released earlier
   // cutoff as the immutable ledger baseline instead of guessing current × 2.
+  const holidayEligibilityLookbackStart = addDays(String(run.periodStart), -14);
   const periodEndText = String(run.periodEnd);
   const periodEndDate = new Date(`${periodEndText}T00:00:00Z`);
   const nextDay = new Date(periodEndDate);
@@ -584,12 +617,33 @@ async function processPayrollChunk(input: {
   let chunkExceptions = 0;
 
   for (const employee of chunk) {
-    const punches = await db.select().from(timePunches).where(and(
+    const payrollAttendance = await db.select().from(timePunches).where(and(
       eq(timePunches.organizationId, input.organizationId),
       eq(timePunches.employeeId, employee.id),
-      gte(timePunches.workDate, run.periodStart),
+      gte(timePunches.workDate, holidayEligibilityLookbackStart),
       lte(timePunches.workDate, run.periodEnd),
     ));
+    const punches = payrollAttendance.filter((punch) => String(punch.workDate) >= String(run.periodStart));
+    const holidayEligibilityAttendanceDates = [...new Set(
+      payrollAttendance
+        .filter((punch) => Boolean(punch.timeIn && punch.timeOut))
+        .map((punch) => String(punch.workDate)),
+    )];
+
+    const paidPolicyByType = new Map(
+      leavePolicyRows.map((policy) => [
+        policy.leaveType,
+        policy.payTreatment !== "unpaid" && Number(policy.paidPercentage) > 0,
+      ]),
+    );
+    const holidayEligibilityPaidLeaveDates = [...new Set(
+      approvedLeaveRows
+        .filter((row) => row.employeeId === employee.id && paidPolicyByType.get(row.leaveType) === true)
+        .flatMap((row) => datesInRange(
+          String(row.startDate) < holidayEligibilityLookbackStart ? holidayEligibilityLookbackStart : String(row.startDate),
+          String(row.endDate) > String(run.periodEnd) ? String(run.periodEnd) : String(row.endDate),
+        )),
+    )];
     const unit = employee.orgUnitId ? unitMap.get(employee.orgUnitId) : null;
     const calc = calculateEmployeePay({
       employee,
@@ -667,6 +721,8 @@ async function processPayrollChunk(input: {
         reason: revision.reason,
       })),
       holidayCalendar,
+      holidayEligibilityAttendanceDates,
+      holidayEligibilityPaidLeaveDates,
       statutoryDeductionTiming: organization.statutoryDeductionTiming,
       restDayRevisions: (restDayRevisionsByEmployee.get(employee.id) ?? []).map((revision) => ({
         effectiveDate: String(revision.effectiveDate),
@@ -783,6 +839,8 @@ function calculateEmployeePay(input: {
   payProfile: EmployeePayProfileInput;
   payRevisions?: EffectivePayRevisionInput[];
   holidayCalendar?: HolidayCalendarEntry[];
+  holidayEligibilityAttendanceDates?: string[];
+  holidayEligibilityPaidLeaveDates?: string[];
   statutoryDeductionTiming?: string;
   restDayRevisions?: EffectiveRestDayRevisionInput[];
   periodStart: string;
@@ -901,14 +959,40 @@ function calculateEmployeePay(input: {
         ),
     )];
     for (const holidayDate of holidayDates) {
-      const context = holidayPayContextOn(holidayDate, input.holidayCalendar ?? NATIONAL_HOLIDAYS_2026);
+      const calendar = input.holidayCalendar ?? NATIONAL_HOLIDAYS_2026;
+      const context = holidayPayContextOn(holidayDate, calendar);
       const multiplier = holidayMultiplier({ holiday: context.holiday, worked: false });
       if (multiplier <= 0) continue;
+
+      const precedingWorkDate = precedingScheduledWorkDate({
+        holidayDate,
+        currentRestDay: input.employee.restDay,
+        restDayRevisions: input.restDayRevisions ?? [],
+        holidayCalendar: calendar,
+        employeeStartDate,
+      });
+      const attended = precedingWorkDate
+        ? (input.holidayEligibilityAttendanceDates ?? []).includes(precedingWorkDate)
+        : false;
+      const onPaidLeave = precedingWorkDate
+        ? (input.holidayEligibilityPaidLeaveDates ?? []).includes(precedingWorkDate)
+        : false;
+
+      if (!precedingWorkDate || (!attended && !onPaidLeave)) {
+        flags.push(
+          `Unworked regular-holiday pay for ${holidayDate} was not added because eligibility on the preceding scheduled workday${precedingWorkDate ? ` (${precedingWorkDate})` : ""} is not proven by attendance or paid leave.`,
+        );
+        holidayNotes.push(
+          `${holidayDate} ${context.label ?? "regular holiday"} unworked entitlement pending eligibility review`,
+        );
+        continue;
+      }
+
       const profile = profileForDate(timeline, holidayDate);
       const amount = roundToCents(profile.dailyRate * multiplier);
       unworkedHolidayPay += amount;
       holidayNotes.push(
-        `${holidayDate} ${context.label ?? "regular holiday"} unworked entitlement ×${multiplier} → +${money(amount)}`,
+        `${holidayDate} ${context.label ?? "regular holiday"} unworked entitlement ×${multiplier} → +${money(amount)}; eligible via ${onPaidLeave ? "paid leave" : "attendance"} on ${precedingWorkDate}`,
       );
     }
   }
