@@ -164,10 +164,17 @@ export async function POST(request: Request) {
   if (mfaDenied) return mfaDenied;
 
   let orgUnitId: number | null;
+  let affectedRuns: Awaited<ReturnType<typeof affectedPayrollRuns>>;
   try {
     orgUnitId = await validateOrgUnit(organizationId, body.orgUnitId);
+    affectedRuns = await assertHolidayMutationNotRacingPayroll(organizationId, [holidayDate]);
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "Invalid organization unit." }, { status: 422 });
+    const message = error instanceof Error ? error.message : "Invalid holiday change.";
+    const conflict = message.startsWith("Holiday calendar cannot change");
+    return Response.json({
+      error: message,
+      ...(conflict ? { code: "HOLIDAY_PAYROLL_BUSY" } : {}),
+    }, { status: conflict ? 409 : 422 });
   }
 
   const [row] = await db.insert(holidays).values({
@@ -178,12 +185,14 @@ export async function POST(request: Request) {
     kind,
   }).returning();
 
+  const invalidatedPayrollRunIds = await invalidateAffectedPayroll(organizationId, affectedRuns!);
+
   await recordAuditEvent({
     organizationId,
     actor: session.name,
     action: "Payroll holiday declared",
     resource: `${holidayDate} · ${name}`,
-    metadata: { holidayId: row.id, holidayDate, kind, orgUnitId },
+    metadata: { holidayId: row.id, holidayDate, kind, orgUnitId, invalidatedPayrollRunIds },
   });
 
   return Response.json(row, { status: 201 });
