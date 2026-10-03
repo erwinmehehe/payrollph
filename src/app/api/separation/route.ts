@@ -752,10 +752,19 @@ export async function PATCH(request: Request) {
           (sep.computationSnapshot as Record<string, unknown> | null)?.deferredLoanBalance ?? 0,
         ),
         releaseReference: releaseReference.slice(0, 160),
+        offboarding2316Available: true,
       },
     });
 
-    return Response.json(released);
+    return Response.json({
+      ...released,
+      offboarding2316: {
+        status: "available",
+        href: `/api/separation/${released.id}/2316`,
+        requiresRecentMfa: true,
+        draftOnly: true,
+      },
+    });
   }
 
   return Response.json({ error: "Unknown action." }, { status: 400 });
