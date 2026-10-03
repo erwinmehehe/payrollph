@@ -21,6 +21,7 @@ import {
   payrollJobs,
   payrollRuns,
   payslips,
+  supplementaryEarnings,
   timePunches,
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
@@ -477,6 +478,15 @@ async function processPayrollChunk(input: {
         inArray(earnedWageRequests.employeeId, chunkIds),
       ))
     : [];
+  const openSupplementaryEarnings = chunkIds.length
+    ? await db.select().from(supplementaryEarnings).where(and(
+        eq(supplementaryEarnings.organizationId, input.organizationId),
+        eq(supplementaryEarnings.status, "approved"),
+        inArray(supplementaryEarnings.employeeId, chunkIds),
+        gte(supplementaryEarnings.effectiveDate, run.periodStart),
+        lte(supplementaryEarnings.effectiveDate, run.periodEnd),
+      ))
+    : [];
   const deMinimis = chunkIds.length
     ? await db.select().from(deMinimisGrants).where(and(
         eq(deMinimisGrants.organizationId, input.organizationId),
@@ -493,6 +503,14 @@ async function processPayrollChunk(input: {
   for (const advance of openAdvances) {
     if (advance.payrollRunId != null) continue;
     advancesByEmployee.set(advance.employeeId, [...(advancesByEmployee.get(advance.employeeId) ?? []), advance]);
+  }
+  const supplementaryByEmployee = new Map<number, typeof openSupplementaryEarnings>();
+  for (const earning of openSupplementaryEarnings) {
+    if (earning.payrollRunId != null) continue;
+    supplementaryByEmployee.set(
+      earning.employeeId,
+      [...(supplementaryByEmployee.get(earning.employeeId) ?? []), earning],
+    );
   }
   const deMinimisByEmployee = new Map<number, typeof deMinimis>();
   for (const grant of deMinimis) {
@@ -692,6 +710,14 @@ async function processPayrollChunk(input: {
         requestedAmount: Number(a.requestedAmount),
         fee: Number(a.fee),
       })),
+      supplementaryEarnings: (supplementaryByEmployee.get(employee.id) ?? []).map((earning) => ({
+        id: earning.id,
+        earningType: earning.earningType,
+        label: earning.label,
+        amount: Number(earning.amount),
+        taxable: earning.taxable,
+        includeInStatutoryBase: earning.includeInStatutoryBase,
+      })),
       deMinimis: (deMinimisByEmployee.get(employee.id) ?? [])
         .filter((g) =>
           String(g.effectiveOn) <= String(run.payDate)
@@ -858,6 +884,14 @@ function calculateEmployeePay(input: {
   benefits?: EnrollmentInput[];
   expenses?: Array<{ id: number; category: string; description: string; amount: number; incurredOn: string }>;
   advances?: Array<{ id: number; requestedAmount: number; fee: number }>;
+  supplementaryEarnings?: Array<{
+    id: number;
+    earningType: string;
+    label: string;
+    amount: number;
+    taxable: boolean;
+    includeInStatutoryBase: boolean;
+  }>;
   deMinimis?: Array<{ id: number; benefitType: DeMinimisType; amount: number; frequency: "month" | "semester" | "year" }>;
   loans?: Array<{ id: number; loanType: string; referenceNo: string; cutoffDeduction: number; remainingBalance: number }>;
   leaveConversions?: Array<{ id: number; leaveType: string; daysConverted: number; dailyRate: number; cashAmount: number; taxExempt: boolean }>;
@@ -1149,6 +1183,32 @@ function calculateEmployeePay(input: {
   }));
   const expenseTotal = (input.expenses ?? []).reduce((sum, claim) => sum + Number(claim.amount), 0);
 
+  const supplementaryLines = (input.supplementaryEarnings ?? []).map((earning) => ({
+    code: `EARN-${earning.id}`,
+    label: earning.label,
+    amount: money(earning.amount),
+    notes: [
+      `Type: ${earning.earningType}`,
+      earning.taxable ? "Tax treatment: taxable" : "Tax treatment: non-taxable",
+      earning.includeInStatutoryBase
+        ? "Included in statutory contribution base"
+        : "Excluded from statutory contribution base",
+    ],
+    amountNum: Math.max(0, Number(earning.amount) || 0),
+    taxable: Boolean(earning.taxable),
+    includeInStatutoryBase: Boolean(earning.includeInStatutoryBase),
+  }));
+  const supplementaryTotal = supplementaryLines.reduce((sum, line) => sum + line.amountNum, 0);
+  const supplementaryTaxableTotal = supplementaryLines.reduce(
+    (sum, line) => sum + (line.taxable ? line.amountNum : 0),
+    0,
+  );
+  const supplementaryNonTaxableTotal = supplementaryTotal - supplementaryTaxableTotal;
+  const supplementaryExcludedFromStatutory = supplementaryLines.reduce(
+    (sum, line) => sum + (!line.includeInStatutoryBase ? line.amountNum : 0),
+    0,
+  );
+
   const requestedAdvanceLines = (input.advances ?? []).map((advance) => ({
     id: advance.id,
     code: `EWA-${advance.id}`,
@@ -1206,7 +1266,20 @@ function calculateEmployeePay(input: {
     }))
     .sort((a, b) => a.governmentPriority - b.governmentPriority || a.id - b.id);
 
-  const gross = Math.max(0, baseBasicPay + leaveAdjustmentTotal + overtimePay + nightDiffPay + calamityPay + holidayPremium + retroTotal + expenseTotal + deMinimisTotal + conversionTotal);
+  const gross = Math.max(
+    0,
+    baseBasicPay
+      + leaveAdjustmentTotal
+      + overtimePay
+      + nightDiffPay
+      + calamityPay
+      + holidayPremium
+      + retroTotal
+      + expenseTotal
+      + supplementaryTotal
+      + deMinimisTotal
+      + conversionTotal,
+  );
 
   // SSS uses total actual remuneration; Pag-IBIG monthly compensation includes
   // basic salary and allowances. First cutoffs retain the product's 50/50
@@ -1214,7 +1287,10 @@ function calculateEmployeePay(input: {
   // ledger baseline and the current deduction is a true-up to the actual
   // month-to-date obligation. A new hire who begins in the final cutoff has no
   // earlier obligation, so the current earned remuneration is used directly.
-  const remunerativeCutoffCompensation = Math.max(0, gross - expenseTotal);
+  const remunerativeCutoffCompensation = Math.max(
+    0,
+    gross - expenseTotal - supplementaryExcludedFromStatutory,
+  );
   const priorStatutory = input.priorStatutory ?? {
     remuneration: 0,
     sssEmployee: 0,
@@ -1269,12 +1345,22 @@ function calculateEmployeePay(input: {
   // BIR: only mandatory SSS/PHIC/HDMF employee contributions reduce taxable
   // compensation. Voluntary Pag-IBIG savings must never reduce MWE taxable
   // supplementary compensation.
-  const mweTaxableSupplementaryCompensation = Math.max(0, conversionTotal - conversionTaxExemptTotal);
+  const mweTaxableSupplementaryCompensation = Math.max(
+    0,
+    conversionTotal - conversionTaxExemptTotal + supplementaryTaxableTotal,
+  );
   const taxableCompensation = treatAsMwe
     ? Math.max(0, mweTaxableSupplementaryCompensation - sss - philhealth - pagibigMandatory)
     : Math.max(
         0,
-        gross - expenseTotal - deMinimisTotal - conversionTaxExemptTotal - sss - philhealth - pagibigMandatory,
+        gross
+          - expenseTotal
+          - supplementaryNonTaxableTotal
+          - deMinimisTotal
+          - conversionTaxExemptTotal
+          - sss
+          - philhealth
+          - pagibigMandatory,
       );
   const withholding = computeSemiMonthlyWithholdingTax(taxableCompensation, false);
 
@@ -1385,6 +1471,7 @@ function calculateEmployeePay(input: {
     { code: "LATE", label: "Tardiness", amount: money(-tardinessDeduction) },
     { code: "UT", label: "Undertime", amount: money(-undertimeDeduction) },
     ...expenseLines,
+    ...supplementaryLines.map(({ amountNum: _amountNum, taxable: _taxable, includeInStatutoryBase: _include, ...line }) => line),
     ...deMinimisLines.map(({ periodAmount: _periodAmount, ...line }) => line),
     ...advanceLines,
     ...loanLines.map(({ deductAmount: _deductAmount, requestedDeduction: _requestedDeduction, ...l }) => l),
@@ -1410,6 +1497,9 @@ function calculateEmployeePay(input: {
       `dailyRate=${money(dailyRate)}`,
       `hourlyRate=${money(hourlyRate)}`,
       `taxableCompensation=${money(taxableCompensation)}`,
+      `supplementaryEarnings=${money(supplementaryTotal)}`,
+      `supplementaryTaxable=${money(supplementaryTaxableTotal)}`,
+      `supplementaryExcludedFromStatutory=${money(supplementaryExcludedFromStatutory)}`,
       `deMinimisPaid=${money(deMinimisTotal)}`,
       `deMinimisOtherBenefitsPool=${money(deMinimisOtherBenefitsPool)}`,
       `mweTaxableSupplementaryCompensation=${money(mweTaxableSupplementaryCompensation)}`,
