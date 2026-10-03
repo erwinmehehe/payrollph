@@ -16,6 +16,7 @@ import {
   leaveRequests,
   holidays,
   orgUnits,
+  organizations,
   payrollEntries,
   payrollJobs,
   payrollRuns,
@@ -78,6 +79,7 @@ type MonthToDateStatutoryContext = {
   sssEmployee: number;
   philHealthEmployee: number;
   pagIbigEmployee: number;
+  pagIbigVoluntaryEmployee: number;
 };
 
 function storedPayrollLines(value: unknown) {
@@ -302,6 +304,10 @@ async function processPayrollChunk(input: {
   await ensureEmployeePayProfiles(input.organizationId);
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, input.runId));
   if (!run) throw new Error("Payroll run missing");
+  const [organization] = await db.select().from(organizations)
+    .where(eq(organizations.id, input.organizationId))
+    .limit(1);
+  if (!organization) throw new Error("Payroll organization missing");
 
   const employeeWhere = run.scopeOrgUnitId
     ? and(
@@ -354,6 +360,7 @@ async function processPayrollChunk(input: {
       sssEmployee: 0,
       philHealthEmployee: 0,
       pagIbigEmployee: 0,
+      pagIbigVoluntaryEmployee: 0,
     };
     const lines = storedPayrollLines(row.lineItems);
     const expenses = lines
@@ -365,6 +372,7 @@ async function processPayrollChunk(input: {
       if (line.code === "SSS") current.sssEmployee += amount;
       if (line.code === "PHIC") current.philHealthEmployee += amount;
       if (line.code === "HDMF") current.pagIbigEmployee += amount;
+      if (line.code === "HDMF_VOL") current.pagIbigVoluntaryEmployee += amount;
     }
     monthToDateByEmployee.set(row.employeeId, current);
   }
@@ -657,6 +665,7 @@ async function processPayrollChunk(input: {
       })),
       holidayCalendar,
       monthToDateStatutory: monthToDateByEmployee.get(employee.id),
+      statutoryDeductionTiming: organization.statutoryDeductionTiming,
       restDayRevisions: (restDayRevisionsByEmployee.get(employee.id) ?? []).map((revision) => ({
         effectiveDate: String(revision.effectiveDate),
         previousRestDay: revision.previousRestDay,
@@ -771,6 +780,7 @@ function calculateEmployeePay(input: {
   payRevisions?: EffectivePayRevisionInput[];
   holidayCalendar?: HolidayCalendarEntry[];
   monthToDateStatutory?: MonthToDateStatutoryContext;
+  statutoryDeductionTiming?: string;
   restDayRevisions?: EffectiveRestDayRevisionInput[];
   periodStart: string;
   periodEnd: string;
@@ -1070,6 +1080,7 @@ function calculateEmployeePay(input: {
     sssEmployee: 0,
     philHealthEmployee: 0,
     pagIbigEmployee: 0,
+    pagIbigVoluntaryEmployee: 0,
   };
   const currentContributableCompensation = Math.max(0, gross - expenseTotal);
   const monthlyRemuneration = Math.max(
@@ -1080,21 +1091,37 @@ function calculateEmployeePay(input: {
   const philHealthRule = computePhilHealth(monthly);
   const pagIbigRule = computePagIbig(monthlyRemuneration);
   const isSecondCutoff = Number(input.periodStart.slice(8, 10)) >= 16;
-  const sss = roundToCents(
-    isSecondCutoff
-      ? Math.max(0, sssRule.employee - priorMonth.sssEmployee)
-      : sssRule.employee / 2,
+  const timing =
+    input.statutoryDeductionTiming === "first_cutoff"
+      || input.statutoryDeductionTiming === "second_cutoff"
+      ? input.statutoryDeductionTiming
+      : "split";
+
+  const scheduledContribution = (monthlyTarget: number, priorCollected: number) => {
+    if (timing === "second_cutoff") {
+      return isSecondCutoff ? roundToCents(Math.max(0, monthlyTarget - priorCollected)) : 0;
+    }
+    if (timing === "first_cutoff") {
+      // The first cutoff collects the current monthly target. A second-cutoff
+      // true-up is still allowed if variable remuneration increased that target.
+      return isSecondCutoff
+        ? roundToCents(Math.max(0, monthlyTarget - priorCollected))
+        : roundToCents(monthlyTarget);
+    }
+    return isSecondCutoff
+      ? roundToCents(Math.max(0, monthlyTarget - priorCollected))
+      : roundToCents(monthlyTarget / 2);
+  };
+
+  const sss = scheduledContribution(sssRule.employee, priorMonth.sssEmployee);
+  const philhealth = scheduledContribution(philHealthRule.employee, priorMonth.philHealthEmployee);
+  const pagibigMandatory = scheduledContribution(pagIbigRule.employee, priorMonth.pagIbigEmployee);
+  const voluntaryPagIbigMonthly = Math.max(0, Number(input.employee.pagIbigVoluntaryMonthly ?? 0));
+  const pagibigVoluntary = scheduledContribution(
+    voluntaryPagIbigMonthly,
+    priorMonth.pagIbigVoluntaryEmployee,
   );
-  const philhealth = roundToCents(
-    isSecondCutoff
-      ? Math.max(0, philHealthRule.employee - priorMonth.philHealthEmployee)
-      : philHealthRule.employee / 2,
-  );
-  const pagibig = roundToCents(
-    isSecondCutoff
-      ? Math.max(0, pagIbigRule.employee - priorMonth.pagIbigEmployee)
-      : pagIbigRule.employee / 2,
-  );
+  const pagibig = roundToCents(pagibigMandatory + pagibigVoluntary);
 
   // MWE statutory minimum wage plus its OT/holiday/NSD/hazard premiums remain
   // exempt, but additional taxable compensation must still reach the BIR table.
@@ -1115,7 +1142,7 @@ function calculateEmployeePay(input: {
       - mweExemptCompensation
       - sss
       - philhealth
-      - pagibig,
+      - pagibigMandatory,
   );
   const withholding = computeSemiMonthlyWithholdingTax(taxableCompensation, false);
   const benefitLines = calculateBenefits(input.benefits ?? []);
@@ -1176,7 +1203,8 @@ function calculateEmployeePay(input: {
     ...conversionLines.map(({ amountNum: _amountNum, taxExempt: _taxExempt, ...c }) => c),
     { code: "SSS", label: "SSS contribution", amount: money(-sss) },
     { code: "PHIC", label: "PhilHealth contribution", amount: money(-philhealth) },
-    { code: "HDMF", label: "Pag-IBIG contribution", amount: money(-pagibig) },
+    { code: "HDMF", label: "Pag-IBIG mandatory contribution", amount: money(-pagibigMandatory) },
+    { code: "HDMF_VOL", label: "Pag-IBIG voluntary contribution", amount: money(-pagibigVoluntary) },
     { code: "WHT", label: "Withholding tax", amount: money(-withholding) },
     { code: "LATE", label: "Tardiness", amount: money(-tardinessDeduction) },
     { code: "UT", label: "Undertime", amount: money(-undertimeDeduction) },
@@ -1232,7 +1260,10 @@ function calculateEmployeePay(input: {
       `priorMonthSssEmployee=${money(priorMonth.sssEmployee)}`,
       `priorMonthPhilHealthEmployee=${money(priorMonth.philHealthEmployee)}`,
       `priorMonthPagIbigEmployee=${money(priorMonth.pagIbigEmployee)}`,
-      `statutoryCutoffMode=${isSecondCutoff ? "second-cutoff-true-up" : "first-cutoff-half"}`,
+      `priorMonthPagIbigVoluntaryEmployee=${money(priorMonth.pagIbigVoluntaryEmployee)}`,
+      `pagIbigVoluntaryMonthly=${money(voluntaryPagIbigMonthly)}`,
+      `statutoryDeductionTiming=${timing}`,
+      `statutoryCutoffMode=${isSecondCutoff ? "second-cutoff-true-up" : timing === "first_cutoff" ? "first-cutoff-full" : timing === "second_cutoff" ? "first-cutoff-deferred" : "first-cutoff-half"}`,
       `pagIbigEmployeeRate=${pagIbigRule.employeeRate}`,
       `withholdingTable=RR11-2018-revised-2023+`,
       `region=${input.employee.region ?? "NCR"}`,
