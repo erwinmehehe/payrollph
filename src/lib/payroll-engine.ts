@@ -44,6 +44,7 @@ import {
   type HolidayCalendarEntry,
 } from "@/lib/wage-orders";
 import { aggregateDeMinimisForSemiMonthly, type DeMinimisType } from "@/lib/ph-compliance";
+import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
 import { calculateBenefits, type EnrollmentInput } from "@/lib/benefits";
 import { benefitEnrollments, benefitPlans } from "@/db/schema";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
@@ -827,6 +828,7 @@ async function processPayrollChunk(input: {
         reason: revision.reason,
       })),
       holidayCalendar: employeeHolidayCalendar,
+      holidayCalendarFingerprint: holidayCalendarFingerprint(employeeHolidayCalendar),
       holidayEligibilityAttendanceDates,
       holidayEligibilityPaidLeaveDates,
       statutoryDeductionTiming: organization.statutoryDeductionTiming,
@@ -950,6 +952,7 @@ function calculateEmployeePay(input: {
   payProfile: EmployeePayProfileInput;
   payRevisions?: EffectivePayRevisionInput[];
   holidayCalendar?: HolidayCalendarEntry[];
+  holidayCalendarFingerprint?: string;
   holidayEligibilityAttendanceDates?: string[];
   holidayEligibilityPaidLeaveDates?: string[];
   statutoryDeductionTiming?: string;
@@ -1598,6 +1601,7 @@ function calculateEmployeePay(input: {
       `retroPay=${money(retroTotal)}`,
       `retroAdjustments=${retroLines.length}`,
       `punches=${eligiblePunches.length}`,
+      `holidayCalendarFingerprint=${input.holidayCalendarFingerprint ?? ""}`,
       `holidayEligibilityAttendanceDates=${(input.holidayEligibilityAttendanceDates ?? []).join("|")}`,
       `holidayEligibilityPaidLeaveDates=${(input.holidayEligibilityPaidLeaveDates ?? []).join("|")}`,
       `employmentStart=${employmentStart}`,
