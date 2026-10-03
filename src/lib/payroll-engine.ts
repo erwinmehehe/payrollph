@@ -381,15 +381,14 @@ async function processPayrollChunk(input: {
     lte(calamityAdvisories.startDate, run.periodEnd),
     gte(calamityAdvisories.endDate, run.periodStart),
   ));
-  const holidayEligibilityLookbackStart = addDays(String(run.periodStart), -14);
-  const holidayRows = await db.select().from(holidays).where(and(
+  const holidayRows = await db.select().from(holidays).where(
     or(isNull(holidays.organizationId), eq(holidays.organizationId, input.organizationId)),
-    gte(holidays.holidayDate, holidayEligibilityLookbackStart),
-    lte(holidays.holidayDate, run.periodEnd),
-  ));
+  );
   const localHolidayCalendar: HolidayCalendarEntry[] = holidayRows.flatMap((row) => {
+    const date = String(row.holidayDate);
+    if (date > String(run.periodEnd)) return [];
     const kind = row.kind === "regular" || row.kind === "special" ? row.kind : null;
-    return kind ? [{ date: String(row.holidayDate), name: row.name, kind }] : [];
+    return kind ? [{ date, name: row.name, kind }] : [];
   });
   const holidayCalendar = [
     ...NATIONAL_HOLIDAYS_2026,
@@ -444,8 +443,6 @@ async function processPayrollChunk(input: {
           eq(leaveRequests.organizationId, input.organizationId),
           eq(leaveRequests.status, "Approved"),
           inArray(leaveRequests.employeeId, chunkIds),
-          lte(leaveRequests.startDate, run.periodEnd),
-          gte(leaveRequests.endDate, holidayEligibilityLookbackStart),
         ))
       : Promise.resolve([]),
   ]);
@@ -617,15 +614,45 @@ async function processPayrollChunk(input: {
   let chunkExceptions = 0;
 
   for (const employee of chunk) {
-    const payrollAttendance = await db.select().from(timePunches).where(and(
+    const punches = await db.select().from(timePunches).where(and(
       eq(timePunches.organizationId, input.organizationId),
       eq(timePunches.employeeId, employee.id),
-      gte(timePunches.workDate, holidayEligibilityLookbackStart),
+      gte(timePunches.workDate, run.periodStart),
       lte(timePunches.workDate, run.periodEnd),
     ));
-    const punches = payrollAttendance.filter((punch) => String(punch.workDate) >= String(run.periodStart));
+
+    const employeeRestDayRevisions = (restDayRevisionsByEmployee.get(employee.id) ?? []).map((revision) => ({
+      effectiveDate: String(revision.effectiveDate),
+      previousRestDay: revision.previousRestDay,
+      newRestDay: revision.newRestDay,
+    }));
+    const holidayEligibilityDates = [...new Set(
+      holidayCalendar
+        .map((holiday) => holiday.date)
+        .filter((date) => date >= String(run.periodStart) && date <= String(run.periodEnd))
+        .filter((date) => {
+          const context = holidayPayContextOn(date, holidayCalendar);
+          return context.holiday === "regular" || context.holiday === "double";
+        })
+        .map((holidayDate) => precedingScheduledWorkDate({
+          holidayDate,
+          currentRestDay: employee.restDay,
+          restDayRevisions: employeeRestDayRevisions,
+          holidayCalendar,
+          employeeStartDate: String(employee.startDate),
+        }))
+        .filter((date): date is string => Boolean(date)),
+    )];
+
+    const holidayEligibilityAttendance = holidayEligibilityDates.length
+      ? await db.select().from(timePunches).where(and(
+          eq(timePunches.organizationId, input.organizationId),
+          eq(timePunches.employeeId, employee.id),
+          inArray(timePunches.workDate, holidayEligibilityDates),
+        ))
+      : [];
     const holidayEligibilityAttendanceDates = [...new Set(
-      payrollAttendance
+      holidayEligibilityAttendance
         .filter((punch) => Boolean(punch.timeIn && punch.timeOut))
         .map((punch) => String(punch.workDate)),
     )];
@@ -636,14 +663,14 @@ async function processPayrollChunk(input: {
         policy.payTreatment !== "unpaid" && Number(policy.paidPercentage) > 0,
       ]),
     );
-    const holidayEligibilityPaidLeaveDates = [...new Set(
-      approvedLeaveRows
-        .filter((row) => row.employeeId === employee.id && paidPolicyByType.get(row.leaveType) === true)
-        .flatMap((row) => datesInRange(
-          String(row.startDate) < holidayEligibilityLookbackStart ? holidayEligibilityLookbackStart : String(row.startDate),
-          String(row.endDate) > String(run.periodEnd) ? String(run.periodEnd) : String(row.endDate),
-        )),
-    )];
+    const employeeApprovedLeaveRows = approvedLeaveRows.filter((row) => row.employeeId === employee.id);
+    const holidayEligibilityPaidLeaveDates = holidayEligibilityDates.filter((date) =>
+      employeeApprovedLeaveRows.some((row) =>
+        paidPolicyByType.get(row.leaveType) === true
+        && String(row.startDate) <= date
+        && String(row.endDate) >= date
+      ),
+    );
     const unit = employee.orgUnitId ? unitMap.get(employee.orgUnitId) : null;
     const calc = calculateEmployeePay({
       employee,
@@ -727,11 +754,7 @@ async function processPayrollChunk(input: {
       holidayEligibilityAttendanceDates,
       holidayEligibilityPaidLeaveDates,
       statutoryDeductionTiming: organization.statutoryDeductionTiming,
-      restDayRevisions: (restDayRevisionsByEmployee.get(employee.id) ?? []).map((revision) => ({
-        effectiveDate: String(revision.effectiveDate),
-        previousRestDay: revision.previousRestDay,
-        newRestDay: revision.newRestDay,
-      })),
+      restDayRevisions: employeeRestDayRevisions,
       periodStart: String(run.periodStart),
       periodEnd: String(run.periodEnd),
       priorStatutory: priorStatutoryByEmployee.get(employee.id),
