@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { eq } from "drizzle-orm";
+import { and, eq, gte, lte } from "drizzle-orm";
 import { db } from "../src/db";
 import {
   earnedWageRequests,
@@ -169,7 +169,24 @@ test("daily employee holiday pay requires proven preceding scheduled workday acr
       payDate: "2026-04-15",
     }).returning();
 
+    const priorAttendanceBeforeQueue = await db.select().from(timePunches).where(and(
+      eq(timePunches.organizationId, org.id),
+      eq(timePunches.employeeId, eligible.id),
+      gte(timePunches.workDate, "2026-03-19"),
+      lte(timePunches.workDate, "2026-04-15"),
+    ));
+    assert.equal(priorAttendanceBeforeQueue.length, 1, "fixture punch must exist before queueing");
+
     await enqueuePayrollRun(run.id);
+
+    const priorAttendanceAfterQueue = await db.select().from(timePunches).where(and(
+      eq(timePunches.organizationId, org.id),
+      eq(timePunches.employeeId, eligible.id),
+      gte(timePunches.workDate, "2026-03-19"),
+      lte(timePunches.workDate, "2026-04-15"),
+    ));
+    assert.equal(priorAttendanceAfterQueue.length, 1, "queue setup must not remove prior-cutoff attendance");
+
     await drainPayrollQueue(10, run.id);
 
     const entries = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
