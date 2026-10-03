@@ -69,3 +69,32 @@ test("submission stage reflects the maker-checker state", () => {
   assert.equal(approved.steps.submit.state, "done");
   assert.equal(approved.canSubmit, false);
 });
+
+
+test("payroll officer UI hides the generic release handoff rail", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync("src/components/workspace/payroll-run.tsx", "utf8");
+  assert.ok(source.includes("{!payrollOfficerMode && ("));
+  assert.ok(source.includes("<PayrollHandoff"));
+  assert.ok(source.includes("<PayrollOfficerWorkspace"));
+});
+
+test("release checklist exposes safe assurance findings for direct employee deep-links", async () => {
+  const { readFileSync } = await import("node:fs");
+  const route = readFileSync("src/app/api/payroll-runs/[id]/release-checklist/route.ts", "utf8");
+  const workspace = readFileSync("src/components/workspace/payroll-officer-workspace.tsx", "utf8");
+  assert.ok(route.includes("assuranceFindings"));
+  assert.ok(route.includes("employeeId: finding.employeeId ?? null"));
+  assert.ok(!route.includes("current: finding.current"));
+  assert.ok(workspace.includes("finding.employeeId"));
+  assert.ok(workspace.includes('action: "Explain pay"'));
+  assert.ok(workspace.includes("onExplainEmployee(finding.employeeId!)"));
+});
+
+test("generic statutory attention never opens the first employee by accident", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync("src/components/workspace/payroll-officer-workspace.tsx", "utf8");
+  assert.ok(!source.includes("onExplainEmployee(entries[0].employeeId)"));
+  assert.ok(source.includes("hasStatutoryFinding"));
+  assert.ok(source.includes("hasAttendanceFinding"));
+});
