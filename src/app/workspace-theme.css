@@ -5250,3 +5250,54 @@
     top: 11px;
   }
 }
+
+
+/* Role dashboard containment hardening */
+.role-workspace-v2,
+.role-v2-owner-grid,
+.role-v2-two-column,
+.role-v2-owner-grid > *,
+.role-v2-two-column > *,
+.role-v2-surface,
+.role-v2-table,
+.role-v2-owner-hero,
+.role-v2-payroll-hero,
+.role-v2-checker-hero,
+.role-v2-hr-hero,
+.role-v2-bookkeeper-hero {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.role-v2-surface {
+  overflow: hidden;
+}
+
+.role-v2-table {
+  width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+@media (max-width: 760px) {
+  .role-workspace-v2 {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  .role-v2-owner-grid,
+  .role-v2-two-column,
+  .role-v2-owner-hero,
+  .role-v2-payroll-hero,
+  .role-v2-checker-hero,
+  .role-v2-hr-hero,
+  .role-v2-bookkeeper-hero,
+  .role-v2-calculation-footer,
+  .role-v2-checker-actionbar {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+}
