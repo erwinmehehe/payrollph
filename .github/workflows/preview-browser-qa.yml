@@ -343,10 +343,10 @@ jobs:
           }
 
           const personas = [
-            { id: "owner", label: "Owner", short: "Owner", person: "Andrea Lim", landing: "Good morning, Andrea", taskPage: "Dashboard", dashboardRole: "owner" },
-            { id: "hr", label: "HR Admin", short: "HR Admin", person: "Aira Villanueva", landing: "Good morning, Aira", taskPage: "Employees", dashboardRole: "hr" },
+            { id: "owner", label: "Owner", short: "Owner", person: "Andrea Lim", landing: "Good morning, Andrea", taskPage: "Overview", dashboardRole: "owner" },
+            { id: "hr", label: "HR Admin", short: "HR Admin", person: "Aira Villanueva", landing: "Good morning, Aira", taskPage: "People", dashboardRole: "hr" },
             { id: "payroll", label: "Payroll Officer", short: "Payroll", person: "Paolo Cruz", landing: "Good morning, Paolo", taskPage: "Payroll", dashboardRole: "payroll" },
-            { id: "checker", label: "Checker", short: "Checker", person: "Mariel Santos", landing: "Good morning, Mariel", taskPage: "Approvals", dashboardRole: "checker" },
+            { id: "checker", label: "Checker", short: "Checker", person: "Mariel Santos", landing: "Good morning, Mariel", taskPage: "Payroll Review", dashboardRole: "checker" },
             { id: "employee", label: "Employee", short: "Employee", person: "Jonas Reyes", landing: "My pay", taskPage: "My pay", dashboardRole: null },
           ];
 
@@ -531,8 +531,13 @@ jobs:
             if (persona.dashboardRole) {
               const dashboard = page.locator(`[data-role-dashboard="${persona.dashboardRole}"]`);
               check((await dashboard.count()) === 1, `${persona.label}: role-specific dashboard did not render`);
-              check((await dashboard.locator(".dashboard-alert-banner").count()) === 1, `${persona.label}: focused owl alert banner is missing`);
-              check((await dashboard.locator(".dashboard-stat-card").count()) === 4, `${persona.label}: dashboard must show exactly four primary metrics`);
+              check((await dashboard.locator(".dashboard-alert-banner").count()) === 1, `${persona.label}: Needs Attention banner is missing`);
+              if (persona.id === "hr") {
+                check((await dashboard.locator(".dashboard-stat-card").count()) === 4, "HR: readiness summary must expose four compact signals");
+              } else {
+                check((await dashboard.locator(".payroll-focus-summary > div").count()) >= 3, `${persona.label}: payroll focus card must carry the primary financial summary`);
+                check((await dashboard.locator(".dashboard-stat-card").count()) === 0, `${persona.label}: duplicate KPI cards should stay off the focused landing view`);
+              }
               const sandbox = page.locator(".demo-sandbox").first();
               if (await sandbox.count()) {
                 check((await sandbox.isVisible()) === false, `${persona.label}: bulky demo sandbox must stay off the landing view`);
@@ -584,7 +589,7 @@ jobs:
               check((await sidebar.locator(".nav-item").filter({ hasText: /^Migration$/ }).count()) === 0, "HR: migration admin navigation must stay hidden");
             }
             if (persona.id === "checker") {
-              check((await sidebar.locator(".nav-item").filter({ hasText: /^Employees$/ }).count()) === 0, "Checker: people administration must stay hidden");
+              check((await sidebar.locator(".nav-item").filter({ hasText: /^People$/ }).count()) === 0, "Checker: people administration must stay hidden");
               check((await sidebar.locator(".nav-item").filter({ hasText: /^Payroll$/ }).count()) === 0, "Checker: unsafe payroll-maker page must stay hidden");
             }
             if (persona.id === "payroll") {
@@ -597,7 +602,7 @@ jobs:
               check((await page.getByRole("button", { name: /^Decline$/ }).count()) === 0, "Payroll: Decline action must be hidden");
               check((await page.getByRole("button", { name: /Delegation settings/i }).count()) === 0, "Payroll: delegation controls must be hidden");
               check((await page.locator("[data-payroll-handoff]").count()) >= 1, "Payroll: approvals page should retain the shared handoff context");
-              const overviewNav = sidebar.locator(".nav-item").filter({ hasText: /^Dashboard$/ }).first();
+              const overviewNav = sidebar.locator(".nav-item").filter({ hasText: /^Overview$/ }).first();
               await overviewNav.click();
               await page.waitForTimeout(100);
             }

@@ -1,3 +1,13 @@
+export const ROLE_PRIMARY_PAGES: Partial<Record<string, readonly string[]>> = {
+  owner: ["Overview", "Payroll", "Approvals", "Analytics", "People", "Settings"],
+  admin: ["Overview", "Payroll", "Exports", "Compliance", "Analytics", "Settings"],
+  bookkeeper: ["Overview", "Payroll", "Exports", "Compliance", "Analytics", "Settings"],
+  hr: ["Overview", "People", "Time & attendance", "Leave", "Approvals", "Analytics"],
+  payroll: ["Overview", "Payroll", "People", "Time & attendance", "Approvals", "Analytics"],
+  checker: ["Overview", "Approvals", "Audit trail"],
+  manager: ["Overview", "Approvals", "Analytics"],
+};
+
 export const REAL_ROLE_PAGE_ACCESS: Partial<Record<string, readonly string[]>> = {
   hr: [
     "Overview",
@@ -48,6 +58,11 @@ const DELEGATION_UI_ROLES = new Set(["owner", "admin", "manager", "checker"]);
 export function workspacePagesForRole(role: string | null | undefined) {
   if (!role) return null;
   return REAL_ROLE_PAGE_ACCESS[role] ?? null;
+}
+
+export function workspacePrimaryPagesForRole(role: string | null | undefined) {
+  if (!role) return null;
+  return ROLE_PRIMARY_PAGES[role] ?? null;
 }
 
 export function roleCanManagePayroll(role: string | null | undefined) {

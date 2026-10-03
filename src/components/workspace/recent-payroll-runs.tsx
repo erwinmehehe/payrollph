@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, UsersRound } from "lucide-react";
 import type { PayrollRun } from "./types";
 
 const peso = (value: string | number) =>
@@ -30,45 +30,29 @@ export function RecentPayrollRuns({
       <header>
         <div>
           <span className="dashboard-section-kicker">Payroll history</span>
-          <h2>Recent Payroll Runs</h2>
+          <h2>Recent payrolls</h2>
         </div>
         <button type="button" className="dashboard-table-link" onClick={onViewAll}>
           View all <ArrowUpRight size={13} aria-hidden />
         </button>
       </header>
 
-      <div className="dashboard-payroll-table-wrap">
-        <table className="dashboard-payroll-table">
-          <thead>
-            <tr>
-              <th>Period</th>
-              <th>Type</th>
-              <th>Employees</th>
-              <th>Total Amount</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {runs.slice(0, 3).map((run) => (
-              <tr key={run.id}>
-                <td><strong>{run.periodLabel}</strong></td>
-                <td>{run.scopeLabel || "Regular payroll"}</td>
-                <td>{run.employeeCount}</td>
-                <td className="num">{peso(run.netPay)}</td>
-                <td>
-                  <span className="dashboard-run-status" data-tone={statusTone(run.status)}>
-                    {run.status}
-                  </span>
-                </td>
-              </tr>
-            ))}
-            {runs.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="dashboard-table-empty">No payroll runs yet.</td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
+      <div className="dashboard-payroll-list">
+        {runs.slice(0, 3).map((run) => (
+          <button type="button" className="dashboard-payroll-row" key={run.id} onClick={onViewAll}>
+            <div className="dashboard-payroll-period">
+              <strong>{run.periodLabel}</strong>
+              <span>{run.scopeLabel || "Regular payroll"}</span>
+            </div>
+            <span className="dashboard-payroll-people"><UsersRound size={13} aria-hidden /> {run.employeeCount}</span>
+            <strong className="dashboard-payroll-amount">{peso(run.netPay)}</strong>
+            <span className="dashboard-run-status" data-tone={statusTone(run.status)}>
+              {run.status}
+            </span>
+            <ArrowUpRight className="dashboard-payroll-row-arrow" size={14} aria-hidden />
+          </button>
+        ))}
+        {runs.length === 0 ? <div className="dashboard-table-empty">No payroll runs yet.</div> : null}
       </div>
     </section>
   );
