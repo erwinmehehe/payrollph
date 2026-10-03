@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { evaluatePayrollAssurance } from "../src/lib/payroll-assurance";
+import { evaluatePayrollAssurance, payrollComponentsOf } from "../src/lib/payroll-assurance";
 
 function entry(input: Partial<{
   id: number;
@@ -102,4 +102,38 @@ test("engine exceptions require review but do not become hard blockers", () => {
   const result = evaluatePayrollAssurance([flagged], []);
   assert.equal(result.summary.blocking, 0);
   assert.ok(result.findings.some((finding) => finding.code === "ENGINE_EXCEPTION" && finding.severity === "medium"));
+});
+
+
+test("assurance contribution breakdown includes voluntary Pag-IBIG", () => {
+  const components = payrollComponentsOf(entry({
+    deductions: "5500",
+    lineItems: [
+      { code: "BASIC", label: "Basic", amount: "30000" },
+      { code: "SSS", label: "SSS", amount: "-875" },
+      { code: "PHIC", label: "PhilHealth", amount: "-750" },
+      { code: "HDMF", label: "Pag-IBIG mandatory", amount: "-200" },
+      { code: "HDMF_VOL", label: "Pag-IBIG voluntary", amount: "-500" },
+      { code: "WHT", label: "Tax", amount: "-3175" },
+    ],
+  }));
+
+  assert.equal(components.pagIbig, 700);
+});
+
+test("server assurance baseline is the previous released run in the same org-unit scope", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync("src/lib/payroll-assurance-server.ts", "utf8");
+  assert.ok(source.includes("candidate.scopeOrgUnitId === run.scopeOrgUnitId"));
+  assert.ok(source.includes(".limit(24)"));
+});
+
+
+test("server assurance hard-blocks incomplete stored payroll coverage", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync("src/lib/payroll-assurance-server.ts", "utf8");
+  assert.ok(source.includes('"INCOMPLETE_PAYROLL_RUN"'));
+  assert.ok(source.includes("currentEntries.length !== expectedEntries"));
+  assert.ok(source.includes("processedChunks < totalChunks"));
+  assert.ok(source.includes("assurance.summary.blocking += 1"));
 });

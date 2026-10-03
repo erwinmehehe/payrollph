@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Check, ClipboardCheck, Clock3, Settings2, ShieldCheck, UserCheck, X } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
+import { CheckerVarianceCenter } from "./checker-variance";
 import { buildPayrollHandoff, handoffViewerRole } from "@/lib/payroll-handoff";
 import type { DashboardData, Notify, Task } from "./types";
 import { EmptyState, Metric, PageHeading, Segmented, Spinner, Status } from "./ui";
@@ -38,7 +39,7 @@ export function ApprovalsView({
 
   const pendingCount = data.tasks.filter((task) => task.status === "Pending").length;
   const highCount = data.tasks.filter((task) => task.status === "Pending" && task.priority === "High").length;
-  const currentRun = data.payrollRuns.find((run) => run.status !== "Released") ?? data.payrollRuns[0];
+  const currentRun = data.payrollRuns.find((run) => run.status === "Pending approval") ?? data.payrollRuns.find((run) => run.status !== "Released") ?? data.payrollRuns[0];
   const payrollTask = currentRun
     ? data.tasks
         .filter((task) => task.detail.includes(`Payroll run #${currentRun.id}`))
@@ -48,6 +49,7 @@ export function ApprovalsView({
     ? buildPayrollHandoff(currentRun, { payrollExceptions: currentRun.exceptions, approvalTask: payrollTask })
     : [];
   const handoffRole = handoffViewerRole(data.access?.role ?? data.user?.role);
+  const checkerMode = data.access?.role === "checker";
 
   async function decide(task: Task, status: "Approved" | "Declined") {
     setPendingId(task.id);
@@ -85,6 +87,16 @@ export function ApprovalsView({
           payDate={currentRun.payDate}
           viewerRole={handoffRole}
           compact
+        />
+      )}
+
+      {checkerMode && currentRun && (
+        <CheckerVarianceCenter
+          run={currentRun}
+          payrollTask={payrollTask}
+          busy={busy}
+          canDecide={canDecide}
+          onDecide={onDecide}
         />
       )}
 

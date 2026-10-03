@@ -161,7 +161,7 @@ export function payrollComponentsOf(entry: AssuranceEntry): PayrollComponentBrea
   const deductions = Math.abs(numberOf(entry.deductions));
   const sss = lineAmountByCodes(entry, ["SSS"]);
   const philHealth = lineAmountByCodes(entry, ["PHIC", "PHILHEALTH"]);
-  const pagIbig = lineAmountByCodes(entry, ["HDMF", "PAGIBIG", "PAG-IBIG"]);
+  const pagIbig = lineAmountByCodes(entry, ["HDMF", "HDMF_VOL", "PAGIBIG", "PAG-IBIG"]);
   const withholdingTax = lineAmountByCodes(entry, ["WHT", "WITHHOLDING_TAX", "TAX"]);
   const knownDeductions = sss + philHealth + pagIbig + withholdingTax;
 
