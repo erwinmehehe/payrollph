@@ -37,7 +37,13 @@ export function buildPayrollOfficerWorkflow(input: {
   const submitted = input.runStatus === "Pending approval" || input.approvalStatus === "Pending";
   const approved = input.runStatus === "Ready for release" || input.approvalStatus === "Approved";
   const released = input.runStatus === "Released";
-  const canSubmit = calculationReady && !submitted && !approved && !released && ["Processed", "Needs review"].includes(input.runStatus);
+  const canSubmit =
+    calculationReady
+    && inputIssues.length === 0
+    && !submitted
+    && !approved
+    && !released
+    && ["Processed", "Needs review"].includes(input.runStatus);
 
   return {
     inputIssues,
@@ -63,7 +69,7 @@ export function buildPayrollOfficerWorkflow(input: {
           ? "done" as const
           : submitted
             ? "now" as const
-            : calculationReady
+            : calculationReady && inputIssues.length === 0
               ? "now" as const
               : "locked" as const,
       },
