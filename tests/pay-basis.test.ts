@@ -8,6 +8,7 @@ import {
   employeePayRevisions,
   employeePayRetroAdjustments,
   employees,
+  leaveConversions,
   organizations,
   payrollEntries,
   payrollRuns,
@@ -665,6 +666,148 @@ test("insufficient net pay prioritizes government loans and carries the remainde
     assert.ok(trace.inputs?.includes("loanRequested=12000.00"));
     assert.ok(trace.inputs?.some((line) => line.startsWith("loanDeducted=")));
     assert.ok(trace.flags?.some((flag) => flag.includes("Company Loan deduction was limited")));
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});
+
+
+test("below-reference wage does not automatically grant MWE tax exemption", async () => {
+  const [org] = await db.insert(organizations).values({
+    name: "Explicit MWE Classification Test",
+    legalName: "Explicit MWE Classification Test Inc.",
+    plan: "Core",
+  }).returning();
+
+  try {
+    const [employee] = await db.insert(employees).values({
+      organizationId: org.id,
+      employeeNo: "MWE-EXPLICIT",
+      firstName: "Explicit",
+      lastName: "Classification",
+      title: "Staff",
+      avatarInitials: "EC",
+      basicRate: "10000.00",
+      mwe: false,
+      region: "NCR",
+      startDate: "2025-01-01",
+    }).returning();
+
+    await db.insert(employeePayProfiles).values({
+      employeeId: employee.id,
+      organizationId: org.id,
+      payBasis: "monthly",
+      rateAmount: "10000.00",
+      standardWorkDaysPerMonth: "22.00",
+      standardHoursPerDay: "8.00",
+    });
+
+    await db.insert(leaveConversions).values({
+      organizationId: org.id,
+      employeeId: employee.id,
+      leaveType: "Vacation leave",
+      daysConverted: "20.0",
+      dailyRate: "1500.00",
+      cashAmount: "30000.00",
+      taxExempt: false,
+      status: "approved",
+    });
+
+    const [run] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      periodLabel: "Sep 16–30, 2026 explicit MWE",
+      periodStart: "2026-09-16",
+      periodEnd: "2026-09-30",
+      scopeLabel: "All locations",
+      status: "Draft",
+      payDate: "2026-09-30",
+    }).returning();
+
+    await enqueuePayrollRun(run.id, 25);
+    await drainPayrollQueue(10, run.id);
+
+    const [entry] = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
+    const lines = entry.lineItems as Array<{ code: string; amount: string }>;
+    const withholding = Math.abs(Number(lines.find((line) => line.code === "WHT")?.amount ?? 0));
+
+    assert.ok(withholding > 0, "taxable supplementary compensation must remain taxable when employee.mwe is false");
+    const trace = entry.trace as { inputs?: string[]; flags?: string[] };
+    assert.ok(trace.inputs?.includes("mwe=false (explicit employee tax classification)"));
+    assert.ok(
+      trace.flags?.some((flag) => flag.includes("payroll did not infer MWE tax status automatically")),
+      "wage-reference mismatch should be a review flag, not a tax-status override",
+    );
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});
+
+test("SSS and Pag-IBIG use remunerative earnings while PhilHealth remains basic-only", async () => {
+  const [org] = await db.insert(organizations).values({
+    name: "Statutory Compensation Base Test",
+    legalName: "Statutory Compensation Base Test Inc.",
+    plan: "Core",
+  }).returning();
+
+  try {
+    const [employee] = await db.insert(employees).values({
+      organizationId: org.id,
+      employeeNo: "STAT-BASE",
+      firstName: "Statutory",
+      lastName: "Base",
+      title: "Staff",
+      avatarInitials: "SB",
+      basicRate: "20000.00",
+      startDate: "2025-01-01",
+    }).returning();
+
+    await db.insert(employeePayProfiles).values({
+      employeeId: employee.id,
+      organizationId: org.id,
+      payBasis: "monthly",
+      rateAmount: "20000.00",
+      standardWorkDaysPerMonth: "22.00",
+      standardHoursPerDay: "8.00",
+    });
+
+    await db.insert(timePunches).values({
+      organizationId: org.id,
+      employeeId: employee.id,
+      workDate: "2026-09-21",
+      timeIn: new Date("2026-09-21T09:00:00+08:00"),
+      timeOut: new Date("2026-09-21T20:00:00+08:00"),
+      shiftStart: "09:00",
+      shiftEnd: "18:00",
+      status: "Complete",
+    });
+
+    const [run] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      periodLabel: "Sep 16–30, 2026 statutory base",
+      periodStart: "2026-09-16",
+      periodEnd: "2026-09-30",
+      scopeLabel: "All locations",
+      status: "Draft",
+      payDate: "2026-09-30",
+    }).returning();
+
+    await enqueuePayrollRun(run.id, 25);
+    await drainPayrollQueue(10, run.id);
+
+    const [entry] = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
+    const trace = entry.trace as { inputs?: string[] };
+    const inputs = trace.inputs ?? [];
+    const readNumber = (prefix: string) => Number(inputs.find((line) => line.startsWith(prefix))?.slice(prefix.length) ?? NaN);
+
+    const statutoryMonthly = readNumber("statutoryMonthlyCompensation=");
+    const sssMsc = readNumber("sssMonthlySalaryCredit=");
+    const philHealthBase = readNumber("philHealthContributionBase=");
+    const pagIbigBase = readNumber("pagIbigFundSalary=");
+
+    assert.ok(statutoryMonthly > 20000, "overtime/remunerative earnings must raise the SSS/Pag-IBIG compensation basis above basic");
+    assert.ok(sssMsc > 20000, "SSS MSC must reflect actual remuneration rather than basic salary alone");
+    assert.equal(philHealthBase, 20000, "PhilHealth must stay on monthly basic salary");
+    assert.equal(pagIbigBase, 10000, "Pag-IBIG fund salary remains capped at 10,000");
   } finally {
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
