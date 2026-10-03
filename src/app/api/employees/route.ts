@@ -1,5 +1,6 @@
 import { encryptBankAccount, maskBankAccount } from "@/lib/bank-account-crypto";
-import { enforceSameOriginMutation } from "@/lib/security-request";
+import { encryptGovernmentId, maskGovernmentId } from "@/lib/government-id-crypto";
+import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { and, asc, desc, eq, gte } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -56,6 +57,11 @@ export async function GET(request: Request) {
     return {
       ...employee,
       bankAccount: maskBankAccount(employee.bankAccount),
+      tin: maskGovernmentId(employee.tin),
+      tinBranchCode: maskGovernmentId(employee.tinBranchCode),
+      sssNo: maskGovernmentId(employee.sssNo),
+      philHealthNo: maskGovernmentId(employee.philHealthNo),
+      pagIbigNo: maskGovernmentId(employee.pagIbigNo),
       payBasis: profile?.payBasis ?? "monthly",
       payRate: profile?.rateAmount ?? employee.basicRate,
       standardWorkDaysPerMonth: profile?.standardWorkDaysPerMonth ?? "22.00",
@@ -152,11 +158,14 @@ export async function POST(request: Request) {
     bankAccount: encryptBankAccount(bankAccount),
     bankCode: bankCode || null,
     mobile: mobile || null,
-    tin: String(body.tin ?? "").trim() || null,
-    tinBranchCode: String(body.tinBranchCode ?? "").replace(/\D/g, "").padStart(4, "0").slice(-4) || null,
-    sssNo: String(body.sssNo ?? "").trim() || null,
-    philHealthNo: String(body.philHealthNo ?? "").trim() || null,
-    pagIbigNo: String(body.pagIbigNo ?? "").trim() || null,
+    tin: encryptGovernmentId(String(body.tin ?? "").trim() || null, { required: process.env.NODE_ENV === "production" }),
+    tinBranchCode: encryptGovernmentId(
+      String(body.tinBranchCode ?? "").replace(/\D/g, "").padStart(4, "0").slice(-4) || null,
+      { required: process.env.NODE_ENV === "production" },
+    ),
+    sssNo: encryptGovernmentId(String(body.sssNo ?? "").trim() || null, { required: process.env.NODE_ENV === "production" }),
+    philHealthNo: encryptGovernmentId(String(body.philHealthNo ?? "").trim() || null, { required: process.env.NODE_ENV === "production" }),
+    pagIbigNo: encryptGovernmentId(String(body.pagIbigNo ?? "").trim() || null, { required: process.env.NODE_ENV === "production" }),
     nationality: String(body.nationality ?? "Filipino").trim() || "Filipino",
     startDate,
   }).returning();
@@ -215,6 +224,11 @@ export async function POST(request: Request) {
     employee: {
       ...created,
       bankAccount: maskBankAccount(created.bankAccount),
+      tin: maskGovernmentId(created.tin),
+      tinBranchCode: maskGovernmentId(created.tinBranchCode),
+      sssNo: maskGovernmentId(created.sssNo),
+      philHealthNo: maskGovernmentId(created.philHealthNo),
+      pagIbigNo: maskGovernmentId(created.pagIbigNo),
     },
     onboarding,
     asset: assignedAsset,
@@ -384,16 +398,31 @@ export async function PATCH(request: Request) {
       error: "Bank account and bank code must be complete together before payroll payout.",
     }, { status: 422 });
   }
+  if (wantsPayoutUpdate) {
+    const mfaDenied = requireSensitiveActionMfa(user);
+    if (mfaDenied) return mfaDenied;
+  }
 
   const updates = {
     middleName: clean(body.middleName),
-    tin: clean(body.tin),
+    tin: body.tin === undefined
+      ? undefined
+      : encryptGovernmentId(clean(body.tin), { required: process.env.NODE_ENV === "production" }),
     tinBranchCode: body.tinBranchCode === undefined
       ? undefined
-      : String(body.tinBranchCode ?? "").replace(/\D/g, "").padStart(4, "0").slice(-4) || null,
-    sssNo: clean(body.sssNo),
-    philHealthNo: clean(body.philHealthNo),
-    pagIbigNo: clean(body.pagIbigNo),
+      : encryptGovernmentId(
+          String(body.tinBranchCode ?? "").replace(/\D/g, "").padStart(4, "0").slice(-4) || null,
+          { required: process.env.NODE_ENV === "production" },
+        ),
+    sssNo: body.sssNo === undefined
+      ? undefined
+      : encryptGovernmentId(clean(body.sssNo), { required: process.env.NODE_ENV === "production" }),
+    philHealthNo: body.philHealthNo === undefined
+      ? undefined
+      : encryptGovernmentId(clean(body.philHealthNo), { required: process.env.NODE_ENV === "production" }),
+    pagIbigNo: body.pagIbigNo === undefined
+      ? undefined
+      : encryptGovernmentId(clean(body.pagIbigNo), { required: process.env.NODE_ENV === "production" }),
     nationality: body.nationality === undefined ? undefined : String(body.nationality ?? "").trim() || "Filipino",
     restDay: changedRestDay ? nextRestDay : undefined,
     bankAccount: replacementBankAccount ? encryptBankAccount(replacementBankAccount) : undefined,
@@ -652,6 +681,11 @@ export async function PATCH(request: Request) {
     employee: {
       ...updated,
       bankAccount: maskBankAccount(updated.bankAccount),
+      tin: maskGovernmentId(updated.tin),
+      tinBranchCode: maskGovernmentId(updated.tinBranchCode),
+      sssNo: maskGovernmentId(updated.sssNo),
+      philHealthNo: maskGovernmentId(updated.philHealthNo),
+      pagIbigNo: maskGovernmentId(updated.pagIbigNo),
       payBasis: nextPayProfile?.payBasis ?? existingPayProfile?.payBasis ?? "monthly",
       payRate: (nextPayProfile?.rateAmount ?? Number(existingPayProfile?.rateAmount ?? updated.basicRate)).toFixed(2),
       standardWorkDaysPerMonth: (nextPayProfile?.standardWorkDaysPerMonth ?? Number(existingPayProfile?.standardWorkDaysPerMonth ?? 22)).toFixed(2),
