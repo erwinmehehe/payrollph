@@ -30,7 +30,10 @@ function sumContributionsAndTax(lineItems: unknown) {
     const code = String(item.code ?? "").toUpperCase();
     const label = `${item.code ?? ""} ${item.label ?? ""}`.toLowerCase();
 
-    if (label.includes("sss") || label.includes("philhealth") || label.includes("pag-ibig") || label.includes("pagibig")) {
+    if (
+      code !== "HDMF_VOL"
+      && (label.includes("sss") || label.includes("philhealth") || label.includes("pag-ibig") || label.includes("pagibig"))
+    ) {
       contributions += amount;
     } else if (label.includes("withholding") || label.includes("tax")) {
       tax += amount;
