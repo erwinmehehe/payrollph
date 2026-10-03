@@ -368,7 +368,7 @@ export function SelfServicePortal() {
   const totalAvailableLeave = data.leave.balances.reduce((sum, balance) => sum + balance.available, 0);
 
   return (
-    <div className="app-shell employee-workspace-shell" data-workspace-page={tab === "home" ? "Overview" : tab} data-workspace-role="employee">
+    <div className="app-shell employee-workspace-shell" data-workspace-page={`employee-${tab}`} data-workspace-role="employee">
       <aside className="sidebar employee-workspace-sidebar" aria-label="Employee navigation">
         <div className="sidebar-brand employee-shell-brand">
           <span className="brand-mark employee-shell-brandmark"><ShieldCheck size={18} /></span>
