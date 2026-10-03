@@ -233,7 +233,8 @@ export async function PATCH(request: Request) {
 
   if (status === "completed") {
     if (existing.requestType === "access" || existing.requestType === "portability") {
-      const evidence = await db.select().from(auditEvents).where(eq(auditEvents.organizationId, existing.organizationId));
+      const evidenceOrganizationId = existing.organizationId ?? 0;
+      const evidence = await db.select().from(auditEvents).where(eq(auditEvents.organizationId, evidenceOrganizationId));
       const exportExists = evidence.some((event) =>
         event.action === "Data subject access export generated"
         && event.metadata
