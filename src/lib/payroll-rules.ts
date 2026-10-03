@@ -7,11 +7,23 @@ export type HolidayType = "ordinary" | "regular" | "special" | "double";
  */
 export function computeSss(monthlySalary: number) {
   const msc = Math.min(35_000, Math.max(5_000, Math.round(monthlySalary / 500) * 500));
-  const employee = round(msc * 0.05);
-  const employer = round(msc * 0.1);
+  const regularMsc = Math.min(20_000, msc);
+  const mpfMsc = Math.max(0, msc - regularMsc);
+  const employeeRegular = round(regularMsc * 0.05);
+  const employeeMpf = round(mpfMsc * 0.05);
+  const employerRegular = round(regularMsc * 0.1);
+  const employerMpf = round(mpfMsc * 0.1);
+  const employee = round(employeeRegular + employeeMpf);
+  const employer = round(employerRegular + employerMpf);
   const employerEC = msc < 15_000 ? 10 : 30;
   return {
     monthlySalaryCredit: msc,
+    regularMsc,
+    mpfMsc,
+    employeeRegular,
+    employeeMpf,
+    employerRegular,
+    employerMpf,
     employee,
     employer,
     employerEC,
@@ -23,7 +35,11 @@ export function computeSss(monthlySalary: number) {
 export function computePhilHealth(monthlySalary: number) {
   const base = Math.min(100_000, Math.max(10_000, monthlySalary));
   const total = round(base * 0.05);
-  return { base, employee: round(total / 2), employer: round(total / 2) };
+  const employee = round(total / 2);
+  // Put any one-centavo rounding remainder on the employer share so EE + ER
+  // always reconciles exactly to the statutory 5% premium.
+  const employer = round(total - employee);
+  return { base, total, employee, employer };
 }
 
 /**
@@ -69,14 +85,17 @@ export function computeMonthlyWithholdingTax(monthlyTaxableIncome: number, isMwe
 }
 
 /**
- * BIR Revised Withholding Tax Table, Semi-monthly. Equivalent to calculating
- * monthly taxable compensation from the two cutoffs and dividing its monthly
- * withholding in half. This keeps the exact 20,833 / 33,333 table constants
- * visible rather than hiding them in a generic annual approximation.
+ * BIR Revised Withholding Tax Table, Semi-monthly (RR 11-2018, 2023 onward).
+ * This is the published semi-monthly table, not a monthly-table approximation.
  */
 export function computeSemiMonthlyWithholdingTax(semiMonthlyTaxableIncome: number, isMwe = false) {
-  const period = Math.max(0, Number(semiMonthlyTaxableIncome) || 0);
-  return round(computeMonthlyWithholdingTax(period * 2, isMwe) / 2);
+  const income = Math.max(0, Number(semiMonthlyTaxableIncome) || 0);
+  if (isMwe || income <= 10_417) return 0;
+  if (income <= 16_667) return round((income - 10_417) * 0.15);
+  if (income <= 33_333) return round(937.5 + (income - 16_667) * 0.2);
+  if (income <= 83_333) return round(4_270.7 + (income - 33_333) * 0.25);
+  if (income <= 333_333) return round(16_770.7 + (income - 83_333) * 0.3);
+  return round(91_770.7 + (income - 333_333) * 0.35);
 }
 
 export function holidayMultiplier(input: { holiday: HolidayType; worked: boolean; restDay?: boolean; overtime?: boolean }) {
