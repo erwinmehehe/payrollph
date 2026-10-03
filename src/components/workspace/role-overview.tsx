@@ -915,6 +915,7 @@ function buildHandoffAction({
     payroll: "There is no payroll run currently waiting on the Payroll maker.",
     checker: "No submitted payroll is waiting for an independent checker decision.",
     owner: "No checker-approved payroll is waiting for Owner release.",
+    bookkeeper: "No payroll close handoff requires bookkeeping action right now.",
   };
   return {
     title: "No handoff action required",
