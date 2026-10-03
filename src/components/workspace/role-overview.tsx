@@ -6,14 +6,12 @@ import {
   BadgeCheck,
   CalendarClock,
   Check,
-  CircleDollarSign,
   ClipboardCheck,
   Clock3,
   FileWarning,
   History,
   ShieldCheck,
   UsersRound,
-  WalletCards,
 } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { DashboardAlertBanner, type DashboardAlertItem } from "./dashboard-alert-banner";
@@ -730,8 +728,6 @@ function BookkeeperDashboard(props: RoleDashboardProps) {
   if (released && !governmentExported) closeItems.push({ id: "government", label: "Government filing worksheet/evidence is still pending", tone: "info" });
   if (!closeItems.length) closeItems.push({ id: "closed", label: "The visible payroll close controls are complete", tone: "success" });
 
-  const gross = Number(currentRun?.grossPay ?? 0);
-  const net = Number(currentRun?.netPay ?? 0);
   const outstanding = closeItems.filter((item) => item.tone !== "success").length;
 
   return (
