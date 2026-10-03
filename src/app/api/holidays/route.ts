@@ -248,6 +248,17 @@ export async function PATCH(request: Request) {
     }
   }
 
+  let affectedRuns: Awaited<ReturnType<typeof affectedPayrollRuns>>;
+  const affectedDates = [...new Set([String(existing.holidayDate), holidayDate])];
+  try {
+    affectedRuns = await assertHolidayMutationNotRacingPayroll(existing.organizationId, affectedDates);
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "Holiday change conflicts with active payroll.",
+      code: "HOLIDAY_PAYROLL_BUSY",
+    }, { status: 409 });
+  }
+
   const [row] = await db.update(holidays).set({
     holidayDate,
     name,
@@ -257,6 +268,8 @@ export async function PATCH(request: Request) {
     eq(holidays.id, id),
     eq(holidays.organizationId, existing.organizationId),
   )).returning();
+
+  const invalidatedPayrollRunIds = await invalidateAffectedPayroll(existing.organizationId, affectedRuns!);
 
   await recordAuditEvent({
     organizationId: existing.organizationId,
@@ -272,6 +285,7 @@ export async function PATCH(request: Request) {
         orgUnitId: existing.orgUnitId,
       },
       after: { holidayDate, name, kind, orgUnitId },
+      invalidatedPayrollRunIds,
     },
   });
 
