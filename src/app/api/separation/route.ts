@@ -123,6 +123,9 @@ async function loadFinalPaySources(input: {
   let ordinaryGrossYtd = 0;
   let statutoryContributionsYtd = 0;
   let taxWithheldYtd = 0;
+  let deMinimisYtd = 0;
+  let otherBenefitsYtd = 0;
+  let mweExemptCompensationYtd = 0;
 
   for (const row of released) {
     const parsed = readBasicAndThirteenth(row.lineItems);
@@ -130,7 +133,13 @@ async function loadFinalPaySources(input: {
     thirteenthPaidYtd += parsed.thirteenthPaid;
     statutoryContributionsYtd += parsed.contributions;
     taxWithheldYtd += parsed.taxWithheld;
-    ordinaryGrossYtd += Math.max(0, Number(row.grossPay) - parsed.thirteenthPaid);
+    deMinimisYtd += parsed.deMinimisExempt;
+    otherBenefitsYtd += parsed.otherBenefitsPool;
+    mweExemptCompensationYtd += parsed.mweExemptCompensation;
+    ordinaryGrossYtd += Math.max(
+      0,
+      Number(row.grossPay) - parsed.thirteenthPaid - parsed.reimbursements,
+    );
   }
 
   for (const row of historical) {
@@ -160,6 +169,9 @@ async function loadFinalPaySources(input: {
       ordinaryGrossYtd: Number(money(ordinaryGrossYtd)),
       statutoryContributionsYtd: Number(money(statutoryContributionsYtd)),
       taxWithheldYtd: Number(money(taxWithheldYtd)),
+      deMinimisYtd: Number(money(deMinimisYtd)),
+      otherBenefitsYtd: Number(money(otherBenefitsYtd)),
+      mweExemptCompensationYtd: Number(money(mweExemptCompensationYtd)),
       activeLoanBalance: Number(money(loans.reduce((sum, loan) => sum + Number(loan.remainingBalance), 0))),
     },
   };
