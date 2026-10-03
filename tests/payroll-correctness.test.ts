@@ -24,6 +24,8 @@ import { settlePayrollRun } from "../src/lib/payroll-settlement";
 import { buildPayrollAssurance } from "../src/lib/payroll-assurance-server";
 import { generateBankFile } from "../src/lib/exporters";
 import { allocateLeaveDaysToPeriod } from "../src/lib/leave-payroll";
+import { holidayCalendarFingerprint } from "../src/lib/payroll-calendar";
+import { NATIONAL_HOLIDAYS_2026 } from "../src/lib/wage-orders";
 
 test("payroll calculation uses only employees in scope and punches inside the cutoff", async () => {
   const [org] = await db.insert(organizations).values({
@@ -192,6 +194,7 @@ test("failed settlement rolls back every earlier ledger mutation", async () => {
         { code: `LOAN-${loan.id}`, label: "Loan deduction", amount: "-500.00" },
       ],
       trace: {
+        inputs: [`holidayCalendarFingerprint=${holidayCalendarFingerprint(NATIONAL_HOLIDAYS_2026)}`],
         payment: {
           employeeName: "Rollback Tester",
           employeeNo: "ROLL-001",
@@ -498,6 +501,7 @@ test("two releases cannot settle the same expense claim into different payroll r
           { code: `EXP-${claim.id}`, label: "Expense reimbursement", amount: "500.00" },
         ],
         trace: {
+          inputs: [`holidayCalendarFingerprint=${holidayCalendarFingerprint(NATIONAL_HOLIDAYS_2026)}`],
           payment: {
             employeeName: "Settlement Race",
             employeeNo: "SETTLE-RACE-001",
