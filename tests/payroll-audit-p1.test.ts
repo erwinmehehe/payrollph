@@ -60,11 +60,15 @@ test("org-unit local holiday changes pay only for employees in that unit", async
       { organizationId: org.id, type: "location", name: "Pampanga", code: "PAM" },
       { organizationId: org.id, type: "location", name: "Cebu", code: "CEB" },
     ]).returning();
+    const [departmentA, departmentB] = await db.insert(orgUnits).values([
+      { organizationId: org.id, parentId: unitA.id, type: "department", name: "Pampanga Ops", code: "PAM-OPS" },
+      { organizationId: org.id, parentId: unitB.id, type: "department", name: "Cebu Ops", code: "CEB-OPS" },
+    ]).returning();
 
     const [employeeA, employeeB] = await db.insert(employees).values([
       {
         organizationId: org.id,
-        orgUnitId: unitA.id,
+        orgUnitId: departmentA.id,
         employeeNo: "HOL-SCOPE-A",
         firstName: "Pampanga",
         lastName: "Employee",
@@ -76,7 +80,7 @@ test("org-unit local holiday changes pay only for employees in that unit", async
       },
       {
         organizationId: org.id,
-        orgUnitId: unitB.id,
+        orgUnitId: departmentB.id,
         employeeNo: "HOL-SCOPE-B",
         firstName: "Cebu",
         lastName: "Employee",
