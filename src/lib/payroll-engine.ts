@@ -42,7 +42,7 @@ import {
   NATIONAL_HOLIDAYS_2026,
   type HolidayCalendarEntry,
 } from "@/lib/wage-orders";
-import { deMinimisPerSemiMonthlyPeriod, deMinimisTreatment, type DeMinimisType } from "@/lib/ph-compliance";
+import { aggregateDeMinimisForSemiMonthly, type DeMinimisType } from "@/lib/ph-compliance";
 import { calculateBenefits, type EnrollmentInput } from "@/lib/benefits";
 import { benefitEnrollments, benefitPlans } from "@/db/schema";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
@@ -1038,34 +1038,30 @@ function calculateEmployeePay(input: {
   }));
   const expenseTotal = (input.expenses ?? []).reduce((sum, claim) => sum + Number(claim.amount), 0);
 
-  const advanceLines = (input.advances ?? []).map((advance) => ({
+  const requestedAdvanceLines = (input.advances ?? []).map((advance) => ({
+    id: advance.id,
     code: `EWA-${advance.id}`,
     label: "Earned wage advance recovery",
-    amount: money(-(Number(advance.requestedAmount) + Number(advance.fee))),
+    requestedDeduction: roundToCents(Number(advance.requestedAmount) + Number(advance.fee)),
     notes: [`advance ${advance.requestedAmount} + fee ${advance.fee}`],
   }));
-  const advanceTotal = (input.advances ?? []).reduce((sum, a) => sum + Number(a.requestedAmount) + Number(a.fee), 0);
+  const advanceRequestedTotal = requestedAdvanceLines.reduce((sum, line) => sum + line.requestedDeduction, 0);
 
-  // RR 29-2025 benefits are cash earnings on the payslip but tax-exempt up to
-  // their category ceiling. Excess is tracked into the annual 13th-month /
-  // other-benefits PHP 90k pool instead of being taxed immediately per cutoff.
-  const deMinimisLines = (input.deMinimis ?? []).map((grant) => {
-    const periodAmount = deMinimisPerSemiMonthlyPeriod(grant.amount, grant.frequency);
-    const treatment = deMinimisTreatment(grant.benefitType, grant.amount);
-    const periodsPerGrant = grant.frequency === "month" ? 2 : grant.frequency === "semester" ? 12 : 24;
-    const periodOtherBenefitsPool = roundToCents(treatment.excess / periodsPerGrant);
-    return {
-      code: `DM-${grant.id}`,
-      label: `De minimis, ${treatment.label}`,
-      amount: money(periodAmount),
-      notes: [
-        `${treatment.period} ceiling ₱${treatment.ceiling.toFixed(2)}`,
-        `other-benefits pool excess this period ₱${periodOtherBenefitsPool.toFixed(2)}`,
-      ],
-      periodAmount,
-      periodOtherBenefitsPool,
-    };
-  });
+  // RR 29-2025 ceilings apply once per statutory benefit category, not once per
+  // database row. Aggregate duplicate/parallel grants before applying the
+  // category ceiling, then normalize the result to one semi-monthly cutoff.
+  const deMinimisLines = aggregateDeMinimisForSemiMonthly(input.deMinimis ?? []).map((group) => ({
+    code: `DM-${group.benefitType}`,
+    label: `De minimis, ${group.label}`,
+    amount: money(group.semiMonthlyGranted),
+    notes: [
+      `Aggregated grant ids: ${group.grantIds.join(", ")}`,
+      `annualized category ceiling ₱${group.annualCeiling.toFixed(2)}`,
+      `other-benefits pool excess this period ₱${group.semiMonthlyOtherBenefitsPool.toFixed(2)}`,
+    ],
+    periodAmount: group.semiMonthlyGranted,
+    periodOtherBenefitsPool: group.semiMonthlyOtherBenefitsPool,
+  }));
   const deMinimisTotal = deMinimisLines.reduce((sum, line) => sum + line.periodAmount, 0);
   const deMinimisOtherBenefitsPool = deMinimisLines.reduce((sum, line) => sum + line.periodOtherBenefitsPool, 0);
 
@@ -1147,11 +1143,10 @@ function calculateEmployeePay(input: {
   const philhealth = schedule(philHealthRule.employee, priorStatutory.philHealthEmployee);
   const pagibigMandatory = schedule(pagIbigRule.employee, priorStatutory.pagIbigEmployee);
   const voluntaryPagIbigMonthly = Math.max(0, Number(input.employee.pagIbigVoluntaryMonthly ?? 0));
-  const pagibigVoluntary = schedule(
+  const requestedPagIbigVoluntary = schedule(
     voluntaryPagIbigMonthly,
     priorStatutory.pagIbigVoluntaryEmployee,
   );
-  const pagibig = roundToCents(pagibigMandatory + pagibigVoluntary);
   const statutoryReconciliationMode = canTrueUpActualMonth
     ? (priorStatutory.remuneration > 0 ? "month-final-ledger-true-up" : "new-hire-final-cutoff-actual")
     : timing === "first_cutoff"
@@ -1160,25 +1155,80 @@ function calculateEmployeePay(input: {
         ? "first-cutoff-deferred"
         : "50-50-estimate";
 
-  // BIR: MWE status exempts statutory minimum wage plus enumerated holiday,
-  // overtime, night-differential and hazard pay, but NOT unrelated taxable
-  // supplementary compensation. This engine currently has one such explicit
-  // bucket: taxable leave conversion. De-minimis excess is deferred into the
-  // annual 90k other-benefits pool rather than taxed immediately.
+  // BIR: only mandatory SSS/PHIC/HDMF employee contributions reduce taxable
+  // compensation. Voluntary Pag-IBIG savings must never reduce MWE taxable
+  // supplementary compensation.
   const mweTaxableSupplementaryCompensation = Math.max(0, conversionTotal - conversionTaxExemptTotal);
   const taxableCompensation = treatAsMwe
-    ? Math.max(0, mweTaxableSupplementaryCompensation - sss - philhealth - pagibig)
+    ? Math.max(0, mweTaxableSupplementaryCompensation - sss - philhealth - pagibigMandatory)
     : Math.max(
         0,
         gross - expenseTotal - deMinimisTotal - conversionTaxExemptTotal - sss - philhealth - pagibigMandatory,
       );
   const withholding = computeSemiMonthlyWithholdingTax(taxableCompensation, false);
-  const benefitLines = calculateBenefits(input.benefits ?? []);
-  const benefitTotal = benefitLines.reduce((sum, line) => sum + Math.abs(line.amount), 0);
-  const nonLoanDeductions =
-    sss + philhealth + pagibig + withholding + tardinessDeduction + undertimeDeduction + benefitTotal + advanceTotal;
 
-  let availableForLoans = Math.max(0, gross - nonLoanDeductions);
+  // Money-integrity waterfall: statutory/tax/attendance deductions take
+  // priority. Voluntary savings, benefit shares, wage-advance recovery, and
+  // loans may use only the disposable pay left after those mandatory items.
+  // An EWA is recovered all-or-nothing because its ledger has no partial
+  // balance field; skipped recovery remains approved for a later payroll.
+  const coreDeductions = roundToCents(
+    sss + philhealth + pagibigMandatory + withholding + tardinessDeduction + undertimeDeduction,
+  );
+  if (coreDeductions > gross + 0.005) {
+    flags.push(
+      `Mandatory/statutory and attendance deductions exceed gross pay by ₱${(coreDeductions - gross).toFixed(2)}; payroll requires reviewer correction before release.`,
+    );
+  }
+
+  let disposablePay = roundToCents(Math.max(0, gross - coreDeductions));
+
+  const pagibigVoluntary = roundToCents(Math.min(requestedPagIbigVoluntary, disposablePay));
+  disposablePay = roundToCents(Math.max(0, disposablePay - pagibigVoluntary));
+  if (pagibigVoluntary + 0.005 < requestedPagIbigVoluntary) {
+    flags.push(
+      `Voluntary Pag-IBIG deduction was limited to ₱${pagibigVoluntary.toFixed(2)}; ₱${(requestedPagIbigVoluntary - pagibigVoluntary).toFixed(2)} was not deducted because disposable pay was insufficient.`,
+    );
+  }
+
+  const requestedBenefitLines = calculateBenefits(input.benefits ?? []);
+  const benefitLines = requestedBenefitLines.map((line) => {
+    const requested = Math.abs(line.amount);
+    const deductAmount = requested <= disposablePay + 0.005 ? requested : 0;
+    if (deductAmount > 0) disposablePay = roundToCents(Math.max(0, disposablePay - deductAmount));
+    if (deductAmount + 0.005 < requested) {
+      flags.push(
+        `${line.label} employee-share deduction of ₱${requested.toFixed(2)} was deferred because disposable pay was insufficient.`,
+      );
+    }
+    return {
+      ...line,
+      amount: -deductAmount,
+      requestedDeduction: requested,
+      deductAmount,
+    };
+  });
+  const benefitTotal = benefitLines.reduce((sum, line) => sum + line.deductAmount, 0);
+
+  const advanceLines = requestedAdvanceLines.map((line) => {
+    const deductAmount = line.requestedDeduction <= disposablePay + 0.005
+      ? line.requestedDeduction
+      : 0;
+    if (deductAmount > 0) disposablePay = roundToCents(Math.max(0, disposablePay - deductAmount));
+    if (deductAmount + 0.005 < line.requestedDeduction) {
+      flags.push(
+        `Earned wage advance #${line.id} recovery of ₱${line.requestedDeduction.toFixed(2)} was deferred because disposable pay was insufficient; the advance remains outstanding.`,
+      );
+    }
+    return {
+      ...line,
+      amount: money(-deductAmount),
+      deductAmount,
+    };
+  });
+  const advanceTotal = advanceLines.reduce((sum, line) => sum + line.deductAmount, 0);
+
+  let availableForLoans = disposablePay;
   const loanLines = requestedLoanLines.map((loan) => {
     const deductAmount = Math.min(loan.requestedDeduction, availableForLoans);
     availableForLoans = roundToCents(Math.max(0, availableForLoans - deductAmount));
@@ -1202,7 +1252,7 @@ function calculateEmployeePay(input: {
   });
   const loanTotal = loanLines.reduce((sum, line) => sum + line.deductAmount, 0);
   const loanRequestedTotal = requestedLoanLines.reduce((sum, line) => sum + line.requestedDeduction, 0);
-  const deductions = nonLoanDeductions + loanTotal;
+  const deductions = roundToCents(coreDeductions + pagibigVoluntary + benefitTotal + advanceTotal + loanTotal);
   const net = roundToCents(Math.max(0, gross - deductions));
   const status = flags.length > 0 ? "Exception" : "Ready";
 
@@ -1231,7 +1281,7 @@ function calculateEmployeePay(input: {
       code: line.code,
       label: `Benefit, ${line.label}`,
       amount: money(line.amount),
-      notes: [line.basis],
+      notes: [line.basis, `Requested this cutoff: ₱${line.requestedDeduction.toFixed(2)}`],
     })),
   ].filter((item) => Number(item.amount) !== 0);
 
@@ -1260,6 +1310,12 @@ function calculateEmployeePay(input: {
       `priorPagIbigEmployee=${money(priorStatutory.pagIbigEmployee)}`,
       `priorPagIbigVoluntaryEmployee=${money(priorStatutory.pagIbigVoluntaryEmployee)}`,
       `pagIbigVoluntaryMonthly=${money(voluntaryPagIbigMonthly)}`,
+      `pagIbigVoluntaryRequested=${money(requestedPagIbigVoluntary)}`,
+      `pagIbigVoluntaryDeducted=${money(pagibigVoluntary)}`,
+      `advanceRequested=${money(advanceRequestedTotal)}`,
+      `advanceDeducted=${money(advanceTotal)}`,
+      `benefitRequested=${money(requestedBenefitLines.reduce((sum, line) => sum + Math.abs(line.amount), 0))}`,
+      `benefitDeducted=${money(benefitTotal)}`,
       `statutoryDeductionTiming=${timing}`,
       `loanRequested=${money(loanRequestedTotal)}`,
       `loanDeducted=${money(loanTotal)}`,
