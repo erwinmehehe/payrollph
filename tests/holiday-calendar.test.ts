@@ -53,7 +53,7 @@ test("payroll engine consumes the classified holiday context instead of a single
   assert.ok(engine.includes("holidayContext.holidays.length > 0"));
   assert.ok(engine.includes("const employeeHolidayCalendar: HolidayCalendarEntry[] = ["));
   assert.ok(engine.includes("localHolidayRows"));
-  assert.ok(engine.includes("holiday.orgUnitId == null || holiday.orgUnitId === employee.orgUnitId"));
+  assert.ok(engine.includes("holiday.orgUnitId == null || employeeHolidayScopeIds.has(holiday.orgUnitId)"));
 });
 
 
