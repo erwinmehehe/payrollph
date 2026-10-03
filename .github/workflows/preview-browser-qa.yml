@@ -532,7 +532,12 @@ jobs:
               const dashboard = page.locator(`[data-role-dashboard="${persona.dashboardRole}"]`);
               check((await dashboard.count()) === 1, `${persona.label}: role-specific dashboard did not render`);
               check((await dashboard.locator(".dashboard-alert-banner").count()) === 1, `${persona.label}: Needs Attention banner is missing`);
-              check((await dashboard.locator(".dashboard-stat-card").count()) === 4, `${persona.label}: dashboard must show exactly four primary metrics`);
+              if (persona.id === "hr") {
+                check((await dashboard.locator(".dashboard-stat-card").count()) === 4, "HR: readiness summary must expose four compact signals");
+              } else {
+                check((await dashboard.locator(".payroll-focus-summary > div").count()) >= 3, `${persona.label}: payroll focus card must carry the primary financial summary`);
+                check((await dashboard.locator(".dashboard-stat-card").count()) === 0, `${persona.label}: duplicate KPI cards should stay off the focused landing view`);
+              }
               const sandbox = page.locator(".demo-sandbox").first();
               if (await sandbox.count()) {
                 check((await sandbox.isVisible()) === false, `${persona.label}: bulky demo sandbox must stay off the landing view`);
