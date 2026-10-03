@@ -8,7 +8,7 @@ import {
   getAccess,
   PAYROLL_OPERATOR_ROLES,
 } from "@/lib/access";
-import { decryptGovernmentId } from "@/lib/government-id-crypto";
+import { decryptGovernmentId, maskGovernmentId } from "@/lib/government-id-crypto";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
@@ -136,7 +136,7 @@ export async function GET(request: Request) {
       payments: rows.map(({ payment, contractor }) => ({
         ...payment,
         contractorName: contractor.name,
-        contractorTin: decryptGovernmentId(contractor.tin),
+        contractorTin: maskGovernmentId(contractor.tin),
       })),
       note: "Source data only. Validate ATCs, rates, filing period and official BIR submission format before filing.",
     });
