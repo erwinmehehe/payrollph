@@ -20,6 +20,7 @@ import {
   createPaymongoPayrollDisbursement,
   preflightPaymongoPayrollDisbursement,
 } from "@/lib/paymongo-disbursements";
+import { withPayrollPayoutSubmissionLock } from "@/lib/payout-submission-lock";
 
 export const dynamic = "force-dynamic";
 
@@ -377,7 +378,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   try {
-    const result = await createPaymongoPayrollDisbursement(runId);
+    const result = await withPayrollPayoutSubmissionLock(
+      () => createPaymongoPayrollDisbursement(runId),
+    );
     const everyTransferCompleted =
       result.transfers.length > 0 &&
       result.transfers.every((transfer) => transfer.status.toLowerCase() === "succeeded");
