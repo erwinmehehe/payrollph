@@ -68,13 +68,14 @@ test("exact withholding balances to zero", () => {
   assert.equal(result.outcome, "balanced");
 });
 
-test("MWE is fully exempt and is refunded anything withheld in error", () => {
+test("MWE exemption is limited to qualifying statutory wage components", () => {
   const result = annualize({
     grossCompensation: 220_000,
     thirteenthMonth: 18_000,
     statutoryContributions: 9_000,
     taxWithheld: 1_200,
     mwe: true,
+    mweExemptCompensation: 193_000,
   });
   assert.equal(result.taxableIncome, 0);
   assert.equal(result.taxDue, 0);
@@ -100,7 +101,7 @@ test("form 2316 draft states its own limits and shows the adjustment", () => {
   assert.ok(doc.includes("DRAFT - NOT A CERTIFIED SUBMISSION"));
   assert.ok(doc.includes("REFUND TO EMPLOYEE"));
   assert.ok(doc.includes("12,500.00"));
-  assert.ok(doc.includes("Rule version: PH-2026.01"));
+  assert.ok(doc.includes("Rule version: PH-2026.02"));
 });
 
 test("webhook retry backoff escalates then caps", () => {
