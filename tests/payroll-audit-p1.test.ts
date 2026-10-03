@@ -353,3 +353,67 @@ test("supplementary earning can affect SSS without changing Pag-IBIG base", asyn
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
 });
+
+
+test("holiday calendar changes after calculation block payroll release", async () => {
+  const [org] = await db.insert(organizations).values({
+    name: "Holiday Fingerprint Audit",
+    legalName: "Holiday Fingerprint Audit Inc.",
+    plan: "Core",
+  }).returning();
+
+  try {
+    const [unit] = await db.insert(orgUnits).values({
+      organizationId: org.id,
+      type: "location",
+      name: "Pampanga",
+      code: "PAM-FP",
+    }).returning();
+
+    const [employee] = await db.insert(employees).values({
+      organizationId: org.id,
+      orgUnitId: unit.id,
+      employeeNo: "HOL-FP-001",
+      firstName: "Holiday",
+      lastName: "Fingerprint",
+      title: "Associate",
+      avatarInitials: "HF",
+      basicRate: "20000.00",
+      mobile: "09171234567",
+      startDate: "2025-01-01",
+    }).returning();
+
+    const [run] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      periodLabel: "Oct 1-15, 2026 holiday fingerprint",
+      periodStart: "2026-10-01",
+      periodEnd: "2026-10-15",
+      scopeLabel: "All locations",
+      status: "Draft",
+      payDate: "2026-10-15",
+    }).returning();
+
+    await enqueuePayrollRun(run.id);
+    await drainPayrollQueue(10, run.id);
+
+    await db.insert(holidays).values({
+      organizationId: org.id,
+      orgUnitId: unit.id,
+      holidayDate: "2026-10-05",
+      name: "Late local holiday declaration",
+      kind: "special",
+    });
+
+    await db.update(payrollRuns).set({ status: "Releasing" }).where(eq(payrollRuns.id, run.id));
+
+    await assert.rejects(
+      settlePayrollRun(run.id, { actor: "Audit", resource: run.periodLabel }),
+      /Holiday calendar .* changed after payroll calculation; recalculate before release/,
+    );
+
+    const [freshRun] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, run.id));
+    assert.equal(freshRun.status, "Releasing");
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});
