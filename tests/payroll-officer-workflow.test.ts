@@ -130,3 +130,12 @@ test("checker submission endpoint enforces required input and calculation readin
   assert.ok(source.includes("Payroll inputs and calculation must be complete before checker submission."));
   assert.ok(source.includes("blockingWorkflowItems"));
 });
+
+
+test("payroll officer calculation control is disabled while server processing is already active", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync("src/components/workspace/payroll-officer-workspace.tsx", "utf8");
+  assert.ok(source.includes('["Queued", "Processing", "Recalculating"].includes(run.status)'));
+  assert.ok(source.includes("disabled={busy || !canCalculate}"));
+  assert.ok(source.includes('calculationInProgress ? "Processing"'));
+});
