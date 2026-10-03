@@ -698,6 +698,9 @@ export const dataRequests = pgTable("data_requests", {
   completedAt: timestamp("completed_at", { withTimezone: true }),
   handledBy: varchar("handled_by", { length: 120 }),
   notes: varchar("notes", { length: 400 }),
+  fulfillmentAction: varchar("fulfillment_action", { length: 64 }),
+  fulfillmentEvidence: jsonb("fulfillment_evidence").notNull().default({}),
+  legalRetentionApplied: boolean("legal_retention_applied").notNull().default(false),
 });
 
 export const importBatches = pgTable("import_batches", {
