@@ -520,3 +520,18 @@ test("PayMongo transfer webhook route is signed, duplicate-safe and exact-transf
   assert.ok(view.includes("Reconciliation CSV"));
   assert.ok(view.includes("data-payout-settlement-regressed"));
 });
+
+
+test("live payout submission is serialized by PayMongo wallet", () => {
+  const lock = readFileSync("src/lib/payout-submission-lock.ts", "utf8");
+  const exportRoute = readFileSync("src/app/api/payroll-runs/[id]/exports/route.ts", "utf8");
+  const reconciliationRoute = readFileSync("src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts", "utf8");
+
+  assert.ok(lock.includes("pg_try_advisory_lock"));
+  assert.ok(lock.includes("PAYMONGO_WALLET_ID"));
+  assert.ok(lock.includes("Another payroll payout is already being submitted"));
+  assert.ok(exportRoute.includes("withPayrollPayoutSubmissionLock"));
+  assert.ok(exportRoute.includes("createPaymongoPayrollDisbursement"));
+  assert.ok(reconciliationRoute.includes("withPayrollPayoutSubmissionLock"));
+  assert.ok(reconciliationRoute.includes("createPaymongoPayrollRetry"));
+});
