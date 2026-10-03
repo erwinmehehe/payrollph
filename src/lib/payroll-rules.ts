@@ -203,7 +203,12 @@ export function restDayForDate(
   return normalizedRestDay(currentRestDay);
 }
 
-export type ClockPunch = { timeIn?: string | null; timeOut?: string | null };
+export type ClockPunch = {
+  timeIn?: string | null;
+  timeOut?: string | null;
+  breakStart?: string | null;
+  breakEnd?: string | null;
+};
 export type ShiftSchedule = { start: string; end: string; breakMinutes?: number; graceMinutes?: number };
 
 function asLocalDate(value: string) {
@@ -218,6 +223,17 @@ function shiftBoundary(base: Date, time: string, nextDay = false) {
   const point = new Date(base.getFullYear(), base.getMonth(), base.getDate(), hours, minutes, 0, 0);
   if (nextDay) point.setDate(point.getDate() + 1);
   return point;
+}
+
+function overlapMinutes(
+  rangeStart: Date,
+  rangeEnd: Date,
+  overlapStart: Date,
+  overlapEnd: Date,
+) {
+  const start = Math.max(rangeStart.getTime(), overlapStart.getTime());
+  const end = Math.min(rangeEnd.getTime(), overlapEnd.getTime());
+  return end > start ? Math.round((end - start) / 60_000) : 0;
 }
 
 function nightMinutesBetween(start: Date, end: Date) {
@@ -260,24 +276,62 @@ export function deriveClockHours(punch: ClockPunch, shift: ShiftSchedule) {
   const spansOvernight = shift.end <= shift.start;
   const shiftEnd = shiftBoundary(actualIn, shift.end, spansOvernight);
   const grace = shift.graceMinutes ?? 5;
-  const breakMinutes = shift.breakMinutes ?? 60;
+  const scheduledBreakMinutes = Math.max(0, shift.breakMinutes ?? 60);
   const grossWorked = Math.round((actualOut.getTime() - actualIn.getTime()) / 60_000);
   const tardinessMinutes = Math.max(0, Math.round((actualIn.getTime() - (shiftStart.getTime() + grace * 60_000)) / 60_000));
   const undertimeMinutes = Math.max(0, Math.round((shiftEnd.getTime() - actualOut.getTime()) / 60_000));
   const overtimeMinutes = Math.max(0, Math.round((actualOut.getTime() - shiftEnd.getTime()) / 60_000));
   const regularRangeEnd = new Date(Math.min(actualOut.getTime(), shiftEnd.getTime()));
   const overtimeRangeStart = new Date(Math.max(actualIn.getTime(), shiftEnd.getTime()));
-  const nightRegularMinutes = nightMinutesBetween(actualIn, regularRangeEnd);
-  const nightOvertimeMinutes = nightMinutesBetween(overtimeRangeStart, actualOut);
+
+  const rawNightRegularMinutes = nightMinutesBetween(actualIn, regularRangeEnd);
+  const rawNightOvertimeMinutes = nightMinutesBetween(overtimeRangeStart, actualOut);
+
+  let actualBreakMinutes = scheduledBreakMinutes;
+  let nightBreakRegular = 0;
+  let nightBreakOvertime = 0;
+  const flags: string[] = [];
+
+  if (punch.breakStart && punch.breakEnd) {
+    const breakStart = asLocalDate(punch.breakStart);
+    const breakEnd = asLocalDate(punch.breakEnd);
+    if (
+      breakEnd <= breakStart
+      || breakStart < actualIn
+      || breakEnd > actualOut
+    ) {
+      flags.push("Invalid break punch pair, reviewer sign-off required");
+    } else {
+      actualBreakMinutes = overlapMinutes(actualIn, actualOut, breakStart, breakEnd);
+      const breakNightMinutes = nightMinutesBetween(breakStart, breakEnd);
+      nightBreakRegular = Math.min(
+        breakNightMinutes,
+        overlapMinutes(actualIn, regularRangeEnd, breakStart, breakEnd),
+      );
+      nightBreakOvertime = Math.max(
+        0,
+        breakNightMinutes - nightBreakRegular,
+      );
+    }
+  } else if (punch.breakStart || punch.breakEnd) {
+    flags.push("Incomplete break punch pair, reviewer sign-off required");
+  } else if ((rawNightRegularMinutes + rawNightOvertimeMinutes) > 0 && scheduledBreakMinutes > 0) {
+    flags.push(
+      "Night differential overlaps an unlocated meal break; record break start/end before release",
+    );
+  }
+
+  const nightRegularMinutes = Math.max(0, rawNightRegularMinutes - nightBreakRegular);
+  const nightOvertimeMinutes = Math.max(0, rawNightOvertimeMinutes - nightBreakOvertime);
   return {
-    workedMinutes: Math.max(0, grossWorked - breakMinutes),
+    workedMinutes: Math.max(0, grossWorked - actualBreakMinutes),
     tardinessMinutes,
     undertimeMinutes,
     overtimeMinutes,
     nightDifferentialMinutes: nightRegularMinutes + nightOvertimeMinutes,
     nightRegularMinutes,
     nightOvertimeMinutes,
-    flags: [] as string[],
+    flags,
   };
 }
 
