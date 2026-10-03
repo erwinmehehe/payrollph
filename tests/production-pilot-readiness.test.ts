@@ -75,6 +75,7 @@ test("production rollout verifier requires protected live readiness and critical
   assert.ok(script.includes('"seeded-credentials"'));
   assert.ok(script.includes('"email-delivery"'));
   assert.ok(script.includes('"bank-data-encryption"'));
+  assert.ok(script.includes('"government-id-encryption"'));
   assert.ok(script.includes('"malware-scanning"'));
   assert.ok(script.includes('payload.manualLaunch?.ready'));
   assert.ok(script.includes('payload.status'));
@@ -85,6 +86,7 @@ test("production rollout verifier requires protected live readiness and critical
   assert.ok(script.includes("blockerRemediation"));
   assert.ok(script.includes("remediationSummary"));
   assert.ok(script.includes("Production Bank Encryption"));
+  assert.ok(script.includes("encrypt-government-ids.ts"));
   assert.ok(script.includes("provider-delivered event"));
 });
 
