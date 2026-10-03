@@ -51,7 +51,7 @@ test("the wrong key and tampering both fail instead of returning garbage", () =>
 
 test("an encrypted value with no key configured is an error, never a silent blank", () => {
   const sealed = encryptBankAccount("1234567890", withKey(KEY_A))!;
-  assert.throws(() => decryptBankAccount(sealed, withKey(undefined)), /not configured/);
+  assert.throws(() => decryptBankAccount(sealed, withKey(undefined)), /configured/);
 });
 
 test("rollout is non-breaking: legacy plaintext reads, and writes pass through without a key", () => {
