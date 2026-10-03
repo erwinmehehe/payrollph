@@ -71,9 +71,9 @@ const round2 = (value: number) => Math.round((value + Number.EPSILON) * 100) / 1
  *     Negative delta => refund to employee in December.
  *     Positive delta => collect from the December payout.
  *
- * A Minimum Wage Earner is fully exempt: statutory minimum wage, holiday pay,
- * overtime, night differential and hazard pay all stay untaxed, so tax due is
- * zero and anything withheld in error is refunded in full.
+ * For a Minimum Wage Earner, statutory minimum wage plus the specifically
+ * enumerated holiday/overtime/night-differential/hazard pay remain exempt.
+ * Other supplementary compensation and benefit-pool excess remain taxable.
  */
 export function annualize(input: AnnualizationInput): AnnualizationResult {
   const grossCompensation = round2(Math.max(0, input.grossCompensation));
@@ -158,7 +158,7 @@ export function renderForm2316(input: {
     `Employer TIN ...... ${input.employerTin ?? "(not on file)"}`,
     `Employee .......... ${input.employeeName} (${input.employeeNo})`,
     `Employee TIN ...... ${input.employeeTin ?? "(not on file)"}`,
-    `MWE status ........ ${r.mwe ? "Minimum Wage Earner - fully exempt" : "Not an MWE"}`,
+    `MWE status ........ ${r.mwe ? "Minimum Wage Earner - statutory wage/premiums exempt" : "Not an MWE"}`,
     "",
     "PART IV-A  SUMMARY",
     line("Gross compensation income", money(r.grossCompensation)),
