@@ -858,7 +858,12 @@ function calculateEmployeePay(input: {
   const leaveAdjustmentTotal = leaveLines.reduce((sum, line) => sum + Number(line.amount), 0);
 
   const wageCheck = isBelowMinimum(monthly, input.employee.region ?? "NCR", payProfile.standardWorkDaysPerMonth);
-  const treatAsMwe = input.employee.mwe || wageCheck.below;
+  const treatAsMwe = input.employee.mwe;
+  if (wageCheck.below) {
+    flags.push(
+      `Configured pay implies ₱${wageCheck.impliedDaily.toFixed(2)}/day versus the reference wage figure of ₱${wageCheck.order.dailyRate.toFixed(2)} for ${wageCheck.order.region}. Verify the applicable wage tier; payroll did not infer MWE tax status automatically.`,
+    );
+  }
 
   let calamityPay = 0;
   const calamityNotes: string[] = [];
@@ -913,18 +918,18 @@ function calculateEmployeePay(input: {
       : grant.frequency === "semester" ? grant.amount * 2
         : grant.amount;
     const treatment = deMinimisTreatment(grant.benefitType, annualizedGrant);
-    const periodTaxableExcess = treatment.excess === 0 ? 0 : roundToCents(treatment.excess / 24);
+    const periodOtherBenefitsExcess = treatment.excess === 0 ? 0 : roundToCents(treatment.excess / 24);
     return {
       code: `DM-${grant.id}`,
       label: `De minimis, ${treatment.label}`,
       amount: money(periodAmount),
-      notes: [`${treatment.period} ceiling ₱${treatment.ceiling.toFixed(2)}`, `taxable excess this period ₱${periodTaxableExcess.toFixed(2)}`],
+      notes: [`${treatment.period} ceiling ₱${treatment.ceiling.toFixed(2)}`, `other-benefits pool excess this period ₱${periodOtherBenefitsExcess.toFixed(2)}`],
       periodAmount,
-      periodTaxableExcess,
+      periodOtherBenefitsExcess,
     };
   });
   const deMinimisTotal = deMinimisLines.reduce((sum, line) => sum + line.periodAmount, 0);
-  const deMinimisTaxable = deMinimisLines.reduce((sum, line) => sum + line.periodTaxableExcess, 0);
+  const deMinimisOtherBenefitsPool = deMinimisLines.reduce((sum, line) => sum + line.periodOtherBenefitsExcess, 0);
 
   // Leave Cash Conversions (monetization of vacation / service incentive leaves)
   const conversionLines = (input.leaveConversions ?? []).map((conv) => ({
@@ -944,38 +949,78 @@ function calculateEmployeePay(input: {
     0,
   );
 
-  // Employee Loans (SSS Salary Loan, Pag-IBIG MPL/Calamity, Company Loan)
-  const loanLines = (input.loans ?? []).map((loan) => {
-    const deductAmount = Math.min(Number(loan.cutoffDeduction), Number(loan.remainingBalance));
-    return {
-      code: `LOAN-${loan.id}`,
-      label: `Loan, ${loan.loanType}`,
-      amount: money(-deductAmount),
-      notes: [`Ref: ${loan.referenceNo}`, `Bal: ₱${Number(loan.remainingBalance).toFixed(2)}`],
-      deductAmount,
-    };
-  });
-  const loanTotal = loanLines.reduce((sum, l) => sum + l.deductAmount, 0);
+  // Employee loans are lower-priority than statutory/tax deductions. Government
+  // loan amortizations are attempted before company/other loans; anything that
+  // cannot fit in available net pay is carried forward instead of disappearing
+  // behind a max(0, net) clamp.
+  const requestedLoanLines = (input.loans ?? [])
+    .map((loan) => ({
+      ...loan,
+      requestedDeduction: Math.min(Number(loan.cutoffDeduction), Number(loan.remainingBalance)),
+      governmentPriority: /sss|pag-?ibig|hdmf|calamity/i.test(loan.loanType) ? 0 : 1,
+    }))
+    .sort((a, b) => a.governmentPriority - b.governmentPriority || a.id - b.id);
 
   const gross = Math.max(0, baseBasicPay + leaveAdjustmentTotal + overtimePay + nightDiffPay + calamityPay + holidayPremium + retroTotal + expenseTotal + deMinimisTotal + conversionTotal);
-  const sssRule = computeSss(monthly);
+
+  // SSS uses total actual remuneration; Pag-IBIG monthly compensation includes
+  // basic salary and allowances. Because this engine deducts one-half of the
+  // monthly obligation per cutoff, doubling actual remunerative earnings in
+  // this cutoff makes the two cutoff halves reconcile to the month's earnings
+  // under percentage-based schedules. Expense reimbursements are excluded.
+  const remunerativeCutoffCompensation = Math.max(0, gross - expenseTotal);
+  const statutoryMonthlyCompensation = roundToCents(remunerativeCutoffCompensation * 2);
+  const sssRule = computeSss(statutoryMonthlyCompensation);
   const philHealthRule = computePhilHealth(monthly);
-  const pagIbigRule = computePagIbig(monthly);
+  const pagIbigRule = computePagIbig(statutoryMonthlyCompensation);
   const sss = sssRule.employee / 2;
   const philhealth = philHealthRule.employee / 2;
   const pagibig = pagIbigRule.employee / 2;
 
-  // BIR taxable compensation is compensation earnings less employee statutory
-  // shares. Expense reimbursement is a non-taxable pass-through, not salary.
-  const taxableCompensation = Math.max(
-    0,
-    gross - expenseTotal - deMinimisTotal - conversionTaxExemptTotal + deMinimisTaxable - sss - philhealth - pagibig,
-  );
-  const withholding = computeSemiMonthlyWithholdingTax(taxableCompensation, treatAsMwe);
+  // BIR: MWE status exempts statutory minimum wage plus enumerated holiday,
+  // overtime, night-differential and hazard pay, but NOT unrelated taxable
+  // supplementary compensation. This engine currently has one such explicit
+  // bucket: taxable leave conversion. De-minimis excess is deferred into the
+  // annual 90k other-benefits pool rather than taxed immediately.
+  const mweTaxableSupplementaryCompensation = Math.max(0, conversionTotal - conversionTaxExemptTotal);
+  const taxableCompensation = treatAsMwe
+    ? Math.max(0, mweTaxableSupplementaryCompensation - sss - philhealth - pagibig)
+    : Math.max(
+        0,
+        gross - expenseTotal - deMinimisTotal - conversionTaxExemptTotal - sss - philhealth - pagibig,
+      );
+  const withholding = computeSemiMonthlyWithholdingTax(taxableCompensation, false);
   const benefitLines = calculateBenefits(input.benefits ?? []);
   const benefitTotal = benefitLines.reduce((sum, line) => sum + Math.abs(line.amount), 0);
-  const deductions = sss + philhealth + pagibig + withholding + tardinessDeduction + undertimeDeduction + benefitTotal + advanceTotal + loanTotal;
-  const net = Math.max(0, gross - deductions);
+  const nonLoanDeductions =
+    sss + philhealth + pagibig + withholding + tardinessDeduction + undertimeDeduction + benefitTotal + advanceTotal;
+
+  let availableForLoans = Math.max(0, gross - nonLoanDeductions);
+  const loanLines = requestedLoanLines.map((loan) => {
+    const deductAmount = Math.min(loan.requestedDeduction, availableForLoans);
+    availableForLoans = roundToCents(Math.max(0, availableForLoans - deductAmount));
+    if (deductAmount + 0.005 < loan.requestedDeduction) {
+      flags.push(
+        `${loan.loanType} deduction was limited to ₱${deductAmount.toFixed(2)} because available net pay was insufficient; ₱${(loan.requestedDeduction - deductAmount).toFixed(2)} remains for a later cutoff.`,
+      );
+    }
+    return {
+      code: `LOAN-${loan.id}`,
+      label: `Loan, ${loan.loanType}`,
+      amount: money(-deductAmount),
+      notes: [
+        `Ref: ${loan.referenceNo}`,
+        `Bal: ₱${Number(loan.remainingBalance).toFixed(2)}`,
+        `Requested this cutoff: ₱${loan.requestedDeduction.toFixed(2)}`,
+      ],
+      deductAmount,
+      requestedDeduction: loan.requestedDeduction,
+    };
+  });
+  const loanTotal = loanLines.reduce((sum, line) => sum + line.deductAmount, 0);
+  const loanRequestedTotal = requestedLoanLines.reduce((sum, line) => sum + line.requestedDeduction, 0);
+  const deductions = nonLoanDeductions + loanTotal;
+  const net = roundToCents(Math.max(0, gross - deductions));
   const status = flags.length > 0 ? "Exception" : "Ready";
 
   const lineItems = [
@@ -994,9 +1039,9 @@ function calculateEmployeePay(input: {
     { code: "LATE", label: "Tardiness", amount: money(-tardinessDeduction) },
     { code: "UT", label: "Undertime", amount: money(-undertimeDeduction) },
     ...expenseLines,
-    ...deMinimisLines.map(({ periodAmount: _periodAmount, periodTaxableExcess: _periodTaxableExcess, ...line }) => line),
+    ...deMinimisLines.map(({ periodAmount: _periodAmount, periodOtherBenefitsExcess: _periodOtherBenefitsExcess, ...line }) => line),
     ...advanceLines,
-    ...loanLines.map(({ deductAmount: _deductAmount, ...l }) => l),
+    ...loanLines.map(({ deductAmount: _deductAmount, requestedDeduction: _requestedDeduction, ...l }) => l),
     ...benefitLines.map((line) => ({
       code: line.code,
       label: `Benefit, ${line.label}`,
@@ -1020,7 +1065,11 @@ function calculateEmployeePay(input: {
       `hourlyRate=${money(hourlyRate)}`,
       `taxableCompensation=${money(taxableCompensation)}`,
       `deMinimisPaid=${money(deMinimisTotal)}`,
-      `deMinimisTaxableExcess=${money(deMinimisTaxable)}`,
+      `deMinimisOtherBenefitsPool=${money(deMinimisOtherBenefitsPool)}`,
+      `mweTaxableSupplementaryCompensation=${money(mweTaxableSupplementaryCompensation)}`,
+      `statutoryMonthlyCompensation=${money(statutoryMonthlyCompensation)}`,
+      `loanRequested=${money(loanRequestedTotal)}`,
+      `loanDeducted=${money(loanTotal)}`,
       `leaveConversionTaxExempt=${money(conversionTaxExemptTotal)}`,
       `approvedLeaveDays=${money(approvedLeave.reduce((sum, leave) => sum + leave.overlapDays, 0))}`,
       `paidLeaveDays=${money(approvedLeave.reduce((sum, leave) => sum + leave.paidDays, 0))}`,
@@ -1041,7 +1090,7 @@ function calculateEmployeePay(input: {
       `pagIbigEmployeeRate=${pagIbigRule.employeeRate}`,
       `withholdingTable=RR11-2018-revised-2023+`,
       `region=${input.employee.region ?? "NCR"}`,
-      `mwe=${treatAsMwe}${wageCheck.below && !input.employee.mwe ? " (inferred from wage order " + wageCheck.order.wageOrder + ")" : ""}`,
+      `mwe=${treatAsMwe} (explicit employee tax classification)`,
       `employerStatutoryCost=${money((sssRule.employerTotal + philHealthRule.employer + pagIbigRule.employer) / 2)}`,
       ...holidayNotes,
       ...calamityNotes,
