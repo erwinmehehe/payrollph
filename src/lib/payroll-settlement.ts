@@ -1,6 +1,8 @@
-import { and, eq, gte, inArray, isNull, lte } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import { sameBankAccount } from "@/lib/bank-account-crypto";
+import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
+import { NATIONAL_HOLIDAYS_2026, type HolidayCalendarEntry } from "@/lib/wage-orders";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import {
   auditEvents,
@@ -10,6 +12,8 @@ import {
   employeePayRetroAdjustments,
   employees,
   expenseClaims,
+  holidays,
+  orgUnits,
   leaveConversions,
   loanPayments,
   payrollEntries,
@@ -97,6 +101,31 @@ function readPayProfileSnapshot(value: unknown): PayProfileSnapshot | null {
   return { payBasis, rateAmount, standardWorkDaysPerMonth, standardHoursPerDay, monthlyEquivalent };
 }
 
+function traceInputString(trace: unknown, key: string) {
+  if (!trace || typeof trace !== "object") return null;
+  const inputs = (trace as { inputs?: unknown }).inputs;
+  if (!Array.isArray(inputs)) return null;
+  const prefix = `${key}=`;
+  const raw = inputs.find((item) => typeof item === "string" && item.startsWith(prefix));
+  return typeof raw === "string" ? raw.slice(prefix.length) : null;
+}
+
+function orgUnitAncestorIds(
+  orgUnitId: number | null,
+  unitMap: Map<number, typeof orgUnits.$inferSelect>,
+) {
+  const ids = new Set<number>();
+  let cursor = orgUnitId;
+  let guard = 0;
+  while (cursor != null && guard < 50) {
+    if (ids.has(cursor)) break;
+    ids.add(cursor);
+    cursor = unitMap.get(cursor)?.parentId ?? null;
+    guard += 1;
+  }
+  return ids;
+}
+
 function samePayrollNumber(left: string | number | null | undefined, right: string | number | null | undefined) {
   const a = Number(left);
   const b = Number(right);
@@ -148,6 +177,24 @@ export async function settlePayrollRun(
         ))
       : [];
     const employeeById = new Map(currentEmployees.map((employee) => [employee.id, employee]));
+
+    const [holidayRows, unitRows] = await Promise.all([
+      tx.select().from(holidays).where(and(
+        or(isNull(holidays.organizationId), eq(holidays.organizationId, run.organizationId)),
+        lte(holidays.holidayDate, run.periodEnd),
+      )),
+      tx.select().from(orgUnits).where(eq(orgUnits.organizationId, run.organizationId)),
+    ]);
+    const unitMap = new Map(unitRows.map((unit) => [unit.id, unit]));
+    const localHolidayRows = holidayRows.flatMap((row) => {
+      const kind = row.kind === "regular" || row.kind === "special" ? row.kind : null;
+      return kind ? [{
+        date: String(row.holidayDate),
+        name: row.name,
+        kind: kind as "regular" | "special",
+        orgUnitId: row.orgUnitId,
+      }] : [];
+    });
     const currentPayProfiles = employeeIds.length
       ? await tx.select().from(employeePayProfiles).where(and(
           eq(employeePayProfiles.organizationId, run.organizationId),
@@ -233,7 +280,28 @@ export async function settlePayrollRun(
         );
       }
 
-      const snapshot = readPaymentSnapshot(entry.trace);
+      const holidayScopeIds = orgUnitAncestorIds(employee.orgUnitId, unitMap);
+      const currentHolidayCalendar: HolidayCalendarEntry[] = [
+        ...NATIONAL_HOLIDAYS_2026,
+        ...localHolidayRows
+          .filter((holiday) => holiday.orgUnitId == null || holidayScopeIds.has(holiday.orgUnitId))
+          .map(({ orgUnitId: _orgUnitId, ...holiday }) => holiday)
+          .filter((local) => !NATIONAL_HOLIDAYS_2026.some(
+            (national) =>
+              national.date === local.date
+              && national.name === local.name
+              && national.kind === local.kind
+          )),
+      ];
+      const storedHolidayFingerprint = traceInputString(entry.trace, "holidayCalendarFingerprint");
+      const currentHolidayFingerprint = holidayCalendarFingerprint(currentHolidayCalendar);
+      if (!storedHolidayFingerprint || storedHolidayFingerprint !== currentHolidayFingerprint) {
+        throw new Error(
+          `Holiday calendar for ${employee.firstName} ${employee.lastName} changed after payroll calculation; recalculate before release.`,
+        );
+      }
+
+            const snapshot = readPaymentSnapshot(entry.trace);
       if (!snapshot) {
         throw new Error(
           `Payroll entry for ${employee.firstName} ${employee.lastName} lacks an immutable payment snapshot; recalculate before release.`,
