@@ -1,4 +1,5 @@
 import { parseCsv } from "@/lib/csv-import";
+import { DE_MINIMIS_2026, type DeMinimisType } from "@/lib/ph-compliance";
 
 export const MIGRATION_SOURCES = [
   { id: "sprout", label: "Sprout Solutions", note: "Employee List, Payroll Register, YTD and flat-file exports" },
@@ -59,6 +60,11 @@ export type MigratedPayrollHistory = {
   philHealthEmployee: number;
   pagIbigEmployee: number;
   thirteenthMonth: number;
+  /**
+   * Null = source did not provide category detail (unknown).
+   * {} = source explicitly confirms no de minimis for the payroll row.
+   */
+  deMinimisBreakdown: Partial<Record<DeMinimisType, number>> | null;
 };
 
 export type MigratedLeaveBalance = {
@@ -131,6 +137,7 @@ const COMMON_ALIASES: Record<string, string[]> = {
   philHealthEmployee: ["philhealth employee", "philhealth ee", "employee philhealth", "philhealth contribution"],
   pagIbigEmployee: ["pagibig employee", "pag-ibig employee", "hdmf employee", "pagibig ee", "pag-ibig contribution", "hdmf contribution"],
   thirteenthMonth: ["13th month", "13th month pay", "thirteenth month", "thirteenth month pay"],
+  deMinimisBreakdown: ["de minimis breakdown json", "de minimis json", "de minimis breakdown", "de minimis by category"],
   leaveType: ["leave type", "leave", "leave name", "leave category"],
   year: ["year", "leave year", "calendar year"],
   opening: ["opening", "opening balance", "beginning balance", "brought forward"],
@@ -383,6 +390,34 @@ function parsePayrollHistory(
     pagIbigEmployee: numberValue(get("pagIbigEmployee")),
     thirteenthMonth: numberValue(get("thirteenthMonth")),
   };
+
+  let deMinimisBreakdown: Partial<Record<DeMinimisType, number>> | null = null;
+  const rawDeMinimis = get("deMinimisBreakdown").trim();
+  if (rawDeMinimis) {
+    try {
+      const parsed = JSON.parse(rawDeMinimis) as unknown;
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        problems.push("de minimis breakdown must be a JSON object.");
+      } else {
+        const next: Partial<Record<DeMinimisType, number>> = {};
+        for (const [key, rawValue] of Object.entries(parsed as Record<string, unknown>)) {
+          if (!(key in DE_MINIMIS_2026)) {
+            problems.push(`unknown de minimis category "${key}"`);
+            continue;
+          }
+          const value = Number(rawValue);
+          if (!Number.isFinite(value) || value < 0) {
+            problems.push(`de minimis category "${key}" must be zero or greater`);
+            continue;
+          }
+          next[key as DeMinimisType] = value;
+        }
+        deMinimisBreakdown = next;
+      }
+    } catch {
+      problems.push("de minimis breakdown must be valid JSON.");
+    }
+  }
   for (const [key, value] of Object.entries(optional)) {
     if (!Number.isFinite(value) || value < 0) problems.push(`${key} must be zero or greater`);
   }
@@ -400,6 +435,7 @@ function parsePayrollHistory(
       basicSalary,
       netPay,
       ...optional,
+      deMinimisBreakdown,
     },
   };
 }
@@ -484,6 +520,7 @@ export const MIGRATION_TEMPLATE_HEADERS: Record<MigrationKind, string[]> = {
   payroll_history: [
     "Employee ID", "Pay Date", "Payroll Period", "Reference", "Gross Pay", "Basic Salary Earned", "Net Pay", "Withholding Tax",
     "SSS Contribution", "PhilHealth Contribution", "Pag-IBIG Contribution", "13th Month Pay",
+    "De Minimis Breakdown JSON",
   ],
   leave_balances: ["Employee ID", "Leave Type", "Year", "Opening Balance", "Accrued", "Used", "Pending"],
   loans: [
@@ -500,7 +537,7 @@ const KIND_FIELDS: Record<MigrationKind, TargetField[]> = {
   ],
   payroll_history: [
     "employeeNo", "payDate", "periodLabel", "sourceReference", "grossPay", "basicSalary", "netPay", "taxWithheld",
-    "sssEmployee", "philHealthEmployee", "pagIbigEmployee", "thirteenthMonth",
+    "sssEmployee", "philHealthEmployee", "pagIbigEmployee", "thirteenthMonth", "deMinimisBreakdown",
   ],
   leave_balances: ["employeeNo", "leaveType", "year", "opening", "accrued", "used", "pending"],
   loans: [
