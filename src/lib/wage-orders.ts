@@ -76,23 +76,37 @@ export function isBelowMinimum(monthlyBasic: number, region: string, daysPerMont
 export type HolidayKind = "regular" | "special" | "rest";
 export type HolidayCalendarEntry = { date: string; name: string; kind: HolidayKind };
 
+/**
+ * National 2026 regular and special non-working holidays.
+ *
+ * Base calendar: Proclamation No. 1006, s. 2025.
+ * Movable Muslim holidays added by Proclamation No. 1189 (Eid'l Fitr,
+ * 20 March 2026) and Proclamation No. 1264 (Eid'l Adha, 27 May 2026).
+ * Special working days are intentionally omitted because they do not create
+ * statutory holiday premium pay by themselves.
+ */
 export const NATIONAL_HOLIDAYS_2026: HolidayCalendarEntry[] = [
   { date: "2026-01-01", name: "New Year's Day", kind: "regular" },
+  { date: "2026-03-20", name: "Eid'l Fitr", kind: "regular" },
   { date: "2026-04-02", name: "Maundy Thursday", kind: "regular" },
   { date: "2026-04-03", name: "Good Friday", kind: "regular" },
   { date: "2026-04-09", name: "Araw ng Kagitingan", kind: "regular" },
   { date: "2026-05-01", name: "Labor Day", kind: "regular" },
+  { date: "2026-05-27", name: "Eid'l Adha", kind: "regular" },
   { date: "2026-06-12", name: "Independence Day", kind: "regular" },
   { date: "2026-08-31", name: "National Heroes Day", kind: "regular" },
   { date: "2026-11-30", name: "Bonifacio Day", kind: "regular" },
   { date: "2026-12-25", name: "Christmas Day", kind: "regular" },
   { date: "2026-12-30", name: "Rizal Day", kind: "regular" },
+
   { date: "2026-02-17", name: "Chinese New Year", kind: "special" },
+  { date: "2026-04-04", name: "Black Saturday", kind: "special" },
   { date: "2026-08-21", name: "Ninoy Aquino Day", kind: "special" },
   { date: "2026-11-01", name: "All Saints' Day", kind: "special" },
+  { date: "2026-11-02", name: "All Souls' Day", kind: "special" },
   { date: "2026-12-08", name: "Feast of the Immaculate Conception", kind: "special" },
+  { date: "2026-12-24", name: "Christmas Eve", kind: "special" },
   { date: "2026-12-31", name: "Last Day of the Year", kind: "special" },
-  { date: "2026-03-11", name: "Company special non-working (demo)", kind: "special" },
 ];
 
 export function holidaysOn(date: string, calendar: readonly HolidayCalendarEntry[] = NATIONAL_HOLIDAYS_2026) {
