@@ -31,16 +31,16 @@ export type Notification = {
   page?: string;
 };
 
-const OVERVIEW_NAV_ORDER = ["Overview", "People", "Payroll", "Approvals", "Compliance", "Analytics", "Settings"] as const;
-
 const WORKSPACE_LABELS: Record<string, string> = {
-  Overview: "Dashboard",
-  People: "Employees",
-  Compliance: "Government Reports",
+  Overview: "Overview",
+  People: "People",
   Analytics: "Reports",
 };
 
-function workspaceLabel(page: string) {
+function workspaceLabel(page: string, role?: string | null) {
+  if (role === "checker" && page === "Approvals") return "Payroll Review";
+  if ((role === "bookkeeper" || role === "admin") && page === "Exports") return "Accounting";
+  if (role === "checker" && page === "Audit trail") return "Audit";
   return WORKSPACE_LABELS[page] ?? page;
 }
 
@@ -55,6 +55,8 @@ export function WorkspaceShell({
   onSwitchRole,
   onSignOut,
   visiblePages,
+  primaryPages,
+  workspaceRole,
   displayRole,
   allowClientSwitch = true,
   headerExtras,
@@ -70,6 +72,8 @@ export function WorkspaceShell({
   onSwitchRole?: (role: DemoRoleId) => void;
   onSignOut: () => void;
   visiblePages?: readonly string[];
+  primaryPages?: readonly string[];
+  workspaceRole?: string | null;
   displayRole?: DemoRoleId | null;
   allowClientSwitch?: boolean;
   headerExtras?: ReactNode;
@@ -80,6 +84,7 @@ export function WorkspaceShell({
   const [clientOpen, setClientOpen] = useState(false);
   const [roleOpen, setRoleOpen] = useState(false);
   const [trayOpen, setTrayOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const isFreelancer = data.selectedOrganization.accountType === "freelancer";
   const openApprovals = data.tasks.filter((task) => task.status === "Pending").length;
@@ -89,8 +94,21 @@ export function WorkspaceShell({
   const avatarRole = displayRole ?? data.user?.role ?? "member";
   const profileAvatarIndex = ({ owner: 0, admin: 0, hr: 1, payroll: 2, checker: 3, employee: 4 } as Record<string, number>)[avatarRole] ?? 0;
   const defaultPage = visiblePages?.[0] ?? "Overview";
-  const overviewItems = OVERVIEW_NAV_ORDER.map((name) => itemOf(name)).filter((item) => item !== undefined);
-  const navigationGroups = page === "Overview" ? [{ label: "", items: overviewItems }] : NAVIGATION;
+  const allowedItems = NAVIGATION
+    .flatMap((group) => group.items)
+    .filter((item) => !(isFreelancer && FREELANCER_HIDDEN.has(item.name)))
+    .filter((item) => !visiblePages || visiblePages.includes(item.name));
+  const primarySet = new Set(primaryPages ?? allowedItems.map((item) => item.name));
+  const primaryItems = allowedItems.filter((item) => primarySet.has(item.name));
+  const secondaryItems = allowedItems.filter((item) => !primarySet.has(item.name));
+  const navigationGroups = [{ label: "", items: primaryItems }];
+  const secondaryGroups = NAVIGATION
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => secondaryItems.some((secondary) => secondary.name === item.name)),
+    }))
+    .filter((group) => group.items.length > 0);
+  const secondaryHasCurrent = secondaryItems.some((item) => item.name === page);
 
   function closeOverlays() {
     setDrawer(false);
@@ -184,7 +202,7 @@ export function WorkspaceShell({
                       <span className={`nav-icon t-${item.tone}`} aria-hidden>
                         <Icon size={14} strokeWidth={active ? 2.3 : 2} />
                       </span>
-                      <span>{workspaceLabel(item.name)}</span>
+                      <span>{workspaceLabel(item.name, workspaceRole)}</span>
                       {badge && <b>{badge}</b>}
                     </button>
                   );
@@ -192,6 +210,55 @@ export function WorkspaceShell({
               </div>
             );
           })}
+
+          {secondaryItems.length > 0 && (
+            <div className="nav-group nav-more-group">
+              <button
+                type="button"
+                className={`nav-item nav-more-toggle ${secondaryHasCurrent ? "active" : ""}`}
+                onClick={() => setMoreOpen((current) => !current)}
+                aria-expanded={moreOpen || secondaryHasCurrent}
+              >
+                <span className="nav-icon t-slate" aria-hidden>
+                  <MoreHorizontal size={14} />
+                </span>
+                <span>More</span>
+                <ChevronDown className="nav-more-chevron" size={13} />
+              </button>
+
+              {(moreOpen || secondaryHasCurrent) && (
+                <div className="nav-more-items">
+                  {secondaryGroups.map((group) => (
+                    <div className="nav-more-section" key={group.label}>
+                      <p>{group.label}</p>
+                      {group.items.map((item) => {
+                        const Icon = item.icon;
+                        const active = page === item.name;
+                        const badge = badgeFor(item.badge);
+                        return (
+                          <button
+                            key={item.name}
+                            className={`nav-item ${active ? "active" : ""}`}
+                            data-tone={item.tone}
+                            data-nav-name={item.name}
+                            onClick={() => go(item.name)}
+                            aria-current={active ? "page" : undefined}
+                            title={rail ? item.name : undefined}
+                          >
+                            <span className={`nav-icon t-${item.tone}`} aria-hidden>
+                              <Icon size={14} strokeWidth={active ? 2.3 : 2} />
+                            </span>
+                            <span>{workspaceLabel(item.name, workspaceRole)}</span>
+                            {badge && <b>{badge}</b>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </nav>
 
         <div className="sidebar-bottom">
@@ -288,7 +355,7 @@ export function WorkspaceShell({
               <ChevronRight size={14} />
               <button onClick={() => go(defaultPage)}>{groupOf(page)}</button>
               <ChevronRight size={14} />
-              <span aria-current="page">{workspaceLabel(page)}</span>
+              <span aria-current="page">{workspaceLabel(page, workspaceRole)}</span>
             </nav>
           </div>
 
