@@ -19,11 +19,21 @@ type ChecklistItem = PayrollOfficerChecklistItem & {
   label: string;
 };
 
+type AssuranceFinding = {
+  code: string;
+  severity: "high" | "medium" | "info";
+  blocking: boolean;
+  title: string;
+  detail: string;
+  employeeId: number | null;
+};
+
 export function PayrollOfficerWorkspace({
   data,
   run,
   entries,
   checklist,
+  assuranceFindings,
   relatedTask,
   calculated,
   busy,
@@ -39,6 +49,7 @@ export function PayrollOfficerWorkspace({
   run: PayrollRun;
   entries: PayrollEntry[];
   checklist: ChecklistItem[] | null;
+  assuranceFindings: AssuranceFinding[];
   relatedTask?: Task;
   calculated: boolean;
   busy: boolean;
@@ -76,6 +87,17 @@ export function PayrollOfficerWorkspace({
     run: () => void;
   }> = [];
 
+  const actionableFindings = assuranceFindings
+    .filter((finding) =>
+      finding.employeeId != null
+      && finding.severity !== "info"
+      && finding.code !== "ENGINE_EXCEPTION"
+    )
+    .slice(0, 8);
+
+  const hasAttendanceFinding = actionableFindings.some((finding) => finding.code === "MISSING_ATTENDANCE");
+  const hasStatutoryFinding = actionableFindings.some((finding) => finding.code === "MISSING_STATUTORY");
+
   if (inputCheck && !inputCheck.passed) {
     attentionItems.push({
       key: "inputs",
@@ -85,7 +107,7 @@ export function PayrollOfficerWorkspace({
       run: () => onPage("People"),
     });
   }
-  if (attendanceCheck && !attendanceCheck.passed) {
+  if (attendanceCheck && !attendanceCheck.passed && !hasAttendanceFinding) {
     attentionItems.push({
       key: "attendance",
       title: attendanceCheck.label,
@@ -94,13 +116,13 @@ export function PayrollOfficerWorkspace({
       run: () => onPage("Time & attendance"),
     });
   }
-  if (statutoryCheck && !statutoryCheck.passed) {
+  if (statutoryCheck && !statutoryCheck.passed && !hasStatutoryFinding) {
     attentionItems.push({
       key: "statutory",
       title: statutoryCheck.label,
       detail: statutoryCheck.detail,
-      action: entries[0] ? "Inspect calculation" : "Open register",
-      run: () => entries[0] ? onExplainEmployee(entries[0].employeeId) : onShowAllExceptions(),
+      action: "Open register",
+      run: onShowAllExceptions,
     });
   }
   if (exceptionCheck && !exceptionCheck.passed && exceptions.length === 0) {
@@ -112,6 +134,19 @@ export function PayrollOfficerWorkspace({
       run: onShowAllExceptions,
     });
   }
+
+  const findingAttentionItems = actionableFindings.map((finding) => {
+    const employee = data.employees.find((person) => person.id === finding.employeeId);
+    return {
+      key: `finding-${finding.code}-${finding.employeeId}`,
+      title: employee
+        ? `${finding.title} · ${employee.firstName} ${employee.lastName}`
+        : finding.title,
+      detail: finding.detail,
+      action: "Explain pay",
+      run: () => onExplainEmployee(finding.employeeId!),
+    };
+  });
 
   const canCalculate = !["Pending approval", "Ready for release", "Released"].includes(run.status);
   const submitCopy = relatedTask?.status === "Pending"
@@ -218,14 +253,16 @@ export function PayrollOfficerWorkspace({
         />
       </div>
 
-      {(attentionItems.length > 0 || exceptions.length > 0) && (
+      {(attentionItems.length > 0 || findingAttentionItems.length > 0 || exceptions.length > 0) && (
         <div className="payroll-officer-attention">
           <div className="payroll-officer-attention-heading">
             <div>
               <span className="card-kicker">NEEDS ATTENTION</span>
               <strong>Fix the affected input or inspect the employee calculation.</strong>
             </div>
-            <span>{attentionItems.length + exceptions.length} item{attentionItems.length + exceptions.length === 1 ? "" : "s"}</span>
+            <span>
+              {attentionItems.length + findingAttentionItems.length + exceptions.length} item{attentionItems.length + findingAttentionItems.length + exceptions.length === 1 ? "" : "s"}
+            </span>
           </div>
 
           <div className="payroll-officer-attention-list">
@@ -237,6 +274,19 @@ export function PayrollOfficerWorkspace({
                   <p>{item.detail}</p>
                 </div>
                 <button className="secondary-button" onClick={item.run}>{item.action} <ArrowRight size={13} /></button>
+              </div>
+            ))}
+
+            {findingAttentionItems.map((item) => (
+              <div className="payroll-officer-attention-row" key={item.key}>
+                <span className="payroll-officer-attention-icon danger"><AlertTriangle size={14} /></span>
+                <div>
+                  <strong>{item.title}</strong>
+                  <p>{item.detail}</p>
+                </div>
+                <button className="secondary-button" onClick={item.run}>
+                  <FileSearch size={13} /> {item.action}
+                </button>
               </div>
             ))}
 
