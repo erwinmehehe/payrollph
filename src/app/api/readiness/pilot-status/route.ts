@@ -10,6 +10,7 @@ const PILOT_CRITICAL_KEYS = new Set([
   "email-delivery",
   "bank-data-encryption",
   "government-id-encryption",
+  "privacy-retention-schedule",
   "malware-scanning",
 ]);
 
