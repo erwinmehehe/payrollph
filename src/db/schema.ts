@@ -26,6 +26,7 @@ export const organizations = pgTable("organizations", {
   sssEmployerNo: varchar("sss_employer_no", { length: 24 }),
   philHealthEmployerNo: varchar("philhealth_employer_no", { length: 24 }),
   pagIbigEmployerNo: varchar("pagibig_employer_no", { length: 24 }),
+  statutoryDeductionTiming: varchar("statutory_deduction_timing", { length: 24 }).notNull().default("split"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -132,6 +133,7 @@ export const employees = pgTable("employees", {
   sssNo: varchar("sss_no", { length: 180 }),
   philHealthNo: varchar("philhealth_no", { length: 180 }),
   pagIbigNo: varchar("pagibig_no", { length: 180 }),
+  pagIbigVoluntaryMonthly: numeric("pagibig_voluntary_monthly", { precision: 10, scale: 2 }).notNull().default("0"),
   nationality: varchar("nationality", { length: 60 }).notNull().default("Filipino"),
   birthDate: date("birth_date"),
   emergencyContact: varchar("emergency_contact", { length: 120 }),
