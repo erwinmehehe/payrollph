@@ -595,7 +595,8 @@ async function processPayrollChunk(input: {
     : [];
 
   const priorStatutoryByEmployee = new Map<number, {
-    remuneration: number;
+    sssRemuneration: number;
+    pagIbigCompensation: number;
     sssEmployee: number;
     philHealthEmployee: number;
     pagIbigEmployee: number;
@@ -612,20 +613,31 @@ async function processPayrollChunk(input: {
     const deduction = (code: string) =>
       -(Number(lines.find((line) => String(line.code ?? "").toUpperCase() === code)?.amount ?? 0) || 0);
     const previous = priorStatutoryByEmployee.get(prior.employeeId) ?? {
-      remuneration: 0,
+      sssRemuneration: 0,
+      pagIbigCompensation: 0,
       sssEmployee: 0,
       philHealthEmployee: 0,
       pagIbigEmployee: 0,
       pagIbigVoluntaryEmployee: 0,
     };
-    const priorExcludedSupplementary = traceInputNumber(
+    const priorExcludedFromSss = traceInputNumber(
       prior.trace,
-      "supplementaryExcludedFromStatutory",
+      "supplementaryExcludedFromSssBase",
     );
-    previous.remuneration = roundToCents(
-      previous.remuneration + Math.max(
+    const priorExcludedFromPagIbig = traceInputNumber(
+      prior.trace,
+      "supplementaryExcludedFromPagIbigBase",
+    );
+    previous.sssRemuneration = roundToCents(
+      previous.sssRemuneration + Math.max(
         0,
-        Number(prior.grossPay) - expenseReimbursements - priorExcludedSupplementary,
+        Number(prior.grossPay) - expenseReimbursements - priorExcludedFromSss,
+      ),
+    );
+    previous.pagIbigCompensation = roundToCents(
+      previous.pagIbigCompensation + Math.max(
+        0,
+        Number(prior.grossPay) - expenseReimbursements - priorExcludedFromPagIbig,
       ),
     );
     previous.sssEmployee = roundToCents(previous.sssEmployee + deduction("SSS"));
@@ -735,7 +747,8 @@ async function processPayrollChunk(input: {
         label: earning.label,
         amount: Number(earning.amount),
         taxable: earning.taxable,
-        includeInStatutoryBase: earning.includeInStatutoryBase,
+        includeInSssBase: earning.includeInSssBase,
+        includeInPagIbigBase: earning.includeInPagIbigBase,
       })),
       deMinimis: (deMinimisByEmployee.get(employee.id) ?? [])
         .filter((g) =>
@@ -909,7 +922,7 @@ function calculateEmployeePay(input: {
     label: string;
     amount: number;
     taxable: boolean;
-    includeInStatutoryBase: boolean;
+    includeInSssBase: boolean;
   }>;
   deMinimis?: Array<{ id: number; benefitType: DeMinimisType; amount: number; frequency: "month" | "semester" | "year" }>;
   loans?: Array<{ id: number; loanType: string; referenceNo: string; cutoffDeduction: number; remainingBalance: number }>;
@@ -1209,13 +1222,13 @@ function calculateEmployeePay(input: {
     notes: [
       `Type: ${earning.earningType}`,
       earning.taxable ? "Tax treatment: taxable" : "Tax treatment: non-taxable",
-      earning.includeInStatutoryBase
-        ? "Included in statutory contribution base"
-        : "Excluded from statutory contribution base",
+      earning.includeInSssBase ? "Included in SSS contribution base" : "Excluded from SSS contribution base",
+      earning.includeInPagIbigBase ? "Included in Pag-IBIG contribution base" : "Excluded from Pag-IBIG contribution base",
     ],
     amountNum: Math.max(0, Number(earning.amount) || 0),
     taxable: Boolean(earning.taxable),
-    includeInStatutoryBase: Boolean(earning.includeInStatutoryBase),
+    includeInSssBase: Boolean(earning.includeInSssBase),
+    includeInPagIbigBase: Boolean(earning.includeInPagIbigBase),
   }));
   const supplementaryTotal = supplementaryLines.reduce((sum, line) => sum + line.amountNum, 0);
   const supplementaryTaxableTotal = supplementaryLines.reduce(
@@ -1223,8 +1236,12 @@ function calculateEmployeePay(input: {
     0,
   );
   const supplementaryNonTaxableTotal = supplementaryTotal - supplementaryTaxableTotal;
-  const supplementaryExcludedFromStatutory = supplementaryLines.reduce(
-    (sum, line) => sum + (!line.includeInStatutoryBase ? line.amountNum : 0),
+  const supplementaryExcludedFromSssBase = supplementaryLines.reduce(
+    (sum, line) => sum + (!line.includeInSssBase ? line.amountNum : 0),
+    0,
+  );
+  const supplementaryExcludedFromPagIbigBase = supplementaryLines.reduce(
+    (sum, line) => sum + (!line.includeInPagIbigBase ? line.amountNum : 0),
     0,
   );
 
@@ -1306,12 +1323,17 @@ function calculateEmployeePay(input: {
   // ledger baseline and the current deduction is a true-up to the actual
   // month-to-date obligation. A new hire who begins in the final cutoff has no
   // earlier obligation, so the current earned remuneration is used directly.
-  const remunerativeCutoffCompensation = Math.max(
+  const sssCutoffRemuneration = Math.max(
     0,
-    gross - expenseTotal - supplementaryExcludedFromStatutory,
+    gross - expenseTotal - supplementaryExcludedFromSssBase,
+  );
+  const pagIbigCutoffCompensation = Math.max(
+    0,
+    gross - expenseTotal - supplementaryExcludedFromPagIbigBase,
   );
   const priorStatutory = input.priorStatutory ?? {
-    remuneration: 0,
+    sssRemuneration: 0,
+    pagIbigCompensation: 0,
     sssEmployee: 0,
     philHealthEmployee: 0,
     pagIbigEmployee: 0,
@@ -1320,16 +1342,21 @@ function calculateEmployeePay(input: {
   const newHireInCurrentCutoff = employeeStartDate >= input.periodStart;
   const canTrueUpActualMonth =
     Boolean(input.isFinalCutoffOfMonth)
-    && (priorStatutory.remuneration > 0 || newHireInCurrentCutoff);
+    && (priorStatutory.sssRemuneration > 0 || newHireInCurrentCutoff);
 
-  const statutoryMonthlyCompensation = roundToCents(
+  const statutoryMonthlySssCompensation = roundToCents(
     canTrueUpActualMonth
-      ? priorStatutory.remuneration + remunerativeCutoffCompensation
-      : remunerativeCutoffCompensation * 2,
+      ? priorStatutory.sssRemuneration + sssCutoffRemuneration
+      : sssCutoffRemuneration * 2,
   );
-  const sssRule = computeSss(statutoryMonthlyCompensation);
+  const statutoryMonthlyPagIbigCompensation = roundToCents(
+    canTrueUpActualMonth
+      ? priorStatutory.pagIbigCompensation + pagIbigCutoffCompensation
+      : pagIbigCutoffCompensation * 2,
+  );
+  const sssRule = computeSss(statutoryMonthlySssCompensation);
   const philHealthRule = computePhilHealth(monthly);
-  const pagIbigRule = computePagIbig(statutoryMonthlyCompensation);
+  const pagIbigRule = computePagIbig(statutoryMonthlyPagIbigCompensation);
 
   const isSecondCutoff = Number(input.periodStart.slice(8, 10)) >= 16;
   const timing =
@@ -1354,7 +1381,7 @@ function calculateEmployeePay(input: {
     priorStatutory.pagIbigVoluntaryEmployee,
   );
   const statutoryReconciliationMode = canTrueUpActualMonth
-    ? (priorStatutory.remuneration > 0 ? "month-final-ledger-true-up" : "new-hire-final-cutoff-actual")
+    ? (priorStatutory.sssRemuneration > 0 ? "month-final-ledger-true-up" : "new-hire-final-cutoff-actual")
     : timing === "first_cutoff"
       ? "first-cutoff-full"
       : timing === "second_cutoff"
@@ -1490,7 +1517,7 @@ function calculateEmployeePay(input: {
     { code: "LATE", label: "Tardiness", amount: money(-tardinessDeduction) },
     { code: "UT", label: "Undertime", amount: money(-undertimeDeduction) },
     ...expenseLines,
-    ...supplementaryLines.map(({ amountNum: _amountNum, taxable: _taxable, includeInStatutoryBase: _include, ...line }) => line),
+    ...supplementaryLines.map(({ amountNum: _amountNum, taxable: _taxable, includeInSssBase: _include, ...line }) => line),
     ...deMinimisLines.map(({ periodAmount: _periodAmount, ...line }) => line),
     ...advanceLines,
     ...loanLines.map(({ deductAmount: _deductAmount, requestedDeduction: _requestedDeduction, ...l }) => l),
@@ -1522,9 +1549,10 @@ function calculateEmployeePay(input: {
       `deMinimisPaid=${money(deMinimisTotal)}`,
       `deMinimisOtherBenefitsPool=${money(deMinimisOtherBenefitsPool)}`,
       `mweTaxableSupplementaryCompensation=${money(mweTaxableSupplementaryCompensation)}`,
-      `statutoryMonthlyCompensation=${money(statutoryMonthlyCompensation)}`,
+      `statutoryMonthlySssCompensation=${money(statutoryMonthlySssCompensation)}`,
+      `statutoryMonthlyPagIbigCompensation=${money(statutoryMonthlyPagIbigCompensation)}`,
       `statutoryReconciliation=${statutoryReconciliationMode}`,
-      `priorMonthRemuneration=${money(priorStatutory.remuneration)}`,
+      `priorMonthRemuneration=${money(priorStatutory.sssRemuneration)}`,
       `priorSssEmployee=${money(priorStatutory.sssEmployee)}`,
       `priorPhilHealthEmployee=${money(priorStatutory.philHealthEmployee)}`,
       `priorPagIbigEmployee=${money(priorStatutory.pagIbigEmployee)}`,
