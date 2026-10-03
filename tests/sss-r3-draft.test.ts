@@ -9,12 +9,10 @@ import { generateGovernmentDraft } from "../src/lib/exporters";
 //   1. EC was hardcoded to ₱10.00 for every employee, regardless of their
 //      actual MSC. Correct EC is ₱30 once MSC reaches ₱15,000, which is most
 //      employees earning above roughly ₱15,000/month basic pay.
-//   2. The exporter read SSS from a single payroll run's stored line item,
-//      which is only half the monthly amount by design (payroll-engine.ts
-//      splits SSS evenly across the two semi-monthly cutoffs). SSS R-3 is a
-//      monthly filing, so the draft now recomputes full monthly figures from
-//      computeSss() directly instead of reading (and silently under-reporting)
-//      a half-month deduction.
+//   2. The exporter must report full monthly SSS/MPF/EC components regardless
+//      of the employer's configured cutoff deduction timing. It recomputes the
+//      monthly figures from the payroll statutory remuneration trace instead of
+//      treating a single cutoff's deduction as the monthly filing amount.
 
 test("SSS R-3 draft reports correct EC and full monthly SSS for an employee above the EC threshold", async () => {
   const [org] = await db.insert(organizations).values({
@@ -60,10 +58,13 @@ test("SSS R-3 draft reports correct EC and full monthly SSS for an employee abov
   const dataLine = file.body.split("\n").find((line) => line.includes("Bautista"));
   assert.ok(dataLine, "expected a data row for the seeded employee");
 
-  // MSC 30,000 -> employee 5% = 1,500.00 (full month, not the stored 750 half-month figure).
+  // MSC 30,000 -> EE Regular SS 1,000 + EE MPF 500 = 1,500 full-month employee share.
   assert.ok(dataLine!.includes("34-1234567-8"), "expected the real SSS number, not the internal employee number");
-  assert.ok(dataLine!.includes("1500.00"), `expected full monthly SSS employee share of 1500.00, got: ${dataLine}`);
+  const fields = [...dataLine!.matchAll(/"([^"]*)"/g)].map((match) => match[1]);
+  assert.equal(fields[4], "30000.00");
+  assert.equal(Number(fields[7]) + Number(fields[8]), 1500);
+  assert.equal(Number(fields[9]) + Number(fields[10]), 3000);
   // MSC 30,000 >= 15,000 -> EC must be 30.00, not the old hardcoded 10.00.
-  assert.ok(dataLine!.includes("30.00"), `expected EC of 30.00 at this MSC, got: ${dataLine}`);
-  assert.ok(!dataLine!.includes(",\"10.00\","), `EC must not fall back to the old hardcoded 10.00: ${dataLine}`);
+  assert.equal(fields[11], "30.00");
+  assert.equal(fields[12], "4530.00");
 });
