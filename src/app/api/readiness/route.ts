@@ -1,6 +1,6 @@
 import { and, count, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { auditEvents, contractors, employees, invoices, outbox, payrollEntries, subscriptions, users } from "@/db/schema";
+import { auditEvents, contractors, employees, invoices, outbox, payrollEntries, retentionRules, subscriptions, users } from "@/db/schema";
 import { bankEncryptionConfigured, bankEncryptionKeySource } from "@/lib/bank-account-crypto";
 import { governmentIdEncryptionConfigured } from "@/lib/government-id-crypto";
 import { describeEvidenceGap, findFilingForm } from "@/lib/filing-evidence";
@@ -11,6 +11,7 @@ import { constantTimeSecretEqual } from "@/lib/security-secret";
 import { operationalSecret, operationalSecretConfigured, operationalSecretSource } from "@/lib/operational-secret";
 import { documentUploadsEnabled, malwareScannerConfigured } from "@/lib/storage";
 import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
+import { missingRetentionClasses } from "@/lib/retention-schedule";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +71,17 @@ export async function buildReadinessPayload() {
   const [{ value: totalEmployees }] = await db.select({ value: count() }).from(employees);
   const [{ value: employeesMissingRestDay }] = await db.select({ value: count() }).from(employees)
     .where(sql`${employees.restDay} is null`);
+
+  const employeeOrganizationRows = await db.select({ organizationId: employees.organizationId }).from(employees);
+  const employeeOrganizationIds = [...new Set(employeeOrganizationRows.map((row) => row.organizationId))];
+  const retentionRows = await db.select().from(retentionRules);
+  const retentionMissingByOrganization = employeeOrganizationIds.map((organizationId) => ({
+    organizationId,
+    missing: missingRetentionClasses(
+      retentionRows.filter((rule) => rule.organizationId === organizationId),
+    ),
+  })).filter((item) => item.missing.length > 0);
+  const retentionScheduleReady = retentionMissingByOrganization.length === 0;
 
   // SSS R-3 and the BIR Alphalist readiness come from recorded agency acceptance, not env flags.
   // The table can be missing on a database that has not been upgraded yet, and
@@ -264,6 +276,15 @@ export async function buildReadinessPayload() {
           ? `${plaintextEmployeeGovernmentIds} employee record(s) and ${plaintextContractorTins} contractor record(s) still contain plaintext government identifiers. Run the government-ID encryption migration before launch.`
           : "No usable PII encryption key is available. Configure PII_ENCRYPTION_KEY or a valid domain-separated fallback before launch.",
       blocks: governmentIdsProtected ? "none" : "launch",
+    },
+    {
+      key: "privacy-retention-schedule",
+      label: "Approved privacy retention schedule",
+      ready: retentionScheduleReady,
+      detail: retentionScheduleReady
+        ? "Every organization with employee data has an approved rule for each required payroll, tax, employment, payout, audit and DSR record class."
+        : `${retentionMissingByOrganization.length} organization(s) with employee data are missing one or more approved retention record classes. Configure the organization-specific legal basis and retention period under the privacy retention API.`,
+      blocks: retentionScheduleReady ? "none" : "launch",
     },
     {
       key: "production-pilot-signoff",
