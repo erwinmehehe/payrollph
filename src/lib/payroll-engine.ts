@@ -783,7 +783,7 @@ function calculateEmployeePay(input: {
   const baseBasicPay = semiMonthlyBasic + workedBasicPay;
 
   const approvedLeave = input.approvedLeave ?? [];
-  const invalidPreEmploymentLeave = approvedLeave.find((leave) => leave.startDate < employmentStart);
+  const invalidPreEmploymentLeave = approvedLeave.find((leave) => leave.startDate < employeeStartDate);
   if (invalidPreEmploymentLeave) {
     throw new Error(
       `Approved ${invalidPreEmploymentLeave.leaveType} leave #${invalidPreEmploymentLeave.id} begins before employee #${input.employee.id}'s employment start date. Correct the leave record before calculating payroll.`,
