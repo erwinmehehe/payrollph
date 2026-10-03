@@ -77,6 +77,16 @@ export async function PUT(request: Request) {
     }, { status: 422 });
   }
 
+  const payrollCalendarMode =
+    body.payrollCalendarMode === undefined
+      ? existing.payrollCalendarMode
+      : String(body.payrollCalendarMode);
+  if (!["flexible", "ph_semi_monthly"].includes(payrollCalendarMode)) {
+    return Response.json({
+      error: "Payroll calendar mode must be flexible or ph_semi_monthly.",
+    }, { status: 422 });
+  }
+
   const governmentFields = {
     birTin,
     birBranchCode,
@@ -92,6 +102,7 @@ export async function PUT(request: Request) {
     name,
     legalName: legalName || name,
     statutoryDeductionTiming,
+    payrollCalendarMode,
     ...governmentPatch,
   }).where(eq(organizations.id, organizationId)).returning();
 
@@ -103,6 +114,7 @@ export async function PUT(request: Request) {
     metadata: {
       legalName: updated.legalName,
       statutoryDeductionTiming: updated.statutoryDeductionTiming,
+      payrollCalendarMode: updated.payrollCalendarMode,
       governmentFieldsUpdated: Object.keys(governmentPatch),
     },
   });
