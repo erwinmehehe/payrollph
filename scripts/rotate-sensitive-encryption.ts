@@ -59,7 +59,7 @@ async function main() {
   let snapshotRows = 0;
 
   for (const employee of employeeRows) {
-    const patch: Record<string, string | null> = {};
+    const patch: Partial<typeof employees.$inferInsert> = {};
 
     if (rotateBank && employee.bankAccount?.trim()) {
       const next = rotateBankAccountEncryption(employee.bankAccount);
