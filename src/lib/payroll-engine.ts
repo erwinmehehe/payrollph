@@ -722,7 +722,7 @@ function calculateEmployeePay(input: {
   const punchNotes: string[] = [];
   const holidayNotes: string[] = [];
 
-  const eligiblePunches = eligiblePunches.filter((punch) => String(punch.workDate) >= employmentStart);
+  const eligiblePunches = input.punches.filter((punch) => String(punch.workDate) >= employmentStart);
   for (const punch of eligiblePunches) {
     const derived = deriveClockHours(
       {
@@ -910,8 +910,8 @@ function calculateEmployeePay(input: {
   const advanceTotal = (input.advances ?? []).reduce((sum, a) => sum + Number(a.requestedAmount) + Number(a.fee), 0);
 
   // RR 29-2025 benefits are cash earnings on the payslip but tax-exempt up to
-  // their category ceiling. Only the excess joins taxable compensation / the
-  // annual other-benefits pool; the line item keeps both numbers traceable.
+  // their category ceiling. Excess is tracked into the annual 13th-month /
+  // other-benefits PHP 90k pool instead of being taxed immediately per cutoff.
   const deMinimisLines = (input.deMinimis ?? []).map((grant) => {
     const periodAmount = deMinimisPerSemiMonthlyPeriod(grant.amount, grant.frequency);
     const annualizedGrant = grant.frequency === "month" ? grant.amount * 12
@@ -1150,7 +1150,7 @@ function buildPayslipText(input: {
     "",
     ...(input.notes.length ? ["Notes:", ...input.notes] : ["Notes: none"]),
     "",
-    "Traceable line items generated from approved punches and PH-2026.01 tables.",
+    "Traceable line items generated from approved punches and PH-2026.03 rules.",
   ];
 
   // Build a simple text-based PDF content stream.
