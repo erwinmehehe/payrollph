@@ -142,12 +142,16 @@ export function PayrollOfficerWorkspace({
           title="Inputs"
           state={workflow.steps.inputs.state}
           detail={
-            workflow.inputIssues.length
-              ? `${workflow.inputIssues.length} input area${workflow.inputIssues.length === 1 ? "" : "s"} need attention before handoff.`
-              : "Required employee inputs and attendance checks are clear."
+            checklist == null
+              ? "Checking employee inputs and attendance against the server-side payroll checklist."
+              : workflow.inputIssues.length
+                ? `${workflow.inputIssues.length} input area${workflow.inputIssues.length === 1 ? "" : "s"} need attention before handoff.`
+                : "Required employee inputs and attendance checks are clear."
           }
           action={
-            workflow.inputIssues.length ? (
+            checklist == null ? (
+              <span className="payroll-officer-step-done"><Clock3 size={13} /> Checking</span>
+            ) : workflow.inputIssues.length ? (
               <button className="secondary-button" onClick={() => onPage(inputCheck && !inputCheck.passed ? "People" : "Time & attendance")}>
                 <UsersRound size={14} /> Resolve inputs
               </button>
