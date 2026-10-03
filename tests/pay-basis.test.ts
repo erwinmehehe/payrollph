@@ -496,3 +496,175 @@ test("pending retro pay is included once and settled only on payroll release", a
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
 });
+
+
+test("mid-cutoff monthly hire is prorated from employment start and future hires are excluded", async () => {
+  const [org] = await db.insert(organizations).values({
+    name: "Mid Cutoff Hire Test",
+    legalName: "Mid Cutoff Hire Test Inc.",
+    plan: "Core",
+  }).returning();
+
+  try {
+    const [midHire, futureHire] = await db.insert(employees).values([
+      {
+        organizationId: org.id,
+        employeeNo: "MID-HIRE",
+        firstName: "Mid",
+        lastName: "Hire",
+        title: "Staff",
+        avatarInitials: "MH",
+        basicRate: "30000.00",
+        startDate: "2026-09-24",
+      },
+      {
+        organizationId: org.id,
+        employeeNo: "FUTURE-HIRE",
+        firstName: "Future",
+        lastName: "Hire",
+        title: "Staff",
+        avatarInitials: "FH",
+        basicRate: "30000.00",
+        startDate: "2026-10-01",
+      },
+    ]).returning();
+
+    await db.insert(employeePayProfiles).values([
+      {
+        employeeId: midHire.id,
+        organizationId: org.id,
+        payBasis: "monthly",
+        rateAmount: "30000.00",
+        standardWorkDaysPerMonth: "22.00",
+        standardHoursPerDay: "8.00",
+      },
+      {
+        employeeId: futureHire.id,
+        organizationId: org.id,
+        payBasis: "monthly",
+        rateAmount: "30000.00",
+        standardWorkDaysPerMonth: "22.00",
+        standardHoursPerDay: "8.00",
+      },
+    ]);
+
+    const [run] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      periodLabel: "Sep 16–30, 2026 mid-hire",
+      periodStart: "2026-09-16",
+      periodEnd: "2026-09-30",
+      scopeLabel: "All locations",
+      status: "Draft",
+      payDate: "2026-09-30",
+    }).returning();
+
+    const queued = await enqueuePayrollRun(run.id, 25);
+    assert.equal(queued.employeeCount, 1, "future hires must not enter the payroll cohort");
+
+    await drainPayrollQueue(10, run.id);
+
+    const entries = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].employeeId, midHire.id);
+
+    const lines = entries[0].lineItems as Array<{ code: string; amount: string }>;
+    assert.equal(
+      Number(lines.find((line) => line.code === "BASIC")?.amount),
+      7000,
+      "Sep 24–30 is 7 of 15 cutoff calendar days, so 15,000 semi-monthly basic prorates to 7,000",
+    );
+
+    const trace = entries[0].trace as { inputs?: string[] };
+    assert.ok(trace.inputs?.includes("employmentStart=2026-09-24"));
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});
+
+test("insufficient net pay prioritizes government loans and carries the remainder forward", async () => {
+  const [org] = await db.insert(organizations).values({
+    name: "Loan Priority Test",
+    legalName: "Loan Priority Test Inc.",
+    plan: "Core",
+  }).returning();
+
+  try {
+    const [employee] = await db.insert(employees).values({
+      organizationId: org.id,
+      employeeNo: "LOAN-PRIORITY",
+      firstName: "Loan",
+      lastName: "Priority",
+      title: "Staff",
+      avatarInitials: "LP",
+      basicRate: "20000.00",
+      startDate: "2025-01-01",
+    }).returning();
+
+    await db.insert(employeePayProfiles).values({
+      employeeId: employee.id,
+      organizationId: org.id,
+      payBasis: "monthly",
+      rateAmount: "20000.00",
+      standardWorkDaysPerMonth: "22.00",
+      standardHoursPerDay: "8.00",
+    });
+
+    const [sssLoan, companyLoan] = await db.insert(employeeLoans).values([
+      {
+        organizationId: org.id,
+        employeeId: employee.id,
+        loanType: "SSS Salary Loan",
+        referenceNo: "SSS-PRIORITY",
+        principal: "12000.00",
+        monthlyAmortization: "12000.00",
+        cutoffDeduction: "6000.00",
+        remainingBalance: "12000.00",
+        totalPaid: "0.00",
+        status: "active",
+        startDate: "2026-01-01",
+      },
+      {
+        organizationId: org.id,
+        employeeId: employee.id,
+        loanType: "Company Loan",
+        referenceNo: "COMPANY-PRIORITY",
+        principal: "12000.00",
+        monthlyAmortization: "12000.00",
+        cutoffDeduction: "6000.00",
+        remainingBalance: "12000.00",
+        totalPaid: "0.00",
+        status: "active",
+        startDate: "2026-01-01",
+      },
+    ]).returning();
+
+    const [run] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      periodLabel: "Sep 16–30, 2026 loan priority",
+      periodStart: "2026-09-16",
+      periodEnd: "2026-09-30",
+      scopeLabel: "All locations",
+      status: "Draft",
+      payDate: "2026-09-30",
+    }).returning();
+
+    await enqueuePayrollRun(run.id, 25);
+    await drainPayrollQueue(10, run.id);
+
+    const [entry] = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
+    const lines = entry.lineItems as Array<{ code: string; amount: string }>;
+    const sssLine = lines.find((line) => line.code === `LOAN-${sssLoan.id}`);
+    const companyLine = lines.find((line) => line.code === `LOAN-${companyLoan.id}`);
+
+    assert.equal(Number(sssLine?.amount), -6000, "government loan gets first claim on available net pay");
+    assert.ok(Number(companyLine?.amount) > -6000 && Number(companyLine?.amount) <= 0, "company loan is capped to remaining net pay");
+    assert.equal(Number(entry.netPay), 0, "loan deductions may consume available net but must never make net negative");
+
+    const trace = entry.trace as { inputs?: string[]; flags?: string[] };
+    assert.ok(trace.inputs?.includes("loanRequested=12000.00"));
+    assert.ok(trace.inputs?.some((line) => line.startsWith("loanDeducted=")));
+    assert.ok(trace.flags?.some((flag) => flag.includes("Company Loan deduction was limited")));
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});
