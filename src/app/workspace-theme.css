@@ -11081,3 +11081,71 @@
     max-width: 150px;
   }
 }
+
+
+/* Employee desktop shell parity with role dashboards */
+@media (min-width: 721px) {
+  .app-shell.employee-workspace-shell .employee-shell-brand {
+    min-height: 42px;
+    margin: 0;
+    padding: 0 7px;
+    border-bottom: 0;
+    background: #fcfcfb;
+    color: #15221f;
+  }
+
+  .app-shell.employee-workspace-shell .employee-shell-brandmark {
+    width: 25px;
+    height: 25px;
+    border-radius: 7px;
+    background: #0b806d;
+    box-shadow: none;
+  }
+
+  .app-shell.employee-workspace-shell .employee-shell-brand > div strong {
+    color: #17211f;
+    font-size: 12px;
+    font-weight: 710;
+    letter-spacing: -.02em;
+  }
+
+  .app-shell.employee-workspace-shell .employee-workspace-label {
+    display: none;
+  }
+
+  .app-shell.employee-workspace-shell .employee-side-nav {
+    display: grid;
+    margin-top: 9px;
+    padding: 0;
+  }
+
+  .app-shell.employee-workspace-shell .employee-side-nav .nav-item {
+    display: flex;
+    min-height: 35px;
+    margin-bottom: 4px;
+    gap: 8px;
+    padding: 0 8px;
+    border-radius: 6px;
+    color: #41506a;
+    font-size: 10px;
+    font-weight: 570;
+  }
+
+  .app-shell.employee-workspace-shell .employee-side-nav .nav-item .nav-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+  }
+
+  .app-shell.employee-workspace-shell .employee-side-nav .nav-item.active {
+    border-color: #d6e5ff;
+    background: #eaf2ff;
+    color: #1757d8;
+    box-shadow: none;
+  }
+
+  .app-shell.employee-workspace-shell .employee-side-nav .nav-item.active .nav-icon {
+    background: #e4f5ef;
+    color: #0b806d;
+  }
+}
