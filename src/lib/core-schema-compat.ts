@@ -185,7 +185,7 @@ export async function ensureCoreCompatibilitySchema() {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v5'))");
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v6'))");
 
       await client.query(`
         ALTER TABLE organizations
@@ -467,6 +467,11 @@ export async function ensureCoreCompatibilitySchema() {
           source_system,
           source_reference
         )
+      `);
+
+      await client.query(`
+        ALTER TABLE historical_payroll_entries
+          ADD COLUMN IF NOT EXISTS de_minimis_breakdown jsonb
       `);
 
       // Evidence that a corporate bank portal accepted an exact Linaw-generated
