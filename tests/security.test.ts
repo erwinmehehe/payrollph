@@ -9,6 +9,7 @@ import { decryptTotpSecret, encryptTotpSecret } from "../src/lib/security-secret
 import { passwordIssues } from "../src/lib/validation";
 import { biometricDeviceCredential, verifyBiometricDeviceCredential } from "../src/lib/biometric-auth";
 import { malwareScannerConfigured, scanUpload } from "../src/lib/storage";
+import { isPublicDemoIdentity } from "../src/lib/demo-security";
 
 // RFC 6238 Appendix B test vector (SHA1, 8 digits originally; we verify 6-digit mode with known secret)
 // Using the standard secret "12345678901234567890" encoded in base32: GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ
@@ -182,6 +183,30 @@ test("public demo payroll release suppresses email and webhook side effects", ()
   assert.ok(release.includes("isPublicDemoIdentity(user.email)"));
   assert.ok(release.includes("sharedDemo ? [] : staff"));
   assert.ok(release.includes("sharedDemo ? [] : await dispatchWebhook"));
+});
+
+
+test("all six public demo identities stay inside the side-effect guard", () => {
+  for (const email of [
+    "owner.demo@linaw.ph",
+    "hr.demo@linaw.ph",
+    "payroll.demo@linaw.ph",
+    "checker.demo@linaw.ph",
+    "bookkeeper.demo@linaw.ph",
+    "jonas.reyes@linaw.ph",
+  ]) {
+    assert.equal(isPublicDemoIdentity(email), true, `${email} must be recognized as a public demo identity`);
+  }
+});
+
+test("synthetic bank destinations are restricted to the public demo export path", () => {
+  const route = readFileSync("src/app/api/payroll-runs/[id]/exports/route.ts", "utf8");
+  const exporter = readFileSync("src/lib/exporters.ts", "utf8");
+  assert.ok(route.includes("allowSyntheticDemoDestinations: isPublicDemoIdentity(user.email)"));
+  assert.ok(route.includes('publicDemoMutationDenied(user.email, "Live payroll disbursement")'));
+  assert.ok(exporter.includes("allowSyntheticDemoDestinations?: boolean"));
+  assert.ok(exporter.includes('options.allowSyntheticDemoDestinations ? "demo-" : ""'));
+  assert.ok(exporter.includes('syntheticDemoDestinations: options.allowSyntheticDemoDestinations === true'));
 });
 
 
