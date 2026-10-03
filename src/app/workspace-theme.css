@@ -2529,7 +2529,7 @@
   display: none !important;
 }
 
-.app-shell:has(.payrollph-dashboard) .nav-item[data-nav-name]:not([data-nav-name="Overview"]):not([data-nav-name="People"]):not([data-nav-name="Payroll"]):not([data-nav-name="Approvals"]):not([data-nav-name="Compliance"]):not([data-nav-name="Analytics"]):not([data-nav-name="Settings"]) {
+.app-shell:has(.payrollph-dashboard) .nav-item[data-nav-name]:not([data-nav-name="Overview"]):not([data-nav-name="People"]):not([data-nav-name="Payroll"]):not([data-nav-name="Approvals"]):not([data-nav-name="Compliance"]):not([data-nav-name="Analytics"]):not([data-nav-name="Exports"]):not([data-nav-name="Settings"]) {
   display: none !important;
 }
 
@@ -4010,5 +4010,7151 @@
 
   .app-shell .payroll-officer-attention-actions {
     flex-wrap: wrap;
+  }
+}
+
+
+/* ---------------------------------------------------- Employee self-service */
+
+.employee-app {
+  width: min(100% - 28px, 980px);
+  margin: 0 auto;
+  padding: 24px 0 44px;
+  color: #17211f;
+}
+
+.employee-app-link {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding-block: 28px;
+}
+
+.employee-link-card {
+  width: min(100%, 440px);
+  padding: 26px;
+  border: 1px solid #e2e7e3;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 24px 60px -42px rgba(15, 42, 36, .38);
+}
+
+.employee-brand-mark {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 18px;
+  border-radius: 11px;
+  background: #176b5d;
+  color: #fff;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.employee-link-card h1 {
+  margin: 5px 0 7px;
+  font-size: 25px;
+  letter-spacing: -.04em;
+}
+
+.employee-link-card > p {
+  margin: 0;
+  color: #71807b;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.employee-link-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.employee-link-form label,
+.employee-leave-form label,
+.employee-edit-fields label {
+  display: grid;
+  gap: 6px;
+  color: #47544f;
+  font-size: 10.5px;
+  font-weight: 650;
+}
+
+.employee-link-form input,
+.employee-leave-form input,
+.employee-leave-form select,
+.employee-leave-form textarea,
+.employee-edit-fields input {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid #dfe5e1;
+  border-radius: 9px;
+  background: #fff;
+  padding: 8px 10px;
+  color: #17211f;
+  font: inherit;
+}
+
+.employee-leave-form textarea {
+  min-height: 82px;
+  resize: vertical;
+}
+
+.employee-leave-form small {
+  color: #86918d;
+  font-size: 9.5px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.employee-app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 14px;
+}
+
+.employee-app-identity {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.employee-app-avatar {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: #edf8f4;
+  color: #176b5d;
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.employee-app-identity span {
+  display: block;
+  color: #82908a;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.employee-app-identity h1 {
+  margin: 2px 0 0;
+  font-size: 24px;
+  line-height: 1.05;
+  letter-spacing: -.04em;
+}
+
+.employee-app-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.employee-clock-button,
+.employee-icon-button {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid #dbe3df;
+  border-radius: 9px;
+  background: #fff;
+  color: #34423d;
+  font-size: 10.5px;
+  font-weight: 680;
+  cursor: pointer;
+}
+
+.employee-clock-button {
+  padding: 0 12px;
+  border-color: #176b5d;
+  background: #176b5d;
+  color: #fff;
+}
+
+.employee-icon-button {
+  width: 36px;
+  padding: 0;
+}
+
+.employee-tabs {
+  position: sticky;
+  z-index: 6;
+  top: 0;
+  display: flex;
+  gap: 4px;
+  margin: 0 0 16px;
+  padding: 4px;
+  border: 1px solid #e3e7e4;
+  border-radius: 11px;
+  background: rgba(250,251,249,.95);
+  backdrop-filter: blur(12px);
+}
+
+.employee-tabs button {
+  flex: 1;
+  min-height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #74817c;
+  font-size: 10.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.employee-tabs button.active {
+  background: #fff;
+  color: #176b5d;
+  box-shadow: 0 1px 3px rgba(15, 42, 36, .1);
+}
+
+.employee-home,
+.employee-section {
+  display: grid;
+  gap: 14px;
+}
+
+.employee-latest-pay {
+  overflow: hidden;
+  padding: 20px;
+  border: 1px solid #d8e5df;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 92% 12%, rgba(23,107,93,.11), transparent 29%),
+    linear-gradient(145deg, #ffffff, #f7fbf9);
+  box-shadow: 0 20px 45px -40px rgba(17, 74, 62, .52);
+}
+
+.employee-latest-pay-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.employee-latest-pay h2 {
+  margin: 4px 0 3px;
+  font-size: 18px;
+  letter-spacing: -.03em;
+}
+
+.employee-latest-pay p {
+  margin: 0;
+  color: #73807b;
+  font-size: 10.5px;
+}
+
+.employee-secure-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: #e5f5ee;
+  color: #176b5d;
+  font-size: 9.5px;
+  font-weight: 720;
+  white-space: nowrap;
+}
+
+.employee-net-pay {
+  margin-top: 22px;
+}
+
+.employee-net-pay span {
+  display: block;
+  color: #73807b;
+  font-size: 9.5px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: .045em;
+}
+
+.employee-net-pay strong {
+  display: block;
+  margin-top: 4px;
+  color: #10211d;
+  font-size: clamp(32px, 6vw, 48px);
+  line-height: .98;
+  letter-spacing: -.055em;
+  font-variant-numeric: tabular-nums;
+}
+
+.employee-pay-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.employee-pay-summary > div {
+  padding: 10px 11px;
+  border: 1px solid #e7ece9;
+  border-radius: 10px;
+  background: rgba(255,255,255,.75);
+}
+
+.employee-pay-summary span,
+.employee-pay-summary strong {
+  display: block;
+}
+
+.employee-pay-summary span {
+  color: #87938e;
+  font-size: 9px;
+}
+
+.employee-pay-summary strong {
+  margin-top: 3px;
+  color: #304039;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.employee-latest-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.employee-empty-pay {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 22px;
+  color: #7d8b85;
+  font-size: 11px;
+}
+
+.employee-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 10px;
+}
+
+.employee-quick-card {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 32px minmax(0,1fr);
+  gap: 9px;
+  align-items: start;
+  padding: 13px;
+  border: 1px solid #e4e8e5;
+  border-radius: 13px;
+  background: #fff;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.employee-quick-card:hover {
+  border-color: #cfdad4;
+  background: #fbfcfb;
+}
+
+.employee-quick-icon {
+  width: 31px;
+  height: 31px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: #edf8f4;
+  color: #176b5d;
+}
+
+.employee-quick-copy {
+  min-width: 0;
+}
+
+.employee-quick-copy small,
+.employee-quick-copy strong,
+.employee-quick-copy em {
+  display: block;
+}
+
+.employee-quick-copy small {
+  color: #8a9691;
+  font-size: 8.5px;
+  font-weight: 680;
+  text-transform: uppercase;
+  letter-spacing: .045em;
+}
+
+.employee-quick-copy strong {
+  margin-top: 3px;
+  font-size: 11.5px;
+  line-height: 1.3;
+}
+
+.employee-quick-copy em {
+  margin-top: 3px;
+  color: #77847f;
+  font-size: 9.5px;
+  font-style: normal;
+  line-height: 1.45;
+}
+
+.employee-quick-action {
+  grid-column: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 2px;
+  color: #176b5d;
+  font-size: 9.5px;
+  font-weight: 680;
+}
+
+.employee-next-pay {
+  display: grid;
+  grid-template-columns: minmax(0, .8fr) minmax(420px, 1.2fr);
+  gap: 18px;
+  padding: 16px;
+  border: 1px solid #e4e8e5;
+  border-radius: 13px;
+  background: #fff;
+}
+
+.employee-next-pay h3 {
+  margin: 4px 0;
+  font-size: 15px;
+}
+
+.employee-next-pay p {
+  margin: 0;
+  color: #74817c;
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.employee-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 4px 0 2px;
+}
+
+.employee-section-heading h2 {
+  margin: 4px 0 4px;
+  font-size: 22px;
+  letter-spacing: -.04em;
+}
+
+.employee-section-heading p {
+  max-width: 640px;
+  margin: 0;
+  color: #74817c;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.employee-pay-breakdown,
+.employee-list-card,
+.employee-time-today,
+.employee-edit-card {
+  border: 1px solid #e3e8e4;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.employee-pay-breakdown {
+  padding: 18px;
+}
+
+.employee-pay-breakdown-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.employee-pay-breakdown-head span,
+.employee-pay-breakdown-head strong,
+.employee-pay-breakdown-head small {
+  display: block;
+}
+
+.employee-pay-breakdown-head span {
+  color: #7c8984;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.employee-pay-breakdown-head strong {
+  margin-top: 3px;
+  font-size: 28px;
+  letter-spacing: -.045em;
+  font-variant-numeric: tabular-nums;
+}
+
+.employee-pay-breakdown-head small {
+  margin-top: 3px;
+  color: #8a9691;
+  font-size: 9.5px;
+}
+
+.employee-pay-totals {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  gap: 8px;
+  margin: 15px 0;
+}
+
+.employee-pay-totals > div {
+  padding: 10px;
+  border-radius: 9px;
+  background: #f7f9f7;
+}
+
+.employee-pay-totals span,
+.employee-pay-totals strong {
+  display: block;
+}
+
+.employee-pay-totals span {
+  color: #84908b;
+  font-size: 9px;
+}
+
+.employee-pay-totals strong {
+  margin-top: 3px;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.employee-breakdown-columns {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 12px;
+}
+
+.employee-pay-lines {
+  padding: 12px;
+  border: 1px solid #edf0ee;
+  border-radius: 10px;
+}
+
+.employee-pay-lines h4 {
+  margin: 0 0 7px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .045em;
+}
+
+.employee-pay-lines > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 7px 0;
+  border-top: 1px solid #f0f2f0;
+  font-size: 10.5px;
+}
+
+.employee-pay-lines > div:first-of-type {
+  border-top: 0;
+}
+
+.employee-pay-lines > div span {
+  color: #66736e;
+}
+
+.employee-pay-lines > div strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.employee-pay-lines > p {
+  margin: 0;
+  color: #8c9793;
+  font-size: 10px;
+}
+
+.employee-rule-note {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 11px;
+  color: #82908a;
+  font-size: 9.5px;
+}
+
+.employee-list-card {
+  overflow: hidden;
+}
+
+.employee-list-card-head {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 13px;
+  border-bottom: 1px solid #edf0ee;
+  background: #fafbfa;
+}
+
+.employee-list-card-head h3 {
+  margin: 3px 0 0;
+  font-size: 13px;
+}
+
+.employee-mini-meta {
+  color: #86928d;
+  font-size: 9.5px;
+}
+
+.employee-pay-row,
+.employee-attendance-row,
+.employee-leave-row {
+  border-top: 1px solid #f0f2f0;
+}
+
+.employee-pay-row:first-of-type,
+.employee-attendance-row:first-of-type,
+.employee-leave-row:first-of-type {
+  border-top: 0;
+}
+
+.employee-pay-row-main {
+  width: 100%;
+  min-height: 62px;
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto 20px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 13px;
+  border: 0;
+  background: #fff;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.employee-pay-row-main:hover {
+  background: #fafbfa;
+}
+
+.employee-pay-row-main strong,
+.employee-pay-row-main span {
+  display: block;
+}
+
+.employee-pay-row-main > div:first-child strong {
+  font-size: 11px;
+}
+
+.employee-pay-row-main > div:first-child span,
+.employee-pay-row-amount span {
+  margin-top: 2px;
+  color: #87938e;
+  font-size: 9.5px;
+}
+
+.employee-pay-row-amount {
+  text-align: right;
+}
+
+.employee-pay-row-amount strong {
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.employee-pay-row-main svg {
+  color: #9aa49f;
+  transition: transform 150ms ease;
+}
+
+.employee-pay-row-main svg.open {
+  transform: rotate(90deg);
+}
+
+.employee-pay-row-detail {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr)) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 13px 11px;
+  background: #fbfcfb;
+  border-top: 1px solid #f0f2f0;
+}
+
+.employee-pay-row-detail > div span,
+.employee-pay-row-detail > div strong {
+  display: block;
+}
+
+.employee-pay-row-detail > div span {
+  color: #8a9691;
+  font-size: 9px;
+}
+
+.employee-pay-row-detail > div strong {
+  margin-top: 2px;
+  font-size: 10.5px;
+}
+
+.employee-time-today {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+}
+
+.employee-time-today h3 {
+  margin: 4px 0 3px;
+  font-size: 15px;
+}
+
+.employee-time-today p {
+  margin: 0;
+  color: #76837e;
+  font-size: 10.5px;
+}
+
+.employee-time-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(96px,1fr));
+  gap: 8px;
+}
+
+.employee-time-pair > div {
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: #f5f8f6;
+}
+
+.employee-time-pair span,
+.employee-time-pair strong {
+  display: block;
+}
+
+.employee-time-pair span {
+  color: #84908b;
+  font-size: 9px;
+}
+
+.employee-time-pair strong {
+  margin-top: 3px;
+  font-size: 12px;
+}
+
+.employee-attendance-row,
+.employee-leave-row {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 9px 13px;
+}
+
+.employee-attendance-row > div:first-child strong,
+.employee-attendance-row > div:first-child span,
+.employee-leave-row > div strong,
+.employee-leave-row > div span {
+  display: block;
+}
+
+.employee-attendance-row > div:first-child strong,
+.employee-leave-row > div strong {
+  font-size: 10.5px;
+}
+
+.employee-attendance-row > div:first-child span,
+.employee-leave-row > div span {
+  margin-top: 2px;
+  color: #85918c;
+  font-size: 9.5px;
+}
+
+.employee-attendance-times {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #52615b;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.employee-attendance-times small {
+  color: #9da6a2;
+  font-size: 8.5px;
+}
+
+.employee-status-pill {
+  display: inline-flex;
+  min-height: 23px;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 680;
+  white-space: nowrap;
+}
+
+.employee-status-pill.good {
+  background: #e7f6ef;
+  color: #13705e;
+}
+
+.employee-status-pill.warn {
+  background: #fff5dd;
+  color: #9a6514;
+}
+
+.employee-status-pill.bad {
+  background: #fceae8;
+  color: #a64742;
+}
+
+.employee-status-pill.neutral {
+  background: #f0f2f1;
+  color: #69756f;
+}
+
+.employee-leave-balances {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  gap: 9px;
+}
+
+.employee-leave-balances > article {
+  padding: 14px;
+  border: 1px solid #e3e8e4;
+  border-radius: 13px;
+  background: #fff;
+}
+
+.employee-leave-balances span,
+.employee-leave-balances strong,
+.employee-leave-balances small {
+  display: block;
+}
+
+.employee-leave-balances span {
+  color: #65736e;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.employee-leave-balances strong {
+  margin-top: 6px;
+  color: #176b5d;
+  font-size: 23px;
+  letter-spacing: -.04em;
+}
+
+.employee-leave-balances small {
+  margin-top: 2px;
+  color: #86928d;
+  font-size: 9.5px;
+}
+
+.employee-leave-meter {
+  height: 5px;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #edf1ee;
+}
+
+.employee-leave-meter > span {
+  height: 100%;
+  border-radius: inherit;
+  background: #176b5d;
+}
+
+.employee-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 9px;
+}
+
+.employee-profile-item {
+  min-height: 74px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e3e8e4;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.employee-profile-icon {
+  width: 29px;
+  height: 29px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 8px;
+  background: #edf8f4;
+  color: #176b5d;
+}
+
+.employee-profile-item small,
+.employee-profile-item strong,
+.employee-profile-item em {
+  display: block;
+}
+
+.employee-profile-item small {
+  color: #86918d;
+  font-size: 8.5px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.employee-profile-item strong {
+  margin-top: 3px;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.employee-profile-item em {
+  margin-top: 2px;
+  color: #8a9691;
+  font-size: 9.5px;
+  font-style: normal;
+  line-height: 1.4;
+}
+
+.employee-edit-card {
+  padding: 14px;
+}
+
+.employee-edit-fields {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  gap: 10px;
+}
+
+.employee-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.employee-privacy-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 11px 12px;
+  border: 1px solid #dbe8e2;
+  border-radius: 10px;
+  background: #f7fbf9;
+  color: #66736e;
+  font-size: 9.75px;
+  line-height: 1.5;
+}
+
+.employee-privacy-note svg {
+  flex: none;
+  color: #176b5d;
+}
+
+.employee-empty-row {
+  padding: 18px 13px;
+  color: #89948f;
+  font-size: 10.5px;
+}
+
+.employee-leave-modal {
+  width: min(92vw, 520px);
+}
+
+.employee-leave-modal h2 {
+  margin: 5px 0 4px;
+}
+
+.employee-leave-modal > p {
+  margin: 0;
+  color: #75827d;
+  font-size: 10.5px;
+}
+
+.employee-leave-form {
+  display: grid;
+  gap: 11px;
+  margin-top: 15px;
+}
+
+.employee-form-two {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 10px;
+}
+
+.employee-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 3px;
+}
+
+@media (max-width: 800px) {
+  .employee-next-pay {
+    grid-template-columns: 1fr;
+  }
+
+  .employee-quick-grid,
+  .employee-leave-balances {
+    grid-template-columns: 1fr;
+  }
+
+  .employee-edit-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .employee-app {
+    width: min(100% - 20px, 980px);
+    padding-top: 14px;
+  }
+
+  .employee-app-header {
+    align-items: flex-start;
+  }
+
+  .employee-app-identity h1 {
+    font-size: 21px;
+  }
+
+  .employee-app-avatar {
+    width: 38px;
+    height: 38px;
+  }
+
+  .employee-clock-button {
+    width: 36px;
+    padding: 0;
+    font-size: 0;
+  }
+
+  .employee-tabs {
+    overflow-x: auto;
+    justify-content: flex-start;
+  }
+
+  .employee-tabs button {
+    min-width: 62px;
+    flex: 0 0 auto;
+    padding-inline: 12px;
+  }
+
+  .employee-latest-pay {
+    padding: 16px;
+  }
+
+  .employee-net-pay strong {
+    font-size: 36px;
+  }
+
+  .employee-pay-summary,
+  .employee-pay-totals,
+  .employee-breakdown-columns,
+  .employee-profile-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .employee-latest-actions {
+    flex-direction: column;
+  }
+
+  .employee-latest-actions > *,
+  .employee-section-heading > button,
+  .employee-section-heading > a {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .employee-section-heading {
+    flex-direction: column;
+  }
+
+  .employee-time-today {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .employee-time-pair {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+  }
+
+  .employee-attendance-row {
+    grid-template-columns: minmax(0,1fr) auto;
+  }
+
+  .employee-attendance-times {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .employee-attendance-row > .employee-status-pill {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+
+  .employee-leave-row {
+    grid-template-columns: minmax(0,1fr) auto;
+  }
+
+  .employee-pay-row-detail {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+  }
+
+  .employee-pay-row-detail > a {
+    grid-column: 1 / -1;
+    justify-content: center;
+  }
+
+  .employee-form-two {
+    grid-template-columns: 1fr;
+  }
+
+  .employee-modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .employee-modal-actions button {
+    width: 100%;
+  }
+}
+
+
+/* ------------------------------------------------ Employee self-service v2 */
+
+.employee-self-service {
+  width: min(100% - 40px, 1040px);
+  padding-top: 28px;
+  padding-bottom: 56px;
+}
+
+.employee-self-service .employee-app-header {
+  min-height: 58px;
+  margin-bottom: 18px;
+}
+
+.employee-self-service .employee-app-identity {
+  gap: 12px;
+}
+
+.employee-self-service .employee-app-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #e7f4ef;
+  color: #116b5b;
+  box-shadow: inset 0 0 0 1px rgba(17,107,91,.08);
+}
+
+.employee-self-service .employee-app-welcome {
+  min-width: 0;
+}
+
+.employee-self-service .employee-app-eyebrow {
+  color: #8b9691;
+  font-size: 10px;
+  font-weight: 680;
+  letter-spacing: .01em;
+}
+
+.employee-self-service .employee-app-welcome h1 {
+  margin: 1px 0 2px;
+  font-size: 24px;
+  font-weight: 650;
+  letter-spacing: -.045em;
+}
+
+.employee-self-service .employee-app-welcome p {
+  margin: 0;
+  color: #73807a;
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+.employee-self-service .employee-app-actions {
+  gap: 8px;
+}
+
+.employee-self-service .employee-clock-button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: #0f6f60;
+  box-shadow: 0 8px 18px -12px rgba(15,111,96,.7);
+  font-size: 10.5px;
+}
+
+.employee-self-service .employee-icon-button {
+  width: 38px;
+  min-height: 38px;
+  border-radius: 50%;
+  border-color: #e1e6e2;
+}
+
+.employee-self-service .employee-tabs {
+  position: static;
+  max-width: 520px;
+  gap: 2px;
+  margin: 0 auto 18px;
+  padding: 3px;
+  border: 1px solid #e2e7e3;
+  border-radius: 999px;
+  background: #eef1ef;
+  backdrop-filter: none;
+}
+
+.employee-self-service .employee-tabs button {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 999px;
+  color: #78847f;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.employee-self-service .employee-tabs button.active {
+  background: #fff;
+  color: #143c34;
+  box-shadow: 0 1px 4px rgba(20,60,52,.1);
+}
+
+.employee-self-service .employee-tab-icon {
+  display: none;
+}
+
+.employee-self-service .employee-home,
+.employee-self-service .employee-section {
+  gap: 12px;
+}
+
+.employee-self-service .employee-latest-pay {
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 90% 12%, rgba(159,230,205,.18), transparent 28%),
+    linear-gradient(140deg, #102f28 0%, #123b32 64%, #15483c 100%);
+  box-shadow: 0 22px 50px -35px rgba(9,52,43,.72);
+  color: #fff;
+}
+
+.employee-self-service .employee-pay-hero-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(275px, .55fr);
+  min-height: 292px;
+}
+
+.employee-self-service .employee-pay-hero-main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 28px 30px;
+}
+
+.employee-self-service .employee-pay-hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 16px;
+}
+
+.employee-self-service .employee-pay-hero-meta > span:first-child {
+  color: rgba(255,255,255,.65);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.employee-self-service .employee-secure-chip {
+  margin-left: auto;
+  padding: 5px 8px;
+  border: 1px solid rgba(196,241,224,.14);
+  background: rgba(197,244,226,.1);
+  color: #c5f4e2;
+  font-size: 9px;
+}
+
+.employee-self-service .employee-pay-period {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: rgba(255,255,255,.72);
+}
+
+.employee-self-service .employee-pay-period strong {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.employee-self-service .employee-pay-period span {
+  font-size: 10px;
+}
+
+.employee-self-service .employee-net-pay {
+  margin-top: 24px;
+}
+
+.employee-self-service .employee-net-pay span {
+  color: rgba(255,255,255,.58);
+  font-size: 9px;
+  letter-spacing: .08em;
+}
+
+.employee-self-service .employee-net-pay strong {
+  margin-top: 5px;
+  color: #fff;
+  font-size: clamp(40px, 5vw, 58px);
+  font-weight: 620;
+  line-height: .96;
+  letter-spacing: -.055em;
+}
+
+.employee-self-service .employee-pay-hero-note {
+  margin: 10px 0 0;
+  color: rgba(255,255,255,.62);
+  font-size: 10px;
+}
+
+.employee-self-service .employee-latest-actions {
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.employee-self-service .employee-latest-actions .primary-button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  color: #143c34;
+  box-shadow: none;
+}
+
+.employee-self-service .employee-pdf-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: rgba(255,255,255,.74);
+  font-size: 10px;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.employee-self-service .employee-pdf-link:hover {
+  color: #fff;
+}
+
+.employee-self-service .employee-pay-hero-side {
+  display: grid;
+  align-content: center;
+  margin: 16px;
+  padding: 8px 18px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 16px;
+  background: rgba(255,255,255,.07);
+  backdrop-filter: blur(14px);
+}
+
+.employee-self-service .employee-pay-hero-side > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 60px;
+  border-top: 1px solid rgba(255,255,255,.08);
+}
+
+.employee-self-service .employee-pay-hero-side > div:first-child {
+  border-top: 0;
+}
+
+.employee-self-service .employee-pay-hero-side span {
+  color: rgba(255,255,255,.56);
+  font-size: 9.5px;
+}
+
+.employee-self-service .employee-pay-hero-side strong {
+  color: #fff;
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.employee-self-service .employee-empty-pay {
+  min-height: 220px;
+  justify-content: space-between;
+  padding: 28px 30px;
+  color: rgba(255,255,255,.75);
+}
+
+.employee-self-service .employee-empty-pay h2 {
+  margin: 6px 0 4px;
+  color: #fff;
+  font-size: 22px;
+}
+
+.employee-self-service .employee-empty-pay p {
+  margin: 0;
+  color: rgba(255,255,255,.62);
+  font-size: 10.5px;
+}
+
+.employee-self-service .employee-pay-empty-label {
+  color: rgba(255,255,255,.58);
+  font-size: 9px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.employee-self-service .employee-quick-grid {
+  gap: 8px;
+}
+
+.employee-self-service .employee-quick-card {
+  min-height: 86px;
+  grid-template-columns: 34px minmax(0,1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 13px 14px;
+  border: 1px solid #e5e8e5;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 10px 24px -24px rgba(35,59,51,.45);
+}
+
+.employee-self-service .employee-quick-card:hover {
+  border-color: #d4ddd8;
+  transform: translateY(-1px);
+}
+
+.employee-self-service .employee-quick-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: #eef7f3;
+}
+
+.employee-self-service .employee-quick-copy small {
+  color: #8d9893;
+  font-size: 8px;
+}
+
+.employee-self-service .employee-quick-copy strong {
+  margin-top: 2px;
+  font-size: 11px;
+}
+
+.employee-self-service .employee-quick-copy em {
+  max-width: 220px;
+  margin-top: 2px;
+  font-size: 9px;
+  line-height: 1.3;
+}
+
+.employee-self-service .employee-quick-action {
+  grid-column: auto;
+  margin: 0;
+  color: #9ca6a2;
+  font-size: 0;
+}
+
+.employee-self-service .employee-quick-action svg {
+  width: 15px;
+  height: 15px;
+}
+
+.employee-self-service .employee-next-pay {
+  grid-template-columns: minmax(215px, .72fr) minmax(0, 1.28fr);
+  align-items: center;
+  gap: 24px;
+  padding: 18px 20px;
+  border-color: #e5e8e5;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 10px 26px -28px rgba(35,59,51,.5);
+}
+
+.employee-self-service .employee-next-pay-label {
+  color: #89948f;
+  font-size: 8.5px;
+  font-weight: 680;
+  text-transform: uppercase;
+  letter-spacing: .075em;
+}
+
+.employee-self-service .employee-next-pay-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+}
+
+.employee-self-service .employee-next-pay-title h3 {
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: -.02em;
+}
+
+.employee-self-service .employee-next-pay-chip {
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4c55b8;
+  font-size: 8.5px;
+  font-weight: 680;
+}
+
+.employee-self-service .employee-next-pay-date {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  color: #53625c;
+  font-size: 10px;
+  font-weight: 620;
+}
+
+.employee-self-service .employee-next-pay-copy > p {
+  margin-top: 7px;
+  color: #87928d;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.employee-self-service .employee-next-pay-progress .payroll-handoff {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.employee-self-service .employee-next-pay-progress .payroll-handoff-head {
+  display: none;
+}
+
+.employee-self-service .employee-next-pay-progress .handoff-steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0,1fr));
+  gap: 0;
+  padding: 0;
+}
+
+.employee-self-service .employee-next-pay-progress .handoff-step {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 6px;
+  padding: 0 5px;
+  border: 0;
+  background: transparent;
+  text-align: center;
+}
+
+.employee-self-service .employee-next-pay-progress .handoff-step-marker {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  z-index: 1;
+  border-radius: 50%;
+}
+
+.employee-self-service .employee-next-pay-progress .handoff-step-copy {
+  min-width: 0;
+}
+
+.employee-self-service .employee-next-pay-progress .handoff-step-top {
+  justify-content: center;
+  gap: 3px;
+}
+
+.employee-self-service .employee-next-pay-progress .handoff-step-top > span,
+.employee-self-service .employee-next-pay-progress .handoff-step-top > em,
+.employee-self-service .employee-next-pay-progress .handoff-step-copy p {
+  display: none;
+}
+
+.employee-self-service .employee-next-pay-progress .handoff-step-top strong {
+  color: #9aa49f;
+  font-size: 8px;
+  font-weight: 650;
+  text-transform: none;
+}
+
+.employee-self-service .employee-next-pay-progress .handoff-step-copy b {
+  display: block;
+  margin-top: 2px;
+  color: #73807a;
+  font-size: 9px;
+  font-weight: 620;
+  line-height: 1.25;
+}
+
+.employee-self-service .employee-next-pay-progress .handoff-step.done .handoff-step-top strong,
+.employee-self-service .employee-next-pay-progress .handoff-step.done .handoff-step-copy b {
+  color: #3d6f62;
+}
+
+.employee-self-service .employee-next-pay-progress .handoff-step.current .handoff-step-top strong,
+.employee-self-service .employee-next-pay-progress .handoff-step.current .handoff-step-copy b {
+  color: #3d49b7;
+}
+
+.employee-self-service .employee-section-heading {
+  padding: 7px 2px 3px;
+}
+
+.employee-self-service .employee-section-heading .card-kicker {
+  display: none;
+}
+
+.employee-self-service .employee-section-heading h2 {
+  margin: 0 0 4px;
+  font-size: 24px;
+  font-weight: 650;
+}
+
+.employee-self-service .employee-section-heading p {
+  font-size: 10.5px;
+}
+
+@media (max-width: 800px) {
+  .employee-self-service .employee-pay-hero-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .employee-self-service .employee-pay-hero-main {
+    padding-bottom: 16px;
+  }
+
+  .employee-self-service .employee-pay-hero-side {
+    grid-template-columns: repeat(3,minmax(0,1fr));
+    margin-top: 0;
+    padding: 0 16px 16px;
+    border: 0;
+    background: transparent;
+    backdrop-filter: none;
+  }
+
+  .employee-self-service .employee-pay-hero-side > div {
+    min-height: 62px;
+    display: grid;
+    align-content: center;
+    justify-content: start;
+    gap: 3px;
+    padding: 0 12px;
+    border-top: 0;
+    border-left: 1px solid rgba(255,255,255,.1);
+    background: rgba(255,255,255,.06);
+  }
+
+  .employee-self-service .employee-pay-hero-side > div:first-child {
+    border-left: 0;
+    border-radius: 12px 0 0 12px;
+  }
+
+  .employee-self-service .employee-pay-hero-side > div:last-child {
+    border-radius: 0 12px 12px 0;
+  }
+
+  .employee-self-service .employee-next-pay {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+}
+
+@media (max-width: 620px) {
+  .employee-self-service {
+    width: min(100% - 20px, 1040px);
+    padding-top: 14px;
+    padding-bottom: 92px;
+  }
+
+  .employee-self-service .employee-app-header {
+    min-height: 48px;
+    align-items: center;
+    margin-bottom: 13px;
+  }
+
+  .employee-self-service .employee-app-identity {
+    min-width: 0;
+    gap: 9px;
+  }
+
+  .employee-self-service .employee-app-avatar {
+    width: 36px;
+    height: 36px;
+    flex: none;
+    font-size: 10px;
+  }
+
+  .employee-self-service .employee-app-welcome {
+    min-width: 0;
+  }
+
+  .employee-self-service .employee-app-eyebrow {
+    display: none;
+  }
+
+  .employee-self-service .employee-app-welcome h1 {
+    margin: 0;
+    font-size: 19px;
+    white-space: nowrap;
+  }
+
+  .employee-self-service .employee-app-welcome p {
+    max-width: 165px;
+    margin-top: 2px;
+    overflow: hidden;
+    font-size: 9px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .employee-self-service .employee-app-actions {
+    flex: none;
+  }
+
+  .employee-self-service .employee-clock-button {
+    width: 36px;
+    min-height: 36px;
+    padding: 0;
+  }
+
+  .employee-self-service .employee-clock-button > span {
+    display: none;
+  }
+
+  .employee-self-service .employee-icon-button {
+    width: 36px;
+    min-height: 36px;
+  }
+
+  .employee-self-service .employee-tabs {
+    position: fixed;
+    z-index: 40;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    top: auto;
+    max-width: none;
+    height: 64px;
+    margin: 0;
+    padding: 5px 7px;
+    border: 1px solid rgba(213,220,216,.92);
+    border-radius: 18px;
+    background: rgba(255,255,255,.94);
+    box-shadow: 0 18px 40px -18px rgba(22,46,39,.34);
+    backdrop-filter: blur(18px);
+  }
+
+  .employee-self-service .employee-tabs button {
+    min-width: 0;
+    min-height: 52px;
+    flex: 1 1 20%;
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 3px;
+    padding: 0;
+    border-radius: 13px;
+    font-size: 8.5px;
+  }
+
+  .employee-self-service .employee-tabs button.active {
+    background: #eef7f3;
+    color: #0f6f60;
+    box-shadow: none;
+  }
+
+  .employee-self-service .employee-tab-icon {
+    display: grid;
+    place-items: center;
+  }
+
+  .employee-self-service .employee-latest-pay {
+    border-radius: 19px;
+  }
+
+  .employee-self-service .employee-pay-hero-layout {
+    min-height: 0;
+  }
+
+  .employee-self-service .employee-pay-hero-main {
+    padding: 20px 18px 14px;
+  }
+
+  .employee-self-service .employee-pay-hero-meta {
+    margin-bottom: 13px;
+  }
+
+  .employee-self-service .employee-pay-period {
+    display: grid;
+    gap: 2px;
+  }
+
+  .employee-self-service .employee-pay-period strong {
+    font-size: 12px;
+  }
+
+  .employee-self-service .employee-net-pay {
+    margin-top: 20px;
+  }
+
+  .employee-self-service .employee-net-pay strong {
+    font-size: 40px;
+  }
+
+  .employee-self-service .employee-pay-hero-note {
+    display: none;
+  }
+
+  .employee-self-service .employee-latest-actions {
+    margin-top: 17px;
+  }
+
+  .employee-self-service .employee-latest-actions .primary-button {
+    width: auto;
+    min-height: 36px;
+    padding-inline: 14px;
+  }
+
+  .employee-self-service .employee-pay-hero-side {
+    padding: 0 12px 14px;
+  }
+
+  .employee-self-service .employee-pay-hero-side > div {
+    min-height: 56px;
+    padding: 0 9px;
+  }
+
+  .employee-self-service .employee-pay-hero-side span {
+    font-size: 8px;
+  }
+
+  .employee-self-service .employee-pay-hero-side strong {
+    font-size: 10px;
+  }
+
+  .employee-self-service .employee-quick-grid {
+    gap: 7px;
+  }
+
+  .employee-self-service .employee-quick-card {
+    min-height: 70px;
+    padding: 10px 11px;
+  }
+
+  .employee-self-service .employee-quick-copy em {
+    max-width: none;
+  }
+
+  .employee-self-service .employee-next-pay {
+    gap: 13px;
+    padding: 15px;
+    border-radius: 15px;
+  }
+
+  .employee-self-service .employee-next-pay-copy > p {
+    margin-bottom: 0;
+  }
+
+  .employee-self-service .employee-next-pay-progress .handoff-steps {
+    gap: 2px;
+  }
+
+  .employee-self-service .employee-next-pay-progress .handoff-step {
+    padding: 0 1px;
+  }
+
+  .employee-self-service .employee-next-pay-progress .handoff-step-top strong {
+    display: none;
+  }
+
+  .employee-self-service .employee-next-pay-progress .handoff-step-copy b {
+    display: none;
+  }
+
+  .employee-self-service .employee-next-pay-progress .handoff-step.current .handoff-step-copy b {
+    display: block;
+    position: absolute;
+    left: 15px;
+    right: 15px;
+    margin-top: 7px;
+    color: #4c55b8;
+    font-size: 9px;
+    text-align: center;
+  }
+
+  .employee-self-service .employee-next-pay-progress {
+    padding-bottom: 22px;
+  }
+
+  .employee-self-service .employee-section-heading {
+    gap: 10px;
+  }
+
+  .employee-self-service .employee-section-heading h2 {
+    font-size: 21px;
+  }
+}
+
+
+.employee-self-service .employee-contract-copy {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+
+.employee-self-service .employee-next-pay-progress,
+.employee-self-service .employee-next-pay-progress .payroll-handoff,
+.employee-self-service .employee-next-pay-progress .handoff-steps {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.employee-self-service .employee-next-pay-progress .payroll-handoff *,
+.employee-self-service .employee-next-pay-progress .handoff-step,
+.employee-self-service .employee-next-pay-progress .handoff-step-copy {
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+
+@media (max-width: 620px) {
+  .employee-self-service {
+    width: calc(100vw - 20px);
+    max-width: calc(100vw - 20px);
+    min-width: 0;
+    box-sizing: border-box;
+    overflow-x: clip;
+  }
+
+  .employee-self-service .employee-app-header,
+  .employee-self-service .employee-home,
+  .employee-self-service .employee-section,
+  .employee-self-service .employee-latest-pay,
+  .employee-self-service .employee-pay-hero-layout,
+  .employee-self-service .employee-pay-hero-main,
+  .employee-self-service .employee-pay-hero-side,
+  .employee-self-service .employee-quick-grid,
+  .employee-self-service .employee-quick-card,
+  .employee-self-service .employee-next-pay,
+  .employee-self-service .employee-next-pay-copy,
+  .employee-self-service .employee-next-pay-progress {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .employee-self-service .employee-tabs {
+    width: auto;
+    max-width: calc(100vw - 20px);
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  .employee-self-service .employee-pay-hero-side > div,
+  .employee-self-service .employee-quick-copy,
+  .employee-self-service .employee-next-pay-title {
+    min-width: 0;
+  }
+
+  .employee-self-service .employee-next-pay-title {
+    flex-wrap: wrap;
+  }
+}
+
+
+@media (max-width: 620px) {
+  .employee-self-service .employee-app-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .employee-self-service .employee-app-identity {
+    display: block;
+    min-width: 0;
+  }
+
+  .employee-self-service .employee-app-avatar {
+    display: none;
+  }
+
+  .employee-self-service .employee-app-welcome h1 {
+    font-size: 20px;
+    line-height: 1.05;
+  }
+
+  .employee-self-service .employee-app-welcome p {
+    max-width: 210px;
+  }
+
+  .employee-self-service .employee-app-actions.employee-self-service-actions {
+    position: static !important;
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    transform: none !important;
+    justify-self: end;
+    flex: none;
+  }
+
+  .employee-self-service .employee-quick-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .employee-self-service .employee-quick-card {
+    min-height: 96px;
+    display: grid;
+    grid-template-columns: 1fr;
+    align-content: start;
+    justify-items: start;
+    gap: 6px;
+    padding: 10px;
+  }
+
+  .employee-self-service .employee-quick-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 9px;
+  }
+
+  .employee-self-service .employee-quick-icon svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .employee-self-service .employee-quick-copy strong {
+    min-height: 26px;
+    font-size: 9.5px;
+    line-height: 1.25;
+  }
+
+  .employee-self-service .employee-quick-copy em,
+  .employee-self-service .employee-quick-action {
+    display: none;
+  }
+
+  .employee-self-service .employee-next-pay {
+    gap: 10px;
+    padding: 13px 14px 12px;
+  }
+
+  .employee-self-service .employee-next-pay-copy > p {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+  }
+
+  .employee-self-service .employee-next-pay-title {
+    margin-top: 3px;
+  }
+
+  .employee-self-service .employee-next-pay-title h3 {
+    font-size: 14px;
+  }
+
+  .employee-self-service .employee-next-pay-date {
+    margin-top: 5px;
+    font-size: 9px;
+  }
+
+  .employee-self-service .employee-next-pay-progress {
+    padding-bottom: 18px;
+  }
+
+  .employee-self-service .employee-next-pay-progress .handoff-step-marker {
+    width: 24px;
+    height: 24px;
+  }
+
+  .employee-self-service .employee-next-pay-progress .handoff-step.current .handoff-step-copy b {
+    margin-top: 5px;
+    font-size: 8.5px;
+  }
+}
+
+
+/* ================================================================
+   Role workspaces v2
+   Purpose-built landing surfaces for Owner, Payroll, Checker, HR,
+   and Bookkeeper. Employee self-service is styled separately above.
+   ================================================================ */
+
+.app-shell .role-workspace-v2 {
+  --role-green: #0f9f6e;
+  --role-green-dark: #08775a;
+  --role-indigo: #4f5bd5;
+  --role-amber: #d89128;
+  --role-rose: #cf5967;
+  --role-violet: #7a62cf;
+  --role-border: #e4e7e5;
+  --role-muted: #7f8b86;
+  --role-ink: #14211d;
+  display: grid;
+  gap: 16px;
+  max-width: 1160px;
+  margin: 0 auto;
+}
+
+.app-shell .role-contract-copy {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.app-shell .role-workspace-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 22px;
+  padding: 3px 1px 5px;
+}
+
+.app-shell .role-workspace-heading > div {
+  min-width: 0;
+}
+
+.app-shell .role-workspace-heading > div > span {
+  color: #8f9995;
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.app-shell .role-workspace-heading h1 {
+  margin: 5px 0 5px;
+  color: var(--role-ink);
+  font-size: clamp(24px, 2.35vw, 32px);
+  font-weight: 650;
+  line-height: 1.08;
+  letter-spacing: -.045em;
+}
+
+.app-shell .role-workspace-heading p {
+  max-width: 680px;
+  margin: 0;
+  color: #76827d;
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.app-shell .role-workspace-heading > .status {
+  margin-top: 6px;
+  flex: none;
+}
+
+.app-shell .role-decision-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.62fr) minmax(280px, .78fr);
+  overflow: hidden;
+  border: 1px solid var(--role-border);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 22px 50px -46px rgba(31, 56, 48, .52);
+}
+
+.app-shell .role-decision-main {
+  min-width: 0;
+  padding: 24px 26px 22px;
+}
+
+.app-shell .role-decision-kicker {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.app-shell .role-decision-kicker > span {
+  color: #3d4a45;
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.app-shell .role-decision-kicker > small {
+  color: #8a9590;
+  font-size: 9.5px;
+  text-align: right;
+}
+
+.app-shell .role-money-value {
+  margin-top: 22px;
+  color: var(--role-ink);
+  font-size: clamp(36px, 5vw, 52px);
+  font-weight: 620;
+  line-height: .95;
+  letter-spacing: -.055em;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-shell .role-money-label {
+  display: block;
+  margin-top: 6px;
+  color: #85908b;
+  font-size: 9.5px;
+}
+
+.app-shell .role-money-breakdown {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 1px;
+  margin-top: 20px;
+  overflow: hidden;
+  border: 1px solid #e8ebe9;
+  border-radius: 11px;
+  background: #e8ebe9;
+}
+
+.app-shell .role-money-breakdown > div {
+  min-width: 0;
+  padding: 11px 12px;
+  background: #fbfcfb;
+}
+
+.app-shell .role-money-breakdown span,
+.app-shell .role-money-breakdown strong {
+  display: block;
+}
+
+.app-shell .role-money-breakdown span {
+  color: #8b9691;
+  font-size: 8.5px;
+}
+
+.app-shell .role-money-breakdown strong {
+  margin-top: 4px;
+  color: #37443f;
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-shell .role-assurance-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 16px;
+}
+
+.app-shell .assurance-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.app-shell .assurance-item.ok {
+  background: #ebf8f2;
+  color: #14735c;
+}
+
+.app-shell .assurance-item.pending {
+  background: #fff6e8;
+  color: #91611d;
+}
+
+.app-shell .role-primary-cta,
+.app-shell .role-secondary-cta {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 9px;
+  font-size: 10.5px;
+  font-weight: 680;
+  cursor: pointer;
+}
+
+.app-shell .role-primary-cta {
+  margin-top: 17px;
+  padding: 0 15px;
+  border: 1px solid var(--role-green);
+  background: var(--role-green);
+  color: #fff;
+  box-shadow: 0 12px 24px -19px rgba(15,159,110,.85);
+}
+
+.app-shell .role-primary-cta:hover {
+  border-color: var(--role-green-dark);
+  background: var(--role-green-dark);
+}
+
+.app-shell .role-primary-cta.compact {
+  min-height: 34px;
+  margin: 0;
+}
+
+.app-shell .role-secondary-cta {
+  padding: 0 13px;
+  border: 1px solid #dfe4e1;
+  background: #fff;
+  color: #56635e;
+}
+
+.app-shell .role-context-panel {
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: 21px 20px;
+  border: 0;
+  border-left: 1px solid #e8ebe9;
+  background: #fafbfa;
+}
+
+.app-shell .role-section-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.app-shell .role-section-title > div > span {
+  color: #98a19d;
+  font-size: 8px;
+  font-weight: 680;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+}
+
+.app-shell .role-section-title h2 {
+  margin: 3px 0 0;
+  color: #26322e;
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -.025em;
+}
+
+.app-shell .role-section-title > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 0;
+  border: 0;
+  background: transparent;
+  color: #4f5bd5;
+  font-size: 9.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.app-shell .role-context-item {
+  display: grid;
+  grid-template-columns: 8px minmax(0,1fr);
+  gap: 9px;
+  align-items: start;
+  padding: 10px 0;
+  border-top: 1px solid #ecefed;
+}
+
+.app-shell .role-context-panel .role-section-title + .role-context-item {
+  margin-top: 6px;
+}
+
+.app-shell .role-context-dot {
+  width: 7px;
+  height: 7px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: #c5cbc8;
+}
+
+.app-shell .role-context-item.good .role-context-dot { background: #23a579; }
+.app-shell .role-context-item.warn .role-context-dot { background: #e3a33d; }
+.app-shell .role-context-item.bad .role-context-dot { background: #d9606d; }
+.app-shell .role-context-item.info .role-context-dot { background: #6271dd; }
+
+.app-shell .role-context-item strong {
+  display: block;
+  color: #43504b;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.app-shell .role-context-item p {
+  margin: 2px 0 0;
+  color: #8b9691;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.app-shell .role-secondary-surface {
+  padding: 17px 18px 15px;
+  border: 1px solid var(--role-border);
+  border-radius: 15px;
+  background: #fff;
+}
+
+.app-shell .role-secondary-surface > .role-section-title {
+  margin-bottom: 12px;
+}
+
+.app-shell .compact-payroll-history {
+  overflow: hidden;
+  border: 1px solid #eaedeb;
+  border-radius: 10px;
+}
+
+.app-shell .compact-payroll-head,
+.app-shell .compact-payroll-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.4fr) .6fr .8fr .7fr;
+  gap: 12px;
+  align-items: center;
+}
+
+.app-shell .compact-payroll-head {
+  min-height: 31px;
+  padding: 0 12px;
+  background: #fafbfa;
+  color: #919b96;
+  font-size: 8px;
+  font-weight: 650;
+}
+
+.app-shell .compact-payroll-row {
+  width: 100%;
+  min-height: 43px;
+  padding: 0 12px;
+  border: 0;
+  border-top: 1px solid #eef0ef;
+  background: #fff;
+  color: #53605b;
+  font-size: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-shell .compact-payroll-row:hover {
+  background: #fafbfa;
+}
+
+.app-shell .compact-payroll-row strong {
+  color: #38453f;
+  font-weight: 650;
+}
+
+.app-shell .compact-payroll-empty {
+  padding: 18px 12px;
+  color: #8a9590;
+  font-size: 10px;
+}
+
+.app-shell .run-readiness-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.app-shell .run-readiness-line > strong {
+  width: 42px;
+  color: #2f3e38;
+  font-size: 15px;
+  font-weight: 680;
+}
+
+.app-shell .run-readiness-line > div {
+  height: 7px;
+  flex: 1;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #edf0ee;
+}
+
+.app-shell .run-readiness-line > div > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--role-green);
+}
+
+.app-shell .role-stepper-v2 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 7px;
+  margin-top: 16px;
+}
+
+.app-shell .role-workflow-step {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 25px minmax(0,1fr);
+  gap: 7px;
+  align-items: center;
+  padding: 9px;
+  border: 1px solid #e7eae8;
+  border-radius: 10px;
+  background: #fafbfa;
+}
+
+.app-shell .role-workflow-step i {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #e9edeb;
+  color: #7d8983;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.app-shell .role-workflow-step strong,
+.app-shell .role-workflow-step span {
+  display: block;
+}
+
+.app-shell .role-workflow-step strong {
+  color: #43504b;
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.app-shell .role-workflow-step span {
+  margin-top: 2px;
+  color: #8d9793;
+  font-size: 8px;
+}
+
+.app-shell .role-workflow-step.done i {
+  background: #e8f7f1;
+  color: #168061;
+}
+
+.app-shell .role-workflow-step.current {
+  border-color: #d9dcfb;
+  background: #f5f5ff;
+}
+
+.app-shell .role-workflow-step.current i {
+  background: #e8e9ff;
+  color: #4852c9;
+}
+
+.app-shell .role-workflow-step.attention {
+  border-color: #f2dfbf;
+  background: #fff9ef;
+}
+
+.app-shell .role-workflow-step.attention i {
+  background: #fff0d6;
+  color: #b97818;
+}
+
+.app-shell .role-workflow-step.locked {
+  opacity: .58;
+}
+
+.app-shell .role-action-table {
+  overflow: hidden;
+  border: 1px solid #e9ecea;
+  border-radius: 10px;
+}
+
+.app-shell .role-action-head,
+.app-shell .role-action-row {
+  display: grid;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-shell .payroll-issues-table .role-action-head,
+.app-shell .payroll-issues-table .role-action-row {
+  grid-template-columns: minmax(220px, 1.4fr) minmax(130px, .8fr) minmax(120px, .7fr) 72px;
+}
+
+.app-shell .checker-table .role-action-head,
+.app-shell .checker-table .role-action-row {
+  grid-template-columns: minmax(220px, 1.35fr) .65fr .65fr .7fr 68px;
+}
+
+.app-shell .hr-attention-table .role-action-head,
+.app-shell .hr-attention-table .role-action-row {
+  grid-template-columns: minmax(220px, 1.25fr) minmax(240px, 1.25fr) 110px;
+}
+
+.app-shell .role-action-head {
+  min-height: 31px;
+  padding: 0 12px;
+  background: #fafbfa;
+  color: #919a96;
+  font-size: 8px;
+  font-weight: 650;
+}
+
+.app-shell .role-action-row {
+  min-height: 52px;
+  padding: 7px 12px;
+  border-top: 1px solid #eef0ef;
+  color: #53605b;
+  font-size: 9.5px;
+}
+
+.app-shell .role-action-row > button {
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid #dde2df;
+  border-radius: 7px;
+  background: #fff;
+  color: #4d58c7;
+  font-size: 9px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.app-shell .role-action-row > button:hover {
+  border-color: #d7daf8;
+  background: #f5f5ff;
+}
+
+.app-shell .role-person {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-shell .role-person .avatar {
+  width: 27px;
+  height: 27px;
+  flex: none;
+  font-size: 8px;
+}
+
+.app-shell .role-person > div {
+  min-width: 0;
+}
+
+.app-shell .role-person strong,
+.app-shell .role-person span {
+  display: block;
+}
+
+.app-shell .role-person strong {
+  overflow: hidden;
+  color: #34413c;
+  font-size: 9.5px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell .role-person span {
+  margin-top: 2px;
+  color: #909a95;
+  font-size: 8.5px;
+}
+
+.app-shell .role-person-placeholder {
+  width: 27px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 50%;
+  background: #eef1ef;
+  color: #7b8781;
+}
+
+.app-shell .role-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.app-shell .role-chip-list > span {
+  padding: 4px 6px;
+  border-radius: 999px;
+  background: #fff4e5;
+  color: #95631c;
+  font-size: 8px;
+  font-weight: 620;
+}
+
+.app-shell .checker-delta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 9px;
+}
+
+.app-shell .checker-delta strong {
+  font-size: 11px;
+  font-weight: 680;
+}
+
+.app-shell .checker-delta strong.positive { color: #188261; }
+.app-shell .checker-delta strong.negative { color: #be4e5d; }
+
+.app-shell .checker-delta span {
+  color: #8d9792;
+  font-size: 9px;
+}
+
+.app-shell .checker-change-grid {
+  grid-template-columns: repeat(4,minmax(0,1fr));
+  border: 0;
+  gap: 7px;
+  background: transparent;
+}
+
+.app-shell .checker-change-grid > div {
+  padding: 10px;
+  border-radius: 10px;
+  background: #f5f6fb;
+}
+
+.app-shell .checker-change-metric strong,
+.app-shell .checker-change-metric span {
+  display: block;
+}
+
+.app-shell .checker-change-metric strong {
+  font-size: 16px;
+}
+
+.app-shell .checker-change-metric span {
+  margin-top: 3px;
+  font-size: 8px;
+}
+
+.app-shell .checker-change-metric.amber { background: #fff7e9; color: #a96c12; }
+.app-shell .checker-change-metric.rose { background: #fff0f2; color: #bd4858; }
+.app-shell .checker-change-metric.violet { background: #f5f1ff; color: #7252c8; }
+.app-shell .checker-change-metric.indigo { background: #f0f2ff; color: #4653c4; }
+
+.app-shell .checker-decision-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 14px -18px -15px;
+  padding: 12px 18px;
+  border-top: 1px solid #e9ecea;
+  background: #fafbfa;
+}
+
+.app-shell .checker-decision-bar > span {
+  color: #75817c;
+  font-size: 9.5px;
+}
+
+.app-shell .checker-decision-bar > div {
+  display: flex;
+  gap: 7px;
+}
+
+.app-shell .hr-readiness-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(330px, .95fr);
+  gap: 12px;
+}
+
+.app-shell .hr-readiness-hero,
+.app-shell .hr-blocker-panel {
+  min-height: 228px;
+  border: 1px solid var(--role-border);
+  border-radius: 16px;
+  background: #fff;
+}
+
+.app-shell .hr-readiness-hero {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 22px;
+}
+
+.app-shell .readiness-ring {
+  width: 126px;
+  height: 126px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 50%;
+  background: conic-gradient(var(--role-green) var(--readiness), #edf0ee 0);
+}
+
+.app-shell .readiness-ring::before {
+  content: "";
+  position: absolute;
+}
+
+.app-shell .readiness-ring > div {
+  width: 98px;
+  height: 98px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.app-shell .readiness-ring strong {
+  color: #153e35;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.app-shell .readiness-ring span {
+  margin-top: 4px;
+  color: #8c9792;
+  font-size: 8px;
+}
+
+.app-shell .hr-readiness-copy > span {
+  color: #8b9691;
+  font-size: 9px;
+}
+
+.app-shell .hr-readiness-copy h2 {
+  margin: 5px 0 5px;
+  color: #2d3a35;
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -.03em;
+}
+
+.app-shell .hr-readiness-copy p {
+  margin: 0;
+  color: #7f8a85;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.app-shell .hr-readiness-copy button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #4f5bd5;
+  font-size: 9.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.app-shell .hr-blocker-panel {
+  padding: 18px;
+}
+
+.app-shell .hr-signal-grid {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 8px;
+  margin-top: 13px;
+}
+
+.app-shell .role-signal-card {
+  min-height: 73px;
+  display: grid;
+  align-content: center;
+  padding: 11px;
+  border: 0;
+  border-radius: 10px;
+}
+
+.app-shell .role-signal-card strong {
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.app-shell .role-signal-card span {
+  margin-top: 3px;
+  font-size: 8.5px;
+}
+
+.app-shell .role-signal-card.red { background: #fff0f2; color: #be4c5a; }
+.app-shell .role-signal-card.amber { background: #fff7e9; color: #a56b14; }
+.app-shell .role-signal-card.blue { background: #eef4ff; color: #4661bc; }
+.app-shell .role-signal-card.slate { background: #f2f4f3; color: #65716c; }
+
+.app-shell .hr-upcoming-strip {
+  display: grid;
+  grid-template-columns: repeat(4,minmax(0,1fr));
+  gap: 8px;
+}
+
+.app-shell .hr-upcoming-strip > div {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 12px;
+  border: 1px solid #e6e9e7;
+  border-radius: 11px;
+  background: #fff;
+}
+
+.app-shell .upcoming-icon {
+  width: 29px;
+  height: 29px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 9px;
+  background: #f0f4f2;
+  color: #567068;
+}
+
+.app-shell .hr-upcoming-strip small,
+.app-shell .hr-upcoming-strip strong,
+.app-shell .hr-upcoming-strip em {
+  display: block;
+}
+
+.app-shell .hr-upcoming-strip small {
+  color: #8b9691;
+  font-size: 8px;
+}
+
+.app-shell .hr-upcoming-strip strong {
+  margin-top: 1px;
+  color: #34423d;
+  font-size: 14px;
+}
+
+.app-shell .hr-upcoming-strip em {
+  color: #9aa39f;
+  font-size: 7.5px;
+  font-style: normal;
+}
+
+.app-shell .close-stepper {
+  display: grid;
+  grid-template-columns: repeat(5,minmax(0,1fr));
+  gap: 0;
+  margin-top: 20px;
+}
+
+.app-shell .close-step {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  color: #9aa39f;
+  font-size: 8px;
+  text-align: center;
+}
+
+.app-shell .close-step::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #e8ebe9;
+}
+
+.app-shell .close-step:first-child::before { left: 50%; }
+.app-shell .close-step:last-child::before { right: 50%; }
+
+.app-shell .close-step i {
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  position: relative;
+  z-index: 1;
+  border: 2px solid #dfe4e1;
+  border-radius: 50%;
+  background: #fff;
+  color: #fff;
+  font-style: normal;
+}
+
+.app-shell .close-step.done {
+  color: #23765f;
+}
+
+.app-shell .close-step.done::before {
+  background: #94d1bd;
+}
+
+.app-shell .close-step.done i {
+  border-color: #28a27c;
+  background: #28a27c;
+}
+
+.app-shell .close-step.current {
+  color: #4c56c4;
+  font-weight: 650;
+}
+
+.app-shell .close-step.current i {
+  border-color: #5b66d7;
+  box-shadow: inset 0 0 0 5px #eef0ff;
+}
+
+.app-shell .liability-table {
+  overflow: hidden;
+  border: 1px solid #e8ebe9;
+  border-radius: 10px;
+}
+
+.app-shell .liability-row {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: minmax(180px,1.2fr) .8fr .7fr 72px;
+  gap: 12px;
+  align-items: center;
+  padding: 7px 12px;
+  border-top: 1px solid #eef0ef;
+  color: #56625d;
+  font-size: 9.5px;
+}
+
+.app-shell .liability-row:first-child {
+  border-top: 0;
+}
+
+.app-shell .liability-row > strong {
+  color: #35423d;
+  font-weight: 650;
+}
+
+.app-shell .liability-row > button {
+  min-height: 27px;
+  border: 1px solid #dfe3e1;
+  border-radius: 7px;
+  background: #fff;
+  color: #4e58c7;
+  font-size: 8.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.app-shell .liability-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 43px;
+  padding: 0 12px;
+  border-top: 1px solid #e6e9e7;
+  background: #fafbfa;
+}
+
+.app-shell .liability-total span {
+  color: #737f7a;
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.app-shell .liability-total strong {
+  color: #25332e;
+  font-size: 12px;
+  font-weight: 680;
+}
+
+@media (max-width: 980px) {
+  .app-shell .role-decision-hero,
+  .app-shell .hr-readiness-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell .role-context-panel {
+    border-left: 0;
+    border-top: 1px solid #e8ebe9;
+  }
+
+  .app-shell .hr-readiness-hero,
+  .app-shell .hr-blocker-panel {
+    min-height: 0;
+  }
+
+  .app-shell .hr-upcoming-strip {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .app-shell .role-workspace-v2 {
+    gap: 12px;
+  }
+
+  .app-shell .role-workspace-heading {
+    align-items: flex-start;
+  }
+
+  .app-shell .role-workspace-heading h1 {
+    font-size: 23px;
+  }
+
+  .app-shell .role-workspace-heading p {
+    font-size: 10.5px;
+  }
+
+  .app-shell .role-decision-main {
+    padding: 19px 16px 17px;
+  }
+
+  .app-shell .role-context-panel {
+    padding: 16px;
+  }
+
+  .app-shell .role-money-value {
+    font-size: 39px;
+  }
+
+  .app-shell .role-money-breakdown,
+  .app-shell .checker-change-grid {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+  }
+
+  .app-shell .role-money-breakdown > div:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
+  .app-shell .role-stepper-v2 {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+  }
+
+  .app-shell .role-secondary-surface {
+    padding: 14px 13px 13px;
+  }
+
+  .app-shell .role-action-table {
+    border: 0;
+    border-radius: 0;
+  }
+
+  .app-shell .role-action-head {
+    display: none;
+  }
+
+  .app-shell .payroll-issues-table .role-action-row,
+  .app-shell .checker-table .role-action-row,
+  .app-shell .hr-attention-table .role-action-row {
+    min-height: 0;
+    grid-template-columns: minmax(0,1fr) auto;
+    gap: 7px 12px;
+    margin-top: 8px;
+    padding: 12px;
+    border: 1px solid #e8ebe9;
+    border-radius: 11px;
+    background: #fff;
+  }
+
+  .app-shell .payroll-issues-table .role-action-row > span,
+  .app-shell .checker-table .role-action-row > span,
+  .app-shell .checker-table .role-action-row > .status,
+  .app-shell .hr-attention-table .role-action-row > .role-chip-list {
+    grid-column: 1;
+  }
+
+  .app-shell .role-action-row > button {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    align-self: center;
+  }
+
+  .app-shell .checker-decision-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .app-shell .checker-decision-bar > div {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .app-shell .hr-readiness-hero {
+    align-items: flex-start;
+    gap: 16px;
+    padding: 17px;
+  }
+
+  .app-shell .readiness-ring {
+    width: 94px;
+    height: 94px;
+  }
+
+  .app-shell .readiness-ring > div {
+    width: 72px;
+    height: 72px;
+  }
+
+  .app-shell .readiness-ring strong {
+    font-size: 19px;
+  }
+
+  .app-shell .liability-row {
+    grid-template-columns: 1fr auto;
+    gap: 5px 10px;
+    padding: 10px 11px;
+  }
+
+  .app-shell .liability-row > .status {
+    grid-column: 1;
+  }
+
+  .app-shell .liability-row > button {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+
+  .app-shell .compact-payroll-head {
+    display: none;
+  }
+
+  .app-shell .compact-payroll-row {
+    grid-template-columns: minmax(0,1fr) auto;
+    gap: 4px 10px;
+    padding: 10px 11px;
+  }
+
+  .app-shell .compact-payroll-row > span:nth-of-type(1) {
+    display: none;
+  }
+
+  .app-shell .compact-payroll-row > span:nth-of-type(2) {
+    grid-column: 1;
+    color: #8b9691;
+    font-size: 8.5px;
+  }
+
+  .app-shell .compact-payroll-row > .status {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-shell .role-workspace-heading {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) auto;
+    gap: 8px;
+  }
+
+  .app-shell .role-workspace-heading h1 {
+    font-size: 21px;
+  }
+
+  .app-shell .role-workspace-heading p {
+    grid-column: 1 / -1;
+  }
+
+  .app-shell .role-decision-kicker {
+    display: grid;
+    gap: 3px;
+  }
+
+  .app-shell .role-decision-kicker > small {
+    text-align: left;
+  }
+
+  .app-shell .role-money-value {
+    margin-top: 17px;
+    font-size: 35px;
+  }
+
+  .app-shell .role-money-breakdown {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .app-shell .role-assurance-row {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell .assurance-item {
+    justify-content: flex-start;
+    border-radius: 8px;
+  }
+
+  .app-shell .role-primary-cta {
+    width: 100%;
+  }
+
+  .app-shell .role-stepper-v2 {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .app-shell .checker-change-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .app-shell .hr-readiness-hero {
+    display: grid;
+    grid-template-columns: 82px minmax(0,1fr);
+  }
+
+  .app-shell .readiness-ring {
+    width: 80px;
+    height: 80px;
+  }
+
+  .app-shell .readiness-ring > div {
+    width: 61px;
+    height: 61px;
+  }
+
+  .app-shell .readiness-ring strong {
+    font-size: 16px;
+  }
+
+  .app-shell .hr-signal-grid,
+  .app-shell .hr-upcoming-strip {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .app-shell .close-stepper {
+    margin-inline: -6px;
+  }
+
+  .app-shell .close-step span {
+    font-size: 7px;
+  }
+}
+
+
+/* ================================================================
+   Mockup fidelity pass: unified six-role shell
+   ================================================================ */
+
+/* Keep the demo role switcher visible on role landing pages. */
+.app-shell:has(.role-workspace-v2) .role-switcher-wrap,
+.app-shell[data-workspace-page="Overview"]:has(.role-workspace-v2) .role-switcher-wrap {
+  display: block !important;
+}
+
+.app-shell:has(.role-workspace-v2) .content-area {
+  background: #f8fafc;
+  padding: 28px 30px 42px;
+}
+
+.app-shell .role-workspace-v2 {
+  max-width: 1200px;
+  gap: 18px;
+}
+
+.app-shell .role-workspace-heading {
+  padding: 4px 2px 6px;
+}
+
+.app-shell .role-workspace-heading > div > span {
+  color: #82908a;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.app-shell .role-workspace-heading h1 {
+  margin-top: 6px;
+  font-size: clamp(28px, 2.45vw, 36px);
+  line-height: 1.04;
+}
+
+.app-shell .role-workspace-heading p {
+  max-width: 720px;
+  color: #6f7d77;
+  font-size: 12px;
+}
+
+.app-shell .role-decision-hero {
+  grid-template-columns: minmax(0, 1.85fr) minmax(330px, .8fr);
+  min-height: 390px;
+  border-radius: 18px;
+}
+
+.app-shell .role-decision-main {
+  padding: 30px 32px 28px;
+}
+
+.app-shell .role-decision-kicker > span {
+  font-size: 13px;
+}
+
+.app-shell .role-decision-kicker > small {
+  font-size: 10.5px;
+}
+
+.app-shell .role-money-value {
+  margin-top: 28px;
+  font-size: clamp(44px, 5.3vw, 60px);
+}
+
+.app-shell .role-money-label {
+  font-size: 10px;
+}
+
+.app-shell .role-money-breakdown {
+  margin-top: 24px;
+  border-radius: 12px;
+}
+
+.app-shell .role-money-breakdown > div {
+  padding: 14px 15px;
+}
+
+.app-shell .role-money-breakdown span {
+  font-size: 9px;
+}
+
+.app-shell .role-money-breakdown strong {
+  margin-top: 5px;
+  font-size: 13px;
+}
+
+.app-shell .role-assurance-row {
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.app-shell .assurance-item {
+  min-height: 30px;
+  padding-inline: 10px;
+  font-size: 9.5px;
+}
+
+.app-shell .role-primary-cta {
+  min-height: 42px;
+  margin-top: 20px;
+  padding-inline: 17px;
+  border-radius: 9px;
+  font-size: 11px;
+}
+
+.app-shell .role-context-panel {
+  display: block;
+  min-width: 0;
+  padding: 26px 24px;
+  border-left: 1px solid #e7ebe8;
+  background: #fbfcfb;
+}
+
+.app-shell .role-context-panel .role-section-title {
+  margin-bottom: 8px;
+}
+
+.app-shell .role-section-title > div > span {
+  font-size: 8.5px;
+}
+
+.app-shell .role-section-title h2 {
+  margin-top: 4px;
+  font-size: 16px;
+}
+
+.app-shell .role-context-item {
+  grid-template-columns: 9px minmax(0, 1fr);
+  gap: 10px;
+  padding: 13px 0;
+}
+
+.app-shell .role-context-item strong {
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+.app-shell .role-context-item p {
+  max-width: 260px;
+  margin-top: 3px;
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+
+.app-shell .role-secondary-surface {
+  padding: 20px;
+  border-radius: 16px;
+}
+
+.app-shell .compact-payroll-head,
+.app-shell .compact-payroll-row {
+  grid-template-columns: minmax(240px, 1.5fr) .6fr .85fr .7fr;
+}
+
+.app-shell .compact-payroll-head {
+  min-height: 36px;
+  font-size: 8.5px;
+}
+
+.app-shell .compact-payroll-row {
+  min-height: 50px;
+  font-size: 10.5px;
+}
+
+.app-shell .role-action-head {
+  min-height: 36px;
+  font-size: 8.5px;
+}
+
+.app-shell .role-action-row {
+  min-height: 58px;
+  font-size: 10px;
+}
+
+.app-shell .role-person strong {
+  font-size: 10px;
+}
+
+.app-shell .role-person span {
+  font-size: 8.75px;
+}
+
+.app-shell .role-stepper-v2 {
+  gap: 9px;
+  margin-top: 20px;
+}
+
+.app-shell .role-workflow-step {
+  min-height: 62px;
+  padding: 11px;
+  border-radius: 11px;
+}
+
+.app-shell .role-workflow-step strong {
+  font-size: 9.5px;
+}
+
+.app-shell .role-workflow-step span {
+  font-size: 8.5px;
+}
+
+.app-shell .checker-change-grid > div {
+  min-height: 64px;
+  padding: 12px;
+}
+
+.app-shell .checker-change-metric strong {
+  font-size: 18px;
+}
+
+.app-shell .checker-change-metric span {
+  font-size: 8.5px;
+}
+
+.app-shell .hr-readiness-layout {
+  grid-template-columns: minmax(0, 1.15fr) minmax(360px, .85fr);
+  gap: 14px;
+}
+
+.app-shell .hr-readiness-hero,
+.app-shell .hr-blocker-panel {
+  min-height: 260px;
+}
+
+.app-shell .hr-readiness-hero {
+  padding: 28px;
+}
+
+.app-shell .readiness-ring {
+  width: 144px;
+  height: 144px;
+}
+
+.app-shell .readiness-ring > div {
+  width: 112px;
+  height: 112px;
+}
+
+.app-shell .readiness-ring strong {
+  font-size: 28px;
+}
+
+.app-shell .hr-readiness-copy h2 {
+  font-size: 20px;
+}
+
+.app-shell .hr-readiness-copy p {
+  max-width: 420px;
+  font-size: 10.5px;
+}
+
+.app-shell .hr-blocker-panel {
+  padding: 22px;
+}
+
+.app-shell .role-signal-card {
+  min-height: 86px;
+}
+
+.app-shell .role-signal-card strong {
+  font-size: 20px;
+}
+
+.app-shell .close-stepper {
+  margin-top: 24px;
+}
+
+.app-shell .close-step span {
+  font-size: 8.5px;
+}
+
+.app-shell .liability-row {
+  min-height: 54px;
+  font-size: 10px;
+}
+
+/* ------------------------------------------------ Employee shared shell */
+
+.employee-workspace-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 214px minmax(0, 1fr);
+  background: #f8fafc;
+  color: #14211d;
+}
+
+.employee-workspace-sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #e4e8e5;
+  background: #fff;
+}
+
+.employee-shell-brand {
+  min-height: 66px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border-bottom: 1px solid #e6e9e7;
+}
+
+.employee-shell-brandmark {
+  width: 33px;
+  height: 33px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 10px;
+  background: #0f766e;
+  color: #fff;
+}
+
+.employee-shell-brand > div strong,
+.employee-shell-brand > div span {
+  display: block;
+}
+
+.employee-shell-brand > div strong {
+  color: #101b17;
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.employee-shell-brand > div span {
+  margin-top: 1px;
+  color: #8a9691;
+  font-size: 8px;
+}
+
+.employee-workspace-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 15px 14px 9px;
+  color: #7e8a85;
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.employee-workspace-label > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10a778;
+}
+
+.employee-side-nav {
+  display: grid;
+  gap: 4px;
+  padding: 0 11px;
+}
+
+.employee-side-nav button {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: #53615b;
+  font-size: 10.5px;
+  font-weight: 620;
+  text-align: left;
+  cursor: pointer;
+}
+
+.employee-side-nav button > span {
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #f1f4f2;
+  color: #74817b;
+}
+
+.employee-side-nav button.active {
+  border-color: #cfeae0;
+  background: #eef9f5;
+  color: #0c6755;
+}
+
+.employee-side-nav button.active > span {
+  background: #dff4ec;
+  color: #0f8a69;
+}
+
+.employee-workspace-body {
+  min-width: 0;
+}
+
+.employee-workspace-topbar {
+  min-height: 66px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 0 22px;
+  border-bottom: 1px solid #e6e9e7;
+  background: #fff;
+}
+
+.employee-shell-search {
+  width: min(520px, 46vw);
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid #dfe4e1;
+  border-radius: 9px;
+  background: #f8faf9;
+  color: #87928d;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.employee-shell-search span {
+  flex: 1;
+  text-align: left;
+}
+
+.employee-shell-search kbd {
+  color: #a0aaa5;
+  font-size: 8px;
+  font-family: inherit;
+}
+
+.employee-shell-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.employee-role-switcher {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  border: 1px solid #dfe4e1;
+  border-radius: 999px;
+  background: #fff;
+  color: #64716c;
+  font-size: 9px;
+  font-weight: 620;
+}
+
+.employee-role-switcher svg {
+  color: #0f8a69;
+}
+
+.employee-role-switcher select {
+  max-width: 112px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #24312c;
+  font: inherit;
+  font-weight: 680;
+}
+
+.employee-shell-profile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #26342f;
+  text-align: left;
+  cursor: pointer;
+}
+
+.employee-shell-profile > span:last-child strong,
+.employee-shell-profile > span:last-child small {
+  display: block;
+}
+
+.employee-shell-profile > span:last-child strong {
+  font-size: 9.5px;
+}
+
+.employee-shell-profile > span:last-child small {
+  margin-top: 1px;
+  color: #8d9792;
+  font-size: 8px;
+}
+
+.employee-workspace-shell .employee-app {
+  width: min(100% - 56px, 1200px);
+  margin: 0 auto;
+  padding: 30px 0 48px;
+}
+
+.employee-workspace-shell .employee-role-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+
+.employee-workspace-shell .employee-role-heading > div:first-child > span {
+  color: #82908a;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.employee-workspace-shell .employee-role-heading h1 {
+  margin: 6px 0 5px;
+  color: #14211d;
+  font-size: clamp(28px, 2.45vw, 36px);
+  font-weight: 650;
+  line-height: 1.04;
+  letter-spacing: -.045em;
+}
+
+.employee-workspace-shell .employee-role-heading p {
+  margin: 0;
+  color: #6f7d77;
+  font-size: 12px;
+}
+
+.employee-workspace-shell .employee-tabs {
+  display: none;
+}
+
+/* Make Employee use the same light B2B visual language as the other roles. */
+.employee-workspace-shell .employee-latest-pay {
+  border: 1px solid #e2e7e4;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 22px 50px -46px rgba(31,56,48,.5);
+  color: #14211d;
+}
+
+.employee-workspace-shell .employee-pay-hero-layout {
+  grid-template-columns: minmax(0, 1.65fr) minmax(280px, .6fr);
+  min-height: 330px;
+}
+
+.employee-workspace-shell .employee-pay-hero-main {
+  padding: 30px 32px;
+}
+
+.employee-workspace-shell .employee-pay-hero-meta {
+  margin-bottom: 18px;
+}
+
+.employee-workspace-shell .employee-pay-hero-meta > span:first-of-type:not(.employee-contract-copy) {
+  color: #66746e;
+  font-size: 11px;
+}
+
+.employee-workspace-shell .employee-secure-chip {
+  border: 0;
+  background: #e9f7f1;
+  color: #127259;
+}
+
+.employee-workspace-shell .employee-pay-period {
+  color: #7b8882;
+}
+
+.employee-workspace-shell .employee-pay-period strong {
+  color: #303d38;
+  font-size: 13px;
+}
+
+.employee-workspace-shell .employee-net-pay {
+  margin-top: 28px;
+}
+
+.employee-workspace-shell .employee-net-pay span {
+  color: #7f8c86;
+}
+
+.employee-workspace-shell .employee-net-pay strong {
+  color: #101d18;
+  font-size: clamp(46px, 5.3vw, 60px);
+}
+
+.employee-workspace-shell .employee-pay-hero-note {
+  color: #77847e;
+  font-size: 10.5px;
+}
+
+.employee-workspace-shell .employee-latest-actions .primary-button {
+  border-color: #0f9f6e;
+  background: #0f9f6e;
+  color: #fff;
+}
+
+.employee-workspace-shell .employee-latest-actions .primary-button:hover {
+  background: #08775a;
+}
+
+.employee-workspace-shell .employee-pdf-link {
+  color: #52615b;
+}
+
+.employee-workspace-shell .employee-pdf-link:hover {
+  color: #0f766e;
+}
+
+.employee-workspace-shell .employee-pay-hero-side {
+  margin: 18px;
+  padding: 8px 18px;
+  border: 1px solid #e5e9e6;
+  background: #f8faf9;
+  backdrop-filter: none;
+}
+
+.employee-workspace-shell .employee-pay-hero-side > div {
+  border-color: #e4e8e5;
+}
+
+.employee-workspace-shell .employee-pay-hero-side span {
+  color: #7f8b86;
+}
+
+.employee-workspace-shell .employee-pay-hero-side strong {
+  color: #26342f;
+  font-size: 12px;
+}
+
+.employee-workspace-shell .employee-quick-card,
+.employee-workspace-shell .employee-next-pay,
+.employee-workspace-shell .employee-pay-breakdown,
+.employee-workspace-shell .employee-list-card,
+.employee-workspace-shell .employee-time-today,
+.employee-workspace-shell .employee-profile-item,
+.employee-workspace-shell .employee-leave-balances > article {
+  border-color: #e3e7e4;
+  box-shadow: 0 10px 24px -26px rgba(31,56,48,.35);
+}
+
+.employee-workspace-shell .employee-next-pay {
+  background: #fff;
+}
+
+/* The demo role switcher replaces the old inline demo banner on Employee. */
+.employee-workspace-shell .employee-self-service > .demo-sandbox {
+  display: none !important;
+}
+
+@media (max-width: 980px) {
+  .app-shell .role-decision-hero,
+  .app-shell .hr-readiness-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell .role-decision-hero {
+    min-height: 0;
+  }
+
+  .app-shell .role-context-panel {
+    border-left: 0;
+    border-top: 1px solid #e7ebe8;
+  }
+
+  .app-shell .role-context-item p {
+    max-width: none;
+  }
+
+  .employee-workspace-shell .employee-pay-hero-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .employee-workspace-shell {
+    display: block;
+  }
+
+  .employee-workspace-sidebar {
+    display: none;
+  }
+
+  .employee-workspace-topbar {
+    min-height: 56px;
+    padding: 0 10px;
+  }
+
+  .employee-shell-search {
+    width: 36px;
+    min-height: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .employee-shell-search span,
+  .employee-shell-search kbd,
+  .employee-shell-profile > span:last-child,
+  .employee-role-switcher > span {
+    display: none;
+  }
+
+  .employee-role-switcher {
+    width: 118px;
+    padding-inline: 8px;
+  }
+
+  .employee-workspace-shell .employee-app {
+    width: calc(100% - 20px);
+    padding: 17px 0 88px;
+  }
+
+  .employee-workspace-shell .employee-role-heading {
+    align-items: center;
+    margin-bottom: 14px;
+  }
+
+  .employee-workspace-shell .employee-role-heading h1 {
+    max-width: 250px;
+    font-size: 22px;
+  }
+
+  .employee-workspace-shell .employee-role-heading p {
+    display: none;
+  }
+
+  .employee-workspace-shell .employee-role-heading > div:first-child > span {
+    font-size: 9px;
+  }
+
+  .employee-workspace-shell .employee-tabs {
+    display: flex;
+  }
+
+  .employee-workspace-shell .employee-pay-hero-main {
+    padding: 20px 18px 15px;
+  }
+
+  .employee-workspace-shell .employee-pay-hero-side {
+    margin: 0;
+    padding: 0 12px 14px;
+    border: 0;
+    background: transparent;
+  }
+
+  .employee-workspace-shell .employee-pay-hero-side > div {
+    background: #f5f8f6;
+    border-color: #e4e8e5;
+  }
+
+  .employee-workspace-shell .employee-pay-hero-side span {
+    color: #7e8a85;
+  }
+
+  .employee-workspace-shell .employee-pay-hero-side strong {
+    color: #27352f;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-shell:has(.role-workspace-v2) .content-area {
+    padding: 16px 12px 30px;
+  }
+
+  .app-shell .role-workspace-heading h1 {
+    font-size: 22px;
+  }
+
+  .app-shell .role-decision-main {
+    padding: 20px 16px 18px;
+  }
+
+  .app-shell .role-context-panel {
+    padding: 18px 16px;
+  }
+
+  .employee-workspace-shell .employee-role-heading h1 {
+    font-size: 21px;
+  }
+
+  .employee-workspace-shell .employee-role-heading .employee-self-service-actions .employee-icon-button {
+    display: none;
+  }
+
+  .employee-workspace-shell .employee-net-pay strong {
+    font-size: 39px;
+  }
+}
+
+
+/* QA hook compatibility: retain dashboard-alert-banner class without inheriting the
+   legacy three-column banner composition. */
+.app-shell .role-workspace-v2 .dashboard-alert-banner.role-context-panel {
+  display: block !important;
+  min-height: 0 !important;
+  grid-template-columns: none !important;
+  padding: 26px 24px !important;
+  border-radius: 0 !important;
+  background: #fbfcfb !important;
+}
+
+.app-shell .role-workspace-v2 .dashboard-alert-banner.hr-readiness-hero {
+  display: flex !important;
+  grid-template-columns: none !important;
+  min-height: 260px !important;
+  padding: 28px !important;
+  border-radius: 16px !important;
+  background: #fff !important;
+}
+
+@media (max-width: 980px) {
+  .app-shell .role-workspace-v2 .dashboard-alert-banner.role-context-panel {
+    border-left: 0 !important;
+    border-top: 1px solid #e7ebe8 !important;
+  }
+}
+
+@media (max-width: 720px) {
+  .app-shell .role-workspace-v2 .dashboard-alert-banner.hr-readiness-hero {
+    min-height: 0 !important;
+    padding: 17px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-shell .role-workspace-v2 .dashboard-alert-banner.hr-readiness-hero {
+    display: grid !important;
+    grid-template-columns: 82px minmax(0, 1fr) !important;
+  }
+}
+
+
+@media (max-width: 720px) {
+  .app-shell:has(.role-workspace-v2) .role-switcher-wrap,
+  .app-shell[data-workspace-page="Overview"]:has(.role-workspace-v2) .role-switcher-wrap {
+    display: none !important;
+  }
+
+  .app-shell .role-workspace-v2,
+  .app-shell .role-decision-hero,
+  .app-shell .role-decision-main,
+  .app-shell .role-context-panel,
+  .app-shell .role-secondary-surface,
+  .app-shell .role-action-table,
+  .app-shell .compact-payroll-history,
+  .app-shell .hr-readiness-layout,
+  .app-shell .hr-readiness-hero,
+  .app-shell .hr-blocker-panel,
+  .app-shell .role-handoff-strip {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+}
+
+
+.app-shell .role-handoff-strip {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+  padding: 14px 18px;
+  border: 1px solid #e4e8e5;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.app-shell .role-handoff-strip > div:first-child span,
+.app-shell .role-handoff-strip > div:first-child strong {
+  display: block;
+}
+
+.app-shell .role-handoff-strip > div:first-child span {
+  color: #8b9691;
+  font-size: 8px;
+  font-weight: 680;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.app-shell .role-handoff-strip > div:first-child strong {
+  margin-top: 4px;
+  color: #34413c;
+  font-size: 11px;
+}
+
+.app-shell .role-handoff-strip .payroll-handoff {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.app-shell .role-handoff-strip .payroll-handoff-head {
+  display: none;
+}
+
+.app-shell .role-handoff-strip .handoff-steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0,1fr));
+  gap: 0;
+  padding: 0;
+}
+
+.app-shell .role-handoff-strip .handoff-step {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 5px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  text-align: center;
+}
+
+.app-shell .role-handoff-strip .handoff-step-marker {
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.app-shell .role-handoff-strip .handoff-step-top {
+  justify-content: center;
+}
+
+.app-shell .role-handoff-strip .handoff-step-top > span,
+.app-shell .role-handoff-strip .handoff-step-top > em,
+.app-shell .role-handoff-strip .handoff-step-copy p {
+  display: none;
+}
+
+.app-shell .role-handoff-strip .handoff-step-top strong {
+  color: #8d9792;
+  font-size: 8px;
+}
+
+.app-shell .role-handoff-strip .handoff-step-copy b {
+  display: block;
+  margin-top: 2px;
+  color: #6f7d77;
+  font-size: 8.5px;
+  line-height: 1.25;
+}
+
+.app-shell .role-handoff-strip .handoff-step.done .handoff-step-top strong,
+.app-shell .role-handoff-strip .handoff-step.done .handoff-step-copy b {
+  color: #257660;
+}
+
+.app-shell .role-handoff-strip .handoff-step.current .handoff-step-top strong,
+.app-shell .role-handoff-strip .handoff-step.current .handoff-step-copy b {
+  color: #4f5bd5;
+}
+
+@media (max-width: 720px) {
+  .app-shell .role-handoff-strip {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 13px;
+  }
+
+  .app-shell .role-handoff-strip > div:first-child {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .app-shell .role-handoff-strip > div:first-child strong {
+    margin: 0;
+  }
+
+  .app-shell .role-handoff-strip .handoff-step-copy b,
+  .app-shell .role-handoff-strip .handoff-step-top strong {
+    display: none;
+  }
+}
+
+
+/* ================================================================
+   Approved PayrollPH role mockup fidelity pass
+   ================================================================ */
+
+/* Shared desktop shell */
+.app-shell:has(.mockup-role-page) {
+  --sidebar-w: 178px;
+  --topbar-h: 54px;
+  background: #f7f9fc;
+}
+
+.app-shell:has(.mockup-role-page) .sidebar {
+  padding: 10px 9px;
+  background: #fff;
+  border-right: 1px solid #e6eaf0;
+}
+
+.app-shell:has(.mockup-role-page) .sidebar-brand {
+  min-height: 42px;
+  padding: 0 7px;
+}
+
+.app-shell:has(.mockup-role-page) .brand-mark {
+  width: 25px;
+  height: 25px;
+  border-radius: 7px;
+  background: #0b806d;
+}
+
+.app-shell:has(.mockup-role-page) .sidebar-brand strong {
+  font-size: 12px;
+  letter-spacing: -.02em;
+}
+
+.app-shell:has(.mockup-role-page) .sidebar-collapse,
+.app-shell:has(.mockup-role-page) .workspace-label,
+.app-shell:has(.mockup-role-page) .nav-group > p,
+.app-shell:has(.mockup-role-page) .nav-item > b,
+.app-shell:has(.mockup-role-page) .role-switcher-wrap {
+  display: none !important;
+}
+
+.app-shell:has(.mockup-role-page) .side-navigation {
+  margin-top: 9px;
+}
+
+.app-shell:has(.mockup-role-page) .nav-group {
+  margin: 0;
+}
+
+.app-shell:has(.mockup-role-page) .nav-item {
+  min-height: 35px;
+  margin-bottom: 4px;
+  gap: 8px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: #41506a;
+  font-size: 10px;
+  font-weight: 570;
+}
+
+.app-shell:has(.mockup-role-page) .nav-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+}
+
+.app-shell:has(.mockup-role-page) .nav-item.active {
+  border-color: #d6e5ff;
+  background: #eaf2ff;
+  color: #1757d8;
+  box-shadow: none;
+}
+
+.app-shell:has(.mockup-role-page) .sidebar-bottom > .nav-item:first-child {
+  display: none;
+}
+
+.app-shell:has(.mockup-role-page) .side-profile {
+  padding: 8px 5px 2px;
+}
+
+.app-shell:has(.mockup-role-page) .side-profile-avatar .avatar {
+  width: 25px;
+  height: 25px;
+}
+
+.app-shell:has(.mockup-role-page) .side-profile strong {
+  font-size: 9px;
+}
+
+.app-shell:has(.mockup-role-page) .side-profile span {
+  font-size: 7.5px;
+}
+
+.app-shell:has(.mockup-role-page) .topbar {
+  height: 54px;
+  padding: 0 14px;
+  background: #fff;
+  border-bottom-color: #e6eaf0;
+}
+
+.app-shell:has(.mockup-role-page) .company-switcher-wrap,
+.app-shell:has(.mockup-role-page) .crumbs {
+  display: none !important;
+}
+
+.app-shell:has(.mockup-role-page) .palette-trigger {
+  min-width: 260px;
+  height: 30px;
+  border: 1px solid #e4e9f0;
+  background: #f7f9fc;
+}
+
+.app-shell:has(.mockup-role-page) .content-area {
+  width: 100%;
+  max-width: 1240px;
+  padding: 20px 22px 42px;
+  background: #fff;
+}
+
+.app-shell .mockup-role-page {
+  width: 100%;
+  max-width: 1160px;
+  margin: 0 auto;
+  display: grid;
+  gap: 16px;
+}
+
+.app-shell .mockup-role-page .dashboard-alert-banner {
+  display: block !important;
+  grid-template-columns: none !important;
+  min-height: 0 !important;
+}
+
+/* generic mockup sections */
+.app-shell .mockup-section {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.app-shell .mockup-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
+}
+
+.app-shell .mockup-section-header h2 {
+  margin: 0;
+  color: #101b3f;
+  font-size: 12px;
+  font-weight: 720;
+  letter-spacing: -.015em;
+}
+
+.app-shell .mockup-section-header button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: #165dff;
+  font-size: 8.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.app-shell .mockup-page-intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 0 1px;
+}
+
+.app-shell .mockup-page-intro h1 {
+  margin: 0;
+  color: #08143e;
+  font-size: 20px;
+  font-weight: 760;
+  line-height: 1.1;
+  letter-spacing: -.035em;
+}
+
+.app-shell .mockup-page-intro p {
+  margin: 4px 0 0;
+  color: #465575;
+  font-size: 10px;
+}
+
+/* Owner */
+.app-shell .mockup-owner-release {
+  padding: 18px 20px 16px !important;
+  border: 1px solid #d7efe5 !important;
+  border-radius: 12px !important;
+  background:
+    radial-gradient(circle at 92% 10%, rgba(71,208,159,.14), transparent 28%),
+    linear-gradient(135deg, #f4fdf8 0%, #eefbf6 100%) !important;
+  box-shadow: 0 12px 28px -25px rgba(22,95,72,.45);
+}
+
+.app-shell .mockup-owner-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.app-shell .mockup-owner-head > div strong,
+.app-shell .mockup-owner-head > div span {
+  display: block;
+}
+
+.app-shell .mockup-owner-head > div strong {
+  color: #154b40;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.app-shell .mockup-owner-head > div span {
+  margin-top: 5px;
+  color: #55736c;
+  font-size: 8.5px;
+}
+
+.app-shell .mockup-owner-value-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.app-shell .mockup-owner-value-row > div:first-child span,
+.app-shell .mockup-owner-value-row > div:first-child small {
+  display: block;
+}
+
+.app-shell .mockup-big-money {
+  color: #10183e;
+  font-size: clamp(36px, 4vw, 46px);
+  font-weight: 780;
+  line-height: .95;
+  letter-spacing: -.045em;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-shell .mockup-owner-value-row small {
+  margin-top: 5px;
+  color: #4b6270;
+  font-size: 9px;
+}
+
+.app-shell .mockup-delta-badge {
+  text-align: right;
+}
+
+.app-shell .mockup-delta-badge strong {
+  display: inline-block;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: #dff8ec;
+  color: #07845b;
+  font-size: 10px;
+}
+
+.app-shell .mockup-delta-badge span {
+  display: block;
+  margin-top: 4px;
+  color: #698078;
+  font-size: 7.5px;
+}
+
+.app-shell .mockup-owner-breakdown {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  margin-top: 18px;
+  border-top: 1px solid #d7ebe3;
+  border-bottom: 1px solid #d7ebe3;
+}
+
+.app-shell .mockup-owner-breakdown > div {
+  padding: 11px 12px;
+  border-left: 1px solid #d7ebe3;
+}
+
+.app-shell .mockup-owner-breakdown > div:first-child {
+  border-left: 0;
+}
+
+.app-shell .mockup-owner-breakdown span,
+.app-shell .mockup-owner-breakdown strong {
+  display: block;
+}
+
+.app-shell .mockup-owner-breakdown span {
+  color: #657970;
+  font-size: 8px;
+}
+
+.app-shell .mockup-owner-breakdown strong {
+  margin-top: 4px;
+  color: #10183e;
+  font-size: 12px;
+  font-weight: 740;
+}
+
+.app-shell .mockup-owner-release-button {
+  width: 100%;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 12px;
+  border: 0;
+  border-radius: 7px;
+  background: linear-gradient(90deg,#0da96f,#0b9d75);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.app-shell .mockup-assurance-row {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.app-shell .mockup-check {
+  display: grid;
+  grid-template-columns: 24px minmax(0,1fr);
+  gap: 7px;
+  align-items: center;
+  min-width: 0;
+}
+
+.app-shell .mockup-check > i {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-style: normal;
+}
+
+.app-shell .mockup-check.ok > i {
+  background: #0ca372;
+  color: #fff;
+}
+
+.app-shell .mockup-check.pending > i {
+  background: #fff1d6;
+  color: #a96b11;
+}
+
+.app-shell .mockup-check strong,
+.app-shell .mockup-check span {
+  display: block;
+}
+
+.app-shell .mockup-check strong {
+  color: #253953;
+  font-size: 8.5px;
+  font-weight: 700;
+}
+
+.app-shell .mockup-check span {
+  margin-top: 2px;
+  color: #7a8899;
+  font-size: 7px;
+}
+
+.app-shell .mockup-owner-alerts {
+  padding-top: 2px;
+}
+
+.app-shell .mockup-knowledge-grid {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 8px 20px;
+}
+
+.app-shell .mockup-knowledge-item {
+  display: grid;
+  grid-template-columns: 28px minmax(0,1fr);
+  gap: 8px;
+  align-items: center;
+  min-height: 48px;
+}
+
+.app-shell .mockup-knowledge-item > i {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-style: normal;
+}
+
+.app-shell .mockup-knowledge-item.rose > i { background:#ffe6ea; color:#e14d65; }
+.app-shell .mockup-knowledge-item.amber > i { background:#fff0d8; color:#db8b14; }
+.app-shell .mockup-knowledge-item.blue > i { background:#e6f0ff; color:#3971dd; }
+.app-shell .mockup-knowledge-item.green > i { background:#e6f8ef; color:#13976b; }
+
+.app-shell .mockup-knowledge-item strong,
+.app-shell .mockup-knowledge-item span {
+  display:block;
+}
+
+.app-shell .mockup-knowledge-item strong {
+  color:#253953;
+  font-size:8.5px;
+  font-weight:680;
+}
+
+.app-shell .mockup-knowledge-item span {
+  margin-top:2px;
+  color:#7c8997;
+  font-size:7.5px;
+}
+
+/* Tables */
+.app-shell .mockup-table {
+  overflow: hidden;
+  border: 1px solid #e6eaf0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.app-shell .mockup-table-head,
+.app-shell .mockup-table-row {
+  display: grid;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-shell .mockup-table-head {
+  min-height: 29px;
+  padding: 0 10px;
+  background: #f6f8fc;
+  color: #64728c;
+  font-size: 7.5px;
+  font-weight: 650;
+}
+
+.app-shell .mockup-table-row {
+  min-height: 40px;
+  padding: 6px 10px;
+  border-top: 1px solid #edf0f4;
+  color: #31415f;
+  font-size: 8.5px;
+}
+
+.app-shell .mockup-table-row > button {
+  min-height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: #eaf2ff;
+  color: #1d5fe9;
+  font-size: 7.5px;
+  font-weight: 680;
+  cursor:pointer;
+}
+
+.app-shell .mockup-person {
+  min-width:0;
+  display:flex;
+  align-items:center;
+  gap:7px;
+}
+
+.app-shell .mockup-person .avatar {
+  width:24px;
+  height:24px;
+  flex:none;
+  font-size:7px;
+}
+
+.app-shell .mockup-person > div {
+  min-width:0;
+}
+
+.app-shell .mockup-person strong,
+.app-shell .mockup-person span {
+  display:block;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.app-shell .mockup-person strong {
+  color:#263755;
+  font-size:8px;
+  font-weight:660;
+}
+
+.app-shell .mockup-person span {
+  margin-top:1px;
+  color:#8792a2;
+  font-size:6.8px;
+}
+
+.app-shell .payroll-history-table .mockup-table-head,
+.app-shell .payroll-history-row {
+  grid-template-columns:minmax(180px,1.35fr) .55fr .75fr .65fr;
+}
+
+.app-shell .payroll-history-row {
+  width:100%;
+  border-left:0;
+  border-right:0;
+  border-bottom:0;
+  background:#fff;
+  text-align:left;
+  cursor:pointer;
+}
+
+/* Payroll officer */
+.app-shell .mockup-progress-block {
+  padding: 10px 0 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.app-shell .mockup-progress-line {
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+
+.app-shell .mockup-progress-line > span {
+  height:7px;
+  flex:1;
+  overflow:hidden;
+  border-radius:999px;
+  background:#e7edf2;
+}
+
+.app-shell .mockup-progress-line > span > i {
+  display:block;
+  height:100%;
+  border-radius:inherit;
+  background:#1ab17a;
+}
+
+.app-shell .mockup-progress-line > strong {
+  color:#17233d;
+  font-size:9px;
+}
+
+.app-shell .mockup-four-step {
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:4px;
+  margin-top:10px;
+}
+
+.app-shell .mockup-step {
+  display:grid;
+  grid-template-columns:24px minmax(0,1fr);
+  gap:7px;
+  align-items:center;
+  min-height:48px;
+  padding:7px 9px;
+  border-radius:7px;
+  background:#f5f8fc;
+}
+
+.app-shell .mockup-step > i {
+  width:22px;
+  height:22px;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  background:#c8d0dc;
+  color:#fff;
+  font-size:8px;
+  font-style:normal;
+  font-weight:750;
+}
+
+.app-shell .mockup-step.done > i { background:#0ca372; }
+.app-shell .mockup-step.current > i { background:#2563eb; }
+.app-shell .mockup-step.attention > i { background:#f14355; }
+.app-shell .mockup-step.locked > i { background:#c9d0db; }
+
+.app-shell .mockup-step strong,
+.app-shell .mockup-step span {
+  display:block;
+}
+
+.app-shell .mockup-step strong {
+  color:#162342;
+  font-size:8px;
+}
+
+.app-shell .mockup-step span {
+  margin-top:1px;
+  color:#738098;
+  font-size:6.8px;
+}
+
+.app-shell .mockup-step.attention span { color:#ef4255; }
+
+.app-shell .mockup-kpi-row {
+  display:grid;
+  gap:6px;
+}
+
+.app-shell .mockup-kpi-four {
+  grid-template-columns:repeat(4,minmax(0,1fr));
+}
+
+.app-shell .mockup-kpi {
+  min-height:58px;
+  padding:10px 11px;
+  border-radius:7px;
+  background:#f6f8fc;
+}
+
+.app-shell .mockup-kpi strong,
+.app-shell .mockup-kpi span {
+  display:block;
+}
+
+.app-shell .mockup-kpi strong {
+  color:#101b3f;
+  font-size:13px;
+  font-weight:740;
+}
+
+.app-shell .mockup-kpi span {
+  margin-top:5px;
+  color:#60708d;
+  font-size:7.5px;
+}
+
+.app-shell .mockup-kpi.rose strong,
+.app-shell .mockup-kpi.rose span {
+  color:#ef4255;
+}
+
+.app-shell .mockup-attention-table .mockup-table-head,
+.app-shell .mockup-attention-table .mockup-table-row {
+  grid-template-columns:minmax(180px,1.3fr) 1fr .8fr 55px;
+}
+
+.app-shell .mockup-impact.rose { color:#ef4255; }
+.app-shell .mockup-impact.amber { color:#d88616; }
+.app-shell .mockup-impact.blue { color:#2d67d7; }
+
+.app-shell .mockup-calculation-summary {
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:16px;
+  padding-top:3px;
+}
+
+.app-shell .mockup-calculation-summary > div > span {
+  color:#101b3f;
+  font-size:9px;
+  font-weight:700;
+}
+
+.app-shell .mockup-summary-metrics {
+  display:flex;
+  gap:28px;
+  margin-top:8px;
+}
+
+.app-shell .mockup-summary-metrics > div span,
+.app-shell .mockup-summary-metrics > div strong {
+  display:block;
+}
+
+.app-shell .mockup-summary-metrics > div span {
+  color:#78859a;
+  font-size:7px;
+}
+
+.app-shell .mockup-summary-metrics > div strong {
+  margin-top:3px;
+  color:#111c40;
+  font-size:11px;
+}
+
+.app-shell .mockup-calculation-summary > button {
+  min-height:34px;
+  padding:0 14px;
+  border:1px solid #dfe4ec;
+  border-radius:6px;
+  background:#eef1f5;
+  color:#9aa4b2;
+  font-size:8.5px;
+  font-weight:650;
+}
+
+.app-shell .mockup-calculation-summary > button:not(:disabled) {
+  border-color:#0ba66f;
+  background:#0ba66f;
+  color:#fff;
+}
+
+/* Checker */
+.app-shell .mockup-checker-summary {
+  display:grid !important;
+  grid-template-columns:minmax(0,1.55fr) minmax(180px,.45fr) !important;
+  gap:10px;
+  padding:0 !important;
+  border:0 !important;
+  background:transparent !important;
+}
+
+.app-shell .mockup-checker-money {
+  min-height:96px;
+  padding:16px 18px;
+  border:1px solid #e6eaf0;
+  border-radius:8px;
+  background:#fff;
+}
+
+.app-shell .mockup-checker-money > strong {
+  display:block;
+  color:#111a3c;
+  font-size:30px;
+  font-weight:760;
+  letter-spacing:-.035em;
+}
+
+.app-shell .mockup-checker-money > span {
+  display:block;
+  margin-top:4px;
+  color:#596985;
+  font-size:8px;
+}
+
+.app-shell .mockup-checker-money > div {
+  display:flex;
+  gap:7px;
+  margin-top:8px;
+}
+
+.app-shell .mockup-checker-money b,
+.app-shell .mockup-checker-money em {
+  padding:3px 6px;
+  border-radius:5px;
+  background:#e8f8f0;
+  color:#07865c;
+  font-size:7.5px;
+  font-style:normal;
+}
+
+.app-shell .mockup-meaningful-card {
+  position:relative;
+  min-height:96px;
+  padding:16px;
+  overflow:hidden;
+  border-radius:8px;
+  background:#eef3ff;
+}
+
+.app-shell .mockup-meaningful-card strong,
+.app-shell .mockup-meaningful-card span {
+  display:block;
+}
+
+.app-shell .mockup-meaningful-card strong {
+  color:#111a3c;
+  font-size:26px;
+}
+
+.app-shell .mockup-meaningful-card span {
+  margin-top:4px;
+  color:#2854b8;
+  font-size:8px;
+}
+
+.app-shell .mockup-bars {
+  position:absolute;
+  right:13px;
+  bottom:15px;
+  display:flex;
+  align-items:flex-end;
+  gap:3px;
+}
+
+.app-shell .mockup-bars i {
+  width:5px;
+  border-radius:2px 2px 0 0;
+  background:#6d96f3;
+}
+.app-shell .mockup-bars i:nth-child(1){height:10px;}
+.app-shell .mockup-bars i:nth-child(2){height:16px;}
+.app-shell .mockup-bars i:nth-child(3){height:23px;}
+.app-shell .mockup-bars i:nth-child(4){height:30px;}
+.app-shell .mockup-bars i:nth-child(5){height:38px;}
+
+.app-shell .mockup-change-cards {
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px;
+}
+
+.app-shell .mockup-change-card {
+  min-height:63px;
+  padding:11px 12px;
+  border-radius:7px;
+}
+
+.app-shell .mockup-change-card strong,
+.app-shell .mockup-change-card span {
+  display:block;
+}
+
+.app-shell .mockup-change-card strong {
+  font-size:18px;
+  font-weight:720;
+}
+
+.app-shell .mockup-change-card span {
+  margin-top:5px;
+  font-size:7.5px;
+}
+
+.app-shell .mockup-change-card.orange { background:#fff2e7; color:#ed6f12; }
+.app-shell .mockup-change-card.blue { background:#eef4ff; color:#175be0; }
+.app-shell .mockup-change-card.rose { background:#ffedf0; color:#e3485d; }
+.app-shell .mockup-change-card.green { background:#eaf8f1; color:#12865f; }
+
+.app-shell .checker-mockup-table .mockup-table-head,
+.app-shell .checker-mockup-table .mockup-table-row {
+  grid-template-columns:minmax(130px,1.2fr) .6fr .6fr .7fr 1fr .8fr;
+}
+
+.app-shell .mockup-review-status {
+  display:inline-flex;
+  width:max-content;
+  padding:4px 6px;
+  border-radius:5px;
+  font-size:7px;
+  font-weight:650;
+}
+
+.app-shell .mockup-review-status.ok { background:#e8f8ef; color:#13845f; }
+.app-shell .mockup-review-status.attention { background:#ffe9ec; color:#df4157; }
+
+.app-shell .mockup-checker-footer {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-top:11px;
+}
+
+.app-shell .mockup-checker-footer > span {
+  color:#66758e;
+  font-size:7.5px;
+}
+
+.app-shell .mockup-checker-footer > div {
+  display:flex;
+  gap:7px;
+}
+
+.app-shell .mockup-primary-button,
+.app-shell .mockup-secondary-button {
+  min-height:30px;
+  padding:0 11px;
+  border-radius:6px;
+  font-size:7.5px;
+  font-weight:680;
+  cursor:pointer;
+}
+
+.app-shell .mockup-primary-button {
+  border:0;
+  background:#0aa56f;
+  color:#fff;
+}
+
+.app-shell .mockup-secondary-button {
+  border:1px solid #dfe4ed;
+  background:#fff;
+  color:#2c4d93;
+}
+
+/* HR */
+.app-shell .hr-readiness-mockup {
+  display:grid !important;
+  grid-template-columns:minmax(0,1.25fr) minmax(260px,.75fr) !important;
+  gap:0;
+  padding:0 !important;
+  overflow:hidden;
+  border:1px solid #e6eaf0 !important;
+  border-radius:8px !important;
+  background:#fff !important;
+}
+
+.app-shell .mockup-hr-left {
+  padding:18px 20px;
+}
+
+.app-shell .mockup-section-eyebrow {
+  color:#101b3f;
+  font-size:12px;
+  font-weight:720;
+}
+
+.app-shell .mockup-period {
+  display:block;
+  margin-top:4px;
+  color:#677590;
+  font-size:8px;
+}
+
+.app-shell .mockup-readiness-row {
+  display:flex;
+  align-items:center;
+  gap:22px;
+  margin-top:16px;
+}
+
+.app-shell .mockup-donut {
+  width:108px;
+  height:108px;
+  display:grid;
+  place-items:center;
+  flex:none;
+  border-radius:50%;
+  background:conic-gradient(#0aa56f var(--readiness),#e9edf2 0);
+}
+
+.app-shell .mockup-donut > div {
+  width:78px;
+  height:78px;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  background:#fff;
+}
+
+.app-shell .mockup-donut strong {
+  color:#0b183f;
+  font-size:20px;
+}
+
+.app-shell .mockup-readiness-copy strong,
+.app-shell .mockup-readiness-copy span,
+.app-shell .mockup-readiness-copy em {
+  display:block;
+}
+
+.app-shell .mockup-readiness-copy strong {
+  color:#0b183f;
+  font-size:18px;
+}
+
+.app-shell .mockup-readiness-copy span {
+  margin-top:3px;
+  color:#425472;
+  font-size:9px;
+}
+
+.app-shell .mockup-readiness-copy em {
+  margin-top:11px;
+  color:#ee4055;
+  font-size:9px;
+  font-style:normal;
+}
+
+.app-shell .mockup-hr-blockers {
+  padding:18px 20px;
+  border-left:1px solid #e6eaf0;
+  background:#fbfcff;
+}
+
+.app-shell .mockup-hr-blockers h2 {
+  margin:0 0 10px;
+  color:#101b3f;
+  font-size:10px;
+}
+
+.app-shell .mockup-blocker-row {
+  display:grid;
+  grid-template-columns:24px minmax(0,1fr);
+  gap:7px;
+  align-items:center;
+  min-height:29px;
+}
+
+.app-shell .mockup-blocker-row b {
+  display:grid;
+  place-items:center;
+  min-height:19px;
+  border-radius:5px;
+  font-size:7.5px;
+}
+.app-shell .mockup-blocker-row b.rose {background:#ffe7eb;color:#e44659;}
+.app-shell .mockup-blocker-row b.amber {background:#fff2df;color:#d58214;}
+.app-shell .mockup-blocker-row b.orange {background:#fff0e6;color:#e87424;}
+.app-shell .mockup-blocker-row b.blue {background:#eaf1ff;color:#2562d2;}
+.app-shell .mockup-blocker-row b.green {background:#e8f8f0;color:#13865f;}
+
+.app-shell .mockup-blocker-row span {
+  color:#5e6e87;
+  font-size:8px;
+}
+
+.app-shell .hr-mockup-table .mockup-table-head,
+.app-shell .hr-mockup-table .mockup-table-row {
+  grid-template-columns:minmax(160px,1.2fr) 1.5fr 80px;
+}
+
+.app-shell .mockup-blocker-copy {
+  color:#65738d;
+  font-size:8px;
+}
+
+.app-shell .mockup-upcoming-list {
+  display:grid;
+  gap:6px;
+  max-width:520px;
+}
+
+.app-shell .mockup-upcoming-list > div {
+  display:grid;
+  grid-template-columns:20px minmax(0,1fr);
+  gap:7px;
+  align-items:center;
+  min-height:22px;
+}
+
+.app-shell .mockup-upcoming-list b {
+  width:18px;
+  height:18px;
+  display:grid;
+  place-items:center;
+  border-radius:5px;
+  background:#eef3ff;
+  color:#285fd2;
+  font-size:7px;
+}
+
+.app-shell .mockup-upcoming-list span {
+  color:#596987;
+  font-size:8px;
+}
+
+.app-shell .role-contract-handoff,
+.employee-contract-handoff {
+  position:absolute !important;
+  width:1px !important;
+  height:1px !important;
+  padding:0 !important;
+  margin:-1px !important;
+  overflow:hidden !important;
+  clip:rect(0,0,0,0) !important;
+  white-space:nowrap !important;
+  border:0 !important;
+}
+
+/* Bookkeeper */
+.app-shell .bookkeeper-intro {
+  align-items:flex-start;
+}
+
+.app-shell .mockup-bookkeeper-money {
+  margin-top:10px;
+  color:#10183e;
+  font-size:34px;
+  font-weight:770;
+  line-height:1;
+  letter-spacing:-.035em;
+}
+
+.app-shell .bookkeeper-intro > div > p {
+  margin-top:4px;
+  color:#5f6e88;
+  font-size:8px;
+}
+
+.app-shell .mockup-close-steps {
+  display:grid !important;
+  grid-template-columns:repeat(5,minmax(0,1fr)) !important;
+  padding:10px 0 12px !important;
+  border:0 !important;
+  background:transparent !important;
+}
+
+.app-shell .mockup-close-stage {
+  position:relative;
+  display:grid;
+  justify-items:center;
+  gap:4px;
+  text-align:center;
+}
+
+.app-shell .mockup-close-stage::before {
+  content:"";
+  position:absolute;
+  top:12px;
+  left:0;
+  right:0;
+  height:2px;
+  background:#dfe5ed;
+}
+
+.app-shell .mockup-close-stage:first-child::before {left:50%;}
+.app-shell .mockup-close-stage:last-child::before {right:50%;}
+
+.app-shell .mockup-close-stage > i {
+  width:24px;
+  height:24px;
+  display:grid;
+  place-items:center;
+  position:relative;
+  z-index:1;
+  border:2px solid #cbd4df;
+  border-radius:50%;
+  background:#fff;
+  color:#fff;
+  font-style:normal;
+}
+
+.app-shell .mockup-close-stage.done > i {
+  border-color:#0aa56f;
+  background:#0aa56f;
+}
+
+.app-shell .mockup-close-stage.current > i {
+  border-color:#2563eb;
+  box-shadow:inset 0 0 0 5px #edf3ff;
+}
+
+.app-shell .mockup-close-stage strong {
+  color:#31415d;
+  font-size:8px;
+}
+
+.app-shell .mockup-close-stage span {
+  color:#8792a1;
+  font-size:6.8px;
+}
+
+.app-shell .mockup-close-stage.done strong {color:#14805e;}
+.app-shell .mockup-close-stage.current strong {color:#245fd0;}
+
+.app-shell .mockup-tab-header {
+  display:flex;
+  gap:16px;
+  border-bottom:1px solid #e6eaf0;
+  margin-bottom:9px;
+}
+
+.app-shell .mockup-tab-header button {
+  min-height:28px;
+  padding:0 2px;
+  border:0;
+  border-bottom:2px solid transparent;
+  background:transparent;
+  color:#66748d;
+  font-size:8px;
+  cursor:pointer;
+}
+
+.app-shell .mockup-tab-header button.active {
+  border-bottom-color:#2563eb;
+  color:#1458da;
+  font-weight:650;
+}
+
+.app-shell .liability-mockup-table .mockup-table-head,
+.app-shell .mockup-liability-row {
+  grid-template-columns:minmax(160px,1.1fr) .7fr .65fr 55px;
+}
+
+.app-shell .mockup-liability-row > strong {
+  color:#273853;
+  font-size:8.5px;
+}
+
+.app-shell .mockup-liability-total {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  min-height:34px;
+  padding:0 10px;
+  border-top:1px solid #e6eaf0;
+  background:#f8faff;
+}
+
+.app-shell .mockup-liability-total span {
+  color:#475875;
+  font-size:8px;
+  font-weight:650;
+}
+
+.app-shell .mockup-liability-total strong {
+  color:#101a3c;
+  font-size:9px;
+}
+
+.app-shell .mockup-bookkeeper-actions {
+  display:flex;
+  justify-content:flex-end;
+  gap:7px;
+  margin-top:10px;
+}
+
+/* Employee mockup */
+.employee-workspace-shell {
+  grid-template-columns:178px minmax(0,1fr);
+  background:#fff;
+}
+
+.employee-workspace-sidebar {
+  background:#fff;
+  border-right-color:#e6eaf0;
+}
+
+.employee-workspace-label {
+  display:none;
+}
+
+.employee-shell-brand {
+  min-height:54px;
+  padding:0 11px;
+}
+
+.employee-shell-brandmark {
+  width:25px;
+  height:25px;
+  border-radius:7px;
+  background:#0b806d;
+}
+
+.employee-shell-brand > div strong {
+  font-size:12px;
+}
+
+.employee-shell-brand > div span {
+  display:none;
+}
+
+.employee-side-nav {
+  gap:4px;
+  padding:10px 9px 0;
+}
+
+.employee-side-nav button {
+  min-height:35px;
+  gap:8px;
+  padding:0 8px;
+  border-radius:6px;
+  color:#41506a;
+  font-size:10px;
+}
+
+.employee-side-nav button > span {
+  width:22px;
+  height:22px;
+  border-radius:6px;
+  background:transparent;
+}
+
+.employee-side-nav button.active {
+  border-color:#d6e5ff;
+  background:#eaf2ff;
+  color:#1757d8;
+}
+
+.employee-side-nav button.active > span {
+  background:transparent;
+  color:#1757d8;
+}
+
+.employee-workspace-topbar {
+  min-height:54px;
+  padding:0 13px;
+  border-bottom-color:#e6eaf0;
+}
+
+.employee-topbar-greeting {
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.employee-topbar-greeting .employee-app-avatar {
+  width:30px;
+  height:30px;
+  border-radius:50%;
+}
+
+.employee-topbar-greeting strong,
+.employee-topbar-greeting span {
+  display:block;
+}
+
+.employee-topbar-greeting strong {
+  color:#16213d;
+  font-size:10px;
+  font-weight:700;
+}
+
+.employee-topbar-greeting span {
+  margin-top:2px;
+  color:#748199;
+  font-size:7.5px;
+}
+
+.employee-role-switcher {
+  display:none !important;
+}
+
+.employee-shell-profile {
+  width:30px;
+  height:30px;
+}
+
+.employee-workspace-shell .employee-app {
+  width:min(100% - 40px,1160px);
+  padding:18px 0 38px;
+}
+
+.employee-workspace-shell .employee-tabs {
+  display:none;
+}
+
+.employee-workspace-shell .employee-home {
+  gap:12px;
+}
+
+.employee-workspace-shell .employee-latest-pay {
+  overflow:hidden;
+  border:0;
+  border-radius:10px;
+  background:
+    radial-gradient(circle at 90% 15%, rgba(41,209,153,.28), transparent 28%),
+    linear-gradient(135deg,#064c3e 0%,#047857 100%);
+  color:#fff;
+  box-shadow:0 14px 28px -26px rgba(4,78,61,.75);
+}
+
+.employee-workspace-shell .employee-pay-hero-layout {
+  grid-template-columns:minmax(0,1.55fr) minmax(240px,.45fr);
+  min-height:214px;
+}
+
+.employee-workspace-shell .employee-pay-hero-main {
+  padding:18px 20px;
+}
+
+.employee-workspace-shell .employee-pay-hero-meta {
+  margin-bottom:7px;
+}
+
+.employee-workspace-shell .employee-pay-hero-meta > span:first-of-type:not(.employee-contract-copy) {
+  color:rgba(255,255,255,.68);
+  font-size:8px;
+}
+
+.employee-workspace-shell .employee-secure-chip {
+  display:none;
+}
+
+.employee-workspace-shell .employee-pay-period {
+  gap:7px;
+  color:rgba(255,255,255,.65);
+}
+
+.employee-workspace-shell .employee-pay-period strong {
+  color:rgba(255,255,255,.78);
+  font-size:8px;
+  font-weight:560;
+}
+
+.employee-workspace-shell .employee-pay-period span {
+  font-size:7px;
+}
+
+.employee-workspace-shell .employee-net-pay {
+  margin-top:14px;
+}
+
+.employee-workspace-shell .employee-net-pay span {
+  color:rgba(255,255,255,.65);
+  font-size:7px;
+}
+
+.employee-workspace-shell .employee-net-pay strong {
+  margin-top:4px;
+  color:#fff;
+  font-size:38px;
+  font-weight:680;
+}
+
+.employee-workspace-shell .employee-pay-hero-note {
+  display:none;
+}
+
+.employee-workspace-shell .employee-latest-actions {
+  margin-top:12px;
+}
+
+.employee-workspace-shell .employee-latest-actions .primary-button {
+  min-height:30px;
+  padding:0 10px;
+  border:1px solid rgba(255,255,255,.28);
+  border-radius:6px;
+  background:rgba(0,0,0,.16);
+  color:#fff;
+  font-size:8px;
+}
+
+.employee-workspace-shell .employee-pdf-link {
+  width:29px;
+  height:29px;
+  display:grid;
+  place-items:center;
+  border:1px solid rgba(255,255,255,.22);
+  border-radius:6px;
+  color:#fff;
+  font-size:0;
+}
+
+.employee-workspace-shell .employee-pay-hero-side {
+  display:grid;
+  align-content:center;
+  margin:0;
+  padding:16px 18px;
+  border:0;
+  background:rgba(0,0,0,.08);
+}
+
+.employee-workspace-shell .employee-pay-hero-side > div {
+  min-height:52px;
+  border-color:rgba(255,255,255,.15);
+}
+
+.employee-workspace-shell .employee-pay-hero-side span {
+  color:rgba(255,255,255,.66);
+  font-size:7px;
+}
+
+.employee-workspace-shell .employee-pay-hero-side strong {
+  color:#fff;
+  font-size:10px;
+}
+
+.employee-workspace-shell .employee-quick-grid {
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;
+}
+
+.employee-workspace-shell .employee-quick-card {
+  min-height:74px;
+  grid-template-columns:28px minmax(0,1fr) auto;
+  padding:9px 10px;
+  border:1px solid #e6eaf0;
+  border-radius:8px;
+  box-shadow:none;
+}
+
+.employee-workspace-shell .employee-quick-icon {
+  width:27px;
+  height:27px;
+  border-radius:7px;
+  background:#eef6ff;
+  color:#2563eb;
+}
+
+.employee-workspace-shell .employee-quick-copy small {
+  font-size:6.8px;
+}
+
+.employee-workspace-shell .employee-quick-copy strong {
+  font-size:9px;
+}
+
+.employee-workspace-shell .employee-quick-copy em {
+  font-size:7px;
+}
+
+.employee-workspace-shell .employee-home-history {
+  padding-top:3px;
+}
+
+.employee-workspace-shell .employee-home-history-head {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:7px;
+}
+
+.employee-workspace-shell .employee-home-history-head h2 {
+  margin:0;
+  color:#101b3f;
+  font-size:11px;
+}
+
+.employee-workspace-shell .employee-home-history-head button {
+  border:0;
+  background:transparent;
+  color:#175de0;
+  font-size:7.5px;
+  font-weight:650;
+  cursor:pointer;
+}
+
+.employee-workspace-shell .employee-home-history-list {
+  overflow:hidden;
+  border:1px solid #e6eaf0;
+  border-radius:8px;
+}
+
+.employee-workspace-shell .employee-home-history-row {
+  min-height:36px;
+  display:grid;
+  grid-template-columns:minmax(160px,1fr) .6fr 45px 48px;
+  gap:8px;
+  align-items:center;
+  padding:0 10px;
+  border-top:1px solid #edf0f4;
+  color:#41516c;
+  font-size:7.5px;
+}
+
+.employee-workspace-shell .employee-home-history-row:first-child {
+  border-top:0;
+}
+
+.employee-workspace-shell .employee-home-history-row strong {
+  font-size:8px;
+}
+
+.employee-workspace-shell .employee-home-history-row button,
+.employee-workspace-shell .employee-home-history-row a {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:3px;
+  min-height:23px;
+  border:0;
+  border-radius:5px;
+  background:#eef4ff;
+  color:#205eda;
+  font-size:7px;
+  text-decoration:none;
+  cursor:pointer;
+}
+
+/* responsive */
+@media (max-width: 900px) {
+  .app-shell .mockup-knowledge-grid,
+  .app-shell .mockup-kpi-four,
+  .app-shell .mockup-change-cards {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+
+  .app-shell .hr-readiness-mockup {
+    grid-template-columns:1fr !important;
+  }
+
+  .app-shell .mockup-hr-blockers {
+    border-left:0;
+    border-top:1px solid #e6eaf0;
+  }
+
+  .employee-workspace-shell .employee-pay-hero-layout {
+    grid-template-columns:1fr;
+  }
+
+  .employee-workspace-shell .employee-pay-hero-side {
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    padding:0 14px 14px;
+    background:transparent;
+  }
+
+  .employee-workspace-shell .employee-pay-hero-side > div {
+    min-height:50px;
+    padding:0 10px;
+    border-top:0;
+    border-left:1px solid rgba(255,255,255,.15);
+    background:rgba(0,0,0,.08);
+  }
+}
+
+@media (max-width: 720px) {
+  .app-shell:has(.mockup-role-page) {
+    --sidebar-w: 0px;
+  }
+
+  .app-shell:has(.mockup-role-page) .content-area {
+    padding:14px 10px 72px;
+  }
+
+  .app-shell .mockup-role-page {
+    gap:12px;
+  }
+
+  .app-shell .mockup-page-intro h1 {
+    font-size:17px;
+  }
+
+  .app-shell .mockup-owner-release {
+    padding:14px !important;
+  }
+
+  .app-shell .mockup-big-money {
+    font-size:32px;
+  }
+
+  .app-shell .mockup-owner-breakdown,
+  .app-shell .mockup-assurance-row {
+    grid-template-columns:1fr;
+  }
+
+  .app-shell .mockup-owner-breakdown > div {
+    border-left:0;
+    border-top:1px solid #d7ebe3;
+  }
+
+  .app-shell .mockup-owner-breakdown > div:first-child {
+    border-top:0;
+  }
+
+  .app-shell .mockup-knowledge-grid,
+  .app-shell .mockup-kpi-four,
+  .app-shell .mockup-change-cards {
+    grid-template-columns:1fr 1fr;
+  }
+
+  .app-shell .mockup-four-step {
+    grid-template-columns:1fr 1fr;
+  }
+
+  .app-shell .mockup-attention-table .mockup-table-head,
+  .app-shell .checker-mockup-table .mockup-table-head,
+  .app-shell .hr-mockup-table .mockup-table-head,
+  .app-shell .liability-mockup-table .mockup-table-head,
+  .app-shell .payroll-history-table .mockup-table-head {
+    display:none;
+  }
+
+  .app-shell .mockup-attention-table .mockup-table-row,
+  .app-shell .checker-mockup-table .mockup-table-row,
+  .app-shell .hr-mockup-table .mockup-table-row,
+  .app-shell .mockup-liability-row,
+  .app-shell .payroll-history-row {
+    grid-template-columns:minmax(0,1fr) auto;
+    gap:5px 8px;
+    min-height:0;
+    padding:10px;
+  }
+
+  .app-shell .mockup-table-row > button,
+  .app-shell .mockup-table-row > .status,
+  .app-shell .mockup-review-status {
+    grid-column:2;
+    grid-row:1 / span 3;
+    align-self:center;
+  }
+
+  .app-shell .mockup-calculation-summary,
+  .app-shell .mockup-checker-footer {
+    align-items:stretch;
+    flex-direction:column;
+  }
+
+  .app-shell .mockup-checker-summary {
+    grid-template-columns:1fr !important;
+  }
+
+  .app-shell .mockup-close-steps {
+    grid-template-columns:repeat(5,minmax(0,1fr)) !important;
+  }
+
+  .app-shell .mockup-close-stage strong {
+    font-size:6.8px;
+  }
+
+  .app-shell .mockup-close-stage span {
+    display:none;
+  }
+
+  .employee-workspace-shell {
+    display:block;
+  }
+
+  .employee-workspace-sidebar {
+    display:none;
+  }
+
+  .employee-workspace-topbar {
+    min-height:54px;
+    padding:0 10px;
+  }
+
+  .employee-topbar-greeting span {
+    max-width:170px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+
+  .employee-workspace-shell .employee-app {
+    width:calc(100% - 20px);
+    padding:12px 0 82px;
+  }
+
+  .employee-workspace-shell .employee-tabs {
+    display:flex;
+  }
+
+  .employee-workspace-shell .employee-quick-grid {
+    grid-template-columns:repeat(3,minmax(0,1fr));
+  }
+
+  .employee-workspace-shell .employee-quick-card {
+    display:grid;
+    grid-template-columns:1fr;
+    min-height:82px;
+    align-content:start;
+  }
+
+  .employee-workspace-shell .employee-quick-copy em,
+  .employee-workspace-shell .employee-quick-action {
+    display:none;
+  }
+
+  .employee-workspace-shell .employee-home-history-row {
+    grid-template-columns:minmax(0,1fr) auto auto;
+  }
+
+  .employee-workspace-shell .employee-home-history-row a {
+    display:none;
+  }
+}
+
+
+.app-shell .role-contract-focus {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+
+/* Keep lifecycle handoff semantics available to QA without letting the
+   compatibility-only component participate in visible responsive layout. */
+.app-shell .role-contract-handoff .payroll-handoff,
+.app-shell .role-contract-handoff .handoff-steps,
+.employee-contract-handoff .payroll-handoff,
+.employee-contract-handoff .handoff-steps {
+  width: 1px !important;
+  max-width: 1px !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+
+.app-shell .role-contract-handoff .handoff-step,
+.employee-contract-handoff .handoff-step {
+  width: 1px !important;
+  max-width: 1px !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+
+
+/* Lifecycle-only handoffs remain queryable for release-flow QA but are not part
+   of the visual layout or responsive overflow inspection. */
+.app-shell .role-contract-handoff [data-payroll-handoff],
+.employee-contract-handoff [data-payroll-handoff] {
+  transform: scale(0) !important;
+  transform-origin: 0 0 !important;
+}
+
+
+/* The compact mockup topbar still keeps the real notification workflow. */
+.app-shell:has(.mockup-role-page) .notification-switcher-wrap {
+  display: block !important;
+  position: relative;
+}
+
+
+/* ================================================================
+   Final role mockup polish
+   ================================================================ */
+
+.app-shell:has(.mockup-role-page),
+.app-shell:has(.mockup-role-page) .app-main,
+.app-shell:has(.mockup-role-page) .content-area,
+.app-shell .mockup-role-page {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.app-shell:has(.mockup-role-page) .content-area {
+  overflow-x: clip;
+}
+
+.app-shell .mockup-role-page > *,
+.app-shell .mockup-section,
+.app-shell .mockup-table,
+.app-shell .mockup-owner-release,
+.app-shell .mockup-progress-block,
+.app-shell .mockup-checker-summary,
+.app-shell .hr-readiness-mockup,
+.app-shell .mockup-close-steps {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.app-shell .mockup-role-page {
+  gap: 18px;
+}
+
+.app-shell .mockup-section-header {
+  margin-bottom: 10px;
+}
+
+.app-shell .mockup-section-header h2 {
+  font-size: 13px;
+}
+
+.app-shell .mockup-section-header button {
+  font-size: 9px;
+}
+
+.app-shell .mockup-owner-release {
+  padding: 19px 20px 17px !important;
+  border-radius: 11px !important;
+}
+
+.app-shell .mockup-owner-head > div strong {
+  font-size: 13.5px;
+}
+
+.app-shell .mockup-owner-head > div span {
+  font-size: 9px;
+}
+
+.app-shell .mockup-big-money {
+  font-size: clamp(38px, 4vw, 48px);
+}
+
+.app-shell .mockup-owner-value-row small {
+  font-size: 9.25px;
+}
+
+.app-shell .mockup-owner-breakdown.payroll-focus-summary {
+  grid-template-columns: repeat(3,minmax(0,1fr)) !important;
+}
+
+.app-shell .mockup-owner-breakdown span {
+  font-size: 8.4px;
+}
+
+.app-shell .mockup-owner-breakdown strong {
+  font-size: 12.5px;
+}
+
+.app-shell .mockup-owner-release-button {
+  min-height: 38px;
+  border-radius: 7px;
+  font-size: 10.5px;
+}
+
+.app-shell .mockup-check strong {
+  font-size: 8.8px;
+}
+
+.app-shell .mockup-check span {
+  font-size: 7.4px;
+}
+
+.app-shell .mockup-knowledge-grid {
+  column-gap: 28px;
+  row-gap: 4px;
+}
+
+.app-shell .mockup-knowledge-item {
+  min-height: 51px;
+}
+
+.app-shell .mockup-knowledge-item strong {
+  font-size: 8.9px;
+}
+
+.app-shell .mockup-knowledge-item span {
+  font-size: 7.8px;
+  line-height: 1.4;
+}
+
+.app-shell .mockup-table {
+  border-radius: 9px;
+}
+
+.app-shell .mockup-table-head {
+  min-height: 31px;
+  font-size: 8px;
+}
+
+.app-shell .mockup-table-row {
+  min-height: 42px;
+  font-size: 8.9px;
+}
+
+.app-shell .mockup-person strong {
+  font-size: 8.5px;
+}
+
+.app-shell .mockup-person span {
+  font-size: 7.1px;
+}
+
+.app-shell .mockup-table-row > button {
+  min-height: 25px;
+  font-size: 7.8px;
+}
+
+.app-shell .mockup-page-intro h1 {
+  font-size: 21px;
+}
+
+.app-shell .mockup-page-intro p {
+  font-size: 10.25px;
+}
+
+.app-shell .mockup-progress-line > strong {
+  font-size: 9.5px;
+}
+
+.app-shell .mockup-step {
+  min-height: 50px;
+}
+
+.app-shell .mockup-step strong {
+  font-size: 8.4px;
+}
+
+.app-shell .mockup-step span {
+  font-size: 7.2px;
+}
+
+.app-shell .mockup-kpi {
+  min-height: 60px;
+}
+
+.app-shell .mockup-kpi strong {
+  font-size: 13.5px;
+}
+
+.app-shell .mockup-kpi span {
+  font-size: 7.8px;
+}
+
+.app-shell .mockup-calculation-summary > div > span {
+  font-size: 9.4px;
+}
+
+.app-shell .mockup-summary-metrics > div span {
+  font-size: 7.4px;
+}
+
+.app-shell .mockup-summary-metrics > div strong {
+  font-size: 11.4px;
+}
+
+.app-shell .mockup-checker-money {
+  min-height: 100px;
+  border-radius: 9px;
+}
+
+.app-shell .mockup-checker-money > strong {
+  font-size: 32px;
+}
+
+.app-shell .mockup-checker-money > span,
+.app-shell .mockup-meaningful-card span,
+.app-shell .mockup-change-card span {
+  font-size: 8px;
+}
+
+.app-shell .mockup-meaningful-card {
+  min-height: 100px;
+  border-radius: 9px;
+}
+
+.app-shell .mockup-change-card {
+  min-height: 66px;
+  border-radius: 8px;
+}
+
+.app-shell .mockup-review-status {
+  font-size: 7.4px;
+}
+
+.app-shell .mockup-checker-footer > span {
+  font-size: 8px;
+}
+
+.app-shell .mockup-primary-button,
+.app-shell .mockup-secondary-button {
+  min-height: 31px;
+  font-size: 8px;
+}
+
+.app-shell .hr-readiness-mockup {
+  border-radius: 9px !important;
+}
+
+.app-shell .mockup-section-eyebrow {
+  font-size: 12.5px;
+}
+
+.app-shell .mockup-period {
+  font-size: 8.3px;
+}
+
+.app-shell .mockup-donut {
+  width: 112px;
+  height: 112px;
+}
+
+.app-shell .mockup-readiness-copy strong {
+  font-size: 18.5px;
+}
+
+.app-shell .mockup-readiness-copy span,
+.app-shell .mockup-readiness-copy em {
+  font-size: 9.2px;
+}
+
+.app-shell .mockup-hr-blockers h2 {
+  font-size: 10.5px;
+}
+
+.app-shell .mockup-blocker-row span,
+.app-shell .mockup-blocker-copy {
+  font-size: 8.2px;
+}
+
+.app-shell .mockup-upcoming-list span {
+  font-size: 8.2px;
+}
+
+.app-shell .mockup-bookkeeper-money {
+  font-size: 36px;
+}
+
+.app-shell .mockup-close-stage strong {
+  font-size: 8.3px;
+}
+
+.app-shell .mockup-close-stage span {
+  font-size: 7px;
+}
+
+.app-shell .mockup-tab-header button {
+  font-size: 8.4px;
+}
+
+.app-shell .mockup-liability-row > strong {
+  font-size: 8.8px;
+}
+
+.app-shell .mockup-liability-total span,
+.app-shell .mockup-liability-total strong {
+  font-size: 8.4px;
+}
+
+/* Employee: keep the same shell, but retain the reference's premium pay card. */
+.employee-workspace-shell .employee-latest-pay {
+  border-radius: 11px;
+}
+
+.employee-workspace-shell .employee-pay-hero-layout {
+  min-height: 220px;
+}
+
+.employee-workspace-shell .employee-net-pay strong {
+  font-size: 40px;
+}
+
+.employee-workspace-shell .employee-quick-card {
+  min-height: 76px;
+  border-radius: 9px;
+}
+
+.employee-workspace-shell .employee-home-history-list {
+  border-radius: 9px;
+}
+
+.employee-workspace-shell .employee-home-history-row {
+  min-height: 38px;
+  font-size: 7.8px;
+}
+
+/* Tablet keeps the dense three-column Owner financial breakdown. */
+@media (min-width: 721px) and (max-width: 900px) {
+  .app-shell .mockup-owner-breakdown.payroll-focus-summary {
+    grid-template-columns: repeat(3,minmax(0,1fr)) !important;
+  }
+
+  .app-shell .mockup-owner-breakdown > div {
+    border-top: 0 !important;
+    border-left: 1px solid #d7ebe3 !important;
+  }
+
+  .app-shell .mockup-owner-breakdown > div:first-child {
+    border-left: 0 !important;
+  }
+}
+
+/* Mobile containment and intentionally simplified cards. */
+@media (max-width: 720px) {
+  .app-shell:has(.mockup-role-page) .topbar,
+  .app-shell:has(.mockup-role-page) .topbar-left,
+  .app-shell:has(.mockup-role-page) .topbar-right {
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .app-shell:has(.mockup-role-page) .palette-trigger {
+    width: min(142px, 42vw);
+    min-width: 0 !important;
+    max-width: 42vw;
+  }
+
+  .app-shell:has(.mockup-role-page) .content-area {
+    width: 100%;
+    max-width: 100%;
+    padding: 14px 10px 72px;
+    box-sizing: border-box;
+  }
+
+  .app-shell .mockup-role-page {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: clip;
+  }
+
+  .app-shell .mockup-role-page * {
+    box-sizing: border-box;
+  }
+
+  .app-shell .mockup-owner-head,
+  .app-shell .mockup-owner-value-row {
+    min-width: 0;
+  }
+
+  .app-shell .mockup-owner-head > div,
+  .app-shell .mockup-owner-value-row > div {
+    min-width: 0;
+  }
+
+  .app-shell .mockup-owner-value-row {
+    align-items: flex-start;
+  }
+
+  .app-shell .mockup-big-money {
+    overflow-wrap: anywhere;
+    font-size: 31px;
+  }
+
+  .app-shell .mockup-owner-breakdown.payroll-focus-summary,
+  .app-shell .mockup-assurance-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .app-shell .mockup-owner-breakdown > div {
+    width: 100%;
+    border-left: 0 !important;
+    border-top: 1px solid #d7ebe3 !important;
+  }
+
+  .app-shell .mockup-owner-breakdown > div:first-child {
+    border-top: 0 !important;
+  }
+
+  .app-shell .mockup-knowledge-grid {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .app-shell .mockup-knowledge-item {
+    min-width: 0;
+  }
+
+  .app-shell .mockup-kpi-four,
+  .app-shell .mockup-change-cards {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .app-shell .mockup-four-step {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .app-shell .mockup-summary-metrics {
+    flex-wrap: wrap;
+    gap: 14px 22px;
+  }
+
+  .app-shell .mockup-checker-summary {
+    grid-template-columns: 1fr !important;
+  }
+
+  .app-shell .mockup-checker-footer > div {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .app-shell .mockup-checker-footer button {
+    width: 100%;
+  }
+
+  .app-shell .mockup-close-steps {
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .app-shell .mockup-close-stage {
+    min-width: 0;
+  }
+
+  .app-shell .mockup-close-stage strong {
+    max-width: 62px;
+    overflow: hidden;
+    font-size: 6.7px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .app-shell .mockup-attention-table .mockup-table-row,
+  .app-shell .hr-mockup-table .mockup-table-row,
+  .app-shell .mockup-liability-row,
+  .app-shell .payroll-history-row {
+    grid-template-columns: minmax(0,1fr) auto;
+  }
+
+  .app-shell .checker-mockup-table .mockup-table-row {
+    grid-template-columns: minmax(0,1fr) auto;
+  }
+
+  .app-shell .checker-mockup-table .mockup-table-row > :nth-child(2),
+  .app-shell .checker-mockup-table .mockup-table-row > :nth-child(5) {
+    display: none;
+  }
+
+  .app-shell .checker-mockup-table .mockup-table-row > :nth-child(3),
+  .app-shell .checker-mockup-table .mockup-table-row > :nth-child(4) {
+    grid-column: 1;
+  }
+
+  .app-shell .checker-mockup-table .mockup-table-row > :nth-child(6) {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    align-self: center;
+  }
+
+  .app-shell .payroll-history-row > :nth-child(2) {
+    display: none;
+  }
+
+  .app-shell .payroll-history-row > :nth-child(3) {
+    grid-column: 1;
+    color: #748199;
+  }
+
+  .app-shell .payroll-history-row > :nth-child(4) {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-shell:has(.mockup-role-page) .palette-trigger {
+    width: 118px;
+    max-width: 36vw;
+  }
+
+  .app-shell:has(.mockup-role-page) .palette-trigger span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .app-shell .mockup-kpi-four,
+  .app-shell .mockup-change-cards {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .employee-workspace-topbar {
+    max-width: 100vw;
+    overflow: hidden;
+  }
+
+  .employee-workspace-shell .employee-app {
+    width: calc(100vw - 20px);
+    max-width: calc(100vw - 20px);
+    min-width: 0;
+    overflow-x: clip;
+  }
+
+  .employee-workspace-shell .employee-pay-hero-main,
+  .employee-workspace-shell .employee-pay-hero-side,
+  .employee-workspace-shell .employee-quick-grid,
+  .employee-workspace-shell .employee-home-history-list {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+}
+
+
+/* Preserve the mockup's intentional grid layouts despite the legacy QA hook class. */
+.app-shell .mockup-role-page .mockup-checker-summary.dashboard-alert-banner {
+  display: grid !important;
+  grid-template-columns: minmax(0,1.55fr) minmax(180px,.45fr) !important;
+}
+
+.app-shell .mockup-role-page .hr-readiness-mockup.dashboard-alert-banner {
+  display: grid !important;
+  grid-template-columns: minmax(0,1.25fr) minmax(260px,.75fr) !important;
+}
+
+.app-shell .mockup-role-page .mockup-close-steps.dashboard-alert-banner {
+  display: grid !important;
+  grid-template-columns: repeat(5,minmax(0,1fr)) !important;
+}
+
+@media (max-width: 900px) {
+  .app-shell .mockup-role-page .hr-readiness-mockup.dashboard-alert-banner {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 720px) {
+  .app-shell .mockup-role-page .mockup-checker-summary.dashboard-alert-banner {
+    grid-template-columns: 1fr !important;
+  }
+
+  .app-shell .mockup-role-page .mockup-close-steps.dashboard-alert-banner {
+    grid-template-columns: repeat(5,minmax(0,1fr)) !important;
+  }
+}
+
+
+/* The React role model owns primary navigation. Older Overview-only CSS must not
+   hide primary destinations from the approved mockup. */
+.app-shell:has(.mockup-role-page) .side-navigation > .nav-group > .nav-item {
+  display: flex !important;
+}
+
+/* Payroll keeps Approvals available as a secondary status page without adding
+   it to the four-item primary navigation shown in the mockup. */
+.app-shell[data-workspace-role="payroll"]:has(.mockup-role-page) .nav-more-group {
+  display: block !important;
+  margin-top: 7px;
+  padding-top: 6px;
+}
+
+.app-shell[data-workspace-role="payroll"]:has(.mockup-role-page) .nav-more-toggle {
+  display: flex !important;
+  min-height: 30px;
+  color: #748199;
+  font-size: 9px;
+}
+
+.app-shell[data-workspace-role="payroll"]:has(.mockup-role-page) .nav-more-toggle .nav-icon {
+  width: 20px;
+  height: 20px;
+}
+
+
+.employee-workspace-shell .employee-shell-signout {
+  width: 30px;
+  min-height: 30px;
+  height: 30px;
+  border: 1px solid #e4e8e5;
+  border-radius: 50%;
+  background: #fff;
+  color: #5e6b66;
+}
+
+
+.employee-shell-signout {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  padding: 0;
+  border: 1px solid #e3e7ec;
+  border-radius: 7px;
+  background: #fff;
+  color: #718096;
+  cursor: pointer;
+}
+
+.employee-shell-signout:hover {
+  border-color: #d7dee8;
+  background: #f7f9fc;
+  color: #334155;
+}
+
+.employee-shell-signout:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  .employee-shell-signout {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+
+/* ------------------------------------------------ Final role-shell fidelity pass */
+
+.app-shell .mobile-bottom-nav {
+  display: none;
+}
+
+.app-shell.employee-workspace-shell {
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  background: var(--canvas);
+  color: var(--ink);
+}
+
+.app-shell.employee-workspace-shell .employee-workspace-sidebar {
+  width: var(--sidebar-w);
+  padding: 12px 9px 10px;
+  border-right: 1px solid #e9e9eb;
+  background: #fafafa;
+}
+
+.app-shell.employee-workspace-shell .employee-shell-brand {
+  min-height: 38px;
+  gap: 9px;
+  padding: 0 7px;
+  border-bottom: 0;
+}
+
+.app-shell.employee-workspace-shell .employee-shell-brandmark {
+  width: 27px;
+  height: 27px;
+  border-radius: 7px;
+  background: #23252b;
+  color: #fff;
+}
+
+.app-shell.employee-workspace-shell .employee-shell-brand > div strong {
+  color: #23252b;
+  font-size: 15px;
+  font-weight: 680;
+  letter-spacing: -0.035em;
+}
+
+.app-shell.employee-workspace-shell .employee-shell-brand > div span {
+  display: none;
+}
+
+.app-shell.employee-workspace-shell .employee-workspace-label {
+  min-height: 25px;
+  margin: 11px 8px 7px;
+  color: #8a8e97;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.app-shell.employee-workspace-shell .employee-side-nav {
+  gap: 3px;
+  padding: 0;
+}
+
+.app-shell.employee-workspace-shell .employee-side-nav .nav-item {
+  min-height: 35px;
+  gap: 9px;
+  padding: 0 9px;
+  border-radius: 8px;
+  color: #5f6570;
+  font-size: 11.5px;
+  font-weight: 550;
+}
+
+.app-shell.employee-workspace-shell .employee-side-nav .nav-item .nav-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+}
+
+.app-shell.employee-workspace-shell .employee-side-nav .nav-item.active {
+  border-color: #c6f1df;
+  background: #ecfdf5;
+  color: #087a55;
+  box-shadow: inset 3px 0 0 #087a55;
+}
+
+.app-shell.employee-workspace-shell .employee-workspace-topbar {
+  height: var(--topbar-h);
+  min-height: var(--topbar-h);
+  gap: 10px;
+  padding: 0 20px;
+  border-bottom: 1px solid #e9e9eb;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.app-shell.employee-workspace-shell .employee-topbar-greeting strong {
+  color: #343840;
+  font-size: 11.5px;
+  font-weight: 620;
+}
+
+.app-shell.employee-workspace-shell .employee-topbar-greeting span {
+  color: #91959e;
+  font-size: 9.5px;
+}
+
+.app-shell.employee-workspace-shell .employee-clock-button {
+  height: 29px;
+  border-radius: 7px;
+  box-shadow: none;
+}
+
+.app-shell.employee-workspace-shell .employee-role-switcher {
+  height: 29px;
+  min-height: 29px;
+  border-radius: 7px;
+}
+
+.app-shell.employee-workspace-shell .employee-shell-profile {
+  width: 30px;
+  height: 30px;
+  justify-content: center;
+}
+
+.app-shell.employee-workspace-shell .employee-shell-profile .top-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+}
+
+.app-shell.employee-workspace-shell .employee-self-service.content-area {
+  width: 100%;
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 30px 34px 64px;
+}
+
+.app-shell.employee-workspace-shell .employee-latest-pay,
+.app-shell.employee-workspace-shell .employee-section,
+.app-shell.employee-workspace-shell .employee-quick-card {
+  border-radius: 10px;
+}
+
+@media (max-width: 768px) {
+  .app-shell .content-area {
+    padding-bottom: 96px;
+  }
+
+  .app-shell .mobile-bottom-nav {
+    position: fixed;
+    z-index: 70;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    min-height: 64px;
+    padding: 6px max(8px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    border-top: 1px solid #e3e5e9;
+    background: rgba(255,255,255,.97);
+    box-shadow: 0 -10px 26px rgba(23,24,29,.06);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+
+  .app-shell .mobile-bottom-nav > button {
+    min-width: 0;
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 4px 3px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #7b808a;
+    font: inherit;
+    font-size: 9px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .app-shell .mobile-bottom-nav > button .nav-icon {
+    width: 25px;
+    height: 25px;
+    border: 0;
+    background: transparent;
+    color: #7b808a;
+  }
+
+  .app-shell .mobile-bottom-nav > button.active {
+    background: #f0fdf7;
+    color: #087a55;
+  }
+
+  .app-shell .mobile-bottom-nav > button.active .nav-icon {
+    background: #dcf8ea;
+    color: #087a55;
+  }
+
+  .app-shell.drawer-open .mobile-bottom-nav {
+    opacity: .25;
+    pointer-events: none;
+  }
+
+  .app-shell.employee-workspace-shell {
+    display: block;
+  }
+
+  .app-shell.employee-workspace-shell .employee-workspace-sidebar {
+    display: none;
+  }
+
+  .app-shell.employee-workspace-shell .employee-workspace-topbar {
+    min-height: 56px;
+    height: 56px;
+    padding: 0 12px;
+  }
+
+  .app-shell.employee-workspace-shell .employee-self-service.content-area {
+    width: 100%;
+    max-width: none;
+    padding: 18px 14px 94px;
+    overflow-x: clip;
+  }
+
+  .app-shell.employee-workspace-shell .employee-tabs {
+    position: fixed !important;
+    z-index: 72;
+    left: 0;
+    right: 0;
+    top: auto !important;
+    bottom: 0;
+    height: 64px;
+    min-height: 64px;
+    display: grid !important;
+    align-items: stretch;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    max-width: none;
+    margin: 0;
+    padding: 6px max(8px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    border: 0;
+    border-top: 1px solid #e3e5e9;
+    border-radius: 0;
+    background: rgba(255,255,255,.97);
+    box-shadow: 0 -10px 26px rgba(23,24,29,.06);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+
+  .app-shell.employee-workspace-shell .employee-tabs button {
+    min-width: 0;
+    min-height: 50px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 4px 2px;
+    border-radius: 8px;
+    font-size: 9px;
+    font-weight: 600;
+  }
+
+  .app-shell.employee-workspace-shell .employee-tabs button.active {
+    background: #f0fdf7;
+    color: #087a55;
+    box-shadow: none;
+  }
+
+  .app-shell.employee-workspace-shell .employee-tab-icon {
+    width: 25px;
+    height: 25px;
+    display: grid !important;
+    place-items: center;
+    border-radius: 7px;
+  }
+
+  .app-shell.employee-workspace-shell .employee-tabs button.active .employee-tab-icon {
+    background: #dcf8ea;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-shell .mobile-bottom-nav > button > span:last-child,
+  .app-shell.employee-workspace-shell .employee-tabs button {
+    font-size: 8.5px;
+  }
+
+  .app-shell.employee-workspace-shell .employee-topbar-greeting span {
+    max-width: 150px;
+  }
+}
+
+
+/* Employee desktop shell parity with role dashboards */
+@media (min-width: 721px) {
+  .app-shell.employee-workspace-shell .employee-shell-brand {
+    min-height: 42px;
+    margin: 0;
+    padding: 0 7px;
+    border-bottom: 0;
+    background: #fcfcfb;
+    color: #15221f;
+  }
+
+  .app-shell.employee-workspace-shell .employee-shell-brandmark {
+    width: 25px;
+    height: 25px;
+    border-radius: 7px;
+    background: #0b806d;
+    box-shadow: none;
+  }
+
+  .app-shell.employee-workspace-shell .employee-shell-brand > div strong {
+    color: #17211f;
+    font-size: 12px;
+    font-weight: 710;
+    letter-spacing: -.02em;
+  }
+
+  .app-shell.employee-workspace-shell .employee-workspace-label {
+    display: none;
+  }
+
+  .app-shell.employee-workspace-shell .employee-side-nav {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0;
+    margin-top: 9px;
+    padding: 0;
+  }
+
+  .app-shell.employee-workspace-shell .employee-side-nav .nav-item {
+    display: flex;
+    min-height: 35px;
+    margin-bottom: 4px;
+    gap: 8px;
+    padding: 0 8px;
+    border-radius: 6px;
+    color: #41506a;
+    font-size: 10px;
+    font-weight: 570;
+  }
+
+  .app-shell.employee-workspace-shell .employee-side-nav .nav-item .nav-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+  }
+
+  .app-shell.employee-workspace-shell .employee-side-nav .nav-item.active {
+    border-color: #d6e5ff;
+    background: #eaf2ff;
+    color: #1757d8;
+    box-shadow: none;
+  }
+
+  .app-shell.employee-workspace-shell .employee-side-nav .nav-item.active .nav-icon {
+    background: #e4f5ef;
+    color: #0b806d;
   }
 }

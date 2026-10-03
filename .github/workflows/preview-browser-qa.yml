@@ -346,7 +346,8 @@ jobs:
             { id: "owner", label: "Owner", short: "Owner", person: "Andrea Lim", landing: "Good morning, Andrea", taskPage: "Overview", dashboardRole: "owner" },
             { id: "hr", label: "HR Admin", short: "HR Admin", person: "Aira Villanueva", landing: "Good morning, Aira", taskPage: "People", dashboardRole: "hr" },
             { id: "payroll", label: "Payroll Officer", short: "Payroll", person: "Paolo Cruz", landing: "Good morning, Paolo", taskPage: "Payroll", dashboardRole: "payroll" },
-            { id: "checker", label: "Checker", short: "Checker", person: "Mariel Santos", landing: "Good morning, Mariel", taskPage: "Payroll Review", dashboardRole: "checker" },
+            { id: "checker", label: "Checker", short: "Checker", person: "Mariel Santos", landing: "Good morning, Mariel", taskPage: "Reviews", dashboardRole: "checker" },
+            { id: "bookkeeper", label: "Bookkeeper", short: "Bookkeeper", person: "Bea Navarro", landing: "Good morning, Bea", taskPage: "Exports", dashboardRole: "bookkeeper" },
             { id: "employee", label: "Employee", short: "Employee", person: "Jonas Reyes", landing: "My pay", taskPage: "My pay", dashboardRole: null },
           ];
 
@@ -422,6 +423,11 @@ jobs:
             }
 
             if (persona.id === "employee") {
+              if (width <= 768) {
+                const mobileTabs = page.locator(".employee-tabs").first();
+                check((await mobileTabs.count()) === 1, "Employee: mobile bottom navigation is missing");
+                check(await mobileTabs.isVisible(), `Employee: ${suffix} mobile bottom navigation is not visible`);
+              }
               const employeeActions = page.locator(".employee-self-service-actions").first();
               check((await employeeActions.count()) === 1, "Employee: responsive header actions are missing");
               const actionLayout = await employeeActions.evaluate((element) => ({
@@ -436,6 +442,9 @@ jobs:
               const drawerButton = page.getByRole("button", { name: "Open navigation" }).first();
               check((await drawerButton.count()) === 1, `${persona.label}: ${suffix} mobile/tablet navigation trigger is missing`);
               check(await drawerButton.isVisible(), `${persona.label}: ${suffix} navigation trigger is not visible`);
+              const mobileNav = page.locator(".mobile-bottom-nav").first();
+              check((await mobileNav.count()) === 1, `${persona.label}: ${suffix} bottom navigation is missing`);
+              check(await mobileNav.isVisible(), `${persona.label}: ${suffix} bottom navigation is not visible`);
             }
 
             await page.screenshot({
@@ -546,6 +555,15 @@ jobs:
               check((await dashboard.locator(".role-dashboard-grid:visible").count()) === 0, `${persona.label}: legacy detail grid must stay off the focused landing view`);
             }
             if (persona.id === "employee") {
+              const employeeDesktopNav = page.locator(".employee-workspace-sidebar .employee-side-nav .nav-item:visible");
+              check((await employeeDesktopNav.count()) === 5, "Employee: desktop shared sidebar must expose Home, Pay, Time, Leave and Profile");
+              const employeeNavHeights = await employeeDesktopNav.evaluateAll((items) =>
+                items.map((item) => item.getBoundingClientRect().height),
+              );
+              check(
+                employeeNavHeights.every((height) => height <= 42),
+                `Employee: desktop sidebar items are stretched: ${employeeNavHeights.join(", ")}`,
+              );
               check(body.includes("LATEST PAYSLIP"), "Employee: latest released payslip promotion is missing");
               check(body.includes("Payslip available"), "Employee: released payslip availability state is missing");
               check((await page.locator("[data-latest-payslip]").count()) === 1, "Employee: latest payslip card is missing");
@@ -594,15 +612,21 @@ jobs:
             }
             if (persona.id === "payroll") {
               check((await sidebar.locator(".nav-item").filter({ hasText: /^Leave$/ }).count()) === 0, "Payroll: leave administration must stay hidden");
-              const approvalsNav = sidebar.locator(".nav-item").filter({ hasText: /^Approvals/ }).first();
-              check((await approvalsNav.count()) === 1, "Payroll: approvals status page should remain visible");
+              let approvalsNav = sidebar.locator(".nav-item").filter({ hasText: /^Approvals/ }).first();
+              if ((await approvalsNav.count()) === 0) {
+                const more = sidebar.locator(".nav-more-toggle").first();
+                check((await more.count()) === 1, "Payroll: secondary navigation trigger is missing");
+                await more.click();
+                approvalsNav = sidebar.locator(".nav-more-items .nav-item").filter({ hasText: /^Approvals/ }).first();
+              }
+              check((await approvalsNav.count()) === 1, "Payroll: approvals status page should remain accessible");
               await approvalsNav.click();
               await page.waitForTimeout(100);
               check((await page.getByRole("button", { name: /^Approve$/ }).count()) === 0, "Payroll: Approve action must be hidden");
               check((await page.getByRole("button", { name: /^Decline$/ }).count()) === 0, "Payroll: Decline action must be hidden");
               check((await page.getByRole("button", { name: /Delegation settings/i }).count()) === 0, "Payroll: delegation controls must be hidden");
               check((await page.locator("[data-payroll-handoff]").count()) >= 1, "Payroll: approvals page should retain the shared handoff context");
-              const overviewNav = sidebar.locator(".nav-item").filter({ hasText: /^Overview$/ }).first();
+              const overviewNav = sidebar.locator(".nav-item").filter({ hasText: /^(Overview|Today)$/ }).first();
               await overviewNav.click();
               await page.waitForTimeout(100);
             }

@@ -65,6 +65,12 @@ const DEMO_ACCOUNTS: Record<DemoRoleId, DemoAccount> = {
     userRole: "checker",
     membershipRole: "checker",
   },
+  bookkeeper: {
+    email: "bookkeeper.demo@linaw.ph",
+    name: "Bea Navarro",
+    userRole: "bookkeeper",
+    membershipRole: "bookkeeper",
+  },
   employee: {
     email: "jonas.reyes@linaw.ph",
     name: "Jonas Reyes",
@@ -220,7 +226,7 @@ export async function POST(request: Request) {
   }
 
   // Launch the requested persona first. A stale secondary persona must never
-  // block Owner/HR/Payroll/Checker from opening the sandbox.
+  // block Owner/HR/Payroll/Checker/Bookkeeper from opening the sandbox.
   let activeUser: Awaited<ReturnType<typeof ensureDemoAccount>>;
   try {
     activeUser = await ensureDemoAccount(requestedRole, loom.id);

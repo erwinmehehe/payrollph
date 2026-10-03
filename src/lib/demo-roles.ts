@@ -3,10 +3,24 @@ export const DEMO_ROLE_IDS = [
   "hr",
   "payroll",
   "checker",
+  "bookkeeper",
   "employee",
 ] as const;
 
 export type DemoRoleId = (typeof DEMO_ROLE_IDS)[number];
+
+const DEMO_ROLE_PATHS: Record<DemoRoleId, string> = {
+  owner: "/app?demoRole=owner",
+  hr: "/app?demoRole=hr",
+  payroll: "/app?demoRole=payroll",
+  checker: "/app?demoRole=checker",
+  bookkeeper: "/app?demoRole=bookkeeper",
+  employee: "/app?demoRole=employee",
+};
+
+export function demoRolePath(role: DemoRoleId) {
+  return DEMO_ROLE_PATHS[role];
+}
 
 export type DemoRoleInfo = {
   id: DemoRoleId;
@@ -79,6 +93,21 @@ export const DEMO_ROLES: DemoRoleInfo[] = [
       { id: "checker-open", label: "Open assigned payroll review", detail: "Review the maker's submitted payroll and assurance context.", page: "Approvals", cta: "Open approvals" },
       { id: "checker-decide", label: "Approve or decline", detail: "Record an independent decision using the real approval endpoint.", page: "Approvals", cta: "Review decision" },
       { id: "checker-compliance", label: "Check compliance context", detail: "Inspect statutory and year-end controls before approval.", page: "Compliance", cta: "Open compliance" },
+    ],
+  },
+  {
+    id: "bookkeeper",
+    label: "Bookkeeper",
+    shortLabel: "Bookkeeper",
+    person: "Bea Navarro",
+    description: "Reconcile released payroll, accounting exports, payout evidence and statutory close controls from one finance-focused workspace.",
+    access: ["Payroll close and accounting exports", "Payout and reconciliation evidence", "Compliance and statutory reporting context"],
+    actions: ["Review payroll close status", "Export the accounting journal", "Inspect statutory liabilities and filing evidence"],
+    landingPage: "Overview",
+    tasks: [
+      { id: "bookkeeper-close", label: "Review payroll close", detail: "Open the accounting workspace and inspect payout, journal and statutory close evidence.", page: "Exports", cta: "Open accounting" },
+      { id: "bookkeeper-journal", label: "Export the journal", detail: "Use the real journal export tied to the released payroll run.", page: "Exports", cta: "Open exports" },
+      { id: "bookkeeper-compliance", label: "Review filing evidence", detail: "Inspect compliance and filing context without treating prepared output as agency acceptance.", page: "Compliance", cta: "Open compliance" },
     ],
   },
   {
@@ -169,6 +198,14 @@ export const DEMO_ROLE_PAGES: Partial<Record<DemoRoleId, readonly string[]>> = {
     "Overview",
     "Approvals",
     "Compliance",
+    "Audit trail",
+  ],
+  bookkeeper: [
+    "Overview",
+    "Payroll",
+    "Exports",
+    "Compliance",
+    "Analytics",
     "Audit trail",
   ],
 };

@@ -15,31 +15,30 @@ import {
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("demo page metadata advertises only the current five personas", () => {
+test("demo page metadata advertises all six product personas", () => {
   const page = read("src/app/demo/page.tsx");
-  for (const role of ["Owner", "HR Admin", "Payroll Officer", "Checker", "Employee"]) {
+  for (const role of ["Owner", "HR Admin", "Payroll Officer", "Checker", "Bookkeeper", "Employee"]) {
     assert.ok(page.includes(role), `demo metadata must mention ${role}`);
   }
-  for (const removed of ["bookkeeper", "manager", "freelancer"]) {
+  for (const removed of ["manager", "freelancer"]) {
     assert.ok(!page.toLowerCase().includes(removed), `demo metadata must not advertise legacy role ${removed}`);
   }
 });
 
-test("role sandbox exposes exactly the five product personas", () => {
+test("role sandbox exposes exactly the six product personas", () => {
   const roles = read("src/lib/demo-roles.ts");
-  for (const role of ["owner", "hr", "payroll", "checker", "employee"]) {
+  for (const role of ["owner", "hr", "payroll", "checker", "bookkeeper", "employee"]) {
     assert.ok(roles.includes(`"${role}"`), `missing demo role ${role}`);
   }
-  assert.ok(!roles.includes('"bookkeeper"'), "bookkeeper should not replace one of the five sandbox personas");
   assert.ok(!roles.includes('"manager"'), "manager should not replace one of the five sandbox personas");
 });
 
 test("company sandbox personas land on role-specific dashboards before opening tasks", () => {
   const roles = read("src/lib/demo-roles.ts");
   const overviewLandings = (roles.match(/landingPage: "Overview"/g) ?? []).length;
-  assert.equal(overviewLandings, 4, "owner, HR, payroll and checker should all land on Overview");
+  assert.equal(overviewLandings, 5, "owner, HR, payroll, checker and bookkeeper should all land on Overview");
   assert.ok(roles.includes('landingPage: "My pay"'), "employee must still land in self-service");
-  for (const task of ["owner-release", "hr-leave", "payroll-submit", "checker-decide", "employee-punch"]) {
+  for (const task of ["owner-release", "hr-leave", "payroll-submit", "checker-decide", "bookkeeper-close", "employee-punch"]) {
     assert.ok(roles.includes(task), `missing sandbox task ${task}`);
   }
 });
@@ -180,27 +179,25 @@ test("demo switch provisions all personas into one populated sample workspace", 
 
 test("workspace renders distinct owner, HR, payroll and checker dashboards", () => {
   const workspace = read("src/components/linaw-workspace.tsx");
-  const dashboard = read("src/components/workspace/role-overview.tsx");
+  const dashboard = read("src/components/workspace/role-overview-v2.tsx");
 
   assert.ok(workspace.includes("normalizeDashboardRole"), "workspace must normalize the real/demo role");
   assert.ok(workspace.includes("<RoleOverviewView"), "workspace must render the role-specific overview");
-  assert.ok(dashboard.includes('title={"Good morning, " + firstName + "!"}'), "role dashboards must share the approved greeting hierarchy");
+  assert.ok(dashboard.includes("<ContractGreeting firstName={firstName}"), "role dashboards must keep the persona greeting contract");
   for (const role of ["owner", "hr", "payroll", "checker"]) {
     assert.ok(dashboard.includes(`data-dashboard-variant="${role}"`), `role dashboard missing ${role} composition`);
   }
 });
 
 test("role dashboards use workspace data rather than hardcoded KPI totals", () => {
-  const dashboard = read("src/components/workspace/role-overview.tsx");
+  const dashboard = read("src/components/workspace/role-overview-v2.tsx");
   for (const source of [
     "data.employees.filter",
-    "data.tasks.filter",
     "data.leaveRequests",
     "data.provisioning",
     "data.payrollEntries.filter",
     "data.retroAdjustments",
     "data.punches",
-    "data.advisories.filter",
   ]) {
     assert.ok(dashboard.includes(source), `role dashboard must derive its state from ${source}`);
   }
@@ -524,7 +521,7 @@ test("workspace dashboard matches the PayrollPH mockup using modular real-data c
     assert.equal(existsSync(path), true, `missing dashboard module: ${path}`);
   }
 
-  const dashboard = read("src/components/workspace/role-overview.tsx");
+  const dashboard = read("src/components/workspace/role-overview-v2.tsx");
   const shell = read("src/components/workspace/shell.tsx");
   const alert = read("src/components/workspace/dashboard-alert-banner.tsx");
   const stats = read("src/components/workspace/dashboard-stat-card.tsx");
@@ -535,15 +532,17 @@ test("workspace dashboard matches the PayrollPH mockup using modular real-data c
   assert.ok(shell.includes("primaryPages"), "workspace shell must receive a role-specific primary navigation set");
   assert.ok(shell.includes("secondaryItems"), "secondary features must remain reachable outside the primary navigation");
   assert.ok(shell.includes("nav-more-toggle"), "secondary features must be grouped under More instead of deleted");
-  assert.deepEqual(ROLE_PRIMARY_PAGES.owner, ["Overview", "Payroll", "Approvals", "Analytics", "People", "Settings"]);
-  assert.deepEqual(ROLE_PRIMARY_PAGES.hr, ["Overview", "People", "Time & attendance", "Leave", "Approvals", "Analytics"]);
-  assert.deepEqual(ROLE_PRIMARY_PAGES.payroll, ["Overview", "Payroll", "People", "Time & attendance", "Approvals", "Analytics"]);
-  assert.deepEqual(ROLE_PRIMARY_PAGES.checker, ["Overview", "Approvals", "Audit trail"]);
-  assert.deepEqual(ROLE_PRIMARY_PAGES.bookkeeper, ["Overview", "Payroll", "Exports", "Compliance", "Analytics", "Settings"]);
+  assert.deepEqual(ROLE_PRIMARY_PAGES.owner, ["Overview", "Payroll", "Analytics", "People", "Settings"]);
+  assert.deepEqual(ROLE_PRIMARY_PAGES.hr, ["Overview", "People", "Time & attendance", "Leave", "Recruitment"]);
+  assert.deepEqual(ROLE_PRIMARY_PAGES.payroll, ["Overview", "Payroll", "Time & attendance", "People"]);
+  assert.deepEqual(ROLE_PRIMARY_PAGES.checker, ["Overview", "Audit trail"]);
+  assert.deepEqual(ROLE_PRIMARY_PAGES.bookkeeper, ["Overview", "Exports", "Compliance", "Analytics"]);
   assert.ok(shell.includes("Search employees, payroll, reports"), "top search should use the mockup wording");
-  assert.ok(dashboard.includes("DashboardAlertBanner"), "role dashboards must use the shared alert banner");
-  assert.ok(dashboard.includes("DashboardStatCard"), "role dashboards must use the shared metric card");
-  assert.ok(dashboard.includes("RecentPayrollRuns"), "owner dashboard must use the shared payroll history module");
+  assert.ok(dashboard.includes("mockup-owner-release"), "owner dashboard must render the approved release card");
+  assert.ok(dashboard.includes("mockup-four-step"), "payroll dashboard must render the approved workflow stepper");
+  assert.ok(dashboard.includes("mockup-checker-summary"), "checker dashboard must render the approved comparison summary");
+  assert.ok(dashboard.includes("hr-readiness-mockup"), "HR dashboard must render the approved readiness composition");
+  assert.ok(dashboard.includes("mockup-close-steps"), "bookkeeper dashboard must render the approved close timeline");
   for (const role of ["owner", "hr", "payroll", "checker", "bookkeeper"]) {
     assert.ok(dashboard.includes(`data-dashboard-variant="${role}"`), `missing role-first dashboard composition for ${role}`);
   }
@@ -553,9 +552,9 @@ test("workspace dashboard matches the PayrollPH mockup using modular real-data c
   assert.ok(runs.includes("dashboard-payroll-list"), "recent payroll history should render lightweight operational rows");
   assert.ok(!runs.includes("September 2024"), "recent payroll history must not hardcode screenshot rows");
   assert.ok(styles.includes(".payrollph-dashboard"), "workspace theme must include the dashboard composition");
-  assert.ok(styles.includes(".dashboard-metrics-grid"), "workspace theme must keep the HR summary strip responsive");
-  assert.ok(styles.includes(".payroll-focus-summary"), "payroll-centric dashboards must integrate core totals into the focus card");
-  assert.ok(styles.includes(".dashboard-payroll-row"), "workspace theme must style Rippling-like payroll history rows");
+  assert.ok(styles.includes(".mockup-kpi-four"), "workspace theme must style the payroll KPI strip");
+  assert.ok(styles.includes(".mockup-owner-release"), "workspace theme must style the owner release card");
+  assert.ok(styles.includes(".mockup-table-row"), "workspace theme must style the mockup operational tables");
   assert.ok(styles.includes('.app-shell[data-workspace-page="Overview"] .demo-sandbox'), "overview must hide the bulky demo sandbox");
   assert.ok(styles.includes('.payrollph-dashboard .role-dashboard-grid'), "legacy detail grid must remain available off the focused landing composition");
 });

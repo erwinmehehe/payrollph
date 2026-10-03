@@ -1,10 +1,12 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, organizations, payrollEntries, payrollRuns, payslips, userOrganizations, users } from "@/db/schema";
+import { employees, leaveBalances, leavePolicies, leaveRequests, organizations, payrollEntries, payrollRuns, payslips, timePunches, userOrganizations, users } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { employeePayStatusLabel } from "@/lib/payroll-handoff";
 import { recordAuditEvent } from "@/lib/audit";
 import { enforceSameOriginMutation } from "@/lib/security-request";
+import { computeBalance } from "@/lib/leave-accrual";
+import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +25,7 @@ export async function GET() {
   if (!session.employeeId) {
     return Response.json({ error: "This account is not linked to an employee record. Contact your administrator." }, { status: 403 });
   }
+  await ensureLeavePayrollSchema();
 
   const [employee] = await db.select().from(employees).where(eq(employees.id, session.employeeId)).limit(1);
   if (!employee) return Response.json({ error: "Employee record not found." }, { status: 404 });
@@ -50,6 +53,49 @@ export async function GET() {
     year: "numeric",
     timeZone: "Asia/Manila",
   }).format(new Date());
+  const todayPh = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "Asia/Manila",
+  }).format(new Date());
+  const currentYear = Number(currentTaxYear);
+
+  const [attendanceRows, leaveRows, policyRows, storedBalanceRows] = await Promise.all([
+    db.select({
+      id: timePunches.id,
+      workDate: timePunches.workDate,
+      timeIn: timePunches.timeIn,
+      timeOut: timePunches.timeOut,
+      breakStart: timePunches.breakStart,
+      breakEnd: timePunches.breakEnd,
+      status: timePunches.status,
+      source: timePunches.source,
+    }).from(timePunches)
+      .where(and(
+        eq(timePunches.organizationId, employee.organizationId),
+        eq(timePunches.employeeId, session.employeeId),
+      ))
+      .orderBy(desc(timePunches.workDate), desc(timePunches.id))
+      .limit(31),
+    db.select().from(leaveRequests)
+      .where(and(
+        eq(leaveRequests.organizationId, employee.organizationId),
+        eq(leaveRequests.employeeId, session.employeeId),
+      ))
+      .orderBy(desc(leaveRequests.id)),
+    db.select().from(leavePolicies)
+      .where(and(
+        eq(leavePolicies.organizationId, employee.organizationId),
+        eq(leavePolicies.active, true),
+      )),
+    db.select().from(leaveBalances)
+      .where(and(
+        eq(leaveBalances.organizationId, employee.organizationId),
+        eq(leaveBalances.employeeId, session.employeeId),
+        eq(leaveBalances.year, currentYear),
+      )),
+  ]);
   const releasedThisYear = released.filter((row) => String(row.run.payDate).startsWith(`${currentTaxYear}-`));
 
   const yearToDate = releasedThisYear.reduce(
@@ -67,6 +113,34 @@ export async function GET() {
     { gross: 0, net: 0, deductions: 0, tax: 0 },
   );
 
+  const storedByType = new Map(storedBalanceRows.map((row) => [row.leaveType, row]));
+  const leaveBalanceSummary = policyRows.map((policy) => {
+    const mine = leaveRows.filter(
+      (request) => request.leaveType === policy.leaveType && String(request.startDate).startsWith(String(currentYear)),
+    );
+    const used = mine.filter((request) => request.status === "Approved").reduce((sum, request) => sum + Number(request.days), 0);
+    const pending = mine.filter((request) => request.status === "Pending").reduce((sum, request) => sum + Number(request.days), 0);
+    const opening = Number(storedByType.get(policy.leaveType)?.opening ?? 0);
+    const balance = computeBalance({
+      policy: {
+        leaveType: policy.leaveType,
+        annualDays: Number(policy.annualDays),
+        carryOverMax: policy.carryOverMax == null ? null : Number(policy.carryOverMax),
+        maxBalance: policy.maxBalance == null ? null : Number(policy.maxBalance),
+      },
+      startDate: String(employee.startDate),
+      asOf: todayPh,
+      opening,
+      used,
+      pending,
+    });
+    return {
+      ...balance,
+      payTreatment: policy.payTreatment,
+      paidPercentage: policy.paidPercentage,
+    };
+  });
+
   return Response.json({
     employee: {
       employeeNo: employee.employeeNo,
@@ -76,6 +150,13 @@ export async function GET() {
       employmentType: employee.employmentType,
       status: employee.status,
       monthlyBasic: employee.basicRate,
+      startDate: employee.startDate,
+      restDay: employee.restDay,
+      region: employee.region,
+      mobile: employee.mobile,
+      email: employee.email,
+      emergencyContact: employee.emergencyContact,
+      emergencyPhone: employee.emergencyPhone,
     },
     employer: organization ? { id: organization.id, name: organization.name } : null,
     yearToDate: {
@@ -103,6 +184,31 @@ export async function GET() {
       ruleVersion: row.run.ruleVersion,
       lineItems: row.entry.lineItems,
     })),
+    attendance: {
+      recent: attendanceRows,
+      today: attendanceRows.find((row) => row.workDate === todayPh) ?? null,
+      completeCount: attendanceRows.filter((row) => Boolean(row.timeIn && row.timeOut)).length,
+      incompleteCount: attendanceRows.filter((row) => !row.timeIn || !row.timeOut).length,
+    },
+    leave: {
+      balances: leaveBalanceSummary,
+      requests: leaveRows.slice(0, 12).map((row) => ({
+        id: row.id,
+        leaveType: row.leaveType,
+        startDate: row.startDate,
+        endDate: row.endDate,
+        days: row.days,
+        reason: row.reason,
+        status: row.status,
+        decidedBy: row.decidedBy,
+        createdAt: row.createdAt,
+      })),
+      policies: policyRows.map((policy) => ({
+        leaveType: policy.leaveType,
+        payTreatment: policy.payTreatment,
+        paidPercentage: policy.paidPercentage,
+      })),
+    },
   });
 }
 

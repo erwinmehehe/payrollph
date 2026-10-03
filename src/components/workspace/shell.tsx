@@ -38,9 +38,18 @@ const WORKSPACE_LABELS: Record<string, string> = {
 };
 
 function workspaceLabel(page: string, role?: string | null) {
-  if (role === "checker" && page === "Approvals") return "Payroll Review";
-  if ((role === "bookkeeper" || role === "admin") && page === "Exports") return "Accounting";
-  if (role === "checker" && page === "Audit trail") return "Audit";
+  if (role === "owner" && page === "Analytics") return "Reports";
+  if (role === "owner" && page === "People") return "Team";
+  if (role === "payroll" && page === "Overview") return "Today";
+  if (role === "payroll" && page === "Time & attendance") return "Time";
+  if (role === "checker" && page === "Overview") return "Reviews";
+  if (role === "checker" && page === "Audit trail") return "Payroll history";
+  if (role === "hr" && page === "Overview") return "Today";
+  if (role === "hr" && page === "Time & attendance") return "Time";
+  if (role === "hr" && page === "Recruitment") return "Onboarding";
+  if (role === "bookkeeper" && page === "Overview") return "Close";
+  if (role === "bookkeeper" && page === "Analytics") return "Reports";
+  if (role === "admin" && page === "Exports") return "Accounting";
   return WORKSPACE_LABELS[page] ?? page;
 }
 
@@ -92,7 +101,7 @@ export function WorkspaceShell({
   const userName = roleInfo?.person ?? data.user?.name ?? "Signed-in user";
   const roleLabel = roleInfo?.shortLabel ?? (data.user?.role === "employee" ? "Employee" : data.user?.role ?? "Member");
   const avatarRole = displayRole ?? data.user?.role ?? "member";
-  const profileAvatarIndex = ({ owner: 0, admin: 0, hr: 1, payroll: 2, checker: 3, employee: 4 } as Record<string, number>)[avatarRole] ?? 0;
+  const profileAvatarIndex = ({ owner: 0, admin: 0, hr: 1, payroll: 2, checker: 3, bookkeeper: 4, employee: 5 } as Record<string, number>)[avatarRole] ?? 0;
   const defaultPage = visiblePages?.[0] ?? "Overview";
   const allowedItems = NAVIGATION
     .flatMap((group) => group.items)
@@ -149,7 +158,7 @@ export function WorkspaceShell({
   }
 
   return (
-    <div className={`app-shell ${rail ? "rail" : ""} ${drawer ? "drawer-open" : ""}`} data-workspace-page={page}>
+    <div className={`app-shell ${rail ? "rail" : ""} ${drawer ? "drawer-open" : ""}`} data-workspace-page={page} data-workspace-role={workspaceRole ?? undefined}>
       <button className="nav-scrim" aria-label="Close navigation" onClick={() => setDrawer(false)} tabIndex={drawer ? 0 : -1} />
 
       <aside className="sidebar" aria-label="Workspace navigation">
@@ -481,6 +490,28 @@ export function WorkspaceShell({
           {children}
         </main>
       </div>
+
+      <nav className="mobile-bottom-nav" aria-label="Mobile workspace navigation">
+        {primaryItems.slice(0, 5).map((item) => {
+          const Icon = item.icon;
+          const active = page === item.name;
+          return (
+            <button
+              key={item.name}
+              type="button"
+              className={active ? "active" : ""}
+              data-tone={item.tone}
+              onClick={() => go(item.name)}
+              aria-current={active ? "page" : undefined}
+            >
+              <span className={`nav-icon t-${item.tone}`} aria-hidden>
+                <Icon size={16} strokeWidth={active ? 2.3 : 2} />
+              </span>
+              <span>{workspaceLabel(item.name, workspaceRole)}</span>
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 }

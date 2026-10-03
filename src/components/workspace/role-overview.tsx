@@ -17,6 +17,7 @@ import { PayrollHandoff } from "@/components/payroll-handoff";
 import { DashboardAlertBanner, type DashboardAlertItem } from "./dashboard-alert-banner";
 import { DashboardStatCard } from "./dashboard-stat-card";
 import { RecentPayrollRuns } from "./recent-payroll-runs";
+import { RoleOverviewV2 } from "./role-overview-v2";
 import { buildPayrollHandoff, payrollHandoffRank, type PayrollHandoffStage } from "@/lib/payroll-handoff";
 import type { DashboardData, PayrollHandoffRunSummary, PayrollRun, Task } from "./types";
 import {
@@ -44,76 +45,14 @@ export function RoleOverviewView({
   onPage: (page: string) => void;
   onNewRun: () => void;
 }) {
-  const firstName = (data.user?.name ?? "there").split(" ")[0];
-  const activePeople = data.employees.filter((employee) => employee.status === "Active");
-  const pendingTasks = data.tasks.filter((task) => task.status === "Pending");
-  const highPriorityTasks = pendingTasks.filter((task) => task.priority === "High");
-  const pendingLeave = (data.leaveRequests ?? []).filter((request) => request.status === "Pending");
-  const openProvisioning = (data.provisioning ?? []).filter((task) => !task.done);
-  const payrollExceptions = data.payrollEntries.filter((entry) => entry.status === "Exception");
-  const pendingRetro = (data.retroAdjustments ?? []).filter((item) => item.status === "pending");
-  const attendanceIssues = (data.punches ?? []).filter((punch) => {
-    const status = punch.status.toLowerCase();
-    return !["complete", "present", "ok", "approved"].includes(status);
-  });
-  const peopleMissingGovernmentIds = data.employees.filter(
-    (employee) =>
-      employee.status === "Active" &&
-      (!employee.tin || !employee.sssNo || !employee.philHealthNo || !employee.pagIbigNo),
-  );
-  const activeAdvisories = data.advisories.filter((advisory) => advisory.active);
-  const handoffRun = selectRoleHandoffRun(data, currentRun, role);
-  const roleCurrentRun = handoffRun
-    ? data.payrollRuns.find((run) => run.id === handoffRun.id) ?? currentRun
-    : currentRun;
-  const payrollApproval = handoffRun
-    ? data.tasks
-        .filter((task) => task.detail.includes(`Payroll run #${handoffRun.id}`))
-        .sort((a, b) => b.id - a.id)[0] ?? null
-    : null;
-  const handoffStages = buildPayrollHandoff(handoffRun, {
-    hrIssues: pendingLeave.length + attendanceIssues.length + peopleMissingGovernmentIds.length,
-    payrollExceptions: payrollExceptions.length,
-    approvalTask: payrollApproval,
-  });
-  const handoffAction = buildHandoffAction({
-    role,
-    run: handoffRun,
-    pendingLeave: pendingLeave.length,
-    attendanceIssues: attendanceIssues.length,
-    missingIds: peopleMissingGovernmentIds.length,
-    payrollExceptions: payrollExceptions.length,
-  });
-
-  const common = {
-    data,
-    currentRun: roleCurrentRun,
-    handoffRun,
-    firstName,
-    activePeople,
-    pendingTasks,
-    highPriorityTasks,
-    pendingLeave,
-    openProvisioning,
-    payrollExceptions,
-    pendingRetro,
-    attendanceIssues,
-    peopleMissingGovernmentIds,
-    activeAdvisories,
-    handoffStages,
-    handoffAction,
-    onPage,
-    onNewRun,
-  };
-
   return (
-    <div className="role-dashboard" data-role-dashboard={role}>
-      {role === "owner" && <OwnerDashboard {...common} />}
-      {role === "hr" && <HrDashboard {...common} />}
-      {role === "payroll" && <PayrollDashboard {...common} />}
-      {role === "checker" && <CheckerDashboard {...common} />}
-      {role === "bookkeeper" && <BookkeeperDashboard {...common} />}
-    </div>
+    <RoleOverviewV2
+      data={data}
+      currentRun={currentRun}
+      role={role}
+      onPage={onPage}
+      onNewRun={onNewRun}
+    />
   );
 }
 

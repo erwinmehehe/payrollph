@@ -45,7 +45,7 @@ import { WorkspaceShell, buildNotifications } from "@/components/workspace/shell
 import { TimeView } from "@/components/workspace/time";
 import type { DashboardData, PayrollReleaseReceipt, PricingPlan } from "@/components/workspace/types";
 import { ToastStack, useToasts } from "@/components/workspace/ui";
-import { demoRoleInfo, demoRolePages, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
+import { demoRoleInfo, demoRolePages, demoRolePath, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
 import { roleCanDecideApprovals, roleCanManageDelegations, roleCanManagePayroll, roleCanManagePeople, roleCanManageTime, workspacePagesForRole, workspacePrimaryPagesForRole } from "@/lib/workspace-role-ui";
 
 export function LinawWorkspace({ initialData }: { initialData: DashboardData }) {
@@ -153,8 +153,8 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         notify("Role switch failed.", "err");
         return;
       }
-      const payload = await response.json().catch(() => ({}));
-      window.location.href = typeof payload.redirectTo === "string" ? payload.redirectTo : `/app?demoRole=${role}`;
+      await response.json().catch(() => ({}));
+      window.location.assign(demoRolePath(role));
     } catch {
       notify("Role switch failed.", "err");
     } finally {
