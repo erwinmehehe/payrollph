@@ -67,6 +67,16 @@ export async function PUT(request: Request) {
     return Response.json({ error: "BIR branch code must contain at most 4 digits." }, { status: 422 });
   }
 
+  const statutoryDeductionTiming =
+    body.statutoryDeductionTiming === undefined
+      ? existing.statutoryDeductionTiming
+      : String(body.statutoryDeductionTiming);
+  if (!["split", "first_cutoff", "second_cutoff"].includes(statutoryDeductionTiming)) {
+    return Response.json({
+      error: "Statutory deduction timing must be split, first_cutoff, or second_cutoff.",
+    }, { status: 422 });
+  }
+
   const governmentFields = {
     birTin,
     birBranchCode,
@@ -81,6 +91,7 @@ export async function PUT(request: Request) {
   const [updated] = await db.update(organizations).set({
     name,
     legalName: legalName || name,
+    statutoryDeductionTiming,
     ...governmentPatch,
   }).where(eq(organizations.id, organizationId)).returning();
 
@@ -91,6 +102,7 @@ export async function PUT(request: Request) {
     resource: updated.name,
     metadata: {
       legalName: updated.legalName,
+      statutoryDeductionTiming: updated.statutoryDeductionTiming,
       governmentFieldsUpdated: Object.keys(governmentPatch),
     },
   });
