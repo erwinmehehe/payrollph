@@ -185,7 +185,7 @@ export async function ensureCoreCompatibilitySchema() {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v4'))");
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v5'))");
 
       await client.query(`
         ALTER TABLE organizations
@@ -239,6 +239,10 @@ export async function ensureCoreCompatibilitySchema() {
       await client.query("ALTER TABLE employees ALTER COLUMN sss_no TYPE varchar(180)");
       await client.query("ALTER TABLE employees ALTER COLUMN philhealth_no TYPE varchar(180)");
       await client.query("ALTER TABLE employees ALTER COLUMN pagibig_no TYPE varchar(180)");
+      await client.query(`
+        ALTER TABLE employees
+          ADD COLUMN IF NOT EXISTS privacy_restricted boolean NOT NULL DEFAULT false
+      `);
 
       await client.query(`
         CREATE TABLE IF NOT EXISTS employee_rest_day_revisions (
@@ -351,6 +355,49 @@ export async function ensureCoreCompatibilitySchema() {
             ALTER TABLE supplementary_earnings
               ADD CONSTRAINT supplementary_earnings_status_check
               CHECK (status IN ('pending', 'approved', 'settled', 'void'));
+          END IF;
+        END
+        $compat$;
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS retention_rules (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          record_class varchar(48) NOT NULL,
+          retention_years integer NOT NULL,
+          disposal_action varchar(24) NOT NULL DEFAULT 'review_then_delete',
+          legal_basis text NOT NULL,
+          legal_hold boolean NOT NULL DEFAULT false,
+          approved_by varchar(120) NOT NULL,
+          approved_at timestamptz NOT NULL DEFAULT NOW(),
+          notes text,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS retention_rules_org_class_unique
+        ON retention_rules(organization_id, record_class)
+      `);
+      await client.query(`
+        DO $compat$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'retention_rules_years_check'
+          ) THEN
+            ALTER TABLE retention_rules
+              ADD CONSTRAINT retention_rules_years_check
+              CHECK (retention_years >= 1 AND retention_years <= 100);
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'retention_rules_disposal_check'
+          ) THEN
+            ALTER TABLE retention_rules
+              ADD CONSTRAINT retention_rules_disposal_check
+              CHECK (disposal_action IN ('review_then_delete', 'anonymize', 'archive'));
           END IF;
         END
         $compat$;
