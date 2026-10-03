@@ -2,7 +2,7 @@ import { enforceSameOriginMutation } from "@/lib/security-request";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { contractors } from "@/db/schema";
-import { assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
+import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { encryptGovernmentId, maskGovernmentId } from "@/lib/government-id-crypto";
 
@@ -21,6 +21,10 @@ export async function GET(request: Request) {
     "Only People administrators can view contractors.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Contractor records require company-wide People access." }, { status: 403 });
+  }
 
   const rows = await db.select().from(contractors)
     .where(eq(contractors.organizationId, organizationId))
@@ -62,6 +66,10 @@ export async function POST(request: Request) {
     "Only People administrators can create contractors.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Contractor records require company-wide People access." }, { status: 403 });
+  }
 
   const [row] = await db.insert(contractors).values({
     organizationId,
@@ -106,6 +114,10 @@ export async function PATCH(request: Request) {
     "Only People administrators can update contractors.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, target.organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Contractor records require company-wide People access." }, { status: 403 });
+  }
 
   let nextWithholdingRate: string | null | undefined;
   if (body.withholdingRate !== undefined) {
@@ -172,6 +184,10 @@ export async function DELETE(request: Request) {
     "Only People administrators can delete contractors.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, target.organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Contractor records require company-wide People access." }, { status: 403 });
+  }
 
   await db.delete(contractors).where(eq(contractors.id, id));
   return Response.json({ success: true });
