@@ -94,6 +94,10 @@ export async function POST(request: Request) {
   const bankAccount = String(body.bankAccount ?? "").trim();
   const bankCode = String(body.bankCode ?? "").trim().toUpperCase();
   const mobile = String(body.mobile ?? "").trim();
+  const pagIbigVoluntaryMonthly = Number(body.pagIbigVoluntaryMonthly ?? 0);
+  if (!Number.isFinite(pagIbigVoluntaryMonthly) || pagIbigVoluntaryMonthly < 0) {
+    return Response.json({ error: "Voluntary Pag-IBIG contribution must be zero or greater." }, { status: 422 });
+  }
 
   if (Boolean(bankAccount) !== Boolean(bankCode)) {
     return Response.json({
@@ -166,6 +170,7 @@ export async function POST(request: Request) {
     sssNo: encryptGovernmentId(String(body.sssNo ?? "").trim() || null, { required: process.env.NODE_ENV === "production" }),
     philHealthNo: encryptGovernmentId(String(body.philHealthNo ?? "").trim() || null, { required: process.env.NODE_ENV === "production" }),
     pagIbigNo: encryptGovernmentId(String(body.pagIbigNo ?? "").trim() || null, { required: process.env.NODE_ENV === "production" }),
+    pagIbigVoluntaryMonthly: pagIbigVoluntaryMonthly.toFixed(2),
     nationality: String(body.nationality ?? "Filipino").trim() || "Filipino",
     startDate,
   }).returning();
@@ -403,6 +408,15 @@ export async function PATCH(request: Request) {
     if (mfaDenied) return mfaDenied;
   }
 
+  let nextPagIbigVoluntaryMonthly: string | undefined;
+  if (body.pagIbigVoluntaryMonthly !== undefined) {
+    const voluntary = Number(body.pagIbigVoluntaryMonthly);
+    if (!Number.isFinite(voluntary) || voluntary < 0) {
+      return Response.json({ error: "Voluntary Pag-IBIG contribution must be zero or greater." }, { status: 422 });
+    }
+    nextPagIbigVoluntaryMonthly = voluntary.toFixed(2);
+  }
+
   const updates = {
     middleName: clean(body.middleName),
     tin: body.tin === undefined
@@ -423,6 +437,7 @@ export async function PATCH(request: Request) {
     pagIbigNo: body.pagIbigNo === undefined
       ? undefined
       : encryptGovernmentId(clean(body.pagIbigNo), { required: process.env.NODE_ENV === "production" }),
+    pagIbigVoluntaryMonthly: nextPagIbigVoluntaryMonthly,
     nationality: body.nationality === undefined ? undefined : String(body.nationality ?? "").trim() || "Filipino",
     restDay: changedRestDay ? nextRestDay : undefined,
     bankAccount: replacementBankAccount ? encryptBankAccount(replacementBankAccount) : undefined,
