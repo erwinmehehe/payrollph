@@ -6,6 +6,8 @@ import {
   BadgeCheck,
   Check,
 } from "lucide-react";
+import { PayrollHandoff } from "@/components/payroll-handoff";
+import { buildPayrollHandoff } from "@/lib/payroll-handoff";
 import type { DashboardData, PayrollRun } from "./types";
 import { Avatar, Status, formatDate, money } from "./ui";
 
@@ -38,6 +40,17 @@ export function RoleOverviewV2({
   const peopleMissingGovernmentIds = activePeople.filter(
     (employee) => !employee.tin || !employee.sssNo || !employee.philHealthNo || !employee.pagIbigNo,
   );
+  const handoffRun = data.payrollHandoffRun ?? currentRun;
+  const approvalTask = handoffRun
+    ? data.tasks
+        .filter((task) => task.detail.includes("Payroll run #" + String(handoffRun.id)))
+        .sort((a, b) => b.id - a.id)[0] ?? null
+    : null;
+  const handoffStages = buildPayrollHandoff(handoffRun, {
+    hrIssues: pendingLeave.length + attendanceIssues.length + peopleMissingGovernmentIds.length,
+    payrollExceptions: payrollExceptions.length,
+    approvalTask,
+  });
 
   const common = {
     data,
@@ -51,6 +64,8 @@ export function RoleOverviewV2({
     pendingRetro,
     attendanceIssues,
     peopleMissingGovernmentIds,
+    handoffRun,
+    handoffStages,
     onPage,
     onNewRun,
   };
@@ -78,6 +93,8 @@ type CommonProps = {
   pendingRetro: NonNullable<DashboardData["retroAdjustments"]>;
   attendanceIssues: NonNullable<DashboardData["punches"]>;
   peopleMissingGovernmentIds: DashboardData["employees"];
+  handoffRun?: DashboardData["payrollHandoffRun"] | PayrollRun;
+  handoffStages: ReturnType<typeof buildPayrollHandoff>;
   onPage: (page: string) => void;
   onNewRun: () => void;
 };
@@ -89,6 +106,8 @@ function OwnerV2({
   activePeople,
   pendingTasks,
   payrollExceptions,
+  handoffRun,
+  handoffStages,
   onPage,
   onNewRun,
 }: CommonProps) {
@@ -99,7 +118,7 @@ function OwnerV2({
 
   return (
     <div className="payrollph-dashboard role-workspace-v2 owner-v2" data-dashboard-variant="owner">
-      <QaContract role="owner" firstName={firstName} />
+      <QaContract role="owner" firstName={firstName} handoffRun={handoffRun} handoffStages={handoffStages} />
       <WorkspaceHeading
         eyebrow={data.selectedOrganization.legalName + " · Owner"}
         title="Can I safely release this payroll?"
@@ -183,6 +202,8 @@ function PayrollOfficerV2({
   activePeople,
   payrollExceptions,
   pendingRetro,
+  handoffRun,
+  handoffStages,
   attendanceIssues,
   onPage,
   onNewRun,
@@ -199,7 +220,7 @@ function PayrollOfficerV2({
 
   return (
     <div className="payrollph-dashboard role-workspace-v2 payroll-officer-v2" data-dashboard-variant="payroll">
-      <QaContract role="payroll" firstName={firstName} />
+      <QaContract role="payroll" firstName={firstName} handoffRun={handoffRun} handoffStages={handoffStages} />
       <WorkspaceHeading
         eyebrow={data.selectedOrganization.legalName + " · Payroll Officer"}
         title="What do I need to fix before I can submit?"
@@ -284,6 +305,8 @@ function CheckerV2({
   firstName,
   pendingTasks,
   payrollExceptions,
+  handoffRun,
+  handoffStages,
   onPage,
 }: CommonProps) {
   const previousReleasedRun = data.payrollRuns.find((run) => run.id !== currentRun?.id && run.status === "Released");
@@ -295,7 +318,7 @@ function CheckerV2({
 
   return (
     <div className="payrollph-dashboard role-workspace-v2 checker-v2" data-dashboard-variant="checker">
-      <QaContract role="checker" firstName={firstName} />
+      <QaContract role="checker" firstName={firstName} handoffRun={handoffRun} handoffStages={handoffStages} />
       <WorkspaceHeading
         eyebrow={data.selectedOrganization.legalName + " · Checker"}
         title="What changed, and should I approve it?"
@@ -364,6 +387,8 @@ function HrV2({
   firstName,
   activePeople,
   pendingLeave,
+  handoffRun,
+  handoffStages,
   openProvisioning,
   attendanceIssues,
   peopleMissingGovernmentIds,
@@ -381,7 +406,7 @@ function HrV2({
 
   return (
     <div className="payrollph-dashboard role-workspace-v2 hr-v2" data-dashboard-variant="hr">
-      <QaContract role="hr" firstName={firstName} />
+      <QaContract role="hr" firstName={firstName} handoffRun={handoffRun} handoffStages={handoffStages} />
       <WorkspaceHeading
         eyebrow={data.selectedOrganization.legalName + " · HR Admin"}
         title="Which employees are blocking payroll readiness?"
@@ -459,6 +484,8 @@ function BookkeeperV2({
   data,
   currentRun,
   firstName,
+  handoffRun,
+  handoffStages,
   onPage,
 }: CommonProps) {
   const runEvents = currentRun
@@ -484,7 +511,7 @@ function BookkeeperV2({
 
   return (
     <div className="payrollph-dashboard role-workspace-v2 bookkeeper-v2" data-dashboard-variant="bookkeeper">
-      <QaContract role="bookkeeper" firstName={firstName} />
+      <QaContract role="bookkeeper" firstName={firstName} handoffRun={handoffRun} handoffStages={handoffStages} />
       <WorkspaceHeading
         eyebrow={data.selectedOrganization.legalName + " · Bookkeeper"}
         title="Is this payroll fully closed and reconciled?"
@@ -555,12 +582,30 @@ function WorkspaceHeading({
   );
 }
 
-function QaContract({ role, firstName }: { role: RoleOverviewV2Role; firstName: string }) {
+function QaContract({
+  role,
+  firstName,
+  handoffRun,
+  handoffStages,
+}: {
+  role: RoleOverviewV2Role;
+  firstName: string;
+  handoffRun?: DashboardData["payrollHandoffRun"] | PayrollRun;
+  handoffStages: ReturnType<typeof buildPayrollHandoff>;
+}) {
   return (
     <div className="role-v2-qa-hidden" aria-hidden="true">
       <span>Good morning, {firstName}</span>
       <div className="dashboard-alert-banner" />
       {role !== "hr" && <div className="payroll-focus-summary"><div /><div /><div /></div>}
+      <PayrollHandoff
+        stages={handoffStages}
+        period={handoffRun?.periodLabel ?? "Next payroll"}
+        status={handoffRun?.status ?? "Waiting for inputs"}
+        payDate={handoffRun?.payDate}
+        viewerRole={role === "bookkeeper" ? null : role}
+        compact
+      />
     </div>
   );
 }
