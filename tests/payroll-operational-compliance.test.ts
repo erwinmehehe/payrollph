@@ -84,3 +84,25 @@ test("holiday and supplementary earning mutations are distributed-rate-limited",
   assert.ok(earnings.includes('"supplementary-earning-create"'));
   assert.ok(earnings.includes('"supplementary-earning-void"'));
 });
+
+
+test("pay-impacting configuration changes fail closed if payroll state changes concurrently", () => {
+  const holidays = readFileSync("src/app/api/holidays/route.ts", "utf8");
+  const earnings = readFileSync("src/app/api/payroll-earnings/route.ts", "utf8");
+
+  for (const source of [holidays, earnings]) {
+    assert.ok(source.includes("eq(payrollRuns.status, run.status)"));
+    assert.ok(source.includes("changed state while"));
+  }
+
+  assert.ok(
+    holidays.indexOf("invalidateAffectedPayroll(organizationId, affectedRuns!)")
+      < holidays.indexOf("db.insert(holidays).values"),
+    "holiday payroll invalidation must precede the holiday insert",
+  );
+  assert.ok(
+    earnings.indexOf("invalidatePayrollRunsForSupplementaryChange(\n      organizationId")
+      < earnings.indexOf("db.insert(supplementaryEarnings).values"),
+    "earning payroll invalidation must precede the earning insert",
+  );
+});
