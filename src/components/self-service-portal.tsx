@@ -368,14 +368,14 @@ export function SelfServicePortal() {
   const totalAvailableLeave = data.leave.balances.reduce((sum, balance) => sum + balance.available, 0);
 
   return (
-    <div className="employee-workspace-shell">
-      <aside className="employee-workspace-sidebar" aria-label="Employee navigation">
-        <div className="employee-shell-brand">
-          <span className="employee-shell-brandmark"><ShieldCheck size={18} /></span>
+    <div className="app-shell employee-workspace-shell" data-workspace-page={tab === "home" ? "Overview" : tab} data-workspace-role="employee">
+      <aside className="sidebar employee-workspace-sidebar" aria-label="Employee navigation">
+        <div className="sidebar-brand employee-shell-brand">
+          <span className="brand-mark employee-shell-brandmark"><ShieldCheck size={18} /></span>
           <div><strong>PayrollPH</strong><span>Payroll &amp; HR</span></div>
         </div>
-        <div className="employee-workspace-label"><span />Employee workspace</div>
-        <nav className="employee-side-nav">
+        <div className="workspace-label employee-workspace-label"><span className="pulse-dot" />Employee workspace</div>
+        <nav className="side-navigation employee-side-nav">
           {([
             ["home", "Home"],
             ["pay", "Pay"],
@@ -383,8 +383,8 @@ export function SelfServicePortal() {
             ["leave", "Leave"],
             ["profile", "Profile"],
           ] as Array<[SelfTab, string]>).map(([value, label]) => (
-            <button key={value} className={tab === value ? "active" : ""} onClick={() => setTab(value)}>
-              <span>
+            <button key={value} className={`nav-item ${tab === value ? "active" : ""}`} data-tone="green" onClick={() => setTab(value)}>
+              <span className="nav-icon t-green">
                 {value === "home" ? <House size={15} /> : value === "pay" ? <WalletCards size={15} /> : value === "time" ? <Clock size={15} /> : value === "leave" ? <CalendarDays size={15} /> : <UserRound size={15} />}
               </span>
               {label}
@@ -393,10 +393,10 @@ export function SelfServicePortal() {
         </nav>
       </aside>
 
-      <div className="employee-workspace-body">
-        <header className="employee-workspace-topbar">
+      <div className="app-main employee-workspace-body">
+        <header className="topbar employee-workspace-topbar">
           <div className="employee-topbar-greeting">
-            <span className="employee-app-avatar">{data.employee.firstName.charAt(0)}{data.employee.lastName.charAt(0)}</span>
+            <span className="top-avatar employee-app-avatar">{data.employee.firstName.charAt(0)}{data.employee.lastName.charAt(0)}</span>
             <div>
               <strong>Hi, {data.employee.firstName} 👋</strong>
               <span>{data.employer?.name ?? "Your employer"} · {data.employee.title}</span>
@@ -407,18 +407,15 @@ export function SelfServicePortal() {
               <Clock size={15} /> <span>Clock in</span>
             </button>
             {isDemo && (
-              <label className="employee-role-switcher">
+              <label className="role-pill-btn employee-role-switcher">
                 <UserCheck size={14} />
                 <select value="employee" onChange={(event) => void switchDemoRole(event.target.value as DemoRoleId)} disabled={Boolean(switchingRole)}>
                   {DEMO_ROLES.map((role) => <option value={role.id} key={role.id}>{role.shortLabel}</option>)}
                 </select>
               </label>
             )}
-            <button className="employee-shell-profile" type="button" onClick={() => setTab("profile")} aria-label="Open profile">
+            <button className="top-profile-button employee-shell-profile" type="button" onClick={() => setTab("profile")} aria-label="Open profile">
               <span className="employee-app-avatar">{data.employee.firstName.charAt(0)}{data.employee.lastName.charAt(0)}</span>
-            </button>
-            <button className="employee-shell-signout" type="button" disabled={busy} onClick={() => void signOut()} aria-label="Sign out" title="Sign out">
-              <LogOut size={14} />
             </button>
             <button className="employee-icon-button employee-shell-signout" type="button" disabled={busy} onClick={() => void signOut()} aria-label="Sign out">
               <LogOut size={14} />
@@ -426,7 +423,7 @@ export function SelfServicePortal() {
           </div>
         </header>
 
-        <main className="employee-app employee-self-service">
+        <main className="content-area employee-app employee-self-service">
           <span className="employee-contract-copy">My pay · What did I get paid, and what do I need today? · Payslip available</span>
 
           <nav className="employee-tabs" aria-label="Employee self-service">
