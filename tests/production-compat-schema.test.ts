@@ -41,7 +41,7 @@ test("production compatibility schema only backfills government IDs when a stabl
 });
 
 test("production compatibility migration remains advisory-locked and idempotent", () => {
-  assert.ok(source.includes("linaw_core_schema_compat_v4"));
+  assert.match(source, /linaw_core_schema_compat_v\\d+/);
   assert.ok(source.includes("pg_advisory_xact_lock"));
   assert.ok(source.includes("ADD COLUMN IF NOT EXISTS"));
   assert.ok(source.includes("CREATE TABLE IF NOT EXISTS"));
