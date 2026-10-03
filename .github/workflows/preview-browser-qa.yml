@@ -423,6 +423,11 @@ jobs:
             }
 
             if (persona.id === "employee") {
+              if (width <= 768) {
+                const mobileTabs = page.locator(".employee-tabs").first();
+                check((await mobileTabs.count()) === 1, "Employee: mobile bottom navigation is missing");
+                check(await mobileTabs.isVisible(), `Employee: ${suffix} mobile bottom navigation is not visible`);
+              }
               const employeeActions = page.locator(".employee-self-service-actions").first();
               check((await employeeActions.count()) === 1, "Employee: responsive header actions are missing");
               const actionLayout = await employeeActions.evaluate((element) => ({
@@ -437,6 +442,9 @@ jobs:
               const drawerButton = page.getByRole("button", { name: "Open navigation" }).first();
               check((await drawerButton.count()) === 1, `${persona.label}: ${suffix} mobile/tablet navigation trigger is missing`);
               check(await drawerButton.isVisible(), `${persona.label}: ${suffix} navigation trigger is not visible`);
+              const mobileNav = page.locator(".mobile-bottom-nav").first();
+              check((await mobileNav.count()) === 1, `${persona.label}: ${suffix} bottom navigation is missing`);
+              check(await mobileNav.isVisible(), `${persona.label}: ${suffix} bottom navigation is not visible`);
             }
 
             await page.screenshot({
@@ -547,6 +555,8 @@ jobs:
               check((await dashboard.locator(".role-dashboard-grid:visible").count()) === 0, `${persona.label}: legacy detail grid must stay off the focused landing view`);
             }
             if (persona.id === "employee") {
+              const employeeDesktopNav = page.locator(".employee-workspace-sidebar .employee-side-nav .nav-item:visible");
+              check((await employeeDesktopNav.count()) === 5, "Employee: desktop shared sidebar must expose Home, Pay, Time, Leave and Profile");
               check(body.includes("LATEST PAYSLIP"), "Employee: latest released payslip promotion is missing");
               check(body.includes("Payslip available"), "Employee: released payslip availability state is missing");
               check((await page.locator("[data-latest-payslip]").count()) === 1, "Employee: latest payslip card is missing");
