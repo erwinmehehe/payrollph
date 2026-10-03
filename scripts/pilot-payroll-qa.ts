@@ -202,13 +202,18 @@ async function main() {
   assert.ok(payoutAccounts.every((account) => bankBody.includes(account)), "Final bank file did not decrypt captured payout destinations.");
   (report.lifecycle as string[]).push("final-bank-file-generated");
 
-  const payout = await expectOk(owner, `/api/payroll-runs/${runId}/exports`, {
+  const payout = await owner.request(`/api/payroll-runs/${runId}/exports`, {
     method: "POST",
     json: { mode: "complete-manual", reference: `PILOT-${unique.slice(0, 12)}`, confirmed: true },
   });
-  assert.equal(payout.completed, true);
-  assert.equal(payout.moneyMovedByLinaw, false);
-  (report.lifecycle as string[]).push("external-payout-confirmed");
+  const payoutBody = await payout.text();
+  assert.equal(
+    payout.status,
+    409,
+    `Fresh pilot without bank UAT must not be allowed to mark payout complete: ${payoutBody}`,
+  );
+  assert.match(payoutBody, /bank-portal UAT/i);
+  (report.lifecycle as string[]).push("manual-payout-blocked-until-bank-uat");
 
   const self = await expectOk(employee, "/api/self/payslips");
   const slip = (self.payslips ?? []).find((row: any) => Number(row.entryId) === Number(employeeEntry.id));
@@ -224,7 +229,7 @@ async function main() {
 
   const events = await db.select().from(auditEvents).where(eq(auditEvents.organizationId, organizationId));
   const actions = new Set(events.map((event) => event.action));
-  const expectedActions = ["Payroll submitted for review", "Approval approved", "Payroll released", "bank export generated", "Payroll payout completed manually"];
+  const expectedActions = ["Payroll submitted for review", "Approval approved", "Payroll released", "bank export generated"];
   for (const action of expectedActions) assert.ok(actions.has(action), `Missing audit event: ${action}`);
   report.auditEventsVerified = expectedActions;
 
