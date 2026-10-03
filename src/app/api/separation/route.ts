@@ -355,6 +355,11 @@ export async function POST(request: Request) {
       grossCompensationYtd: sources.totals.ordinaryGrossYtd,
       statutoryContributionsYtd: sources.totals.statutoryContributionsYtd,
       taxWithheldYtd: sources.totals.taxWithheldYtd,
+      deMinimisYtd: sources.totals.deMinimisYtd,
+      otherBenefitsYtd: sources.totals.otherBenefitsYtd,
+      mweExemptCompensationYtd: sources.employee.mwe
+        ? sources.totals.mweExemptCompensationYtd + historicalBasicSalaryEarned
+        : 0,
       mwe: sources.employee.mwe,
       leaveMonetizationPay,
       taxableLeaveMonetizationPay: leaveMonetizationTaxExempt ? 0 : leaveMonetizationPay,
@@ -371,7 +376,7 @@ export async function POST(request: Request) {
     const sourceFingerprint = fingerprint(sources);
     const computationSnapshot = {
       rule: "13th month = total basic salary earned in calendar year / 12, less 13th month already paid",
-      taxRuleVersion: "PH-2026.01",
+      taxRuleVersion: "PH-2026.02",
       sourceFingerprint,
       releasedBasicYtd: sources.totals.releasedBasicYtd,
       historicalBasicSalaryEarned,
@@ -390,6 +395,11 @@ export async function POST(request: Request) {
       retirementPayTaxExempt,
       activeLoanBalanceAtComputation: sources.totals.activeLoanBalance,
       annualization: result.annualization,
+      deMinimisYtd: sources.totals.deMinimisYtd,
+      otherBenefitsYtd: sources.totals.otherBenefitsYtd,
+      mweExemptCompensationYtd: sources.employee.mwe
+        ? sources.totals.mweExemptCompensationYtd + historicalBasicSalaryEarned
+        : 0,
       importedHistoryRows: sources.historical.length,
       releasedPayrollEntries: sources.released.length,
       payBasis: sources.resolvedPayProfile.payBasis,
