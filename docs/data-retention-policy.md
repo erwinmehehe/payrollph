@@ -8,6 +8,8 @@ This file describes application behavior, not a substitute for a customer's lega
 - A data-subject deletion request does not automatically destroy payroll, tax, government-filing, final-pay, or audit evidence that the employer must lawfully retain.
 - Short-lived security and delivery data is purged automatically.
 - Payroll and employment records are not auto-purged until the organization has an approved legal-retention rule for the relevant record class.
+- Each organization must configure all required record classes through `/api/compliance/retention`. Launch readiness remains blocked while any required class is missing.
+- A configured legal hold prevents disposal of the affected record class.
 - Disposal must remove the primary record and any application-controlled derivative that no longer has a lawful retention basis.
 
 ## Automated operational purge
@@ -38,11 +40,13 @@ The application does **not** automatically purge:
 
 These records can carry statutory, accounting, employment, claims-defense or legal-hold obligations. Destruction must therefore be driven by an organization-approved retention schedule, not by a blanket data-subject deletion action.
 
+The application requires approved rules for payroll registers, payslips, BIR tax records, statutory remittance evidence, employee master/employment records, final-pay/separation records, loan ledgers, audit trails, payout/bank evidence, and DSR evidence. PayrollPH deliberately does not pre-fill a statutory number of years; the employer/privacy administrator must document the applicable legal basis and approved retention period for its circumstances.
+
 ## Data-subject requests
 
 The privacy request register uses a 30-day **internal response target**. The application does not describe that target as a universal NPC statutory deadline.
 
-Access and portability requests have a real structured export path and an audit event proving that the export was generated. Correction, deletion and objection requests cannot be marked completed without recording the fulfillment action and supporting evidence. A deletion request can record that legal retention was applied where destruction would conflict with an applicable obligation.
+Access and portability requests have a real structured export path and an audit event proving that the export was generated. Correction, deletion and objection requests use the audited fulfillment endpoint rather than status-only closure. Correction can apply supported employee-profile corrections directly. Objection can restrict future payroll processing. Deletion/minimization requires the approved retention schedule, restricts future payroll processing, redacts non-retained contact/payout data, and preserves payroll/tax/loan/separation evidence where legal retention applies.
 
 ## Key ownership
 
