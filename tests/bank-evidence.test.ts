@@ -67,3 +67,26 @@ test("production compatibility creates the bank validation evidence table", () =
   assert.ok(compat.includes("bank_file_validation_unique"));
   assert.ok(compat.includes("bank_file_validations_status_check"));
 });
+
+
+test("manual payout completion requires accepted UAT for the exact bank template version", () => {
+  const route = readFileSync("src/app/api/payroll-runs/[id]/exports/route.ts", "utf8");
+  assert.ok(route.includes("acceptedTemplateValidation"));
+  assert.ok(route.includes("bankFileValidations.templateName"));
+  assert.ok(route.includes("bankFileValidations.templateVersion"));
+  assert.ok(route.includes('bankFileValidations.status, "accepted"'));
+  assert.ok(route.includes("has not passed recorded bank-portal UAT"));
+});
+
+test("RCBC export uses an explicit bank-provided mapping and never guesses a proprietary layout", () => {
+  const exporter = readFileSync("src/lib/exporters.ts", "utf8");
+  const engine = readFileSync("src/lib/payroll-engine.ts", "utf8");
+  assert.ok(exporter.includes('tName.includes("rcbc")'));
+  assert.ok(exporter.includes("readDelimitedBankMapping(template.mappings)"));
+  assert.ok(exporter.includes("PayrollPH will not guess a proprietary upload layout"));
+  assert.ok(exporter.includes("renderMappedBankRows"));
+  assert.ok(engine.includes("firstName: employee.firstName"));
+  assert.ok(engine.includes("middleName: employee.middleName"));
+  assert.ok(engine.includes("lastName: employee.lastName"));
+  assert.ok(engine.includes("email: employee.email"));
+});
