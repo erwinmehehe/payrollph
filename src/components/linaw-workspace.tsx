@@ -46,7 +46,7 @@ import { TimeView } from "@/components/workspace/time";
 import type { DashboardData, PayrollReleaseReceipt, PricingPlan } from "@/components/workspace/types";
 import { ToastStack, useToasts } from "@/components/workspace/ui";
 import { demoRoleInfo, demoRolePages, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
-import { roleCanDecideApprovals, roleCanManageDelegations, roleCanManagePayroll, roleCanManagePeople, roleCanManageTime, workspacePagesForRole } from "@/lib/workspace-role-ui";
+import { roleCanDecideApprovals, roleCanManageDelegations, roleCanManagePayroll, roleCanManagePeople, roleCanManageTime, workspacePagesForRole, workspacePrimaryPagesForRole } from "@/lib/workspace-role-ui";
 
 export function LinawWorkspace({ initialData }: { initialData: DashboardData }) {
   const searchParams = useSearchParams();
@@ -85,6 +85,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
 
   const effectiveRole = demoRole ?? data.access?.role ?? data.user?.role ?? null;
   const rolePages = demoRole ? demoRolePages(demoRole) : workspacePagesForRole(effectiveRole);
+  const primaryPages = workspacePrimaryPagesForRole(effectiveRole);
   const availablePages = useMemo(
     () =>
       NAVIGATION.flatMap((group) => group.items)
@@ -326,6 +327,8 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         onSwitchRole={demoRole ? (role) => void switchDemoRole(role) : undefined}
         onSignOut={() => void signOut()}
         visiblePages={availablePages}
+        primaryPages={primaryPages ?? undefined}
+        workspaceRole={effectiveRole}
         displayRole={demoRole}
         allowClientSwitch={allowClientSwitch}
         headerExtras={
@@ -579,5 +582,6 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
 
 function normalizeDashboardRole(role: string | null | undefined): WorkspaceDashboardRole | null {
   if (role === "owner" || role === "hr" || role === "payroll" || role === "checker") return role;
+  if (role === "admin" || role === "bookkeeper") return "bookkeeper";
   return null;
 }
