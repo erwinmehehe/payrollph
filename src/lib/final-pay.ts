@@ -147,6 +147,7 @@ export function computeFinalPay(input: {
     taxOutcome: annualized.outcome,
     taxDue: annualized.taxDue,
     taxWithheldYtd: annualized.taxWithheld,
+    annualization: annualized,
     leaveMonetizationPay: round2(Math.max(0, input.leaveMonetizationPay)),
     separationPay: round2(Math.max(0, input.separationPay)),
     retirementPay: round2(Math.max(0, input.retirementPay)),
