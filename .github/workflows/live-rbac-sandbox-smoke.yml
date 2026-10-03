@@ -80,6 +80,23 @@ jobs:
               exit 1
             fi
 
+            organization_id=$(jq -r '.organizationId // empty' /tmp/demo-switch-body.txt)
+            if [ -z "$organization_id" ]; then
+              echo "Demo switch did not return an organization id for role: ${role}"
+              cat /tmp/demo-switch-body.txt
+              exit 1
+            fi
+
+            # The workspace shell is client-rendered, so raw HTML is not a valid
+            # assertion for the ROLE SANDBOX text. Prove the session instead by
+            # loading the app route and an authenticated role-scoped API.
             curl -fsS -b /tmp/demo-cookies.txt "$BASE_URL/app?demoRole=${role}" -o "/tmp/${role}.html"
-            grep -q "ROLE SANDBOX" "/tmp/${role}.html"
+
+            if [ "$role" = "employee" ]; then
+              curl -fsS -b /tmp/demo-cookies.txt "$BASE_URL/api/self/payslips" -o "/tmp/${role}-api.json"
+              jq -e '.employee.employeeNo and .employer.id' "/tmp/${role}-api.json" >/dev/null
+            else
+              curl -fsS -b /tmp/demo-cookies.txt "$BASE_URL/api/dashboard?organizationId=${organization_id}" -o "/tmp/${role}-api.json"
+              jq -e '.selectedOrganization.id' "/tmp/${role}-api.json" >/dev/null
+            fi
           done
