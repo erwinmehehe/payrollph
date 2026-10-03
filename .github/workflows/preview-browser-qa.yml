@@ -557,6 +557,13 @@ jobs:
             if (persona.id === "employee") {
               const employeeDesktopNav = page.locator(".employee-workspace-sidebar .employee-side-nav .nav-item:visible");
               check((await employeeDesktopNav.count()) === 5, "Employee: desktop shared sidebar must expose Home, Pay, Time, Leave and Profile");
+              const employeeNavHeights = await employeeDesktopNav.evaluateAll((items) =>
+                items.map((item) => item.getBoundingClientRect().height),
+              );
+              check(
+                employeeNavHeights.every((height) => height <= 42),
+                `Employee: desktop sidebar items are stretched: ${employeeNavHeights.join(", ")}`,
+              );
               check(body.includes("LATEST PAYSLIP"), "Employee: latest released payslip promotion is missing");
               check(body.includes("Payslip available"), "Employee: released payslip availability state is missing");
               check((await page.locator("[data-latest-payslip]").count()) === 1, "Employee: latest payslip card is missing");
