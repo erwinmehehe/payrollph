@@ -923,6 +923,7 @@ function calculateEmployeePay(input: {
     amount: number;
     taxable: boolean;
     includeInSssBase: boolean;
+    includeInPagIbigBase: boolean;
   }>;
   deMinimis?: Array<{ id: number; benefitType: DeMinimisType; amount: number; frequency: "month" | "semester" | "year" }>;
   loans?: Array<{ id: number; loanType: string; referenceNo: string; cutoffDeduction: number; remainingBalance: number }>;
@@ -939,7 +940,8 @@ function calculateEmployeePay(input: {
   periodStart: string;
   periodEnd: string;
   priorStatutory?: {
-    remuneration: number;
+    sssRemuneration: number;
+    pagIbigCompensation: number;
     sssEmployee: number;
     philHealthEmployee: number;
     pagIbigEmployee: number;
@@ -1340,9 +1342,11 @@ function calculateEmployeePay(input: {
     pagIbigVoluntaryEmployee: 0,
   };
   const newHireInCurrentCutoff = employeeStartDate >= input.periodStart;
+  const hasPriorMonthStatutory =
+    priorStatutory.sssRemuneration > 0 || priorStatutory.pagIbigCompensation > 0;
   const canTrueUpActualMonth =
     Boolean(input.isFinalCutoffOfMonth)
-    && (priorStatutory.sssRemuneration > 0 || newHireInCurrentCutoff);
+    && (hasPriorMonthStatutory || newHireInCurrentCutoff);
 
   const statutoryMonthlySssCompensation = roundToCents(
     canTrueUpActualMonth
@@ -1381,7 +1385,7 @@ function calculateEmployeePay(input: {
     priorStatutory.pagIbigVoluntaryEmployee,
   );
   const statutoryReconciliationMode = canTrueUpActualMonth
-    ? (priorStatutory.sssRemuneration > 0 ? "month-final-ledger-true-up" : "new-hire-final-cutoff-actual")
+    ? (hasPriorMonthStatutory ? "month-final-ledger-true-up" : "new-hire-final-cutoff-actual")
     : timing === "first_cutoff"
       ? "first-cutoff-full"
       : timing === "second_cutoff"
@@ -1545,14 +1549,16 @@ function calculateEmployeePay(input: {
       `taxableCompensation=${money(taxableCompensation)}`,
       `supplementaryEarnings=${money(supplementaryTotal)}`,
       `supplementaryTaxable=${money(supplementaryTaxableTotal)}`,
-      `supplementaryExcludedFromStatutory=${money(supplementaryExcludedFromStatutory)}`,
+      `supplementaryExcludedFromSssBase=${money(supplementaryExcludedFromSssBase)}`,
+      `supplementaryExcludedFromPagIbigBase=${money(supplementaryExcludedFromPagIbigBase)}`,
       `deMinimisPaid=${money(deMinimisTotal)}`,
       `deMinimisOtherBenefitsPool=${money(deMinimisOtherBenefitsPool)}`,
       `mweTaxableSupplementaryCompensation=${money(mweTaxableSupplementaryCompensation)}`,
       `statutoryMonthlySssCompensation=${money(statutoryMonthlySssCompensation)}`,
       `statutoryMonthlyPagIbigCompensation=${money(statutoryMonthlyPagIbigCompensation)}`,
       `statutoryReconciliation=${statutoryReconciliationMode}`,
-      `priorMonthRemuneration=${money(priorStatutory.sssRemuneration)}`,
+      `priorMonthSssRemuneration=${money(priorStatutory.sssRemuneration)}`,
+      `priorMonthPagIbigCompensation=${money(priorStatutory.pagIbigCompensation)}`,
       `priorSssEmployee=${money(priorStatutory.sssEmployee)}`,
       `priorPhilHealthEmployee=${money(priorStatutory.philHealthEmployee)}`,
       `priorPagIbigEmployee=${money(priorStatutory.pagIbigEmployee)}`,
