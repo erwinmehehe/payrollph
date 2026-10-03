@@ -6,14 +6,12 @@ import {
   BadgeCheck,
   CalendarClock,
   Check,
-  CircleDollarSign,
   ClipboardCheck,
   Clock3,
   FileWarning,
   History,
   ShieldCheck,
   UsersRound,
-  WalletCards,
 } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { DashboardAlertBanner, type DashboardAlertItem } from "./dashboard-alert-banner";
@@ -175,9 +173,11 @@ function PayrollFocusCard({
           {comparison && <span><History size={13} /> {comparison}</span>}
         </div>
       </div>
-      <div className="payroll-focus-money">
-        {gross !== undefined && <div><span>Gross payroll</span><strong>{shortMoney(gross)}</strong></div>}
-        {net !== undefined && <div><span>Net salaries</span><strong>{shortMoney(net)}</strong></div>}
+      <div className="payroll-focus-summary">
+        {gross !== undefined && <div><span>Gross</span><strong>{shortMoney(gross)}</strong></div>}
+        {gross !== undefined && net !== undefined && <div><span>Deductions</span><strong>{shortMoney(Math.max(0, Number(gross) - Number(net)))}</strong></div>}
+        {net !== undefined && <div><span>Net pay</span><strong>{shortMoney(net)}</strong></div>}
+        {employees !== undefined && <div><span>Employees</span><strong>{employees}</strong></div>}
       </div>
       <button className="payroll-focus-action" type="button" onClick={onAction}>
         {actionLabel} <ArrowRight size={14} />
@@ -236,11 +236,6 @@ function OwnerDashboard(props: RoleDashboardProps) {
     onNewRun,
   } = props;
 
-  const releaseBlocked =
-    !currentRun ||
-    (currentRun.status !== "Released" &&
-      (payrollExceptions.length > 0 || pendingTasks.length > 0 || currentRun.status !== "Approved"));
-
   const missingBankDetails = activePeople.filter((employee) => !employee.bankAccount || !employee.bankCode).length;
   const ownerAlertItems: DashboardAlertItem[] = [];
   if (missingBankDetails) ownerAlertItems.push({ id: "bank", label: `${missingBankDetails} employee${missingBankDetails === 1 ? "" : "s"} missing bank details`, tone: "danger" });
@@ -275,13 +270,6 @@ function OwnerDashboard(props: RoleDashboardProps) {
         actionLabel={ownerIssueCount ? "Review issues" : "Open payroll"}
         onAction={() => onPage(missingBankDetails ? "People" : payrollExceptions.length ? "Payroll" : pendingTasks.length ? "Approvals" : "Payroll")}
       />
-
-      <section className="dashboard-metrics-grid">
-        <DashboardStatCard icon={<CircleDollarSign size={18} />} label="Gross Payroll" value={currentRun ? shortMoney(currentRun.grossPay) : "—"} hint={currentRun?.periodLabel ?? "No payroll in progress"} tone="blue" />
-        <DashboardStatCard icon={<WalletCards size={18} />} label="Deductions" value={currentRun ? shortMoney(Math.max(0, Number(currentRun.grossPay) - Number(currentRun.netPay))) : "—"} hint="Employee deductions and tax" tone="amber" />
-        <DashboardStatCard icon={<BadgeCheck size={18} />} label="Net Salaries" value={currentRun ? shortMoney(currentRun.netPay) : "—"} hint="Amount payable to employees" tone={releaseBlocked ? "amber" : "green"} />
-        <DashboardStatCard icon={<UsersRound size={18} />} label="Employees" value={String(activePeople.length)} hint="Active employee records" tone="blue" />
-      </section>
 
       <RecentPayrollRuns runs={data.payrollRuns} onViewAll={() => onPage("Payroll")} />
 
@@ -550,13 +538,6 @@ function PayrollDashboard(props: RoleDashboardProps) {
         onAction={currentRun ? () => onPage("Payroll") : onNewRun}
       />
 
-      <section className="dashboard-metrics-grid">
-        <DashboardStatCard icon={<UsersRound size={18} />} label="Employees" value={String(currentRun?.employeeCount ?? data.employees.length)} hint="In payroll scope" tone="blue" />
-        <DashboardStatCard icon={<CircleDollarSign size={18} />} label="Calculated" value={currentRun ? shortMoney(currentRun.netPay) : "—"} hint="Net payroll" tone="amber" />
-        <DashboardStatCard icon={<AlertTriangle size={18} />} label="Exceptions" value={String(payrollExceptions.length)} hint={payrollExceptions.length ? "Needs review" : "Register clean"} tone={payrollExceptions.length ? "red" : "green"} />
-        <DashboardStatCard icon={<BadgeCheck size={18} />} label="Ready to Submit" value={queueDone && !failedJobs.length && !payrollExceptions.length ? "Yes" : "Not yet"} hint="Checker handoff" tone={queueDone && !failedJobs.length && !payrollExceptions.length ? "green" : "amber"} />
-      </section>
-
       <RecentPayrollRuns runs={data.payrollRuns} onViewAll={() => onPage("Payroll")} />
 
       <details className="dashboard-deep-details"><summary>More payroll details</summary><div className="dashboard-secondary-controls">
@@ -664,6 +645,7 @@ function CheckerDashboard(props: RoleDashboardProps) {
         status={pendingTasks.length ? "Awaiting review" : currentRun?.status ?? "No review"}
         payDate={currentRun?.payDate}
         employees={currentRun?.employeeCount ?? data.employees.length}
+        gross={currentRun?.grossPay}
         net={currentRun?.netPay}
         comparison={comparison}
         actionLabel={pendingTasks.length ? "Review changes" : "Open approvals"}
@@ -677,13 +659,6 @@ function CheckerDashboard(props: RoleDashboardProps) {
         actionLabel="Review payroll"
         onAction={() => onPage("Approvals")}
       />
-
-      <section className="dashboard-metrics-grid">
-        <DashboardStatCard icon={<ClipboardCheck size={18} />} label="For Approval" value={String(pendingTasks.length)} hint={pendingTasks.length ? "Awaiting your decision" : "Queue clear"} tone={pendingTasks.length ? "amber" : "green"} />
-        <DashboardStatCard icon={<UsersRound size={18} />} label="Employees" value={String(currentRun?.employeeCount ?? data.employees.length)} hint="In current payroll context" tone="blue" />
-        <DashboardStatCard icon={<AlertTriangle size={18} />} label="Exceptions" value={String(checkerExceptions)} hint={checkerExceptions ? "Visible for review" : "No current exceptions"} tone={checkerExceptions ? "red" : "green"} />
-        <DashboardStatCard icon={<CircleDollarSign size={18} />} label="Total Amount" value={currentRun ? shortMoney(currentRun.netPay) : "—"} hint="Net payroll under review" tone="blue" />
-      </section>
 
       <RecentPayrollRuns runs={data.payrollRuns} onViewAll={() => onPage("Approvals")} />
 
@@ -753,9 +728,6 @@ function BookkeeperDashboard(props: RoleDashboardProps) {
   if (released && !governmentExported) closeItems.push({ id: "government", label: "Government filing worksheet/evidence is still pending", tone: "info" });
   if (!closeItems.length) closeItems.push({ id: "closed", label: "The visible payroll close controls are complete", tone: "success" });
 
-  const gross = Number(currentRun?.grossPay ?? 0);
-  const net = Number(currentRun?.netPay ?? 0);
-  const deductions = Math.max(0, gross - net);
   const outstanding = closeItems.filter((item) => item.tone !== "success").length;
 
   return (
@@ -784,13 +756,6 @@ function BookkeeperDashboard(props: RoleDashboardProps) {
         actionLabel={released ? "Open accounting" : "Open payroll"}
         onAction={() => onPage(released ? "Exports" : "Payroll")}
       />
-
-      <section className="dashboard-metrics-grid">
-        <DashboardStatCard icon={<CircleDollarSign size={18} />} label="Gross Payroll" value={currentRun ? shortMoney(gross) : "—"} hint={currentRun?.periodLabel ?? "No payroll in context"} tone="blue" />
-        <DashboardStatCard icon={<WalletCards size={18} />} label="Total Deductions" value={currentRun ? shortMoney(deductions) : "—"} hint="Employee deductions and tax" tone="amber" />
-        <DashboardStatCard icon={<BadgeCheck size={18} />} label="Net Salaries" value={currentRun ? shortMoney(net) : "—"} hint="Amount payable to employees" tone="green" />
-        <DashboardStatCard icon={<ClipboardCheck size={18} />} label="Close Status" value={outstanding ? `${outstanding} open` : "Closed"} hint={journalExported ? "Journal exported" : "Journal pending"} tone={outstanding ? "amber" : "green"} />
-      </section>
 
       <RecentPayrollRuns runs={data.payrollRuns} onViewAll={() => onPage("Payroll")} />
     </div>

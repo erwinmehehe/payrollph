@@ -543,17 +543,19 @@ test("workspace dashboard matches the PayrollPH mockup using modular real-data c
   assert.ok(shell.includes("Search employees, payroll, reports"), "top search should use the mockup wording");
   assert.ok(dashboard.includes("DashboardAlertBanner"), "role dashboards must use the shared alert banner");
   assert.ok(dashboard.includes("DashboardStatCard"), "role dashboards must use the shared metric card");
-  assert.ok(dashboard.includes("RecentPayrollRuns"), "owner dashboard must use the shared payroll table");
+  assert.ok(dashboard.includes("RecentPayrollRuns"), "owner dashboard must use the shared payroll history module");
   for (const role of ["owner", "hr", "payroll", "checker", "bookkeeper"]) {
     assert.ok(dashboard.includes(`data-dashboard-variant="${role}"`), `missing role-first dashboard composition for ${role}`);
   }
   assert.ok(alert.includes("items.map"), "alert banner must render state-derived items");
   assert.ok(stats.includes("tone"), "stat cards must expose semantic status tones");
-  assert.ok(runs.includes("runs.slice(0, 3)"), "recent payroll table must use real recent run data");
-  assert.ok(!runs.includes("September 2024"), "recent payroll table must not hardcode screenshot rows");
-  assert.ok(styles.includes(".payrollph-dashboard"), "workspace theme must include the mockup dashboard composition");
-  assert.ok(styles.includes(".dashboard-metrics-grid"), "workspace theme must include responsive metric cards");
-  assert.ok(styles.includes(".dashboard-payroll-table-wrap"), "workspace theme must include responsive payroll table styling");
+  assert.ok(runs.includes("runs.slice(0, 3)"), "recent payroll history must use real recent run data");
+  assert.ok(runs.includes("dashboard-payroll-list"), "recent payroll history should render lightweight operational rows");
+  assert.ok(!runs.includes("September 2024"), "recent payroll history must not hardcode screenshot rows");
+  assert.ok(styles.includes(".payrollph-dashboard"), "workspace theme must include the dashboard composition");
+  assert.ok(styles.includes(".dashboard-metrics-grid"), "workspace theme must keep the HR summary strip responsive");
+  assert.ok(styles.includes(".payroll-focus-summary"), "payroll-centric dashboards must integrate core totals into the focus card");
+  assert.ok(styles.includes(".dashboard-payroll-row"), "workspace theme must style Rippling-like payroll history rows");
   assert.ok(styles.includes('.app-shell[data-workspace-page="Overview"] .demo-sandbox'), "overview must hide the bulky demo sandbox");
   assert.ok(styles.includes('.payrollph-dashboard .role-dashboard-grid'), "legacy detail grid must remain available off the focused landing composition");
 });
