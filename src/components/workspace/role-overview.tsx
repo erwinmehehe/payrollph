@@ -17,6 +17,7 @@ import { PayrollHandoff } from "@/components/payroll-handoff";
 import { DashboardAlertBanner, type DashboardAlertItem } from "./dashboard-alert-banner";
 import { DashboardStatCard } from "./dashboard-stat-card";
 import { RecentPayrollRuns } from "./recent-payroll-runs";
+import { RoleOverviewV2 } from "./role-overview-v2";
 import { buildPayrollHandoff, payrollHandoffRank, type PayrollHandoffStage } from "@/lib/payroll-handoff";
 import type { DashboardData, PayrollHandoffRunSummary, PayrollRun, Task } from "./types";
 import {
@@ -44,6 +45,8 @@ export function RoleOverviewView({
   onPage: (page: string) => void;
   onNewRun: () => void;
 }) {
+  return <RoleOverviewV2 data={data} currentRun={currentRun} role={role} onPage={onPage} onNewRun={onNewRun} />;
+
   const firstName = (data.user?.name ?? "there").split(" ")[0];
   const activePeople = data.employees.filter((employee) => employee.status === "Active");
   const pendingTasks = data.tasks.filter((task) => task.status === "Pending");
