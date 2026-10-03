@@ -4012,3 +4012,1241 @@
     flex-wrap: wrap;
   }
 }
+
+
+/* ------------------------------------------------ Role dashboards v2 */
+
+.role-v2-qa-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.role-workspace-v2 {
+  width: min(100%, 1180px);
+  display: grid;
+  gap: 16px;
+  margin: 0 auto;
+}
+
+.role-v2-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 3px 2px 7px;
+}
+
+.role-v2-heading > div {
+  min-width: 0;
+}
+
+.role-v2-heading > div > span {
+  display: block;
+  margin-bottom: 5px;
+  color: #7c8984;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.role-v2-heading h1 {
+  margin: 0;
+  color: #15211e;
+  font-size: clamp(25px, 3vw, 32px);
+  font-weight: 650;
+  letter-spacing: -.045em;
+  line-height: 1.04;
+}
+
+.role-v2-heading p {
+  max-width: 690px;
+  margin: 7px 0 0;
+  color: #74807b;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.role-v2-label {
+  display: block;
+  color: #7f8c86;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+}
+
+.role-v2-surface,
+.role-v2-owner-hero,
+.role-v2-payroll-hero,
+.role-v2-checker-hero,
+.role-v2-hr-hero,
+.role-v2-bookkeeper-hero,
+.role-v2-calculation-footer,
+.role-v2-checker-actionbar {
+  border: 1px solid #e1e6e2;
+  border-radius: 17px;
+  background: #fff;
+  box-shadow: 0 18px 38px -36px rgba(25,55,46,.5);
+}
+
+.role-v2-section-title {
+  min-height: 49px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid #edf0ee;
+}
+
+.role-v2-section-title h2 {
+  margin: 0;
+  color: #21302b;
+  font-size: 13px;
+  font-weight: 680;
+  letter-spacing: -.015em;
+}
+
+.role-v2-overline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.role-v2-overline > span:first-child {
+  color: #47776b;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.role-v2-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 7px;
+  color: #73807a;
+  font-size: 9.5px;
+}
+
+.role-v2-big-money {
+  margin-top: 24px;
+}
+
+.role-v2-big-money strong {
+  display: block;
+  color: #153f35;
+  font-size: clamp(40px, 6vw, 58px);
+  font-weight: 650;
+  letter-spacing: -.06em;
+  line-height: .95;
+  font-variant-numeric: tabular-nums;
+}
+
+.role-v2-big-money span {
+  display: block;
+  margin-top: 7px;
+  color: #76837d;
+  font-size: 10px;
+}
+
+.role-v2-money-breakdown {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 0;
+  margin-top: 23px;
+  border-top: 1px solid #e8ece9;
+  border-bottom: 1px solid #e8ece9;
+}
+
+.role-v2-money-breakdown > div {
+  min-width: 0;
+  padding: 12px 15px 12px 0;
+}
+
+.role-v2-money-breakdown > div + div {
+  padding-left: 15px;
+  border-left: 1px solid #e8ece9;
+}
+
+.role-v2-money-breakdown span,
+.role-v2-money-breakdown strong {
+  display: block;
+}
+
+.role-v2-money-breakdown span {
+  color: #8a9590;
+  font-size: 8.5px;
+}
+
+.role-v2-money-breakdown strong {
+  margin-top: 4px;
+  color: #263630;
+  font-size: 12px;
+  font-weight: 680;
+  font-variant-numeric: tabular-nums;
+}
+
+.role-v2-primary-action {
+  min-height: 42px;
+  width: 100%;
+  margin-top: 17px;
+  justify-content: center;
+  border-radius: 10px;
+}
+
+.role-v2-owner-hero {
+  display: grid;
+  grid-template-columns: minmax(0,1.55fr) minmax(270px,.65fr);
+  overflow: hidden;
+  border-color: #d7e7df;
+  background: linear-gradient(145deg,#f8fdfb 0%,#fff 64%);
+}
+
+.role-v2-owner-main {
+  padding: 24px 26px;
+}
+
+.role-v2-assurance-panel {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  padding: 21px;
+  border-left: 1px solid #e0e9e4;
+  background: rgba(241,248,245,.78);
+}
+
+.role-v2-assurance-panel h2 {
+  margin: 0 0 5px;
+  color: #33443e;
+  font-size: 11px;
+  font-weight: 680;
+}
+
+.role-v2-decision-check {
+  display: grid;
+  grid-template-columns: 30px minmax(0,1fr);
+  gap: 9px;
+  align-items: center;
+  padding: 9px 0;
+}
+
+.role-v2-decision-check > span {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.role-v2-decision-check.good > span {
+  background: #e3f5ed;
+  color: #148164;
+}
+
+.role-v2-decision-check.attention > span {
+  background: #fff0e8;
+  color: #b65f25;
+}
+
+.role-v2-decision-check strong,
+.role-v2-decision-check small {
+  display: block;
+}
+
+.role-v2-decision-check strong {
+  color: #2a3934;
+  font-size: 10px;
+}
+
+.role-v2-decision-check small {
+  margin-top: 2px;
+  color: #7e8a85;
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.role-v2-owner-grid,
+.role-v2-two-column {
+  display: grid;
+  grid-template-columns: minmax(0,1.12fr) minmax(320px,.88fr);
+  gap: 12px;
+}
+
+.role-v2-signal-grid {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 0;
+  padding: 2px 14px 11px;
+}
+
+.role-v2-signal {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 28px minmax(0,1fr);
+  gap: 9px;
+  align-items: start;
+  padding: 12px 8px;
+  border-bottom: 1px solid #eff2f0;
+}
+
+.role-v2-signal:nth-last-child(-n+2) {
+  border-bottom: 0;
+}
+
+.role-v2-signal > strong {
+  width: 27px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  font-size: 10px;
+}
+
+.role-v2-signal.good > strong { background:#e7f6ef; color:#13765f; }
+.role-v2-signal.warning > strong { background:#fff4de; color:#a06a13; }
+.role-v2-signal.danger > strong { background:#fceae8; color:#ad4b45; }
+.role-v2-signal.info > strong { background:#eef2ff; color:#5360c5; }
+.role-v2-signal.neutral > strong { background:#f0f2f1; color:#66736d; }
+
+.role-v2-signal b,
+.role-v2-signal span {
+  display: block;
+}
+
+.role-v2-signal b {
+  color: #35443f;
+  font-size: 9.5px;
+}
+
+.role-v2-signal span {
+  margin-top: 2px;
+  color: #83908a;
+  font-size: 8.75px;
+  line-height: 1.35;
+}
+
+.role-v2-table {
+  overflow: hidden;
+}
+
+.role-v2-table-head,
+.role-v2-table-row {
+  display: grid;
+  align-items: center;
+  gap: 12px;
+}
+
+.role-v2-table-head {
+  min-height: 34px;
+  padding: 0 14px;
+  border-bottom: 1px solid #edf0ee;
+  background: #fafbfa;
+  color: #8a9590;
+  font-size: 8.5px;
+  font-weight: 650;
+}
+
+.role-v2-table-row {
+  min-height: 52px;
+  padding: 9px 14px;
+  border-bottom: 1px solid #f0f2f0;
+  color: #53615c;
+  font-size: 9.5px;
+}
+
+.role-v2-table-row:last-child {
+  border-bottom: 0;
+}
+
+.role-v2-table-row > strong {
+  color: #2d3b36;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.role-v2-owner-table .role-v2-table-head,
+.role-v2-owner-table .role-v2-table-row {
+  grid-template-columns: minmax(0,1.6fr) .6fr .8fr .75fr;
+}
+
+.role-v2-payroll-table .role-v2-table-head,
+.role-v2-payroll-table .role-v2-table-row {
+  grid-template-columns: minmax(0,1.2fr) minmax(0,1fr) .7fr .55fr;
+}
+
+.role-v2-checker-table .role-v2-table-head,
+.role-v2-checker-table .role-v2-table-row {
+  grid-template-columns: minmax(0,1.25fr) .7fr .75fr .8fr .5fr;
+}
+
+.role-v2-hr-table .role-v2-table-head,
+.role-v2-hr-table .role-v2-table-row {
+  grid-template-columns: minmax(0,1.1fr) minmax(0,1.6fr) .55fr;
+}
+
+.role-v2-close-table .role-v2-table-head,
+.role-v2-close-table .role-v2-table-row {
+  grid-template-columns: minmax(0,1fr) .7fr minmax(0,1.25fr) .45fr;
+}
+
+.role-v2-person {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.role-v2-person .avatar {
+  width: 27px;
+  height: 27px;
+  flex: none;
+  font-size: 8px;
+}
+
+.role-v2-person strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #2e3c37;
+  font-size: 9.75px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.role-v2-empty {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 62px;
+  padding: 12px 14px;
+  color: #84918b;
+  font-size: 9.75px;
+}
+
+.role-v2-payroll-hero {
+  padding: 20px 22px 0;
+}
+
+.role-v2-run-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.role-v2-run-heading h2 {
+  margin: 4px 0 2px;
+  color: #22312c;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -.035em;
+}
+
+.role-v2-run-heading p {
+  margin: 0;
+  color: #7a8781;
+  font-size: 10px;
+}
+
+.role-v2-run-heading > strong {
+  color: #35443e;
+  font-size: 13px;
+}
+
+.role-v2-progress {
+  height: 6px;
+  margin-top: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e9eeeb;
+}
+
+.role-v2-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #18a47a;
+}
+
+.role-v2-stepper {
+  display: grid;
+  grid-template-columns: repeat(4,minmax(0,1fr));
+  gap: 7px;
+  margin-top: 13px;
+}
+
+.role-v2-workflow-step {
+  display: grid;
+  grid-template-columns: 29px minmax(0,1fr);
+  gap: 8px;
+  align-items: center;
+  min-height: 57px;
+  padding: 9px;
+  border: 1px solid #e8ece9;
+  border-radius: 11px;
+  background: #fbfcfb;
+}
+
+.role-v2-workflow-step > span {
+  width: 27px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #e8ece9;
+  color: #79857f;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.role-v2-workflow-step strong,
+.role-v2-workflow-step small {
+  display: block;
+}
+
+.role-v2-workflow-step strong {
+  color: #394842;
+  font-size: 9.5px;
+}
+
+.role-v2-workflow-step small {
+  margin-top: 2px;
+  color: #8a9590;
+  font-size: 8.25px;
+}
+
+.role-v2-workflow-step.done > span { background:#dff4ea; color:#108261; }
+.role-v2-workflow-step.current { border-color:#cfd7ff; background:#f7f8ff; }
+.role-v2-workflow-step.current > span { background:#5665d8; color:#fff; }
+.role-v2-workflow-step.attention { border-color:#f4d2cb; background:#fff9f7; }
+.role-v2-workflow-step.attention > span { background:#fbe3df; color:#bb4f44; }
+.role-v2-workflow-step.locked { opacity:.62; }
+
+.role-v2-payroll-hero .role-v2-money-breakdown {
+  margin-inline: -22px;
+  padding-inline: 22px;
+  margin-top: 17px;
+}
+
+.role-v2-danger-text {
+  color: #b44c45 !important;
+}
+
+.role-v2-calculation-footer {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr)) auto;
+  align-items: center;
+  gap: 0;
+  padding: 12px 14px;
+}
+
+.role-v2-calculation-footer > div {
+  min-width: 0;
+  padding: 0 14px;
+  border-left: 1px solid #e8ece9;
+}
+
+.role-v2-calculation-footer > div:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.role-v2-calculation-footer span,
+.role-v2-calculation-footer strong {
+  display: block;
+}
+
+.role-v2-calculation-footer span {
+  color: #8b9691;
+  font-size: 8.5px;
+}
+
+.role-v2-calculation-footer strong {
+  margin-top: 3px;
+  color: #2d3b36;
+  font-size: 11px;
+}
+
+.role-v2-checker-hero {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) 220px;
+  gap: 16px;
+  padding: 20px 22px;
+}
+
+.role-v2-checker-net > p {
+  margin: 4px 0 18px;
+  color: #7d8984;
+  font-size: 9.5px;
+}
+
+.role-v2-checker-net > strong {
+  display: block;
+  color: #22342e;
+  font-size: 42px;
+  font-weight: 650;
+  letter-spacing: -.055em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.role-v2-delta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 7px;
+  color: #7d8984;
+  font-size: 9px;
+}
+
+.role-v2-delta b {
+  padding: 3px 6px;
+  border-radius: 999px;
+  font-size: 8.5px;
+}
+
+.role-v2-delta b.positive { background:#e5f6ee; color:#15745d; }
+.role-v2-delta b.negative { background:#fceae8; color:#aa4943; }
+
+.role-v2-change-count {
+  position: relative;
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  padding: 15px;
+  overflow: hidden;
+  border-radius: 13px;
+  background: #f2f5ff;
+}
+
+.role-v2-change-count > strong {
+  color: #303c81;
+  font-size: 34px;
+  font-weight: 650;
+  letter-spacing: -.04em;
+}
+
+.role-v2-change-count > span {
+  margin-top: 2px;
+  color: #6974a8;
+  font-size: 9.5px;
+}
+
+.role-v2-mini-bars {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  display: flex;
+  gap: 3px;
+  align-items: flex-end;
+}
+
+.role-v2-mini-bars i {
+  width: 6px;
+  border-radius: 3px 3px 0 0;
+  background: #6c7ce9;
+}
+.role-v2-mini-bars i:nth-child(1){height:14px;opacity:.35}
+.role-v2-mini-bars i:nth-child(2){height:22px;opacity:.5}
+.role-v2-mini-bars i:nth-child(3){height:31px;opacity:.7}
+.role-v2-mini-bars i:nth-child(4){height:40px}
+
+.role-v2-change-cards {
+  display: grid;
+  grid-template-columns: repeat(4,minmax(0,1fr));
+  gap: 9px;
+}
+
+.role-v2-change-metric {
+  min-height: 80px;
+  display: grid;
+  align-content: center;
+  padding: 13px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+}
+
+.role-v2-change-metric strong {
+  font-size: 21px;
+  font-weight: 650;
+  letter-spacing: -.035em;
+}
+
+.role-v2-change-metric span {
+  margin-top: 3px;
+  font-size: 9px;
+}
+
+.role-v2-change-metric.warning { background:#fff5ea; color:#a96619; }
+.role-v2-change-metric.info { background:#eef3ff; color:#4f61bc; }
+.role-v2-change-metric.neutral { background:#fbefef; color:#a55757; }
+.role-v2-change-metric.good { background:#eaf7f1; color:#21755e; }
+
+.role-v2-checker-actionbar {
+  position: sticky;
+  bottom: 12px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 12px 10px 14px;
+  background: rgba(255,255,255,.96);
+  backdrop-filter: blur(12px);
+}
+
+.role-v2-checker-actionbar > span {
+  color: #69766f;
+  font-size: 9.5px;
+}
+
+.role-v2-checker-actionbar > div {
+  display: flex;
+  gap: 7px;
+}
+
+.role-v2-hr-hero {
+  display: grid;
+  grid-template-columns: minmax(0,1.2fr) minmax(300px,.8fr);
+  overflow: hidden;
+}
+
+.role-v2-readiness-main {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 24px;
+}
+
+.role-v2-readiness-ring {
+  --readiness: 0deg;
+  width: 116px;
+  height: 116px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 50%;
+  background: conic-gradient(#18a47a var(--readiness), #e9eeeb 0);
+}
+
+.role-v2-readiness-ring::before {
+  content: "";
+  grid-area: 1 / 1;
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.role-v2-readiness-ring > div {
+  grid-area: 1 / 1;
+  position: relative;
+  z-index: 1;
+  text-align: center;
+}
+
+.role-v2-readiness-ring strong,
+.role-v2-readiness-ring span {
+  display: block;
+}
+
+.role-v2-readiness-ring strong {
+  color: #183c33;
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -.04em;
+}
+
+.role-v2-readiness-ring span {
+  color: #86928c;
+  font-size: 8.5px;
+}
+
+.role-v2-readiness-main h2 {
+  margin: 5px 0 4px;
+  color: #2b3a35;
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -.025em;
+}
+
+.role-v2-readiness-main p {
+  max-width: 390px;
+  margin: 0;
+  color: #7c8883;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.role-v2-readiness-main small {
+  display: block;
+  margin-top: 7px;
+  color: #9aa39f;
+  font-size: 8.5px;
+}
+
+.role-v2-blocker-breakdown {
+  display: grid;
+  align-content: center;
+  gap: 7px;
+  padding: 22px;
+  border-left: 1px solid #e7ebe8;
+  background: #fafbfa;
+}
+
+.role-v2-blocker-breakdown h2 {
+  margin: 0 0 4px;
+  color: #3b4944;
+  font-size: 11px;
+}
+
+.role-v2-blocker-line {
+  display: grid;
+  grid-template-columns: 27px minmax(0,1fr);
+  gap: 8px;
+  align-items: center;
+  min-height: 30px;
+}
+
+.role-v2-blocker-line > span {
+  width: 25px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  font-size: 8.5px;
+  font-weight: 700;
+}
+.role-v2-blocker-line > span.danger{background:#fceae8;color:#aa4943}
+.role-v2-blocker-line > span.warning{background:#fff4dd;color:#9c6816}
+.role-v2-blocker-line > span.info{background:#eef3ff;color:#5060bd}
+.role-v2-blocker-line > span.neutral{background:#eef1ef;color:#66736d}
+
+.role-v2-blocker-line strong {
+  color: #5a6762;
+  font-size: 9.5px;
+  font-weight: 600;
+}
+
+.role-v2-upcoming-list {
+  padding: 5px 14px 10px;
+}
+
+.role-v2-upcoming-line {
+  display: grid;
+  grid-template-columns: 29px minmax(0,1fr);
+  gap: 8px;
+  align-items: center;
+  min-height: 39px;
+  border-bottom: 1px solid #eff2f0;
+}
+
+.role-v2-upcoming-line:last-child {
+  border-bottom: 0;
+}
+
+.role-v2-upcoming-line > span {
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #eef3ff;
+  color: #5564c3;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.role-v2-upcoming-line strong {
+  color: #52605b;
+  font-size: 9.5px;
+  font-weight: 600;
+}
+
+.role-v2-wide-action {
+  width: calc(100% - 28px);
+  margin: 0 14px 14px;
+  justify-content: center;
+}
+
+.role-v2-bookkeeper-hero {
+  display: grid;
+  grid-template-columns: 310px minmax(0,1fr);
+  align-items: center;
+  gap: 24px;
+  padding: 20px 22px;
+}
+
+.role-v2-bookkeeper-hero > div:first-child > strong {
+  display: block;
+  margin-top: 7px;
+  color: #253831;
+  font-size: 40px;
+  font-weight: 650;
+  letter-spacing: -.055em;
+  line-height: 1;
+}
+
+.role-v2-bookkeeper-hero > div:first-child > p {
+  margin: 5px 0 0;
+  color: #7f8b86;
+  font-size: 9.5px;
+}
+
+.role-v2-close-stepper {
+  display: grid;
+  grid-template-columns: repeat(5,minmax(0,1fr));
+  align-items: start;
+}
+
+.role-v2-close-step {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.role-v2-close-step::before {
+  content: "";
+  position: absolute;
+  top: 13px;
+  left: -50%;
+  width: 100%;
+  height: 2px;
+  background: #e5eae7;
+}
+
+.role-v2-close-step:first-child::before {
+  display: none;
+}
+
+.role-v2-close-step > span {
+  width: 27px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  position: relative;
+  z-index: 1;
+  border-radius: 50%;
+  background: #edf0ee;
+  color: #7d8984;
+  font-size: 8.5px;
+  font-weight: 700;
+}
+
+.role-v2-close-step b {
+  color: #8a9590;
+  font-size: 8.5px;
+  font-weight: 620;
+}
+
+.role-v2-close-step.done > span { background:#daf2e7;color:#147b5f }
+.role-v2-close-step.done::before { background:#7dccb2 }
+.role-v2-close-step.done b { color:#3d7163 }
+.role-v2-close-step.current > span { background:#5665d8;color:#fff }
+.role-v2-close-step.current b { color:#4c59aa }
+
+.role-v2-close-status {
+  width: max-content;
+  padding: 4px 7px;
+  border-radius: 999px;
+  font-size: 8.5px;
+  font-weight: 650;
+}
+.role-v2-close-status.done{background:#e5f5ed;color:#17745e}
+.role-v2-close-status.pending{background:#fff3df;color:#9a6819}
+
+.role-v2-accounting-card {
+  padding-bottom: 14px;
+}
+
+.role-v2-accounting-card > p {
+  margin: 12px 14px;
+  color: #7f8b86;
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+
+.role-v2-accounting-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 49px;
+  margin: 0 14px;
+  border-bottom: 1px solid #edf0ee;
+}
+
+.role-v2-accounting-total span {
+  color: #77847e;
+  font-size: 9.5px;
+}
+
+.role-v2-accounting-total strong {
+  color: #2d3d37;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 1050px) {
+  .role-v2-owner-hero,
+  .role-v2-hr-hero,
+  .role-v2-bookkeeper-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .role-v2-assurance-panel,
+  .role-v2-blocker-breakdown {
+    border-left: 0;
+    border-top: 1px solid #e7ebe8;
+  }
+
+  .role-v2-assurance-panel {
+    grid-template-columns: repeat(3,minmax(0,1fr));
+  }
+
+  .role-v2-owner-grid,
+  .role-v2-two-column {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .role-workspace-v2 {
+    gap: 11px;
+  }
+
+  .role-v2-heading {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .role-v2-heading h1 {
+    font-size: 24px;
+  }
+
+  .role-v2-heading p {
+    font-size: 10px;
+  }
+
+  .role-v2-owner-main,
+  .role-v2-payroll-hero,
+  .role-v2-checker-hero,
+  .role-v2-readiness-main,
+  .role-v2-bookkeeper-hero {
+    padding: 16px;
+  }
+
+  .role-v2-big-money strong,
+  .role-v2-checker-net > strong,
+  .role-v2-bookkeeper-hero > div:first-child > strong {
+    font-size: 36px;
+  }
+
+  .role-v2-money-breakdown {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+  }
+
+  .role-v2-money-breakdown > div:nth-child(3) {
+    border-left: 0;
+  }
+
+  .role-v2-assurance-panel {
+    grid-template-columns: 1fr;
+    padding: 13px 16px;
+  }
+
+  .role-v2-signal-grid,
+  .role-v2-change-cards {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+  }
+
+  .role-v2-stepper {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+  }
+
+  .role-v2-calculation-footer {
+    grid-template-columns: repeat(3,minmax(0,1fr));
+    gap: 10px;
+  }
+
+  .role-v2-calculation-footer > button {
+    grid-column: 1 / -1;
+    justify-content: center;
+  }
+
+  .role-v2-checker-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .role-v2-change-count {
+    min-height: 88px;
+  }
+
+  .role-v2-checker-actionbar {
+    position: static;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .role-v2-checker-actionbar > div {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .role-v2-readiness-main {
+    gap: 14px;
+  }
+
+  .role-v2-readiness-ring {
+    width: 92px;
+    height: 92px;
+  }
+
+  .role-v2-readiness-ring::before {
+    width: 68px;
+    height: 68px;
+  }
+
+  .role-v2-readiness-ring strong {
+    font-size: 21px;
+  }
+
+  .role-v2-close-stepper {
+    padding-top: 6px;
+  }
+
+  .role-v2-table {
+    overflow-x: auto;
+  }
+
+  .role-v2-table-head,
+  .role-v2-table-row {
+    min-width: 650px;
+  }
+
+  .role-v2-owner-table .role-v2-table-head,
+  .role-v2-owner-table .role-v2-table-row {
+    min-width: 560px;
+  }
+
+  .role-v2-hr-table .role-v2-table-head,
+  .role-v2-hr-table .role-v2-table-row {
+    min-width: 580px;
+  }
+}
+
+@media (max-width: 520px) {
+  .role-v2-heading > .status {
+    align-self: flex-start;
+  }
+
+  .role-v2-heading h1 {
+    font-size: 22px;
+  }
+
+  .role-v2-meta {
+    display: grid;
+    gap: 3px;
+  }
+
+  .role-v2-money-breakdown {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .role-v2-money-breakdown > div {
+    padding: 10px 8px 10px 0;
+  }
+
+  .role-v2-money-breakdown > div + div {
+    padding-left: 8px;
+  }
+
+  .role-v2-signal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .role-v2-signal:nth-last-child(-n+2) {
+    border-bottom: 1px solid #eff2f0;
+  }
+
+  .role-v2-signal:last-child {
+    border-bottom: 0;
+  }
+
+  .role-v2-stepper {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .role-v2-workflow-step {
+    grid-template-columns: 25px minmax(0,1fr);
+    min-height: 51px;
+    padding: 7px;
+  }
+
+  .role-v2-workflow-step > span {
+    width: 23px;
+    height: 23px;
+  }
+
+  .role-v2-change-cards {
+    gap: 6px;
+  }
+
+  .role-v2-change-metric {
+    min-height: 68px;
+    padding: 10px;
+  }
+
+  .role-v2-change-metric strong {
+    font-size: 18px;
+  }
+
+  .role-v2-readiness-main {
+    align-items: flex-start;
+  }
+
+  .role-v2-readiness-ring {
+    width: 78px;
+    height: 78px;
+  }
+
+  .role-v2-readiness-ring::before {
+    width: 58px;
+    height: 58px;
+  }
+
+  .role-v2-readiness-ring strong {
+    font-size: 18px;
+  }
+
+  .role-v2-readiness-main h2 {
+    font-size: 15px;
+  }
+
+  .role-v2-bookkeeper-hero {
+    gap: 14px;
+  }
+
+  .role-v2-close-step b {
+    font-size: 7px;
+  }
+
+  .role-v2-close-step > span {
+    width: 23px;
+    height: 23px;
+  }
+
+  .role-v2-close-step::before {
+    top: 11px;
+  }
+}
