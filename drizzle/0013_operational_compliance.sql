@@ -55,3 +55,41 @@ BEGIN
   END IF;
 END
 $compat$;
+
+
+CREATE TABLE IF NOT EXISTS bank_file_validations (
+  id serial PRIMARY KEY,
+  organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  payroll_run_id integer REFERENCES payroll_runs(id) ON DELETE SET NULL,
+  template_name varchar(100) NOT NULL,
+  template_version varchar(32) NOT NULL,
+  file_name varchar(180) NOT NULL,
+  file_sha256 varchar(64) NOT NULL,
+  status varchar(16) NOT NULL DEFAULT 'generated',
+  portal_reference varchar(120),
+  submitted_at timestamptz,
+  outcome_note text,
+  generated_by varchar(120) NOT NULL,
+  recorded_by varchar(120),
+  recorded_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS bank_file_validation_unique
+  ON bank_file_validations(organization_id, template_name, template_version, file_sha256);
+
+CREATE INDEX IF NOT EXISTS bank_file_validation_status_idx
+  ON bank_file_validations(status, template_name);
+
+DO $compat$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'bank_file_validations_status_check'
+  ) THEN
+    ALTER TABLE bank_file_validations
+      ADD CONSTRAINT bank_file_validations_status_check
+      CHECK (status IN ('generated', 'accepted', 'rejected'));
+  END IF;
+END
+$compat$;
