@@ -237,6 +237,7 @@ export async function generateJournalCsv(runId: number) {
     sssEe: 0,
     philHealthEe: 0,
     pagIbigEe: 0,
+    pagIbigVoluntary: 0,
     birWht: 0,
     governmentLoans: 0,
     companyLoans: 0,
@@ -277,6 +278,7 @@ export async function generateJournalCsv(runId: number) {
       else if (code === "SSS") totals.sssEe += abs;
       else if (code === "PHIC") totals.philHealthEe += abs;
       else if (code === "HDMF") totals.pagIbigEe += abs;
+      else if (code === "HDMF_VOL") totals.pagIbigVoluntary += abs;
       else if (code === "WHT") totals.birWht += abs;
       else if (code.startsWith("LOAN-")) {
         if (/SSS|PAG-IBIG|HDMF/i.test(String(line.label ?? ""))) totals.governmentLoans += abs;
@@ -331,6 +333,7 @@ export async function generateJournalCsv(runId: number) {
   credit("PhilHealth Employee Contributions Payable", totals.philHealthEe, "Employee statutory share");
   credit("PhilHealth Employer Contributions Payable", totals.philHealthEr, "Employer statutory share");
   credit("Pag-IBIG Employee Contributions Payable", totals.pagIbigEe, "Employee statutory share");
+  credit("Pag-IBIG Voluntary Contributions Payable", totals.pagIbigVoluntary, "Employee-elected voluntary contribution");
   credit("Pag-IBIG Employer Contributions Payable", totals.pagIbigEr, "Employer statutory share");
   credit("BIR Withholding Tax Payable", totals.birWht, "Compensation withholding");
   credit("Government Loan Deductions Payable", totals.governmentLoans, "SSS / Pag-IBIG loan deductions");
