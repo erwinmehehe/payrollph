@@ -10,7 +10,7 @@ import {
   roleAllowed,
 } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
-import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
+import { buildPayrollReleaseChecklist } from "@/lib/payroll-release-checklist";
 
 const SUBMITTABLE = ["Needs review", "Processed"];
 
@@ -90,8 +90,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return Response.json({ error: "That account is not an authorized payroll checker for this workspace." }, { status: 422 });
   }
 
-  const assuranceResult = await buildPayrollAssurance(runId);
-  const blockers = assuranceResult?.assurance.findings.filter((finding) => finding.blocking) ?? [];
+  const reviewReadiness = await buildPayrollReleaseChecklist(runId);
+  if (!reviewReadiness) {
+    return Response.json({ error: "Payroll review readiness could not be loaded." }, { status: 409 });
+  }
+
+  const requiredWorkflowItems = reviewReadiness.items.filter(
+    (item) => (item.key === "inputs" || item.key === "calculation") && !item.passed,
+  );
+  if (requiredWorkflowItems.length > 0) {
+    return Response.json({
+      error: "Payroll inputs and calculation must be complete before checker submission.",
+      blockingWorkflowItems: requiredWorkflowItems,
+    }, { status: 409 });
+  }
+
+  const assuranceResult = reviewReadiness.assurance;
+  const blockers = assuranceResult?.findings.filter((finding) => finding.blocking) ?? [];
   if (blockers.length > 0) {
     return Response.json({
       error: `Payroll assurance found ${blockers.length} blocking issue(s). Resolve them before submitting for approval.`,
@@ -115,7 +130,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return Response.json({ error: "This payroll run is already approved and ready for release.", task: latest }, { status: 409 });
   }
 
-  const reviewCount = assuranceResult?.assurance.summary.medium ?? run.exceptions;
+  const reviewCount = assuranceResult?.summary.medium ?? run.exceptions;
 
   // Claim a submittable run and create its approval task in the same
   // transaction. Concurrent submit/recalculate requests can no longer both
@@ -151,7 +166,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         makerUserId: user.id,
         approverUserId: checker.id,
         approver: checker.name,
-        assurance: assuranceResult?.assurance.summary ?? null,
+        assurance: assuranceResult?.summary ?? null,
         ruleVersion: run.ruleVersion,
       },
     });
