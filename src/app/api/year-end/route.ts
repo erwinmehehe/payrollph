@@ -7,7 +7,7 @@ import { decryptGovernmentId } from "@/lib/government-id-crypto";
 import { getSessionUser } from "@/lib/auth";
 import { toCsv } from "@/lib/csv";
 import { runYearEndAnnualization } from "@/lib/year-end";
-import { assertOrganizationRole, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
+import { assertOrganizationRole, getAccess, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +25,10 @@ export async function GET(request: Request) {
     "Only payroll operators can view year-end tax annualization.",
   );
   if (deniedOrg) return deniedOrg;
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Year-end tax reporting requires company-wide payroll access." }, { status: 403 });
+  }
   const taxYear = Number(searchParams.get("taxYear") ?? new Date().getFullYear());
   const format = searchParams.get("format") ?? "json";
   const employeeId = Number(searchParams.get("employeeId") ?? 0);
@@ -212,6 +216,10 @@ export async function POST(request: Request) {
     "Only payroll operators can run year-end tax annualization.",
   );
   if (deniedWrite) return deniedWrite;
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Year-end tax annualization requires company-wide payroll access." }, { status: 403 });
+  }
 
   const summary = await runYearEndAnnualization(organizationId, taxYear, user.name);
   if (summary.employees === 0) {
