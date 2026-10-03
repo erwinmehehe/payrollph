@@ -52,6 +52,7 @@ export type Employee = {
   philHealthNo?: string | null;
   pagIbigNo?: string | null;
   nationality?: string | null;
+  startDate?: string | null;
 };
 
 export type PayrollReleaseReceipt = {
@@ -110,6 +111,10 @@ export type PayrollTrace = { ruleVersion?: string; inputs?: string[]; flags?: st
 export type PayrollHandoffRunSummary = {
   id: number;
   periodLabel: string;
+  periodStart?: string;
+  periodEnd?: string;
+  scopeLabel?: string;
+  scopeOrgUnitId?: number | null;
   status: string;
   payDate: string;
 };
@@ -249,6 +254,15 @@ export type ProvisioningTask = {
   done: boolean;
 };
 
+export type SeparationRecord = {
+  id: number;
+  employeeId: number;
+  separationType: string;
+  noticeDate: string;
+  lastDay: string;
+  status: string;
+};
+
 export type PayRevision = {
   id: number;
   employeeId: number;
@@ -325,6 +339,7 @@ export type DashboardData = {
     developer: boolean;
   };
   provisioning?: ProvisioningTask[];
+  separations?: SeparationRecord[];
   payRevisions?: PayRevision[];
   restDayRevisions?: RestDayRevision[];
   retroAdjustments?: RetroAdjustment[];

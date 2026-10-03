@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { ImportPanel } from "@/components/import-panel";
+import { HrPayrollReadinessCenter } from "./hr-payroll-readiness";
 import type { DashboardData, Employee } from "./types";
 import { REST_DAY_NAMES } from "@/lib/payroll-rules";
 import { Avatar, EmptyState, PageHeading, Status, formatDate, formatTimeOnly, money } from "./ui";
@@ -52,6 +53,7 @@ export function PeopleView({
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
   const [page, setPage] = useState(1);
   const [picked, setPicked] = useState<Employee | null>(null);
+  const hrMode = data.access?.role === "hr";
 
   // The drawer subject is derived: either a row the user clicked, or the person
   // the command palette handed us. No effect copies one into the other.
@@ -111,9 +113,13 @@ export function PeopleView({
   return (
     <>
       <PageHeading
-        eyebrow="People"
-        title="Your people, in context."
-        copy="Department and branch structure stay optional for small teams and are ready when a client grows into them."
+        eyebrow={hrMode ? `${data.selectedOrganization.legalName} · HR Admin` : "People"}
+        title={hrMode ? "Payroll readiness." : "Your people, in context."}
+        copy={
+          hrMode
+            ? "Clear employee, attendance, leave and onboarding blockers before Payroll takes the cutoff."
+            : "Department and branch structure stay optional for small teams and are ready when a client grows into them."
+        }
         actions={
           canManage ? (
             <button className="primary-button brand" onClick={onAddEmployee}>
@@ -131,6 +137,14 @@ export function PeopleView({
             this is enforced in the query, not hidden in the UI.
           </span>
         </div>
+      )}
+
+      {hrMode && (
+        <HrPayrollReadinessCenter
+          data={data}
+          onOpenEmployee={setPicked}
+          onPage={onPage}
+        />
       )}
 
       {canManage && <ImportPanel organizationId={data.selectedOrganization.id} onImported={onRefresh} />}
@@ -348,6 +362,10 @@ function PersonDrawer({
   onRefresh: () => Promise<void>;
   onClose: () => void;
 }) {
+  const [editingEmployment, setEditingEmployment] = useState(false);
+  const [savingEmployment, setSavingEmployment] = useState(false);
+  const [startDate, setStartDate] = useState(employee.startDate ?? "");
+  const [employmentError, setEmploymentError] = useState("");
   const [editingPay, setEditingPay] = useState(false);
   const [savingPay, setSavingPay] = useState(false);
   const [payBasis, setPayBasis] = useState(employee.payBasis ?? "monthly");
@@ -385,6 +403,31 @@ function PersonDrawer({
   const [bankCode, setBankCode] = useState(employee.bankCode ?? "");
   const [mobile, setMobile] = useState(employee.mobile ?? "");
   const [payoutError, setPayoutError] = useState("");
+
+  async function saveEmploymentDate() {
+    setSavingEmployment(true);
+    setEmploymentError("");
+    try {
+      const response = await fetch("/api/employees", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId: data.selectedOrganization.id,
+          employeeId: employee.id,
+          startDate,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setEmploymentError(payload.error ?? "Could not save the employment start date.");
+        return;
+      }
+      await onRefresh();
+      onClose();
+    } finally {
+      setSavingEmployment(false);
+    }
+  }
 
   async function savePayProfile() {
     setSavingPay(true);
@@ -551,6 +594,58 @@ function PersonDrawer({
             <small>{entry ? `after ${money(entry.deductions)} deductions` : "-"}</small>
           </div>
         </div>
+
+        <section className="card" style={{ margin: "0 0 16px", boxShadow: "none" }}>
+          <div className="card-header">
+            <div>
+              <div className="card-kicker">EMPLOYMENT DATES</div>
+              <h2 style={{ fontSize: 14 }}>Payroll eligibility timeline</h2>
+              <p>The start date controls payroll proration and prevents pay or schedule changes from being applied before employment begins.</p>
+            </div>
+            {canManage && (
+              <button className="secondary-button" onClick={() => setEditingEmployment((value) => !value)}>
+                {editingEmployment ? "Cancel" : "Edit start date"}
+              </button>
+            )}
+          </div>
+          {editingEmployment ? (
+            <>
+              <div className="setting-form">
+                <label>Employment start date
+                  <input type="date" required value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+                </label>
+              </div>
+              <div className="modal-note" style={{ margin: "0 16px 10px" }}>
+                A correction cannot move the start date after released payroll history or before an existing effective-dated pay/schedule chain. Those protections are enforced on the server.
+              </div>
+              {employmentError && <div className="notice notice-amber" style={{ margin: "0 16px 10px" }}><span>{employmentError}</span></div>}
+              <div className="run-actions">
+                <button
+                  className="primary-button"
+                  disabled={savingEmployment || !startDate || startDate === (employee.startDate ?? "")}
+                  onClick={() => void saveEmploymentDate()}
+                >
+                  <Check size={14} /> {savingEmployment ? "Saving…" : "Save start date"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="card-body">
+              <div className="run-stats" style={{ margin: 0 }}>
+                <div>
+                  <span>Start date</span>
+                  <strong style={{ fontSize: 13 }}>{employee.startDate ? formatDate(employee.startDate) : "Missing"}</strong>
+                  <small>used for mid-cutoff hire proration</small>
+                </div>
+                <div>
+                  <span>Employment status</span>
+                  <strong style={{ fontSize: 13 }}>{employee.status}</strong>
+                  <small>{employee.status === "Separating" ? "open Separation to confirm notice and last day" : "current people record"}</small>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
 
         <section className="card" style={{ margin: "0 0 16px", boxShadow: "none" }}>
           <div className="card-header">

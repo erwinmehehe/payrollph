@@ -1,4 +1,5 @@
 import { maskBankAccount } from "@/lib/bank-account-crypto";
+import { maskGovernmentId } from "@/lib/government-id-crypto";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -23,6 +24,7 @@ import {
   payrollRuns,
   pricingPlans,
   provisioningTasks,
+  separationRecords,
   timePunches,
   userOrganizations,
 } from "@/db/schema";
@@ -84,7 +86,7 @@ export async function getDashboardData(organizationId?: number) {
     ? and(eq(employees.organizationId, selectedOrganization.id), eq(employees.orgUnitId, access.orgUnitId))
     : eq(employees.organizationId, selectedOrganization.id);
 
-  const [employeeRows, payProfileRows, payRevisionRowsRaw, restDayRevisionRowsRaw, retroRowsRaw, runRows, taskRowsRaw, auditRows, plans, templates, advisories, freelancer, punchRowsRaw, delegationRows, leaveRowsRaw, leavePolicyRows, units, wages, provisionRowsRaw] = await Promise.all([
+  const [employeeRows, payProfileRows, payRevisionRowsRaw, restDayRevisionRowsRaw, retroRowsRaw, runRows, taskRowsRaw, auditRows, plans, templates, advisories, freelancer, punchRowsRaw, delegationRows, leaveRowsRaw, leavePolicyRows, units, wages, provisionRowsRaw, separationRowsRaw] = await Promise.all([
     db.select().from(employees).where(employeeFilter).orderBy(asc(employees.id)),
     db.select().from(employeePayProfiles).where(eq(employeePayProfiles.organizationId, selectedOrganization.id)),
     canViewPeoplePay
@@ -131,6 +133,16 @@ export async function getDashboardData(organizationId?: number) {
     ),
     db.select().from(minWageOrders),
     db.select().from(provisioningTasks).where(eq(provisioningTasks.organizationId, selectedOrganization.id)),
+    canViewPeoplePay
+      ? db.select({
+          id: separationRecords.id,
+          employeeId: separationRecords.employeeId,
+          separationType: separationRecords.separationType,
+          noticeDate: separationRecords.noticeDate,
+          lastDay: separationRecords.lastDay,
+          status: separationRecords.status,
+        }).from(separationRecords).where(eq(separationRecords.organizationId, selectedOrganization.id))
+      : Promise.resolve([]),
   ]);
 
   const handoffRunRows = canViewPayroll
@@ -140,6 +152,10 @@ export async function getDashboardData(organizationId?: number) {
           .select({
             id: payrollRuns.id,
             periodLabel: payrollRuns.periodLabel,
+            periodStart: payrollRuns.periodStart,
+            periodEnd: payrollRuns.periodEnd,
+            scopeLabel: payrollRuns.scopeLabel,
+            scopeOrgUnitId: payrollRuns.scopeOrgUnitId,
             status: payrollRuns.status,
             payDate: payrollRuns.payDate,
           })
@@ -162,6 +178,9 @@ export async function getDashboardData(organizationId?: number) {
   const provisionRows = access.companyWide
     ? provisionRowsRaw
     : provisionRowsRaw.filter((task) => visibleEmployeeIds.has(task.employeeId));
+  const separationRows = access.companyWide
+    ? separationRowsRaw
+    : separationRowsRaw.filter((row) => visibleEmployeeIds.has(row.employeeId));
   const payRevisionRows = access.companyWide
     ? payRevisionRowsRaw
     : payRevisionRowsRaw.filter((revision) => visibleEmployeeIds.has(revision.employeeId));
@@ -230,6 +249,11 @@ export async function getDashboardData(organizationId?: number) {
       // The browser never needs the full account number, and it used to receive
       // it for every employee. Last four only; the real value stays server-side.
       bankAccount: maskBankAccount(employee.bankAccount),
+      tin: maskGovernmentId(employee.tin),
+      tinBranchCode: maskGovernmentId(employee.tinBranchCode),
+      sssNo: maskGovernmentId(employee.sssNo),
+      philHealthNo: maskGovernmentId(employee.philHealthNo),
+      pagIbigNo: maskGovernmentId(employee.pagIbigNo),
       payBasis: profile?.payBasis ?? "monthly",
       payRate: profile?.rateAmount ?? employee.basicRate,
       standardWorkDaysPerMonth: profile?.standardWorkDaysPerMonth ?? "22.00",
@@ -251,6 +275,10 @@ export async function getDashboardData(organizationId?: number) {
       ? {
           id: handoffRun.id,
           periodLabel: handoffRun.periodLabel,
+          periodStart: handoffRun.periodStart,
+          periodEnd: handoffRun.periodEnd,
+          scopeLabel: "scopeLabel" in handoffRun ? handoffRun.scopeLabel : undefined,
+          scopeOrgUnitId: "scopeOrgUnitId" in handoffRun ? handoffRun.scopeOrgUnitId : undefined,
           status: handoffRun.status,
           payDate: handoffRun.payDate,
         }
@@ -273,6 +301,7 @@ export async function getDashboardData(organizationId?: number) {
     leavePolicies: leavePolicyRows,
     wageOrders: wages,
     provisioning: provisionRows,
+    separations: separationRows,
     payRevisions: payRevisionRows,
     restDayRevisions: restDayRevisionRows,
     retroAdjustments: retroRows,

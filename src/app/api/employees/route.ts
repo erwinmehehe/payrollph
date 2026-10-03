@@ -5,7 +5,7 @@ import {
   enforceSensitiveActionRateLimit,
   requireSensitiveActionMfa,
 } from "@/lib/security-request";
-import { and, asc, desc, eq, gte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lt } from "drizzle-orm";
 import { db } from "@/db";
 import {
   assets,
@@ -294,6 +294,62 @@ export async function PATCH(request: Request) {
     return text || null;
   };
 
+  const wantsStartDateUpdate = body.startDate !== undefined;
+  let nextStartDate: string | undefined;
+  if (wantsStartDateUpdate) {
+    nextStartDate = String(body.startDate ?? "").trim();
+    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(nextStartDate)) {
+      return Response.json({ error: "Employment start date must use YYYY-MM-DD." }, { status: 400 });
+    }
+    const todayPh = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
+    if (employee.status.toLowerCase() === "active" && nextStartDate > todayPh) {
+      return Response.json({ error: "An active employee cannot have a future employment start date." }, { status: 422 });
+    }
+
+    if (nextStartDate !== String(employee.startDate)) {
+      const [releasedBeforeStart, payRevisionBeforeStart, scheduleRevisionBeforeStart] = await Promise.all([
+        db.select({ runId: payrollRuns.id, periodEnd: payrollRuns.periodEnd })
+          .from(payrollEntries)
+          .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
+          .where(and(
+            eq(payrollEntries.employeeId, employeeId),
+            eq(payrollRuns.organizationId, organizationId),
+            eq(payrollRuns.status, "Released"),
+            lt(payrollRuns.periodEnd, nextStartDate),
+          ))
+          .limit(1),
+        db.select({ id: employeePayRevisions.id, effectiveDate: employeePayRevisions.effectiveDate })
+          .from(employeePayRevisions)
+          .where(and(
+            eq(employeePayRevisions.organizationId, organizationId),
+            eq(employeePayRevisions.employeeId, employeeId),
+            lt(employeePayRevisions.effectiveDate, nextStartDate),
+          ))
+          .limit(1),
+        db.select({ id: employeeRestDayRevisions.id, effectiveDate: employeeRestDayRevisions.effectiveDate })
+          .from(employeeRestDayRevisions)
+          .where(and(
+            eq(employeeRestDayRevisions.organizationId, organizationId),
+            eq(employeeRestDayRevisions.employeeId, employeeId),
+            lt(employeeRestDayRevisions.effectiveDate, nextStartDate),
+          ))
+          .limit(1),
+      ]);
+
+      if (releasedBeforeStart.length) {
+        return Response.json({
+          error: `Start date cannot move after released payroll history ending ${releasedBeforeStart[0].periodEnd}.`,
+        }, { status: 409 });
+      }
+      if (payRevisionBeforeStart.length || scheduleRevisionBeforeStart.length) {
+        return Response.json({
+          error: "Start date cannot move after an existing effective-dated pay or work-schedule change.",
+        }, { status: 409 });
+      }
+    }
+  }
+  const effectiveStartDate = nextStartDate ?? String(employee.startDate);
+
   const wantsPayUpdate = [
     body.payBasis,
     body.rateAmount,
@@ -312,7 +368,7 @@ export async function PATCH(request: Request) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(payEffectiveDate)) {
       return Response.json({ error: "Pay effective date must use YYYY-MM-DD." }, { status: 400 });
     }
-    if (payEffectiveDate < String(employee.startDate)) {
+    if (payEffectiveDate < effectiveStartDate) {
       return Response.json({ error: "Pay effective date cannot be before the employee start date." }, { status: 400 });
     }
     if (payEffectiveDate > todayPh) {
@@ -365,7 +421,7 @@ export async function PATCH(request: Request) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(restDayEffectiveDate)) {
       return Response.json({ error: "Rest-day effective date must use YYYY-MM-DD." }, { status: 400 });
     }
-    if (restDayEffectiveDate < String(employee.startDate)) {
+    if (restDayEffectiveDate < effectiveStartDate) {
       return Response.json({ error: "Rest-day effective date cannot be before the employee start date." }, { status: 400 });
     }
     if (restDayEffectiveDate > todayPh) {
@@ -430,6 +486,7 @@ export async function PATCH(request: Request) {
   }
 
   const updates = {
+    startDate: nextStartDate && nextStartDate !== String(employee.startDate) ? nextStartDate : undefined,
     middleName: clean(body.middleName),
     tin: body.tin === undefined
       ? undefined
@@ -671,7 +728,8 @@ export async function PATCH(request: Request) {
 
   const governmentFields = ["middleName", "tin", "tinBranchCode", "sssNo", "philHealthNo", "pagIbigNo", "nationality"];
   const changedGovernment = governmentFields.some((field) => field in patch);
-  const changeKinds = [Boolean(nextPayProfile), wantsPayoutUpdate, changedGovernment, changedRestDay].filter(Boolean).length;
+  const changedStartDate = "startDate" in patch;
+  const changeKinds = [Boolean(nextPayProfile), wantsPayoutUpdate, changedGovernment, changedRestDay, changedStartDate].filter(Boolean).length;
   const action = changeKinds > 1
     ? "Employee profile updated"
     : nextPayProfile
@@ -680,7 +738,9 @@ export async function PATCH(request: Request) {
         ? "Employee payout details updated"
         : changedGovernment
           ? "Employee government identity updated"
-          : "Employee work schedule updated";
+          : changedStartDate
+            ? "Employee employment dates updated"
+            : "Employee work schedule updated";
 
   await recordAuditEvent({
     organizationId,
@@ -696,6 +756,8 @@ export async function PATCH(request: Request) {
       payRevisionId: result.revisionId,
       retroAdjustments: result.retroAdjustments,
       retroTotal: result.retroTotal,
+      previousStartDate: changedStartDate ? employee.startDate : undefined,
+      newStartDate: changedStartDate ? updated.startDate : undefined,
       previousRestDay: changedRestDay ? employee.restDay : undefined,
       newRestDay: changedRestDay ? updated.restDay : undefined,
       restDayEffectiveDate: changedRestDay ? restDayEffectiveDate : undefined,
