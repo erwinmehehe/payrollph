@@ -23,6 +23,7 @@ import { buildPayrollHandoff, handoffViewerRole } from "@/lib/payroll-handoff";
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
 import { readLineItems, readTrace, type BankTemplate, type DashboardData, type Notify, type PayrollEntry, type PayrollLineItem, type PayrollReleaseReceipt, type PayrollRun, type Task } from "./types";
 import { PayrollAssurancePanel } from "./payroll-assurance-panel";
+import { PayrollOfficerWorkspace } from "./payroll-officer-workspace";
 import { ExplainPayDrawer } from "./explain-pay-drawer";
 import {
   Battery,
@@ -190,6 +191,7 @@ export function PayrollRunView({
     approvalTask: relatedTask,
   });
   const handoffRole = handoffViewerRole(data.access?.role ?? data.user?.role);
+  const payrollOfficerMode = data.access?.role === "payroll";
   async function openReviewSubmission() {
     if (!run) return;
     setReviewLoading(true);
@@ -355,19 +357,25 @@ export function PayrollRunView({
   return (
     <>
       <PageHeading
-        eyebrow={`Payroll run #${run.id}`}
-        title="Pay confidently, every cycle."
-        copy="Prepare, approve, release and export are deliberately separate steps. Each one is authorised on the server against your role and this client's workspace."
+        eyebrow={payrollOfficerMode ? `${data.selectedOrganization.legalName} · Payroll Officer` : `Payroll run #${run.id}`}
+        title={payrollOfficerMode ? "Run payroll." : "Pay confidently, every cycle."}
+        copy={
+          payrollOfficerMode
+            ? "Prepare inputs, calculate the cutoff, resolve exceptions, then hand the run to an independent Checker. Release stays outside the Payroll Officer role."
+            : "Prepare, approve, release and export are deliberately separate steps. Each one is authorised on the server against your role and this client's workspace."
+        }
         actions={
           <>
-            <button
-              className="secondary-button"
-              disabled={!calculated}
-              onClick={() => setExportsOpen((current) => !current)}
-              aria-expanded={exportsOpen}
-            >
-              <FileSpreadsheet size={15} className="i-teal" /> Exports
-            </button>
+            {!payrollOfficerMode && (
+              <button
+                className="secondary-button"
+                disabled={!calculated}
+                onClick={() => setExportsOpen((current) => !current)}
+                aria-expanded={exportsOpen}
+              >
+                <FileSpreadsheet size={15} className="i-teal" /> Exports
+              </button>
+            )}
             <button className="primary-button brand" onClick={onNewRun}>
               <Plus size={16} className="i-green" /> New payroll
             </button>
@@ -383,6 +391,32 @@ export function PayrollRunView({
         viewerRole={handoffRole}
         compact
       />
+
+      {payrollOfficerMode && (
+        <PayrollOfficerWorkspace
+          data={data}
+          run={run}
+          entries={entries}
+          checklist={releaseChecklist?.items ?? null}
+          relatedTask={relatedTask}
+          calculated={calculated}
+          busy={busy}
+          onCalculate={() => void onProcess(run.id)}
+          onSubmit={() => void openReviewSubmission()}
+          onOpenApproval={() => onPage("Approvals")}
+          onPage={onPage}
+          onInspectEntry={(entry) => {
+            setOnlyExceptions(true);
+            setExpanded(entry.id);
+            document.getElementById("payroll-register")?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+          onExplainEmployee={setExplainEmployeeId}
+          onShowAllExceptions={() => {
+            setOnlyExceptions(true);
+            document.getElementById("payroll-register")?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+        />
+      )}
 
       {visibleReleaseReceipt?.runId === run.id && (
         <article className="card" data-release-receipt style={{ marginBottom: 16 }}>
@@ -573,9 +607,9 @@ export function PayrollRunView({
             )}
           </div>
 
-          <PayrollAssurancePanel runId={run.id} employees={data.employees} />
+          <PayrollAssurancePanel runId={run.id} employees={data.employees} onExplainEmployee={setExplainEmployeeId} />
 
-          {releaseChecklist && calculated && (
+          {!payrollOfficerMode && releaseChecklist && calculated && (
             <div className="card-body" id="release-checklist" style={{ paddingTop: 0 }}>
               <div className="line-title" style={{ margin: 0 }}>
                 <div>
@@ -603,7 +637,7 @@ export function PayrollRunView({
           )}
 
           {/* Exceptions */}
-          {exceptionRows.length > 0 && (
+          {!payrollOfficerMode && exceptionRows.length > 0 && (
             <div className="card-body" style={{ paddingTop: 0 }}>
               <div className="line-title" style={{ margin: 0 }}>
                 <strong>Exceptions requiring sign-off</strong>
@@ -645,108 +679,110 @@ export function PayrollRunView({
             </div>
           )}
 
-          {/* Stage rail: the four separated actions */}
-          <div className="stage-rail">
-            <StageCard
-              no={1}
-              title="Prepare"
-              state={calculated ? "done" : stage === "prepare" ? "now" : "locked"}
-              copy="Derive hours from punches and compute statutory deductions in the resumable queue."
-              action={
-                <button className="secondary-button" disabled={busy || released} onClick={() => onProcess(run.id)}>
-                  {busy ? <Spinner label="Processing" /> : <RefreshCw size={14} className="i-blue" />}
-                  {calculated ? "Re-calculate" : "Calculate"}
-                </button>
-              }
-            />
-            <StageCard
-              no={2}
-              title="Approve"
-              state={
-                relatedTask
-                  ? relatedTask.status === "Pending"
-                    ? "now"
-                    : relatedTask.status === "Approved"
-                      ? "done"
+          {/* Stage rail: owner/admin/bookkeeper keep the broader lifecycle controls. */}
+          {!payrollOfficerMode && (
+            <div className="stage-rail">
+              <StageCard
+                no={1}
+                title="Prepare"
+                state={calculated ? "done" : stage === "prepare" ? "now" : "locked"}
+                copy="Derive hours from punches and compute statutory deductions in the resumable queue."
+                action={
+                  <button className="secondary-button" disabled={busy || released} onClick={() => onProcess(run.id)}>
+                    {busy ? <Spinner label="Processing" /> : <RefreshCw size={14} className="i-blue" />}
+                    {calculated ? "Re-calculate" : "Calculate"}
+                  </button>
+                }
+              />
+              <StageCard
+                no={2}
+                title="Approve"
+                state={
+                  relatedTask
+                    ? relatedTask.status === "Pending"
+                      ? "now"
+                      : relatedTask.status === "Approved"
+                        ? "done"
+                        : "locked"
+                    : calculated
+                      ? "now"
                       : "locked"
-                  : calculated
-                    ? "now"
-                    : "locked"
-              }
-              copy={
-                relatedTask
-                  ? relatedTask.status === "Pending"
-                    ? `${relatedTask.detail}, checker ${relatedTask.approver}.`
-                    : relatedTask.status === "Approved"
-                      ? `Approved by ${relatedTask.approver}. Maker-checker control is satisfied.`
-                      : "The review was declined. Resolve the issue and submit again."
-                  : calculated
-                    ? "Submit this calculated payroll to a different person for checker approval."
-                    : "Calculate payroll before submitting it for review."
-              }
-              action={
-                relatedTask && relatedTask.status === "Pending" ? (
-                  <button className="secondary-button" onClick={() => onPage("Approvals")}>
-                    <ArrowRight size={14} /> Open approval
+                }
+                copy={
+                  relatedTask
+                    ? relatedTask.status === "Pending"
+                      ? `${relatedTask.detail}, checker ${relatedTask.approver}.`
+                      : relatedTask.status === "Approved"
+                        ? `Approved by ${relatedTask.approver}. Maker-checker control is satisfied.`
+                        : "The review was declined. Resolve the issue and submit again."
+                    : calculated
+                      ? "Submit this calculated payroll to a different person for checker approval."
+                      : "Calculate payroll before submitting it for review."
+                }
+                action={
+                  relatedTask && relatedTask.status === "Pending" ? (
+                    <button className="secondary-button" onClick={() => onPage("Approvals")}>
+                      <ArrowRight size={14} /> Open approval
+                    </button>
+                  ) : relatedTask?.status === "Approved" ? (
+                    <span className="status status-approved" style={{ height: 30, padding: "0 12px" }}>
+                      <Check size={12} /> Approved
+                    </span>
+                  ) : (
+                    <button
+                      className="secondary-button"
+                      disabled={!calculated || released}
+                      onClick={() => void openReviewSubmission()}
+                    >
+                      {reviewLoading ? <Spinner label="Loading" /> : <ShieldCheck size={14} className="i-purple" />} Submit for review
+                    </button>
+                  )
+                }
+              />
+              <StageCard
+                no={3}
+                title="Release"
+                state={released ? "done" : relatedTask?.status === "Approved" ? "now" : "locked"}
+                copy={
+                  released
+                    ? "Released. Payslip-ready notices were queued for every active employee with an email on file."
+                    : relatedTask?.status !== "Approved"
+                      ? "A checker must approve this payroll before release is available."
+                      : hardChecklistBlocked
+                        ? "Release checklist still has hard blockers. Open the checklist above and resolve them first."
+                        : checklistAcknowledgementNeeded || exceptionRows.length > 0
+                          ? "Review the remaining exceptions and acknowledge them explicitly in the release confirmation."
+                          : "Locks the register, makes the stored payslips available and fires the payroll.released webhook."
+                }
+                action={
+                  released ? (
+                    <span className="status status-released" style={{ height: 30, padding: "0 12px" }}>
+                      Released
+                    </span>
+                  ) : (
+                    <button className="primary-button brand" disabled={busy || !calculated || relatedTask?.status !== "Approved" || hardChecklistBlocked} onClick={() => setConfirmRelease(true)}>
+                      <Send size={14} className="i-pink" /> Release
+                    </button>
+                  )
+                }
+              />
+              <StageCard
+                no={4}
+                title="Validate / Export"
+                state={released ? "now" : calculated ? "now" : "locked"}
+                copy={
+                  released
+                    ? "Final bank files, payslips, accounting journals and government worksheet drafts are available."
+                    : "Run payout validation before release. Final bank files and payslip downloads stay locked until release."
+                }
+                action={
+                  <button className="secondary-button" disabled={!calculated} onClick={() => setExportsOpen(true)}>
+                    <Download size={14} className="i-teal" /> {released ? "Open exports" : "Validate payout"}
                   </button>
-                ) : relatedTask?.status === "Approved" ? (
-                  <span className="status status-approved" style={{ height: 30, padding: "0 12px" }}>
-                    <Check size={12} /> Approved
-                  </span>
-                ) : (
-                  <button
-                    className="secondary-button"
-                    disabled={!calculated || released}
-                    onClick={() => void openReviewSubmission()}
-                  >
-                    {reviewLoading ? <Spinner label="Loading" /> : <ShieldCheck size={14} className="i-purple" />} Submit for review
-                  </button>
-                )
-              }
-            />
-            <StageCard
-              no={3}
-              title="Release"
-              state={released ? "done" : relatedTask?.status === "Approved" ? "now" : "locked"}
-              copy={
-                released
-                  ? "Released. Payslip-ready notices were queued for every active employee with an email on file."
-                  : relatedTask?.status !== "Approved"
-                    ? "A checker must approve this payroll before release is available."
-                    : hardChecklistBlocked
-                      ? "Release checklist still has hard blockers. Open the checklist above and resolve them first."
-                      : checklistAcknowledgementNeeded || exceptionRows.length > 0
-                        ? "Review the remaining exceptions and acknowledge them explicitly in the release confirmation."
-                        : "Locks the register, makes the stored payslips available and fires the payroll.released webhook."
-              }
-              action={
-                released ? (
-                  <span className="status status-released" style={{ height: 30, padding: "0 12px" }}>
-                    Released
-                  </span>
-                ) : (
-                  <button className="primary-button brand" disabled={busy || !calculated || relatedTask?.status !== "Approved" || hardChecklistBlocked} onClick={() => setConfirmRelease(true)}>
-                    <Send size={14} className="i-pink" /> Release
-                  </button>
-                )
-              }
-            />
-            <StageCard
-              no={4}
-              title="Validate / Export"
-              state={released ? "now" : calculated ? "now" : "locked"}
-              copy={
-                released
-                  ? "Final bank files, payslips, accounting journals and government worksheet drafts are available."
-                  : "Run payout validation before release. Final bank files and payslip downloads stay locked until release."
-              }
-              action={
-                <button className="secondary-button" disabled={!calculated} onClick={() => setExportsOpen(true)}>
-                  <Download size={14} className="i-teal" /> {released ? "Open exports" : "Validate payout"}
-                </button>
-              }
-            />
-          </div>
+                }
+              />
+            </div>
+          )}
 
           {reviewOpen && (
             <article className="card" style={{ margin: "0 18px 16px", boxShadow: "none" }}>
