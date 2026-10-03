@@ -1,0 +1,300 @@
+"use client";
+
+import {
+  AlertTriangle,
+  ArrowRight,
+  Check,
+  Clock3,
+  FileSearch,
+  RefreshCw,
+  Send,
+  ShieldCheck,
+  UsersRound,
+} from "lucide-react";
+import { buildPayrollOfficerWorkflow, type PayrollOfficerChecklistItem, type PayrollOfficerWorkflowState } from "@/lib/payroll-officer-workflow";
+import { readTrace, type DashboardData, type PayrollEntry, type PayrollRun, type Task } from "./types";
+import { Spinner, Status } from "./ui";
+
+type ChecklistItem = PayrollOfficerChecklistItem & {
+  label: string;
+};
+
+export function PayrollOfficerWorkspace({
+  data,
+  run,
+  entries,
+  checklist,
+  relatedTask,
+  calculated,
+  busy,
+  onCalculate,
+  onSubmit,
+  onOpenApproval,
+  onPage,
+  onInspectEntry,
+  onExplainEmployee,
+  onShowAllExceptions,
+}: {
+  data: DashboardData;
+  run: PayrollRun;
+  entries: PayrollEntry[];
+  checklist: ChecklistItem[] | null;
+  relatedTask?: Task;
+  calculated: boolean;
+  busy: boolean;
+  onCalculate: () => void;
+  onSubmit: () => void;
+  onOpenApproval: () => void;
+  onPage: (page: string) => void;
+  onInspectEntry: (entry: PayrollEntry) => void;
+  onExplainEmployee: (employeeId: number) => void;
+  onShowAllExceptions: () => void;
+}) {
+  const exceptions = entries.filter((entry) => entry.status === "Exception");
+  const workflow = buildPayrollOfficerWorkflow({
+    runStatus: run.status,
+    calculated,
+    processedChunks: run.processedChunks,
+    totalChunks: run.totalChunks,
+    exceptionCount: exceptions.length,
+    approvalStatus: relatedTask?.status,
+    checklist,
+  });
+
+  const byKey = new Map((checklist ?? []).map((item) => [item.key, item]));
+  const inputCheck = byKey.get("inputs");
+  const attendanceCheck = byKey.get("attendance");
+  const calculationCheck = byKey.get("calculation");
+  const statutoryCheck = byKey.get("statutory");
+  const exceptionCheck = byKey.get("exceptions");
+
+  const attentionItems: Array<{
+    key: string;
+    title: string;
+    detail: string;
+    action: string;
+    run: () => void;
+  }> = [];
+
+  if (inputCheck && !inputCheck.passed) {
+    attentionItems.push({
+      key: "inputs",
+      title: inputCheck.label,
+      detail: inputCheck.detail,
+      action: "Open people",
+      run: () => onPage("People"),
+    });
+  }
+  if (attendanceCheck && !attendanceCheck.passed) {
+    attentionItems.push({
+      key: "attendance",
+      title: attendanceCheck.label,
+      detail: attendanceCheck.detail,
+      action: "Open attendance",
+      run: () => onPage("Time & attendance"),
+    });
+  }
+  if (statutoryCheck && !statutoryCheck.passed) {
+    attentionItems.push({
+      key: "statutory",
+      title: statutoryCheck.label,
+      detail: statutoryCheck.detail,
+      action: entries[0] ? "Inspect calculation" : "Open register",
+      run: () => entries[0] ? onExplainEmployee(entries[0].employeeId) : onShowAllExceptions(),
+    });
+  }
+  if (exceptionCheck && !exceptionCheck.passed && exceptions.length === 0) {
+    attentionItems.push({
+      key: "assurance",
+      title: exceptionCheck.label,
+      detail: exceptionCheck.detail,
+      action: "Open register",
+      run: onShowAllExceptions,
+    });
+  }
+
+  const canCalculate = !["Pending approval", "Ready for release", "Released"].includes(run.status);
+  const submitCopy = relatedTask?.status === "Pending"
+    ? `Waiting for ${relatedTask.approver}`
+    : relatedTask?.status === "Approved"
+      ? `Approved by ${relatedTask.approver}`
+      : workflow.canSubmit
+        ? "Calculation is ready for an independent checker."
+        : "Finish calculation and resolve blocking assurance findings first.";
+
+  return (
+    <section className="payroll-officer-workflow" aria-label="Payroll Officer run workflow">
+      <div className="payroll-officer-heading">
+        <div>
+          <div className="card-kicker">PAYROLL OFFICER WORKSPACE</div>
+          <h2>{run.periodLabel}</h2>
+          <p>Move this run through four clear stages. Server-side payroll assurance remains the gate before checker submission.</p>
+        </div>
+        <div className="payroll-officer-heading-status">
+          <Status value={run.status} />
+          <span>{run.employeeCount} employees · {run.scopeLabel}</span>
+        </div>
+      </div>
+
+      <div className="payroll-officer-steps">
+        <WorkflowStep
+          no={1}
+          title="Inputs"
+          state={workflow.steps.inputs.state}
+          detail={
+            workflow.inputIssues.length
+              ? `${workflow.inputIssues.length} input area${workflow.inputIssues.length === 1 ? "" : "s"} need attention before handoff.`
+              : "Required employee inputs and attendance checks are clear."
+          }
+          action={
+            workflow.inputIssues.length ? (
+              <button className="secondary-button" onClick={() => onPage(inputCheck && !inputCheck.passed ? "People" : "Time & attendance")}>
+                <UsersRound size={14} /> Resolve inputs
+              </button>
+            ) : <span className="payroll-officer-step-done"><Check size={13} /> Ready</span>
+          }
+        />
+
+        <WorkflowStep
+          no={2}
+          title="Calculate"
+          state={workflow.steps.calculate.state}
+          detail={
+            calculationCheck?.detail ??
+            (calculated ? "Stored payroll entries are calculated." : "Calculate the cutoff to create the payroll register.")
+          }
+          action={
+            <button className="secondary-button" disabled={busy || !canCalculate} onClick={onCalculate}>
+              {busy ? <Spinner label="Calculating" /> : <RefreshCw size={14} />}
+              {calculated ? "Recalculate" : "Calculate"}
+            </button>
+          }
+        />
+
+        <WorkflowStep
+          no={3}
+          title="Exceptions"
+          state={workflow.steps.exceptions.state}
+          detail={
+            !workflow.calculationReady
+              ? "Calculation must finish before exceptions can be reviewed."
+              : exceptions.length
+                ? `${exceptions.length} employee entr${exceptions.length === 1 ? "y" : "ies"} need explanation or correction.`
+                : statutoryCheck && !statutoryCheck.passed
+                  ? statutoryCheck.detail
+                  : "No engine exceptions remain in the current register."
+          }
+          action={
+            exceptions.length ? (
+              <button className="secondary-button" onClick={onShowAllExceptions}>
+                <AlertTriangle size={14} /> Review {exceptions.length}
+              </button>
+            ) : <span className="payroll-officer-step-done"><Check size={13} /> Clear</span>
+          }
+        />
+
+        <WorkflowStep
+          no={4}
+          title="Submit to Checker"
+          state={workflow.steps.submit.state}
+          detail={submitCopy}
+          action={
+            relatedTask?.status === "Pending" ? (
+              <button className="secondary-button" onClick={onOpenApproval}>
+                <Clock3 size={14} /> Open approval
+              </button>
+            ) : relatedTask?.status === "Approved" ? (
+              <span className="payroll-officer-step-done"><ShieldCheck size={13} /> Approved</span>
+            ) : (
+              <button className="primary-button brand" disabled={!workflow.canSubmit} onClick={onSubmit}>
+                <Send size={14} /> Submit to checker
+              </button>
+            )
+          }
+        />
+      </div>
+
+      {(attentionItems.length > 0 || exceptions.length > 0) && (
+        <div className="payroll-officer-attention">
+          <div className="payroll-officer-attention-heading">
+            <div>
+              <span className="card-kicker">NEEDS ATTENTION</span>
+              <strong>Fix the affected input or inspect the employee calculation.</strong>
+            </div>
+            <span>{attentionItems.length + exceptions.length} item{attentionItems.length + exceptions.length === 1 ? "" : "s"}</span>
+          </div>
+
+          <div className="payroll-officer-attention-list">
+            {attentionItems.map((item) => (
+              <div className="payroll-officer-attention-row" key={item.key}>
+                <span className="payroll-officer-attention-icon"><AlertTriangle size={14} /></span>
+                <div>
+                  <strong>{item.title}</strong>
+                  <p>{item.detail}</p>
+                </div>
+                <button className="secondary-button" onClick={item.run}>{item.action} <ArrowRight size={13} /></button>
+              </div>
+            ))}
+
+            {exceptions.slice(0, 6).map((entry) => {
+              const employee = data.employees.find((person) => person.id === entry.employeeId);
+              const flags = readTrace(entry).flags;
+              return (
+                <div className="payroll-officer-attention-row" key={entry.id}>
+                  <span className="payroll-officer-attention-icon danger"><AlertTriangle size={14} /></span>
+                  <div>
+                    <strong>{employee ? `${employee.firstName} ${employee.lastName}` : `Employee #${entry.employeeId}`}</strong>
+                    <p>{flags.length ? flags.join(" · ") : "Payroll engine exception. Inspect the stored calculation trace."}</p>
+                    <small>Explain pay shows stored SSS, PhilHealth, Pag-IBIG and withholding-tax bases when present.</small>
+                  </div>
+                  <div className="payroll-officer-attention-actions">
+                    <button className="secondary-button" onClick={() => onInspectEntry(entry)}>Open row</button>
+                    <button className="secondary-button" onClick={() => onExplainEmployee(entry.employeeId)}>
+                      <FileSearch size={13} /> Explain pay
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {exceptions.length > 6 && (
+            <button className="link-button" onClick={onShowAllExceptions}>
+              Show all {exceptions.length} exceptions in the payroll register
+            </button>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function WorkflowStep({
+  no,
+  title,
+  state,
+  detail,
+  action,
+}: {
+  no: number;
+  title: string;
+  state: PayrollOfficerWorkflowState;
+  detail: string;
+  action: React.ReactNode;
+}) {
+  return (
+    <article className="payroll-officer-step" data-state={state}>
+      <div className="payroll-officer-step-top">
+        <span className="payroll-officer-step-number">{state === "done" ? <Check size={14} /> : no}</span>
+        <span className="payroll-officer-step-state">
+          {state === "done" ? "Complete" : state === "attention" ? "Needs attention" : state === "locked" ? "Locked" : "Current"}
+        </span>
+      </div>
+      <div>
+        <h3>{title}</h3>
+        <p>{detail}</p>
+      </div>
+      <div className="payroll-officer-step-action">{action}</div>
+    </article>
+  );
+}
