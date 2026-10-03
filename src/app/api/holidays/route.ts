@@ -109,13 +109,29 @@ export async function GET(request: Request) {
   const access = await getAccess(session.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
 
-  const organizationRows = await db.select().from(holidays).where(
-    eq(holidays.organizationId, organizationId),
-  ).orderBy(asc(holidays.holidayDate), asc(holidays.id));
+  const [organizationRows, unitRows] = await Promise.all([
+    db.select().from(holidays).where(
+      eq(holidays.organizationId, organizationId),
+    ).orderBy(asc(holidays.holidayDate), asc(holidays.id)),
+    db.select().from(orgUnits).where(eq(orgUnits.organizationId, organizationId)),
+  ]);
+
+  const unitById = new Map(unitRows.map((unit) => [unit.id, unit]));
+  const visibleScopeIds = new Set<number>();
+  let scopeCursor = access.orgUnitId;
+  let scopeGuard = 0;
+  while (scopeCursor != null && scopeGuard < 50) {
+    if (visibleScopeIds.has(scopeCursor)) break;
+    visibleScopeIds.add(scopeCursor);
+    scopeCursor = unitById.get(scopeCursor)?.parentId ?? null;
+    scopeGuard += 1;
+  }
 
   const visible = access.companyWide
     ? organizationRows
-    : organizationRows.filter((row) => row.orgUnitId == null || row.orgUnitId === access.orgUnitId);
+    : organizationRows.filter(
+        (row) => row.orgUnitId == null || visibleScopeIds.has(row.orgUnitId),
+      );
 
   return Response.json({
     holidays: visible,
