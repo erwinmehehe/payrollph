@@ -288,7 +288,7 @@ export async function generateJournalCsv(runId: number) {
     }
 
     const monthlyRemuneration =
-      traceNumber(entry.trace, "statutoryMonthlyRemuneration=")
+      traceNumber(entry.trace, "statutoryMonthlyCompensation=")
       ?? Number(employee.basicRate);
     const philHealthBase =
       traceNumber(entry.trace, "philHealthContributionBase=")
@@ -354,6 +354,26 @@ export async function generateJournalCsv(runId: number) {
     filename: `xero-qbo-journal-${run.id}.csv`,
     contentType: "text/csv",
     body: [header, ...rows].map((line) => line.map(csv).join(",")).join("\n"),
+    summary: {
+      sss: round2(totals.sssEe + totals.sssEr + totals.ecEr),
+      philHealth: round2(totals.philHealthEe + totals.philHealthEr),
+      pagIbig: round2(totals.pagIbigEe + totals.pagIbigVoluntary + totals.pagIbigEr),
+      birWithholding: round2(totals.birWht),
+      governmentLoans: round2(totals.governmentLoans),
+      totalStatutoryLiabilities: round2(
+        totals.sssEe
+        + totals.sssEr
+        + totals.ecEr
+        + totals.philHealthEe
+        + totals.philHealthEr
+        + totals.pagIbigEe
+        + totals.pagIbigVoluntary
+        + totals.pagIbigEr
+        + totals.birWht
+      ),
+      netPayroll: round2(totals.net),
+      employerStatutoryExpense,
+    },
   };
 }
 
@@ -421,7 +441,7 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
       "SSSNo,LastName,FirstName,MiddleName,MSC,RegularMSC,MPFMSC,SS_EE_Regular,SS_EE_MPF,SS_ER_Regular,SS_ER_MPF,EC_Employer,Total_Contribution",
       ...entries.map(({ employee, entry }) => {
         const monthlyRemuneration =
-          traceNumber(entry.trace, "statutoryMonthlyRemuneration=")
+          traceNumber(entry.trace, "statutoryMonthlyCompensation=")
           ?? Number(employee.basicRate ?? entry.grossPay ?? 0);
         const sss = computeSss(monthlyRemuneration);
         return [
@@ -492,7 +512,7 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
       "PagIBIGMID,LastName,FirstName,MiddleName,FundSalary,EmployeeShare,EmployerShare,TotalContribution",
       ...entries.map(({ employee, entry }) => {
         const monthlyRemuneration =
-          traceNumber(entry.trace, "statutoryMonthlyRemuneration=")
+          traceNumber(entry.trace, "statutoryMonthlyCompensation=")
           ?? Number(employee.basicRate ?? entry.grossPay ?? 0);
         const hd = computePagIbig(monthlyRemuneration);
         return [

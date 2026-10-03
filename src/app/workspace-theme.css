@@ -12699,3 +12699,413 @@
     width: 100%;
   }
 }
+
+
+/* --------------------------------------------------- Bookkeeper payroll close */
+
+.app-shell .bookkeeper-close-center {
+  margin: 16px 0 18px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  background: var(--paper);
+}
+
+.app-shell .bookkeeper-close-loading {
+  min-height: 96px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.app-shell .bookkeeper-close-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.app-shell .bookkeeper-close-heading h2 {
+  margin: 4px 0 5px;
+  font-size: 22px;
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+}
+
+.app-shell .bookkeeper-close-heading p {
+  max-width: 760px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.app-shell .bookkeeper-close-heading-status {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.app-shell .bookkeeper-close-heading-status > span:last-child {
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+.app-shell .bookkeeper-close-liabilities {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 16px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  overflow: hidden;
+}
+
+.app-shell .bookkeeper-close-liabilities > div {
+  min-height: 92px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: 13px 14px;
+  border-left: 1px solid var(--line-faint);
+  background: #fff;
+}
+
+.app-shell .bookkeeper-close-liabilities > div:first-child {
+  border-left: 0;
+}
+
+.app-shell .bookkeeper-close-liabilities span {
+  color: var(--muted);
+  font-size: 9.5px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: .045em;
+}
+
+.app-shell .bookkeeper-close-liabilities strong {
+  font-size: 17px;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-shell .bookkeeper-close-liabilities small {
+  color: var(--muted);
+  font-size: 9.5px;
+  line-height: 1.35;
+}
+
+.app-shell .bookkeeper-close-steps {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  overflow: hidden;
+}
+
+.app-shell .bookkeeper-close-step {
+  min-height: 67px;
+  display: grid;
+  grid-template-columns: 27px 28px minmax(0, 1fr) auto;
+  gap: 9px;
+  align-items: center;
+  padding: 10px 12px;
+  border-top: 1px solid var(--line-faint);
+  background: #fff;
+}
+
+.app-shell .bookkeeper-close-step:first-child {
+  border-top: 0;
+}
+
+.app-shell .bookkeeper-close-step[data-state="current"] {
+  background: #fafaff;
+  box-shadow: inset 2px 0 0 var(--brand);
+}
+
+.app-shell .bookkeeper-close-step[data-state="done"] {
+  background: #fbfdfb;
+}
+
+.app-shell .bookkeeper-close-step-no,
+.app-shell .bookkeeper-close-step-icon {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--neutral-bg);
+  color: var(--neutral);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.app-shell .bookkeeper-close-step-icon {
+  border-radius: 7px;
+  background: #f4f5f4;
+}
+
+.app-shell .bookkeeper-close-step[data-state="done"] .bookkeeper-close-step-no {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.app-shell .bookkeeper-close-step[data-state="done"] .bookkeeper-close-step-icon {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.app-shell .bookkeeper-close-step[data-state="current"] .bookkeeper-close-step-no,
+.app-shell .bookkeeper-close-step[data-state="current"] .bookkeeper-close-step-icon {
+  background: var(--brand-bg);
+  color: var(--brand);
+}
+
+.app-shell .bookkeeper-close-step-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-shell .bookkeeper-close-step-title strong {
+  font-size: 11.5px;
+}
+
+.app-shell .bookkeeper-close-step-title span {
+  color: var(--muted);
+  font-size: 9.5px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: .045em;
+}
+
+.app-shell .bookkeeper-close-step[data-state="done"] .bookkeeper-close-step-title span {
+  color: var(--success);
+}
+
+.app-shell .bookkeeper-close-step[data-state="current"] .bookkeeper-close-step-title span {
+  color: var(--brand);
+}
+
+.app-shell .bookkeeper-close-step p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.app-shell .bookkeeper-close-step-action {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+}
+
+.app-shell .bookkeeper-close-step-action .secondary-button {
+  min-height: 29px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.app-shell .bookkeeper-close-evidence {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--review-border);
+  border-radius: 10px;
+  background: #fffdf8;
+}
+
+.app-shell .bookkeeper-close-evidence-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--review);
+}
+
+.app-shell .bookkeeper-close-evidence-title strong,
+.app-shell .bookkeeper-close-evidence-title span {
+  display: block;
+}
+
+.app-shell .bookkeeper-close-evidence-title strong {
+  font-size: 11.5px;
+}
+
+.app-shell .bookkeeper-close-evidence-title span {
+  margin-top: 2px;
+  color: var(--ink-secondary);
+  font-size: 10px;
+}
+
+.app-shell .bookkeeper-close-evidence-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+  margin: 10px 0;
+}
+
+.app-shell .bookkeeper-close-evidence-list > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 8px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.app-shell .bookkeeper-close-evidence-list span {
+  color: var(--ink-secondary);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.app-shell .bookkeeper-close-evidence-list strong {
+  color: var(--review);
+  font-size: 9.5px;
+  text-transform: capitalize;
+}
+
+.app-shell .bookkeeper-close-evidence-list > div[data-proven="true"] strong {
+  color: var(--success);
+}
+
+.app-shell .bookkeeper-close-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--ink-secondary);
+  font-size: 10.5px;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.app-shell .bookkeeper-close-check input {
+  margin-top: 2px;
+  flex: none;
+}
+
+.app-shell .bookkeeper-close-actionbar {
+  min-height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fafbf9;
+}
+
+.app-shell .bookkeeper-close-actionbar .bookkeeper-close-check {
+  max-width: 720px;
+}
+
+.app-shell .bookkeeper-close-button {
+  min-width: 150px;
+  justify-content: center;
+}
+
+.app-shell .bookkeeper-close-complete {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--success-border);
+  border-radius: 10px;
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.app-shell .bookkeeper-close-complete strong,
+.app-shell .bookkeeper-close-complete span {
+  display: block;
+}
+
+.app-shell .bookkeeper-close-complete strong {
+  font-size: 11.5px;
+}
+
+.app-shell .bookkeeper-close-complete span {
+  margin-top: 3px;
+  color: var(--ink-secondary);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.app-shell .bookkeeper-close-footnote {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 18px minmax(0, 1fr);
+  gap: 7px;
+  align-items: start;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 9.75px;
+  line-height: 1.45;
+}
+
+.app-shell .bookkeeper-close-footnote svg {
+  margin-top: 1px;
+  color: var(--muted-light);
+}
+
+@media (max-width: 980px) {
+  .app-shell .bookkeeper-close-liabilities,
+  .app-shell .bookkeeper-close-evidence-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .app-shell .bookkeeper-close-center {
+    padding: 16px 13px;
+  }
+
+  .app-shell .bookkeeper-close-heading {
+    flex-direction: column;
+  }
+
+  .app-shell .bookkeeper-close-heading-status {
+    justify-items: start;
+  }
+
+  .app-shell .bookkeeper-close-liabilities,
+  .app-shell .bookkeeper-close-evidence-list {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell .bookkeeper-close-liabilities > div {
+    min-height: 76px;
+    border-left: 0;
+    border-top: 1px solid var(--line-faint);
+  }
+
+  .app-shell .bookkeeper-close-liabilities > div:first-child {
+    border-top: 0;
+  }
+
+  .app-shell .bookkeeper-close-step {
+    grid-template-columns: 26px 26px minmax(0, 1fr);
+  }
+
+  .app-shell .bookkeeper-close-step-action {
+    grid-column: 3;
+    justify-self: start;
+  }
+
+  .app-shell .bookkeeper-close-actionbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .app-shell .bookkeeper-close-button {
+    width: 100%;
+  }
+
+  .app-shell .bookkeeper-close-footnote {
+    grid-template-columns: 18px minmax(0, 1fr);
+  }
+}
