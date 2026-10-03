@@ -87,3 +87,17 @@ test("year-end tax exports require recent MFA and do not persist plaintext TIN c
   assert.ok(source.includes("plaintextCertificatePersisted: false"));
   assert.ok(!source.includes("db.insert(documents)"));
 });
+
+
+test("company-wide tax and contractor surfaces reject unit-scoped memberships", () => {
+  for (const path of [
+    "src/app/api/year-end/route.ts",
+    "src/app/api/compliance/validate/route.ts",
+    "src/app/api/contractors/route.ts",
+    "src/app/api/contractors/payments/route.ts",
+  ]) {
+    const source = read(path);
+    assert.ok(source.includes("getAccess("), `${path} must resolve organization scope`);
+    assert.ok(source.includes("companyWide"), `${path} must reject unit-scoped users`);
+  }
+});
