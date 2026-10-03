@@ -43,7 +43,12 @@ import {
   NATIONAL_HOLIDAYS_2026,
   type HolidayCalendarEntry,
 } from "@/lib/wage-orders";
-import { aggregateDeMinimisForSemiMonthly, type DeMinimisType } from "@/lib/ph-compliance";
+import {
+  aggregateDeMinimisForSemiMonthly,
+  deMinimisStatutoryPeriodStart,
+  DE_MINIMIS_2026,
+  type DeMinimisType,
+} from "@/lib/ph-compliance";
 import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
 import { calculateBenefits, type EnrollmentInput } from "@/lib/benefits";
 import { benefitEnrollments, benefitPlans } from "@/db/schema";
@@ -611,6 +616,51 @@ async function processPayrollChunk(input: {
         ))
     : [];
 
+  const taxYearStart = `${String(run.payDate).slice(0, 4)}-01-01`;
+  const priorDeMinimisEntries = chunkIds.length
+    ? await db.select({
+        employeeId: payrollEntries.employeeId,
+        lineItems: payrollEntries.lineItems,
+        payDate: payrollRuns.payDate,
+      })
+        .from(payrollEntries)
+        .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
+        .where(and(
+          eq(payrollRuns.organizationId, input.organizationId),
+          eq(payrollRuns.status, "Released"),
+          inArray(payrollEntries.employeeId, chunkIds),
+          gte(payrollRuns.payDate, taxYearStart),
+          lt(payrollRuns.payDate, run.payDate),
+        ))
+    : [];
+
+  const priorDeMinimisByEmployee = new Map<
+    number,
+    Partial<Record<DeMinimisType, number>>
+  >();
+  for (const prior of priorDeMinimisEntries) {
+    const lines = Array.isArray(prior.lineItems)
+      ? prior.lineItems as Array<{ code?: string; amount?: string | number }>
+      : [];
+    for (const line of lines) {
+      const rawCode = String(line.code ?? "");
+      if (!rawCode.startsWith("DM-")) continue;
+      const benefitType = rawCode.slice(3) as DeMinimisType;
+      if (!(benefitType in DE_MINIMIS_2026)) continue;
+      const periodStart = deMinimisStatutoryPeriodStart(
+        benefitType,
+        String(run.payDate),
+      );
+      if (String(prior.payDate) < periodStart) continue;
+      const amount = Math.max(0, Number(line.amount ?? 0) || 0);
+      const bucket = priorDeMinimisByEmployee.get(prior.employeeId) ?? {};
+      bucket[benefitType] = roundToCents(
+        Number(bucket[benefitType] ?? 0) + amount,
+      );
+      priorDeMinimisByEmployee.set(prior.employeeId, bucket);
+    }
+  }
+
   const priorStatutoryByEmployee = new Map<number, {
     sssRemuneration: number;
     pagIbigCompensation: number;
@@ -779,6 +829,8 @@ async function processPayrollChunk(input: {
           amount: Number(g.amount),
           frequency: g.frequency as "month" | "semester" | "year",
         })),
+      priorDeMinimisPaid: priorDeMinimisByEmployee.get(employee.id) ?? {},
+
       loans: (loansByEmployee.get(employee.id) ?? [])
         .filter((l) =>
           (!l.startDate || String(l.startDate) <= String(run.periodEnd))
@@ -945,6 +997,7 @@ function calculateEmployeePay(input: {
     includeInPagIbigBase: boolean;
   }>;
   deMinimis?: Array<{ id: number; benefitType: DeMinimisType; amount: number; frequency: "month" | "semester" | "year" }>;
+  priorDeMinimisPaid?: Partial<Record<DeMinimisType, number>>;
   loans?: Array<{ id: number; loanType: string; referenceNo: string; cutoffDeduction: number; remainingBalance: number }>;
   leaveConversions?: Array<{ id: number; leaveType: string; daysConverted: number; dailyRate: number; cashAmount: number; taxExempt: boolean }>;
   approvedLeave?: ResolvedPayrollLeave[];
@@ -1284,13 +1337,18 @@ function calculateEmployeePay(input: {
   // RR 29-2025 ceilings apply once per statutory benefit category, not once per
   // database row. Aggregate duplicate/parallel grants before applying the
   // category ceiling, then normalize the result to one semi-monthly cutoff.
-  const deMinimisLines = aggregateDeMinimisForSemiMonthly(input.deMinimis ?? []).map((group) => ({
+  const deMinimisLines = aggregateDeMinimisForSemiMonthly(
+    input.deMinimis ?? [],
+    input.priorDeMinimisPaid ?? {},
+  ).map((group) => ({
     code: `DM-${group.benefitType}`,
     label: `De minimis, ${group.label}`,
     amount: money(group.semiMonthlyGranted),
     notes: [
       `Aggregated grant ids: ${group.grantIds.join(", ")}`,
-      `annualized category ceiling ₱${group.annualCeiling.toFixed(2)}`,
+      `${group.statutoryPeriod} ceiling ₱${group.statutoryPeriodCeiling.toFixed(2)}`,
+      `paid earlier in this ${group.statutoryPeriod}: ₱${group.priorPaidInStatutoryPeriod.toFixed(2)}`,
+      `exempt this cutoff ₱${group.semiMonthlyExempt.toFixed(2)}`,
       `other-benefits pool excess this period ₱${group.semiMonthlyOtherBenefitsPool.toFixed(2)}`,
     ],
     periodAmount: group.semiMonthlyGranted,
