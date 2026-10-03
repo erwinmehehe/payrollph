@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, lte } from "drizzle-orm";
 import { db } from "@/db";
 import { sameBankAccount } from "@/lib/bank-account-crypto";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
@@ -14,6 +14,7 @@ import {
   loanPayments,
   payrollEntries,
   payrollRuns,
+  supplementaryEarnings,
 } from "@/db/schema";
 
 function money(value: number) {
@@ -165,6 +166,46 @@ export async function settlePayrollRun(
     const calculatedRetroIds = new Set<number>();
     for (const entry of entries) {
       for (const line of storedLines(entry.lineItems)) {
+        const earningId = numericId(line.code, "EARN-");
+        if (earningId) {
+          const [earning] = await tx.select().from(supplementaryEarnings)
+            .where(and(
+              eq(supplementaryEarnings.id, earningId),
+              eq(supplementaryEarnings.organizationId, run.organizationId),
+            ))
+            .limit(1);
+          if (!earning || earning.employeeId !== entry.employeeId) {
+            throw new Error(`Supplementary earning ${earningId} no longer matches this payroll entry.`);
+          }
+          if (earning.status === "settled" && earning.payrollRunId === run.id) continue;
+          if (earning.status !== "approved" || earning.payrollRunId != null) {
+            throw new Error(
+              `Supplementary earning ${earningId} was already settled or changed; recalculate payroll before release.`,
+            );
+          }
+          if (!samePayrollNumber(earning.amount, line.amount)) {
+            throw new Error(
+              `Supplementary earning ${earningId} amount changed after calculation; recalculate before release.`,
+            );
+          }
+          const [settledEarning] = await tx.update(supplementaryEarnings)
+            .set({ status: "settled", payrollRunId: run.id })
+            .where(and(
+              eq(supplementaryEarnings.id, earningId),
+              eq(supplementaryEarnings.organizationId, run.organizationId),
+              eq(supplementaryEarnings.status, "approved"),
+              isNull(supplementaryEarnings.payrollRunId),
+            ))
+            .returning({ id: supplementaryEarnings.id });
+          if (!settledEarning) {
+            throw new Error(
+              `Supplementary earning ${earningId} changed while payroll was being released; recalculate before release.`,
+            );
+          }
+          supplementaryEarningsSettled += 1;
+          continue;
+        }
+
         const retroId = numericId(line.code, "RETRO-");
         if (!retroId) continue;
         calculatedRetroIds.add(retroId);
@@ -180,6 +221,44 @@ export async function settlePayrollRun(
     if (missingRetro) {
       throw new Error(
         `A new retro pay adjustment was added after calculation; recalculate before release so adjustment #${missingRetro.id} is included.`,
+      );
+    }
+
+    const currentSupplementary = employeeIds.length
+      ? await tx.select().from(supplementaryEarnings).where(and(
+          eq(supplementaryEarnings.organizationId, run.organizationId),
+          eq(supplementaryEarnings.status, "approved"),
+          inArray(supplementaryEarnings.employeeId, employeeIds),
+          gte(supplementaryEarnings.effectiveDate, run.periodStart),
+          lte(supplementaryEarnings.effectiveDate, run.periodEnd),
+          isNull(supplementaryEarnings.payrollRunId),
+        ))
+      : [];
+    const supplementaryById = new Map(currentSupplementary.map((earning) => [earning.id, earning]));
+    const calculatedSupplementaryIds = new Set<number>();
+    for (const entry of entries) {
+      for (const line of storedLines(entry.lineItems)) {
+        const earningId = numericId(line.code, "EARN-");
+        if (!earningId) continue;
+        calculatedSupplementaryIds.add(earningId);
+        const current = supplementaryById.get(earningId);
+        if (
+          !current
+          || current.employeeId !== entry.employeeId
+          || !samePayrollNumber(current.amount, line.amount)
+        ) {
+          throw new Error(
+            `Supplementary earning ${earningId} changed after calculation; recalculate before release so the approved register matches the earnings ledger.`,
+          );
+        }
+      }
+    }
+    const missingSupplementary = currentSupplementary.find(
+      (earning) => !calculatedSupplementaryIds.has(earning.id),
+    );
+    if (missingSupplementary) {
+      throw new Error(
+        `A new supplementary earning was added after calculation; recalculate before release so earning #${missingSupplementary.id} is included.`,
       );
     }
 
@@ -252,6 +331,7 @@ export async function settlePayrollRun(
     let loanPaymentsSettled = 0;
     let leaveConversionsSettled = 0;
     let retroAdjustmentsSettled = 0;
+    let supplementaryEarningsSettled = 0;
 
     for (const entry of entries) {
       for (const line of storedLines(entry.lineItems)) {
@@ -482,6 +562,7 @@ export async function settlePayrollRun(
       loanPaymentsSettled,
       leaveConversionsSettled,
       retroAdjustmentsSettled,
+      supplementaryEarningsSettled,
     };
 
     // The release audit is part of the same transaction as the ledger changes.
