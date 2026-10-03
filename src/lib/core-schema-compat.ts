@@ -185,7 +185,7 @@ export async function ensureCoreCompatibilitySchema() {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v4'))");
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v5'))");
 
       await client.query(`
         ALTER TABLE organizations
@@ -467,6 +467,50 @@ export async function ensureCoreCompatibilitySchema() {
           source_system,
           source_reference
         )
+      `);
+
+      // Evidence that a corporate bank portal accepted an exact Linaw-generated
+      // payroll file. Only the hash/reference is retained, never file contents.
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS bank_file_validations (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          payroll_run_id integer REFERENCES payroll_runs(id) ON DELETE SET NULL,
+          template_name varchar(100) NOT NULL,
+          template_version varchar(32) NOT NULL,
+          file_name varchar(180) NOT NULL,
+          file_sha256 varchar(64) NOT NULL,
+          status varchar(16) NOT NULL DEFAULT 'generated',
+          portal_reference varchar(120),
+          submitted_at timestamptz,
+          outcome_note text,
+          generated_by varchar(120) NOT NULL,
+          recorded_by varchar(120),
+          recorded_at timestamptz,
+          created_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS bank_file_validation_unique
+        ON bank_file_validations(organization_id, template_name, template_version, file_sha256)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS bank_file_validation_status_idx
+        ON bank_file_validations(status, template_name)
+      `);
+      await client.query(`
+        DO $compat$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'bank_file_validations_status_check'
+          ) THEN
+            ALTER TABLE bank_file_validations
+              ADD CONSTRAINT bank_file_validations_status_check
+              CHECK (status IN ('generated', 'accepted', 'rejected'));
+          END IF;
+        END
+        $compat$;
       `);
 
       // Evidence that agencies accepted files Linaw generated. Readiness reads
