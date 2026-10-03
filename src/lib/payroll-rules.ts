@@ -47,6 +47,30 @@ export function computePhilHealth(monthlySalary: number) {
  * PHP 10,000. Employee pays 1% up to PHP 1,500 then 2%; employer is always
  * 2%. Practical ceiling: PHP 200 employee + PHP 200 employer monthly.
  */
+export type StatutoryDeductionTiming = "split" | "first_cutoff" | "second_cutoff";
+
+export function computeCutoffStatutoryDeduction(input: {
+  monthlyTarget: number;
+  priorCollected: number;
+  timing: StatutoryDeductionTiming;
+  isSecondCutoff: boolean;
+}) {
+  const target = round(Math.max(0, input.monthlyTarget));
+  const prior = round(Math.max(0, input.priorCollected));
+
+  if (input.timing === "second_cutoff") {
+    return input.isSecondCutoff ? round(Math.max(0, target - prior)) : 0;
+  }
+  if (input.timing === "first_cutoff") {
+    // First cutoff collects the current target; second cutoff performs only a
+    // true-up when later variable remuneration increases that monthly target.
+    return input.isSecondCutoff ? round(Math.max(0, target - prior)) : target;
+  }
+  return input.isSecondCutoff
+    ? round(Math.max(0, target - prior))
+    : round(target / 2);
+}
+
 export function computePagIbig(monthlySalary: number) {
   const fundSalary = Math.min(10_000, Math.max(0, monthlySalary));
   const employeeRate = monthlySalary <= 1_500 ? 0.01 : 0.02;
