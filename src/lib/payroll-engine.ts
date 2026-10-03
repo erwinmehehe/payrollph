@@ -73,6 +73,25 @@ function roundToCents(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+type MonthToDateStatutoryContext = {
+  contributableCompensation: number;
+  sssEmployee: number;
+  philHealthEmployee: number;
+  pagIbigEmployee: number;
+};
+
+function storedPayrollLines(value: unknown) {
+  if (!Array.isArray(value)) return [] as Array<Record<string, unknown>>;
+  return value.filter((line): line is Record<string, unknown> => Boolean(line) && typeof line === "object");
+}
+
+function monthBounds(date: string) {
+  const [year, month] = date.split("-").map(Number);
+  const start = `${year}-${String(month).padStart(2, "0")}-01`;
+  const end = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+  return { start, end };
+}
+
 const PHILIPPINE_TIME = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Manila",
   year: "numeric",
@@ -310,6 +329,45 @@ async function processPayrollChunk(input: {
   const payProfileRows = chunkIds.length
     ? await db.select().from(employeePayProfiles).where(inArray(employeePayProfiles.employeeId, chunkIds))
     : [];
+
+  const month = monthBounds(String(run.payDate));
+  const priorMonthEntries = chunkIds.length
+    ? await db.select({
+        employeeId: payrollEntries.employeeId,
+        grossPay: payrollEntries.grossPay,
+        lineItems: payrollEntries.lineItems,
+      })
+        .from(payrollEntries)
+        .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
+        .where(and(
+          eq(payrollRuns.organizationId, input.organizationId),
+          eq(payrollRuns.status, "Released"),
+          inArray(payrollEntries.employeeId, chunkIds),
+          gte(payrollRuns.payDate, month.start),
+          lte(payrollRuns.payDate, month.end),
+        ))
+    : [];
+  const monthToDateByEmployee = new Map<number, MonthToDateStatutoryContext>();
+  for (const row of priorMonthEntries) {
+    const current = monthToDateByEmployee.get(row.employeeId) ?? {
+      contributableCompensation: 0,
+      sssEmployee: 0,
+      philHealthEmployee: 0,
+      pagIbigEmployee: 0,
+    };
+    const lines = storedPayrollLines(row.lineItems);
+    const expenses = lines
+      .filter((line) => typeof line.code === "string" && String(line.code).startsWith("EXP-"))
+      .reduce((sum, line) => sum + Math.max(0, Number(line.amount ?? 0)), 0);
+    current.contributableCompensation += Math.max(0, Number(row.grossPay) - expenses);
+    for (const line of lines) {
+      const amount = Math.abs(Number(line.amount ?? 0));
+      if (line.code === "SSS") current.sssEmployee += amount;
+      if (line.code === "PHIC") current.philHealthEmployee += amount;
+      if (line.code === "HDMF") current.pagIbigEmployee += amount;
+    }
+    monthToDateByEmployee.set(row.employeeId, current);
+  }
   const payRevisionRows = chunkIds.length
     ? await db.select().from(employeePayRevisions).where(and(
         eq(employeePayRevisions.organizationId, input.organizationId),
@@ -598,6 +656,7 @@ async function processPayrollChunk(input: {
         reason: revision.reason,
       })),
       holidayCalendar,
+      monthToDateStatutory: monthToDateByEmployee.get(employee.id),
       restDayRevisions: (restDayRevisionsByEmployee.get(employee.id) ?? []).map((revision) => ({
         effectiveDate: String(revision.effectiveDate),
         previousRestDay: revision.previousRestDay,
@@ -711,6 +770,7 @@ function calculateEmployeePay(input: {
   payProfile: EmployeePayProfileInput;
   payRevisions?: EffectivePayRevisionInput[];
   holidayCalendar?: HolidayCalendarEntry[];
+  monthToDateStatutory?: MonthToDateStatutoryContext;
   restDayRevisions?: EffectiveRestDayRevisionInput[];
   periodStart: string;
   periodEnd: string;
@@ -743,6 +803,7 @@ function calculateEmployeePay(input: {
   let tardinessDeduction = 0;
   let undertimeDeduction = 0;
   let holidayPremium = 0;
+  let unworkedHolidayPay = 0;
   const flags: string[] = [];
   const punchNotes: string[] = [];
   const holidayNotes: string[] = [];
@@ -800,11 +861,39 @@ function calculateEmployeePay(input: {
     }
   }
 
+  // Daily/hourly employees are still entitled to regular-holiday pay when
+  // they do not work, subject to the ordinary eligibility rule. PayrollPH
+  // treats an active employee as eligible and leaves special non-working days
+  // unpaid when there is no work. Monthly employees already carry holiday pay
+  // inside fixed salary and must never receive this line twice.
+  if (payProfile.payBasis !== "monthly") {
+    const punchedDates = new Set(input.punches.map((punch) => String(punch.workDate)));
+    const holidayDates = [...new Set(
+      (input.holidayCalendar ?? NATIONAL_HOLIDAYS_2026)
+        .map((holiday) => holiday.date)
+        .filter((date) =>
+          date >= input.periodStart
+          && date <= input.periodEnd
+          && date >= String(input.employee.startDate)
+          && !punchedDates.has(date)
+        ),
+    )];
+    for (const date of holidayDates) {
+      const context = holidayPayContextOn(date, input.holidayCalendar ?? NATIONAL_HOLIDAYS_2026);
+      const multiplier = holidayMultiplier({ holiday: context.holiday, worked: false });
+      if (multiplier <= 0) continue;
+      const profile = profileForDate(timeline, date);
+      const amount = roundToCents(profile.dailyRate * multiplier);
+      unworkedHolidayPay += amount;
+      holidayNotes.push(`${date} ${context.label ?? "regular holiday"} unworked entitlement ×${multiplier} → +${money(amount)}`);
+    }
+  }
+
   // Monthly portions are prorated across effective-dated rate segments by
   // calendar days inside the cutoff. Daily/hourly portions come from the
   // punch date's effective rate, so a mid-cutoff change never rewrites earlier
   // worked time.
-  const baseBasicPay = semiMonthlyBasic + workedBasicPay;
+  const baseBasicPay = semiMonthlyBasic + workedBasicPay + unworkedHolidayPay;
 
   const approvedLeave = input.approvedLeave ?? [];
   if (timeline.length > 1 && approvedLeave.length > 0) {
@@ -976,13 +1065,36 @@ function calculateEmployeePay(input: {
   // narrower monthly-basic-salary basis. The monthly equivalent remains the
   // floor for a salaried employee; variable remuneration can move the
   // contribution base upward, while expense reimbursements never do.
-  const monthlyRemuneration = Math.max(monthly, Math.max(0, gross - expenseTotal) * 2);
+  const priorMonth = input.monthToDateStatutory ?? {
+    contributableCompensation: 0,
+    sssEmployee: 0,
+    philHealthEmployee: 0,
+    pagIbigEmployee: 0,
+  };
+  const currentContributableCompensation = Math.max(0, gross - expenseTotal);
+  const monthlyRemuneration = Math.max(
+    monthly,
+    priorMonth.contributableCompensation + currentContributableCompensation,
+  );
   const sssRule = computeSss(monthlyRemuneration);
   const philHealthRule = computePhilHealth(monthly);
   const pagIbigRule = computePagIbig(monthlyRemuneration);
-  const sss = roundToCents(sssRule.employee / 2);
-  const philhealth = roundToCents(philHealthRule.employee / 2);
-  const pagibig = roundToCents(pagIbigRule.employee / 2);
+  const isSecondCutoff = Number(input.periodStart.slice(8, 10)) >= 16;
+  const sss = roundToCents(
+    isSecondCutoff
+      ? Math.max(0, sssRule.employee - priorMonth.sssEmployee)
+      : sssRule.employee / 2,
+  );
+  const philhealth = roundToCents(
+    isSecondCutoff
+      ? Math.max(0, philHealthRule.employee - priorMonth.philHealthEmployee)
+      : philHealthRule.employee / 2,
+  );
+  const pagibig = roundToCents(
+    isSecondCutoff
+      ? Math.max(0, pagIbigRule.employee - priorMonth.pagIbigEmployee)
+      : pagIbigRule.employee / 2,
+  );
 
   // MWE statutory minimum wage plus its OT/holiday/NSD/hazard premiums remain
   // exempt, but additional taxable compensation must still reach the BIR table.
@@ -1053,7 +1165,8 @@ function calculateEmployeePay(input: {
   const status = flags.length > 0 ? "Exception" : "Ready";
 
   const lineItems = [
-    { code: "BASIC", label: "Basic / worked pay", amount: money(baseBasicPay) },
+    { code: "BASIC", label: "Basic / worked pay", amount: money(baseBasicPay - unworkedHolidayPay) },
+    { code: "HOLIDAY_UNWORKED", label: "Unworked regular-holiday pay", amount: money(unworkedHolidayPay), notes: holidayNotes.filter((note) => note.includes("unworked entitlement")) },
     ...leaveLines,
     { code: "OT", label: "Overtime", amount: money(overtimePay) },
     { code: "ND", label: "Night differential (10%)", amount: money(nightDiffPay) },
@@ -1115,6 +1228,11 @@ function calculateEmployeePay(input: {
       `philHealthMonthlyPremium=${money(philHealthRule.total)}`,
       `pagIbigFundSalary=${money(pagIbigRule.fundSalary)}`,
       `statutoryMonthlyRemuneration=${money(monthlyRemuneration)}`,
+      `priorMonthContributableCompensation=${money(priorMonth.contributableCompensation)}`,
+      `priorMonthSssEmployee=${money(priorMonth.sssEmployee)}`,
+      `priorMonthPhilHealthEmployee=${money(priorMonth.philHealthEmployee)}`,
+      `priorMonthPagIbigEmployee=${money(priorMonth.pagIbigEmployee)}`,
+      `statutoryCutoffMode=${isSecondCutoff ? "second-cutoff-true-up" : "first-cutoff-half"}`,
       `pagIbigEmployeeRate=${pagIbigRule.employeeRate}`,
       `withholdingTable=RR11-2018-revised-2023+`,
       `region=${input.employee.region ?? "NCR"}`,
