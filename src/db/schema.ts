@@ -211,6 +211,8 @@ export const timePunches = pgTable("time_punches", {
   workDate: date("work_date").notNull(),
   timeIn: timestamp("time_in", { withTimezone: true }),
   timeOut: timestamp("time_out", { withTimezone: true }),
+  breakStart: timestamp("break_start", { withTimezone: true }),
+  breakEnd: timestamp("break_end", { withTimezone: true }),
   shiftStart: varchar("shift_start", { length: 8 }).notNull().default("09:00"),
   shiftEnd: varchar("shift_end", { length: 8 }).notNull().default("18:00"),
   status: varchar("status", { length: 32 }).notNull().default("Complete"),
