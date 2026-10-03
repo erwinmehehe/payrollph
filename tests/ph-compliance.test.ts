@@ -8,6 +8,7 @@ import {
 } from "../src/lib/payroll-rules";
 import {
   aggregateDeMinimisForSemiMonthly,
+  deMinimisStatutoryPeriodStart,
   computeThirteenthMonthPay,
   DE_MINIMIS_2026,
   deMinimisTreatment,
@@ -96,17 +97,31 @@ test("pay intervals cannot exceed 16 calendar days", () => {
 });
 
 
-test("duplicate de minimis grants share one statutory category ceiling", () => {
-  const [rice] = aggregateDeMinimisForSemiMonthly([
-    { id: 1, benefitType: "riceSubsidy", amount: 2_000, frequency: "month" },
-    { id: 2, benefitType: "riceSubsidy", amount: 2_000, frequency: "month" },
-  ]);
+test("duplicate de minimis grants share one category ceiling using actual period-to-date payments", () => {
+  const grants = [
+    { id: 1, benefitType: "riceSubsidy" as const, amount: 2_000, frequency: "month" as const },
+    { id: 2, benefitType: "riceSubsidy" as const, amount: 2_000, frequency: "month" as const },
+  ];
 
-  assert.equal(rice.annualGranted, 48_000);
-  assert.equal(rice.annualCeiling, 30_000);
-  assert.equal(rice.annualExempt, 30_000);
-  assert.equal(rice.annualExcess, 18_000);
-  assert.equal(rice.semiMonthlyGranted, 2_000);
-  assert.equal(rice.semiMonthlyExempt, 1_250);
-  assert.equal(rice.semiMonthlyOtherBenefitsPool, 750);
+  const [firstCutoff] = aggregateDeMinimisForSemiMonthly(grants);
+  assert.equal(firstCutoff.semiMonthlyGranted, 2_000);
+  assert.equal(firstCutoff.statutoryPeriodCeiling, 2_500);
+  assert.equal(firstCutoff.priorPaidInStatutoryPeriod, 0);
+  assert.equal(firstCutoff.semiMonthlyExempt, 2_000);
+  assert.equal(firstCutoff.semiMonthlyOtherBenefitsPool, 0);
+
+  const [secondCutoff] = aggregateDeMinimisForSemiMonthly(grants, {
+    riceSubsidy: 2_000,
+  });
+  assert.equal(secondCutoff.semiMonthlyGranted, 2_000);
+  assert.equal(secondCutoff.remainingCeilingBeforeCutoff, 500);
+  assert.equal(secondCutoff.semiMonthlyExempt, 500);
+  assert.equal(secondCutoff.semiMonthlyOtherBenefitsPool, 1_500);
+});
+
+test("de minimis statutory periods reset monthly, semi-annually or annually by category", () => {
+  assert.equal(deMinimisStatutoryPeriodStart("riceSubsidy", "2026-08-15"), "2026-08-01");
+  assert.equal(deMinimisStatutoryPeriodStart("medicalCashDependents", "2026-04-15"), "2026-01-01");
+  assert.equal(deMinimisStatutoryPeriodStart("medicalCashDependents", "2026-08-15"), "2026-07-01");
+  assert.equal(deMinimisStatutoryPeriodStart("uniformClothing", "2026-08-15"), "2026-01-01");
 });
