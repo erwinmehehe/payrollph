@@ -116,6 +116,7 @@ export const employees = pgTable("employees", {
   title: varchar("title", { length: 120 }).notNull(),
   employmentType: varchar("employment_type", { length: 32 }).notNull().default("Regular"),
   status: varchar("status", { length: 32 }).notNull().default("Active"),
+  privacyRestricted: boolean("privacy_restricted").notNull().default(false),
   avatarInitials: varchar("avatar_initials", { length: 4 }).notNull(),
   basicRate: numeric("basic_rate", { precision: 12, scale: 2 }).notNull(),
   mwe: boolean("mwe").notNull().default(false),
@@ -748,6 +749,23 @@ export const dataRequests = pgTable("data_requests", {
   fulfillmentEvidence: jsonb("fulfillment_evidence").notNull().default({}),
   legalRetentionApplied: boolean("legal_retention_applied").notNull().default(false),
 });
+
+export const retentionRules = pgTable("retention_rules", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  recordClass: varchar("record_class", { length: 48 }).notNull(),
+  retentionYears: integer("retention_years").notNull(),
+  disposalAction: varchar("disposal_action", { length: 24 }).notNull().default("review_then_delete"),
+  legalBasis: text("legal_basis").notNull(),
+  legalHold: boolean("legal_hold").notNull().default(false),
+  approvedBy: varchar("approved_by", { length: 120 }).notNull(),
+  approvedAt: timestamp("approved_at", { withTimezone: true }).notNull().defaultNow(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("retention_rules_org_class_unique").on(table.organizationId, table.recordClass),
+]);
 
 export const importBatches = pgTable("import_batches", {
   id: serial("id").primaryKey(),
