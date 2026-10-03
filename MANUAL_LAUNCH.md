@@ -19,7 +19,11 @@ security and data-protection gates green:
    followed by `apply` only after the key fingerprint matches live production.
    Re-run the dry scan and confirm there are zero plaintext employee bank
    accounts and zero plaintext payroll payment snapshots.
-5. Keep document uploads disabled unless the malware scanner is configured and
+5. Configure `PII_ENCRYPTION_KEY` (or the approved domain-separated fallback),
+   run `npx tsx scripts/encrypt-government-ids.ts` as a dry run, then rerun it
+   with `--apply`. Confirm the `government-id-encryption` readiness gate shows
+   zero plaintext employee government identifiers and contractor TINs.
+6. Keep document uploads disabled unless the malware scanner is configured and
    verified.
 
 The production rollout workflow treats these as critical. Do not bypass them
@@ -109,7 +113,7 @@ required, using the same PayMongo account already wired for billing:
 
 I initially framed this as needing formal BIR "Tax Software Provider" accreditation. That's wrong for standard SME filing. BIR publishes the Alphalist `.DAT` layout and gives away the **ADES** (Alphalist Data Entry and Validation) desktop tool for free; no vendor certification required. SSS does the same with a free **R3 File Generator**. Accreditation is a separate, heavier program mainly relevant to large taxpayers doing real-time e-filing integration, not something a manual-ops pilot needs.
 
-What our DRAFT exports are *not yet*: an exact byte-for-byte match to BIR's ADES-importable `.DAT` layout. That layout wants separate last/first/**middle** name columns and precise TIN/branch-code fields. This codebase doesn't have a middle-name field on the employee record yet, and guessing the exact byte positions from memory for a tax filing is exactly the kind of thing not to fabricate. So the DRAFT stays a correct-figures CSV, not a claimed-compliant `.DAT` file.
+What our DRAFT exports are *not yet*: an exact byte-for-byte match to BIR's ADES-importable `.DAT` layout. That layout wants separate last/first/**middle** name columns and precise TIN/branch-code fields. The employee model now carries separate first/middle/last name and TIN/branch fields, but guessing the remaining byte-level ADES contract from memory is still exactly the kind of thing not to fabricate. So the DRAFT stays a correct-figures CSV, not a claimed-compliant `.DAT` file.
 
 What I did fix without needing the full spec: the TIN is now split into the documented 9-digit TIN + branch-code convention (was previously dumped as one hyphenated string).
 
