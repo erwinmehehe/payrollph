@@ -64,8 +64,16 @@ async function invalidateAffectedPayroll(
         exceptions: 0,
         processedChunks: 0,
         totalChunks: 0,
-      }).where(eq(payrollRuns.id, run.id)).returning({ id: payrollRuns.id });
-      if (updated) invalidated.push(updated.id);
+      }).where(and(
+        eq(payrollRuns.id, run.id),
+        eq(payrollRuns.status, run.status),
+      )).returning({ id: payrollRuns.id });
+      if (!updated) {
+        throw new Error(
+          `Payroll run #${run.id} changed state while the holiday calendar was being updated. No holiday change was applied; retry after payroll activity finishes.`,
+        );
+      }
+      invalidated.push(updated.id);
 
       for (const task of tasks) {
         if (!task.detail.includes(`Payroll run #${run.id}`)) continue;
@@ -205,6 +213,16 @@ export async function POST(request: Request) {
     }, { status: conflict ? 409 : 422 });
   }
 
+  let invalidatedPayrollRunIds: number[];
+  try {
+    invalidatedPayrollRunIds = await invalidateAffectedPayroll(organizationId, affectedRuns!);
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "Payroll state changed during holiday update.",
+      code: "HOLIDAY_PAYROLL_BUSY",
+    }, { status: 409 });
+  }
+
   const [row] = await db.insert(holidays).values({
     organizationId,
     orgUnitId,
@@ -212,8 +230,6 @@ export async function POST(request: Request) {
     name,
     kind,
   }).returning();
-
-  const invalidatedPayrollRunIds = await invalidateAffectedPayroll(organizationId, affectedRuns!);
   const releasedPayrollRunIdsRequiringRetroReview = affectedRuns!
     .filter((run) => run.status === "Released")
     .map((run) => run.id);
@@ -305,6 +321,16 @@ export async function PATCH(request: Request) {
     }, { status: 409 });
   }
 
+  let invalidatedPayrollRunIds: number[];
+  try {
+    invalidatedPayrollRunIds = await invalidateAffectedPayroll(existing.organizationId, affectedRuns!);
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "Payroll state changed during holiday update.",
+      code: "HOLIDAY_PAYROLL_BUSY",
+    }, { status: 409 });
+  }
+
   const [row] = await db.update(holidays).set({
     holidayDate,
     name,
@@ -314,8 +340,6 @@ export async function PATCH(request: Request) {
     eq(holidays.id, id),
     eq(holidays.organizationId, existing.organizationId),
   )).returning();
-
-  const invalidatedPayrollRunIds = await invalidateAffectedPayroll(existing.organizationId, affectedRuns!);
   const releasedPayrollRunIdsRequiringRetroReview = affectedRuns!
     .filter((run) => run.status === "Released")
     .map((run) => run.id);
@@ -392,12 +416,20 @@ export async function DELETE(request: Request) {
     }, { status: 409 });
   }
 
+  let invalidatedPayrollRunIds: number[];
+  try {
+    invalidatedPayrollRunIds = await invalidateAffectedPayroll(existing.organizationId, affectedRuns!);
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "Payroll state changed during holiday update.",
+      code: "HOLIDAY_PAYROLL_BUSY",
+    }, { status: 409 });
+  }
+
   await db.delete(holidays).where(and(
     eq(holidays.id, id),
     eq(holidays.organizationId, existing.organizationId),
   ));
-
-  const invalidatedPayrollRunIds = await invalidateAffectedPayroll(existing.organizationId, affectedRuns!);
   const releasedPayrollRunIdsRequiringRetroReview = affectedRuns!
     .filter((run) => run.status === "Released")
     .map((run) => run.id);
