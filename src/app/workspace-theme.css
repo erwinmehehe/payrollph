@@ -11114,7 +11114,12 @@
   }
 
   .app-shell.employee-workspace-shell .employee-side-nav {
-    display: grid;
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0;
     margin-top: 9px;
     padding: 0;
   }
