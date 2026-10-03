@@ -1414,6 +1414,8 @@ function calculateEmployeePay(input: {
       `retroPay=${money(retroTotal)}`,
       `retroAdjustments=${retroLines.length}`,
       `punches=${eligiblePunches.length}`,
+      `holidayEligibilityAttendanceDates=${(input.holidayEligibilityAttendanceDates ?? []).join("|")}`,
+      `holidayEligibilityPaidLeaveDates=${(input.holidayEligibilityPaidLeaveDates ?? []).join("|")}`,
       `employmentStart=${employmentStart}`,
       `regularMinutes=${regularMinutes}`,
       `overtimeMinutes=${overtimeMinutes}`,
