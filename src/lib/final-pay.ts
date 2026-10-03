@@ -10,6 +10,8 @@ export function readBasicAndThirteenth(lineItems: unknown) {
   let thirteenthPaid = 0;
   let contributions = 0;
   let taxWithheld = 0;
+  let deMinimisPaid = 0;
+  let deMinimisExcess = 0;
 
   for (const line of lines) {
     const amount = Number(line.amount ?? 0);
@@ -31,6 +33,14 @@ export function readBasicAndThirteenth(lineItems: unknown) {
     }
     if (["SSS", "PHIC", "HDMF", "PAGIBIG", "PAG-IBIG"].includes(code)) contributions += Math.abs(amount);
     if (code === "WHT" || code === "TAX" || label.includes("withholding tax")) taxWithheld += Math.abs(amount);
+    if (code.startsWith("DM-")) {
+      deMinimisPaid += Math.max(0, amount);
+      const note = (line.notes ?? []).find((item) =>
+        /(?:other-benefits pool|taxable) excess this period/i.test(String(item))
+      );
+      const match = note ? String(note).match(/₱?([\d,.]+)\s*$/) : null;
+      if (match) deMinimisExcess += Number(match[1].replace(/,/g, "")) || 0;
+    }
   }
 
   return {
@@ -38,6 +48,8 @@ export function readBasicAndThirteenth(lineItems: unknown) {
     thirteenthPaid: round2(thirteenthPaid),
     contributions: round2(contributions),
     taxWithheld: round2(taxWithheld),
+    deMinimisPaid: round2(deMinimisPaid),
+    deMinimisExcess: round2(deMinimisExcess),
   };
 }
 
@@ -54,6 +66,8 @@ export function computeFinalPay(input: {
   unpaidBasicSalary: number;
   thirteenthPaidYtd: number;
   grossCompensationYtd: number;
+  deMinimisYtd?: number;
+  deMinimisExcessYtd?: number;
   statutoryContributionsYtd: number;
   taxWithheldYtd: number;
   mwe: boolean;
@@ -91,6 +105,8 @@ export function computeFinalPay(input: {
     grossCompensation: grossForAnnualization,
     thirteenthMonth: thirteenthPaidYtd + thirteenthDue,
     otherBenefits: Math.max(0, input.otherBenefits),
+    deMinimis: Math.max(0, input.deMinimisYtd ?? 0),
+    deMinimisExcess: Math.max(0, input.deMinimisExcessYtd ?? 0),
     statutoryContributions: Math.max(0, input.statutoryContributionsYtd) + finalStatutoryDeductions,
     taxWithheld: Math.max(0, input.taxWithheldYtd),
     mwe: input.mwe,
