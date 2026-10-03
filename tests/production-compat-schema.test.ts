@@ -19,6 +19,8 @@ test("production compatibility schema includes all compliance-hardening migratio
     "payroll_calendar_mode",
     "org_unit_id",
     "CREATE TABLE IF NOT EXISTS supplementary_earnings",
+    "include_in_sss_base",
+    "include_in_pagibig_base",
     "ALTER COLUMN tin TYPE varchar(180)",
     "ALTER COLUMN tin_branch_code TYPE varchar(180)",
     "ALTER COLUMN sss_no TYPE varchar(180)",
