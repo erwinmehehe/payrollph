@@ -4,6 +4,7 @@ const PUBLIC_DEMO_IDENTITY_EMAILS = new Set([
   "hr.demo@linaw.ph",
   "payroll.demo@linaw.ph",
   "checker.demo@linaw.ph",
+  "bookkeeper.demo@linaw.ph",
   "jonas.reyes@linaw.ph",
 ]);
 
