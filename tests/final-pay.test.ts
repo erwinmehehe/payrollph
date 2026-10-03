@@ -72,3 +72,27 @@ test("final pay due date is 30 calendar days after separation", () => {
   assert.equal(finalPayDueDate("2026-09-30"), "2026-10-30");
   assert.equal(finalPayDueDate("2026-12-15"), "2027-01-14");
 });
+
+
+test("final pay never marks more loan principal collected than collectible cash", () => {
+  const result = computeFinalPay({
+    releasedBasicYtd: 0,
+    historicalBasicYtd: 0,
+    unpaidBasicSalary: 5_000,
+    thirteenthPaidYtd: 0,
+    grossCompensationYtd: 0,
+    statutoryContributionsYtd: 0,
+    taxWithheldYtd: 0,
+    mwe: false,
+    leaveMonetizationPay: 0,
+    separationPay: 0,
+    retirementPay: 0,
+    otherBenefits: 0,
+    loanDeductions: 8_000,
+  });
+
+  assert.equal(result.requestedLoanDeductions, 8_000);
+  assert.equal(result.loanDeductions, 5_416.67);
+  assert.equal(result.deferredLoanBalance, 2_583.33);
+  assert.equal(result.netFinalPay, 0);
+});
