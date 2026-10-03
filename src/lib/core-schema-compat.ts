@@ -197,7 +197,7 @@ export async function ensureCoreCompatibilitySchema() {
           ADD COLUMN IF NOT EXISTS statutory_deduction_timing varchar(24) NOT NULL DEFAULT 'split'
       `);
       await client.query(`
-        DO $
+        DO $compat$
         BEGIN
           IF NOT EXISTS (
             SELECT 1 FROM pg_constraint
@@ -207,7 +207,8 @@ export async function ensureCoreCompatibilitySchema() {
               ADD CONSTRAINT organizations_statutory_deduction_timing_check
               CHECK (statutory_deduction_timing IN ('split', 'first_cutoff', 'second_cutoff'));
           END IF;
-        END $;
+        END
+        $compat$;
       `);
 
       await client.query(`
