@@ -3698,3 +3698,317 @@
 .app-shell:has(.payrollph-dashboard) .payroll-readiness-focus .readiness-progress > span {
   background: #176b5d;
 }
+
+
+/* ------------------------------------------- Payroll Officer run workflow */
+
+.app-shell .payroll-officer-workflow {
+  margin: 16px 0 18px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  background: var(--paper);
+}
+
+.app-shell .payroll-officer-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.app-shell .payroll-officer-heading h2 {
+  margin: 4px 0 5px;
+  font-size: 22px;
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+}
+
+.app-shell .payroll-officer-heading p {
+  max-width: 760px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.app-shell .payroll-officer-heading-status {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.app-shell .payroll-officer-heading-status > span:last-child {
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+.app-shell .payroll-officer-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  overflow: hidden;
+}
+
+.app-shell .payroll-officer-step {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 13px;
+  min-width: 0;
+  min-height: 190px;
+  padding: 15px;
+  border-left: 1px solid var(--line-faint);
+  background: #fff;
+}
+
+.app-shell .payroll-officer-step:first-child {
+  border-left: 0;
+}
+
+.app-shell .payroll-officer-step[data-state="now"] {
+  background: #fafaff;
+  box-shadow: inset 0 2px 0 var(--brand);
+}
+
+.app-shell .payroll-officer-step[data-state="attention"] {
+  background: #fffdf8;
+  box-shadow: inset 0 2px 0 var(--review-bright);
+}
+
+.app-shell .payroll-officer-step[data-state="locked"] {
+  background: #fafafa;
+}
+
+.app-shell .payroll-officer-step-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.app-shell .payroll-officer-step-number {
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--neutral-bg);
+  color: var(--neutral);
+  font-size: 10.5px;
+  font-weight: 720;
+}
+
+.app-shell .payroll-officer-step[data-state="done"] .payroll-officer-step-number {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.app-shell .payroll-officer-step[data-state="now"] .payroll-officer-step-number {
+  background: var(--brand-bg);
+  color: var(--brand);
+}
+
+.app-shell .payroll-officer-step[data-state="attention"] .payroll-officer-step-number {
+  background: var(--review-bg);
+  color: var(--review);
+}
+
+.app-shell .payroll-officer-step-state {
+  color: var(--muted);
+  font-size: 9.5px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.app-shell .payroll-officer-step[data-state="attention"] .payroll-officer-step-state {
+  color: var(--review);
+}
+
+.app-shell .payroll-officer-step h3 {
+  margin: 0 0 5px;
+  font-size: 14px;
+  letter-spacing: -0.02em;
+}
+
+.app-shell .payroll-officer-step p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.app-shell .payroll-officer-step-action {
+  min-height: 31px;
+  display: flex;
+  align-items: center;
+}
+
+.app-shell .payroll-officer-step-action .secondary-button,
+.app-shell .payroll-officer-step-action .primary-button {
+  width: 100%;
+  justify-content: center;
+  min-height: 31px;
+  font-size: 10.5px;
+}
+
+.app-shell .payroll-officer-step-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--success);
+  font-size: 10.5px;
+  font-weight: 650;
+}
+
+.app-shell .payroll-officer-attention {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  overflow: hidden;
+}
+
+.app-shell .payroll-officer-attention-heading {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 13px;
+  background: #fafbf9;
+  border-bottom: 1px solid var(--line-faint);
+}
+
+.app-shell .payroll-officer-attention-heading strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+}
+
+.app-shell .payroll-officer-attention-heading > span {
+  color: var(--review);
+  font-size: 10.5px;
+  font-weight: 680;
+}
+
+.app-shell .payroll-officer-attention-list {
+  display: grid;
+}
+
+.app-shell .payroll-officer-attention-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 9px;
+  align-items: center;
+  min-height: 66px;
+  padding: 10px 13px;
+  border-top: 1px solid var(--line-faint);
+}
+
+.app-shell .payroll-officer-attention-row:first-child {
+  border-top: 0;
+}
+
+.app-shell .payroll-officer-attention-icon {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--review-bg);
+  color: var(--review);
+}
+
+.app-shell .payroll-officer-attention-icon.danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.app-shell .payroll-officer-attention-row strong {
+  display: block;
+  font-size: 11.5px;
+}
+
+.app-shell .payroll-officer-attention-row p,
+.app-shell .payroll-officer-attention-row small {
+  display: block;
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.app-shell .payroll-officer-attention-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.app-shell .payroll-officer-attention-row .secondary-button {
+  min-height: 29px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.app-shell .payroll-officer-attention > .link-button {
+  margin: 0 13px 12px 50px;
+}
+
+@media (max-width: 1050px) {
+  .app-shell .payroll-officer-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app-shell .payroll-officer-step:nth-child(3) {
+    border-left: 0;
+    border-top: 1px solid var(--line-faint);
+  }
+
+  .app-shell .payroll-officer-step:nth-child(4) {
+    border-top: 1px solid var(--line-faint);
+  }
+}
+
+@media (max-width: 720px) {
+  .app-shell .payroll-officer-workflow {
+    padding: 16px 13px;
+  }
+
+  .app-shell .payroll-officer-heading {
+    flex-direction: column;
+  }
+
+  .app-shell .payroll-officer-heading-status {
+    justify-items: start;
+  }
+
+  .app-shell .payroll-officer-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell .payroll-officer-step {
+    min-height: 0;
+    border-left: 0;
+    border-top: 1px solid var(--line-faint);
+  }
+
+  .app-shell .payroll-officer-step:first-child {
+    border-top: 0;
+  }
+
+  .app-shell .payroll-officer-attention-row {
+    grid-template-columns: 28px minmax(0, 1fr);
+  }
+
+  .app-shell .payroll-officer-attention-row > button,
+  .app-shell .payroll-officer-attention-actions {
+    grid-column: 2;
+  }
+
+  .app-shell .payroll-officer-attention-actions {
+    flex-wrap: wrap;
+  }
+}

@@ -32,5 +32,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     items: checklist.items,
     approvalStatus: checklist.approval?.status ?? "Not submitted",
     assuranceSummary: checklist.assurance?.summary ?? null,
+    assuranceFindings: (checklist.assurance?.findings ?? []).slice(0, 100).map((finding) => ({
+      code: finding.code,
+      severity: finding.severity,
+      blocking: Boolean(finding.blocking),
+      title: finding.title,
+      detail: finding.detail,
+      employeeId: finding.employeeId ?? null,
+    })),
   });
 }

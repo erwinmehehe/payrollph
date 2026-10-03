@@ -45,9 +45,11 @@ type AssurancePayload = {
 export function PayrollAssurancePanel({
   runId,
   employees,
+  onExplainEmployee,
 }: {
   runId: number;
   employees: Employee[];
+  onExplainEmployee?: (employeeId: number) => void;
 }) {
   const [payload, setPayload] = useState<AssurancePayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -242,6 +244,11 @@ export function PayrollAssurancePanel({
                   </strong>
                   <p>{finding.detail}</p>
                 </div>
+                {finding.employeeId && onExplainEmployee && (
+                  <button className="secondary-button" onClick={() => onExplainEmployee(finding.employeeId!)}>
+                    <FileSearch size={13} /> Explain pay
+                  </button>
+                )}
               </div>
             );
           })}
