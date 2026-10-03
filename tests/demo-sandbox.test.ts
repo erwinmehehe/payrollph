@@ -5,6 +5,7 @@ import { OFFICIAL_PUBLIC_DEMO_HOST, publicDemoHostAllowed, publicDemoRequestAllo
 import { DEMO_ROLE_PAGES } from "../src/lib/demo-roles";
 import {
   REAL_ROLE_PAGE_ACCESS,
+  ROLE_PRIMARY_PAGES,
   roleCanDecideApprovals,
   roleCanManageDelegations,
   roleCanManagePayroll,
@@ -531,14 +532,20 @@ test("workspace dashboard matches the PayrollPH mockup using modular real-data c
   const styles = read("src/app/workspace-theme.css");
 
   assert.ok(shell.includes("PayrollPH"), "workspace brand must match the PayrollPH mockup");
-  assert.ok(shell.includes("OVERVIEW_NAV_ORDER"), "dashboard landing must use the compact seven-item navigation");
-  assert.ok(shell.includes("navigationGroups"), "dashboard landing must swap to the compact navigation set");
+  assert.ok(shell.includes("primaryPages"), "workspace shell must receive a role-specific primary navigation set");
+  assert.ok(shell.includes("secondaryItems"), "secondary features must remain reachable outside the primary navigation");
+  assert.ok(shell.includes("nav-more-toggle"), "secondary features must be grouped under More instead of deleted");
+  assert.deepEqual(ROLE_PRIMARY_PAGES.owner, ["Overview", "Payroll", "Approvals", "Analytics", "People", "Settings"]);
+  assert.deepEqual(ROLE_PRIMARY_PAGES.hr, ["Overview", "People", "Time & attendance", "Leave", "Approvals", "Analytics"]);
+  assert.deepEqual(ROLE_PRIMARY_PAGES.payroll, ["Overview", "Payroll", "People", "Time & attendance", "Approvals", "Analytics"]);
+  assert.deepEqual(ROLE_PRIMARY_PAGES.checker, ["Overview", "Approvals", "Audit trail"]);
+  assert.deepEqual(ROLE_PRIMARY_PAGES.bookkeeper, ["Overview", "Payroll", "Exports", "Compliance", "Analytics", "Settings"]);
   assert.ok(shell.includes("Search employees, payroll, reports"), "top search should use the mockup wording");
   assert.ok(dashboard.includes("DashboardAlertBanner"), "role dashboards must use the shared alert banner");
   assert.ok(dashboard.includes("DashboardStatCard"), "role dashboards must use the shared metric card");
   assert.ok(dashboard.includes("RecentPayrollRuns"), "owner dashboard must use the shared payroll table");
-  for (const role of ["owner", "hr", "payroll", "checker"]) {
-    assert.ok(dashboard.includes(`data-dashboard-variant="${role}"`), `missing mockup composition for ${role}`);
+  for (const role of ["owner", "hr", "payroll", "checker", "bookkeeper"]) {
+    assert.ok(dashboard.includes(`data-dashboard-variant="${role}"`), `missing role-first dashboard composition for ${role}`);
   }
   assert.ok(alert.includes("items.map"), "alert banner must render state-derived items");
   assert.ok(stats.includes("tone"), "stat cards must expose semantic status tones");

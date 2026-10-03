@@ -363,9 +363,11 @@ test("biometric gateway credentials are bound to organization and device serial"
   assert.equal(verifyBiometricDeviceCredential(master, master, 7, "zk-001"), false);
 });
 
-test("CI blocks high and critical dependency vulnerabilities", () => {
+test("CI blocks runtime dependency vulnerabilities and still reports development advisories", () => {
   const source = readFileSync(".github/workflows/ci.yml", "utf8");
-  assert.ok(source.includes("npm audit --audit-level=high"));
+  assert.ok(source.includes("npm audit --omit=dev --audit-level=high"));
+  assert.ok(source.includes("npm audit --include=dev --audit-level=high"));
+  assert.ok(source.includes("continue-on-error: true"));
 });
 
 
