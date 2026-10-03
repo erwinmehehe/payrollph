@@ -6,6 +6,7 @@ import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { drainPayrollQueue, enqueuePayrollRun, getPayrollJobStatus, PAYROLL_RULE_VERSION } from "@/lib/payroll-engine";
 import { assertOrganizationRole, assertOrganizationUnitAccess, getAccess, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
+import { isCanonicalPhSemiMonthlyPeriod } from "@/lib/payroll-calendar";
 
 export const dynamic = "force-dynamic";
 
@@ -89,27 +90,6 @@ function inclusivePeriodDays(periodStart: string, periodEnd: string) {
   const start = Date.parse(`${periodStart}T00:00:00Z`);
   const end = Date.parse(`${periodEnd}T00:00:00Z`);
   return Math.floor((end - start) / DAY_MS) + 1;
-}
-
-function isCanonicalPhSemiMonthlyPeriod(periodStart: string, periodEnd: string) {
-  const start = new Date(`${periodStart}T00:00:00Z`);
-  const end = new Date(`${periodEnd}T00:00:00Z`);
-  if (
-    start.getUTCFullYear() !== end.getUTCFullYear()
-    || start.getUTCMonth() !== end.getUTCMonth()
-  ) return false;
-
-  const startDay = start.getUTCDate();
-  const endDay = end.getUTCDate();
-  if (startDay === 1 && endDay === 15) return true;
-  if (startDay !== 16) return false;
-
-  const lastDay = new Date(Date.UTC(
-    start.getUTCFullYear(),
-    start.getUTCMonth() + 1,
-    0,
-  )).getUTCDate();
-  return endDay === lastDay;
 }
 
 function periodLabelFromDates(periodStart: string, periodEnd: string) {
