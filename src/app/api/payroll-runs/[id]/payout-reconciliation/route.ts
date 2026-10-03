@@ -26,6 +26,7 @@ import {
   requireSensitiveActionMfa,
 } from "@/lib/security-request";
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
+import { withPayrollPayoutSubmissionLock } from "@/lib/payout-submission-lock";
 
 export const dynamic = "force-dynamic";
 
@@ -321,11 +322,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   try {
-    const retry = await createPaymongoPayrollRetry({
-      runId: run.id,
-      referenceNumbers: reconciliation.retryableReferences,
-      sourceBatchIds: reconciliation.batchIds,
-    });
+    const retry = await withPayrollPayoutSubmissionLock(
+      () => createPaymongoPayrollRetry({
+        runId: run.id,
+        referenceNumbers: reconciliation.retryableReferences,
+        sourceBatchIds: reconciliation.batchIds,
+      }),
+    );
 
     await recordAuditEvent({
       organizationId: run.organizationId,
