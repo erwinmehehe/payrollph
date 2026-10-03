@@ -46,10 +46,10 @@ jobs:
           done
           exit 1
 
-      - name: Verify all five RBAC personas on production
+      - name: Verify all six RBAC personas on production
         run: |
           set -euo pipefail
-          roles=(owner hr payroll checker employee)
+          roles=(owner hr payroll checker bookkeeper employee)
 
           for role in "${roles[@]}"; do
             success=false
@@ -60,7 +60,8 @@ jobs:
 
               if [ "$status" -ge 200 ] && [ "$status" -lt 300 ] &&
                  grep -q '"ok":true' /tmp/demo-switch-body.txt &&
-                 grep -q '"bankDataEncryptionReady":true' /tmp/demo-switch-body.txt &&
+                 grep -q '"demoDataMode":"synthetic-redacted"' /tmp/demo-switch-body.txt &&
+                 grep -q '"sensitiveFieldsPersisted":false' /tmp/demo-switch-body.txt &&
                  grep -q "\"redirectTo\":\"/app?demoRole=${role}\"" /tmp/demo-switch-body.txt; then
                 success=true
                 break
@@ -71,10 +72,6 @@ jobs:
               echo "--- response body ---"
               cat /tmp/demo-switch-body.txt || true
               echo
-              if grep -Eq '"code":"BANK_DATA_ENCRYPTION_(REQUIRED|NOT_READY)"' /tmp/demo-switch-body.txt; then
-                echo "Production bank-data encryption is a hard prerequisite for the RBAC sandbox."
-                exit 1
-              fi
               sleep 10
             done
 
