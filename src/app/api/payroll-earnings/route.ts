@@ -95,8 +95,16 @@ async function invalidatePayrollRunsForSupplementaryChange(
         exceptions: 0,
         processedChunks: 0,
         totalChunks: 0,
-      }).where(eq(payrollRuns.id, run.id)).returning({ id: payrollRuns.id });
-      if (updated) invalidated.push(updated.id);
+      }).where(and(
+        eq(payrollRuns.id, run.id),
+        eq(payrollRuns.status, run.status),
+      )).returning({ id: payrollRuns.id });
+      if (!updated) {
+        throw new Error(
+          `Payroll run #${run.id} changed state while supplementary earnings were being updated. No earning change was applied; retry after payroll activity finishes.`,
+        );
+      }
+      invalidated.push(updated.id);
 
       for (const task of tasks) {
         if (!task.detail.includes(`Payroll run #${run.id}`)) continue;
@@ -239,6 +247,19 @@ export async function POST(request: Request) {
     }, { status: 409 });
   }
 
+  let invalidatedPayrollRunIds: number[];
+  try {
+    invalidatedPayrollRunIds = await invalidatePayrollRunsForSupplementaryChange(
+      organizationId,
+      overlappingRuns!,
+    );
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "Payroll state changed during earning update.",
+      code: "SUPPLEMENTARY_EARNING_PAYROLL_CONFLICT",
+    }, { status: 409 });
+  }
+
   const [row] = await db.insert(supplementaryEarnings).values({
     organizationId,
     employeeId,
@@ -252,11 +273,6 @@ export async function POST(request: Request) {
     status: "approved",
     createdBy: session.name,
   }).returning();
-
-  const invalidatedPayrollRunIds = await invalidatePayrollRunsForSupplementaryChange(
-    organizationId,
-    overlappingRuns!,
-  );
 
   await recordAuditEvent({
     organizationId,
@@ -341,6 +357,19 @@ export async function PATCH(request: Request) {
     }, { status: 409 });
   }
 
+  let invalidatedPayrollRunIds: number[];
+  try {
+    invalidatedPayrollRunIds = await invalidatePayrollRunsForSupplementaryChange(
+      existing.organizationId,
+      overlappingRuns!,
+    );
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "Payroll state changed during earning update.",
+      code: "SUPPLEMENTARY_EARNING_PAYROLL_CONFLICT",
+    }, { status: 409 });
+  }
+
   const [row] = await db.update(supplementaryEarnings)
     .set({ status: "void" })
     .where(and(
@@ -352,11 +381,6 @@ export async function PATCH(request: Request) {
   if (!row) {
     return Response.json({ error: "Supplementary earning changed before it could be voided." }, { status: 409 });
   }
-
-  const invalidatedPayrollRunIds = await invalidatePayrollRunsForSupplementaryChange(
-    existing.organizationId,
-    overlappingRuns!,
-  );
 
   await recordAuditEvent({
     organizationId: existing.organizationId,
