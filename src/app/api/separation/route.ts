@@ -1,15 +1,12 @@
-import { createHash } from "node:crypto";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  documents,
   employeeLoans,
   employeePayProfiles,
   employees,
   historicalPayrollEntries,
   loanPayments,
-  organizations,
   payrollEntries,
   payrollRuns,
   separationRecords,
@@ -27,8 +24,6 @@ import { recordAuditEvent } from "@/lib/audit";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { resolvePayProfile } from "@/lib/pay-basis";
 import { computeFinalPay, finalPayDueDate, readBasicAndThirteenth } from "@/lib/final-pay";
-import { renderForm2316, type AnnualizationResult } from "@/lib/annualization";
-import { decryptGovernmentId } from "@/lib/government-id-crypto";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { ensureSeparationSchema } from "@/lib/separation-schema";
 import { requireSensitiveActionMfa } from "@/lib/security-request";
@@ -76,6 +71,7 @@ async function loadFinalPaySources(input: {
     payDate: payrollRuns.payDate,
     grossPay: payrollEntries.grossPay,
     lineItems: payrollEntries.lineItems,
+    trace: payrollEntries.trace,
   })
     .from(payrollEntries)
     .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
@@ -123,9 +119,19 @@ async function loadFinalPaySources(input: {
   let ordinaryGrossYtd = 0;
   let statutoryContributionsYtd = 0;
   let taxWithheldYtd = 0;
-  let deMinimisYtd = 0;
-  let otherBenefitsYtd = 0;
-  let mweExemptCompensationYtd = 0;
+  let deMinimisPaidYtd = 0;
+  let deMinimisExcessYtd = 0;
+  let mweTaxableSupplementaryCompensationYtd = 0;
+
+  const traceNumber = (trace: unknown, prefix: string) => {
+    if (!trace || typeof trace !== "object") return 0;
+    const inputs = (trace as { inputs?: unknown }).inputs;
+    if (!Array.isArray(inputs)) return 0;
+    const raw = inputs.find((item) => typeof item === "string" && item.startsWith(prefix));
+    if (typeof raw !== "string") return 0;
+    const value = Number(raw.slice(prefix.length));
+    return Number.isFinite(value) ? value : 0;
+  };
 
   for (const row of released) {
     const parsed = readBasicAndThirteenth(row.lineItems);
@@ -133,13 +139,13 @@ async function loadFinalPaySources(input: {
     thirteenthPaidYtd += parsed.thirteenthPaid;
     statutoryContributionsYtd += parsed.contributions;
     taxWithheldYtd += parsed.taxWithheld;
-    deMinimisYtd += parsed.deMinimisExempt;
-    otherBenefitsYtd += parsed.otherBenefitsPool;
-    mweExemptCompensationYtd += parsed.mweExemptCompensation;
-    ordinaryGrossYtd += Math.max(
-      0,
-      Number(row.grossPay) - parsed.thirteenthPaid - parsed.reimbursements,
+    deMinimisPaidYtd += parsed.deMinimisPaid;
+    deMinimisExcessYtd += parsed.deMinimisExcess;
+    mweTaxableSupplementaryCompensationYtd += traceNumber(
+      row.trace,
+      "mweTaxableSupplementaryCompensation=",
     );
+    ordinaryGrossYtd += Math.max(0, Number(row.grossPay) - parsed.thirteenthPaid);
   }
 
   for (const row of historical) {
@@ -169,9 +175,9 @@ async function loadFinalPaySources(input: {
       ordinaryGrossYtd: Number(money(ordinaryGrossYtd)),
       statutoryContributionsYtd: Number(money(statutoryContributionsYtd)),
       taxWithheldYtd: Number(money(taxWithheldYtd)),
-      deMinimisYtd: Number(money(deMinimisYtd)),
-      otherBenefitsYtd: Number(money(otherBenefitsYtd)),
-      mweExemptCompensationYtd: Number(money(mweExemptCompensationYtd)),
+      deMinimisYtd: Number(money(Math.max(0, deMinimisPaidYtd - deMinimisExcessYtd))),
+      deMinimisExcessYtd: Number(money(deMinimisExcessYtd)),
+      mweTaxableSupplementaryCompensationYtd: Number(money(mweTaxableSupplementaryCompensationYtd)),
       activeLoanBalance: Number(money(loans.reduce((sum, loan) => sum + Number(loan.remainingBalance), 0))),
     },
   };
@@ -194,6 +200,7 @@ function fingerprint(sources: Awaited<ReturnType<typeof loadFinalPaySources>>) {
       grossPay: Number(row.grossPay),
       periodEnd: String(row.periodEnd),
       lineItems: row.lineItems,
+      trace: row.trace,
     })),
     historical: sources.historical.map((row) => ({
       id: row.id,
@@ -353,14 +360,12 @@ export async function POST(request: Request) {
       unpaidBasicSalary,
       thirteenthPaidYtd: sources.totals.thirteenthPaidYtd,
       grossCompensationYtd: sources.totals.ordinaryGrossYtd,
+      deMinimisYtd: sources.totals.deMinimisYtd,
+      deMinimisExcessYtd: sources.totals.deMinimisExcessYtd,
       statutoryContributionsYtd: sources.totals.statutoryContributionsYtd,
       taxWithheldYtd: sources.totals.taxWithheldYtd,
-      deMinimisYtd: sources.totals.deMinimisYtd,
-      otherBenefitsYtd: sources.totals.otherBenefitsYtd,
-      mweExemptCompensationYtd: sources.employee.mwe
-        ? sources.totals.mweExemptCompensationYtd + historicalBasicSalaryEarned
-        : 0,
       mwe: sources.employee.mwe,
+      mweTaxableSupplementaryCompensationYtd: sources.totals.mweTaxableSupplementaryCompensationYtd,
       leaveMonetizationPay,
       taxableLeaveMonetizationPay: leaveMonetizationTaxExempt ? 0 : leaveMonetizationPay,
       separationPay,
@@ -376,7 +381,7 @@ export async function POST(request: Request) {
     const sourceFingerprint = fingerprint(sources);
     const computationSnapshot = {
       rule: "13th month = total basic salary earned in calendar year / 12, less 13th month already paid",
-      taxRuleVersion: "PH-2026.02",
+      taxRuleVersion: "PH-2026.03",
       sourceFingerprint,
       releasedBasicYtd: sources.totals.releasedBasicYtd,
       historicalBasicSalaryEarned,
@@ -386,20 +391,18 @@ export async function POST(request: Request) {
       unpaidBasicSalary,
       thirteenthPaidYtd: result.thirteenthPaidYtd,
       thirteenthEntitlement: result.thirteenthEntitlement,
+      deMinimisYtd: sources.totals.deMinimisYtd,
+      deMinimisExcessYtd: sources.totals.deMinimisExcessYtd,
+      mweTaxableSupplementaryCompensationYtd: sources.totals.mweTaxableSupplementaryCompensationYtd,
       deductOutstandingLoans,
       requestedLoanDeductions: result.requestedLoanDeductions,
       collectibleLoanDeductions: result.loanDeductions,
       deferredLoanBalance: result.deferredLoanBalance,
+      annualization: result.annualization,
       specialPayTaxReviewed,
       separationPayTaxExempt,
       retirementPayTaxExempt,
       activeLoanBalanceAtComputation: sources.totals.activeLoanBalance,
-      annualization: result.annualization,
-      deMinimisYtd: sources.totals.deMinimisYtd,
-      otherBenefitsYtd: sources.totals.otherBenefitsYtd,
-      mweExemptCompensationYtd: sources.employee.mwe
-        ? sources.totals.mweExemptCompensationYtd + historicalBasicSalaryEarned
-        : 0,
       importedHistoryRows: sources.historical.length,
       releasedPayrollEntries: sources.released.length,
       payBasis: sources.resolvedPayProfile.payBasis,
@@ -734,47 +737,6 @@ export async function PATCH(request: Request) {
       return updated;
     });
 
-    let form2316DocumentId: number | null = null;
-    const approvedSnapshot = (released.computationSnapshot ?? {}) as Record<string, unknown>;
-    const annualization = approvedSnapshot.annualization as AnnualizationResult | undefined;
-    if (annualization) {
-      const [organization] = await db.select().from(organizations)
-        .where(eq(organizations.id, sep.organizationId))
-        .limit(1);
-      const digits = (value: string | null | undefined) => (value ?? "").replace(/\D/g, "");
-      const employerTin = digits(organization?.birTin);
-      const employerBranch = digits(organization?.birBranchCode).padStart(4, "0");
-      const employeeTin = digits(decryptGovernmentId(sources.employee.tin));
-      const employeeBranch = digits(decryptGovernmentId(sources.employee.tinBranchCode)).padStart(4, "0");
-      const taxYear = Number(String(sep.lastDay).slice(0, 4));
-      const form2316 = renderForm2316({
-        taxYear,
-        employerName: organization?.legalName ?? organization?.name ?? "Employer",
-        employerTin: employerTin.length === 9 ? `${employerTin}-${employerBranch}` : undefined,
-        employeeName: [sources.employee.firstName, sources.employee.middleName, sources.employee.lastName]
-          .filter(Boolean)
-          .join(" "),
-        employeeNo: sources.employee.employeeNo,
-        employeeTin: employeeTin.length === 9 ? `${employeeTin}-${employeeBranch}` : undefined,
-        result: annualization,
-      });
-      const sha256 = createHash("sha256").update(form2316).digest("hex");
-      const [document] = await db.insert(documents).values({
-        organizationId: sep.organizationId,
-        employeeId: sep.employeeId,
-        kind: "bir-2316-draft-final-pay",
-        fileName: `bir-2316-draft-${sources.employee.employeeNo}-${taxYear}.txt`,
-        mimeType: "text/plain",
-        byteSize: Buffer.byteLength(form2316),
-        sha256,
-        scannedClean: true,
-        scanNote: "System-generated from the approved final-pay annualization snapshot.",
-        uploadedBy: user.name,
-        content: form2316,
-      }).returning({ id: documents.id });
-      form2316DocumentId = document.id;
-    }
-
     await recordAuditEvent({
       organizationId: sep.organizationId,
       actor: user.name,
@@ -786,13 +748,14 @@ export async function PATCH(request: Request) {
         finalPayDueDate: sep.finalPayDueDate,
         netFinalPay: Number(sep.netFinalPay),
         loanDeductions: Number(sep.loanDeductions),
-        deferredLoanBalance: Number((sep.computationSnapshot as Record<string, unknown> | null)?.deferredLoanBalance ?? 0),
+        deferredLoanBalance: Number(
+          (sep.computationSnapshot as Record<string, unknown> | null)?.deferredLoanBalance ?? 0,
+        ),
         releaseReference: releaseReference.slice(0, 160),
-        form2316DocumentId,
       },
     });
 
-    return Response.json({ ...released, form2316DocumentId });
+    return Response.json(released);
   }
 
   return Response.json({ error: "Unknown action." }, { status: 400 });
