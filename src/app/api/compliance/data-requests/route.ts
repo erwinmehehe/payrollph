@@ -15,6 +15,7 @@ import { decryptGovernmentId } from "@/lib/government-id-crypto";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess } from "@/lib/access";
+import { RECORD_RETENTION_SCHEDULE } from "@/lib/data-retention";
 
 export const dynamic = "force-dynamic";
 
@@ -134,6 +135,7 @@ export async function GET(request: Request) {
   const now = Date.now();
   return Response.json({
     internalResponseTargetDays: INTERNAL_RESPONSE_TARGET_DAYS,
+    retentionSchedule: RECORD_RETENTION_SCHEDULE,
     open: rows.filter((row) => row.status === "received" || row.status === "in_progress").length,
     overdue: rows.filter((row) => row.status !== "completed" && new Date(row.dueAt).getTime() < now).length,
     requests: rows.map((row) => ({
@@ -250,6 +252,29 @@ export async function PATCH(request: Request) {
       return Response.json({
         error: "Correction, deletion, and objection requests require a fulfillment action and evidence before completion.",
       }, { status: 409 });
+    }
+
+    if (existing.requestType === "deletion") {
+      const allowedDeletionActions = new Set([
+        "deleted",
+        "anonymized",
+        "restricted",
+        "retained-under-legal-obligation",
+      ]);
+      const retentionAssessment = String(
+        (fulfillmentEvidence as Record<string, unknown>).retentionAssessment ?? "",
+      ).trim();
+      if (!allowedDeletionActions.has(fulfillmentAction) || !retentionAssessment) {
+        return Response.json({
+          error: "Deletion completion requires a supported disposition action and a documented retention assessment.",
+          allowedActions: [...allowedDeletionActions],
+        }, { status: 409 });
+      }
+      if (fulfillmentAction === "retained-under-legal-obligation" && !legalRetentionApplied) {
+        return Response.json({
+          error: "Mark legalRetentionApplied when deletion is denied or restricted because records must be retained.",
+        }, { status: 409 });
+      }
     }
   }
 
