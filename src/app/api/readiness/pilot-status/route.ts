@@ -9,6 +9,7 @@ const PILOT_CRITICAL_KEYS = new Set([
   "seeded-credentials",
   "email-delivery",
   "bank-data-encryption",
+  "government-id-encryption",
   "malware-scanning",
 ]);
 
