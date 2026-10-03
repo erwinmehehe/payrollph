@@ -1,12 +1,6 @@
 import { annualize } from "@/lib/annualization";
 
-export type FinalPayLine = {
-  code?: string;
-  label?: string;
-  amount?: string | number;
-  notes?: string[];
-  periodOtherBenefitsPool?: number;
-};
+export type FinalPayLine = { code?: string; label?: string; amount?: string | number; notes?: string[] };
 
 const round2 = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
@@ -16,10 +10,8 @@ export function readBasicAndThirteenth(lineItems: unknown) {
   let thirteenthPaid = 0;
   let contributions = 0;
   let taxWithheld = 0;
-  let reimbursements = 0;
-  let deMinimisExempt = 0;
-  let otherBenefitsPool = 0;
-  let mweExemptCompensation = 0;
+  let deMinimisPaid = 0;
+  let deMinimisExcess = 0;
 
   for (const line of lines) {
     const amount = Number(line.amount ?? 0);
@@ -39,28 +31,15 @@ export function readBasicAndThirteenth(lineItems: unknown) {
     if (code.includes("13TH") || code.includes("THIRTEENTH") || label.includes("13th month") || label.includes("thirteenth month")) {
       thirteenthPaid += Math.max(0, amount);
     }
-    if (["SSS", "PHIC", "HDMF", "PAGIBIG", "PAG-IBIG"].includes(code)) contributions += Math.abs(amount);
+    if (["SSS", "PHIC", "HDMF", "PAGIBIG", "PAG-IBIG"].includes(code)) contributions += -amount;
     if (code === "WHT" || code === "TAX" || label.includes("withholding tax")) taxWithheld += Math.abs(amount);
-
-    if (code.startsWith("EXP-")) reimbursements += Math.max(0, amount);
     if (code.startsWith("DM-")) {
-      const pool = Math.max(0, Number(line.periodOtherBenefitsPool ?? 0));
-      otherBenefitsPool += pool;
-      deMinimisExempt += Math.max(0, amount - pool);
-    }
-    if (
-      code === "BASIC"
-      || code === "OT"
-      || code === "ND"
-      || code === "HOLIDAY"
-      || code === "HOLIDAY_UNWORKED"
-      || code === "CALAMITY"
-      || code.startsWith("RETRO-")
-      || (code.startsWith("LEAVE-") && !code.startsWith("LEAVE_CONV-"))
-      || code === "LATE"
-      || code === "UT"
-    ) {
-      mweExemptCompensation += amount;
+      deMinimisPaid += Math.max(0, amount);
+      const note = (line.notes ?? []).find((item) =>
+        /(?:other-benefits pool|taxable) excess this period/i.test(String(item))
+      );
+      const match = note ? String(note).match(/₱?([\d,.]+)\s*$/) : null;
+      if (match) deMinimisExcess += Number(match[1].replace(/,/g, "")) || 0;
     }
   }
 
@@ -69,10 +48,8 @@ export function readBasicAndThirteenth(lineItems: unknown) {
     thirteenthPaid: round2(thirteenthPaid),
     contributions: round2(contributions),
     taxWithheld: round2(taxWithheld),
-    reimbursements: round2(reimbursements),
-    deMinimisExempt: round2(deMinimisExempt),
-    otherBenefitsPool: round2(otherBenefitsPool),
-    mweExemptCompensation: round2(Math.max(0, mweExemptCompensation)),
+    deMinimisPaid: round2(deMinimisPaid),
+    deMinimisExcess: round2(deMinimisExcess),
   };
 }
 
@@ -89,12 +66,12 @@ export function computeFinalPay(input: {
   unpaidBasicSalary: number;
   thirteenthPaidYtd: number;
   grossCompensationYtd: number;
+  deMinimisYtd?: number;
+  deMinimisExcessYtd?: number;
   statutoryContributionsYtd: number;
   taxWithheldYtd: number;
-  deMinimisYtd?: number;
-  otherBenefitsYtd?: number;
-  mweExemptCompensationYtd?: number;
   mwe: boolean;
+  mweTaxableSupplementaryCompensationYtd?: number;
   leaveMonetizationPay: number;
   taxableLeaveMonetizationPay?: number;
   separationPay: number;
@@ -125,17 +102,23 @@ export function computeFinalPay(input: {
       + Math.max(0, input.taxableRetirementPay ?? input.retirementPay)
       + Math.max(0, input.otherBenefits),
   );
+  const finalTaxableSupplementaryCompensation = round2(
+    Math.max(0, input.taxableLeaveMonetizationPay ?? input.leaveMonetizationPay)
+      + Math.max(0, input.taxableSeparationPay ?? input.separationPay)
+      + Math.max(0, input.taxableRetirementPay ?? input.retirementPay),
+  );
   const annualized = annualize({
     grossCompensation: grossForAnnualization,
     thirteenthMonth: thirteenthPaidYtd + thirteenthDue,
-    otherBenefits: Math.max(0, input.otherBenefitsYtd ?? 0) + Math.max(0, input.otherBenefits),
+    otherBenefits: Math.max(0, input.otherBenefits),
     deMinimis: Math.max(0, input.deMinimisYtd ?? 0),
+    deMinimisExcess: Math.max(0, input.deMinimisExcessYtd ?? 0),
     statutoryContributions: Math.max(0, input.statutoryContributionsYtd) + finalStatutoryDeductions,
     taxWithheld: Math.max(0, input.taxWithheldYtd),
     mwe: input.mwe,
-    mweExemptCompensation: input.mwe
-      ? Math.max(0, input.mweExemptCompensationYtd ?? 0) + Math.max(0, input.unpaidBasicSalary)
-      : 0,
+    mweTaxableSupplementaryCompensation:
+      Math.max(0, input.mweTaxableSupplementaryCompensationYtd ?? 0)
+      + finalTaxableSupplementaryCompensation,
   });
 
   // annualize().adjustment is taxDue - taxWithheld:
