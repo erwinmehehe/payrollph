@@ -1,6 +1,6 @@
 import { computeAnnualWithholdingTax } from "@/lib/payroll-rules";
 
-export const ANNUALIZATION_RULE_VERSION = "PH-2026.01";
+export const ANNUALIZATION_RULE_VERSION = "PH-2026.03";
 
 /**
  * TRAIN law: 13th month pay + other benefits are exempt up to PHP 90,000.
@@ -9,12 +9,28 @@ export const ANNUALIZATION_RULE_VERSION = "PH-2026.01";
 export const THIRTEENTH_MONTH_EXEMPTION_CAP = 90_000;
 
 export type AnnualizationInput = {
+  /**
+   * Total compensation actually received for the year, INCLUDING 13th-month
+   * pay and other benefits. Annualization removes the exempt portions below;
+   * taxable excess must never be added a second time.
+   */
   grossCompensation: number;
   thirteenthMonth: number;
+  /** Other benefits sharing the PHP 90,000 annual exemption pool. */
+  otherBenefits?: number;
+  /** De minimis amounts within their category ceilings, fully exempt. */
+  deMinimis?: number;
+  /** Excess over de minimis category ceilings; joins the PHP 90,000 pool. */
+  deMinimisExcess?: number;
   statutoryContributions: number;
   taxWithheld: number;
   mwe: boolean;
-  deMinimis?: number;
+  /**
+   * Taxable MWE supplementary compensation outside the statutory minimum wage
+   * exemptions (for example commission/service charge/other taxable allowance).
+   * Do not include the 13th-month/other-benefit pool here.
+   */
+  mweTaxableSupplementaryCompensation?: number;
 };
 
 export type AnnualizationResult = {
@@ -22,7 +38,13 @@ export type AnnualizationResult = {
   thirteenthMonth: number;
   exemptThirteenthMonth: number;
   taxableThirteenthMonth: number;
+  otherBenefits: number;
   deMinimis: number;
+  deMinimisExcess: number;
+  benefitPool: number;
+  exemptBenefitPool: number;
+  taxableBenefitPool: number;
+  mweTaxableSupplementaryCompensation: number;
   nonTaxable: number;
   statutoryContributions: number;
   taxableIncome: number;
@@ -56,19 +78,36 @@ const round2 = (value: number) => Math.round((value + Number.EPSILON) * 100) / 1
 export function annualize(input: AnnualizationInput): AnnualizationResult {
   const grossCompensation = round2(Math.max(0, input.grossCompensation));
   const thirteenthMonth = round2(Math.max(0, input.thirteenthMonth));
+  const otherBenefits = round2(Math.max(0, input.otherBenefits ?? 0));
   const deMinimis = round2(Math.max(0, input.deMinimis ?? 0));
+  const deMinimisExcess = round2(Math.max(0, input.deMinimisExcess ?? 0));
   const statutoryContributions = round2(Math.max(0, input.statutoryContributions));
   const taxWithheld = round2(Math.max(0, input.taxWithheld));
+  const mweTaxableSupplementaryCompensation = round2(
+    Math.max(0, input.mweTaxableSupplementaryCompensation ?? 0),
+  );
 
-  const exemptThirteenthMonth = round2(Math.min(thirteenthMonth, THIRTEENTH_MONTH_EXEMPTION_CAP));
-  const taxableThirteenthMonth = round2(Math.max(0, thirteenthMonth - THIRTEENTH_MONTH_EXEMPTION_CAP));
-  const nonTaxable = round2(exemptThirteenthMonth + deMinimis + statutoryContributions);
+  // BIR treats 13th-month pay and "other benefits" as ONE PHP 90,000 annual
+  // exemption pool. Excess de minimis benefits enter this same pool before
+  // becoming taxable compensation.
+  const benefitPool = round2(thirteenthMonth + otherBenefits + deMinimisExcess);
+  const exemptBenefitPool = round2(Math.min(benefitPool, THIRTEENTH_MONTH_EXEMPTION_CAP));
+  const taxableBenefitPool = round2(Math.max(0, benefitPool - exemptBenefitPool));
+
+  // Allocate the exemption to 13th-month pay first only for explanatory output.
+  // Tax is based on the combined pool above, not on this allocation.
+  const exemptThirteenthMonth = round2(Math.min(thirteenthMonth, exemptBenefitPool));
+  const taxableThirteenthMonth = round2(Math.max(0, thirteenthMonth - exemptThirteenthMonth));
+  const nonTaxable = round2(exemptBenefitPool + deMinimis + statutoryContributions);
 
   const taxableIncome = input.mwe
-    ? 0
-    : round2(Math.max(0, grossCompensation + taxableThirteenthMonth - nonTaxable));
+    ? round2(Math.max(
+        0,
+        mweTaxableSupplementaryCompensation + taxableBenefitPool - statutoryContributions,
+      ))
+    : round2(Math.max(0, grossCompensation - nonTaxable));
 
-  const taxDue = input.mwe ? 0 : round2(computeAnnualWithholdingTax(taxableIncome, false));
+  const taxDue = round2(computeAnnualWithholdingTax(taxableIncome, false));
   const adjustment = round2(taxDue - taxWithheld);
 
   return {
@@ -76,7 +115,13 @@ export function annualize(input: AnnualizationInput): AnnualizationResult {
     thirteenthMonth,
     exemptThirteenthMonth,
     taxableThirteenthMonth,
+    otherBenefits,
     deMinimis,
+    deMinimisExcess,
+    benefitPool,
+    exemptBenefitPool,
+    taxableBenefitPool,
+    mweTaxableSupplementaryCompensation,
     nonTaxable,
     statutoryContributions,
     taxableIncome,
@@ -117,10 +162,11 @@ export function renderForm2316(input: {
     "",
     "PART IV-A  SUMMARY",
     line("Gross compensation income", money(r.grossCompensation)),
-    line("13th month pay and other benefits", money(r.thirteenthMonth)),
-    line("  Exempt portion (cap 90,000.00)", money(r.exemptThirteenthMonth)),
-    line("  Taxable excess", money(r.taxableThirteenthMonth)),
-    line("De minimis benefits", money(r.deMinimis)),
+    line("13th month pay", money(r.thirteenthMonth)),
+    line("Other benefits in 90,000 pool", money(r.otherBenefits + r.deMinimisExcess)),
+    line("  Combined exempt benefits (cap 90,000.00)", money(r.exemptBenefitPool)),
+    line("  Combined taxable benefit excess", money(r.taxableBenefitPool)),
+    line("De minimis benefits within category ceilings", money(r.deMinimis)),
     line("SSS / PhilHealth / Pag-IBIG (employee share)", money(r.statutoryContributions)),
     line("Total non-taxable / exempt", money(r.nonTaxable)),
     "",
