@@ -1,6 +1,12 @@
 import type { PoolClient } from "pg";
 import { pool } from "@/db";
 import { bankEncryptionConfigured, decryptBankAccount, encryptBankAccount, isEncryptedBankAccount } from "@/lib/bank-account-crypto";
+import {
+  decryptGovernmentId,
+  encryptGovernmentId,
+  governmentIdEncryptionConfigured,
+  isEncryptedGovernmentId,
+} from "@/lib/government-id-crypto";
 
 let coreSchemaReady = false;
 let coreSchemaInFlight: Promise<void> | null = null;
@@ -64,6 +70,90 @@ async function backfillBankDataEncryption(client: PoolClient) {
   return { employees: employeesEncrypted, snapshots: snapshotsEncrypted };
 }
 
+
+async function backfillGovernmentIdEncryption(client: PoolClient) {
+  if (!governmentIdEncryptionConfigured()) return { employees: 0, contractors: 0 };
+
+  const employeeRows = await client.query<{
+    id: number;
+    tin: string | null;
+    tin_branch_code: string | null;
+    sss_no: string | null;
+    philhealth_no: string | null;
+    pagibig_no: string | null;
+  }>(`
+    SELECT id, tin, tin_branch_code, sss_no, philhealth_no, pagibig_no
+    FROM employees
+    WHERE (tin IS NOT NULL AND tin <> '' AND tin NOT LIKE 'enc:govid:v1:%')
+       OR (tin_branch_code IS NOT NULL AND tin_branch_code <> '' AND tin_branch_code NOT LIKE 'enc:govid:v1:%')
+       OR (sss_no IS NOT NULL AND sss_no <> '' AND sss_no NOT LIKE 'enc:govid:v1:%')
+       OR (philhealth_no IS NOT NULL AND philhealth_no <> '' AND philhealth_no NOT LIKE 'enc:govid:v1:%')
+       OR (pagibig_no IS NOT NULL AND pagibig_no <> '' AND pagibig_no NOT LIKE 'enc:govid:v1:%')
+    ORDER BY id
+  `);
+
+  let employeesEncrypted = 0;
+  for (const row of employeeRows.rows) {
+    const next = {
+      tin: encryptGovernmentId(row.tin, { required: true }),
+      tinBranchCode: encryptGovernmentId(row.tin_branch_code, { required: true }),
+      sssNo: encryptGovernmentId(row.sss_no, { required: true }),
+      philHealthNo: encryptGovernmentId(row.philhealth_no, { required: true }),
+      pagIbigNo: encryptGovernmentId(row.pagibig_no, { required: true }),
+    };
+    for (const [label, sealed, original] of [
+      ["TIN", next.tin, row.tin],
+      ["TIN branch", next.tinBranchCode, row.tin_branch_code],
+      ["SSS", next.sssNo, row.sss_no],
+      ["PhilHealth", next.philHealthNo, row.philhealth_no],
+      ["Pag-IBIG", next.pagIbigNo, row.pagibig_no],
+    ] as const) {
+      if (!original) continue;
+      if (!sealed || !isEncryptedGovernmentId(sealed) || decryptGovernmentId(sealed) !== original.trim()) {
+        throw new Error(`Government-ID encryption round-trip failed for employee ${row.id} ${label}.`);
+      }
+    }
+    await client.query(
+      `UPDATE employees
+       SET tin = $1,
+           tin_branch_code = $2,
+           sss_no = $3,
+           philhealth_no = $4,
+           pagibig_no = $5
+       WHERE id = $6`,
+      [next.tin, next.tinBranchCode, next.sssNo, next.philHealthNo, next.pagIbigNo, row.id],
+    );
+    employeesEncrypted += 1;
+  }
+
+  const contractorRows = await client.query<{ id: number; tin: string }>(`
+    SELECT id, tin
+    FROM contractors
+    WHERE tin IS NOT NULL
+      AND tin <> ''
+      AND tin NOT LIKE 'enc:govid:v1:%'
+    ORDER BY id
+  `);
+
+  let contractorsEncrypted = 0;
+  for (const row of contractorRows.rows) {
+    const sealed = encryptGovernmentId(row.tin, { required: true });
+    if (!sealed || !isEncryptedGovernmentId(sealed) || decryptGovernmentId(sealed) !== row.tin.trim()) {
+      throw new Error(`Government-ID encryption round-trip failed for contractor ${row.id}.`);
+    }
+    await client.query("UPDATE contractors SET tin = $1 WHERE id = $2", [sealed, row.id]);
+    contractorsEncrypted += 1;
+  }
+
+  if (employeesEncrypted > 0 || contractorsEncrypted > 0) {
+    console.info(
+      `Government-ID compatibility backfill encrypted ${employeesEncrypted} employee record(s) and ${contractorsEncrypted} contractor TIN(s).`,
+    );
+  }
+
+  return { employees: employeesEncrypted, contractors: contractorsEncrypted };
+}
+
 export async function bankDataEncryptionReady() {
   if (!bankEncryptionConfigured()) return false;
   const result = await pool.query<{ remaining: number }>(`
@@ -95,7 +185,7 @@ export async function ensureCoreCompatibilitySchema() {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v2'))");
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v3'))");
 
       await client.query(`
         ALTER TABLE organizations
@@ -103,16 +193,37 @@ export async function ensureCoreCompatibilitySchema() {
           ADD COLUMN IF NOT EXISTS bir_branch_code varchar(4),
           ADD COLUMN IF NOT EXISTS sss_employer_no varchar(24),
           ADD COLUMN IF NOT EXISTS philhealth_employer_no varchar(24),
-          ADD COLUMN IF NOT EXISTS pagibig_employer_no varchar(24)
+          ADD COLUMN IF NOT EXISTS pagibig_employer_no varchar(24),
+          ADD COLUMN IF NOT EXISTS statutory_deduction_timing varchar(24) NOT NULL DEFAULT 'split'
+      `);
+      await client.query(`
+        DO $compat$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'organizations_statutory_deduction_timing_check'
+          ) THEN
+            ALTER TABLE organizations
+              ADD CONSTRAINT organizations_statutory_deduction_timing_check
+              CHECK (statutory_deduction_timing IN ('split', 'first_cutoff', 'second_cutoff'));
+          END IF;
+        END
+        $compat$;
       `);
 
       await client.query(`
         ALTER TABLE employees
           ADD COLUMN IF NOT EXISTS middle_name varchar(80),
-          ADD COLUMN IF NOT EXISTS tin_branch_code varchar(4),
+          ADD COLUMN IF NOT EXISTS tin_branch_code varchar(180),
           ADD COLUMN IF NOT EXISTS nationality varchar(60) NOT NULL DEFAULT 'Filipino',
-          ADD COLUMN IF NOT EXISTS rest_day varchar(10)
+          ADD COLUMN IF NOT EXISTS rest_day varchar(10),
+          ADD COLUMN IF NOT EXISTS pagibig_voluntary_monthly numeric(10,2) NOT NULL DEFAULT 0
       `);
+      await client.query("ALTER TABLE employees ALTER COLUMN tin TYPE varchar(180)");
+      await client.query("ALTER TABLE employees ALTER COLUMN tin_branch_code TYPE varchar(180)");
+      await client.query("ALTER TABLE employees ALTER COLUMN sss_no TYPE varchar(180)");
+      await client.query("ALTER TABLE employees ALTER COLUMN philhealth_no TYPE varchar(180)");
+      await client.query("ALTER TABLE employees ALTER COLUMN pagibig_no TYPE varchar(180)");
 
       await client.query(`
         CREATE TABLE IF NOT EXISTS employee_rest_day_revisions (
@@ -135,6 +246,55 @@ export async function ensureCoreCompatibilitySchema() {
         CREATE UNIQUE INDEX IF NOT EXISTS employee_rest_day_revisions_employee_effective_idx
         ON employee_rest_day_revisions(employee_id, effective_date)
       `);
+
+      await client.query(`
+        ALTER TABLE data_requests
+          ADD COLUMN IF NOT EXISTS fulfillment_action varchar(64),
+          ADD COLUMN IF NOT EXISTS fulfillment_evidence jsonb NOT NULL DEFAULT '{}'::jsonb,
+          ADD COLUMN IF NOT EXISTS legal_retention_applied boolean NOT NULL DEFAULT false
+      `);
+
+      await client.query(`
+        ALTER TABLE contractors
+          ADD COLUMN IF NOT EXISTS tin varchar(180),
+          ADD COLUMN IF NOT EXISTS withholding_atc varchar(24),
+          ADD COLUMN IF NOT EXISTS withholding_rate numeric(6,3)
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS contractor_payments (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          contractor_id integer NOT NULL REFERENCES contractors(id) ON DELETE RESTRICT,
+          payment_date date NOT NULL,
+          gross_amount_php numeric(14,2) NOT NULL,
+          withholding_atc varchar(24) NOT NULL,
+          withholding_rate numeric(6,3) NOT NULL,
+          withholding_amount numeric(14,2) NOT NULL,
+          net_amount_php numeric(14,2) NOT NULL,
+          reference varchar(160),
+          created_by varchar(120) NOT NULL,
+          created_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS contractor_payment_org_date_idx
+        ON contractor_payments(organization_id, payment_date)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS contractor_payment_contractor_idx
+        ON contractor_payments(contractor_id)
+      `);
+
+      await client.query(`
+        ALTER TABLE time_punches
+          ADD COLUMN IF NOT EXISTS break_start timestamptz,
+          ADD COLUMN IF NOT EXISTS break_end timestamptz
+      `);
+
+      // Government identifiers now use AES-GCM envelopes. Widen first, then
+      // opportunistically backfill only when production key material exists.
+      await backfillGovernmentIdEncryption(client);
 
       // BANK_DATA_ENCRYPTION_KEY stores AES-GCM envelopes that are longer than
       // the legacy varchar(40) account-number column. Widening is non-destructive
