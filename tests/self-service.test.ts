@@ -76,3 +76,49 @@ test("newest released payslip is promoted above older pay history", () => {
     "latest payslip promotion must render before historical payslips",
   );
 });
+
+
+test("employee self-service payload includes only session-scoped attendance and leave data", () => {
+  const route = read("src/app/api/self/payslips/route.ts");
+  assert.ok(route.includes("eq(timePunches.employeeId, session.employeeId)"));
+  assert.ok(route.includes("eq(leaveRequests.employeeId, session.employeeId)"));
+  assert.ok(route.includes("eq(leaveBalances.employeeId, session.employeeId)"));
+  assert.ok(!route.includes('searchParams.get("employeeId")'));
+});
+
+test("employee profile editing is restricted to non-payroll-sensitive contact fields", () => {
+  const route = read("src/app/api/self/profile/route.ts");
+  assert.ok(route.includes('session.role !== "employee"'));
+  assert.ok(route.includes("session.employeeId"));
+  assert.ok(route.includes("mobile: clean(body.mobile"));
+  assert.ok(route.includes("emergencyContact: clean(body.emergencyContact"));
+  assert.ok(route.includes("emergencyPhone: clean(body.emergencyPhone"));
+  assert.ok(!route.includes("bankAccount:"));
+  assert.ok(!route.includes("tin:"));
+  assert.ok(!route.includes("basicRate:"));
+  assert.ok(!route.includes("startDate:"));
+});
+
+test("employee app exposes pay time leave and profile as first-class sections", () => {
+  const portal = read("src/components/self-service-portal.tsx");
+  assert.ok(portal.includes('["home", "Home"]'));
+  assert.ok(portal.includes('["pay", "Pay"]'));
+  assert.ok(portal.includes('["time", "Time"]'));
+  assert.ok(portal.includes('["leave", "Leave"]'));
+  assert.ok(portal.includes('["profile", "Profile"]'));
+  assert.ok(portal.includes("employee-latest-pay"));
+  assert.ok(portal.includes("employee-pay-breakdown"));
+});
+
+test("employee leave request does not guess chargeable days", () => {
+  const portal = read("src/components/self-service-portal.tsx");
+  assert.ok(portal.includes('days: Number(leaveDays)'));
+  assert.ok(portal.includes("The app does not guess weekends, rest days or holidays."));
+});
+
+test("latest pay remains ahead of history in the polished employee app", () => {
+  const portal = read("src/components/self-service-portal.tsx");
+  const latestAt = portal.indexOf("employee-latest-pay");
+  const historyAt = portal.indexOf("PAY HISTORY");
+  assert.ok(latestAt > -1 && historyAt > -1 && latestAt < historyAt, "latest pay should render before pay history");
+});

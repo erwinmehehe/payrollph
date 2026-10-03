@@ -9,6 +9,7 @@ import {
   CircleDollarSign,
   ClipboardCheck,
   LoaderCircle,
+  Landmark,
   ShieldCheck,
   Sparkles,
   UserRound,
@@ -21,6 +22,7 @@ const ICONS: Record<DemoRoleId, ElementType> = {
   hr: UsersRound,
   payroll: CircleDollarSign,
   checker: ClipboardCheck,
+  bookkeeper: Landmark,
   employee: UserRound,
 };
 
@@ -29,6 +31,7 @@ const TONES: Record<DemoRoleId, { bg: string; fg: string }> = {
   hr: { bg: "#E3FAF0", fg: "#0A8A53" },
   payroll: { bg: "#E0F7FA", fg: "#00838F" },
   checker: { bg: "#FFF4D6", fg: "#9A6B00" },
+  bookkeeper: { bg: "#E8F2FF", fg: "#3263B8" },
   employee: { bg: "#F1EDFF", fg: "#6D4DE0" },
 };
 
@@ -84,11 +87,11 @@ export function DemoRolePicker() {
             See Linaw from the seat you actually use.
           </h1>
           <p className="mx-auto mt-6 max-w-[710px] text-[17px] leading-relaxed text-[#5B6080]">
-            Open the populated payroll workspace as Owner, HR Admin, Payroll Officer, Checker or Employee. The sandbox uses
+            Open the populated payroll workspace as Owner, HR Admin, Payroll Officer, Checker, Bookkeeper or Employee. The sandbox uses
             the real role boundaries, so each person sees different work and different actions.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3 text-[13px] font-semibold text-[#5B6080]">
-            <span className="rounded-full bg-[#F4F5FA] px-3 py-2">5 role-specific views</span>
+            <span className="rounded-full bg-[#F4F5FA] px-3 py-2">6 role-specific views</span>
             <span className="rounded-full bg-[#F4F5FA] px-3 py-2">Populated Philippine payroll</span>
             <span className="rounded-full bg-[#F4F5FA] px-3 py-2">Switch roles inside the app</span>
           </div>

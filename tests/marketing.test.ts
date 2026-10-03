@@ -64,10 +64,10 @@ test("a dedicated role-based demo page exists", () => {
   const demo = read("src/components/marketing/demo-role-picker.tsx");
   const roles = read("src/lib/demo-roles.ts");
   assert.ok(demo.includes("See Linaw from the seat you actually use."), "demo page must explain the role-based experience");
-  for (const role of ["owner", "hr", "payroll", "checker", "employee"]) {
+  for (const role of ["owner", "hr", "payroll", "checker", "bookkeeper", "employee"]) {
     assert.ok(roles.includes(`"${role}"`), `demo roles must include ${role}`);
   }
-  for (const removed of ["bookkeeper", "manager", "freelancer"]) {
+  for (const removed of ["manager", "freelancer"]) {
     assert.ok(!roles.includes(`"${removed}"`), `public sandbox should not expose legacy persona ${removed}`);
   }
 });
@@ -110,18 +110,19 @@ test("role demo launches the same product instead of rendering a second fake app
 });
 
 
-test("role sandbox uses five real identities and provisions the checker for payroll handoff", () => {
+test("role sandbox uses six real identities and provisions checker and bookkeeper handoffs", () => {
   const route = read("src/app/api/auth/demo-switch/route.ts");
   const roles = read("src/lib/demo-roles.ts");
   const access = read("src/lib/access.ts");
   const dashboard = read("src/lib/dashboard-data.ts");
   const workspace = read("src/components/linaw-workspace.tsx");
 
-  assert.ok(route.includes("for (const role of DEMO_ROLE_IDS)"), "opening any persona must provision the complete five-role handoff");
+  assert.ok(route.includes("for (const role of DEMO_ROLE_IDS)"), "opening any persona must provision the complete six-role handoff");
   assert.ok(route.includes('membershipRole: "checker"'), "checker must be a real organization role");
+  assert.ok(route.includes('membershipRole: "bookkeeper"'), "bookkeeper must be a real organization role");
   assert.ok(access.includes('"checker"] as const'), "checker must be present in payroll review permissions");
   assert.ok(dashboard.includes('access.role === "checker"'), "checker dashboard must be scoped to assigned approvals");
-  assert.ok(roles.includes('"Payroll Officer"') && roles.includes('"HR Admin"') && roles.includes('"Checker"'), "public persona labels must match the sandbox");
+  assert.ok(roles.includes('"Payroll Officer"') && roles.includes('"HR Admin"') && roles.includes('"Checker"') && roles.includes('"Bookkeeper"'), "public persona labels must match the sandbox");
   assert.ok(workspace.includes("DemoSandboxBar"), "workspace must show the task-driven persona sandbox after launch");
   assert.ok(workspace.includes("onSwitchRole={demoRole ?"), "persona switching must only appear in demo sessions");
 });

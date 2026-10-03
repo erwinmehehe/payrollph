@@ -17,6 +17,7 @@ import {
 } from "@/db/schema";
 import { ensureSubscription } from "@/lib/billing";
 import { encryptBankAccount } from "@/lib/bank-account-crypto";
+import { encryptGovernmentId } from "@/lib/government-id-crypto";
 import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
 import { NATIONAL_HOLIDAYS_2026, type HolidayCalendarEntry } from "@/lib/wage-orders";
 
@@ -355,6 +356,10 @@ export async function ensurePublicDemoTenant() {
         mobile: person.mobile,
         email,
         region: "NCR",
+        tin: index === 5 ? null : encryptGovernmentId(`123-456-78${index}-000`, { required: true }),
+        sssNo: index === 5 ? null : encryptGovernmentId(`34-123456${index}-${index}`, { required: true }),
+        philHealthNo: index === 5 ? null : encryptGovernmentId(`12-34567890-${10 + index}`, { required: true }),
+        pagIbigNo: index === 5 ? null : encryptGovernmentId(`1234-5678-${9010 + index}`, { required: true }),
         startDate: `202${(index % 4) + 1}-0${(index % 8) + 1}-15`,
       };
 
