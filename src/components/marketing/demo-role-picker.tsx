@@ -15,7 +15,7 @@ import {
   UserRound,
   UsersRound,
 } from "lucide-react";
-import { DEMO_ROLES, type DemoRoleId } from "@/lib/demo-roles";
+import { DEMO_ROLES, demoRolePath, type DemoRoleId } from "@/lib/demo-roles";
 
 const ICONS: Record<DemoRoleId, ElementType> = {
   owner: BriefcaseBusiness,
@@ -64,7 +64,7 @@ export function DemoRolePicker() {
         return;
       }
 
-      window.location.href = typeof payload.redirectTo === "string" ? payload.redirectTo : `/app?demoRole=${role}`;
+      window.location.assign(demoRolePath(role));
     } catch {
       setError("Could not open the demo workspace. Please try again.");
     } finally {
