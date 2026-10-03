@@ -210,6 +210,21 @@ test("synthetic bank destinations are restricted to the public demo export path"
 });
 
 
+test("redacted demo can traverse review and release without weakening real payout checks", () => {
+  const submit = readFileSync("src/app/api/payroll-runs/[id]/submit-review/route.ts", "utf8");
+  const release = readFileSync("src/app/api/payroll-runs/[id]/release/route.ts", "utf8");
+  const checklist = readFileSync("src/lib/payroll-release-checklist.ts", "utf8");
+
+  assert.ok(submit.includes("allowRedactedDemoPayout: sharedDemo"));
+  assert.ok(submit.includes('sharedDemo && finding.code === "MISSING_BANK_DETAILS"'));
+  assert.ok(release.includes("allowRedactedDemoPayout: sharedDemo"));
+  assert.ok(release.includes('sharedDemo && finding.code === "MISSING_BANK_DETAILS"'));
+  assert.ok(checklist.includes("allowRedactedDemoPayout?: boolean"));
+  assert.ok(checklist.includes("Boolean(options.allowRedactedDemoPayout)"));
+  assert.ok(checklist.includes("live disbursement remains disabled"));
+});
+
+
 test("password policy caps oversized inputs", () => {
   assert.ok(passwordIssues("A".repeat(257) + "a1").some((issue) => issue.includes("256")));
 });
