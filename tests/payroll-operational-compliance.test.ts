@@ -59,3 +59,28 @@ test("payroll release fingerprints the employee-effective holiday calendar", () 
   assert.ok(settlement.includes("currentHolidayFingerprint"));
   assert.ok(settlement.includes("changed after payroll calculation; recalculate before release"));
 });
+
+
+test("supplementary earning changes invalidate stale unreleased payroll and preserve released history", () => {
+  const source = readFileSync("src/app/api/payroll-earnings/route.ts", "utf8");
+  assert.ok(source.includes("prepareSupplementaryEarningMutation"));
+  assert.ok(source.includes("invalidatePayrollRunsForSupplementaryChange"));
+  assert.ok(source.includes('run.status === "Released"'));
+  assert.ok(source.includes("separately audited adjustment in an open later cutoff"));
+  assert.ok(source.includes('status: "Draft"'));
+  assert.ok(source.includes('status: "Superseded"'));
+  assert.ok(source.includes("payrollEntries"));
+  assert.ok(source.includes('"SUPPLEMENTARY_EARNING_PAYROLL_CONFLICT"'));
+});
+
+test("holiday and supplementary earning mutations are distributed-rate-limited", () => {
+  const holidays = readFileSync("src/app/api/holidays/route.ts", "utf8");
+  const earnings = readFileSync("src/app/api/payroll-earnings/route.ts", "utf8");
+  assert.ok(holidays.includes("enforceSensitiveActionRateLimit"));
+  assert.ok(holidays.includes('"holiday-calendar-create"'));
+  assert.ok(holidays.includes('"holiday-calendar-update"'));
+  assert.ok(holidays.includes('"holiday-calendar-delete"'));
+  assert.ok(earnings.includes("enforceSensitiveActionRateLimit"));
+  assert.ok(earnings.includes('"supplementary-earning-create"'));
+  assert.ok(earnings.includes('"supplementary-earning-void"'));
+});
