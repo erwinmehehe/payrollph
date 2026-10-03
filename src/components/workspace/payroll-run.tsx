@@ -24,6 +24,7 @@ import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
 import { readLineItems, readTrace, type BankTemplate, type DashboardData, type Notify, type PayrollEntry, type PayrollLineItem, type PayrollReleaseReceipt, type PayrollRun, type Task } from "./types";
 import { PayrollAssurancePanel } from "./payroll-assurance-panel";
 import { PayrollOfficerWorkspace } from "./payroll-officer-workspace";
+import { OwnerPayrollRelease } from "./owner-payroll-release";
 import { ExplainPayDrawer } from "./explain-pay-drawer";
 import {
   Battery,
@@ -200,6 +201,7 @@ export function PayrollRunView({
   });
   const handoffRole = handoffViewerRole(data.access?.role ?? data.user?.role);
   const payrollOfficerMode = data.access?.role === "payroll";
+  const ownerMode = data.access?.role === "owner";
   async function openReviewSubmission() {
     if (!run) return;
     setReviewLoading(true);
@@ -365,16 +367,24 @@ export function PayrollRunView({
   return (
     <>
       <PageHeading
-        eyebrow={payrollOfficerMode ? `${data.selectedOrganization.legalName} · Payroll Officer` : `Payroll run #${run.id}`}
-        title={payrollOfficerMode ? "Run payroll." : "Pay confidently, every cycle."}
+        eyebrow={
+          payrollOfficerMode
+            ? `${data.selectedOrganization.legalName} · Payroll Officer`
+            : ownerMode
+              ? `${data.selectedOrganization.legalName} · Owner`
+              : `Payroll run #${run.id}`
+        }
+        title={payrollOfficerMode ? "Run payroll." : ownerMode ? "Review and release payroll." : "Pay confidently, every cycle."}
         copy={
           payrollOfficerMode
             ? "Prepare inputs, calculate the cutoff, resolve exceptions, then hand the run to an independent Checker. Release stays outside the Payroll Officer role."
-            : "Prepare, approve, release and export are deliberately separate steps. Each one is authorised on the server against your role and this client's workspace."
+            : ownerMode
+              ? "Confirm the independent review, total funding requirement and payout readiness before you release the payroll."
+              : "Prepare, approve, release and export are deliberately separate steps. Each one is authorised on the server against your role and this client's workspace."
         }
         actions={
           <>
-            {!payrollOfficerMode && (
+            {!payrollOfficerMode && !ownerMode && (
               <button
                 className="secondary-button"
                 disabled={!calculated}
@@ -384,14 +394,16 @@ export function PayrollRunView({
                 <FileSpreadsheet size={15} className="i-teal" /> Exports
               </button>
             )}
-            <button className="primary-button brand" onClick={onNewRun}>
-              <Plus size={16} className="i-green" /> New payroll
-            </button>
+            {!ownerMode && (
+              <button className="primary-button brand" onClick={onNewRun}>
+                <Plus size={16} className="i-green" /> New payroll
+              </button>
+            )}
           </>
         }
       />
 
-      {!payrollOfficerMode && (
+      {!payrollOfficerMode && !ownerMode && (
         <PayrollHandoff
           stages={handoffStages}
           period={run.periodLabel}
@@ -425,6 +437,22 @@ export function PayrollRunView({
           onShowAllExceptions={() => {
             setOnlyExceptions(true);
             document.getElementById("payroll-register")?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+        />
+      )}
+
+      {ownerMode && (
+        <OwnerPayrollRelease
+          data={data}
+          run={run}
+          entries={entries}
+          checklist={releaseChecklist?.items ?? null}
+          relatedTask={relatedTask}
+          busy={busy}
+          onRelease={() => setConfirmRelease(true)}
+          onPage={onPage}
+          onInspectPayroll={() => {
+            document.getElementById("payroll-assurance")?.scrollIntoView({ behavior: "smooth", block: "start" });
           }}
         />
       )}
@@ -575,7 +603,7 @@ export function PayrollRunView({
           </div>
 
           {/* Gross → deductions → net */}
-          <div className="run-stats">
+          {!ownerMode && <div className="run-stats">
             <div>
               <span>Gross compensation</span>
               <strong>{money(gross)}</strong>
@@ -591,10 +619,10 @@ export function PayrollRunView({
               <strong className="green-number">{money(net)}</strong>
               <small>{gross > 0 ? `${Math.round((net / gross) * 100)}% of gross` : "not yet calculated"}</small>
             </div>
-          </div>
+          </div>}
 
           {/* Run progress */}
-          <div className="card-body" style={{ paddingTop: 0 }}>
+          {!ownerMode && <div className="card-body" style={{ paddingTop: 0 }}>
             <div className="progress-label">
               <span>
                 {run.totalChunks
@@ -616,11 +644,13 @@ export function PayrollRunView({
                 />
               </div>
             )}
+          </div>}
+
+          <div id="payroll-assurance">
+            <PayrollAssurancePanel runId={run.id} employees={data.employees} onExplainEmployee={setExplainEmployeeId} />
           </div>
 
-          <PayrollAssurancePanel runId={run.id} employees={data.employees} onExplainEmployee={setExplainEmployeeId} />
-
-          {!payrollOfficerMode && releaseChecklist && calculated && (
+          {!payrollOfficerMode && !ownerMode && releaseChecklist && calculated && (
             <div className="card-body" id="release-checklist" style={{ paddingTop: 0 }}>
               <div className="line-title" style={{ margin: 0 }}>
                 <div>
@@ -648,7 +678,7 @@ export function PayrollRunView({
           )}
 
           {/* Exceptions */}
-          {!payrollOfficerMode && exceptionRows.length > 0 && (
+          {!payrollOfficerMode && !ownerMode && exceptionRows.length > 0 && (
             <div className="card-body" style={{ paddingTop: 0 }}>
               <div className="line-title" style={{ margin: 0 }}>
                 <strong>Exceptions requiring sign-off</strong>
@@ -691,7 +721,7 @@ export function PayrollRunView({
           )}
 
           {/* Stage rail: owner/admin/bookkeeper keep the broader lifecycle controls. */}
-          {!payrollOfficerMode && (
+          {!payrollOfficerMode && !ownerMode && (
             <div className="stage-rail">
               <StageCard
                 no={1}

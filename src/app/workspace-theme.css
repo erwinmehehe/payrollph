@@ -12357,3 +12357,345 @@
     justify-self: start;
   }
 }
+
+
+/* ---------------------------------------------------- Owner payroll release */
+
+.app-shell .owner-release-center {
+  margin: 16px 0 18px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  background: var(--paper);
+}
+
+.app-shell .owner-release-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.app-shell .owner-release-heading h2 {
+  margin: 4px 0 5px;
+  font-size: 22px;
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+}
+
+.app-shell .owner-release-heading p {
+  max-width: 760px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.app-shell .owner-release-heading-status {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.app-shell .owner-release-heading-status > span:last-child {
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+.app-shell .owner-release-money {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 16px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  overflow: hidden;
+}
+
+.app-shell .owner-release-money > div {
+  min-height: 104px;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  padding: 15px 16px;
+  border-left: 1px solid var(--line-faint);
+  background: #fff;
+}
+
+.app-shell .owner-release-money > div:first-child {
+  border-left: 0;
+}
+
+.app-shell .owner-release-money span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 620;
+  text-transform: uppercase;
+  letter-spacing: .045em;
+}
+
+.app-shell .owner-release-money strong {
+  font-size: 22px;
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-shell .owner-release-money small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.app-shell .owner-release-money .owner-release-funding {
+  background: #fafcff;
+}
+
+.app-shell .owner-release-money .owner-release-funding strong {
+  color: var(--brand-deep);
+}
+
+.app-shell .owner-release-gates {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.app-shell .owner-release-gate {
+  min-height: 66px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.app-shell .owner-release-gate[data-good="false"] {
+  border-color: var(--review-border);
+  background: #fffdf8;
+}
+
+.app-shell .owner-release-gate-icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.app-shell .owner-release-gate[data-good="false"] .owner-release-gate-icon {
+  background: var(--review-bg);
+  color: var(--review);
+}
+
+.app-shell .owner-release-gate-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-shell .owner-release-gate-title strong {
+  font-size: 11.5px;
+}
+
+.app-shell .owner-release-gate-title span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--success);
+  font-size: 9.5px;
+  font-weight: 680;
+}
+
+.app-shell .owner-release-gate[data-good="false"] .owner-release-gate-title span {
+  color: var(--review);
+}
+
+.app-shell .owner-release-gate p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.app-shell .owner-release-gate-action .secondary-button {
+  min-height: 29px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.app-shell .owner-release-blockers {
+  margin-top: 12px;
+  border: 1px solid var(--danger-border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--danger-bg);
+}
+
+.app-shell .owner-release-blocker-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 11px 12px;
+  color: var(--danger);
+}
+
+.app-shell .owner-release-blocker-heading strong,
+.app-shell .owner-release-blocker-heading span {
+  display: block;
+}
+
+.app-shell .owner-release-blocker-heading strong {
+  font-size: 11.5px;
+}
+
+.app-shell .owner-release-blocker-heading span {
+  margin-top: 2px;
+  color: var(--ink-secondary);
+  font-size: 10px;
+}
+
+.app-shell .owner-release-blocker-row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 10px;
+  padding: 9px 12px;
+  border-top: 1px solid rgba(190, 60, 55, .13);
+  background: rgba(255,255,255,.52);
+}
+
+.app-shell .owner-release-blocker-row span {
+  color: var(--danger);
+  font-size: 10.5px;
+  font-weight: 680;
+}
+
+.app-shell .owner-release-blocker-row p {
+  margin: 0;
+  color: var(--ink-secondary);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.app-shell .owner-release-acknowledgement {
+  margin: 12px 0 0;
+}
+
+.app-shell .owner-release-actionbar {
+  min-height: 66px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fafbf9;
+}
+
+.app-shell .owner-release-authority {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  max-width: 650px;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.app-shell .owner-release-authority svg {
+  flex: none;
+  color: var(--brand);
+}
+
+.app-shell .owner-release-button {
+  min-width: 170px;
+  justify-content: center;
+}
+
+.app-shell .owner-release-complete {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--success);
+  font-size: 11px;
+  font-weight: 680;
+}
+
+.app-shell .owner-release-footnote {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 18px minmax(0, 1fr);
+  gap: 7px;
+  align-items: start;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 9.75px;
+  line-height: 1.45;
+}
+
+.app-shell .owner-release-footnote svg {
+  margin-top: 1px;
+  color: var(--muted-light);
+}
+
+@media (max-width: 860px) {
+  .app-shell .owner-release-money {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell .owner-release-money > div {
+    min-height: 82px;
+    border-left: 0;
+    border-top: 1px solid var(--line-faint);
+  }
+
+  .app-shell .owner-release-money > div:first-child {
+    border-top: 0;
+  }
+
+  .app-shell .owner-release-footnote {
+    grid-template-columns: 18px minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 620px) {
+  .app-shell .owner-release-center {
+    padding: 16px 13px;
+  }
+
+  .app-shell .owner-release-heading {
+    flex-direction: column;
+  }
+
+  .app-shell .owner-release-heading-status {
+    justify-items: start;
+  }
+
+  .app-shell .owner-release-gate {
+    grid-template-columns: 28px minmax(0, 1fr);
+  }
+
+  .app-shell .owner-release-gate-action {
+    grid-column: 2;
+  }
+
+  .app-shell .owner-release-blocker-row {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .app-shell .owner-release-actionbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .app-shell .owner-release-button {
+    width: 100%;
+  }
+}

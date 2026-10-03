@@ -74,7 +74,7 @@ test("submission stage reflects the maker-checker state", () => {
 test("payroll officer UI hides the generic release handoff rail", async () => {
   const { readFileSync } = await import("node:fs");
   const source = readFileSync("src/components/workspace/payroll-run.tsx", "utf8");
-  assert.ok(source.includes("{!payrollOfficerMode && ("));
+  assert.match(source, /\{!payrollOfficerMode(?: && !ownerMode)? && \(/);
   assert.ok(source.includes("<PayrollHandoff"));
   assert.ok(source.includes("<PayrollOfficerWorkspace"));
 });
