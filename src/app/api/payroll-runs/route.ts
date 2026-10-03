@@ -1,5 +1,5 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, lte } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, organizations, orgUnits, payrollEntries, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
@@ -196,15 +196,20 @@ export async function POST(request: Request) {
     scopeLabel = scope.name;
   }
 
+  // Keep payroll creation aligned with the calculation engine: an employee
+  // whose employment starts after this cutoff is not part of the payroll
+  // cohort and must not block the run because payout details are incomplete.
   const employeeScope = scopeOrgUnitId
     ? and(
         eq(employees.organizationId, organizationId),
         eq(employees.orgUnitId, scopeOrgUnitId),
         eq(employees.status, "Active"),
+        lte(employees.startDate, periodEnd),
       )
     : and(
         eq(employees.organizationId, organizationId),
         eq(employees.status, "Active"),
+        lte(employees.startDate, periodEnd),
       );
   const employeesInScope = await db
     .select({

@@ -106,3 +106,10 @@ test("pay-impacting configuration changes fail closed if payroll state changes c
     "earning payroll invalidation must precede the earning insert",
   );
 });
+
+
+test("payroll creation excludes future hires from the current cutoff preflight", () => {
+  const source = readFileSync("src/app/api/payroll-runs/route.ts", "utf8");
+  assert.ok(source.includes("lte(employees.startDate, periodEnd)"));
+  assert.ok(source.includes("not part of the payroll"));
+});
