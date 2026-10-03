@@ -190,7 +190,8 @@ test("MWE commission is included in taxable supplementary compensation", async (
       label: "Sales commission",
       amount: "20000.00",
       taxable: true,
-      includeInStatutoryBase: true,
+      includeInSssBase: true,
+      includeInPagIbigBase: true,
       effectiveDate: "2026-10-10",
       status: "approved",
       createdBy: "Audit",
@@ -247,7 +248,8 @@ test("supplementary earning settles atomically with payroll release", async () =
       label: "Performance bonus",
       amount: "2500.00",
       taxable: true,
-      includeInStatutoryBase: true,
+      includeInSssBase: true,
+      includeInPagIbigBase: true,
       effectiveDate: "2026-10-10",
       status: "approved",
       createdBy: "Audit",
@@ -282,6 +284,67 @@ test("supplementary earning settles atomically with payroll release", async () =
       ));
     assert.equal(settled.status, "settled");
     assert.equal(settled.payrollRunId, run.id);
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});
+
+
+test("supplementary earning can affect SSS without changing Pag-IBIG base", async () => {
+  const [org] = await db.insert(organizations).values({
+    name: "Split Statutory Base Audit",
+    legalName: "Split Statutory Base Audit Inc.",
+    plan: "Core",
+  }).returning();
+
+  try {
+    const [employee] = await db.insert(employees).values({
+      organizationId: org.id,
+      employeeNo: "BASE-SPLIT-001",
+      firstName: "Split",
+      lastName: "Base",
+      title: "Associate",
+      avatarInitials: "SB",
+      basicRate: "12000.00",
+      startDate: "2025-01-01",
+    }).returning();
+
+    await db.insert(supplementaryEarnings).values({
+      organizationId: org.id,
+      employeeId: employee.id,
+      earningType: "commission",
+      label: "SSS-only commission base",
+      amount: "10000.00",
+      taxable: true,
+      includeInSssBase: true,
+      includeInPagIbigBase: false,
+      effectiveDate: "2026-10-10",
+      status: "approved",
+      createdBy: "Audit",
+    });
+
+    const [run] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      periodLabel: "Oct 1-15, 2026 split base",
+      periodStart: "2026-10-01",
+      periodEnd: "2026-10-15",
+      scopeLabel: "All locations",
+      status: "Draft",
+      payDate: "2026-10-15",
+    }).returning();
+
+    await enqueuePayrollRun(run.id);
+    await drainPayrollQueue(10, run.id);
+
+    const [entry] = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
+    assert.ok(entry);
+
+    const sssBase = traceValue(entry.trace, "statutoryMonthlySssCompensation");
+    const pagIbigBase = traceValue(entry.trace, "statutoryMonthlyPagIbigCompensation");
+    assert.ok(sssBase != null && pagIbigBase != null);
+    assert.ok(sssBase! > pagIbigBase!, `expected SSS base > Pag-IBIG base, got ${sssBase} and ${pagIbigBase}`);
+    assert.equal(traceValue(entry.trace, "supplementaryExcludedFromSssBase"), 0);
+    assert.equal(traceValue(entry.trace, "supplementaryExcludedFromPagIbigBase"), 10000);
   } finally {
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
