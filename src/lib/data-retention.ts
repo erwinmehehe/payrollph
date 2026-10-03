@@ -9,6 +9,64 @@ import {
   webhookDeliveries,
 } from "@/db/schema";
 
+export const RECORD_RETENTION_SCHEDULE = {
+  payrollAccountingTax: {
+    minimumYears: 5,
+    trigger: "Day after the applicable tax-return filing deadline, or actual filing date if filed late",
+    authority: "NIRC Section 235 as amended by RA 11976 (EOPT); BIR RR 7-2024",
+    records: [
+      "payroll registers",
+      "payslips supporting payroll accounting",
+      "withholding-tax computations",
+      "BIR annualization and filing source records",
+      "journal/export source records",
+      "government contribution source records",
+    ],
+    disposal:
+      "No automatic purge. After the minimum period, an authorized retention review may securely erase or anonymize records only when no tax protest, refund/credit claim, litigation, investigation, or other legal hold remains.",
+  },
+  employmentLaborRecords: {
+    minimumYears: 3,
+    trigger: "Date of last entry, execution, or issuance as applicable",
+    authority: "Omnibus Rules Implementing the Labor Code, Book III, Rule X, Section 12",
+    records: [
+      "employment records",
+      "time and attendance records",
+      "leave and payroll-support records",
+      "pay-rate and rest-day history",
+    ],
+    disposal:
+      "Retain longer when the same record is also part of the five-year tax/accounting class or is subject to a legal hold.",
+  },
+  privacyRequestCaseFiles: {
+    reviewAfterYears: 2,
+    trigger: "Completion or final rejection of the request",
+    authority: "Internal privacy-management policy under DPA/IRR proportionality and retention principles",
+    records: [
+      "request register",
+      "fulfillment evidence",
+      "access-export audit evidence",
+      "legal-retention assessment",
+    ],
+    disposal:
+      "Review for secure deletion/anonymization after the review period; retain only what remains necessary for legal claims, accountability, or another lawful basis.",
+  },
+  securityAuditEvidence: {
+    reviewAfterYears: 5,
+    trigger: "Event creation",
+    authority: "Internal security/accountability policy",
+    records: ["payroll release audit", "sensitive-action audit", "security/admin audit"],
+    disposal:
+      "Review rather than automatically purge while the evidence supports retained payroll/tax records, investigations, or legal claims.",
+  },
+  operationalTransientData: {
+    trigger: "Fixed operational windows below",
+    authority: "Data minimization and operational necessity",
+    records: ["sessions", "reset tokens", "rate-limit windows", "outbox", "webhook delivery attempts"],
+    disposal: "Automatically purged by purgeExpiredOperationalData after the configured short operational window.",
+  },
+} as const;
+
 export const RETENTION_POLICY = {
   authenticationArtifacts: {
     retentionDaysAfterExpiry: 30,
@@ -31,10 +89,10 @@ export const RETENTION_POLICY = {
     rationale: "Operational evidence is retained longer than transient message delivery data.",
   },
   payrollTaxEmploymentRecords: {
-    retention: "legal-retention-policy",
+    retention: "record-class-schedule",
     action: "no-automatic-purge",
     rationale:
-      "Payroll, tax, employment, government filing, final-pay and audit records may be subject to statutory retention or legal hold. They require a configured legal basis before destruction.",
+      "Payroll/tax/accounting records use the five-year tax minimum; employment records use the three-year labor minimum. The longer applicable period and any legal hold control disposal.",
   },
 } as const;
 
