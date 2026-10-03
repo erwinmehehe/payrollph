@@ -127,11 +127,11 @@ export const employees = pgTable("employees", {
   // Employer-designated fixed weekly rest day. Null means not configured;
   // payroll must never guess this because a wrong default changes computed pay.
   restDay: varchar("rest_day", { length: 10 }),
-  tin: varchar("tin", { length: 32 }),
-  tinBranchCode: varchar("tin_branch_code", { length: 4 }),
-  sssNo: varchar("sss_no", { length: 32 }),
-  philHealthNo: varchar("philhealth_no", { length: 32 }),
-  pagIbigNo: varchar("pagibig_no", { length: 32 }),
+  tin: varchar("tin", { length: 180 }),
+  tinBranchCode: varchar("tin_branch_code", { length: 180 }),
+  sssNo: varchar("sss_no", { length: 180 }),
+  philHealthNo: varchar("philhealth_no", { length: 180 }),
+  pagIbigNo: varchar("pagibig_no", { length: 180 }),
   nationality: varchar("nationality", { length: 60 }).notNull().default("Filipino"),
   birthDate: date("birth_date"),
   emergencyContact: varchar("emergency_contact", { length: 120 }),
