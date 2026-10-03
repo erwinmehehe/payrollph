@@ -321,17 +321,37 @@ export async function DELETE(request: Request) {
   const mfaDenied = requireSensitiveActionMfa(session);
   if (mfaDenied) return mfaDenied;
 
+  let affectedRuns: Awaited<ReturnType<typeof affectedPayrollRuns>>;
+  try {
+    affectedRuns = await assertHolidayMutationNotRacingPayroll(
+      existing.organizationId,
+      [String(existing.holidayDate)],
+    );
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "Holiday change conflicts with active payroll.",
+      code: "HOLIDAY_PAYROLL_BUSY",
+    }, { status: 409 });
+  }
+
   await db.delete(holidays).where(and(
     eq(holidays.id, id),
     eq(holidays.organizationId, existing.organizationId),
   ));
+
+  const invalidatedPayrollRunIds = await invalidateAffectedPayroll(existing.organizationId, affectedRuns!);
 
   await recordAuditEvent({
     organizationId: existing.organizationId,
     actor: session.name,
     action: "Payroll holiday removed",
     resource: `${existing.holidayDate} · ${existing.name}`,
-    metadata: { holidayId: id, orgUnitId: existing.orgUnitId, kind: existing.kind },
+    metadata: {
+      holidayId: id,
+      orgUnitId: existing.orgUnitId,
+      kind: existing.kind,
+      invalidatedPayrollRunIds,
+    },
   });
 
   return Response.json({ ok: true });
