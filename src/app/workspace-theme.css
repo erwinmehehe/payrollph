@@ -11997,3 +11997,363 @@
     justify-content: center;
   }
 }
+
+
+/* ------------------------------------------------ HR payroll readiness center */
+
+.app-shell .hr-readiness-center {
+  margin: 16px 0 18px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  background: var(--paper);
+}
+
+.app-shell .hr-readiness-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.app-shell .hr-readiness-heading h2 {
+  margin: 4px 0 5px;
+  font-size: 22px;
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+}
+
+.app-shell .hr-readiness-heading p {
+  max-width: 760px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.app-shell .hr-readiness-score {
+  min-width: 108px;
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+
+.app-shell .hr-readiness-score strong {
+  font-size: 25px;
+  line-height: 1;
+  letter-spacing: -0.045em;
+}
+
+.app-shell .hr-readiness-score span {
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+.app-shell .hr-readiness-progress {
+  height: 6px;
+  margin: 15px 0;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eef0ed;
+}
+
+.app-shell .hr-readiness-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--success);
+  transition: width 180ms ease;
+}
+
+.app-shell .hr-readiness-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 12px;
+}
+
+.app-shell .hr-readiness-summary button {
+  min-height: 31px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink-secondary);
+  font-size: 10.5px;
+  font-weight: 620;
+  cursor: pointer;
+}
+
+.app-shell .hr-readiness-summary button strong {
+  color: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-shell .hr-readiness-summary button.active {
+  border-color: var(--brand-border);
+  background: var(--brand-bg);
+  color: var(--brand-deep);
+}
+
+.app-shell .hr-readiness-list {
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  overflow: hidden;
+}
+
+.app-shell .hr-readiness-row + .hr-readiness-row {
+  border-top: 1px solid var(--line-faint);
+}
+
+.app-shell .hr-readiness-row-main {
+  width: 100%;
+  min-height: 66px;
+  display: grid;
+  grid-template-columns: 20px minmax(200px, 1.1fr) minmax(280px, 1.7fr) 120px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 13px;
+  border: 0;
+  background: #fff;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-shell .hr-readiness-row-main:hover {
+  background: #fafbfa;
+}
+
+.app-shell .hr-readiness-row[data-ready="false"] .hr-readiness-row-main {
+  box-shadow: inset 2px 0 0 var(--review-border);
+}
+
+.app-shell .hr-readiness-chevron {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+.app-shell .hr-readiness-person {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.app-shell .hr-readiness-person > span:last-child {
+  min-width: 0;
+}
+
+.app-shell .hr-readiness-person strong,
+.app-shell .hr-readiness-person small {
+  display: block;
+}
+
+.app-shell .hr-readiness-person strong {
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-shell .hr-readiness-person small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.app-shell .hr-readiness-issues {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.app-shell .hr-readiness-issues > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--review-bg);
+  color: var(--review);
+  font-size: 9.5px;
+  font-weight: 650;
+}
+
+.app-shell .hr-readiness-issues > span[data-issue="bank_details"],
+.app-shell .hr-readiness-issues > span[data-issue="government_ids"] {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.app-shell .hr-readiness-issues > span[data-issue="attendance"],
+.app-shell .hr-readiness-issues > span[data-issue="leave_overlap"] {
+  background: var(--review-bg);
+  color: var(--review);
+}
+
+.app-shell .hr-readiness-issues > span[data-issue="pay_basis"],
+.app-shell .hr-readiness-issues > span[data-issue="rest_day"] {
+  background: var(--delegate-bg);
+  color: var(--delegate);
+}
+
+.app-shell .hr-readiness-issues > .hr-readiness-ready-chip {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.app-shell .hr-readiness-status {
+  justify-self: end;
+}
+
+.app-shell .hr-readiness-row-details {
+  padding: 0 13px 13px 42px;
+  background: #fcfcfc;
+  border-top: 1px solid var(--line-faint);
+}
+
+.app-shell .hr-readiness-issue-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 9px;
+  align-items: center;
+  min-height: 58px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line-faint);
+}
+
+.app-shell .hr-readiness-issue-row:first-child {
+  border-top: 0;
+}
+
+.app-shell .hr-readiness-issue-icon {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--review-bg);
+  color: var(--review);
+}
+
+.app-shell .hr-readiness-issue-row strong {
+  display: block;
+  font-size: 11px;
+}
+
+.app-shell .hr-readiness-issue-row p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.app-shell .hr-readiness-issue-row .secondary-button {
+  min-height: 29px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.app-shell .hr-readiness-ready-detail {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--success);
+  font-size: 10.5px;
+}
+
+.app-shell .hr-readiness-ready-detail span {
+  color: var(--ink-secondary);
+}
+
+.app-shell .hr-readiness-empty {
+  min-height: 92px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 18px;
+  color: var(--success);
+}
+
+.app-shell .hr-readiness-empty strong,
+.app-shell .hr-readiness-empty span {
+  display: block;
+  font-size: 11px;
+}
+
+.app-shell .hr-readiness-empty span {
+  margin-top: 3px;
+  color: var(--muted);
+}
+
+.app-shell .hr-readiness-footer {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.app-shell .hr-readiness-footer strong {
+  color: var(--ink-secondary);
+}
+
+@media (max-width: 900px) {
+  .app-shell .hr-readiness-row-main {
+    grid-template-columns: 20px minmax(180px, 1fr) 120px;
+  }
+
+  .app-shell .hr-readiness-issues {
+    grid-column: 2 / -1;
+    grid-row: 2;
+  }
+}
+
+@media (max-width: 620px) {
+  .app-shell .hr-readiness-center {
+    padding: 16px 13px;
+  }
+
+  .app-shell .hr-readiness-heading {
+    flex-direction: column;
+  }
+
+  .app-shell .hr-readiness-score {
+    justify-items: start;
+  }
+
+  .app-shell .hr-readiness-row-main {
+    grid-template-columns: 18px minmax(0, 1fr) auto;
+  }
+
+  .app-shell .hr-readiness-row-main .avatar {
+    display: none;
+  }
+
+  .app-shell .hr-readiness-issues {
+    grid-column: 2 / -1;
+  }
+
+  .app-shell .hr-readiness-row-details {
+    padding-left: 13px;
+  }
+
+  .app-shell .hr-readiness-issue-row {
+    grid-template-columns: 26px minmax(0, 1fr);
+  }
+
+  .app-shell .hr-readiness-issue-row .secondary-button {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
