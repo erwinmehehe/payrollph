@@ -25,7 +25,7 @@ import {
 import { WebBundyModal } from "@/components/web-bundy-modal";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { PayrollHandoff } from "@/components/payroll-handoff";
-import { DEMO_ROLES, type DemoRoleId } from "@/lib/demo-roles";
+import { DEMO_ROLES, demoRolePath, type DemoRoleId } from "@/lib/demo-roles";
 import { buildPayrollHandoff } from "@/lib/payroll-handoff";
 
 type Payslip = {
@@ -231,7 +231,7 @@ export function SelfServicePortal() {
         setError(payload.error ?? "Could not switch demo persona.");
         return;
       }
-      window.location.href = typeof payload.redirectTo === "string" ? payload.redirectTo : "/app?demoRole=" + role;
+      window.location.assign(demoRolePath(role));
     } catch {
       setError("Could not switch demo persona.");
     } finally {
