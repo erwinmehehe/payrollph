@@ -31,7 +31,7 @@ import {
   shortMoney,
 } from "./ui";
 
-export type WorkspaceDashboardRole = "owner" | "hr" | "payroll" | "checker";
+export type WorkspaceDashboardRole = "owner" | "hr" | "payroll" | "checker" | "bookkeeper";
 
 export function RoleOverviewView({
   data,
@@ -114,6 +114,7 @@ export function RoleOverviewView({
       {role === "hr" && <HrDashboard {...common} />}
       {role === "payroll" && <PayrollDashboard {...common} />}
       {role === "checker" && <CheckerDashboard {...common} />}
+      {role === "bookkeeper" && <BookkeeperDashboard {...common} />}
     </div>
   );
 }
@@ -585,6 +586,70 @@ function CheckerDashboard(props: RoleDashboardProps) {
           <AuditRows data={data} />
         </RoleCard>
       </section></details>
+    </div>
+  );
+}
+
+
+function BookkeeperDashboard(props: RoleDashboardProps) {
+  const {
+    data,
+    currentRun,
+    firstName,
+    onPage,
+  } = props;
+
+  const runEvents = currentRun
+    ? data.auditEvents.filter((event) => {
+        if (!event.metadata || typeof event.metadata !== "object") return false;
+        return Number((event.metadata as Record<string, unknown>).runId) === currentRun.id;
+      })
+    : [];
+
+  const hasEvent = (actions: string[]) => runEvents.some((event) => actions.includes(event.action));
+  const bankExported = hasEvent(["bank export generated"]);
+  const payoutCompleted = hasEvent(["Payroll payout completed manually", "Payroll payout completed via PayMongo"]);
+  const journalExported = hasEvent(["journal export generated"]);
+  const governmentExported = hasEvent(["government export generated"]);
+  const released = currentRun?.status === "Released";
+
+  const closeItems: DashboardAlertItem[] = [];
+  if (!released) closeItems.push({ id: "release", label: "Payroll has not been released yet", tone: "warning" });
+  if (released && !bankExported) closeItems.push({ id: "bank", label: "Final bank file has not been generated", tone: "warning" });
+  if (released && !payoutCompleted) closeItems.push({ id: "payout", label: "Bank payout is not reconciled", tone: "danger" });
+  if (released && !journalExported) closeItems.push({ id: "journal", label: "Accounting journal has not been exported", tone: "warning" });
+  if (released && !governmentExported) closeItems.push({ id: "government", label: "Government filing worksheet/evidence is still pending", tone: "info" });
+  if (!closeItems.length) closeItems.push({ id: "closed", label: "The visible payroll close controls are complete", tone: "success" });
+
+  const gross = Number(currentRun?.grossPay ?? 0);
+  const net = Number(currentRun?.netPay ?? 0);
+  const deductions = Math.max(0, gross - net);
+  const outstanding = closeItems.filter((item) => item.tone !== "success").length;
+
+  return (
+    <div className="payrollph-dashboard" data-dashboard-variant="bookkeeper">
+      <PageHeading
+        eyebrow={data.selectedOrganization.legalName + " · Bookkeeper"}
+        title={"Good morning, " + firstName + "!"}
+        copy="Reconcile the payroll, payout, accounting export and statutory close from one place."
+      />
+
+      <DashboardAlertBanner
+        title={outstanding ? `${outstanding} payroll close item${outstanding === 1 ? "" : "s"} need attention` : "Payroll close is reconciled"}
+        detail={outstanding ? "Finish the remaining accounting and remittance steps before treating this payroll cycle as closed." : "The visible payroll, payout and export controls are complete."}
+        items={closeItems}
+        actionLabel={released ? "Open accounting" : "Open payroll"}
+        onAction={() => onPage(released ? "Exports" : "Payroll")}
+      />
+
+      <section className="dashboard-metrics-grid">
+        <DashboardStatCard icon={<CircleDollarSign size={18} />} label="Gross Payroll" value={currentRun ? shortMoney(gross) : "—"} hint={currentRun?.periodLabel ?? "No payroll in context"} tone="blue" />
+        <DashboardStatCard icon={<WalletCards size={18} />} label="Total Deductions" value={currentRun ? shortMoney(deductions) : "—"} hint="Employee deductions and tax" tone="amber" />
+        <DashboardStatCard icon={<BadgeCheck size={18} />} label="Net Salaries" value={currentRun ? shortMoney(net) : "—"} hint="Amount payable to employees" tone="green" />
+        <DashboardStatCard icon={<ClipboardCheck size={18} />} label="Close Status" value={outstanding ? `${outstanding} open` : "Closed"} hint={journalExported ? "Journal exported" : "Journal pending"} tone={outstanding ? "amber" : "green"} />
+      </section>
+
+      <RecentPayrollRuns runs={data.payrollRuns} onViewAll={() => onPage("Payroll")} />
     </div>
   );
 }
