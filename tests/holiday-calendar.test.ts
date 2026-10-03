@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   holidayPayContextOn,
   holidaysOn,
+  NATIONAL_HOLIDAYS_2026,
   type HolidayCalendarEntry,
 } from "../src/lib/wage-orders";
 
@@ -50,4 +51,21 @@ test("payroll engine consumes the classified holiday context instead of a single
   assert.ok(engine.includes("holidayPayContextOn(punch.workDate)"));
   assert.ok(engine.includes("holiday: holidayContext.holiday"));
   assert.ok(engine.includes("holidayContext.holidays.length > 0"));
+});
+
+
+test("2026 statutory calendar includes the current national proclamations and no demo holiday", () => {
+  const byDate = new Map(NATIONAL_HOLIDAYS_2026.map((row) => [row.date, row]));
+
+  assert.equal(byDate.get("2026-03-20")?.kind, "regular");
+  assert.match(byDate.get("2026-03-20")?.name ?? "", /Eid'l Fitr/);
+  assert.equal(byDate.get("2026-05-27")?.kind, "regular");
+  assert.match(byDate.get("2026-05-27")?.name ?? "", /Eid'l Adha/);
+
+  for (const date of ["2026-04-04", "2026-11-02", "2026-12-24"]) {
+    assert.equal(byDate.get(date)?.kind, "special", `${date} must be a special non-working day`);
+  }
+
+  assert.equal(NATIONAL_HOLIDAYS_2026.some((row) => /demo/i.test(row.name)), false);
+  assert.equal(NATIONAL_HOLIDAYS_2026.some((row) => row.date === "2026-03-11"), false);
 });

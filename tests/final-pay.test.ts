@@ -72,3 +72,49 @@ test("final pay due date is 30 calendar days after separation", () => {
   assert.equal(finalPayDueDate("2026-09-30"), "2026-10-30");
   assert.equal(finalPayDueDate("2026-12-15"), "2027-01-14");
 });
+
+
+test("final-pay line parser preserves de minimis exempt and shared-pool excess amounts", () => {
+  const parsed = readBasicAndThirteenth([
+    {
+      code: "DM-1",
+      label: "De minimis, rice subsidy",
+      amount: "3000.00",
+      notes: ["month ceiling ₱2500.00", "other-benefits pool excess this period ₱500.00"],
+    },
+    {
+      code: "DM-2",
+      label: "De minimis, laundry allowance",
+      amount: "400.00",
+      notes: ["month ceiling ₱400.00", "other-benefits pool excess this period ₱0.00"],
+    },
+  ]);
+
+  assert.equal(parsed.deMinimisPaid, 3400);
+  assert.equal(parsed.deMinimisExcess, 500);
+});
+
+test("MWE final pay keeps taxable supplementary compensation taxable", () => {
+  const result = computeFinalPay({
+    releasedBasicYtd: 120000,
+    historicalBasicYtd: 0,
+    unpaidBasicSalary: 0,
+    thirteenthPaidYtd: 10000,
+    grossCompensationYtd: 150000,
+    deMinimisYtd: 0,
+    deMinimisExcessYtd: 0,
+    statutoryContributionsYtd: 10000,
+    taxWithheldYtd: 0,
+    mwe: true,
+    mweTaxableSupplementaryCompensationYtd: 260000,
+    leaveMonetizationPay: 30000,
+    taxableLeaveMonetizationPay: 30000,
+    separationPay: 0,
+    retirementPay: 0,
+    otherBenefits: 0,
+    loanDeductions: 0,
+  });
+
+  assert.ok(result.annualization.taxableIncome > 250000);
+  assert.ok(result.annualization.taxDue > 0);
+});

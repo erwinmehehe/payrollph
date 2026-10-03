@@ -10,6 +10,8 @@ export function readBasicAndThirteenth(lineItems: unknown) {
   let thirteenthPaid = 0;
   let contributions = 0;
   let taxWithheld = 0;
+  let deMinimisPaid = 0;
+  let deMinimisExcess = 0;
 
   for (const line of lines) {
     const amount = Number(line.amount ?? 0);
@@ -29,8 +31,16 @@ export function readBasicAndThirteenth(lineItems: unknown) {
     if (code.includes("13TH") || code.includes("THIRTEENTH") || label.includes("13th month") || label.includes("thirteenth month")) {
       thirteenthPaid += Math.max(0, amount);
     }
-    if (["SSS", "PHIC", "HDMF", "PAGIBIG", "PAG-IBIG"].includes(code)) contributions += Math.abs(amount);
+    if (["SSS", "PHIC", "HDMF", "PAGIBIG", "PAG-IBIG"].includes(code)) contributions += -amount;
     if (code === "WHT" || code === "TAX" || label.includes("withholding tax")) taxWithheld += Math.abs(amount);
+    if (code.startsWith("DM-")) {
+      deMinimisPaid += Math.max(0, amount);
+      const note = (line.notes ?? []).find((item) =>
+        /(?:other-benefits pool|taxable) excess this period/i.test(String(item))
+      );
+      const match = note ? String(note).match(/₱?([\d,.]+)\s*$/) : null;
+      if (match) deMinimisExcess += Number(match[1].replace(/,/g, "")) || 0;
+    }
   }
 
   return {
@@ -38,6 +48,8 @@ export function readBasicAndThirteenth(lineItems: unknown) {
     thirteenthPaid: round2(thirteenthPaid),
     contributions: round2(contributions),
     taxWithheld: round2(taxWithheld),
+    deMinimisPaid: round2(deMinimisPaid),
+    deMinimisExcess: round2(deMinimisExcess),
   };
 }
 
@@ -54,9 +66,12 @@ export function computeFinalPay(input: {
   unpaidBasicSalary: number;
   thirteenthPaidYtd: number;
   grossCompensationYtd: number;
+  deMinimisYtd?: number;
+  deMinimisExcessYtd?: number;
   statutoryContributionsYtd: number;
   taxWithheldYtd: number;
   mwe: boolean;
+  mweTaxableSupplementaryCompensationYtd?: number;
   leaveMonetizationPay: number;
   taxableLeaveMonetizationPay?: number;
   separationPay: number;
@@ -87,12 +102,23 @@ export function computeFinalPay(input: {
       + Math.max(0, input.taxableRetirementPay ?? input.retirementPay)
       + Math.max(0, input.otherBenefits),
   );
+  const finalTaxableSupplementaryCompensation = round2(
+    Math.max(0, input.taxableLeaveMonetizationPay ?? input.leaveMonetizationPay)
+      + Math.max(0, input.taxableSeparationPay ?? input.separationPay)
+      + Math.max(0, input.taxableRetirementPay ?? input.retirementPay),
+  );
   const annualized = annualize({
     grossCompensation: grossForAnnualization,
     thirteenthMonth: thirteenthPaidYtd + thirteenthDue,
+    otherBenefits: Math.max(0, input.otherBenefits),
+    deMinimis: Math.max(0, input.deMinimisYtd ?? 0),
+    deMinimisExcess: Math.max(0, input.deMinimisExcessYtd ?? 0),
     statutoryContributions: Math.max(0, input.statutoryContributionsYtd) + finalStatutoryDeductions,
     taxWithheld: Math.max(0, input.taxWithheldYtd),
     mwe: input.mwe,
+    mweTaxableSupplementaryCompensation:
+      Math.max(0, input.mweTaxableSupplementaryCompensationYtd ?? 0)
+      + finalTaxableSupplementaryCompensation,
   });
 
   // annualize().adjustment is taxDue - taxWithheld:
@@ -121,6 +147,7 @@ export function computeFinalPay(input: {
     taxOutcome: annualized.outcome,
     taxDue: annualized.taxDue,
     taxWithheldYtd: annualized.taxWithheld,
+    annualization: annualized,
     leaveMonetizationPay: round2(Math.max(0, input.leaveMonetizationPay)),
     separationPay: round2(Math.max(0, input.separationPay)),
     retirementPay: round2(Math.max(0, input.retirementPay)),

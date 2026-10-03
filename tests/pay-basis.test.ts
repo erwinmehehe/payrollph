@@ -3,10 +3,12 @@ import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { db } from "../src/db";
 import {
+  employeeLoans,
   employeePayProfiles,
   employeePayRevisions,
   employeePayRetroAdjustments,
   employees,
+  leaveConversions,
   organizations,
   payrollEntries,
   payrollRuns,
@@ -22,6 +24,7 @@ import {
   resolvePayTimeline,
 } from "../src/lib/pay-basis";
 import { drainPayrollQueue, enqueuePayrollRun } from "../src/lib/payroll-engine";
+import { computePagIbig, computePhilHealth, computeSss } from "../src/lib/payroll-rules";
 import { settlePayrollRun } from "../src/lib/payroll-settlement";
 
 test("pay basis helper keeps monthly, daily and hourly behavior explicit", () => {
@@ -492,6 +495,428 @@ test("pending retro pay is included once and settled only on payroll release", a
       .where(eq(employeePayRetroAdjustments.id, retro.id));
     assert.equal(settledRetro.status, "settled");
     assert.equal(settledRetro.settledPayrollRunId, nextRun.id);
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});
+
+
+test("mid-cutoff monthly hire is prorated from employment start and future hires are excluded", async () => {
+  const [org] = await db.insert(organizations).values({
+    name: "Mid Cutoff Hire Test",
+    legalName: "Mid Cutoff Hire Test Inc.",
+    plan: "Core",
+  }).returning();
+
+  try {
+    const [midHire, futureHire] = await db.insert(employees).values([
+      {
+        organizationId: org.id,
+        employeeNo: "MID-HIRE",
+        firstName: "Mid",
+        lastName: "Hire",
+        title: "Staff",
+        avatarInitials: "MH",
+        basicRate: "30000.00",
+        startDate: "2026-09-24",
+      },
+      {
+        organizationId: org.id,
+        employeeNo: "FUTURE-HIRE",
+        firstName: "Future",
+        lastName: "Hire",
+        title: "Staff",
+        avatarInitials: "FH",
+        basicRate: "30000.00",
+        startDate: "2026-10-01",
+      },
+    ]).returning();
+
+    await db.insert(employeePayProfiles).values([
+      {
+        employeeId: midHire.id,
+        organizationId: org.id,
+        payBasis: "monthly",
+        rateAmount: "30000.00",
+        standardWorkDaysPerMonth: "22.00",
+        standardHoursPerDay: "8.00",
+      },
+      {
+        employeeId: futureHire.id,
+        organizationId: org.id,
+        payBasis: "monthly",
+        rateAmount: "30000.00",
+        standardWorkDaysPerMonth: "22.00",
+        standardHoursPerDay: "8.00",
+      },
+    ]);
+
+    const [run] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      periodLabel: "Sep 16–30, 2026 mid-hire",
+      periodStart: "2026-09-16",
+      periodEnd: "2026-09-30",
+      scopeLabel: "All locations",
+      status: "Draft",
+      payDate: "2026-09-30",
+    }).returning();
+
+    const queued = await enqueuePayrollRun(run.id, 25);
+    assert.equal(queued.employeeCount, 1, "future hires must not enter the payroll cohort");
+
+    await drainPayrollQueue(10, run.id);
+
+    const entries = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].employeeId, midHire.id);
+
+    const lines = entries[0].lineItems as Array<{ code: string; amount: string }>;
+    assert.equal(
+      Number(lines.find((line) => line.code === "BASIC")?.amount),
+      7000,
+      "Sep 24–30 is 7 of 15 cutoff calendar days, so 15,000 semi-monthly basic prorates to 7,000",
+    );
+
+    const trace = entries[0].trace as { inputs?: string[] };
+    assert.ok(trace.inputs?.includes("employmentStart=2026-09-24"));
+    assert.ok(trace.inputs?.includes("statutoryMonthlyCompensation=7000.00"));
+    assert.ok(trace.inputs?.includes("statutoryReconciliation=new-hire-final-cutoff-actual"));
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});
+
+test("insufficient net pay prioritizes government loans and carries the remainder forward", async () => {
+  const [org] = await db.insert(organizations).values({
+    name: "Loan Priority Test",
+    legalName: "Loan Priority Test Inc.",
+    plan: "Core",
+  }).returning();
+
+  try {
+    const [employee] = await db.insert(employees).values({
+      organizationId: org.id,
+      employeeNo: "LOAN-PRIORITY",
+      firstName: "Loan",
+      lastName: "Priority",
+      title: "Staff",
+      avatarInitials: "LP",
+      basicRate: "20000.00",
+      startDate: "2025-01-01",
+    }).returning();
+
+    await db.insert(employeePayProfiles).values({
+      employeeId: employee.id,
+      organizationId: org.id,
+      payBasis: "monthly",
+      rateAmount: "20000.00",
+      standardWorkDaysPerMonth: "22.00",
+      standardHoursPerDay: "8.00",
+    });
+
+    const [sssLoan, companyLoan] = await db.insert(employeeLoans).values([
+      {
+        organizationId: org.id,
+        employeeId: employee.id,
+        loanType: "SSS Salary Loan",
+        referenceNo: "SSS-PRIORITY",
+        principal: "12000.00",
+        monthlyAmortization: "12000.00",
+        cutoffDeduction: "6000.00",
+        remainingBalance: "12000.00",
+        totalPaid: "0.00",
+        status: "active",
+        startDate: "2026-01-01",
+      },
+      {
+        organizationId: org.id,
+        employeeId: employee.id,
+        loanType: "Company Loan",
+        referenceNo: "COMPANY-PRIORITY",
+        principal: "12000.00",
+        monthlyAmortization: "12000.00",
+        cutoffDeduction: "6000.00",
+        remainingBalance: "12000.00",
+        totalPaid: "0.00",
+        status: "active",
+        startDate: "2026-01-01",
+      },
+    ]).returning();
+
+    const [run] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      periodLabel: "Sep 16–30, 2026 loan priority",
+      periodStart: "2026-09-16",
+      periodEnd: "2026-09-30",
+      scopeLabel: "All locations",
+      status: "Draft",
+      payDate: "2026-09-30",
+    }).returning();
+
+    await enqueuePayrollRun(run.id, 25);
+    await drainPayrollQueue(10, run.id);
+
+    const [entry] = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
+    const lines = entry.lineItems as Array<{ code: string; amount: string }>;
+    const sssLine = lines.find((line) => line.code === `LOAN-${sssLoan.id}`);
+    const companyLine = lines.find((line) => line.code === `LOAN-${companyLoan.id}`);
+
+    assert.equal(Number(sssLine?.amount), -6000, "government loan gets first claim on available net pay");
+    assert.ok(Number(companyLine?.amount) > -6000 && Number(companyLine?.amount) <= 0, "company loan is capped to remaining net pay");
+    assert.equal(Number(entry.netPay), 0, "loan deductions may consume available net but must never make net negative");
+
+    const trace = entry.trace as { inputs?: string[]; flags?: string[] };
+    assert.ok(trace.inputs?.includes("loanRequested=12000.00"));
+    assert.ok(trace.inputs?.some((line) => line.startsWith("loanDeducted=")));
+    assert.ok(trace.flags?.some((flag) => flag.includes("Company Loan deduction was limited")));
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});
+
+
+test("below-reference wage does not automatically grant MWE tax exemption", async () => {
+  const [org] = await db.insert(organizations).values({
+    name: "Explicit MWE Classification Test",
+    legalName: "Explicit MWE Classification Test Inc.",
+    plan: "Core",
+  }).returning();
+
+  try {
+    const [employee] = await db.insert(employees).values({
+      organizationId: org.id,
+      employeeNo: "MWE-EXPLICIT",
+      firstName: "Explicit",
+      lastName: "Classification",
+      title: "Staff",
+      avatarInitials: "EC",
+      basicRate: "10000.00",
+      mwe: false,
+      region: "NCR",
+      startDate: "2025-01-01",
+    }).returning();
+
+    await db.insert(employeePayProfiles).values({
+      employeeId: employee.id,
+      organizationId: org.id,
+      payBasis: "monthly",
+      rateAmount: "10000.00",
+      standardWorkDaysPerMonth: "22.00",
+      standardHoursPerDay: "8.00",
+    });
+
+    await db.insert(leaveConversions).values({
+      organizationId: org.id,
+      employeeId: employee.id,
+      leaveType: "Vacation leave",
+      daysConverted: "20.0",
+      dailyRate: "1500.00",
+      cashAmount: "30000.00",
+      taxExempt: false,
+      status: "approved",
+    });
+
+    const [run] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      periodLabel: "Sep 16–30, 2026 explicit MWE",
+      periodStart: "2026-09-16",
+      periodEnd: "2026-09-30",
+      scopeLabel: "All locations",
+      status: "Draft",
+      payDate: "2026-09-30",
+    }).returning();
+
+    await enqueuePayrollRun(run.id, 25);
+    await drainPayrollQueue(10, run.id);
+
+    const [entry] = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
+    const lines = entry.lineItems as Array<{ code: string; amount: string }>;
+    const withholding = Math.abs(Number(lines.find((line) => line.code === "WHT")?.amount ?? 0));
+
+    assert.ok(withholding > 0, "taxable supplementary compensation must remain taxable when employee.mwe is false");
+    const trace = entry.trace as { inputs?: string[]; flags?: string[] };
+    assert.ok(trace.inputs?.includes("mwe=false (explicit employee tax classification)"));
+    assert.ok(
+      trace.flags?.some((flag) => flag.includes("payroll did not infer MWE tax status automatically")),
+      "wage-reference mismatch should be a review flag, not a tax-status override",
+    );
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});
+
+test("SSS and Pag-IBIG use remunerative earnings while PhilHealth remains basic-only", async () => {
+  const [org] = await db.insert(organizations).values({
+    name: "Statutory Compensation Base Test",
+    legalName: "Statutory Compensation Base Test Inc.",
+    plan: "Core",
+  }).returning();
+
+  try {
+    const [employee] = await db.insert(employees).values({
+      organizationId: org.id,
+      employeeNo: "STAT-BASE",
+      firstName: "Statutory",
+      lastName: "Base",
+      title: "Staff",
+      avatarInitials: "SB",
+      basicRate: "20000.00",
+      startDate: "2025-01-01",
+    }).returning();
+
+    await db.insert(employeePayProfiles).values({
+      employeeId: employee.id,
+      organizationId: org.id,
+      payBasis: "monthly",
+      rateAmount: "20000.00",
+      standardWorkDaysPerMonth: "22.00",
+      standardHoursPerDay: "8.00",
+    });
+
+    await db.insert(timePunches).values({
+      organizationId: org.id,
+      employeeId: employee.id,
+      workDate: "2026-09-21",
+      timeIn: new Date("2026-09-21T09:00:00+08:00"),
+      timeOut: new Date("2026-09-21T20:00:00+08:00"),
+      shiftStart: "09:00",
+      shiftEnd: "18:00",
+      status: "Complete",
+    });
+
+    const [run] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      periodLabel: "Sep 16–30, 2026 statutory base",
+      periodStart: "2026-09-16",
+      periodEnd: "2026-09-30",
+      scopeLabel: "All locations",
+      status: "Draft",
+      payDate: "2026-09-30",
+    }).returning();
+
+    await enqueuePayrollRun(run.id, 25);
+    await drainPayrollQueue(10, run.id);
+
+    const [entry] = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
+    const trace = entry.trace as { inputs?: string[] };
+    const inputs = trace.inputs ?? [];
+    const readNumber = (prefix: string) => Number(inputs.find((line) => line.startsWith(prefix))?.slice(prefix.length) ?? NaN);
+
+    const statutoryMonthly = readNumber("statutoryMonthlyCompensation=");
+    const sssMsc = readNumber("sssMonthlySalaryCredit=");
+    const philHealthBase = readNumber("philHealthContributionBase=");
+    const pagIbigBase = readNumber("pagIbigFundSalary=");
+
+    assert.ok(statutoryMonthly > 20000, "overtime/remunerative earnings must raise the SSS/Pag-IBIG compensation basis above basic");
+    assert.ok(sssMsc > 20000, "SSS MSC must reflect actual remuneration rather than basic salary alone");
+    assert.equal(philHealthBase, 20000, "PhilHealth must stay on monthly basic salary");
+    assert.equal(pagIbigBase, 10000, "Pag-IBIG fund salary remains capped at 10,000");
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});
+
+
+test("month-final cutoff true-ups statutory employee shares against the released first cutoff", async () => {
+  const [org] = await db.insert(organizations).values({
+    name: "Statutory Monthly True Up Test",
+    legalName: "Statutory Monthly True Up Test Inc.",
+    plan: "Core",
+  }).returning();
+
+  try {
+    const [employee] = await db.insert(employees).values({
+      organizationId: org.id,
+      employeeNo: "STAT-TRUEUP",
+      firstName: "Statutory",
+      lastName: "Trueup",
+      title: "Staff",
+      avatarInitials: "ST",
+      basicRate: "20000.00",
+      startDate: "2025-01-01",
+    }).returning();
+
+    await db.insert(employeePayProfiles).values({
+      employeeId: employee.id,
+      organizationId: org.id,
+      payBasis: "monthly",
+      rateAmount: "20000.00",
+      standardWorkDaysPerMonth: "22.00",
+      standardHoursPerDay: "8.00",
+    });
+
+    // First cutoff includes overtime, so the final monthly remuneration is not
+    // simply basic salary and the second cutoff must reconcile from the ledger.
+    await db.insert(timePunches).values({
+      organizationId: org.id,
+      employeeId: employee.id,
+      workDate: "2026-09-10",
+      timeIn: new Date("2026-09-10T09:00:00+08:00"),
+      timeOut: new Date("2026-09-10T20:00:00+08:00"),
+      shiftStart: "09:00",
+      shiftEnd: "18:00",
+      status: "Complete",
+    });
+
+    const [firstRun] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      periodLabel: "Sep 1–15, 2026 true-up",
+      periodStart: "2026-09-01",
+      periodEnd: "2026-09-15",
+      scopeLabel: "All locations",
+      status: "Draft",
+      payDate: "2026-09-15",
+    }).returning();
+
+    await enqueuePayrollRun(firstRun.id, 25);
+    await drainPayrollQueue(10, firstRun.id);
+    await db.update(payrollRuns).set({ status: "Released" }).where(eq(payrollRuns.id, firstRun.id));
+
+    const [firstEntry] = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, firstRun.id));
+
+    const [secondRun] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      periodLabel: "Sep 16–30, 2026 true-up",
+      periodStart: "2026-09-16",
+      periodEnd: "2026-09-30",
+      scopeLabel: "All locations",
+      status: "Draft",
+      payDate: "2026-09-30",
+    }).returning();
+
+    await enqueuePayrollRun(secondRun.id, 25);
+    await drainPayrollQueue(10, secondRun.id);
+
+    const [secondEntry] = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, secondRun.id));
+    const firstLines = firstEntry.lineItems as Array<{ code: string; amount: string }>;
+    const secondLines = secondEntry.lineItems as Array<{ code: string; amount: string }>;
+    const contribution = (lines: Array<{ code: string; amount: string }>, code: string) =>
+      -(Number(lines.find((line) => line.code === code)?.amount ?? 0));
+
+    const secondTrace = secondEntry.trace as { inputs?: string[] };
+    const inputs = secondTrace.inputs ?? [];
+    const readNumber = (prefix: string) => Number(inputs.find((line) => line.startsWith(prefix))?.slice(prefix.length) ?? NaN);
+    const monthlyRemuneration = readNumber("statutoryMonthlyCompensation=");
+
+    assert.ok(inputs.includes("statutoryReconciliation=month-final-ledger-true-up"));
+    assert.ok(monthlyRemuneration > 20000, "first-cutoff OT must remain in the final actual monthly remuneration");
+
+    const sss = computeSss(monthlyRemuneration);
+    const ph = computePhilHealth(20000);
+    const hdmf = computePagIbig(monthlyRemuneration);
+
+    assert.equal(
+      Math.round((contribution(firstLines, "SSS") + contribution(secondLines, "SSS")) * 100) / 100,
+      sss.employee,
+    );
+    assert.equal(
+      Math.round((contribution(firstLines, "PHIC") + contribution(secondLines, "PHIC")) * 100) / 100,
+      ph.employee,
+    );
+    assert.equal(
+      Math.round((contribution(firstLines, "HDMF") + contribution(secondLines, "HDMF")) * 100) / 100,
+      hdmf.employee,
+    );
   } finally {
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
