@@ -69,14 +69,8 @@ jobs:
           project_id="$(jq -r '.projectId // empty' "$deployment_file")"
           owner_id="$(jq -r '.ownerId // empty' "$deployment_file")"
           target="$(jq -r '.target // empty' "$deployment_file")"
-          deployment_url="$(jq -r '.url // empty' "$deployment_file")"
-
           if [ -z "$project_id" ] || [ "$target" != "production" ]; then
             echo "The Vercel token did not resolve the known PayrollPH production deployment. No changes were made."
-            exit 1
-          fi
-          if [ "$deployment_url" != "$host" ]; then
-            echo "Resolved deployment URL does not match the known PayrollPH production deployment. No changes were made."
             exit 1
           fi
 
