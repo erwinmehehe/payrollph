@@ -87,7 +87,13 @@ export async function POST(request: Request) {
   const label = String(body.label ?? "").trim().slice(0, 120);
   const amount = Number(body.amount);
   const effectiveDate = String(body.effectiveDate ?? "").trim();
-  const includeInStatutoryBase = body.includeInStatutoryBase !== false;
+  const legacyStatutoryBase = body.includeInStatutoryBase;
+  const includeInSssBase = body.includeInSssBase === undefined
+    ? legacyStatutoryBase !== false
+    : body.includeInSssBase !== false;
+  const includeInPagIbigBase = body.includeInPagIbigBase === undefined
+    ? legacyStatutoryBase !== false
+    : body.includeInPagIbigBase !== false;
 
   if (
     !Number.isInteger(organizationId)
@@ -128,7 +134,8 @@ export async function POST(request: Request) {
     label,
     amount: amount.toFixed(2),
     taxable: true,
-    includeInStatutoryBase,
+    includeInSssBase,
+    includeInPagIbigBase,
     effectiveDate,
     status: "approved",
     createdBy: session.name,
@@ -146,7 +153,8 @@ export async function POST(request: Request) {
       amount,
       effectiveDate,
       taxable: true,
-      includeInStatutoryBase,
+      includeInSssBase,
+      includeInPagIbigBase,
     },
   });
 
