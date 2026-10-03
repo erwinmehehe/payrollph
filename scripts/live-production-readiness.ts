@@ -30,6 +30,10 @@ const blockerRemediation: Record<string, Omit<Remediation, "key">> = {
     owner: "deployment",
     action: "Configure BANK_DATA_ENCRYPTION_KEY (or the production TOTP master), then run the Production Bank Encryption workflow in dry-run and apply modes until zero plaintext bank values remain.",
   },
+  "government-id-encryption": {
+    owner: "deployment",
+    action: "Configure PII_ENCRYPTION_KEY (or an approved domain-separated fallback), run scripts/encrypt-government-ids.ts in dry-run and --apply modes, and verify zero plaintext employee/contractor government identifiers remain.",
+  },
   "malware-scanning": {
     owner: "deployment",
     action: "Keep document uploads disabled, or configure and verify the malware scanner before enabling uploads.",
@@ -188,6 +192,7 @@ async function verifyDetailedReadiness() {
     "seeded-credentials",
     "email-delivery",
     "bank-data-encryption",
+    "government-id-encryption",
     "malware-scanning",
   ];
 
