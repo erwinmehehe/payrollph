@@ -1,6 +1,12 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, supplementaryEarnings } from "@/db/schema";
+import {
+  approvalTasks,
+  employees,
+  payrollEntries,
+  payrollRuns,
+  supplementaryEarnings,
+} from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import {
@@ -22,6 +28,87 @@ const EARNING_TYPES = new Set([
 ]);
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+const BUSY_PAYROLL_STATUSES = new Set(["Queued", "Processing", "Recalculating", "Releasing"]);
+
+async function payrollRunsCoveringDate(organizationId: number, effectiveDate: string) {
+  const runs = await db.select().from(payrollRuns)
+    .where(eq(payrollRuns.organizationId, organizationId));
+  return runs.filter((run) =>
+    String(run.periodStart) <= effectiveDate
+    && String(run.periodEnd) >= effectiveDate
+  );
+}
+
+async function prepareSupplementaryEarningMutation(
+  organizationId: number,
+  employeeOrgUnitId: number | null,
+  effectiveDate: string,
+) {
+  const overlapping = await payrollRunsCoveringDate(organizationId, effectiveDate);
+  const inEmployeeScope = overlapping.filter((run) =>
+    run.scopeOrgUnitId == null || run.scopeOrgUnitId === employeeOrgUnitId
+  );
+
+  const busy = inEmployeeScope.find((run) => BUSY_PAYROLL_STATUSES.has(run.status));
+  if (busy) {
+    throw new Error(
+      `Supplementary earnings cannot change while payroll run #${busy.id} is ${busy.status}. Retry after that payroll action finishes.`,
+    );
+  }
+
+  const released = inEmployeeScope.find((run) => run.status === "Released");
+  if (released) {
+    throw new Error(
+      `Payroll run #${released.id} covering ${effectiveDate} is already released. Post the earning as a separately audited adjustment in an open later cutoff instead of changing released history.`,
+    );
+  }
+
+  return inEmployeeScope.filter((run) =>
+    run.status !== "Draft"
+    || Number(run.employeeCount ?? 0) > 0
+    || Number(run.processedChunks ?? 0) > 0
+  );
+}
+
+async function invalidatePayrollRunsForSupplementaryChange(
+  organizationId: number,
+  runs: Awaited<ReturnType<typeof prepareSupplementaryEarningMutation>>,
+) {
+  if (runs.length === 0) return [] as number[];
+
+  const tasks = await db.select().from(approvalTasks)
+    .where(eq(approvalTasks.organizationId, organizationId));
+  const invalidated: number[] = [];
+
+  await db.transaction(async (tx) => {
+    for (const run of runs) {
+      await tx.delete(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
+      const [updated] = await tx.update(payrollRuns).set({
+        status: "Draft",
+        employeeCount: 0,
+        grossPay: "0",
+        netPay: "0",
+        exceptions: 0,
+        processedChunks: 0,
+        totalChunks: 0,
+      }).where(eq(payrollRuns.id, run.id)).returning({ id: payrollRuns.id });
+      if (updated) invalidated.push(updated.id);
+
+      for (const task of tasks) {
+        if (!task.detail.includes(`Payroll run #${run.id}`)) continue;
+        if (task.status !== "Pending" && task.status !== "Approved") continue;
+        await tx.update(approvalTasks).set({
+          status: "Superseded",
+          decidedBy: "System",
+          decidedAt: new Date(),
+        }).where(eq(approvalTasks.id, task.id));
+      }
+    }
+  });
+
+  return invalidated;
+}
 
 export async function GET(request: Request) {
   const session = await getSessionUser();
@@ -127,6 +214,20 @@ export async function POST(request: Request) {
   const scope = assertScope(access, employee.orgUnitId);
   if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
 
+  let overlappingRuns: Awaited<ReturnType<typeof prepareSupplementaryEarningMutation>>;
+  try {
+    overlappingRuns = await prepareSupplementaryEarningMutation(
+      organizationId,
+      employee.orgUnitId,
+      effectiveDate,
+    );
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "Supplementary earning conflicts with payroll state.",
+      code: "SUPPLEMENTARY_EARNING_PAYROLL_CONFLICT",
+    }, { status: 409 });
+  }
+
   const [row] = await db.insert(supplementaryEarnings).values({
     organizationId,
     employeeId,
@@ -140,6 +241,11 @@ export async function POST(request: Request) {
     status: "approved",
     createdBy: session.name,
   }).returning();
+
+  const invalidatedPayrollRunIds = await invalidatePayrollRunsForSupplementaryChange(
+    organizationId,
+    overlappingRuns!,
+  );
 
   await recordAuditEvent({
     organizationId,
@@ -155,10 +261,11 @@ export async function POST(request: Request) {
       taxable: true,
       includeInSssBase,
       includeInPagIbigBase,
+      invalidatedPayrollRunIds,
     },
   });
 
-  return Response.json(row, { status: 201 });
+  return Response.json({ ...row, invalidatedPayrollRunIds }, { status: 201 });
 }
 
 export async function PATCH(request: Request) {
@@ -201,6 +308,20 @@ export async function PATCH(request: Request) {
   }
   if (existing.status === "void") return Response.json(existing);
 
+  let overlappingRuns: Awaited<ReturnType<typeof prepareSupplementaryEarningMutation>>;
+  try {
+    overlappingRuns = await prepareSupplementaryEarningMutation(
+      existing.organizationId,
+      employee?.orgUnitId ?? null,
+      String(existing.effectiveDate),
+    );
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "Supplementary earning conflicts with payroll state.",
+      code: "SUPPLEMENTARY_EARNING_PAYROLL_CONFLICT",
+    }, { status: 409 });
+  }
+
   const [row] = await db.update(supplementaryEarnings)
     .set({ status: "void" })
     .where(and(
@@ -213,13 +334,23 @@ export async function PATCH(request: Request) {
     return Response.json({ error: "Supplementary earning changed before it could be voided." }, { status: 409 });
   }
 
+  const invalidatedPayrollRunIds = await invalidatePayrollRunsForSupplementaryChange(
+    existing.organizationId,
+    overlappingRuns!,
+  );
+
   await recordAuditEvent({
     organizationId: existing.organizationId,
     actor: session.name,
     action: "Supplementary earning voided",
     resource: `Earning #${id}`,
-    metadata: { earningId: id, employeeId: existing.employeeId, amount: Number(existing.amount) },
+    metadata: {
+      earningId: id,
+      employeeId: existing.employeeId,
+      amount: Number(existing.amount),
+      invalidatedPayrollRunIds,
+    },
   });
 
-  return Response.json(row);
+  return Response.json({ ...row, invalidatedPayrollRunIds });
 }
