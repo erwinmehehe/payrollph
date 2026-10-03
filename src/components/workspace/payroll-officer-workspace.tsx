@@ -148,7 +148,10 @@ export function PayrollOfficerWorkspace({
     };
   });
 
-  const canCalculate = !["Pending approval", "Ready for release", "Released"].includes(run.status);
+  const calculationInProgress = ["Queued", "Processing", "Recalculating"].includes(run.status);
+  const canCalculate =
+    !calculationInProgress
+    && !["Pending approval", "Ready for release", "Released", "Releasing"].includes(run.status);
   const submitCopy = relatedTask?.status === "Pending"
     ? `Waiting for ${relatedTask.approver}`
     : relatedTask?.status === "Approved"
@@ -204,8 +207,8 @@ export function PayrollOfficerWorkspace({
           }
           action={
             <button className="secondary-button" disabled={busy || !canCalculate} onClick={onCalculate}>
-              {busy ? <Spinner label="Calculating" /> : <RefreshCw size={14} />}
-              {calculated ? "Recalculate" : "Calculate"}
+              {busy || calculationInProgress ? <Spinner label="Calculating" /> : <RefreshCw size={14} />}
+              {calculationInProgress ? "Processing" : calculated ? "Recalculate" : "Calculate"}
             </button>
           }
         />
