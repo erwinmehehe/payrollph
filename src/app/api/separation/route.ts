@@ -118,6 +118,8 @@ async function loadFinalPaySources(input: {
   let ordinaryGrossYtd = 0;
   let statutoryContributionsYtd = 0;
   let taxWithheldYtd = 0;
+  let deMinimisPaidYtd = 0;
+  let deMinimisExcessYtd = 0;
 
   for (const row of released) {
     const parsed = readBasicAndThirteenth(row.lineItems);
@@ -125,6 +127,8 @@ async function loadFinalPaySources(input: {
     thirteenthPaidYtd += parsed.thirteenthPaid;
     statutoryContributionsYtd += parsed.contributions;
     taxWithheldYtd += parsed.taxWithheld;
+    deMinimisPaidYtd += parsed.deMinimisPaid;
+    deMinimisExcessYtd += parsed.deMinimisExcess;
     ordinaryGrossYtd += Math.max(0, Number(row.grossPay) - parsed.thirteenthPaid);
   }
 
@@ -155,6 +159,8 @@ async function loadFinalPaySources(input: {
       ordinaryGrossYtd: Number(money(ordinaryGrossYtd)),
       statutoryContributionsYtd: Number(money(statutoryContributionsYtd)),
       taxWithheldYtd: Number(money(taxWithheldYtd)),
+      deMinimisYtd: Number(money(Math.max(0, deMinimisPaidYtd - deMinimisExcessYtd))),
+      deMinimisExcessYtd: Number(money(deMinimisExcessYtd)),
       activeLoanBalance: Number(money(loans.reduce((sum, loan) => sum + Number(loan.remainingBalance), 0))),
     },
   };
@@ -336,6 +342,8 @@ export async function POST(request: Request) {
       unpaidBasicSalary,
       thirteenthPaidYtd: sources.totals.thirteenthPaidYtd,
       grossCompensationYtd: sources.totals.ordinaryGrossYtd,
+      deMinimisYtd: sources.totals.deMinimisYtd,
+      deMinimisExcessYtd: sources.totals.deMinimisExcessYtd,
       statutoryContributionsYtd: sources.totals.statutoryContributionsYtd,
       taxWithheldYtd: sources.totals.taxWithheldYtd,
       mwe: sources.employee.mwe,
@@ -354,7 +362,7 @@ export async function POST(request: Request) {
     const sourceFingerprint = fingerprint(sources);
     const computationSnapshot = {
       rule: "13th month = total basic salary earned in calendar year / 12, less 13th month already paid",
-      taxRuleVersion: "PH-2026.01",
+      taxRuleVersion: "PH-2026.03",
       sourceFingerprint,
       releasedBasicYtd: sources.totals.releasedBasicYtd,
       historicalBasicSalaryEarned,
@@ -364,6 +372,8 @@ export async function POST(request: Request) {
       unpaidBasicSalary,
       thirteenthPaidYtd: result.thirteenthPaidYtd,
       thirteenthEntitlement: result.thirteenthEntitlement,
+      deMinimisYtd: sources.totals.deMinimisYtd,
+      deMinimisExcessYtd: sources.totals.deMinimisExcessYtd,
       deductOutstandingLoans,
       specialPayTaxReviewed,
       separationPayTaxExempt,
