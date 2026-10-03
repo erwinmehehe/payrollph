@@ -8,7 +8,11 @@ import {
   getAccess,
   PEOPLE_PAYROLL_ROLES,
 } from "@/lib/access";
-import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
+import {
+  enforceSameOriginMutation,
+  enforceSensitiveActionRateLimit,
+  requireSensitiveActionMfa,
+} from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
 
@@ -178,6 +182,14 @@ export async function POST(request: Request) {
   }
   const mfaDenied = requireSensitiveActionMfa(session);
   if (mfaDenied) return mfaDenied;
+  const rateDenied = await enforceSensitiveActionRateLimit(request, {
+    userId: session.id,
+    action: "holiday-calendar-create",
+    resourceId: organizationId,
+    limit: 12,
+    windowMs: 5 * 60_000,
+  });
+  if (rateDenied) return rateDenied;
 
   let orgUnitId: number | null;
   let affectedRuns: Awaited<ReturnType<typeof affectedPayrollRuns>>;
@@ -254,6 +266,14 @@ export async function PATCH(request: Request) {
   }
   const mfaDenied = requireSensitiveActionMfa(session);
   if (mfaDenied) return mfaDenied;
+  const rateDenied = await enforceSensitiveActionRateLimit(request, {
+    userId: session.id,
+    action: "holiday-calendar-update",
+    resourceId: id,
+    limit: 12,
+    windowMs: 5 * 60_000,
+  });
+  if (rateDenied) return rateDenied;
 
   const holidayDate = body.holidayDate === undefined
     ? String(existing.holidayDate)
@@ -350,6 +370,14 @@ export async function DELETE(request: Request) {
   }
   const mfaDenied = requireSensitiveActionMfa(session);
   if (mfaDenied) return mfaDenied;
+  const rateDenied = await enforceSensitiveActionRateLimit(request, {
+    userId: session.id,
+    action: "holiday-calendar-delete",
+    resourceId: id,
+    limit: 8,
+    windowMs: 5 * 60_000,
+  });
+  if (rateDenied) return rateDenied;
 
   let affectedRuns: Awaited<ReturnType<typeof affectedPayrollRuns>>;
   try {
