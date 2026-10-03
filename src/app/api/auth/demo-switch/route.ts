@@ -65,6 +65,12 @@ const DEMO_ACCOUNTS: Record<DemoRoleId, DemoAccount> = {
     userRole: "checker",
     membershipRole: "checker",
   },
+  bookkeeper: {
+    email: "bookkeeper.demo@linaw.ph",
+    name: "Bea Mendoza",
+    userRole: "bookkeeper",
+    membershipRole: "bookkeeper",
+  },
   employee: {
     email: "jonas.reyes@linaw.ph",
     name: "Jonas Reyes",
