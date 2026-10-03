@@ -101,3 +101,14 @@ test("company-wide tax and contractor surfaces reject unit-scoped memberships", 
     assert.ok(source.includes("companyWide"), `${path} must reject unit-scoped users`);
   }
 });
+
+
+test("launch readiness blocks on plaintext government identifiers", () => {
+  const readiness = read("src/app/api/readiness/route.ts");
+  const pilot = read("src/app/api/readiness/pilot-status/route.ts");
+  assert.ok(readiness.includes('key: "government-id-encryption"'));
+  assert.ok(readiness.includes("governmentIdEncryptionConfigured"));
+  assert.ok(readiness.includes("plaintextEmployeeGovernmentIds"));
+  assert.ok(readiness.includes("plaintextContractorTins"));
+  assert.ok(pilot.includes('"government-id-encryption"'));
+});
