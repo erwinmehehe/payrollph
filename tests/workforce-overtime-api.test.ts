@@ -19,6 +19,10 @@ test("overtime API enforces tenant and organization-unit scope", () => {
 test("overtime decisions enforce four-eyes control", () => {
   assert.ok(source.includes("Overtime requests cannot be self-approved"));
   assert.ok(source.includes("OT_DECIDER_ROLES"));
+  assert.ok(source.includes("requestedByUserId: user.id"));
+  assert.ok(source.includes("existing.requestedByUserId === user.id"));
+  assert.ok(source.includes("decidedByUserId: user.id"));
+  assert.ok(!source.includes("existing.requestedBy === user.name"));
 });
 
 test("overtime request kinds support pre-approval and emergency post-approval", () => {
