@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 const statusLabel = (status: string) =>
-  status === "verified" ? "Verified" : status === "partial" ? "Partial" : "Not built";
+  status === "verified" ? "Implemented & tested" : status === "partial" ? "Partial" : "Not built";
 
 const statusClasses = (status: string) =>
   status === "verified"
@@ -45,7 +45,7 @@ export default async function ScorecardPage() {
           <div className="mx-auto max-w-[1120px] px-5 sm:px-8">
             <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#7C82A1]">Capability scorecard</p>
             <h1 className="font-display mt-3 max-w-[760px] text-[42px] font-semibold tracking-[-0.045em] sm:text-[56px]">
-              Verified claims only.
+              Implemented claims, clearly scoped.
             </h1>
             <p className="mt-4 max-w-[760px] text-[15px] leading-relaxed text-[#5B6080]">
               Every row is generated from this deployment&apos;s code and automated evidence. “Verified” means the implementation
@@ -54,7 +54,7 @@ export default async function ScorecardPage() {
 
             <div className="mt-8 grid gap-4 sm:grid-cols-3">
               {[
-                { label: "Verified", value: report.counts.verified, detail: "proven by code or test", cls: "bg-[#E3FAF0] text-[#0A8A53]" },
+                { label: "Implemented & tested", value: report.counts.verified, detail: "proven by code or test", cls: "bg-[#E3FAF0] text-[#0A8A53]" },
                 { label: "Partial", value: report.counts.partial, detail: "surface exists, piece missing", cls: "bg-[#FFF4D6] text-[#9A6B00]" },
                 { label: "Not built", value: report.counts.absent, detail: "stated, not implied", cls: "bg-[#F1F2F8] text-[#6B718C]" },
               ].map((item) => (
