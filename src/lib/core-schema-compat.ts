@@ -185,7 +185,7 @@ export async function ensureCoreCompatibilitySchema() {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v8'))");
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v9'))");
 
       await client.query(`
         ALTER TABLE organizations
@@ -337,6 +337,44 @@ export async function ensureCoreCompatibilitySchema() {
       await client.query(`
         CREATE INDEX IF NOT EXISTS overtime_requests_status_idx
         ON overtime_requests(organization_id, status)
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS compliance_rules (
+          id serial PRIMARY KEY,
+          rule_key varchar(80) NOT NULL,
+          agency varchar(40) NOT NULL,
+          jurisdiction varchar(80) NOT NULL DEFAULT 'PH',
+          region varchar(40),
+          rule_version varchar(64) NOT NULL,
+          effective_from date NOT NULL,
+          effective_until date,
+          source_document varchar(240) NOT NULL,
+          source_url text NOT NULL,
+          payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+          status varchar(24) NOT NULL DEFAULT 'draft',
+          future_effective boolean NOT NULL DEFAULT false,
+          reviewed_by varchar(120),
+          approved_by varchar(120),
+          approved_at timestamptz,
+          supersedes_rule_version varchar(64),
+          rollback_version varchar(64),
+          notes text,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS compliance_rules_version_unique
+        ON compliance_rules(rule_key, jurisdiction, COALESCE(region, ''), rule_version)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS compliance_rules_effective_idx
+        ON compliance_rules(rule_key, jurisdiction, region, effective_from)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS compliance_rules_status_idx
+        ON compliance_rules(status, effective_from)
       `);
 
       await client.query(`
