@@ -774,9 +774,9 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
   // from every released payroll paid within the selected run's tax year, then
   // collapse each employee to one annual row. This is still a source extract,
   // not a claimed filing-ready DAT.
-  const calendarYear = (value: unknown) => String(value ?? "").match(/\\b\\d{4}\\b/)?.[0] ?? "";
+  const calendarYear = (value: unknown) => String(value ?? "").match(/\b\d{4}\b/)?.[0] ?? "";
   const taxYear = calendarYear(run.payDate);
-  if (!/^\\d{4}$/.test(taxYear)) {
+  if (!/^\d{4}$/.test(taxYear)) {
     throw new Error("BIR annual draft cannot be generated: payroll pay date does not identify a valid tax year.");
   }
 
