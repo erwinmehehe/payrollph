@@ -493,7 +493,7 @@ export function PayrollRunView({
                 {visibleReleaseReceipt.bankExport.status === "generated" ? "Generated" : "Waiting"}
               </span>
               <div>
-                <strong>Bank / export status</strong>
+                <strong>Bank-file fallback</strong>
                 <p>{visibleReleaseReceipt.bankExport.label}</p>
               </div>
               <button className="secondary-button" onClick={() => setExportsOpen(true)}>Open exports</button>
@@ -504,7 +504,13 @@ export function PayrollRunView({
                   className={`status ${visibleReleaseReceipt.payout.status === "completed" ? "status-approved" : "status-review"}`}
                   style={{ minWidth: 72, justifyContent: "center" }}
                 >
-                  {visibleReleaseReceipt.payout.status === "completed" ? "Completed" : "Pending"}
+                  {visibleReleaseReceipt.payout.status === "completed"
+                    ? "Completed"
+                    : visibleReleaseReceipt.payout.status === "submitted"
+                      ? "Submitted"
+                      : visibleReleaseReceipt.payout.status === "ready"
+                        ? "Ready"
+                        : "Preflight"}
                 </span>
                 <div>
                   <strong>Payout status</strong>
@@ -1547,7 +1553,7 @@ function readReleaseReceipt(events: DashboardData["auditEvents"], runId: number)
     bankExport: payout.bankFile.status === "generated"
       ? {
           status: "generated",
-          label: `${payout.bankFile.filename ?? "Final bank file"} generated and audit-logged`,
+          label: `${payout.bankFile.filename ?? "Fallback bank file"} generated and audit-logged`,
           filename: payout.bankFile.filename,
           generatedAt: payout.bankFile.generatedAt,
         }
