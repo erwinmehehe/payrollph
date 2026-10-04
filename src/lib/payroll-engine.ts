@@ -9,6 +9,7 @@ import {
   employeePayRevisions,
   employeeRestDayRevisions,
   employeePayRetroAdjustments,
+  employeeScheduleAssignments,
   employees,
   expenseClaims,
   leaveConversions,
@@ -22,6 +23,11 @@ import {
   payrollJobs,
   payrollRuns,
   payslips,
+  scheduleOverrides,
+  schedulePatternDays,
+  schedulePatternSegments,
+  schedulePatterns,
+  shiftDefinitions,
   supplementaryEarnings,
   timePunches,
   yearEndAdjustments,
@@ -73,6 +79,15 @@ import {
   type EffectivePayRevisionInput,
   type EmployeePayProfileInput,
 } from "@/lib/pay-basis";
+import {
+  resolveDailySchedule,
+  type ResolvedDailySchedule,
+} from "@/lib/workforce-scheduling";
+import {
+  matchPunchesToWorkforceSegments,
+  payrollRestDayFromSchedule,
+  workforceScheduleTrace,
+} from "@/lib/workforce-payroll";
 
 export const PAYROLL_RULE_VERSION = "PH-2026.05";
 const DEFAULT_CHUNK = 25;
@@ -124,12 +139,20 @@ function precedingScheduledWorkDate(input: {
   restDayRevisions: EffectiveRestDayRevisionInput[];
   holidayCalendar: HolidayCalendarEntry[];
   employeeStartDate: string;
+  scheduleForDate?: (date: string) => ResolvedDailySchedule | undefined;
 }) {
   for (let offset = 1; offset <= 14; offset += 1) {
     const date = addDays(input.holidayDate, -offset);
     if (date < input.employeeStartDate) return null;
-    const restDay = restDayForDate(input.currentRestDay, input.restDayRevisions, date);
-    if (isRestDayOfWeek(date, restDay)) continue;
+
+    const advanced = input.scheduleForDate?.(date);
+    if (advanced && advanced.source !== "unassigned") {
+      if (advanced.isRestDay) continue;
+    } else {
+      const restDay = restDayForDate(input.currentRestDay, input.restDayRevisions, date);
+      if (isRestDayOfWeek(date, restDay)) continue;
+    }
+
     if (holidayPayContextOn(date, input.holidayCalendar).holiday !== "ordinary") continue;
     return date;
   }
@@ -427,6 +450,68 @@ async function processPayrollChunk(input: {
 
   const units = await db.select().from(orgUnits).where(eq(orgUnits.organizationId, input.organizationId));
   const unitMap = new Map(units.map((unit) => [unit.id, unit]));
+
+  // Workforce schedules are organization-level reusable definitions plus
+  // employee-specific effective assignments/overrides. Load the reusable
+  // definitions once per chunk and only the employee rows needed for this run.
+  const scheduleWindowStart = addDays(String(run.periodStart), -14);
+  const [workforceShiftRows, workforcePatternRows] = await Promise.all([
+    db.select().from(shiftDefinitions).where(eq(shiftDefinitions.organizationId, input.organizationId)),
+    db.select().from(schedulePatterns).where(eq(schedulePatterns.organizationId, input.organizationId)),
+  ]);
+  const workforcePatternIds = workforcePatternRows.map((pattern) => pattern.id);
+  const workforcePatternDayRows = workforcePatternIds.length
+    ? await db.select().from(schedulePatternDays)
+        .where(inArray(schedulePatternDays.patternId, workforcePatternIds))
+        .orderBy(asc(schedulePatternDays.patternId), asc(schedulePatternDays.dayIndex))
+    : [];
+  const workforcePatternDayIds = workforcePatternDayRows.map((day) => day.id);
+  const workforcePatternSegmentRows = workforcePatternDayIds.length
+    ? await db.select().from(schedulePatternSegments)
+        .where(inArray(schedulePatternSegments.patternDayId, workforcePatternDayIds))
+        .orderBy(asc(schedulePatternSegments.patternDayId), asc(schedulePatternSegments.segmentOrder))
+    : [];
+  const workforceAssignmentRows = chunkIds.length
+    ? await db.select().from(employeeScheduleAssignments).where(and(
+        eq(employeeScheduleAssignments.organizationId, input.organizationId),
+        inArray(employeeScheduleAssignments.employeeId, chunkIds),
+        lte(employeeScheduleAssignments.effectiveFrom, run.periodEnd),
+        or(
+          isNull(employeeScheduleAssignments.effectiveUntil),
+          gte(employeeScheduleAssignments.effectiveUntil, scheduleWindowStart),
+        ),
+      )).orderBy(
+        asc(employeeScheduleAssignments.employeeId),
+        asc(employeeScheduleAssignments.effectiveFrom),
+        asc(employeeScheduleAssignments.id),
+      )
+    : [];
+  const workforceOverrideRows = chunkIds.length
+    ? await db.select().from(scheduleOverrides).where(and(
+        eq(scheduleOverrides.organizationId, input.organizationId),
+        inArray(scheduleOverrides.employeeId, chunkIds),
+        gte(scheduleOverrides.workDate, scheduleWindowStart),
+        lte(scheduleOverrides.workDate, run.periodEnd),
+      )).orderBy(
+        asc(scheduleOverrides.employeeId),
+        asc(scheduleOverrides.workDate),
+        asc(scheduleOverrides.id),
+      )
+    : [];
+  const workforceAssignmentsByEmployee = new Map<number, typeof workforceAssignmentRows>();
+  for (const assignment of workforceAssignmentRows) {
+    workforceAssignmentsByEmployee.set(
+      assignment.employeeId,
+      [...(workforceAssignmentsByEmployee.get(assignment.employeeId) ?? []), assignment],
+    );
+  }
+  const workforceOverridesByEmployee = new Map<number, typeof workforceOverrideRows>();
+  for (const override of workforceOverrideRows) {
+    workforceOverridesByEmployee.set(
+      override.employeeId,
+      [...(workforceOverridesByEmployee.get(override.employeeId) ?? []), override],
+    );
+  }
 
   // Load the benefit catalogue and this chunk's active enrolments. Without this
   // the calculation function accepts benefits but nothing ever supplies them,
@@ -887,12 +972,76 @@ async function processPayrollChunk(input: {
         )),
     ];
 
+    const workforceAssignments = (workforceAssignmentsByEmployee.get(employee.id) ?? []).map((assignment) => ({
+      id: assignment.id,
+      patternId: assignment.patternId,
+      effectiveFrom: String(assignment.effectiveFrom),
+      effectiveUntil: assignment.effectiveUntil ? String(assignment.effectiveUntil) : null,
+      anchorDate: String(assignment.anchorDate),
+      workLocationOrgUnitId: assignment.workLocationOrgUnitId,
+    }));
+    const workforceOverrides = (workforceOverridesByEmployee.get(employee.id) ?? []).map((override) => ({
+      id: override.id,
+      workDate: String(override.workDate),
+      kind: override.kind as "shift" | "split_shift" | "rest_day" | "off" | "location",
+      isRestDay: override.isRestDay,
+      segments: Array.isArray(override.segments)
+        ? override.segments as Array<{ shiftDefinitionId: number; segmentOrder: number }>
+        : [],
+      workLocationOrgUnitId: override.workLocationOrgUnitId,
+      status: override.status as "pending" | "approved" | "rejected" | "cancelled",
+      reason: override.reason,
+    }));
+    const workforceScheduleCache = new Map<string, ResolvedDailySchedule>();
+    const resolveWorkforceScheduleForDate = (date: string) => {
+      const cached = workforceScheduleCache.get(date);
+      if (cached) return cached;
+
+      const resolved = resolveDailySchedule({
+        date,
+        assignments: workforceAssignments,
+        patterns: workforcePatternRows.map((pattern) => ({
+          id: pattern.id,
+          code: pattern.code,
+          name: pattern.name,
+          cycleDays: pattern.cycleDays,
+        })),
+        patternDays: workforcePatternDayRows.map((day) => ({
+          id: day.id,
+          patternId: day.patternId,
+          dayIndex: day.dayIndex,
+          isRestDay: day.isRestDay,
+          label: day.label,
+        })),
+        patternSegments: workforcePatternSegmentRows.map((segment) => ({
+          patternDayId: segment.patternDayId,
+          shiftDefinitionId: segment.shiftDefinitionId,
+          segmentOrder: segment.segmentOrder,
+        })),
+        shifts: workforceShiftRows.map((shift) => ({
+          id: shift.id,
+          code: shift.code,
+          name: shift.name,
+          startTime: shift.startTime,
+          endTime: shift.endTime,
+          breakMinutes: shift.breakMinutes,
+          spansMidnight: shift.spansMidnight,
+        })),
+        overrides: workforceOverrides,
+      });
+      workforceScheduleCache.set(date, resolved);
+      return resolved;
+    };
+
     const punches = await db.select().from(timePunches).where(and(
       eq(timePunches.organizationId, input.organizationId),
       eq(timePunches.employeeId, employee.id),
       gte(timePunches.workDate, run.periodStart),
       lte(timePunches.workDate, run.periodEnd),
     ));
+    for (const punch of punches) {
+      resolveWorkforceScheduleForDate(String(punch.workDate));
+    }
 
     const employeeRestDayRevisions = (restDayRevisionsByEmployee.get(employee.id) ?? []).map((revision) => ({
       effectiveDate: String(revision.effectiveDate),
@@ -913,6 +1062,7 @@ async function processPayrollChunk(input: {
           restDayRevisions: employeeRestDayRevisions,
           holidayCalendar: employeeHolidayCalendar,
           employeeStartDate: String(employee.startDate),
+          scheduleForDate: resolveWorkforceScheduleForDate,
         }))
         .filter((date): date is string => Boolean(date)),
     )];
@@ -1053,6 +1203,7 @@ async function processPayrollChunk(input: {
       holidayEligibilityPaidLeaveDates,
       statutoryDeductionTiming: organization.statutoryDeductionTiming,
       restDayRevisions: employeeRestDayRevisions,
+      resolvedSchedules: Object.fromEntries(workforceScheduleCache),
       periodStart: String(run.periodStart),
       periodEnd: String(run.periodEnd),
       priorStatutory: priorStatutoryByEmployee.get(employee.id),
@@ -1190,6 +1341,7 @@ function calculateEmployeePay(input: {
   holidayEligibilityPaidLeaveDates?: string[];
   statutoryDeductionTiming?: string;
   restDayRevisions?: EffectiveRestDayRevisionInput[];
+  resolvedSchedules?: Record<string, ResolvedDailySchedule>;
   periodStart: string;
   periodEnd: string;
   priorStatutory?: {
@@ -1248,7 +1400,32 @@ function calculateEmployeePay(input: {
   const holidayNotes: string[] = [];
 
   const eligiblePunches = input.punches.filter((punch) => String(punch.workDate) >= employmentStart);
+  const punchesByWorkDate = new Map<string, Array<typeof timePunches.$inferSelect>>();
   for (const punch of eligiblePunches) {
+    const workDate = String(punch.workDate);
+    punchesByWorkDate.set(workDate, [...(punchesByWorkDate.get(workDate) ?? []), punch]);
+  }
+  const workforceSegmentByPunchId = new Map<number, ResolvedDailySchedule["segments"][number]>();
+  for (const [workDate, datePunches] of punchesByWorkDate) {
+    const resolution = matchPunchesToWorkforceSegments({
+      date: workDate,
+      schedule: input.resolvedSchedules?.[workDate],
+      punches: datePunches.map((punch) => ({
+        id: punch.id,
+        timeIn: punch.timeIn,
+      })),
+    });
+    for (const [punchId, segment] of resolution.segmentByPunchId) {
+      workforceSegmentByPunchId.set(punchId, segment);
+    }
+    if (resolution.exception) {
+      flags.push(resolution.exception);
+      punchNotes.push(resolution.exception);
+    }
+  }
+
+  for (const punch of eligiblePunches) {
+    const scheduledSegment = workforceSegmentByPunchId.get(punch.id);
     const derived = deriveClockHours(
       {
         timeIn: punch.timeIn ? toLocalIso(new Date(punch.timeIn)) : null,
@@ -1257,9 +1434,9 @@ function calculateEmployeePay(input: {
         breakEnd: punch.breakEnd ? toLocalIso(new Date(punch.breakEnd)) : null,
       },
       {
-        start: punch.shiftStart,
-        end: punch.shiftEnd,
-        breakMinutes: 60,
+        start: scheduledSegment?.startTime ?? punch.shiftStart,
+        end: scheduledSegment?.endTime ?? punch.shiftEnd,
+        breakMinutes: scheduledSegment?.breakMinutes ?? 60,
         graceMinutes: 5,
       },
     );
@@ -1273,9 +1450,14 @@ function calculateEmployeePay(input: {
     if (punchProfile.payBasis !== "monthly") {
       workedBasicPay += (workedRegular / 60) * punchProfile.hourlyRate;
     }
-    const holidayContext = holidayPayContextOn(punch.workDate, input.holidayCalendar ?? NATIONAL_HOLIDAYS_2026);
-    const restDay = restDayForDate(input.employee.restDay, input.restDayRevisions ?? [], String(punch.workDate));
-    const isRestDay = isRestDayOfWeek(String(punch.workDate), restDay);
+    const workDate = String(punch.workDate);
+    const holidayContext = holidayPayContextOn(workDate, input.holidayCalendar ?? NATIONAL_HOLIDAYS_2026);
+    const restDay = restDayForDate(input.employee.restDay, input.restDayRevisions ?? [], workDate);
+    const legacyIsRestDay = isRestDayOfWeek(workDate, restDay);
+    const isRestDay = payrollRestDayFromSchedule(
+      input.resolvedSchedules?.[workDate],
+      legacyIsRestDay,
+    );
     const otMultiplier = holidayMultiplier({ holiday: holidayContext.holiday, worked: true, overtime: true, restDay: isRestDay });
     const regularMultiplier = holidayMultiplier({ holiday: holidayContext.holiday, worked: true, overtime: false, restDay: isRestDay });
     overtimePay += (derived.overtimeMinutes / 60) * punchProfile.hourlyRate * otMultiplier;
@@ -1327,6 +1509,7 @@ function calculateEmployeePay(input: {
         restDayRevisions: input.restDayRevisions ?? [],
         holidayCalendar: calendar,
         employeeStartDate,
+        scheduleForDate: (date) => input.resolvedSchedules?.[date],
       });
       const attended = precedingWorkDate
         ? (input.holidayEligibilityAttendanceDates ?? []).includes(precedingWorkDate)
@@ -1879,9 +2062,16 @@ function calculateEmployeePay(input: {
     })),
   ].filter((item) => Number(item.amount) !== 0);
 
+  const resolvedWorkforceTrace = workforceScheduleTrace(input.resolvedSchedules);
   const trace = {
     ruleVersion: PAYROLL_RULE_VERSION,
+    workforceSchedule: {
+      mode: resolvedWorkforceTrace.length > 0 ? "advanced-with-legacy-fallback" : "legacy",
+      days: resolvedWorkforceTrace,
+    },
     inputs: [
+      `workforceScheduleMode=${resolvedWorkforceTrace.length > 0 ? "advanced-with-legacy-fallback" : "legacy"}`,
+      `workforceScheduleDays=${resolvedWorkforceTrace.length}`,
       `payTimeline=${payTimelineTrace(timeline).join("|")}`,
       `effectivePayChanges=${Math.max(0, timeline.length - 1)}`,
       `payBasis=${payProfile.payBasis}`,
