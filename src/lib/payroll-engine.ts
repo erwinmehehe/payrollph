@@ -52,6 +52,7 @@ import {
   type DeMinimisType,
 } from "@/lib/ph-compliance";
 import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
+import { isSharedBenefitPoolEarningType, sharedBenefitPoolCutoffTreatment } from "@/lib/annualization";
 import { calculateBenefits, type EnrollmentInput } from "@/lib/benefits";
 import { benefitEnrollments, benefitPlans } from "@/db/schema";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
@@ -673,26 +674,70 @@ async function processPayrollChunk(input: {
     number,
     Partial<Record<DeMinimisType, number>>
   >();
+  const priorBenefitPool90kByEmployee = new Map<number, number>();
   for (const prior of priorDeMinimisEntries) {
     const lines = Array.isArray(prior.lineItems)
-      ? prior.lineItems as Array<{ code?: string; amount?: string | number }>
+      ? prior.lineItems as Array<{
+          code?: string;
+          label?: string;
+          amount?: string | number;
+          notes?: string[];
+          periodOtherBenefitsPool?: number;
+          benefitPool90k?: boolean;
+          benefitPoolKind?: string;
+        }>
       : [];
     for (const line of lines) {
       const rawCode = String(line.code ?? "");
-      if (!rawCode.startsWith("DM-")) continue;
-      const benefitType = rawCode.slice(3) as DeMinimisType;
-      if (!(benefitType in DE_MINIMIS_2026)) continue;
-      const periodStart = deMinimisStatutoryPeriodStart(
-        benefitType,
-        String(run.payDate),
-      );
-      if (String(prior.payDate) < periodStart) continue;
       const amount = Math.max(0, Number(line.amount ?? 0) || 0);
-      const bucket = priorDeMinimisByEmployee.get(prior.employeeId) ?? {};
-      bucket[benefitType] = roundToCents(
-        Number(bucket[benefitType] ?? 0) + amount,
-      );
-      priorDeMinimisByEmployee.set(prior.employeeId, bucket);
+
+      if (rawCode.startsWith("DM-")) {
+        const benefitType = rawCode.slice(3) as DeMinimisType;
+        if (benefitType in DE_MINIMIS_2026) {
+          const periodStart = deMinimisStatutoryPeriodStart(
+            benefitType,
+            String(run.payDate),
+          );
+          if (String(prior.payDate) >= periodStart) {
+            const bucket = priorDeMinimisByEmployee.get(prior.employeeId) ?? {};
+            bucket[benefitType] = roundToCents(
+              Number(bucket[benefitType] ?? 0) + amount,
+            );
+            priorDeMinimisByEmployee.set(prior.employeeId, bucket);
+          }
+        }
+
+        const poolAmount = Math.max(0, Number(line.periodOtherBenefitsPool ?? 0) || 0);
+        if (poolAmount > 0) {
+          priorBenefitPool90kByEmployee.set(
+            prior.employeeId,
+            roundToCents((priorBenefitPool90kByEmployee.get(prior.employeeId) ?? 0) + poolAmount),
+          );
+        }
+        continue;
+      }
+
+      const noteType = (line.notes ?? [])
+        .find((note) => String(note).startsWith("Type: "))
+        ?.slice("Type: ".length);
+      const poolKind = String(line.benefitPoolKind ?? noteType ?? "");
+      const label = String(line.label ?? "").toLowerCase();
+      const isThirteenthMonth =
+        poolKind === "13th_month"
+        || poolKind === "thirteenth_month"
+        || label.includes("13th month")
+        || label.includes("thirteenth month");
+      const joinsSharedPool =
+        line.benefitPool90k === true
+        || isSharedBenefitPoolEarningType(poolKind)
+        || isThirteenthMonth;
+
+      if (joinsSharedPool && amount > 0) {
+        priorBenefitPool90kByEmployee.set(
+          prior.employeeId,
+          roundToCents((priorBenefitPool90kByEmployee.get(prior.employeeId) ?? 0) + amount),
+        );
+      }
     }
   }
 
@@ -951,6 +996,7 @@ async function processPayrollChunk(input: {
           frequency: g.frequency as "month" | "semester" | "year",
         })),
       priorDeMinimisPaid: priorDeMinimisByEmployee.get(employee.id) ?? {},
+      priorBenefitPool90k: priorBenefitPool90kByEmployee.get(employee.id) ?? 0,
       importedPayrollHistoryBeforeCutoff: priorImportedPayrollEmployees.has(employee.id),
 
       loans: (loansByEmployee.get(employee.id) ?? [])
@@ -1130,6 +1176,7 @@ function calculateEmployeePay(input: {
   };
   deMinimis?: Array<{ id: number; benefitType: DeMinimisType; amount: number; frequency: "month" | "semester" | "year" }>;
   priorDeMinimisPaid?: Partial<Record<DeMinimisType, number>>;
+  priorBenefitPool90k?: number;
   importedPayrollHistoryBeforeCutoff?: boolean;
   loans?: Array<{ id: number; loanType: string; referenceNo: string; cutoffDeduction: number; remainingBalance: number }>;
   leaveConversions?: Array<{ id: number; leaveType: string; daysConverted: number; dailyRate: number; cashAmount: number; taxExempt: boolean }>;
@@ -1432,27 +1479,43 @@ function calculateEmployeePay(input: {
   }));
   const expenseTotal = (input.expenses ?? []).reduce((sum, claim) => sum + Number(claim.amount), 0);
 
-  const supplementaryLines = (input.supplementaryEarnings ?? []).map((earning) => ({
-    code: `EARN-${earning.id}`,
-    label: earning.label,
-    amount: money(earning.amount),
-    notes: [
-      `Type: ${earning.earningType}`,
-      earning.taxable ? "Tax treatment: taxable" : "Tax treatment: non-taxable",
-      earning.includeInSssBase ? "Included in SSS contribution base" : "Excluded from SSS contribution base",
-      earning.includeInPagIbigBase ? "Included in Pag-IBIG contribution base" : "Excluded from Pag-IBIG contribution base",
-    ],
-    amountNum: Math.max(0, Number(earning.amount) || 0),
-    taxable: Boolean(earning.taxable),
-    includeInSssBase: Boolean(earning.includeInSssBase),
-    includeInPagIbigBase: Boolean(earning.includeInPagIbigBase),
-  }));
+  const supplementaryLines = (input.supplementaryEarnings ?? []).map((earning) => {
+    const benefitPool90k = isSharedBenefitPoolEarningType(earning.earningType);
+    return {
+      code: `EARN-${earning.id}`,
+      label: earning.label,
+      amount: money(earning.amount),
+      notes: [
+        `Type: ${earning.earningType}`,
+        benefitPool90k
+          ? "Tax treatment: shared PHP 90,000 annual benefit pool"
+          : earning.taxable
+            ? "Tax treatment: taxable"
+            : "Tax treatment: non-taxable",
+        earning.includeInSssBase ? "Included in SSS contribution base" : "Excluded from SSS contribution base",
+        earning.includeInPagIbigBase ? "Included in Pag-IBIG contribution base" : "Excluded from Pag-IBIG contribution base",
+      ],
+      amountNum: Math.max(0, Number(earning.amount) || 0),
+      taxable: Boolean(earning.taxable),
+      benefitPool90k,
+      benefitPoolKind: earning.earningType,
+      includeInSssBase: Boolean(earning.includeInSssBase),
+      includeInPagIbigBase: Boolean(earning.includeInPagIbigBase),
+    };
+  });
   const supplementaryTotal = supplementaryLines.reduce((sum, line) => sum + line.amountNum, 0);
-  const supplementaryTaxableTotal = supplementaryLines.reduce(
-    (sum, line) => sum + (line.taxable ? line.amountNum : 0),
+  const supplementaryBenefitPool90k = supplementaryLines.reduce(
+    (sum, line) => sum + (line.benefitPool90k ? line.amountNum : 0),
     0,
   );
-  const supplementaryNonTaxableTotal = supplementaryTotal - supplementaryTaxableTotal;
+  const supplementaryOrdinaryTaxableTotal = supplementaryLines.reduce(
+    (sum, line) => sum + (line.taxable && !line.benefitPool90k ? line.amountNum : 0),
+    0,
+  );
+  const supplementaryNonTaxableOutsidePool = supplementaryLines.reduce(
+    (sum, line) => sum + (!line.taxable && !line.benefitPool90k ? line.amountNum : 0),
+    0,
+  );
   const supplementaryExcludedFromSssBase = supplementaryLines.reduce(
     (sum, line) => sum + (!line.includeInSssBase ? line.amountNum : 0),
     0,
@@ -1500,6 +1563,20 @@ function calculateEmployeePay(input: {
   }));
   const deMinimisTotal = deMinimisLines.reduce((sum, line) => sum + line.periodAmount, 0);
   const deMinimisOtherBenefitsPool = deMinimisLines.reduce((sum, line) => sum + line.periodOtherBenefitsPool, 0);
+  const deMinimisExemptTotal = roundToCents(Math.max(0, deMinimisTotal - deMinimisOtherBenefitsPool));
+  const currentBenefitPool90k = roundToCents(
+    supplementaryBenefitPool90k + deMinimisOtherBenefitsPool,
+  );
+  const benefitPoolTreatment = sharedBenefitPoolCutoffTreatment({
+    priorPool: input.priorBenefitPool90k ?? 0,
+    currentPool: currentBenefitPool90k,
+  });
+
+  if (input.importedPayrollHistoryBeforeCutoff && currentBenefitPool90k > 0) {
+    flags.push(
+      "Imported payroll history exists earlier in this tax year but does not identify the shared PHP 90,000 13th-month/other-benefits pool consumed before Linaw. Current benefit-pool withholding cannot be proven safely; import verified YTD benefit-pool totals or resolve this employee outside Linaw before release.",
+    );
+  }
 
   // Leave Cash Conversions (monetization of vacation / service incentive leaves)
   const conversionLines = (input.leaveConversions ?? []).map((conv) => ({
@@ -1632,7 +1709,10 @@ function calculateEmployeePay(input: {
   // supplementary compensation.
   const mweTaxableSupplementaryCompensation = Math.max(
     0,
-    conversionTotal - conversionTaxExemptTotal + supplementaryTaxableTotal,
+    conversionTotal
+      - conversionTaxExemptTotal
+      + supplementaryOrdinaryTaxableTotal
+      + benefitPoolTreatment.taxableCurrent,
   );
   const taxableCompensation = treatAsMwe
     ? Math.max(0, mweTaxableSupplementaryCompensation - sss - philhealth - pagibigMandatory)
@@ -1640,8 +1720,9 @@ function calculateEmployeePay(input: {
         0,
         gross
           - expenseTotal
-          - supplementaryNonTaxableTotal
-          - deMinimisTotal
+          - supplementaryNonTaxableOutsidePool
+          - deMinimisExemptTotal
+          - benefitPoolTreatment.exemptCurrent
           - conversionTaxExemptTotal
           - sss
           - philhealth
@@ -1780,7 +1861,13 @@ function calculateEmployeePay(input: {
     { code: "LATE", label: "Tardiness", amount: money(-tardinessDeduction) },
     { code: "UT", label: "Undertime", amount: money(-undertimeDeduction) },
     ...expenseLines,
-    ...supplementaryLines.map(({ amountNum: _amountNum, taxable: _taxable, includeInSssBase: _include, ...line }) => line),
+    ...supplementaryLines.map(({
+      amountNum: _amountNum,
+      taxable: _taxable,
+      includeInSssBase: _includeInSssBase,
+      includeInPagIbigBase: _includeInPagIbigBase,
+      ...line
+    }) => line),
     ...deMinimisLines.map(({ periodAmount: _periodAmount, ...line }) => line),
     ...advanceLines,
     ...loanLines.map(({ deductAmount: _deductAmount, requestedDeduction: _requestedDeduction, ...l }) => l),
@@ -1807,11 +1894,18 @@ function calculateEmployeePay(input: {
       `hourlyRate=${money(hourlyRate)}`,
       `taxableCompensation=${money(taxableCompensation)}`,
       `supplementaryEarnings=${money(supplementaryTotal)}`,
-      `supplementaryTaxable=${money(supplementaryTaxableTotal)}`,
+      `supplementaryTaxable=${money(supplementaryOrdinaryTaxableTotal)}`,
+      `supplementaryBenefitPool90k=${money(supplementaryBenefitPool90k)}`,
       `supplementaryExcludedFromSssBase=${money(supplementaryExcludedFromSssBase)}`,
       `supplementaryExcludedFromPagIbigBase=${money(supplementaryExcludedFromPagIbigBase)}`,
       `deMinimisPaid=${money(deMinimisTotal)}`,
+      `deMinimisExempt=${money(deMinimisExemptTotal)}`,
       `deMinimisOtherBenefitsPool=${money(deMinimisOtherBenefitsPool)}`,
+      `priorBenefitPool90k=${money(benefitPoolTreatment.priorPool)}`,
+      `currentBenefitPool90k=${money(benefitPoolTreatment.currentPool)}`,
+      `benefitPoolRemainingBeforeCutoff=${money(benefitPoolTreatment.remainingExemption)}`,
+      `benefitPoolExemptCurrent=${money(benefitPoolTreatment.exemptCurrent)}`,
+      `benefitPoolTaxableCurrent=${money(benefitPoolTreatment.taxableCurrent)}`,
       `mweTaxableSupplementaryCompensation=${money(mweTaxableSupplementaryCompensation)}`,
       // Backward-compatible trace alias. Historically SSS/Pag-IBIG shared one
       // remuneration basis; keep the legacy key mapped to SSS remuneration so

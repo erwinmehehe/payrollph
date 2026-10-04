@@ -9,6 +9,7 @@ import {
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { isSharedBenefitPoolEarningType } from "@/lib/annualization";
 import {
   assertOrganizationRole,
   assertScope,
@@ -25,6 +26,12 @@ export const dynamic = "force-dynamic";
 const EARNING_TYPES = new Set([
   "commission",
   "bonus",
+  "13th_month",
+  "thirteenth_month",
+  "christmas_bonus",
+  "midyear_bonus",
+  "performance_bonus",
+  "other_benefit_90k",
   "honorarium",
   "taxable_allowance",
   "other_taxable",
@@ -211,7 +218,7 @@ export async function POST(request: Request) {
     session.id,
     organizationId,
     PAYROLL_OPERATOR_ROLES,
-    "Only payroll operators can add taxable supplementary earnings.",
+    "Only payroll operators can add supplementary earnings.",
   );
   if (denied) return denied;
 
@@ -260,6 +267,8 @@ export async function POST(request: Request) {
     }, { status: 409 });
   }
 
+  const benefitPool90k = isSharedBenefitPoolEarningType(earningType);
+
   const [row] = await db.insert(supplementaryEarnings).values({
     organizationId,
     employeeId,
@@ -286,6 +295,7 @@ export async function POST(request: Request) {
       amount,
       effectiveDate,
       taxable: true,
+      benefitPool90k,
       includeInSssBase,
       includeInPagIbigBase,
       invalidatedPayrollRunIds,

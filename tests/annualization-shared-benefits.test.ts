@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { annualize } from "../src/lib/annualization";
+import { annualize, isSharedBenefitPoolEarningType, sharedBenefitPoolCutoffTreatment } from "../src/lib/annualization";
 
 test("13th month and other benefits share one PHP 90,000 annual exemption pool", () => {
   const result = annualize({
@@ -61,4 +61,37 @@ test("MWE additional taxable compensation is not globally exempted", () => {
 
   assert.equal(result.taxableIncome, 260_000);
   assert.equal(result.taxDue, 1_500);
+});
+
+
+test("current cutoff taxes only the portion above the remaining shared PHP 90,000 exemption", () => {
+  const result = sharedBenefitPoolCutoffTreatment({
+    priorPool: 85_000,
+    currentPool: 7_000,
+  });
+
+  assert.deepEqual(result, {
+    priorPool: 85_000,
+    currentPool: 7_000,
+    remainingExemption: 5_000,
+    exemptCurrent: 5_000,
+    taxableCurrent: 2_000,
+    poolAfterCutoff: 92_000,
+  });
+});
+
+test("13th month and qualifying bonuses join the shared pool while commissions do not", () => {
+  for (const type of [
+    "13th_month",
+    "thirteenth_month",
+    "bonus",
+    "christmas_bonus",
+    "midyear_bonus",
+    "performance_bonus",
+    "other_benefit_90k",
+  ]) {
+    assert.equal(isSharedBenefitPoolEarningType(type), true, type);
+  }
+  assert.equal(isSharedBenefitPoolEarningType("commission"), false);
+  assert.equal(isSharedBenefitPoolEarningType("taxable_allowance"), false);
 });
