@@ -301,6 +301,8 @@ export const payslips = pgTable("payslips", {
   periodLabel: varchar("period_label", { length: 80 }).notNull(),
   content: text("content").notNull(),
   ruleVersion: varchar("rule_version", { length: 48 }).notNull().default("PH-2026.01"),
+  appliedPayrollRunId: integer("applied_payroll_run_id").references(() => payrollRuns.id, { onDelete: "restrict" }),
+  appliedAt: timestamp("applied_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
