@@ -127,7 +127,7 @@ test("PhilHealth splits the capped five percent premium and reconciles odd centa
   const odd = computePhilHealth(10_000.20);
   assert.equal(odd.total, 500.01);
   assert.equal(odd.employee + odd.employer, odd.total);
-  assert.deepEqual([odd.employee, odd.employer], [250.01, 250]);
+  assert.deepEqual([odd.employee, odd.employer], [250, 250.01]);
 });
 
 

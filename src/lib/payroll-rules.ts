@@ -35,9 +35,11 @@ export function computeSss(monthlySalary: number) {
 export function computePhilHealth(monthlySalary: number) {
   const base = Math.min(100_000, Math.max(10_000, monthlySalary));
   const total = round(base * 0.05);
-  const employee = round(total / 2);
-  // Put any one-centavo rounding remainder on the employer share so EE + ER
-  // always reconciles exactly to the statutory 5% premium.
+  // Split the already-rounded statutory premium in centavos. When the total
+  // has an odd centavo, keep the employee share at the lower centavo and put
+  // the unavoidable one-centavo remainder on the employer share.
+  const totalCentavos = Math.round(total * 100);
+  const employee = Math.floor(totalCentavos / 2) / 100;
   const employer = round(total - employee);
   return { base, total, employee, employer };
 }
