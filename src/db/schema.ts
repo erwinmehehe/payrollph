@@ -205,6 +205,117 @@ export const employeeRestDayRevisions = pgTable(
   ],
 );
 
+export const shiftDefinitions = pgTable(
+  "shift_definitions",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    code: varchar("code", { length: 32 }).notNull(),
+    name: varchar("name", { length: 120 }).notNull(),
+    startTime: varchar("start_time", { length: 8 }).notNull(),
+    endTime: varchar("end_time", { length: 8 }).notNull(),
+    breakMinutes: integer("break_minutes").notNull().default(60),
+    spansMidnight: boolean("spans_midnight").notNull().default(false),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("shift_definitions_org_code_unique").on(table.organizationId, table.code),
+    index("shift_definitions_org_active_idx").on(table.organizationId, table.active),
+  ],
+);
+
+export const schedulePatterns = pgTable(
+  "schedule_patterns",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    code: varchar("code", { length: 32 }).notNull(),
+    name: varchar("name", { length: 120 }).notNull(),
+    cycleDays: integer("cycle_days").notNull(),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("schedule_patterns_org_code_unique").on(table.organizationId, table.code),
+    index("schedule_patterns_org_active_idx").on(table.organizationId, table.active),
+  ],
+);
+
+export const schedulePatternDays = pgTable(
+  "schedule_pattern_days",
+  {
+    id: serial("id").primaryKey(),
+    patternId: integer("pattern_id").notNull().references(() => schedulePatterns.id, { onDelete: "cascade" }),
+    dayIndex: integer("day_index").notNull(),
+    isRestDay: boolean("is_rest_day").notNull().default(false),
+    label: varchar("label", { length: 80 }),
+  },
+  (table) => [
+    uniqueIndex("schedule_pattern_days_pattern_day_unique").on(table.patternId, table.dayIndex),
+  ],
+);
+
+export const schedulePatternSegments = pgTable(
+  "schedule_pattern_segments",
+  {
+    id: serial("id").primaryKey(),
+    patternDayId: integer("pattern_day_id").notNull().references(() => schedulePatternDays.id, { onDelete: "cascade" }),
+    shiftDefinitionId: integer("shift_definition_id").notNull().references(() => shiftDefinitions.id, { onDelete: "restrict" }),
+    segmentOrder: integer("segment_order").notNull().default(1),
+  },
+  (table) => [
+    uniqueIndex("schedule_pattern_segments_day_order_unique").on(table.patternDayId, table.segmentOrder),
+  ],
+);
+
+export const employeeScheduleAssignments = pgTable(
+  "employee_schedule_assignments",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    patternId: integer("pattern_id").notNull().references(() => schedulePatterns.id, { onDelete: "restrict" }),
+    effectiveFrom: date("effective_from").notNull(),
+    effectiveUntil: date("effective_until"),
+    anchorDate: date("anchor_date").notNull(),
+    workLocationOrgUnitId: integer("work_location_org_unit_id").references(() => orgUnits.id, { onDelete: "set null" }),
+    reason: varchar("reason", { length: 240 }).notNull().default("Schedule assignment"),
+    createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("employee_schedule_assignments_employee_date_idx").on(table.employeeId, table.effectiveFrom),
+    index("employee_schedule_assignments_org_idx").on(table.organizationId),
+  ],
+);
+
+export const scheduleOverrides = pgTable(
+  "schedule_overrides",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    workDate: date("work_date").notNull(),
+    kind: varchar("kind", { length: 24 }).notNull().default("shift"),
+    isRestDay: boolean("is_rest_day").notNull().default(false),
+    segments: jsonb("segments").notNull().default([]),
+    workLocationOrgUnitId: integer("work_location_org_unit_id").references(() => orgUnits.id, { onDelete: "set null" }),
+    reason: varchar("reason", { length: 240 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("approved"),
+    createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
+    approvedBy: varchar("approved_by", { length: 120 }),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("schedule_overrides_employee_date_unique").on(table.employeeId, table.workDate),
+    index("schedule_overrides_org_date_idx").on(table.organizationId, table.workDate),
+  ],
+);
+
 export const timePunches = pgTable("time_punches", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
