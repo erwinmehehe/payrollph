@@ -842,7 +842,7 @@ jobs:
             check((await receipt.count()) === 1, "Lifecycle: persistent owner release receipt is missing");
             const receiptText = (await receipt.innerText()).toLowerCase();
             check(receiptText.includes("total net payroll"), "Lifecycle: release receipt does not show net payroll");
-            check(receiptText.includes("bank / export status"), "Lifecycle: release receipt does not show export status");
+            check(receiptText.includes("bank-file fallback"), "Lifecycle: release receipt does not show the optional bank-file fallback");
             check(receiptText.includes("payslip delivery"), "Lifecycle: release receipt does not show payslip delivery status");
             check(receiptText.includes(String(releasePayload.receipt.employeeCount)), "Lifecycle: release receipt does not show employee count");
             check(
