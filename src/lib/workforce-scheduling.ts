@@ -54,6 +54,7 @@ export type WorkforceScheduleOverride = {
   segments?: WorkforceScheduleOverrideSegment[];
   workLocationOrgUnitId?: number | null;
   status?: "pending" | "approved" | "rejected" | "cancelled";
+  reason?: string;
 };
 
 export type ResolvedScheduleSegment = {
@@ -226,58 +227,11 @@ export function resolveDailySchedule(input: {
 }): ResolvedDailySchedule {
   assertIsoDate(input.date, "Work date");
 
-  const approvedOverrides = (input.overrides ?? []).filter(
-    (override) =>
-      override.workDate === input.date
-      && (override.status ?? "approved") === "approved",
-  );
-  if (approvedOverrides.length > 1) {
-    throw new Error(`More than one approved schedule override exists for ${input.date}.`);
-  }
-
   const assignment = selectEffectiveScheduleAssignment(input.assignments, input.date);
-  const baseLocation = assignment?.workLocationOrgUnitId ?? null;
-  const override = approvedOverrides[0];
-
-  if (override) {
-    const rest =
-      override.isRestDay
-      || override.kind === "rest_day"
-      || override.kind === "off";
-
-    const overrideSegments = rest
-      ? []
-      : resolveSegments(override.segments ?? [], input.shifts);
-
-    if (!rest && override.kind !== "location" && overrideSegments.length === 0) {
-      throw new Error(
-        `Approved ${override.kind} override #${override.id} has no shift segments.`,
-      );
-    }
-
-    return {
-      date: input.date,
-      source: "override",
-      isRestDay: rest,
-      assignmentId: assignment?.id ?? null,
-      patternId: assignment?.patternId ?? null,
-      patternDayIndex: null,
-      overrideId: override.id,
-      workLocationOrgUnitId:
-        override.workLocationOrgUnitId ?? baseLocation,
-      segments: override.kind === "location" && overrideSegments.length === 0
-        ? []
-        : overrideSegments,
-      audit: [
-        `overrideId=${override.id}`,
-        `overrideKind=${override.kind}`,
-        `isRestDay=${rest}`,
-      ],
-    };
-  }
+  let base: ResolvedDailySchedule;
 
   if (!assignment) {
-    return {
+    base = {
       date: input.date,
       source: "unassigned",
       isRestDay: false,
@@ -289,57 +243,135 @@ export function resolveDailySchedule(input: {
       segments: [],
       audit: ["No effective schedule assignment; schedule was not guessed."],
     };
-  }
-
-  const pattern = input.patterns.find((row) => row.id === assignment.patternId);
-  if (!pattern) {
-    throw new Error(
-      `Schedule assignment #${assignment.id} references missing pattern #${assignment.patternId}.`,
-    );
-  }
-  validateSchedulePattern({
-    pattern,
-    days: input.patternDays,
-    segments: input.patternSegments,
-    shifts: input.shifts,
-  });
-
-  const elapsedDays = dateOrdinal(input.date) - dateOrdinal(assignment.anchorDate);
-  const patternDayIndex = positiveModulo(elapsedDays, pattern.cycleDays);
-  const patternDay = input.patternDays.find(
-    (day) => day.patternId === pattern.id && day.dayIndex === patternDayIndex,
-  );
-  if (!patternDay) {
-    throw new Error(
-      `Pattern #${pattern.id} has no day ${patternDayIndex} for ${input.date}.`,
-    );
-  }
-
-  const segments = patternDay.isRestDay
-    ? []
-    : resolveSegments(
-        input.patternSegments.filter(
-          (segment) => segment.patternDayId === patternDay.id,
-        ),
-        input.shifts,
+  } else {
+    const pattern = input.patterns.find((row) => row.id === assignment.patternId);
+    if (!pattern) {
+      throw new Error(
+        `Schedule assignment #${assignment.id} references missing pattern #${assignment.patternId}.`,
       );
+    }
+    validateSchedulePattern({
+      pattern,
+      days: input.patternDays,
+      segments: input.patternSegments,
+      shifts: input.shifts,
+    });
+
+    const elapsedDays = dateOrdinal(input.date) - dateOrdinal(assignment.anchorDate);
+    const patternDayIndex = positiveModulo(elapsedDays, pattern.cycleDays);
+    const patternDay = input.patternDays.find(
+      (day) => day.patternId === pattern.id && day.dayIndex === patternDayIndex,
+    );
+    if (!patternDay) {
+      throw new Error(
+        `Pattern #${pattern.id} has no day ${patternDayIndex} for ${input.date}.`,
+      );
+    }
+
+    const segments = patternDay.isRestDay
+      ? []
+      : resolveSegments(
+          input.patternSegments.filter(
+            (segment) => segment.patternDayId === patternDay.id,
+          ),
+          input.shifts,
+        );
+
+    base = {
+      date: input.date,
+      source: "pattern",
+      isRestDay: patternDay.isRestDay,
+      assignmentId: assignment.id,
+      patternId: pattern.id,
+      patternDayIndex,
+      overrideId: null,
+      workLocationOrgUnitId: assignment.workLocationOrgUnitId ?? null,
+      segments,
+      audit: [
+        `assignmentId=${assignment.id}`,
+        `patternId=${pattern.id}`,
+        `patternDayIndex=${patternDayIndex}`,
+        `anchorDate=${assignment.anchorDate}`,
+        `isRestDay=${patternDay.isRestDay}`,
+      ],
+    };
+  }
+
+  const approvedOverrides = (input.overrides ?? []).filter(
+    (override) =>
+      override.workDate === input.date
+      && (override.status ?? "approved") === "approved",
+  );
+  if (approvedOverrides.length > 1) {
+    throw new Error(`More than one approved schedule override exists for ${input.date}.`);
+  }
+
+  const override = approvedOverrides[0];
+  if (!override) return base;
+
+  const rest =
+    override.isRestDay
+    || override.kind === "rest_day"
+    || override.kind === "off";
+
+  if (rest) {
+    return {
+      ...base,
+      source: "override",
+      isRestDay: true,
+      overrideId: override.id,
+      workLocationOrgUnitId:
+        override.workLocationOrgUnitId ?? base.workLocationOrgUnitId,
+      segments: [],
+      audit: [
+        ...base.audit,
+        `overrideId=${override.id}`,
+        `overrideKind=${override.kind}`,
+        "isRestDay=true",
+      ],
+    };
+  }
+
+  if (override.kind === "location") {
+    if (base.source === "unassigned") {
+      throw new Error(
+        `Location override #${override.id} cannot supply a missing work schedule.`,
+      );
+    }
+    return {
+      ...base,
+      source: "override",
+      overrideId: override.id,
+      workLocationOrgUnitId:
+        override.workLocationOrgUnitId ?? base.workLocationOrgUnitId,
+      audit: [
+        ...base.audit,
+        `overrideId=${override.id}`,
+        "overrideKind=location",
+      ],
+    };
+  }
+
+  const overrideSegments = resolveSegments(override.segments ?? [], input.shifts);
+  if (overrideSegments.length === 0) {
+    throw new Error(
+      `Approved ${override.kind} override #${override.id} has no shift segments.`,
+    );
+  }
 
   return {
-    date: input.date,
-    source: "pattern",
-    isRestDay: patternDay.isRestDay,
-    assignmentId: assignment.id,
-    patternId: pattern.id,
-    patternDayIndex,
-    overrideId: null,
-    workLocationOrgUnitId: baseLocation,
-    segments,
+    ...base,
+    source: "override",
+    isRestDay: false,
+    overrideId: override.id,
+    workLocationOrgUnitId:
+      override.workLocationOrgUnitId ?? base.workLocationOrgUnitId,
+    segments: overrideSegments,
     audit: [
-      `assignmentId=${assignment.id}`,
-      `patternId=${pattern.id}`,
-      `patternDayIndex=${patternDayIndex}`,
-      `anchorDate=${assignment.anchorDate}`,
-      `isRestDay=${patternDay.isRestDay}`,
+      ...base.audit,
+      `overrideId=${override.id}`,
+      `overrideKind=${override.kind}`,
+      "isRestDay=false",
     ],
   };
 }
