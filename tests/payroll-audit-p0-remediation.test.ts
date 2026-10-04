@@ -353,6 +353,8 @@ test("monthly government reports reject first cutoff and aggregate released cuto
     name: "Monthly Government Export Audit",
     legalName: "Monthly Government Export Audit Inc.",
     plan: "Core",
+    birTin: "123456789",
+    birBranchCode: "0000",
   }).returning();
 
   try {
@@ -368,6 +370,8 @@ test("monthly government reports reject first cutoff and aggregate released cuto
       sssNo: "34-1234567-8",
       philHealthNo: "01-234567890-1",
       pagIbigNo: "1234-5678-9012",
+      tin: "987654321",
+      tinBranchCode: "0000",
       startDate: "2025-01-01",
     });
 
@@ -411,6 +415,30 @@ test("monthly government reports reject first cutoff and aggregate released cuto
     const bir = await generateGovernmentDraft(second.id, "bir-1601c");
     assert.ok(bir.body.includes("2026-11"));
     assert.ok(bir.body.includes(",1,DRAFT"));
+
+    const [employee] = await db.select().from(employees).where(eq(employees.organizationId, org.id));
+    await db.insert(yearEndAdjustments).values({
+      organizationId: org.id,
+      employeeId: employee.id,
+      taxYear: 2026,
+      grossCompensation: "240000.00",
+      thirteenthMonth: "20000.00",
+      nonTaxable: "50000.00",
+      statutoryContributions: "30000.00",
+      taxableIncome: "190000.00",
+      taxDue: "0.00",
+      taxWithheld: "500.00",
+      adjustment: "-500.00",
+      outcome: "refund",
+      breakdown: {},
+      ruleVersion: "PH-2026.03",
+    });
+
+    const annual = await generateGovernmentDraft(second.id, "bir-1604c-source");
+    assert.ok(annual.body.includes("240000.00"));
+    assert.ok(annual.body.includes("-500.00"));
+    assert.ok(annual.body.includes("Full-year source extract"));
+    assert.ok(annual.filename.includes("2026"));
   } finally {
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
