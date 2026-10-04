@@ -36,6 +36,7 @@ test("Alphalist draft keeps employer and employee TIN/branch fields separate", a
     periodStart: "2026-09-16",
     periodEnd: "2026-09-30",
     payDate: "2026-09-30",
+    status: "Released",
   }).returning();
 
   await db.insert(payrollEntries).values({
