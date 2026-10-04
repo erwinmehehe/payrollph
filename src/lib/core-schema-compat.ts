@@ -185,7 +185,7 @@ export async function ensureCoreCompatibilitySchema() {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v10'))");
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v11'))");
 
       await client.query(`
         ALTER TABLE organizations
@@ -675,6 +675,41 @@ export async function ensureCoreCompatibilitySchema() {
       await client.query(`
         CREATE INDEX IF NOT EXISTS schedule_overrides_org_date_idx
         ON schedule_overrides(organization_id, work_date)
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS schedule_swap_requests (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          requester_employee_id integer NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+          counterparty_employee_id integer NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+          requester_work_date date NOT NULL,
+          counterparty_work_date date NOT NULL,
+          requester_schedule_snapshot jsonb NOT NULL,
+          counterparty_schedule_snapshot jsonb NOT NULL,
+          reason varchar(240) NOT NULL,
+          status varchar(24) NOT NULL DEFAULT 'pending',
+          requested_by varchar(120) NOT NULL,
+          requested_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          decided_by varchar(120),
+          decided_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          decided_at timestamptz,
+          decision_note varchar(240),
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS schedule_swap_requests_org_status_idx
+        ON schedule_swap_requests(organization_id, status)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS schedule_swap_requests_requester_date_idx
+        ON schedule_swap_requests(requester_employee_id, requester_work_date)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS schedule_swap_requests_counterparty_date_idx
+        ON schedule_swap_requests(counterparty_employee_id, counterparty_work_date)
       `);
 
       // Evidence that a corporate bank portal accepted an exact Linaw-generated
