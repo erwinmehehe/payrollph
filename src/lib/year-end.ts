@@ -1,6 +1,6 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, historicalPayrollEntries, payrollEntries, payrollRuns, payslips, yearEndAdjustments } from "@/db/schema";
+import { employees, historicalPayrollEntries, payrollEntries, payrollRuns, payslips, separationRecords, yearEndAdjustments } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { annualize, ANNUALIZATION_RULE_VERSION, type AnnualizationResult } from "@/lib/annualization";
@@ -139,6 +139,18 @@ export async function runYearEndAnnualization(
       sql`extract(year from ${historicalPayrollEntries.payDate}) = ${taxYear}`,
     ));
 
+  const releasedSeparations = await db
+    .select()
+    .from(separationRecords)
+    .where(and(
+      eq(separationRecords.organizationId, organizationId),
+      eq(separationRecords.status, "released"),
+      sql`extract(year from ${separationRecords.lastDay}) = ${taxYear}`,
+    ));
+  const separationByEmployee = new Map(
+    releasedSeparations.map((record) => [record.employeeId, record]),
+  );
+
   const totals = new Map<number, {
     gross: number;
     basic: number;
@@ -215,6 +227,43 @@ export async function runYearEndAnnualization(
 
   for (const employee of staff) {
     const bucket = totals.get(employee.id);
+
+    if (employee.status !== "Active") {
+      const separation = separationByEmployee.get(employee.id);
+      if (!separation) {
+        if (bucket && bucket.periods > 0) {
+          throw new Error(
+            `Inactive employee ${employee.employeeNo} has payroll history in ${taxYear} but no released final-pay annualization snapshot. Release/reconcile the separation package before year-end reporting.`,
+          );
+        }
+        continue;
+      }
+
+      const snapshot = separation.computationSnapshot && typeof separation.computationSnapshot === "object"
+        ? separation.computationSnapshot as Record<string, unknown>
+        : {};
+      const annualization = snapshot.annualization as AnnualizationResult | undefined;
+      if (!annualization) {
+        throw new Error(
+          `Released separation for ${employee.employeeNo} does not contain an annualization snapshot. Recompute and re-release the final-pay package before year-end reporting.`,
+        );
+      }
+
+      rows.push({
+        employee,
+        result: annualization,
+        periods: bucket?.periods ?? 0,
+        importedPeriods: bucket?.importedPeriods ?? 0,
+        basicSalaryEarned: Number(separation.basicSalaryEarnedYtd),
+        thirteenthEntitlement: Number(separation.thirteenthEntitlement),
+        thirteenthAlreadyPaid: Number(separation.thirteenthPaidYtd),
+        deMinimisExempt: Number(snapshot.deMinimisYtd ?? 0),
+        otherBenefitsPool: Number(snapshot.deMinimisExcessYtd ?? 0),
+        mweTaxableSupplementaryCompensation: Number(snapshot.mweTaxableSupplementaryCompensationYtd ?? 0),
+      });
+      continue;
+    }
+
     if (!bucket || bucket.periods === 0) continue;
 
     // DOLE minimum 13th month: total basic salary actually earned in the
@@ -318,6 +367,7 @@ export async function runYearEndAnnualization(
       runsIncluded: runIds.length,
       provisionalPayrollRunId: options.includePayrollRunId ?? null,
       importedHistoryRows: importedHistory.length,
+      releasedSeparationSnapshots: releasedSeparations.length,
       refunds: refunds.length,
       collections: collections.length,
     },
@@ -328,6 +378,7 @@ export async function runYearEndAnnualization(
     runsIncluded: runIds.length,
     provisionalPayrollRunId: options.includePayrollRunId ?? null,
     importedHistoryRows: importedHistory.length,
+    releasedSeparationSnapshots: releasedSeparations.length,
     employees: rows.length,
     refunds: refunds.length,
     collections: collections.length,
