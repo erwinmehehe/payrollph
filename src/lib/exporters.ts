@@ -1,6 +1,6 @@
 import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { db } from "@/db";
-import { bankTemplates, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
+import { bankTemplates, employees, organizations, payrollEntries, payrollRuns, yearEndAdjustments } from "@/db/schema";
 import { decryptBankAccount } from "@/lib/bank-account-crypto";
 import { decryptGovernmentId } from "@/lib/government-id-crypto";
 import { computePagIbig, computePhilHealth, computeSss } from "@/lib/payroll-rules";
@@ -816,9 +816,10 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     throw new Error(`Government export "${kind}" is not implemented.`);
   }
 
-  // BIR annual summary input. This remains a source extract, not a claimed
-  // filing-ready DAT. A single cutoff cannot prove the complete annual filing
-  // contract, so the exporter fails closed instead of guessing portal bytes.
+  // BIR annual summary input comes from the year-end annualization ledger,
+  // never from one semi-monthly payroll cutoff. It remains a source extract,
+  // not a claimed ADES/import-ready DAT.
+  const taxYear = Number(String(run.payDate).slice(0, 4));
   const [organization] = await db.select().from(organizations)
     .where(eq(organizations.id, run.organizationId))
     .limit(1);
@@ -829,8 +830,26 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     throw new Error("BIR annual draft cannot be generated: employer BIR TIN and 4-digit branch code are required.");
   }
 
-  const missingTin = entries.filter(({ employee }) => govId(employee.tin).replace(/\D/g, "").length !== 9);
-  const missingBranch = entries.filter(({ employee }) => govId(employee.tinBranchCode).replace(/\D/g, "").length !== 4);
+  const annualRows = await db.select({
+    adjustment: yearEndAdjustments,
+    employee: employees,
+  })
+    .from(yearEndAdjustments)
+    .innerJoin(employees, eq(yearEndAdjustments.employeeId, employees.id))
+    .where(and(
+      eq(yearEndAdjustments.organizationId, run.organizationId),
+      eq(yearEndAdjustments.taxYear, taxYear),
+    ))
+    .orderBy(asc(employees.lastName), asc(employees.firstName), asc(employees.id));
+
+  if (annualRows.length === 0) {
+    throw new Error(
+      `BIR 1604-C annual source cannot be generated: run year-end annualization for ${taxYear} first.`,
+    );
+  }
+
+  const missingTin = annualRows.filter(({ employee }) => govId(employee.tin).replace(/\D/g, "").length !== 9);
+  const missingBranch = annualRows.filter(({ employee }) => govId(employee.tinBranchCode).replace(/\D/g, "").length !== 4);
   if (missingTin.length > 0) {
     throw new Error(
       `BIR annual draft cannot be generated: ${missingTin.length} employee(s) are missing a valid 9-digit TIN: ${missingTin.map(({ employee }) => employee.employeeNo).join(", ")}.`,
@@ -843,26 +862,35 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
   }
 
   const body = [
-    "EmployerTIN,EmployerBranchCode,EmployeeTIN,EmployeeBranchCode,LastName,FirstName,MiddleName,Nationality,GrossCompensation,TaxWithheld,MWE,Status",
-    ...entries.map(({ employee, entry }) => [
-      employerTin,
-      employerBranchCode,
-      govId(employee.tin).replace(/\D/g, ""),
-      govId(employee.tinBranchCode).replace(/\D/g, ""),
-      employee.lastName,
-      employee.firstName,
-      employee.middleName ?? "",
-      employee.nationality ?? "Filipino",
-      entry.grossPay,
-      Math.abs(Number((entry.lineItems as Array<{ code: string; amount: string }> | undefined)?.find?.((item) => item.code === "WHT")?.amount ?? 0)).toFixed(2),
-      employee.mwe ? "Y" : "N",
-      "DRAFT",
-    ].map(csv).join(",")),
+    "EmployerTIN,EmployerBranchCode,EmployeeTIN,EmployeeBranchCode,LastName,FirstName,MiddleName,Nationality,GrossCompensation,TaxDue,TaxWithheldBeforeAnnualization,YearEndAdjustment,FinalTaxWithheld,MWE,Outcome,Status",
+    ...annualRows.map(({ employee, adjustment }) => {
+      const taxWithheldBefore = Number(adjustment.taxWithheld);
+      const yearEndAdjustment = Number(adjustment.adjustment);
+      const finalTaxWithheld = round2(taxWithheldBefore + yearEndAdjustment);
+      return [
+        employerTin,
+        employerBranchCode,
+        govId(employee.tin).replace(/\D/g, ""),
+        govId(employee.tinBranchCode).replace(/\D/g, ""),
+        employee.lastName,
+        employee.firstName,
+        employee.middleName ?? "",
+        employee.nationality ?? "Filipino",
+        adjustment.grossCompensation,
+        adjustment.taxDue,
+        adjustment.taxWithheld,
+        adjustment.adjustment,
+        finalTaxWithheld.toFixed(2),
+        adjustment.mwe ? "Y" : "N",
+        adjustment.outcome,
+        "DRAFT",
+      ].map(csv).join(",");
+    }),
   ].join("\n");
 
   return {
-    filename: `bir-1604c-annual-source-${run.id}.csv`,
+    filename: `bir-1604c-annual-source-${taxYear}.csv`,
     contentType: "text/csv",
-    body: `${headerNote}\n# Source extract only. Validate and transform this annual dataset through the current BIR validation workflow before filing.\n${body}`,
+    body: `${headerNote}\n# Full-year source extract from the approved year-end annualization ledger. Not an ADES .DAT file and not portal validated.\n# Validate and transform this annual dataset through the current BIR submission workflow before filing.\n${body}`,
   };
 }
