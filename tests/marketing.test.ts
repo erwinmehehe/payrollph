@@ -183,14 +183,14 @@ test("homepage Leave and Migration modules perform local interactive workflows",
 });
 
 
-test("homepage hero uses the PayrollPH dashboard visual while the deeper demo stays interactive", () => {
+test("homepage hero and deeper demo both use the shared Linaw workspace preview", () => {
   const hero = read("src/components/marketing/claude-home/components/Hero.tsx");
   const demo = read("src/components/marketing/claude-home/components/Demo.tsx");
-  assert.ok(hero.includes("Good morning, Maria!"), "hero visual must use the approved PayrollPH dashboard composition");
-  assert.ok(hero.includes("3 things need attention"), "hero visual must show the attention card");
-  assert.ok(hero.includes("Recent Payroll Runs"), "hero visual must include recent payroll history");
-  assert.ok(hero.includes("Ready for review"), "hero visual must include payroll status");
+  assert.ok(hero.includes("WorkspacePreview"), "homepage hero must render the shared workspace preview");
+  assert.ok(hero.includes('mode="showcase"'), "homepage hero must use the focused showcase mode");
+  assert.ok(hero.includes("Actual Linaw workspace"), "homepage hero must identify the visual as the actual product");
   assert.ok(demo.includes("WorkspacePreview"), "homepage demo must render the shared workspace preview");
+  assert.ok(demo.includes('mode="interactive"'), "homepage demo must retain the interactive preview mode");
   assert.ok(demo.includes("actual Linaw workspace"), "homepage demo must explain that it is showing the product system");
 });
 
