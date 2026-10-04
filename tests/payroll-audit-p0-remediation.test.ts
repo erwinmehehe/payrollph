@@ -267,6 +267,10 @@ test("year-end refund and collection are staged into final payroll and consumed 
     assert.equal(Number(refundEntry.netPay), Number(beforeByEmployee.get(staff[0].id)!.netPay) + 500);
     assert.equal(Number(collectEntry.netPay), Number(beforeByEmployee.get(staff[1].id)!.netPay) - 500);
 
+    const stagedJournal = await generateJournalCsv(run.id);
+    assert.ok(stagedJournal.body.includes("BIR Withholding Tax Payable"));
+    assert.ok(Number.isFinite(stagedJournal.summary.birWithholding));
+
     const preRelease = await db.select().from(yearEndAdjustments).where(eq(yearEndAdjustments.organizationId, org.id));
     assert.ok(preRelease.every((row) => row.appliedPayrollRunId == null && row.appliedAt == null));
 
