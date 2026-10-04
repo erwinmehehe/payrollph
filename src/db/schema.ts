@@ -392,6 +392,49 @@ export const overtimeRequests = pgTable(
   ],
 );
 
+export const costCenters = pgTable(
+  "cost_centers",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    code: varchar("code", { length: 40 }).notNull(),
+    name: varchar("name", { length: 140 }).notNull(),
+    description: text("description"),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("cost_centers_org_code_unique").on(table.organizationId, table.code),
+    index("cost_centers_org_active_idx").on(table.organizationId, table.active),
+  ],
+);
+
+export const employeeLaborAllocations = pgTable(
+  "employee_labor_allocations",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    costCenterId: integer("cost_center_id").notNull().references(() => costCenters.id, { onDelete: "restrict" }),
+    effectiveFrom: date("effective_from").notNull(),
+    effectiveUntil: date("effective_until"),
+    allocationPercent: numeric("allocation_percent", { precision: 6, scale: 3 }).notNull(),
+    allocationBasis: varchar("allocation_basis", { length: 24 }).notNull().default("percentage"),
+    projectCode: varchar("project_code", { length: 64 }),
+    clientCode: varchar("client_code", { length: 64 }),
+    jobCode: varchar("job_code", { length: 64 }),
+    reason: varchar("reason", { length: 240 }).notNull().default("Labor costing allocation"),
+    createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("employee_labor_allocations_employee_date_idx").on(table.employeeId, table.effectiveFrom),
+    index("employee_labor_allocations_org_cost_center_idx").on(table.organizationId, table.costCenterId),
+  ],
+);
+
 export const payrollRuns = pgTable("payroll_runs", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
