@@ -185,7 +185,7 @@ export async function ensureCoreCompatibilitySchema() {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v6'))");
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v7'))");
 
       await client.query(`
         ALTER TABLE organizations
@@ -472,6 +472,132 @@ export async function ensureCoreCompatibilitySchema() {
       await client.query(`
         ALTER TABLE historical_payroll_entries
           ADD COLUMN IF NOT EXISTS de_minimis_breakdown jsonb
+      `);
+
+      // Advanced workforce scheduling. Keep this additive and idempotent so
+      // existing production databases can adopt rotating/split/cross-midnight
+      // schedules without rewriting historical employee rest-day records.
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS shift_definitions (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          code varchar(32) NOT NULL,
+          name varchar(120) NOT NULL,
+          start_time varchar(8) NOT NULL,
+          end_time varchar(8) NOT NULL,
+          break_minutes integer NOT NULL DEFAULT 60,
+          spans_midnight boolean NOT NULL DEFAULT false,
+          active boolean NOT NULL DEFAULT true,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS shift_definitions_org_code_unique
+        ON shift_definitions(organization_id, code)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS shift_definitions_org_active_idx
+        ON shift_definitions(organization_id, active)
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS schedule_patterns (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          code varchar(32) NOT NULL,
+          name varchar(120) NOT NULL,
+          cycle_days integer NOT NULL,
+          active boolean NOT NULL DEFAULT true,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS schedule_patterns_org_code_unique
+        ON schedule_patterns(organization_id, code)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS schedule_patterns_org_active_idx
+        ON schedule_patterns(organization_id, active)
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS schedule_pattern_days (
+          id serial PRIMARY KEY,
+          pattern_id integer NOT NULL REFERENCES schedule_patterns(id) ON DELETE CASCADE,
+          day_index integer NOT NULL,
+          is_rest_day boolean NOT NULL DEFAULT false,
+          label varchar(80)
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS schedule_pattern_days_pattern_day_unique
+        ON schedule_pattern_days(pattern_id, day_index)
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS schedule_pattern_segments (
+          id serial PRIMARY KEY,
+          pattern_day_id integer NOT NULL REFERENCES schedule_pattern_days(id) ON DELETE CASCADE,
+          shift_definition_id integer NOT NULL REFERENCES shift_definitions(id) ON DELETE RESTRICT,
+          segment_order integer NOT NULL DEFAULT 1
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS schedule_pattern_segments_day_order_unique
+        ON schedule_pattern_segments(pattern_day_id, segment_order)
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS employee_schedule_assignments (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          employee_id integer NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+          pattern_id integer NOT NULL REFERENCES schedule_patterns(id) ON DELETE RESTRICT,
+          effective_from date NOT NULL,
+          effective_until date,
+          anchor_date date NOT NULL,
+          work_location_org_unit_id integer REFERENCES org_units(id) ON DELETE SET NULL,
+          reason varchar(240) NOT NULL DEFAULT 'Schedule assignment',
+          created_by varchar(120) NOT NULL DEFAULT 'System',
+          created_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS employee_schedule_assignments_employee_date_idx
+        ON employee_schedule_assignments(employee_id, effective_from)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS employee_schedule_assignments_org_idx
+        ON employee_schedule_assignments(organization_id)
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS schedule_overrides (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          employee_id integer NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+          work_date date NOT NULL,
+          kind varchar(24) NOT NULL DEFAULT 'shift',
+          is_rest_day boolean NOT NULL DEFAULT false,
+          segments jsonb NOT NULL DEFAULT '[]'::jsonb,
+          work_location_org_unit_id integer REFERENCES org_units(id) ON DELETE SET NULL,
+          reason varchar(240) NOT NULL,
+          status varchar(24) NOT NULL DEFAULT 'approved',
+          created_by varchar(120) NOT NULL DEFAULT 'System',
+          approved_by varchar(120),
+          approved_at timestamptz,
+          created_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS schedule_overrides_employee_date_unique
+        ON schedule_overrides(employee_id, work_date)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS schedule_overrides_org_date_idx
+        ON schedule_overrides(organization_id, work_date)
       `);
 
       // Evidence that a corporate bank portal accepted an exact Linaw-generated

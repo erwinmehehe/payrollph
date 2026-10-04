@@ -26,6 +26,12 @@ test("production compatibility schema includes all compliance-hardening migratio
     "ALTER COLUMN sss_no TYPE varchar(180)",
     "ALTER COLUMN philhealth_no TYPE varchar(180)",
     "ALTER COLUMN pagibig_no TYPE varchar(180)",
+    "CREATE TABLE IF NOT EXISTS shift_definitions",
+    "CREATE TABLE IF NOT EXISTS schedule_patterns",
+    "CREATE TABLE IF NOT EXISTS schedule_pattern_days",
+    "CREATE TABLE IF NOT EXISTS schedule_pattern_segments",
+    "CREATE TABLE IF NOT EXISTS employee_schedule_assignments",
+    "CREATE TABLE IF NOT EXISTS schedule_overrides",
   ]) {
     assert.ok(source.includes(marker), `production compatibility schema is missing ${marker}`);
   }
