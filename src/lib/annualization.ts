@@ -8,6 +8,39 @@ export const ANNUALIZATION_RULE_VERSION = "PH-2026.03";
  */
 export const THIRTEENTH_MONTH_EXEMPTION_CAP = 90_000;
 
+export const SHARED_BENEFIT_EARNING_TYPES = new Set([
+  "13th_month",
+  "thirteenth_month",
+  "bonus",
+  "christmas_bonus",
+  "midyear_bonus",
+  "performance_bonus",
+  "other_benefit_90k",
+]);
+
+export function isSharedBenefitPoolEarningType(value: string | null | undefined) {
+  return SHARED_BENEFIT_EARNING_TYPES.has(String(value ?? "").trim().toLowerCase());
+}
+
+export function sharedBenefitPoolCutoffTreatment(input: {
+  priorPool: number;
+  currentPool: number;
+}) {
+  const priorPool = round2(Math.max(0, Number(input.priorPool) || 0));
+  const currentPool = round2(Math.max(0, Number(input.currentPool) || 0));
+  const remainingExemption = round2(Math.max(0, THIRTEENTH_MONTH_EXEMPTION_CAP - priorPool));
+  const exemptCurrent = round2(Math.min(currentPool, remainingExemption));
+  const taxableCurrent = round2(Math.max(0, currentPool - exemptCurrent));
+  return {
+    priorPool,
+    currentPool,
+    remainingExemption,
+    exemptCurrent,
+    taxableCurrent,
+    poolAfterCutoff: round2(priorPool + currentPool),
+  };
+}
+
 export type AnnualizationInput = {
   /**
    * Total compensation actually received for the year, INCLUDING 13th-month
