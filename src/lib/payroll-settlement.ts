@@ -4,6 +4,7 @@ import { sameBankAccount } from "@/lib/bank-account-crypto";
 import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
 import { NATIONAL_HOLIDAYS_2026, type HolidayCalendarEntry } from "@/lib/wage-orders";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
+import { ensureMigrationSchema } from "@/lib/migration-schema";
 import {
   auditEvents,
   earnedWageRequests,
@@ -152,7 +153,10 @@ export async function settlePayrollRun(
 ) {
   const [preflightRun] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
   if (!preflightRun) throw new Error("Payroll run not found.");
-  await ensureEmployeePayProfiles(preflightRun.organizationId);
+  await Promise.all([
+    ensureEmployeePayProfiles(preflightRun.organizationId),
+    ensureMigrationSchema(),
+  ]);
 
   return db.transaction(async (tx) => {
     const [run] = await tx.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
