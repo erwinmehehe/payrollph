@@ -257,6 +257,26 @@ export function provesFileFormat(row: FilingEvidenceRow, definition: FilingFormD
   );
 }
 
+/**
+ * Operational filing proof is deliberately broader than file-format proof.
+ * Portal-first agency workflows can be proven by an accepted manual/portal
+ * submission with the agency's own acknowledgement reference, while a claimed
+ * upload format still requires provesFileFormat().
+ */
+export function provesOperationalFiling(
+  row: FilingEvidenceRow,
+  definition: FilingFormDefinition,
+): boolean {
+  return (
+    row.agency === definition.agency
+    && row.form === definition.form
+    && row.status === "accepted"
+    && (row.submissionMethod === "file_upload" || row.submissionMethod === "manual_entry")
+    && row.generatorVersion === definition.generatorVersion
+    && Boolean(row.agencyReference?.trim())
+  );
+}
+
 type EvidenceSummary = ReturnType<typeof summarizeFilingEvidence>;
 
 /**
@@ -278,12 +298,25 @@ export function describeEvidenceGap(summary: EvidenceSummary | null, definition:
 export function summarizeFilingEvidence(rows: FilingEvidenceRow[], definition: FilingFormDefinition) {
   const relevant = rows.filter((row) => row.agency === definition.agency && row.form === definition.form);
   const proving = relevant.filter((row) => provesFileFormat(row, definition));
+  const operational = relevant.filter((row) => provesOperationalFiling(row, definition));
   const latest = [...proving].sort(
+    (a, b) => (b.submittedAt?.getTime() ?? 0) - (a.submittedAt?.getTime() ?? 0),
+  )[0];
+  const latestOperational = [...operational].sort(
     (a, b) => (b.submittedAt?.getTime() ?? 0) - (a.submittedAt?.getTime() ?? 0),
   )[0];
   return {
     proven: proving.length > 0,
     provingCount: proving.length,
+    operationallyProven: operational.length > 0,
+    operationalProvingCount: operational.length,
+    latestOperational: latestOperational
+      ? {
+          periodLabel: latestOperational.periodLabel ?? null,
+          agencyReference: latestOperational.agencyReference ?? null,
+          submissionMethod: latestOperational.submissionMethod ?? null,
+        }
+      : null,
     acceptedByManualEntry: relevant.filter((row) => row.status === "accepted" && row.submissionMethod === "manual_entry").length,
     acceptedOnOlderLayout: relevant.filter(
       (row) => row.status === "accepted" && row.submissionMethod === "file_upload" && row.generatorVersion !== definition.generatorVersion,
