@@ -792,6 +792,48 @@ export const assets = pgTable("assets", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const complianceRules = pgTable(
+  "compliance_rules",
+  {
+    id: serial("id").primaryKey(),
+    ruleKey: varchar("rule_key", { length: 80 }).notNull(),
+    agency: varchar("agency", { length: 40 }).notNull(),
+    jurisdiction: varchar("jurisdiction", { length: 80 }).notNull().default("PH"),
+    region: varchar("region", { length: 40 }),
+    ruleVersion: varchar("rule_version", { length: 64 }).notNull(),
+    effectiveFrom: date("effective_from").notNull(),
+    effectiveUntil: date("effective_until"),
+    sourceDocument: varchar("source_document", { length: 240 }).notNull(),
+    sourceUrl: text("source_url").notNull(),
+    payload: jsonb("payload").notNull().default({}),
+    status: varchar("status", { length: 24 }).notNull().default("draft"),
+    futureEffective: boolean("future_effective").notNull().default(false),
+    reviewedBy: varchar("reviewed_by", { length: 120 }),
+    approvedBy: varchar("approved_by", { length: 120 }),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    supersedesRuleVersion: varchar("supersedes_rule_version", { length: 64 }),
+    rollbackVersion: varchar("rollback_version", { length: 64 }),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("compliance_rules_version_unique").on(
+      table.ruleKey,
+      table.jurisdiction,
+      table.region,
+      table.ruleVersion,
+    ),
+    index("compliance_rules_effective_idx").on(
+      table.ruleKey,
+      table.jurisdiction,
+      table.region,
+      table.effectiveFrom,
+    ),
+    index("compliance_rules_status_idx").on(table.status, table.effectiveFrom),
+  ],
+);
+
 export const holidays = pgTable("holidays", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id"),
