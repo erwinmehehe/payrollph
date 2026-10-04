@@ -79,10 +79,19 @@ function sumContributionsAndTax(lineItems: unknown, trace?: unknown) {
  * December annualization for each employee. Idempotent: re-running replaces
  * that year's adjustments for the organization.
  */
-export async function runYearEndAnnualization(organizationId: number, taxYear: number, actor: string) {
+export async function runYearEndAnnualization(
+  organizationId: number,
+  taxYear: number,
+  actor: string,
+  options: {
+    includePayrollRunId?: number;
+    bindToPayrollRunId?: number;
+    approvedBy?: string;
+  } = {},
+) {
   await ensureMigrationSchema();
 
-  const runs = await db
+  const releasedRuns = await db
     .select()
     .from(payrollRuns)
     .where(and(
@@ -91,6 +100,25 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
       sql`extract(year from ${payrollRuns.payDate}) = ${taxYear}`,
     ));
 
+  let includedRun: typeof payrollRuns.$inferSelect | null = null;
+  if (options.includePayrollRunId != null) {
+    const [candidate] = await db.select().from(payrollRuns).where(and(
+      eq(payrollRuns.id, options.includePayrollRunId),
+      eq(payrollRuns.organizationId, organizationId),
+    )).limit(1);
+    if (!candidate) throw new Error("The payroll run selected for year-end annualization was not found in this organization.");
+    if (Number(String(candidate.payDate).slice(0, 4)) !== taxYear) {
+      throw new Error("The payroll run selected for year-end annualization must have a pay date in the requested tax year.");
+    }
+    if (candidate.status !== "Needs review") {
+      throw new Error("Apply year-end tax only to a freshly calculated payroll run in Needs review status.");
+    }
+    includedRun = candidate;
+  }
+
+  const runs = includedRun && !releasedRuns.some((run) => run.id === includedRun!.id)
+    ? [...releasedRuns, includedRun]
+    : releasedRuns;
   const runIds = runs.map((run) => run.id);
   const staff = await db.select().from(employees).where(eq(employees.organizationId, organizationId));
 
@@ -154,6 +182,15 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
     totals.set(entry.employeeId, bucket);
   }
 
+  const existingAdjustments = await db.select().from(yearEndAdjustments).where(and(
+    eq(yearEndAdjustments.organizationId, organizationId),
+    eq(yearEndAdjustments.taxYear, taxYear),
+  ));
+  if (existingAdjustments.some((row) => row.status === "settled")) {
+    throw new Error(
+      `Year-end tax adjustments for ${taxYear} have already been settled in payroll and cannot be recomputed in place. Use a separately audited correction instead.`,
+    );
+  }
   await db.delete(yearEndAdjustments).where(and(
     eq(yearEndAdjustments.organizationId, organizationId),
     eq(yearEndAdjustments.taxYear, taxYear),
@@ -260,6 +297,10 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
         mweTaxableSupplementaryCompensation,
       },
       ruleVersion: ANNUALIZATION_RULE_VERSION,
+      status: options.bindToPayrollRunId ? "approved" : "computed",
+      payrollRunId: options.bindToPayrollRunId ?? null,
+      approvedAt: options.bindToPayrollRunId ? new Date() : null,
+      approvedBy: options.bindToPayrollRunId ? (options.approvedBy ?? actor) : null,
     })));
   }
 
@@ -278,6 +319,8 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
       importedHistoryRows: importedHistory.length,
       refunds: refunds.length,
       collections: collections.length,
+      includedPayrollRunId: options.includePayrollRunId ?? null,
+      boundPayrollRunId: options.bindToPayrollRunId ?? null,
     },
   });
 
@@ -291,5 +334,7 @@ export async function runYearEndAnnualization(organizationId: number, taxYear: n
     totalRefund: Number(refunds.reduce((sum, row) => sum + Math.abs(row.result.adjustment), 0).toFixed(2)),
     totalCollect: Number(collections.reduce((sum, row) => sum + row.result.adjustment, 0).toFixed(2)),
     ruleVersion: ANNUALIZATION_RULE_VERSION,
+    includedPayrollRunId: options.includePayrollRunId ?? null,
+    boundPayrollRunId: options.bindToPayrollRunId ?? null,
   };
 }
