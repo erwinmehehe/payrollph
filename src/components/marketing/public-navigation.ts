@@ -5,9 +5,9 @@ export type PublicLink = {
 
 export const PUBLIC_PRIMARY_LINKS: PublicLink[] = [
   { label: "Product", href: "/#product" },
-  { label: "Demo", href: "/demo" },
-  { label: "Payroll outsourcing", href: "/payroll-outsourcing" },
+  { label: "Live demo", href: "/demo" },
   { label: "Pricing", href: "/#pricing" },
+  { label: "Payroll outsourcing", href: "/payroll-outsourcing" },
   { label: "Trust", href: "/scorecard" },
 ];
 
