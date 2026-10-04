@@ -297,10 +297,16 @@ export async function runYearEndAnnualization(
         mweTaxableSupplementaryCompensation,
       },
       ruleVersion: ANNUALIZATION_RULE_VERSION,
-      status: options.bindToPayrollRunId ? "approved" : "computed",
+      status: options.bindToPayrollRunId
+        ? (Math.abs(result.adjustment) > 0.004 ? "approved" : "settled")
+        : "computed",
       payrollRunId: options.bindToPayrollRunId ?? null,
       approvedAt: options.bindToPayrollRunId ? new Date() : null,
       approvedBy: options.bindToPayrollRunId ? (options.approvedBy ?? actor) : null,
+      settledAt:
+        options.bindToPayrollRunId && Math.abs(result.adjustment) <= 0.004
+          ? new Date()
+          : null,
     })));
   }
 
