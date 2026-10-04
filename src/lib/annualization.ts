@@ -150,8 +150,9 @@ export function renderForm2316(input: {
   const line = (label: string, value: string) => `${label.padEnd(56, ".")} ${value.padStart(16)}`;
 
   return [
-    "BIR FORM NO. 2316 (DRAFT - NOT A CERTIFIED SUBMISSION)",
-    "Certificate of Compensation Payment / Tax Withheld",
+    "BIR 2316 RECONCILIATION SOURCE - NOT BIR FORM NO. 2316",
+    "Use with the current official BIR Form No. 2316 September 2021 (ENCS).",
+    "This text output does not reproduce the official certificate layout or all required identity/address fields.",
     `For the Year Ended December 31, ${input.taxYear}`,
     "",
     `Employer .......... ${input.employerName}`,
@@ -179,7 +180,7 @@ export function renderForm2316(input: {
     ),
     "",
     `Rule version: ${r.ruleVersion}`,
-    "Draft only. Validate through the BIR Alphalist Data Entry and Validation Module",
-    "before treating this as a submission-ready certificate.",
+    "Reconciliation source only. Do not issue this text file to an employee as BIR Form No. 2316.",
+    "Populate the current official BIR certificate and reconcile it to the validated 1604-C Alphalist.",
   ].join("\n");
 }

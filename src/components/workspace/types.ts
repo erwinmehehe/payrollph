@@ -203,7 +203,7 @@ export type Advisory = {
   premiumPercent?: string | number | null;
 };
 
-export type BankTemplate = { id: number; name: string; version: string; format: string };
+export type BankTemplate = { id: number; name: string; version: string; format: string; uploadReady: boolean };
 
 export type Punch = {
   id: number;

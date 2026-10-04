@@ -15,7 +15,12 @@ import {
 const SSS = findFilingForm("SSS", "R-3")!;
 
 async function seedRun(name: string, basicRate = "30000") {
-  const [org] = await db.insert(organizations).values({ name, legalName: `${name} Inc.`, plan: "Core" }).returning();
+  const [org] = await db.insert(organizations).values({
+    name,
+    legalName: `${name} Inc.`,
+    plan: "Core",
+    pagIbigEmployerNo: "123456789012",
+  }).returning();
   const [employee] = await db.insert(employees).values({
     organizationId: org.id,
     employeeNo: "F-001",
@@ -57,7 +62,7 @@ function acceptance(method: "file_upload" | "manual_entry" = "file_upload") {
   return parsed.ok ? parsed.value : (undefined as never);
 }
 
-test("a filing is recorded by hash, can be accepted once, and then counts as proof", async () => {
+test("a worksheet filing is recorded by hash and immutable but never proves direct-upload compatibility", async () => {
   const { org, run } = await seedRun("Filing Evidence Co");
   try {
     const first = await recordGeneratedFiling({ organizationId: org.id, runId: run.id, definition: SSS, actor: "Tester" });
@@ -82,8 +87,8 @@ test("a filing is recorded by hash, can be accepted once, and then counts as pro
     assert.equal(recorded?.agencyReference, "PRN-7654321");
 
     const after = (await filingEvidenceSummaries()).find((item) => item.definition.form === "R-3")!;
-    assert.equal(after.proven, true);
-    assert.equal(after.provingCount, beforeCount + 1);
+    assert.equal(after.proven, false);
+    assert.equal(after.provingCount, beforeCount, "a reconciliation worksheet cannot prove a direct-upload format");
 
     // An accepted record can never be edited or flipped.
     const second = await recordFilingOutcome({ organizationId: org.id, id: first.record.id, actor: "Someone", outcome: acceptance() });
@@ -174,7 +179,7 @@ test("a BIR 1604-C record is tracked separately and its acceptance never counts 
 
     const sssAfter = (await filingEvidenceSummaries()).find((item) => item.definition.agency === "SSS")!;
     const birAfter = (await filingEvidenceSummaries()).find((item) => item.definition.agency === "BIR")!;
-    assert.equal(birAfter.provingCount, birBefore.provingCount + 1);
+    assert.equal(birAfter.provingCount, birBefore.provingCount, "the source CSV is not a BIR DAT and cannot prove direct-upload compatibility");
     assert.equal(sssAfter.provingCount, sssBefore.provingCount, "a BIR acceptance must not turn on the SSS gate");
   } finally {
     await db.delete(organizations).where(eq(organizations.id, org.id));
@@ -207,14 +212,15 @@ test("a PhilHealth RF-1 record fails closed without a PIN, then counts only for 
     assert.equal(mid.provingCount, phBefore.provingCount);
     assert.equal(mid.acceptedByManualEntry, phBefore.acceptedByManualEntry + 1);
 
-    // Changing a figure creates a new record; accepting that one as an upload counts for PhilHealth only.
+    // Changing a figure creates a new record. The current worksheet is not a
+    // current EPRS upload generator, so it still cannot prove direct-file compatibility.
     await db.update(employees).set({ basicRate: "18000" }).where(eq(employees.id, employee.id));
     const second = await recordGeneratedFiling({ organizationId: org.id, runId: run.id, definition: PH, actor: "Tester" });
     assert.equal(second.created, true);
     await recordFilingOutcome({ organizationId: org.id, id: second.record.id, actor: "Tester", outcome: acceptance("file_upload") });
 
     const after = await filingEvidenceSummaries();
-    assert.equal(after.find((item) => item.definition.agency === "PhilHealth")!.provingCount, phBefore.provingCount + 1);
+    assert.equal(after.find((item) => item.definition.agency === "PhilHealth")!.provingCount, phBefore.provingCount);
     assert.equal(after.find((item) => item.definition.agency === "SSS")!.provingCount, sssBefore.provingCount);
   } finally {
     await db.delete(organizations).where(eq(organizations.id, org.id));
@@ -238,7 +244,7 @@ test("a Pag-IBIG MCRF record fails closed without a MID, then counts only for Pa
     const { record, file } = await recordGeneratedFiling({ organizationId: org.id, runId: run.id, definition: PI, actor: "Tester" });
     assert.equal(record.agency, "Pag-IBIG");
     assert.equal(record.form, "MCRF");
-    assert.match(file.filename, /^pagibig-mcrf-esrs-worksheet-/);
+    assert.match(file.filename, /^pagibig-mcrf-source-/);
 
     // A rejection needs a reason and is kept; it never counts.
     const rejected = parseFilingOutcome({ outcome: "rejected", submissionMethod: "file_upload", note: "Header row not recognised" });
@@ -247,14 +253,15 @@ test("a Pag-IBIG MCRF record fails closed without a MID, then counts only for Pa
     assert.equal(resolved?.status, "rejected");
     assert.equal((await filingEvidenceSummaries()).find((item) => item.definition.agency === "Pag-IBIG")!.rejected, piBefore.rejected + 1);
 
-    // Correct the member ID so the regenerated MCRF bytes actually change; accepting that upload counts for Pag-IBIG only.
+    // Correct the member ID so the regenerated source bytes change. The source
+    // CSV is not the prescribed XLS workbook and cannot prove direct-upload compatibility.
     await db.update(employees).set({ pagIbigNo: "9876-5432-1098" }).where(eq(employees.id, employee.id));
     const second = await recordGeneratedFiling({ organizationId: org.id, runId: run.id, definition: PI, actor: "Tester" });
     assert.equal(second.created, true);
     await recordFilingOutcome({ organizationId: org.id, id: second.record.id, actor: "Tester", outcome: acceptance("file_upload") });
 
     const after = await filingEvidenceSummaries();
-    assert.equal(after.find((item) => item.definition.agency === "Pag-IBIG")!.provingCount, piBefore.provingCount + 1);
+    assert.equal(after.find((item) => item.definition.agency === "Pag-IBIG")!.provingCount, piBefore.provingCount);
     assert.deepEqual(after.filter((item) => item.definition.agency !== "Pag-IBIG").map((item) => item.provingCount), othersBefore);
   } finally {
     await db.delete(organizations).where(eq(organizations.id, org.id));

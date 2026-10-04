@@ -78,13 +78,22 @@ test("manual payout completion requires accepted UAT for the exact bank template
   assert.ok(route.includes("has not passed recorded bank-portal UAT"));
 });
 
-test("RCBC export uses an explicit bank-provided mapping and never guesses a proprietary layout", () => {
+test("bank exports fail closed unless an explicit bank-provided layout is configured", () => {
   const exporter = readFileSync("src/lib/exporters.ts", "utf8");
   const engine = readFileSync("src/lib/payroll-engine.ts", "utf8");
-  assert.ok(exporter.includes('tName.includes("rcbc")'));
+
+  assert.ok(exporter.includes('const isRcbc = tName.includes("rcbc")'));
   assert.ok(exporter.includes("readDelimitedBankMapping(template.mappings)"));
-  assert.ok(exporter.includes("PayrollPH will not guess a proprietary upload layout"));
+  assert.ok(exporter.includes("Linaw will not guess a proprietary upload layout"));
   assert.ok(exporter.includes("renderMappedBankRows"));
+  assert.ok(exporter.includes("BANK LAYOUT NOT CONFIGURED - VALIDATION WORKSHEET ONLY"));
+  assert.ok(exporter.includes("Metrobank MBOS requires its fixed, non-customizable .xls payroll template"));
+  assert.ok(!exporter.includes("BPI Bizlink standard format"));
+  assert.ok(!exporter.includes("Metrobank eGov / MBTC Payroll CSV format"));
+  assert.ok(!exporter.includes("Security Bank eGov / DigiBanker CSV"));
+  assert.ok(!exporter.includes("ChinaBank eGov CSV"));
+  assert.ok(!exporter.includes("EastWest Bank eGov CSV"));
+
   assert.ok(engine.includes("firstName: employee.firstName"));
   assert.ok(engine.includes("middleName: employee.middleName"));
   assert.ok(engine.includes("lastName: employee.lastName"));

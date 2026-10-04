@@ -2,7 +2,7 @@ import { assertOrganizationRole, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
-import { parseFilingOutcome } from "@/lib/filing-evidence";
+import { findFilingForm, parseFilingOutcome } from "@/lib/filing-evidence";
 import { getFilingValidation, recordFilingOutcome } from "@/lib/filing-evidence-store";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 
@@ -52,6 +52,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return Response.json({
       error: `This record is already ${existing.status} and cannot be changed. Generate a new record to file again.`,
     }, { status: 409 });
+  }
+
+  const definition = findFilingForm(existing.agency, existing.form);
+  if (
+    parsed.value.outcome === "accepted"
+    && parsed.value.submissionMethod === "file_upload"
+    && !definition?.generatedFileIsAgencyUpload
+  ) {
+    return Response.json({
+      error: `Linaw's current ${existing.form} artifact is a reconciliation/source worksheet, not a direct agency-upload file. Record the official portal/generator filing as manual_entry instead; file_upload evidence is reserved for a generator whose exact bytes are intended for agency upload.`,
+    }, { status: 422 });
   }
 
   const record = await recordFilingOutcome({ organizationId, id, actor: user.name, outcome: parsed.value });

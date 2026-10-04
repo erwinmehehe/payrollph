@@ -60,6 +60,8 @@ export function ExportsView({
   const [retryingFailedPayouts, setRetryingFailedPayouts] = useState(false);
 
   const run = runs.find((item) => item.id === runId) ?? runs[0];
+  const selectedBankTemplate = data.templates.find((item) => item.name === template) ?? data.templates[0] ?? null;
+  const bankUploadReady = selectedBankTemplate?.uploadReady === true;
   const organizationId = data.selectedOrganization.id;
   const payoutState = run ? derivePayrollPayoutState(data.auditEvents, run.id) : null;
   const bookkeeperMode = data.access?.role === "bookkeeper";
@@ -520,17 +522,25 @@ export function ExportsView({
               </span>
               <div>
                 <h3>
-                  Bank disbursement <Status value="Versioned" />
+                  Bank disbursement <Status value={bankUploadReady ? "UAT layout" : "Layout needed"} />
                 </h3>
                 <p>
-                  Generators for BDO DAT and BPI / UnionBank / GCash CSV. Validate first, a dry run checks every row
-                  without producing a file that looks submittable.
+                  Linaw only generates a final bank upload when the selected template contains an explicit bank-provided
+                  layout. Unverified templates produce a reconciliation worksheet and cannot be mistaken for an upload file.
                 </p>
                 <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
                   <label className="field">
                     <span>Template</span>
-                    <select value={template} onChange={(event) => setTemplate(event.target.value)}>
-                      {(data.templates.length ? data.templates : [{ id: 0, name: "BDO DAT", version: "", format: "" }]).map(
+                    <select
+                      value={template}
+                      onChange={(event) => {
+                        const nextTemplate = event.target.value;
+                        setTemplate(nextTemplate);
+                        const next = data.templates.find((item) => item.name === nextTemplate);
+                        if (!next?.uploadReady) setMode("dry");
+                      }}
+                    >
+                      {(data.templates.length ? data.templates : [{ id: 0, name: "BDO DAT", version: "", format: "", uploadReady: false }]).map(
                         (item) => (
                           <option key={item.id} value={item.name}>
                             {item.name}
@@ -544,21 +554,25 @@ export function ExportsView({
                     label="Bank export mode"
                     value={mode}
                     onChange={setMode}
-                    options={[
-                      { value: "dry", label: "Validate" },
-                      { value: "live", label: "Generate file" },
-                    ]}
+                    options={
+                      bankUploadReady
+                        ? [
+                            { value: "dry", label: "Validate" },
+                            { value: "live", label: "Generate UAT file" },
+                          ]
+                        : [{ value: "dry", label: "Reconciliation only" }]
+                    }
                   />
                   <button
                     className={mode === "live" ? "primary-button" : "secondary-button"}
                     onClick={() =>
                       void download(
                         `/api/payroll-runs/${run.id}/exports?kind=bank&template=${encodeURIComponent(template)}&dryRun=${mode === "dry"}`,
-                        mode === "dry" ? `${template} validation` : `${template} disbursement file`,
+                        mode === "dry" ? `${template} reconciliation` : `${template} UAT disbursement file`,
                       )
                     }
                   >
-                    <Download size={14} className="i-teal" /> {mode === "dry" ? "Run validation" : `Generate ${template}`}
+                    <Download size={14} className="i-teal" /> {mode === "dry" ? "Generate reconciliation worksheet" : `Generate ${template} UAT file`}
                   </button>
                 </div>
               </div>

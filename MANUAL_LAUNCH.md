@@ -74,61 +74,98 @@ exposing this as an HTTP endpoint would mean either building a new privilege
 tier or trusting a client-supplied flag, both wrong to ship quickly. Anyone
 who can run this script already has full database access.
 
-## 3. Bank disbursement: manual upload, or PayMongo Disbursements
+## 3. Bank disbursement: use a bank-issued layout or PayMongo
 
-**Manual upload (no setup required):**
-1. Run payroll and release it as usual. Bank files (BDO DAT, BPI/UnionBank
-   CSV, GCash disbursement CSV) generate and dry-run validate automatically.
-2. Download the file from the payroll run's export screen.
-3. Log into online banking / GCash for Business yourself and upload it
-   through their normal bulk-disbursement flow.
-4. Tell the bookkeeper this step is manual for now. It's a normal workflow
-   for small PH payroll operations, not a degraded one.
+**Manual corporate-bank upload is supported, but the upload file must come from
+the bank's own onboarding/template contract. Linaw must not guess it.**
 
-**Or: automate it with PayMongo Disbursements**, no per-bank negotiation
-required, using the same PayMongo account already wired for billing:
-1. In the PayMongo Dashboard, confirm your Business Type is "Registered"
-   (Sole Prop, Partnership, OPC, or Corporation), an Individual/Unregistered
-   account cannot send to external banks. Upgrade if needed under Payment
-   Methods.
-2. Confirm the Wallet is "Enabled" (not Closed-loop) under Money Movement →
-   Wallets, and fund it. A disbursement debits the wallet balance directly.
-3. Set `PAYMONGO_DISBURSEMENTS_ENABLED=true` and `PAYMONGO_WALLET_ID` (the wallet
-   id from Money Movement → Wallets) alongside your existing
-   `PAYMONGO_SECRET_KEY`. PayMongo requires a source account on every transfer;
-   Linaw reads it from that wallet. The preflight and the submit both read the
-   available balance and stop with the exact shortfall if the wallet cannot
-   cover the run.
-4. `POST /api/payroll-runs/<id>/exports` (an owner/admin/bookkeeper session)
-   submits the run as one PayMongo batch transfer. PESONet by default for
-   real payroll batches, InstaPay only for a single small correction payout.
-   See `src/lib/paymongo-disbursements.ts` for the implementation; it
-   resolves each employee's bank to PayMongo's live receiving-institution
-   list rather than a hardcoded BIC table, since a wrong bank code would
-   misroute real money.
-5. Confirm: `GET /api/readiness` → the `bank-validation` gate should flip to
-   `ready: true`.
+1. Release payroll and use a dry-run bank worksheet to reconcile employee
+   destinations and net amounts.
+2. Obtain the current payroll-upload layout, converter, or template from the
+   company's enrolled bank channel.
+   - Metrobank MBOS: download the payroll sample inside MBOS. The bank's
+     published guide says the template is fixed and the accepted upload format
+     is Excel 97-2003 (`.xls`), so a Linaw CSV is not a substitute.
+   - Security Bank DigiBanker: use the bank's Payroll Manager/Payroll Converter
+     materials supplied for the enrolled account.
+   - BPI BizLink, BDO, RCBC, UnionBank, China Bank, EastWest and other corporate
+     channels: use the layout or converter supplied during bank onboarding.
+3. Configure that exact delimited layout in `bank_templates.mappings` when
+   Linaw's mapping engine can represent it. If the bank uses fixed-width bytes,
+   Excel, XML or another proprietary format, keep using the bank-issued file
+   until Linaw has a dedicated renderer for that format.
+4. Generate a bank-validation record for a released payroll, upload the exact
+   hashed file to the corporate portal, and record the portal's acceptance
+   reference under `/api/compliance/bank-validations`.
+5. Only the same bank-template name/version that has recorded acceptance may be
+   used for a manual payout-completion record. Any template change requires new
+   UAT evidence.
 
-## 4. Government filing: no accreditation needed for file-based filing, but validate before you flip the flag
+**PayMongo Disbursements is the alternative automated path** when the employer's
+PayMongo account and wallet are eligible. Use the existing preflight to verify
+credentials, receiving-institution mappings and wallet funding without moving
+money, then enable live disbursement only after that preflight and signed
+transfer-webhook handling are green.
 
-I initially framed this as needing formal BIR "Tax Software Provider" accreditation. That's wrong for standard SME filing. BIR publishes the Alphalist `.DAT` layout and gives away the **ADES** (Alphalist Data Entry and Validation) desktop tool for free; no vendor certification required. SSS does the same with a free **R3 File Generator**. Accreditation is a separate, heavier program mainly relevant to large taxpayers doing real-time e-filing integration, not something a manual-ops pilot needs.
+## 4. Government filing: official manual workflows are launch-safe; direct-file automation needs UAT
 
-What our DRAFT exports are *not yet*: an exact byte-for-byte match to BIR's ADES-importable `.DAT` layout. That layout wants separate last/first/**middle** name columns and precise TIN/branch-code fields. The employee model now carries separate first/middle/last name and TIN/branch fields, but guessing the remaining byte-level ADES contract from memory is still exactly the kind of thing not to fabricate. So the DRAFT stays a correct-figures CSV, not a claimed-compliant `.DAT` file.
+Linaw's current SSS, BIR, PhilHealth and Pag-IBIG exports are reconciliation or
+source artifacts. They are useful for checking figures, but they are **not**
+represented as agency-upload files. A successful filing made through an agency
+portal/generator is recorded as `manual_entry` until Linaw produces the exact
+current agency file and that exact file is accepted.
 
-What I did fix without needing the full spec: the TIN is now split into the documented 9-digit TIN + branch-code convention (was previously dumped as one hyphenated string).
+1. **BIR 1604-C / Alphalist and Form 2316**
+   - Run Linaw year-end annualization and settle any December refund/collection
+     through the final payroll.
+   - Use the current BIR Alphalist Data Entry and Validation Module. The current
+     BIR release is version 7.4, and taxpayers using their own extract programs
+     must follow the current 1604-C file structure and naming rules.
+   - Encode/convert the Linaw annual source figures in the BIR module, validate
+     the generated DAT, submit through the applicable BIR electronic filing
+     route, and retain the validator/submission acknowledgement.
+   - Linaw's current CSV is not the DAT. Do not record it as `file_upload`.
 
-1. Generate the DRAFT worksheets as usual (2316/Alphalist, SSS R-3, PhilHealth RF-1, Pag-IBIG MCRF).
-2. Enter the figures by hand into BIR's free ADES tool / SSS's free R3 File Generator / PhilHealth's and Pag-IBIG's own portals.
-3. Confirm each one is accepted/validates clean.
-   - **BIR & SSS**: match a published file layout, validated by BIR's free ADES tool / SSS's free R3 File Generator.
-   - **PhilHealth**: also has a file-based path, an "RF-1 Excel Format" template PhilHealth provides, saved as a delimited textfile and submitted via EPRS or a bank upload facility, but we haven't built a generator for it since the exact column layout isn't confirmed yet. Enter the DRAFT figures into EPRS directly for now.
-   - **Pag-IBIG**: I could not confirm a published batch-file spec for MCRF the way BIR/SSS/PhilHealth have one. Other PH payroll tools seem to only produce a filled PDF for this one. Pag-IBIG does run **eSRS** (Electronic Submission of Remittance Schedule) for online submission, but it is open only to employers with **at most 30 employees**, and whether it takes a bulk file or requires manual encoding is still unconfirmed: their site sits behind a CAPTCHA, so this needs a human to check. Treat it as portal data entry (eSRS if you are under the headcount cap, otherwise Virtual Pag-IBIG employer e-services) until confirmed otherwise directly with Pag-IBIG.
-4. **All four filings (SSS R-3, BIR Alphalist, PhilHealth RF-1, Pag-IBIG MCRF) have an evidence trail instead of an honor-system flag.** Record results on the Exports page (one card per form), or through the API: `POST /api/compliance/filing-validations` with `{organizationId, runId, agency, form}` creates a record for the exact file (identified by its SHA-256). Download that file from `GET /api/compliance/filing-validations/<id>/file?organizationId=<org>`, use it with the agency, then `PATCH /api/compliance/filing-validations/<id>` with `{organizationId, outcome: "accepted", submissionMethod: "file_upload", agencyReference, submittedAt}` (or `outcome: "rejected"` with a `note`). Only an accepted use of the generated file counts toward the gate; re-typing the figures (`manual_entry`) is recorded but does not count, because it does not show the file works. The old `SSS_R3_VALIDATED`, `BIR_ALPHALIST_VALIDATED`, `PHILHEALTH_RF1_VALIDATED` and `PAGIBIG_MCRF_VALIDATED` flags are no longer read.
-   - **SSS R-3** (`agency: "SSS", form: "R-3"`): upload the file in My.SSS and record the PRN or acknowledgement number.
-   - **BIR Alphalist** (`agency: "BIR", form: "1604-C"`): load Linaw's annual source extract into BIR's ADES, which produces the `.DAT` you email to esubmission@bir.gov.ph, then record the validation report or "ticket" reference BIR sends back. Two limits to know: Linaw builds this extract from one payroll run, not the whole tax year, so an acceptance shows the layout and ID fields validate, not that the annual totals are complete; and it is not confirmed that ADES can load this CSV, so expect most early records to be `manual_entry` or rejections until the layout is checked against ADES.
-   - **PhilHealth RF-1** (`agency: "PhilHealth", form: "RF-1"`): use the file with PhilHealth's EPRS and record the acknowledgement receipt (ePAR) number. PhilHealth issues that receipt when the premium is paid, so it shows the report was filed and paid, not only that the file loaded; and Linaw's figures are recomputed from monthly basic salary, so confirm they match what you remitted. It is not confirmed that Linaw's CSV matches EPRS's own RF-1 template, so expect typed-in filings or rejections until the layout is checked.
-   - **Pag-IBIG MCRF** (`agency: "Pag-IBIG", form: "MCRF"`): use the file with eSRS (employers with at most 30 employees) or your bank's Pag-IBIG upload facility, and record the online payment instruction number (OPIN) or confirmation reference. That number shows the file was validated and a payment set up; it does not show the remittance was posted to your Pag-IBIG account, so confirm that separately. Pag-IBIG's official pages were behind a CAPTCHA when this was researched, so the OPIN and CSV-upload details come from secondary sources and need confirming with Pag-IBIG; it is not confirmed that Linaw's CSV matches their layout.
-5. Re-check each period. An accepted record means "this run's file was accepted," not "validation is solved forever." Create a new record each period, and expect a new record whenever payroll data changes, because the record is tied to the exact file.
+2. **SSS R-3 / Contribution Collection List**
+   - Reconcile the final monthly SSS/MPF/EC figures from Linaw.
+   - In My.SSS, create/maintain the Contribution Collection List, or use the
+     current official SSS R3 File Generator if that is the employer's workflow.
+   - Generate the PRN, pay through an SSS-accredited channel, and retain the PRN
+     and acknowledgement.
+   - Linaw's R-3 CSV is a worksheet, not an official generator output.
+
+3. **PhilHealth RF-1 / EPRS**
+   - Reconcile the monthly PhilHealth salary base and employee/employer shares
+     in Linaw.
+   - Use EPRS as the authoritative employer reporting and payment workflow.
+     PhilHealth has documented softcopy RF-1 upload facilities, but Linaw does
+     not claim current template compatibility without a current EPRS-issued
+     file contract and portal acceptance.
+   - Retain the EPRS/ePAR acknowledgement and payment evidence.
+
+4. **Pag-IBIG MCRF / eSRS**
+   - Linaw now mirrors the published MCRF member-level source fields:
+     MID/RTN, account number, membership program, member name, `YYYYMM` period,
+     employee share, employer share and remarks.
+   - Pag-IBIG's published MCRF instructions prescribe an Excel workbook and an
+     employer-ID + `YYYYMM.xls` filename. Linaw's CSV is source data for
+     reconciliation/copying, not that workbook.
+   - Use Virtual Pag-IBIG eSRS to maintain the employee list and create the
+     Payment Instruction/PIN, or use the current prescribed MCRF workbook and
+     accredited payment channel required by the employer's setup.
+   - Retain the Pag-IBIG payment instruction and posting/payment evidence.
+
+5. **Evidence rules**
+   - Create filing evidence under `/api/compliance/filing-validations` for the
+     relevant period and record the agency reference after filing.
+   - For the current Linaw reconciliation/source artifacts, use
+     `submissionMethod: "manual_entry"`. The API rejects a false
+     `file_upload` acceptance for an artifact that is not designed for direct
+     agency upload.
+   - Direct-file format readiness stays red until Linaw has a real
+     agency-compatible generator and the exact generated bytes are accepted.
+     This is a scale/automation gate, not a reason to bypass the official manual
+     filing workflow for a controlled launch.
 
 ## When to stop doing this manually
 
@@ -136,7 +173,7 @@ What I did fix without needing the full spec: the TIN is now split into the docu
   renewals become hard to track by hand. Wire PayMongo/Maya.
 - **Bank**: once payroll volume or headcount makes manual upload a real time
   cost. Wire `BANK_HOST_TO_HOST_URL`.
-- **Gov filing**: the per-form flags above are enough for launch. Move past
-  "manual entry" only once the exporters produce BIR's exact ADES-importable
-  `.DAT` layout directly (needs a middle-name field and the real byte-level
-  spec). At that point filing stops being a manual step at all.
+- **Government filing**: automate each agency only when the current official
+  file contract is implemented and the exact generated file has passed agency
+  validation/UAT. Until then, keep the official portal/generator handoff explicit
+  and retain acknowledgements as compliance evidence.

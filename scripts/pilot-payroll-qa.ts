@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { and, eq } from "drizzle-orm";
 import { db, pool } from "../src/db";
-import { auditEvents, employees, payrollRuns, timePunches, userOrganizations, users } from "../src/db/schema";
+import { auditEvents, bankTemplates, employees, payrollRuns, timePunches, userOrganizations, users } from "../src/db/schema";
 import { hashPassword } from "../src/lib/crypto";
 import { isEncryptedBankAccount } from "../src/lib/bank-account-crypto";
 
@@ -195,12 +195,36 @@ async function main() {
   assert.ok(Number(release.receipt?.payslips?.available) >= 2);
   (report.lifecycle as string[]).push("owner-released-payroll");
 
-  const bank = await owner.request(`/api/payroll-runs/${runId}/exports?kind=bank&template=${encodeURIComponent("BDO DAT")}&dryRun=false`);
+  const pilotTemplateName = `Pilot UAT CSV ${unique.slice(0, 8)}`;
+  await db.insert(bankTemplates).values({
+    name: pilotTemplateName,
+    version: "qa-explicit-layout-v1",
+    format: "CSV",
+    mappings: {
+      columns: ["account_number", "employee_name", "amount", "employee_no", "reference"],
+      headers: {
+        account_number: "Account_Number",
+        employee_name: "Employee_Name",
+        amount: "Amount",
+        employee_no: "Employee_ID",
+        reference: "Reference",
+      },
+      delimiter: ",",
+      includeHeader: true,
+      lineEnding: "CRLF",
+      source: "pilot-explicit-layout",
+    },
+    active: true,
+  });
+
+  const bank = await owner.request(
+    `/api/payroll-runs/${runId}/exports?kind=bank&template=${encodeURIComponent(pilotTemplateName)}&dryRun=false`,
+  );
   const bankBody = await bank.text();
   assert.ok(bank.ok, `Final bank file failed (${bank.status}): ${bankBody}`);
   assert.equal(bank.headers.get("x-linaw-dry-run"), "false");
   assert.ok(payoutAccounts.every((account) => bankBody.includes(account)), "Final bank file did not decrypt captured payout destinations.");
-  (report.lifecycle as string[]).push("final-bank-file-generated");
+  (report.lifecycle as string[]).push("final-bank-file-generated-from-explicit-layout");
 
   const payout = await owner.request(`/api/payroll-runs/${runId}/exports`, {
     method: "POST",

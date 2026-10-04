@@ -56,6 +56,7 @@ test("Pag-IBIG draft uses the real MID and full monthly contribution", async () 
   const [org] = await db.insert(organizations).values({
     name: "PagIBIG Export Test",
     legalName: "PagIBIG Export Test Inc.",
+    pagIbigEmployerNo: "123456789012",
   }).returning();
 
   try {
@@ -90,10 +91,13 @@ test("Pag-IBIG draft uses the real MID and full monthly contribution", async () 
     const file = await generateGovernmentDraft(run.id, "pagibig-mcrf");
     const line = file.body.split("\n").find((row) => row.includes("Santos"));
     assert.ok(line);
-    assert.ok(line!.includes("1234-5678-9012"));
+    assert.ok(line!.includes("123456789012"));
     assert.ok(!line!.includes('"EMP-002"'), "internal employee number must never substitute for a Pag-IBIG MID");
-    assert.ok(line!.includes('"200.00"'), "employee monthly share should be PHP 200");
-    assert.ok(line!.includes('"400.00"'), "total monthly contribution should be PHP 400");
+    const fields = [...line!.matchAll(/"([^"]*)"/g)].map((match) => match[1]);
+    assert.equal(fields[2], "F1");
+    assert.equal(fields[7], "202609");
+    assert.equal(fields[8], "200.00", "employee monthly share should be PHP 200");
+    assert.equal(fields[9], "200.00", "employer monthly share should be PHP 200");
   } finally {
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
@@ -103,6 +107,7 @@ test("government drafts fail closed when agency member IDs are missing", async (
   const [org] = await db.insert(organizations).values({
     name: "Missing IDs Test",
     legalName: "Missing IDs Test Inc.",
+    pagIbigEmployerNo: "123456789012",
   }).returning();
 
   try {

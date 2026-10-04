@@ -48,29 +48,32 @@ test("the form is honest about what counts and that results are permanent", () =
   }
 });
 
-test("BIR's card says what an acceptance does not prove", () => {
+test("BIR card identifies the current validator and source-only status", () => {
   const bir = FILING_FORMS.find((item) => item.agency === "BIR")!;
-  assert.match(bir.copy.scopeNote ?? "", /one payroll run, not the whole tax year/);
-  assert.match(bir.copy.scopeNote ?? "", /does not show the annual totals are complete/);
-  assert.match(bir.copy.unconfirmedNote, /Linaw does not produce that \.DAT/);
+  assert.equal(bir.generatedFileIsAgencyUpload, false);
+  assert.match(bir.copy.scopeNote ?? "", /version 7\.4/);
+  assert.match(bir.copy.scopeNote ?? "", /file structure and naming convention/);
+  assert.match(bir.copy.unconfirmedNote, /future DAT generator/);
   assert.ok(panel.includes("copy.scopeNote"), "the panel must show the scope note");
 });
 
-test("PhilHealth's card says what the receipt does and does not show", () => {
+test("PhilHealth card keeps EPRS authoritative and worksheet compatibility unproven", () => {
   const ph = FILING_FORMS.find((item) => item.agency === "PhilHealth")!;
+  assert.equal(ph.generatedFileIsAgencyUpload, false);
   assert.match(ph.copy.answerLabel, /ePAR/);
-  assert.match(ph.copy.scopeNote ?? "", /issues the acknowledgement receipt when the premium is paid/);
-  assert.match(ph.copy.scopeNote ?? "", /match the amount you actually remitted/);
-  assert.match(ph.copy.unconfirmedNote, /not confirmed that Linaw's CSV matches/);
+  assert.match(ph.copy.scopeNote ?? "", /EPRS as the authoritative employer reporting and payment workflow/);
+  assert.match(ph.copy.manualEntryNote, /does not prove/);
+  assert.match(ph.copy.unconfirmedNote, /exact bytes are accepted in EPRS/);
 });
 
-test("Pag-IBIG's card separates a payment instruction from a posted remittance, and names the 30-employee limit", () => {
+test("Pag-IBIG card reflects the prescribed workbook and eSRS workflow", () => {
   const pi = FILING_FORMS.find((item) => item.agency === "Pag-IBIG")!;
-  assert.match(pi.copy.answerLabel, /OPIN/);
-  assert.match(pi.copy.scopeNote ?? "", /does not show the remittance was posted/);
-  assert.match(pi.copy.scopeNote ?? "", /at most 30 employees/);
-  assert.match(pi.copy.unconfirmedNote, /official pages could not be read/);
-  assert.match(pi.copy.unconfirmedNote, /not confirmed that Linaw's CSV matches/);
+  assert.equal(pi.generatedFileIsAgencyUpload, false);
+  assert.match(pi.copy.answerLabel, /PIN/);
+  assert.match(pi.copy.scopeNote ?? "", /Payment Instruction Form/);
+  assert.match(pi.copy.scopeNote ?? "", /generated PIN/);
+  assert.match(pi.copy.manualEntryNote, /Excel workbook/);
+  assert.match(pi.copy.unconfirmedNote, /Do not upload Linaw's CSV as an MCRF/);
 });
 
 test("every Draft button on the exports page sends a kind the generator accepts", () => {

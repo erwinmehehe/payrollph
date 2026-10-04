@@ -249,9 +249,9 @@ export async function ensureSeedData() {
   });
 
   await db.insert(bankTemplates).values([
-    { name: "BDO DAT", version: "2026.01", format: "DAT", mappings: { account: "column_3", amount: "column_8", name: "column_5" } },
-    { name: "BPI / UnionBank", version: "2026.01", format: "CSV", mappings: { account: "account_number", amount: "net_pay", name: "employee_name" } },
-    { name: "GCash Disbursement", version: "2026.01", format: "CSV", mappings: { account: "mobile", amount: "net_pay", name: "employee_name" } },
+    { name: "BDO DAT", version: "unverified", format: "DAT", mappings: { source: "bank-layout-required" } },
+    { name: "BPI / UnionBank", version: "unverified", format: "CSV", mappings: { source: "bank-layout-required" } },
+    { name: "GCash Disbursement", version: "unverified", format: "CSV", mappings: { source: "provider-layout-required" } },
   ]);
 
   await db.insert(approvalTasks).values([
@@ -318,9 +318,9 @@ async function ensureReferenceData() {
   const [{ value: templateCount }] = await db.select({ value: count() }).from(bankTemplates);
   if (templateCount === 0) {
     await db.insert(bankTemplates).values([
-      { name: "BDO DAT", version: "2026.01", format: "DAT", mappings: { account: "column_3", amount: "column_8", name: "column_5" } },
-      { name: "BPI / UnionBank", version: "2026.01", format: "CSV", mappings: { account: "account_number", amount: "net_pay", name: "employee_name" } },
-      { name: "GCash Disbursement", version: "2026.01", format: "CSV", mappings: { account: "mobile", amount: "net_pay", name: "employee_name" } },
+      { name: "BDO DAT", version: "unverified", format: "DAT", mappings: { source: "bank-layout-required" } },
+      { name: "BPI / UnionBank", version: "unverified", format: "CSV", mappings: { source: "bank-layout-required" } },
+      { name: "GCash Disbursement", version: "unverified", format: "CSV", mappings: { source: "provider-layout-required" } },
     ]);
   }
 }
@@ -449,14 +449,14 @@ async function ensureExtendedSeed() {
   const existingTemplates = await db.select().from(bankTemplates);
   const templateNames = new Set(existingTemplates.map((t) => t.name));
   const newTemplates = [
-    { name: "BPI Bizlink", version: "2026.02", format: "CSV", mappings: { account: "Account_Number", amount: "Amount", name: "Beneficiary_Name" } },
-    { name: "UnionBank OneHub", version: "2026.02", format: "CSV", mappings: { account: "Beneficiary_Account", amount: "Amount", name: "Beneficiary_Name" } },
-    { name: "Metrobank eGov (MBTC)", version: "2026.02", format: "CSV", mappings: { account: "Account_No", amount: "Amount", name: "Beneficiary_Name" } },
-    { name: "Security Bank DigiBanker", version: "2026.02", format: "CSV", mappings: { account: "Bene_Account", amount: "Credit_Amount", name: "Bene_Name" } },
-    { name: "ChinaBank eGov (CBC)", version: "2026.02", format: "CSV", mappings: { account: "Crediting_Account", amount: "Disbursement_Amount", name: "Account_Name" } },
-    { name: "EastWest Bank eGov", version: "2026.02", format: "CSV", mappings: { account: "Destination_Account", amount: "Net_Amount", name: "Recipient_Name" } },
-    { name: "Maya Business (PayMaya)", version: "2026.02", format: "CSV", mappings: { account: "Recipient_Mobile", amount: "Disbursement_Amount", name: "Recipient_Name" } },
-    { name: "Bank of America CashPro (ACH)", version: "2026.02", format: "CSV", mappings: { account: "Receiving_Account", amount: "Amount", name: "Account_Holder" } },
+    { name: "BPI Bizlink", version: "unverified", format: "CSV", mappings: { source: "bank-layout-required" } },
+    { name: "UnionBank OneHub", version: "unverified", format: "CSV", mappings: { source: "bank-layout-required" } },
+    { name: "Metrobank MBOS", version: "official-xls-template-required", format: "XLS", mappings: { source: "download-template-inside-mbos" } },
+    { name: "Security Bank DigiBanker", version: "unverified", format: "CSV", mappings: { source: "bank-payroll-converter-required" } },
+    { name: "ChinaBank payroll", version: "unverified", format: "CSV", mappings: { source: "bank-layout-required" } },
+    { name: "EastWest payroll", version: "unverified", format: "CSV", mappings: { source: "bank-layout-required" } },
+    { name: "Maya Business (PayMaya)", version: "unverified", format: "CSV", mappings: { source: "provider-layout-required" } },
+    { name: "Bank of America CashPro", version: "unverified", format: "CSV", mappings: { source: "bank-layout-required" } },
   ];
   for (const t of newTemplates) {
     if (!templateNames.has(t.name)) {
