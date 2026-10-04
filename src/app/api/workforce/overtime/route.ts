@@ -149,6 +149,7 @@ export async function POST(request: Request) {
       requestKind,
       status: "pending",
       requestedBy: user.name,
+      requestedByUserId: user.id,
     }).returning();
 
     await recordAuditEvent({
@@ -192,7 +193,7 @@ export async function POST(request: Request) {
     const employeeCheck = await scopedEmployee(user.id, organizationId, existing.employeeId);
     if (employeeCheck.denied) return employeeCheck.denied;
 
-    if (existing.requestedBy === user.name) {
+    if (existing.requestedByUserId === user.id) {
       return Response.json({
         error: "Overtime requests cannot be self-approved. A different authorized manager must decide this request.",
       }, { status: 409 });
@@ -202,6 +203,7 @@ export async function POST(request: Request) {
       .set({
         status: decision,
         decidedBy: user.name,
+        decidedByUserId: user.id,
         decidedAt: new Date(),
         decisionNote,
         updatedAt: new Date(),
