@@ -1341,6 +1341,7 @@ function calculateEmployeePay(input: {
   holidayEligibilityPaidLeaveDates?: string[];
   statutoryDeductionTiming?: string;
   restDayRevisions?: EffectiveRestDayRevisionInput[];
+  resolvedSchedules?: Record<string, ResolvedDailySchedule>;
   periodStart: string;
   periodEnd: string;
   priorStatutory?: {
@@ -1399,7 +1400,32 @@ function calculateEmployeePay(input: {
   const holidayNotes: string[] = [];
 
   const eligiblePunches = input.punches.filter((punch) => String(punch.workDate) >= employmentStart);
+  const punchesByWorkDate = new Map<string, Array<typeof timePunches.$inferSelect>>();
   for (const punch of eligiblePunches) {
+    const workDate = String(punch.workDate);
+    punchesByWorkDate.set(workDate, [...(punchesByWorkDate.get(workDate) ?? []), punch]);
+  }
+  const workforceSegmentByPunchId = new Map<number, ResolvedDailySchedule["segments"][number]>();
+  for (const [workDate, datePunches] of punchesByWorkDate) {
+    const resolution = matchPunchesToWorkforceSegments({
+      date: workDate,
+      schedule: input.resolvedSchedules?.[workDate],
+      punches: datePunches.map((punch) => ({
+        id: punch.id,
+        timeIn: punch.timeIn,
+      })),
+    });
+    for (const [punchId, segment] of resolution.segmentByPunchId) {
+      workforceSegmentByPunchId.set(punchId, segment);
+    }
+    if (resolution.exception) {
+      flags.push(resolution.exception);
+      punchNotes.push(resolution.exception);
+    }
+  }
+
+  for (const punch of eligiblePunches) {
+    const scheduledSegment = workforceSegmentByPunchId.get(punch.id);
     const derived = deriveClockHours(
       {
         timeIn: punch.timeIn ? toLocalIso(new Date(punch.timeIn)) : null,
@@ -1408,9 +1434,9 @@ function calculateEmployeePay(input: {
         breakEnd: punch.breakEnd ? toLocalIso(new Date(punch.breakEnd)) : null,
       },
       {
-        start: punch.shiftStart,
-        end: punch.shiftEnd,
-        breakMinutes: 60,
+        start: scheduledSegment?.startTime ?? punch.shiftStart,
+        end: scheduledSegment?.endTime ?? punch.shiftEnd,
+        breakMinutes: scheduledSegment?.breakMinutes ?? 60,
         graceMinutes: 5,
       },
     );
@@ -1424,9 +1450,14 @@ function calculateEmployeePay(input: {
     if (punchProfile.payBasis !== "monthly") {
       workedBasicPay += (workedRegular / 60) * punchProfile.hourlyRate;
     }
-    const holidayContext = holidayPayContextOn(punch.workDate, input.holidayCalendar ?? NATIONAL_HOLIDAYS_2026);
-    const restDay = restDayForDate(input.employee.restDay, input.restDayRevisions ?? [], String(punch.workDate));
-    const isRestDay = isRestDayOfWeek(String(punch.workDate), restDay);
+    const workDate = String(punch.workDate);
+    const holidayContext = holidayPayContextOn(workDate, input.holidayCalendar ?? NATIONAL_HOLIDAYS_2026);
+    const restDay = restDayForDate(input.employee.restDay, input.restDayRevisions ?? [], workDate);
+    const legacyIsRestDay = isRestDayOfWeek(workDate, restDay);
+    const isRestDay = payrollRestDayFromSchedule(
+      input.resolvedSchedules?.[workDate],
+      legacyIsRestDay,
+    );
     const otMultiplier = holidayMultiplier({ holiday: holidayContext.holiday, worked: true, overtime: true, restDay: isRestDay });
     const regularMultiplier = holidayMultiplier({ holiday: holidayContext.holiday, worked: true, overtime: false, restDay: isRestDay });
     overtimePay += (derived.overtimeMinutes / 60) * punchProfile.hourlyRate * otMultiplier;
@@ -1478,6 +1509,7 @@ function calculateEmployeePay(input: {
         restDayRevisions: input.restDayRevisions ?? [],
         holidayCalendar: calendar,
         employeeStartDate,
+        scheduleForDate: (date) => input.resolvedSchedules?.[date],
       });
       const attended = precedingWorkDate
         ? (input.holidayEligibilityAttendanceDates ?? []).includes(precedingWorkDate)
