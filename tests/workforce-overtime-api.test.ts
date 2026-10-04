@@ -20,6 +20,8 @@ test("overtime decisions enforce four-eyes control", () => {
   assert.ok(source.includes("Overtime requests cannot be self-approved"));
   assert.ok(source.includes("OT_DECIDER_ROLES"));
   assert.ok(source.includes("requestedByUserId: user.id"));
+  assert.ok(source.includes("existing.requestedByUserId == null"));
+  assert.ok(source.includes("predates stable requester identity tracking"));
   assert.ok(source.includes("existing.requestedByUserId === user.id"));
   assert.ok(source.includes("decidedByUserId: user.id"));
   assert.ok(!source.includes("existing.requestedBy === user.name"));
