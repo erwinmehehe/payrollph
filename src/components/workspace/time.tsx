@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { AlertTriangle, CalendarDays, Check, Clock3, Clock, Download, Search, Timer } from "lucide-react";
+import { AttendanceExceptionsPanel } from "./attendance-exceptions-panel";
 import type { DashboardData, Notify, Punch } from "./types";
 import { Avatar, EmptyState, Metric, PageHeading, Progress, Segmented, Status, formatDate, formatTimeOnly } from "./ui";
 
@@ -182,6 +183,11 @@ export function TimeView({
           </div>
         </article>
       </section>
+
+      <AttendanceExceptionsPanel
+        organizationId={data.selectedOrganization.id}
+        notify={notify}
+      />
 
       <article className="card table-card" style={{ marginTop: 16 }}>
         <div className="table-toolbar">
