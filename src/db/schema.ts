@@ -799,7 +799,7 @@ export const complianceRules = pgTable(
     ruleKey: varchar("rule_key", { length: 80 }).notNull(),
     agency: varchar("agency", { length: 40 }).notNull(),
     jurisdiction: varchar("jurisdiction", { length: 80 }).notNull().default("PH"),
-    region: varchar("region", { length: 40 }),
+    region: varchar("region", { length: 40 }).notNull().default("ALL"),
     ruleVersion: varchar("rule_version", { length: 64 }).notNull(),
     effectiveFrom: date("effective_from").notNull(),
     effectiveUntil: date("effective_until"),
