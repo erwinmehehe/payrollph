@@ -119,6 +119,7 @@ export async function assertOrganizationUnitAccess(
 export const ORG_ADMIN_ROLES = ["owner", "admin", "bookkeeper"] as const;
 export const PEOPLE_ADMIN_ROLES = ["owner", "admin", "bookkeeper", "hr"] as const;
 export const PEOPLE_PAYROLL_ROLES = ["owner", "admin", "bookkeeper", "hr", "payroll"] as const;
+export const WORKFORCE_MANAGER_ROLES = ["owner", "admin", "bookkeeper", "hr", "manager"] as const;
 export const DEVELOPER_ADMIN_ROLES = ["owner", "admin", "bookkeeper"] as const;
 export const BILLING_ADMIN_ROLES = ["owner", "admin", "bookkeeper"] as const;
 export const APPROVAL_ADMIN_ROLES = ["owner", "admin", "bookkeeper", "hr"] as const;
