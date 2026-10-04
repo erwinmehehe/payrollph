@@ -195,25 +195,31 @@ async function main() {
   assert.ok(Number(release.receipt?.payslips?.available) >= 2);
   (report.lifecycle as string[]).push("owner-released-payroll");
 
-  const bank = await owner.request(`/api/payroll-runs/${runId}/exports?kind=bank&template=${encodeURIComponent("BDO DAT")}&dryRun=false`);
-  const bankBody = await bank.text();
-  assert.ok(bank.ok, `Final bank file failed (${bank.status}): ${bankBody}`);
-  assert.equal(bank.headers.get("x-linaw-dry-run"), "false");
-  assert.ok(payoutAccounts.every((account) => bankBody.includes(account)), "Final bank file did not decrypt captured payout destinations.");
-  (report.lifecycle as string[]).push("final-bank-file-generated");
+  const preflight = await owner.request(`/api/payroll-runs/${runId}/exports`, {
+    method: "POST",
+    json: { mode: "preflight" },
+  });
+  const preflightBody = await preflight.text();
+  assert.equal(
+    preflight.status,
+    502,
+    `Fresh CI pilot has no external PayMongo credentials, so no-money preflight must fail closed: ${preflightBody}`,
+  );
+  assert.match(preflightBody, /PAYMONGO_SECRET_KEY|PayMongo/i);
+  (report.lifecycle as string[]).push("paymongo-preflight-fails-closed-without-provider-credentials");
 
   const payout = await owner.request(`/api/payroll-runs/${runId}/exports`, {
     method: "POST",
-    json: { mode: "complete-manual", reference: `PILOT-${unique.slice(0, 12)}`, confirmed: true },
+    json: { mode: "disburse", confirm: true },
   });
   const payoutBody = await payout.text();
   assert.equal(
     payout.status,
-    409,
-    `Fresh pilot without bank UAT must not be allowed to mark payout complete: ${payoutBody}`,
+    501,
+    `Live PayMongo payout must stay blocked until provider credentials, wallet and webhook are configured: ${payoutBody}`,
   );
-  assert.match(payoutBody, /bank-portal UAT/i);
-  (report.lifecycle as string[]).push("manual-payout-blocked-until-bank-uat");
+  assert.match(payoutBody, /not fully configured/i);
+  (report.lifecycle as string[]).push("live-paymongo-payout-blocked-until-provider-config");
 
   const self = await expectOk(employee, "/api/self/payslips");
   const slip = (self.payslips ?? []).find((row: any) => Number(row.entryId) === Number(employeeEntry.id));
@@ -229,7 +235,7 @@ async function main() {
 
   const events = await db.select().from(auditEvents).where(eq(auditEvents.organizationId, organizationId));
   const actions = new Set(events.map((event) => event.action));
-  const expectedActions = ["Payroll submitted for review", "Approval approved", "Payroll released", "bank export generated"];
+  const expectedActions = ["Payroll submitted for review", "Approval approved", "Payroll released", "PayMongo payroll preflight failed"];
   for (const action of expectedActions) assert.ok(actions.has(action), `Missing audit event: ${action}`);
   report.auditEventsVerified = expectedActions;
 
