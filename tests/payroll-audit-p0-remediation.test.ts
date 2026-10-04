@@ -420,7 +420,7 @@ test("monthly government reports reject first cutoff and aggregate released cuto
 
     const bir = await generateGovernmentDraft(second.id, "bir-1601c");
     assert.ok(bir.body.includes("2026-11"));
-    assert.ok(bir.body.includes(",1,DRAFT"));
+    assert.ok(bir.body.includes('"1","DRAFT"'));
 
     const [employee] = await db.select().from(employees).where(eq(employees.organizationId, org.id));
     await db.insert(yearEndAdjustments).values({
