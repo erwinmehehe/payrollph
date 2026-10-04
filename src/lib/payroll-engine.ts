@@ -9,6 +9,7 @@ import {
   employeePayRevisions,
   employeeRestDayRevisions,
   employeePayRetroAdjustments,
+  employeeScheduleAssignments,
   employees,
   expenseClaims,
   leaveConversions,
@@ -22,6 +23,11 @@ import {
   payrollJobs,
   payrollRuns,
   payslips,
+  scheduleOverrides,
+  schedulePatternDays,
+  schedulePatternSegments,
+  schedulePatterns,
+  shiftDefinitions,
   supplementaryEarnings,
   timePunches,
   yearEndAdjustments,
@@ -73,6 +79,15 @@ import {
   type EffectivePayRevisionInput,
   type EmployeePayProfileInput,
 } from "@/lib/pay-basis";
+import {
+  resolveDailySchedule,
+  type ResolvedDailySchedule,
+} from "@/lib/workforce-scheduling";
+import {
+  matchPunchesToWorkforceSegments,
+  payrollRestDayFromSchedule,
+  workforceScheduleTrace,
+} from "@/lib/workforce-payroll";
 
 export const PAYROLL_RULE_VERSION = "PH-2026.05";
 const DEFAULT_CHUNK = 25;
@@ -124,12 +139,20 @@ function precedingScheduledWorkDate(input: {
   restDayRevisions: EffectiveRestDayRevisionInput[];
   holidayCalendar: HolidayCalendarEntry[];
   employeeStartDate: string;
+  scheduleForDate?: (date: string) => ResolvedDailySchedule | undefined;
 }) {
   for (let offset = 1; offset <= 14; offset += 1) {
     const date = addDays(input.holidayDate, -offset);
     if (date < input.employeeStartDate) return null;
-    const restDay = restDayForDate(input.currentRestDay, input.restDayRevisions, date);
-    if (isRestDayOfWeek(date, restDay)) continue;
+
+    const advanced = input.scheduleForDate?.(date);
+    if (advanced && advanced.source !== "unassigned") {
+      if (advanced.isRestDay) continue;
+    } else {
+      const restDay = restDayForDate(input.currentRestDay, input.restDayRevisions, date);
+      if (isRestDayOfWeek(date, restDay)) continue;
+    }
+
     if (holidayPayContextOn(date, input.holidayCalendar).holiday !== "ordinary") continue;
     return date;
   }
