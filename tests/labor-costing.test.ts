@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -126,4 +127,14 @@ test("trace preserves finance allocation evidence", () => {
       jobCode: "ROLE-9",
     }],
   });
+});
+
+
+test("production compatibility schema carries labor-costing tables and constraints", () => {
+  const source = readFileSync("src/lib/core-schema-compat.ts", "utf8");
+  assert.ok(source.includes("CREATE TABLE IF NOT EXISTS cost_centers"));
+  assert.ok(source.includes("CREATE TABLE IF NOT EXISTS employee_labor_allocations"));
+  assert.ok(source.includes("employee_labor_allocations_percent_check"));
+  assert.ok(source.includes("employee_labor_allocations_basis_check"));
+  assert.ok(source.includes("employee_labor_allocations_dates_check"));
 });
