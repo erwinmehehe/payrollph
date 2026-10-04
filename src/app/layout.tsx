@@ -6,7 +6,7 @@ import "./workspace-theme.css";
 export const metadata: Metadata = {
   title: "Linaw · Philippine Payroll & HRIS",
   description:
-    "Run compliant Philippine payroll for one person or ten thousand. Automatic SSS, PhilHealth, Pag-IBIG, and BIR TRAIN computation, multi-client bookkeeping, and transparent published pricing.",
+    "Run Philippine payroll with SSS, PhilHealth, Pag-IBIG and BIR TRAIN computation, approvals, role-based workflows, multi-client bookkeeping and traceable payroll outputs.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
