@@ -376,6 +376,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (mode === "preflight") {
     if (!process.env.PAYMONGO_SECRET_KEY) {
+      await recordAuditEvent({
+        organizationId: run.organizationId,
+        actor: user.name,
+        action: "PayMongo payroll preflight failed",
+        resource: run.periodLabel,
+        metadata: {
+          runId: run.id,
+          reason: "provider-not-configured",
+          moneyMoved: false,
+        },
+      });
       return Response.json({
         error: "PayMongo credentials are not configured, so receiving-institution access cannot be verified.",
         readiness: "/api/readiness",
