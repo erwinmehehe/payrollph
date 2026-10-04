@@ -217,7 +217,7 @@ test("August payroll taxes only shared-benefit excess above the remaining PHP 90
 
     const augustWht = Number((withholding(first.entry) + withholding(second.entry)).toFixed(2));
     const draft1601c = await generateGovernmentDraft(second.run.id, "bir-1601c");
-    assert.match(draft1601c.body, /1601-C,2026-08/);
+    assert.match(draft1601c.body, /"1601-C","2026-08"/);
     assert.ok(
       draft1601c.body.includes(augustWht.toFixed(2)),
       `August 1601-C should include both cutoff WHT totals: ${augustWht.toFixed(2)}`,
