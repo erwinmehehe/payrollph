@@ -51,6 +51,7 @@ test("employer statutory accrual follows first-cutoff policy and month-final tru
       avatarInitials: "EC",
       basicRate: "20000.00",
       restDay: "Sunday",
+      mobile: "09171234567",
       startDate: "2025-01-01",
     });
 
@@ -123,6 +124,7 @@ test("accounting export uses dedicated Pag-IBIG compensation base instead of SSS
       avatarInitials: "HB",
       basicRate: "1200.00",
       restDay: "Sunday",
+      mobile: "09171234567",
       startDate: "2025-01-01",
     }).returning();
 
