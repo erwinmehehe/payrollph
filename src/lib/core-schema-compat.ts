@@ -345,7 +345,7 @@ export async function ensureCoreCompatibilitySchema() {
           rule_key varchar(80) NOT NULL,
           agency varchar(40) NOT NULL,
           jurisdiction varchar(80) NOT NULL DEFAULT 'PH',
-          region varchar(40),
+          region varchar(40) NOT NULL DEFAULT 'ALL',
           rule_version varchar(64) NOT NULL,
           effective_from date NOT NULL,
           effective_until date,
@@ -366,7 +366,7 @@ export async function ensureCoreCompatibilitySchema() {
       `);
       await client.query(`
         CREATE UNIQUE INDEX IF NOT EXISTS compliance_rules_version_unique
-        ON compliance_rules(rule_key, jurisdiction, COALESCE(region, ''), rule_version)
+        ON compliance_rules(rule_key, jurisdiction, region, rule_version)
       `);
       await client.query(`
         CREATE INDEX IF NOT EXISTS compliance_rules_effective_idx
