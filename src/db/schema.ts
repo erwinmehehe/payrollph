@@ -301,6 +301,11 @@ export const payslips = pgTable("payslips", {
   periodLabel: varchar("period_label", { length: 80 }).notNull(),
   content: text("content").notNull(),
   ruleVersion: varchar("rule_version", { length: 48 }).notNull().default("PH-2026.01"),
+  status: varchar("status", { length: 24 }).notNull().default("computed"),
+  payrollRunId: integer("payroll_run_id").references(() => payrollRuns.id, { onDelete: "set null" }),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  approvedBy: varchar("approved_by", { length: 120 }),
+  settledAt: timestamp("settled_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
