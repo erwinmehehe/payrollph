@@ -202,7 +202,7 @@ async function main() {
   const preflightBody = await preflight.text();
   assert.equal(
     preflight.status,
-    502,
+    501,
     `Fresh CI pilot has no external PayMongo credentials, so no-money preflight must fail closed: ${preflightBody}`,
   );
   assert.match(preflightBody, /PAYMONGO_SECRET_KEY|PayMongo/i);
