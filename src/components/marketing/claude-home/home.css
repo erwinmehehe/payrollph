@@ -2096,3 +2096,89 @@
     right: -205px;
   }
 }
+
+
+/* Homepage hero uses the real public workspace preview, not a marketing-only dashboard mockup. */
+.home-redesign .payroll-home-preview-label {
+  position: absolute;
+  z-index: 4;
+  top: 8px;
+  right: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid #dfe5ed;
+  border-radius: 999px;
+  background: rgba(255,255,255,.94);
+  box-shadow: 0 10px 28px -20px rgba(15,42,76,.45);
+  color: #173b67;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.home-redesign .payroll-home-preview-label small {
+  color: #7c8ea0;
+  font-size: 9.5px;
+  font-weight: 600;
+}
+.home-redesign .payroll-home-real-preview {
+  position: absolute;
+  z-index: 2;
+  top: 48px;
+  right: 0;
+  width: min(720px, 100%);
+  transform: rotateY(-2.5deg) rotateX(.6deg) rotateZ(-.5deg);
+  transform-origin: 50% 60%;
+}
+.home-redesign .payroll-home-real-preview .frame {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.home-redesign .payroll-home-real-preview .frame-bar {
+  display: none;
+}
+.home-redesign .payroll-home-real-preview .frame-body,
+.home-redesign .payroll-home-real-preview .pv {
+  min-height: 430px;
+}
+.home-redesign .payroll-home-real-preview .pv-body {
+  max-height: 430px;
+}
+@media (max-width: 960px) {
+  .home-redesign .payroll-home-real-preview {
+    position: relative;
+    top: 34px;
+    right: auto;
+    width: min(760px, 100%);
+    margin: 0 auto;
+    transform: none;
+  }
+  .home-redesign .payroll-home-preview-label {
+    right: 50%;
+    transform: translateX(50%);
+  }
+}
+@media (max-width: 700px) {
+  .home-redesign .payroll-home-real-preview {
+    top: 32px;
+    width: 760px;
+    max-width: none;
+    transform: scale(.72);
+    transform-origin: top left;
+  }
+  .home-redesign .payroll-home-preview-label {
+    left: 0;
+    right: auto;
+    transform: none;
+  }
+}
+@media (max-width: 480px) {
+  .home-redesign .payroll-home-real-preview {
+    width: 720px;
+    transform: scale(.56);
+  }
+  .home-redesign .payroll-home-preview-label small {
+    display: none;
+  }
+}
