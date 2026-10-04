@@ -83,7 +83,7 @@ export async function GET(request: Request) {
     await recordAuditEvent({
       organizationId,
       actor: user.name,
-      action: "Year-end BIR 2316 draft generated",
+      action: "Year-end BIR 2316 reconciliation source generated",
       resource: `${match.employee.employeeNo} · ${taxYear}`,
       metadata: {
         employeeId: match.employee.id,
@@ -94,7 +94,7 @@ export async function GET(request: Request) {
     return new Response(body, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
-        "Content-Disposition": `attachment; filename=bir-2316-draft-${match.employee.employeeNo}-${taxYear}.txt`,
+        "Content-Disposition": `attachment; filename=bir-2316-reconciliation-source-${match.employee.employeeNo}-${taxYear}.txt`,
         "Cache-Control": "no-store, private",
         "X-Content-Type-Options": "nosniff",
       },
@@ -308,7 +308,7 @@ export async function POST(request: Request) {
     generated2316Drafts: 0,
     available2316Drafts: summary.employees,
     certificateStorage: "not-persisted",
-    certificateAccess: "Generate each draft on demand with format=2316&employeeId=... after recent MFA.",
+    certificateAccess: "Generate the 2316 reconciliation source on demand with format=2316&employeeId=... after recent MFA, then populate the current official BIR Form 2316 separately.",
     payrollSettlement: targetRun
       ? {
           payrollRunId: targetRun.id,
