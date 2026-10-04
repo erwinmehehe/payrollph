@@ -1,12 +1,13 @@
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, organizations, yearEndAdjustments } from "@/db/schema";
+import { employees, organizations, payrollRuns, yearEndAdjustments } from "@/db/schema";
 import { renderForm2316 } from "@/lib/annualization";
 import { decryptGovernmentId } from "@/lib/government-id-crypto";
 import { getSessionUser } from "@/lib/auth";
 import { toCsv } from "@/lib/csv";
 import { runYearEndAnnualization } from "@/lib/year-end";
+import { enqueuePayrollRun } from "@/lib/payroll-engine";
 import { assertOrganizationRole, getAccess, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 
@@ -190,6 +191,10 @@ export async function GET(request: Request) {
       taxWithheld: row.adjustment.taxWithheld,
       adjustment: row.adjustment.adjustment,
       outcome: row.adjustment.outcome,
+      status: row.adjustment.status,
+      payrollRunId: row.adjustment.payrollRunId,
+      approvedAt: row.adjustment.approvedAt,
+      settledAt: row.adjustment.settledAt,
     })),
   });
 }
@@ -204,9 +209,17 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
   const taxYear = Number(body.taxYear);
+  const applyToPayrollRunId =
+    body.applyToPayrollRunId == null ? null : Number(body.applyToPayrollRunId);
 
-  if (!Number.isInteger(organizationId) || !Number.isInteger(taxYear)) {
-    return Response.json({ error: "organizationId and taxYear are required." }, { status: 400 });
+  if (
+    !Number.isInteger(organizationId)
+    || !Number.isInteger(taxYear)
+    || (applyToPayrollRunId != null && !Number.isInteger(applyToPayrollRunId))
+  ) {
+    return Response.json({
+      error: "organizationId and taxYear are required; applyToPayrollRunId must be an integer when supplied.",
+    }, { status: 400 });
   }
 
   const deniedWrite = await assertOrganizationRole(
@@ -221,13 +234,72 @@ export async function POST(request: Request) {
     return Response.json({ error: "Year-end tax annualization requires company-wide payroll access." }, { status: 403 });
   }
 
-  const summary = await runYearEndAnnualization(organizationId, taxYear, user.name);
+  let targetRun: typeof payrollRuns.$inferSelect | null = null;
+  if (applyToPayrollRunId != null) {
+    const mfaDenied = requireSensitiveActionMfa(user);
+    if (mfaDenied) return mfaDenied;
+
+    [targetRun] = await db.select().from(payrollRuns).where(and(
+      eq(payrollRuns.id, applyToPayrollRunId),
+      eq(payrollRuns.organizationId, organizationId),
+    )).limit(1);
+    if (!targetRun) {
+      return Response.json({ error: "The selected payroll run was not found in this organization." }, { status: 404 });
+    }
+    if (targetRun.status !== "Needs review") {
+      return Response.json({
+        error: "Year-end tax can be bound only after the final payroll has been freshly calculated and is in Needs review status.",
+      }, { status: 409 });
+    }
+    if (Number(String(targetRun.payDate).slice(0, 4)) !== taxYear) {
+      return Response.json({ error: "The selected payroll run must have a pay date in the requested tax year." }, { status: 422 });
+    }
+    if (!String(targetRun.periodEnd).endsWith("-12-31")) {
+      return Response.json({
+        error: "Year-end tax settlement must be bound to the payroll cutoff ending December 31.",
+      }, { status: 422 });
+    }
+  }
+
+  const summary = await runYearEndAnnualization(
+    organizationId,
+    taxYear,
+    user.name,
+    targetRun
+      ? {
+          includePayrollRunId: targetRun.id,
+          bindToPayrollRunId: targetRun.id,
+          approvedBy: user.name,
+        }
+      : {},
+  );
+
+  if (targetRun) {
+    // Requeue from the approved annualization snapshot so the register,
+    // payslips and release settlement all include the exact refund/collection.
+    await enqueuePayrollRun(targetRun.id);
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "Year-end tax adjustments bound to payroll",
+      resource: targetRun.periodLabel,
+      metadata: {
+        taxYear,
+        payrollRunId: targetRun.id,
+        refunds: summary.refunds,
+        collections: summary.collections,
+        totalRefund: summary.totalRefund,
+        totalCollect: summary.totalCollect,
+        requiresRecalculation: true,
+      },
+    });
+  }
   if (summary.employees === 0) {
     return Response.json({
       ...summary,
       generated2316Drafts: 0,
       available2316Drafts: 0,
-      warning: `No released payroll runs found with a ${taxYear} pay date, so there is nothing to annualize.`,
+      warning: `No payroll runs eligible for ${taxYear} annualization were found.`,
     });
   }
 
@@ -237,5 +309,12 @@ export async function POST(request: Request) {
     available2316Drafts: summary.employees,
     certificateStorage: "not-persisted",
     certificateAccess: "Generate each draft on demand with format=2316&employeeId=... after recent MFA.",
+    payrollSettlement: targetRun
+      ? {
+          payrollRunId: targetRun.id,
+          status: "Queued",
+          note: "The final cutoff was requeued so approved year-end refunds/collections become payroll line items before review and release.",
+        }
+      : null,
   });
 }
