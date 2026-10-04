@@ -18,6 +18,7 @@ import {
   holidays,
   orgUnits,
   organizations,
+  overtimeRequests,
   payrollEntries,
   historicalPayrollEntries,
   payrollJobs,
@@ -88,6 +89,12 @@ import {
   payrollRestDayFromSchedule,
   workforceScheduleTrace,
 } from "@/lib/workforce-payroll";
+import {
+  resolveOvertimeAuthorizationDay,
+  type OvertimeRequestEvidence,
+  type OvertimeRequestKind,
+  type OvertimeRequestStatus,
+} from "@/lib/workforce-overtime";
 
 export const PAYROLL_RULE_VERSION = "PH-2026.05";
 const DEFAULT_CHUNK = 25;
@@ -498,6 +505,18 @@ async function processPayrollChunk(input: {
         asc(scheduleOverrides.id),
       )
     : [];
+  const overtimeRequestRows = chunkIds.length
+    ? await db.select().from(overtimeRequests).where(and(
+        eq(overtimeRequests.organizationId, input.organizationId),
+        inArray(overtimeRequests.employeeId, chunkIds),
+        gte(overtimeRequests.workDate, run.periodStart),
+        lte(overtimeRequests.workDate, run.periodEnd),
+      )).orderBy(
+        asc(overtimeRequests.employeeId),
+        asc(overtimeRequests.workDate),
+        asc(overtimeRequests.id),
+      )
+    : [];
   const workforceAssignmentsByEmployee = new Map<number, typeof workforceAssignmentRows>();
   for (const assignment of workforceAssignmentRows) {
     workforceAssignmentsByEmployee.set(
@@ -510,6 +529,13 @@ async function processPayrollChunk(input: {
     workforceOverridesByEmployee.set(
       override.employeeId,
       [...(workforceOverridesByEmployee.get(override.employeeId) ?? []), override],
+    );
+  }
+  const overtimeRequestsByEmployee = new Map<number, typeof overtimeRequestRows>();
+  for (const request of overtimeRequestRows) {
+    overtimeRequestsByEmployee.set(
+      request.employeeId,
+      [...(overtimeRequestsByEmployee.get(request.employeeId) ?? []), request],
     );
   }
 
@@ -1204,6 +1230,15 @@ async function processPayrollChunk(input: {
       statutoryDeductionTiming: organization.statutoryDeductionTiming,
       restDayRevisions: employeeRestDayRevisions,
       resolvedSchedules: Object.fromEntries(workforceScheduleCache),
+      overtimeRequests: (overtimeRequestsByEmployee.get(employee.id) ?? []).map((request) => ({
+        id: request.id,
+        workDate: String(request.workDate),
+        status: request.status as OvertimeRequestStatus,
+        requestKind: request.requestKind as OvertimeRequestKind,
+        requestedMinutes: request.requestedMinutes,
+        requestedByUserId: request.requestedByUserId,
+        decidedByUserId: request.decidedByUserId,
+      })),
       periodStart: String(run.periodStart),
       periodEnd: String(run.periodEnd),
       priorStatutory: priorStatutoryByEmployee.get(employee.id),
@@ -1342,6 +1377,7 @@ function calculateEmployeePay(input: {
   statutoryDeductionTiming?: string;
   restDayRevisions?: EffectiveRestDayRevisionInput[];
   resolvedSchedules?: Record<string, ResolvedDailySchedule>;
+  overtimeRequests?: Array<OvertimeRequestEvidence & { workDate: string }>;
   periodStart: string;
   periodEnd: string;
   priorStatutory?: {
@@ -1398,6 +1434,7 @@ function calculateEmployeePay(input: {
   const flags: string[] = [];
   const punchNotes: string[] = [];
   const holidayNotes: string[] = [];
+  const overtimeMinutesByWorkDate = new Map<string, number>();
 
   const eligiblePunches = input.punches.filter((punch) => String(punch.workDate) >= employmentStart);
   const punchesByWorkDate = new Map<string, Array<typeof timePunches.$inferSelect>>();
@@ -1444,6 +1481,11 @@ function calculateEmployeePay(input: {
     const workedRegular = Math.max(0, derived.workedMinutes - derived.overtimeMinutes);
     regularMinutes += workedRegular;
     overtimeMinutes += derived.overtimeMinutes;
+    const punchWorkDate = String(punch.workDate);
+    overtimeMinutesByWorkDate.set(
+      punchWorkDate,
+      (overtimeMinutesByWorkDate.get(punchWorkDate) ?? 0) + derived.overtimeMinutes,
+    );
     nightMinutes += derived.nightDifferentialMinutes;
     tardinessMinutes += derived.tardinessMinutes;
     undertimeMinutes += derived.undertimeMinutes;
@@ -1484,6 +1526,47 @@ function calculateEmployeePay(input: {
       holidayNotes.push(`${punch.workDate} ${dayLabel} ×${regularMultiplier} → +${money(extra)}${otNote}`);
     }
   }
+
+  const overtimeRequestsByWorkDate = new Map<string, Array<OvertimeRequestEvidence>>();
+  for (const request of input.overtimeRequests ?? []) {
+    overtimeRequestsByWorkDate.set(
+      request.workDate,
+      [...(overtimeRequestsByWorkDate.get(request.workDate) ?? []), request],
+    );
+  }
+  const overtimeAuthorizationDates = [...new Set([
+    ...overtimeMinutesByWorkDate.keys(),
+    ...overtimeRequestsByWorkDate.keys(),
+  ])].sort();
+  const overtimeAuthorizationDays = overtimeAuthorizationDates.map((workDate) => {
+    const evidence = resolveOvertimeAuthorizationDay({
+      actualOvertimeMinutes: overtimeMinutesByWorkDate.get(workDate) ?? 0,
+      requests: overtimeRequestsByWorkDate.get(workDate) ?? [],
+    });
+
+    if (evidence.reviewRequired) {
+      if (evidence.reviewReason === "missing_request") {
+        flags.push(
+          `${workDate}: ${evidence.actualOvertimeMinutes} overtime minute(s) were worked with no OT authorization request. Statutory overtime pay remains based on validated attendance; manager review required.`,
+        );
+      } else if (evidence.reviewReason === "multiple_requests") {
+        flags.push(
+          `${workDate}: multiple OT authorization requests exist for ${evidence.actualOvertimeMinutes} worked overtime minute(s). Statutory overtime pay remains based on validated attendance; reconcile the duplicate requests before release.`,
+        );
+      } else if (evidence.reviewReason === "not_approved") {
+        const status = evidence.requests[0]?.status ?? "none";
+        flags.push(
+          `${workDate}: ${evidence.actualOvertimeMinutes} overtime minute(s) were worked but the OT request is ${status}. Statutory overtime pay remains based on validated attendance; manager review required.`,
+        );
+      } else if (evidence.reviewReason === "exceeds_approved_minutes") {
+        flags.push(
+          `${workDate}: worked overtime of ${evidence.actualOvertimeMinutes} minute(s) exceeds the approved ${evidence.authorizedMinutes} minute(s). Statutory overtime pay remains based on validated attendance; review the excess before release.`,
+        );
+      }
+    }
+
+    return { workDate, ...evidence };
+  });
 
   let unworkedHolidayPay = 0;
   if (payProfile.payBasis !== "monthly") {
@@ -2069,6 +2152,10 @@ function calculateEmployeePay(input: {
       mode: resolvedWorkforceTrace.length > 0 ? "advanced-with-legacy-fallback" : "legacy",
       days: resolvedWorkforceTrace,
     },
+    overtimeAuthorization: {
+      payrollEntitlementIndependent: true,
+      days: overtimeAuthorizationDays,
+    },
     inputs: [
       `workforceScheduleMode=${resolvedWorkforceTrace.length > 0 ? "advanced-with-legacy-fallback" : "legacy"}`,
       `workforceScheduleDays=${resolvedWorkforceTrace.length}`,
@@ -2143,6 +2230,10 @@ function calculateEmployeePay(input: {
       `employmentStart=${employmentStart}`,
       `regularMinutes=${regularMinutes}`,
       `overtimeMinutes=${overtimeMinutes}`,
+      `overtimeAuthorizationDays=${overtimeAuthorizationDays.length}`,
+      `overtimeAuthorizationReviewDays=${overtimeAuthorizationDays.filter((day) => day.reviewRequired).length}`,
+      `overtimeAuthorizedMinutes=${overtimeAuthorizationDays.reduce((sum, day) => sum + day.authorizedMinutes, 0)}`,
+      `overtimeAuthorizationRequests=${overtimeAuthorizationDays.reduce((sum, day) => sum + day.requests.length, 0)}`,
       `nightMinutes=${nightMinutes}`,
       `tardinessMinutes=${tardinessMinutes}`,
       `undertimeMinutes=${undertimeMinutes}`,
