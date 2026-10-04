@@ -193,6 +193,12 @@ export async function POST(request: Request) {
     const employeeCheck = await scopedEmployee(user.id, organizationId, existing.employeeId);
     if (employeeCheck.denied) return employeeCheck.denied;
 
+    if (existing.requestedByUserId == null) {
+      return Response.json({
+        error: "This overtime request predates stable requester identity tracking and cannot be safely approved. Cancel and recreate it.",
+      }, { status: 409 });
+    }
+
     if (existing.requestedByUserId === user.id) {
       return Response.json({
         error: "Overtime requests cannot be self-approved. A different authorized manager must decide this request.",
