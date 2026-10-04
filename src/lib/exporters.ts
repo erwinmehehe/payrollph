@@ -156,63 +156,14 @@ export async function generateBankFile(
   if (!template) throw new Error("Bank template not found");
   if (!template.active) throw new Error("Bank template is inactive.");
 
-  let entries = await db.select({
+  const entries = await db.select({
     entry: payrollEntries,
     employee: employees,
-    periodEnd: payrollRuns.periodEnd,
   })
     .from(payrollEntries)
     .innerJoin(employees, eq(payrollEntries.employeeId, employees.id))
-    .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
     .where(eq(payrollEntries.payrollRunId, runId))
     .orderBy(asc(employees.id));
-
-  const monthlyKinds = new Set(["sss-r3", "philhealth-rf1", "pagibig-mcrf", "bir-1601c"]);
-  if (monthlyKinds.has(kind)) {
-    const periodEnd = String(run.periodEnd);
-    const end = new Date(`${periodEnd}T00:00:00Z`);
-    const tomorrow = new Date(end);
-    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-    const isMonthFinalCutoff = tomorrow.getUTCMonth() !== end.getUTCMonth();
-
-    if (run.status !== "Released") {
-      throw new Error("Monthly government reports can be generated only from released payroll.");
-    }
-    if (!isMonthFinalCutoff) {
-      throw new Error(
-        "Monthly government reports require the final cutoff of the month. Generate from the 16th-end-of-month released run so both cutoffs are reconciled.",
-      );
-    }
-
-    const monthStart = `${periodEnd.slice(0, 7)}-01`;
-    entries = await db.select({
-      entry: payrollEntries,
-      employee: employees,
-      periodEnd: payrollRuns.periodEnd,
-    })
-      .from(payrollEntries)
-      .innerJoin(employees, eq(payrollEntries.employeeId, employees.id))
-      .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
-      .where(and(
-        eq(payrollRuns.organizationId, run.organizationId),
-        eq(payrollRuns.status, "Released"),
-        gte(payrollRuns.periodEnd, monthStart),
-        lte(payrollRuns.periodEnd, periodEnd),
-      ))
-      .orderBy(asc(employees.id), asc(payrollRuns.periodEnd), asc(payrollRuns.id));
-  }
-
-  const monthlyEmployeeGroups = new Map<number, {
-    employee: typeof employees.$inferSelect;
-    rows: typeof entries;
-  }>();
-  for (const row of entries) {
-    const current = monthlyEmployeeGroups.get(row.employee.id) ?? { employee: row.employee, rows: [] };
-    current.rows.push(row);
-    current.employee = row.employee;
-    monthlyEmployeeGroups.set(row.employee.id, current);
-  }
-  const monthlyEmployees = [...monthlyEmployeeGroups.values()];
 
   const rows = entries.map(({ entry, employee }) => {
     const snapshot = readPaymentSnapshot(entry.trace);
@@ -621,14 +572,63 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
   }
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) throw new Error("Payroll run not found");
-  const entries = await db.select({
+  let entries = await db.select({
     entry: payrollEntries,
     employee: employees,
+    periodEnd: payrollRuns.periodEnd,
   })
     .from(payrollEntries)
     .innerJoin(employees, eq(payrollEntries.employeeId, employees.id))
+    .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
     .where(eq(payrollEntries.payrollRunId, runId))
     .orderBy(asc(employees.id));
+
+  const monthlyKinds = new Set(["sss-r3", "philhealth-rf1", "pagibig-mcrf", "bir-1601c"]);
+  if (monthlyKinds.has(kind)) {
+    const periodEnd = String(run.periodEnd);
+    const end = new Date(`${periodEnd}T00:00:00Z`);
+    const tomorrow = new Date(end);
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    const isMonthFinalCutoff = tomorrow.getUTCMonth() !== end.getUTCMonth();
+
+    if (run.status !== "Released") {
+      throw new Error("Monthly government reports can be generated only from released payroll.");
+    }
+    if (!isMonthFinalCutoff) {
+      throw new Error(
+        "Monthly government reports require the final cutoff of the month. Generate from the 16th-end-of-month released run so both cutoffs are reconciled.",
+      );
+    }
+
+    const monthStart = `${periodEnd.slice(0, 7)}-01`;
+    entries = await db.select({
+      entry: payrollEntries,
+      employee: employees,
+      periodEnd: payrollRuns.periodEnd,
+    })
+      .from(payrollEntries)
+      .innerJoin(employees, eq(payrollEntries.employeeId, employees.id))
+      .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
+      .where(and(
+        eq(payrollRuns.organizationId, run.organizationId),
+        eq(payrollRuns.status, "Released"),
+        gte(payrollRuns.periodEnd, monthStart),
+        lte(payrollRuns.periodEnd, periodEnd),
+      ))
+      .orderBy(asc(employees.id), asc(payrollRuns.periodEnd), asc(payrollRuns.id));
+  }
+
+  const monthlyEmployeeGroups = new Map<number, {
+    employee: typeof employees.$inferSelect;
+    rows: typeof entries;
+  }>();
+  for (const row of entries) {
+    const current = monthlyEmployeeGroups.get(row.employee.id) ?? { employee: row.employee, rows: [] };
+    current.rows.push(row);
+    current.employee = row.employee;
+    monthlyEmployeeGroups.set(row.employee.id, current);
+  }
+  const monthlyEmployees = [...monthlyEmployeeGroups.values()];
 
   const traceNumber = (trace: unknown, prefix: string) => {
     if (!trace || typeof trace !== "object") return null;
