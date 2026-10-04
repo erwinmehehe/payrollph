@@ -632,7 +632,7 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     rows: typeof entries;
   }>();
   for (const row of entries) {
-    const current = monthlyEmployeeGroups.get(row.employee.id) ?? { employee: row.employee, rows: [] };
+    const current = monthlyEmployeeGroups.get(row.employee.id) ?? { employee: row.employee, rows: [] as typeof entries };
     current.rows.push(row);
     current.employee = row.employee;
     monthlyEmployeeGroups.set(row.employee.id, current);
