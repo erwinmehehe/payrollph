@@ -12,15 +12,15 @@ import {
 import { Reveal } from "./ui";
 
 const trustPoints = [
-  "DOLE-compliant calculations",
-  "Government reports ready",
-  "Secure and confidential",
+  "Philippine statutory payroll rules modeled",
+  "Government worksheets clearly labelled",
+  "Maker-checker release controls",
 ] as const;
 
 const recentRuns = [
-  { period: "September 2024", amount: "₱ 1,248,530", status: "For Approval" },
-  { period: "August 2024", amount: "₱ 1,236,400", status: "Released" },
-  { period: "July 2024", amount: "₱ 1,198,450", status: "Released" },
+  { period: "Oct 1–15, 2026", amount: "₱ 1,248,530", status: "For Approval" },
+  { period: "Sep 16–30, 2026", amount: "₱ 1,236,400", status: "Released" },
+  { period: "Sep 1–15, 2026", amount: "₱ 1,198,450", status: "Released" },
 ] as const;
 
 export default function Hero() {
@@ -31,22 +31,21 @@ export default function Hero() {
       <div className="payroll-home-hero-inner">
         <div className="payroll-home-hero-copy">
           <Reveal delay={60}>
-            <span className="payroll-home-kicker">Philippine Payroll · Compliant · Hassle-Free</span>
+            <span className="payroll-home-kicker">Philippine payroll software · Review before release</span>
           </Reveal>
 
           <Reveal delay={120}>
             <h1>
-              Payroll that stays clear,
+              Philippine payroll software
               <br />
-              compliant, and under control.
+              you can verify before you pay.
             </h1>
           </Reveal>
 
           <Reveal delay={180}>
             <p className="payroll-home-lede">
-              Compute, review, approve, and release payroll with confidence.
-              Built for Philippine businesses and fully aligned with BIR, SSS,
-              PhilHealth, and Pag-IBIG.
+              Calculate payroll, surface exceptions, get checker approval, release payslips,
+              and prepare statutory outputs from one controlled workflow built for Philippine teams.
             </p>
           </Reveal>
 
@@ -74,13 +73,13 @@ export default function Hero() {
         </div>
 
         <Reveal delay={150} className="payroll-home-visual-wrap">
-          <div className="payroll-home-visual" aria-label="PayrollPH dashboard preview">
+          <div className="payroll-home-visual" aria-label="Linaw payroll release preview">
             <div className="payroll-hero-laptop">
               <div className="payroll-hero-screen">
                 <div className="payroll-hero-appbar">
                   <div className="payroll-hero-brand">
                     <span className="payroll-hero-brand-mark"><ShieldCheck size={13} aria-hidden /></span>
-                    <strong>PayrollPH</strong>
+                    <strong>linaw</strong>
                   </div>
                   <div className="payroll-hero-search">
                     <Search size={11} aria-hidden />
@@ -113,8 +112,8 @@ export default function Hero() {
                   <div className="payroll-hero-main">
                     <div className="payroll-hero-welcome">
                       <div>
-                        <h2>Good morning, Maria!</h2>
-                        <p>Here’s what needs attention before payroll can be released.</p>
+                        <h2>October payroll is ready for review.</h2>
+                        <p>See what changed and clear the blockers before money moves.</p>
                       </div>
                     </div>
 
