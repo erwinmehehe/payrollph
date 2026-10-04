@@ -185,7 +185,7 @@ export async function ensureCoreCompatibilitySchema() {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v8'))");
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v9'))");
 
       await client.query(`
         ALTER TABLE organizations
@@ -319,12 +319,19 @@ export async function ensureCoreCompatibilitySchema() {
           status varchar(24) NOT NULL DEFAULT 'pending',
           approval_task_id integer,
           requested_by varchar(120) NOT NULL,
+          requested_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
           decided_by varchar(120),
+          decided_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
           decided_at timestamptz,
           decision_note varchar(240),
           created_at timestamptz NOT NULL DEFAULT NOW(),
           updated_at timestamptz NOT NULL DEFAULT NOW()
         )
+      `);
+      await client.query(`
+        ALTER TABLE overtime_requests
+          ADD COLUMN IF NOT EXISTS requested_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          ADD COLUMN IF NOT EXISTS decided_by_user_id integer REFERENCES users(id) ON DELETE SET NULL
       `);
       await client.query(`
         CREATE INDEX IF NOT EXISTS overtime_requests_org_date_idx
