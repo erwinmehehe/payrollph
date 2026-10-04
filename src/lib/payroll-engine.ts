@@ -24,6 +24,7 @@ import {
   payslips,
   supplementaryEarnings,
   timePunches,
+  yearEndAdjustments,
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import {
@@ -521,6 +522,24 @@ async function processPayrollChunk(input: {
         lte(supplementaryEarnings.effectiveDate, run.periodEnd),
       ))
     : [];
+  const approvedYearEndAdjustments = chunkIds.length
+    ? await db.select().from(yearEndAdjustments).where(and(
+        eq(yearEndAdjustments.organizationId, input.organizationId),
+        eq(yearEndAdjustments.payrollRunId, run.id),
+        eq(yearEndAdjustments.status, "approved"),
+        inArray(yearEndAdjustments.employeeId, chunkIds),
+      ))
+    : [];
+  const yearEndByEmployee = new Map<number, typeof approvedYearEndAdjustments[number]>();
+  for (const adjustment of approvedYearEndAdjustments) {
+    if (yearEndByEmployee.has(adjustment.employeeId)) {
+      throw new Error(
+        `Employee #${adjustment.employeeId} has more than one approved year-end tax adjustment bound to payroll run #${run.id}.`,
+      );
+    }
+    yearEndByEmployee.set(adjustment.employeeId, adjustment);
+  }
+
   const deMinimis = chunkIds.length
     ? await db.select().from(deMinimisGrants).where(and(
         eq(deMinimisGrants.organizationId, input.organizationId),
@@ -909,6 +928,17 @@ async function processPayrollChunk(input: {
         includeInSssBase: earning.includeInSssBase,
         includeInPagIbigBase: earning.includeInPagIbigBase,
       })),
+      yearEndTaxAdjustment: (() => {
+        const adjustment = yearEndByEmployee.get(employee.id);
+        return adjustment
+          ? {
+              id: adjustment.id,
+              taxYear: adjustment.taxYear,
+              adjustment: Number(adjustment.adjustment),
+              outcome: adjustment.outcome,
+            }
+          : undefined;
+      })(),
       deMinimis: (deMinimisByEmployee.get(employee.id) ?? [])
         .filter((g) =>
           String(g.effectiveOn) <= String(run.payDate)
@@ -1092,6 +1122,12 @@ function calculateEmployeePay(input: {
     includeInSssBase: boolean;
     includeInPagIbigBase: boolean;
   }>;
+  yearEndTaxAdjustment?: {
+    id: number;
+    taxYear: number;
+    adjustment: number;
+    outcome: string;
+  };
   deMinimis?: Array<{ id: number; benefitType: DeMinimisType; amount: number; frequency: "month" | "semester" | "year" }>;
   priorDeMinimisPaid?: Partial<Record<DeMinimisType, number>>;
   importedPayrollHistoryBeforeCutoff?: boolean;
@@ -1612,6 +1648,10 @@ function calculateEmployeePay(input: {
           - pagibigMandatory,
       );
   const withholding = computeSemiMonthlyWithholdingTax(taxableCompensation, false);
+  // annualize().adjustment is taxDue - taxWithheld. A positive value is an
+  // additional collection; a negative value is an employee refund. It settles
+  // after the normal cutoff WHT and never changes taxable income or gross pay.
+  const yearEndTaxAdjustment = roundToCents(input.yearEndTaxAdjustment?.adjustment ?? 0);
 
   // Money-integrity waterfall: statutory/tax/attendance deductions take
   // priority. Voluntary savings, benefit shares, wage-advance recovery, and
@@ -1619,7 +1659,13 @@ function calculateEmployeePay(input: {
   // An EWA is recovered all-or-nothing because its ledger has no partial
   // balance field; skipped recovery remains approved for a later payroll.
   const coreDeductions = roundToCents(
-    sss + philhealth + pagibigMandatory + withholding + tardinessDeduction + undertimeDeduction,
+    sss
+      + philhealth
+      + pagibigMandatory
+      + withholding
+      + yearEndTaxAdjustment
+      + tardinessDeduction
+      + undertimeDeduction,
   );
   if (coreDeductions > gross + 0.005) {
     flags.push(
@@ -1717,6 +1763,20 @@ function calculateEmployeePay(input: {
     { code: "HDMF", label: "Pag-IBIG mandatory contribution", amount: money(-pagibigMandatory) },
     { code: "HDMF_VOL", label: "Pag-IBIG voluntary contribution", amount: money(-pagibigVoluntary) },
     { code: "WHT", label: "Withholding tax", amount: money(-withholding) },
+    {
+      code: input.yearEndTaxAdjustment ? `YE-TAX-${input.yearEndTaxAdjustment.id}` : "YE-TAX",
+      label:
+        yearEndTaxAdjustment < 0
+          ? `BIR year-end tax refund (${input.yearEndTaxAdjustment?.taxYear ?? ""})`
+          : `BIR year-end tax collection (${input.yearEndTaxAdjustment?.taxYear ?? ""})`,
+      amount: money(-yearEndTaxAdjustment),
+      notes: input.yearEndTaxAdjustment
+        ? [
+            `Annual tax due minus tax withheld: ₱${yearEndTaxAdjustment.toFixed(2)}`,
+            `Outcome: ${input.yearEndTaxAdjustment.outcome}`,
+          ]
+        : [],
+    },
     { code: "LATE", label: "Tardiness", amount: money(-tardinessDeduction) },
     { code: "UT", label: "Undertime", amount: money(-undertimeDeduction) },
     ...expenseLines,
@@ -1810,6 +1870,9 @@ function calculateEmployeePay(input: {
       `pagIbigFundSalary=${money(pagIbigRule.fundSalary)}`,
       `pagIbigEmployeeRate=${pagIbigRule.employeeRate}`,
       `withholdingTable=RR11-2018-revised-2023+`,
+      `yearEndTaxAdjustmentId=${input.yearEndTaxAdjustment?.id ?? ""}`,
+      `yearEndTaxAdjustment=${money(yearEndTaxAdjustment)}`,
+      `yearEndTaxYear=${input.yearEndTaxAdjustment?.taxYear ?? ""}`,
       `region=${input.employee.region ?? "NCR"}`,
       `mwe=${treatAsMwe} (explicit employee tax classification)`,
       `employerStatutoryCost=${money(sssEmployer + sssEmployerEc + philHealthEmployer + pagIbigEmployer)}`,
