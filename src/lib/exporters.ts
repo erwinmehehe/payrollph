@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { db } from "@/db";
 import { bankTemplates, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
 import { decryptBankAccount } from "@/lib/bank-account-crypto";
@@ -156,14 +156,63 @@ export async function generateBankFile(
   if (!template) throw new Error("Bank template not found");
   if (!template.active) throw new Error("Bank template is inactive.");
 
-  const entries = await db.select({
+  let entries = await db.select({
     entry: payrollEntries,
     employee: employees,
+    periodEnd: payrollRuns.periodEnd,
   })
     .from(payrollEntries)
     .innerJoin(employees, eq(payrollEntries.employeeId, employees.id))
+    .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
     .where(eq(payrollEntries.payrollRunId, runId))
     .orderBy(asc(employees.id));
+
+  const monthlyKinds = new Set(["sss-r3", "philhealth-rf1", "pagibig-mcrf", "bir-1601c"]);
+  if (monthlyKinds.has(kind)) {
+    const periodEnd = String(run.periodEnd);
+    const end = new Date(`${periodEnd}T00:00:00Z`);
+    const tomorrow = new Date(end);
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    const isMonthFinalCutoff = tomorrow.getUTCMonth() !== end.getUTCMonth();
+
+    if (run.status !== "Released") {
+      throw new Error("Monthly government reports can be generated only from released payroll.");
+    }
+    if (!isMonthFinalCutoff) {
+      throw new Error(
+        "Monthly government reports require the final cutoff of the month. Generate from the 16th-end-of-month released run so both cutoffs are reconciled.",
+      );
+    }
+
+    const monthStart = `${periodEnd.slice(0, 7)}-01`;
+    entries = await db.select({
+      entry: payrollEntries,
+      employee: employees,
+      periodEnd: payrollRuns.periodEnd,
+    })
+      .from(payrollEntries)
+      .innerJoin(employees, eq(payrollEntries.employeeId, employees.id))
+      .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
+      .where(and(
+        eq(payrollRuns.organizationId, run.organizationId),
+        eq(payrollRuns.status, "Released"),
+        gte(payrollRuns.periodEnd, monthStart),
+        lte(payrollRuns.periodEnd, periodEnd),
+      ))
+      .orderBy(asc(employees.id), asc(payrollRuns.periodEnd), asc(payrollRuns.id));
+  }
+
+  const monthlyEmployeeGroups = new Map<number, {
+    employee: typeof employees.$inferSelect;
+    rows: typeof entries;
+  }>();
+  for (const row of entries) {
+    const current = monthlyEmployeeGroups.get(row.employee.id) ?? { employee: row.employee, rows: [] };
+    current.rows.push(row);
+    current.employee = row.employee;
+    monthlyEmployeeGroups.set(row.employee.id, current);
+  }
+  const monthlyEmployees = [...monthlyEmployeeGroups.values()];
 
   const rows = entries.map(({ entry, employee }) => {
     const snapshot = readPaymentSnapshot(entry.trace);
@@ -612,7 +661,7 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     // ₱10.00 for every employee regardless of their actual MSC (correct EC is
     // ₱30 at MSC ≥ ₱15,000, most employees above roughly ₱15,000/month basic
     // pay were being under-reported).
-    const missingSss = entries.filter(({ employee }) => !govId(employee.sssNo));
+    const missingSss = monthlyEmployees.filter(({ employee }) => !govId(employee.sssNo));
     if (missingSss.length > 0) {
       throw new Error(
         `SSS R-3 cannot be generated: ${missingSss.length} employee(s) are missing an SSS number: ${missingSss.map(({ employee }) => employee.employeeNo).join(", ")}.`,
@@ -621,11 +670,17 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
 
     const body = [
       "SSSNo,LastName,FirstName,MiddleName,MSC,RegularMSC,MPFMSC,SS_EE_Regular,SS_EE_MPF,SS_ER_Regular,SS_ER_MPF,EC_Employer,Total_Contribution",
-      ...entries.map(({ employee, entry }) => {
-        const monthlyRemuneration =
-          traceNumber(entry.trace, "statutoryMonthlySssCompensation=")
-          ?? traceNumber(entry.trace, "statutoryMonthlyCompensation=")
-          ?? Number(employee.basicRate ?? entry.grossPay ?? 0);
+      ...monthlyEmployees.map(({ employee, rows }) => {
+        const monthlyRemuneration = round2(rows.reduce((sum, { entry }) => {
+          const lineItems = Array.isArray(entry.lineItems)
+            ? entry.lineItems as Array<{ code?: string; amount?: string | number }>
+            : [];
+          const reimbursements = lineItems
+            .filter((line) => String(line.code ?? "").startsWith("EXP-"))
+            .reduce((value, line) => value + Math.max(0, Number(line.amount ?? 0) || 0), 0);
+          const excluded = traceNumber(entry.trace, "supplementaryExcludedFromSssBase=") ?? 0;
+          return sum + Math.max(0, Number(entry.grossPay) - reimbursements - excluded);
+        }, 0));
         const sss = computeSss(monthlyRemuneration);
         return [
           govId(employee.sssNo),
@@ -647,12 +702,12 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     return {
       filename: `sss-ecl-r3-worksheet-${run.id}.csv`,
       contentType: "text/csv",
-      body: `${headerNote}\n# SSS employer workflow uses My.SSS e-CL and a PRN. This worksheet is not an SSS acknowledgement or a certified R3 File Generator output.\n# Figures below are full monthly amounts (recomputed from basic pay), not this single cutoff's half-month deduction.\n${body}`,
+      body: `${headerNote}\n# SSS employer workflow uses My.SSS e-CL and a PRN. This worksheet is not an SSS acknowledgement or a certified R3 File Generator output.\n# Figures below are full monthly amounts recomputed from all released cutoffs in the month.\n${body}`,
     };
   }
 
   if (kind === "philhealth-rf1") {
-    const missingPins = entries.filter(({ employee }) => !govId(employee.philHealthNo));
+    const missingPins = monthlyEmployees.filter(({ employee }) => !govId(employee.philHealthNo));
     if (missingPins.length > 0) {
       throw new Error(
         `PhilHealth RF-1 cannot be generated: ${missingPins.length} employee(s) are missing a PhilHealth PIN: ${missingPins.map(({ employee }) => employee.employeeNo).join(", ")}.`,
@@ -661,10 +716,11 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
 
     const body = [
       "PIN,LastName,FirstName,MiddleName,MonthlySalaryBase,EmployeeShare,EmployerShare,TotalPremium",
-      ...entries.map(({ employee, entry }) => {
+      ...monthlyEmployees.map(({ employee, rows }) => {
+        const latest = rows[rows.length - 1];
         const monthlyBasic =
-          traceNumber(entry.trace, "philHealthContributionBase=")
-          ?? Number(employee.basicRate ?? entry.grossPay ?? 0);
+          traceNumber(latest.entry.trace, "philHealthContributionBase=")
+          ?? Number(employee.basicRate ?? latest.entry.grossPay ?? 0);
         const ph = computePhilHealth(monthlyBasic);
         return [
           govId(employee.philHealthNo),
@@ -681,12 +737,12 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     return {
       filename: `philhealth-eprs-rf1-worksheet-${run.id}.csv`,
       contentType: "text/csv",
-      body: `${headerNote}\n# PhilHealth requires employers to use EPRS for premium reporting and payment. This worksheet is a portal-entry aid, not an EPRS acknowledgement.\n# Full monthly premium amounts are recomputed from monthly basic salary.\n${body}`,
+      body: `${headerNote}\n# PhilHealth requires employers to use EPRS for premium reporting and payment. This worksheet is a portal-entry aid, not an EPRS acknowledgement.\n# Full monthly premium amounts use the latest immutable PhilHealth basic-salary base from the released cutoffs.\n${body}`,
     };
   }
 
   if (kind === "pagibig-mcrf") {
-    const missingMids = entries.filter(({ employee }) => !govId(employee.pagIbigNo));
+    const missingMids = monthlyEmployees.filter(({ employee }) => !govId(employee.pagIbigNo));
     if (missingMids.length > 0) {
       throw new Error(
         `Pag-IBIG MCRF cannot be generated: ${missingMids.length} employee(s) are missing a Pag-IBIG MID: ${missingMids.map(({ employee }) => employee.employeeNo).join(", ")}.`,
@@ -695,11 +751,17 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
 
     const body = [
       "PagIBIGMID,LastName,FirstName,MiddleName,FundSalary,EmployeeShare,EmployerShare,TotalContribution",
-      ...entries.map(({ employee, entry }) => {
-        const monthlyRemuneration =
-          traceNumber(entry.trace, "statutoryMonthlyPagIbigCompensation=")
-          ?? traceNumber(entry.trace, "statutoryMonthlyCompensation=")
-          ?? Number(employee.basicRate ?? entry.grossPay ?? 0);
+      ...monthlyEmployees.map(({ employee, rows }) => {
+        const monthlyRemuneration = round2(rows.reduce((sum, { entry }) => {
+          const lineItems = Array.isArray(entry.lineItems)
+            ? entry.lineItems as Array<{ code?: string; amount?: string | number }>
+            : [];
+          const reimbursements = lineItems
+            .filter((line) => String(line.code ?? "").startsWith("EXP-"))
+            .reduce((value, line) => value + Math.max(0, Number(line.amount ?? 0) || 0), 0);
+          const excluded = traceNumber(entry.trace, "supplementaryExcludedFromPagIbigBase=") ?? 0;
+          return sum + Math.max(0, Number(entry.grossPay) - reimbursements - excluded);
+        }, 0));
         const hd = computePagIbig(monthlyRemuneration);
         return [
           govId(employee.pagIbigNo),
@@ -716,7 +778,7 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     return {
       filename: `pagibig-mcrf-esrs-worksheet-${run.id}.csv`,
       contentType: "text/csv",
-      body: `${headerNote}\n# Pag-IBIG's published MCRF instructions use its prescribed spreadsheet layout and YYYYMM period. This CSV is an assisted worksheet only, not an upload-ready MCRF.\n# Full monthly mandatory contributions are recomputed from monthly basic salary.\n${body}`,
+      body: `${headerNote}\n# Pag-IBIG's published MCRF instructions use its prescribed spreadsheet layout and YYYYMM period. This CSV is an assisted worksheet only, not an upload-ready MCRF.\n# Full monthly mandatory contributions are recomputed from actual released month-to-date Pag-IBIG compensation.\n${body}`,
     };
   }
 
@@ -727,7 +789,7 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     }, 0);
     const body = [
       "Form,Period,WithholdingTax,Employees,Status",
-      ["1601-C", run.periodLabel, totalWht.toFixed(2), String(entries.length), "DRAFT"].map(csv).join(","),
+      ["1601-C", run.periodEnd.slice(0, 7), totalWht.toFixed(2), String(monthlyEmployees.length), "DRAFT"].map(csv).join(","),
     ].join("\n");
     return { filename: `bir-1601c-draft-${run.id}.csv`, contentType: "text/csv", body: `${headerNote}\n${body}` };
   }
