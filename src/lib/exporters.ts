@@ -450,6 +450,11 @@ export async function generateJournalCsv(runId: number) {
       else if (code === "HDMF") totals.pagIbigEe += abs;
       else if (code === "HDMF_VOL") totals.pagIbigVoluntary += abs;
       else if (code === "WHT") totals.birWht += abs;
+      else if (code.startsWith("YEAR_END_TAX-")) {
+        // Collection lines are negative payroll deductions and increase BIR
+        // payable; refund lines are positive and reverse prior withholding.
+        totals.birWht += -amount;
+      }
       else if (code.startsWith("LOAN-")) {
         if (/SSS|PAG-IBIG|HDMF/i.test(String(line.label ?? ""))) totals.governmentLoans += abs;
         else totals.companyLoans += abs;
@@ -517,7 +522,11 @@ export async function generateJournalCsv(runId: number) {
   credit("Pag-IBIG Employee Contributions Payable", totals.pagIbigEe, "Employee statutory share");
   credit("Pag-IBIG Voluntary Contributions Payable", totals.pagIbigVoluntary, "Employee-elected voluntary contribution");
   credit("Pag-IBIG Employer Contributions Payable", totals.pagIbigEr, "Employer statutory share");
-  credit("BIR Withholding Tax Payable", totals.birWht, "Compensation withholding");
+  if (totals.birWht >= 0) {
+    credit("BIR Withholding Tax Payable", totals.birWht, "Compensation withholding, net of year-end annualization");
+  } else {
+    debit("BIR Withholding Tax Payable", Math.abs(totals.birWht), "Year-end withholding-tax refund exceeds current-cutoff withholding");
+  }
   credit("Government Loan Deductions Payable", totals.governmentLoans, "SSS / Pag-IBIG loan deductions");
   credit("Company Loan Receivable", totals.companyLoans, "Employee company-loan recovery");
   credit("Employee Advances Receivable", totals.advances, "Earned-wage advance recovery");
@@ -784,12 +793,21 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
 
   if (kind === "bir-1601c") {
     const totalWht = entries.reduce((sum, { entry }) => {
-      const wht = Math.abs(Number((entry.lineItems as Array<{ code: string; amount: string }> | undefined)?.find?.((item) => item.code === "WHT")?.amount ?? 0));
-      return sum + wht;
+      const lines = Array.isArray(entry.lineItems)
+        ? entry.lineItems as Array<{ code?: string; amount?: string | number }>
+        : [];
+      return lines.reduce((entryTotal, item) => {
+        const code = String(item.code ?? "").toUpperCase();
+        const amount = Number(item.amount ?? 0);
+        if (!Number.isFinite(amount)) return entryTotal;
+        if (code === "WHT") return entryTotal + Math.abs(amount);
+        if (code.startsWith("YEAR_END_TAX-")) return entryTotal - amount;
+        return entryTotal;
+      }, sum);
     }, 0);
     const body = [
       "Form,Period,WithholdingTax,Employees,Status",
-      ["1601-C", run.periodEnd.slice(0, 7), totalWht.toFixed(2), String(monthlyEmployees.length), "DRAFT"].map(csv).join(","),
+      ["1601-C", String(run.periodEnd).slice(0, 7), totalWht.toFixed(2), String(monthlyEmployees.length), "DRAFT"].map(csv).join(","),
     ].join("\n");
     return { filename: `bir-1601c-draft-${run.id}.csv`, contentType: "text/csv", body: `${headerNote}\n${body}` };
   }
