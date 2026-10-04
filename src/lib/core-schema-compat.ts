@@ -185,7 +185,7 @@ export async function ensureCoreCompatibilitySchema() {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v7'))");
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v8'))");
 
       await client.query(`
         ALTER TABLE organizations
@@ -305,6 +305,38 @@ export async function ensureCoreCompatibilitySchema() {
         ALTER TABLE time_punches
           ADD COLUMN IF NOT EXISTS break_start timestamptz,
           ADD COLUMN IF NOT EXISTS break_end timestamptz
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS overtime_requests (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          employee_id integer NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+          work_date date NOT NULL,
+          requested_minutes integer NOT NULL,
+          reason varchar(240) NOT NULL,
+          request_kind varchar(32) NOT NULL DEFAULT 'pre_approved',
+          status varchar(24) NOT NULL DEFAULT 'pending',
+          approval_task_id integer,
+          requested_by varchar(120) NOT NULL,
+          decided_by varchar(120),
+          decided_at timestamptz,
+          decision_note varchar(240),
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS overtime_requests_org_date_idx
+        ON overtime_requests(organization_id, work_date)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS overtime_requests_employee_date_idx
+        ON overtime_requests(employee_id, work_date)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS overtime_requests_status_idx
+        ON overtime_requests(organization_id, status)
       `);
 
       await client.query(`
