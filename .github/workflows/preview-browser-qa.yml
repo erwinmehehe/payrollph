@@ -262,7 +262,7 @@ jobs:
               { path: "/payroll-outsourcing", heading: "Payroll outsourcing without losing control of the run." },
               { path: "/book-demo", heading: "Bring your actual payroll questions." },
               { path: "/status", heading: "Linaw system status." },
-              { path: "/scorecard", heading: "Verified claims only." },
+              { path: "/scorecard", heading: "Implemented claims, clearly scoped." },
               { path: "/login", heading: "Welcome back." },
               { path: "/invite", heading: "Join your team on Linaw." },
               { path: "/reset-password", heading: "Set a new password." },
