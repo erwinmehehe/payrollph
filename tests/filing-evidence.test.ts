@@ -31,14 +31,18 @@ const accepted = (overrides: Partial<FilingEvidenceRow> = {}): FilingEvidenceRow
   ...overrides,
 });
 
-test("only an uploaded file in today's layout counts as proof the format works", () => {
-  assert.equal(provesFileFormat(accepted(), SSS), true);
-  assert.equal(provesFileFormat(accepted({ submissionMethod: "manual_entry" }), SSS), false, "retyping proves a filing, not the file");
-  assert.equal(provesFileFormat(accepted({ generatorVersion: "sss-r3-worksheet-v0" }), SSS), false, "an older layout says nothing about this one");
-  assert.equal(provesFileFormat(accepted({ status: "generated" }), SSS), false, "a record nobody resolved is not evidence");
-  assert.equal(provesFileFormat(accepted({ status: "rejected" }), SSS), false);
-  assert.equal(provesFileFormat(accepted({ agency: "BIR" }), SSS), false, "another agency's acceptance does not carry over");
-  assert.equal(provesFileFormat(accepted({ form: "R-5" }), SSS), false);
+test("reconciliation artifacts never count as direct-upload proof", () => {
+  assert.equal(SSS.generatedFileIsAgencyUpload, false);
+  assert.equal(provesFileFormat(accepted(), SSS), false, "SSS worksheet is not the official generator output");
+
+  const directUploadDefinition = { ...SSS, generatedFileIsAgencyUpload: true };
+  assert.equal(provesFileFormat(accepted(), directUploadDefinition), true);
+  assert.equal(provesFileFormat(accepted({ submissionMethod: "manual_entry" }), directUploadDefinition), false, "retyping proves a filing, not the file");
+  assert.equal(provesFileFormat(accepted({ generatorVersion: "sss-r3-worksheet-v0" }), directUploadDefinition), false, "an older layout says nothing about this one");
+  assert.equal(provesFileFormat(accepted({ status: "generated" }), directUploadDefinition), false, "a record nobody resolved is not evidence");
+  assert.equal(provesFileFormat(accepted({ status: "rejected" }), directUploadDefinition), false);
+  assert.equal(provesFileFormat(accepted({ agency: "BIR" }), directUploadDefinition), false, "another agency's acceptance does not carry over");
+  assert.equal(provesFileFormat(accepted({ form: "R-5" }), directUploadDefinition), false);
 });
 
 test("the summary separates real proof from weaker evidence so the scorecard can say which", () => {
@@ -56,10 +60,19 @@ test("the summary separates real proof from weaker evidence so the scorecard can
   assert.equal(weak.acceptedOnOlderLayout, 1);
   assert.equal(weak.rejected, 1);
 
-  const strong = summarizeFilingEvidence([
+  const recordedWorksheetAcceptances = summarizeFilingEvidence([
     accepted({ periodLabel: "Aug 2026", agencyReference: "PRN-OLD0001", submittedAt: new Date("2026-09-10T00:00:00Z") }),
     accepted(),
   ], SSS);
+  assert.equal(recordedWorksheetAcceptances.proven, false);
+  assert.equal(recordedWorksheetAcceptances.provingCount, 0);
+  assert.equal(recordedWorksheetAcceptances.latest, null);
+
+  const directUploadDefinition = { ...SSS, generatedFileIsAgencyUpload: true };
+  const strong = summarizeFilingEvidence([
+    accepted({ periodLabel: "Aug 2026", agencyReference: "PRN-OLD0001", submittedAt: new Date("2026-09-10T00:00:00Z") }),
+    accepted(),
+  ], directUploadDefinition);
   assert.equal(strong.proven, true);
   assert.equal(strong.provingCount, 2);
   assert.deepEqual(strong.latest, { periodLabel: "Sep 2026", agencyReference: "PRN-1234567" }, "latest means most recently submitted");
@@ -117,7 +130,7 @@ test("changing a tracked file's columns forces a generator version bump", () => 
   const source = readFileSync("src/lib/exporters.ts", "utf8");
   const pins = [
     { form: "SSS R-3", pattern: /"(SSSNo,LastName[^"]+)"/, version: SSS_R3_GENERATOR_VERSION, expected: "sss-r3-worksheet-v2|SSSNo,LastName,FirstName,MiddleName,MSC,RegularMSC,MPFMSC,SS_EE_Regular,SS_EE_MPF,SS_ER_Regular,SS_ER_MPF,EC_Employer,Total_Contribution" },
-    { form: "Pag-IBIG MCRF", pattern: /"(PagIBIGMID,LastName[^"]+)"/, version: PAGIBIG_MCRF_GENERATOR_VERSION, expected: "pagibig-mcrf-worksheet-v1|PagIBIGMID,LastName,FirstName,MiddleName,FundSalary,EmployeeShare,EmployerShare,TotalContribution" },
+    { form: "Pag-IBIG MCRF", pattern: /"(PagIBIGIDRTN,AccountNumber[^"]+)"/, version: PAGIBIG_MCRF_GENERATOR_VERSION, expected: "pagibig-mcrf-source-v2|PagIBIGIDRTN,AccountNumber,MembershipProgram,LastName,FirstName,NameExtension,MiddleName,Percov,EEShare,ERShare,Remarks" },
     { form: "PhilHealth RF-1", pattern: /"(PIN,LastName[^"]+)"/, version: PHILHEALTH_RF1_GENERATOR_VERSION, expected: "philhealth-rf1-worksheet-v1|PIN,LastName,FirstName,MiddleName,MonthlySalaryBase,EmployeeShare,EmployerShare,TotalPremium" },
     { form: "BIR 1604-C", pattern: /"(EmployerTIN,EmployerBranchCode[^"]+)"/, version: BIR_1604C_GENERATOR_VERSION, expected: "bir-1604c-source-v1|EmployerTIN,EmployerBranchCode,EmployeeTIN,EmployeeBranchCode,LastName,FirstName,MiddleName,Nationality,GrossCompensation,TaxWithheld,MWE,Status" },
   ];
@@ -133,7 +146,7 @@ test("BIR evidence follows the same rules and never borrows SSS's acceptance", (
   assert.equal(bir.kind, "bir-1604c-source");
   const row = (overrides: Partial<FilingEvidenceRow> = {}) =>
     accepted({ agency: "BIR", form: "1604-C", generatorVersion: BIR_1604C_GENERATOR_VERSION, agencyReference: "TKT-2026-0001", ...overrides });
-  assert.equal(provesFileFormat(row(), bir), true);
+  assert.equal(provesFileFormat(row(), bir), false, "current BIR CSV is source data, not a DAT");
   assert.equal(provesFileFormat(row({ submissionMethod: "manual_entry" }), bir), false);
   assert.equal(provesFileFormat(row({ generatorVersion: "bir-1604c-source-v0" }), bir), false);
   assert.equal(provesFileFormat(accepted(), bir), false, "an SSS acceptance must not turn on the BIR gate");
@@ -147,7 +160,7 @@ test("PhilHealth evidence follows the same rules and stays separate from SSS and
   assert.equal(ph.agency, "PhilHealth");
   const row = (overrides: Partial<FilingEvidenceRow> = {}) =>
     accepted({ agency: "PhilHealth", form: "RF-1", generatorVersion: PHILHEALTH_RF1_GENERATOR_VERSION, agencyReference: "EPAR-2026-000123", ...overrides });
-  assert.equal(provesFileFormat(row(), ph), true);
+  assert.equal(provesFileFormat(row(), ph), false, "current PhilHealth CSV is a reconciliation worksheet");
   assert.equal(provesFileFormat(row({ submissionMethod: "manual_entry" }), ph), false);
   assert.equal(provesFileFormat(row({ generatorVersion: "philhealth-rf1-worksheet-v0" }), ph), false);
   assert.equal(provesFileFormat(row({ status: "rejected" }), ph), false);
@@ -163,7 +176,7 @@ test("Pag-IBIG evidence follows the same rules and every agency stays separate",
   assert.equal(pi.agency, "Pag-IBIG");
   const row = (overrides: Partial<FilingEvidenceRow> = {}) =>
     accepted({ agency: "Pag-IBIG", form: "MCRF", generatorVersion: PAGIBIG_MCRF_GENERATOR_VERSION, agencyReference: "OPIN-20260930-0042", ...overrides });
-  assert.equal(provesFileFormat(row(), pi), true);
+  assert.equal(provesFileFormat(row(), pi), false, "current Pag-IBIG CSV is not the prescribed XLS workbook");
   assert.equal(provesFileFormat(row({ submissionMethod: "manual_entry" }), pi), false);
   assert.equal(provesFileFormat(row({ generatorVersion: "pagibig-mcrf-worksheet-v0" }), pi), false);
   assert.equal(provesFileFormat(row({ status: "generated" }), pi), false);
@@ -177,13 +190,14 @@ test("Pag-IBIG evidence follows the same rules and every agency stays separate",
   for (const definition of FILING_FORMS) {
     const others = rows.filter((item) => item.agency !== definition.agency);
     assert.equal(summarizeFilingEvidence(others, definition).proven, false, `${definition.agency} was proven by another agency's rows`);
-    assert.equal(summarizeFilingEvidence(rows, definition).provingCount, 1);
+    assert.equal(definition.generatedFileIsAgencyUpload, false);
+    assert.equal(summarizeFilingEvidence(rows, definition).provingCount, 0);
   }
 });
 
 test("the gap explanation names weaker evidence without counting it", () => {
   const bir = findFilingForm("BIR", "1604-C")!;
-  assert.match(describeEvidenceGap(summarizeFilingEvidence([], bir), bir), /No recorded BIR acceptance/);
+  assert.match(describeEvidenceGap(summarizeFilingEvidence([], bir), bir), /reconciliation\/source data/);
   const weak = describeEvidenceGap(summarizeFilingEvidence([
     accepted({ agency: "BIR", form: "1604-C", submissionMethod: "manual_entry" }),
     accepted({ agency: "BIR", form: "1604-C", status: "rejected" }),
