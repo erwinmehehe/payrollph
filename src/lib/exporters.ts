@@ -533,6 +533,9 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
   }
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) throw new Error("Payroll run not found");
+  const [organization] = await db.select().from(organizations)
+    .where(eq(organizations.id, run.organizationId))
+    .limit(1);
   const entries = await db.select({
     entry: payrollEntries,
     employee: employees,
@@ -575,17 +578,10 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
   ].join("\n");
 
   if (kind === "sss-r3") {
-    // SSS R-3 is a monthly filing. A single payroll run's stored line item is
-    // only half the employee's monthly SSS share, by design, the payroll
-    // engine splits it evenly across the two semi-monthly cutoffs
-    // (payroll-engine.ts: `sss = sssRule.employee / 2`). This draft recomputes
-    // the real monthly figures from computeSss() (single source of truth,
-    // shared with the actual payroll calculation) instead of doubling a
-    // stored half-month amount, which would silently drift if that split ever
-    // changes. This also fixes a previous bug where EC was hardcoded to
-    // ₱10.00 for every employee regardless of their actual MSC (correct EC is
-    // ₱30 at MSC ≥ ₱15,000, most employees above roughly ₱15,000/month basic
-    // pay were being under-reported).
+    // SSS R-3/e-CL is monthly. Recompute the full monthly contribution from
+    // the final-cutoff remuneration trace instead of inferring a monthly value
+    // by doubling one cutoff deduction. That remains correct for split,
+    // first-cutoff, second-cutoff and month-end true-up policies.
     const missingSss = entries.filter(({ employee }) => !govId(employee.sssNo));
     if (missingSss.length > 0) {
       throw new Error(
@@ -621,7 +617,7 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     return {
       filename: `sss-ecl-r3-worksheet-${run.id}.csv`,
       contentType: "text/csv",
-      body: `${headerNote}\n# SSS employer workflow uses My.SSS e-CL and a PRN. This worksheet is not an SSS acknowledgement or a certified R3 File Generator output.\n# Figures below are full monthly amounts (recomputed from basic pay), not this single cutoff's half-month deduction.\n${body}`,
+      body: `${headerNote}\n# SSS employer workflow uses My.SSS e-CL/PRN or the official SSS R3 File Generator.\n# This is a reconciliation worksheet only; do not upload it as a claimed R3 File Generator output.\n# Figures below are full monthly amounts recomputed from the final-cutoff remuneration trace.\n${body}`,
     };
   }
 
@@ -660,40 +656,48 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
   }
 
   if (kind === "pagibig-mcrf") {
+    const employerId = String(organization?.pagIbigEmployerNo ?? "").replace(/\D/g, "");
+    if (!employerId) {
+      throw new Error("Pag-IBIG MCRF source cannot be generated: the organization Pag-IBIG Employer ID is required.");
+    }
     const missingMids = entries.filter(({ employee }) => !govId(employee.pagIbigNo));
     if (missingMids.length > 0) {
       throw new Error(
-        `Pag-IBIG MCRF cannot be generated: ${missingMids.length} employee(s) are missing a Pag-IBIG MID: ${missingMids.map(({ employee }) => employee.employeeNo).join(", ")}.`,
+        `Pag-IBIG MCRF source cannot be generated: ${missingMids.length} employee(s) are missing a Pag-IBIG MID/RTN: ${missingMids.map(({ employee }) => employee.employeeNo).join(", ")}.`,
       );
     }
 
-    const body = [
-      "PagIBIGMID,LastName,FirstName,MiddleName,FundSalary,EmployeeShare,EmployerShare,TotalContribution",
-      ...entries.map(({ employee, entry }) => {
-        const monthlyRemuneration =
-          traceNumber(entry.trace, "statutoryMonthlyPagIbigCompensation=")
-          ?? traceNumber(entry.trace, "statutoryMonthlyCompensation=")
-          ?? Number(employee.basicRate ?? entry.grossPay ?? 0);
-        const hd = computePagIbig(monthlyRemuneration);
-        return [
-          govId(employee.pagIbigNo),
-          employee.lastName,
-          employee.firstName,
-          employee.middleName ?? "",
-          hd.fundSalary.toFixed(2),
-          hd.employee.toFixed(2),
-          hd.employer.toFixed(2),
-          hd.total.toFixed(2),
-        ].map(csv).join(",");
-      }),
-    ].join("\n");
+    const perCov = String(run.periodEnd).slice(0, 7).replace("-", "");
+    const memberHeader = "PagIBIGIDRTN,AccountNumber,MembershipProgram,LastName,FirstName,NameExtension,MiddleName,Percov,EEShare,ERShare,Remarks";
+    const memberRows = entries.map(({ employee, entry }) => {
+      const monthlyRemuneration =
+        traceNumber(entry.trace, "statutoryMonthlyPagIbigCompensation=")
+        ?? traceNumber(entry.trace, "statutoryMonthlyCompensation=")
+        ?? Number(employee.basicRate ?? entry.grossPay ?? 0);
+      const hd = computePagIbig(monthlyRemuneration);
+      const newHireRemark = String(employee.startDate).slice(0, 7).replace("-", "") === perCov ? "N" : "";
+      return [
+        govId(employee.pagIbigNo).replace(/\D/g, ""),
+        "",
+        "F1",
+        employee.lastName,
+        employee.firstName,
+        "",
+        employee.middleName ?? "",
+        perCov,
+        hd.employee.toFixed(2),
+        hd.employer.toFixed(2),
+        newHireRemark,
+      ].map(csv).join(",");
+    });
+    const body = [memberHeader, ...memberRows].join("\n");
+    const officialWorkbookName = `${employerId}${perCov}.xls`;
     return {
-      filename: `pagibig-mcrf-esrs-worksheet-${run.id}.csv`,
+      filename: `pagibig-mcrf-source-${run.id}.csv`,
       contentType: "text/csv",
-      body: `${headerNote}\n# Pag-IBIG's published MCRF instructions use its prescribed spreadsheet layout and YYYYMM period. This CSV is an assisted worksheet only, not an upload-ready MCRF.\n# Full monthly mandatory contributions are recomputed from monthly basic salary.\n${body}`,
+      body: `${headerNote}\n# EmployerID=${employerId}\n# EmployerName=${organization?.legalName ?? organization?.name ?? ""}\n# Official Pag-IBIG instructions prescribe an Excel MCRF workbook, period YYYYMM, and filename ${officialWorkbookName}.\n# This CSV mirrors the member-level source columns for reconciliation/copying only; it is NOT the prescribed .xls workbook and must not be uploaded as one.\n${body}`,
     };
   }
-
   if (kind === "bir-1601c") {
     const totalWht = entries.reduce((sum, { entry }) => {
       const wht = Math.abs(Number((entry.lineItems as Array<{ code: string; amount: string }> | undefined)?.find?.((item) => item.code === "WHT")?.amount ?? 0));
@@ -713,9 +717,6 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
   // BIR annual summary input. This remains a source extract, not a claimed
   // filing-ready DAT. A single cutoff cannot prove the complete annual filing
   // contract, so the exporter fails closed instead of guessing portal bytes.
-  const [organization] = await db.select().from(organizations)
-    .where(eq(organizations.id, run.organizationId))
-    .limit(1);
   const employerTin = (organization?.birTin ?? "").replace(/\D/g, "");
   const employerBranchCode = (organization?.birBranchCode ?? "").replace(/\D/g, "").padStart(4, "0");
 
