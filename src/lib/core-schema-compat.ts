@@ -393,6 +393,36 @@ export async function ensureCoreCompatibilitySchema() {
         CREATE INDEX IF NOT EXISTS employee_labor_allocations_org_cost_center_idx
         ON employee_labor_allocations(organization_id, cost_center_id)
       `);
+      await client.query(`
+        DO $compat$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'employee_labor_allocations_percent_check'
+          ) THEN
+            ALTER TABLE employee_labor_allocations
+              ADD CONSTRAINT employee_labor_allocations_percent_check
+              CHECK (allocation_percent > 0 AND allocation_percent <= 100);
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'employee_labor_allocations_basis_check'
+          ) THEN
+            ALTER TABLE employee_labor_allocations
+              ADD CONSTRAINT employee_labor_allocations_basis_check
+              CHECK (allocation_basis = 'percentage');
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'employee_labor_allocations_dates_check'
+          ) THEN
+            ALTER TABLE employee_labor_allocations
+              ADD CONSTRAINT employee_labor_allocations_dates_check
+              CHECK (effective_until IS NULL OR effective_until >= effective_from);
+          END IF;
+        END
+        $compat$;
+      `);
 
       await client.query(`
         CREATE TABLE IF NOT EXISTS compliance_rules (
