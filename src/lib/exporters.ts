@@ -247,141 +247,103 @@ export async function generateBankFile(
   }
 
   let body = "";
+  const configuredMapping = readDelimitedBankMapping(template.mappings);
+  const isMetrobank = tName.includes("metrobank") || tName.includes("mbtc");
+  const isRcbc = tName.includes("rcbc");
 
-  if (tName.includes("bdo") && template.format === "DAT") {
-    body = rows.map((row, index) => [
-      "D",
-      String(index + 1).padStart(6, "0"),
-      row.account_number.padEnd(16, " "),
-      Number(row.amount).toFixed(2).padStart(13, "0"),
-      row.employee_name.slice(0, 40).padEnd(40, " "),
-      run.payDate.replaceAll("-", ""),
-    ].join("")).join("\n");
-  } else if (tName.includes("bpi") || tName.includes("bizlink")) {
-    // BPI Bizlink standard format: Account No, Amount, Employee Name, Employee No, Reference, Remarks
-    const header = ["Account_Number", "Amount", "Beneficiary_Name", "Employee_ID", "Reference_Number", "Payment_Date"];
-    body = [header.join(","), ...rows.map((row) => [
-      row.account_number,
-      Number(row.amount).toFixed(2),
-      row.employee_name,
-      row.employee_no,
-      `PAY-${run.id}-${row.employee_no}`,
-      run.payDate,
-    ].map(csv).join(","))].join("\n");
-  } else if (tName.includes("unionbank") || tName.includes("onehub")) {
-    // UnionBank OneHub Payroll CSV format: Beneficiary Account, Beneficiary Name, Amount, Reference, Remarks, Notification Email
-    const header = ["Beneficiary_Account", "Beneficiary_Name", "Amount", "Reference_No", "Particulars"];
-    body = [header.join(","), ...rows.map((row) => [
-      row.account_number,
-      row.employee_name,
-      Number(row.amount).toFixed(2),
-      `UB-${run.id}-${row.employee_no}`,
-      `Payroll ${run.periodLabel}`,
-    ].map(csv).join(","))].join("\n");
-  } else if (tName.includes("metrobank") || tName.includes("mbtc")) {
-    // Metrobank eGov / MBTC Payroll CSV format
-    const header = ["Account_No", "Beneficiary_Name", "Amount", "Payment_Date", "Ref_Code"];
-    body = [header.join(","), ...rows.map((row) => [
-      row.account_number,
-      row.employee_name,
-      Number(row.amount).toFixed(2),
-      run.payDate.replaceAll("-", "/"),
-      `${run.id}-${row.employee_no}`,
-    ].map(csv).join(","))].join("\n");
-  } else if (tName.includes("security bank")) {
-    // Security Bank eGov / DigiBanker CSV
-    const header = ["Bene_Account", "Bene_Name", "Credit_Amount", "Particulars", "Emp_Ref"];
-    body = [header.join(","), ...rows.map((row) => [
-      row.account_number,
-      row.employee_name,
-      Number(row.amount).toFixed(2),
-      `Salaries ${run.periodLabel}`,
-      row.employee_no,
-    ].map(csv).join(","))].join("\n");
-  } else if (tName.includes("chinabank") || tName.includes("cbc")) {
-    // ChinaBank eGov CSV
-    const header = ["Crediting_Account", "Account_Name", "Disbursement_Amount", "Employee_Number"];
-    body = [header.join(","), ...rows.map((row) => [
-      row.account_number,
-      row.employee_name,
-      Number(row.amount).toFixed(2),
-      row.employee_no,
-    ].map(csv).join(","))].join("\n");
-  } else if (tName.includes("eastwest")) {
-    // EastWest Bank eGov CSV
-    const header = ["Destination_Account", "Recipient_Name", "Net_Amount", "Invoice_Ref"];
-    body = [header.join(","), ...rows.map((row) => [
-      row.account_number,
-      row.employee_name,
-      Number(row.amount).toFixed(2),
-      `EW-${run.id}-${row.employee_no}`,
-    ].map(csv).join(","))].join("\n");
-  } else if (tName.includes("gcash")) {
-    const header = ["mobile", "employee_name", "amount", "reference"];
-    body = [header.join(","), ...rows.map((row) => [row.mobile, row.employee_name, row.amount, `${run.id}-${row.employee_no}`].map(csv).join(","))].join("\n");
-  } else if (tName.includes("maya") || tName.includes("paymaya")) {
-    // Maya Business Payroll CSV
-    const header = ["Recipient_Mobile", "Recipient_Name", "Disbursement_Amount", "Batch_Reference"];
-    body = [header.join(","), ...rows.map((row) => [row.mobile, row.employee_name, row.amount, `MAYA-${run.id}-${row.employee_no}`].map(csv).join(","))].join("\n");
-  } else if (tName.includes("rcbc")) {
-    const mapping = readDelimitedBankMapping(template.mappings);
-    if (!mapping) {
-      throw new Error(
-        "RCBC ROC payroll export requires an explicit validated template mapping. Configure bank_templates.mappings with columns and delimiter from the bank-provided payroll file specification; PayrollPH will not guess a proprietary upload layout.",
-      );
-    }
+  // Corporate payroll upload layouts are bank/enrollment specific. A plausible
+  // CSV or DAT is not evidence that the bank will accept it. Final exports must
+  // therefore be rendered only from a bank-provided layout that was configured
+  // explicitly and can later be tied to an accepted portal-UAT record.
+  if (!dryRun && isMetrobank) {
+    throw new Error(
+      "Metrobank MBOS requires its fixed, non-customizable .xls payroll template downloaded inside MBOS. Linaw will not generate a CSV substitute. Use the current bank template and complete bank-portal UAT before enabling an automated XLS integration.",
+    );
+  }
+  if (!dryRun && !configuredMapping) {
+    const prefix = isRcbc ? "RCBC ROC payroll export" : `${template.name} final export`;
+    throw new Error(
+      `${prefix} requires an explicit bank-provided/UAT-approved template mapping. Configure bank_templates.mappings from the bank onboarding specification; Linaw will not guess a proprietary upload layout.`,
+    );
+  }
 
+  const mappedRows: MappedBankRow[] = rows.map((row) => ({
+    account_number: row.account_number,
+    employee_name: row.employee_name,
+    employee_no: row.employee_no,
+    first_name: row.first_name,
+    middle_name: row.middle_name,
+    last_name: row.last_name,
+    email: row.email,
+    mobile: row.mobile,
+    bank_code: row.bank_code,
+    amount: Number(row.amount).toFixed(2),
+    net_pay: Number(row.net_pay).toFixed(2),
+    payment_date: row.payment_date,
+    reference: row.reference,
+  }));
+
+  if (configuredMapping) {
     const identityFields = new Set<MappedBankField>([
       "first_name",
       "middle_name",
       "last_name",
       "email",
     ]);
-    const needsIdentitySnapshot = mapping.columns.some((field) => identityFields.has(field));
+    const needsIdentitySnapshot = configuredMapping.columns.some((field) => identityFields.has(field));
     if (!dryRun && needsIdentitySnapshot) {
       const missingIdentitySnapshots = rows.filter((row) => !row.immutableIdentitySnapshotPresent).length;
       if (missingIdentitySnapshots > 0) {
         throw new Error(
-          `Final RCBC file cannot be generated: ${missingIdentitySnapshots} payroll entr${missingIdentitySnapshots === 1 ? "y was" : "ies were"} calculated before immutable first/middle/last-name and email fields were captured. Recalculate before release.`,
+          `Final bank file cannot be generated: ${missingIdentitySnapshots} payroll entr${missingIdentitySnapshots === 1 ? "y was" : "ies were"} calculated before immutable identity fields required by the configured bank layout were captured. Recalculate before release.`,
         );
       }
     }
-
-    body = renderMappedBankRows(
-      rows.map((row) => ({
-        account_number: row.account_number,
-        employee_name: row.employee_name,
-        employee_no: row.employee_no,
-        first_name: row.first_name,
-        middle_name: row.middle_name,
-        last_name: row.last_name,
-        email: row.email,
-        mobile: row.mobile,
-        bank_code: row.bank_code,
-        amount: Number(row.amount).toFixed(2),
-        net_pay: Number(row.net_pay).toFixed(2),
-        payment_date: row.payment_date,
-        reference: row.reference,
-      })),
-      mapping,
-    );
-  } else if (tName.includes("america") || tName.includes("cashpro")) {
-    // Bank of America CashPro (ACH / PBR)
-    const header = ["Receiving_Account", "Account_Holder", "Amount", "Currency", "PBR_Reference"];
-    body = [header.join(","), ...rows.map((row) => [row.account_number, row.employee_name, row.amount, "PHP", `BOA-${run.id}-${row.employee_no}`].map(csv).join(","))].join("\n");
+    body = renderMappedBankRows(mappedRows, configuredMapping);
+  } else if (isMetrobank) {
+    // Official MBOS documentation requires the bank-downloaded Excel 97-2003
+    // template with these columns. This CSV is intentionally only a worksheet
+    // for reconciling what should be copied into that .xls template.
+    const header = ["Last_Name", "First_Name", "Middle_Name", "Employee_Account_Number", "Amount"];
+    body = [
+      "# METROBANK MBOS WORKSHEET ONLY - DO NOT UPLOAD",
+      "# Download the current .xls sample inside MBOS; the bank template cannot be customized.",
+      header.join(","),
+      ...rows.filter((row) => Number(row.amount) !== 0).map((row) => [
+        row.last_name,
+        row.first_name,
+        row.middle_name,
+        row.account_number,
+        Number(row.amount).toFixed(2),
+      ].map(csv).join(",")),
+    ].join("\n");
   } else {
-    // Standard Universal Bank CSV
-    const header = ["account_number", "employee_name", "net_pay", "employee_no"];
-    body = [header.join(","), ...rows.map((row) => [row.account_number, row.employee_name, row.net_pay, row.employee_no].map(csv).join(","))].join("\n");
+    const header = ["account_number", "employee_name", "net_pay", "employee_no", "payment_date", "reference"];
+    body = [
+      "# BANK LAYOUT NOT CONFIGURED - VALIDATION WORKSHEET ONLY",
+      "# Do not upload this file. Obtain the bank-provided payroll layout/converter and complete portal UAT.",
+      header.join(","),
+      ...mappedRows.map((row) => [
+        row.account_number,
+        row.employee_name,
+        row.net_pay,
+        row.employee_no,
+        row.payment_date,
+        row.reference,
+      ].map(csv).join(",")),
+    ].join("\n");
   }
-
   return {
     filename: `${options.allowSyntheticDemoDestinations ? "demo-" : ""}${template.name.replaceAll(" ", "-").toLowerCase()}-${run.id}.${template.format.toLowerCase()}`,
     contentType: template.format === "CSV" ? "text/csv" : "text/plain",
     body: dryRun
       ? `# DRY-RUN VALIDATION\n# template=${template.name} version=${template.version}\n# rows=${validation.rowCount} totalNet=${validation.totalNet}\n# missingAccounts=${validation.missingAccounts} missingMobiles=${validation.missingMobiles} missingPaymentSnapshots=${validation.missingPaymentSnapshots}\n# syntheticDemoDestinations=${validation.syntheticDemoDestinations}\n# This is a preview. Final files require a released run and immutable payment snapshots.\n${body}`
       : body,
-    validation,
+    validation: {
+      ...validation,
+      uploadReady: !dryRun && Boolean(configuredMapping) && !isMetrobank,
+      layoutSource: configuredMapping ? "configured-bank-layout" : "unconfigured",
+    },
   };
 }
 
