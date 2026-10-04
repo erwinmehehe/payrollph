@@ -26,5 +26,13 @@ test("reusable shift and pattern definitions require company-wide access", () =>
 
 test("schedule preview resolves through the deterministic workforce resolver", () => {
   assert.ok(source.includes("resolveDailySchedule({"));
-  assert.ok(source.includes("employeeId and date (YYYY-MM-DD) are both required for schedule preview."));
+  assert.ok(source.includes("employeeId plus either date, or startDate/endDate"));
+});
+
+test("roster range preview is bounded and tenant-scoped", () => {
+  assert.ok(source.includes("previewDates.length > 42"));
+  assert.ok(source.includes("gte(scheduleOverrides.workDate, rangeStart)"));
+  assert.ok(source.includes("lte(scheduleOverrides.workDate, rangeEnd)"));
+  assert.ok(source.includes("resolvedDays"));
+  assert.ok(source.includes("eq(employeeScheduleAssignments.organizationId, organizationId)"));
 });
