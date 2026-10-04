@@ -134,13 +134,10 @@ export async function buildReadinessPayload() {
     && Number(plaintextEmployeeGovernmentIds) === 0
     && Number(plaintextContractorTins) === 0;
 
-  // Government filing does not require vendor accreditation for standard
-  // file-based submission, BIR publishes the Alphalist .DAT layout and
-  // provides the ADES validation module free; SSS similarly publishes the
-  // R-3 electronic format and a free R3 File Generator. The actual gate is
-  // "has a human run our DRAFT output through the agency's own free
-  // validator and confirmed it passes", that's what each flag below
-  // records, set by whoever does that check, not by us detecting it.
+  // Direct-upload automation is distinct from operational filing readiness.
+  // The official agency portals/generators provide a manual path, so an
+  // unproven Linaw upload layout blocks scale/automation, not the ability to
+  // launch payroll with an explicit manual compliance handoff.
   const demoMode = enabled("DEMO_MODE");
   const birAlphalistValidated = Boolean(birEvidence?.proven);
   const sssR3Validated = Boolean(sssEvidence?.proven);
@@ -287,47 +284,46 @@ export async function buildReadinessPayload() {
     },
     {
       key: "gov-bir-alphalist",
-      label: "BIR Alphalist / 2316 validated in ADES",
+      label: "BIR 1604-C direct DAT automation validated",
       ready: birAlphalistValidated,
       detail: birAlphalistValidated
-        ? `BIR's ADES validated a Linaw-generated annual extract in the current layout (${birEvidence?.provingCount} recorded acceptance(s)${birEvidence?.latest?.agencyReference ? `, latest reference ${birEvidence.latest.agencyReference}` : ""}). The extract is built from a single payroll run, so this proves the layout and ID fields, not full-year totals, and Linaw does not produce the final .DAT.`
+        ? `BIR accepted a Linaw-generated 1604-C DAT in the current generator version (${birEvidence?.provingCount} recorded acceptance(s)${birEvidence?.latest?.agencyReference ? `, latest reference ${birEvidence.latest.agencyReference}` : ""}).`
         : filingEvidenceError
-          ?? `${describeEvidenceGap(birEvidence, findFilingForm("BIR", "1604-C")!)} Employee middle name, TIN and employer TIN/branch fields are modeled and preflighted; Linaw does not produce ADES's final .DAT.`,
-      blocks: birAlphalistValidated ? "none" : "launch",
-      manualWorkaround: birAlphalistValidated ? undefined : "Enter the DRAFT figures into BIR's free ADES tool by hand and file via eAFS once it validates, or load the extract into ADES and record the result under /api/compliance/filing-validations.",
+          ?? `${describeEvidenceGap(birEvidence, findFilingForm("BIR", "1604-C")!)} The current Linaw annual extract remains source data only, so direct DAT automation is not claimed.` ,
+      blocks: birAlphalistValidated ? "none" : "scale",
+      manualWorkaround: birAlphalistValidated ? undefined : "Run annualization, use the current BIR Alphalist Data Entry and Validation Module to encode/convert the source figures, validate the DAT, then submit through the applicable BIR e-submission/eFPS workflow and retain the acknowledgement.",
     },
     {
       key: "gov-sss-r3",
-      label: "SSS R-3 validated",
+      label: "SSS direct R-3 file automation validated",
       ready: sssR3Validated,
       detail: sssR3Validated
-        ? `SSS accepted an upload of a Linaw-generated R-3 file in the current layout (${sssEvidence?.provingCount} recorded acceptance(s)${sssEvidence?.latest?.agencyReference ? `, latest reference ${sssEvidence.latest.agencyReference}` : ""}).`
-        : filingEvidenceError
-          ?? describeEvidenceGap(sssEvidence, findFilingForm("SSS", "R-3")!),
-      blocks: sssR3Validated ? "none" : "launch",
-      manualWorkaround: sssR3Validated ? undefined : "Enter the DRAFT figures into SSS's free R3 File Generator or My.SSS upload by hand, or upload the generated file and record the result under /api/compliance/filing-validations.",
+        ? `SSS accepted a Linaw-generated R-3 upload in the current generator version (${sssEvidence?.provingCount} recorded acceptance(s)${sssEvidence?.latest?.agencyReference ? `, latest reference ${sssEvidence.latest.agencyReference}` : ""}).`
+        : filingEvidenceError ?? describeEvidenceGap(sssEvidence, findFilingForm("SSS", "R-3")!),
+      blocks: sssR3Validated ? "none" : "scale",
+      manualWorkaround: sssR3Validated ? undefined : "Use Linaw to reconcile the monthly figures, then create/edit the Contribution Collection List in My.SSS or use the current official SSS R3 File Generator, generate the PRN, pay, and retain the SSS acknowledgement.",
     },
     {
       key: "gov-philhealth-rf1",
-      label: "PhilHealth RF-1 validated",
+      label: "PhilHealth EPRS direct-file automation validated",
       ready: philhealthValidated,
       detail: philhealthValidated
-        ? `PhilHealth's EPRS accepted a Linaw-generated RF-1 file in the current layout (${philhealthEvidence?.provingCount} recorded acceptance(s)${philhealthEvidence?.latest?.agencyReference ? `, latest receipt ${philhealthEvidence.latest.agencyReference}` : ""}). The receipt is issued on payment, so it shows the report was filed and paid, and Linaw's figures are recomputed from basic salary.`
+        ? `PhilHealth EPRS accepted a Linaw-generated direct-upload file in the current generator version (${philhealthEvidence?.provingCount} recorded acceptance(s)${philhealthEvidence?.latest?.agencyReference ? `, latest receipt ${philhealthEvidence.latest.agencyReference}` : ""}).`
         : filingEvidenceError
-          ?? `${describeEvidenceGap(philhealthEvidence, findFilingForm("PhilHealth", "RF-1")!)} The draft uses each employee's real PhilHealth PIN and recomputes full monthly premium shares; the CSV is a portal-entry aid, not a claimed EPRS import file.`,
-      blocks: philhealthValidated ? "none" : "launch",
-      manualWorkaround: philhealthValidated ? undefined : "Enter the DRAFT figures into PhilHealth's EPRS by hand (or their RF-1 Excel template, if you obtain the current column spec from PhilHealth directly), then record the acknowledgement receipt under /api/compliance/filing-validations.",
+          ?? `${describeEvidenceGap(philhealthEvidence, findFilingForm("PhilHealth", "RF-1")!)} Linaw currently provides monthly reconciliation figures, not a claimed current EPRS upload template.`,
+      blocks: philhealthValidated ? "none" : "scale",
+      manualWorkaround: philhealthValidated ? undefined : "Use the Linaw reconciliation worksheet to prepare and confirm the employee remittance report inside PhilHealth EPRS, then retain the EPRS/ePAR acknowledgement and payment evidence.",
     },
     {
       key: "gov-pagibig-mcrf",
-      label: "Pag-IBIG MCRF validated",
+      label: "Pag-IBIG direct MCRF automation validated",
       ready: pagibigValidated,
       detail: pagibigValidated
-        ? `Pag-IBIG (eSRS or a bank upload facility) accepted a Linaw-generated MCRF file in the current layout (${pagibigEvidence?.provingCount} recorded acceptance(s)${pagibigEvidence?.latest?.agencyReference ? `, latest reference ${pagibigEvidence.latest.agencyReference}` : ""}). A payment instruction shows the file was validated, not that the remittance was posted to the employer's account.`
+        ? `Pag-IBIG accepted a Linaw-generated prescribed MCRF file in the current generator version (${pagibigEvidence?.provingCount} recorded acceptance(s)${pagibigEvidence?.latest?.agencyReference ? `, latest reference ${pagibigEvidence.latest.agencyReference}` : ""}).`
         : filingEvidenceError
-          ?? `${describeEvidenceGap(pagibigEvidence, findFilingForm("Pag-IBIG", "MCRF")!)} The draft uses each employee's real Pag-IBIG MID and full monthly contributions; it is an eSRS/employer-portal entry aid until an acceptance is recorded.`,
-      blocks: pagibigValidated ? "none" : "launch",
-      manualWorkaround: pagibigValidated ? undefined : "Enter the DRAFT figures by hand into eSRS (employers with at most 30 employees) or Pag-IBIG's Virtual employer e-services portal, then record the result under /api/compliance/filing-validations.",
+          ?? `${describeEvidenceGap(pagibigEvidence, findFilingForm("Pag-IBIG", "MCRF")!)} Linaw now mirrors the official member-level MCRF source columns but deliberately does not pretend its CSV is the prescribed Excel workbook.`,
+      blocks: pagibigValidated ? "none" : "scale",
+      manualWorkaround: pagibigValidated ? undefined : "Use Virtual Pag-IBIG eSRS to maintain employees and create the Payment Instruction, or copy the Linaw source rows into the current prescribed MCRF Excel workbook, then pay using the generated PIN through an accredited channel.",
     },
     {
       key: "object-storage",
