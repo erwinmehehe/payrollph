@@ -142,6 +142,7 @@ export const DEMO_ROLE_PAGES: Partial<Record<DemoRoleId, readonly string[]>> = {
     "People",
     "Migration",
     "Time & attendance",
+    "Workforce",
     "Leave",
     "Approvals",
     "Analytics",
@@ -181,6 +182,7 @@ export const DEMO_ROLE_PAGES: Partial<Record<DemoRoleId, readonly string[]>> = {
     "Overview",
     "People",
     "Time & attendance",
+    "Workforce",
     "Leave",
     "Approvals",
     "Analytics",
@@ -203,6 +205,7 @@ export const DEMO_ROLE_PAGES: Partial<Record<DemoRoleId, readonly string[]>> = {
   bookkeeper: [
     "Overview",
     "Payroll",
+    "Workforce",
     "Exports",
     "Compliance",
     "Analytics",
