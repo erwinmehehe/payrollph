@@ -156,9 +156,9 @@ test("24-cutoff year reconciles immutable payroll, annualization, 1604-C source 
     assert.equal(collect!.outcome, "collect");
 
     const annualSource = await generateGovernmentDraft(finalRunId, "bir-1604c-source");
-    assert.match(annualSource.body, /"Annual","Refund"/);
+    assert.match(annualSource.body, /"Refund","Annual"/);
     assert.match(annualSource.body, /"650000\.00","72000\.00"/);
-    assert.match(annualSource.body, /"Annual","Collect"/);
+    assert.match(annualSource.body, /"Collect","Annual"/);
     assert.match(annualSource.body, /"650000\.00","24000\.00"/);
 
     const refundResult = refund!.breakdown as AnnualizationResult;
