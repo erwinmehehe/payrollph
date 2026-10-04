@@ -535,3 +535,41 @@ test("live payout submission is serialized by PayMongo wallet", () => {
   assert.ok(reconciliationRoute.includes("withPayrollPayoutSubmissionLock"));
   assert.ok(reconciliationRoute.includes("createPaymongoPayrollRetry"));
 });
+
+
+test("released payroll defaults to PayMongo preflight instead of requiring a bank file", () => {
+  const state = derivePayrollPayoutState([], 501);
+  assert.equal(state.payout.status, "awaiting-preflight");
+  assert.equal(state.payout.method, "PayMongo");
+  assert.match(state.payout.label, /PayMongo preflight/i);
+
+  const passed = derivePayrollPayoutState([{
+    id: 1,
+    actor: "Owner",
+    action: "PayMongo payroll preflight passed",
+    resource: "Oct 1-15",
+    metadata: {
+      runId: 501,
+      ready: true,
+      wallet: { availableCents: 1000000, shortfallCents: 0 },
+    },
+    createdAt: "2026-10-04T00:00:00Z",
+  }], 501);
+  assert.equal(passed.payout.status, "ready");
+  assert.equal(passed.payout.method, "PayMongo");
+});
+
+test("live PayMongo payout requires full provider config, explicit confirmation and recorded preflight", () => {
+  const route = readFileSync("src/app/api/payroll-runs/[id]/exports/route.ts", "utf8");
+  for (const marker of [
+    "PAYMONGO_SECRET_KEY",
+    "PAYMONGO_WALLET_ID",
+    "PAYMONGO_WEBHOOK_SECRET",
+    "PAYMONGO_DISBURSEMENTS_ENABLED",
+    "body.confirm !== true",
+    "PayMongo payroll preflight passed",
+    "Run the no-money PayMongo preflight successfully",
+  ]) {
+    assert.ok(route.includes(marker), `live payout route is missing ${marker}`);
+  }
+});
