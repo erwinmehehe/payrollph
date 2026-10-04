@@ -50,8 +50,8 @@ test("the form is honest about what counts and that results are permanent", () =
 
 test("BIR's card says what an acceptance does not prove", () => {
   const bir = FILING_FORMS.find((item) => item.agency === "BIR")!;
-  assert.match(bir.copy.scopeNote ?? "", /one payroll run, not the whole tax year/);
-  assert.match(bir.copy.scopeNote ?? "", /does not show the annual totals are complete/);
+  assert.match(bir.copy.scopeNote ?? "", /full year-end annualization ledger/);
+  assert.match(bir.copy.scopeNote ?? "", /not an ADES \.DAT file/);
   assert.match(bir.copy.unconfirmedNote, /Linaw does not produce that \.DAT/);
   assert.ok(panel.includes("copy.scopeNote"), "the panel must show the scope note");
 });
