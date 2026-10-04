@@ -185,7 +185,7 @@ export async function ensureCoreCompatibilitySchema() {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v11'))");
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v12'))");
 
       await client.query(`
         ALTER TABLE organizations
@@ -344,6 +344,84 @@ export async function ensureCoreCompatibilitySchema() {
       await client.query(`
         CREATE INDEX IF NOT EXISTS overtime_requests_status_idx
         ON overtime_requests(organization_id, status)
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS cost_centers (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          code varchar(40) NOT NULL,
+          name varchar(140) NOT NULL,
+          description text,
+          active boolean NOT NULL DEFAULT true,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS cost_centers_org_code_unique
+        ON cost_centers(organization_id, code)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS cost_centers_org_active_idx
+        ON cost_centers(organization_id, active)
+      `);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS employee_labor_allocations (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          employee_id integer NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+          cost_center_id integer NOT NULL REFERENCES cost_centers(id) ON DELETE RESTRICT,
+          effective_from date NOT NULL,
+          effective_until date,
+          allocation_percent numeric(6,3) NOT NULL,
+          allocation_basis varchar(24) NOT NULL DEFAULT 'percentage',
+          project_code varchar(64),
+          client_code varchar(64),
+          job_code varchar(64),
+          reason varchar(240) NOT NULL DEFAULT 'Labor costing allocation',
+          created_by varchar(120) NOT NULL DEFAULT 'System',
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS employee_labor_allocations_employee_date_idx
+        ON employee_labor_allocations(employee_id, effective_from)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS employee_labor_allocations_org_cost_center_idx
+        ON employee_labor_allocations(organization_id, cost_center_id)
+      `);
+      await client.query(`
+        DO $compat$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'employee_labor_allocations_percent_check'
+          ) THEN
+            ALTER TABLE employee_labor_allocations
+              ADD CONSTRAINT employee_labor_allocations_percent_check
+              CHECK (allocation_percent > 0 AND allocation_percent <= 100);
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'employee_labor_allocations_basis_check'
+          ) THEN
+            ALTER TABLE employee_labor_allocations
+              ADD CONSTRAINT employee_labor_allocations_basis_check
+              CHECK (allocation_basis = 'percentage');
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'employee_labor_allocations_dates_check'
+          ) THEN
+            ALTER TABLE employee_labor_allocations
+              ADD CONSTRAINT employee_labor_allocations_dates_check
+              CHECK (effective_until IS NULL OR effective_until >= effective_from);
+          END IF;
+        END
+        $compat$;
       `);
 
       await client.query(`
