@@ -40,20 +40,20 @@ test("the software homepage uses the real Linaw workspace preview", () => {
   assert.ok(demo.includes("Open role-based sandbox"), "homepage demo must hand off to the real role-based sandbox");
 });
 
-test("the homepage leads with the approved PayrollPH hero", () => {
+test("the homepage leads with the approved Linaw payroll hero", () => {
   const hero = read("src/components/marketing/claude-home/components/Hero.tsx");
   const trust = read("src/components/marketing/claude-home/components/Trust.tsx");
   const product = read("src/components/marketing/claude-home/components/Product.tsx");
 
-  assert.ok(hero.includes("Payroll that stays clear"), "hero must lead with the approved payroll headline");
-  assert.ok(hero.includes("compliant, and under control."), "hero must complete the approved headline");
+  assert.ok(hero.includes("Philippine payroll software"), "hero must lead with the Philippine payroll search intent");
+  assert.ok(hero.includes("you can verify before you pay."), "hero must explain the review-before-release value proposition");
   assert.ok(hero.includes("Try Live Demo"), "hero must expose the primary live-demo CTA");
   assert.ok(hero.includes("See Pricing"), "hero must expose the pricing CTA");
-  assert.ok(hero.includes("DOLE-compliant calculations"), "hero must show the first trust point");
-  assert.ok(hero.includes("Government reports ready"), "hero must show the second trust point");
-  assert.ok(hero.includes("Secure and confidential"), "hero must show the third trust point");
+  assert.ok(hero.includes("SSS, PhilHealth, Pag-IBIG & TRAIN calculations"), "hero must show the statutory calculation proof point");
+  assert.ok(hero.includes("Government worksheets clearly labelled"), "hero must avoid implying certified filing");
+  assert.ok(hero.includes("Maker-checker release controls"), "hero must show the release-control proof point");
   assert.ok(!hero.includes("Let’s make payroll easier"), "hero must stay mascot-free");
-  assert.ok(product.includes("Drag a salary. Watch every deduction explain itself."), "statutory explanation must stay visible below the fold");
+  assert.ok(product.includes("See how a payroll calculation explains itself."), "statutory explanation must stay visible below the fold");
   assert.ok(trust.includes("Controls that return 403, not a tooltip."), "security controls must remain a primary product story");
 });
 
@@ -262,14 +262,14 @@ test("homepage hero stays product-first without a mascot", () => {
   assert.ok(!hero.includes('from "@/components/payroll-owl"'), "homepage hero must not import mascot assets");
   assert.ok(!hero.includes("PayrollOwlArt"), "homepage hero must not render an owl mascot");
   assert.ok(!hero.includes("payroll-hero-speech"), "homepage hero must not render mascot speech");
-  assert.ok(hero.includes("payroll-hero-laptop"), "homepage must keep the PayrollPH product visual");
-  assert.ok(hero.includes("payroll-hero-alert-icon"), "attention card must keep a neutral product icon");
+  assert.ok(hero.includes('from "@/components/marketing/workspace-preview"'), "homepage hero must use the shared real workspace preview");
+  assert.ok(hero.includes('<WorkspacePreview mode="showcase" />'), "homepage hero must render the real workspace in showcase mode");
 });
 
 
-test("PayrollPH public navigation uses product branding without a mascot mark", () => {
+test("Linaw public navigation uses one product brand without a mascot mark", () => {
   const nav = read("src/components/marketing/claude-home/components/Navbar.tsx");
-  assert.ok(nav.includes("PayrollPH"), "public navigation must retain PayrollPH branding");
+  assert.ok(nav.includes(">linaw</span>"), "public navigation must use Linaw branding");
   assert.ok(nav.includes("ShieldCheck"), "public navigation should use the neutral product mark");
   assert.ok(!nav.includes("PayrollOwl"), "public navigation must not use mascot branding");
   assert.ok(!nav.includes("payroll-owl"), "public navigation must not import mascot assets");
