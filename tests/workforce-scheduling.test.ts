@@ -199,13 +199,40 @@ test("approved rest-day override wins over the normal rotation", () => {
       isRestDay: true,
       status: "approved",
       reason: "Approved substitute rest day",
-    } as never],
+    }],
   });
 
   assert.equal(resolved.source, "override");
   assert.equal(resolved.overrideId, 900);
   assert.equal(resolved.isRestDay, true);
   assert.equal(resolved.segments.length, 0);
+});
+
+test("location-only override preserves the underlying shift while changing work location", () => {
+  const fixture = fourOnTwoOffFixture();
+
+  const resolved = resolveDailySchedule({
+    date: "2026-10-02",
+    assignments: fixture.assignments,
+    patterns: [fixture.pattern],
+    patternDays: fixture.days,
+    patternSegments: fixture.segments,
+    shifts,
+    overrides: [{
+      id: 901,
+      workDate: "2026-10-02",
+      kind: "location",
+      isRestDay: false,
+      workLocationOrgUnitId: 88,
+      status: "approved",
+      reason: "Temporary site coverage",
+    }],
+  });
+
+  assert.equal(resolved.source, "override");
+  assert.equal(resolved.workLocationOrgUnitId, 88);
+  assert.equal(resolved.segments.length, 1);
+  assert.equal(resolved.segments[0].shiftCode, "DAY");
 });
 
 test("later effective assignment replaces the older open-ended assignment without rewriting history", () => {
