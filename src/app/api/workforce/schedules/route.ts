@@ -365,21 +365,23 @@ export async function POST(request: Request) {
       const raw = Array.isArray((daysInput[dayIndex] as Record<string, unknown>).segments)
         ? (daysInput[dayIndex] as Record<string, unknown>).segments as unknown[]
         : [];
-      return raw.map((value, index) => {
-        const shiftDefinitionId =
+      return raw.map((value, index) => ({
+        patternDayId: day.id,
+        shiftDefinitionId:
           typeof value === "object" && value
             ? Number((value as Record<string, unknown>).shiftDefinitionId)
-            : Number(value);
-        if (!shiftIds.has(shiftDefinitionId)) {
-          throw new Error(`Pattern day ${dayIndex} references a shift outside this organization.`);
-        }
-        return {
-          patternDayId: day.id,
-          shiftDefinitionId,
-          segmentOrder: index + 1,
-        };
-      });
+            : Number(value),
+        segmentOrder: index + 1,
+      }));
     });
+    const invalidSegment = fakeSegments.find(
+      (segment) => !shiftIds.has(segment.shiftDefinitionId),
+    );
+    if (invalidSegment) {
+      return Response.json({
+        error: "Every pattern shift must belong to this organization.",
+      }, { status: 422 });
+    }
 
     try {
       validateSchedulePattern({
