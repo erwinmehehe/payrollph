@@ -6,7 +6,7 @@ import { renderForm2316 } from "@/lib/annualization";
 import { decryptGovernmentId } from "@/lib/government-id-crypto";
 import { getSessionUser } from "@/lib/auth";
 import { toCsv } from "@/lib/csv";
-import { runYearEndAnnualization } from "@/lib/year-end";
+import { applyYearEndAdjustmentsToPayrollRun, runYearEndAnnualization } from "@/lib/year-end";
 import { assertOrganizationRole, getAccess, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 
@@ -204,6 +204,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
   const taxYear = Number(body.taxYear);
+  const applyToPayrollRunId = Number(body.applyToPayrollRunId ?? 0);
 
   if (!Number.isInteger(organizationId) || !Number.isInteger(taxYear)) {
     return Response.json({ error: "organizationId and taxYear are required." }, { status: 400 });
@@ -221,7 +222,19 @@ export async function POST(request: Request) {
     return Response.json({ error: "Year-end tax annualization requires company-wide payroll access." }, { status: 403 });
   }
 
-  const summary = await runYearEndAnnualization(organizationId, taxYear, user.name);
+  if (Number.isInteger(applyToPayrollRunId) && applyToPayrollRunId > 0) {
+    const mfaDenied = requireSensitiveActionMfa(user);
+    if (mfaDenied) return mfaDenied;
+  }
+
+  const summary = await runYearEndAnnualization(
+    organizationId,
+    taxYear,
+    user.name,
+    Number.isInteger(applyToPayrollRunId) && applyToPayrollRunId > 0
+      ? { includePayrollRunId: applyToPayrollRunId }
+      : {},
+  );
   if (summary.employees === 0) {
     return Response.json({
       ...summary,
@@ -231,8 +244,18 @@ export async function POST(request: Request) {
     });
   }
 
+  const staged = Number.isInteger(applyToPayrollRunId) && applyToPayrollRunId > 0
+    ? await applyYearEndAdjustmentsToPayrollRun({
+        organizationId,
+        taxYear,
+        payrollRunId: applyToPayrollRunId,
+        actor: user.name,
+      })
+    : null;
+
   return Response.json({
     ...summary,
+    staged,
     generated2316Drafts: 0,
     available2316Drafts: summary.employees,
     certificateStorage: "not-persisted",
