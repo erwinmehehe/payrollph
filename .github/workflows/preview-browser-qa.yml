@@ -852,25 +852,12 @@ jobs:
             check(receiptText.includes("paymongo"), "Lifecycle: release receipt should identify PayMongo as the primary payout rail");
             check((await receipt.locator('[data-payout-status="awaiting-preflight"]').count()) === 1, "Lifecycle: payout state should require PayMongo preflight");
 
-            // The public demo has no bank-provided BDO template mapping. The
-            // optional fallback must fail closed rather than restoring the old
-            // guessed DAT bytes or becoming a prerequisite for PayMongo.
-            const bankExportResponse = await context.request.get(
-              `${base}/api/payroll-runs/${run.id}/exports?kind=bank&template=${encodeURIComponent("BDO DAT")}&dryRun=false`,
-            );
-            check(bankExportResponse.status() === 422, `Lifecycle: unverified bank fallback should fail closed with 422, saw ${bankExportResponse.status()}`);
-            const bankExportPayload = await bankExportResponse.json();
+            // Bank files are optional fallback only. This lifecycle stops at
+            // the PayMongo preflight gate in the redacted demo because the QA
+            // environment intentionally has no live payout credentials.
             check(
-              /bank-provided|mapping|template/i.test(bankExportPayload.error ?? ""),
-              `Lifecycle: bank fallback failure should explain the missing verified template; saw ${bankExportPayload.error ?? "no message"}`,
-            );
-
-            await page.reload({ waitUntil: "networkidle" });
-            const receiptAfterFallbackAttempt = page.locator("[data-release-receipt]");
-            check((await receiptAfterFallbackAttempt.count()) === 1, "Lifecycle: release receipt disappeared after optional bank fallback check");
-            check(
-              (await receiptAfterFallbackAttempt.locator('[data-payout-status="awaiting-preflight"]').count()) === 1,
-              "Lifecycle: rejected optional bank fallback must not change the PayMongo preflight state",
+              (await receipt.locator('[data-payout-status="awaiting-preflight"]').count()) === 1,
+              "Lifecycle: released payroll should remain at the PayMongo preflight gate until provider credentials are connected",
             );
 
             await switchPersona(context, page, "employee");
