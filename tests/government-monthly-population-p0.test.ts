@@ -29,6 +29,7 @@ async function addEmployee(input: {
     avatarInitials: "MW",
     basicRate: "30000.00",
     startDate: "2025-01-01",
+    mobile: input.employeeNo === "SEP-001" ? "09171111111" : "09172222222",
     sssNo: `34-${input.employeeNo === "SEP-001" ? "1111111" : "2222222"}-1`,
     philHealthNo: input.employeeNo === "SEP-001" ? "12-111111111-1" : "12-222222222-2",
     pagIbigNo: input.employeeNo === "SEP-001" ? "111111111111" : "222222222222",
