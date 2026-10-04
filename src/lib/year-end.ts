@@ -368,16 +368,36 @@ export async function applyYearEndAdjustmentsToPayrollRun(input: {
 
   const entries = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
   const entryByEmployee = new Map(entries.map((entry) => [entry.employeeId, entry]));
+  const adjustmentEmployeeIds = [...new Set(adjustments.map((row) => row.employeeId))];
+  const adjustmentEmployees = adjustmentEmployeeIds.length
+    ? await db.select().from(employees).where(and(
+        eq(employees.organizationId, input.organizationId),
+        inArray(employees.id, adjustmentEmployeeIds),
+      ))
+    : [];
+  const employeeById = new Map(adjustmentEmployees.map((employee) => [employee.id, employee]));
   let totalAdjustment = 0;
   let staged = 0;
+  let skippedInactive = 0;
 
   await db.transaction(async (tx) => {
     for (const adjustment of adjustments) {
       const delta = Number(adjustment.adjustment);
-      if (!Number.isFinite(delta) || Math.abs(delta) < 0.005) continue;
+      if (!Number.isFinite(delta)) {
+        throw new Error(`Year-end tax adjustment #${adjustment.id} is not a valid monetary amount.`);
+      }
       const entry = entryByEmployee.get(adjustment.employeeId);
       if (!entry) {
-        throw new Error(`Year-end adjustment employee #${adjustment.employeeId} is not present in the final payroll run.`);
+        const employee = employeeById.get(adjustment.employeeId);
+        if (employee && employee.status !== "Active") {
+          // Separated/inactive employees are handled by the offboarding final-pay
+          // annualization path and must not be injected into an active December run.
+          skippedInactive += 1;
+          continue;
+        }
+        throw new Error(
+          `Active year-end adjustment employee #${adjustment.employeeId} is missing from the final payroll run. Recalculate the complete payroll scope before applying annualization.`,
+        );
       }
 
       const existingLines = Array.isArray(entry.lineItems)
@@ -455,6 +475,7 @@ export async function applyYearEndAdjustmentsToPayrollRun(input: {
       taxYear: input.taxYear,
       payrollRunId: run.id,
       staged,
+      skippedInactive,
       totalAdjustment: Number(totalAdjustment.toFixed(2)),
       settlementDeferredUntilRelease: true,
     },
@@ -463,6 +484,7 @@ export async function applyYearEndAdjustmentsToPayrollRun(input: {
   return {
     payrollRunId: run.id,
     staged,
+    skippedInactive,
     totalAdjustment: Number(totalAdjustment.toFixed(2)),
     netPay: Number((Number(run.netPay) - totalAdjustment).toFixed(2)),
   };
