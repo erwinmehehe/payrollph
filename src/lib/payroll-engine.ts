@@ -24,6 +24,7 @@ import {
   payslips,
   supplementaryEarnings,
   timePunches,
+  yearEndAdjustments,
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import {
@@ -521,6 +522,24 @@ async function processPayrollChunk(input: {
         lte(supplementaryEarnings.effectiveDate, run.periodEnd),
       ))
     : [];
+  const approvedYearEndAdjustments = chunkIds.length
+    ? await db.select().from(yearEndAdjustments).where(and(
+        eq(yearEndAdjustments.organizationId, input.organizationId),
+        eq(yearEndAdjustments.payrollRunId, run.id),
+        eq(yearEndAdjustments.status, "approved"),
+        inArray(yearEndAdjustments.employeeId, chunkIds),
+      ))
+    : [];
+  const yearEndByEmployee = new Map<number, typeof approvedYearEndAdjustments[number]>();
+  for (const adjustment of approvedYearEndAdjustments) {
+    if (yearEndByEmployee.has(adjustment.employeeId)) {
+      throw new Error(
+        `Employee #${adjustment.employeeId} has more than one approved year-end tax adjustment bound to payroll run #${run.id}.`,
+      );
+    }
+    yearEndByEmployee.set(adjustment.employeeId, adjustment);
+  }
+
   const deMinimis = chunkIds.length
     ? await db.select().from(deMinimisGrants).where(and(
         eq(deMinimisGrants.organizationId, input.organizationId),
@@ -605,6 +624,7 @@ async function processPayrollChunk(input: {
         grossPay: payrollEntries.grossPay,
         lineItems: payrollEntries.lineItems,
         trace: payrollEntries.trace,
+        periodStart: payrollRuns.periodStart,
       })
         .from(payrollEntries)
         .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
@@ -683,6 +703,10 @@ async function processPayrollChunk(input: {
     philHealthEmployee: number;
     pagIbigEmployee: number;
     pagIbigVoluntaryEmployee: number;
+    sssEmployer: number;
+    sssEmployerEc: number;
+    philHealthEmployer: number;
+    pagIbigEmployer: number;
   }>();
 
   for (const prior of priorMonthEntries) {
@@ -701,6 +725,10 @@ async function processPayrollChunk(input: {
       philHealthEmployee: 0,
       pagIbigEmployee: 0,
       pagIbigVoluntaryEmployee: 0,
+      sssEmployer: 0,
+      sssEmployerEc: 0,
+      philHealthEmployer: 0,
+      pagIbigEmployer: 0,
     };
     const priorExcludedFromSss = traceInputNumber(
       prior.trace,
@@ -727,6 +755,73 @@ async function processPayrollChunk(input: {
     previous.pagIbigEmployee = roundToCents(previous.pagIbigEmployee + deduction("HDMF"));
     previous.pagIbigVoluntaryEmployee = roundToCents(
       previous.pagIbigVoluntaryEmployee + deduction("HDMF_VOL"),
+    );
+
+    // Employer shares use the same cutoff policy and month-end true-up as
+    // employee deductions. Exact cutoff amounts are persisted in the trace so
+    // journals never silently revert to a hard-coded 50/50 allocation.
+    const traceString = (key: string) => {
+      const inputs = prior.trace && typeof prior.trace === "object"
+        ? (prior.trace as { inputs?: unknown }).inputs
+        : null;
+      if (!Array.isArray(inputs)) return "";
+      const prefix = `${key}=`;
+      const raw = inputs.find((item) => typeof item === "string" && item.startsWith(prefix));
+      return typeof raw === "string" ? raw.slice(prefix.length) : "";
+    };
+    const priorTimingValue = traceString("statutoryDeductionTiming");
+    const priorTiming =
+      priorTimingValue === "first_cutoff" || priorTimingValue === "second_cutoff"
+        ? priorTimingValue
+        : "split";
+    const priorIsSecondCutoff = Number(String(prior.periodStart).slice(8, 10)) >= 16;
+    const legacyEmployerCutoff = (monthlyTarget: number) =>
+      computeCutoffStatutoryDeduction({
+        monthlyTarget,
+        priorCollected: 0,
+        timing: priorTiming,
+        isSecondCutoff: priorIsSecondCutoff,
+      });
+
+    const priorSssBase =
+      traceInputNumber(prior.trace, "statutoryMonthlySssCompensation")
+      || traceInputNumber(prior.trace, "statutoryMonthlyCompensation");
+    const priorPagIbigBase =
+      traceInputNumber(prior.trace, "statutoryMonthlyPagIbigCompensation")
+      || traceInputNumber(prior.trace, "statutoryMonthlyCompensation");
+    const priorPhilHealthBase = traceInputNumber(prior.trace, "philHealthContributionBase");
+    const priorSssRule = computeSss(priorSssBase);
+    const priorPhilHealthRule = computePhilHealth(priorPhilHealthBase);
+    const priorPagIbigRule = computePagIbig(priorPagIbigBase);
+
+    const tracedSssEmployer = traceInputNumber(prior.trace, "sssEmployerCutoff");
+    const tracedSssEc = traceInputNumber(prior.trace, "sssEmployerEcCutoff");
+    const tracedPhilHealthEmployer = traceInputNumber(prior.trace, "philHealthEmployerCutoff");
+    const tracedPagIbigEmployer = traceInputNumber(prior.trace, "pagIbigEmployerCutoff");
+
+    previous.sssEmployer = roundToCents(
+      previous.sssEmployer
+      + (tracedSssEmployer > 0 ? tracedSssEmployer : legacyEmployerCutoff(priorSssRule.employer)),
+    );
+    previous.sssEmployerEc = roundToCents(
+      previous.sssEmployerEc
+      + (tracedSssEc > 0 ? tracedSssEc : legacyEmployerCutoff(priorSssRule.employerEC)),
+    );
+    previous.philHealthEmployer = roundToCents(
+      previous.philHealthEmployer
+      + (
+        tracedPhilHealthEmployer > 0
+          ? tracedPhilHealthEmployer
+          : legacyEmployerCutoff(priorPhilHealthRule.employer)
+      ),
+    );
+    previous.pagIbigEmployer = roundToCents(
+      previous.pagIbigEmployer
+      + (
+        tracedPagIbigEmployer > 0
+          ? tracedPagIbigEmployer
+          : legacyEmployerCutoff(priorPagIbigRule.employer)
+      ),
     );
     priorStatutoryByEmployee.set(prior.employeeId, previous);
   }
@@ -833,6 +928,17 @@ async function processPayrollChunk(input: {
         includeInSssBase: earning.includeInSssBase,
         includeInPagIbigBase: earning.includeInPagIbigBase,
       })),
+      yearEndTaxAdjustment: (() => {
+        const adjustment = yearEndByEmployee.get(employee.id);
+        return adjustment
+          ? {
+              id: adjustment.id,
+              taxYear: adjustment.taxYear,
+              adjustment: Number(adjustment.adjustment),
+              outcome: adjustment.outcome,
+            }
+          : undefined;
+      })(),
       deMinimis: (deMinimisByEmployee.get(employee.id) ?? [])
         .filter((g) =>
           String(g.effectiveOn) <= String(run.payDate)
@@ -1016,6 +1122,12 @@ function calculateEmployeePay(input: {
     includeInSssBase: boolean;
     includeInPagIbigBase: boolean;
   }>;
+  yearEndTaxAdjustment?: {
+    id: number;
+    taxYear: number;
+    adjustment: number;
+    outcome: string;
+  };
   deMinimis?: Array<{ id: number; benefitType: DeMinimisType; amount: number; frequency: "month" | "semester" | "year" }>;
   priorDeMinimisPaid?: Partial<Record<DeMinimisType, number>>;
   importedPayrollHistoryBeforeCutoff?: boolean;
@@ -1040,6 +1152,10 @@ function calculateEmployeePay(input: {
     philHealthEmployee: number;
     pagIbigEmployee: number;
     pagIbigVoluntaryEmployee: number;
+    sssEmployer: number;
+    sssEmployerEc: number;
+    philHealthEmployer: number;
+    pagIbigEmployer: number;
   };
   isFinalCutoffOfMonth?: boolean;
 }) {
@@ -1451,6 +1567,10 @@ function calculateEmployeePay(input: {
     philHealthEmployee: 0,
     pagIbigEmployee: 0,
     pagIbigVoluntaryEmployee: 0,
+    sssEmployer: 0,
+    sssEmployerEc: 0,
+    philHealthEmployer: 0,
+    pagIbigEmployer: 0,
   };
   const newHireInCurrentCutoff = employeeStartDate >= input.periodStart;
   const hasPriorMonthStatutory =
@@ -1490,6 +1610,10 @@ function calculateEmployeePay(input: {
   const sss = schedule(sssRule.employee, priorStatutory.sssEmployee);
   const philhealth = schedule(philHealthRule.employee, priorStatutory.philHealthEmployee);
   const pagibigMandatory = schedule(pagIbigRule.employee, priorStatutory.pagIbigEmployee);
+  const sssEmployer = schedule(sssRule.employer, priorStatutory.sssEmployer);
+  const sssEmployerEc = schedule(sssRule.employerEC, priorStatutory.sssEmployerEc);
+  const philHealthEmployer = schedule(philHealthRule.employer, priorStatutory.philHealthEmployer);
+  const pagIbigEmployer = schedule(pagIbigRule.employer, priorStatutory.pagIbigEmployer);
   const voluntaryPagIbigMonthly = Math.max(0, Number(input.employee.pagIbigVoluntaryMonthly ?? 0));
   const requestedPagIbigVoluntary = schedule(
     voluntaryPagIbigMonthly,
@@ -1524,6 +1648,10 @@ function calculateEmployeePay(input: {
           - pagibigMandatory,
       );
   const withholding = computeSemiMonthlyWithholdingTax(taxableCompensation, false);
+  // annualize().adjustment is taxDue - taxWithheld. A positive value is an
+  // additional collection; a negative value is an employee refund. It settles
+  // after the normal cutoff WHT and never changes taxable income or gross pay.
+  const yearEndTaxAdjustment = roundToCents(input.yearEndTaxAdjustment?.adjustment ?? 0);
 
   // Money-integrity waterfall: statutory/tax/attendance deductions take
   // priority. Voluntary savings, benefit shares, wage-advance recovery, and
@@ -1531,7 +1659,13 @@ function calculateEmployeePay(input: {
   // An EWA is recovered all-or-nothing because its ledger has no partial
   // balance field; skipped recovery remains approved for a later payroll.
   const coreDeductions = roundToCents(
-    sss + philhealth + pagibigMandatory + withholding + tardinessDeduction + undertimeDeduction,
+    sss
+      + philhealth
+      + pagibigMandatory
+      + withholding
+      + yearEndTaxAdjustment
+      + tardinessDeduction
+      + undertimeDeduction,
   );
   if (coreDeductions > gross + 0.005) {
     flags.push(
@@ -1629,6 +1763,20 @@ function calculateEmployeePay(input: {
     { code: "HDMF", label: "Pag-IBIG mandatory contribution", amount: money(-pagibigMandatory) },
     { code: "HDMF_VOL", label: "Pag-IBIG voluntary contribution", amount: money(-pagibigVoluntary) },
     { code: "WHT", label: "Withholding tax", amount: money(-withholding) },
+    {
+      code: input.yearEndTaxAdjustment ? `YE-TAX-${input.yearEndTaxAdjustment.id}` : "YE-TAX",
+      label:
+        yearEndTaxAdjustment < 0
+          ? `BIR year-end tax refund (${input.yearEndTaxAdjustment?.taxYear ?? ""})`
+          : `BIR year-end tax collection (${input.yearEndTaxAdjustment?.taxYear ?? ""})`,
+      amount: money(-yearEndTaxAdjustment),
+      notes: input.yearEndTaxAdjustment
+        ? [
+            `Annual tax due minus tax withheld: ₱${yearEndTaxAdjustment.toFixed(2)}`,
+            `Outcome: ${input.yearEndTaxAdjustment.outcome}`,
+          ]
+        : [],
+    },
     { code: "LATE", label: "Tardiness", amount: money(-tardinessDeduction) },
     { code: "UT", label: "Undertime", amount: money(-undertimeDeduction) },
     ...expenseLines,
@@ -1679,6 +1827,14 @@ function calculateEmployeePay(input: {
       `priorPhilHealthEmployee=${money(priorStatutory.philHealthEmployee)}`,
       `priorPagIbigEmployee=${money(priorStatutory.pagIbigEmployee)}`,
       `priorPagIbigVoluntaryEmployee=${money(priorStatutory.pagIbigVoluntaryEmployee)}`,
+      `priorSssEmployer=${money(priorStatutory.sssEmployer)}`,
+      `priorSssEmployerEc=${money(priorStatutory.sssEmployerEc)}`,
+      `priorPhilHealthEmployer=${money(priorStatutory.philHealthEmployer)}`,
+      `priorPagIbigEmployer=${money(priorStatutory.pagIbigEmployer)}`,
+      `sssEmployerCutoff=${money(sssEmployer)}`,
+      `sssEmployerEcCutoff=${money(sssEmployerEc)}`,
+      `philHealthEmployerCutoff=${money(philHealthEmployer)}`,
+      `pagIbigEmployerCutoff=${money(pagIbigEmployer)}`,
       `pagIbigVoluntaryMonthly=${money(voluntaryPagIbigMonthly)}`,
       `pagIbigVoluntaryRequested=${money(requestedPagIbigVoluntary)}`,
       `pagIbigVoluntaryDeducted=${money(pagibigVoluntary)}`,
@@ -1714,9 +1870,12 @@ function calculateEmployeePay(input: {
       `pagIbigFundSalary=${money(pagIbigRule.fundSalary)}`,
       `pagIbigEmployeeRate=${pagIbigRule.employeeRate}`,
       `withholdingTable=RR11-2018-revised-2023+`,
+      `yearEndTaxAdjustmentId=${input.yearEndTaxAdjustment?.id ?? ""}`,
+      `yearEndTaxAdjustment=${money(yearEndTaxAdjustment)}`,
+      `yearEndTaxYear=${input.yearEndTaxAdjustment?.taxYear ?? ""}`,
       `region=${input.employee.region ?? "NCR"}`,
       `mwe=${treatAsMwe} (explicit employee tax classification)`,
-      `employerStatutoryCost=${money((sssRule.employerTotal + philHealthRule.employer + pagIbigRule.employer) / 2)}`,
+      `employerStatutoryCost=${money(sssEmployer + sssEmployerEc + philHealthEmployer + pagIbigEmployer)}`,
       ...holidayNotes,
       ...calamityNotes,
       ...leaveNotes,

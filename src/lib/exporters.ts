@@ -457,24 +457,35 @@ export async function generateJournalCsv(runId: number) {
       else if (code.startsWith("BENEFIT-") || code.startsWith("BEN-")) totals.benefitDeductions += abs;
     }
 
-    const monthlyRemuneration =
-      traceNumber(entry.trace, "statutoryMonthlyCompensation=")
+    const sssMonthlyRemuneration =
+      traceNumber(entry.trace, "statutoryMonthlySssCompensation=")
+      ?? traceNumber(entry.trace, "statutoryMonthlyCompensation=")
+      ?? Number(employee.basicRate);
+    const pagIbigMonthlyCompensation =
+      traceNumber(entry.trace, "statutoryMonthlyPagIbigCompensation=")
+      ?? traceNumber(entry.trace, "statutoryMonthlyCompensation=")
       ?? Number(employee.basicRate);
     const philHealthBase =
       traceNumber(entry.trace, "philHealthContributionBase=")
       ?? Number(employee.basicRate);
 
-    const sssRule = computeSss(monthlyRemuneration);
+    const sssRule = computeSss(sssMonthlyRemuneration);
     const phRule = computePhilHealth(philHealthBase);
-    const hdmfRule = computePagIbig(monthlyRemuneration);
+    const hdmfRule = computePagIbig(pagIbigMonthlyCompensation);
 
-    // Employer SS excluding EC is always twice the employee's 5% SS share for
-    // the same collected cutoff amount. EC is employer-only and split across
-    // the two standard semi-monthly cutoffs.
-    totals.sssEr += totals.sssEe >= 0 ? Math.max(0, lines.find((line) => String(line.code).toUpperCase() === "SSS") ? 2 * Math.abs(Number(lines.find((line) => String(line.code).toUpperCase() === "SSS")?.amount ?? 0)) : 0) : 0;
-    totals.ecEr += round2(sssRule.employerEC / 2);
-    totals.philHealthEr += round2(phRule.employer / 2);
-    totals.pagIbigEr += round2(hdmfRule.employer / 2);
+    const sssLine = lines.find((line) => String(line.code).toUpperCase() === "SSS");
+    totals.sssEr +=
+      traceNumber(entry.trace, "sssEmployerCutoff=")
+      ?? (sssLine ? 2 * Math.abs(Number(sssLine.amount ?? 0)) : 0);
+    totals.ecEr +=
+      traceNumber(entry.trace, "sssEmployerEcCutoff=")
+      ?? round2(sssRule.employerEC / 2);
+    totals.philHealthEr +=
+      traceNumber(entry.trace, "philHealthEmployerCutoff=")
+      ?? round2(phRule.employer / 2);
+    totals.pagIbigEr +=
+      traceNumber(entry.trace, "pagIbigEmployerCutoff=")
+      ?? round2(hdmfRule.employer / 2);
   }
 
   const salaryExpense = round2(totals.gross - totals.reimbursements - totals.deMinimis - totals.attendanceReductions);
@@ -579,6 +590,19 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     return Number.isFinite(value) ? value : null;
   };
   const govId = (value: string | null | undefined) => decryptGovernmentId(value) ?? "";
+  const periodEnd = String(run.periodEnd);
+  const periodEndDate = new Date(`${periodEnd}T00:00:00Z`);
+  const nextDay = new Date(periodEndDate);
+  nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+  const isFinalCutoffOfMonth = nextDay.getUTCMonth() !== periodEndDate.getUTCMonth();
+  if (
+    ["sss-r3", "philhealth-rf1", "pagibig-mcrf"].includes(kind)
+    && !isFinalCutoffOfMonth
+  ) {
+    throw new Error(
+      `Government monthly worksheet "${kind}" must be generated from the final cutoff of the month so monthly statutory bases have completed their true-up.`,
+    );
+  }
 
   const headerNote = [
     "# DRAFT ONLY, not a certified government submission file",
@@ -611,7 +635,8 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
       "SSSNo,LastName,FirstName,MiddleName,MSC,RegularMSC,MPFMSC,SS_EE_Regular,SS_EE_MPF,SS_ER_Regular,SS_ER_MPF,EC_Employer,Total_Contribution",
       ...entries.map(({ employee, entry }) => {
         const monthlyRemuneration =
-          traceNumber(entry.trace, "statutoryMonthlyCompensation=")
+          traceNumber(entry.trace, "statutoryMonthlySssCompensation=")
+          ?? traceNumber(entry.trace, "statutoryMonthlyCompensation=")
           ?? Number(employee.basicRate ?? entry.grossPay ?? 0);
         const sss = computeSss(monthlyRemuneration);
         return [
@@ -649,7 +674,9 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     const body = [
       "PIN,LastName,FirstName,MiddleName,MonthlySalaryBase,EmployeeShare,EmployerShare,TotalPremium",
       ...entries.map(({ employee, entry }) => {
-        const monthlyBasic = Number(employee.basicRate ?? entry.grossPay ?? 0);
+        const monthlyBasic =
+          traceNumber(entry.trace, "philHealthContributionBase=")
+          ?? Number(employee.basicRate ?? entry.grossPay ?? 0);
         const ph = computePhilHealth(monthlyBasic);
         return [
           govId(employee.philHealthNo),
@@ -682,7 +709,8 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
       "PagIBIGMID,LastName,FirstName,MiddleName,FundSalary,EmployeeShare,EmployerShare,TotalContribution",
       ...entries.map(({ employee, entry }) => {
         const monthlyRemuneration =
-          traceNumber(entry.trace, "statutoryMonthlyCompensation=")
+          traceNumber(entry.trace, "statutoryMonthlyPagIbigCompensation=")
+          ?? traceNumber(entry.trace, "statutoryMonthlyCompensation=")
           ?? Number(employee.basicRate ?? entry.grossPay ?? 0);
         const hd = computePagIbig(monthlyRemuneration);
         return [

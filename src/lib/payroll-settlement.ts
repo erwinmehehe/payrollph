@@ -19,6 +19,7 @@ import {
   payrollEntries,
   payrollRuns,
   supplementaryEarnings,
+  yearEndAdjustments,
 } from "@/db/schema";
 
 function money(value: number) {
@@ -269,6 +270,39 @@ export async function settlePayrollRun(
       );
     }
 
+    const currentYearEndAdjustments = await tx.select().from(yearEndAdjustments).where(and(
+      eq(yearEndAdjustments.organizationId, run.organizationId),
+      eq(yearEndAdjustments.payrollRunId, run.id),
+      eq(yearEndAdjustments.status, "approved"),
+    ));
+    const yearEndById = new Map(currentYearEndAdjustments.map((adjustment) => [adjustment.id, adjustment]));
+    const calculatedYearEndIds = new Set<number>();
+    for (const entry of entries) {
+      for (const line of storedLines(entry.lineItems)) {
+        const adjustmentId = numericId(line.code, "YE-TAX-");
+        if (!adjustmentId) continue;
+        calculatedYearEndIds.add(adjustmentId);
+        const adjustment = yearEndById.get(adjustmentId);
+        if (
+          !adjustment
+          || adjustment.employeeId !== entry.employeeId
+          || !samePayrollNumber(-Number(adjustment.adjustment), line.amount)
+        ) {
+          throw new Error(
+            `Year-end tax adjustment ${adjustmentId} changed after calculation; recalculate before release so the approved register matches annualization.`,
+          );
+        }
+      }
+    }
+    const missingYearEnd = currentYearEndAdjustments.find(
+      (adjustment) => !calculatedYearEndIds.has(adjustment.id),
+    );
+    if (missingYearEnd) {
+      throw new Error(
+        `Approved year-end tax adjustment #${missingYearEnd.id} is missing from the payroll register; recalculate before release.`,
+      );
+    }
+
     for (const entry of entries) {
       const employee = employeeById.get(entry.employeeId);
       if (!employee) {
@@ -360,6 +394,7 @@ export async function settlePayrollRun(
     let leaveConversionsSettled = 0;
     let retroAdjustmentsSettled = 0;
     let supplementaryEarningsSettled = 0;
+    let yearEndTaxAdjustmentsSettled = 0;
 
     for (const entry of entries) {
       for (const line of storedLines(entry.lineItems)) {
@@ -511,6 +546,42 @@ export async function settlePayrollRun(
           continue;
         }
 
+        const yearEndAdjustmentId = numericId(line.code, "YE-TAX-");
+        if (yearEndAdjustmentId) {
+          const [adjustment] = await tx.select().from(yearEndAdjustments).where(and(
+            eq(yearEndAdjustments.id, yearEndAdjustmentId),
+            eq(yearEndAdjustments.organizationId, run.organizationId),
+            eq(yearEndAdjustments.payrollRunId, run.id),
+          )).limit(1);
+          if (!adjustment || adjustment.employeeId !== entry.employeeId) {
+            throw new Error(`Year-end tax adjustment ${yearEndAdjustmentId} no longer matches this payroll entry.`);
+          }
+          if (
+            adjustment.status !== "approved"
+            || !samePayrollNumber(-Number(adjustment.adjustment), line.amount)
+          ) {
+            throw new Error(
+              `Year-end tax adjustment ${yearEndAdjustmentId} changed after calculation; recalculate payroll before release.`,
+            );
+          }
+          const [settledAdjustment] = await tx.update(yearEndAdjustments)
+            .set({ status: "settled", settledAt: new Date() })
+            .where(and(
+              eq(yearEndAdjustments.id, yearEndAdjustmentId),
+              eq(yearEndAdjustments.organizationId, run.organizationId),
+              eq(yearEndAdjustments.payrollRunId, run.id),
+              eq(yearEndAdjustments.status, "approved"),
+            ))
+            .returning({ id: yearEndAdjustments.id });
+          if (!settledAdjustment) {
+            throw new Error(
+              `Year-end tax adjustment ${yearEndAdjustmentId} changed while payroll was being released; recalculate before release.`,
+            );
+          }
+          yearEndTaxAdjustmentsSettled += 1;
+          continue;
+        }
+
         const retroId = numericId(line.code, "RETRO-");
         if (retroId) {
           const [retro] = await tx.select().from(employeePayRetroAdjustments)
@@ -631,6 +702,7 @@ export async function settlePayrollRun(
       leaveConversionsSettled,
       retroAdjustmentsSettled,
       supplementaryEarningsSettled,
+      yearEndTaxAdjustmentsSettled,
     };
 
     // The release audit is part of the same transaction as the ledger changes.
