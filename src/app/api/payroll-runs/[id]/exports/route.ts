@@ -420,12 +420,45 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
   }
 
-  if (!process.env.PAYMONGO_SECRET_KEY || process.env.PAYMONGO_DISBURSEMENTS_ENABLED !== "true") {
+  if (
+    !process.env.PAYMONGO_SECRET_KEY
+    || !process.env.PAYMONGO_WALLET_ID
+    || !process.env.PAYMONGO_WEBHOOK_SECRET
+    || process.env.PAYMONGO_DISBURSEMENTS_ENABLED !== "true"
+  ) {
     return Response.json({
-      error: "Live disbursement is not configured.",
-      manualWorkaround: "Download the bank file (GET this same URL with kind=bank) and upload it by hand to online banking / GCash for Business, or finish PayMongo Wallet verification and set PAYMONGO_DISBURSEMENTS_ENABLED=true.",
+      error: "Live PayMongo payroll disbursement is not fully configured.",
+      required: [
+        "PAYMONGO_SECRET_KEY",
+        "PAYMONGO_WALLET_ID",
+        "PAYMONGO_WEBHOOK_SECRET",
+        "PAYMONGO_DISBURSEMENTS_ENABLED=true",
+      ],
+      manualWorkaround: "Connect the PayMongo Wallet and signed transfer webhook first. A validated corporate-bank file remains an optional fallback when the employer cannot use PayMongo.",
       readiness: "/api/readiness",
     }, { status: 501 });
+  }
+
+  if (body.confirm !== true) {
+    return Response.json({
+      error: "Explicit confirmation is required before submitting a money-moving PayMongo payroll batch.",
+    }, { status: 400 });
+  }
+
+  const payoutEvents = await db.select().from(auditEvents)
+    .where(eq(auditEvents.organizationId, run.organizationId));
+  const latestPreflight = payoutEvents
+    .filter((event) => {
+      if (event.action !== "PayMongo payroll preflight passed") return false;
+      if (!event.metadata || typeof event.metadata !== "object") return false;
+      return Number((event.metadata as Record<string, unknown>).runId) === run.id;
+    })
+    .sort((a, b) => b.id - a.id)[0];
+
+  if (!latestPreflight) {
+    return Response.json({
+      error: "Run the no-money PayMongo preflight successfully for this released payroll before submitting funds.",
+    }, { status: 409 });
   }
 
   try {
