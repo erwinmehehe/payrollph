@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { db } from "../src/db";
-import { employees, organizations, payrollEntries, payrollRuns } from "../src/db/schema";
+import { employees, organizations, payrollEntries, payrollRuns, yearEndAdjustments } from "../src/db/schema";
 import { generateGovernmentDraft } from "../src/lib/exporters";
 
 // Annual BIR exports stay fail-closed: this test covers the source extract
@@ -45,6 +45,23 @@ test("Alphalist draft keeps employer and employee TIN/branch fields separate", a
     deductions: "2000.00",
     netPay: "28000.00",
     lineItems: [{ code: "WHT", amount: "-500.00" }],
+  });
+
+  await db.insert(yearEndAdjustments).values({
+    organizationId: org.id,
+    employeeId: employee.id,
+    taxYear: 2026,
+    grossCompensation: "30000.00",
+    thirteenthMonth: "0.00",
+    nonTaxable: "0.00",
+    statutoryContributions: "0.00",
+    taxableIncome: "30000.00",
+    taxDue: "500.00",
+    taxWithheld: "500.00",
+    adjustment: "0.00",
+    outcome: "balanced",
+    breakdown: {},
+    ruleVersion: "PH-2026.03",
   });
 
   const file = await generateGovernmentDraft(run.id, "bir-1604c-source");
