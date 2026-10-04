@@ -49,7 +49,7 @@ export type FilingFormDefinition = {
 };
 
 export const SSS_R3_GENERATOR_VERSION = "sss-r3-worksheet-v2";
-export const BIR_1604C_GENERATOR_VERSION = "bir-1604c-source-v1";
+export const BIR_1604C_GENERATOR_VERSION = "bir-1604c-source-v2";
 export const PHILHEALTH_RF1_GENERATOR_VERSION = "philhealth-rf1-worksheet-v1";
 export const PAGIBIG_MCRF_GENERATOR_VERSION = "pagibig-mcrf-worksheet-v2";
 

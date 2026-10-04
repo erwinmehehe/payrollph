@@ -287,7 +287,7 @@ export async function buildReadinessPayload() {
       label: "BIR Alphalist / 2316 validated in ADES",
       ready: birAlphalistValidated,
       detail: birAlphalistValidated
-        ? `BIR's ADES validated a Linaw-generated annual extract in the current layout (${birEvidence?.provingCount} recorded acceptance(s)${birEvidence?.latest?.agencyReference ? `, latest reference ${birEvidence.latest.agencyReference}` : ""}). The extract is built from a single payroll run, so this proves the layout and ID fields, not full-year totals, and Linaw does not produce the final .DAT.`
+        ? `BIR's ADES validated a Linaw-generated annual extract in the current layout (${birEvidence?.provingCount} recorded acceptance(s)${birEvidence?.latest?.agencyReference ? `, latest reference ${birEvidence.latest.agencyReference}` : ""}). The extract aggregates all released payrolls paid in the selected calendar year into one annual row per employee. Linaw still does not produce the final .DAT.`
         : filingEvidenceError
           ?? `${describeEvidenceGap(birEvidence, findFilingForm("BIR", "1604-C")!)} Employee middle name, TIN and employer TIN/branch fields are modeled and preflighted; Linaw does not produce ADES's final .DAT.`,
       blocks: birAlphalistValidated ? "none" : "launch",
