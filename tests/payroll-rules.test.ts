@@ -36,6 +36,42 @@ test("SSS respects the 2025/2026 salary credit floor, cap, and EC employer premi
   assert.equal(computeSss(24_260).monthlySalaryCredit, 24_500);
 });
 
+
+test("SSS contribution boundary matrix covers every MSC midpoint and the MPF transition", () => {
+  assert.equal(computeSss(0).monthlySalaryCredit, 5_000);
+  assert.equal(computeSss(4_999.99).monthlySalaryCredit, 5_000);
+  assert.equal(computeSss(5_000).monthlySalaryCredit, 5_000);
+
+  for (let msc = 5_500; msc <= 34_500; msc += 500) {
+    const midpoint = msc - 250;
+    assert.equal(
+      computeSss(midpoint - 0.01).monthlySalaryCredit,
+      msc - 500,
+      `salary just below ${midpoint.toFixed(2)} should remain at MSC ${msc - 500}`,
+    );
+    assert.equal(
+      computeSss(midpoint).monthlySalaryCredit,
+      msc,
+      `salary at midpoint ${midpoint.toFixed(2)} should move to MSC ${msc}`,
+    );
+    assert.equal(
+      computeSss(msc + 249.99).monthlySalaryCredit,
+      msc,
+      `salary below next midpoint should remain at MSC ${msc}`,
+    );
+  }
+
+  assert.equal(computeSss(19_999.99).mpfMsc, 0);
+  assert.equal(computeSss(20_249.99).monthlySalaryCredit, 20_000);
+  assert.equal(computeSss(20_249.99).mpfMsc, 0);
+  assert.equal(computeSss(20_250).monthlySalaryCredit, 20_500);
+  assert.equal(computeSss(20_250).mpfMsc, 500);
+  assert.equal(computeSss(34_749.99).monthlySalaryCredit, 34_500);
+  assert.equal(computeSss(34_750).monthlySalaryCredit, 35_000);
+  assert.equal(computeSss(100_000).monthlySalaryCredit, 35_000);
+  assert.equal(computeSss(100_000).mpfMsc, 15_000);
+});
+
 test("statutory deduction timing supports split, first-cutoff and second-cutoff policies with true-up", () => {
   assert.equal(computeCutoffStatutoryDeduction({
     monthlyTarget: 1_750,
@@ -94,12 +130,60 @@ test("PhilHealth splits the capped five percent premium and reconciles odd centa
   assert.deepEqual([odd.employee, odd.employer], [250.01, 250]);
 });
 
+
+test("PhilHealth boundary matrix covers the floor, ceiling and odd-centavo split", () => {
+  assert.deepEqual(computePhilHealth(9_999.99), { base: 10_000, total: 500, employee: 250, employer: 250 });
+  assert.deepEqual(computePhilHealth(10_000), { base: 10_000, total: 500, employee: 250, employer: 250 });
+  assert.equal(computePhilHealth(10_000.01).base, 10_000.01);
+  assert.deepEqual(computePhilHealth(100_000), { base: 100_000, total: 5_000, employee: 2_500, employer: 2_500 });
+  assert.deepEqual(computePhilHealth(100_000.01), { base: 100_000, total: 5_000, employee: 2_500, employer: 2_500 });
+
+  for (const salary of [10_000.2, 10_000.6, 33_333.33, 99_999.98]) {
+    const result = computePhilHealth(salary);
+    assert.equal(
+      Number((result.employee + result.employer).toFixed(2)),
+      result.total,
+      `EE + ER must reconcile exactly at salary ${salary}`,
+    );
+  }
+});
+
 test("Pag-IBIG uses the 2026 PHP 10,000 fund-salary cap", () => {
   assert.equal(computePagIbig(1_500).employee, 15);
   assert.equal(computePagIbig(1_500).employer, 30);
   assert.equal(computePagIbig(5_000).employee, 100);
   assert.equal(computePagIbig(10_000).employee, 200);
   assert.equal(computePagIbig(40_000).employee, 200);
+});
+
+
+test("Pag-IBIG boundary matrix covers the 1%/2% transition, salary cap, and voluntary timing", () => {
+  assert.deepEqual(
+    computePagIbig(1_500),
+    { fundSalary: 1_500, employeeRate: 0.01, employerRate: 0.02, employee: 15, employer: 30, total: 45 },
+  );
+  assert.equal(computePagIbig(1_500.01).employeeRate, 0.02);
+  assert.equal(computePagIbig(1_500.01).employee, 30);
+  assert.equal(computePagIbig(9_999.99).employee, 200);
+  assert.equal(computePagIbig(9_999.99).employer, 200);
+  assert.equal(computePagIbig(10_000).employee, 200);
+  assert.equal(computePagIbig(10_000.01).fundSalary, 10_000);
+  assert.equal(computePagIbig(50_000).total, 400);
+
+  // Voluntary savings are a separate employee election. The cutoff scheduler
+  // can split or true-up that elected amount without altering the mandatory cap.
+  assert.equal(computeCutoffStatutoryDeduction({
+    monthlyTarget: 1_000,
+    priorCollected: 0,
+    timing: "split",
+    isSecondCutoff: false,
+  }), 500);
+  assert.equal(computeCutoffStatutoryDeduction({
+    monthlyTarget: 1_000,
+    priorCollected: 500,
+    timing: "split",
+    isSecondCutoff: true,
+  }), 500);
 });
 
 test("published semi-monthly TRAIN boundaries are implemented directly", () => {
@@ -121,14 +205,31 @@ test("TRAIN withholding brackets and MWE exemption are explicit", () => {
   assert.equal(computeAnnualWithholdingTax(10_000_000, true), 0);
 });
 
-test("holiday and rest day premium stacking is deterministic", () => {
+test("holiday and rest day premium stacking covers special-rest and double-regular states", () => {
   assert.equal(holidayMultiplier({ holiday: "regular", worked: false }), 1);
   assert.equal(holidayMultiplier({ holiday: "special", worked: false }), 0);
+  assert.equal(holidayMultiplier({ holiday: "double", worked: false }), 2);
   assert.equal(holidayMultiplier({ holiday: "ordinary", worked: true }), 1);
+
   assert.equal(holidayMultiplier({ holiday: "special", worked: true }), 1.3);
+  assert.equal(holidayMultiplier({ holiday: "special", worked: true, overtime: true }), 1.69);
   assert.equal(holidayMultiplier({ holiday: "special", worked: true, restDay: true }), 1.5);
+  assert.equal(holidayMultiplier({ holiday: "special", worked: true, restDay: true, overtime: true }), 1.95);
+
   assert.equal(holidayMultiplier({ holiday: "regular", worked: true, restDay: true }), 2.6);
   assert.equal(holidayMultiplier({ holiday: "regular", worked: true, restDay: true, overtime: true }), 3.38);
+
+  assert.equal(holidayMultiplier({ holiday: "double", worked: true }), 3);
+  assert.equal(holidayMultiplier({ holiday: "double", worked: true, overtime: true }), 3.9);
+  assert.equal(holidayMultiplier({ holiday: "double", worked: true, restDay: true }), 3.9);
+  assert.equal(holidayMultiplier({ holiday: "double", worked: true, restDay: true, overtime: true }), 5.07);
+
+  // Payroll adds NSD as 10% of the applicable regular/OT multiplier.
+  assert.equal(Number((1.5 * 1.1).toFixed(3)), 1.65);
+  assert.equal(Number((1.95 * 1.1).toFixed(3)), 2.145);
+  assert.equal(Number((3 * 1.1).toFixed(3)), 3.3);
+  assert.equal(Number((3.9 * 1.1).toFixed(3)), 4.29);
+  assert.equal(Number((5.07 * 1.1).toFixed(3)), 5.577);
 });
 
 test("clock derivation handles grace, OT, night work, and missing pairs", () => {
