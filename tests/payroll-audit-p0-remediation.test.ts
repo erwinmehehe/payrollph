@@ -186,6 +186,7 @@ test("year-end refund and collection are staged into final payroll and consumed 
         avatarInitials: "RE",
         basicRate: "30000.00",
         restDay: "Sunday",
+        mobile: "09171234567",
         startDate: "2025-01-01",
       },
       {
@@ -197,6 +198,7 @@ test("year-end refund and collection are staged into final payroll and consumed 
         avatarInitials: "CE",
         basicRate: "30000.00",
         restDay: "Sunday",
+        mobile: "09171234567",
         startDate: "2025-01-01",
       },
       {
@@ -208,6 +210,7 @@ test("year-end refund and collection are staged into final payroll and consumed 
         avatarInitials: "BE",
         basicRate: "30000.00",
         restDay: "Sunday",
+        mobile: "09171234567",
         startDate: "2025-01-01",
       },
       {
@@ -374,6 +377,7 @@ test("monthly government reports reject first cutoff and aggregate released cuto
       pagIbigNo: "1234-5678-9012",
       tin: "987654321",
       tinBranchCode: "0000",
+      mobile: "09171234567",
       startDate: "2025-01-01",
     });
 
