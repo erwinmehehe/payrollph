@@ -214,43 +214,6 @@ export async function settlePayrollRun(
     const calculatedRetroIds = new Set<number>();
     for (const entry of entries) {
       for (const line of storedLines(entry.lineItems)) {
-        const yearEndAdjustmentId = numericId(line.code, "YE-TAX-");
-        if (yearEndAdjustmentId) {
-          const [adjustment] = await tx.select().from(yearEndAdjustments).where(and(
-            eq(yearEndAdjustments.id, yearEndAdjustmentId),
-            eq(yearEndAdjustments.organizationId, run.organizationId),
-            eq(yearEndAdjustments.payrollRunId, run.id),
-          )).limit(1);
-          if (!adjustment || adjustment.employeeId !== entry.employeeId) {
-            throw new Error(`Year-end tax adjustment ${yearEndAdjustmentId} no longer matches this payroll entry.`);
-          }
-          if (adjustment.status === "settled") continue;
-          if (
-            adjustment.status !== "approved"
-            || !samePayrollNumber(-Number(adjustment.adjustment), line.amount)
-          ) {
-            throw new Error(
-              `Year-end tax adjustment ${yearEndAdjustmentId} changed after calculation; recalculate payroll before release.`,
-            );
-          }
-          const [settledAdjustment] = await tx.update(yearEndAdjustments)
-            .set({ status: "settled", settledAt: new Date() })
-            .where(and(
-              eq(yearEndAdjustments.id, yearEndAdjustmentId),
-              eq(yearEndAdjustments.organizationId, run.organizationId),
-              eq(yearEndAdjustments.payrollRunId, run.id),
-              eq(yearEndAdjustments.status, "approved"),
-            ))
-            .returning({ id: yearEndAdjustments.id });
-          if (!settledAdjustment) {
-            throw new Error(
-              `Year-end tax adjustment ${yearEndAdjustmentId} changed while payroll was being released; recalculate before release.`,
-            );
-          }
-          yearEndTaxAdjustmentsSettled += 1;
-          continue;
-        }
-
         const retroId = numericId(line.code, "RETRO-");
         if (!retroId) continue;
         calculatedRetroIds.add(retroId);
@@ -580,6 +543,42 @@ export async function settlePayrollRun(
             );
           }
           supplementaryEarningsSettled += 1;
+          continue;
+        }
+
+        const yearEndAdjustmentId = numericId(line.code, "YE-TAX-");
+        if (yearEndAdjustmentId) {
+          const [adjustment] = await tx.select().from(yearEndAdjustments).where(and(
+            eq(yearEndAdjustments.id, yearEndAdjustmentId),
+            eq(yearEndAdjustments.organizationId, run.organizationId),
+            eq(yearEndAdjustments.payrollRunId, run.id),
+          )).limit(1);
+          if (!adjustment || adjustment.employeeId !== entry.employeeId) {
+            throw new Error(`Year-end tax adjustment ${yearEndAdjustmentId} no longer matches this payroll entry.`);
+          }
+          if (
+            adjustment.status !== "approved"
+            || !samePayrollNumber(-Number(adjustment.adjustment), line.amount)
+          ) {
+            throw new Error(
+              `Year-end tax adjustment ${yearEndAdjustmentId} changed after calculation; recalculate payroll before release.`,
+            );
+          }
+          const [settledAdjustment] = await tx.update(yearEndAdjustments)
+            .set({ status: "settled", settledAt: new Date() })
+            .where(and(
+              eq(yearEndAdjustments.id, yearEndAdjustmentId),
+              eq(yearEndAdjustments.organizationId, run.organizationId),
+              eq(yearEndAdjustments.payrollRunId, run.id),
+              eq(yearEndAdjustments.status, "approved"),
+            ))
+            .returning({ id: yearEndAdjustments.id });
+          if (!settledAdjustment) {
+            throw new Error(
+              `Year-end tax adjustment ${yearEndAdjustmentId} changed while payroll was being released; recalculate before release.`,
+            );
+          }
+          yearEndTaxAdjustmentsSettled += 1;
           continue;
         }
 
