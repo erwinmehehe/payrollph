@@ -83,7 +83,7 @@ test("RCBC export uses an explicit bank-provided mapping and never guesses a pro
   const engine = readFileSync("src/lib/payroll-engine.ts", "utf8");
   assert.ok(exporter.includes('tName.includes("rcbc")'));
   assert.ok(exporter.includes("readDelimitedBankMapping(template.mappings)"));
-  assert.ok(exporter.includes("PayrollPH will not guess a proprietary upload layout"));
+  assert.ok(exporter.includes("PayrollPH will not guess a proprietary layout"));
   assert.ok(exporter.includes("renderMappedBankRows"));
   assert.ok(engine.includes("firstName: employee.firstName"));
   assert.ok(engine.includes("middleName: employee.middleName"));
