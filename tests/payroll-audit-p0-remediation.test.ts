@@ -344,7 +344,7 @@ test("monthly government reports reject first cutoff and aggregate released cuto
 
     const sss = await generateGovernmentDraft(second.id, "sss-r3");
     assert.ok(sss.body.includes("20000.00"), "monthly SSS worksheet should reconcile the full month's remuneration");
-    assert.equal(sss.body.split("\n").filter((row) => row.startsWith("34-1234567-8")).length, 1);
+    assert.equal(sss.body.split("\n").filter((row) => row.includes("34-1234567-8")).length, 1);
 
     const bir = await generateGovernmentDraft(second.id, "bir-1601c");
     assert.ok(bir.body.includes("2026-11"));
