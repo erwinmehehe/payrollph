@@ -34,25 +34,43 @@ test("SSS R-3 draft reports correct EC and full monthly SSS for an employee abov
     startDate: "2026-01-01",
   }).returning();
 
+  const [firstRun] = await db.insert(payrollRuns).values({
+    organizationId: org.id,
+    periodLabel: "Sep 1–15, 2026",
+    periodStart: "2026-09-01",
+    periodEnd: "2026-09-15",
+    payDate: "2026-09-15",
+    status: "Released",
+  }).returning();
   const [run] = await db.insert(payrollRuns).values({
     organizationId: org.id,
     periodLabel: "Sep 16–30, 2026",
     periodStart: "2026-09-16",
     periodEnd: "2026-09-30",
     payDate: "2026-09-30",
+    status: "Released",
   }).returning();
 
-  // Stored line item deliberately holds only the half-month SSS amount, the
-  // way the real payroll engine actually stores it, to prove the exporter no
-  // longer reads (and doubles or under-reports) this half-month figure.
-  await db.insert(payrollEntries).values({
-    payrollRunId: run.id,
-    employeeId: employee.id,
-    grossPay: "15000.00",
-    deductions: "750.00",
-    netPay: "14250.00",
-    lineItems: [{ code: "SSS", amount: "-750.00" }],
-  });
+  // Each stored line holds only its cutoff amount. The monthly exporter must
+  // aggregate both released cutoffs before applying the SSS/MPF/EC table.
+  await db.insert(payrollEntries).values([
+    {
+      payrollRunId: firstRun.id,
+      employeeId: employee.id,
+      grossPay: "15000.00",
+      deductions: "750.00",
+      netPay: "14250.00",
+      lineItems: [{ code: "SSS", amount: "-750.00" }],
+    },
+    {
+      payrollRunId: run.id,
+      employeeId: employee.id,
+      grossPay: "15000.00",
+      deductions: "750.00",
+      netPay: "14250.00",
+      lineItems: [{ code: "SSS", amount: "-750.00" }],
+    },
+  ]);
 
   const file = await generateGovernmentDraft(run.id, "sss-r3");
   const dataLine = file.body.split("\n").find((line) => line.includes("Bautista"));

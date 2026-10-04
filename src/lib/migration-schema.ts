@@ -51,6 +51,17 @@ export async function ensureMigrationSchema() {
       await client.query("ALTER TABLE historical_payroll_entries ADD COLUMN IF NOT EXISTS basic_salary numeric(14,2)");
 
       await client.query(`
+        ALTER TABLE year_end_adjustments
+          ADD COLUMN IF NOT EXISTS applied_payroll_run_id integer REFERENCES payroll_runs(id) ON DELETE RESTRICT,
+          ADD COLUMN IF NOT EXISTS applied_at timestamptz
+      `);
+
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS year_end_adjustments_applied_run_idx
+        ON year_end_adjustments (applied_payroll_run_id)
+      `);
+
+      await client.query(`
         CREATE UNIQUE INDEX IF NOT EXISTS historical_payroll_source_unique
         ON historical_payroll_entries (
           organization_id,

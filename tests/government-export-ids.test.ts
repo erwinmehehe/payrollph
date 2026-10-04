@@ -30,6 +30,7 @@ test("PhilHealth draft uses the real PIN and full monthly premium", async () => 
       periodStart: "2026-09-16",
       periodEnd: "2026-09-30",
       payDate: "2026-09-30",
+      status: "Released",
     }).returning();
     await db.insert(payrollEntries).values({
       payrollRunId: run.id,
@@ -77,6 +78,7 @@ test("Pag-IBIG draft uses the real MID and full monthly contribution", async () 
       periodStart: "2026-09-16",
       periodEnd: "2026-09-30",
       payDate: "2026-09-30",
+      status: "Released",
     }).returning();
     await db.insert(payrollEntries).values({
       payrollRunId: run.id,
@@ -122,6 +124,7 @@ test("government drafts fail closed when agency member IDs are missing", async (
       periodStart: "2026-09-16",
       periodEnd: "2026-09-30",
       payDate: "2026-09-30",
+      status: "Released",
     }).returning();
     await db.insert(payrollEntries).values({
       payrollRunId: run.id,

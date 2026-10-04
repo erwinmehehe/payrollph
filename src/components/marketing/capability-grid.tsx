@@ -14,7 +14,7 @@ export type PublicCapability = {
 };
 
 const STATUS_LABEL: Record<PublicCapability["status"], string> = {
-  verified: "Verified",
+  verified: "Implemented & tested",
   partial: "Partial",
   absent: "Not built",
 };
@@ -55,7 +55,7 @@ export function CapabilityGrid({
           onChange={setFilter}
           options={[
             { value: "all", label: `All (${capabilities.length})` },
-            { value: "verified", label: `Verified (${counts.verified})` },
+            { value: "verified", label: `Implemented & tested (${counts.verified})` },
             { value: "partial", label: `Partial (${counts.partial})` },
             { value: "absent", label: `Not built (${counts.absent})` },
           ]}

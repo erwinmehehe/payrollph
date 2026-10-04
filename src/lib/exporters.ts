@@ -1,6 +1,6 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { db } from "@/db";
-import { bankTemplates, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
+import { bankTemplates, employees, organizations, payrollEntries, payrollRuns, yearEndAdjustments } from "@/db/schema";
 import { decryptBankAccount } from "@/lib/bank-account-crypto";
 import { decryptGovernmentId } from "@/lib/government-id-crypto";
 import { computePagIbig, computePhilHealth, computeSss } from "@/lib/payroll-rules";
@@ -450,6 +450,11 @@ export async function generateJournalCsv(runId: number) {
       else if (code === "HDMF") totals.pagIbigEe += abs;
       else if (code === "HDMF_VOL") totals.pagIbigVoluntary += abs;
       else if (code === "WHT") totals.birWht += abs;
+      else if (code.startsWith("YEAR_END_TAX-")) {
+        // Collection lines are negative payroll deductions and increase BIR
+        // payable; refund lines are positive and reverse prior withholding.
+        totals.birWht += -amount;
+      }
       else if (code.startsWith("LOAN-")) {
         if (/SSS|PAG-IBIG|HDMF/i.test(String(line.label ?? ""))) totals.governmentLoans += abs;
         else totals.companyLoans += abs;
@@ -457,24 +462,36 @@ export async function generateJournalCsv(runId: number) {
       else if (code.startsWith("BENEFIT-") || code.startsWith("BEN-")) totals.benefitDeductions += abs;
     }
 
-    const monthlyRemuneration =
-      traceNumber(entry.trace, "statutoryMonthlyCompensation=")
+    const sssMonthlyRemuneration =
+      traceNumber(entry.trace, "statutoryMonthlySssCompensation=")
+      ?? traceNumber(entry.trace, "statutoryMonthlyCompensation=")
+      ?? Number(employee.basicRate);
+    const pagIbigMonthlyCompensation =
+      traceNumber(entry.trace, "statutoryMonthlyPagIbigCompensation=")
+      ?? traceNumber(entry.trace, "statutoryMonthlyCompensation=")
       ?? Number(employee.basicRate);
     const philHealthBase =
       traceNumber(entry.trace, "philHealthContributionBase=")
       ?? Number(employee.basicRate);
 
-    const sssRule = computeSss(monthlyRemuneration);
+    const sssRule = computeSss(sssMonthlyRemuneration);
     const phRule = computePhilHealth(philHealthBase);
-    const hdmfRule = computePagIbig(monthlyRemuneration);
+    const hdmfRule = computePagIbig(pagIbigMonthlyCompensation);
 
-    // Employer SS excluding EC is always twice the employee's 5% SS share for
-    // the same collected cutoff amount. EC is employer-only and split across
-    // the two standard semi-monthly cutoffs.
-    totals.sssEr += totals.sssEe >= 0 ? Math.max(0, lines.find((line) => String(line.code).toUpperCase() === "SSS") ? 2 * Math.abs(Number(lines.find((line) => String(line.code).toUpperCase() === "SSS")?.amount ?? 0)) : 0) : 0;
-    totals.ecEr += round2(sssRule.employerEC / 2);
-    totals.philHealthEr += round2(phRule.employer / 2);
-    totals.pagIbigEr += round2(hdmfRule.employer / 2);
+    // New payroll entries carry the authoritative employer accrual for this
+    // cutoff. Fallbacks keep historical exports readable, but current runs no
+    // longer assume every organization uses a hardcoded 50/50 split.
+    const sssEmployerCutoff = traceNumber(entry.trace, "sssEmployerCutoff=");
+    const sssEmployerEcCutoff = traceNumber(entry.trace, "sssEmployerEcCutoff=");
+    const philHealthEmployerCutoff = traceNumber(entry.trace, "philHealthEmployerCutoff=");
+    const pagIbigEmployerCutoff = traceNumber(entry.trace, "pagIbigEmployerCutoff=");
+    const sssEmployeeLine = lines.find((line) => String(line.code).toUpperCase() === "SSS");
+
+    totals.sssEr += sssEmployerCutoff
+      ?? (sssEmployeeLine ? 2 * Math.abs(Number(sssEmployeeLine.amount ?? 0)) : 0);
+    totals.ecEr += sssEmployerEcCutoff ?? round2(sssRule.employerEC / 2);
+    totals.philHealthEr += philHealthEmployerCutoff ?? round2(phRule.employer / 2);
+    totals.pagIbigEr += pagIbigEmployerCutoff ?? round2(hdmfRule.employer / 2);
   }
 
   const salaryExpense = round2(totals.gross - totals.reimbursements - totals.deMinimis - totals.attendanceReductions);
@@ -505,7 +522,11 @@ export async function generateJournalCsv(runId: number) {
   credit("Pag-IBIG Employee Contributions Payable", totals.pagIbigEe, "Employee statutory share");
   credit("Pag-IBIG Voluntary Contributions Payable", totals.pagIbigVoluntary, "Employee-elected voluntary contribution");
   credit("Pag-IBIG Employer Contributions Payable", totals.pagIbigEr, "Employer statutory share");
-  credit("BIR Withholding Tax Payable", totals.birWht, "Compensation withholding");
+  if (totals.birWht >= 0) {
+    credit("BIR Withholding Tax Payable", totals.birWht, "Compensation withholding, net of year-end annualization");
+  } else {
+    debit("BIR Withholding Tax Payable", Math.abs(totals.birWht), "Year-end withholding-tax refund exceeds current-cutoff withholding");
+  }
   credit("Government Loan Deductions Payable", totals.governmentLoans, "SSS / Pag-IBIG loan deductions");
   credit("Company Loan Receivable", totals.companyLoans, "Employee company-loan recovery");
   credit("Employee Advances Receivable", totals.advances, "Earned-wage advance recovery");
@@ -560,14 +581,63 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
   }
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) throw new Error("Payroll run not found");
-  const entries = await db.select({
+  let entries = await db.select({
     entry: payrollEntries,
     employee: employees,
+    periodEnd: payrollRuns.periodEnd,
   })
     .from(payrollEntries)
     .innerJoin(employees, eq(payrollEntries.employeeId, employees.id))
+    .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
     .where(eq(payrollEntries.payrollRunId, runId))
     .orderBy(asc(employees.id));
+
+  const monthlyKinds = new Set(["sss-r3", "philhealth-rf1", "pagibig-mcrf", "bir-1601c"]);
+  if (monthlyKinds.has(kind)) {
+    const periodEnd = String(run.periodEnd);
+    const end = new Date(`${periodEnd}T00:00:00Z`);
+    const tomorrow = new Date(end);
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    const isMonthFinalCutoff = tomorrow.getUTCMonth() !== end.getUTCMonth();
+
+    if (run.status !== "Released") {
+      throw new Error("Monthly government reports can be generated only from released payroll.");
+    }
+    if (!isMonthFinalCutoff) {
+      throw new Error(
+        "Monthly government reports require the final cutoff of the month. Generate from the 16th-end-of-month released run so both cutoffs are reconciled.",
+      );
+    }
+
+    const monthStart = `${periodEnd.slice(0, 7)}-01`;
+    entries = await db.select({
+      entry: payrollEntries,
+      employee: employees,
+      periodEnd: payrollRuns.periodEnd,
+    })
+      .from(payrollEntries)
+      .innerJoin(employees, eq(payrollEntries.employeeId, employees.id))
+      .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
+      .where(and(
+        eq(payrollRuns.organizationId, run.organizationId),
+        eq(payrollRuns.status, "Released"),
+        gte(payrollRuns.periodEnd, monthStart),
+        lte(payrollRuns.periodEnd, periodEnd),
+      ))
+      .orderBy(asc(employees.id), asc(payrollRuns.periodEnd), asc(payrollRuns.id));
+  }
+
+  const monthlyEmployeeGroups = new Map<number, {
+    employee: typeof employees.$inferSelect;
+    rows: typeof entries;
+  }>();
+  for (const row of entries) {
+    const current = monthlyEmployeeGroups.get(row.employee.id) ?? { employee: row.employee, rows: [] as typeof entries };
+    current.rows.push(row);
+    current.employee = row.employee;
+    monthlyEmployeeGroups.set(row.employee.id, current);
+  }
+  const monthlyEmployees = [...monthlyEmployeeGroups.values()];
 
   const traceNumber = (trace: unknown, prefix: string) => {
     if (!trace || typeof trace !== "object") return null;
@@ -600,7 +670,7 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     // ₱10.00 for every employee regardless of their actual MSC (correct EC is
     // ₱30 at MSC ≥ ₱15,000, most employees above roughly ₱15,000/month basic
     // pay were being under-reported).
-    const missingSss = entries.filter(({ employee }) => !govId(employee.sssNo));
+    const missingSss = monthlyEmployees.filter(({ employee }) => !govId(employee.sssNo));
     if (missingSss.length > 0) {
       throw new Error(
         `SSS R-3 cannot be generated: ${missingSss.length} employee(s) are missing an SSS number: ${missingSss.map(({ employee }) => employee.employeeNo).join(", ")}.`,
@@ -609,10 +679,17 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
 
     const body = [
       "SSSNo,LastName,FirstName,MiddleName,MSC,RegularMSC,MPFMSC,SS_EE_Regular,SS_EE_MPF,SS_ER_Regular,SS_ER_MPF,EC_Employer,Total_Contribution",
-      ...entries.map(({ employee, entry }) => {
-        const monthlyRemuneration =
-          traceNumber(entry.trace, "statutoryMonthlyCompensation=")
-          ?? Number(employee.basicRate ?? entry.grossPay ?? 0);
+      ...monthlyEmployees.map(({ employee, rows }) => {
+        const monthlyRemuneration = round2(rows.reduce((sum, { entry }) => {
+          const lineItems = Array.isArray(entry.lineItems)
+            ? entry.lineItems as Array<{ code?: string; amount?: string | number }>
+            : [];
+          const reimbursements = lineItems
+            .filter((line) => String(line.code ?? "").startsWith("EXP-"))
+            .reduce((value, line) => value + Math.max(0, Number(line.amount ?? 0) || 0), 0);
+          const excluded = traceNumber(entry.trace, "supplementaryExcludedFromSssBase=") ?? 0;
+          return sum + Math.max(0, Number(entry.grossPay) - reimbursements - excluded);
+        }, 0));
         const sss = computeSss(monthlyRemuneration);
         return [
           govId(employee.sssNo),
@@ -634,12 +711,12 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     return {
       filename: `sss-ecl-r3-worksheet-${run.id}.csv`,
       contentType: "text/csv",
-      body: `${headerNote}\n# SSS employer workflow uses My.SSS e-CL and a PRN. This worksheet is not an SSS acknowledgement or a certified R3 File Generator output.\n# Figures below are full monthly amounts (recomputed from basic pay), not this single cutoff's half-month deduction.\n${body}`,
+      body: `${headerNote}\n# SSS employer workflow uses My.SSS e-CL and a PRN. This worksheet is not an SSS acknowledgement or a certified R3 File Generator output.\n# Figures below are full monthly amounts recomputed from all released cutoffs in the month.\n${body}`,
     };
   }
 
   if (kind === "philhealth-rf1") {
-    const missingPins = entries.filter(({ employee }) => !govId(employee.philHealthNo));
+    const missingPins = monthlyEmployees.filter(({ employee }) => !govId(employee.philHealthNo));
     if (missingPins.length > 0) {
       throw new Error(
         `PhilHealth RF-1 cannot be generated: ${missingPins.length} employee(s) are missing a PhilHealth PIN: ${missingPins.map(({ employee }) => employee.employeeNo).join(", ")}.`,
@@ -648,8 +725,11 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
 
     const body = [
       "PIN,LastName,FirstName,MiddleName,MonthlySalaryBase,EmployeeShare,EmployerShare,TotalPremium",
-      ...entries.map(({ employee, entry }) => {
-        const monthlyBasic = Number(employee.basicRate ?? entry.grossPay ?? 0);
+      ...monthlyEmployees.map(({ employee, rows }) => {
+        const latest = rows[rows.length - 1];
+        const monthlyBasic =
+          traceNumber(latest.entry.trace, "philHealthContributionBase=")
+          ?? Number(employee.basicRate ?? latest.entry.grossPay ?? 0);
         const ph = computePhilHealth(monthlyBasic);
         return [
           govId(employee.philHealthNo),
@@ -666,12 +746,12 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     return {
       filename: `philhealth-eprs-rf1-worksheet-${run.id}.csv`,
       contentType: "text/csv",
-      body: `${headerNote}\n# PhilHealth requires employers to use EPRS for premium reporting and payment. This worksheet is a portal-entry aid, not an EPRS acknowledgement.\n# Full monthly premium amounts are recomputed from monthly basic salary.\n${body}`,
+      body: `${headerNote}\n# PhilHealth requires employers to use EPRS for premium reporting and payment. This worksheet is a portal-entry aid, not an EPRS acknowledgement.\n# Full monthly premium amounts use the latest immutable PhilHealth basic-salary base from the released cutoffs.\n${body}`,
     };
   }
 
   if (kind === "pagibig-mcrf") {
-    const missingMids = entries.filter(({ employee }) => !govId(employee.pagIbigNo));
+    const missingMids = monthlyEmployees.filter(({ employee }) => !govId(employee.pagIbigNo));
     if (missingMids.length > 0) {
       throw new Error(
         `Pag-IBIG MCRF cannot be generated: ${missingMids.length} employee(s) are missing a Pag-IBIG MID: ${missingMids.map(({ employee }) => employee.employeeNo).join(", ")}.`,
@@ -680,10 +760,17 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
 
     const body = [
       "PagIBIGMID,LastName,FirstName,MiddleName,FundSalary,EmployeeShare,EmployerShare,TotalContribution",
-      ...entries.map(({ employee, entry }) => {
-        const monthlyRemuneration =
-          traceNumber(entry.trace, "statutoryMonthlyCompensation=")
-          ?? Number(employee.basicRate ?? entry.grossPay ?? 0);
+      ...monthlyEmployees.map(({ employee, rows }) => {
+        const monthlyRemuneration = round2(rows.reduce((sum, { entry }) => {
+          const lineItems = Array.isArray(entry.lineItems)
+            ? entry.lineItems as Array<{ code?: string; amount?: string | number }>
+            : [];
+          const reimbursements = lineItems
+            .filter((line) => String(line.code ?? "").startsWith("EXP-"))
+            .reduce((value, line) => value + Math.max(0, Number(line.amount ?? 0) || 0), 0);
+          const excluded = traceNumber(entry.trace, "supplementaryExcludedFromPagIbigBase=") ?? 0;
+          return sum + Math.max(0, Number(entry.grossPay) - reimbursements - excluded);
+        }, 0));
         const hd = computePagIbig(monthlyRemuneration);
         return [
           govId(employee.pagIbigNo),
@@ -700,18 +787,27 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     return {
       filename: `pagibig-mcrf-esrs-worksheet-${run.id}.csv`,
       contentType: "text/csv",
-      body: `${headerNote}\n# Pag-IBIG's published MCRF instructions use its prescribed spreadsheet layout and YYYYMM period. This CSV is an assisted worksheet only, not an upload-ready MCRF.\n# Full monthly mandatory contributions are recomputed from monthly basic salary.\n${body}`,
+      body: `${headerNote}\n# Pag-IBIG's published MCRF instructions use its prescribed spreadsheet layout and YYYYMM period. This CSV is an assisted worksheet only, not an upload-ready MCRF.\n# Full monthly mandatory contributions are recomputed from actual released month-to-date Pag-IBIG compensation.\n${body}`,
     };
   }
 
   if (kind === "bir-1601c") {
     const totalWht = entries.reduce((sum, { entry }) => {
-      const wht = Math.abs(Number((entry.lineItems as Array<{ code: string; amount: string }> | undefined)?.find?.((item) => item.code === "WHT")?.amount ?? 0));
-      return sum + wht;
+      const lines = Array.isArray(entry.lineItems)
+        ? entry.lineItems as Array<{ code?: string; amount?: string | number }>
+        : [];
+      return lines.reduce((entryTotal, item) => {
+        const code = String(item.code ?? "").toUpperCase();
+        const amount = Number(item.amount ?? 0);
+        if (!Number.isFinite(amount)) return entryTotal;
+        if (code === "WHT") return entryTotal + Math.abs(amount);
+        if (code.startsWith("YEAR_END_TAX-")) return entryTotal - amount;
+        return entryTotal;
+      }, sum);
     }, 0);
     const body = [
       "Form,Period,WithholdingTax,Employees,Status",
-      ["1601-C", run.periodLabel, totalWht.toFixed(2), String(entries.length), "DRAFT"].map(csv).join(","),
+      ["1601-C", String(run.periodEnd).slice(0, 7), totalWht.toFixed(2), String(monthlyEmployees.length), "DRAFT"].map(csv).join(","),
     ].join("\n");
     return { filename: `bir-1601c-draft-${run.id}.csv`, contentType: "text/csv", body: `${headerNote}\n${body}` };
   }
@@ -720,9 +816,10 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     throw new Error(`Government export "${kind}" is not implemented.`);
   }
 
-  // BIR annual summary input. This remains a source extract, not a claimed
-  // filing-ready DAT. A single cutoff cannot prove the complete annual filing
-  // contract, so the exporter fails closed instead of guessing portal bytes.
+  // BIR annual summary input comes from the year-end annualization ledger,
+  // never from one semi-monthly payroll cutoff. It remains a source extract,
+  // not a claimed ADES/import-ready DAT.
+  const taxYear = Number(String(run.payDate).slice(0, 4));
   const [organization] = await db.select().from(organizations)
     .where(eq(organizations.id, run.organizationId))
     .limit(1);
@@ -733,8 +830,26 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     throw new Error("BIR annual draft cannot be generated: employer BIR TIN and 4-digit branch code are required.");
   }
 
-  const missingTin = entries.filter(({ employee }) => govId(employee.tin).replace(/\D/g, "").length !== 9);
-  const missingBranch = entries.filter(({ employee }) => govId(employee.tinBranchCode).replace(/\D/g, "").length !== 4);
+  const annualRows = await db.select({
+    adjustment: yearEndAdjustments,
+    employee: employees,
+  })
+    .from(yearEndAdjustments)
+    .innerJoin(employees, eq(yearEndAdjustments.employeeId, employees.id))
+    .where(and(
+      eq(yearEndAdjustments.organizationId, run.organizationId),
+      eq(yearEndAdjustments.taxYear, taxYear),
+    ))
+    .orderBy(asc(employees.lastName), asc(employees.firstName), asc(employees.id));
+
+  if (annualRows.length === 0) {
+    throw new Error(
+      `BIR 1604-C annual source cannot be generated: run year-end annualization for ${taxYear} first.`,
+    );
+  }
+
+  const missingTin = annualRows.filter(({ employee }) => govId(employee.tin).replace(/\D/g, "").length !== 9);
+  const missingBranch = annualRows.filter(({ employee }) => govId(employee.tinBranchCode).replace(/\D/g, "").length !== 4);
   if (missingTin.length > 0) {
     throw new Error(
       `BIR annual draft cannot be generated: ${missingTin.length} employee(s) are missing a valid 9-digit TIN: ${missingTin.map(({ employee }) => employee.employeeNo).join(", ")}.`,
@@ -747,26 +862,35 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
   }
 
   const body = [
-    "EmployerTIN,EmployerBranchCode,EmployeeTIN,EmployeeBranchCode,LastName,FirstName,MiddleName,Nationality,GrossCompensation,TaxWithheld,MWE,Status",
-    ...entries.map(({ employee, entry }) => [
-      employerTin,
-      employerBranchCode,
-      govId(employee.tin).replace(/\D/g, ""),
-      govId(employee.tinBranchCode).replace(/\D/g, ""),
-      employee.lastName,
-      employee.firstName,
-      employee.middleName ?? "",
-      employee.nationality ?? "Filipino",
-      entry.grossPay,
-      Math.abs(Number((entry.lineItems as Array<{ code: string; amount: string }> | undefined)?.find?.((item) => item.code === "WHT")?.amount ?? 0)).toFixed(2),
-      employee.mwe ? "Y" : "N",
-      "DRAFT",
-    ].map(csv).join(",")),
+    "EmployerTIN,EmployerBranchCode,EmployeeTIN,EmployeeBranchCode,LastName,FirstName,MiddleName,Nationality,GrossCompensation,TaxDue,TaxWithheldBeforeAnnualization,YearEndAdjustment,FinalTaxWithheld,MWE,Outcome,Status",
+    ...annualRows.map(({ employee, adjustment }) => {
+      const taxWithheldBefore = Number(adjustment.taxWithheld);
+      const yearEndAdjustment = Number(adjustment.adjustment);
+      const finalTaxWithheld = round2(taxWithheldBefore + yearEndAdjustment);
+      return [
+        employerTin,
+        employerBranchCode,
+        govId(employee.tin).replace(/\D/g, ""),
+        govId(employee.tinBranchCode).replace(/\D/g, ""),
+        employee.lastName,
+        employee.firstName,
+        employee.middleName ?? "",
+        employee.nationality ?? "Filipino",
+        adjustment.grossCompensation,
+        adjustment.taxDue,
+        adjustment.taxWithheld,
+        adjustment.adjustment,
+        finalTaxWithheld.toFixed(2),
+        adjustment.mwe ? "Y" : "N",
+        adjustment.outcome,
+        "DRAFT",
+      ].map(csv).join(",");
+    }),
   ].join("\n");
 
   return {
-    filename: `bir-1604c-annual-source-${run.id}.csv`,
+    filename: `bir-1604c-annual-source-${taxYear}.csv`,
     contentType: "text/csv",
-    body: `${headerNote}\n# Source extract only. Validate and transform this annual dataset through the current BIR validation workflow before filing.\n${body}`,
+    body: `${headerNote}\n# Full-year source extract from the approved year-end annualization ledger. Not an ADES .DAT file and not portal validated.\n# Validate and transform this annual dataset through the current BIR submission workflow before filing.\n${body}`,
   };
 }

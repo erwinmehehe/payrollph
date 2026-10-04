@@ -456,6 +456,8 @@ export const yearEndAdjustments = pgTable("year_end_adjustments", {
   mwe: boolean("mwe").notNull().default(false),
   breakdown: jsonb("breakdown").notNull().default({}),
   ruleVersion: varchar("rule_version", { length: 48 }).notNull().default("PH-2026.01"),
+  appliedPayrollRunId: integer("applied_payroll_run_id").references(() => payrollRuns.id, { onDelete: "restrict" }),
+  appliedAt: timestamp("applied_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -49,7 +49,7 @@ export type FilingFormDefinition = {
 };
 
 export const SSS_R3_GENERATOR_VERSION = "sss-r3-worksheet-v2";
-export const BIR_1604C_GENERATOR_VERSION = "bir-1604c-source-v1";
+export const BIR_1604C_GENERATOR_VERSION = "bir-1604c-source-v2";
 export const PHILHEALTH_RF1_GENERATOR_VERSION = "philhealth-rf1-worksheet-v1";
 export const PAGIBIG_MCRF_GENERATOR_VERSION = "pagibig-mcrf-worksheet-v1";
 
@@ -90,7 +90,7 @@ export const FILING_FORMS: readonly FilingFormDefinition[] = [
       },
       manualEntryNote: "If you typed the figures into ADES, record it as typed in: it is kept, but it does not prove Linaw's extract loads.",
       answerLabel: "BIR validation report or ticket reference",
-      scopeNote: "Linaw builds this extract from one payroll run, not the whole tax year. An acceptance shows the layout and ID fields validate in ADES. It does not show the annual totals are complete.",
+      scopeNote: "Linaw builds this source extract from the full year-end annualization ledger, including approved offboarding annualization snapshots. It is still not an ADES .DAT file, so acceptance must be proven in the current BIR validation workflow.",
       unconfirmedNote: "ADES produces the final .DAT you email to BIR; Linaw does not produce that .DAT. It is not confirmed that ADES can load this CSV, so a rejection or a typed-in filing is useful information, record it.",
     },
   },

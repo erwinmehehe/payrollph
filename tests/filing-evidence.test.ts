@@ -119,7 +119,7 @@ test("changing a tracked file's columns forces a generator version bump", () => 
     { form: "SSS R-3", pattern: /"(SSSNo,LastName[^"]+)"/, version: SSS_R3_GENERATOR_VERSION, expected: "sss-r3-worksheet-v2|SSSNo,LastName,FirstName,MiddleName,MSC,RegularMSC,MPFMSC,SS_EE_Regular,SS_EE_MPF,SS_ER_Regular,SS_ER_MPF,EC_Employer,Total_Contribution" },
     { form: "Pag-IBIG MCRF", pattern: /"(PagIBIGMID,LastName[^"]+)"/, version: PAGIBIG_MCRF_GENERATOR_VERSION, expected: "pagibig-mcrf-worksheet-v1|PagIBIGMID,LastName,FirstName,MiddleName,FundSalary,EmployeeShare,EmployerShare,TotalContribution" },
     { form: "PhilHealth RF-1", pattern: /"(PIN,LastName[^"]+)"/, version: PHILHEALTH_RF1_GENERATOR_VERSION, expected: "philhealth-rf1-worksheet-v1|PIN,LastName,FirstName,MiddleName,MonthlySalaryBase,EmployeeShare,EmployerShare,TotalPremium" },
-    { form: "BIR 1604-C", pattern: /"(EmployerTIN,EmployerBranchCode[^"]+)"/, version: BIR_1604C_GENERATOR_VERSION, expected: "bir-1604c-source-v1|EmployerTIN,EmployerBranchCode,EmployeeTIN,EmployeeBranchCode,LastName,FirstName,MiddleName,Nationality,GrossCompensation,TaxWithheld,MWE,Status" },
+    { form: "BIR 1604-C", pattern: /"(EmployerTIN,EmployerBranchCode[^"]+)"/, version: BIR_1604C_GENERATOR_VERSION, expected: "bir-1604c-source-v2|EmployerTIN,EmployerBranchCode,EmployeeTIN,EmployeeBranchCode,LastName,FirstName,MiddleName,Nationality,GrossCompensation,TaxDue,TaxWithheldBeforeAnnualization,YearEndAdjustment,FinalTaxWithheld,MWE,Outcome,Status" },
   ];
   for (const pin of pins) {
     const header = source.match(pin.pattern)?.[1];
