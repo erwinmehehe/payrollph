@@ -45,6 +45,7 @@ async function addMonthlyEmployee(organizationId: number, employeeNo: string, mo
     basicRate: monthlyRate.toFixed(2),
     restDay: "Sunday",
     pagIbigNo: "123456789012",
+    mobile: "09171234567",
     startDate: "2025-01-01",
   }).returning();
   await db.insert(employeePayProfiles).values({
