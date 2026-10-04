@@ -335,6 +335,32 @@ export const timePunches = pgTable("time_punches", {
   notes: text("notes"),
 });
 
+export const overtimeRequests = pgTable(
+  "overtime_requests",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    workDate: date("work_date").notNull(),
+    requestedMinutes: integer("requested_minutes").notNull(),
+    reason: varchar("reason", { length: 240 }).notNull(),
+    requestKind: varchar("request_kind", { length: 32 }).notNull().default("pre_approved"),
+    status: varchar("status", { length: 24 }).notNull().default("pending"),
+    approvalTaskId: integer("approval_task_id"),
+    requestedBy: varchar("requested_by", { length: 120 }).notNull(),
+    decidedBy: varchar("decided_by", { length: 120 }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decisionNote: varchar("decision_note", { length: 240 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("overtime_requests_org_date_idx").on(table.organizationId, table.workDate),
+    index("overtime_requests_employee_date_idx").on(table.employeeId, table.workDate),
+    index("overtime_requests_status_idx").on(table.organizationId, table.status),
+  ],
+);
+
 export const payrollRuns = pgTable("payroll_runs", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
