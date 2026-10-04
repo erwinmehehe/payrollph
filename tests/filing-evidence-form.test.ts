@@ -48,10 +48,11 @@ test("the form is honest about what counts and that results are permanent", () =
   }
 });
 
-test("BIR's card says what an acceptance does not prove", () => {
+test("BIR's card says what source-extract acceptance does not prove", () => {
   const bir = FILING_FORMS.find((item) => item.agency === "BIR")!;
-  assert.match(bir.copy.scopeNote ?? "", /one payroll run, not the whole tax year/);
-  assert.match(bir.copy.scopeNote ?? "", /does not show the annual totals are complete/);
+  assert.match(bir.copy.scopeNote ?? "", /source extract for BIR validation/);
+  assert.match(bir.copy.scopeNote ?? "", /does not replace BIR Alphalist v7\.4 validation/);
+  assert.match(bir.copy.scopeNote ?? "", /annual filing acknowledgement/);
   assert.match(bir.copy.unconfirmedNote, /Linaw does not produce that \.DAT/);
   assert.ok(panel.includes("copy.scopeNote"), "the panel must show the scope note");
 });
@@ -64,13 +65,13 @@ test("PhilHealth's card says what the receipt does and does not show", () => {
   assert.match(ph.copy.unconfirmedNote, /not confirmed that Linaw's CSV matches/);
 });
 
-test("Pag-IBIG's card separates a payment instruction from a posted remittance, and names the 30-employee limit", () => {
+test("Pag-IBIG's card separates workflow acceptance from final member posting", () => {
   const pi = FILING_FORMS.find((item) => item.agency === "Pag-IBIG")!;
   assert.match(pi.copy.answerLabel, /OPIN/);
-  assert.match(pi.copy.scopeNote ?? "", /does not show the remittance was posted/);
-  assert.match(pi.copy.scopeNote ?? "", /at most 30 employees/);
-  assert.match(pi.copy.unconfirmedNote, /official pages could not be read/);
-  assert.match(pi.copy.unconfirmedNote, /not confirmed that Linaw's CSV matches/);
+  assert.match(pi.copy.scopeNote ?? "", /does not by itself prove/);
+  assert.match(pi.copy.scopeNote ?? "", /finally posted to every member account/);
+  assert.match(pi.copy.unconfirmedNote, /publishes MCRF spreadsheet encoding instructions/);
+  assert.match(pi.copy.unconfirmedNote, /does not claim that this CSV is the agency-prescribed upload workbook/);
 });
 
 test("every Draft button on the exports page sends a kind the generator accepts", () => {
