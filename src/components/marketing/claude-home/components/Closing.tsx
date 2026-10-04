@@ -110,7 +110,7 @@ export function CTA() {
   return (
     <section id="cta" className="scroll-mt-20 px-5 pb-20 pt-2 sm:px-8 sm:pb-24">
       <Reveal>
-        <div className="relative mx-auto min-h-[360px] max-w-[1200px] overflow-hidden rounded-[34px] bg-[#11141F] px-6 py-16 text-center text-white sm:flex sm:min-h-[400px] sm:items-center sm:justify-center sm:px-12 sm:py-18">
+        <div className="relative mx-auto min-h-[360px] max-w-[1200px] overflow-hidden rounded-[34px] bg-[#11141F] px-6 py-16 text-center text-white sm:flex sm:min-h-[400px] sm:items-center sm:justify-center sm:px-12 sm:py-20">
           <div aria-hidden className="pointer-events-none absolute inset-0">
             <div className="bg-grid absolute inset-0 opacity-[0.12] [background-image:linear-gradient(to_right,rgba(255,255,255,0.5)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.5)_1px,transparent_1px)]" />
             <div className="absolute -left-24 -top-24 h-80 w-80 rounded-full bg-[#6161FF] opacity-55 blur-[110px]" />
