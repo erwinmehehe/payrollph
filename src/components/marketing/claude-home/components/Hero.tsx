@@ -1,26 +1,11 @@
-import {
-  AlertTriangle,
-  ArrowRight,
-  Bell,
-  CheckCircle2,
-  ClipboardCheck,
-  Search,
-  ShieldCheck,
-  UsersRound,
-  WalletCards,
-} from "lucide-react";
+import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { WorkspacePreview } from "@/components/marketing/workspace-preview";
 import { Reveal } from "./ui";
 
 const trustPoints = [
-  "Philippine statutory payroll rules modeled",
+  "SSS, PhilHealth, Pag-IBIG & TRAIN calculations",
   "Government worksheets clearly labelled",
   "Maker-checker release controls",
-] as const;
-
-const recentRuns = [
-  { period: "Oct 1–15, 2026", amount: "₱ 1,248,530", status: "For Approval" },
-  { period: "Sep 16–30, 2026", amount: "₱ 1,236,400", status: "Released" },
-  { period: "Sep 1–15, 2026", amount: "₱ 1,198,450", status: "Released" },
 ] as const;
 
 export default function Hero() {
@@ -73,113 +58,16 @@ export default function Hero() {
         </div>
 
         <Reveal delay={150} className="payroll-home-visual-wrap">
-          <div className="payroll-home-visual" aria-label="Linaw payroll release preview">
-            <div className="payroll-hero-laptop">
-              <div className="payroll-hero-screen">
-                <div className="payroll-hero-appbar">
-                  <div className="payroll-hero-brand">
-                    <span className="payroll-hero-brand-mark"><ShieldCheck size={13} aria-hidden /></span>
-                    <strong>linaw</strong>
-                  </div>
-                  <div className="payroll-hero-search">
-                    <Search size={11} aria-hidden />
-                    <span>Search employees, payroll, reports...</span>
-                  </div>
-                  <div className="payroll-hero-app-actions">
-                    <Bell size={13} aria-hidden />
-                    <span className="payroll-hero-avatar">MA</span>
-                  </div>
-                </div>
-
-                <div className="payroll-hero-app">
-                  <aside className="payroll-hero-sidebar">
-                    {[
-                      ["Dashboard", true],
-                      ["Employees", false],
-                      ["Payroll", false],
-                      ["Approvals", false],
-                      ["Government Reports", false],
-                      ["Reports", false],
-                      ["Settings", false],
-                    ].map(([label, active]) => (
-                      <div key={String(label)} className={active ? "active" : ""}>
-                        <span />
-                        {label}
-                      </div>
-                    ))}
-                  </aside>
-
-                  <div className="payroll-hero-main">
-                    <div className="payroll-hero-welcome">
-                      <div>
-                        <h2>October payroll is ready for review.</h2>
-                        <p>See what changed and clear the blockers before money moves.</p>
-                      </div>
-                    </div>
-
-                    <div className="payroll-hero-alert">
-                      <div className="payroll-hero-alert-icon" aria-hidden>
-                        <AlertTriangle size={18} />
-                      </div>
-                      <div className="payroll-hero-alert-copy">
-                        <strong>3 things need attention</strong>
-                        <span>Resolve these before sending payroll for approval.</span>
-                        <ul>
-                          <li><i className="danger" /><span>2 employees are missing bank details</span></li>
-                          <li><i className="warning" /><span>1 payroll exception needs review</span></li>
-                          <li><i className="info" /><span>Checker approval is due</span></li>
-                        </ul>
-                      </div>
-                      <button type="button" tabIndex={-1}>Review issues <ArrowRight size={10} aria-hidden /></button>
-                    </div>
-
-                    <div className="payroll-hero-metrics">
-                      <article>
-                        <span className="green"><WalletCards size={13} /></span>
-                        <div><small>Payroll Status</small><strong>Ready for review</strong></div>
-                      </article>
-                      <article>
-                        <span className="blue"><UsersRound size={13} /></span>
-                        <div><small>Employees</small><strong>124</strong></div>
-                      </article>
-                      <article>
-                        <span className="red"><AlertTriangle size={13} /></span>
-                        <div><small>Exceptions</small><strong>3</strong></div>
-                      </article>
-                      <article>
-                        <span className="blue"><ClipboardCheck size={13} /></span>
-                        <div><small>For Approval</small><strong>1</strong></div>
-                      </article>
-                    </div>
-
-                    <div className="payroll-hero-table">
-                      <header>
-                        <strong>Recent Payroll Runs</strong>
-                        <span>View all</span>
-                      </header>
-                      <div className="payroll-hero-table-head">
-                        <span>Period</span><span>Employees</span><span>Total Amount</span><span>Status</span>
-                      </div>
-                      {recentRuns.map((run) => (
-                        <div className="payroll-hero-table-row" key={run.period}>
-                          <strong>{run.period}</strong>
-                          <span>124</span>
-                          <span>{run.amount}</span>
-                          <span className={run.status === "Released" ? "released" : "approval"}>{run.status}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="payroll-hero-laptop-base" aria-hidden>
-                <span />
+          <div className="payroll-home-visual" aria-label="Actual Linaw payroll workspace preview">
+            <div className="payroll-home-preview-label">
+              <span>Actual Linaw workspace</span>
+              <small>Sample payroll · nothing saved</small>
+            </div>
+            <div className="payroll-home-real-preview system-demo-stage">
+              <div className="system-demo-product">
+                <WorkspacePreview mode="showcase" />
               </div>
             </div>
-
-            <div className="payroll-home-orbit payroll-home-orbit-one" aria-hidden />
-            <div className="payroll-home-orbit payroll-home-orbit-two" aria-hidden />
           </div>
         </Reveal>
       </div>
