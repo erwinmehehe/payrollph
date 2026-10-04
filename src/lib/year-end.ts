@@ -301,7 +301,8 @@ export async function runYearEndAnnualization(
       thirteenthEntitlement,
       thirteenthAlreadyPaid,
       deMinimisExempt,
-      otherBenefitsPool,
+      deMinimisExcess,
+      otherBenefits,
       mweTaxableSupplementaryCompensation,
     }) => ({
       organizationId,
