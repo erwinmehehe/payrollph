@@ -19,6 +19,7 @@ import {
   payrollEntries,
   payrollRuns,
   supplementaryEarnings,
+  yearEndAdjustments,
 } from "@/db/schema";
 
 function money(value: number) {
@@ -360,9 +361,50 @@ export async function settlePayrollRun(
     let leaveConversionsSettled = 0;
     let retroAdjustmentsSettled = 0;
     let supplementaryEarningsSettled = 0;
+    let yearEndTaxAdjustmentsSettled = 0;
 
     for (const entry of entries) {
       for (const line of storedLines(entry.lineItems)) {
+        const yearEndAdjustmentId = numericId(line.code, "YEAR_END_TAX-");
+        if (yearEndAdjustmentId) {
+          const [adjustment] = await tx.select().from(yearEndAdjustments).where(and(
+            eq(yearEndAdjustments.id, yearEndAdjustmentId),
+            eq(yearEndAdjustments.organizationId, run.organizationId),
+          )).limit(1);
+          if (!adjustment || adjustment.employeeId !== entry.employeeId) {
+            throw new Error(`Year-end tax adjustment ${yearEndAdjustmentId} no longer matches this payroll entry.`);
+          }
+          if (adjustment.taxYear !== Number(String(run.payDate).slice(0, 4))) {
+            throw new Error(`Year-end tax adjustment ${yearEndAdjustmentId} belongs to a different tax year.`);
+          }
+          if (!samePayrollNumber(-Number(adjustment.adjustment), line.amount)) {
+            throw new Error(
+              `Year-end tax adjustment ${yearEndAdjustmentId} changed after staging; recompute year-end tax before release.`,
+            );
+          }
+          if (adjustment.appliedPayrollRunId != null && adjustment.appliedPayrollRunId !== run.id) {
+            throw new Error(`Year-end tax adjustment ${yearEndAdjustmentId} was already settled by another payroll run.`);
+          }
+          if (adjustment.appliedPayrollRunId === run.id && adjustment.appliedAt) continue;
+
+          const [settledAdjustment] = await tx.update(yearEndAdjustments)
+            .set({ appliedPayrollRunId: run.id, appliedAt: new Date() })
+            .where(and(
+              eq(yearEndAdjustments.id, yearEndAdjustmentId),
+              eq(yearEndAdjustments.organizationId, run.organizationId),
+              isNull(yearEndAdjustments.appliedPayrollRunId),
+              isNull(yearEndAdjustments.appliedAt),
+            ))
+            .returning({ id: yearEndAdjustments.id });
+          if (!settledAdjustment) {
+            throw new Error(
+              `Year-end tax adjustment ${yearEndAdjustmentId} changed while payroll was being released; recompute before release.`,
+            );
+          }
+          yearEndTaxAdjustmentsSettled += 1;
+          continue;
+        }
+
         const expenseId = numericId(line.code, "EXP-");
         if (expenseId) {
           const [claim] = await tx
@@ -631,6 +673,7 @@ export async function settlePayrollRun(
       leaveConversionsSettled,
       retroAdjustmentsSettled,
       supplementaryEarningsSettled,
+      yearEndTaxAdjustmentsSettled,
     };
 
     // The release audit is part of the same transaction as the ledger changes.
