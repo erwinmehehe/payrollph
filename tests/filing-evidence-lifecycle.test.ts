@@ -233,7 +233,7 @@ test("a BIR 1604-C record is tracked separately and its acceptance never counts 
     assert.equal(dataLines.length, 2, "annual source should contain one header and one row per employee");
     assert.match(
       dataLines[1],
-      /,40000\.00,1900\.00,N,DRAFT$/,
+      /,"40000\.00","1900\.00","N","DRAFT"$/,
       "annual source must include only released 2026 payrolls and apply the signed year-end refund",
     );
 
