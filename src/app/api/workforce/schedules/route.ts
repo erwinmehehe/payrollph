@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employeeScheduleAssignments,
@@ -41,6 +41,17 @@ function cleanCode(value: unknown) {
 
 function validDate(value: unknown) {
   return ISO_DATE.test(String(value ?? ""));
+}
+
+function inclusiveDates(startDate: string, endDate: string) {
+  const start = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return [];
+  const dates: string[] = [];
+  for (let cursor = new Date(start); cursor <= end && dates.length <= 42; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+    dates.push(cursor.toISOString().slice(0, 10));
+  }
+  return dates;
 }
 
 async function scopedEmployee(userId: number, organizationId: number, employeeId: number) {
@@ -117,12 +128,25 @@ export async function GET(request: Request) {
 
   const employeeIdRaw = url.searchParams.get("employeeId");
   const date = String(url.searchParams.get("date") ?? "").trim();
+  const startDate = String(url.searchParams.get("startDate") ?? "").trim();
+  const endDate = String(url.searchParams.get("endDate") ?? "").trim();
 
-  if (employeeIdRaw || date) {
+  if (employeeIdRaw || date || startDate || endDate) {
     const employeeId = Number(employeeIdRaw);
-    if (!Number.isInteger(employeeId) || !validDate(date)) {
+    const singleDateMode = Boolean(date);
+    const rangeMode = Boolean(startDate || endDate);
+    const previewDates = singleDateMode
+      ? (validDate(date) ? [date] : [])
+      : (validDate(startDate) && validDate(endDate) ? inclusiveDates(startDate, endDate) : []);
+
+    if (
+      !Number.isInteger(employeeId)
+      || (singleDateMode && rangeMode)
+      || previewDates.length === 0
+      || previewDates.length > 42
+    ) {
       return Response.json({
-        error: "employeeId and date (YYYY-MM-DD) are both required for schedule preview.",
+        error: "employeeId plus either date, or startDate/endDate (YYYY-MM-DD, maximum 42 days), is required for schedule preview.",
       }, { status: 400 });
     }
 
@@ -130,6 +154,8 @@ export async function GET(request: Request) {
     if (employeeCheck.denied) return employeeCheck.denied;
 
     const data = await organizationScheduleData(organizationId);
+    const rangeStart = previewDates[0];
+    const rangeEnd = previewDates[previewDates.length - 1];
     const [assignments, overrides] = await Promise.all([
       db.select().from(employeeScheduleAssignments).where(and(
         eq(employeeScheduleAssignments.organizationId, organizationId),
@@ -138,12 +164,12 @@ export async function GET(request: Request) {
       db.select().from(scheduleOverrides).where(and(
         eq(scheduleOverrides.organizationId, organizationId),
         eq(scheduleOverrides.employeeId, employeeId),
-        eq(scheduleOverrides.workDate, date),
-      )).orderBy(asc(scheduleOverrides.id)),
+        gte(scheduleOverrides.workDate, rangeStart),
+        lte(scheduleOverrides.workDate, rangeEnd),
+      )).orderBy(asc(scheduleOverrides.workDate), asc(scheduleOverrides.id)),
     ]);
 
-    const resolved = resolveDailySchedule({
-      date,
+    const resolverInput = {
       assignments: assignments.map((row) => ({
         id: row.id,
         patternId: row.patternId,
@@ -191,7 +217,12 @@ export async function GET(request: Request) {
         status: row.status as "pending" | "approved" | "rejected" | "cancelled",
         reason: row.reason,
       })),
-    });
+    };
+
+    const resolvedDays = previewDates.map((previewDate) => resolveDailySchedule({
+      date: previewDate,
+      ...resolverInput,
+    }));
 
     return Response.json({
       employee: {
@@ -199,7 +230,8 @@ export async function GET(request: Request) {
         employeeNo: employeeCheck.employee!.employeeNo,
         name: `${employeeCheck.employee!.firstName} ${employeeCheck.employee!.lastName}`,
       },
-      resolved,
+      resolved: resolvedDays.length === 1 ? resolvedDays[0] : null,
+      resolvedDays,
     });
   }
 
