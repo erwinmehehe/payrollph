@@ -57,7 +57,7 @@ test("fresh tenant pilot stays out of demo provisioning and proves the five hand
   assert.ok(pilot.includes("payroll-submitted-by-payroll-officer"));
   assert.ok(pilot.includes("payroll-approved-by-independent-checker"));
   assert.ok(pilot.includes("owner-released-payroll"));
-  assert.ok(pilot.includes("final-bank-file-generated"));
+  assert.ok(pilot.includes("paymongo-preflight-fails-closed-without-provider-credentials"));
   assert.ok(pilot.includes("employee-payslip-available"));
   assert.ok(pilot.includes("isEncryptedBankAccount"));
   assert.ok(workflow.includes('DEMO_MODE: "false"'));

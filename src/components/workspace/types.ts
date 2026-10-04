@@ -68,7 +68,7 @@ export type PayrollReleaseReceipt = {
     generatedAt?: string | null;
   };
   payout?: {
-    status: "waiting-for-file" | "ready" | "submitted" | "completed";
+    status: "awaiting-preflight" | "ready" | "submitted" | "completed";
     label: string;
     reference?: string | null;
     method?: string | null;

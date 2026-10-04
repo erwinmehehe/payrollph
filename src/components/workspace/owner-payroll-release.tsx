@@ -60,22 +60,22 @@ export function OwnerPayrollRelease({
   const checklistLoading = checklist == null;
 
   const bankReady = Boolean(bankCheck?.passed);
-  const bankStatus = run.status === "Released"
-    ? payout.bankFile.status === "generated"
-      ? "Generated"
-      : "Waiting"
+  const payoutStatus = run.status === "Released"
+    ? payout.payout.status === "completed"
+      ? "Completed"
+      : payout.payout.status === "submitted"
+        ? "Submitted"
+        : payout.payout.status === "ready"
+          ? "Ready"
+          : "Preflight required"
     : bankReady
-      ? "Ready after release"
+      ? "Destinations ready"
       : "Blocked";
 
-  const bankDetail = run.status === "Released"
-    ? payout.bankFile.status === "generated"
-      ? payout.bankFile.filename
-        ? `${payout.bankFile.filename} · ${payout.bankFile.template ?? "bank template"}`
-        : "Final bank file generated."
-      : "Payroll is released. Generate the final bank file from Exports."
+  const payoutDetail = run.status === "Released"
+    ? payout.payout.label
     : bankReady
-      ? `Payout details are complete. ${data.templates.length ? `${data.templates.length} active bank template${data.templates.length === 1 ? "" : "s"} available.` : "Final bank export becomes available after release."}`
+      ? "Employee payout destinations are complete. After release, run the no-money PayMongo preflight before the Owner submits funds."
       : bankCheck?.detail ?? "Checking employee payout details.";
 
   const releaseLabel = summary.released
@@ -175,10 +175,10 @@ export function OwnerPayrollRelease({
 
         <ReleaseGate
           icon={<Banknote size={15} />}
-          title="Bank / export readiness"
-          status={bankStatus}
-          good={bankReady || run.status === "Released"}
-          detail={bankDetail}
+          title="Payout readiness"
+          status={payoutStatus}
+          good={bankReady || payout.payout.status === "ready" || payout.payout.status === "submitted" || payout.payout.status === "completed"}
+          detail={payoutDetail}
           action={run.status === "Released" ? (
             <button className="secondary-button" onClick={() => onPage("Exports")}>Open exports</button>
           ) : !bankReady ? (
@@ -242,7 +242,7 @@ export function OwnerPayrollRelease({
         </span>
         <WalletCards size={13} />
         <span>
-          Final bank files remain post-release artifacts, so payout destinations are checked now and the immutable bank export is generated after release.
+          PayMongo is the primary payout rail. After release, run its no-money preflight before submitting funds. Validated bank files remain an optional fallback.
         </span>
       </div>
     </section>

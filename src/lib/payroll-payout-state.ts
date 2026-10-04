@@ -25,7 +25,7 @@ export type PayrollPayoutState = {
     generatedAt: string | null;
   };
   payout: {
-    status: "waiting-for-file" | "ready" | "submitted" | "completed";
+    status: "awaiting-preflight" | "ready" | "submitted" | "completed";
     label: string;
     reference: string | null;
     method: string | null;
@@ -118,6 +118,14 @@ export function derivePayrollPayoutState(events: AuditEvent[], runId: number): P
     const meta = metadata(event);
     return event.action === "bank export generated" && meta.kind === "bank" && meta.dryRun !== true;
   });
+
+  const latestPreflight = relevant.find((event) =>
+    event.action === "PayMongo payroll preflight passed"
+    || event.action === "PayMongo payroll preflight blocked: wallet underfunded"
+    || event.action === "PayMongo payroll preflight failed"
+  );
+  const preflightPassed = latestPreflight?.action === "PayMongo payroll preflight passed";
+  const preflightMeta = latestPreflight ? metadata(latestPreflight) : {};
 
   const manualCompletion = relevant.find((event) => event.action === "Payroll payout completed manually");
   const providerCompletion = relevant.find((event) => event.action === "Payroll payout completed via PayMongo");
@@ -292,21 +300,36 @@ export function derivePayrollPayoutState(events: AuditEvent[], runId: number): P
                 : latestCheckedAt
               : null,
           }
-        : bankFile
+        : preflightPassed
           ? {
               status: "ready",
-              label: "Bank file generated; record the bank confirmation after payout",
+              label: "PayMongo preflight passed; the Owner can submit the payout.",
               reference: null,
-              method: null,
+              method: "PayMongo",
               completedAt: null,
             }
-          : {
-              status: "waiting-for-file",
-              label: "Generate the final bank file before recording payout completion",
-              reference: null,
-              method: null,
-              completedAt: null,
-            },
+          : bankFile
+            ? {
+                status: "ready",
+                label: "Fallback bank file generated; record the bank confirmation after payout.",
+                reference: null,
+                method: "bank-file",
+                completedAt: null,
+              }
+            : {
+                status: "awaiting-preflight",
+                label:
+                  latestPreflight?.action === "PayMongo payroll preflight blocked: wallet underfunded"
+                    ? `PayMongo preflight found a wallet funding shortfall of PHP ${(
+                        Number((preflightMeta.wallet as Record<string, unknown> | undefined)?.shortfallCents ?? 0) / 100
+                      ).toFixed(2)}. Top up the wallet and run preflight again.`
+                    : latestPreflight?.action === "PayMongo payroll preflight failed"
+                      ? "PayMongo preflight needs attention. Fix the provider or employee bank mapping issue and retry."
+                      : "Run the no-money PayMongo preflight before submitting payroll payout. Bank files are an optional fallback.",
+                reference: null,
+                method: "PayMongo",
+                completedAt: null,
+              },
     reconciliation: {
       provider: providerStarted ? "PayMongo" : null,
       status: reconciliationStatus,

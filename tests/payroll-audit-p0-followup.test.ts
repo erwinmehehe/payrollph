@@ -194,8 +194,8 @@ test("Pag-IBIG monthly worksheet uses its dedicated compensation base, not the S
     const dataRow = draft.body.split("\n").find((row) => row.includes("123456789012"));
     assert.ok(dataRow);
     const columns = dataRow!.split(",").map((cell) => cell.replace(/^"|"$/g, ""));
-    assert.equal(Number(columns[4]), computePagIbig(hdmfBase).fundSalary);
-    assert.equal(Number(columns[4]), 1000);
+    assert.equal(Number(columns[11]), computePagIbig(hdmfBase).fundSalary);
+    assert.equal(Number(columns[11]), 1000);
   } finally {
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }

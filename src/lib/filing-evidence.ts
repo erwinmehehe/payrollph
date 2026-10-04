@@ -51,7 +51,7 @@ export type FilingFormDefinition = {
 export const SSS_R3_GENERATOR_VERSION = "sss-r3-worksheet-v2";
 export const BIR_1604C_GENERATOR_VERSION = "bir-1604c-source-v1";
 export const PHILHEALTH_RF1_GENERATOR_VERSION = "philhealth-rf1-worksheet-v1";
-export const PAGIBIG_MCRF_GENERATOR_VERSION = "pagibig-mcrf-worksheet-v1";
+export const PAGIBIG_MCRF_GENERATOR_VERSION = "pagibig-mcrf-worksheet-v2";
 
 export const FILING_FORMS: readonly FilingFormDefinition[] = [
   {
@@ -90,7 +90,7 @@ export const FILING_FORMS: readonly FilingFormDefinition[] = [
       },
       manualEntryNote: "If you typed the figures into ADES, record it as typed in: it is kept, but it does not prove Linaw's extract loads.",
       answerLabel: "BIR validation report or ticket reference",
-      scopeNote: "Linaw builds this extract from one payroll run, not the whole tax year. An acceptance shows the layout and ID fields validate in ADES. It does not show the annual totals are complete.",
+      scopeNote: "Linaw provides a source extract for BIR validation. A recorded acceptance proves only the exact generator version and dataset submitted; it does not replace BIR Alphalist v7.4 validation or the annual filing acknowledgement.",
       unconfirmedNote: "ADES produces the final .DAT you email to BIR; Linaw does not produce that .DAT. It is not confirmed that ADES can load this CSV, so a rejection or a typed-in filing is useful information, record it.",
     },
   },
@@ -130,8 +130,8 @@ export const FILING_FORMS: readonly FilingFormDefinition[] = [
       },
       manualEntryNote: "If you typed the figures in, record it as typed in: it is kept, but it does not prove Linaw's file loads.",
       answerLabel: "Pag-IBIG payment instruction number (OPIN) or confirmation reference",
-      scopeNote: "A payment instruction number shows Pag-IBIG or your bank validated the file and set up a payment. It does not show the remittance was posted to your Pag-IBIG account, so confirm that separately. eSRS is open only to employers with at most 30 employees; larger employers upload through a bank facility.",
-      unconfirmedNote: "These upload routes take a CSV in Pag-IBIG's own prescribed layout, and Pag-IBIG's official pages could not be read when this was written. It is not confirmed that Linaw's CSV matches, so a rejection or a typed-in filing is useful information, record it.",
+      scopeNote: "A payment instruction or confirmation reference shows the submitted remittance reached the selected Pag-IBIG payment workflow. It does not by itself prove the contribution was finally posted to every member account, so retain the posting/remittance acknowledgement too.",
+      unconfirmedNote: "Pag-IBIG publishes MCRF spreadsheet encoding instructions and also provides eSRS. Linaw mirrors the published fields as a worksheet, but it does not claim that this CSV is the agency-prescribed upload workbook. Record portal/bank acceptance for the exact submitted version.",
     },
   },
 ];
@@ -257,6 +257,26 @@ export function provesFileFormat(row: FilingEvidenceRow, definition: FilingFormD
   );
 }
 
+/**
+ * Operational filing proof is deliberately broader than file-format proof.
+ * Portal-first agency workflows can be proven by an accepted manual/portal
+ * submission with the agency's own acknowledgement reference, while a claimed
+ * upload format still requires provesFileFormat().
+ */
+export function provesOperationalFiling(
+  row: FilingEvidenceRow,
+  definition: FilingFormDefinition,
+): boolean {
+  return (
+    row.agency === definition.agency
+    && row.form === definition.form
+    && row.status === "accepted"
+    && (row.submissionMethod === "file_upload" || row.submissionMethod === "manual_entry")
+    && row.generatorVersion === definition.generatorVersion
+    && Boolean(row.agencyReference?.trim())
+  );
+}
+
 type EvidenceSummary = ReturnType<typeof summarizeFilingEvidence>;
 
 /**
@@ -278,12 +298,25 @@ export function describeEvidenceGap(summary: EvidenceSummary | null, definition:
 export function summarizeFilingEvidence(rows: FilingEvidenceRow[], definition: FilingFormDefinition) {
   const relevant = rows.filter((row) => row.agency === definition.agency && row.form === definition.form);
   const proving = relevant.filter((row) => provesFileFormat(row, definition));
+  const operational = relevant.filter((row) => provesOperationalFiling(row, definition));
   const latest = [...proving].sort(
+    (a, b) => (b.submittedAt?.getTime() ?? 0) - (a.submittedAt?.getTime() ?? 0),
+  )[0];
+  const latestOperational = [...operational].sort(
     (a, b) => (b.submittedAt?.getTime() ?? 0) - (a.submittedAt?.getTime() ?? 0),
   )[0];
   return {
     proven: proving.length > 0,
     provingCount: proving.length,
+    operationallyProven: operational.length > 0,
+    operationalProvingCount: operational.length,
+    latestOperational: latestOperational
+      ? {
+          periodLabel: latestOperational.periodLabel ?? null,
+          agencyReference: latestOperational.agencyReference ?? null,
+          submissionMethod: latestOperational.submissionMethod ?? null,
+        }
+      : null,
     acceptedByManualEntry: relevant.filter((row) => row.status === "accepted" && row.submissionMethod === "manual_entry").length,
     acceptedOnOlderLayout: relevant.filter(
       (row) => row.status === "accepted" && row.submissionMethod === "file_upload" && row.generatorVersion !== definition.generatorVersion,
