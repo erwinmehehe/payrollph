@@ -580,6 +580,54 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     );
   }
 
+  const monthPrefix = String(run.payDate).slice(0, 7);
+  const monthlyRuns = isFinalCutoffOfMonth
+    ? (await db.select().from(payrollRuns)
+        .where(eq(payrollRuns.organizationId, run.organizationId)))
+        .filter((candidate) =>
+          String(candidate.payDate).startsWith(monthPrefix)
+          && (candidate.status === "Released" || candidate.id === run.id)
+        )
+    : [];
+  const monthlyRunIds = monthlyRuns.map((candidate) => candidate.id);
+  const monthlyEntryRows = monthlyRunIds.length
+    ? await db.select({
+        entry: payrollEntries,
+        employee: employees,
+        runId: payrollRuns.id,
+        payDate: payrollRuns.payDate,
+        periodEnd: payrollRuns.periodEnd,
+      })
+        .from(payrollEntries)
+        .innerJoin(employees, eq(payrollEntries.employeeId, employees.id))
+        .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
+        .where(inArray(payrollEntries.payrollRunId, monthlyRunIds))
+        .orderBy(
+          asc(payrollRuns.payDate),
+          asc(payrollRuns.periodEnd),
+          asc(payrollRuns.id),
+          asc(employees.id),
+        )
+    : [];
+
+  // Monthly statutory remittances are population reports, not "last cutoff"
+  // reports. Use every released payroll in the pay month plus the current final
+  // cutoff, then keep each employee's latest month-to-date trace. This preserves
+  // employees paid earlier in the month who separated before the final cutoff,
+  // and it also covers organizations that run separate payrolls per org unit.
+  const statutoryLatestByEmployee = new Map<number, {
+    entry: typeof payrollEntries.$inferSelect;
+    employee: typeof employees.$inferSelect;
+  }>();
+  for (const row of monthlyEntryRows) {
+    statutoryLatestByEmployee.set(row.employee.id, {
+      entry: row.entry,
+      employee: row.employee,
+    });
+  }
+  const monthlyStatutoryEntries = [...statutoryLatestByEmployee.values()]
+    .sort((a, b) => a.employee.id - b.employee.id);
+
   const headerNote = [
     "# DRAFT ONLY, not a certified government submission file",
     `# kind=${kind}`,
@@ -600,7 +648,7 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     // ₱10.00 for every employee regardless of their actual MSC (correct EC is
     // ₱30 at MSC ≥ ₱15,000, most employees above roughly ₱15,000/month basic
     // pay were being under-reported).
-    const missingSss = entries.filter(({ employee }) => !govId(employee.sssNo));
+    const missingSss = monthlyStatutoryEntries.filter(({ employee }) => !govId(employee.sssNo));
     if (missingSss.length > 0) {
       throw new Error(
         `SSS R-3 cannot be generated: ${missingSss.length} employee(s) are missing an SSS number: ${missingSss.map(({ employee }) => employee.employeeNo).join(", ")}.`,
@@ -609,7 +657,7 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
 
     const body = [
       "SSSNo,LastName,FirstName,MiddleName,MSC,RegularMSC,MPFMSC,SS_EE_Regular,SS_EE_MPF,SS_ER_Regular,SS_ER_MPF,EC_Employer,Total_Contribution",
-      ...entries.map(({ employee, entry }) => {
+      ...monthlyStatutoryEntries.map(({ employee, entry }) => {
         const monthlyRemuneration =
           traceNumber(entry.trace, "statutoryMonthlySssCompensation=")
           ?? traceNumber(entry.trace, "statutoryMonthlyCompensation=")
@@ -640,7 +688,7 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
   }
 
   if (kind === "philhealth-rf1") {
-    const missingPins = entries.filter(({ employee }) => !govId(employee.philHealthNo));
+    const missingPins = monthlyStatutoryEntries.filter(({ employee }) => !govId(employee.philHealthNo));
     if (missingPins.length > 0) {
       throw new Error(
         `PhilHealth RF-1 cannot be generated: ${missingPins.length} employee(s) are missing a PhilHealth PIN: ${missingPins.map(({ employee }) => employee.employeeNo).join(", ")}.`,
@@ -649,7 +697,7 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
 
     const body = [
       "PIN,LastName,FirstName,MiddleName,MonthlySalaryBase,EmployeeShare,EmployerShare,TotalPremium",
-      ...entries.map(({ employee, entry }) => {
+      ...monthlyStatutoryEntries.map(({ employee, entry }) => {
         const monthlyBasic =
           traceNumber(entry.trace, "philHealthContributionBase=")
           ?? Number(employee.basicRate ?? entry.grossPay ?? 0);
@@ -674,7 +722,7 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
   }
 
   if (kind === "pagibig-mcrf") {
-    const missingMids = entries.filter(({ employee }) => !govId(employee.pagIbigNo));
+    const missingMids = monthlyStatutoryEntries.filter(({ employee }) => !govId(employee.pagIbigNo));
     if (missingMids.length > 0) {
       throw new Error(
         `Pag-IBIG MCRF cannot be generated: ${missingMids.length} employee(s) are missing a Pag-IBIG MID: ${missingMids.map(({ employee }) => employee.employeeNo).join(", ")}.`,
@@ -684,7 +732,7 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     const periodCovered = String(run.periodEnd).slice(0, 7).replace("-", "");
     const body = [
       "PagIBIGMID,AccountNumber,MembershipProgram,LastName,FirstName,NameExtension,MiddleName,PeriodCovered,EmployeeShare,EmployerShare,Remarks,FundSalary,TotalContribution",
-      ...entries.map(({ employee, entry }) => {
+      ...monthlyStatutoryEntries.map(({ employee, entry }) => {
         const monthlyRemuneration =
           traceNumber(entry.trace, "statutoryMonthlyPagIbigCompensation=")
           ?? traceNumber(entry.trace, "statutoryMonthlyCompensation=")
@@ -721,17 +769,8 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
       );
     }
 
-    const monthPrefix = String(run.payDate).slice(0, 7);
-    const monthRuns = (await db.select().from(payrollRuns)
-      .where(eq(payrollRuns.organizationId, run.organizationId)))
-      .filter((candidate) =>
-        String(candidate.payDate).startsWith(monthPrefix)
-        && (candidate.status === "Released" || candidate.id === run.id)
-      );
-    const monthRunIds = monthRuns.map((candidate) => candidate.id);
-    const monthEntries = monthRunIds.length
-      ? await db.select().from(payrollEntries).where(inArray(payrollEntries.payrollRunId, monthRunIds))
-      : [];
+    const monthRuns = monthlyRuns;
+    const monthEntries = monthlyEntryRows.map((row) => row.entry);
 
     const taxFromEntry = (entry: typeof payrollEntries.$inferSelect) => {
       const lines = Array.isArray(entry.lineItems)
