@@ -134,18 +134,15 @@ export async function buildReadinessPayload() {
     && Number(plaintextEmployeeGovernmentIds) === 0
     && Number(plaintextContractorTins) === 0;
 
-  // Government filing does not require vendor accreditation for standard
-  // file-based submission, BIR publishes the Alphalist .DAT layout and
-  // provides the ADES validation module free; SSS similarly publishes the
-  // R-3 electronic format and a free R3 File Generator. The actual gate is
-  // "has a human run our DRAFT output through the agency's own free
-  // validator and confirmed it passes", that's what each flag below
-  // records, set by whoever does that check, not by us detecting it.
+  // Government readiness is evidence-based. BIR Alphalist remains a strict
+  // file-layout validation gate. SSS, PhilHealth and Pag-IBIG are portal-first
+  // employer workflows, so an agency acknowledgement can prove the operational
+  // filing even when the Linaw worksheet itself is not an agency upload file.
   const demoMode = enabled("DEMO_MODE");
   const birAlphalistValidated = Boolean(birEvidence?.proven);
-  const sssR3Validated = Boolean(sssEvidence?.proven);
-  const philhealthValidated = Boolean(philhealthEvidence?.proven);
-  const pagibigValidated = Boolean(pagibigEvidence?.proven);
+  const sssR3Validated = Boolean(sssEvidence?.operationallyProven);
+  const philhealthValidated = Boolean(philhealthEvidence?.operationallyProven);
+  const pagibigValidated = Boolean(pagibigEvidence?.operationallyProven);
   const storageConfigured = configured("S3_BUCKET") || configured("R2_BUCKET");
   const storageIntegrated = false;
   const malwareEndpointConfigured = configured("MALWARE_SCAN_URL");
@@ -298,21 +295,21 @@ export async function buildReadinessPayload() {
     },
     {
       key: "gov-sss-r3",
-      label: "SSS R-3 validated",
+      label: "SSS e-CL / PRN workflow proven",
       ready: sssR3Validated,
       detail: sssR3Validated
-        ? `SSS accepted an upload of a Linaw-generated R-3 file in the current layout (${sssEvidence?.provingCount} recorded acceptance(s)${sssEvidence?.latest?.agencyReference ? `, latest reference ${sssEvidence.latest.agencyReference}` : ""}).`
+        ? `SSS operational filing evidence is recorded (${sssEvidence?.operationalProvingCount} accepted filing(s)${sssEvidence?.latestOperational?.agencyReference ? `, latest PRN/reference ${sssEvidence.latestOperational.agencyReference}` : ""}). File-layout proof remains separate because the current employer workflow can be completed through My.SSS e-CL/PRN.`
         : filingEvidenceError
           ?? describeEvidenceGap(sssEvidence, findFilingForm("SSS", "R-3")!),
       blocks: sssR3Validated ? "none" : "launch",
-      manualWorkaround: sssR3Validated ? undefined : "Enter the DRAFT figures into SSS's free R3 File Generator or My.SSS upload by hand, or upload the generated file and record the result under /api/compliance/filing-validations.",
+      manualWorkaround: sssR3Validated ? undefined : "Use the DRAFT figures in the current My.SSS employer e-CL/PRN workflow, complete the remittance, then record the SSS PRN/acknowledgement under /api/compliance/filing-validations.",
     },
     {
       key: "gov-philhealth-rf1",
-      label: "PhilHealth RF-1 validated",
+      label: "PhilHealth EPRS workflow proven",
       ready: philhealthValidated,
       detail: philhealthValidated
-        ? `PhilHealth's EPRS accepted a Linaw-generated RF-1 file in the current layout (${philhealthEvidence?.provingCount} recorded acceptance(s)${philhealthEvidence?.latest?.agencyReference ? `, latest receipt ${philhealthEvidence.latest.agencyReference}` : ""}). The receipt is issued on payment, so it shows the report was filed and paid, and Linaw's figures are recomputed from basic salary.`
+        ? `PhilHealth operational filing evidence is recorded (${philhealthEvidence?.operationalProvingCount} accepted filing(s)${philhealthEvidence?.latestOperational?.agencyReference ? `, latest EPRS/ePAR reference ${philhealthEvidence.latestOperational.agencyReference}` : ""}). File-import proof remains separate from successful EPRS reporting/payment.`
         : filingEvidenceError
           ?? `${describeEvidenceGap(philhealthEvidence, findFilingForm("PhilHealth", "RF-1")!)} The draft uses each employee's real PhilHealth PIN and recomputes full monthly premium shares; the CSV is a portal-entry aid, not a claimed EPRS import file.`,
       blocks: philhealthValidated ? "none" : "launch",
@@ -320,14 +317,14 @@ export async function buildReadinessPayload() {
     },
     {
       key: "gov-pagibig-mcrf",
-      label: "Pag-IBIG MCRF validated",
+      label: "Pag-IBIG remittance workflow proven",
       ready: pagibigValidated,
       detail: pagibigValidated
-        ? `Pag-IBIG (eSRS or a bank upload facility) accepted a Linaw-generated MCRF file in the current layout (${pagibigEvidence?.provingCount} recorded acceptance(s)${pagibigEvidence?.latest?.agencyReference ? `, latest reference ${pagibigEvidence.latest.agencyReference}` : ""}). A payment instruction shows the file was validated, not that the remittance was posted to the employer's account.`
+        ? `Pag-IBIG operational remittance evidence is recorded (${pagibigEvidence?.operationalProvingCount} accepted filing(s)${pagibigEvidence?.latestOperational?.agencyReference ? `, latest reference ${pagibigEvidence.latestOperational.agencyReference}` : ""}). Workbook/file-format proof remains separate, and final member posting should still be retained as evidence.`
         : filingEvidenceError
           ?? `${describeEvidenceGap(pagibigEvidence, findFilingForm("Pag-IBIG", "MCRF")!)} The draft uses each employee's real Pag-IBIG MID and full monthly contributions; it is an eSRS/employer-portal entry aid until an acceptance is recorded.`,
       blocks: pagibigValidated ? "none" : "launch",
-      manualWorkaround: pagibigValidated ? undefined : "Enter the DRAFT figures by hand into eSRS (employers with at most 30 employees) or Pag-IBIG's Virtual employer e-services portal, then record the result under /api/compliance/filing-validations.",
+      manualWorkaround: pagibigValidated ? undefined : "Use the DRAFT figures in Pag-IBIG eSRS or the employer's current approved remittance channel, then record the payment instruction/confirmation and retain final posting evidence under /api/compliance/filing-validations.",
     },
     {
       key: "object-storage",
