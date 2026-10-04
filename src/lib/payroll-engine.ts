@@ -451,6 +451,68 @@ async function processPayrollChunk(input: {
   const units = await db.select().from(orgUnits).where(eq(orgUnits.organizationId, input.organizationId));
   const unitMap = new Map(units.map((unit) => [unit.id, unit]));
 
+  // Workforce schedules are organization-level reusable definitions plus
+  // employee-specific effective assignments/overrides. Load the reusable
+  // definitions once per chunk and only the employee rows needed for this run.
+  const scheduleWindowStart = addDays(String(run.periodStart), -14);
+  const [workforceShiftRows, workforcePatternRows] = await Promise.all([
+    db.select().from(shiftDefinitions).where(eq(shiftDefinitions.organizationId, input.organizationId)),
+    db.select().from(schedulePatterns).where(eq(schedulePatterns.organizationId, input.organizationId)),
+  ]);
+  const workforcePatternIds = workforcePatternRows.map((pattern) => pattern.id);
+  const workforcePatternDayRows = workforcePatternIds.length
+    ? await db.select().from(schedulePatternDays)
+        .where(inArray(schedulePatternDays.patternId, workforcePatternIds))
+        .orderBy(asc(schedulePatternDays.patternId), asc(schedulePatternDays.dayIndex))
+    : [];
+  const workforcePatternDayIds = workforcePatternDayRows.map((day) => day.id);
+  const workforcePatternSegmentRows = workforcePatternDayIds.length
+    ? await db.select().from(schedulePatternSegments)
+        .where(inArray(schedulePatternSegments.patternDayId, workforcePatternDayIds))
+        .orderBy(asc(schedulePatternSegments.patternDayId), asc(schedulePatternSegments.segmentOrder))
+    : [];
+  const workforceAssignmentRows = chunkIds.length
+    ? await db.select().from(employeeScheduleAssignments).where(and(
+        eq(employeeScheduleAssignments.organizationId, input.organizationId),
+        inArray(employeeScheduleAssignments.employeeId, chunkIds),
+        lte(employeeScheduleAssignments.effectiveFrom, run.periodEnd),
+        or(
+          isNull(employeeScheduleAssignments.effectiveUntil),
+          gte(employeeScheduleAssignments.effectiveUntil, scheduleWindowStart),
+        ),
+      )).orderBy(
+        asc(employeeScheduleAssignments.employeeId),
+        asc(employeeScheduleAssignments.effectiveFrom),
+        asc(employeeScheduleAssignments.id),
+      )
+    : [];
+  const workforceOverrideRows = chunkIds.length
+    ? await db.select().from(scheduleOverrides).where(and(
+        eq(scheduleOverrides.organizationId, input.organizationId),
+        inArray(scheduleOverrides.employeeId, chunkIds),
+        gte(scheduleOverrides.workDate, scheduleWindowStart),
+        lte(scheduleOverrides.workDate, run.periodEnd),
+      )).orderBy(
+        asc(scheduleOverrides.employeeId),
+        asc(scheduleOverrides.workDate),
+        asc(scheduleOverrides.id),
+      )
+    : [];
+  const workforceAssignmentsByEmployee = new Map<number, typeof workforceAssignmentRows>();
+  for (const assignment of workforceAssignmentRows) {
+    workforceAssignmentsByEmployee.set(
+      assignment.employeeId,
+      [...(workforceAssignmentsByEmployee.get(assignment.employeeId) ?? []), assignment],
+    );
+  }
+  const workforceOverridesByEmployee = new Map<number, typeof workforceOverrideRows>();
+  for (const override of workforceOverrideRows) {
+    workforceOverridesByEmployee.set(
+      override.employeeId,
+      [...(workforceOverridesByEmployee.get(override.employeeId) ?? []), override],
+    );
+  }
+
   // Load the benefit catalogue and this chunk's active enrolments. Without this
   // the calculation function accepts benefits but nothing ever supplies them,
   // which would make the deduction silently inert.
