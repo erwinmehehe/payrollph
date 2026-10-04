@@ -288,7 +288,21 @@ export async function getDashboardData(organizationId?: number) {
     tasks: taskRows,
     auditEvents: auditRows,
     plans,
-    templates,
+    templates: templates.map((template) => {
+      const mapping = template.mappings && typeof template.mappings === "object"
+        ? template.mappings as Record<string, unknown>
+        : {};
+      const columns = Array.isArray(mapping.columns) ? mapping.columns : [];
+      const name = template.name.toLowerCase();
+      const unsupportedXls = name.includes("metrobank") || name.includes("mbtc") || template.format.toUpperCase() === "XLS";
+      return {
+        id: template.id,
+        name: template.name,
+        version: template.version,
+        format: template.format,
+        uploadReady: !unsupportedXls && columns.length > 0,
+      };
+    }),
     advisories,
     punches: punchRows,
     delegations: access.companyWide
