@@ -11,7 +11,7 @@ import {
   yearEndAdjustments,
 } from "../src/db/schema";
 import { drainPayrollQueue, enqueuePayrollRun } from "../src/lib/payroll-engine";
-import { generateJournalCsv } from "../src/lib/exporters";
+import { generateGovernmentDraft, generateJournalCsv } from "../src/lib/exporters";
 import { settlePayrollRun } from "../src/lib/payroll-settlement";
 import { applyYearEndAdjustmentsToPayrollRun } from "../src/lib/year-end";
 
@@ -276,6 +276,75 @@ test("year-end refund and collection are staged into final payroll and consumed 
 
     const settled = await db.select().from(yearEndAdjustments).where(eq(yearEndAdjustments.organizationId, org.id));
     assert.ok(settled.every((row) => row.appliedPayrollRunId === run.id && row.appliedAt != null));
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});
+
+
+test("monthly government reports reject first cutoff and aggregate released cutoffs", async () => {
+  const [org] = await db.insert(organizations).values({
+    name: "Monthly Government Export Audit",
+    legalName: "Monthly Government Export Audit Inc.",
+    plan: "Core",
+  }).returning();
+
+  try {
+    await db.insert(employees).values({
+      organizationId: org.id,
+      employeeNo: "GOV-MONTH-001",
+      firstName: "Monthly",
+      lastName: "Report",
+      title: "Associate",
+      avatarInitials: "MR",
+      basicRate: "20000.00",
+      restDay: "Sunday",
+      sssNo: "34-1234567-8",
+      philHealthNo: "01-234567890-1",
+      pagIbigNo: "1234-5678-9012",
+      startDate: "2025-01-01",
+    });
+
+    const [first] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      periodLabel: "Nov 1-15, 2026 government report",
+      periodStart: "2026-11-01",
+      periodEnd: "2026-11-15",
+      scopeLabel: "All locations",
+      status: "Draft",
+      payDate: "2026-11-15",
+    }).returning();
+    await enqueuePayrollRun(first.id);
+    await drainPayrollQueue(10, first.id);
+    await db.update(payrollRuns).set({ status: "Releasing" }).where(eq(payrollRuns.id, first.id));
+    await settlePayrollRun(first.id, { actor: "Audit", resource: first.periodLabel });
+
+    await assert.rejects(
+      generateGovernmentDraft(first.id, "sss-r3"),
+      /final cutoff of the month/i,
+    );
+
+    const [second] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      periodLabel: "Nov 16-30, 2026 government report",
+      periodStart: "2026-11-16",
+      periodEnd: "2026-11-30",
+      scopeLabel: "All locations",
+      status: "Draft",
+      payDate: "2026-11-30",
+    }).returning();
+    await enqueuePayrollRun(second.id);
+    await drainPayrollQueue(10, second.id);
+    await db.update(payrollRuns).set({ status: "Releasing" }).where(eq(payrollRuns.id, second.id));
+    await settlePayrollRun(second.id, { actor: "Audit", resource: second.periodLabel });
+
+    const sss = await generateGovernmentDraft(second.id, "sss-r3");
+    assert.ok(sss.body.includes("20000.00"), "monthly SSS worksheet should reconcile the full month's remuneration");
+    assert.equal(sss.body.split("\n").filter((row) => row.startsWith("34-1234567-8")).length, 1);
+
+    const bir = await generateGovernmentDraft(second.id, "bir-1601c");
+    assert.ok(bir.body.includes("2026-11"));
+    assert.ok(bir.body.includes(",1,DRAFT"));
   } finally {
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
