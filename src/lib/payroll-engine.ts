@@ -2062,9 +2062,16 @@ function calculateEmployeePay(input: {
     })),
   ].filter((item) => Number(item.amount) !== 0);
 
+  const resolvedWorkforceTrace = workforceScheduleTrace(input.resolvedSchedules);
   const trace = {
     ruleVersion: PAYROLL_RULE_VERSION,
+    workforceSchedule: {
+      mode: resolvedWorkforceTrace.length > 0 ? "advanced-with-legacy-fallback" : "legacy",
+      days: resolvedWorkforceTrace,
+    },
     inputs: [
+      `workforceScheduleMode=${resolvedWorkforceTrace.length > 0 ? "advanced-with-legacy-fallback" : "legacy"}`,
+      `workforceScheduleDays=${resolvedWorkforceTrace.length}`,
       `payTimeline=${payTimelineTrace(timeline).join("|")}`,
       `effectivePayChanges=${Math.max(0, timeline.length - 1)}`,
       `payBasis=${payProfile.payBasis}`,
