@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { bankTemplates, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
 import { decryptBankAccount } from "@/lib/bank-account-crypto";
@@ -248,86 +248,38 @@ export async function generateBankFile(
 
   let body = "";
 
-  if (tName.includes("bdo") && template.format === "DAT") {
-    body = rows.map((row, index) => [
-      "D",
-      String(index + 1).padStart(6, "0"),
-      row.account_number.padEnd(16, " "),
-      Number(row.amount).toFixed(2).padStart(13, "0"),
-      row.employee_name.slice(0, 40).padEnd(40, " "),
-      run.payDate.replaceAll("-", ""),
-    ].join("")).join("\n");
-  } else if (tName.includes("bpi") || tName.includes("bizlink")) {
-    // BPI Bizlink standard format: Account No, Amount, Employee Name, Employee No, Reference, Remarks
-    const header = ["Account_Number", "Amount", "Beneficiary_Name", "Employee_ID", "Reference_Number", "Payment_Date"];
-    body = [header.join(","), ...rows.map((row) => [
-      row.account_number,
-      Number(row.amount).toFixed(2),
-      row.employee_name,
-      row.employee_no,
-      `PAY-${run.id}-${row.employee_no}`,
-      run.payDate,
-    ].map(csv).join(","))].join("\n");
-  } else if (tName.includes("unionbank") || tName.includes("onehub")) {
-    // UnionBank OneHub Payroll CSV format: Beneficiary Account, Beneficiary Name, Amount, Reference, Remarks, Notification Email
-    const header = ["Beneficiary_Account", "Beneficiary_Name", "Amount", "Reference_No", "Particulars"];
-    body = [header.join(","), ...rows.map((row) => [
-      row.account_number,
-      row.employee_name,
-      Number(row.amount).toFixed(2),
-      `UB-${run.id}-${row.employee_no}`,
-      `Payroll ${run.periodLabel}`,
-    ].map(csv).join(","))].join("\n");
-  } else if (tName.includes("metrobank") || tName.includes("mbtc")) {
-    // Metrobank eGov / MBTC Payroll CSV format
-    const header = ["Account_No", "Beneficiary_Name", "Amount", "Payment_Date", "Ref_Code"];
-    body = [header.join(","), ...rows.map((row) => [
-      row.account_number,
-      row.employee_name,
-      Number(row.amount).toFixed(2),
-      run.payDate.replaceAll("-", "/"),
-      `${run.id}-${row.employee_no}`,
-    ].map(csv).join(","))].join("\n");
-  } else if (tName.includes("security bank")) {
-    // Security Bank eGov / DigiBanker CSV
-    const header = ["Bene_Account", "Bene_Name", "Credit_Amount", "Particulars", "Emp_Ref"];
-    body = [header.join(","), ...rows.map((row) => [
-      row.account_number,
-      row.employee_name,
-      Number(row.amount).toFixed(2),
-      `Salaries ${run.periodLabel}`,
-      row.employee_no,
-    ].map(csv).join(","))].join("\n");
-  } else if (tName.includes("chinabank") || tName.includes("cbc")) {
-    // ChinaBank eGov CSV
-    const header = ["Crediting_Account", "Account_Name", "Disbursement_Amount", "Employee_Number"];
-    body = [header.join(","), ...rows.map((row) => [
-      row.account_number,
-      row.employee_name,
-      Number(row.amount).toFixed(2),
-      row.employee_no,
-    ].map(csv).join(","))].join("\n");
-  } else if (tName.includes("eastwest")) {
-    // EastWest Bank eGov CSV
-    const header = ["Destination_Account", "Recipient_Name", "Net_Amount", "Invoice_Ref"];
-    body = [header.join(","), ...rows.map((row) => [
-      row.account_number,
-      row.employee_name,
-      Number(row.amount).toFixed(2),
-      `EW-${run.id}-${row.employee_no}`,
-    ].map(csv).join(","))].join("\n");
-  } else if (tName.includes("gcash")) {
-    const header = ["mobile", "employee_name", "amount", "reference"];
-    body = [header.join(","), ...rows.map((row) => [row.mobile, row.employee_name, row.amount, `${run.id}-${row.employee_no}`].map(csv).join(","))].join("\n");
-  } else if (tName.includes("maya") || tName.includes("paymaya")) {
-    // Maya Business Payroll CSV
-    const header = ["Recipient_Mobile", "Recipient_Name", "Disbursement_Amount", "Batch_Reference"];
-    body = [header.join(","), ...rows.map((row) => [row.mobile, row.employee_name, row.amount, `MAYA-${run.id}-${row.employee_no}`].map(csv).join(","))].join("\n");
-  } else if (tName.includes("rcbc")) {
-    const mapping = readDelimitedBankMapping(template.mappings);
-    if (!mapping) {
+  const bankProvidedMapping = readDelimitedBankMapping(template.mappings);
+  const mappedProprietaryBank =
+    tName.includes("bdo")
+    || tName.includes("bpi")
+    || tName.includes("bizlink")
+    || tName.includes("unionbank")
+    || tName.includes("onehub")
+    || tName.includes("security bank")
+    || tName.includes("chinabank")
+    || tName.includes("cbc")
+    || tName.includes("eastwest")
+    || tName.includes("rcbc");
+
+  if (tName.includes("metrobank") || tName.includes("mbtc")) {
+    // Metrobank's published MBOS guide requires its portal-downloaded,
+    // preformatted Excel 97-2003 (.xls) payroll template and explicitly says
+    // the template cannot be customized. A CSV approximation is therefore not
+    // an acceptable production export.
+    throw new Error(
+      "Metrobank MBOS payroll requires the bank-provided formatted .xls template downloaded inside MBOS. PayrollPH will not generate a guessed CSV substitute. Capture and validate the exact bank template through UAT before enabling final export.",
+    );
+  }
+
+  if (mappedProprietaryBank) {
+    if (!bankProvidedMapping) {
       throw new Error(
-        "RCBC ROC payroll export requires an explicit validated template mapping. Configure bank_templates.mappings with columns and delimiter from the bank-provided payroll file specification; PayrollPH will not guess a proprietary upload layout.",
+        `${template.name} payroll export requires an explicit bank-provided template mapping. Configure bank_templates.mappings from the bank's current corporate-payroll specification and record portal UAT for that exact template version; PayrollPH will not guess a proprietary layout.`,
+      );
+    }
+    if (template.format.toUpperCase() === "XLS" || template.format.toUpperCase() === "XLSX") {
+      throw new Error(
+        `${template.name} uses a workbook template that cannot be reproduced safely from a delimited mapping. Store/use the exact bank-provided workbook and validate it in the corporate portal instead of generating substitute bytes.`,
       );
     }
 
@@ -337,12 +289,12 @@ export async function generateBankFile(
       "last_name",
       "email",
     ]);
-    const needsIdentitySnapshot = mapping.columns.some((field) => identityFields.has(field));
+    const needsIdentitySnapshot = bankProvidedMapping.columns.some((field) => identityFields.has(field));
     if (!dryRun && needsIdentitySnapshot) {
       const missingIdentitySnapshots = rows.filter((row) => !row.immutableIdentitySnapshotPresent).length;
       if (missingIdentitySnapshots > 0) {
         throw new Error(
-          `Final RCBC file cannot be generated: ${missingIdentitySnapshots} payroll entr${missingIdentitySnapshots === 1 ? "y was" : "ies were"} calculated before immutable first/middle/last-name and email fields were captured. Recalculate before release.`,
+          `Final ${template.name} file cannot be generated: ${missingIdentitySnapshots} payroll entr${missingIdentitySnapshots === 1 ? "y was" : "ies were"} calculated before immutable identity fields were captured. Recalculate before release.`,
         );
       }
     }
@@ -363,16 +315,40 @@ export async function generateBankFile(
         payment_date: row.payment_date,
         reference: row.reference,
       })),
-      mapping,
+      bankProvidedMapping,
     );
+  } else if (tName.includes("gcash")) {
+    const header = ["mobile", "employee_name", "amount", "reference"];
+    body = [header.join(","), ...rows.map((row) => [row.mobile, row.employee_name, row.amount, `${run.id}-${row.employee_no}`].map(csv).join(","))].join("\n");
+  } else if (tName.includes("maya") || tName.includes("paymaya")) {
+    const header = ["Recipient_Mobile", "Recipient_Name", "Disbursement_Amount", "Batch_Reference"];
+    body = [header.join(","), ...rows.map((row) => [row.mobile, row.employee_name, row.amount, `MAYA-${run.id}-${row.employee_no}`].map(csv).join(","))].join("\n");
   } else if (tName.includes("america") || tName.includes("cashpro")) {
-    // Bank of America CashPro (ACH / PBR)
     const header = ["Receiving_Account", "Account_Holder", "Amount", "Currency", "PBR_Reference"];
     body = [header.join(","), ...rows.map((row) => [row.account_number, row.employee_name, row.amount, "PHP", `BOA-${run.id}-${row.employee_no}`].map(csv).join(","))].join("\n");
+  } else if (bankProvidedMapping) {
+    body = renderMappedBankRows(
+      rows.map((row) => ({
+        account_number: row.account_number,
+        employee_name: row.employee_name,
+        employee_no: row.employee_no,
+        first_name: row.first_name,
+        middle_name: row.middle_name,
+        last_name: row.last_name,
+        email: row.email,
+        mobile: row.mobile,
+        bank_code: row.bank_code,
+        amount: Number(row.amount).toFixed(2),
+        net_pay: Number(row.net_pay).toFixed(2),
+        payment_date: row.payment_date,
+        reference: row.reference,
+      })),
+      bankProvidedMapping,
+    );
   } else {
-    // Standard Universal Bank CSV
-    const header = ["account_number", "employee_name", "net_pay", "employee_no"];
-    body = [header.join(","), ...rows.map((row) => [row.account_number, row.employee_name, row.net_pay, row.employee_no].map(csv).join(","))].join("\n");
+    throw new Error(
+      `${template.name} has no verified bank-provided file mapping. PayrollPH will not emit a generic "universal bank CSV" for an unverified bank template.`,
+    );
   }
 
   return {
@@ -705,8 +681,9 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
       );
     }
 
+    const periodCovered = String(run.periodEnd).slice(0, 7).replace("-", "");
     const body = [
-      "PagIBIGMID,LastName,FirstName,MiddleName,FundSalary,EmployeeShare,EmployerShare,TotalContribution",
+      "PagIBIGMID,AccountNumber,MembershipProgram,LastName,FirstName,NameExtension,MiddleName,PeriodCovered,EmployeeShare,EmployerShare,Remarks,FundSalary,TotalContribution",
       ...entries.map(({ employee, entry }) => {
         const monthlyRemuneration =
           traceNumber(entry.trace, "statutoryMonthlyPagIbigCompensation=")
@@ -715,12 +692,17 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
         const hd = computePagIbig(monthlyRemuneration);
         return [
           govId(employee.pagIbigNo),
+          "",
+          "F1",
           employee.lastName,
           employee.firstName,
+          "",
           employee.middleName ?? "",
-          hd.fundSalary.toFixed(2),
+          periodCovered,
           hd.employee.toFixed(2),
           hd.employer.toFixed(2),
+          "",
+          hd.fundSalary.toFixed(2),
           hd.total.toFixed(2),
         ].map(csv).join(",");
       }),
@@ -728,20 +710,60 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     return {
       filename: `pagibig-mcrf-esrs-worksheet-${run.id}.csv`,
       contentType: "text/csv",
-      body: `${headerNote}\n# Pag-IBIG's published MCRF instructions use its prescribed spreadsheet layout and YYYYMM period. This CSV is an assisted worksheet only, not an upload-ready MCRF.\n# Full monthly mandatory contributions are recomputed from monthly basic salary.\n${body}`,
+      body: `${headerNote}\n# Columns now mirror Pag-IBIG's published MCRF encoding instructions: MID/RTN, account number, membership program, names, YYYYMM period covered, EE share, ER share and remarks. This remains an assisted CSV worksheet because Pag-IBIG prescribes its own spreadsheet/eSRS workflow rather than an arbitrary CSV upload.\n# Full monthly mandatory contributions are recomputed from monthly basic salary.\n${body}`,
     };
   }
 
   if (kind === "bir-1601c") {
-    const totalWht = entries.reduce((sum, { entry }) => {
-      const wht = Math.abs(Number((entry.lineItems as Array<{ code: string; amount: string }> | undefined)?.find?.((item) => item.code === "WHT")?.amount ?? 0));
-      return sum + wht;
-    }, 0);
+    if (!isFinalCutoffOfMonth) {
+      throw new Error(
+        "BIR Form 1601-C is a monthly remittance return. Generate the worksheet from the final payroll cutoff of the month so all released payroll withholding for the month is included.",
+      );
+    }
+
+    const monthPrefix = String(run.payDate).slice(0, 7);
+    const monthRuns = (await db.select().from(payrollRuns)
+      .where(eq(payrollRuns.organizationId, run.organizationId)))
+      .filter((candidate) =>
+        String(candidate.payDate).startsWith(monthPrefix)
+        && (candidate.status === "Released" || candidate.id === run.id)
+      );
+    const monthRunIds = monthRuns.map((candidate) => candidate.id);
+    const monthEntries = monthRunIds.length
+      ? await db.select().from(payrollEntries).where(inArray(payrollEntries.payrollRunId, monthRunIds))
+      : [];
+
+    const taxFromEntry = (entry: typeof payrollEntries.$inferSelect) => {
+      const lines = Array.isArray(entry.lineItems)
+        ? entry.lineItems as Array<{ code?: string; amount?: string | number }>
+        : [];
+      const regularWht = Math.abs(
+        Number(lines.find((item) => item.code === "WHT")?.amount ?? 0) || 0,
+      );
+      const yearEndAdjustment = lines
+        .filter((item) => String(item.code ?? "").startsWith("YE-TAX-"))
+        .reduce((sum, item) => sum + (-(Number(item.amount ?? 0) || 0)), 0);
+      return regularWht + yearEndAdjustment;
+    };
+
+    const totalWht = monthEntries.reduce((sum, entry) => sum + taxFromEntry(entry), 0);
+    const employeeCount = new Set(monthEntries.map((entry) => entry.employeeId)).size;
     const body = [
-      "Form,Period,WithholdingTax,Employees,Status",
-      ["1601-C", run.periodLabel, totalWht.toFixed(2), String(entries.length), "DRAFT"].map(csv).join(","),
+      "Form,ApplicableMonth,WithholdingTax,Employees,PayrollRunsIncluded,Status",
+      [
+        "1601-C",
+        monthPrefix,
+        totalWht.toFixed(2),
+        String(employeeCount),
+        String(monthRuns.length),
+        "DRAFT",
+      ].map(csv).join(","),
     ].join("\n");
-    return { filename: `bir-1601c-draft-${run.id}.csv`, contentType: "text/csv", body: `${headerNote}\n${body}` };
+    return {
+      filename: `bir-1601c-monthly-draft-${monthPrefix}-run-${run.id}.csv`,
+      contentType: "text/csv",
+      body: `${headerNote}\n# BIR Form 1601-C is monthly. This worksheet aggregates all released payroll runs in ${monthPrefix}, plus this run when it is the current final cutoff.\n${body}`,
+    };
   }
 
   if (kind !== "bir-1604c-source") {
