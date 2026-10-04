@@ -770,9 +770,35 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     throw new Error(`Government export "${kind}" is not implemented.`);
   }
 
-  // BIR annual summary input. This remains a source extract, not a claimed
-  // filing-ready DAT. A single cutoff cannot prove the complete annual filing
-  // contract, so the exporter fails closed instead of guessing portal bytes.
+  // BIR 1604-C is an annual calendar-year return. Build the source dataset
+  // from every released payroll paid within the selected run's tax year, then
+  // collapse each employee to one annual row. This is still a source extract,
+  // not a claimed filing-ready DAT.
+  const taxYear = String(run.payDate).slice(0, 4);
+  if (!/^\\d{4}$/.test(taxYear)) {
+    throw new Error("BIR annual draft cannot be generated: payroll pay date does not identify a valid tax year.");
+  }
+
+  const annualRuns = (await db.select().from(payrollRuns)
+    .where(eq(payrollRuns.organizationId, run.organizationId)))
+    .filter((candidate) =>
+      candidate.status === "Released"
+      && String(candidate.payDate).startsWith(taxYear)
+    );
+  const annualRunIds = annualRuns.map((candidate) => candidate.id);
+  if (annualRunIds.length === 0) {
+    throw new Error(`BIR annual draft cannot be generated: no released payroll runs exist for tax year ${taxYear}.`);
+  }
+
+  const annualEntries = await db.select({
+    entry: payrollEntries,
+    employee: employees,
+  })
+    .from(payrollEntries)
+    .innerJoin(employees, eq(payrollEntries.employeeId, employees.id))
+    .where(inArray(payrollEntries.payrollRunId, annualRunIds))
+    .orderBy(asc(employees.id));
+
   const [organization] = await db.select().from(organizations)
     .where(eq(organizations.id, run.organizationId))
     .limit(1);
@@ -783,22 +809,54 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     throw new Error("BIR annual draft cannot be generated: employer BIR TIN and 4-digit branch code are required.");
   }
 
-  const missingTin = entries.filter(({ employee }) => govId(employee.tin).replace(/\D/g, "").length !== 9);
-  const missingBranch = entries.filter(({ employee }) => govId(employee.tinBranchCode).replace(/\D/g, "").length !== 4);
+  const annualEmployees = [...new Map(
+    annualEntries.map(({ employee }) => [employee.id, employee] as const),
+  ).values()];
+  const missingTin = annualEmployees.filter((employee) => govId(employee.tin).replace(/\D/g, "").length !== 9);
+  const missingBranch = annualEmployees.filter((employee) => govId(employee.tinBranchCode).replace(/\D/g, "").length !== 4);
   if (missingTin.length > 0) {
     throw new Error(
-      `BIR annual draft cannot be generated: ${missingTin.length} employee(s) are missing a valid 9-digit TIN: ${missingTin.map(({ employee }) => employee.employeeNo).join(", ")}.`,
+      `BIR annual draft cannot be generated: ${missingTin.length} employee(s) are missing a valid 9-digit TIN: ${missingTin.map((employee) => employee.employeeNo).join(", ")}.`,
     );
   }
   if (missingBranch.length > 0) {
     throw new Error(
-      `BIR annual draft cannot be generated: ${missingBranch.length} employee(s) are missing a 4-digit BIR branch code: ${missingBranch.map(({ employee }) => employee.employeeNo).join(", ")}.`,
+      `BIR annual draft cannot be generated: ${missingBranch.length} employee(s) are missing a 4-digit BIR branch code: ${missingBranch.map((employee) => employee.employeeNo).join(", ")}.`,
     );
+  }
+
+  const taxFromAnnualEntry = (entry: typeof payrollEntries.$inferSelect) => {
+    const lines = Array.isArray(entry.lineItems)
+      ? entry.lineItems as Array<{ code?: string; amount?: string | number }>
+      : [];
+    const regularWht = Math.abs(
+      Number(lines.find((item) => item.code === "WHT")?.amount ?? 0) || 0,
+    );
+    const yearEndAdjustment = lines
+      .filter((item) => String(item.code ?? "").startsWith("YE-TAX-"))
+      .reduce((sum, item) => sum + (-(Number(item.amount ?? 0) || 0)), 0);
+    return regularWht + yearEndAdjustment;
+  };
+
+  const annualByEmployee = new Map<number, {
+    employee: typeof employees.$inferSelect;
+    grossCompensation: number;
+    taxWithheld: number;
+  }>();
+  for (const { employee, entry } of annualEntries) {
+    const current = annualByEmployee.get(employee.id) ?? {
+      employee,
+      grossCompensation: 0,
+      taxWithheld: 0,
+    };
+    current.grossCompensation += Number(entry.grossPay ?? 0) || 0;
+    current.taxWithheld += taxFromAnnualEntry(entry);
+    annualByEmployee.set(employee.id, current);
   }
 
   const body = [
     "EmployerTIN,EmployerBranchCode,EmployeeTIN,EmployeeBranchCode,LastName,FirstName,MiddleName,Nationality,GrossCompensation,TaxWithheld,MWE,Status",
-    ...entries.map(({ employee, entry }) => [
+    ...[...annualByEmployee.values()].map(({ employee, grossCompensation, taxWithheld }) => [
       employerTin,
       employerBranchCode,
       govId(employee.tin).replace(/\D/g, ""),
@@ -807,16 +865,16 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
       employee.firstName,
       employee.middleName ?? "",
       employee.nationality ?? "Filipino",
-      entry.grossPay,
-      Math.abs(Number((entry.lineItems as Array<{ code: string; amount: string }> | undefined)?.find?.((item) => item.code === "WHT")?.amount ?? 0)).toFixed(2),
+      grossCompensation.toFixed(2),
+      taxWithheld.toFixed(2),
       employee.mwe ? "Y" : "N",
       "DRAFT",
     ].map(csv).join(",")),
   ].join("\n");
 
   return {
-    filename: `bir-1604c-annual-source-${run.id}.csv`,
+    filename: `bir-1604c-annual-source-${taxYear}-run-${run.id}.csv`,
     contentType: "text/csv",
-    body: `${headerNote}\n# Source extract only. Validate and transform this annual dataset through the current BIR validation workflow before filing.\n${body}`,
+    body: `${headerNote}\n# taxYear=${taxYear}\n# releasedPayrollRunsIncluded=${annualRuns.length}\n# employeesIncluded=${annualByEmployee.size}\n# Source extract only. Annual gross compensation and withholding aggregate all released payrolls paid in the selected calendar year. Validate and transform this dataset through the current BIR validation workflow before filing.\n${body}`,
   };
 }
