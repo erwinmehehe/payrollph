@@ -9,6 +9,23 @@ import { escapeCsvCell } from "@/lib/csv";
 const csv = escapeCsvCell;
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
+export function taxWithheldFromLineItems(value: unknown) {
+  const lines = Array.isArray(value)
+    ? value as Array<{ code?: string; amount?: string | number }>
+    : [];
+
+  return round2(lines.reduce((sum, line) => {
+    const code = String(line.code ?? "").toUpperCase();
+    const amount = Number(line.amount ?? 0);
+    if (!Number.isFinite(amount)) return sum;
+    if (code === "WHT") return sum + Math.abs(amount);
+    // YE-TAX refunds are positive payroll additions and therefore reduce the
+    // BIR liability; collections are negative deductions and increase it.
+    if (code.startsWith("YE-TAX-")) return sum - amount;
+    return sum;
+  }, 0));
+}
+
 type PaymentSnapshot = {
   employeeName: string;
   employeeNo: string;
@@ -412,6 +429,8 @@ export async function generateJournalCsv(runId: number) {
       ? entry.lineItems as Array<{ code?: string; amount?: string | number; label?: string }>
       : [];
 
+    totals.birWht += taxWithheldFromLineItems(lines);
+
     for (const line of lines) {
       const code = String(line.code ?? "").toUpperCase();
       const amount = Number(line.amount ?? 0);
@@ -425,7 +444,6 @@ export async function generateJournalCsv(runId: number) {
       else if (code === "PHIC") totals.philHealthEe += abs;
       else if (code === "HDMF") totals.pagIbigEe += abs;
       else if (code === "HDMF_VOL") totals.pagIbigVoluntary += abs;
-      else if (code === "WHT") totals.birWht += abs;
       else if (code.startsWith("LOAN-")) {
         if (/SSS|PAG-IBIG|HDMF/i.test(String(line.label ?? ""))) totals.governmentLoans += abs;
         else totals.companyLoans += abs;
@@ -772,18 +790,8 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     const monthRuns = monthlyRuns;
     const monthEntries = monthlyEntryRows.map((row) => row.entry);
 
-    const taxFromEntry = (entry: typeof payrollEntries.$inferSelect) => {
-      const lines = Array.isArray(entry.lineItems)
-        ? entry.lineItems as Array<{ code?: string; amount?: string | number }>
-        : [];
-      const regularWht = Math.abs(
-        Number(lines.find((item) => item.code === "WHT")?.amount ?? 0) || 0,
-      );
-      const yearEndAdjustment = lines
-        .filter((item) => String(item.code ?? "").startsWith("YE-TAX-"))
-        .reduce((sum, item) => sum + (-(Number(item.amount ?? 0) || 0)), 0);
-      return regularWht + yearEndAdjustment;
-    };
+    const taxFromEntry = (entry: typeof payrollEntries.$inferSelect) =>
+      taxWithheldFromLineItems(entry.lineItems);
 
     const totalWht = monthEntries.reduce((sum, entry) => sum + taxFromEntry(entry), 0);
     const employeeCount = new Set(monthEntries.map((entry) => entry.employeeId)).size;
@@ -865,18 +873,8 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     );
   }
 
-  const taxFromAnnualEntry = (entry: typeof payrollEntries.$inferSelect) => {
-    const lines = Array.isArray(entry.lineItems)
-      ? entry.lineItems as Array<{ code?: string; amount?: string | number }>
-      : [];
-    const regularWht = Math.abs(
-      Number(lines.find((item) => item.code === "WHT")?.amount ?? 0) || 0,
-    );
-    const yearEndAdjustment = lines
-      .filter((item) => String(item.code ?? "").startsWith("YE-TAX-"))
-      .reduce((sum, item) => sum + (-(Number(item.amount ?? 0) || 0)), 0);
-    return regularWht + yearEndAdjustment;
-  };
+  const taxFromAnnualEntry = (entry: typeof payrollEntries.$inferSelect) =>
+    taxWithheldFromLineItems(entry.lineItems);
 
   const annualByEmployee = new Map<number, {
     employee: typeof employees.$inferSelect;
