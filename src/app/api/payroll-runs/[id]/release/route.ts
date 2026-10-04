@@ -253,13 +253,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     releasedAt,
     bankExport: {
       status: "waiting" as const,
-      label: "Final bank file has not been generated yet",
+      label: "Optional fallback: no final bank file has been generated.",
     },
     payout: {
-      status: "waiting-for-file" as const,
-      label: "Generate the final bank file before payout can be recorded",
+      status: "awaiting-preflight" as const,
+      label:
+        process.env.PAYMONGO_SECRET_KEY
+        && process.env.PAYMONGO_WALLET_ID
+        && process.env.PAYMONGO_WEBHOOK_SECRET
+        && process.env.PAYMONGO_DISBURSEMENTS_ENABLED === "true"
+          ? "Run the no-money PayMongo preflight, then submit the payout."
+          : "PayMongo is the primary payout rail. Connect the wallet credentials and signed webhook, then run preflight. Bank files remain an optional fallback.",
       reference: null,
-      method: null,
+      method: "PayMongo",
       completedAt: null,
     },
     payslips: {
