@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { eq } from "drizzle-orm";
 import { db } from "../src/db";
-import { employees, organizations, payrollEntries, payrollRuns } from "../src/db/schema";
+import { employees, organizations, payrollEntries, payrollRuns, yearEndAdjustments } from "../src/db/schema";
 import { findFilingForm, parseFilingOutcome } from "../src/lib/filing-evidence";
 import {
   filingEvidenceSummaries,
@@ -161,6 +161,22 @@ test("a BIR 1604-C record is tracked separately and its acceptance never counts 
 
     await db.update(organizations).set({ birTin: "123456789", birBranchCode: "0000" }).where(eq(organizations.id, org.id));
     await db.update(employees).set({ tin: "987654321", tinBranchCode: "0000" }).where(eq(employees.id, employee.id));
+    await db.insert(yearEndAdjustments).values({
+      organizationId: org.id,
+      employeeId: employee.id,
+      taxYear: 2026,
+      grossCompensation: "30000.00",
+      thirteenthMonth: "0.00",
+      nonTaxable: "0.00",
+      statutoryContributions: "0.00",
+      taxableIncome: "30000.00",
+      taxDue: "0.00",
+      taxWithheld: "0.00",
+      adjustment: "0.00",
+      outcome: "balanced",
+      breakdown: {},
+      ruleVersion: "PH-2026.03",
+    });
 
     const sssBefore = (await filingEvidenceSummaries()).find((item) => item.definition.agency === "SSS")!;
     const birBefore = (await filingEvidenceSummaries()).find((item) => item.definition.agency === "BIR")!;
