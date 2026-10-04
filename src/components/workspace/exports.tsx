@@ -56,6 +56,8 @@ export function ExportsView({
   const [exporting, setExporting] = useState<string | null>(null);
   const [payoutReference, setPayoutReference] = useState("");
   const [recordingPayout, setRecordingPayout] = useState(false);
+  const [preflightingPayout, setPreflightingPayout] = useState(false);
+  const [submittingPayout, setSubmittingPayout] = useState(false);
   const [reconcilingPayout, setReconcilingPayout] = useState(false);
   const [retryingFailedPayouts, setRetryingFailedPayouts] = useState(false);
 
@@ -139,6 +141,70 @@ export function ExportsView({
   }
 
 
+  async function runPaymongoPreflight() {
+    if (!run) return;
+    setPreflightingPayout(true);
+    try {
+      const response = await fetch(`/api/payroll-runs/${run.id}/exports`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "preflight" }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        notify(payload.error ?? "PayMongo preflight failed.", "err");
+        await onRefresh();
+        return;
+      }
+      notify(
+        payload.ready
+          ? payload.message ?? "PayMongo preflight passed without moving money."
+          : payload.message ?? "PayMongo preflight found a funding or bank-mapping issue.",
+        payload.ready ? "ok" : "err",
+      );
+      await onRefresh();
+    } catch {
+      notify("PayMongo preflight could not be reached.", "err");
+    } finally {
+      setPreflightingPayout(false);
+    }
+  }
+
+  async function submitPaymongoPayout() {
+    if (!run) return;
+    const confirmed = window.confirm(
+      `Submit ${money(run.netPay)} for ${run.employeeCount} employee(s) through PayMongo? This can move real money.`,
+    );
+    if (!confirmed) return;
+
+    setSubmittingPayout(true);
+    try {
+      const response = await fetch(`/api/payroll-runs/${run.id}/exports`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "disburse", confirm: true }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        notify(payload.error ?? "PayMongo payout could not be submitted.", "err");
+        await onRefresh();
+        return;
+      }
+      notify(
+        payload.completed
+          ? "PayMongo reports every transfer settled."
+          : `PayMongo batch ${payload.batchId ?? ""} submitted. Reconcile until every transfer settles.`,
+        payload.completed ? "ok" : "info",
+      );
+      await onRefresh();
+    } catch {
+      notify("PayMongo payout could not be submitted because the server could not be reached.", "err");
+    } finally {
+      setSubmittingPayout(false);
+    }
+  }
+
+
   async function reconcilePaymongoPayout(action: "reconcile" | "retry-failed") {
     if (!run) return;
     const retry = action === "retry-failed";
@@ -201,9 +267,9 @@ export function ExportsView({
       <div className="notice notice-blue">
         <Info size={15} className="i-blue" />
         <span>
-          Linaw generates these files; it does not submit them. There is no live bank host-to-host or certified government
-          filing connection in this deployment, see <a className="link-button" href="/api/readiness">/api/readiness</a> for
-          the gate-by-gate status.
+          PayMongo is Linaw&apos;s primary payroll payout rail when the production wallet is connected. Bank files below are an
+          optional fallback and stay fail-closed until their exact bank-provided template has passed UAT. Government worksheets
+          remain draft-only until agency acceptance evidence is recorded. See <a className="link-button" href="/api/readiness">/api/readiness</a>.
         </span>
       </div>
       {exportFailure && (
@@ -286,7 +352,7 @@ export function ExportsView({
                 <div>
                   <div className="card-kicker">PAYOUT COMPLETION</div>
                   <h2>Close the loop after release</h2>
-                  <p>Release, final bank-file generation and payout completion are separate audited milestones.</p>
+                  <p>Release, PayMongo preflight, submission and provider settlement are separate audited milestones. Bank files are optional fallback.</p>
                 </div>
                 <Status value={payoutState.payout.status === "completed" ? "Completed" : "In progress"} />
               </div>
@@ -296,27 +362,31 @@ export function ExportsView({
                     <span className="payout-step-icon"><Check size={13} /></span>
                     <div>
                       <strong>1. Payroll released</strong>
-                      <p>The register is locked for payout.</p>
+                      <p>The approved register is locked before any payout is submitted.</p>
                     </div>
                   </div>
                   <div
-                    className={`payout-step ${payoutState.bankFile.status === "generated" ? "done" : "current"}`}
-                    data-payout-stage="bank-file"
+                    className={`payout-step ${payoutState.payout.method === "PayMongo" && payoutState.payout.status !== "awaiting-preflight" ? "done" : "current"}`}
+                    data-payout-stage="paymongo-preflight"
                   >
                     <span className="payout-step-icon">
-                      {payoutState.bankFile.status === "generated" ? <Check size={13} /> : <Clock3 size={13} />}
+                      {payoutState.payout.method === "PayMongo" && payoutState.payout.status !== "awaiting-preflight"
+                        ? <Check size={13} />
+                        : <Clock3 size={13} />}
                     </span>
                     <div>
-                      <strong>2. Final bank file</strong>
+                      <strong>2. PayMongo preflight</strong>
                       <p>
-                        {payoutState.bankFile.status === "generated"
-                          ? `${payoutState.bankFile.filename ?? "Bank file"} generated and audit-logged.`
-                          : "Generate the released bank file below before recording payout completion."}
+                        {payoutState.payout.status === "awaiting-preflight"
+                          ? payoutState.payout.label
+                          : payoutState.payout.method === "PayMongo"
+                            ? "Provider credentials, bank mappings and available wallet funding passed the no-money check."
+                            : "PayMongo was not used for this payout; a validated bank-file fallback is available."}
                       </p>
                     </div>
                   </div>
                   <div
-                    className={`payout-step ${payoutState.payout.status === "completed" ? "done" : payoutState.bankFile.status === "generated" ? "current" : "pending"}`}
+                    className={`payout-step ${payoutState.payout.status === "completed" ? "done" : payoutState.payout.status === "submitted" || payoutState.payout.status === "ready" ? "current" : "pending"}`}
                     data-payout-stage="completed"
                     data-payout-status={payoutState.payout.status}
                   >
@@ -324,7 +394,7 @@ export function ExportsView({
                       {payoutState.payout.status === "completed" ? <Check size={13} /> : <Clock3 size={13} />}
                     </span>
                     <div>
-                      <strong>3. Payout completed</strong>
+                      <strong>3. Provider settlement</strong>
                       <p>{payoutState.payout.label}</p>
                       {payoutState.payout.reference && (
                         <small>Reference: {payoutState.payout.reference}</small>
@@ -332,6 +402,37 @@ export function ExportsView({
                     </div>
                   </div>
                 </div>
+
+                {payoutState.reconciliation.provider !== "PayMongo" && payoutState.payout.method !== "bank-file" && (
+                  <div className="payout-confirm" data-paymongo-primary-actions>
+                    <div>
+                      <strong>Primary payout: PayMongo</strong>
+                      <p className="field-help">
+                        Preflight is read-only. It checks the final released payroll, employee bank mappings and available wallet funds without creating a transfer.
+                      </p>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button
+                        className="secondary-button"
+                        disabled={preflightingPayout || submittingPayout}
+                        onClick={() => void runPaymongoPreflight()}
+                      >
+                        <ShieldCheck size={14} />
+                        {preflightingPayout ? "Checking PayMongo…" : "Run PayMongo preflight"}
+                      </button>
+                      {canRecordManualPayout && payoutState.payout.status === "ready" && payoutState.payout.method === "PayMongo" && (
+                        <button
+                          className="primary-button brand"
+                          disabled={preflightingPayout || submittingPayout}
+                          onClick={() => void submitPaymongoPayout()}
+                        >
+                          <Banknote size={14} />
+                          {submittingPayout ? "Submitting payout…" : "Submit via PayMongo"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {payoutState.reconciliation.provider === "PayMongo" && (
                   <div data-payout-reconciliation style={{ marginTop: 14, display: "grid", gap: 12 }}>
@@ -520,11 +621,11 @@ export function ExportsView({
               </span>
               <div>
                 <h3>
-                  Bank disbursement <Status value="Versioned" />
+                  Bank-file fallback <Status value="Optional" />
                 </h3>
                 <p>
-                  Generators for BDO DAT and BPI / UnionBank / GCash CSV. Validate first, a dry run checks every row
-                  without producing a file that looks submittable.
+                  Use only when PayMongo is unavailable or the employer explicitly uses its corporate-bank upload flow.
+                  Proprietary formats require the exact bank-provided mapping and recorded portal UAT; Linaw will not guess one.
                 </p>
                 <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
                   <label className="field">
