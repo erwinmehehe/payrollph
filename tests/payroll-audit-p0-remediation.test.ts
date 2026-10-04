@@ -197,6 +197,29 @@ test("year-end refund and collection are staged into final payroll and consumed 
         restDay: "Sunday",
         startDate: "2025-01-01",
       },
+      {
+        organizationId: org.id,
+        employeeNo: "YE-BALANCED-001",
+        firstName: "Balanced",
+        lastName: "Employee",
+        title: "Associate",
+        avatarInitials: "BE",
+        basicRate: "30000.00",
+        restDay: "Sunday",
+        startDate: "2025-01-01",
+      },
+      {
+        organizationId: org.id,
+        employeeNo: "YE-INACTIVE-001",
+        firstName: "Inactive",
+        lastName: "Employee",
+        title: "Associate",
+        avatarInitials: "IE",
+        basicRate: "30000.00",
+        restDay: "Sunday",
+        status: "Inactive",
+        startDate: "2025-01-01",
+      },
     ]).returning();
 
     const [run] = await db.insert(payrollRuns).values({
@@ -248,6 +271,38 @@ test("year-end refund and collection are staged into final payroll and consumed 
         breakdown: {},
         ruleVersion: "PH-2026.03",
       },
+      {
+        organizationId: org.id,
+        employeeId: staff[2].id,
+        taxYear: 2026,
+        grossCompensation: "360000.00",
+        thirteenthMonth: "30000.00",
+        nonTaxable: "50000.00",
+        statutoryContributions: "20000.00",
+        taxableIncome: "310000.00",
+        taxDue: "9500.00",
+        taxWithheld: "9500.00",
+        adjustment: "0.00",
+        outcome: "balanced",
+        breakdown: {},
+        ruleVersion: "PH-2026.03",
+      },
+      {
+        organizationId: org.id,
+        employeeId: staff[3].id,
+        taxYear: 2026,
+        grossCompensation: "180000.00",
+        thirteenthMonth: "15000.00",
+        nonTaxable: "30000.00",
+        statutoryContributions: "10000.00",
+        taxableIncome: "150000.00",
+        taxDue: "0.00",
+        taxWithheld: "0.00",
+        adjustment: "0.00",
+        outcome: "balanced",
+        breakdown: {},
+        ruleVersion: "PH-2026.03",
+      },
     ]).returning();
 
     const staged = await applyYearEndAdjustmentsToPayrollRun({
@@ -256,7 +311,8 @@ test("year-end refund and collection are staged into final payroll and consumed 
       payrollRunId: run.id,
       actor: "Audit",
     });
-    assert.equal(staged.staged, 2);
+    assert.equal(staged.staged, 3);
+    assert.equal(staged.skippedInactive, 1);
     assert.equal(staged.totalAdjustment, 0);
 
     const after = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
@@ -264,6 +320,8 @@ test("year-end refund and collection are staged into final payroll and consumed 
     const collectEntry = after.find((entry) => entry.employeeId === staff[1].id)!;
     assert.equal(Number(line(refundEntry, `YEAR_END_TAX-${refundAdjustment.id}`)?.amount), 500);
     assert.equal(Number(line(collectEntry, `YEAR_END_TAX-${collectAdjustment.id}`)?.amount), -500);
+    const balancedEntry = after.find((entry) => entry.employeeId === staff[2].id)!;
+    assert.equal(Number(line(balancedEntry, "YEAR_END_TAX-")?.amount), 0);
     assert.equal(Number(refundEntry.netPay), Number(beforeByEmployee.get(staff[0].id)!.netPay) + 500);
     assert.equal(Number(collectEntry.netPay), Number(beforeByEmployee.get(staff[1].id)!.netPay) - 500);
 
@@ -276,10 +334,14 @@ test("year-end refund and collection are staged into final payroll and consumed 
 
     await db.update(payrollRuns).set({ status: "Releasing" }).where(eq(payrollRuns.id, run.id));
     const released = await settlePayrollRun(run.id, { actor: "Audit", resource: run.periodLabel });
-    assert.equal(released.settlement.yearEndTaxAdjustmentsSettled, 2);
+    assert.equal(released.settlement.yearEndTaxAdjustmentsSettled, 3);
 
     const settled = await db.select().from(yearEndAdjustments).where(eq(yearEndAdjustments.organizationId, org.id));
-    assert.ok(settled.every((row) => row.appliedPayrollRunId === run.id && row.appliedAt != null));
+    const activeSettled = settled.filter((row) => row.employeeId !== staff[3].id);
+    const inactiveUnsettled = settled.find((row) => row.employeeId === staff[3].id)!;
+    assert.ok(activeSettled.every((row) => row.appliedPayrollRunId === run.id && row.appliedAt != null));
+    assert.equal(inactiveUnsettled.appliedPayrollRunId, null);
+    assert.equal(inactiveUnsettled.appliedAt, null);
   } finally {
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
