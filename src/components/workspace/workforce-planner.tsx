@@ -13,6 +13,7 @@ import {
   UserRound,
 } from "lucide-react";
 import type { ResolvedDailySchedule } from "@/lib/workforce-scheduling";
+import { WorkforceOvertimePanel } from "./workforce-overtime-panel";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, Metric, PageHeading, Spinner, Status } from "./ui";
 
@@ -375,6 +376,8 @@ export function WorkforcePlanner({
           A roster change changes premium-pay context only for dates where it is legally effective.
         </span>
       </div>
+
+      <WorkforceOvertimePanel data={data} notify={notify} />
 
       <article className="card" style={{ marginTop: 16 }}>
         <div className="card-header">
