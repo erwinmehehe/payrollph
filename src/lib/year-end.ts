@@ -45,6 +45,11 @@ function sumContributionsAndTax(lineItems: unknown, trace?: unknown) {
       && (label.includes("sss") || label.includes("philhealth") || label.includes("pag-ibig") || label.includes("pagibig"))
     ) {
       contributions += amount;
+    } else if (code.startsWith("YE-TAX-")) {
+      // Payroll stores year-end settlement using the line-item sign convention:
+      // collection = negative line, refund = positive line. Reconstruct actual
+      // tax withheld net of refunds rather than taking an absolute value.
+      tax += -signedAmount;
     } else if (label.includes("withholding") || label.includes("tax")) {
       tax += amount;
     } else if (label.includes("13th") || label.includes("thirteenth")) {
