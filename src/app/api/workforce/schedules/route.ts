@@ -336,7 +336,25 @@ export async function POST(request: Request) {
 
     const code = cleanCode(body.code);
     const name = String(body.name ?? "").trim().slice(0, 120);
-    const daysInput = Array.isArray(body.days) ? body.days : [];
+    type DraftPatternDay = {
+      id: number;
+      patternId: number;
+      dayIndex: number;
+      isRestDay: boolean;
+      label: string | null;
+    };
+    type DraftPatternSegment = {
+      patternDayId: number;
+      shiftDefinitionId: number;
+      segmentOrder: number;
+    };
+
+    const daysInput: Record<string, unknown>[] = Array.isArray(body.days)
+      ? body.days.filter(
+          (day: unknown): day is Record<string, unknown> =>
+            typeof day === "object" && day !== null,
+        )
+      : [];
     const cycleDays = Number(body.cycleDays ?? daysInput.length);
 
     if (!code || !name || !Number.isInteger(cycleDays) || cycleDays < 1 || cycleDays > 56) {
@@ -354,28 +372,30 @@ export async function POST(request: Request) {
       .where(eq(shiftDefinitions.organizationId, organizationId));
     const shiftIds = new Set(shifts.map((shift) => shift.id));
 
-    const fakeDays = daysInput.map((day: Record<string, unknown>, dayIndex: number) => ({
+    const fakeDays: DraftPatternDay[] = daysInput.map((day, dayIndex) => ({
       id: dayIndex + 1,
       patternId: -1,
       dayIndex,
       isRestDay: Boolean(day.isRestDay),
       label: String(day.label ?? "").trim().slice(0, 80) || null,
     }));
-    const fakeSegments = fakeDays.flatMap((day, dayIndex) => {
+    const fakeSegments: DraftPatternSegment[] = fakeDays.flatMap(
+      (day: DraftPatternDay, dayIndex: number) => {
       const raw = Array.isArray((daysInput[dayIndex] as Record<string, unknown>).segments)
         ? (daysInput[dayIndex] as Record<string, unknown>).segments as unknown[]
         : [];
-      return raw.map((value, index) => ({
-        patternDayId: day.id,
-        shiftDefinitionId:
-          typeof value === "object" && value
-            ? Number((value as Record<string, unknown>).shiftDefinitionId)
-            : Number(value),
-        segmentOrder: index + 1,
-      }));
-    });
+        return raw.map((value, index): DraftPatternSegment => ({
+          patternDayId: day.id,
+          shiftDefinitionId:
+            typeof value === "object" && value
+              ? Number((value as Record<string, unknown>).shiftDefinitionId)
+              : Number(value),
+          segmentOrder: index + 1,
+        }));
+      },
+    );
     const invalidSegment = fakeSegments.find(
-      (segment) => !shiftIds.has(segment.shiftDefinitionId),
+      (segment: DraftPatternSegment) => !shiftIds.has(segment.shiftDefinitionId),
     );
     if (invalidSegment) {
       return Response.json({
@@ -424,7 +444,9 @@ export async function POST(request: Request) {
           }).returning();
           createdDays.push(createdDay);
 
-          const daySegments = fakeSegments.filter((segment) => segment.patternDayId === day.id);
+          const daySegments = fakeSegments.filter(
+            (segment: DraftPatternSegment) => segment.patternDayId === day.id,
+          );
           for (const segment of daySegments) {
             await tx.insert(schedulePatternSegments).values({
               patternDayId: createdDay.id,
