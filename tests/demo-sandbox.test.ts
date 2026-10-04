@@ -51,7 +51,7 @@ test("hr and payroll demos expose the broader workspaces their server roles supp
     assert.ok(payrollPages.includes(page), `payroll demo should expose ${page}`);
   }
 
-  for (const page of ["Overview", "Loans", "De minimis", "Compliance"]) {
+  for (const page of ["Overview", "Workforce", "Loans", "De minimis", "Compliance"]) {
     assert.ok(hrPages.includes(page), `HR demo should expose ${page}`);
   }
 
@@ -540,7 +540,7 @@ test("workspace dashboard matches the PayrollPH mockup using modular real-data c
   assert.ok(shell.includes("secondaryItems"), "secondary features must remain reachable outside the primary navigation");
   assert.ok(shell.includes("nav-more-toggle"), "secondary features must be grouped under More instead of deleted");
   assert.deepEqual(ROLE_PRIMARY_PAGES.owner, ["Overview", "Payroll", "Analytics", "People", "Settings"]);
-  assert.deepEqual(ROLE_PRIMARY_PAGES.hr, ["Overview", "People", "Time & attendance", "Leave", "Recruitment"]);
+  assert.deepEqual(ROLE_PRIMARY_PAGES.hr, ["Overview", "People", "Workforce", "Time & attendance", "Leave", "Recruitment"]);
   assert.deepEqual(ROLE_PRIMARY_PAGES.payroll, ["Overview", "Payroll", "Time & attendance", "People"]);
   assert.deepEqual(ROLE_PRIMARY_PAGES.checker, ["Overview", "Audit trail"]);
   assert.deepEqual(ROLE_PRIMARY_PAGES.bookkeeper, ["Overview", "Exports", "Compliance", "Analytics"]);
