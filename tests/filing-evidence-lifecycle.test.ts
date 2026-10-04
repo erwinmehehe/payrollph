@@ -136,10 +136,11 @@ test("if payroll data changes after a record is made, its file is refused instea
   const { org, employee, run } = await seedRun("Filing Drift Co");
   try {
     const { record } = await recordGeneratedFiling({ organizationId: org.id, runId: run.id, definition: SSS, actor: "Tester" });
-    await db.update(employees).set({ basicRate: "12000" }).where(eq(employees.id, employee.id));
+    const [entry] = await db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id)).limit(1);
+    await db.update(payrollEntries).set({ grossPay: "12000", netPay: "12000" }).where(eq(payrollEntries.id, entry.id));
     await assert.rejects(regenerateRecordedFile(record), /no longer matches/);
 
-    // A new record is created for the new bytes, leaving the old one untouched.
+    // A new record is created for changed released-payroll bytes, leaving the old one untouched.
     const fresh = await recordGeneratedFiling({ organizationId: org.id, runId: run.id, definition: SSS, actor: "Tester" });
     assert.equal(fresh.created, true);
     assert.notEqual(fresh.record.fileSha256, record.fileSha256);
