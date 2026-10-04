@@ -15,6 +15,7 @@ import {
 import type { ResolvedDailySchedule } from "@/lib/workforce-scheduling";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, Metric, PageHeading, Spinner, Status } from "./ui";
+import { WorkforceOvertimePanel } from "./workforce-overtime-panel";
 
 type ShiftRow = {
   id: number;
@@ -607,6 +608,8 @@ export function WorkforcePlanner({
           <span>This role can review workforce schedules but cannot change roster definitions or employee assignments.</span>
         </div>
       )}
+
+      <WorkforceOvertimePanel data={data} notify={notify} />
 
       {loadingCatalog && !catalog && (
         <div className="notice notice-slate" style={{ marginTop: 16 }}>
