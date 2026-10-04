@@ -103,8 +103,8 @@ test("release completion and payroll failure states are explicit and recoverable
 
   for (const marker of [
     "Payroll release receipt",
-    "Final bank file has not been generated yet",
-    "Generate the final bank file before payout can be recorded",
+    "PayMongo is the primary payout rail",
+    "Run the no-money PayMongo preflight",
     "releasedAt",
     "missingEmail",
     "warningCount",
@@ -182,7 +182,7 @@ test("released payroll payout completion is audit-derived and ordered", () => {
   assert.equal(state.payout.reference, "BDO-BATCH-004821");
 });
 
-test("payout completion route requires released bank-file evidence and explicit confirmation", () => {
+test("payout completion UX is PayMongo-first while manual bank completion remains fallback-only", () => {
   const route = read("src/app/api/payroll-runs/[id]/exports/route.ts");
   const exportsView = read("src/components/workspace/exports.tsx");
   const payrollView = read("src/components/workspace/payroll-run.tsx");
@@ -200,9 +200,10 @@ test("payout completion route requires released bank-file evidence and explicit 
 
   for (const marker of [
     "PAYOUT COMPLETION",
-    "Mark payout complete",
-    "Linaw records your confirmation; it does not independently verify the bank transfer.",
-    'data-payout-stage="bank-file"',
+    "Primary payout: PayMongo",
+    "Run PayMongo preflight",
+    "Submit via PayMongo",
+    'data-payout-stage="paymongo-preflight"',
     'data-payout-stage="completed"',
   ]) {
     assert.ok(exportsView.includes(marker), `exports payout UX is missing ${marker}`);
@@ -213,16 +214,15 @@ test("payout completion route requires released bank-file evidence and explicit 
 });
 
 
-test("release receipt does not claim bank or payout completion before export", () => {
+test("release receipt starts at PayMongo preflight and keeps bank files optional", () => {
   const releaseRoute = read("src/app/api/payroll-runs/[id]/release/route.ts");
   const payrollView = read("src/components/workspace/payroll-run.tsx");
   const types = read("src/components/workspace/types.ts");
 
   assert.ok(releaseRoute.includes('status: "waiting" as const'));
-  assert.ok(releaseRoute.includes('status: "waiting-for-file" as const'));
-  assert.ok(releaseRoute.includes("Final bank file has not been generated yet"));
-  assert.ok(releaseRoute.includes("Generate the final bank file before payout can be recorded"));
-  assert.ok(payrollView.includes('status: "waiting"'));
-  assert.ok(payrollView.includes('? "Generated" : "Waiting"'));
-  assert.ok(types.includes('status: "waiting" | "generated"'));
+  assert.ok(releaseRoute.includes('status: "awaiting-preflight" as const'));
+  assert.ok(releaseRoute.includes("Optional fallback: no final bank file has been generated."));
+  assert.ok(releaseRoute.includes("PayMongo is the primary payout rail"));
+  assert.ok(payrollView.includes('data-payout-status={visibleReleaseReceipt.payout.status}'));
+  assert.ok(types.includes('"awaiting-preflight" | "ready" | "submitted" | "completed"'));
 });
