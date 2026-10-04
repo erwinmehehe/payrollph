@@ -29,6 +29,7 @@ type FilingForm = {
   agency: string;
   form: string;
   generatorVersion: string;
+  generatedFileIsAgencyUpload: boolean;
   referenceLabel: string;
   copy: {
     title: string;
@@ -78,7 +79,7 @@ export function FilingEvidencePanel({
   const [saving, setSaving] = useState(false);
 
   const [outcome, setOutcome] = useState<"accepted" | "rejected">("accepted");
-  const [method, setMethod] = useState<"file_upload" | "manual_entry">("file_upload");
+  const [method, setMethod] = useState<"file_upload" | "manual_entry">("manual_entry");
   const [reference, setReference] = useState("");
   const [submittedAt, setSubmittedAt] = useState(todayInput);
   const [note, setNote] = useState("");
@@ -115,10 +116,11 @@ export function FilingEvidencePanel({
   const currentVersion = definition?.generatorVersion;
   const copy = definition?.copy;
   const agencyLabel = copy?.agencyLabel ?? agency;
+  const directUploadSupported = definition?.generatedFileIsAgencyUpload === true;
 
   function reset() {
     setOutcome("accepted");
-    setMethod("file_upload");
+    setMethod(directUploadSupported ? "file_upload" : "manual_entry");
     setReference("");
     setSubmittedAt(todayInput());
     setNote("");
@@ -139,8 +141,10 @@ export function FilingEvidencePanel({
       }
       notify(
         payload.created
-          ? `${agency} ${form} record created. Download that file, use it with ${copy?.portalLabel ?? agencyLabel}, then record the result here.`
-          : "This exact file already has a record. Nothing was duplicated.",
+          ? directUploadSupported
+            ? `${agency} ${form} record created. Download that exact file, submit it through ${copy?.portalLabel ?? agencyLabel}, then record the result here.`
+            : `${agency} ${form} source record created. Use the figures with ${copy?.portalLabel ?? agencyLabel}, then record the official filing result here.`
+          : "This exact source/file already has a record. Nothing was duplicated.",
         "ok",
       );
       reload();
@@ -211,10 +215,10 @@ export function FilingEvidencePanel({
       }
       notify(
         outcome === "accepted"
-          ? method === "file_upload"
-            ? `Acceptance recorded. This counts toward the ${agency} ${form} readiness gate.`
-            : "Filing recorded. Because the figures were typed in, it does not count as proof the generated file imports."
-          : "Rejection recorded. Fix the cause, then create a new record for the corrected file.",
+          ? method === "file_upload" && directUploadSupported
+            ? `Acceptance recorded. This counts toward the ${agency} ${form} direct-file readiness gate.`
+            : "Official filing recorded. Direct-file automation stays unproven because Linaw did not submit an agency-upload file."
+          : "Rejection recorded. Fix the cause, then create a new record for the corrected source/file.",
         "ok",
       );
       setOpenId(null);
@@ -230,9 +234,10 @@ export function FilingEvidencePanel({
 
   function evidenceLabel(record: FilingRecord) {
     if (record.status !== "accepted") return null;
-    if (record.submissionMethod !== "file_upload") return { tone: "amber", text: "Recorded, but typed in by hand, so it does not prove the generated file works." };
+    if (!directUploadSupported) return { tone: "amber", text: "Official filing recorded. This source/worksheet is not a direct agency-upload artifact, so automation remains unproven." };
+    if (record.submissionMethod !== "file_upload") return { tone: "amber", text: "Recorded through the agency workflow, so it does not prove the generated upload file works." };
     if (currentVersion && record.generatorVersion !== currentVersion) return { tone: "amber", text: "Accepted for an older file layout, so it no longer counts." };
-    return { tone: "green", text: `Counts toward the ${agency} ${form} readiness gate.` };
+    return { tone: "green", text: `Counts toward the ${agency} ${form} direct-file readiness gate.` };
   }
 
   return (
@@ -253,7 +258,9 @@ export function FilingEvidencePanel({
         <div className="notice notice-blue" style={{ margin: 0 }}>
           <Info size={15} className="i-blue" />
           <span>
-            Only an accepted <strong>use of the file Linaw generated</strong> turns the readiness gate on.{" "}
+            {directUploadSupported
+              ? <>Only an accepted <strong>use of the exact file Linaw generated</strong> proves direct-file compatibility. </>
+              : <><strong>This Linaw artifact is reconciliation/source data, not an agency-upload file.</strong> Use the official portal or generator. </>}
             {copy?.manualEntryNote} {copy?.unconfirmedNote}
           </span>
         </div>
@@ -275,7 +282,7 @@ export function FilingEvidencePanel({
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <button className="secondary-button" disabled={creating || records === null} onClick={() => void createRecord()}>
             <FileCheck2 size={14} className="i-teal" />
-            {creating ? "Creating record…" : `Create ${agency} ${form} record for ${run.periodLabel}`}
+            {creating ? "Creating record…" : `Create ${agency} ${form} ${directUploadSupported ? "file" : "source"} record for ${run.periodLabel}`}
           </button>
           <small className="field-help" style={{ margin: 0 }}>
             Uses this run&apos;s data as it is now. Creating it again with unchanged data returns the same record.
@@ -334,7 +341,7 @@ export function FilingEvidencePanel({
                       <label className="field">
                         <span>How it was submitted</span>
                         <select value={method} onChange={(event) => setMethod(event.target.value as typeof method)}>
-                          <option value="file_upload">{copy?.methodLabels.file_upload}</option>
+                          {directUploadSupported && <option value="file_upload">{copy?.methodLabels.file_upload}</option>}
                           <option value="manual_entry">{copy?.methodLabels.manual_entry}</option>
                         </select>
                       </label>
