@@ -77,6 +77,11 @@ test("survey response validation is fail closed by question type and audience", 
   assert.ok(response.includes("An answer references a question outside this survey."));
 });
 
+test("unit managers can analyze their cohort but cannot administer company-wide surveys", () => {
+  assert.ok(management.includes("Unit-scoped managers cannot edit a company-wide survey."));
+  assert.ok(management.includes("Unit-scoped managers cannot administer a company-wide survey."));
+});
+
 test("action planning and continuous feedback remain org-unit scoped", () => {
   assert.ok(management.includes("assertScope(access, owner.orgUnitId)"));
   assert.ok(management.includes("Action-plan owner must belong to the selected organization unit."));
