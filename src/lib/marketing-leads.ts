@@ -92,9 +92,11 @@ export async function recordMarketingLead(input: {
       input.sourcePath,
     ],
   );
+  const created = result.rows[0];
+  if (!created) throw new Error("Marketing lead insert did not return a row.");
   return {
-    id: result.rows[0].id,
-    createdAt: result.rows[0].created_at,
+    id: created.id,
+    createdAt: created.created_at,
   };
 }
 
