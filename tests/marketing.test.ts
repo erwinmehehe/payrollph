@@ -157,7 +157,7 @@ test("real workspace navigation keeps module colors and profile interaction", ()
 
 test("homepage simulation keeps colored module navigation and collapsible groups", () => {
   const preview = read("src/components/marketing/workspace-preview.tsx");
-  const css = read("src/components/marketing/software-home.module.css");
+  const css = read("src/components/marketing/claude-home/home.css");
   assert.ok(preview.includes("data-tone={tone}"), "module tone must reach the simulated nav item");
   assert.ok(preview.includes("pv-nav-group-toggle"), "workspace groups must be collapsible");
   assert.ok(preview.includes("collapsedGroups"), "collapsed nav state must be interactive");
@@ -169,13 +169,13 @@ test("homepage simulation keeps colored module navigation and collapsible groups
 
 test("homepage People simulation can add and inspect employees", () => {
   const preview = read("src/components/marketing/workspace-preview.tsx");
-  const css = read("src/components/marketing/software-home.module.css");
+  const css = read("src/components/marketing/claude-home/home.css");
   assert.ok(preview.includes("function PeopleDemo"), "People must have a dedicated interactive demo");
   assert.ok(preview.includes("function addEmployee"), "People demo must support adding a local employee");
   assert.ok(preview.includes("Import people"), "People demo must link into migration");
   assert.ok(preview.includes("preview-people-overlay"), "People rows must open an employee detail surface");
   assert.ok(preview.includes("Government IDs"), "employee detail must show payroll-relevant identity state");
-  assert.ok(css.includes("/* People demo */"), "premium homepage must include the scoped People demo styles");
+  assert.ok(css.includes(".preview-people-shell"), "premium homepage must include the scoped People demo styles");
   assert.ok(css.includes(".preview-people-drawer"), "People detail/add flow must have a designed drawer");
 });
 
