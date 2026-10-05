@@ -10,6 +10,7 @@ import {
   employeeRestDayRevisions,
   employeePayRetroAdjustments,
   employeeScheduleAssignments,
+  employeeWorksiteAssignments,
   employees,
   expenseClaims,
   leaveConversions,
@@ -89,6 +90,7 @@ import {
   payrollRestDayFromSchedule,
   workforceScheduleTrace,
 } from "@/lib/workforce-payroll";
+import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
 import {
   resolveOvertimeAuthorizationDay,
   type OvertimeRequestEvidence,
@@ -444,6 +446,10 @@ async function processPayrollChunk(input: {
     or(isNull(holidays.organizationId), eq(holidays.organizationId, input.organizationId)),
   );
   const localHolidayRows = holidayRows.flatMap((row) => {
+    // Worksite-scoped holidays are deliberately excluded until payroll resolves
+    // the holiday calendar per worksite/date. Treating them as organization-wide
+    // would overpay employees at other sites.
+    if (row.worksiteId != null) return [];
     const date = String(row.holidayDate);
     if (date > String(run.periodEnd)) return [];
     const kind = row.kind === "regular" || row.kind === "special" ? row.kind : null;
@@ -505,6 +511,21 @@ async function processPayrollChunk(input: {
         asc(scheduleOverrides.id),
       )
     : [];
+  const workforceWorksiteAssignmentRows = chunkIds.length
+    ? await db.select().from(employeeWorksiteAssignments).where(and(
+        eq(employeeWorksiteAssignments.organizationId, input.organizationId),
+        inArray(employeeWorksiteAssignments.employeeId, chunkIds),
+        lte(employeeWorksiteAssignments.effectiveFrom, run.periodEnd),
+        or(
+          isNull(employeeWorksiteAssignments.effectiveUntil),
+          gte(employeeWorksiteAssignments.effectiveUntil, scheduleWindowStart),
+        ),
+      )).orderBy(
+        asc(employeeWorksiteAssignments.employeeId),
+        asc(employeeWorksiteAssignments.effectiveFrom),
+        asc(employeeWorksiteAssignments.id),
+      )
+    : [];
   const overtimeRequestRows = chunkIds.length
     ? await db.select().from(overtimeRequests).where(and(
         eq(overtimeRequests.organizationId, input.organizationId),
@@ -529,6 +550,13 @@ async function processPayrollChunk(input: {
     workforceOverridesByEmployee.set(
       override.employeeId,
       [...(workforceOverridesByEmployee.get(override.employeeId) ?? []), override],
+    );
+  }
+  const workforceWorksitesByEmployee = new Map<number, typeof workforceWorksiteAssignmentRows>();
+  for (const assignment of workforceWorksiteAssignmentRows) {
+    workforceWorksitesByEmployee.set(
+      assignment.employeeId,
+      [...(workforceWorksitesByEmployee.get(assignment.employeeId) ?? []), assignment],
     );
   }
   const overtimeRequestsByEmployee = new Map<number, typeof overtimeRequestRows>();
@@ -1005,6 +1033,7 @@ async function processPayrollChunk(input: {
       effectiveUntil: assignment.effectiveUntil ? String(assignment.effectiveUntil) : null,
       anchorDate: String(assignment.anchorDate),
       workLocationOrgUnitId: assignment.workLocationOrgUnitId,
+      worksiteId: assignment.worksiteId,
     }));
     const workforceOverrides = (workforceOverridesByEmployee.get(employee.id) ?? []).map((override) => ({
       id: override.id,
@@ -1015,6 +1044,7 @@ async function processPayrollChunk(input: {
         ? override.segments as Array<{ shiftDefinitionId: number; segmentOrder: number }>
         : [],
       workLocationOrgUnitId: override.workLocationOrgUnitId,
+      worksiteId: override.worksiteId,
       status: override.status as "pending" | "approved" | "rejected" | "cancelled",
       reason: override.reason,
     }));
@@ -1054,6 +1084,16 @@ async function processPayrollChunk(input: {
           spansMidnight: shift.spansMidnight,
         })),
         overrides: workforceOverrides,
+        defaultWorksiteId:
+          selectEffectiveWorksiteAssignment(
+            (workforceWorksitesByEmployee.get(employee.id) ?? []).map((assignment) => ({
+              id: assignment.id,
+              worksiteId: assignment.worksiteId,
+              effectiveFrom: String(assignment.effectiveFrom),
+              effectiveUntil: assignment.effectiveUntil ? String(assignment.effectiveUntil) : null,
+            })),
+            date,
+          )?.worksiteId ?? null,
       });
       workforceScheduleCache.set(date, resolved);
       return resolved;

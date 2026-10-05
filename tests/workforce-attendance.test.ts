@@ -13,6 +13,7 @@ function schedule(overrides: Partial<ResolvedDailySchedule> = {}): ResolvedDaily
     patternDayIndex: 0,
     overrideId: null,
     workLocationOrgUnitId: 10,
+    worksiteId: null,
     segments: [{
       shiftDefinitionId: 3,
       shiftCode: "DAY",

@@ -17,6 +17,7 @@ function schedule(input: Partial<ResolvedDailySchedule> = {}): ResolvedDailySche
     patternDayIndex: 3,
     overrideId: null,
     workLocationOrgUnitId: 77,
+    worksiteId: 301,
     segments: [{
       shiftDefinitionId: 1,
       shiftCode: "DAY",
@@ -161,6 +162,7 @@ test("workforce trace persists assignment pattern override and shift identifiers
     patternDayIndex: 3,
     overrideId: 55,
     workLocationOrgUnitId: 77,
+    worksiteId: 301,
     segments: [{
       shiftDefinitionId: 1,
       shiftCode: "DAY",
