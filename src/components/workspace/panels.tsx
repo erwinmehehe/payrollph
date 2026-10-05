@@ -43,6 +43,7 @@ import {
   X,
 } from "lucide-react";
 import { AccountPanel } from "@/components/account-panel";
+import { StatutoryRemittancePanel } from "@/components/workspace/statutory-remittance-panel";
 import { INVITABLE_ROLES, invitableRoleLabel } from "@/lib/roles";
 import type { AuditEvent, DashboardData, Employee, OrgUnit, PayrollEntry, PayrollRun, PricingPlan } from "./types";
 import { Avatar, Metric, PageHeading, Status, formatDate, formatDateTime as formatTime, money } from "./ui";
@@ -248,41 +249,90 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
 }
 
 export function CompliancePage({ data, setNotice, onOpenGovModal }: { data: DashboardData; setNotice: (message: string) => void; onOpenGovModal: () => void }) {
+  const defaultMonth = (
+    data.payrollRuns.find((run) => run.status !== "Released")?.payDate
+    ?? data.payrollRuns[0]?.payDate
+    ?? new Date().toISOString().slice(0, 10)
+  ).slice(0, 7);
+  const payrollExceptions = data.payrollRuns.reduce((sum, run) => sum + run.exceptions, 0);
+  const releasedRuns = data.payrollRuns.filter((run) => run.status === "Released").length;
+
   return (
     <>
       <PageHeading
-        eyebrow="COMPLIANCE CENTRE"
-        title="Rules visible, not mysterious."
-        copy="Versioned statutory formulas, BIR TRAIN tax brackets, and official Philippine verification seals."
+        eyebrow="COMPLIANCE CENTER"
+        title="From payroll rule to proof."
+        copy="See statutory rules, payroll exceptions, remittance evidence, year-end tax controls and government-output validation in one operational workspace."
         actions={
           <button className="primary-button" onClick={onOpenGovModal}>
-            <ShieldCheck size={16} className="i-green" /> Run Gov Validation Seal
+            <ShieldCheck size={16} className="i-green" /> Check government output
           </button>
         }
       />
+
+      <article className="card" style={{ marginBottom: 16 }}>
+        <div className="card-header">
+          <div>
+            <div className="card-kicker">CONTROL POSTURE</div>
+            <h2>What needs attention now</h2>
+            <p>This is an operational control view, not a legal certification score. It uses this workspace&apos;s stored payroll and audit evidence.</p>
+          </div>
+        </div>
+        <div className="run-stats" style={{ margin: 0 }}>
+          <div>
+            <span>Payroll exceptions</span>
+            <strong className={payrollExceptions ? "red-number" : "green-number"}>{payrollExceptions}</strong>
+            <small>{payrollExceptions ? "review before release" : "no stored run exceptions"}</small>
+          </div>
+          <div>
+            <span>Released payrolls</span>
+            <strong>{releasedRuns}</strong>
+            <small>evidence-bearing runs on record</small>
+          </div>
+          <div>
+            <span>Audit evidence</span>
+            <strong>{data.auditEvents.length}</strong>
+            <small>recorded actions in this workspace</small>
+          </div>
+          <div>
+            <span>Government filing</span>
+            <strong>Evidence-gated</strong>
+            <small>prepared output is not agency acceptance</small>
+          </div>
+        </div>
+      </article>
+
       <section className="module-grid three">
         <article className="card compliance-tile">
           <div className="inline-icon mint"><ShieldCheck size={19} /></div>
-          <span>STATUTORY CONTRIBUTIONS</span>
+          <span>STATUTORY RULES</span>
           <h2>Versioned</h2>
-          <p>SSS, PhilHealth & Pag-IBIG formulas are executable and unit-tested.</p>
-          <Status value="Tested" />
+          <p>SSS, PhilHealth, Pag-IBIG, TRAIN, MWE and premium-pay logic are executable and regression-tested.</p>
+          <Status value="Implemented" />
         </article>
         <article className="card compliance-tile">
           <div className="inline-icon purple"><ReceiptText size={19} /></div>
-          <span>WITHHOLDING TAX</span>
-          <h2>TRAIN + MWE</h2>
-          <p>Annual tax brackets and MWE full-exemption paths are modeled.</p>
-          <Status value="Tested" />
+          <span>REMITTANCE CONTROL</span>
+          <h2>Reconciled to posting</h2>
+          <p>Track payroll liability through payment evidence and employee-level agency posting instead of stopping at deduction.</p>
+          <Status value="Evidence required" />
         </article>
         <article className="card compliance-tile">
           <div className="inline-icon amber"><FileSpreadsheet size={19} /></div>
           <span>GOVERNMENT OUTPUTS</span>
-          <h2>Draft Worksheets</h2>
-          <p>2316, 1601-C, Alphalist, SSS R-3, PhilHealth RF-1, Pag-IBIG MCRF.</p>
-          <Status value="Draft only" />
+          <h2>Validation-gated</h2>
+          <p>BIR, SSS, PhilHealth and Pag-IBIG outputs stay clearly separated from government portal acceptance.</p>
+          <Status value="Portal proof required" />
         </article>
       </section>
+
+      <div style={{ marginTop: 16 }}>
+        <StatutoryRemittancePanel
+          organizationId={data.selectedOrganization.id}
+          defaultMonth={defaultMonth}
+          notify={(message) => setNotice(message)}
+        />
+      </div>
 
       {data.advisories.length > 0 && (
         <section className="card calamity-card" style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 20px", marginTop: 16 }}>
@@ -292,7 +342,7 @@ export function CompliancePage({ data, setNotice, onOpenGovModal }: { data: Dash
             <p style={{ margin: "2px 0 0", color: "var(--muted)", fontSize: 11 }}>{data.advisories[0].affectedUnit} · {formatDate(data.advisories[0].startDate)}–{formatDate(data.advisories[0].endDate)}</p>
           </div>
           <div style={{ marginLeft: "auto" }}>
-            <span className="status status-verified">Auto-Applied in Payroll Calc</span>
+            <span className="status status-verified">Applied by payroll rules</span>
           </div>
         </section>
       )}
