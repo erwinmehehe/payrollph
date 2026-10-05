@@ -147,9 +147,15 @@ export function canMarkRemittancePaid(input: {
   amountPaid: number;
   paymentReference: string;
   agencyReceiptReference: string;
+  paymentVarianceNote?: string;
 }) {
-  if (Math.abs(round2(input.expectedTotal) - round2(input.amountPaid)) > 0.01) {
-    return { ok: false as const, error: "Paid amount must exactly match the expected statutory remittance total." };
+  const expected = round2(input.expectedTotal);
+  const paid = round2(input.amountPaid);
+  if (paid + 0.01 < expected) {
+    return { ok: false as const, error: "Paid amount cannot be lower than the expected statutory remittance liability." };
+  }
+  if (paid > expected + 0.01 && String(input.paymentVarianceNote ?? "").trim().length < 4) {
+    return { ok: false as const, error: "Explain any payment above the contribution liability, such as agency penalties or interest." };
   }
   if (input.paymentReference.trim().length < 4) {
     return { ok: false as const, error: "Payment reference is required." };
