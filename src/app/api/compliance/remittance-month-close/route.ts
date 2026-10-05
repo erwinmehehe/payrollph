@@ -1,22 +1,12 @@
-import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import {
-  payrollEntries,
-  payrollRuns,
-  statutoryContributionIssueCases,
-  statutoryRemittanceCorrectionRequests,
-  statutoryRemittanceMonthClosures,
-} from "@/db/schema";
+import { statutoryRemittanceMonthClosures } from "@/db/schema";
 import { assertOrganizationRole } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
-import { evaluateRemittanceMonthClose } from "@/lib/statutory-remittance-close";
+import { loadStatutoryRemittanceMonthCloseState } from "@/lib/statutory-remittance-close-state";
 import { ensureStatutoryRemittanceMonthCloseSchema } from "@/lib/statutory-remittance-month-close-schema";
-import {
-  currentManilaMonth,
-  loadStatutoryRemittanceState,
-  statutoryLiabilityKeys,
-} from "@/lib/statutory-remittance-state";
+import { currentManilaMonth } from "@/lib/statutory-remittance-state";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -36,97 +26,6 @@ async function requireRemittanceCertifier(userId: number, organizationId: number
   );
 }
 
-function monthStart(month: string) {
-  return `${month}-01`;
-}
-
-function monthEnd(month: string) {
-  const [year, rawMonth] = month.split("-").map(Number);
-  return new Date(Date.UTC(year, rawMonth, 0)).toISOString().slice(0, 10);
-}
-
-async function loadCloseState(organizationId: number, applicableMonth: string) {
-  const state = await loadStatutoryRemittanceState(organizationId);
-  if (!state) return null;
-
-  const monthRuns = await db.select({
-    id: payrollRuns.id,
-    status: payrollRuns.status,
-    periodEnd: payrollRuns.periodEnd,
-  }).from(payrollRuns).where(and(
-    eq(payrollRuns.organizationId, organizationId),
-    gte(payrollRuns.periodEnd, monthStart(applicableMonth)),
-    lte(payrollRuns.periodEnd, monthEnd(applicableMonth)),
-  ));
-
-  const runIds = monthRuns.map((run) => run.id);
-  const entries = runIds.length
-    ? await db.select({
-        payrollRunId: payrollEntries.payrollRunId,
-        employeeId: payrollEntries.employeeId,
-        lineItems: payrollEntries.lineItems,
-        trace: payrollEntries.trace,
-      }).from(payrollEntries).where(inArray(payrollEntries.payrollRunId, runIds))
-    : [];
-  const runMonths = Object.fromEntries(
-    monthRuns.map((run) => [run.id, applicableMonth]),
-  ) as Record<number, string>;
-  const requiredAgencies = [...statutoryLiabilityKeys({ runMonths, entries })]
-    .map((key) => key.split("|")[1])
-    .filter(Boolean)
-    .sort();
-
-  const monthBatchIds = state.batches
-    .filter((batch) => batch.applicableMonth === applicableMonth)
-    .map((batch) => batch.id);
-  const corrections = monthBatchIds.length
-    ? await db.select().from(statutoryRemittanceCorrectionRequests).where(and(
-        eq(statutoryRemittanceCorrectionRequests.organizationId, organizationId),
-        inArray(statutoryRemittanceCorrectionRequests.batchId, monthBatchIds),
-        eq(statutoryRemittanceCorrectionRequests.status, "approved"),
-      ))
-    : [];
-
-  const issueCases = await db.select().from(statutoryContributionIssueCases).where(and(
-    eq(statutoryContributionIssueCases.organizationId, organizationId),
-    eq(statutoryContributionIssueCases.applicableMonth, applicableMonth),
-  ));
-
-  const evaluation = evaluateRemittanceMonthClose({
-    applicableMonth,
-    batches: state.batches,
-    members: state.members,
-    alerts: state.alerts,
-    corrections,
-    issueCases,
-    requiredAgencies,
-    allPayrollRunsReleased:
-      monthRuns.length > 0 && monthRuns.every((run) => run.status === "Released"),
-  });
-
-  const closures = await db.select().from(statutoryRemittanceMonthClosures)
-    .where(and(
-      eq(statutoryRemittanceMonthClosures.organizationId, organizationId),
-      eq(statutoryRemittanceMonthClosures.applicableMonth, applicableMonth),
-    ))
-    .orderBy(desc(statutoryRemittanceMonthClosures.certifiedAt), desc(statutoryRemittanceMonthClosures.id));
-  const closure = closures[0] ?? null;
-
-  const certificationValid = Boolean(
-    closure
-    && closure.status === "certified"
-    && closure.snapshotHash === evaluation.snapshotHash
-    && evaluation.ready,
-  );
-
-  return {
-    evaluation,
-    closure,
-    certificationHistory: closures,
-    certificationValid,
-  };
-}
-
 export async function GET(request: Request) {
   await ensureStatutoryRemittanceMonthCloseSchema();
   const user = await getSessionUser();
@@ -142,7 +41,7 @@ export async function GET(request: Request) {
   const denied = await requireRemittanceCertifier(user.id, organizationId);
   if (denied) return denied;
 
-  const result = await loadCloseState(organizationId, applicableMonth);
+  const result = await loadStatutoryRemittanceMonthCloseState(organizationId, applicableMonth);
   if (!result) return Response.json({ error: "Organization not found." }, { status: 404 });
   return Response.json({
     ...result,
@@ -184,7 +83,7 @@ export async function POST(request: Request) {
     }, { status: 409 });
   }
 
-  const current = await loadCloseState(organizationId, applicableMonth);
+  const current = await loadStatutoryRemittanceMonthCloseState(organizationId, applicableMonth);
   if (!current) return Response.json({ error: "Organization not found." }, { status: 404 });
 
   const evidenceActors = new Set([
