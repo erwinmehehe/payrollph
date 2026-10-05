@@ -712,7 +712,12 @@ test("seeded payroll lifecycle recalculates cleanly and releases overtime, leave
       name: `Lifecycle QA Bank ${org.id}`,
       version: "1",
       format: "CSV",
-      mappings: {},
+      mappings: {
+        columns: ["account_number", "employee_name", "net_pay", "employee_no", "payment_date", "reference"],
+        delimiter: ",",
+        includeHeader: true,
+        source: "isolated-test-fixture",
+      },
       active: true,
     }).returning();
     templateId = template.id;
