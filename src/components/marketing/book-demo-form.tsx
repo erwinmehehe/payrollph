@@ -4,7 +4,7 @@ import { useState, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, CalendarDays, Check, LoaderCircle } from "lucide-react";
 
-type Result = { message: string; queued: boolean; delivered: boolean; provider: string };
+type Result = { leadId: number; recorded: boolean };
 
 const inputClass =
   "mt-2 w-full rounded-xl border border-[#D9DCEC] bg-white px-3.5 py-3 text-[14px] text-[#11141F] outline-none transition focus:border-[#6161FF] focus:ring-4 focus:ring-[#6161FF]/10";
@@ -31,7 +31,7 @@ export function BookDemoForm() {
       const response = await fetch("/api/demo-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, requestType: "demo" }),
       });
       const payload = await response.json().catch(() => ({}));
 
