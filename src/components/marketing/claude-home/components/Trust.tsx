@@ -99,21 +99,21 @@ export function Security() {
 
         <Reveal delay={100}>
           <article className="mt-8 overflow-hidden rounded-[30px] border border-[#CDEFDD] bg-[#11141F] text-white shadow-[0_30px_70px_-38px_rgba(17,20,31,.5)]">
-            <div className="grid gap-0 lg:grid-cols-[1.05fr_0.95fr]">
-              <div className="p-6 sm:p-8 lg:p-10">
+            <div className="grid min-w-0 gap-0 lg:grid-cols-[1.05fr_0.95fr]">
+              <div className="min-w-0 p-6 sm:p-8 lg:p-10">
                 <span className="inline-flex items-center gap-2 rounded-full bg-[#E3FAF0] px-3 py-1.5 text-[12px] font-bold text-[#0A8A53]">
                   <ShieldCheck className="h-4 w-4" aria-hidden />
                   Tenant isolation verified
                 </span>
-                <h3 className="font-display mt-5 max-w-[600px] text-[28px] font-semibold leading-tight sm:text-[36px]">
+                <h3 className="font-display mt-5 max-w-[600px] break-words text-[28px] font-semibold leading-tight sm:text-[36px]">
                   One workspace can never read another&apos;s payroll.
                 </h3>
-                <p className="mt-3 max-w-[640px] text-[15px] leading-relaxed text-white/65">
+                <p className="mt-3 max-w-[640px] break-words text-[15px] leading-relaxed text-white/65">
                   Every session route passes one shared membership gate. Resource URLs resolve their own organization, so an ID in the URL never counts as authorization.
                 </p>
               </div>
 
-              <div className="border-t border-white/10 bg-white/[0.04] p-5 sm:p-7 lg:border-l lg:border-t-0">
+              <div className="min-w-0 border-t border-white/10 bg-white/[0.04] p-5 sm:p-7 lg:border-l lg:border-t-0">
                 <div className="mono grid gap-2 rounded-2xl border border-white/10 bg-black/10 p-4 text-[12.5px]">
                   {[
                     "GET  /api/payroll-runs/:foreign/exports",
