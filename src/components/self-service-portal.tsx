@@ -25,6 +25,7 @@ import {
 import { WebBundyModal } from "@/components/web-bundy-modal";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { PayrollHandoff } from "@/components/payroll-handoff";
+import { ContributionDisputeReporter } from "@/components/contribution-dispute-reporter";
 import { DEMO_ROLES, demoRolePath, type DemoRoleId } from "@/lib/demo-roles";
 import { buildPayrollHandoff } from "@/lib/payroll-handoff";
 
@@ -658,6 +659,12 @@ export function SelfServicePortal() {
             <div className="employee-rule-note">
               <ShieldCheck size={12} /> “Deducted” comes from released payroll. “Payment recorded” is employer evidence. “Agency posting confirmed” is the final reconciliation state.
             </div>
+            {data.employer?.id && (
+              <ContributionDisputeReporter
+                organizationId={data.employer.id}
+                contributions={data.contributions}
+              />
+            )}
           </article>
 
           <article className="employee-list-card">
