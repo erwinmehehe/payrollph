@@ -21,10 +21,13 @@ test("owner and payroll dashboards both surface statutory remittance watch", () 
 });
 
 test("dashboard watch never silently treats an API failure as compliant", () => {
-  assert.ok(watch.includes("Statutory remittance status could not be checked"));
+  assert.ok(watch.includes("Remittance status could not be checked"));
   assert.ok(watch.includes("Compliance status unavailable"));
   assert.ok(watch.includes("Statutory remittances need attention"));
   assert.ok(watch.includes("Statutory remittances are on track"));
+  assert.ok(watch.includes("data-statutory-remittance-watch"));
+  assert.ok(!watch.includes("DashboardAlertBanner"));
+  assert.ok(!watch.includes('className="dashboard-alert-banner"'));
 });
 
 
