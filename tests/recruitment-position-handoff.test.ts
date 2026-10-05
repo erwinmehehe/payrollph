@@ -48,6 +48,8 @@ test("Hire and onboard is a single governed conversion", () => {
   assert.ok(hire.includes("db.transaction"));
   assert.ok(hire.includes("pg_advisory_xact_lock(4101"));
   assert.ok(hire.includes("pg_advisory_xact_lock(4102"));
+  assert.ok(hire.includes("pg_advisory_xact_lock(4103"));
+  assert.ok(hire.includes('"This requisition has already reached its approved headcount."'));
   assert.ok(hire.includes("tx.insert(employees)"));
   assert.ok(hire.includes("tx.insert(employeePayProfiles)"));
   assert.ok(hire.includes("tx.insert(provisioningTasks)"));
