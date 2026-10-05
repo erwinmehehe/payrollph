@@ -120,10 +120,10 @@ test("lifecycle automation is idempotent failure isolated and constrained to sup
 
 test("joiner mover and leaver automations are connected only after authoritative lifecycle transactions", () => {
   assert.ok(hire.includes('trigger: "employee.hired"'));
-  assert.ok(hire.indexOf("runLifecycleAutomations") > hire.indexOf("Candidate hired into planned position"));
+  assert.ok(hire.lastIndexOf("runLifecycleAutomations({") > hire.indexOf("Candidate hired into planned position"));
   assert.ok(employee.includes('eventKey: "employee-create:" + created.id'));
   assert.ok(separation.includes('trigger: "employee.separated"'));
-  assert.ok(separation.indexOf("runLifecycleAutomations") > separation.indexOf('"Final pay released"'));
+  assert.ok(separation.lastIndexOf("runLifecycleAutomations({") > separation.indexOf('"Final pay released"'));
   assert.ok(transfer.includes('trigger: "employee.moved"'));
   assert.ok(transfer.includes("tx.update(positionAssignments)"));
   assert.ok(transfer.includes("tx.insert(positionAssignments)"));
