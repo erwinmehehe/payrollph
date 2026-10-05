@@ -230,11 +230,11 @@ export async function POST(request: Request) {
       intent,
       title: `${proven}/${statusRows.length} tracked government filing format(s) have accepted current-version evidence.`,
       answer: statusRows.map(({ form, evidence }) =>
-        `${form.agency} ${form.form}: ${evidence ? `accepted · ref ${evidence.reference ?? "recorded"}` : "acceptance evidence missing"}`
+        `${form.agency} ${form.form}: ${evidence ? `accepted · ref ${evidence.agencyReference ?? "recorded"}` : "acceptance evidence missing"}`
       ).join(" "),
       evidence: statusRows.map(({ form, evidence }) => ({
         label: `${form.agency} ${form.form}`,
-        value: evidence ? `Accepted · ${evidence.reference ?? "reference recorded"}` : "No accepted current-version evidence",
+        value: evidence ? `Accepted · ${evidence.agencyReference ?? "reference recorded"}` : "No accepted current-version evidence",
         source: evidence ? `government-filing-validation:${evidence.id}` : `generator:${form.generatorVersion}`,
       })),
       limitations: "Local file generation or preflight does not count as agency acceptance.",
