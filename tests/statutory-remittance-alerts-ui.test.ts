@@ -3,15 +3,17 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const route = readFileSync("src/app/api/compliance/statutory-remittances/route.ts", "utf8");
+const state = readFileSync("src/lib/statutory-remittance-state.ts", "utf8");
 const overview = readFileSync("src/components/workspace/role-overview-v2.tsx", "utf8");
 const watch = readFileSync("src/components/workspace/statutory-remittance-watch.tsx", "utf8");
 
 test("remittance API returns deadline-aware alert data", () => {
-  assert.ok(route.includes("buildStatutoryRemittanceAlerts"));
-  assert.ok(route.includes("coverageGaps"));
-  assert.ok(route.includes("nominalRemittanceDueDate"));
-  assert.ok(route.includes("alerts,"));
-  assert.ok(route.includes("today,"));
+  assert.ok(route.includes("loadStatutoryRemittanceState"));
+  assert.ok(state.includes("buildStatutoryRemittanceAlerts"));
+  assert.ok(state.includes("coverageGaps"));
+  assert.ok(state.includes("effectiveRemittanceDueDate"));
+  assert.ok(route.includes("alerts: state.alerts"));
+  assert.ok(route.includes("today: state.today"));
 });
 
 test("owner and payroll dashboards both surface statutory remittance watch", () => {
