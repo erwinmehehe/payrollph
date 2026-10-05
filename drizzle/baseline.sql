@@ -1196,6 +1196,9 @@ CREATE INDEX IF NOT EXISTS "employee_certifications_org_employee_idx" ON "employ
 CREATE INDEX IF NOT EXISTS "employee_certifications_expiry_idx" ON "employee_certifications" ("organization_id","expires_on");
 
 -- Enterprise identity, permissions, session policy, and automation
+ALTER TABLE "user_organizations"
+  ADD COLUMN IF NOT EXISTS "active" boolean DEFAULT true NOT NULL;
+
 ALTER TABLE "users"
   ADD COLUMN IF NOT EXISTS "active" boolean DEFAULT true NOT NULL,
   ADD COLUMN IF NOT EXISTS "local_password_enabled" boolean DEFAULT true NOT NULL;
