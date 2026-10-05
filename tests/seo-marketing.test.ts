@@ -5,15 +5,16 @@ import { existsSync, readFileSync } from "node:fs";
 const read = (path: string) => readFileSync(path, "utf8");
 
 test("public SEO infrastructure exists", () => {
-  assert.ok(existsSync("src/app/sitemap.ts"), "public sitemap route must exist");
+  assert.ok(existsSync("src/app/sitemap.xml/route.ts"), "public sitemap index route must exist");
+  assert.ok(existsSync("src/lib/sitemap-data.ts"), "segmented sitemap data must exist");
   assert.ok(existsSync("src/app/robots.ts"), "robots route must exist");
 
-  const sitemap = read("src/app/sitemap.ts");
+  const sitemap = read("src/lib/sitemap-data.ts");
   const robots = read("src/app/robots.ts");
   for (const route of ["/hris", "/time-and-attendance", "/employee-self-service", "/compliance", "/implementation", "/security", "/trust", "/integrations", "/developers", "/resources", "/calculators", "/payroll-health-check", "/industries/bpo"]) {
     assert.ok(sitemap.includes(`path: "${route}"`), `sitemap must include ${route}`);
   }
-  assert.ok(sitemap.includes("compliancePages.map"), "compliance child pages must be generated into the sitemap");
+  assert.ok(sitemap.includes("compliancePages") && sitemap.includes("complianceWave3"), "compliance child pages must be generated into segmented sitemap data");
   assert.ok(sitemap.includes("resourcePages") && sitemap.includes("resourceWave2"), "resource child pages from both SEO waves must be generated into the sitemap");
   assert.ok(sitemap.includes("Object.keys(CALCULATORS)"), "calculator pages must be generated into the sitemap");
   assert.ok(robots.includes('"/api/"'), "robots must keep API routes out of crawl discovery");
