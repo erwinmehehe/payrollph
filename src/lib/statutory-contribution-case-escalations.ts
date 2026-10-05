@@ -1,4 +1,4 @@
-import { asc, inArray } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
   complianceActionTasks,
@@ -44,9 +44,10 @@ export async function runScheduledContributionCaseEscalations(input: {
       dueDate: service.targetDate,
       lastDetectedAt: now,
       updatedAt: now,
-    }).where(inArray(complianceActionTasks.sourceKey, [
+    }).where(eq(
+      complianceActionTasks.sourceKey,
       `employee-contribution-issue:${issue.id}`,
-    ]));
+    ));
 
     escalated += 1;
   }
