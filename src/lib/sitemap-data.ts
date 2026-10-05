@@ -3,6 +3,7 @@ import { compliancePages, industryPages, resourcePages } from "@/lib/seo-content
 import { industryWave2, resourceWave2 } from "@/lib/seo-content-wave2";
 import { complianceWave3, glossaryEntries, regulatoryUpdates, resourceWave3 } from "@/lib/seo-content-wave3";
 import { industryWave6, integrationWave6 } from "@/lib/seo-content-wave6";
+import { resourceWave14 } from "@/lib/seo-content-wave14";
 import { PUBLISHABLE_CUSTOMER_STORIES } from "@/lib/customer-stories";
 import { absolutePublicUrl } from "@/lib/site-url";
 
@@ -56,7 +57,7 @@ export const industrySitemapEntries: SitemapEntry[] = [
 export const resourceSitemapEntries: SitemapEntry[] = [
   { path: "/resources", changeFrequency: "weekly" },
   { path: "/resources/updates", changeFrequency: "weekly" },
-  ...[...resourcePages, ...resourceWave2, ...resourceWave3].map(({ slug }) => ({
+  ...[...resourcePages, ...resourceWave2, ...resourceWave3, ...resourceWave14].map(({ slug }) => ({
     path: `/resources/${slug}`,
     changeFrequency: "monthly" as const,
   })),
