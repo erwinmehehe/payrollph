@@ -3,15 +3,16 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 import { industryPages } from "@/lib/seo-content";
+import { industryWave2 } from "@/lib/seo-content-wave2";
 
 const allIndustries = [
   { slug: "bpo", title: "BPO payroll", description: "Night work, rotating schedules, overtime, rest days and controlled release." },
-  ...industryPages.map((page) => ({ slug: page.slug, title: page.title, description: page.description })),
+  ...[...industryPages, ...industryWave2].map((page) => ({ slug: page.slug, title: page.title, description: page.description })),
 ];
 
 export const metadata: Metadata = {
   title: "Payroll Software by Industry Philippines | Linaw",
-  description: "Industry payroll solutions for BPO, manpower, manufacturing and accounting firms in the Philippines.",
+  description: "Industry payroll solutions for BPO, manpower, manufacturing, retail, healthcare, hospitality, finance, education and accounting firms in the Philippines.",
   alternates: { canonical: "/industries" },
 };
 
