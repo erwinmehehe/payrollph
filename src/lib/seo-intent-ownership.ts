@@ -100,6 +100,17 @@ export const SEO_INTENT_OWNERS: SeoIntentOwner[] = [
     supportingIntents: ["payroll software price philippines", "payroll system cost philippines"],
   },
   {
+    primaryIntent: "small business payroll software philippines",
+    ownerPath: "/small-business-payroll",
+    intentClass: "commercial",
+    supportingIntents: [
+      "sme payroll software philippines",
+      "payroll system for small business philippines",
+      "small business payroll system philippines"
+    ],
+    note: "Own SME/small-business solution intent. The homepage remains the broad payroll software Philippines owner.",
+  },
+  {
     primaryIntent: "workforce analytics philippines",
     ownerPath: "/workforce-analytics",
     intentClass: "commercial",
@@ -152,6 +163,7 @@ export const SEO_INTENT_OWNERS: SeoIntentOwner[] = [
   { primaryIntent: "bpo payroll software philippines", ownerPath: "/industries/bpo", intentClass: "industry" },
   { primaryIntent: "manpower payroll software philippines", ownerPath: "/industries/manpower", intentClass: "industry" },
   { primaryIntent: "manufacturing payroll software philippines", ownerPath: "/industries/manufacturing", intentClass: "industry" },
+  { primaryIntent: "construction payroll software philippines", ownerPath: "/industries/construction", intentClass: "industry", supportingIntents: ["construction payroll system philippines", "payroll software for construction companies philippines"] },
   { primaryIntent: "retail payroll software philippines", ownerPath: "/industries/retail", intentClass: "industry" },
   { primaryIntent: "healthcare payroll software philippines", ownerPath: "/industries/healthcare", intentClass: "industry" },
   { primaryIntent: "hospitality payroll software philippines", ownerPath: "/industries/hospitality", intentClass: "industry" },

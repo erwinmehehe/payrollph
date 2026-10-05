@@ -6,10 +6,11 @@ const read = (path: string) => readFileSync(path, "utf8");
 
 test("Wave 6 closes the remaining mapped industry gaps", () => {
   const content = read("src/lib/seo-content-wave6.ts");
-  for (const slug of ["real-estate", "media", "ngo", "shopping-centers"]) {
+  for (const slug of ["construction", "real-estate", "media", "ngo", "shopping-centers"]) {
     assert.ok(content.includes(`slug: "${slug}"`), `missing Wave 6 industry: ${slug}`);
   }
   for (const title of [
+    "Construction Payroll Software Philippines | Linaw",
     "Real Estate Payroll Software Philippines | Linaw",
     "Media Payroll Software Philippines | Linaw",
     "NGO Payroll Software Philippines | Nonprofit Payroll | Linaw",
@@ -17,6 +18,24 @@ test("Wave 6 closes the remaining mapped industry gaps", () => {
   ]) {
     assert.ok(content.includes(title), `missing Wave 6 industry title: ${title}`);
   }
+});
+
+test("construction payroll page stays scoped to implemented payroll capabilities", () => {
+  const content = read("src/lib/seo-content-wave6.ts");
+  const intents = read("src/lib/seo-intent-ownership.ts");
+
+  const start = content.indexOf('slug: "construction"');
+  const end = content.indexOf("\n  },", start);
+  assert.ok(start >= 0 && end > start, "construction industry page must exist");
+  const page = content.slice(start, end);
+
+  assert.ok(page.includes("Attendance and biometric ingestion workflows"));
+  assert.ok(page.includes("Maker-checker payroll release controls"));
+  assert.ok(page.includes("does not claim a full construction project-costing module"));
+  assert.ok(page.includes("Project costing, equipment, procurement"));
+  assert.ok(!page.includes("hazard pay automation"));
+  assert.ok(intents.includes('primaryIntent: "construction payroll software philippines"'));
+  assert.ok(intents.includes('ownerPath: "/industries/construction"'));
 });
 
 test("Wave 6 integration pages stay tied to implemented product surfaces", () => {

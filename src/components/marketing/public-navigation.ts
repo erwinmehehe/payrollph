@@ -23,6 +23,7 @@ export const PUBLIC_FOOTER_GROUPS: Array<{ label: string; links: PublicLink[] }>
       { label: "Workforce analytics", href: "/workforce-analytics" },
       { label: "Developer center", href: "/developers" },
       { label: "Pricing", href: "/pricing" },
+      { label: "Small business payroll", href: "/small-business-payroll" },
       { label: "Payroll outsourcing", href: "/payroll-outsourcing" },
     ],
   },
