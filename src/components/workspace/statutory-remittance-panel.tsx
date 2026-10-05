@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle2, Landmark, RefreshCw, ShieldCheck } from "l
 import type { Notify } from "./types";
 import { Spinner, Status, money } from "./ui";
 import { StatutoryPostingImport } from "./statutory-posting-import";
+import { StatutoryPaymentProof } from "./statutory-payment-proof";
 
 type Agency = "SSS" | "PhilHealth" | "Pag-IBIG";
 type Batch = {
@@ -278,6 +279,13 @@ export function StatutoryRemittancePanel({
                   </span>
                 </div>
               )}
+
+              <StatutoryPaymentProof
+                organizationId={organizationId}
+                batchId={batch.id}
+                batchStatus={batch.status}
+                notify={notify}
+              />
 
               {batch.status === "open" && (
                 <>
