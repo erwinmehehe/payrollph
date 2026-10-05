@@ -27,6 +27,7 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
   const [message, setMessage] = useState("Use the account created for your workspace or the invitation you accepted.");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [ssoBusy, setSsoBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   async function login(event: FormEvent) {
@@ -56,6 +57,32 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
       setError("Could not reach the auth service.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function sso() {
+    setError("");
+    if (!email.trim()) {
+      setError("Enter your work email first so Linaw can find your company's SSO provider.");
+      return;
+    }
+    setSsoBusy(true);
+    try {
+      const response = await fetch("/api/auth/sso/resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.available || !payload.startUrl) {
+        setError(payload.error ?? "No verified single sign-on provider is configured for this email domain.");
+        return;
+      }
+      window.location.href = payload.startUrl;
+    } catch {
+      setError("Could not reach the single sign-on service.");
+    } finally {
+      setSsoBusy(false);
     }
   }
 
@@ -218,6 +245,21 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
                 >
                   {requiresTotp ? "Verify & sign in" : "Sign in"} <ArrowRight size={15} aria-hidden />
                 </button>
+                {!requiresTotp && (
+                  <>
+                    <div className="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#A0A6B8]">
+                      <span className="h-px flex-1 bg-[#ECEEF4]" /> or <span className="h-px flex-1 bg-[#ECEEF4]" />
+                    </div>
+                    <button
+                      type="button"
+                      className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[12px] border border-[#DDE0EA] bg-white px-5 text-[13px] font-semibold text-[#34394E] transition hover:bg-[#F7F8FC] disabled:cursor-wait disabled:opacity-60"
+                      disabled={ssoBusy}
+                      onClick={sso}
+                    >
+                      <ShieldCheck size={15} aria-hidden /> {ssoBusy ? "Finding SSO…" : "Continue with company SSO"}
+                    </button>
+                  </>
+                )}
               </form>
             ) : (
               <form onSubmit={forgot} className="mt-6 grid gap-4">
