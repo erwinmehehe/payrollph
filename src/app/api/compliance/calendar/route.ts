@@ -79,10 +79,13 @@ export async function GET(request: Request) {
   }
 
   const batches = await db.select().from(statutoryRemittanceBatches)
-    .where(and(\n      eq(statutoryRemittanceBatches.organizationId, organizationId),\n      inArray(statutoryRemittanceBatches.applicableMonth, applicableMonths),\n    ))
+    .where(and(
+      eq(statutoryRemittanceBatches.organizationId, organizationId),
+      inArray(statutoryRemittanceBatches.applicableMonth, applicableMonths),
+    ))
     .orderBy(asc(statutoryRemittanceBatches.applicableMonth), asc(statutoryRemittanceBatches.agency));
 
-  const organizationBatches = batches.filter((batch) => batch.organizationId === organizationId);
+  const organizationBatches = batches;
   const batchIds = organizationBatches.map((batch) => batch.id);
   const members = batchIds.length
     ? await db.select({
