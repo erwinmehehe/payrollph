@@ -15,8 +15,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const update = regulatoryUpdates.find((item) => item.slug === slug);
   if (!update) return {};
   return {
-    title: `${update.title} | Linaw`,
-    description: update.summary,
+    title: update.metaTitle ?? `${update.title} | Linaw`,
+    description: update.metaDescription ?? update.summary,
     alternates: { canonical: `/resources/updates/${slug}` },
   };
 }
