@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import { resolveTxt } from "node:dns/promises";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
@@ -122,7 +121,15 @@ export async function GET(request: Request) {
       discoveryVerifiedAt: provider.discoveryVerifiedAt,
       clientSecretConfigured: provider.clientSecretEncrypted.startsWith("enc:v1:"),
     })),
-    identityDomains: domains.map(({ verificationTokenHash: _hidden, ...domain }) => domain),
+    identityDomains: domains.map((domain) => ({
+      id: domain.id,
+      organizationId: domain.organizationId,
+      providerId: domain.providerId,
+      domain: domain.domain,
+      verified: domain.verified,
+      verifiedAt: domain.verifiedAt,
+      createdAt: domain.createdAt,
+    })),
     scimTokens: tokens.map((token) => ({
       id: token.id,
       name: token.name,
