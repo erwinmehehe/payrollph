@@ -1,5 +1,5 @@
-import { pool } from "@/db";
-import { ensureMarketingLeadSchema } from "@/lib/marketing-leads";
+import { pool } from "../src/db";
+import { ensureMarketingLeadSchema } from "../src/lib/marketing-leads";
 
 const limitArg = process.argv.find((arg) => arg.startsWith("--limit="));
 const statusArg = process.argv.find((arg) => arg.startsWith("--status="));
