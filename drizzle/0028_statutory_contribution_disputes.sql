@@ -22,6 +22,9 @@ CREATE INDEX IF NOT EXISTS "statutory_contribution_disputes_org_status_idx"
   ON "statutory_contribution_disputes" ("organization_id", "status", "created_at");
 CREATE INDEX IF NOT EXISTS "statutory_contribution_disputes_employee_month_idx"
   ON "statutory_contribution_disputes" ("employee_id", "applicable_month", "agency");
+CREATE UNIQUE INDEX IF NOT EXISTS "statutory_contribution_disputes_open_unique"
+  ON "statutory_contribution_disputes" ("organization_id", "employee_id", "agency", "applicable_month", "issue_type")
+  WHERE "status" = 'open';
 
 
 DO $compat$
@@ -49,6 +52,14 @@ BEGIN
     ALTER TABLE statutory_contribution_disputes
       ADD CONSTRAINT statutory_contribution_disputes_issue_check
       CHECK (issue_type IN ('missing_posting', 'wrong_amount', 'wrong_reference', 'other'));
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'statutory_contribution_disputes_resolution_check'
+  ) THEN
+    ALTER TABLE statutory_contribution_disputes
+      ADD CONSTRAINT statutory_contribution_disputes_resolution_check
+      CHECK (resolution_code IS NULL OR resolution_code IN ('posted_confirmed', 'corrected', 'not_an_error', 'duplicate'));
   END IF;
 END
 $compat$;
