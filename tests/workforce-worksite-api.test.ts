@@ -40,9 +40,10 @@ test("inactive worksites cannot receive new assignments or be deactivated while 
 });
 
 
-test("payroll resolves effective default worksites but does not yet price site-specific holidays", () => {
+test("payroll resolves effective worksites and uses them for site-specific holiday scope", () => {
   assert.ok(payroll.includes("workforceWorksitesByEmployee"));
   assert.ok(payroll.includes("selectEffectiveWorksiteAssignment("));
   assert.ok(payroll.includes("defaultWorksiteId:"));
-  assert.ok(payroll.includes("if (row.worksiteId != null) return [];"));
+  assert.ok(payroll.includes("workforceHolidayApplies({"));
+  assert.ok(payroll.includes("resolveWorkforceScheduleForDate(holiday.date).worksiteId"));
 });
