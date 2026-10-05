@@ -291,7 +291,6 @@ jobs:
                   `mobile-390: security proof ${label} is clipped inside its card`,
                 );
               }
-              }
             }
 
             check(errors.length === 0, `${name}: browser console/page errors: ${errors.join(" | ")}`);
