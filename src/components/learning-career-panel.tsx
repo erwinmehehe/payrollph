@@ -94,7 +94,8 @@ export function LearningCareerPanel({ organizationId, setNotice }: { organizatio
 
   const activePlans = plans.filter((plan) => plan.status === "active");
   const completedLearning = enrollments.filter((row) => row.status === "completed").length;
-  const expiringCerts = certifications.filter((row) => row.effectiveStatus === "active" && row.expiresOn && {
+  const expiringCerts = certifications.filter((row) => {
+    if (row.effectiveStatus !== "active" || !row.expiresOn) return false;
     const days = (new Date(row.expiresOn + "T00:00:00Z").getTime() - Date.now()) / 86400000;
     return days >= 0 && days <= 90;
   }).length;
