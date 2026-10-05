@@ -84,5 +84,6 @@ export default function EmployeeSelfServicePage() {
         { label: "Security", href: "/security", description: "Review the access and tenant-isolation controls around payroll data." },
       ]}
     />
+    </>
   );
 }
