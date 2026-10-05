@@ -1,6 +1,6 @@
-import { and, desc, eq, gte } from "drizzle-orm";
+import { and, desc, gte, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { outbox } from "@/db/schema";
+import { marketingLeads } from "@/db/schema";
 
 type MarketingMetadata = {
   requestType: "demo" | "trial";
@@ -57,12 +57,17 @@ export async function marketingLeadReport(days = 90) {
 
   const rows = await db
     .select({
-      metadata: outbox.metadata,
-      createdAt: outbox.createdAt,
+      kind: marketingLeads.kind,
+      headcount: marketingLeads.headcount,
+      attribution: marketingLeads.attribution,
+      createdAt: marketingLeads.createdAt,
     })
-    .from(outbox)
-    .where(and(eq(outbox.purpose, "demo-request"), gte(outbox.createdAt, since)))
-    .orderBy(desc(outbox.createdAt))
+    .from(marketingLeads)
+    .where(and(
+      inArray(marketingLeads.kind, ["demo", "trial-access"]),
+      gte(marketingLeads.createdAt, since),
+    ))
+    .orderBy(desc(marketingLeads.createdAt))
     .limit(5000);
 
   const requestType = new Map<string, number>();
@@ -75,10 +80,23 @@ export async function marketingLeadReport(days = 90) {
   let attributed = 0;
 
   for (const row of rows) {
-    const marketing = marketingMetadata(row.metadata);
-    if (!marketing) continue;
+    const raw = row.attribution && typeof row.attribution === "object"
+      ? row.attribution as Record<string, unknown>
+      : {};
+    const marketing: MarketingMetadata = {
+      requestType: row.kind === "trial-access" ? "trial" : "demo",
+      headcount: clean(row.headcount, 40) || "not stated",
+      landingPath: clean(raw.landingPath, 300) || "(unknown)",
+      conversionPath: clean(raw.conversionPath, 300) || "(unknown)",
+      referrer: clean(raw.referrer, 500),
+      utmSource: clean(raw.utmSource, 120),
+      utmMedium: clean(raw.utmMedium, 120),
+      utmCampaign: clean(raw.utmCampaign, 160),
+      utmContent: clean(raw.utmContent, 160),
+      utmTerm: clean(raw.utmTerm, 160),
+    };
 
-    attributed += 1;
+    if (Object.keys(raw).length > 0) attributed += 1;
     increment(requestType, marketing.requestType);
     increment(landingPath, marketing.landingPath);
     increment(
