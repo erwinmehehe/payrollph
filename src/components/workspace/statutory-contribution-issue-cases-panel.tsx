@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, RefreshCcw, SearchCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, RefreshCcw, SearchCheck } from "lucide-react";
 import type { Notify } from "./types";
 import { Spinner, Status } from "./ui";
 
@@ -48,7 +48,7 @@ const OUTCOMES = [
   ["correction_completed", "Correction completed"],
   ["no_issue_found", "No issue found"],
   ["employee_advised", "Employee advised"],
-  ["referred_to_agency", "Referred to agency"],
+  ["referred_to_agency", "Referred to agency · keep case open"],
 ] as const;
 
 export function StatutoryContributionIssueCasesPanel({
@@ -148,11 +148,14 @@ export function StatutoryContributionIssueCasesPanel({
       notify("Add a resolution note of at least 20 characters.", "err");
       return;
     }
+    const referred = resolutionOutcome === "referred_to_agency";
     const ok = await mutate(
       "resolve",
       issue.id,
       { resolutionOutcome, resolutionNote },
-      "Employee contribution issue resolved with an audit trail.",
+      referred
+        ? "Contribution case referred to the agency and kept open."
+        : "Employee contribution issue resolved with an audit trail.",
     );
     if (ok) {
       setResolveId(null);
@@ -200,6 +203,13 @@ export function StatutoryContributionIssueCasesPanel({
                     <td>
                       <strong>{issue.employeeName}</strong>
                       <div className="id">{issue.employeeNo} · case #{issue.id}</div>
+                      <a
+                        className="secondary-button"
+                        style={{ marginTop: 6 }}
+                        href={`/api/compliance/contribution-issues/evidence?organizationId=${organizationId}&caseId=${issue.id}`}
+                      >
+                        <Download size={13} /> Evidence
+                      </a>
                     </td>
                     <td>
                       <strong>{issue.agency}</strong>
@@ -349,6 +359,13 @@ export function StatutoryContributionIssueCasesPanel({
                   <small style={{ display: "block", color: "var(--muted)" }}>
                     {issue.resolutionOutcome?.replaceAll("_", " ") ?? "resolved"} · {issue.resolutionNote}
                   </small>
+                  <a
+                    className="secondary-button"
+                    style={{ marginTop: 6 }}
+                    href={`/api/compliance/contribution-issues/evidence?organizationId=${organizationId}&caseId=${issue.id}`}
+                  >
+                    <Download size={13} /> Download evidence
+                  </a>
                 </span>
               ))}
             </div>

@@ -58,8 +58,10 @@ export default function CompliancePage() {
           { label: "Withholding tax", href: "/compliance/withholding-tax", description: "Taxable compensation, payroll frequency and annualization context." },
           { label: "BIR Form 2316", href: "/compliance/bir-2316", description: "Employee compensation and tax certificate data." },
           { label: "BIR Form 1601-C", href: "/compliance/1601-c", description: "Monthly withholding remittance context." },
+          { label: "BIR Alphalist", href: "/compliance/alphalist", description: "Annual employee and withholding data preparation with validation-gated output." },
           { label: "Compliance calendar", href: "/compliance/calendar", description: "Manage deadlines using current official sources." },
-          { label: "Regulatory updates", href: "/resources/updates", description: "Track dated government payroll changes." },
+          { label: "Regulatory update process", href: "/compliance/regulatory-updates", description: "See how dated rule changes are sourced, reviewed and mapped to payroll workflows." },
+          { label: "Regulatory update archive", href: "/resources/updates", description: "Browse dated government payroll changes and source references." },
           { label: "Payroll compliance audit", href: "/compliance/payroll-audit", description: "Reconcile payroll liabilities and evidence after release." },
         ]}
         ctaTitle="Verify the compliance workflow instead of trusting a blanket claim."
