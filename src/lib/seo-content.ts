@@ -227,7 +227,7 @@ export const resourcePages: AuthorityPage[] = [
     slug: "payroll-security-checklist",
     eyebrow: "Payroll software security checklist",
     title: "Payroll software security checklist for buyers.",
-    metaTitle: "Payroll Software Security Checklist Philippines | Linaw",
+    metaTitle: "Payroll Security Checklist Guide Philippines | Linaw",
     description: "Evaluate Philippine payroll software security across MFA, sessions, tenant isolation, role scope, encryption, audit trails and deployment controls.",
     intro: "Payroll systems hold compensation, identity and bank information. Security evaluation should focus on enforceable controls and evidence rather than generic statements that a platform is secure.",
     proof: ["MFA", "Revocable sessions", "Tenant isolation", "Role scope", "Sensitive-field encryption", "Audit and security testing"],
