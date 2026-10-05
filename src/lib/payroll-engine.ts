@@ -88,6 +88,7 @@ import {
 import {
   matchPunchesToWorkforceSegments,
   payrollRestDayFromSchedule,
+  segmentPayableTime,
   workforceScheduleTrace,
 } from "@/lib/workforce-payroll";
 import { workforceHolidayApplies } from "@/lib/workforce-holiday";
@@ -447,9 +448,10 @@ async function processPayrollChunk(input: {
     or(isNull(holidays.organizationId), eq(holidays.organizationId, input.organizationId)),
   );
   const holidayWindowStart = addDays(String(run.periodStart), -14);
+  const workforcePricingWindowEnd = addDays(String(run.periodEnd), 1);
   const localHolidayRows = holidayRows.flatMap((row) => {
     const date = String(row.holidayDate);
-    if (date < holidayWindowStart || date > String(run.periodEnd)) return [];
+    if (date < holidayWindowStart || date > workforcePricingWindowEnd) return [];
     const kind = row.kind === "regular" || row.kind === "special" ? row.kind : null;
     return kind ? [{
       date,
@@ -467,6 +469,7 @@ async function processPayrollChunk(input: {
   // employee-specific effective assignments/overrides. Load the reusable
   // definitions once per chunk and only the employee rows needed for this run.
   const scheduleWindowStart = holidayWindowStart;
+  const scheduleWindowEnd = workforcePricingWindowEnd;
   const [workforceShiftRows, workforcePatternRows] = await Promise.all([
     db.select().from(shiftDefinitions).where(eq(shiftDefinitions.organizationId, input.organizationId)),
     db.select().from(schedulePatterns).where(eq(schedulePatterns.organizationId, input.organizationId)),
@@ -487,7 +490,7 @@ async function processPayrollChunk(input: {
     ? await db.select().from(employeeScheduleAssignments).where(and(
         eq(employeeScheduleAssignments.organizationId, input.organizationId),
         inArray(employeeScheduleAssignments.employeeId, chunkIds),
-        lte(employeeScheduleAssignments.effectiveFrom, run.periodEnd),
+        lte(employeeScheduleAssignments.effectiveFrom, scheduleWindowEnd),
         or(
           isNull(employeeScheduleAssignments.effectiveUntil),
           gte(employeeScheduleAssignments.effectiveUntil, scheduleWindowStart),
@@ -503,7 +506,7 @@ async function processPayrollChunk(input: {
         eq(scheduleOverrides.organizationId, input.organizationId),
         inArray(scheduleOverrides.employeeId, chunkIds),
         gte(scheduleOverrides.workDate, scheduleWindowStart),
-        lte(scheduleOverrides.workDate, run.periodEnd),
+        lte(scheduleOverrides.workDate, scheduleWindowEnd),
       )).orderBy(
         asc(scheduleOverrides.employeeId),
         asc(scheduleOverrides.workDate),
@@ -1112,7 +1115,23 @@ async function processPayrollChunk(input: {
       lte(timePunches.workDate, run.periodEnd),
     ));
     for (const punch of punches) {
-      resolveWorkforceScheduleForDate(String(punch.workDate));
+      const workDate = String(punch.workDate);
+      resolveWorkforceScheduleForDate(workDate);
+
+      // An overnight attendance record can enter a different holiday/rest-day
+      // classification after midnight. Resolve every touched calendar date so
+      // payroll never falls back to a guessed weekday when an advanced roster
+      // exists for the continuation of the shift.
+      if (punch.timeOut) {
+        const endingCalendarDate = toLocalIso(new Date(punch.timeOut)).slice(0, 10);
+        for (
+          let date = addDays(workDate, 1), guard = 0;
+          date <= endingCalendarDate && guard < 3;
+          date = addDays(date, 1), guard += 1
+        ) {
+          resolveWorkforceScheduleForDate(date);
+        }
+      }
     }
 
     const employeeRestDayRevisions = (restDayRevisionsByEmployee.get(employee.id) ?? []).map((revision) => ({
@@ -1515,8 +1534,39 @@ function calculateEmployeePay(input: {
     }
   }
 
+  const attendanceCalendarDates = new Set<string>();
+  const payableTimeTrace: Array<{
+    punchId: number;
+    sourceWorkDate: string;
+    calendarDate: string;
+    start: string;
+    end: string;
+    minutes: number;
+    overtime: boolean;
+    night: boolean;
+    pricingMode: "calendar-segment" | "legacy-fallback";
+    holiday: string | null;
+    holidayLabel: string | null;
+    restDay: boolean | null;
+    multiplier: number | null;
+  }> = [];
+  const segmentedPremiumNotes = new Map<string, {
+    date: string;
+    label: string;
+    multiplier: number;
+    minutes: number;
+    extra: number;
+  }>();
+
   for (const punch of eligiblePunches) {
+    const workDate = String(punch.workDate);
     const scheduledSegment = workforceSegmentByPunchId.get(punch.id);
+    const shiftForPunch = {
+      start: scheduledSegment?.startTime ?? punch.shiftStart,
+      end: scheduledSegment?.endTime ?? punch.shiftEnd,
+      breakMinutes: scheduledSegment?.breakMinutes ?? 60,
+      spansMidnight: scheduledSegment?.spansMidnight,
+    };
     const derived = deriveClockHours(
       {
         timeIn: punch.timeIn ? toLocalIso(new Date(punch.timeIn)) : null,
@@ -1525,41 +1575,226 @@ function calculateEmployeePay(input: {
         breakEnd: punch.breakEnd ? toLocalIso(new Date(punch.breakEnd)) : null,
       },
       {
-        start: scheduledSegment?.startTime ?? punch.shiftStart,
-        end: scheduledSegment?.endTime ?? punch.shiftEnd,
-        breakMinutes: scheduledSegment?.breakMinutes ?? 60,
+        start: shiftForPunch.start,
+        end: shiftForPunch.end,
+        breakMinutes: shiftForPunch.breakMinutes,
         graceMinutes: 5,
       },
     );
-    const punchProfile = profileForDate(timeline, String(punch.workDate));
-    const workedRegular = Math.max(0, derived.workedMinutes - derived.overtimeMinutes);
-    regularMinutes += workedRegular;
-    overtimeMinutes += derived.overtimeMinutes;
-    const punchWorkDate = String(punch.workDate);
-    overtimeMinutesByWorkDate.set(
-      punchWorkDate,
-      (overtimeMinutesByWorkDate.get(punchWorkDate) ?? 0) + derived.overtimeMinutes,
+    const punchProfile = profileForDate(timeline, workDate);
+    const segmentation = segmentPayableTime({
+      punch: {
+        id: punch.id,
+        workDate,
+        timeIn: punch.timeIn,
+        timeOut: punch.timeOut,
+        breakStart: punch.breakStart,
+        breakEnd: punch.breakEnd,
+      },
+      shift: shiftForPunch,
+    });
+    for (const date of segmentation.attendanceCalendarDates) {
+      attendanceCalendarDates.add(date);
+    }
+
+    const segmentedWorkedMinutes = segmentation.segments.reduce(
+      (sum, segment) => sum + segment.minutes,
+      0,
     );
-    nightMinutes += derived.nightDifferentialMinutes;
+    const useSegmentedPricing =
+      segmentation.allocationComplete
+      && segmentation.segments.length > 0
+      && segmentedWorkedMinutes === derived.workedMinutes;
+
+    if (
+      segmentation.allocationComplete
+      && segmentation.segments.length > 0
+      && segmentedWorkedMinutes !== derived.workedMinutes
+    ) {
+      const message =
+        `${workDate}: payable-time segmentation produced ${segmentedWorkedMinutes} worked minute(s), but attendance derivation produced ${derived.workedMinutes}; calendar-boundary pricing was not applied.`;
+      flags.push(message);
+      punchNotes.push(message);
+    }
+    const segmentationPricingClasses = new Set(
+      segmentation.segments.map(
+        (segment) =>
+          `${segment.calendarDate}|${segment.overtime ? "ot" : "regular"}|${segment.night ? "night" : "day"}`,
+      ),
+    );
+    if (
+      !segmentation.allocationComplete
+      && segmentation.flags.length > 0
+      && segmentationPricingClasses.size > 1
+    ) {
+      const message = `${workDate}: ${segmentation.flags.join("; ")}`;
+      flags.push(message);
+      punchNotes.push(message);
+    }
+
+    const segmentedRegularMinutes = useSegmentedPricing
+      ? segmentation.segments
+          .filter((segment) => !segment.overtime)
+          .reduce((sum, segment) => sum + segment.minutes, 0)
+      : Math.max(0, derived.workedMinutes - derived.overtimeMinutes);
+    const segmentedOvertimeMinutes = useSegmentedPricing
+      ? segmentation.segments
+          .filter((segment) => segment.overtime)
+          .reduce((sum, segment) => sum + segment.minutes, 0)
+      : derived.overtimeMinutes;
+    const segmentedNightMinutes = useSegmentedPricing
+      ? segmentation.segments
+          .filter((segment) => segment.night)
+          .reduce((sum, segment) => sum + segment.minutes, 0)
+      : derived.nightDifferentialMinutes;
+
+    regularMinutes += segmentedRegularMinutes;
+    overtimeMinutes += segmentedOvertimeMinutes;
+    overtimeMinutesByWorkDate.set(
+      workDate,
+      (overtimeMinutesByWorkDate.get(workDate) ?? 0) + segmentedOvertimeMinutes,
+    );
+    nightMinutes += segmentedNightMinutes;
     tardinessMinutes += derived.tardinessMinutes;
     undertimeMinutes += derived.undertimeMinutes;
-    if (punchProfile.payBasis !== "monthly") {
-      workedBasicPay += (workedRegular / 60) * punchProfile.hourlyRate;
+
+    if (useSegmentedPricing) {
+      for (const segment of segmentation.segments) {
+        const holidayContext = holidayPayContextOn(
+          segment.calendarDate,
+          input.holidayCalendar ?? NATIONAL_HOLIDAYS_2026,
+        );
+        const restDay = restDayForDate(
+          input.employee.restDay,
+          input.restDayRevisions ?? [],
+          segment.calendarDate,
+        );
+        const legacyIsRestDay = isRestDayOfWeek(segment.calendarDate, restDay);
+        const isRestDay = payrollRestDayFromSchedule(
+          input.resolvedSchedules?.[segment.calendarDate],
+          legacyIsRestDay,
+        );
+        const multiplier = holidayMultiplier({
+          holiday: holidayContext.holiday,
+          worked: true,
+          overtime: segment.overtime,
+          restDay: isRestDay,
+        });
+        const hours = segment.minutes / 60;
+
+        if (segment.overtime) {
+          overtimePay += hours * punchProfile.hourlyRate * multiplier;
+        } else {
+          if (punchProfile.payBasis !== "monthly") {
+            workedBasicPay += hours * punchProfile.hourlyRate;
+          }
+          const extra =
+            hours * punchProfile.hourlyRate * Math.max(0, multiplier - 1);
+          holidayPremium += extra;
+
+          if ((holidayContext.holidays.length > 0 || isRestDay) && extra > 0) {
+            const dayLabel = holidayContext.label
+              ? `${holidayContext.label}${isRestDay ? ", rest day" : ""}`
+              : "rest day";
+            const key = `${segment.calendarDate}|${dayLabel}|${multiplier}`;
+            const existing = segmentedPremiumNotes.get(key);
+            segmentedPremiumNotes.set(key, {
+              date: segment.calendarDate,
+              label: dayLabel,
+              multiplier,
+              minutes: (existing?.minutes ?? 0) + segment.minutes,
+              extra: (existing?.extra ?? 0) + extra,
+            });
+          }
+        }
+
+        if (segment.night) {
+          nightDiffPay += hours * punchProfile.hourlyRate * multiplier * 0.1;
+        }
+
+        payableTimeTrace.push({
+          ...segment,
+          pricingMode: "calendar-segment",
+          holiday: holidayContext.holiday,
+          holidayLabel: holidayContext.label ?? null,
+          restDay: isRestDay,
+          multiplier,
+        });
+      }
+    } else {
+      if (punchProfile.payBasis !== "monthly") {
+        workedBasicPay += (segmentedRegularMinutes / 60) * punchProfile.hourlyRate;
+      }
+      const holidayContext = holidayPayContextOn(
+        workDate,
+        input.holidayCalendar ?? NATIONAL_HOLIDAYS_2026,
+      );
+      const restDay = restDayForDate(
+        input.employee.restDay,
+        input.restDayRevisions ?? [],
+        workDate,
+      );
+      const legacyIsRestDay = isRestDayOfWeek(workDate, restDay);
+      const isRestDay = payrollRestDayFromSchedule(
+        input.resolvedSchedules?.[workDate],
+        legacyIsRestDay,
+      );
+      const otMultiplier = holidayMultiplier({
+        holiday: holidayContext.holiday,
+        worked: true,
+        overtime: true,
+        restDay: isRestDay,
+      });
+      const regularMultiplier = holidayMultiplier({
+        holiday: holidayContext.holiday,
+        worked: true,
+        overtime: false,
+        restDay: isRestDay,
+      });
+      overtimePay +=
+        (segmentedOvertimeMinutes / 60) * punchProfile.hourlyRate * otMultiplier;
+      nightDiffPay +=
+        (derived.nightRegularMinutes / 60)
+          * punchProfile.hourlyRate
+          * regularMultiplier
+          * 0.1
+        + (derived.nightOvertimeMinutes / 60)
+          * punchProfile.hourlyRate
+          * otMultiplier
+          * 0.1;
+
+      if (
+        (holidayContext.holidays.length > 0 || isRestDay)
+        && derived.workedMinutes > 0
+      ) {
+        const extra =
+          (segmentedRegularMinutes / 60)
+          * punchProfile.hourlyRate
+          * (regularMultiplier - 1);
+        holidayPremium += extra;
+        const otNote = segmentedOvertimeMinutes > 0
+          ? ` (overtime that day priced separately at ×${otMultiplier})`
+          : "";
+        const dayLabel = holidayContext.label
+          ? `${holidayContext.label}${isRestDay ? ", rest day" : ""}`
+          : "rest day";
+        holidayNotes.push(
+          `${workDate} ${dayLabel} ×${regularMultiplier} → +${money(extra)}${otNote}`,
+        );
+      }
+
+      for (const segment of segmentation.segments) {
+        payableTimeTrace.push({
+          ...segment,
+          pricingMode: "legacy-fallback",
+          holiday: null,
+          holidayLabel: null,
+          restDay: null,
+          multiplier: null,
+        });
+      }
     }
-    const workDate = String(punch.workDate);
-    const holidayContext = holidayPayContextOn(workDate, input.holidayCalendar ?? NATIONAL_HOLIDAYS_2026);
-    const restDay = restDayForDate(input.employee.restDay, input.restDayRevisions ?? [], workDate);
-    const legacyIsRestDay = isRestDayOfWeek(workDate, restDay);
-    const isRestDay = payrollRestDayFromSchedule(
-      input.resolvedSchedules?.[workDate],
-      legacyIsRestDay,
-    );
-    const otMultiplier = holidayMultiplier({ holiday: holidayContext.holiday, worked: true, overtime: true, restDay: isRestDay });
-    const regularMultiplier = holidayMultiplier({ holiday: holidayContext.holiday, worked: true, overtime: false, restDay: isRestDay });
-    overtimePay += (derived.overtimeMinutes / 60) * punchProfile.hourlyRate * otMultiplier;
-    nightDiffPay +=
-      (derived.nightRegularMinutes / 60) * punchProfile.hourlyRate * regularMultiplier * 0.1
-      + (derived.nightOvertimeMinutes / 60) * punchProfile.hourlyRate * otMultiplier * 0.1;
+
     const attendanceDeduction = attendanceDeductionsForCutoff(
       punchProfile,
       derived.tardinessMinutes,
@@ -1568,17 +1803,15 @@ function calculateEmployeePay(input: {
     tardinessDeduction += attendanceDeduction.tardinessDeduction;
     undertimeDeduction += attendanceDeduction.undertimeDeduction;
     flags.push(...derived.flags);
-    if (derived.flags.length) punchNotes.push(`${punch.workDate}: ${derived.flags.join("; ")}`);
-
-    if ((holidayContext.holidays.length > 0 || isRestDay) && derived.workedMinutes > 0) {
-      const extra = ((workedRegular / 60) * punchProfile.hourlyRate) * (regularMultiplier - 1);
-      holidayPremium += extra;
-      const otNote = derived.overtimeMinutes > 0 ? ` (overtime that day priced separately at ×${otMultiplier})` : "";
-      const dayLabel = holidayContext.label
-        ? `${holidayContext.label}${isRestDay ? ", rest day" : ""}`
-        : "rest day";
-      holidayNotes.push(`${punch.workDate} ${dayLabel} ×${regularMultiplier} → +${money(extra)}${otNote}`);
+    if (derived.flags.length) {
+      punchNotes.push(`${workDate}: ${derived.flags.join("; ")}`);
     }
+  }
+
+  for (const note of segmentedPremiumNotes.values()) {
+    holidayNotes.push(
+      `${note.date} ${note.label} ×${note.multiplier} · ${note.minutes} min → +${money(note.extra)}`,
+    );
   }
 
   const overtimeRequestsByWorkDate = new Map<string, Array<OvertimeRequestEvidence>>();
@@ -1624,7 +1857,10 @@ function calculateEmployeePay(input: {
 
   let unworkedHolidayPay = 0;
   if (payProfile.payBasis !== "monthly") {
-    const punchedDates = new Set(eligiblePunches.map((punch) => String(punch.workDate)));
+    const punchedDates = new Set([
+      ...eligiblePunches.map((punch) => String(punch.workDate)),
+      ...attendanceCalendarDates,
+    ]);
     const holidayDates = [...new Set(
       (input.holidayCalendar ?? NATIONAL_HOLIDAYS_2026)
         .map((holiday) => holiday.date)
@@ -2205,6 +2441,17 @@ function calculateEmployeePay(input: {
     workforceSchedule: {
       mode: resolvedWorkforceTrace.length > 0 ? "advanced-with-legacy-fallback" : "legacy",
       days: resolvedWorkforceTrace,
+    },
+    payableTime: {
+      version: "workforce-time-v1",
+      mode:
+        payableTimeTrace.length === 0
+          ? "legacy"
+          : payableTimeTrace.some((segment) => segment.pricingMode === "legacy-fallback")
+            ? "calendar-segmented-with-fallback"
+            : "calendar-segmented",
+      attendanceCalendarDates: [...attendanceCalendarDates].sort(),
+      segments: payableTimeTrace,
     },
     overtimeAuthorization: {
       payrollEntitlementIndependent: true,
