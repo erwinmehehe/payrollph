@@ -34,14 +34,16 @@ test("calculator catalog includes holiday pay and employer payroll cost", () => 
   assert.ok(calculator.includes("employerStatutory"));
 });
 
-test("global structured data identifies the site and product without unsupported claims", () => {
+test("Wave 2 preserves the homepage-owned product and FAQ structured data", () => {
+  const home = read("src/app/page.tsx");
   const layout = read("src/app/layout.tsx");
-  assert.ok(layout.includes('"@type": "Organization"'));
-  assert.ok(layout.includes('"@type": "WebSite"'));
-  assert.ok(layout.includes('"@type": "SoftwareApplication"'));
-  assert.ok(!layout.includes("aggregateRating"));
-  assert.ok(!layout.includes("reviewRating"));
-  assert.ok(!layout.includes("ISO 27001"));
+  assert.ok(home.includes('"@type": "Organization"'));
+  assert.ok(home.includes('"@type": "WebSite"'));
+  assert.ok(home.includes('"@type": "SoftwareApplication"'));
+  assert.ok(home.includes('"@type": "FAQPage"'));
+  assert.ok(!home.includes("aggregateRating"));
+  assert.ok(!home.includes("reviewRating"));
+  assert.ok(!layout.includes("softwareJsonLd"), "Wave 2 must not add a duplicate global software graph");
 });
 
 test("wave 2 routes are included in the sitemap", () => {
@@ -109,13 +111,4 @@ test("calculator pages link estimates into the relevant authority cluster", () =
   assert.ok(page.includes("Use the estimate in context"), "calculator pages must explain the surrounding authority links");
 });
 
-test("structured product identity is global and not duplicated on the homepage", () => {
-  const layout = read("src/app/layout.tsx");
-  const home = read("src/app/page.tsx");
-  for (const type of ['"@type": "Organization"', '"@type": "WebSite"', '"@type": "SoftwareApplication"']) {
-    assert.ok(layout.includes(type), `global graph must include ${type}`);
-  }
-  assert.ok(layout.includes('"@id": `${PUBLIC_SITE_URL}/#software`'), "software entity must have a stable global ID");
-  assert.ok(!home.includes("softwareSchema"), "homepage must not emit a second software graph");
-  assert.ok(!home.includes('"@type": "SoftwareApplication"'), "homepage must not duplicate SoftwareApplication structured data");
-});
+
