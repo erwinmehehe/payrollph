@@ -20,6 +20,18 @@ export const metadata: Metadata = {
   description:
     "Payroll outsourcing for Philippine businesses. Linaw handles payroll processing, validation, statutory calculations, reports and payroll-cycle coordination while you retain approval authority.",
   alternates: { canonical: "/payroll-outsourcing" },
+  openGraph: {
+    title: "Payroll Outsourcing Philippines | Managed Payroll Services | Linaw",
+    description:
+      "Managed payroll processing for Philippine businesses with a controlled input, exception, approval and output workflow.",
+    url: "/payroll-outsourcing",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Payroll Outsourcing Philippines | Linaw",
+    description:
+      "Managed Philippine payroll processing with clear exceptions, approval handoff, payslips, reports and supported outputs.",
+  },
 };
 
 
