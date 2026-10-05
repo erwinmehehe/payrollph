@@ -2,7 +2,7 @@ import { assertOrganizationRole, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
-import { parseFilingOutcome } from "@/lib/filing-evidence";
+import { findFilingForm, parseFilingOutcome } from "@/lib/filing-evidence";
 import { getFilingValidation, recordFilingOutcome } from "@/lib/filing-evidence-store";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 
@@ -52,6 +52,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return Response.json({
       error: `This record is already ${existing.status} and cannot be changed. Generate a new record to file again.`,
     }, { status: 409 });
+  }
+
+  const definition = findFilingForm(existing.agency, existing.form);
+  if (!definition) {
+    return Response.json({ error: "This filing form is no longer supported." }, { status: 409 });
+  }
+  if (!definition.submissionMethods.includes(parsed.value.submissionMethod)) {
+    return Response.json({
+      error: `${existing.agency} ${existing.form} does not accept "${parsed.value.submissionMethod}" as evidence in PayrollPH.`,
+    }, { status: 400 });
   }
 
   const record = await recordFilingOutcome({ organizationId, id, actor: user.name, outcome: parsed.value });
