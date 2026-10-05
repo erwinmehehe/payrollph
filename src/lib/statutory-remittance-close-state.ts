@@ -11,7 +11,6 @@ import { evaluateRemittanceMonthClose } from "@/lib/statutory-remittance-close";
 import {
   loadStatutoryRemittanceState,
   statutoryLiabilityKeys,
-  type AwaitedRemittanceState,
 } from "@/lib/statutory-remittance-state";
 
 function monthStart(month: string) {
@@ -26,7 +25,7 @@ function monthEnd(month: string) {
 export async function loadStatutoryRemittanceMonthCloseState(
   organizationId: number,
   applicableMonth: string,
-  preloadedState?: AwaitedRemittanceState | null,
+  preloadedState?: Awaited<ReturnType<typeof loadStatutoryRemittanceState>>,
 ) {
   const state = preloadedState === undefined
     ? await loadStatutoryRemittanceState(organizationId)
