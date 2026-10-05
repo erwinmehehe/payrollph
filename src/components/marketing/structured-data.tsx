@@ -26,13 +26,14 @@ type StructuredDataProps = {
     description: string;
     path: string;
   };
+  faq?: Array<{ question: string; answer: string }>;
 };
 
 function absolute(path: string) {
   return new URL(path, `${PUBLIC_SITE_URL}/`).toString();
 }
 
-export function StructuredData({ breadcrumbs, article, webApplication, service, definedTerm }: StructuredDataProps) {
+export function StructuredData({ breadcrumbs, article, webApplication, service, definedTerm, faq }: StructuredDataProps) {
   const graph: Record<string, unknown>[] = [];
 
   if (breadcrumbs?.length) {
@@ -92,6 +93,17 @@ export function StructuredData({ breadcrumbs, article, webApplication, service, 
       url: absolute(definedTerm.path),
       inDefinedTermSet: absolute("/glossary"),
       inLanguage: "en-PH",
+    });
+  }
+
+  if (faq?.length) {
+    graph.push({
+      "@type": "FAQPage",
+      mainEntity: faq.map((item) => ({
+        "@type": "Question",
+        name: item.question,
+        acceptedAnswer: { "@type": "Answer", text: item.answer },
+      })),
     });
   }
 

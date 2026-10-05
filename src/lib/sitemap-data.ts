@@ -14,6 +14,7 @@ export type SitemapEntry = {
 
 export const pagesSitemapEntries: SitemapEntry[] = [
   { path: "/about", changeFrequency: "monthly" },
+  { path: "/contact", changeFrequency: "monthly" },
   { path: "/trust", changeFrequency: "monthly" },
   { path: "/security", changeFrequency: "monthly" },
   { path: "/methodology", changeFrequency: "monthly" },
