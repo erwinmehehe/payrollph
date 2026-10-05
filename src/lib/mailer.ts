@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import nodemailer from "nodemailer";
 import { db } from "@/db";
 import { auditEvents, outbox } from "@/db/schema";
@@ -327,12 +327,15 @@ export async function queueMessage(input: {
   }
 }
 
-export async function getOutboxMessage(id: number, organizationId: number) {
+export async function getOutboxMessage(id: number, organizationId: number | null) {
   await ensureOutboxDeliverySchema();
+  const organizationScope = organizationId == null
+    ? isNull(outbox.organizationId)
+    : eq(outbox.organizationId, organizationId);
   const [row] = await db
     .select()
     .from(outbox)
-    .where(and(eq(outbox.id, id), eq(outbox.organizationId, organizationId)))
+    .where(and(eq(outbox.id, id), organizationScope))
     .limit(1);
   return row ?? null;
 }
@@ -344,7 +347,7 @@ export async function getOutboxMessage(id: number, organizationId: number) {
  */
 export async function retryOutboxMessage(input: {
   id: number;
-  organizationId: number;
+  organizationId: number | null;
   actor: string;
   trigger: "manual" | "automatic";
 }) {
