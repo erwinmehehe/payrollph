@@ -31,7 +31,7 @@ export default async function GlossaryEntryPage({ params }: { params: Promise<{ 
     <div className="min-h-screen bg-white text-[#0B0D1A]">
       <StructuredData
         breadcrumbs={[{ name: "Home", path: "/" }, { name: "Payroll glossary", path: "/glossary" }, { name: entry.term, path }]}
-        article={{ headline: entry.term, description: entry.definition, path, dateModified: "2026-10-05" }}
+        definedTerm={{ name: entry.term, description: entry.definition, path }}
       />
       <SiteNav />
       <main>
