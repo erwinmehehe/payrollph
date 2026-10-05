@@ -5,7 +5,7 @@ import { getSessionUser } from "@/lib/auth";
 import { employeePayStatusLabel } from "@/lib/payroll-handoff";
 import { recordAuditEvent } from "@/lib/audit";
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { assertOrganizationSessionPolicy } from "@/lib/organization-auth-policy";
+import { assertMembership } from "@/lib/access";
 import { computeBalance } from "@/lib/leave-accrual";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 
@@ -30,8 +30,8 @@ export async function GET() {
 
   const [employee] = await db.select().from(employees).where(eq(employees.id, session.employeeId)).limit(1);
   if (!employee) return Response.json({ error: "Employee record not found." }, { status: 404 });
-  const sessionDenied = await assertOrganizationSessionPolicy(session.id, employee.organizationId);
-  if (sessionDenied) return sessionDenied;
+  const membershipDenied = await assertMembership(session.id, employee.organizationId);
+  if (membershipDenied) return membershipDenied;
 
   const [organization] = await db.select().from(organizations).where(eq(organizations.id, employee.organizationId)).limit(1);
 
@@ -253,8 +253,8 @@ export async function POST(request: Request) {
     return Response.json({ error: "That employee number exists in more than one of your workspaces. Ask your administrator to link it directly." }, { status: 409 });
   }
   const employee = candidates[0];
-  const sessionDenied = await assertOrganizationSessionPolicy(session.id, employee.organizationId);
-  if (sessionDenied) return sessionDenied;
+  const membershipDenied = await assertMembership(session.id, employee.organizationId);
+  if (membershipDenied) return membershipDenied;
 
   const claimed = await db.select({ id: users.id, email: users.email }).from(users).where(eq(users.employeeId, employee.id)).limit(1);
   if (claimed.length && claimed[0].id !== session.id) {
