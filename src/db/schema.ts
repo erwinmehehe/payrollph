@@ -2061,6 +2061,8 @@ export const engagementActionPlans = pgTable(
     dueDate: date("due_date"),
     status: varchar("status", { length: 24 }).notNull().default("open"),
     notes: text("notes"),
+    employeeVisible: boolean("employee_visible").notNull().default(false),
+    publicUpdate: text("public_update"),
     createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
