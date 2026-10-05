@@ -185,7 +185,7 @@ export async function ensureCoreCompatibilitySchema() {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v12'))");
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v13'))");
 
       await client.query(`
         ALTER TABLE organizations
@@ -463,8 +463,71 @@ export async function ensureCoreCompatibilitySchema() {
       `);
 
       await client.query(`
+        CREATE TABLE IF NOT EXISTS worksites (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          org_unit_id integer REFERENCES org_units(id) ON DELETE SET NULL,
+          code varchar(32) NOT NULL,
+          name varchar(160) NOT NULL,
+          site_type varchar(32) NOT NULL DEFAULT 'office',
+          timezone varchar(64) NOT NULL DEFAULT 'Asia/Manila',
+          region varchar(64),
+          province varchar(100),
+          city_municipality varchar(120),
+          address_line_1 varchar(200),
+          active boolean NOT NULL DEFAULT true,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS worksites_org_code_unique
+        ON worksites(organization_id, code)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS worksites_org_active_idx
+        ON worksites(organization_id, active)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS worksites_org_unit_idx
+        ON worksites(organization_id, org_unit_id)
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS employee_worksite_assignments (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          employee_id integer NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+          worksite_id integer NOT NULL REFERENCES worksites(id) ON DELETE RESTRICT,
+          effective_from date NOT NULL,
+          effective_until date,
+          reason varchar(240) NOT NULL DEFAULT 'Worksite assignment',
+          created_by varchar(120) NOT NULL DEFAULT 'System',
+          created_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS employee_worksite_assignments_employee_date_idx
+        ON employee_worksite_assignments(employee_id, effective_from)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS employee_worksite_assignments_org_worksite_idx
+        ON employee_worksite_assignments(organization_id, worksite_id)
+      `);
+
+      await client.query(`
+        ALTER TABLE employee_schedule_assignments
+          ADD COLUMN IF NOT EXISTS worksite_id integer REFERENCES worksites(id) ON DELETE SET NULL
+      `);
+      await client.query(`
+        ALTER TABLE schedule_overrides
+          ADD COLUMN IF NOT EXISTS worksite_id integer REFERENCES worksites(id) ON DELETE SET NULL
+      `);
+
+      await client.query(`
         ALTER TABLE holidays
-          ADD COLUMN IF NOT EXISTS org_unit_id integer REFERENCES org_units(id) ON DELETE CASCADE
+          ADD COLUMN IF NOT EXISTS org_unit_id integer REFERENCES org_units(id) ON DELETE CASCADE,
+          ADD COLUMN IF NOT EXISTS worksite_id integer REFERENCES worksites(id) ON DELETE CASCADE
       `);
       await client.query(`
         CREATE INDEX IF NOT EXISTS holidays_org_unit_date_idx
