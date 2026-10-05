@@ -4,6 +4,7 @@ import { PUBLIC_SITE_URL } from "@/lib/site-url";
 import { MarketingAttributionCapture } from "@/components/marketing/marketing-attribution-capture";
 import "./globals.css";
 import "./workspace-theme.css";
+import "./polish.css";
 
 const googleSiteVerification = process.env.GOOGLE_SITE_VERIFICATION?.trim();
 const bingSiteVerification = process.env.BING_SITE_VERIFICATION?.trim();
