@@ -44,7 +44,7 @@ export type FilingFormDefinition = {
     portalLabel: string;
     /** What "submitted" means for this form, shown for each submission method. */
     methodLabels: Record<"file_upload" | "manual_entry", string>;
-    /** Why a hand-typed filing does not count. */
+    /** What portal/manual filing evidence proves and what it does not prove. */
     manualEntryNote: string;
     /** What the agency says back, so the person knows what to copy. */
     answerLabel: string;
