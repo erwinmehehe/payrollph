@@ -40,6 +40,22 @@ const relatedByCalculator: Partial<Record<CalculatorSlug, Array<{ label: string;
     { label: "Payroll pricing", href: "/pricing", copy: "Compare employer payroll cost with the current product plan catalog." },
     { label: "Payroll software ROI", href: "/resources/payroll-software-roi", copy: "Evaluate recurring payroll cost beyond subscription price." },
   ],
+  "final-pay": [
+    { label: "Final pay guide", href: "/resources/final-pay-philippines", copy: "Review timing, known components and the closeout controls around final pay." },
+    { label: "13th-month pay guide", href: "/resources/13th-month-pay-philippines", copy: "Review the prorated 13th-month component that can appear in final pay." },
+  ],
+  "daily-rate": [
+    { label: "DOLE payroll guide", href: "/compliance/dole", copy: "Review wage and premium-pay context before choosing a divisor." },
+    { label: "Payroll implementation", href: "/implementation", copy: "Document the employer-specific payroll basis during migration and setup." },
+  ],
+  "hourly-rate": [
+    { label: "Overtime pay guide", href: "/resources/overtime-pay-philippines", copy: "See why the hourly basis matters when pricing overtime." },
+    { label: "Night differential guide", href: "/resources/night-differential-philippines", copy: "Use the hourly basis in the wider night-work payroll context." },
+  ],
+  "payroll-outsourcing-roi": [
+    { label: "Payroll software vs outsourcing", href: "/resources/payroll-software-vs-outsourcing", copy: "Compare the operating models before relying on the cost estimate." },
+    { label: "Payroll outsourcing", href: "/payroll-outsourcing", copy: "See the managed payroll workflow and approval model." },
+  ],
 };
 
 export function generateStaticParams() {
