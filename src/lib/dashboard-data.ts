@@ -1,6 +1,6 @@
 import { maskBankAccount } from "@/lib/bank-account-crypto";
 import { maskGovernmentId } from "@/lib/government-id-crypto";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalDelegations,
@@ -48,7 +48,11 @@ export async function getDashboardData(organizationId?: number) {
   const memberships = await db
     .select({ organizationId: userOrganizations.organizationId })
     .from(userOrganizations)
-    .where(and(eq(userOrganizations.userId, sessionUser.id), eq(userOrganizations.active, true)))
+    .where(and(
+      eq(userOrganizations.userId, sessionUser.id),
+      eq(userOrganizations.active, true),
+      ne(userOrganizations.role, "employee"),
+    ))
     .orderBy(asc(userOrganizations.organizationId));
 
   const organizationIds = memberships.map((membership) => membership.organizationId);
