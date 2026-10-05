@@ -1,5 +1,12 @@
-import { ArrowRight, CheckCircle2 } from "lucide-react";
-import { WorkspacePreview } from "@/components/marketing/workspace-preview";
+import {
+  AlertTriangle,
+  ArrowRight,
+  Check,
+  CheckCircle2,
+  FileCheck2,
+  LockKeyhole,
+  ShieldCheck,
+} from "lucide-react";
 import { Reveal } from "./ui";
 
 const trustPoints = [
@@ -8,13 +15,34 @@ const trustPoints = [
   "Maker-checker release controls",
 ] as const;
 
+const releaseChecks = [
+  {
+    icon: Check,
+    label: "Checker approval",
+    value: "Approved",
+    tone: "ok",
+  },
+  {
+    icon: AlertTriangle,
+    label: "Payroll exceptions",
+    value: "2 need review",
+    tone: "warn",
+  },
+  {
+    icon: FileCheck2,
+    label: "Statutory calculations",
+    value: "Ready",
+    tone: "ok",
+  },
+] as const;
+
 export default function Hero() {
   return (
-    <section id="top" className="payroll-home-hero">
+    <section id="top" className="payroll-home-hero payroll-home-hero-v2">
       <div className="payroll-home-hero-glow" aria-hidden />
 
-      <div className="payroll-home-hero-inner">
-        <div className="payroll-home-hero-copy">
+      <div className="payroll-home-hero-inner payroll-home-hero-inner-v2">
+        <div className="payroll-home-hero-copy payroll-home-hero-copy-v2">
           <Reveal delay={60}>
             <span className="payroll-home-kicker">Philippine payroll software · Review before release</span>
           </Reveal>
@@ -29,8 +57,7 @@ export default function Hero() {
 
           <Reveal delay={180}>
             <p className="payroll-home-lede">
-              Calculate payroll, surface exceptions, get checker approval, release payslips,
-              and prepare statutory outputs from one controlled workflow built for Philippine teams.
+              See what changed, clear the exceptions, get checker approval, and release payroll with a complete audit trail.
             </p>
           </Reveal>
 
@@ -57,16 +84,72 @@ export default function Hero() {
           </Reveal>
         </div>
 
-        <Reveal delay={150} className="payroll-home-visual-wrap">
-          <div className="payroll-home-visual" aria-label="Actual Linaw payroll workspace preview">
-            <div className="payroll-home-preview-label">
-              <span>Actual Linaw workspace</span>
-              <small>Sample payroll · nothing saved</small>
-            </div>
-            <div className="payroll-home-real-preview system-demo-stage">
-              <div className="system-demo-product">
-                <WorkspacePreview mode="showcase" />
+        <Reveal delay={150} className="payroll-home-control-wrap">
+          <div className="payroll-hero-control-card" aria-label="Payroll release readiness example">
+            <div className="payroll-hero-control-head">
+              <div>
+                <span className="payroll-hero-control-eyebrow">Release readiness</span>
+                <h2>Can I safely release this payroll?</h2>
               </div>
+              <span className="payroll-hero-review-pill">
+                <AlertTriangle size={13} aria-hidden />
+                Needs review
+              </span>
+            </div>
+
+            <div className="payroll-hero-period">
+              <div>
+                <strong>March 1–15, 2026</strong>
+                <span>Pay date Mar 20, 2026</span>
+              </div>
+              <span className="payroll-hero-rule-badge">Rule engine PH-2026.01</span>
+            </div>
+
+            <div className="payroll-hero-money-grid">
+              <article>
+                <span>Gross payroll</span>
+                <strong>₱79,631</strong>
+              </article>
+              <article>
+                <span>Deductions</span>
+                <strong>₱9,856</strong>
+              </article>
+              <article>
+                <span>Net pay</span>
+                <strong>₱69,775</strong>
+              </article>
+            </div>
+
+            <div className="payroll-hero-checks">
+              {releaseChecks.map(({ icon: Icon, label, value, tone }) => (
+                <div key={label} className="payroll-hero-check-row">
+                  <span className={`payroll-hero-check-icon ${tone}`}>
+                    <Icon size={15} aria-hidden />
+                  </span>
+                  <div>
+                    <span>{label}</span>
+                    <strong className={tone}>{value}</strong>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="payroll-hero-lock-row">
+              <span className="payroll-hero-lock-icon">
+                <LockKeyhole size={16} aria-hidden />
+              </span>
+              <div>
+                <strong>Release stays locked until blockers are cleared.</strong>
+                <span>Nothing moves just because payroll was calculated.</span>
+              </div>
+            </div>
+
+            <div className="payroll-hero-control-foot">
+              <span>
+                <ShieldCheck size={14} aria-hidden />
+                Every decision stays traceable
+              </span>
+              <span>SSS · PhilHealth · Pag-IBIG · BIR</span>
             </div>
           </div>
         </Reveal>
