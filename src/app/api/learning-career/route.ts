@@ -563,8 +563,8 @@ export async function PATCH(request: Request) {
     if (denied) return denied;
     const scoped = await scopedEmployee(user.id, enrollment.organizationId, enrollment.employeeId);
     if ("error" in scoped) return scoped.error;
-    if (enrollment.status === "completed" && status !== "completed") {
-      return Response.json({ error: "Completed learning cannot be reopened because it may have already verified a skill or certification." }, { status: 409 });
+    if (enrollment.status === "completed") {
+      return Response.json({ error: "Completed learning is immutable because it may already have verified a skill or issued a certification." }, { status: 409 });
     }
 
     const [course] = await db.select().from(learningCourses)
@@ -635,10 +635,18 @@ export async function PATCH(request: Request) {
         }
 
         if (enrollment.developmentPlanItemId) {
-          await tx.update(developmentPlanItems).set({
+          const [linkedItem] = await tx.update(developmentPlanItems).set({
             status: "completed",
             updatedAt: new Date(),
-          }).where(eq(developmentPlanItems.id, enrollment.developmentPlanItemId));
+          }).where(eq(developmentPlanItems.id, enrollment.developmentPlanItemId)).returning();
+          if (linkedItem) {
+            const siblingItems = await tx.select().from(developmentPlanItems)
+              .where(eq(developmentPlanItems.planId, linkedItem.planId));
+            if (siblingItems.length > 0 && siblingItems.every((item) => ["completed", "cancelled"].includes(item.status))) {
+              await tx.update(developmentPlans).set({ status: "completed", updatedAt: new Date() })
+                .where(eq(developmentPlans.id, linkedItem.planId));
+            }
+          }
         }
       }
 
@@ -679,8 +687,19 @@ export async function PATCH(request: Request) {
     const scoped = await scopedEmployee(user.id, plan.organizationId, plan.employeeId);
     if ("error" in scoped) return scoped.error;
 
-    const [row] = await db.update(developmentPlanItems).set({ status, updatedAt: new Date() })
-      .where(eq(developmentPlanItems.id, itemId)).returning();
+    const row = await db.transaction(async (tx) => {
+      const [updated] = await tx.update(developmentPlanItems).set({ status, updatedAt: new Date() })
+        .where(eq(developmentPlanItems.id, itemId)).returning();
+      const siblings = await tx.select().from(developmentPlanItems).where(eq(developmentPlanItems.planId, plan.id));
+      if (siblings.length > 0 && siblings.every((activity) => ["completed", "cancelled"].includes(activity.status))) {
+        await tx.update(developmentPlans).set({ status: "completed", updatedAt: new Date() })
+          .where(eq(developmentPlans.id, plan.id));
+      } else if (plan.status === "completed") {
+        await tx.update(developmentPlans).set({ status: "active", updatedAt: new Date() })
+          .where(eq(developmentPlans.id, plan.id));
+      }
+      return updated;
+    });
 
     await recordAuditEvent({
       organizationId: plan.organizationId,
