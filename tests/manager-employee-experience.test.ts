@@ -63,6 +63,7 @@ test("manager experience API excludes bookkeepers and enforces assigned-manager 
   assert.ok(managerRoute.includes("Mentor is outside your assigned organization unit."));
   assert.ok(managerRoute.includes("nextCadenceDate(meeting.scheduledDate"));
   assert.ok(managerRoute.includes("onConflictDoNothing"));
+  assert.ok(managerRoute.includes("Completed one-on-one meetings are immutable."));
   assert.ok(managerRoute.includes("managerPrivateNotes: isManager ? meeting.managerPrivateNotes : null"));
   assert.ok(managerRoute.includes("employeeUpdate: maySeeConversation ? meeting.employeeUpdate : null"));
 });
@@ -73,12 +74,15 @@ test("goal cascading links governed employee goals to strategic objectives", () 
   assert.ok(managerRoute.includes("performanceGoalAlignments"));
   assert.ok(managerRoute.includes("Company goals require company-wide access."));
   assert.ok(managerRoute.includes("Goal organization unit not found in this workspace."));
+  assert.ok(managerRoute.includes("Goal alignment contribution weights cannot exceed 100%."));
+  assert.ok(managerRoute.includes("Employee goals can align only to active strategic goals."));
 });
 
 test("formal performance excludes bookkeepers and protects assigned reviewer ownership", () => {
   assert.ok(performanceRoute.includes('const PERFORMANCE_ROLES = ["owner", "admin", "hr", "manager"] as const'));
   assert.ok(performanceRoute.includes("Only the assigned reviewer can complete this performance review."));
   assert.ok(performanceRoute.includes("A manager score and evidence-based summary are required to complete a review."));
+  assert.ok(performanceRoute.includes("Completed performance reviews are immutable."));
   assert.ok(performancePanel.includes("Performance review opened. The employee can now submit a self-assessment"));
   assert.ok(performancePanel.includes("completeReview(review)"));
 });
@@ -107,6 +111,10 @@ test("mentorship requests require participant ownership for employee transitions
   assert.ok(selfRoute.includes("mentorship.mentorEmployeeId === employee.id"));
   assert.ok(selfRoute.includes("mentorship.menteeEmployeeId === employee.id"));
   assert.ok(selfRoute.includes("This mentorship does not belong to your employee record."));
+  assert.ok(selfRoute.includes("An active or requested mentorship already exists with this mentor."));
+  assert.ok(selfRoute.includes("That mentorship status transition is not available from the current state."));
+  assert.ok(managerRoute.includes("An active or requested mentorship already exists for this pair."));
+  assert.ok(managerRoute.includes("That mentorship status transition is not allowed."));
 });
 
 test("engagement action plans support safe employee-visible follow-through", () => {
