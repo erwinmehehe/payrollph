@@ -494,7 +494,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
           />
         )}
 
-        {page === "Analytics" && <AnalyticsView data={data} notify={notify} />}
+        {page === "Analytics" && <AnalyticsView data={data} notify={notify} hcmEnabled={["owner", "admin", "hr", "manager"].includes(effectiveRole ?? "")} />}
         {page === "Exports" && (
           <ExportsView
             data={data}
