@@ -178,7 +178,17 @@ export const SEO_INTENT_OWNERS: SeoIntentOwner[] = [
 
   { primaryIntent: "best payroll software philippines", ownerPath: "/resources/best-payroll-software-philippines", intentClass: "guide" },
   { primaryIntent: "payroll software vs outsourcing philippines", ownerPath: "/resources/payroll-software-vs-outsourcing", intentClass: "guide" },
-  { primaryIntent: "payroll software vs excel", ownerPath: "/resources/payroll-software-vs-excel", intentClass: "guide" },
+  {
+    primaryIntent: "payroll software vs excel",
+    ownerPath: "/resources/payroll-software-vs-excel",
+    intentClass: "guide",
+    supportingIntents: [
+      "manual payroll vs software philippines",
+      "manual payroll vs payroll software philippines",
+      "spreadsheet payroll vs software philippines",
+    ],
+    note: "Own spreadsheet/manual-payroll comparison intent. Do not create a second manual-payroll comparison URL.",
+  },
   { primaryIntent: "cloud vs on premise payroll", ownerPath: "/resources/cloud-vs-on-premise-payroll", intentClass: "guide" },
   { primaryIntent: "build vs buy payroll software", ownerPath: "/resources/build-vs-buy-payroll-software", intentClass: "guide" },
   { primaryIntent: "payroll migration checklist philippines", ownerPath: "/resources/payroll-migration-checklist", intentClass: "guide" },
@@ -218,6 +228,19 @@ export const SEO_INTENT_OWNERS: SeoIntentOwner[] = [
   { primaryIntent: "payroll audit checklist", ownerPath: "/resources/payroll-audit-checklist", intentClass: "guide" },
   { primaryIntent: "payslip guide philippines", ownerPath: "/resources/payslip-guide", intentClass: "guide" },
   { primaryIntent: "payroll annualization guide", ownerPath: "/resources/payroll-annualization", intentClass: "guide" },
+  {
+    primaryIntent: "employee loans payroll philippines",
+    ownerPath: "/resources/employee-loans-payroll",
+    intentClass: "guide",
+    supportingIntents: ["employee loan deductions payroll philippines", "payroll loan deductions philippines"],
+  },
+  {
+    primaryIntent: "retroactive pay philippines",
+    ownerPath: "/resources/retroactive-pay",
+    intentClass: "guide",
+    supportingIntents: ["retro pay philippines", "retroactive salary adjustment philippines"],
+    note: "Own payroll mechanics/process intent. Do not present the page as a universal legal-entitlement determination.",
+  },
 
   {
     primaryIntent: "payroll calculators philippines",
