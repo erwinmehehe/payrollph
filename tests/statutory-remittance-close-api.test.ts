@@ -54,7 +54,7 @@ test("certifier cannot certify evidence they helped create or correct", () => {
   assert.ok(route.includes("paymentRecordedBy"));
   assert.ok(route.includes("confirmedBy"));
   assert.ok(route.includes("decidedByName"));
-  assert.ok(route.includes("cannot certify a remittance month containing evidence they recorded or confirmed"));
+  assert.ok(route.includes("cannot certify a remittance month containing evidence they recorded, confirmed, or corrected"));
 });
 
 test("certification history is immutable per evidence snapshot", () => {
@@ -70,4 +70,5 @@ test("month close self-initializes additive schema for existing deployments", ()
   assert.ok(guard.includes("CREATE TABLE IF NOT EXISTS statutory_remittance_month_closures"));
   assert.ok(guard.includes("statutory_remittance_month_closure_snapshot_unique"));
   assert.ok(guard.includes("pg_advisory_xact_lock"));
+  assert.ok(guard.includes("ensureStatutoryRemittanceCorrectionSchema"));
 });
