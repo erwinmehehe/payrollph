@@ -236,17 +236,18 @@ jobs:
                 controlFit.scrollWidth <= controlFit.clientWidth + 1,
                 `mobile-390: release-readiness card clips ${controlFit.scrollWidth}px > ${controlFit.clientWidth}px`,
               );
-              const securityProof = page.locator("#security article").first();
-              const securityHeading = securityProof.getByRole("heading", { name: "One workspace can never read another's payroll." });
-              const securityCopy = securityProof.locator("p").filter({ hasText: "Every session route passes one shared membership gate." }).first();
+              const securityProof = page.locator("#platform .linaw-card").filter({ hasText: "Separate preparation from approval." }).first();
+              const securityHeading = securityProof.getByRole("heading", { name: "Separate preparation from approval." });
+              const securityCopy = securityProof.locator("p").filter({ hasText: "Make the handoff obvious" }).first();
 
               check(
                 !(await pricing.innerText()).includes("No credit card to start") &&
-                  !(await pricing.innerText()).includes("Cancel anytime"),
+                  !(await pricing.innerText()).includes("Cancel anytime") &&
+                  !(await pricing.innerText()).includes("Solo"),
                 "mobile-390: stale self-serve pricing promises returned",
               );
 
-              const closingCta = page.locator("#cta");
+              const closingCta = page.locator(".linaw-final-card").first();
               const trialCta = closingCta.locator('a[href="/signup"]').first();
               check((await trialCta.count()) === 1, "mobile-390: trial access CTA is missing");
               const trialCtaStyles = await trialCta.evaluate((element) => ({
@@ -254,12 +255,13 @@ jobs:
                 backgroundColor: getComputedStyle(element).backgroundColor,
               }));
               check(
-                trialCtaStyles.color === "rgb(17, 20, 31)",
-                `mobile-390: trial CTA text lost dark contrast on white; saw ${trialCtaStyles.color}`,
+                trialCtaStyles.color === "rgb(255, 255, 255)",
+                `mobile-390: trial CTA text lost white contrast; saw ${trialCtaStyles.color}`,
               );
               check(
-                trialCtaStyles.backgroundColor === "rgb(255, 255, 255)",
-                `mobile-390: trial CTA background is not white; saw ${trialCtaStyles.backgroundColor}`,
+                trialCtaStyles.backgroundColor !== "rgba(0, 0, 0, 0)" &&
+                  trialCtaStyles.backgroundColor !== "rgb(255, 255, 255)",
+                `mobile-390: trial CTA background lost dark-page contrast; saw ${trialCtaStyles.backgroundColor}`,
               );
 
               await mobileHero.screenshot({ path: `${outDir}/homepage-mobile-390-hero.png` });
@@ -288,6 +290,7 @@ jobs:
                     fit.right <= fit.parentRight + 1,
                   `mobile-390: security proof ${label} is clipped inside its card`,
                 );
+              }
               }
             }
 
