@@ -26,6 +26,7 @@ test("public SEO always resolves to payrollsoftware.ph", () => {
   const sitemap = read("src/app/sitemap.ts");
   const home = read("src/app/page.tsx");
   const outsourcing = read("src/app/payroll-outsourcing/page.tsx");
+  const nextConfig = read("next.config.ts");
 
   assert.ok(siteUrl.includes('PUBLIC_SITE_URL = "https://payrollsoftware.ph"'), "canonical public origin must be payrollsoftware.ph");
   assert.ok(!siteUrl.includes("vercel.app"), "public URL helper must not fall back to a Vercel hostname");
@@ -35,6 +36,14 @@ test("public SEO always resolves to payrollsoftware.ph", () => {
   assert.ok(home.includes('absolutePublicUrl("/#organization")'), "homepage organization schema must use an absolute canonical ID");
   assert.ok(home.includes('absolutePublicUrl("/#software")'), "software schema must use an absolute canonical ID");
   assert.ok(outsourcing.includes('absolutePublicUrl("/payroll-outsourcing#service")'), "service schema must use the canonical production origin");
+  for (const host of [
+    "erwinmehehe-payrollph.vercel.app",
+    "erwinmehehe-payrollph-payrollph.vercel.app",
+    "erwinmehehe-payrollph-git-main-payrollph.vercel.app",
+  ]) {
+    assert.ok(nextConfig.includes(host), `stable Vercel alias ${host} must be redirected`);
+  }
+  assert.ok(nextConfig.includes('destination: "https://payrollsoftware.ph/:path*"'), "stable Vercel production aliases must 308 to the canonical domain");
 });
 
 
