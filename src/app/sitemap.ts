@@ -17,6 +17,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/trust", priority: 0.8, changeFrequency: "monthly" as const },
     { path: "/integrations", priority: 0.8, changeFrequency: "monthly" as const },
     { path: "/developers", priority: 0.8, changeFrequency: "monthly" as const },
+    { path: "/compare", priority: 0.8, changeFrequency: "monthly" as const },
+    { path: "/templates/payroll-rfp-checklist", priority: 0.8, changeFrequency: "monthly" as const },
+    { path: "/templates/payroll-security-checklist", priority: 0.8, changeFrequency: "monthly" as const },
     { path: "/pricing", priority: 0.9, changeFrequency: "weekly" as const },
     { path: "/resources", priority: 0.9, changeFrequency: "weekly" as const },
     { path: "/resources/updates", priority: 0.8, changeFrequency: "weekly" as const },
@@ -38,6 +41,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...Object.keys(CALCULATORS).map((slug) => ({ path: `/calculators/${slug}`, priority: 0.8, changeFrequency: "monthly" as const })),
     ...glossaryEntries.map(({ slug }) => ({ path: `/glossary/${slug}`, priority: 0.6, changeFrequency: "monthly" as const })),
     ...regulatoryUpdates.map(({ slug }) => ({ path: `/resources/updates/${slug}`, priority: 0.7, changeFrequency: "yearly" as const })),
+    ...["authentication", "employees", "payroll-runs", "webhooks"].map((slug) => ({ path: `/developers/${slug}`, priority: 0.7, changeFrequency: "monthly" as const })),
   ];
 
   return [...staticRoutes, ...dynamicRoutes].map((route) => ({

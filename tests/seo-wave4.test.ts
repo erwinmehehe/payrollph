@@ -1,0 +1,94 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { existsSync, readFileSync } from "node:fs";
+
+const read = (path: string) => readFileSync(path, "utf8");
+
+test("Wave 4 developer docs match implemented API contracts", () => {
+  const docs = read("src/lib/developer-docs.ts");
+  const developerRoute = read("src/app/api/developer/route.ts");
+  const employeesRoute = read("src/app/api/v1/employees/route.ts");
+  const payrollRoute = read("src/app/api/v1/payroll-runs/route.ts");
+  const webhookSigning = read("src/lib/webhook-signing.ts");
+
+  for (const scope of ["employees:read", "employees:write", "payroll:read"]) {
+    assert.ok(docs.includes(scope), `developer docs must include scope ${scope}`);
+    assert.ok(developerRoute.includes(scope), `developer route must implement scope ${scope}`);
+  }
+
+  assert.ok(docs.includes("Idempotency-Key"));
+  assert.ok(employeesRoute.includes("idempotency-key"));
+  assert.ok(docs.includes("GET /api/v1/payroll-runs"));
+  assert.ok(payrollRoute.includes('requireScope(auth.scopes, "payroll:read")'));
+
+  for (const event of ["payroll.released", "payroll.processed", "employee.onboarded", "employee.offboarded", "leave.approved", "approval.decided"]) {
+    assert.ok(docs.includes(event), `docs must include webhook event ${event}`);
+    assert.ok(webhookSigning.includes(event), `implementation must include webhook event ${event}`);
+  }
+});
+
+test("developer docs do not claim a public webhook REST endpoint that does not exist", () => {
+  const docs = read("src/lib/developer-docs.ts");
+  assert.ok(!docs.includes("POST /api/v1/webhooks"));
+  assert.ok(!docs.includes("GET /api/v1/webhooks"));
+});
+
+test("procurement checklists are local-only and printable", () => {
+  const component = read("src/components/marketing/procurement-checklist.tsx");
+  assert.ok(component.includes("window.print()"));
+  assert.ok(component.includes("Nothing in this checklist is submitted to Linaw."));
+  assert.ok(!component.includes("fetch("));
+});
+
+test("Wave 4 adds RFP and security procurement templates", () => {
+  for (const path of [
+    "src/app/templates/payroll-rfp-checklist/page.tsx",
+    "src/app/templates/payroll-security-checklist/page.tsx",
+  ]) {
+    assert.ok(existsSync(path), `${path} must exist`);
+  }
+  const rfp = read("src/app/templates/payroll-rfp-checklist/page.tsx");
+  const security = read("src/app/templates/payroll-security-checklist/page.tsx");
+  assert.ok(rfp.includes("Payroll Software RFP Checklist"));
+  assert.ok(rfp.includes("Vendor distinguishes live capabilities, partial capabilities and roadmap items."));
+  assert.ok(security.includes("Payroll Software Security Checklist"));
+  assert.ok(security.includes("Certifications are distinguished from internal controls."));
+});
+
+test("comparison hub uses existing decision guides instead of unsupported competitor claims", () => {
+  const compare = read("src/app/compare/page.tsx");
+  for (const route of [
+    "/resources/payroll-software-vs-outsourcing",
+    "/resources/payroll-software-vs-excel",
+    "/resources/cloud-vs-on-premise-payroll",
+    "/resources/build-vs-buy-payroll-software",
+  ]) {
+    assert.ok(compare.includes(route), `comparison hub must include ${route}`);
+  }
+  assert.ok(!compare.includes("Sprout"));
+  assert.ok(!compare.includes("Salarium"));
+  assert.ok(!compare.includes("GreatDay"));
+});
+
+test("customer story infrastructure cannot fabricate social proof", () => {
+  const stories = read("src/lib/customer-stories.ts");
+  assert.ok(stories.includes("approved: boolean"));
+  assert.ok(stories.includes("evidenceNote"));
+  assert.ok(stories.includes("CUSTOMER_STORIES: CustomerStory[] = []"));
+  assert.ok(stories.includes("Keep this empty rather than manufacturing social proof."));
+});
+
+test("Wave 4 routes are discoverable without crowding primary navigation", () => {
+  const sitemap = read("src/app/sitemap.ts");
+  const nav = read("src/components/marketing/public-navigation.ts");
+  for (const route of [
+    "/compare",
+    "/templates/payroll-rfp-checklist",
+    "/templates/payroll-security-checklist",
+  ]) {
+    assert.ok(sitemap.includes(route), `sitemap must include ${route}`);
+    assert.ok(nav.includes(route), `resource navigation must include ${route}`);
+  }
+  assert.ok(sitemap.includes('["authentication", "employees", "payroll-runs", "webhooks"]'));
+  assert.ok(sitemap.includes('path: `/developers/${slug}`'), "sitemap must generate developer documentation routes");
+});
