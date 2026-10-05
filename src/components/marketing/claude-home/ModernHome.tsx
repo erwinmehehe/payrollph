@@ -63,10 +63,10 @@ function Brand() {
 function Navigation() {
   const [open, setOpen] = useState(false);
   const navLinks = [
-    { label: "Live demo", href: "/demo" },
-    { label: "Payroll outsourcing", href: "/payroll-outsourcing" },
-    { label: "Trust", href: "/trust" },
-    { label: "Pricing", href: "/pricing" },
+    { label: "Platform", href: "#platform" },
+    { label: "Workflow", href: "#workflow" },
+    { label: "Pricing", href: "#pricing" },
+    { label: "Security", href: "/trust" },
   ];
 
   return (
@@ -169,10 +169,10 @@ function Hero() {
       <div className="linaw-shell linaw-hero-grid">
         <div className="linaw-hero-copy">
           <span className="linaw-badge"><i /> <Sparkles size={12} /> Introducing release readiness</span>
-          <h1>Philippine payroll you can <span>verify before you pay.</span></h1>
+          <h1>Run Philippine payroll with a <span>release process you can prove.</span></h1>
           <p>
-            Linaw brings calculations, employee readiness, approvals and payroll outputs into one controlled workflow
-            built for Philippine teams.
+            Linaw turns payroll calculations, employee readiness, approvals and outputs into one controlled workflow,
+            so every cutoff has a clear owner, visible blockers and an auditable release decision.
           </p>
           <div className="linaw-hero-actions">
             <a className="linaw-primary hero-primary-cta" href="/signup">Get started <ArrowRight size={15} /></a>
@@ -190,15 +190,22 @@ function Hero() {
   );
 }
 
+const payrollEcosystem = ["SSS", "PhilHealth", "Pag-IBIG", "BIR", "Maker-checker", "Audit trail", "Payslips", "Bank export"];
+
 function ProofStrip() {
   return (
     <section className="linaw-proof-strip" aria-label="Philippine payroll systems">
-      <div className="linaw-shell linaw-proof-row">
-        <p>Built around the systems Philippine payroll teams already reconcile every cutoff.</p>
-        <span className="linaw-proof-logo">SSS</span>
-        <span className="linaw-proof-logo">PhilHealth</span>
-        <span className="linaw-proof-logo">Pag-IBIG</span>
-        <span className="linaw-proof-logo">BIR</span>
+      <div className="linaw-shell linaw-proof-intro">
+        <span>Built around the systems Philippine payroll teams reconcile every cutoff</span>
+      </div>
+      <div className="linaw-proof-marquee" aria-hidden="true">
+        <div className="linaw-proof-track">
+          {[...payrollEcosystem, ...payrollEcosystem].map((item, index) => (
+            <span className="linaw-proof-logo" key={item + index}>
+              <i /> {item}
+            </span>
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -274,7 +281,7 @@ function FeatureBento() {
       <div className="linaw-shell">
         <div className="linaw-section-head">
           <div>
-            <span className="linaw-section-kicker">One payroll control layer</span>
+            <span className="linaw-section-kicker">A payroll control layer, not another HR dashboard</span>
             <h2>Every critical payroll decision has a visible state.</h2>
           </div>
           <p>
@@ -424,14 +431,14 @@ function Workflow() {
 
 function ProofAndRoles() {
   return (
-    <section className="linaw-section">
+    <section className="linaw-section linaw-proof-section">
       <div className="linaw-shell">
         <div className="linaw-section-head">
           <div>
-            <span className="linaw-section-kicker">Designed for operational clarity</span>
+            <span className="linaw-section-kicker">Operational proof, not vanity dashboards</span>
             <h2>One release chain. Different responsibilities.</h2>
           </div>
-          <p>Linaw keeps each role focused on the decision it owns instead of giving everyone the same overloaded dashboard.</p>
+          <p>Linaw keeps each role focused on the decision it owns instead of giving everyone the same overloaded dashboard or inventing confidence from a green status card.</p>
         </div>
 
         <div className="linaw-proof-metrics">
