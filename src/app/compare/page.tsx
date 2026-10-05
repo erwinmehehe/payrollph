@@ -5,6 +5,7 @@ import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 import { StructuredData } from "@/components/marketing/structured-data";
 
 const comparisons = [
+  { title: "Salarium alternative", href: "/resources/salarium-alternative", description: "Compare employee records, timekeeping, statutory outputs, payroll controls, integrations and implementation using current official evidence." },
   { title: "Sprout Payroll alternative", href: "/resources/sprout-payroll-alternative", description: "Compare product scope, payroll controls, compliance workflow, integrations and implementation using current public evidence." },
   { title: "Payroll system comparison", href: "/resources/payroll-system-comparison", description: "Use one evaluation matrix for calculations, controls, implementation, integrations, security and evidence." },
   { title: "HRIS vs payroll system", href: "/resources/hris-vs-payroll-system", description: "Compare employee-information workflows with payroll calculation, compliance and release responsibilities." },
