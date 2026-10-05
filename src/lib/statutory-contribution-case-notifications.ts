@@ -321,10 +321,11 @@ export async function notifyPayrollOfContributionCaseEscalation(input: {
     ? []
     : payrollRecipients.filter((recipient) => recipient.userId === input.issue.assignedToUserId);
 
-  const selected =
+  const stagedRecipients =
     input.stage === 1
       ? payrollRecipients
       : [...new Map([...ownerAdmins, ...assigned].map((recipient) => [recipient.userId, recipient])).values()];
+  const selected = stagedRecipients.length > 0 ? stagedRecipients : payrollRecipients;
 
   const prefix = input.stage >= 3
     ? "[Executive payroll compliance]"
