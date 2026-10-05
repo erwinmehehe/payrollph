@@ -9,6 +9,7 @@ export const STATIC_SEO_ROUTES: StaticSeoRoute[] = [
   { path: "/contact", pageFile: "src/app/contact/page.tsx" },
   { path: "/trust", pageFile: "src/app/trust/page.tsx" },
   { path: "/security", pageFile: "src/app/security/page.tsx" },
+  { path: "/status", pageFile: "src/app/status/page.tsx" },
   { path: "/methodology", pageFile: "src/app/methodology/page.tsx" },
   { path: "/scorecard", pageFile: "src/app/scorecard/page.tsx" },
   { path: "/compare", pageFile: "src/app/compare/page.tsx" },

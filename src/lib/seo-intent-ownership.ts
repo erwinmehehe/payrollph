@@ -118,6 +118,13 @@ export const SEO_INTENT_OWNERS: SeoIntentOwner[] = [
     intentClass: "trust",
   },
   {
+    primaryIntent: "linaw system status",
+    ownerPath: "/status",
+    intentClass: "trust",
+    supportingIntents: ["linaw status", "payrollph status"],
+    note: "Own branded operational-status intent only; do not broaden into generic uptime claims.",
+  },
+  {
     primaryIntent: "payroll api philippines",
     ownerPath: "/developers",
     intentClass: "developer",

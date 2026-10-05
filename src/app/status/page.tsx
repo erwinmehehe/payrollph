@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { healthSnapshots } from "@/db/schema";
 import { currentStatusLabel, summarizeUptime } from "@/lib/status";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
+import { StructuredData } from "@/components/marketing/structured-data";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,7 @@ export default async function StatusPage() {
 
   return (
     <div className="min-h-screen bg-white text-[#0B0D1A]">
+      <StructuredData breadcrumbs={[{ name: "Home", path: "/" }, { name: "System status", path: "/status" }]} />
       <SiteNav />
 
       <main>
