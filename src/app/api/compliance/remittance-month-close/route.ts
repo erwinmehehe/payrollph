@@ -6,6 +6,7 @@ import {
   statutoryContributionIssueCases,
   statutoryRemittanceCorrectionRequests,
   statutoryRemittanceMonthClosures,
+  statutoryRemittancePaymentEvidence,
 } from "@/db/schema";
 import { assertOrganizationRole } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
@@ -92,12 +93,29 @@ async function loadCloseState(organizationId: number, applicableMonth: string) {
     eq(statutoryContributionIssueCases.applicableMonth, applicableMonth),
   ));
 
+  const paymentEvidence = monthBatchIds.length
+    ? await db.select({
+        id: statutoryRemittancePaymentEvidence.id,
+        batchId: statutoryRemittancePaymentEvidence.batchId,
+        fileName: statutoryRemittancePaymentEvidence.fileName,
+        fileSha256: statutoryRemittancePaymentEvidence.fileSha256,
+        byteSize: statutoryRemittancePaymentEvidence.byteSize,
+        status: statutoryRemittancePaymentEvidence.status,
+        uploadedByName: statutoryRemittancePaymentEvidence.uploadedByName,
+        uploadedAt: statutoryRemittancePaymentEvidence.uploadedAt,
+      }).from(statutoryRemittancePaymentEvidence).where(and(
+        eq(statutoryRemittancePaymentEvidence.organizationId, organizationId),
+        inArray(statutoryRemittancePaymentEvidence.batchId, monthBatchIds),
+      ))
+    : [];
+
   const evaluation = evaluateRemittanceMonthClose({
     applicableMonth,
     batches: state.batches,
     members: state.members,
     alerts: state.alerts,
     corrections,
+    paymentEvidence,
     issueCases,
     requiredAgencies,
     allPayrollRunsReleased:
