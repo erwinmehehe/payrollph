@@ -1,7 +1,7 @@
 import { contributionCaseServiceStatus } from "@/lib/statutory-contribution-case-aging";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, leaveBalances, leavePolicies, leaveRequests, organizations, payrollEntries, payrollRuns, payslips, statutoryContributionIssueCases, statutoryContributionIssueEvents, statutoryRemittanceBatches, statutoryRemittanceMembers, timePunches, userOrganizations, users } from "@/db/schema";
+import { employees, leaveBalances, leavePolicies, leaveRequests, organizations, payrollEntries, payrollRuns, payslips, statutoryContributionIssueCases, statutoryContributionIssueEvents, statutoryPostingEvidenceArtifacts, statutoryRemittanceBatches, statutoryRemittanceMembers, timePunches, userOrganizations, users } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { employeePayStatusLabel } from "@/lib/payroll-handoff";
 import { recordAuditEvent } from "@/lib/audit";
@@ -112,11 +112,19 @@ export async function GET() {
       postingReference: statutoryRemittanceMembers.postingReference,
       postedAmount: statutoryRemittanceMembers.postedAmount,
       postedAt: statutoryRemittanceMembers.postedAt,
+      postingEvidenceSource: statutoryPostingEvidenceArtifacts.sourceType,
+      postingEvidenceFileName: statutoryPostingEvidenceArtifacts.fileName,
+      postingEvidenceHashSha256: statutoryPostingEvidenceArtifacts.contentSha256,
+      postingEvidenceRecordedAt: statutoryPostingEvidenceArtifacts.createdAt,
       exceptionNote: statutoryRemittanceMembers.exceptionNote,
     }).from(statutoryRemittanceMembers)
       .innerJoin(
         statutoryRemittanceBatches,
         eq(statutoryRemittanceMembers.batchId, statutoryRemittanceBatches.id),
+      )
+      .leftJoin(
+        statutoryPostingEvidenceArtifacts,
+        eq(statutoryRemittanceMembers.postingEvidenceArtifactId, statutoryPostingEvidenceArtifacts.id),
       )
       .where(and(
         eq(statutoryRemittanceMembers.organizationId, employee.organizationId),
@@ -254,6 +262,10 @@ export async function GET() {
       postingReference: row.postingReference,
       postedAmount: row.postedAmount,
       postedAt: row.postedAt,
+      postingEvidenceSource: row.postingEvidenceSource,
+      postingEvidenceFileName: row.postingEvidenceFileName,
+      postingEvidenceHashSha256: row.postingEvidenceHashSha256,
+      postingEvidenceRecordedAt: row.postingEvidenceRecordedAt,
       exceptionNote: row.exceptionNote,
     })),
     contributionIssues: contributionIssueRows.map((row) => ({
