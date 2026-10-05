@@ -930,6 +930,33 @@ export async function ensureCoreCompatibilitySchema() {
         ON government_filing_validations(agency, form, status)
       `);
 
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS labor_inspection_remediations (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          finding_key varchar(220) NOT NULL,
+          rule_code varchar(80) NOT NULL,
+          status varchar(24) NOT NULL DEFAULT 'open',
+          owner varchar(120),
+          acknowledged_by varchar(120),
+          acknowledged_at timestamptz,
+          resolution_note text,
+          evidence_reference varchar(240),
+          resolved_by varchar(120),
+          resolved_at timestamptz,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS labor_inspection_remediation_unique
+        ON labor_inspection_remediations(organization_id, finding_key)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS labor_inspection_remediation_status_idx
+        ON labor_inspection_remediations(organization_id, status)
+      `);
+
       await client.query("COMMIT");
       coreSchemaReady = true;
     } catch (error) {
