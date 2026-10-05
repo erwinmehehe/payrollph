@@ -1268,6 +1268,38 @@ export const statutoryRemittanceMembers = pgTable(
   ],
 );
 
+export const complianceActionTasks = pgTable(
+  "compliance_action_tasks",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    sourceType: varchar("source_type", { length: 48 }).notNull(),
+    sourceKey: varchar("source_key", { length: 120 }).notNull(),
+    agency: varchar("agency", { length: 24 }),
+    applicableMonth: varchar("applicable_month", { length: 7 }),
+    severity: varchar("severity", { length: 16 }).notNull(),
+    title: varchar("title", { length: 180 }).notNull(),
+    detail: varchar("detail", { length: 360 }).notNull(),
+    dueDate: date("due_date"),
+    status: varchar("status", { length: 24 }).notNull().default("open"),
+    assignedToUserId: integer("assigned_to_user_id").references(() => users.id, { onDelete: "set null" }),
+    assignedToName: varchar("assigned_to_name", { length: 120 }),
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+    acknowledgedByUserId: integer("acknowledged_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    acknowledgedByName: varchar("acknowledged_by_name", { length: 120 }),
+    firstDetectedAt: timestamp("first_detected_at", { withTimezone: true }).notNull().defaultNow(),
+    lastDetectedAt: timestamp("last_detected_at", { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("compliance_action_source_unique").on(table.organizationId, table.sourceType, table.sourceKey),
+    index("compliance_action_status_idx").on(table.organizationId, table.status, table.severity),
+    index("compliance_action_assignee_idx").on(table.organizationId, table.assignedToUserId, table.status),
+  ],
+);
+
 export const employeeLoans = pgTable("employee_loans", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
