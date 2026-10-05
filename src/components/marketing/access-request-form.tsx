@@ -3,6 +3,7 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, Check, LoaderCircle, Send } from "lucide-react";
+import { readMarketingAttribution } from "@/lib/marketing-attribution-client";
 
 const inputClass =
   "mt-2 w-full rounded-xl border border-[#D9DCEC] bg-white px-3.5 py-3 text-[14px] text-[#11141F] outline-none transition focus:border-[#6161FF] focus:ring-4 focus:ring-[#6161FF]/10";
@@ -31,6 +32,8 @@ export function AccessRequestForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          requestType: "trial",
+          attribution: readMarketingAttribution(),
           notes: ["Trial access request.", form.notes].filter(Boolean).join("\n\n"),
         }),
       });
