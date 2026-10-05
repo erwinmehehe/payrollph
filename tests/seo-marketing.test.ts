@@ -379,6 +379,22 @@ test("dated regulatory updates stay source-specific and actionable", () => {
   assert.ok(page.includes("Open {update.sourceLabel}"), "official source CTA must identify the source");
 });
 
+test("new SEO waves keep search snippets concise", () => {
+  for (const path of [
+    "src/lib/seo-content-wave2.ts",
+    "src/lib/seo-content-wave6.ts",
+    "src/lib/seo-content-wave14.ts",
+  ]) {
+    const source = read(path);
+    const descriptions = [...source.matchAll(/slug:\s*"[^"]+"[\s\S]*?description:\s*"([^"]+)"[\s\S]*?intro:/g)].map((match) => match[1]);
+    assert.ok(descriptions.length > 0, `${path} must expose page-level descriptions`);
+    for (const description of descriptions) {
+      assert.ok(description.length <= 160, `${path} has an overlong meta description: ${description.length} chars`);
+      assert.ok(description.length >= 120, `${path} has a thin meta description: ${description.length} chars`);
+    }
+  }
+});
+
 test("public navigation exposes the SEO program without hiding the live demo", () => {
   const navigation = read("src/components/marketing/public-navigation.ts");
   for (const route of ["/demo", "/resources", "/compliance", "/trust", "/integrations", "/developers", "/calculators", "/payroll-health-check", "/industries"]) {

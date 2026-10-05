@@ -76,7 +76,7 @@ export const industryWave6: AuthorityPage[] = [
     eyebrow: "Construction payroll software Philippines",
     title: "Payroll and timekeeping for Philippine construction teams.",
     metaTitle: "Construction Payroll Software Philippines | Linaw",
-    description: "Payroll software for Philippine construction companies managing multiple sites, attendance, daily or hourly payroll inputs, overtime, deductions and controlled payroll review.",
+    description: "Payroll software for Philippine construction teams managing multiple sites, attendance, hourly inputs, overtime, deductions and controlled payroll review.",
     intro: "Construction payroll gets harder when crews move across sites, time records arrive from the field, pay bases differ and overtime or rest-day work needs review. Linaw keeps the payroll inputs, exceptions and release controls in one workflow without pretending to be a full construction ERP.",
     proof: [
       "Multi-unit and department access scope",
@@ -252,7 +252,7 @@ export const industryWave6: AuthorityPage[] = [
     eyebrow: "NGO payroll Philippines",
     title: "Controlled payroll workflows for Philippine NGOs and nonprofits.",
     metaTitle: "NGO Payroll Software Philippines | Nonprofit Payroll | Linaw",
-    description: "Payroll software for Philippine NGOs and nonprofits needing organizational scope, payroll approvals, auditability, statutory calculations and controlled reporting.",
+    description: "Payroll software for Philippine NGOs and nonprofits needing scoped access, payroll approvals, auditability, statutory calculations and controlled reporting.",
     intro: "NGOs and nonprofit organizations often need clear approval ownership and traceable payroll records across teams or operating units. Payroll should make those controls visible without adding unnecessary manual handoffs.",
     proof: [
       "Organization-unit access scope",
