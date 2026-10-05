@@ -15,7 +15,7 @@ import { currentManilaMonth, loadStatutoryRemittanceState } from "@/lib/statutor
 import {
   buildStatutoryRemittanceSnapshot,
   canMarkRemittancePaid,
-  nominalRemittanceDueDate,
+  effectiveRemittanceDueDate,
   type StatutoryAgency,
 } from "@/lib/statutory-remittance";
 import {
@@ -181,7 +181,7 @@ export async function POST(request: Request) {
 
     let dueDate: string;
     try {
-      dueDate = nominalRemittanceDueDate({
+      dueDate = effectiveRemittanceDueDate({
         agency,
         applicableMonth,
         legalName: organization.legalName,
