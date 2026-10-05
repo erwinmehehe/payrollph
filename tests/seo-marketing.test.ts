@@ -395,6 +395,41 @@ test("new SEO waves keep search snippets concise", () => {
   }
 });
 
+test("SEO hubs group large route inventories by user intent", () => {
+  const resources = read("src/app/resources/page.tsx");
+  const industries = read("src/app/industries/page.tsx");
+  const calculators = read("src/app/calculators/page.tsx");
+
+  for (const heading of [
+    "Choose and compare payroll software",
+    "Implement and operate payroll",
+    "Understand pay rules and employee outcomes",
+    "Evaluate payroll outsourcing",
+  ]) {
+    assert.ok(resources.includes(heading), `resources hub must include ${heading}`);
+  }
+  assert.ok(!resources.includes("resources.map((page)"), "resources hub must not regress to one flat card wall");
+
+  for (const heading of [
+    "Shift-heavy and frontline operations",
+    "Distributed and field workforces",
+    "Professional and institutional organizations",
+  ]) {
+    assert.ok(industries.includes(heading), `industries hub must include ${heading}`);
+  }
+  assert.ok(industries.includes("StructuredData"), "industries hub must keep breadcrumb structured data");
+
+  for (const heading of [
+    "Pay, time and final-pay estimates",
+    "Statutory contribution estimates",
+    "Tax and employer-cost planning",
+  ]) {
+    assert.ok(calculators.includes(heading), `calculators hub must include ${heading}`);
+  }
+  assert.ok(calculators.includes("type CalculatorSlug"), "calculator groups must be constrained to valid calculator slugs");
+  assert.ok(calculators.includes("StructuredData"), "calculators hub must keep breadcrumb structured data");
+});
+
 test("public navigation exposes the SEO program without hiding the live demo", () => {
   const navigation = read("src/components/marketing/public-navigation.ts");
   for (const route of ["/demo", "/resources", "/compliance", "/trust", "/integrations", "/developers", "/calculators", "/payroll-health-check", "/industries"]) {
