@@ -127,3 +127,44 @@ test("resource navigation exposes glossary and regulatory updates without expand
   assert.ok(!primary.includes("/glossary"));
   assert.ok(!primary.includes("/resources/updates"));
 });
+
+
+test("Wave 3 high-intent guides use page-specific search titles", () => {
+  const content = read("src/lib/seo-content-wave3.ts");
+  for (const title of [
+    "13th Month Pay Philippines: Payroll Guide | Linaw",
+    "Overtime Pay Philippines: Payroll Guide | Linaw",
+    "Final Pay Philippines: Payroll Closeout Guide | Linaw",
+    "BIR Form 2316 Payroll Guide Philippines | Linaw",
+    "BIR Form 1601-C Payroll Guide Philippines | Linaw",
+    "BIR Alphalist Payroll Guide Philippines | Linaw",
+    "Withholding Tax on Compensation Philippines | Linaw",
+    "Payroll Compliance Calendar Philippines | Linaw",
+  ]) {
+    assert.ok(content.includes(title), `Wave 3 metadata must include ${title}`);
+  }
+});
+
+test("Wave 3 high-stakes guides include FAQ depth", () => {
+  const content = read("src/lib/seo-content-wave3.ts");
+  for (const slug of [
+    "13th-month-pay-philippines",
+    "overtime-pay-philippines",
+    "final-pay-philippines",
+    "bir-2316",
+    "1601-c",
+    "alphalist",
+    "withholding-tax",
+  ]) {
+    const start = content.indexOf(`slug: "${slug}"`);
+    const end = content.indexOf("\n  },", start);
+    assert.ok(start >= 0 && end > start, `missing Wave 3 page: ${slug}`);
+    assert.ok(content.slice(start, end).includes("faq: ["), `Wave 3 page must include FAQ depth: ${slug}`);
+  }
+});
+
+test("Wave 3 regulatory methodology uses the Linaw brand", () => {
+  const content = read("src/lib/seo-content-wave3.ts");
+  assert.ok(content.includes("How Linaw tracks Philippine payroll rule changes."));
+  assert.ok(!content.includes("How PayrollPH tracks Philippine payroll rule changes."));
+});
