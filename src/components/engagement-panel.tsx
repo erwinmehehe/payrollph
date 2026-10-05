@@ -26,13 +26,13 @@ type Survey = {
   audienceOrgUnitId: number | null;
   opensAt: string | null;
   closesAt: string | null;
-  responseCount: number;
-  eligibleCount: number;
-  responseRate: number;
+  responseCount: number | null;
+  eligibleCount: number | null;
+  responseRate: number | null;
   reportable: boolean;
   suppressionReason: string | null;
   questions: QuestionAnalytics[];
-  unitBreakdown: Array<{ orgUnitId: number; orgUnitName: string; responseCount: number; reportable: boolean }>;
+  unitBreakdown: Array<{ orgUnitId: number; orgUnitName: string; responseCount: number | null; reportable: boolean }>;
 };
 type ActionPlan = { id: number; surveyId: number; questionId: number | null; orgUnitId: number | null; ownerEmployeeId: number | null; title: string; dueDate: string | null; status: string; notes: string | null };
 type Employee = { id: number; firstName: string; lastName: string; title: string; orgUnitId: number | null; status: string };
@@ -299,7 +299,7 @@ export function EngagementPanel({ organizationId, setNotice }: { organizationId:
           {data.surveys.map((survey) => (
             <button key={survey.id} type="button" className="leave-request" style={{ width: "100%", textAlign: "left" }} onClick={() => setSelectedSurveyId(survey.id)}>
               <div className="inline-icon purple"><MessageSquare size={16} /></div>
-              <div style={{ flex: 1 }}><strong>{survey.name}</strong><span>{survey.kind} · {survey.anonymous ? "anonymous" : "identified"} · {survey.responseCount}/{survey.eligibleCount} responses</span></div>
+              <div style={{ flex: 1 }}><strong>{survey.name}</strong><span>{survey.kind} · {survey.anonymous ? "anonymous" : "identified"} · {survey.responseCount === null ? "below privacy threshold" : `${survey.responseCount}/${survey.eligibleCount ?? 0} responses`}</span></div>
               <span className={survey.status === "open" ? "status status-verified" : "status"}>{survey.status}</span>
             </button>
           ))}
