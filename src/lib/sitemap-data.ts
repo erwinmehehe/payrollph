@@ -36,6 +36,7 @@ export const productSitemapEntries: SitemapEntry[] = [
   { path: "/pricing", changeFrequency: "weekly" },
   { path: "/payroll-outsourcing", changeFrequency: "monthly" },
   { path: "/payroll-health-check", changeFrequency: "monthly" },
+  { path: "/workforce-analytics", changeFrequency: "monthly" },
 ];
 
 export const complianceSitemapEntries: SitemapEntry[] = [

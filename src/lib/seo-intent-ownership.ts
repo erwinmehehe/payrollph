@@ -86,6 +86,13 @@ export const SEO_INTENT_OWNERS: SeoIntentOwner[] = [
     supportingIntents: ["payroll software price philippines", "payroll system cost philippines"],
   },
   {
+    primaryIntent: "workforce analytics philippines",
+    ownerPath: "/workforce-analytics",
+    intentClass: "commercial",
+    supportingIntents: ["payroll analytics philippines", "payroll reporting philippines", "workforce reporting philippines"],
+    note: "Own operational reporting intent. Do not imply predictive AI or external benchmarking.",
+  },
+  {
     primaryIntent: "payroll software security philippines",
     ownerPath: "/security",
     intentClass: "trust",
