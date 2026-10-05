@@ -1,4 +1,4 @@
-import { and, desc, eq, lte, or, isNull } from "drizzle-orm";
+import { and, desc, eq, gte, lte, or, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
   bankFileValidations,
@@ -65,7 +65,7 @@ export async function GET(request: Request) {
     db.select().from(complianceRules).where(and(
       eq(complianceRules.status, "approved"),
       lte(complianceRules.effectiveFrom, today),
-      or(isNull(complianceRules.effectiveUntil), lte(today, complianceRules.effectiveUntil)),
+      or(isNull(complianceRules.effectiveUntil), gte(complianceRules.effectiveUntil, today)),
     )),
   ]);
 
