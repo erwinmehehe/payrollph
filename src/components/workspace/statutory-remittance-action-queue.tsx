@@ -26,7 +26,6 @@ type Assignee = {
   userId: number;
   role: string;
   name: string;
-  email: string;
 };
 
 type QueuePayload = {
