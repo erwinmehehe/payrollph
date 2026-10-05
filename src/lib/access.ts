@@ -1,6 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { orgUnits, userOrganizations } from "@/db/schema";
+import { assertOrganizationSessionPolicy } from "@/lib/organization-auth-policy";
+import { roleGateAllowed, type RoleGatePermission } from "@/lib/permissions";
 
 export type AccessScope = {
   organizationId: number;
@@ -85,8 +87,9 @@ export async function assertMembership(userId: number, organizationId: number): 
     .from(userOrganizations)
     .where(and(eq(userOrganizations.userId, userId), eq(userOrganizations.organizationId, organizationId)))
     .limit(1);
-  if (row) return null;
-  return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  if (!row) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  return assertOrganizationSessionPolicy(userId, organizationId);
+}
 }
 
 /** Gate for routes addressed by a resource id: checks the resource's own organization. */
@@ -110,6 +113,8 @@ export async function assertOrganizationUnitAccess(
   if (!access) {
     return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
   }
+  const authDenied = await assertOrganizationSessionPolicy(userId, organizationId);
+  if (authDenied) return authDenied;
   if (access.companyWide) return null;
   if (resourceOrgUnitId != null && resourceOrgUnitId === access.orgUnitId) return null;
   return Response.json({ error: message }, { status: 403 });
@@ -136,6 +141,22 @@ export function roleAllowed(role: string, allowedRoles: readonly string[]) {
   return allowedRoles.includes(role);
 }
 
+function permissionForRoleGate(allowedRoles: readonly string[]): RoleGatePermission | null {
+  if (allowedRoles === ORG_ADMIN_ROLES) return "org.admin";
+  if (allowedRoles === PEOPLE_ADMIN_ROLES) return "people.admin";
+  if (allowedRoles === PEOPLE_PAYROLL_ROLES) return "people.payroll";
+  if (allowedRoles === WORKFORCE_MANAGER_ROLES) return "workforce.manage";
+  if (allowedRoles === DEVELOPER_ADMIN_ROLES) return "developer.admin";
+  if (allowedRoles === BILLING_ADMIN_ROLES) return "billing.admin";
+  if (allowedRoles === APPROVAL_ADMIN_ROLES) return "approval.admin";
+  if (allowedRoles === PAYROLL_OPERATOR_ROLES) return "payroll.operate";
+  if (allowedRoles === PAYROLL_VIEW_ROLES) return "payroll.view";
+  if (allowedRoles === PAYROLL_CHECKER_ROLES) return "payroll.check";
+  if (allowedRoles === PAYROLL_RELEASE_ROLES) return "payroll.release";
+  if (allowedRoles === PAYROLL_DISBURSEMENT_ROLES) return "payroll.disburse";
+  return null;
+}
+
 export async function assertOrganizationRole(
   userId: number,
   organizationId: number,
@@ -148,6 +169,20 @@ export async function assertOrganizationRole(
   }
   if (!roleAllowed(access.role, allowedRoles)) {
     return Response.json({ error: message, role: access.role }, { status: 403 });
+  }
+  const authDenied = await assertOrganizationSessionPolicy(userId, organizationId);
+  if (authDenied) return authDenied;
+
+  const permission = permissionForRoleGate(allowedRoles);
+  if (permission) {
+    const gate = await roleGateAllowed(userId, organizationId, permission);
+    if (!gate.allowed) {
+      return Response.json({
+        error: "Your custom permission set does not allow this action.",
+        permission,
+        permissionSet: gate.permissionSet?.name ?? null,
+      }, { status: 403 });
+    }
   }
   return null;
 }
