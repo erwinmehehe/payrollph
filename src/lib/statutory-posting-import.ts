@@ -9,7 +9,9 @@ export type PostingImportRow = {
   postedAt: string;
 };
 
-const COLUMN_ALIASES: Record<string, keyof PostingImportRow> = {
+type PostingImportColumn = Exclude<keyof PostingImportRow, "sourceLine">;
+
+const COLUMN_ALIASES: Record<string, PostingImportColumn> = {
   "employee no": "employeeNo",
   employee_no: "employeeNo",
   employeeno: "employeeNo",
@@ -46,13 +48,13 @@ export function parseStatutoryPostingCsv(text: string) {
     };
   }
 
-  const mapping = new Map<number, Exclude<keyof PostingImportRow, "sourceLine">>();
+  const mapping = new Map<number, PostingImportColumn>();
   headers.forEach((header, index) => {
     const key = COLUMN_ALIASES[headerKey(header)];
     if (key) mapping.set(index, key);
   });
 
-  const required = new Set<Exclude<keyof PostingImportRow, "sourceLine">>([
+  const required = new Set<PostingImportColumn>([
     "employeeNo",
     "postedAmount",
     "postingReference",
