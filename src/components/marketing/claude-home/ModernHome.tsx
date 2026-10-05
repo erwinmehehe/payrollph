@@ -466,7 +466,7 @@ function currencyNumber(value: string) {
 
 function Pricing({ plans }: { plans: Plan[] }) {
   const [headcount, setHeadcount] = useState(25);
-  const visible = plans.filter((plan) => plan.active !== false).slice(0, 3);
+  const visible = plans.filter((plan) => plan.active !== false && plan.name.toLowerCase() !== "solo").slice(0, 3);
   if (!visible.length) return null;
 
   return (
