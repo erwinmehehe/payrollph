@@ -84,7 +84,16 @@ test("comparison hub keeps neutral guides and requires evidence for named compet
     assert.ok(!salarium.toLowerCase().includes("salarium is non-compliant"));
   }
 
-  assert.ok(!compare.includes("GreatDay"), "GreatDay must not be named until a source-backed comparison page exists");
+  if (compare.includes("PayrollHero")) {
+    assert.ok(existsSync("src/lib/seo-content-wave19.ts"), "PayrollHero comparison must have a source-backed content registry");
+    const payrollhero = read("src/lib/seo-content-wave19.ts");
+    assert.ok(payrollhero.includes("https://payrollhero.com/philippine_payroll"));
+    assert.ok(payrollhero.includes("not claiming to be better"));
+    assert.ok(!payrollhero.toLowerCase().includes("payrollhero is insecure"));
+    assert.ok(!payrollhero.toLowerCase().includes("payrollhero is non-compliant"));
+  }
+
+  assert.ok(!compare.includes("GreatDay"), "GreatDay must not be named until a source-backed Philippines comparison page exists");
 });
 
 test("customer story infrastructure cannot fabricate social proof", () => {
