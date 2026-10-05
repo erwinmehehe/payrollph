@@ -36,6 +36,9 @@ export const PUBLIC_FOOTER_GROUPS: Array<{ label: string; links: PublicLink[] }>
       { label: "Implementation & migration", href: "/implementation" },
       { label: "Industries", href: "/industries" },
       { label: "Payroll health check", href: "/payroll-health-check" },
+      { label: "Payroll comparisons", href: "/compare" },
+      { label: "RFP checklist", href: "/templates/payroll-rfp-checklist" },
+      { label: "Security checklist", href: "/templates/payroll-security-checklist" },
     ],
   },
   {

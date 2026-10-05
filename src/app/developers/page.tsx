@@ -36,9 +36,12 @@ export default function DevelopersPage() {
         { question: "Who can create API keys or change webhook settings?", answer: "Those mutations are restricted to authorized company-wide administrators and protected by sensitive-action controls, including MFA-sensitive checks in production workflows." },
       ]}
       related={[
+        { label: "Authentication & scopes", href: "/developers/authentication", description: "Create, scope and revoke API credentials safely." },
+        { label: "Employees API", href: "/developers/employees", description: "Read and create employee records with idempotency support." },
+        { label: "Payroll Runs API", href: "/developers/payroll-runs", description: "Read payroll run summaries with payroll:read scope." },
+        { label: "Webhooks", href: "/developers/webhooks", description: "Verify signed events and understand delivery retries." },
         { label: "Integrations", href: "/integrations", description: "See where API, webhook and export capabilities fit into the product." },
         { label: "Security", href: "/security", description: "Review authorization and session controls." },
-        { label: "Capability scorecard", href: "/scorecard", description: "See evidence for the public API and webhook capability." },
       ]}
     />
   );
