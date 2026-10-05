@@ -33,7 +33,7 @@ export async function recordGeneratedFiling(input: {
 
   const file = await generateGovernmentDraft(run.id, input.definition.kind);
   const fileSha256 = sha256Hex(file.body);
-  const applicableMonth = String(run.payDate).slice(0, 7);
+  const applicableMonth = String(run.periodEnd).slice(0, 7);
   const remittanceSnapshot = summarizeMonthlyContributionFile({
     agency: input.definition.agency,
     form: input.definition.form,
