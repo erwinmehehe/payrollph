@@ -338,9 +338,7 @@ export async function POST(request: Request) {
       }, { status: 409 });
     }
 
-    const invalidatedRunIds = affectedRuns
-      .filter((run) => run.status !== "Draft")
-      .map((run) => run.id);
+    const invalidatedRunIds = affectedRuns.map((run) => run.id);
 
     try {
       const result = await db.transaction(async (tx) => {
