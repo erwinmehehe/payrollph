@@ -157,6 +157,7 @@ export const ORG_ADMIN_ROLES = ["owner", "admin", "bookkeeper"] as const;
 export const PEOPLE_ADMIN_ROLES = ["owner", "admin", "bookkeeper", "hr"] as const;
 export const PEOPLE_PAYROLL_ROLES = ["owner", "admin", "bookkeeper", "hr", "payroll"] as const;
 export const WORKFORCE_MANAGER_ROLES = ["owner", "admin", "bookkeeper", "hr", "manager"] as const;
+export const TALENT_MANAGER_ROLES = ["owner", "admin", "hr", "manager"] as const;
 export const DEVELOPER_ADMIN_ROLES = ["owner", "admin", "bookkeeper"] as const;
 export const BILLING_ADMIN_ROLES = ["owner", "admin", "bookkeeper"] as const;
 export const APPROVAL_ADMIN_ROLES = ["owner", "admin", "bookkeeper", "hr"] as const;
@@ -178,6 +179,7 @@ function permissionForRoleGate(allowedRoles: readonly string[]): RoleGatePermiss
   if (allowedRoles === PEOPLE_ADMIN_ROLES) return "people.admin";
   if (allowedRoles === PEOPLE_PAYROLL_ROLES) return "people.payroll";
   if (allowedRoles === WORKFORCE_MANAGER_ROLES) return "workforce.manage";
+  if (allowedRoles === TALENT_MANAGER_ROLES) return "workforce.manage";
   if (allowedRoles === DEVELOPER_ADMIN_ROLES) return "developer.admin";
   if (allowedRoles === BILLING_ADMIN_ROLES) return "billing.admin";
   if (allowedRoles === APPROVAL_ADMIN_ROLES) return "approval.admin";
