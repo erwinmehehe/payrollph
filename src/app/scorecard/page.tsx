@@ -53,10 +53,10 @@ export default async function ScorecardPage() {
   ].filter(Boolean) as typeof report.capabilities;
 
   return (
-    <div className="min-h-screen bg-white text-[#0B0D1A]">
+    <div className="marketing-page min-h-screen bg-white text-[#101323]">
       <SiteNav />
       <main>
-        <section className="relative overflow-hidden border-b border-[#EDEFF7] bg-[#FAFBFD] py-14 sm:py-18">
+        <section className="relative overflow-hidden border-b border-[#EAECF0] bg-[#FCFCFD] py-14 sm:py-18">
           <div aria-hidden className="pointer-events-none absolute inset-0">
             <div className="absolute -right-40 -top-56 h-[620px] w-[680px] rounded-full bg-gradient-to-br from-[#ECECFF] via-[#EAF4FF] to-[#E3FAF0] opacity-65 blur-3xl" />
           </div>
@@ -99,7 +99,7 @@ export default async function ScorecardPage() {
 
             <div className="mt-6 overflow-x-auto rounded-[24px] border border-[#E2E4F0] bg-white">
               <table className="w-full min-w-[900px] border-collapse text-left">
-                <thead className="bg-[#FAFBFD] text-[10px] font-bold uppercase tracking-[0.12em] text-[#8B90AA]">
+                <thead className="bg-[#FCFCFD] text-[10px] font-bold uppercase tracking-[0.12em] text-[#8B90AA]">
                   <tr>
                     <th className="px-5 py-3.5">Area</th>
                     <th className="px-5 py-3.5">Capability</th>
@@ -132,7 +132,7 @@ export default async function ScorecardPage() {
           </div>
         </section>
 
-        <section className="border-y border-[#EDEFF7] bg-[#FAFBFD] py-14 sm:py-16">
+        <section className="border-y border-[#EAECF0] bg-[#FCFCFD] py-14 sm:py-16">
           <div className="mx-auto max-w-[1180px] px-5 sm:px-8">
             <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Rollout gates</p>
             <h2 className="font-display mt-2 text-[31px] font-semibold tracking-[-0.035em]">The work we still refuse to call complete.</h2>
