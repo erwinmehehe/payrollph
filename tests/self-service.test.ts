@@ -131,5 +131,5 @@ test("employee pay view exposes mandatory contribution remittance status", () =>
   assert.ok(route.includes("remittanceStatus"));
   assert.ok(portal.includes("MANDATORY CONTRIBUTIONS"));
   assert.ok(portal.includes("Were my deductions remitted?"));
-  assert.ok(portal.includes("Agency posting confirmed"));
+  assert.ok(portal.includes("Employer-recorded posting confirmation"));
 });
