@@ -7,6 +7,8 @@ type Batch = {
   status: string;
   snapshotHash: string;
   reconciledAt: Date | string | null;
+  paymentRecordedBy?: string | null;
+  reconciledBy?: string | null;
   pendingPostingCount: number;
   exceptionCount: number;
 };
@@ -17,6 +19,16 @@ type Member = {
   postingStatus: string;
   postedAmount?: string | null;
   postingReference?: string | null;
+  confirmedBy?: string | null;
+};
+
+type Correction = {
+  id: number;
+  batchId: number;
+  memberId: number | null;
+  status: string;
+  decidedByName: string | null;
+  appliedAt: Date | string | null;
 };
 
 type Alert = {
@@ -31,6 +43,7 @@ export function evaluateRemittanceMonthClose(input: {
   batches: Batch[];
   members: Member[];
   alerts: Alert[];
+  corrections?: Correction[];
   requiredAgencies: string[];
   allPayrollRunsReleased: boolean;
 }) {
@@ -80,6 +93,8 @@ export function evaluateRemittanceMonthClose(input: {
       status: batch.status,
       snapshotHash: batch.snapshotHash,
       reconciledAt: batch.reconciledAt ? String(batch.reconciledAt) : null,
+      paymentRecordedBy: batch.paymentRecordedBy ?? null,
+      reconciledBy: batch.reconciledBy ?? null,
       pendingPostingCount: batch.pendingPostingCount,
       exceptionCount: batch.exceptionCount,
     })),
@@ -89,7 +104,18 @@ export function evaluateRemittanceMonthClose(input: {
       postingStatus: member.postingStatus,
       postedAmount: member.postedAmount ?? null,
       postingReference: member.postingReference ?? null,
+      confirmedBy: member.confirmedBy ?? null,
     })),
+    corrections: (input.corrections ?? [])
+      .filter((correction) => monthBatchIds.has(correction.batchId) && correction.status === "approved" && correction.appliedAt)
+      .sort((a, b) => a.id - b.id)
+      .map((correction) => ({
+        id: correction.id,
+        batchId: correction.batchId,
+        memberId: correction.memberId,
+        decidedByName: correction.decidedByName,
+        appliedAt: correction.appliedAt ? String(correction.appliedAt) : null,
+      })),
   };
 
   const snapshotHash = createHash("sha256")
@@ -102,5 +128,8 @@ export function evaluateRemittanceMonthClose(input: {
     snapshotHash,
     agencyCount: monthBatches.length,
     memberCount: members.length,
+    batches: evidence.batches,
+    members: evidence.members,
+    corrections: evidence.corrections,
   };
 }
