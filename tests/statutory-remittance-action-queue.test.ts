@@ -104,3 +104,9 @@ test("compliance action assignee API does not expose unused email addresses", ()
   assert.ok(!route.includes("email: users.email"));
   assert.ok(!queue.includes("email: string"));
 });
+
+
+test("dashboard payload excludes resolved compliance history and stays bounded", () => {
+  assert.ok(dashboardData.includes('ne(complianceActionTasks.status, "resolved")'));
+  assert.ok(dashboardData.includes(".limit(20)"));
+});
