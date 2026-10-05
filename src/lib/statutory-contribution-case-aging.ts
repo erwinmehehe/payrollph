@@ -120,3 +120,39 @@ export function contributionCaseServiceStatus(
     internalPolicyNote: "PayrollPH service target, not a statutory or agency deadline.",
   };
 }
+
+
+export type ContributionCaseEscalationStage = 0 | 1 | 2 | 3;
+
+export function businessDaysPastTarget(
+  targetDate: string,
+  now: Date | string = new Date(),
+) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+    throw new Error("targetDate must use YYYY-MM-DD.");
+  }
+  const target = new Date(`${targetDate}T00:00:00Z`);
+  const current = startOfManilaDay(now);
+  if (current.getTime() <= target.getTime()) return 0;
+
+  let count = 0;
+  const cursor = new Date(target);
+  while (cursor.getTime() < current.getTime()) {
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+    if (!isWeekend(cursor)) count += 1;
+  }
+  return count;
+}
+
+export function contributionCaseEscalationStage(
+  caseRow: ContributionCaseLike,
+  now: Date | string = new Date(),
+): ContributionCaseEscalationStage {
+  const service = contributionCaseServiceStatus(caseRow, now);
+  if (!service.overdue || !service.targetDate) return 0;
+
+  const overdueBusinessDays = businessDaysPastTarget(service.targetDate, now);
+  if (overdueBusinessDays >= 5) return 3;
+  if (overdueBusinessDays >= 2) return 2;
+  return 1;
+}

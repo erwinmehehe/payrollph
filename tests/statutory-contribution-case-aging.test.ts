@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   addBusinessDays,
+  businessDaysPastTarget,
+  contributionCaseEscalationStage,
   contributionCaseServiceStatus,
   contributionCaseServiceTargets,
 } from "../src/lib/statutory-contribution-case-aging";
@@ -101,4 +103,49 @@ test("payroll and employee screens show service aging without presenting it as l
   assert.ok(payroll.includes("internal service target"));
   assert.ok(employee.includes("PayrollPH service target"));
   assert.ok(employee.includes("Internal service targets are not statutory or agency deadlines"));
+});
+
+
+test("case escalation stages age in business days after the internal target", () => {
+  const issue = {
+    status: "open",
+    createdAt: "2026-10-01T09:00:00+08:00",
+    reviewStartedAt: null,
+    updatedAt: "2026-10-01T09:00:00+08:00",
+  };
+
+  // First review target is Friday, Oct 2. Weekend does not advance follow-up stage.
+  assert.equal(businessDaysPastTarget("2026-10-02", "2026-10-03T12:00:00+08:00"), 0);
+  assert.equal(contributionCaseEscalationStage(issue, "2026-10-03T12:00:00+08:00"), 1);
+  assert.equal(contributionCaseEscalationStage(issue, "2026-10-05T12:00:00+08:00"), 1);
+  assert.equal(contributionCaseEscalationStage(issue, "2026-10-06T12:00:00+08:00"), 2);
+  assert.equal(contributionCaseEscalationStage(issue, "2026-10-09T12:00:00+08:00"), 3);
+});
+
+test("case escalation stage is zero while on track or after resolution", () => {
+  const issue = {
+    status: "open",
+    createdAt: "2026-10-05T09:00:00+08:00",
+    reviewStartedAt: null,
+    updatedAt: "2026-10-05T09:00:00+08:00",
+  };
+  assert.equal(contributionCaseEscalationStage(issue, "2026-10-05T12:00:00+08:00"), 0);
+  assert.equal(
+    contributionCaseEscalationStage({
+      ...issue,
+      status: "resolved",
+      resolvedAt: "2026-10-05T15:00:00+08:00",
+    }, "2026-10-20T12:00:00+08:00"),
+    0,
+  );
+});
+
+test("hourly employee-case monitor passes bounded stages and preserves critical age", () => {
+  const escalations = readFileSync("src/lib/statutory-contribution-case-escalations.ts", "utf8");
+
+  assert.ok(escalations.includes("contributionCaseEscalationStage(issue, now)"));
+  assert.ok(escalations.includes("stage,"));
+  assert.ok(escalations.includes('action.severity === "danger"'));
+  assert.ok(escalations.includes("action.severityChangedAt"));
+  assert.ok(escalations.includes("stageCounts"));
 });

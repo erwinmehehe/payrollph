@@ -58,3 +58,26 @@ test("overdue contribution case notices are internal service escalations, not le
   assert.ok(notifications.includes("internal operational targets, not statutory or agency deadlines"));
   assert.ok(notifications.includes("internalServiceTarget: true"));
 });
+
+
+test("overdue case escalations are deduped by event, stage and recipient", () => {
+  assert.ok(notifications.includes('event: `${input.event}:stage-${input.stage}`'));
+  assert.ok(notifications.includes("escalationStage: input.stage"));
+  assert.ok(notifications.includes("stagedRecipients"));
+});
+
+test("aged contribution case escalation narrows follow-ups to owner/admin plus assignee with safe fallback", () => {
+  assert.ok(notifications.includes('recipient.role === "owner" || recipient.role === "admin"'));
+  assert.ok(notifications.includes("input.issue.assignedToUserId"));
+  assert.ok(notifications.includes("stagedRecipients.length > 0 ? stagedRecipients : payrollRecipients"));
+  assert.ok(notifications.includes("Executive payroll compliance"));
+  assert.ok(notifications.includes("5 business days overdue"));
+});
+
+test("ordinary new-case notification remains unchanged by staged escalation recipients", () => {
+  const start = notifications.indexOf("export async function notifyPayrollOfContributionCase(input:");
+  const end = notifications.indexOf("export async function notifyEmployeeOfContributionCaseUpdate", start);
+  const block = notifications.slice(start, end);
+  assert.ok(block.includes("for (const recipient of payrollRecipients)"));
+  assert.ok(!block.includes("stagedRecipients"));
+});

@@ -6,6 +6,7 @@ import {
   users,
 } from "@/db/schema";
 import { PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
+import type { ContributionCaseEscalationStage } from "@/lib/statutory-contribution-case-aging";
 import { queueMessage } from "@/lib/mailer";
 
 type ContributionCase = typeof statutoryContributionIssueCases.$inferSelect;
@@ -29,12 +30,22 @@ function payrollBody(
   issue: ContributionCase,
   recipientName: string,
   event: "reported" | "review_overdue" | "resolution_overdue" = "reported",
+  stage: ContributionCaseEscalationStage = 0,
 ) {
   const opening = event === "reported"
     ? "An employee reported a mandatory contribution issue in PayrollPH."
     : event === "review_overdue"
       ? "A mandatory contribution case has missed PayrollPH's internal first-review target."
       : "A mandatory contribution case has missed PayrollPH's internal resolution target.";
+
+  const escalation =
+    stage >= 3
+      ? "Escalation stage: executive follow-up after 5 business days overdue"
+      : stage === 2
+        ? "Escalation stage: follow-up after 2 business days overdue"
+        : stage === 1
+          ? "Escalation stage: initial overdue alert"
+          : null;
 
   return [
     `Hi ${recipientName},`,
@@ -46,6 +57,7 @@ function payrollBody(
     `Employee report: ${issue.description}`,
     `Case status: ${issue.status.replaceAll("_", " ")}`,
     issue.assignedToName ? `Assigned to: ${issue.assignedToName}` : "Assigned to: unassigned",
+    ...(escalation ? [escalation] : []),
     "",
     "Open Payroll > Employee Contribution Cases to review the report against payslip, remittance and agency-posting evidence.",
     "",
@@ -284,6 +296,7 @@ export async function notifyEmployeeOfContributionCase(input: {
 export async function notifyPayrollOfContributionCaseEscalation(input: {
   issue: ContributionCase;
   event: "review_overdue" | "resolution_overdue";
+  stage: ContributionCaseEscalationStage;
   actor: string;
 }) {
   const recipients = await db.select({
@@ -301,28 +314,46 @@ export async function notifyPayrollOfContributionCaseEscalation(input: {
     recipient.orgUnitId == null
     && roleAllowed(recipient.role, PAYROLL_OPERATOR_ROLES),
   );
+  const ownerAdmins = payrollRecipients.filter((recipient) =>
+    recipient.role === "owner" || recipient.role === "admin",
+  );
+  const assigned = input.issue.assignedToUserId == null
+    ? []
+    : payrollRecipients.filter((recipient) => recipient.userId === input.issue.assignedToUserId);
 
+  const stagedRecipients =
+    input.stage === 1
+      ? payrollRecipients
+      : [...new Map([...ownerAdmins, ...assigned].map((recipient) => [recipient.userId, recipient])).values()];
+  const selected = stagedRecipients.length > 0 ? stagedRecipients : payrollRecipients;
+
+  const prefix = input.stage >= 3
+    ? "[Executive payroll compliance]"
+    : input.stage === 2
+      ? "[Payroll compliance follow-up]"
+      : "[Payroll compliance]";
   const subject = input.event === "review_overdue"
-    ? `[Payroll compliance] Contribution case needs review: ${input.issue.agency}`
-    : `[Payroll compliance] Contribution case resolution target missed: ${input.issue.agency}`;
+    ? `${prefix} Contribution case needs review: ${input.issue.agency}`
+    : `${prefix} Contribution case resolution target missed: ${input.issue.agency}`;
 
   const results = [];
-  for (const recipient of payrollRecipients) {
+  for (const recipient of selected) {
     results.push(await queueMessage({
       organizationId: input.issue.organizationId,
       recipient: recipient.email,
       subject: subject.slice(0, 180),
-      body: payrollBody(input.issue, recipient.name, input.event),
+      body: payrollBody(input.issue, recipient.name, input.event, input.stage),
       purpose: "employee-contribution-case",
       dedupeKey: caseDedupeKey({
         organizationId: input.issue.organizationId,
         caseId: input.issue.id,
-        event: input.event,
+        event: `${input.event}:stage-${input.stage}`,
         recipientUserId: recipient.userId,
       }),
       metadata: {
         contributionCaseId: input.issue.id,
         event: input.event,
+        escalationStage: input.stage,
         employeeId: input.issue.employeeId,
         agency: input.issue.agency,
         applicableMonth: input.issue.applicableMonth,
@@ -334,6 +365,7 @@ export async function notifyPayrollOfContributionCaseEscalation(input: {
         metadata: {
           contributionCaseId: input.issue.id,
           event: input.event,
+          escalationStage: input.stage,
           recipientUserId: recipient.userId,
           internalServiceTarget: true,
         },
