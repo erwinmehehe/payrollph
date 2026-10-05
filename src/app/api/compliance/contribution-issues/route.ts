@@ -8,6 +8,7 @@ import {
 } from "@/db/schema";
 import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
+import { notifyEmployeeOfContributionCase } from "@/lib/statutory-contribution-case-notifications";
 import { getSessionUser } from "@/lib/auth";
 import {
   enforceSameOriginMutation,
@@ -169,6 +170,16 @@ export async function POST(request: Request) {
       },
     });
 
+    try {
+      await notifyEmployeeOfContributionCase({
+        issue: updated,
+        event: "review_started",
+        actor: user.name,
+      });
+    } catch {
+      // Case ownership is authoritative even when notification delivery is unavailable.
+    }
+
     return Response.json({ case: updated });
   }
 
@@ -248,6 +259,16 @@ export async function POST(request: Request) {
         linkedMemberId: issue.remittanceMemberId,
       },
     });
+
+    try {
+      await notifyEmployeeOfContributionCase({
+        issue: result,
+        event: "resolved",
+        actor: user.name,
+      });
+    } catch {
+      // The audited case resolution remains authoritative if email delivery is unavailable.
+    }
 
     return Response.json({ case: result });
   }
