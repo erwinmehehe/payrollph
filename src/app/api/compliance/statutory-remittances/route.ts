@@ -1,0 +1,464 @@
+import { and, asc, eq, gte, inArray, lte } from "drizzle-orm";
+import { db } from "@/db";
+import {
+  employees,
+  organizations,
+  payrollEntries,
+  payrollRuns,
+  statutoryRemittanceBatches,
+  statutoryRemittanceMembers,
+} from "@/db/schema";
+import { assertOrganizationRole, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
+import { recordAuditEvent } from "@/lib/audit";
+import { getSessionUser } from "@/lib/auth";
+import {
+  buildStatutoryRemittanceSnapshot,
+  canMarkRemittancePaid,
+  nominalRemittanceDueDate,
+  type StatutoryAgency,
+} from "@/lib/statutory-remittance";
+import {
+  enforceSameOriginMutation,
+  enforceSensitiveActionRateLimit,
+  requireSensitiveActionMfa,
+} from "@/lib/security-request";
+
+export const dynamic = "force-dynamic";
+
+const AGENCIES = new Set<StatutoryAgency>(["SSS", "PhilHealth", "Pag-IBIG"]);
+
+function monthStart(month: string) {
+  return `${month}-01`;
+}
+
+function monthEnd(month: string) {
+  const [year, rawMonth] = month.split("-").map(Number);
+  return new Date(Date.UTC(year, rawMonth, 0)).toISOString().slice(0, 10);
+}
+
+function currentManilaMonth() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+  }).format(new Date());
+}
+
+async function requirePayrollOperator(userId: number, organizationId: number) {
+  return assertOrganizationRole(
+    userId,
+    organizationId,
+    PAYROLL_OPERATOR_ROLES,
+    "Only authorized payroll operators can manage statutory remittance reconciliation.",
+  );
+}
+
+export async function GET(request: Request) {
+  const user = await getSessionUser();
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  const url = new URL(request.url);
+  const organizationId = Number(url.searchParams.get("organizationId"));
+  if (!Number.isInteger(organizationId)) {
+    return Response.json({ error: "organizationId is required." }, { status: 400 });
+  }
+  const denied = await requirePayrollOperator(user.id, organizationId);
+  if (denied) return denied;
+
+  const batches = await db.select().from(statutoryRemittanceBatches)
+    .where(eq(statutoryRemittanceBatches.organizationId, organizationId))
+    .orderBy(asc(statutoryRemittanceBatches.applicableMonth), asc(statutoryRemittanceBatches.agency));
+  const batchIds = batches.map((batch) => batch.id);
+  const members = batchIds.length
+    ? await db.select().from(statutoryRemittanceMembers)
+        .where(inArray(statutoryRemittanceMembers.batchId, batchIds))
+        .orderBy(asc(statutoryRemittanceMembers.batchId), asc(statutoryRemittanceMembers.employeeNo))
+    : [];
+
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+
+  const releasedRuns = await db.select({
+    periodEnd: payrollRuns.periodEnd,
+  }).from(payrollRuns).where(and(
+    eq(payrollRuns.organizationId, organizationId),
+    eq(payrollRuns.status, "Released"),
+  ));
+  const closedMonths = [...new Set(
+    releasedRuns
+      .map((run) => String(run.periodEnd).slice(0, 7))
+      .filter((month) => month < currentManilaMonth()),
+  )].sort().slice(-6);
+  const existingKeys = new Set(
+    batches.map((batch) => `${batch.applicableMonth}|${batch.agency}`),
+  );
+  const coverageGaps = closedMonths.flatMap((applicableMonth) =>
+    (["SSS", "PhilHealth", "Pag-IBIG"] as const)
+      .filter((agency) => !existingKeys.has(`${applicableMonth}|${agency}`))
+      .map((agency) => ({ applicableMonth, agency })),
+  );
+
+  return Response.json({
+    batches: batches.map((batch) => ({
+      ...batch,
+      displayStatus:
+        batch.status === "open" && String(batch.dueDate) < today
+          ? "overdue"
+          : batch.status,
+      pendingPostingCount: members.filter(
+        (member) => member.batchId === batch.id && member.postingStatus === "pending",
+      ).length,
+      exceptionCount: members.filter(
+        (member) => member.batchId === batch.id && member.postingStatus === "exception",
+      ).length,
+    })),
+    members,
+    coverageGaps,
+  });
+}
+
+export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
+  const user = await getSessionUser();
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  const body = await request.json().catch(() => ({}));
+  const organizationId = Number(body.organizationId);
+  const action = String(body.action ?? "").trim();
+  if (!Number.isInteger(organizationId)) {
+    return Response.json({ error: "organizationId is required." }, { status: 400 });
+  }
+
+  const denied = await requirePayrollOperator(user.id, organizationId);
+  if (denied) return denied;
+  const mfaDenied = requireSensitiveActionMfa(user);
+  if (mfaDenied) return mfaDenied;
+  const rateDenied = await enforceSensitiveActionRateLimit(request, {
+    userId: user.id,
+    action: `statutory-remittance-${action || "mutation"}`,
+    resourceId: organizationId,
+    limit: 30,
+    windowMs: 5 * 60_000,
+  });
+  if (rateDenied) return rateDenied;
+
+  if (action === "create_batch") {
+    const agency = String(body.agency ?? "") as StatutoryAgency;
+    const applicableMonth = String(body.applicableMonth ?? "").trim();
+    if (!AGENCIES.has(agency) || !/^\d{4}-\d{2}$/.test(applicableMonth)) {
+      return Response.json({ error: "agency and applicableMonth (YYYY-MM) are required." }, { status: 400 });
+    }
+    if (applicableMonth >= currentManilaMonth()) {
+      return Response.json({
+        error: "Remittance reconciliation can only be opened after the applicable payroll month has closed.",
+      }, { status: 409 });
+    }
+
+    const [existing] = await db.select({ id: statutoryRemittanceBatches.id })
+      .from(statutoryRemittanceBatches)
+      .where(and(
+        eq(statutoryRemittanceBatches.organizationId, organizationId),
+        eq(statutoryRemittanceBatches.agency, agency),
+        eq(statutoryRemittanceBatches.applicableMonth, applicableMonth),
+      )).limit(1);
+    if (existing) {
+      return Response.json({ error: "A remittance batch already exists for this agency and month." }, { status: 409 });
+    }
+
+    const start = monthStart(applicableMonth);
+    const end = monthEnd(applicableMonth);
+    const monthRuns = await db.select().from(payrollRuns).where(and(
+      eq(payrollRuns.organizationId, organizationId),
+      gte(payrollRuns.periodEnd, start),
+      lte(payrollRuns.periodEnd, end),
+    ));
+    if (monthRuns.length === 0) {
+      return Response.json({ error: "No payroll runs exist for this applicable month." }, { status: 409 });
+    }
+    const notReleased = monthRuns.filter((run) => run.status !== "Released");
+    if (notReleased.length > 0) {
+      return Response.json({
+        error: `All payroll runs for ${applicableMonth} must be Released before remittance is snapshotted. Run #${notReleased[0].id} is ${notReleased[0].status}.`,
+      }, { status: 409 });
+    }
+
+    const runIds = monthRuns.map((run) => run.id);
+    const entries = await db.select({
+      employeeId: payrollEntries.employeeId,
+      lineItems: payrollEntries.lineItems,
+      trace: payrollEntries.trace,
+    }).from(payrollEntries).where(inArray(payrollEntries.payrollRunId, runIds));
+    const employeeIds = [...new Set(entries.map((entry) => entry.employeeId))];
+    const employeeRows = employeeIds.length
+      ? await db.select({ id: employees.id, employeeNo: employees.employeeNo })
+          .from(employees)
+          .where(and(
+            eq(employees.organizationId, organizationId),
+            inArray(employees.id, employeeIds),
+          ))
+      : [];
+    const [organization] = await db.select().from(organizations)
+      .where(eq(organizations.id, organizationId))
+      .limit(1);
+    if (!organization) return Response.json({ error: "Organization not found." }, { status: 404 });
+
+    const snapshot = buildStatutoryRemittanceSnapshot({
+      agency,
+      applicableMonth,
+      entries,
+      employees: employeeRows,
+    });
+    if (snapshot.employeeCount === 0 || snapshot.expectedTotal <= 0) {
+      return Response.json({
+        error: "Released payroll has no positive remittance liability for this agency and month.",
+      }, { status: 409 });
+    }
+
+    let dueDate: string;
+    try {
+      dueDate = nominalRemittanceDueDate({
+        agency,
+        applicableMonth,
+        legalName: organization.legalName,
+        philHealthEmployerNo: organization.philHealthEmployerNo,
+      });
+    } catch (error) {
+      return Response.json({
+        error: error instanceof Error ? error.message : "Could not determine statutory remittance deadline.",
+      }, { status: 422 });
+    }
+
+    const created = await db.transaction(async (tx) => {
+      const [batch] = await tx.insert(statutoryRemittanceBatches).values({
+        organizationId,
+        agency,
+        applicableMonth,
+        dueDate,
+        status: "open",
+        employeeCount: snapshot.employeeCount,
+        expectedEmployeeShare: snapshot.expectedEmployeeShare.toFixed(2),
+        expectedEmployerShare: snapshot.expectedEmployerShare.toFixed(2),
+        expectedTotal: snapshot.expectedTotal.toFixed(2),
+        snapshotHash: snapshot.snapshotHash,
+        createdBy: user.name,
+      }).returning();
+
+      await tx.insert(statutoryRemittanceMembers).values(
+        snapshot.members.map((member) => ({
+          batchId: batch.id,
+          organizationId,
+          employeeId: member.employeeId,
+          employeeNo: member.employeeNo,
+          employeeShare: member.employeeShare.toFixed(2),
+          employerShare: member.employerShare.toFixed(2),
+          totalContribution: member.totalContribution.toFixed(2),
+          postingStatus: "pending",
+        })),
+      );
+      return batch;
+    });
+
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "Statutory remittance liability snapshotted",
+      resource: `${agency} · ${applicableMonth}`,
+      metadata: {
+        batchId: created.id,
+        employeeCount: snapshot.employeeCount,
+        expectedEmployeeShare: snapshot.expectedEmployeeShare,
+        expectedEmployerShare: snapshot.expectedEmployerShare,
+        expectedTotal: snapshot.expectedTotal,
+        dueDate,
+        snapshotHash: snapshot.snapshotHash,
+        payrollRunIds: runIds,
+      },
+    });
+
+    return Response.json({ batch: created }, { status: 201 });
+  }
+
+  if (action === "record_payment") {
+    const batchId = Number(body.batchId);
+    const amountPaid = Number(body.amountPaid);
+    const paymentReference = String(body.paymentReference ?? "").trim();
+    const agencyReceiptReference = String(body.agencyReceiptReference ?? "").trim();
+    const paymentChannel = String(body.paymentChannel ?? "").trim().slice(0, 80) || null;
+    const paymentVarianceNote = String(body.paymentVarianceNote ?? "").trim().slice(0, 240) || null;
+    const paidAt = body.paidAt ? new Date(String(body.paidAt)) : new Date();
+
+    const [batch] = await db.select().from(statutoryRemittanceBatches).where(and(
+      eq(statutoryRemittanceBatches.id, batchId),
+      eq(statutoryRemittanceBatches.organizationId, organizationId),
+    )).limit(1);
+    if (!batch) return Response.json({ error: "Remittance batch not found." }, { status: 404 });
+    if (batch.status !== "open") {
+      return Response.json({
+        error: "Payment evidence is immutable once recorded. Create an audited correction workflow instead of overwriting remittance proof.",
+      }, { status: 409 });
+    }
+    if (!Number.isFinite(paidAt.getTime())) {
+      return Response.json({ error: "paidAt must be a valid date-time." }, { status: 400 });
+    }
+
+    const gate = canMarkRemittancePaid({
+      expectedTotal: Number(batch.expectedTotal),
+      amountPaid,
+      paymentReference,
+      agencyReceiptReference,
+      paymentVarianceNote: paymentVarianceNote ?? undefined,
+    });
+    if (!gate.ok) return Response.json({ error: gate.error }, { status: 409 });
+
+    const [updated] = await db.update(statutoryRemittanceBatches).set({
+      status: "paid",
+      amountPaid: amountPaid.toFixed(2),
+      paymentReference,
+      agencyReceiptReference,
+      paymentChannel,
+      paymentVarianceNote,
+      paidAt,
+      paymentRecordedBy: user.name,
+      updatedAt: new Date(),
+    }).where(and(
+      eq(statutoryRemittanceBatches.id, batchId),
+      eq(statutoryRemittanceBatches.organizationId, organizationId),
+    )).returning();
+
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "Statutory remittance payment recorded",
+      resource: `${batch.agency} · ${batch.applicableMonth}`,
+      metadata: {
+        batchId,
+        expectedTotal: Number(batch.expectedTotal),
+        amountPaid,
+        paymentReference,
+        agencyReceiptReference,
+        paymentChannel,
+        paymentVarianceNote,
+        paidAt: paidAt.toISOString(),
+      },
+    });
+    return Response.json({ batch: updated });
+  }
+
+  if (action === "confirm_member_posting" || action === "mark_member_exception") {
+    const memberId = Number(body.memberId);
+    const [member] = await db.select().from(statutoryRemittanceMembers).where(and(
+      eq(statutoryRemittanceMembers.id, memberId),
+      eq(statutoryRemittanceMembers.organizationId, organizationId),
+    )).limit(1);
+    if (!member) return Response.json({ error: "Remittance member row not found." }, { status: 404 });
+
+    const [batch] = await db.select().from(statutoryRemittanceBatches).where(and(
+      eq(statutoryRemittanceBatches.id, member.batchId),
+      eq(statutoryRemittanceBatches.organizationId, organizationId),
+    )).limit(1);
+    if (!batch) return Response.json({ error: "Remittance batch not found." }, { status: 404 });
+    if (batch.status === "open") {
+      return Response.json({ error: "Record the agency payment before confirming employee posting." }, { status: 409 });
+    }
+    if (batch.status === "reconciled") {
+      return Response.json({ error: "A reconciled remittance batch is immutable." }, { status: 409 });
+    }
+
+    if (action === "mark_member_exception") {
+      const exceptionNote = String(body.exceptionNote ?? "").trim();
+      if (exceptionNote.length < 4) {
+        return Response.json({ error: "Explain the posting exception." }, { status: 400 });
+      }
+      const [updatedMember] = await db.update(statutoryRemittanceMembers).set({
+        postingStatus: "exception",
+        exceptionNote,
+        postingReference: null,
+        postedAt: null,
+        confirmedBy: user.name,
+        updatedAt: new Date(),
+      }).where(eq(statutoryRemittanceMembers.id, memberId)).returning();
+      await db.update(statutoryRemittanceBatches).set({
+        status: "exception",
+        updatedAt: new Date(),
+      }).where(eq(statutoryRemittanceBatches.id, batch.id));
+
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Statutory contribution posting exception recorded",
+        resource: `${batch.agency} · ${batch.applicableMonth} · ${member.employeeNo}`,
+        metadata: { batchId: batch.id, memberId, employeeId: member.employeeId, exceptionNote },
+      });
+      return Response.json({ member: updatedMember });
+    }
+
+    const postingReference = String(body.postingReference ?? "").trim();
+    const postedAt = body.postedAt ? new Date(String(body.postedAt)) : new Date();
+    if (postingReference.length < 4 || !Number.isFinite(postedAt.getTime())) {
+      return Response.json({
+        error: "Agency posting reference and a valid posting date are required.",
+      }, { status: 400 });
+    }
+
+    const [updatedMember] = await db.update(statutoryRemittanceMembers).set({
+      postingStatus: "confirmed",
+      postingReference,
+      postedAt,
+      confirmedBy: user.name,
+      exceptionNote: null,
+      updatedAt: new Date(),
+    }).where(eq(statutoryRemittanceMembers.id, memberId)).returning();
+
+    const remaining = await db.select({ id: statutoryRemittanceMembers.id })
+      .from(statutoryRemittanceMembers)
+      .where(and(
+        eq(statutoryRemittanceMembers.batchId, batch.id),
+        eq(statutoryRemittanceMembers.postingStatus, "pending"),
+      ));
+    const exceptions = await db.select({ id: statutoryRemittanceMembers.id })
+      .from(statutoryRemittanceMembers)
+      .where(and(
+        eq(statutoryRemittanceMembers.batchId, batch.id),
+        eq(statutoryRemittanceMembers.postingStatus, "exception"),
+      ));
+
+    if (remaining.length === 0 && exceptions.length === 0) {
+      await db.update(statutoryRemittanceBatches).set({
+        status: "reconciled",
+        reconciledAt: new Date(),
+        reconciledBy: user.name,
+        updatedAt: new Date(),
+      }).where(eq(statutoryRemittanceBatches.id, batch.id));
+    } else if (batch.status === "exception" && exceptions.length === 0) {
+      await db.update(statutoryRemittanceBatches).set({
+        status: "paid",
+        updatedAt: new Date(),
+      }).where(eq(statutoryRemittanceBatches.id, batch.id));
+    }
+
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "Employee statutory contribution posting confirmed",
+      resource: `${batch.agency} · ${batch.applicableMonth} · ${member.employeeNo}`,
+      metadata: {
+        batchId: batch.id,
+        memberId,
+        employeeId: member.employeeId,
+        postingReference,
+        postedAt: postedAt.toISOString(),
+      },
+    });
+    return Response.json({ member: updatedMember });
+  }
+
+  return Response.json({
+    error: "Unsupported action. Use create_batch, record_payment, confirm_member_posting, or mark_member_exception.",
+  }, { status: 400 });
+}

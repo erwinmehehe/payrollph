@@ -39,6 +39,22 @@ type Payslip = {
   lineItems: Array<{ code?: string; label?: string; amount?: number | string; notes?: string[] }>;
 };
 
+type ContributionPosting = {
+  agency: string;
+  applicableMonth: string;
+  dueDate: string;
+  paymentStatus: string;
+  amountPaid: string | null;
+  paidAt: string | null;
+  employeeShare: string;
+  employerShare: string;
+  totalContribution: string;
+  postingStatus: string;
+  postingReference: string | null;
+  postedAt: string | null;
+  exceptionNote: string | null;
+};
+
 type AttendanceRow = {
   id: number;
   workDate: string;
@@ -96,6 +112,7 @@ type Payload = {
   yearToDate: { gross: string; net: string; deductions: string; tax: string; periodsPaid: number };
   nextPay: { period: string; payDate: string; status: string; label: string } | null;
   payslips: Payslip[];
+  contributions: ContributionPosting[];
   attendance: {
     recent: AttendanceRow[];
     today: AttendanceRow | null;
@@ -136,9 +153,9 @@ const payDateHasPassed = (value: string) =>
 
 function statusTone(status: string) {
   const lower = status.toLowerCase();
-  if (lower.includes("approved") || lower.includes("complete") || lower.includes("active")) return "good";
-  if (lower.includes("pending") || lower.includes("incomplete")) return "warn";
-  if (lower.includes("rejected") || lower.includes("declined")) return "bad";
+  if (lower.includes("approved") || lower.includes("complete") || lower.includes("active") || lower.includes("confirmed") || lower.includes("reconciled") || lower === "paid") return "good";
+  if (lower.includes("pending") || lower.includes("incomplete") || lower === "open") return "warn";
+  if (lower.includes("rejected") || lower.includes("declined") || lower.includes("exception") || lower.includes("overdue")) return "bad";
   return "neutral";
 }
 
@@ -595,6 +612,51 @@ export function SelfServicePortal() {
               <div className="employee-rule-note"><ShieldCheck size={12} /> Rule version {latestPayslip.ruleVersion}</div>
             </article>
           )}
+
+          <article className="employee-list-card">
+            <div className="employee-list-card-head">
+              <div>
+                <span className="card-kicker">MANDATORY CONTRIBUTIONS</span>
+                <h3>Remittance and agency posting</h3>
+              </div>
+            </div>
+            {data.contributions.length === 0 ? (
+              <div className="employee-empty-row">
+                No employer remittance reconciliation has been published to your account yet. Your payslip still shows what was deducted.
+              </div>
+            ) : data.contributions.slice(0, 12).map((row, index) => (
+              <div className="employee-pay-row" key={row.agency + "-" + row.applicableMonth + "-" + index}>
+                <div className="employee-pay-row-main" style={{ cursor: "default" }}>
+                  <div>
+                    <strong>{row.agency} · {row.applicableMonth}</strong>
+                    <span>Deducted {peso(row.employeeShare)} · employer {peso(row.employerShare)}</span>
+                  </div>
+                  <div className="employee-pay-row-amount">
+                    <strong>{peso(row.totalContribution)}</strong>
+                    <span>total contribution</span>
+                  </div>
+                  <span className={"employee-status-pill " + statusTone(row.postingStatus)}>
+                    {row.postingStatus === "confirmed"
+                      ? "Agency posting confirmed"
+                      : row.postingStatus === "exception"
+                        ? "Posting exception"
+                        : row.paymentStatus === "open"
+                          ? "Employer payment pending"
+                          : "Payment recorded · posting pending"}
+                  </span>
+                </div>
+                <div className="employee-pay-row-detail" style={{ display: "grid" }}>
+                  <div><span>Employer payment</span><strong>{row.paymentStatus}</strong></div>
+                  <div><span>Agency posting</span><strong>{row.postingStatus}</strong></div>
+                  {row.postingReference && <div><span>Posting reference</span><strong>{row.postingReference}</strong></div>}
+                  {row.exceptionNote && <div><span>Issue</span><strong>{row.exceptionNote}</strong></div>}
+                </div>
+              </div>
+            ))}
+            <div className="employee-rule-note">
+              <ShieldCheck size={12} /> “Deducted” comes from released payroll. “Payment recorded” is employer evidence. “Agency posting confirmed” is the final reconciliation state.
+            </div>
+          </article>
 
           <article className="employee-list-card">
             <div className="employee-list-card-head">
