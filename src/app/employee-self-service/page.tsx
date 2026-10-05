@@ -3,7 +3,7 @@ import { SeoLandingPage } from "@/components/marketing/seo-landing-page";
 
 export const metadata: Metadata = {
   title: "Employee Self-Service Philippines | Payroll Portal | Linaw",
-  description: "Employee self-service for Philippine payroll with personal payslips, year-to-date payroll figures and employee-scoped access controls.",
+  description: "Employee self-service for Philippine payroll with personal payslips, year-to-date figures, payroll history, PDF downloads and employee-scoped access controls.",
   alternates: { canonical: "/employee-self-service" },
 };
 
