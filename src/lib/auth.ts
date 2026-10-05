@@ -111,11 +111,21 @@ export async function getSessionUser() {
   }
 
   const policy = await effectiveSessionPolicyForUser(row.user.id);
+  const createdAt = new Date(row.session.createdAt).getTime();
+  if (Date.now() - createdAt > policy.maxHours * 60 * 60 * 1000) {
+    await db.update(sessions).set({ revokedAt: new Date() }).where(eq(sessions.id, row.session.id));
+    return null;
+  }
+  if (policy.requireMfa && !row.session.mfaVerifiedAt) {
+    await db.update(sessions).set({ revokedAt: new Date() }).where(eq(sessions.id, row.session.id));
+    return null;
+  }
   const lastSeen = row.session.lastSeenAt ? new Date(row.session.lastSeenAt).getTime() : 0;
   if (lastSeen && Date.now() - lastSeen > policy.idleMinutes * 60 * 1000) {
     await db.update(sessions).set({ revokedAt: new Date() }).where(eq(sessions.id, row.session.id));
     return null;
   }
+  await enforceActiveSessionLimit(row.user.id, row.session.id, policy.maxActiveSessions);
   if (Date.now() - lastSeen > LAST_SEEN_WRITE_INTERVAL_MS) {
     await db.update(sessions).set({ lastSeenAt: new Date() }).where(eq(sessions.id, row.session.id));
   }
