@@ -1815,6 +1815,41 @@ export const positions = pgTable(
   ],
 );
 
+export const employeeLifecycleTransactions = pgTable(
+  "employee_lifecycle_transactions",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    changeType: varchar("change_type", { length: 32 }).notNull(),
+    effectiveDate: date("effective_date").notNull(),
+    targetPositionId: integer("target_position_id").references(() => positions.id, { onDelete: "restrict" }),
+    targetManagerEmployeeId: integer("target_manager_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    targetEmploymentType: varchar("target_employment_type", { length: 32 }),
+    reason: varchar("reason", { length: 320 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("pending"),
+    beforeSnapshot: jsonb("before_snapshot").notNull().default({}),
+    requestedChanges: jsonb("requested_changes").notNull().default({}),
+    appliedSnapshot: jsonb("applied_snapshot").notNull().default({}),
+    requestedByUserId: integer("requested_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    requestedByName: varchar("requested_by_name", { length: 120 }).notNull(),
+    decidedByUserId: integer("decided_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    decidedByName: varchar("decided_by_name", { length: 120 }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decisionNote: varchar("decision_note", { length: 320 }),
+    appliedAt: timestamp("applied_at", { withTimezone: true }),
+    appliedBy: varchar("applied_by", { length: 120 }),
+    applyError: text("apply_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("employee_lifecycle_org_status_idx").on(table.organizationId, table.status, table.effectiveDate),
+    index("employee_lifecycle_employee_idx").on(table.organizationId, table.employeeId, table.status),
+    index("employee_lifecycle_target_position_idx").on(table.targetPositionId, table.status),
+  ],
+);
+
 export const positionAssignments = pgTable(
   "position_assignments",
   {
