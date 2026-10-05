@@ -26,6 +26,11 @@ test("readiness reports which launch blockers have a manual workaround", async (
   // Email has no manual workaround field. An admin manually relaying reset
   // tokens is not something this readiness check should ever bless.
   assert.equal(email.manualWorkaround, undefined);
+  assert.ok(Number.isInteger(Number(body.counts.publicLeadBacklog)));
+  assert.ok(
+    email.detail.includes("Public enquiry backlog") || body.counts.publicLeadBacklog === 0,
+    "readiness must surface queued/failed public enquiry delivery when provider delivery is unavailable",
+  );
 
   assert.ok(typeof body.manualLaunch.ready === "boolean");
   assert.ok(typeof body.manualLaunch.summary === "string");
