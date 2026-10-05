@@ -246,6 +246,16 @@ export async function POST(request: Request) {
     if (scope === "team" && !orgUnitId) {
       return Response.json({ error: "Team goals require an organization unit." }, { status: 400 });
     }
+    if (orgUnitId) {
+      const [unit] = await db.select({ id: orgUnits.id }).from(orgUnits).where(and(
+        eq(orgUnits.id, orgUnitId),
+        eq(orgUnits.organizationId, organizationId),
+      )).limit(1);
+      if (!unit) return Response.json({ error: "Goal organization unit not found in this workspace." }, { status: 404 });
+      if (!access.companyWide && orgUnitId !== access.orgUnitId) {
+        return Response.json({ error: "Team goal is outside your assigned organization unit." }, { status: 403 });
+      }
+    }
     if (cycleId) {
       const [cycle] = await db.select({ id: performanceCycles.id }).from(performanceCycles).where(and(
         eq(performanceCycles.id, cycleId),
@@ -408,6 +418,9 @@ export async function POST(request: Request) {
     if (!series) return Response.json({ error: "One-on-one series is missing." }, { status: 409 });
     const scoped = await scopedEmployee(user.id, organizationId, series.employeeId);
     if ("error" in scoped) return scoped.error;
+    if (!user.employeeId || series.managerEmployeeId !== user.employeeId) {
+      return Response.json({ error: "Only the assigned manager can add one-on-one action items." }, { status: 403 });
+    }
     if (ownerEmployeeId && ![series.employeeId, series.managerEmployeeId].includes(ownerEmployeeId)) {
       return Response.json({ error: "One-on-one action owner must be one of the meeting participants." }, { status: 409 });
     }
@@ -646,6 +659,9 @@ export async function PATCH(request: Request) {
     if (!meeting || !series) return Response.json({ error: "One-on-one context is missing." }, { status: 409 });
     const scoped = await scopedEmployee(user.id, organizationId, series.employeeId);
     if ("error" in scoped) return scoped.error;
+    if (!user.employeeId || series.managerEmployeeId !== user.employeeId) {
+      return Response.json({ error: "Only the assigned manager can update one-on-one action items." }, { status: 403 });
+    }
 
     const [row] = await db.update(oneOnOneActionItems).set({ status, updatedAt: new Date() }).where(eq(oneOnOneActionItems.id, actionItemId)).returning();
     await recordAuditEvent({ organizationId, actor: user.name, action: "One-on-one action item updated", resource: item.title, metadata: { actionItemId, status } });
