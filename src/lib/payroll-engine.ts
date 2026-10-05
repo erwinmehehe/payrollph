@@ -1088,14 +1088,16 @@ async function processPayrollChunk(input: {
       return resolved;
     };
 
+    const applicableLocalHolidayRows = localHolidayRows.filter((holiday) =>
+      workforceHolidayApplies({
+        holiday,
+        employeeOrgUnitScopeIds: employeeHolidayScopeIds,
+        resolvedWorksiteId: resolveWorkforceScheduleForDate(holiday.date).worksiteId,
+      }),
+    );
     const employeeHolidayCalendar: HolidayCalendarEntry[] = [
       ...NATIONAL_HOLIDAYS_2026,
-      ...localHolidayRows
-        .filter((holiday) => workforceHolidayApplies({
-          holiday,
-          employeeOrgUnitScopeIds: employeeHolidayScopeIds,
-          resolvedWorksiteId: resolveWorkforceScheduleForDate(holiday.date).worksiteId,
-        }))
+      ...applicableLocalHolidayRows
         .map(({ orgUnitId: _orgUnitId, worksiteId: _worksiteId, ...holiday }) => holiday)
         .filter((local) => !NATIONAL_HOLIDAYS_2026.some(
           (national) => national.date === local.date && national.name === local.name && national.kind === local.kind,
@@ -1302,6 +1304,14 @@ async function processPayrollChunk(input: {
       lineItems: calc.lineItems,
       trace: {
         ...calc.trace,
+        workforceHolidayScope: applicableLocalHolidayRows.map((holiday) => ({
+          date: holiday.date,
+          name: holiday.name,
+          kind: holiday.kind,
+          orgUnitId: holiday.orgUnitId,
+          worksiteId: holiday.worksiteId,
+          resolvedWorksiteId: resolveWorkforceScheduleForDate(holiday.date).worksiteId,
+        })),
         payment: {
           employeeName: `${employee.firstName} ${employee.lastName}`,
           employeeNo: employee.employeeNo,
