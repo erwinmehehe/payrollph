@@ -292,6 +292,12 @@ export const industryPages: AuthorityPage[] = [
       { title: "Use role boundaries inside each client", body: "Bookkeepers can work alongside owners, HR, payroll officers and checkers without every role needing identical access." },
       { title: "Scale process without copying workbooks", body: "A multi-client workspace is designed to make repeatable operating controls reusable while keeping each client's employees, payroll and evidence scoped correctly." },
     ],
+    faq: [
+      { question: "Why does an accounting firm need separate payroll workspaces for each client?", answer: "Client payroll contains employee, compensation, banking and compliance data that should remain tenant-scoped. Separate workspaces reduce the risk of cross-client data leakage and make approvals and audit evidence easier to trace." },
+      { question: "Can one bookkeeper work across multiple payroll clients?", answer: "Yes. A multi-client operating model can let one authorized user switch between client businesses while preserving each client's organization boundaries, employee records and payroll history." },
+      { question: "Should payroll processing and client approval be separate?", answer: "Yes. The accounting firm can prepare or review payroll while the client's authorized approver retains responsibility for business decisions and final release where that is the agreed operating model." },
+      { question: "What outputs matter most to accounting firms after payroll release?", answer: "Common downstream needs include payroll journals, payout evidence, statutory liabilities, exception records and client-specific reports that tie back to the released payroll version." },
+    ],
     related: [
       { label: "Payroll outsourcing", href: "/payroll-outsourcing", description: "See the managed payroll operating model." },
       { label: "Developer center", href: "/developers", description: "Review API and webhook capabilities for connected workflows." },
@@ -312,6 +318,12 @@ export const industryPages: AuthorityPage[] = [
       { title: "Handle recurring deductions and employee obligations", body: "Loans, benefits and other payroll-impacting items can be represented in the payroll data model rather than tracked only in side spreadsheets." },
       { title: "Separate preparation from release authority", body: "Payroll staff can prepare the run while independent reviewers and owners retain the decision to approve or release it." },
     ],
+    faq: [
+      { question: "What makes manpower-agency payroll difficult?", answer: "Large employee rosters, changing assignments, attendance inputs, recurring deductions, multiple clients and frequent cutoff changes create more opportunities for data mismatch and rework." },
+      { question: "How should roster updates be handled without creating duplicates?", answer: "Use a stable employee identifier, row-level validation and update rules so recurring CSV or system imports can modify an existing employee instead of creating a second record." },
+      { question: "Why is attendance integration important for staffing payroll?", answer: "When worked time, overtime and schedule context feed payroll directly, the team spends less time re-encoding timekeeping data and can trace pay results back to the underlying attendance records." },
+      { question: "Should one payroll user be able to prepare and release everything?", answer: "Separating preparation, checking and final release reduces key-person risk and makes high-volume payroll decisions easier to review and audit." },
+    ],
     related: [
       { label: "Time & attendance", href: "/time-and-attendance", description: "See how attendance moves into payroll." },
       { label: "HRIS", href: "/hris", description: "Review employee master-data workflows." },
@@ -331,6 +343,12 @@ export const industryPages: AuthorityPage[] = [
       { title: "Preserve department and work-group scope", body: "Department-scoped access lets teams work within their assigned operational area while company-wide roles retain broader oversight." },
       { title: "Handle premium-pay context", body: "Holiday, rest-day, overtime and night differential calculations use the work-date context instead of a single flat overtime rule." },
       { title: "Keep exceptions visible before release", body: "Incomplete punches and payroll-relevant review conditions can be surfaced for human sign-off rather than silently guessed." },
+    ],
+    faq: [
+      { question: "Why is manufacturing payroll closely tied to timekeeping?", answer: "Shift schedules, clock punches, overtime, rest days and holiday work directly affect payroll, so manufacturing teams need reliable worked-time evidence before calculations are reviewed." },
+      { question: "Can biometric attendance data be used without manual re-encoding?", answer: "Where a supported biometric synchronization or attendance import exists, punch data can feed the attendance workflow so payroll-relevant time does not have to be retyped each cutoff." },
+      { question: "Why should payroll keep the work-date context for premium pay?", answer: "Holiday, rest-day, overtime and night-differential treatment can overlap, so payroll needs the actual date and schedule context rather than a single generic overtime rule." },
+      { question: "How should incomplete punches be handled?", answer: "Incomplete or invalid punch sequences should surface as attendance exceptions for review instead of being silently guessed into worked hours before payroll release." },
     ],
     related: [
       { label: "Time & attendance", href: "/time-and-attendance", description: "Explore the attendance-to-payroll workflow." },

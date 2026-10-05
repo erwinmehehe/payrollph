@@ -64,13 +64,14 @@ For high-risk compliance pages:
 
 ## SEO ownership audit
 
-Before release, run `npm run seo:audit`. It must pass with no duplicate intent owners, duplicate sitemap paths, private-route ownership, title collisions or broken authority related links.
+Before release, run `npm run seo:audit` and `npm run seo:routes`. The ownership audit must pass with no duplicate intent owners, duplicate sitemap paths, private-route ownership, title collisions or broken authority related links. The route audit must confirm every sitemap URL resolves to an indexable page with title, description and canonical metadata.
 
 ## Release gate
 
 Before considering a new SEO wave complete:
 - CI green
 - `npm run seo:audit` green
+- `npm run seo:routes` green
 - browser QA green
 - security smoke green
 - CodeQL green where configured

@@ -201,6 +201,16 @@ test("core and operational compliance guides include FAQ depth", () => {
   }
 });
 
+test("original industry payroll pages include FAQ depth", () => {
+  const content = read("src/lib/seo-content.ts");
+  for (const slug of ["accounting-firms", "manpower", "manufacturing"]) {
+    const start = content.indexOf(`slug: "${slug}"`);
+    const end = content.indexOf("\n  },", start);
+    assert.ok(start >= 0 && end > start, `industry page ${slug} must exist`);
+    assert.ok(content.slice(start, end).includes("faq: ["), `industry page ${slug} must include FAQ depth`);
+  }
+});
+
 test("public navigation exposes the SEO program without hiding the live demo", () => {
   const navigation = read("src/components/marketing/public-navigation.ts");
   for (const route of ["/demo", "/resources", "/compliance", "/trust", "/integrations", "/developers", "/calculators", "/payroll-health-check", "/industries"]) {
