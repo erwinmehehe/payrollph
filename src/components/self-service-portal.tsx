@@ -22,6 +22,7 @@ import {
   UserRound,
   WalletCards,
 } from "lucide-react";
+import { EmployeeContributionIssueModal } from "@/components/employee-contribution-issue-modal";
 import { WebBundyModal } from "@/components/web-bundy-modal";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { PayrollHandoff } from "@/components/payroll-handoff";
@@ -40,6 +41,8 @@ type Payslip = {
 };
 
 type ContributionPosting = {
+  memberId: number;
+  batchId: number;
   agency: string;
   applicableMonth: string;
   dueDate: string;
@@ -54,6 +57,21 @@ type ContributionPosting = {
   postedAmount: string | null;
   postedAt: string | null;
   exceptionNote: string | null;
+};
+
+type ContributionIssueCase = {
+  id: number;
+  agency: string;
+  applicableMonth: string;
+  issueType: string;
+  description: string;
+  status: string;
+  assignedToName: string | null;
+  resolutionOutcome: string | null;
+  resolutionNote: string | null;
+  resolvedByName: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
 };
 
 type AttendanceRow = {
@@ -114,6 +132,7 @@ type Payload = {
   nextPay: { period: string; payDate: string; status: string; label: string } | null;
   payslips: Payslip[];
   contributions: ContributionPosting[];
+  contributionIssues: ContributionIssueCase[];
   attendance: {
     recent: AttendanceRow[];
     today: AttendanceRow | null;
@@ -187,6 +206,11 @@ export function SelfServicePortal() {
   const [mobile, setMobile] = useState("");
   const [emergencyContact, setEmergencyContact] = useState("");
   const [emergencyPhone, setEmergencyPhone] = useState("");
+  const [contributionIssueContext, setContributionIssueContext] = useState<{
+    memberId: number | null;
+    agency?: string;
+    applicableMonth?: string;
+  } | null>(null);
 
   async function load() {
     const response = await fetch("/api/self/payslips", { cache: "no-store" });
@@ -620,6 +644,12 @@ export function SelfServicePortal() {
                 <span className="card-kicker">MANDATORY CONTRIBUTIONS</span>
                 <h3>Remittance and agency posting</h3>
               </div>
+              <button
+                className="secondary-button"
+                onClick={() => setContributionIssueContext({ memberId: null })}
+              >
+                Report issue
+              </button>
             </div>
             {data.contributions.length === 0 ? (
               <div className="employee-empty-row">
@@ -652,12 +682,55 @@ export function SelfServicePortal() {
                   {row.postedAmount && <div><span>Amount posted</span><strong>{peso(row.postedAmount)}</strong></div>}
                   {row.postingReference && <div><span>Posting reference</span><strong>{row.postingReference}</strong></div>}
                   {row.exceptionNote && <div><span>Issue</span><strong>{row.exceptionNote}</strong></div>}
+                  <div>
+                    <span>Something wrong?</span>
+                    <button
+                      className="secondary-button"
+                      onClick={() => setContributionIssueContext({
+                        memberId: row.memberId,
+                        agency: row.agency,
+                        applicableMonth: row.applicableMonth,
+                      })}
+                    >
+                      Report this record
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
             <div className="employee-rule-note">
               <ShieldCheck size={12} /> “Deducted” comes from released payroll. “Payment recorded” is employer evidence. “Agency posting confirmed” is the final reconciliation state.
             </div>
+          </article>
+
+          <article className="employee-list-card">
+            <div className="employee-list-card-head">
+              <div>
+                <span className="card-kicker">CONTRIBUTION CASES</span>
+                <h3>Your reported issues</h3>
+              </div>
+            </div>
+            {data.contributionIssues.length === 0 ? (
+              <div className="employee-empty-row">No contribution issues reported.</div>
+            ) : data.contributionIssues.slice(0, 12).map((issue) => (
+              <div className="employee-pay-row" key={issue.id}>
+                <div className="employee-pay-row-main" style={{ cursor: "default" }}>
+                  <div>
+                    <strong>{issue.agency} · {issue.applicableMonth}</strong>
+                    <span>{issue.issueType.replaceAll("_", " ")}</span>
+                  </div>
+                  <span className={"employee-status-pill " + statusTone(issue.status)}>
+                    {issue.status === "in_review" ? "In review" : issue.status}
+                  </span>
+                </div>
+                <div className="employee-pay-row-detail" style={{ display: "grid" }}>
+                  <div><span>Your report</span><strong>{issue.description}</strong></div>
+                  {issue.assignedToName && <div><span>Reviewing</span><strong>{issue.assignedToName}</strong></div>}
+                  {issue.resolutionOutcome && <div><span>Outcome</span><strong>{issue.resolutionOutcome.replaceAll("_", " ")}</strong></div>}
+                  {issue.resolutionNote && <div><span>Payroll response</span><strong>{issue.resolutionNote}</strong></div>}
+                </div>
+              </div>
+            ))}
           </article>
 
           <article className="employee-list-card">
@@ -812,6 +885,16 @@ export function SelfServicePortal() {
             <span>Your pay, time, leave and profile queries are bound to your employee ID from the signed-in session. Editing a URL does not switch whose records are returned.</span>
           </div>
         </section>
+      )}
+
+      {contributionIssueContext && (
+        <EmployeeContributionIssueModal
+          memberId={contributionIssueContext.memberId}
+          initialAgency={contributionIssueContext.agency}
+          initialMonth={contributionIssueContext.applicableMonth}
+          onClose={() => setContributionIssueContext(null)}
+          onSubmitted={() => setNonce((value) => value + 1)}
+        />
       )}
 
       {leaveOpen && (
