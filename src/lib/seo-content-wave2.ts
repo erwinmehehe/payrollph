@@ -58,7 +58,7 @@ export const resourceWave2: AuthorityPage[] = [
     eyebrow: "Payroll implementation guide",
     title: "How to implement a new payroll system without losing control.",
     metaTitle: "Payroll System Implementation Guide Philippines | Linaw",
-    description: "Philippine payroll implementation guide covering discovery, data migration, role setup, parallel payroll, reconciliation, controlled go-live and post-launch review.",
+    description: "Philippine payroll implementation guide covering discovery, migration, role setup, parallel payroll, reconciliation, controlled go-live and review.",
     intro: "Payroll implementation should reduce uncertainty in stages. The goal is not simply to load data and switch systems, but to prove the new process before the first production release.",
     proof: ["Discovery", "Data mapping", "Role setup", "Reconciliation", "Controlled rollout", "Post-launch review"],
     sections: [
@@ -191,7 +191,7 @@ export const industryWave2: AuthorityPage[] = [
     eyebrow: "Hospitality payroll Philippines",
     title: "Payroll for Philippine hotels, restaurants and hospitality teams.",
     metaTitle: "Hospitality Payroll Software Philippines | Linaw",
-    description: "Payroll software for Philippine hotels, restaurants and hospitality teams handling rotating shifts, holidays, night work, overtime, attendance exceptions and payslips.",
+    description: "Payroll software for Philippine hotels and restaurants handling rotating shifts, holidays, night work, overtime, attendance exceptions and payslips.",
     intro: "Hospitality payroll is shaped by weekends, holidays, late shifts and changing staffing patterns. Linaw models those time conditions before payroll reaches review.",
     proof: ["Rotating schedules", "Night work", "Holiday premiums", "Overtime", "Attendance exceptions", "Payslip self-service"],
     sections: [
