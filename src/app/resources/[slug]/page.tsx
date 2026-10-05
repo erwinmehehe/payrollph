@@ -9,8 +9,9 @@ import { resourceWave14 } from "@/lib/seo-content-wave14";
 import { resourceWave16 } from "@/lib/seo-content-wave16";
 import { resourceWave17 } from "@/lib/seo-content-wave17";
 import { resourceWave18 } from "@/lib/seo-content-wave18";
+import { resourceWave19 } from "@/lib/seo-content-wave19";
 
-const pages = [...resourcePages, ...resourceWave2, ...resourceWave3, ...resourceWave14, ...resourceWave16, ...resourceWave17, ...resourceWave18];
+const pages = [...resourcePages, ...resourceWave2, ...resourceWave3, ...resourceWave14, ...resourceWave16, ...resourceWave17, ...resourceWave18, ...resourceWave19];
 
 export function generateStaticParams() {
   return pages.map(({ slug }) => ({ slug }));
