@@ -1272,6 +1272,35 @@ export const statutoryRemittanceMembers = pgTable(
   ],
 );
 
+export const statutoryRemittanceCorrectionRequests = pgTable(
+  "statutory_remittance_correction_requests",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    targetType: varchar("target_type", { length: 32 }).notNull(),
+    batchId: integer("batch_id").notNull().references(() => statutoryRemittanceBatches.id, { onDelete: "cascade" }),
+    memberId: integer("member_id").references(() => statutoryRemittanceMembers.id, { onDelete: "cascade" }),
+    originalSnapshot: jsonb("original_snapshot").notNull(),
+    proposedSnapshot: jsonb("proposed_snapshot").notNull(),
+    reason: varchar("reason", { length: 360 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("pending"),
+    requestedByUserId: integer("requested_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    requestedByName: varchar("requested_by_name", { length: 120 }).notNull(),
+    decidedByUserId: integer("decided_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    decidedByName: varchar("decided_by_name", { length: 120 }),
+    decisionNote: varchar("decision_note", { length: 360 }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    appliedAt: timestamp("applied_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("statutory_remittance_corrections_status_idx").on(table.organizationId, table.status, table.createdAt),
+    index("statutory_remittance_corrections_batch_idx").on(table.organizationId, table.batchId),
+    index("statutory_remittance_corrections_member_idx").on(table.organizationId, table.memberId),
+  ],
+);
+
 export const complianceActionTasks = pgTable(
   "compliance_action_tasks",
   {
