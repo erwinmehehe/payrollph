@@ -169,3 +169,12 @@ test("Compliance Center renders the inspection readiness panel", () => {
   assert.ok(ui.includes("Close with evidence"));
   assert.ok(ui.includes("This is an inspection-readiness control, not a DOLE certification."));
 });
+
+
+test("unmapped region fails closed instead of borrowing NCR wage rates", () => {
+  const input = baseInput();
+  input.employees[0].region = "UNKNOWN";
+  const result = buildLaborInspectionFindings(input);
+  assert.ok(result.findings.some((row) => row.ruleCode === "WAGE_REGION_UNMAPPED"));
+  assert.equal(result.findings.some((row) => row.ruleCode === "WAGE_FLOOR_SCREEN"), false);
+});
