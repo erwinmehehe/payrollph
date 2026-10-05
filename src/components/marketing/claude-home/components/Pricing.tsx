@@ -183,7 +183,7 @@ export default function Pricing({ plans }: { plans: PublicPlan[] }) {
               <div className="flex items-center gap-4">
                 <p className="font-display text-[28px] font-semibold">₱0 <span className="text-[13px] font-medium text-[#7C82A1]">/month</span></p>
                 <a href="/signup" className="rounded-full border border-[#D9DCEC] bg-white px-5 py-2.5 text-[13.5px] font-semibold shadow-sm transition-all hover:border-[#11141F]">
-                  Start Solo
+                  Request solo access
                 </a>
               </div>
             </div>
@@ -192,9 +192,9 @@ export default function Pricing({ plans }: { plans: PublicPlan[] }) {
 
         <Reveal delay={90}>
           <p className="mt-5 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-center text-[13.5px] font-medium text-[#7C82A1]">
-            <span>No credit card to start</span>
-            <span>Solo stays free</span>
-            <span>Cancel anytime</span>
+            <span>Pricing uses the current plan configuration</span>
+            <span>Trial workspace access is controlled</span>
+            <span>No payroll file needed to request access</span>
           </p>
         </Reveal>
       </div>
