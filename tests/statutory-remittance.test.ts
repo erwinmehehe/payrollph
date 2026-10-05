@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildStatutoryRemittanceSnapshot,
+  canConfirmMemberPosting,
   canMarkRemittancePaid,
   effectiveRemittanceDueDate,
   nominalRemittanceDueDate,
@@ -148,4 +149,28 @@ test("payment gate blocks underpayment but permits evidenced penalties", () => {
     agencyReceiptReference: "OR-1",
     paymentVarianceNote: "Agency late-payment penalty",
   }).ok, true);
+});
+
+
+test("employee agency posting confirmation requires an exact amount match", () => {
+  assert.equal(canConfirmMemberPosting({
+    expectedTotal: 2250,
+    postedAmount: 2250,
+    postingReference: "POST-001",
+  }).ok, true);
+
+  const under = canConfirmMemberPosting({
+    expectedTotal: 2250,
+    postedAmount: 2200,
+    postingReference: "POST-001",
+  });
+  assert.equal(under.ok, false);
+  if (!under.ok) assert.match(under.error, /must match/i);
+
+  const over = canConfirmMemberPosting({
+    expectedTotal: 2250,
+    postedAmount: 2300,
+    postingReference: "POST-001",
+  });
+  assert.equal(over.ok, false);
 });
