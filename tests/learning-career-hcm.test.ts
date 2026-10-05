@@ -32,6 +32,7 @@ test("role requirements and employee proficiency use a bounded five-level model"
   assert.ok(route.includes('"Employee skill verified"'));
   assert.ok(route.includes("verifiedByUserId: user.id"));
   assert.ok(route.includes("verifiedAt: new Date()"));
+  assert.ok(route.includes("SKILL_SOURCES"));
 });
 
 test("development plans may link only to the same employee completed performance review", () => {
@@ -62,6 +63,7 @@ test("course completion can verify a skill issue a credential and close a develo
 
 test("completed learning is immutable to prevent duplicate skill or certification evidence", () => {
   assert.ok(route.includes("Completed learning is immutable because it may already have verified a skill or issued a certification."));
+  assert.ok(route.includes("This activity is locked because its linked learning enrollment is already completed."));
 });
 
 test("learning mutations are role scoped and audited", () => {
