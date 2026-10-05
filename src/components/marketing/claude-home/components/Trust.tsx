@@ -18,16 +18,20 @@ import { cn } from "../utils/cn";
 
 export function Audiences() {
   const items = [
-    { icon: UserRound, t: "Freelancers", c: "#00CA72", soft: "#E3FAF0", d: "A quiet self-employed profile. Solo is free, and team modules stay out of your way." },
-    { icon: Users, t: "Small teams", c: "#579BFC", soft: "#EAF3FF", d: "People, time, leave and payslips. CSV import accepts the spreadsheet you already have." },
-    { icon: Building2, t: "Bookkeepers", c: "#FF7A29", soft: "#FFF1E6", d: "Run payroll for many client businesses from one login. Every client is tenant-isolated." },
-    { icon: ShieldCheck, t: "Multi-branch", c: "#7C5CFF", soft: "#F1EDFF", d: "Org units, department-scoped access, delegated approvals, API and webhooks." },
+    { icon: Building2, t: "Small businesses", c: "#00CA72", soft: "#E3FAF0", d: "Move off spreadsheets without losing visibility. Keep employees, attendance, payroll and payslips in one controlled workflow." },
+    { icon: Users, t: "Payroll teams", c: "#579BFC", soft: "#EAF3FF", d: "Separate preparation, checking and release so one person does not have to own the entire payroll process." },
+    { icon: UserRound, t: "Accounting firms", c: "#FF7A29", soft: "#FFF1E6", d: "Run payroll across multiple client businesses from one login while keeping every client workspace tenant-isolated." },
+    { icon: ShieldCheck, t: "Multi-branch employers", c: "#7C5CFF", soft: "#F1EDFF", d: "Use organization units, scoped access and delegated approvals when payroll responsibility is split across locations." },
   ];
 
   return (
     <section id="product" className="scroll-mt-20 py-16 sm:py-20">
       <div className="mx-auto max-w-[1240px] px-5 sm:px-8">
-        <SectionHeading align="center" title="Simple when you're small. Serious when you're not." />
+        <SectionHeading
+          align="center"
+          title="Built for teams that need more control as payroll gets more complex."
+          description="Linaw stays simple enough for a small payroll, but adds role separation, scoped access and multi-client structure when the operation grows."
+        />
         <div className="mt-9 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {items.map((x, k) => (
             <Reveal key={x.t} delay={k * 80}>

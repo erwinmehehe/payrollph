@@ -206,7 +206,7 @@ jobs:
 
               const demo = page.locator("#demo");
               check((await demo.count()) === 1, "desktop: live demo section is missing");
-              check((await demo.getByText("Interactive product preview").count()) === 1, "desktop: real product preview chrome did not render");
+              check((await demo.getByText("Interactive payroll workflow").count()) === 1, "desktop: payroll workflow preview chrome did not render");
               const systemPreview = demo.locator(".system-demo-product .frame.standalone");
               check((await systemPreview.count()) === 1, "desktop: shared Linaw workspace preview did not render");
               const previewNav = systemPreview.locator(".nav-item");

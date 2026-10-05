@@ -4,39 +4,6 @@ import { FileText, Gauge, Landmark, Lock, Wallet } from "lucide-react";
 import { Reveal, SectionHeading } from "./ui";
 import { cn } from "../utils/cn";
 
-const outputChannels = [
-  ["PayMongo", "Direct when configured"],
-  ["Xero", "Export"],
-  ["QuickBooks", "Export"],
-  ["BDO", "Validated template required"],
-  ["BPI", "Validated template required"],
-  ["UnionBank", "Validated template required"],
-  ["GCash", "Export"],
-  ["BIR 1601-C", "Draft"],
-  ["SSS R-3", "Draft"],
-  ["PhilHealth RF-1", "Draft"],
-  ["Pag-IBIG MCRF", "Draft"],
-] as const;
-
-export function TrustStrip() {
-  return (
-    <section aria-label="Exports and integrations" className="border-y border-[#EDEFF7] bg-[#FAFBFD] py-7">
-      <p className="text-center text-[12px] font-bold uppercase tracking-[0.15em] text-[#8B90AA]">
-        Clear status for every payout, accounting and government output
-      </p>
-      <div className="mask-fade-x mt-4 overflow-hidden">
-        <div className="animate-marquee flex w-max gap-3 pr-3">
-          {[...outputChannels, ...outputChannels].map(([name, status], i) => (
-            <span key={i} className="whitespace-nowrap rounded-full border border-[#E2E4F0] bg-white px-4 py-2 text-[13px] font-semibold text-[#3A3E59]">
-              {name} <span className="ml-1.5 text-[11px] font-medium text-[#8B90AA]">· {status}</span>
-            </span>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 export function Calculator() {
   const [salary, setSalary] = useState(35000);
   const r = useMemo(() => compute(salary), [salary]);

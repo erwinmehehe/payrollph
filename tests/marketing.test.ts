@@ -103,6 +103,19 @@ test("homepage simulation uses the real workspace navigation and no dead client 
   assert.ok(!preview.includes("client.id !== 1"), "homepage preview must not branch into disconnected client datasets");
 });
 
+test("homepage buyer flow avoids the old marquee and freelancer-first positioning", () => {
+  const home = read("src/components/marketing/claude-home/App.tsx");
+  const product = read("src/components/marketing/claude-home/components/Product.tsx");
+  const trust = read("src/components/marketing/claude-home/components/Trust.tsx");
+  assert.ok(!home.includes("<TrustStrip />"), "homepage must not render the animated output marquee");
+  assert.ok(!product.includes("export function TrustStrip"), "obsolete output marquee component must stay removed");
+  assert.ok(!trust.includes("Freelancers"), "homepage audience section must not lead with freelancers");
+  assert.ok(!trust.includes("Solo is free"), "homepage must not revive stale self-serve Solo claims");
+  for (const buyer of ["Small businesses", "Payroll teams", "Accounting firms", "Multi-branch employers"]) {
+    assert.ok(trust.includes(buyer), `homepage audience section must include ${buyer}`);
+  }
+});
+
 test("homepage pricing keeps persisted plan values inside the redesigned cards", () => {
   const wrapper = read("src/components/marketing/software-home.tsx");
   const pricing = read("src/components/marketing/claude-home/components/Pricing.tsx");
@@ -202,7 +215,7 @@ test("homepage hero stays simple while the deeper demo owns the real workspace p
   assert.ok(hero.includes("Release stays locked until blockers are cleared."), "homepage hero must show the control model");
   assert.ok(demo.includes("WorkspacePreview"), "homepage demo must render the shared workspace preview");
   assert.ok(demo.includes('mode="interactive"'), "homepage demo must retain the interactive real-system preview");
-  assert.ok(demo.includes("actual Linaw workspace"), "homepage demo must explain that it is showing the product system");
+  assert.ok(demo.includes("See how payroll moves from"), "homepage demo must frame the product around the payroll workflow");
 });
 
 test("pricing explains who each plan is for instead of dumping internal module names", () => {
