@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { SeoLandingPage } from "@/components/marketing/seo-landing-page";
+import { StructuredData } from "@/components/marketing/structured-data";
 
 export const metadata: Metadata = {
   title: "BPO Payroll Software Philippines | Shifts & Night Differential | Linaw",
@@ -9,7 +10,16 @@ export const metadata: Metadata = {
 
 export default function BpoPayrollPage() {
   return (
-    <SeoLandingPage
+    <>
+      <StructuredData
+        breadcrumbs={[{ name: "Home", path: "/" }, { name: "Industries", path: "/industries" }, { name: "BPO payroll", path: "/industries/bpo" }]}
+        service={{
+          name: "BPO payroll software Philippines",
+          description: "Payroll software for Philippine BPO teams with shifts, night differential, overtime, attendance processing and controlled payroll review.",
+          path: "/industries/bpo",
+        }}
+      />
+      <SeoLandingPage
       eyebrow="BPO payroll software Philippines"
       title="Payroll for shift-heavy Philippine BPO operations."
       intro="BPO payroll gets difficult when schedules, night work, overtime, rest days, attendance exceptions and approval handoffs collide. Linaw already models those operating conditions directly."
@@ -52,5 +62,6 @@ export default function BpoPayrollPage() {
         { label: "Payroll software", href: "/", description: "Review the full Philippine payroll workflow." },
       ]}
     />
+    </>
   );
 }
