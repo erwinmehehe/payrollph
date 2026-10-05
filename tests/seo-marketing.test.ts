@@ -181,6 +181,41 @@ test("long dynamic compliance and industry H1s have dedicated search titles", ()
   }
 });
 
+test("core compliance guides expose current review dates, FAQs and official regulator sources", () => {
+  const content = read("src/lib/seo-content.ts");
+  const complianceRoute = read("src/app/compliance/[slug]/page.tsx");
+  assert.ok(complianceRoute.includes("lastReviewed={page.lastReviewed}"), "compliance route must show review dates");
+  assert.ok(complianceRoute.includes("sources={page.sources}"), "compliance route must render official sources");
+  assert.ok(complianceRoute.includes("faq={page.faq}"), "compliance route must render compliance FAQs");
+
+  for (const slug of ["bir", "sss", "philhealth", "pag-ibig", "dole"]) {
+    const start = content.indexOf(`slug: "${slug}"`);
+    const end = content.indexOf("\n  },", start);
+    assert.ok(start >= 0 && end > start, `compliance guide ${slug} must exist`);
+    const block = content.slice(start, end);
+    assert.ok(block.includes('lastReviewed: "October 5, 2026"'), `${slug} must expose the current review date`);
+    assert.ok(block.includes('lastReviewedIso: "2026-10-05"'), `${slug} must expose a machine-readable review date`);
+    assert.ok(block.includes("faq: ["), `${slug} must include FAQ depth`);
+    assert.ok(block.includes("sources: ["), `${slug} must include official references`);
+  }
+
+  for (const officialDomain of ["bir.gov.ph", "sss.gov.ph", "philhealth.gov.ph", "pagibigfund.gov.ph", "dole.gov.ph"]) {
+    assert.ok(content.includes(officialDomain), `compliance references must include ${officialDomain}`);
+  }
+  assert.ok(!content.includes("investopedia.com"), "core compliance guides must not use generic finance blogs as sources");
+  assert.ok(!content.includes("facebook.com"), "core compliance guides must not use social posts as regulator sources");
+});
+
+test("current SSS and PhilHealth compliance FAQs preserve the verified official schedule context", () => {
+  const content = read("src/lib/seo-content.ts");
+  assert.ok(content.includes("15% contribution rate"), "SSS FAQ must preserve the current 15% schedule context");
+  assert.ok(content.includes("10% employer and 5% employee"), "SSS FAQ must preserve the employer/employee split");
+  assert.ok(content.includes("₱35,000 maximum MSC"), "SSS FAQ must preserve the current maximum MSC");
+  assert.ok(content.includes("premium rate for direct contributors at 5%"), "PhilHealth FAQ must preserve the latest official premium rate");
+  assert.ok(content.includes("₱10,000 monthly basic salary floor"), "PhilHealth FAQ must preserve the official floor");
+  assert.ok(content.includes("₱100,000 ceiling"), "PhilHealth FAQ must preserve the official ceiling");
+});
+
 test("public navigation exposes the SEO program without hiding the live demo", () => {
   const navigation = read("src/components/marketing/public-navigation.ts");
   for (const route of ["/demo", "/resources", "/compliance", "/trust", "/integrations", "/developers", "/calculators", "/payroll-health-check", "/industries"]) {
