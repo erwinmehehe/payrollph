@@ -80,6 +80,8 @@ export const users = pgTable("users", {
   totpSecret: text("totp_secret"),
   totpEnabled: boolean("totp_enabled").notNull().default(false),
   backupCodes: jsonb("backup_codes").notNull().default([]),
+  active: boolean("active").notNull().default(true),
+  localPasswordEnabled: boolean("local_password_enabled").notNull().default(true),
   // Set when the account is an employee self-service login (role = "employee").
   // Scoped to exactly one employee record; never grants access to other staff.
   employeeId: integer("employee_id"),
