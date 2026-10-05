@@ -21,13 +21,18 @@ type StructuredDataProps = {
     description: string;
     path: string;
   };
+  definedTerm?: {
+    name: string;
+    description: string;
+    path: string;
+  };
 };
 
 function absolute(path: string) {
   return new URL(path, `${PUBLIC_SITE_URL}/`).toString();
 }
 
-export function StructuredData({ breadcrumbs, article, webApplication, service }: StructuredDataProps) {
+export function StructuredData({ breadcrumbs, article, webApplication, service, definedTerm }: StructuredDataProps) {
   const graph: Record<string, unknown>[] = [];
 
   if (breadcrumbs?.length) {
@@ -76,6 +81,17 @@ export function StructuredData({ breadcrumbs, article, webApplication, service }
       url: absolute(service.path),
       provider: { "@type": "Organization", name: "Linaw", url: PUBLIC_SITE_URL },
       areaServed: { "@type": "Country", name: "Philippines" },
+    });
+  }
+
+  if (definedTerm) {
+    graph.push({
+      "@type": "DefinedTerm",
+      name: definedTerm.name,
+      description: definedTerm.description,
+      url: absolute(definedTerm.path),
+      inDefinedTermSet: absolute("/glossary"),
+      inLanguage: "en-PH",
     });
   }
 
