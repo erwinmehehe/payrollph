@@ -85,5 +85,6 @@ export default function TimeAttendancePage() {
         { label: "Compliance", href: "/compliance", description: "See how statutory and payroll-rule evidence is handled." },
       ]}
     />
+    </>
   );
 }
