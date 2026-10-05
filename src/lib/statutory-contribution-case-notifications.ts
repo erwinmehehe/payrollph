@@ -13,7 +13,7 @@ type ContributionCase = typeof statutoryContributionIssueCases.$inferSelect;
 function caseDedupeKey(input: {
   organizationId: number;
   caseId: number;
-  event: "reported" | "review_started" | "resolved";
+  event: "reported" | "review_started" | "referred" | "resolved";
   recipientUserId: number;
 }) {
   return [
@@ -44,7 +44,7 @@ function payrollBody(issue: ContributionCase, recipientName: string) {
 function employeeBody(
   issue: ContributionCase,
   recipientName: string,
-  event: "review_started" | "resolved",
+  event: "review_started" | "referred" | "resolved",
 ) {
   if (event === "review_started") {
     return [
@@ -59,6 +59,21 @@ function employeeBody(
       "You can track the case in Employee Self-Service > Pay > Contribution Cases.",
       "",
       "You do not need to share your agency password, OTP or login credentials with payroll.",
+    ].join("\n");
+  }
+
+  if (event === "referred") {
+    return [
+      `Hi ${recipientName},`,
+      "",
+      "Payroll has referred your mandatory contribution issue to the agency for further verification.",
+      "",
+      `${issue.agency} · ${issue.applicableMonth}`,
+      `Payroll note: ${issue.resolutionNote ?? "Agency verification is required."}`,
+      `Reviewer: ${issue.assignedToName ?? "Payroll team"}`,
+      "",
+      "Your PayrollPH case remains open while the agency response is pending.",
+      "You can keep tracking it in Employee Self-Service > Pay > Contribution Cases.",
     ].join("\n");
   }
 
@@ -152,7 +167,9 @@ export async function notifyEmployeeOfContributionCase(input: {
 
   const subject = input.event === "review_started"
     ? `Payroll is reviewing your ${input.issue.agency} contribution issue`
-    : `Your ${input.issue.agency} contribution issue was resolved`;
+    : input.event === "referred"
+      ? `Your ${input.issue.agency} contribution issue was referred to the agency`
+      : `Your ${input.issue.agency} contribution issue was resolved`;
 
   return [await queueMessage({
     organizationId: input.issue.organizationId,
