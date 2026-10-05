@@ -191,6 +191,10 @@ export const industryWave6: AuthorityPage[] = [
         question: "Can payroll outputs connect to accounting?",
         answer: "Linaw can generate an accounting journal export after payroll release. An export is a controlled handoff, not a claim of a native connection to every accounting platform.",
       },
+      {
+        question: "What payroll controls matter most for multi-location real estate teams?",
+        answer: "Use organization and department scope, explicit payroll review roles, attendance exception handling and controlled outputs so each location can operate without fragmenting payroll into separate workbooks.",
+      },
     ],
     lastReviewed: "October 5, 2026",
     lastReviewedIso: "2026-10-05",
@@ -245,6 +249,10 @@ export const industryWave6: AuthorityPage[] = [
       {
         question: "Can late-night work and overtime overlap?",
         answer: "Yes. Payroll should preserve the applicable work-day and overtime context while calculating night-work amounts rather than replacing one premium with another.",
+      },
+      {
+        question: "How should media payroll handle project-driven schedule changes?",
+        answer: "Keep schedule, attendance and worker-type context explicit before payroll calculation, then surface exceptions for review instead of converting late changes into untracked manual adjustments.",
       },
     ],
     lastReviewed: "October 5, 2026",
@@ -301,6 +309,10 @@ export const industryWave6: AuthorityPage[] = [
         question: "Can payroll access be limited by organizational unit?",
         answer: "The application includes organization and unit-scoped authorization paths so access does not depend only on hiding records in the browser.",
       },
+      {
+        question: "How can NGOs keep payroll review auditable across programs or units?",
+        answer: "Use scoped access, explicit checker and release roles, and audit records so payroll decisions can be traced without giving every program or unit unrestricted payroll visibility.",
+      },
     ],
     lastReviewed: "October 5, 2026",
     lastReviewedIso: "2026-10-05",
@@ -355,6 +367,10 @@ export const industryWave6: AuthorityPage[] = [
       {
         question: "How should payroll access work across operating teams?",
         answer: "Access should be enforced by organization and role on the server rather than relying only on what a user can see in the interface.",
+      },
+      {
+        question: "How should payroll handle frequent weekend and holiday staffing changes?",
+        answer: "Use the actual work date, schedule and rest-day context for premium calculations, then keep schedule or attendance exceptions visible before payroll is approved and released.",
       },
     ],
     lastReviewed: "October 5, 2026",
