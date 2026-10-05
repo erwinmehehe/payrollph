@@ -1,6 +1,11 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, lte } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  employees,
+  payrollEntries,
+  payrollRuns,
+  statutoryContributionIssueCases,
+  statutoryContributionIssueEvents,
   statutoryRemittanceBatches,
   statutoryRemittanceCorrectionRequests,
   statutoryRemittanceMembers,
@@ -22,6 +27,11 @@ import {
   validatePostingCorrection,
 } from "@/lib/statutory-remittance-correction";
 import { syncStatutoryRemittanceActions } from "@/lib/statutory-remittance-actions";
+import {
+  buildStatutoryRemittanceSnapshot,
+  statutoryRemittanceSnapshotHash,
+  type StatutoryAgency,
+} from "@/lib/statutory-remittance";
 import { invalidateStatutoryRemittanceMonthCertification } from "@/lib/statutory-remittance-certification";
 import { ensureStatutoryRemittanceCorrectionSchema } from "@/lib/statutory-remittance-correction-schema";
 import {
@@ -33,6 +43,173 @@ import {
 export const dynamic = "force-dynamic";
 
 const APPROVER_ROLES = ["owner", "admin", "checker"] as const;
+
+function monthStart(month: string) {
+  return `${month}-01`;
+}
+
+function monthEnd(month: string) {
+  const [year, rawMonth] = month.split("-").map(Number);
+  return new Date(Date.UTC(year, rawMonth, 0)).toISOString().slice(0, 10);
+}
+
+function round2(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+async function deriveMissingMemberAddition(organizationId: number, caseId: number) {
+  const [issue] = await db.select().from(statutoryContributionIssueCases).where(and(
+    eq(statutoryContributionIssueCases.id, caseId),
+    eq(statutoryContributionIssueCases.organizationId, organizationId),
+  )).limit(1);
+  if (!issue) throw new Error("Contribution issue case not found.");
+  if (issue.status === "resolved") throw new Error("Resolved contribution cases cannot request a missing-member correction.");
+  if (issue.issueType !== "missing_posting") {
+    throw new Error("Missing-member corrections are only available for missing-posting cases.");
+  }
+  if (issue.remittanceMemberId != null) {
+    throw new Error("This contribution case already has a linked remittance member.");
+  }
+
+  const [employee] = await db.select({
+    id: employees.id,
+    employeeNo: employees.employeeNo,
+  }).from(employees).where(and(
+    eq(employees.id, issue.employeeId),
+    eq(employees.organizationId, organizationId),
+  )).limit(1);
+  if (!employee) throw new Error("Employee record not found.");
+
+  const [batch] = await db.select().from(statutoryRemittanceBatches).where(and(
+    eq(statutoryRemittanceBatches.organizationId, organizationId),
+    eq(statutoryRemittanceBatches.agency, issue.agency),
+    eq(statutoryRemittanceBatches.applicableMonth, issue.applicableMonth),
+  )).limit(1);
+  if (!batch) {
+    throw new Error("No remittance batch exists for this agency and month. Create or reconcile the batch before adding a missing member.");
+  }
+
+  const existingMembers = await db.select().from(statutoryRemittanceMembers).where(and(
+    eq(statutoryRemittanceMembers.organizationId, organizationId),
+    eq(statutoryRemittanceMembers.batchId, batch.id),
+  )).orderBy(asc(statutoryRemittanceMembers.employeeId));
+
+  if (existingMembers.some((member) => member.employeeId === employee.id)) {
+    throw new Error("This employee already exists in the remittance batch.");
+  }
+
+  if (existingMembers.length !== batch.employeeCount) {
+    throw new Error("Batch employee count does not match its member rows. Resolve the batch reconciliation mismatch first.");
+  }
+
+  const runs = await db.select().from(payrollRuns).where(and(
+    eq(payrollRuns.organizationId, organizationId),
+    gte(payrollRuns.periodEnd, monthStart(issue.applicableMonth)),
+    lte(payrollRuns.periodEnd, monthEnd(issue.applicableMonth)),
+  ));
+  if (runs.length === 0 || runs.some((run) => run.status !== "Released")) {
+    throw new Error("All payroll runs for the contribution month must be Released before a missing member can be derived.");
+  }
+
+  const runIds = runs.map((run) => run.id);
+  const entries = await db.select({
+    employeeId: payrollEntries.employeeId,
+    lineItems: payrollEntries.lineItems,
+    trace: payrollEntries.trace,
+  }).from(payrollEntries).where(inArray(payrollEntries.payrollRunId, runIds));
+
+  const employeeIds = [...new Set(entries.map((entry) => entry.employeeId))];
+  const identities = employeeIds.length
+    ? await db.select({
+        id: employees.id,
+        employeeNo: employees.employeeNo,
+      }).from(employees).where(and(
+        eq(employees.organizationId, organizationId),
+        inArray(employees.id, employeeIds),
+      ))
+    : [];
+
+  const payrollSnapshot = buildStatutoryRemittanceSnapshot({
+    agency: issue.agency as StatutoryAgency,
+    applicableMonth: issue.applicableMonth,
+    entries,
+    employees: identities,
+  });
+  const expectedByEmployee = new Map(payrollSnapshot.members.map((member) => [member.employeeId, member]));
+  const target = expectedByEmployee.get(employee.id);
+  if (!target) {
+    throw new Error("Released payroll does not contain a positive statutory contribution for this employee and agency.");
+  }
+
+  for (const member of existingMembers) {
+    const expected = expectedByEmployee.get(member.employeeId);
+    if (
+      !expected
+      || Math.abs(Number(member.employeeShare) - expected.employeeShare) > 0.01
+      || Math.abs(Number(member.employerShare) - expected.employerShare) > 0.01
+      || Math.abs(Number(member.totalContribution) - expected.totalContribution) > 0.01
+    ) {
+      throw new Error("Existing remittance membership does not match released payroll. Resolve that broader variance before adding a member.");
+    }
+  }
+
+  const currentEmployeeShare = round2(existingMembers.reduce((sum, row) => sum + Number(row.employeeShare), 0));
+  const currentEmployerShare = round2(existingMembers.reduce((sum, row) => sum + Number(row.employerShare), 0));
+  const currentTotal = round2(existingMembers.reduce((sum, row) => sum + Number(row.totalContribution), 0));
+  if (
+    Math.abs(currentEmployeeShare - Number(batch.expectedEmployeeShare)) > 0.01
+    || Math.abs(currentEmployerShare - Number(batch.expectedEmployerShare)) > 0.01
+    || Math.abs(currentTotal - Number(batch.expectedTotal)) > 0.01
+  ) {
+    throw new Error("Batch liability totals do not match existing member rows. Resolve the batch variance first.");
+  }
+
+  const membersAfter = [
+    ...existingMembers.map((member) => ({
+      employeeId: member.employeeId,
+      employeeNo: member.employeeNo,
+      employeeShare: Number(member.employeeShare),
+      employerShare: Number(member.employerShare),
+      totalContribution: Number(member.totalContribution),
+    })),
+    target,
+  ];
+
+  const proposedSnapshot = {
+    caseId: issue.id,
+    employeeId: target.employeeId,
+    employeeNo: target.employeeNo,
+    employeeShare: target.employeeShare.toFixed(2),
+    employerShare: target.employerShare.toFixed(2),
+    totalContribution: target.totalContribution.toFixed(2),
+    postingStatus: "exception",
+    exceptionNote: "Employee was omitted from the remittance member list; payment and agency posting must be reconciled.",
+    batchId: batch.id,
+    batchEmployeeCount: batch.employeeCount + 1,
+    batchExpectedEmployeeShare: round2(Number(batch.expectedEmployeeShare) + target.employeeShare).toFixed(2),
+    batchExpectedEmployerShare: round2(Number(batch.expectedEmployerShare) + target.employerShare).toFixed(2),
+    batchExpectedTotal: round2(Number(batch.expectedTotal) + target.totalContribution).toFixed(2),
+    batchSnapshotHash: statutoryRemittanceSnapshotHash({
+      agency: issue.agency as StatutoryAgency,
+      applicableMonth: issue.applicableMonth,
+      members: membersAfter,
+    }),
+  };
+
+  const originalSnapshot = {
+    caseId: issue.id,
+    employeeId: employee.id,
+    memberFound: false,
+    batchId: batch.id,
+    batchEmployeeCount: batch.employeeCount,
+    batchExpectedEmployeeShare: String(batch.expectedEmployeeShare),
+    batchExpectedEmployerShare: String(batch.expectedEmployerShare),
+    batchExpectedTotal: String(batch.expectedTotal),
+    batchSnapshotHash: batch.snapshotHash,
+  };
+
+  return { issue, employee, batch, originalSnapshot, proposedSnapshot };
+}
 
 async function requireRequester(userId: number, organizationId: number) {
   const access = await getAccess(userId, organizationId);
