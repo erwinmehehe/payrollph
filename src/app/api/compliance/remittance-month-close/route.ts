@@ -3,6 +3,7 @@ import { db } from "@/db";
 import {
   payrollEntries,
   payrollRuns,
+  statutoryRemittanceCorrectionRequests,
   statutoryRemittanceMonthClosures,
 } from "@/db/schema";
 import { assertOrganizationRole } from "@/lib/access";
@@ -73,11 +74,23 @@ async function loadCloseState(organizationId: number, applicableMonth: string) {
     .filter(Boolean)
     .sort();
 
+  const monthBatchIds = state.batches
+    .filter((batch) => batch.applicableMonth === applicableMonth)
+    .map((batch) => batch.id);
+  const corrections = monthBatchIds.length
+    ? await db.select().from(statutoryRemittanceCorrectionRequests).where(and(
+        eq(statutoryRemittanceCorrectionRequests.organizationId, organizationId),
+        inArray(statutoryRemittanceCorrectionRequests.batchId, monthBatchIds),
+        eq(statutoryRemittanceCorrectionRequests.status, "approved"),
+      ))
+    : [];
+
   const evaluation = evaluateRemittanceMonthClose({
     applicableMonth,
     batches: state.batches,
     members: state.members,
     alerts: state.alerts,
+    corrections,
     requiredAgencies,
     allPayrollRunsReleased:
       monthRuns.length > 0 && monthRuns.every((run) => run.status === "Released"),
@@ -168,6 +181,7 @@ export async function POST(request: Request) {
       batch.reconciledBy,
     ]),
     ...current.evaluation.members.map((member) => member.confirmedBy),
+    ...current.evaluation.corrections.map((correction) => correction.decidedByName),
   ].filter((value): value is string => Boolean(value && value.trim())));
   if (evidenceActors.has(user.name)) {
     return Response.json({
