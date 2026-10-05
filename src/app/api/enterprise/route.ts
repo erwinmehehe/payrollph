@@ -88,6 +88,7 @@ export async function GET(request: Request) {
       name: users.name,
       role: userOrganizations.role,
       orgUnitId: userOrganizations.orgUnitId,
+      membershipActive: userOrganizations.active,
       active: users.active,
       localPasswordEnabled: users.localPasswordEnabled,
       totpEnabled: users.totpEnabled,
