@@ -1025,6 +1025,7 @@ export const marketingLeads = pgTable(
     notificationStatus: varchar("notification_status", { length: 24 }).notNull().default("not-configured"),
     notificationProvider: varchar("notification_provider", { length: 40 }),
     notificationOutboxId: integer("notification_outbox_id"),
+    notificationAttempts: integer("notification_attempts").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
