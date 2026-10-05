@@ -58,12 +58,16 @@ export function AttendanceCorrectionsPanel({
   employees,
   notify,
   canManage,
+  canDecide,
+  currentUserId,
 }: {
   organizationId: number;
   punches: Punch[];
   employees: Employee[];
   notify: Notify;
   canManage: boolean;
+  canDecide: boolean;
+  currentUserId: number | null;
 }) {
   const [corrections, setCorrections] = useState<Correction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -311,14 +315,20 @@ export function AttendanceCorrectionsPanel({
                     {canManage && (
                       <td>
                         {row.status === "pending" ? (
-                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                            <button className="secondary-button" onClick={() => void decide(row.id, "approved")} disabled={saving}>
-                              <Check size={13} className="i-green" /> Approve
-                            </button>
-                            <button className="secondary-button" onClick={() => void decide(row.id, "rejected")} disabled={saving}>
-                              <X size={13} className="i-red" /> Reject
-                            </button>
-                          </div>
+                          canDecide && row.requestedByUserId !== currentUserId ? (
+                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                              <button className="secondary-button" onClick={() => void decide(row.id, "approved")} disabled={saving}>
+                                <Check size={13} className="i-green" /> Approve
+                              </button>
+                              <button className="secondary-button" onClick={() => void decide(row.id, "rejected")} disabled={saving}>
+                                <X size={13} className="i-red" /> Reject
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="id">
+                              {row.requestedByUserId === currentUserId ? "Needs another reviewer" : "Reviewer role required"}
+                            </span>
+                          )
                         ) : (
                           <span className="id">{row.decidedBy ? `by ${row.decidedBy}` : "—"}</span>
                         )}
