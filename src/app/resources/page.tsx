@@ -11,7 +11,7 @@ const resources = [...resourcePages, ...resourceWave2, ...resourceWave3];
 
 export const metadata: Metadata = {
   title: "Philippine Payroll Guides & Buyer Resources | Linaw",
-  description: "Payroll software buying guides, Philippine payroll knowledge, migration checklists, security guidance and operational resources.",
+  description: "Philippine payroll guides for software buying, migration, compliance, operations, security, outsourcing decisions and payroll teams.",
   alternates: { canonical: "/resources" },
 };
 
