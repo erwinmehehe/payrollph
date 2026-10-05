@@ -276,13 +276,16 @@ export async function GET(request: Request) {
     const guardrailEvaluationDays = await resolveEmployeeScheduleWindow({
       organizationId,
       employeeId,
-      startDate: addDays(rangeStart, -7),
-      endDate: rangeEnd,
+      startDate: addDays(previewDates[0], -7),
+      endDate: previewDates[previewDates.length - 1],
     });
     const guardrailIssues = evaluateScheduleGuardrails({
       days: guardrailEvaluationDays,
       policy: guardrailPolicy,
-    }).filter((issue) => issue.date >= rangeStart && issue.date <= rangeEnd);
+    }).filter((issue) =>
+      issue.date >= previewDates[0]
+      && issue.date <= previewDates[previewDates.length - 1],
+    );
 
     return Response.json({
       employee: {
