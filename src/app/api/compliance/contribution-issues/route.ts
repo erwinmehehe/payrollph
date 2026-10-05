@@ -4,6 +4,7 @@ import {
   complianceActionTasks,
   employees,
   statutoryContributionIssueCases,
+  statutoryRemittanceCorrectionRequests,
   statutoryRemittanceMembers,
 } from "@/db/schema";
 import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
@@ -215,7 +216,93 @@ export async function POST(request: Request) {
       }
     }
 
+    if (resolutionOutcome === "correction_completed") {
+      if (!issue.batchId) {
+        return Response.json({
+          error: "This case has no linked remittance batch to prove a completed correction.",
+        }, { status: 409 });
+      }
+      const corrections = await db.select().from(statutoryRemittanceCorrectionRequests)
+        .where(and(
+          eq(statutoryRemittanceCorrectionRequests.organizationId, organizationId),
+          eq(statutoryRemittanceCorrectionRequests.batchId, issue.batchId),
+          eq(statutoryRemittanceCorrectionRequests.status, "approved"),
+        ));
+      const applied = corrections.some((correction) =>
+        correction.appliedAt != null
+        && (
+          issue.remittanceMemberId != null
+            ? correction.targetType === "member_posting"
+              && correction.memberId === issue.remittanceMemberId
+            : correction.targetType === "batch_payment"
+        ),
+      );
+      if (!applied) {
+        return Response.json({
+          error: "No approved and applied remittance correction is linked to this case. Complete the audited correction workflow first.",
+        }, { status: 409 });
+      }
+    }
+
     const now = new Date();
+
+    if (resolutionOutcome === "referred_to_agency") {
+      const [updated] = await db.update(statutoryContributionIssueCases).set({
+        status: "in_review",
+        assignedToUserId: issue.assignedToUserId ?? user.id,
+        assignedToName: issue.assignedToName ?? user.name,
+        reviewStartedAt: issue.reviewStartedAt ?? now,
+        resolutionOutcome,
+        resolutionNote,
+        resolvedByUserId: null,
+        resolvedByName: null,
+        resolvedAt: null,
+        updatedAt: now,
+      }).where(and(
+        eq(statutoryContributionIssueCases.id, caseId),
+        eq(statutoryContributionIssueCases.organizationId, organizationId),
+      )).returning();
+
+      await db.update(complianceActionTasks).set({
+        status: "in_progress",
+        assignedToUserId: updated.assignedToUserId,
+        assignedToName: updated.assignedToName,
+        acknowledgedAt: now,
+        acknowledgedByUserId: user.id,
+        acknowledgedByName: user.name,
+        resolvedAt: null,
+        updatedAt: now,
+      }).where(and(
+        eq(complianceActionTasks.organizationId, organizationId),
+        eq(complianceActionTasks.sourceType, "employee_contribution_issue"),
+        eq(complianceActionTasks.sourceKey, sourceKey),
+      ));
+
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Employee contribution issue referred to agency",
+        resource: `${issue.agency} · ${issue.applicableMonth} · case #${issue.id}`,
+        metadata: {
+          caseId: issue.id,
+          employeeId: issue.employeeId,
+          resolutionNote,
+          linkedMemberId: issue.remittanceMemberId,
+        },
+      });
+
+      try {
+        await notifyEmployeeOfContributionCase({
+          issue: updated,
+          event: "referred",
+          actor: user.name,
+        });
+      } catch {
+        // Referral state remains authoritative even when notification delivery is unavailable.
+      }
+
+      return Response.json({ case: updated, resolved: false });
+    }
     const result = await db.transaction(async (tx) => {
       const [updated] = await tx.update(statutoryContributionIssueCases).set({
         status: "resolved",
