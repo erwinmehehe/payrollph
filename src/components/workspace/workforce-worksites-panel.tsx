@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Building2, MapPin, Plus, RefreshCcw, Save, UserRound } from "lucide-react";
+import { Building2, CalendarDays, MapPin, Plus, RefreshCcw, Save, UserRound } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, Metric, Spinner, Status } from "./ui";
 
@@ -29,9 +29,19 @@ type WorksiteAssignment = {
   createdBy: string;
 };
 
+type HolidayRow = {
+  id: number;
+  orgUnitId: number | null;
+  worksiteId: number | null;
+  holidayDate: string;
+  name: string;
+  kind: "regular" | "special";
+};
+
 type Payload = {
   worksites: Worksite[];
   assignments: WorksiteAssignment[];
+  holidays: HolidayRow[];
 };
 
 function localToday() {
@@ -69,16 +79,38 @@ export function WorkforceWorksitesPanel({
   const [effectiveUntil, setEffectiveUntil] = useState("");
   const [reason, setReason] = useState("Primary worksite assignment");
 
+  const [holidayWorksiteId, setHolidayWorksiteId] = useState("");
+  const [holidayDate, setHolidayDate] = useState(localToday());
+  const [holidayName, setHolidayName] = useState("");
+  const [holidayKind, setHolidayKind] = useState<"regular" | "special">("special");
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(
-        `/api/workforce/worksites?organizationId=${organizationId}`,
-        { cache: "no-store" },
-      );
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error ?? "Could not load worksites.");
-      setPayload(body as Payload);
+      const [worksiteResponse, holidayResponse] = await Promise.all([
+        fetch(
+          `/api/workforce/worksites?organizationId=${organizationId}`,
+          { cache: "no-store" },
+        ),
+        fetch(
+          `/api/holidays?organizationId=${organizationId}`,
+          { cache: "no-store" },
+        ),
+      ]);
+      const [worksiteBody, holidayBody] = await Promise.all([
+        worksiteResponse.json().catch(() => ({})),
+        holidayResponse.json().catch(() => ({})),
+      ]);
+      if (!worksiteResponse.ok) {
+        throw new Error(worksiteBody.error ?? "Could not load worksites.");
+      }
+      if (!holidayResponse.ok) {
+        throw new Error(holidayBody.error ?? "Could not load local holidays.");
+      }
+      setPayload({
+        ...(worksiteBody as Omit<Payload, "holidays">),
+        holidays: Array.isArray(holidayBody.holidays) ? holidayBody.holidays : [],
+      });
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not load worksites.", "err");
     } finally {
@@ -91,10 +123,14 @@ export function WorkforceWorksitesPanel({
   }, [load]);
 
   useEffect(() => {
-    if (!worksiteId && payload?.worksites.some((site) => site.active)) {
-      setWorksiteId(String(payload.worksites.find((site) => site.active)!.id));
+    const firstActive = payload?.worksites.find((site) => site.active);
+    if (!worksiteId && firstActive) {
+      setWorksiteId(String(firstActive.id));
     }
-  }, [payload, worksiteId]);
+    if (!holidayWorksiteId && firstActive) {
+      setHolidayWorksiteId(String(firstActive.id));
+    }
+  }, [holidayWorksiteId, payload, worksiteId]);
 
   const activeWorksites = useMemo(
     () => (payload?.worksites ?? []).filter((site) => site.active),
@@ -172,6 +208,38 @@ export function WorkforceWorksitesPanel({
       effectiveUntil: effectiveUntil || null,
       reason,
     }, "Effective-dated employee worksite assignment saved.");
+  }
+
+  async function createWorksiteHoliday() {
+    if (!holidayWorksiteId || !holidayDate || !holidayName.trim()) {
+      notify("Worksite, holiday date and holiday name are required.", "err");
+      return;
+    }
+    setSaving("create_worksite_holiday");
+    try {
+      const response = await fetch("/api/holidays", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          holidayDate,
+          name: holidayName.trim(),
+          kind: holidayKind,
+          worksiteId: Number(holidayWorksiteId),
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body.error ?? "Worksite holiday could not be saved.");
+      }
+      notify("Worksite holiday saved. Overlapping unreleased payroll was invalidated for recalculation.", "ok");
+      setHolidayName("");
+      await load();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Worksite holiday could not be saved.", "err");
+    } finally {
+      setSaving(null);
+    }
   }
 
   return (
@@ -285,6 +353,60 @@ export function WorkforceWorksitesPanel({
             <button className="primary-button brand" onClick={() => void assignEmployee()} disabled={saving !== null || !worksiteId}>
               {saving === "assign_employee" ? <Spinner label="Saving" /> : <Save size={14} />} Assign worksite
             </button>
+          </div>
+        </div>
+      )}
+
+      {canManage && data.access?.companyWide && activeWorksites.length > 0 && (
+        <div style={{ padding: "0 18px 18px" }}>
+          <div className="card-kicker" style={{ marginBottom: 8 }}>Worksite holiday calendar</div>
+          <div className="setting-form">
+            <label>
+              Worksite
+              <select value={holidayWorksiteId} onChange={(event) => setHolidayWorksiteId(event.target.value)}>
+                {activeWorksites.map((site) => (
+                  <option key={site.id} value={site.id}>{site.code} · {site.name}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Date
+              <input type="date" value={holidayDate} onChange={(event) => setHolidayDate(event.target.value)} />
+            </label>
+            <label>
+              Holiday name
+              <input value={holidayName} onChange={(event) => setHolidayName(event.target.value)} placeholder="Local charter day" />
+            </label>
+            <label>
+              Classification
+              <select value={holidayKind} onChange={(event) => setHolidayKind(event.target.value as "regular" | "special")}>
+                <option value="special">Special non-working</option>
+                <option value="regular">Regular holiday</option>
+              </select>
+            </label>
+          </div>
+          <div className="run-actions">
+            <button
+              className="primary-button brand"
+              onClick={() => void createWorksiteHoliday()}
+              disabled={saving !== null || !holidayWorksiteId || !holidayName.trim()}
+            >
+              {saving === "create_worksite_holiday" ? <Spinner label="Saving" /> : <CalendarDays size={14} />} Add worksite holiday
+            </button>
+          </div>
+          <div className="policy-lines" style={{ marginTop: 12 }}>
+            {(payload?.holidays ?? [])
+              .filter((holiday) => holiday.worksiteId != null)
+              .sort((a, b) => String(a.holidayDate).localeCompare(String(b.holidayDate)))
+              .slice(0, 20)
+              .map((holiday) => (
+                <span key={holiday.id}>
+                  <b>{holiday.holidayDate} · {holiday.name}</b>
+                  <small style={{ display: "block", color: "var(--muted)" }}>
+                    {worksiteById.get(holiday.worksiteId!)?.code ?? `Site #${holiday.worksiteId}`} · {holiday.kind === "regular" ? "Regular holiday" : "Special non-working day"}
+                  </small>
+                </span>
+              ))}
           </div>
         </div>
       )}
