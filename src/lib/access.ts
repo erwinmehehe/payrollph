@@ -90,7 +90,6 @@ export async function assertMembership(userId: number, organizationId: number): 
   if (!row) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
   return assertOrganizationSessionPolicy(userId, organizationId);
 }
-}
 
 /** Gate for routes addressed by a resource id: checks the resource's own organization. */
 export async function assertResourceAccess(userId: number, resourceOrganizationId: number): Promise<Response | null> {
