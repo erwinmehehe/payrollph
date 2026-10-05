@@ -15,9 +15,9 @@ function baseInput(): PolicyReviewInput {
 }
 
 test("rolling schedule review rejects a cycle with any seven-day window lacking rest", () => {
-  assert.equal(patternProvidesWeeklyRest(7, [{ patternId: 1, dayIndex: 6, isRestDay: true }]), true);
-  assert.equal(patternProvidesWeeklyRest(14, [{ patternId: 1, dayIndex: 6, isRestDay: true }, { patternId: 1, dayIndex: 13, isRestDay: true }]), true);
-  assert.equal(patternProvidesWeeklyRest(14, [{ patternId: 1, dayIndex: 13, isRestDay: true }]), false);
+  assert.equal(patternProvidesWeeklyRest(7, [{ dayIndex: 6, isRestDay: true }]), true);
+  assert.equal(patternProvidesWeeklyRest(14, [{ dayIndex: 6, isRestDay: true }, { dayIndex: 13, isRestDay: true }]), true);
+  assert.equal(patternProvidesWeeklyRest(14, [{ dayIndex: 13, isRestDay: true }]), false);
 });
 
 test("released payroll period longer than 16 days is a high policy finding", () => {
