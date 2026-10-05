@@ -113,7 +113,7 @@ export function contributionCaseServiceStatus(
     state,
     overdue: state === "resolution_overdue",
     targetDate: isoDate(targets.resolutionDue),
-    targetLabel: "Resolution or substantive employee update",
+    targetLabel: "Resolution",
     ageDays: Math.max(0, calendarDaysBetween(caseRow.createdAt, now)),
     firstReviewDue: isoDate(targets.firstReviewDue),
     resolutionDue: isoDate(targets.resolutionDue),
