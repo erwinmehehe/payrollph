@@ -178,6 +178,13 @@ export const SEO_INTENT_OWNERS: SeoIntentOwner[] = [
 
   { primaryIntent: "best payroll software philippines", ownerPath: "/resources/best-payroll-software-philippines", intentClass: "guide" },
   {
+    primaryIntent: "payrollhero alternative philippines",
+    ownerPath: "/resources/payrollhero-alternative",
+    intentClass: "guide",
+    supportingIntents: ["payrollhero payroll alternative philippines", "alternative to payrollhero philippines"],
+    note: "Branded competitor-alternative intent only. Do not broaden into generic payroll software Philippines intent.",
+  },
+  {
     primaryIntent: "salarium alternative philippines",
     ownerPath: "/resources/salarium-alternative",
     intentClass: "guide",
