@@ -5,6 +5,7 @@ import {
   organizations,
   payrollEntries,
   payrollRuns,
+  statutoryPostingEvidenceArtifacts,
   statutoryRemittanceBatches,
   statutoryRemittanceMembers,
 } from "@/db/schema";
@@ -68,7 +69,7 @@ export async function loadStatutoryRemittanceState(organizationId: number) {
     .orderBy(asc(statutoryRemittanceBatches.applicableMonth), asc(statutoryRemittanceBatches.agency));
 
   const batchIds = batches.map((batch) => batch.id);
-  const members = batchIds.length
+  const memberRows = batchIds.length
     ? await db.select().from(statutoryRemittanceMembers)
         .where(and(
           eq(statutoryRemittanceMembers.organizationId, organizationId),
@@ -76,6 +77,34 @@ export async function loadStatutoryRemittanceState(organizationId: number) {
         ))
         .orderBy(asc(statutoryRemittanceMembers.batchId), asc(statutoryRemittanceMembers.employeeNo))
     : [];
+
+  const artifactIds = [...new Set(
+    memberRows
+      .map((member) => member.postingEvidenceArtifactId)
+      .filter((id): id is number => id != null),
+  )];
+  const artifactRows = artifactIds.length
+    ? await db.select().from(statutoryPostingEvidenceArtifacts)
+        .where(and(
+          eq(statutoryPostingEvidenceArtifacts.organizationId, organizationId),
+          inArray(statutoryPostingEvidenceArtifacts.id, artifactIds),
+        ))
+    : [];
+  const artifactById = new Map(artifactRows.map((artifact) => [artifact.id, artifact]));
+  const members = memberRows.map((member) => {
+    const artifact = member.postingEvidenceArtifactId
+      ? artifactById.get(member.postingEvidenceArtifactId) ?? null
+      : null;
+    return {
+      ...member,
+      postingEvidenceSource: artifact?.sourceType ?? null,
+      postingEvidenceFileName: artifact?.fileName ?? null,
+      postingEvidenceHashSha256: artifact?.contentSha256 ?? null,
+      postingEvidenceReference: artifact?.evidenceReference ?? null,
+      postingEvidenceRecordedBy: artifact?.recordedByName ?? null,
+      postingEvidenceRecordedAt: artifact?.createdAt ?? null,
+    };
+  });
 
   const filingRows = await db.select().from(governmentFilingValidations)
     .where(eq(governmentFilingValidations.organizationId, organizationId))
