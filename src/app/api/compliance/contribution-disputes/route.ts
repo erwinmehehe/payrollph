@@ -20,6 +20,8 @@ import {
 export const dynamic = "force-dynamic";
 
 const RESOLUTION_CODES = new Set(["posted_confirmed", "corrected", "not_an_error", "duplicate"]);
+const CONTRIBUTION_DISPUTE_REVIEW_ROLES = ["owner", "admin", "bookkeeper", "payroll", "checker"] as const;
+const CONTRIBUTION_DISPUTE_DISMISS_ROLES = ["owner", "admin", "checker"] as const;
 
 async function requireCompanywidePayroll(userId: number, organizationId: number) {
   const access = await getAccess(userId, organizationId);
@@ -31,13 +33,13 @@ async function requireCompanywidePayroll(userId: number, organizationId: number)
       error: "Statutory contribution disputes are company-wide and are not available to unit-scoped users.",
     }, { status: 403 });
   }
-  if (!roleAllowed(access.role, PAYROLL_OPERATOR_ROLES)) {
+  if (!roleAllowed(access.role, CONTRIBUTION_DISPUTE_REVIEW_ROLES)) {
     return Response.json({
-      error: "Only authorized payroll operators can manage employee contribution disputes.",
+      error: "Only authorized payroll or independent review roles can view employee contribution disputes.",
       role: access.role,
     }, { status: 403 });
   }
-  return null;
+  return { access, denied: null };
 }
 
 export async function GET(request: Request) {
@@ -50,8 +52,9 @@ export async function GET(request: Request) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
   }
 
-  const denied = await requireCompanywidePayroll(user.id, organizationId);
-  if (denied) return denied;
+  const accessCheck = await requireCompanywidePayroll(user.id, organizationId);
+  if (accessCheck instanceof Response) return accessCheck;
+  const access = accessCheck.access;
 
   const rows = await db.select({
     id: statutoryContributionDisputes.id,
@@ -100,8 +103,9 @@ export async function POST(request: Request) {
     return Response.json({ error: "organizationId and disputeId are required." }, { status: 400 });
   }
 
-  const denied = await requireCompanywidePayroll(user.id, organizationId);
-  if (denied) return denied;
+  const accessCheck = await requireCompanywidePayroll(user.id, organizationId);
+  if (accessCheck instanceof Response) return accessCheck;
+  const access = accessCheck.access;
 
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
@@ -121,6 +125,20 @@ export async function POST(request: Request) {
     return Response.json({
       error: "A valid resolutionCode and a resolution note of at least 8 characters are required.",
     }, { status: 400 });
+  }
+
+  if (resolutionCode === "not_an_error" && !roleAllowed(access.role, CONTRIBUTION_DISPUTE_DISMISS_ROLES)) {
+    return Response.json({
+      error: "Only Owner, Admin, or Checker can dismiss an employee contribution report as not an error.",
+    }, { status: 403 });
+  }
+  if (
+    resolutionCode !== "not_an_error"
+    && !roleAllowed(access.role, PAYROLL_OPERATOR_ROLES)
+  ) {
+    return Response.json({
+      error: "This resolution requires an authorized payroll operator.",
+    }, { status: 403 });
   }
 
   const [dispute] = await db.select().from(statutoryContributionDisputes).where(and(
