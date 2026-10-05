@@ -28,9 +28,12 @@ export default function DevelopersPage() {
         { title: "Administrative controls", body: "Developer credential and webhook changes require organization authorization, company-wide administrator access and sensitive-action MFA checks." },
       ]}
       related={[
+        { label: "Authentication & scopes", href: "/developers/authentication", description: "Create, scope and revoke API credentials safely." },
+        { label: "Employees API", href: "/developers/employees", description: "Read and create employee records with idempotency support." },
+        { label: "Payroll Runs API", href: "/developers/payroll-runs", description: "Read payroll run summaries with payroll:read scope." },
+        { label: "Webhooks", href: "/developers/webhooks", description: "Verify signed events and understand delivery retries." },
         { label: "Integrations", href: "/integrations", description: "See where API, webhook and export capabilities fit into the product." },
         { label: "Security", href: "/security", description: "Review authorization and session controls." },
-        { label: "Capability scorecard", href: "/scorecard", description: "See evidence for the public API and webhook capability." },
       ]}
     />
   );
