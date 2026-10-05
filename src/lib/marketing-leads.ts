@@ -65,6 +65,27 @@ export async function ensureMarketingLeadSchema() {
           ADD COLUMN IF NOT EXISTS notification_attempts integer NOT NULL DEFAULT 0
       `);
       await client.query(`
+        DO $compat$
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'marketing_leads_kind_check') THEN
+            ALTER TABLE marketing_leads
+              ADD CONSTRAINT marketing_leads_kind_check
+              CHECK (kind IN ('demo', 'trial-access', 'payroll-outsourcing'));
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'marketing_leads_status_check') THEN
+            ALTER TABLE marketing_leads
+              ADD CONSTRAINT marketing_leads_status_check
+              CHECK (status IN ('new', 'contacted', 'qualified', 'closed'));
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'marketing_leads_notification_status_check') THEN
+            ALTER TABLE marketing_leads
+              ADD CONSTRAINT marketing_leads_notification_status_check
+              CHECK (notification_status IN ('not-configured', 'queued', 'sent', 'failed'));
+          END IF;
+        END
+        $compat$;
+      `);
+      await client.query(`
         CREATE INDEX IF NOT EXISTS marketing_leads_status_created_idx
         ON marketing_leads(status, created_at DESC)
       `);
