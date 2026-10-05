@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -27,6 +27,7 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
   const [message, setMessage] = useState("Use the account created for your workspace or the invitation you accepted.");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [ssoBusy, setSsoBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   async function login(event: FormEvent) {
@@ -56,6 +57,39 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
       setError("Could not reach the auth service.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("ssoError")) {
+      setError("Enterprise SSO sign-in could not be completed. Try again or contact your workspace owner.");
+    }
+  }, []);
+
+  async function enterpriseSso() {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail.includes("@")) {
+      setError("Enter your work email first so Linaw can find your company identity provider.");
+      return;
+    }
+    setSsoBusy(true);
+    setError("");
+    try {
+      const response = await fetch("/api/auth/sso/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: cleanEmail }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || typeof payload.authorizationUrl !== "string") {
+        setError(payload.error ?? "Enterprise SSO is not available for this email domain.");
+        return;
+      }
+      window.location.assign(payload.authorizationUrl);
+    } catch {
+      setError("Could not reach the enterprise SSO service.");
+    } finally {
+      setSsoBusy(false);
     }
   }
 
@@ -239,6 +273,25 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
                   Back to sign in
                 </button>
               </form>
+            )}
+
+            {mode === "login" && !requiresTotp && (
+              <div className="mt-5 grid gap-2">
+                <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.12em] text-[#9AA0B2]">
+                  <span className="h-px flex-1 bg-[#ECEEF4]" /> Enterprise <span className="h-px flex-1 bg-[#ECEEF4]" />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void enterpriseSso()}
+                  disabled={ssoBusy}
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[11px] border border-[#DDE0EA] bg-white px-4 text-[12.5px] font-semibold text-[#30354A] transition hover:bg-[#F7F8FC] disabled:opacity-60"
+                >
+                  <ShieldCheck size={14} aria-hidden /> {ssoBusy ? "Opening company sign-in…" : "Continue with company SSO"}
+                </button>
+                <p className="text-center text-[10.5px] leading-relaxed text-[#8B90AA]">
+                  Uses your work email domain to route to a configured OIDC identity provider. Linaw never guesses that your IdP performed MFA.
+                </p>
+              </div>
             )}
 
             <div className="mt-6 grid gap-3 border-t border-[#ECEEF4] pt-5">

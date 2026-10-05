@@ -707,7 +707,7 @@ export function SettingsPage({ data, setNotice, initialTab = "organization" }: {
               <AccountPanel onNotice={setNotice} />
             </div>
           )}
-          {tab === "security" && <SecuritySettings data={data} />}
+          {tab === "security" && <SecuritySettings data={data} setNotice={setNotice} />}
           {tab === "privacy" && <PrivacySettings data={data} setNotice={setNotice} />}
         </article>
       </section>
@@ -939,7 +939,8 @@ function OrganizationSettings({ data, setNotice }: { data: DashboardData; setNot
   );
 }
 
-function SecuritySettings({ data }: { data: DashboardData }) {
+function SecuritySettings({ data, setNotice }: { data: DashboardData; setNotice: (message: string) => void }) {
+  const ssoAvailable = data.security?.sso && !data.security.sso.toLowerCase().includes("not");
   const rows: Array<[string, string, string]> = [
     ["Password hashing", "scrypt with per-user salt", "Enforced"],
     ["Failed-login lockout", "Locks after repeated failures, timed unlock", "Enforced"],
@@ -948,11 +949,11 @@ function SecuritySettings({ data }: { data: DashboardData }) {
     ["Auth rate limiting", data.security?.rateLimit ?? "distributed-postgres", "Enforced"],
     ["Tenant isolation", "Membership checked on every session route", "Enforced"],
     ["Edge / CDN rate limiting", "Not implemented at the edge", "Not built"],
-    ["SSO / SAML", "No identity provider connected", "Not built"],
+    ["Enterprise SSO", ssoAvailable ? data.security?.sso ?? "OIDC" : "OIDC connection can be configured by the owner", ssoAvailable ? "Configured" : "Optional"],
   ];
   return (
     <>
-      <div className="card-header"><div><div className="card-kicker">SECURITY CONTROLS</div><h2>What actually runs</h2><p>Every claim here maps to code on the request path. Anything not built says so.</p></div></div>
+      <div className="card-header"><div><div className="card-kicker">SECURITY CONTROLS</div><h2>What actually runs</h2><p>Every claim here maps to code on the request path. External certifications are never inferred from implementation.</p></div></div>
       <div className="worksheet-list">
         {rows.map(([label, detail, status]) => (
           <div key={label}>
@@ -962,7 +963,129 @@ function SecuritySettings({ data }: { data: DashboardData }) {
           </div>
         ))}
       </div>
+      <EnterpriseSsoSettings data={data} setNotice={setNotice} />
     </>
+  );
+}
+
+function EnterpriseSsoSettings({ data, setNotice }: { data: DashboardData; setNotice: (message: string) => void }) {
+  const organizationId = data.selectedOrganization.id;
+  const owner = data.access?.role === "owner";
+  const [providerName, setProviderName] = useState("Microsoft Entra ID");
+  const [emailDomain, setEmailDomain] = useState("");
+  const [issuer, setIssuer] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [enabled, setEnabled] = useState(false);
+  const [secretConfigured, setSecretConfigured] = useState(false);
+  const [encryptionConfigured, setEncryptionConfigured] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!owner) return;
+    let alive = true;
+    (async () => {
+      const response = await fetch(`/api/security/sso?organizationId=${organizationId}`, { cache: "no-store" });
+      const body = await response.json().catch(() => ({}));
+      if (!alive) return;
+      setLoaded(true);
+      if (!response.ok) return;
+      setEncryptionConfigured(Boolean(body.encryptionConfigured));
+      if (body.connection) {
+        setProviderName(body.connection.providerName ?? "");
+        setEmailDomain(body.connection.emailDomain ?? "");
+        setIssuer(body.connection.issuer ?? "");
+        setClientId(body.connection.clientId ?? "");
+        setEnabled(Boolean(body.connection.enabled));
+        setSecretConfigured(Boolean(body.connection.secretConfigured));
+      }
+    })();
+    return () => { alive = false; };
+  }, [organizationId, owner]);
+
+  async function saveSso() {
+    setBusy(true);
+    try {
+      const response = await fetch("/api/security/sso", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          providerName,
+          emailDomain,
+          issuer,
+          clientId,
+          clientSecret: clientSecret || undefined,
+          enabled,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setNotice(body.error ?? "Enterprise SSO configuration could not be saved.");
+        return;
+      }
+      setClientSecret("");
+      setSecretConfigured(Boolean(body.connection?.secretConfigured));
+      setNotice(enabled ? "Enterprise SSO saved and enabled." : "Enterprise SSO configuration saved but remains disabled.");
+    } catch {
+      setNotice("Could not reach the enterprise SSO configuration service.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!owner) {
+    return (
+      <div className="notice notice-blue" style={{ margin: 18 }}>
+        <LockKeyhole size={16} className="i-amber" />
+        <span>Enterprise SSO is owner-managed. Your role can use a configured company identity provider but cannot change its credentials.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ borderTop: "1px solid var(--line)", marginTop: 16 }}>
+      <div className="card-header">
+        <div>
+          <div className="card-kicker">ENTERPRISE IDENTITY</div>
+          <h2>OIDC single sign-on</h2>
+          <p>Authorization code + PKCE, encrypted client secrets, single-use login state, and existing-account-only access. SAML and SCIM are not claimed here.</p>
+        </div>
+        <Status value={enabled ? "Enabled" : secretConfigured ? "Configured, off" : "Not configured"} />
+      </div>
+      {loaded && !encryptionConfigured && (
+        <div className="notice notice-amber" style={{ margin: "0 18px 12px" }}>
+          <AlertTriangle size={15} />
+          <span>Set a dedicated 32-byte SSO_ENCRYPTION_KEY before storing identity-provider credentials.</span>
+        </div>
+      )}
+      <div className="setting-form">
+        <label>Provider name<input value={providerName} onChange={(event) => setProviderName(event.target.value)} placeholder="Microsoft Entra ID" /></label>
+        <label>Company email domain<input value={emailDomain} onChange={(event) => setEmailDomain(event.target.value)} placeholder="company.com" /></label>
+        <label>OIDC issuer<input value={issuer} onChange={(event) => setIssuer(event.target.value)} placeholder="https://login.example.com/tenant/v2.0" /></label>
+        <label>Client ID<input value={clientId} onChange={(event) => setClientId(event.target.value)} /></label>
+        <label>Client secret
+          <input type="password" value={clientSecret} onChange={(event) => setClientSecret(event.target.value)} placeholder={secretConfigured ? "Leave blank to keep current secret" : "Required"} />
+        </label>
+        <label style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} style={{ width: 16 }} />
+          Enable SSO after discovery validation
+        </label>
+      </div>
+      <div className="run-actions">
+        <button
+          className="primary-button"
+          disabled={busy || !encryptionConfigured || providerName.trim().length < 2 || !emailDomain.trim() || !issuer.trim() || !clientId.trim()}
+          onClick={() => void saveSso()}
+        >
+          <ShieldCheck size={15} /> {busy ? "Validating…" : "Validate & save SSO"}
+        </button>
+      </div>
+      <p className="disclaimer" style={{ margin: "0 18px 18px" }}>
+        SSO authenticates the user but does not automatically satisfy Linaw's recent-MFA requirement for money-moving or other sensitive payroll actions. IdP assurance mapping must be explicitly configured before that can change.
+      </p>
+    </div>
   );
 }
 

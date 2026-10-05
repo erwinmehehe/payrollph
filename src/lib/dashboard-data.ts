@@ -25,6 +25,7 @@ import {
   pricingPlans,
   provisioningTasks,
   separationRecords,
+  ssoConnections,
   timePunches,
   userOrganizations,
 } from "@/db/schema";
@@ -144,6 +145,13 @@ export async function getDashboardData(organizationId?: number) {
         }).from(separationRecords).where(eq(separationRecords.organizationId, selectedOrganization.id))
       : Promise.resolve([]),
   ]);
+
+  const [ssoConnection] = await db.select({
+    providerName: ssoConnections.providerName,
+    enabled: ssoConnections.enabled,
+  }).from(ssoConnections)
+    .where(eq(ssoConnections.organizationId, selectedOrganization.id))
+    .limit(1);
 
   const handoffRunRows = canViewPayroll
     ? runRows
@@ -312,7 +320,7 @@ export async function getDashboardData(organizationId?: number) {
       totpMandatory: false,
       sessions: "server-side-revocable",
       rateLimit: "distributed-postgres (not CDN edge)",
-      sso: "not configured",
+      sso: ssoConnection?.enabled ? `OIDC · ${ssoConnection.providerName}` : ssoConnection ? "OIDC configured, disabled" : "not configured",
     },
   };
 }
