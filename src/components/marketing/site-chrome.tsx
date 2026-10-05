@@ -8,7 +8,7 @@ import { PUBLIC_FOOTER_GROUPS, PUBLIC_PRIMARY_LINKS } from "./public-navigation"
 export function BrandMark({ size = 32 }: { size?: number }) {
   return (
     <span
-      className="flex shrink-0 items-center justify-center rounded-[9px] bg-[#11141F] text-white"
+      className="flex shrink-0 items-center justify-center rounded-[9px] bg-[#444CE7] text-white shadow-[0_1px_2px_rgba(68,76,231,.18)]"
       style={{ width: size, height: size }}
       aria-hidden
     >
@@ -55,7 +55,7 @@ export function SiteNav() {
               <Link
                 key={link.href}
                 href={link.href}
-                className="whitespace-nowrap rounded-full px-3.5 py-2 text-[13.5px] font-medium text-[#2B2F45] transition-colors hover:bg-[#F1F2F8] hover:text-[#0B0D1A]"
+                className="whitespace-nowrap rounded-lg px-3.5 py-2 text-[13.5px] font-medium text-[#2B2F45] transition-colors hover:bg-[#F1F2F8] hover:text-[#0B0D1A]"
               >
                 {link.label}
               </Link>
@@ -63,12 +63,12 @@ export function SiteNav() {
           </div>
 
           <div className="hidden shrink-0 items-center gap-2 xl:flex">
-            <Link href="/login" className="rounded-full px-4 py-2.5 text-[14px] font-semibold text-[#2B2F45] hover:bg-[#F1F2F8]">
+            <Link href="/login" className="rounded-lg px-4 py-2.5 text-[14px] font-semibold text-[#344054] hover:bg-[#F2F4F7]">
               Sign in
             </Link>
             <Link
               href="/signup"
-              className="inline-flex items-center rounded-[10px] border border-[#D9D9FF] bg-[#F5F5FF] px-4 py-2.5 text-[14px] font-semibold text-[#4A4AE0] transition-all hover:border-[#C5C5FF] hover:bg-[#ECECFF]"
+              className="inline-flex items-center rounded-[10px] bg-[#444CE7] px-4 py-2.5 text-[14px] font-semibold text-white shadow-[0_1px_2px_rgba(68,76,231,.18)] transition-all hover:bg-[#3538CD]"
             >
               Request trial access
             </Link>
@@ -79,7 +79,7 @@ export function SiteNav() {
             onClick={() => setDrawer((current) => !current)}
             aria-expanded={drawer}
             aria-label={drawer ? "Close menu" : "Open menu"}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#E8EAF3] bg-white text-[#0B0D1A] xl:hidden"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-[#E1E4EA] bg-white text-[#0B0D1A] xl:hidden"
           >
             {drawer ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
@@ -100,10 +100,10 @@ export function SiteNav() {
               ))}
             </div>
             <div className="mt-3 flex gap-2 border-t border-[#E8EAF3] pt-4">
-              <Link href="/login" onClick={() => setDrawer(false)} className="flex-1 rounded-full border border-[#E8EAF3] px-5 py-3 text-center text-[14px] font-semibold">
+              <Link href="/login" onClick={() => setDrawer(false)} className="flex-1 rounded-[10px] border border-[#E1E4EA] px-5 py-3 text-center text-[14px] font-semibold">
                 Sign in
               </Link>
-              <Link href="/signup" onClick={() => setDrawer(false)} className="flex-1 rounded-[10px] border border-[#D9D9FF] bg-[#F5F5FF] px-5 py-3 text-center text-[14px] font-semibold text-[#4A4AE0]">
+              <Link href="/signup" onClick={() => setDrawer(false)} className="flex-1 rounded-[10px] bg-[#444CE7] px-5 py-3 text-center text-[14px] font-semibold text-white">
                 Request trial access
               </Link>
             </div>
@@ -116,7 +116,7 @@ export function SiteNav() {
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-[#EDEFF7] bg-[#FAFBFD]">
+    <footer className="border-t border-[#EAECF0] bg-white">
       <div className="mx-auto max-w-[1240px] px-5 pb-10 pt-14 sm:px-8 sm:pt-16">
         <div className="grid gap-10 md:grid-cols-[1.45fr_1fr_1fr_1fr]">
           <div>
@@ -138,7 +138,7 @@ export function SiteFooter() {
               <ul className="mt-4 space-y-3">
                 {group.links.map((link) => (
                   <li key={link.href}>
-                    <Link href={link.href} className="text-[14px] font-medium text-[#2B2F45] transition-colors hover:text-[#4A4AE0]">
+                    <Link href={link.href} className="text-[14px] font-medium text-[#2B2F45] transition-colors hover:text-[#444CE7]">
                       {link.label}
                     </Link>
                   </li>
