@@ -37,6 +37,26 @@ export function PayrollCalculator({ slug }: { slug: CalculatorSlug }) {
       return { label: "Employee contribution", value: v.employee, details: [`Employer: ${money(v.employer)}`, `Total: ${money(v.total)}`] };
     }
     if (slug === "withholding-tax") return { label: "Estimated monthly withholding", value: computeMonthlyWithholdingTax(amount, mwe) };
+    if (slug === "payroll-cost") {
+      const sss = computeSss(amount);
+      const philHealth = computePhilHealth(amount);
+      const pagIbig = computePagIbig(amount);
+      const employerStatutory = sss.employerTotal + philHealth.employer + pagIbig.employer;
+      return {
+        label: "Estimated monthly employer payroll cost",
+        value: amount + employerStatutory,
+        details: [
+          `Base salary: ${money(amount)}`,
+          `Employer SSS + EC: ${money(sss.employerTotal)}`,
+          `Employer PhilHealth: ${money(philHealth.employer)}`,
+          `Employer Pag-IBIG: ${money(pagIbig.employer)}`,
+        ],
+      };
+    }
+    if (slug === "holiday-pay") {
+      const multiplier = holidayMultiplier({ holiday: dayType, worked: true, restDay, overtime: false });
+      return { label: "Estimated pay for the worked day", value: amount * multiplier, details: [`Applied multiplier: ×${multiplier}`] };
+    }
 
     const hourlyRate = amount;
     if (slug === "overtime-pay") {
@@ -53,9 +73,12 @@ export function PayrollCalculator({ slug }: { slug: CalculatorSlug }) {
       ? "Monthly taxable compensation"
       : slug === "overtime-pay" || slug === "night-differential"
         ? "Hourly rate"
-        : "Monthly salary";
+        : slug === "holiday-pay"
+          ? "Daily rate"
+          : "Monthly salary";
 
   const showHours = slug === "overtime-pay" || slug === "night-differential";
+  const showDayType = showHours || slug === "holiday-pay";
   const showMwe = slug === "withholding-tax";
 
   return (
@@ -66,11 +89,13 @@ export function PayrollCalculator({ slug }: { slug: CalculatorSlug }) {
           <input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(Number(e.target.value))} className="rounded-xl border border-[#DDE0EB] px-4 py-3 text-[15px]" />
         </label>
         {showHours ? (
+          <label className="grid gap-2 text-[13px] font-semibold text-[#34394F]">
+            Hours
+            <input type="number" min="0" step="0.25" value={hours} onChange={(e) => setHours(Number(e.target.value))} className="rounded-xl border border-[#DDE0EB] px-4 py-3 text-[15px]" />
+          </label>
+        ) : null}
+        {showDayType ? (
           <>
-            <label className="grid gap-2 text-[13px] font-semibold text-[#34394F]">
-              Hours
-              <input type="number" min="0" step="0.25" value={hours} onChange={(e) => setHours(Number(e.target.value))} className="rounded-xl border border-[#DDE0EB] px-4 py-3 text-[15px]" />
-            </label>
             <label className="grid gap-2 text-[13px] font-semibold text-[#34394F]">
               Work day type
               <select value={dayType} onChange={(e) => setDayType(e.target.value as typeof dayType)} className="rounded-xl border border-[#DDE0EB] px-4 py-3 text-[15px]">
