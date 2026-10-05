@@ -5,6 +5,7 @@ import { drainWebhookRetries } from "../src/lib/webhooks";
 import { drainOutboxRetries } from "../src/lib/mailer";
 import { runScheduledStatutoryRemittanceSync } from "../src/lib/statutory-remittance-actions";
 import { runScheduledContributionCaseEscalations } from "../src/lib/statutory-contribution-case-escalations";
+import { runScheduledEmployeeLifecycleTransactions } from "../src/lib/hcm-employee-lifecycle";
 
 const POLL_MS = Math.max(1000, Number(process.env.WORKER_POLL_MS ?? "3000"));
 let stopping = false;
@@ -23,12 +24,16 @@ async function tick() {
   const contributionCaseEscalations = await runScheduledContributionCaseEscalations({
     actor: "Dedicated worker",
   });
+  const employeeLifecycleTransactions = await runScheduledEmployeeLifecycleTransactions({
+    actor: "Dedicated HCM worker",
+  });
   return {
     payrollProcessed: payroll.processed,
     webhookRetries: webhooks.length,
     mailRetries: mail.filter((item) => item.retried).length,
     statutoryRemittanceActions,
     contributionCaseEscalations,
+    employeeLifecycleTransactions,
   };
 }
 
