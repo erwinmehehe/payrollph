@@ -24,11 +24,18 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
   const [showPlan, setShowPlan] = useState(false);
   const [showPosition, setShowPosition] = useState(false);
   const [showAssignment, setShowAssignment] = useState(false);
+  const [showTransfer, setShowTransfer] = useState(false);
 
   const [profileForm, setProfileForm] = useState({ title: "", family: "", level: "", grade: "" });
   const [planForm, setPlanForm] = useState({ name: "", startDate: "", endDate: "", budget: "" });
   const [positionForm, setPositionForm] = useState({ code: "", jobProfileId: "", orgUnitId: "", planId: "", managerEmployeeId: "", employmentType: "Regular", plannedStartDate: "", annualBudget: "" });
   const [assignmentForm, setAssignmentForm] = useState({ positionId: "", employeeId: "", effectiveFrom: new Date().toISOString().slice(0, 10) });
+  const [transferForm, setTransferForm] = useState({
+    employeeId: "",
+    targetPositionId: "",
+    effectiveFrom: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date()),
+    reason: "",
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -151,6 +158,32 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
     onPage?.("Recruitment");
   }
 
+  async function transferEmployee(event: React.FormEvent) {
+    event.preventDefault();
+    const response = await fetch("/api/workforce-planning/transfer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        organizationId,
+        employeeId: Number(transferForm.employeeId),
+        targetPositionId: Number(transferForm.targetPositionId),
+        effectiveFrom: transferForm.effectiveFrom,
+        reason: transferForm.reason,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) return setNotice(payload.error ?? "Could not transfer employee.");
+    setShowTransfer(false);
+    setTransferForm({
+      employeeId: "",
+      targetPositionId: "",
+      effectiveFrom: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date()),
+      reason: "",
+    });
+    await load();
+    setNotice(`Employee transferred to position ${payload.toPosition.code}; mover automation executed.`);
+  }
+
   return (
     <div>
       <div className="page-heading">
@@ -163,6 +196,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
           <button className="secondary-button" onClick={() => void load()} disabled={loading}><RefreshCw size={15} /> Refresh</button>
           <button className="secondary-button" onClick={() => setShowProfile(!showProfile)}><BriefcaseBusiness size={15} /> Job profile</button>
           <button className="secondary-button" onClick={() => setShowPlan(!showPlan)}><CircleDollarSign size={15} /> Plan</button>
+          <button className="secondary-button" onClick={() => setShowTransfer(!showTransfer)} disabled={!filled || !approvedOpen}><UsersRound size={15} /> Transfer</button>
           <button className="primary-button" onClick={() => setShowPosition(!showPosition)}><Plus size={15} /> Position</button>
         </div>
       </div>
@@ -233,6 +267,21 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
               <label>Effective from<input required type="date" value={assignmentForm.effectiveFrom} onChange={(e) => setAssignmentForm({ ...assignmentForm, effectiveFrom: e.target.value })} /></label>
             </div>
             <div className="run-actions"><button type="button" className="secondary-button" onClick={() => setShowAssignment(false)}>Cancel</button><button className="primary-button">Assign employee</button></div>
+          </form>
+        </article>
+      )}
+
+      {showTransfer && (
+        <article className="card" style={{ padding: 20, marginBottom: 16 }}>
+          <div className="card-header"><div><div className="card-kicker">POSITION TRANSFER</div><h2>Move an incumbent through authoritative position history</h2><p>The current assignment closes first, the target position becomes filled, and mover automation runs only after the transfer commits.</p></div></div>
+          <form onSubmit={transferEmployee}>
+            <div className="setting-form">
+              <label>Employee<select required value={transferForm.employeeId} onChange={(e) => setTransferForm({ ...transferForm, employeeId: e.target.value })}><option value="">Select current incumbent</option>{employees.filter((employee) => activeAssignments.some((assignment) => assignment.employeeId === employee.id)).map((employee) => <option key={employee.id} value={employee.id}>{employee.firstName} {employee.lastName} · {employee.title}</option>)}</select></label>
+              <label>Target position<select required value={transferForm.targetPositionId} onChange={(e) => setTransferForm({ ...transferForm, targetPositionId: e.target.value })}><option value="">Select approved vacancy</option>{positions.filter((position) => !activeAssignmentByPosition.has(position.id) && ["approved", "open"].includes(position.status)).map((position) => <option key={position.id} value={position.id}>{position.code} · {profileById.get(position.jobProfileId)?.title ?? "Job profile"}{position.orgUnitId ? ` · ${unitById.get(position.orgUnitId)?.name ?? "Unit"}` : ""}</option>)}</select></label>
+              <label>Effective today<input required readOnly value={transferForm.effectiveFrom} /></label>
+              <label>Reason<input required value={transferForm.reason} onChange={(e) => setTransferForm({ ...transferForm, reason: e.target.value })} placeholder="Promotion, internal mobility, reorganization…" /></label>
+            </div>
+            <div className="run-actions"><button type="button" className="secondary-button" onClick={() => setShowTransfer(false)}>Cancel</button><button className="primary-button">Transfer employee</button></div>
           </form>
         </article>
       )}
