@@ -319,6 +319,7 @@ export async function GET(request: Request) {
   const readinessRows = [...bestReadinessByEmployee.values()];
   const mobilityReportable = reportableSensitiveCohort(readinessRows.length);
   const readyRows = readinessRows.filter((row) => row.readinessPercent >= 80 && row.criticalGaps.length === 0);
+  const readyCountReportable = readyRows.length === 0 || readyRows.length >= HCM_ANALYTICS_PRIVACY_THRESHOLD;
   const targetProfileCounts = new Map<number, number>();
   for (const row of readyRows) {
     targetProfileCounts.set(row.targetJobProfileId, (targetProfileCounts.get(row.targetJobProfileId) ?? 0) + 1);
@@ -427,7 +428,7 @@ export async function GET(request: Request) {
       vacancyRate,
       medianTimeToFillDays: medianNumber(timeToFillDays),
       averagePerformanceScore: performanceReportable ? averageNumber(performanceScores) : null,
-      careerReadyEmployees: mobilityReportable ? readyRows.length : null,
+      careerReadyEmployees: mobilityReportable && readyCountReportable ? readyRows.length : null,
       latestReportableEnps: engagementTrend.find((row) => row.enps !== null)?.enps ?? null,
     },
     headcount: {
@@ -463,7 +464,13 @@ export async function GET(request: Request) {
       reviewCount: performanceReportable ? performanceScores.length : null,
       averageScore: performanceReportable ? averageNumber(performanceScores) : null,
       medianScore: performanceReportable ? medianNumber(performanceScores) : null,
-      distribution: performanceReportable ? performanceDistribution(performanceScores) : [],
+      distribution: performanceReportable
+        ? performanceDistribution(performanceScores).map((bucket) => ({
+            label: bucket.label,
+            count: bucket.count === 0 || bucket.count >= HCM_ANALYTICS_PRIVACY_THRESHOLD ? bucket.count : null,
+            suppressed: bucket.count > 0 && bucket.count < HCM_ANALYTICS_PRIVACY_THRESHOLD,
+          }))
+        : [],
       cycles: performanceCycles,
       suppressionReason: performanceReportable ? null : "At least 5 completed scored reviews are required before performance distribution is shown.",
     },
@@ -491,8 +498,8 @@ export async function GET(request: Request) {
     mobility: {
       reportable: mobilityReportable,
       employeesWithReadiness: mobilityReportable ? readinessRows.length : null,
-      readyForMove: mobilityReportable ? readyRows.length : null,
-      readyForMovePercent: mobilityReportable ? percent(readyRows.length, readinessRows.length) : null,
+      readyForMove: mobilityReportable && readyCountReportable ? readyRows.length : null,
+      readyForMovePercent: mobilityReportable && readyCountReportable ? percent(readyRows.length, readinessRows.length) : null,
       verifiedSkillCoveragePercent: activeEmployees.length >= HCM_ANALYTICS_PRIVACY_THRESHOLD
         ? percent(activeEmployees.filter((employee) => skillEvidenceEmployees.has(employee.id)).length, activeEmployees.length)
         : null,
