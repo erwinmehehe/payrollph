@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import { pool } from "../src/db";
+import { recordMarketingLead, updateMarketingLeadNotification } from "../src/lib/marketing-leads";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -66,4 +68,49 @@ test("operators can inspect durable leads without exposing them in tenant naviga
   assert.ok(script.includes("ORDER BY created_at DESC"), "operator report must show newest enquiries first");
   assert.ok(packageJson.includes('"leads:list": "tsx scripts/list-marketing-leads.ts"'), "lead report must be runnable through npm");
   assert.ok(!nav.includes("Marketing leads"), "prospect PII must not be exposed in tenant workspace navigation");
+});
+
+
+test("a marketing lead remains queryable even before email is configured", async () => {
+  const unique = `lead-${Date.now()}-${Math.random().toString(16).slice(2)}@example.test`;
+  const lead = await recordMarketingLead({
+    kind: "trial-access",
+    name: "Lead Capture QA",
+    email: unique,
+    company: "Lead Capture QA Co.",
+    headcount: "11-50",
+    notes: "Database durability test",
+    sourcePath: "/signup",
+  });
+
+  try {
+    const before = await pool.query<{
+      kind: string;
+      email: string;
+      status: string;
+      notification_status: string;
+    }>(
+      "SELECT kind, email, status, notification_status FROM marketing_leads WHERE id = $1",
+      [lead.id],
+    );
+    assert.equal(before.rows[0]?.kind, "trial-access");
+    assert.equal(before.rows[0]?.email, unique);
+    assert.equal(before.rows[0]?.status, "new");
+    assert.equal(before.rows[0]?.notification_status, "not-configured");
+
+    await updateMarketingLeadNotification({
+      id: lead.id,
+      status: "failed",
+      provider: "resend",
+    });
+
+    const after = await pool.query<{ notification_status: string; notification_provider: string | null }>(
+      "SELECT notification_status, notification_provider FROM marketing_leads WHERE id = $1",
+      [lead.id],
+    );
+    assert.equal(after.rows[0]?.notification_status, "failed");
+    assert.equal(after.rows[0]?.notification_provider, "resend");
+  } finally {
+    await pool.query("DELETE FROM marketing_leads WHERE id = $1", [lead.id]);
+  }
 });
