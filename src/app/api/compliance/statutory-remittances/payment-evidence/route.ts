@@ -111,11 +111,6 @@ export async function POST(request: Request) {
     eq(statutoryRemittanceBatches.organizationId, organizationId),
   )).limit(1);
   if (!batch) return Response.json({ error: "Remittance batch not found." }, { status: 404 });
-  if (batch.status !== "open") {
-    return Response.json({
-      error: "Payment proof is immutable once payment has been recorded.",
-    }, { status: 409 });
-  }
 
   if (!ALLOWED_TYPES.has(file.type)) {
     return Response.json({ error: "Only PDF, JPEG and PNG payment proof files are allowed." }, { status: 415 });
@@ -134,6 +129,19 @@ export async function POST(request: Request) {
     eq(statutoryRemittancePaymentEvidence.batchId, batchId),
   )).orderBy(desc(statutoryRemittancePaymentEvidence.uploadedAt), desc(statutoryRemittancePaymentEvidence.id));
   const active = existing.find((row) => row.status === "active") ?? null;
+
+  if (batch.status !== "open") {
+    if (active) {
+      return Response.json({
+        error: "Payment proof is immutable once payment has been recorded.",
+      }, { status: 409 });
+    }
+    if (!replacementReason || replacementReason.length < 8) {
+      return Response.json({
+        error: "Historical payment proof backfill requires an explanation of at least 8 characters.",
+      }, { status: 409 });
+    }
+  }
 
   if (active && !replacementReason) {
     return Response.json({
@@ -189,7 +197,9 @@ export async function POST(request: Request) {
     actor: user.name,
     action: active
       ? "Statutory remittance payment proof replaced"
-      : "Statutory remittance payment proof uploaded",
+      : batch.status === "open"
+        ? "Statutory remittance payment proof uploaded"
+        : "Historical statutory remittance payment proof backfilled",
     resource: batch.agency + " · " + batch.applicableMonth,
     metadata: {
       batchId,
@@ -200,6 +210,8 @@ export async function POST(request: Request) {
       fileSha256: created.fileSha256,
       replacedEvidenceId: active?.id ?? null,
       replacementReason,
+      batchStatusAtUpload: batch.status,
+      historicalBackfill: batch.status !== "open",
     },
   });
 
