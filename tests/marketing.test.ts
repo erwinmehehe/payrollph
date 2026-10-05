@@ -48,7 +48,7 @@ test("public SEO origin is payrollsoftware.ph and is independent of app deployme
   const home = read("src/app/page.tsx");
   const outsourcing = read("src/app/payroll-outsourcing/page.tsx");
   const robots = read("src/app/robots.ts");
-  const sitemap = read("src/app/sitemap.ts");
+  const sitemap = read("src/lib/sitemap-data.ts");
 
   assert.ok(siteUrl.includes('"https://payrollsoftware.ph"'), "canonical public fallback must be payrollsoftware.ph");
   assert.ok(!siteUrl.includes("process.env"), "public SEO origin must not vary with deployment environment");
@@ -57,7 +57,7 @@ test("public SEO origin is payrollsoftware.ph and is independent of app deployme
 
   assert.ok(layout.includes("metadataBase: new URL(PUBLIC_SITE_URL)"), "all relative metadata URLs must resolve from the canonical public origin");
   assert.ok(robots.includes('absolutePublicUrl("/sitemap.xml")'), "robots sitemap must use the canonical public origin");
-  assert.ok(sitemap.includes("absolutePublicUrl(route.path)"), "sitemap entries must use the canonical public origin");
+  assert.ok(sitemap.includes("absolutePublicUrl(path)"), "segmented sitemap entries must use the canonical public origin");
   assert.ok(home.includes('absolutePublicUrl("/#organization")'), "homepage schema must use an absolute canonical organization ID");
   assert.ok(outsourcing.includes('absolutePublicUrl("/payroll-outsourcing#service")'), "service schema must use the canonical public origin");
 });
