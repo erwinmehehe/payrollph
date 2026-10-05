@@ -11,6 +11,7 @@ export const metadata: Metadata = {
   description:
     "Request access to a Linaw trial workspace for Philippine payroll. Explore the live role-based demo immediately or send your company and headcount for controlled workspace access.",
   alternates: { canonical: "/signup" },
+  robots: { index: false, follow: true },
 };
 
 export default function SignupPage() {
