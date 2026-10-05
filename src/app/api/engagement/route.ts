@@ -539,6 +539,41 @@ export async function PATCH(request: Request) {
     return Response.json(row);
   }
 
+  if (action === "action_plan_publish") {
+    const actionPlanId = Number(body.actionPlanId);
+    const employeeVisible = Boolean(body.employeeVisible);
+    const publicUpdate = String(body.publicUpdate ?? "").trim();
+    if (!Number.isInteger(actionPlanId) || (employeeVisible && !publicUpdate)) {
+      return Response.json({ error: "actionPlanId and a public update are required when publishing to employees." }, { status: 400 });
+    }
+    if (publicUpdate.length > 4000) {
+      return Response.json({ error: "Employee-visible action updates are limited to 4,000 characters." }, { status: 400 });
+    }
+    const access = await getAccess(user.id, organizationId);
+    if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+    const [plan] = await db.select().from(engagementActionPlans).where(and(
+      eq(engagementActionPlans.id, actionPlanId),
+      eq(engagementActionPlans.organizationId, organizationId),
+    )).limit(1);
+    if (!plan) return Response.json({ error: "Action plan not found." }, { status: 404 });
+    if (!access.companyWide && plan.orgUnitId !== access.orgUnitId) {
+      return Response.json({ error: "That action plan is outside your assigned organization unit." }, { status: 403 });
+    }
+    const [row] = await db.update(engagementActionPlans).set({
+      employeeVisible,
+      publicUpdate: employeeVisible ? publicUpdate : null,
+      updatedAt: new Date(),
+    }).where(eq(engagementActionPlans.id, actionPlanId)).returning();
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: employeeVisible ? "Engagement action plan published to employees" : "Engagement action plan unpublished",
+      resource: plan.title,
+      metadata: { actionPlanId, employeeVisible },
+    });
+    return Response.json(row);
+  }
+
   if (action === "action_plan_status") {
     const actionPlanId = Number(body.actionPlanId);
     const status = String(body.status ?? "");
@@ -567,5 +602,5 @@ export async function PATCH(request: Request) {
     return Response.json(row);
   }
 
-  return Response.json({ error: "action must be open_survey, close_survey, or action_plan_status." }, { status: 400 });
+  return Response.json({ error: "action must be open_survey, close_survey, action_plan_status, or action_plan_publish." }, { status: 400 });
 }
