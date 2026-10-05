@@ -25,7 +25,7 @@ test("demo and trial requests persist before best-effort email notification", ()
   assert.ok(emailIndex > recordIndex, "email notification must happen only after durable lead capture");
   assert.ok(route.includes('body.requestType === "trial-access"'), "trial access must be distinguishable from a demo");
   assert.ok(route.includes('sourcePath: requestType === "trial-access" ? "/signup" : "/book-demo"'), "lead source path must be explicit");
-  assert.ok(route.includes("if (OPERATOR_INBOX)"), "email notification must be optional when no operator inbox is configured");
+  assert.ok(route.includes("if (OPERATOR_INBOX && deliveryCapable())"), "email notification must require both an operator inbox and a live mail provider");
   assert.ok(!route.includes(".invalid"), "public lead delivery must never target an invalid fallback address");
   assert.ok(route.includes("recorded: true"), "public response must confirm durable capture");
   assert.ok(!route.includes("deliveryCapable"), "public response must not expose mail deployment internals");
@@ -40,7 +40,7 @@ test("outsourcing enquiries persist before best-effort email notification", () =
   assert.ok(emailIndex > recordIndex, "email notification must happen only after durable lead capture");
   assert.ok(route.includes('kind: "payroll-outsourcing"'), "outsourcing leads must have their own kind");
   assert.ok(route.includes('sourcePath: "/payroll-outsourcing"'), "outsourcing source must be explicit");
-  assert.ok(route.includes("if (OPERATOR_INBOX)"), "notification must be optional");
+  assert.ok(route.includes("if (OPERATOR_INBOX && deliveryCapable())"), "notification must require both an operator inbox and a live mail provider");
   assert.ok(!route.includes(".invalid"), "outsourcing delivery must never target an invalid fallback address");
   assert.ok(route.includes('dedupeKey: `marketing-lead:${lead.id}`'), "lead notification must be idempotent");
 });
@@ -54,4 +54,16 @@ test("public forms label demo and trial requests explicitly", () => {
   assert.ok(trial.includes('requestType: "trial-access"'), "trial form must label trial-access requests");
   assert.ok(demo.includes("leadId: number") && demo.includes("recorded: boolean"), "demo form must use durable capture response");
   assert.ok(quote.includes("leadId: number") && quote.includes("recorded: boolean"), "quote form must use durable capture response");
+});
+
+
+test("operators can inspect durable leads without exposing them in tenant navigation", () => {
+  const script = read("scripts/list-marketing-leads.ts");
+  const packageJson = read("package.json");
+  const nav = read("src/components/workspace/nav.ts");
+
+  assert.ok(script.includes("FROM marketing_leads"), "operator report must read the durable lead store");
+  assert.ok(script.includes("ORDER BY created_at DESC"), "operator report must show newest enquiries first");
+  assert.ok(packageJson.includes('"leads:list": "tsx scripts/list-marketing-leads.ts"'), "lead report must be runnable through npm");
+  assert.ok(!nav.includes("Marketing leads"), "prospect PII must not be exposed in tenant workspace navigation");
 });
