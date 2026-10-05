@@ -18,3 +18,10 @@ test("assurance failure is audit logged with affected employees and never create
   assert.ok(route.includes("return Response.json({"));
   assert.ok(route.includes("assurance,"));
 });
+
+
+test("remittance assurance loads agency membership identifiers for posting validation", () => {
+  assert.ok(route.includes("sssNo: employees.sssNo"));
+  assert.ok(route.includes("philHealthNo: employees.philHealthNo"));
+  assert.ok(route.includes("pagIbigNo: employees.pagIbigNo"));
+});
