@@ -117,11 +117,11 @@ export async function GET(request: Request) {
           prompt: question.prompt,
           type: question.type,
           required: question.required,
-          responseCount: questionAnswers.length,
+          responseCount: null,
           suppressed: true,
           average: null,
           enps: null,
-          textResponseCount: textCount,
+          textResponseCount: null,
           comments: [],
         };
       }
