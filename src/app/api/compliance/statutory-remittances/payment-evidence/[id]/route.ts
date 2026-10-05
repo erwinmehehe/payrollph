@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { statutoryRemittancePaymentEvidence } from "@/db/schema";
@@ -35,6 +36,25 @@ export async function GET(
   if (!row) return Response.json({ error: "Payment proof not found." }, { status: 404 });
 
   const bytes = Buffer.from(row.fileDataBase64, "base64");
+  const actualSha256 = createHash("sha256").update(bytes).digest("hex");
+  if (actualSha256 !== row.fileSha256) {
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "Statutory remittance payment proof integrity check failed",
+      resource: row.fileName,
+      metadata: {
+        evidenceId: row.id,
+        batchId: row.batchId,
+        expectedSha256: row.fileSha256,
+        actualSha256,
+      },
+    });
+    return Response.json({
+      error: "Stored payment proof failed its SHA-256 integrity check and cannot be downloaded.",
+    }, { status: 409 });
+  }
+
   await recordAuditEvent({
     organizationId,
     actor: user.name,
