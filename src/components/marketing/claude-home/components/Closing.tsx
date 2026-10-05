@@ -124,7 +124,7 @@ export function CTA() {
               Run your next Philippine payroll with Linaw.
             </h2>
             <p className="mx-auto mt-6 max-w-[560px] text-[17px] leading-relaxed text-white/68">
-              Start a 14-day trial, or open the live role-based demo first. Review the workflow before you move a real payroll.
+              Request a trial workspace, or open the live role-based demo first. Review the workflow before you move a real payroll.
             </p>
 
             <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -132,7 +132,7 @@ export function CTA() {
                 href="/signup"
                 className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-white px-9 py-4.5 text-[15px] font-semibold text-[#11141F] shadow-[0_10px_34px_-12px_rgba(255,255,255,.45)] transition-all hover:scale-[1.025] hover:bg-[#F6F7FB] sm:w-auto"
               >
-                Start 14-day trial
+                Request trial access
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" aria-hidden />
               </a>
               <a
