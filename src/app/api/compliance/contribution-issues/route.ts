@@ -301,7 +301,11 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    if (!contributionCaseOutcomeAllowed(issue.issueType, resolutionOutcome)) {
+    if (!contributionCaseOutcomeAllowed(
+      issue.issueType,
+      resolutionOutcome,
+      { hasLinkedPosting: issue.remittanceMemberId != null },
+    )) {
       return Response.json({
         error: contributionCaseResolutionPolicyMessage(issue.issueType),
         issueType: issue.issueType,
