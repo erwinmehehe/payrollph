@@ -45,6 +45,7 @@ import { PeopleView } from "@/components/workspace/people";
 import { WorkspaceShell, buildNotifications } from "@/components/workspace/shell";
 import { TimeView } from "@/components/workspace/time";
 import { WorkforcePlanner } from "@/components/workspace/workforce-planner";
+import { WorkforcePlanningPanel } from "@/components/workforce-planning-panel";
 import type { DashboardData, PayrollReleaseReceipt, PricingPlan } from "@/components/workspace/types";
 import { ToastStack, useToasts } from "@/components/workspace/ui";
 import { demoRoleInfo, demoRolePages, demoRolePath, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
@@ -447,6 +448,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
           />
         )}
 
+        {page === "Planning" && <WorkforcePlanningPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Workforce" && (
           <WorkforcePlanner
             data={data}
