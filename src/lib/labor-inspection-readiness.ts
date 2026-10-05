@@ -156,8 +156,8 @@ const SOURCES = {
     url: "https://nwpc.dole.gov.ph/",
   },
   handbook: {
-    label: "DOLE/NWPC Workers' Statutory Monetary Benefits Handbook",
-    url: "https://nwpc.dole.gov.ph/category/bwc-handbook/",
+    label: "DOLE Labor Code Book III, Article 95",
+    url: "https://dole.gov.ph/book-3-conditions-of-employment/",
   },
   thirteenth: {
     label: "Memorandum Order No. 28 amending P.D. 851",
