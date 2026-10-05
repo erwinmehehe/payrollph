@@ -546,7 +546,7 @@ test("workspace dashboard matches the PayrollPH mockup using modular real-data c
   }
   assert.deepEqual(ROLE_PRIMARY_PAGES.payroll, ["Overview", "Payroll", "Time & attendance", "People"]);
   assert.deepEqual(ROLE_PRIMARY_PAGES.checker, ["Overview", "Audit trail"]);
-  assert.deepEqual(ROLE_PRIMARY_PAGES.bookkeeper, ["Overview", "Exports", "Compliance", "Analytics"]);
+  assert.deepEqual(ROLE_PRIMARY_PAGES.bookkeeper, ["Overview", "Exports", "Compliance", "Readiness", "Analytics"]);
   assert.ok(shell.includes("Search employees, payroll, reports"), "top search should use the mockup wording");
   assert.ok(dashboard.includes("mockup-owner-release"), "owner dashboard must render the approved release card");
   assert.ok(dashboard.includes("mockup-four-step"), "payroll dashboard must render the approved workflow stepper");
