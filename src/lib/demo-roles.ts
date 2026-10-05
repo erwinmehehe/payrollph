@@ -162,6 +162,7 @@ export const DEMO_ROLE_PAGES: Partial<Record<DemoRoleId, readonly string[]>> = {
     "Assets",
     "Integrations",
     "Developer",
+    "Readiness",
     "Audit trail",
     "Settings",
   ],
@@ -213,6 +214,7 @@ export const DEMO_ROLE_PAGES: Partial<Record<DemoRoleId, readonly string[]>> = {
     "Exports",
     "Compliance",
     "Analytics",
+    "Readiness",
     "Audit trail",
   ],
 };
