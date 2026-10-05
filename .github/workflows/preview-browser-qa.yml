@@ -743,6 +743,29 @@ jobs:
               }
               const activeNav = page.locator("aside .nav-item[aria-current='page']").filter({ hasText: new RegExp(`^${persona.taskPage}`) }).first();
               check((await activeNav.count()) === 1, `${persona.label}: task navigation did not reach ${persona.taskPage}`);
+              if (persona.id === "hr") {
+                const demoShell = page.locator('.app-shell[data-demo-role="hr"]');
+                check((await demoShell.count()) === 1, "HR: demo shell marker was lost after opening People");
+
+                const demoSidebar = demoShell.locator("aside.sidebar").first();
+                const demoTopbar = demoShell.locator("header.topbar").first();
+                const shellStyles = await Promise.all([
+                  demoSidebar.evaluate((element) => getComputedStyle(element).backgroundColor),
+                  demoTopbar.evaluate((element) => getComputedStyle(element).backgroundColor),
+                ]);
+                check(shellStyles[0] === "rgb(252, 252, 251)", `HR: People fell back to the old dark sidebar; saw ${shellStyles[0]}`);
+                check(shellStyles[1] !== "rgb(15, 27, 24)", `HR: People fell back to the old dark topbar; saw ${shellStyles[1]}`);
+                check((await demoShell.locator(".demo-sandbox:visible").count()) === 0, "HR: People reintroduced the bulky demo tools strip");
+
+                const peopleHeading = (await page.locator(".page-heading h1").first().innerText()).trim();
+                check(peopleHeading === "People.", `HR: People should be a directory page, saw "${peopleHeading}"`);
+                const peopleText = (await page.locator(".content-area").innerText()).trim();
+                check(!peopleText.includes("Payroll readiness."), "HR: People duplicates the Today payroll-readiness dashboard");
+
+                const directPrimary = demoSidebar.locator(".side-navigation > .nav-group > .nav-item:visible");
+                check((await directPrimary.count()) === 2, "HR: primary demo navigation should stay focused on Today and People");
+                check((await demoSidebar.locator(".nav-more-toggle:visible").count()) === 1, "HR: secondary HR modules should stay accessible under More");
+              }
             }
 
             await page.screenshot({
