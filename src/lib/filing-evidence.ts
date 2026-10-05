@@ -10,9 +10,10 @@ import { createHash } from "node:crypto";
  *   - a filing is identified by the SHA-256 of the file's bytes, and the
  *     download route refuses to serve a file whose bytes no longer match;
  *   - "accepted" needs an agency reference and how the file was submitted;
- *   - only an upload of the generated file counts as proof the FORMAT works.
- *     Re-typing the figures into a portal proves a person filed, not that
- *     Linaw's file is importable, so it is recorded but never counted.
+ *   - only an upload of the generated file can prove the FORMAT works;
+ *   - some portal-first workflows can instead be proven operationally by the
+ *     agency's own acknowledgement, without claiming the PayrollPH worksheet
+ *     is an agency-prescribed upload format.
  */
 
 export type FilingAgency = "SSS" | "BIR" | "PhilHealth" | "Pag-IBIG";
@@ -312,6 +313,7 @@ export function provesOperationalFiling(
     row.agency === definition.agency
     && row.form === definition.form
     && row.status === "accepted"
+    && definition.submissionMethods.includes(row.submissionMethod as SubmissionMethod)
     && (row.submissionMethod === "file_upload" || row.submissionMethod === "manual_entry")
     && row.generatorVersion === definition.generatorVersion
     && Boolean(row.agencyReference?.trim())
