@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   BarChart3,
   BriefcaseBusiness,
@@ -148,7 +148,7 @@ function Meter({ value, max, label, detail }: { value: number; max: number; labe
   );
 }
 
-function AnalyticsMetric({ label, value, hint, icon }: { label: string; value: string; hint: string; icon: React.ReactNode }) {
+function AnalyticsMetric({ label, value, hint, icon }: { label: string; value: string; hint: string; icon: ReactNode }) {
   return (
     <article className="stat-card">
       <div className="stat-icon blue">{icon}</div>
