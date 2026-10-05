@@ -3,7 +3,7 @@ import { SeoLandingPage } from "@/components/marketing/seo-landing-page";
 
 export const metadata: Metadata = {
   title: "Payroll System Implementation Philippines | Migration | Linaw",
-  description: "Payroll implementation and migration for Philippine teams, including employee import, validation, payroll setup, role configuration, parallel review and controlled rollout.",
+  description: "Philippine payroll implementation and migration for employee data, opening balances, roles, parallel payroll, reconciliation and controlled go-live.",
   alternates: { canonical: "/implementation" },
 };
 
