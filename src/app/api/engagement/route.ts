@@ -87,8 +87,6 @@ export async function GET(request: Request) {
   const visibleStaff = access.companyWide ? staff : staff.filter((employee) => employee.orgUnitId === access.orgUnitId);
   const visibleEmployeeIds = new Set(visibleStaff.map((employee) => employee.id));
   const employeeById = new Map(staff.map((employee) => [employee.id, employee]));
-  const unitById = new Map(units.map((unit) => [unit.id, unit]));
-
   const visibleSurveys = surveyRows.filter((survey) => {
     if (access.companyWide) return true;
     return survey.audienceOrgUnitId === null || survey.audienceOrgUnitId === access.orgUnitId;
@@ -175,7 +173,7 @@ export async function GET(request: Request) {
             responseCount: unitReportable ? rows.length : null,
             reportable: unitReportable,
           };
-        }).filter((row) => row.responseCount > 0)
+        }).filter((row) => row.reportable)
       : [];
 
     return {
@@ -413,7 +411,14 @@ export async function POST(request: Request) {
     const scope = assertScope(access, recipient.orgUnitId);
     if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
 
-    const authorEmployeeId = user.employeeId ?? null;
+    let authorEmployeeId: number | null = null;
+    if (user.employeeId) {
+      const [author] = await db.select({ id: employees.id }).from(employees).where(and(
+        eq(employees.id, user.employeeId),
+        eq(employees.organizationId, organizationId),
+      )).limit(1);
+      authorEmployeeId = author?.id ?? null;
+    }
     if (authorEmployeeId && authorEmployeeId === recipientEmployeeId) {
       return Response.json({ error: "Continuous feedback must be written for another employee." }, { status: 400 });
     }
@@ -483,11 +488,16 @@ export async function PATCH(request: Request) {
     }
 
     const threshold = normalizedPrivacyThreshold(survey.privacyThreshold);
-    const eligible = await db.select({ id: employees.id }).from(employees).where(and(
-      eq(employees.organizationId, organizationId),
-      eq(employees.status, "Active"),
-      ...(survey.audienceOrgUnitId ? [eq(employees.orgUnitId, survey.audienceOrgUnitId)] : []),
-    ));
+    const eligible = survey.audienceOrgUnitId
+      ? await db.select({ id: employees.id }).from(employees).where(and(
+          eq(employees.organizationId, organizationId),
+          eq(employees.status, "Active"),
+          eq(employees.orgUnitId, survey.audienceOrgUnitId),
+        ))
+      : await db.select({ id: employees.id }).from(employees).where(and(
+          eq(employees.organizationId, organizationId),
+          eq(employees.status, "Active"),
+        ));
     if (survey.anonymous && eligible.length < threshold) {
       return Response.json({
         error: `Anonymous survey cannot open because the eligible audience has ${eligible.length} employees; at least ${threshold} are required.`,
