@@ -4,6 +4,9 @@ import { PUBLIC_SITE_URL } from "@/lib/site-url";
 import "./globals.css";
 import "./workspace-theme.css";
 
+const googleSiteVerification = process.env.GOOGLE_SITE_VERIFICATION?.trim();
+const bingSiteVerification = process.env.BING_SITE_VERIFICATION?.trim();
+
 export const metadata: Metadata = {
   metadataBase: new URL(PUBLIC_SITE_URL),
   title: {
@@ -21,6 +24,14 @@ export const metadata: Metadata = {
       "Philippine payroll software with role-based approvals, traceable calculations, employee payslips and controlled payroll outputs.",
     images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "Linaw Philippine payroll software" }],
   },
+  ...(googleSiteVerification || bingSiteVerification
+    ? {
+        verification: {
+          ...(googleSiteVerification ? { google: googleSiteVerification } : {}),
+          ...(bingSiteVerification ? { other: { "msvalidate.01": bingSiteVerification } } : {}),
+        },
+      }
+    : {}),
   twitter: {
     card: "summary_large_image",
     title: "Linaw · Philippine Payroll Software",
