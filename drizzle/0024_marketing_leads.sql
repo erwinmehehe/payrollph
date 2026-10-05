@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS marketing_leads (
   notification_status varchar(24) NOT NULL DEFAULT 'not-configured',
   notification_provider varchar(40),
   notification_outbox_id integer,
+  notification_attempts integer NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL DEFAULT NOW(),
   updated_at timestamptz NOT NULL DEFAULT NOW(),
   CONSTRAINT marketing_leads_kind_check
