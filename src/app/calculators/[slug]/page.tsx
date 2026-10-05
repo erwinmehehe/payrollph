@@ -5,7 +5,7 @@ import { AdvancedPayrollCalculator } from "@/components/marketing/advanced-payro
 import { PayrollCalculator } from "@/components/marketing/payroll-calculator";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 import { StructuredData } from "@/components/marketing/structured-data";
-import { CALCULATORS, isAdvancedCalculatorSlug, type CalculatorSlug } from "@/lib/calculators";
+import { CALCULATORS, CALCULATOR_GUIDES, isAdvancedCalculatorSlug, type CalculatorSlug } from "@/lib/calculators";
 
 const relatedByCalculator: Partial<Record<CalculatorSlug, Array<{ label: string; href: string; copy: string }>>> = {
   "13th-month-pay": [
@@ -66,7 +66,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const item = CALCULATORS[slug as CalculatorSlug];
   if (!item) return {};
-  return { title: `${item.title} | Linaw`, description: item.description, alternates: { canonical: `/calculators/${slug}` } };
+  const guide = CALCULATOR_GUIDES[slug as CalculatorSlug];
+  return { title: guide.metaTitle, description: item.description, alternates: { canonical: `/calculators/${slug}` } };
 }
 
 export default async function CalculatorPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -75,6 +76,7 @@ export default async function CalculatorPage({ params }: { params: Promise<{ slu
   const item = CALCULATORS[typedSlug];
   if (!item) notFound();
   const path = `/calculators/${slug}`;
+  const guide = CALCULATOR_GUIDES[typedSlug];
   const related = relatedByCalculator[typedSlug] ?? [];
 
   return (
@@ -82,6 +84,7 @@ export default async function CalculatorPage({ params }: { params: Promise<{ slu
       <StructuredData
         breadcrumbs={[{ name: "Home", path: "/" }, { name: "Payroll calculators", path: "/calculators" }, { name: item.title, path }]}
         webApplication={{ name: item.title, description: item.description, path }}
+        faq={guide.faq}
       />
       <SiteNav />
       <main>
@@ -99,6 +102,42 @@ export default async function CalculatorPage({ params }: { params: Promise<{ slu
               : <PayrollCalculator slug={typedSlug} />}
           </div>
         </section>
+        <section className="border-t border-[#EDEFF7] bg-white py-14 sm:py-16">
+          <div className="mx-auto grid max-w-[980px] gap-5 px-5 sm:px-8 lg:grid-cols-[1.05fr_.95fr]">
+            <article className="rounded-[24px] border border-[#E4E6F0] bg-[#FAFBFD] p-6 sm:p-7">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">How this estimate works</p>
+              <h2 className="font-display mt-2 text-[27px] font-semibold tracking-[-0.03em]">Understand the inputs before you use the result.</h2>
+              <p className="mt-3 text-[14px] leading-relaxed text-[#5B6080]">{guide.howItWorks}</p>
+            </article>
+            <article className="rounded-[24px] border border-[#E4E6F0] bg-white p-6 sm:p-7">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Assumptions and limits</p>
+              <ul className="mt-4 grid gap-3">
+                {guide.assumptions.map((item) => (
+                  <li key={item} className="flex gap-2.5 text-[13.5px] leading-relaxed text-[#4A5068]">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#6161FF]" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </article>
+          </div>
+        </section>
+
+        <section className="border-t border-[#EDEFF7] bg-[#FAFBFD] py-14 sm:py-16">
+          <div className="mx-auto max-w-[860px] px-5 sm:px-8">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Common questions</p>
+            <h2 className="font-display mt-2 text-[30px] font-semibold tracking-[-0.035em]">Use the estimate in the right payroll context.</h2>
+            <div className="mt-7 divide-y divide-[#E2E4EC] border-y border-[#E2E4EC]">
+              {guide.faq.map((item) => (
+                <article key={item.question} className="py-5">
+                  <h3 className="text-[15px] font-semibold text-[#202435]">{item.question}</h3>
+                  <p className="mt-2 text-[13.5px] leading-relaxed text-[#5B6080]">{item.answer}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {related.length ? (
           <section className="border-t border-[#EDEFF7] bg-white py-12 sm:py-14">
             <div className="mx-auto max-w-[980px] px-5 sm:px-8">

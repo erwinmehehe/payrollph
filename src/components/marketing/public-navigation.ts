@@ -46,6 +46,7 @@ export const PUBLIC_FOOTER_GROUPS: Array<{ label: string; links: PublicLink[] }>
     label: "Trust & access",
     links: [
       { label: "About Linaw", href: "/about" },
+      { label: "Contact Linaw", href: "/contact" },
       { label: "Trust center", href: "/trust" },
       { label: "Capability scorecard", href: "/scorecard" },
       { label: "Security", href: "/security" },

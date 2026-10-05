@@ -27,6 +27,13 @@ export const SEO_INTENT_OWNERS: SeoIntentOwner[] = [
     note: "Own branded company/product identity intent only; do not broaden into generic payroll software intent.",
   },
   {
+    primaryIntent: "contact linaw payrollph",
+    ownerPath: "/contact",
+    intentClass: "conversion",
+    supportingIntents: ["contact linaw", "contact payrollph"],
+    note: "Own branded contact-navigation intent only; do not broaden into generic payroll software or support claims.",
+  },
+  {
     primaryIntent: "payroll software philippines",
     ownerPath: "/",
     intentClass: "commercial",
