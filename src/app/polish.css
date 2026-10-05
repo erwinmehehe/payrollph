@@ -624,3 +624,157 @@ textarea,
     transition-duration: 0.001ms !important;
   }
 }
+
+
+/* Dashboard composition --------------------------------------------------- */
+
+.console-strip {
+  position: relative;
+  margin-bottom: 18px;
+  padding: 18px 20px;
+  border: 1px solid #e1e4ea;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink);
+  box-shadow: none;
+}
+
+.console-strip::before {
+  content: "";
+  position: absolute;
+  inset: 14px auto 14px 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--brand);
+}
+
+.console-strip::after {
+  display: none;
+}
+
+.console-strip .kicker {
+  color: var(--brand);
+  letter-spacing: .11em;
+}
+
+.console-strip h2 {
+  margin-top: 7px;
+  color: var(--ink);
+  font-size: 19px;
+  font-weight: 660;
+}
+
+.console-strip p {
+  color: var(--muted);
+}
+
+.console-figures {
+  gap: 24px;
+}
+
+.console-figures > div span {
+  color: #98a2b3;
+}
+
+.console-figures > div strong {
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 620;
+}
+
+.track {
+  gap: 8px;
+  margin-top: 17px;
+}
+
+.track-step {
+  padding: 10px 11px;
+  border-color: #eaecf0;
+  border-radius: 9px;
+  background: #fafbfc;
+}
+
+.track-step span {
+  color: #8b95a7;
+}
+
+.track-step strong {
+  color: #667085;
+}
+
+.track-step.done {
+  border-color: #abefc6;
+  background: #f0fdf4;
+}
+
+.track-step.done span,
+.track-step.done strong {
+  color: #067647;
+}
+
+.track-step.now {
+  border-color: #c7d0ff;
+  background: #f5f6ff;
+}
+
+.track-step.now span,
+.track-step.now strong {
+  color: var(--brand-deep);
+}
+
+.overview-grid {
+  gap: 14px;
+}
+
+.lower-grid {
+  margin-top: 14px;
+}
+
+.attention-item {
+  min-height: 58px;
+}
+
+.approve-mini {
+  border-color: #d9d6fe;
+  color: var(--brand);
+}
+
+.approve-mini:hover {
+  border-color: var(--brand);
+  background: var(--brand-bg);
+}
+
+.compliance-row {
+  border-radius: 9px;
+}
+
+@media (max-width: 760px) {
+  .console-strip {
+    padding: 16px;
+  }
+
+  .console-strip::before {
+    inset-block: 12px;
+  }
+
+  .console-figures {
+    width: 100%;
+    gap: 10px;
+  }
+
+  .console-figures > div {
+    flex: 1 1 30%;
+    min-width: 88px;
+    padding-top: 10px;
+    border-top: 1px solid #f0f2f5;
+  }
+
+  .track {
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .track-step {
+    min-width: 140px;
+  }
+}
