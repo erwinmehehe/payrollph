@@ -972,3 +972,7 @@ ALTER TABLE "job_requisitions"
 CREATE INDEX IF NOT EXISTS "job_requisitions_position_idx"
   ON "job_requisitions" ("organization_id", "position_id");
 
+
+CREATE UNIQUE INDEX IF NOT EXISTS "position_assignments_active_position_unique"
+  ON "position_assignments" ("position_id")
+  WHERE "effective_until" IS NULL;
