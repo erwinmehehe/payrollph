@@ -177,6 +177,13 @@ export const SEO_INTENT_OWNERS: SeoIntentOwner[] = [
   { primaryIntent: "shopping center payroll software philippines", ownerPath: "/industries/shopping-centers", intentClass: "industry" },
 
   { primaryIntent: "best payroll software philippines", ownerPath: "/resources/best-payroll-software-philippines", intentClass: "guide" },
+  {
+    primaryIntent: "sprout payroll alternative philippines",
+    ownerPath: "/resources/sprout-payroll-alternative",
+    intentClass: "guide",
+    supportingIntents: ["sprout payroll alternatives", "alternative to sprout payroll philippines"],
+    note: "Branded competitor-alternative intent only. Do not broaden into generic payroll software Philippines intent.",
+  },
   { primaryIntent: "payroll software vs outsourcing philippines", ownerPath: "/resources/payroll-software-vs-outsourcing", intentClass: "guide" },
   {
     primaryIntent: "payroll software vs excel",
