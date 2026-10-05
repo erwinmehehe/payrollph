@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { SeoLandingPage } from "@/components/marketing/seo-landing-page";
 import { StructuredData } from "@/components/marketing/structured-data";
-import { CUSTOMER_STORIES } from "@/lib/customer-stories";
+import { PUBLISHABLE_CUSTOMER_STORIES } from "@/lib/customer-stories";
 
-const approvedStories = CUSTOMER_STORIES.filter((story) => story.approved);
+const approvedStories = PUBLISHABLE_CUSTOMER_STORIES;
 
 export function generateStaticParams() {
   return approvedStories.map(({ slug }) => ({ slug }));
@@ -28,7 +28,7 @@ export default async function CustomerStoryPage({ params }: { params: Promise<{ 
   const story = approvedStories.find((item) => item.slug === slug);
   if (!story) notFound();
 
-  const approvedQuote = story.quote?.approved ? story.quote : undefined;
+  const approvedQuote = story.quote;
   const metricProof = story.metrics.map((metric) => `${metric.label}: ${metric.value}`);
 
   return (
