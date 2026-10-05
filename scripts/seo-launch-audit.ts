@@ -14,6 +14,7 @@ import {
 import { industryWave6, integrationWave6 } from "../src/lib/seo-content-wave6";
 import { resourceWave14 } from "../src/lib/seo-content-wave14";
 import { STATIC_SEO_ROUTES } from "../src/lib/static-seo-routes";
+import { DYNAMIC_SEO_ROUTE_CONTRACTS } from "../src/lib/dynamic-seo-routes";
 import {
   SEO_INTENT_OWNERS,
   SEO_PRIVATE_ROUTE_PREFIXES,
@@ -197,6 +198,56 @@ for (const route of STATIC_SEO_ROUTES) {
   }
 }
 
+for (const route of DYNAMIC_SEO_ROUTE_CONTRACTS) {
+  if (!existsSync(route.pageFile)) {
+    issues.push({
+      code: "missing-dynamic-page-file",
+      message: "Dynamic SEO route " + route.routePattern + " is mapped to missing file " + route.pageFile + ".",
+    });
+    continue;
+  }
+
+  const source = readFileSync(route.pageFile, "utf8");
+
+  for (const required of [
+    "generateStaticParams",
+    "generateMetadata",
+    "notFound()",
+    "StructuredData",
+    route.canonicalSignal,
+    route.schemaSignal,
+    ...(route.additionalSignals ?? []),
+  ]) {
+    if (!source.includes(required)) {
+      issues.push({
+        code: "missing-dynamic-contract",
+        message: "Dynamic SEO route " + route.routePattern + " is missing required signal: " + required,
+      });
+    }
+  }
+
+  if (!/\btitle\s*:/.test(source)) {
+    issues.push({
+      code: "missing-dynamic-title",
+      message: "Dynamic SEO route " + route.routePattern + " is missing generated title metadata.",
+    });
+  }
+
+  if (!/\bdescription\s*:/.test(source)) {
+    issues.push({
+      code: "missing-dynamic-description",
+      message: "Dynamic SEO route " + route.routePattern + " is missing generated description metadata.",
+    });
+  }
+
+  if (!route.allowConditionalNoindex && /robots\s*:\s*\{[\s\S]{0,120}?index\s*:\s*false/.test(source)) {
+    issues.push({
+      code: "dynamic-route-noindex",
+      message: "Dynamic SEO route " + route.routePattern + " declares noindex despite being an indexable SEO family.",
+    });
+  }
+}
+
 const glossarySlugs = new Set<string>();
 for (const entry of glossaryEntries) {
   if (glossarySlugs.has(entry.slug)) {
@@ -220,4 +271,5 @@ if (issues.length > 0) {
   console.log(`Public sitemap URLs: ${sitemapEntries.length}`);
   console.log(`Authority pages checked: ${authorityFamilies.reduce((sum, family) => sum + family.pages.length, 0)}`);
   console.log(`Glossary entries checked: ${glossaryEntries.length}`);
+  console.log(`Dynamic SEO route contracts checked: ${DYNAMIC_SEO_ROUTE_CONTRACTS.length}`);
 }
