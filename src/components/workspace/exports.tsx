@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
 import { FilingEvidencePanel } from "./filing-evidence";
+import { StatutoryRemittancePanel } from "./statutory-remittance-panel";
 import { BookkeeperPayrollClose } from "./bookkeeper-payroll-close";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, PageHeading, Segmented, Status, formatDate, money } from "./ui";
@@ -599,6 +600,14 @@ export function ExportsView({
               </div>
             </article>
           )}
+
+          {data.access?.companyWide
+            && ["owner", "admin", "bookkeeper", "hr", "payroll"].includes(data.access.role ?? "") && (
+              <StatutoryRemittancePanel
+                organizationId={organizationId}
+                notify={notify}
+              />
+            )}
 
           <section data-filing-evidence-section>
             {EVIDENCE_FORMS.map((item) => (
