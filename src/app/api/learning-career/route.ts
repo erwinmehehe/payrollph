@@ -25,6 +25,7 @@ import {
   WORKFORCE_MANAGER_ROLES,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
+import { calculateCareerReadiness } from "@/lib/career-readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -111,42 +112,14 @@ export async function GET(request: Request) {
     requirementsByProfile.set(row.jobProfileId, [...(requirementsByProfile.get(row.jobProfileId) ?? []), row]);
   }
 
-  const careerReadiness = [];
-  for (const employee of visibleEmployees) {
-    const assignment = assignmentByEmployee.get(employee.id);
-    const currentPosition = assignment ? positionById.get(assignment.positionId) ?? null : null;
-    const currentProfileId = currentPosition?.jobProfileId ?? null;
-    const proficiency = new Map((skillsByEmployee.get(employee.id) ?? []).map((row) => [row.skillId, row.proficiencyLevel]));
-
-    for (const target of profileRows) {
-      if (target.id === currentProfileId) continue;
-      const reqs = requirementsByProfile.get(target.id) ?? [];
-      if (!reqs.length) continue;
-      let points = 0;
-      let possible = 0;
-      let met = 0;
-      const criticalGaps: Array<{ skillId: number; requiredLevel: number; currentLevel: number }> = [];
-      for (const req of reqs) {
-        const current = proficiency.get(req.skillId) ?? 0;
-        const weight = req.critical ? 2 : 1;
-        possible += weight;
-        points += Math.min(current / req.requiredLevel, 1) * weight;
-        if (current >= req.requiredLevel) met += 1;
-        if (req.critical && current < req.requiredLevel) {
-          criticalGaps.push({ skillId: req.skillId, requiredLevel: req.requiredLevel, currentLevel: current });
-        }
-      }
-      careerReadiness.push({
-        employeeId: employee.id,
-        currentJobProfileId: currentProfileId,
-        targetJobProfileId: target.id,
-        metRequirements: met,
-        totalRequirements: reqs.length,
-        criticalGaps,
-        readinessPercent: possible > 0 ? Math.round((points / possible) * 100) : 0,
-      });
-    }
-  }
+  const careerReadiness = calculateCareerReadiness({
+    employees: visibleEmployees,
+    assignments,
+    positions: positionRows,
+    profiles: profileRows,
+    requirements,
+    skills: skillRows.filter((row) => visibleIds.has(row.employeeId)),
+  });
 
   const latestReviewByEmployee = new Map<number, typeof reviews[number]>();
   for (const review of reviews) {
