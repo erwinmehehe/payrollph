@@ -14,6 +14,7 @@ import { getSessionUser } from "@/lib/auth";
 import { currentManilaMonth, loadStatutoryRemittanceState } from "@/lib/statutory-remittance-state";
 import {
   buildStatutoryRemittanceSnapshot,
+  canConfirmMemberPosting,
   canMarkRemittancePaid,
   effectiveRemittanceDueDate,
   type StatutoryAgency,
@@ -338,6 +339,7 @@ export async function POST(request: Request) {
         postingStatus: "exception",
         exceptionNote,
         postingReference: null,
+        postedAmount: null,
         postedAt: null,
         confirmedBy: user.name,
         updatedAt: new Date(),
@@ -358,16 +360,26 @@ export async function POST(request: Request) {
     }
 
     const postingReference = String(body.postingReference ?? "").trim();
+    const postedAmount = Number(body.postedAmount);
     const postedAt = body.postedAt ? new Date(String(body.postedAt)) : new Date();
-    if (postingReference.length < 4 || !Number.isFinite(postedAt.getTime())) {
+    if (!Number.isFinite(postedAt.getTime())) {
       return Response.json({
-        error: "Agency posting reference and a valid posting date are required.",
+        error: "A valid agency posting date is required.",
       }, { status: 400 });
+    }
+    const postingGate = canConfirmMemberPosting({
+      expectedTotal: Number(member.totalContribution),
+      postedAmount,
+      postingReference,
+    });
+    if (!postingGate.ok) {
+      return Response.json({ error: postingGate.error }, { status: 409 });
     }
 
     const [updatedMember] = await db.update(statutoryRemittanceMembers).set({
       postingStatus: "confirmed",
       postingReference,
+      postedAmount: postedAmount.toFixed(2),
       postedAt,
       confirmedBy: user.name,
       exceptionNote: null,
@@ -411,6 +423,8 @@ export async function POST(request: Request) {
         memberId,
         employeeId: member.employeeId,
         postingReference,
+        expectedContribution: Number(member.totalContribution),
+        postedAmount,
         postedAt: postedAt.toISOString(),
       },
     });
