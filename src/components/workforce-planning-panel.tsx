@@ -12,7 +12,7 @@ type Employee = { id: number; firstName: string; lastName: string; title: string
 
 const peso = (value: number | string) => `₱${Number(value).toLocaleString("en-PH", { maximumFractionDigits: 0 })}`;
 
-export function WorkforcePlanningPanel({ organizationId, setNotice }: { organizationId: number; setNotice: (message: string) => void }) {
+export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { organizationId: number; setNotice: (message: string) => void; onPage?: (page: string) => void }) {
   const [profiles, setProfiles] = useState<JobProfile[]>([]);
   const [plans, setPlans] = useState<WorkforcePlan[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
@@ -138,6 +138,19 @@ export function WorkforcePlanningPanel({ organizationId, setNotice }: { organiza
     setNotice(`Position ${position.code} moved to ${status}.`);
   }
 
+  async function openRecruitment(position: Position) {
+    const response = await fetch("/api/recruitment/from-position", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ organizationId, positionId: position.id }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) return setNotice(payload.error ?? "Could not open this position for recruitment.");
+    await load();
+    setNotice(`Requisition #${payload.id} opened from position ${position.code}.`);
+    onPage?.("Recruitment");
+  }
+
   return (
     <div>
       <div className="page-heading">
@@ -231,9 +244,9 @@ export function WorkforcePlanningPanel({ organizationId, setNotice }: { organiza
         </div>
         <div className="data-table-wrap">
           <table className="data-table">
-            <thead><tr><th>POSITION</th><th>JOB / UNIT</th><th>INCUMBENT</th><th>START</th><th className="right">BUDGET</th><th>STATUS</th></tr></thead>
+            <thead><tr><th>POSITION</th><th>JOB / UNIT</th><th>INCUMBENT</th><th>START</th><th className="right">BUDGET</th><th>STATUS</th><th>ACTION</th></tr></thead>
             <tbody>
-              {positions.length === 0 && <tr><td colSpan={6}><div className="empty-state">No positions yet. Create job architecture, then add planned positions.</div></td></tr>}
+              {positions.length === 0 && <tr><td colSpan={7}><div className="empty-state">No positions yet. Create job architecture, then add planned positions.</div></td></tr>}
               {positions.map((position) => {
                 const assignment = activeAssignmentByPosition.get(position.id);
                 const incumbent = assignment ? employeeById.get(assignment.employeeId) : null;
@@ -249,6 +262,13 @@ export function WorkforcePlanningPanel({ organizationId, setNotice }: { organiza
                       <select value={position.status} onChange={(e) => void updateStatus(position, e.target.value)} disabled={position.status === "filled"}>
                         {["planned", "approved", "open", "frozen", "closed", ...(position.status === "filled" ? ["filled"] : [])].map((status) => <option key={status} value={status}>{status}</option>)}
                       </select>
+                    </td>
+                    <td>
+                      {!activeAssignmentByPosition.has(position.id) && ["approved", "open"].includes(position.status) ? (
+                        <button className="secondary-button" onClick={() => void openRecruitment(position)}>Open requisition</button>
+                      ) : (
+                        <span style={{ color: "var(--muted)", fontSize: 11 }}>{position.status === "filled" ? "Filled" : "—"}</span>
+                      )}
                     </td>
                   </tr>
                 );
