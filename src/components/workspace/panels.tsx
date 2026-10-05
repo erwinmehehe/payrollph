@@ -43,7 +43,8 @@ import {
   X,
 } from "lucide-react";
 import { AccountPanel } from "@/components/account-panel";
-import { ComplianceEvidenceCenter } from "@/components/workspace/compliance-evidence-center";\nimport { AskLinawPanel } from "@/components/workspace/ask-linaw-panel";
+import { ComplianceEvidenceCenter } from "@/components/workspace/compliance-evidence-center";
+import { AskLinawPanel } from "@/components/workspace/ask-linaw-panel";
 import { INVITABLE_ROLES, invitableRoleLabel } from "@/lib/roles";
 import type { AuditEvent, DashboardData, Employee, OrgUnit, PayrollEntry, PayrollRun, PricingPlan } from "./types";
 import { Avatar, Metric, PageHeading, Status, formatDate, formatDateTime as formatTime, money } from "./ui";
