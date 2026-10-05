@@ -265,6 +265,44 @@ Remaining:
 
 Guardrail: analytics do not manufacture missing history. Where Linaw lacks a historical snapshot (for example org-unit ownership on old payroll entries), the UI states the limitation rather than presenting an inferred fact as authoritative.
 
+
+## Tranche 10 — Manager and employee experience
+
+Foundation implemented on `feat/hcm-manager-employee-experience`.
+
+Built:
+- Company/team strategic objectives linked to individual performance goals with explicit contribution weight
+- Employee self-service goal-progress updates without granting access to anyone else's goal record
+- Formal employee self-assessment using the existing performance review record, including score, reflection and submission timestamp
+- Manager review UI shows submitted self-assessment separately from manager/final scores
+- Recurring weekly, biweekly, monthly or quarterly 1:1 series
+- Completing a 1:1 schedules the next occurrence automatically; month-end recurrence clamps to a valid calendar date
+- Employee 1:1 preparation, manager updates, shared notes and manager-private notes with participant-specific visibility
+- 1:1 action items with participant ownership and employee self-service completion
+- Named multi-rater / 360 feedback rounds with 1-12 reviewers for managers and 1-8 reviewers for employee-requested rounds
+- Reviewer responses are bound to the assigned employee; response text is exposed only to the subject, reviewer or current manager of the subject
+- Employee-requested mentorship plus mentor accept/decline and participant completion/cancellation
+- Manager-assigned mentorship for governed development programs
+- Continuous coaching/praise is now visible to the recipient in My growth while remaining separate from formal performance scoring
+- Employee self-service My growth workspace for goals, self-assessment, 1:1s, feedback and mentorship
+- Employee-visible "You said, we did" publishing from engagement action plans without exposing raw anonymous comments or internal management notes
+- Audit events for strategic alignment, 1:1 lifecycle, action items, 360 requests/responses, self-assessment, mentorship and published listening follow-through
+
+Guardrails:
+- Bookkeepers and payroll roles do not gain manager/talent experience access.
+- Employees never receive manager draft review scores, draft manager summaries or manager-private 1:1 notes.
+- Unit scope alone cannot be used to edit another manager's private 1:1.
+- The initial 360 workflow is deliberately named. Anonymous multi-rater feedback remains unimplemented until it can use cohort thresholds and anti-deanonymization controls comparable to Engagement.
+
+Remaining:
+- Calendar/email invitations and reminders for upcoming 1:1s and feedback due dates
+- Goal comments, check-in history and measurable key-result substructure
+- 360 competency/question templates instead of one shared prompt
+- Mentor matching by skills/career target
+- Employee-visible development-plan integration with 1:1 action items
+- Anonymous 360 only with threshold-safe aggregation and no reviewer identity leakage
+- Mobile-first notification center and digest preferences
+
 ## Priority order
 
 1. Performance foundation — now built
@@ -276,5 +314,6 @@ Guardrail: analytics do not manufacture missing history. Where Linaw lacks a his
 7. SSO/OIDC + SCIM — implemented foundation
 8. Engagement/surveys — implemented foundation
 9. Advanced HCM analytics — implemented foundation
+10. Manager and employee experience — implemented foundation
 
 This order creates a connected HCM data model instead of accumulating isolated modules.
