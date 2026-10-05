@@ -36,6 +36,9 @@ export default function IntegrationsPage() {
         { question: "Are every bank and government portal directly integrated?", answer: "No. Some workflows use controlled files or validation-gated outputs rather than direct portal integrations, and the product copy keeps those distinctions explicit." },
       ]}
       related={[
+        { label: "Biometric attendance", href: "/integrations/biometrics", description: "Review authenticated device ingestion and punch matching." },
+        { label: "Accounting exports", href: "/integrations/accounting-exports", description: "See released-payroll journal output and finance handoff." },
+        { label: "Bank & payout files", href: "/integrations/bank-payout-exports", description: "Review dry runs, release gates and bank-template validation." },
         { label: "Developer center", href: "/developers", description: "Review API scopes, webhooks and security behavior." },
         { label: "Time & attendance", href: "/time-and-attendance", description: "See attendance data flow into payroll." },
         { label: "Payroll software", href: "/", description: "Explore the complete payroll workflow." },
