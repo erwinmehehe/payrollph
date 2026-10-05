@@ -77,6 +77,19 @@ test("robots and sitemap expose only intentional public marketing routes", () =>
 });
 
 
+test("indexable public landing pages have route-specific social metadata", () => {
+  const demo = read("src/app/demo/page.tsx");
+  const outsourcing = read("src/app/payroll-outsourcing/page.tsx");
+  const scorecard = read("src/app/scorecard/page.tsx");
+
+  for (const [name, source] of [["demo", demo], ["outsourcing", outsourcing], ["scorecard", scorecard]]) {
+    assert.ok(source.includes("openGraph:"), `${name} must override generic homepage Open Graph metadata`);
+    assert.ok(source.includes("twitter:"), `${name} must override generic homepage Twitter metadata`);
+    assert.ok(source.includes('card: "summary_large_image"'), `${name} must keep large-image social cards`);
+  }
+});
+
+
 test("public marketing pages expose truthful structured data", () => {
   const home = read("src/app/page.tsx");
   const outsourcing = read("src/app/payroll-outsourcing/page.tsx");
