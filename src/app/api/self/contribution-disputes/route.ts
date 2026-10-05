@@ -11,6 +11,7 @@ import { assertMembership } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { currentManilaDate, currentManilaMonth } from "@/lib/statutory-remittance-state";
+import { ensureStatutoryContributionDisputeSchema } from "@/lib/statutory-contribution-dispute-schema";
 import { enforceSameOriginMutation, enforceSensitiveActionRateLimit } from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +42,7 @@ async function employeeForSession(userId: number, employeeId: number, organizati
 }
 
 export async function GET(request: Request) {
+  await ensureStatutoryContributionDisputeSchema();
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   if (!user.employeeId) return Response.json({ error: "Employee profile is not linked." }, { status: 403 });
@@ -62,6 +64,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  await ensureStatutoryContributionDisputeSchema();
   const originDenied = enforceSameOriginMutation(request);
   if (originDenied) return originDenied;
 
