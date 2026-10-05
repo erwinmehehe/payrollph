@@ -23,7 +23,7 @@ function datesBetween(startDate: string, endDate: string) {
   const end = new Date(`${endDate}T00:00:00Z`);
   for (
     let cursor = new Date(start);
-    cursor <= end && dates.length <= 42;
+    cursor <= end && dates.length <= 56;
     cursor.setUTCDate(cursor.getUTCDate() + 1)
   ) {
     dates.push(cursor.toISOString().slice(0, 10));
