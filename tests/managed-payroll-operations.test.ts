@@ -22,3 +22,20 @@ test("client approval is invalid when exact payroll contents change", () => {
   assert.equal(managedPayrollApprovalMatches({ ...run, netPay: "79999.99" }, approval, "a".repeat(64)), false);
   assert.equal(managedPayrollApprovalMatches(run, approval, "b".repeat(64)), false);
 });
+
+
+test("managed payroll release rechecks implementation gates and approval fingerprints", () => {
+  const lib = readFileSync("src/lib/managed-payroll.ts", "utf8");
+  const release = readFileSync("src/app/api/payroll-runs/[id]/release/route.ts", "utf8");
+  const approval = readFileSync("src/app/api/managed-payroll/runs/[id]/approve/route.ts", "utf8");
+
+  assert.ok(lib.includes("canonicalizeManagedPayrollValue"));
+  assert.ok(lib.includes("missingGateKeys"));
+  assert.ok(lib.includes("gatesComplete"));
+  assert.ok(release.includes("!managedRequirement.gatesComplete"));
+  assert.ok(release.includes("missingGateKeys"));
+  assert.ok(approval.includes("missingGateKeys.length > 0"));
+  assert.ok(approval.includes("previousFingerprint"));
+  assert.ok(approval.includes("previousGross"));
+  assert.ok(approval.includes("previousApprovedAt"));
+});
