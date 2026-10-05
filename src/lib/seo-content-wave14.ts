@@ -67,7 +67,7 @@ export const resourceWave14: AuthorityPage[] = [
     eyebrow: "Payroll system comparison",
     title: "How to compare payroll systems in the Philippines.",
     metaTitle: "Payroll System Comparison Philippines | Evaluation Guide",
-    description: "Compare Philippine payroll systems using a practical evaluation matrix for calculations, compliance, controls, implementation, integrations, security and support.",
+    description: "Compare Philippine payroll systems using a practical matrix for calculations, compliance, controls, implementation, integrations, security and support.",
     intro: "Payroll comparisons are more useful when every vendor is evaluated against the same operating scenarios. A feature checklist alone can hide important differences in calculation depth, approval controls, migration risk and evidence.",
     proof: [
       "Calculation scenarios",
@@ -132,7 +132,7 @@ export const resourceWave14: AuthorityPage[] = [
     eyebrow: "Payroll outsourcing cost",
     title: "What affects payroll outsourcing cost in the Philippines?",
     metaTitle: "Payroll Outsourcing Cost Philippines | Cost Factors",
-    description: "Understand payroll outsourcing cost factors in the Philippines, including headcount, payroll frequency, timekeeping complexity, exceptions, integrations and service scope.",
+    description: "Understand payroll outsourcing cost in the Philippines by headcount, payroll frequency, attendance complexity, exceptions, integrations and service scope.",
     intro: "Payroll outsourcing cost is rarely just a per-employee number. The work required to process payroll depends on workforce size, payroll frequency, data quality, exception volume, statutory scope, integrations and who owns each approval step.",
     proof: [
       "Employee population",
@@ -197,7 +197,7 @@ export const resourceWave14: AuthorityPage[] = [
     eyebrow: "Payroll outsourcing guide",
     title: "How payroll outsourcing works in the Philippines.",
     metaTitle: "Payroll Outsourcing Guide Philippines | How It Works",
-    description: "Learn how payroll outsourcing works in the Philippines, from data handoff and payroll preparation through review, approval, outputs and recurring responsibilities.",
+    description: "Learn how payroll outsourcing works in the Philippines from data handoff and preparation through review, approval, outputs and recurring responsibilities.",
     intro: "Payroll outsourcing shifts recurring processing work to a service provider, but it does not remove the employer's responsibility for accurate business inputs, policy decisions and authorized payroll approval.",
     proof: [
       "Defined data handoff",
