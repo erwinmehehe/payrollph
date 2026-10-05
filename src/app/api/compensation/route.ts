@@ -1,5 +1,5 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, gte, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
   compensationBands,
@@ -303,6 +303,9 @@ export async function POST(request: Request) {
       const [manager] = await db.select({ id: employees.id, orgUnitId: employees.orgUnitId }).from(employees)
         .where(and(eq(employees.id, managerEmployeeId), eq(employees.organizationId, organizationId))).limit(1);
       if (!manager) return Response.json({ error: "Manager employee not found." }, { status: 404 });
+      if (manager.orgUnitId !== orgUnitId) {
+        return Response.json({ error: "The budget-pool manager must belong to the same organization unit." }, { status: 409 });
+      }
     }
 
     const existingPools = await db.select().from(compensationBudgetPools).where(eq(compensationBudgetPools.cycleId, cycleId));
@@ -580,6 +583,7 @@ export async function PATCH(request: Request) {
           eq(payrollEntries.employeeId, recommendation.employeeId),
           eq(payrollRuns.organizationId, recommendation.organizationId),
           eq(payrollRuns.status, "Released"),
+          gte(payrollRuns.periodEnd, effectiveDate),
         ))
         .orderBy(desc(payrollRuns.periodEnd))
         .limit(1);
