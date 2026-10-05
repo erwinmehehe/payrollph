@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { PUBLIC_SITE_URL } from "@/lib/site-url";
+import { MarketingAttributionCapture } from "@/components/marketing/marketing-attribution-capture";
 import "./globals.css";
 import "./workspace-theme.css";
 
@@ -52,7 +53,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body><MarketingAttributionCapture />{children}</body>
     </html>
   );
 }

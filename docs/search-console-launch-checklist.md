@@ -12,7 +12,7 @@ The application emits verification metadata only when a value is configured. Nev
 
 1. Add the canonical production property.
 2. Complete ownership verification.
-3. Submit `/sitemap.xml`.
+3. Submit `/sitemap.xml`. It is the sitemap index and points to segmented product, compliance, industry, resource, calculator, glossary and developer sitemaps.
 4. Inspect the homepage and highest-priority commercial URLs.
 5. Request indexing only after production content, canonical and robots behavior are correct.
 6. Recheck indexing after major route launches.
@@ -62,15 +62,21 @@ For high-risk compliance pages:
 - update the evergreen guide when the current rule changes,
 - update Last reviewed after a real review, not automatically.
 
+## SEO ownership audit
+
+Before release, run `npm run seo:audit`. It must pass with no duplicate intent owners, duplicate sitemap paths, private-route ownership, title collisions or broken authority related links.
+
 ## Release gate
 
 Before considering a new SEO wave complete:
 - CI green
+- `npm run seo:audit` green
 - browser QA green
 - security smoke green
 - CodeQL green where configured
 - production deployment healthy
-- sitemap accessible
+- sitemap index accessible
+- segmented child sitemaps return XML successfully
 - robots accessible
 - canonical host correct
 - no auth/app routes accidentally indexed

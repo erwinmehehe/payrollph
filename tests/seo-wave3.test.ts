@@ -110,7 +110,7 @@ test("generated SEO pages emit page-level structured data", () => {
 });
 
 test("sitemap includes Wave 3 evergreen, glossary and update families", () => {
-  const sitemap = read("src/app/sitemap.ts");
+  const sitemap = read("src/lib/sitemap-data.ts");
   assert.ok(sitemap.includes("complianceWave3"));
   assert.ok(sitemap.includes("resourceWave3"));
   assert.ok(sitemap.includes("glossaryEntries"));

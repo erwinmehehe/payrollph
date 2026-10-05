@@ -69,7 +69,7 @@ test("Wave 6 dynamic routes include metadata, canonicals and structured data", (
 test("Wave 6 pages are discoverable from hubs and XML sitemap", () => {
   const industries = read("src/app/industries/page.tsx");
   const integrations = read("src/app/integrations/page.tsx");
-  const sitemap = read("src/app/sitemap.ts");
+  const sitemap = read("src/lib/sitemap-data.ts");
 
   assert.ok(industries.includes("industryWave6"));
   for (const route of [
