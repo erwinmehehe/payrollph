@@ -7,6 +7,7 @@ import {
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { loadStatutoryRemittanceState } from "@/lib/statutory-remittance-state";
+import { queueStatutoryComplianceEscalations } from "@/lib/statutory-remittance-escalations";
 
 const SOURCE_TYPE = "statutory_remittance";
 const SCHEDULE_JOB = "statutory-remittance-actions";
@@ -86,6 +87,7 @@ export async function syncStatutoryRemittanceActions(
           acknowledgedByUserId: null,
           acknowledgedByName: null,
           resolvedAt: null,
+          escalationEpisode: current.escalationEpisode + 1,
         }).where(and(
           eq(complianceActionTasks.id, current.id),
           eq(complianceActionTasks.organizationId, organizationId),
@@ -131,12 +133,40 @@ export async function syncStatutoryRemittanceActions(
     });
   }
 
+  let escalationQueued = 0;
+  let escalationDeduplicated = 0;
+  let escalationError: string | null = null;
+  try {
+    const escalationResults = await queueStatutoryComplianceEscalations({
+      organizationId,
+      actor,
+    });
+    escalationQueued = escalationResults.filter((result) => !result.deduplicated).length;
+    escalationDeduplicated = escalationResults.filter((result) => result.deduplicated).length;
+  } catch (error) {
+    escalationError = error instanceof Error ? error.message : "Unknown escalation queue error";
+    try {
+      await recordAuditEvent({
+        organizationId,
+        actor,
+        action: "Statutory compliance escalation queue failed",
+        resource: "SSS · PhilHealth · Pag-IBIG",
+        metadata: { error: escalationError },
+      });
+    } catch {
+      // The action queue remains authoritative even when escalation delivery telemetry fails.
+    }
+  }
+
   return {
     organizationId,
     created,
     reopened,
     resolved,
     activeAlerts: state.alerts.length,
+    escalationQueued,
+    escalationDeduplicated,
+    escalationError,
     missingOrganization: false,
   };
 }
@@ -154,6 +184,9 @@ export async function syncAllStatutoryRemittanceActions(actor = "System complian
         reopened: 0,
         resolved: 0,
         activeAlerts: 0,
+        escalationQueued: 0,
+        escalationDeduplicated: 0,
+        escalationError: null,
         missingOrganization: false,
         error: error instanceof Error ? error.message : "Unknown remittance monitor error",
       });
@@ -189,12 +222,16 @@ export async function runScheduledStatutoryRemittanceSync(options?: {
   );
   const activeAlerts = results.reduce((sum, result) => sum + result.activeAlerts, 0);
   const failures = results.filter((result) => "error" in result && Boolean(result.error)).length;
+  const escalationsQueued = results.reduce((sum, result) => sum + ("escalationQueued" in result ? Number(result.escalationQueued ?? 0) : 0), 0);
+  const escalationFailures = results.filter((result) => "escalationError" in result && Boolean(result.escalationError)).length;
   const payload = {
     at: now.toISOString(),
     organizations: results.length,
     changed,
     activeAlerts,
     failures,
+    escalationsQueued,
+    escalationFailures,
     results: results.slice(0, 50),
   };
 

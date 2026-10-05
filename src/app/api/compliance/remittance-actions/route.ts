@@ -13,6 +13,7 @@ import {
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { syncStatutoryRemittanceActions } from "@/lib/statutory-remittance-actions";
+import { queueStatutoryComplianceEscalations } from "@/lib/statutory-remittance-escalations";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -209,7 +210,19 @@ export async function POST(request: Request) {
         assignedToName,
       },
     });
-    return Response.json({ task: updated });
+
+    let escalation: Awaited<ReturnType<typeof queueStatutoryComplianceEscalations>> = [];
+    try {
+      escalation = await queueStatutoryComplianceEscalations({
+        organizationId,
+        taskIds: [taskId],
+        actor: user.name,
+      });
+    } catch {
+      // Assignment remains authoritative even if the outbox is temporarily unavailable.
+    }
+
+    return Response.json({ task: updated, escalation });
   }
 
   if (action === "acknowledge") {

@@ -168,7 +168,7 @@ async function finishDeliveryAttempt(input: {
   const retryDelay = AUTO_RETRY_DELAYS_MS[Math.min(Math.max(attempts - 1, 0), AUTO_RETRY_DELAYS_MS.length - 1)];
   const nextAttemptAt =
     !input.result.ok
-    && input.row.purpose === "payslip-ready"
+    && ["payslip-ready", "statutory-remittance-escalation"].includes(input.row.purpose)
     && attempts < input.row.maxAttempts
       ? new Date(now.getTime() + retryDelay)
       : null;
@@ -253,7 +253,9 @@ export async function queueMessage(input: {
     deliveryStatus: providerName === "none" ? "queued" : "sending",
     deliveryUpdatedAt: new Date(),
     metadata: input.metadata ?? input.audit?.metadata ?? {},
-    maxAttempts: input.purpose === "payslip-ready" ? MAX_AUTOMATIC_RETRIES + 1 : 1,
+    maxAttempts: ["payslip-ready", "statutory-remittance-escalation"].includes(input.purpose)
+      ? MAX_AUTOMATIC_RETRIES + 1
+      : 1,
   }).onConflictDoNothing().returning();
 
   if (!created) {
@@ -639,9 +641,10 @@ export async function retryFailedPayslipNotices(input: {
 }
 
 /**
- * Background retry is deliberately narrow: only payslip-ready notices are
- * retried automatically. Password resets, invitations and email-change links
- * must be regenerated instead of replaying stale one-time credentials.
+ * Background retry is deliberately narrow: payslip-ready notices and statutory
+ * remittance escalations are retried automatically. Password resets, invitations
+ * and email-change links must be regenerated instead of replaying stale one-time
+ * credentials.
  */
 export async function drainOutboxRetries(limit = 25) {
   await ensureOutboxDeliverySchema();
@@ -651,7 +654,7 @@ export async function drainOutboxRetries(limit = 25) {
     .select()
     .from(outbox)
     .where(and(
-      eq(outbox.purpose, "payslip-ready"),
+      inArray(outbox.purpose, ["payslip-ready", "statutory-remittance-escalation"]),
       inArray(outbox.status, ["queued", "failed"]),
     ))
     .orderBy(asc(outbox.id))
