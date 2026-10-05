@@ -1966,3 +1966,146 @@ export const automationExecutions = pgTable(
   ],
 );
 
+/* -------------------------------------------------------------------------- */
+/* HCM: engagement, employee listening, action planning, and recognition      */
+/* -------------------------------------------------------------------------- */
+
+export const engagementSurveys = pgTable(
+  "engagement_surveys",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 180 }).notNull(),
+    kind: varchar("kind", { length: 32 }).notNull().default("pulse"),
+    status: varchar("status", { length: 24 }).notNull().default("draft"),
+    anonymous: boolean("anonymous").notNull().default(true),
+    privacyThreshold: integer("privacy_threshold").notNull().default(5),
+    audienceOrgUnitId: integer("audience_org_unit_id").references(() => orgUnits.id, { onDelete: "set null" }),
+    opensAt: timestamp("opens_at", { withTimezone: true }),
+    closesAt: timestamp("closes_at", { withTimezone: true }),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("engagement_surveys_org_name_unique").on(table.organizationId, table.name),
+    index("engagement_surveys_org_status_idx").on(table.organizationId, table.status),
+    index("engagement_surveys_org_audience_idx").on(table.organizationId, table.audienceOrgUnitId),
+  ],
+);
+
+export const engagementQuestions = pgTable(
+  "engagement_questions",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    surveyId: integer("survey_id").notNull().references(() => engagementSurveys.id, { onDelete: "cascade" }),
+    prompt: varchar("prompt", { length: 500 }).notNull(),
+    type: varchar("type", { length: 32 }).notNull().default("rating_1_5"),
+    required: boolean("required").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("engagement_questions_survey_order_idx").on(table.surveyId, table.sortOrder),
+    index("engagement_questions_org_idx").on(table.organizationId),
+  ],
+);
+
+export const engagementResponses = pgTable(
+  "engagement_responses",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    surveyId: integer("survey_id").notNull().references(() => engagementSurveys.id, { onDelete: "cascade" }),
+    respondentKey: text("respondent_key").notNull(),
+    respondentUserId: integer("respondent_user_id").references(() => users.id, { onDelete: "set null" }),
+    respondentEmployeeId: integer("respondent_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    orgUnitIdSnapshot: integer("org_unit_id_snapshot").references(() => orgUnits.id, { onDelete: "set null" }),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("engagement_responses_survey_respondent_unique").on(table.surveyId, table.respondentKey),
+    index("engagement_responses_org_survey_idx").on(table.organizationId, table.surveyId),
+    index("engagement_responses_survey_unit_idx").on(table.surveyId, table.orgUnitIdSnapshot),
+  ],
+);
+
+export const engagementAnswers = pgTable(
+  "engagement_answers",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    responseId: integer("response_id").notNull().references(() => engagementResponses.id, { onDelete: "cascade" }),
+    questionId: integer("question_id").notNull().references(() => engagementQuestions.id, { onDelete: "cascade" }),
+    numericValue: numeric("numeric_value", { precision: 8, scale: 2 }),
+    textValue: text("text_value"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("engagement_answers_response_question_unique").on(table.responseId, table.questionId),
+    index("engagement_answers_question_idx").on(table.questionId),
+  ],
+);
+
+export const engagementActionPlans = pgTable(
+  "engagement_action_plans",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    surveyId: integer("survey_id").notNull().references(() => engagementSurveys.id, { onDelete: "cascade" }),
+    questionId: integer("question_id").references(() => engagementQuestions.id, { onDelete: "set null" }),
+    orgUnitId: integer("org_unit_id").references(() => orgUnits.id, { onDelete: "set null" }),
+    ownerEmployeeId: integer("owner_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    title: varchar("title", { length: 200 }).notNull(),
+    dueDate: date("due_date"),
+    status: varchar("status", { length: 24 }).notNull().default("open"),
+    notes: text("notes"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("engagement_action_plans_org_status_idx").on(table.organizationId, table.status),
+    index("engagement_action_plans_survey_idx").on(table.surveyId),
+  ],
+);
+
+export const recognitionEvents = pgTable(
+  "recognition_events",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    senderEmployeeId: integer("sender_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    recipientEmployeeId: integer("recipient_employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    category: varchar("category", { length: 48 }).notNull().default("appreciation"),
+    message: varchar("message", { length: 800 }).notNull(),
+    visibleToEveryone: boolean("visible_to_everyone").notNull().default(true),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("recognition_events_org_created_idx").on(table.organizationId, table.createdAt),
+    index("recognition_events_recipient_idx").on(table.recipientEmployeeId, table.createdAt),
+  ],
+);
+
+export const continuousFeedback = pgTable(
+  "continuous_feedback",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    authorEmployeeId: integer("author_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    recipientEmployeeId: integer("recipient_employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 32 }).notNull().default("coaching"),
+    message: text("message").notNull(),
+    visibility: varchar("visibility", { length: 32 }).notNull().default("manager_and_recipient"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("continuous_feedback_org_created_idx").on(table.organizationId, table.createdAt),
+    index("continuous_feedback_recipient_idx").on(table.recipientEmployeeId, table.createdAt),
+  ],
+);
+
