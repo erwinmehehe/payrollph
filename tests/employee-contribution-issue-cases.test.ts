@@ -90,3 +90,13 @@ test("hourly remittance auto-sync cannot auto-resolve employee-reported contribu
   assert.ok(remittanceActions.includes("eq(complianceActionTasks.sourceType, SOURCE_TYPE)"));
   assert.ok(!remittanceActions.includes('"employee_contribution_issue"'));
 });
+
+
+test("employee issue lifecycle invalidates any prior remittance month certification", () => {
+  assert.ok(selfApi.includes("invalidateStatutoryRemittanceMonthCertification"));
+  assert.ok(selfApi.includes("employee_contribution_issue_reported"));
+  assert.ok(payrollApi.includes("invalidateStatutoryRemittanceMonthCertification"));
+  assert.ok(payrollApi.includes("employee_contribution_issue_resolved"));
+  assert.ok(selfApi.includes("Statutory remittance month certification invalidated"));
+  assert.ok(payrollApi.includes("Statutory remittance month certification invalidated"));
+});
