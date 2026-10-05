@@ -32,7 +32,7 @@ type Member = {
 
 type Correction = {
   id: number;
-  targetType: "batch_payment" | "member_posting";
+  targetType: "batch_payment" | "member_posting" | "member_addition";
   batchId: number;
   memberId: number | null;
   originalSnapshot: Record<string, unknown>;
@@ -72,6 +72,11 @@ function summarize(snapshot: Record<string, unknown>) {
     "postingReference",
     "postedAmount",
     "postedAt",
+    "employeeNo",
+    "employeeShare",
+    "employerShare",
+    "totalContribution",
+    "batchExpectedTotal",
   ];
   return keys
     .filter((key) => snapshot[key] != null && String(snapshot[key]).trim() !== "")
@@ -338,7 +343,13 @@ export function StatutoryRemittanceCorrectionsPanel({
                     return (
                       <tr key={correction.id}>
                         <td>
-                          <Status value={correction.targetType === "batch_payment" ? "Payment" : "Posting"} />
+                          <Status value={
+                            correction.targetType === "batch_payment"
+                              ? "Payment"
+                              : correction.targetType === "member_addition"
+                                ? "Missing member"
+                                : "Posting"
+                          } />
                           <div className="id">#{correction.id}</div>
                         </td>
                         <td>{correction.requestedByName}</td>
@@ -386,7 +397,13 @@ export function StatutoryRemittanceCorrectionsPanel({
             <div className="policy-lines">
               {history.map((correction) => (
                 <span key={correction.id}>
-                  <b>#{correction.id} · {correction.targetType === "batch_payment" ? "Payment evidence" : "Employee posting"} · {correction.status}</b>
+                  <b>#{correction.id} · {
+                    correction.targetType === "batch_payment"
+                      ? "Payment evidence"
+                      : correction.targetType === "member_addition"
+                        ? "Missing remittance member"
+                        : "Employee posting"
+                  } · {correction.status}</b>
                   <small style={{ display: "block", color: "var(--muted)" }}>
                     Requested by {correction.requestedByName}{correction.decidedByName ? ` · decided by ${correction.decidedByName}` : ""}
                     {correction.decisionNote ? ` · ${correction.decisionNote}` : ""}
