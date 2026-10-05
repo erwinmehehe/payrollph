@@ -1,5 +1,5 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, eq, isNull, ne } from "drizzle-orm";
+import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employeePayProfiles,
@@ -23,6 +23,13 @@ import { resolvePayProfile } from "@/lib/pay-basis";
 import { ONBOARDING_TASKS } from "@/lib/provisioning";
 
 export const dynamic = "force-dynamic";
+
+class HireConflict extends Error {
+  constructor(message: string, readonly details: Record<string, unknown> = {}) {
+    super(message);
+    this.name = "HireConflict";
+  }
+}
 
 function employeeEmploymentType(value: string) {
   if (value === "Full-time") return "Regular";
@@ -209,7 +216,44 @@ export async function POST(request: Request) {
     return Response.json({ error: "That employee number is already in use." }, { status: 409 });
   }
 
-  const result = await db.transaction(async (tx) => {
+  const resultOrResponse = await db.transaction(async (tx) => {
+    // Serialize conversion of one applicant and occupancy of one position. The
+    // database unique index is the final backstop; these locks make the losing
+    // request fail cleanly before creating an extra employee.
+    await tx.execute(sql`select pg_advisory_xact_lock(4101, ${applicant.id})`);
+    if (position) {
+      await tx.execute(sql`select pg_advisory_xact_lock(4102, ${position.id})`);
+    }
+
+    const [freshApplicant] = await tx.select({
+      stage: jobApplicants.stage,
+      hiredEmployeeId: jobApplicants.hiredEmployeeId,
+    }).from(jobApplicants).where(eq(jobApplicants.id, applicant.id)).limit(1);
+    if (!freshApplicant) throw new HireConflict("Applicant no longer exists.");
+    if (freshApplicant.hiredEmployeeId) {
+      throw new HireConflict("This candidate has already been hired.", {
+        employeeId: freshApplicant.hiredEmployeeId,
+      });
+    }
+    if (freshApplicant.stage !== "offer") {
+      throw new HireConflict("The candidate is no longer in the Job Offer stage.", {
+        stage: freshApplicant.stage,
+      });
+    }
+
+    if (position) {
+      const [activeAssignment] = await tx.select({ id: positionAssignments.id })
+        .from(positionAssignments)
+        .where(and(
+          eq(positionAssignments.positionId, position.id),
+          isNull(positionAssignments.effectiveUntil),
+        ))
+        .limit(1);
+      if (activeAssignment) {
+        throw new HireConflict("The linked position already has an active incumbent.");
+      }
+    }
+
     const [employee] = await tx.insert(employees).values({
       organizationId: applicant.organizationId,
       orgUnitId: position?.orgUnitId ?? null,
@@ -281,7 +325,15 @@ export async function POST(request: Request) {
       .where(eq(jobRequisitions.id, requisition.id));
 
     return { employee, onboarding, assignment };
+  }).catch((error: unknown) => {
+    if (error instanceof HireConflict) {
+      return Response.json({ error: error.message, ...error.details }, { status: 409 });
+    }
+    throw error;
   });
+
+  if (resultOrResponse instanceof Response) return resultOrResponse;
+  const result = resultOrResponse;
 
   await recordAuditEvent({
     organizationId: applicant.organizationId,
