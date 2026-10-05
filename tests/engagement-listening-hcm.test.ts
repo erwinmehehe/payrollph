@@ -51,6 +51,8 @@ test("small cohort analytics suppress answer counts scores and comments", () => 
   assert.ok(management.includes("textResponseCount: null"));
   assert.ok(management.includes("suppressed: true"));
   assert.ok(management.includes("Raw anonymous comments are never returned"));
+  assert.ok(management.includes("responseCount: unitReportable ? rows.length : null"));
+  assert.ok(management.includes("access.companyWide || reportable ? scopeResponses.length : null"));
 });
 
 test("anonymous surveys cannot open without privacy infrastructure or enough eligible employees", () => {
