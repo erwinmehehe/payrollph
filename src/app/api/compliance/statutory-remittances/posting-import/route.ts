@@ -4,6 +4,7 @@ import {
   complianceActionTasks,
   statutoryContributionIssueCases,
   statutoryContributionIssueEvents,
+  statutoryPostingEvidenceArtifacts,
   statutoryRemittanceBatches,
   statutoryRemittanceMembers,
 } from "@/db/schema";
@@ -343,10 +344,23 @@ export async function POST(request: Request) {
       throw new Error("Remittance batch changed while the import was being applied. Refresh and validate the file again.");
     }
 
+    const [artifact] = await tx.insert(statutoryPostingEvidenceArtifacts).values({
+      organizationId,
+      batchId,
+      sourceType: "csv_import",
+      fileName,
+      contentSha256: parsed.hash,
+      evidenceReference: null,
+      rowCount: matched.length,
+      recordedByUserId: user.id,
+      recordedByName: user.name,
+    }).returning();
+
     for (const row of matched) {
       const updated = await tx.update(statutoryRemittanceMembers).set({
         postingStatus: "confirmed",
         postingReference: row.postingReference,
+        postingEvidenceArtifactId: artifact.id,
         postedAmount: row.postedAmount.toFixed(2),
         postedAt: row.postedAt,
         confirmedBy: user.name,
@@ -382,7 +396,7 @@ export async function POST(request: Request) {
       eq(statutoryRemittanceBatches.organizationId, organizationId),
     ));
 
-    return { pending, exceptions, reconciled };
+    return { pending, exceptions, reconciled, artifact };
   });
 
   await recordAuditEvent({
@@ -399,6 +413,9 @@ export async function POST(request: Request) {
       exceptionCount: result.exceptions,
       reconciled: result.reconciled,
       employeeIds: matched.map((row) => row.member.employeeId),
+      evidenceArtifactId: result.artifact.id,
+      evidenceSource: result.artifact.sourceType,
+      evidenceHashSha256: result.artifact.contentSha256,
     },
   });
 
@@ -415,6 +432,8 @@ export async function POST(request: Request) {
     reconciled: result.reconciled,
     pendingPostingCount: result.pending,
     exceptionCount: result.exceptions,
+    evidenceArtifactId: result.artifact.id,
+    evidenceSource: result.artifact.sourceType,
     message: `${matched.length} posting row${matched.length === 1 ? "" : "s"} applied.`,
   });
 }
