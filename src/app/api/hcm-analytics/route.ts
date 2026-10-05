@@ -343,6 +343,7 @@ export async function GET(request: Request) {
     && row.runStatus === "Released"
     && inRange(row.payDate, ytdStart, today)
   );
+  const scopedCostReportable = access.companyWide || activeEmployees.length >= HCM_ANALYTICS_PRIVACY_THRESHOLD;
   const actualGrossYtd = visibleEntryRows.reduce((sum, row) => sum + Number(row.grossPay), 0);
   const actualNetYtd = visibleEntryRows.reduce((sum, row) => sum + Number(row.netPay), 0);
   const employerStatutoryYtd = visibleEntryRows.reduce((sum, row) => sum + traceInputNumber(row.trace, "employerStatutoryCost"), 0);
@@ -439,6 +440,7 @@ export async function GET(request: Request) {
       turnoverRateYtd,
       trend: headcountTrend,
       methodology: "Turnover uses released separation records divided by average opening/current reconstructed headcount.",
+      scopeCaveat: access.companyWide ? null : "Historical unit trend uses each employee's current organization unit because employee history does not yet snapshot prior unit ownership.",
     },
     recruiting: {
       openRequisitions: visibleRequisitions.filter((row) => !["filled", "cancelled"].includes(row.status)).length,
@@ -507,17 +509,19 @@ export async function GET(request: Request) {
       suppressionReason: mobilityReportable ? null : "At least 5 employees with calculable readiness are required before mobility aggregates are shown.",
     },
     cost: {
-      actualGrossYtd: roundMoney(actualGrossYtd),
-      actualNetYtd: roundMoney(actualNetYtd),
-      employerStatutoryYtd: roundMoney(employerStatutoryYtd),
-      loadedPayrollYtd: roundMoney(loadedPayrollYtd),
-      employerBenefitMonthlyRunRate: roundMoney(employerBenefitMonthlyRunRate),
-      forecastAnnualLoadedCost: roundMoney(forecastAnnualLoadedCost),
-      positionSalaryBudget: roundMoney(positionSalaryBudget),
-      forecastVsPositionBudget: positionSalaryBudget > 0 ? roundMoney(forecastAnnualLoadedCost - positionSalaryBudget) : null,
+      reportable: scopedCostReportable,
+      actualGrossYtd: scopedCostReportable ? roundMoney(actualGrossYtd) : null,
+      actualNetYtd: scopedCostReportable ? roundMoney(actualNetYtd) : null,
+      employerStatutoryYtd: scopedCostReportable ? roundMoney(employerStatutoryYtd) : null,
+      loadedPayrollYtd: scopedCostReportable ? roundMoney(loadedPayrollYtd) : null,
+      employerBenefitMonthlyRunRate: scopedCostReportable ? roundMoney(employerBenefitMonthlyRunRate) : null,
+      forecastAnnualLoadedCost: scopedCostReportable ? roundMoney(forecastAnnualLoadedCost) : null,
+      positionSalaryBudget: scopedCostReportable ? roundMoney(positionSalaryBudget) : null,
+      forecastVsPositionBudget: scopedCostReportable && positionSalaryBudget > 0 ? roundMoney(forecastAnnualLoadedCost - positionSalaryBudget) : null,
       workforcePlan: currentPlan ? { id: currentPlan.id, name: currentPlan.name, budget: Number(currentPlan.budget) } : null,
       methodology: "Loaded payroll uses released gross pay plus employer statutory cost persisted in payroll trace; current employer benefit share is annualized separately. Position annual budget is a salary-budget proxy, not a full accounting forecast.",
-      scopeCaveat: access.companyWide ? null : "Historical payroll entries are attributed to the employee's current organization unit because payroll entries do not yet snapshot org-unit ownership.",
+      suppressionReason: scopedCostReportable ? null : "At least 5 active employees are required before unit-scoped payroll cost aggregates are shown.",
+      scopeCaveat: access.companyWide ? null : "Historical payroll entries and reconstructed headcount are attributed to the employee's current organization unit because those historical records do not yet snapshot org-unit ownership.",
     },
     engagement: {
       surveys: engagementTrend,
