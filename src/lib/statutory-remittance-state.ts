@@ -188,6 +188,10 @@ export async function loadStatutoryRemittanceState(organizationId: number) {
       exceptionCount: members.filter(
         (member) => member.batchId === batch.id && member.postingStatus === "exception",
       ).length,
+      paymentShortfall: Math.max(
+        0,
+        Number(batch.expectedTotal) - Number(batch.amountPaid ?? 0),
+      ),
       filingCheck: filing && comparison
         ? {
             status: comparison.matched ? "matched" as const : "mismatch" as const,
