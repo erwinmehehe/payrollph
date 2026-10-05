@@ -108,7 +108,12 @@ export async function verifyOidcIdToken(input: {
   if (!header.kid) throw new Error("OIDC ID token does not identify a signing key.");
 
   const jwks = await getValidatedJson<{ keys?: Jwk[] }>({ url: input.jwksUri, maxBytes: 1_000_000 });
-  const key = jwks.keys?.find((candidate) => candidate.kid === header.kid && candidate.kty === "RSA");
+  const key = jwks.keys?.find((candidate) =>
+    candidate.kid === header.kid
+    && candidate.kty === "RSA"
+    && (!candidate.use || candidate.use === "sig")
+    && (!candidate.alg || candidate.alg === "RS256")
+  );
   if (!key) throw new Error("OIDC signing key was not found in the provider JWKS.");
 
   const publicKey = createPublicKey({ key: key as JsonWebKey, format: "jwk" });
