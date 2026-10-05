@@ -122,3 +122,14 @@ test("latest pay remains ahead of history in the polished employee app", () => {
   const historyAt = portal.indexOf("PAY HISTORY");
   assert.ok(latestAt > -1 && historyAt > -1 && latestAt < historyAt, "latest pay should render before pay history");
 });
+
+
+test("employee pay view exposes mandatory contribution remittance status", () => {
+  const route = read("src/app/api/self/payslips/route.ts");
+  const portal = read("src/components/self-service-portal.tsx");
+  assert.ok(route.includes("contributionStatus"));
+  assert.ok(route.includes("remittanceStatus"));
+  assert.ok(portal.includes("MANDATORY CONTRIBUTIONS"));
+  assert.ok(portal.includes("Were my deductions remitted?"));
+  assert.ok(portal.includes("Agency posting confirmed"));
+});
