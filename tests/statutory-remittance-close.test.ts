@@ -9,6 +9,8 @@ const reconciledBatch = {
   status: "reconciled",
   snapshotHash: "abc",
   reconciledAt: "2026-10-20T00:00:00.000Z",
+  paymentRecordedBy: "Payroll A",
+  reconciledBy: "Payroll B",
   pendingPostingCount: 0,
   exceptionCount: 0,
 };
@@ -23,6 +25,7 @@ test("remittance month close is ready only when tracked evidence is fully reconc
       postingStatus: "confirmed",
       postedAmount: "1000.00",
       postingReference: "POST-1",
+      confirmedBy: "Payroll B",
     }],
     alerts: [],
     requiredAgencies: ["SSS"],
@@ -131,4 +134,39 @@ test("missing required agency batch blocks remittance month close", () => {
 
   assert.equal(result.ready, false);
   assert.ok(result.blockers.some((value) => /PhilHealth remittance batch is missing/i.test(value)));
+});
+
+
+test("approved correction changes the close snapshot and is preserved in certification evidence", () => {
+  const base = {
+    applicableMonth: "2026-09",
+    batches: [reconciledBatch],
+    members: [{
+      batchId: 1,
+      employeeId: 10,
+      postingStatus: "confirmed",
+      postedAmount: "1000.00",
+      postingReference: "POST-1",
+      confirmedBy: "Payroll B",
+    }],
+    alerts: [],
+    requiredAgencies: ["SSS"],
+    allPayrollRunsReleased: true,
+  };
+  const before = evaluateRemittanceMonthClose({ ...base, corrections: [] });
+  const after = evaluateRemittanceMonthClose({
+    ...base,
+    corrections: [{
+      id: 90,
+      batchId: 1,
+      memberId: 10,
+      status: "approved",
+      decidedByName: "Checker C",
+      appliedAt: "2026-10-21T01:00:00.000Z",
+    }],
+  });
+  assert.notEqual(before.snapshotHash, after.snapshotHash);
+  assert.equal(after.corrections[0]?.decidedByName, "Checker C");
+  assert.equal(after.batches[0]?.paymentRecordedBy, "Payroll A");
+  assert.equal(after.members[0]?.confirmedBy, "Payroll B");
 });
