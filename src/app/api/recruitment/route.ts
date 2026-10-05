@@ -169,10 +169,17 @@ export async function PATCH(request: Request) {
   const applicantId = Number(body.applicantId);
   const stage = String(body.stage ?? "");
   const offeredSalary = Number(body.offeredSalary ?? 0);
+  const allowedStages = ["applied", "screening", "interview", "offer", "rejected"];
   const notes = body.notes ? String(body.notes) : undefined;
   const rating = Number(body.rating);
 
   if (!Number.isInteger(applicantId)) return Response.json({ error: "applicantId is required." }, { status: 400 });
+  if (stage === "hired") {
+    return Response.json({ error: "Use the hire workflow so an employee, position assignment, and onboarding are created together." }, { status: 409 });
+  }
+  if (stage && !allowedStages.includes(stage)) {
+    return Response.json({ error: "Invalid candidate stage." }, { status: 400 });
+  }
 
   const [applicant] = await db.select().from(jobApplicants).where(eq(jobApplicants.id, applicantId)).limit(1);
   if (!applicant) return Response.json({ error: "Applicant not found." }, { status: 404 });
@@ -192,6 +199,9 @@ export async function PATCH(request: Request) {
   const updateData: Record<string, unknown> = {};
   if (stage) updateData.stage = stage;
   if (offeredSalary > 0) updateData.offeredSalary = offeredSalary.toFixed(2);
+  if (stage === "offer" && !(offeredSalary > 0 || Number(applicant.offeredSalary) > 0)) {
+    return Response.json({ error: "Record the monthly offer amount before moving a candidate to offer." }, { status: 409 });
+  }
   if (notes !== undefined) updateData.notes = notes;
   if (rating > 0 && rating <= 5) updateData.rating = rating;
 
