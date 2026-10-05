@@ -63,6 +63,14 @@ test("public SEO origin is payrollsoftware.ph and is independent of app deployme
 });
 
 
+test("www payrollsoftware.ph permanently redirects to the canonical apex host", () => {
+  const config = read("next.config.ts");
+  assert.ok(config.includes('type: "host", value: "www.payrollsoftware.ph"'), "www host must be matched explicitly");
+  assert.ok(config.includes('destination: "https://payrollsoftware.ph/:path*"'), "www traffic must redirect to the canonical apex");
+  assert.ok(config.includes("permanent: true"), "canonical host redirect must be permanent");
+});
+
+
 test("the software homepage uses the real Linaw workspace preview", () => {
   const home = read("src/components/marketing/claude-home/App.tsx");
   const demo = read("src/components/marketing/claude-home/components/Demo.tsx");
