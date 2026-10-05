@@ -431,6 +431,41 @@ test("SEO hubs group large route inventories by user intent", () => {
   assert.ok(calculators.includes("StructuredData"), "calculators hub must keep breadcrumb structured data");
 });
 
+test("compliance hub groups agency, BIR and governance workflows", () => {
+  const page = read("src/app/compliance/page.tsx");
+  const landing = read("src/components/marketing/seo-landing-page.tsx");
+
+  for (const heading of [
+    "Core statutory agencies and pay rules",
+    "BIR withholding and year-end reporting",
+    "Governance, deadlines and evidence",
+  ]) {
+    assert.ok(page.includes(heading), `compliance hub must include ${heading}`);
+  }
+
+  for (const route of [
+    "/compliance/bir",
+    "/compliance/sss",
+    "/compliance/philhealth",
+    "/compliance/pag-ibig",
+    "/compliance/dole",
+    "/compliance/withholding-tax",
+    "/compliance/bir-2316",
+    "/compliance/1601-c",
+    "/compliance/alphalist",
+    "/compliance/calendar",
+    "/compliance/regulatory-updates",
+    "/resources/updates",
+    "/compliance/payroll-audit",
+  ]) {
+    assert.equal(page.split(`href: "${route}"`).length - 1, 1, `compliance hub must expose ${route} exactly once`);
+  }
+
+  assert.ok(page.includes("directoryGroups={["), "compliance hub must use grouped directory rendering");
+  assert.ok(landing.includes("directoryGroups.map"), "shared authority template must render grouped directories");
+  assert.ok(landing.includes("Find the compliance workflow you actually need."), "directory must explain its browsing purpose");
+});
+
 test("public navigation exposes the SEO program without hiding the live demo", () => {
   const navigation = read("src/components/marketing/public-navigation.ts");
   for (const route of ["/demo", "/resources", "/compliance", "/trust", "/integrations", "/developers", "/calculators", "/payroll-health-check", "/industries"]) {
