@@ -91,3 +91,16 @@ test("scheduler and dedicated worker synchronize remittance actions without a pa
   assert.ok(worker.includes("runScheduledStatutoryRemittanceSync"));
   assert.ok(worker.includes('actor: "Dedicated worker"'));
 });
+
+
+test("background monitor isolates organization failures instead of aborting the full sweep", () => {
+  assert.ok(actions.includes("try {"));
+  assert.ok(actions.includes("Unknown remittance monitor error"));
+  assert.ok(actions.includes("const failures = results.filter"));
+  assert.ok(actions.includes("failures,"));
+});
+
+test("compliance action assignee API does not expose unused email addresses", () => {
+  assert.ok(!route.includes("email: users.email"));
+  assert.ok(!queue.includes("email: string"));
+});
