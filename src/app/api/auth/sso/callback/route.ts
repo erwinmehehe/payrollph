@@ -15,6 +15,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { decryptEnterpriseSecret } from "@/lib/enterprise-secret";
 import { exchangeOidcCode, verifyOidcIdToken } from "@/lib/oidc";
 import { requestMeta } from "@/lib/rate-limit";
+import { effectiveSessionPolicyForUser } from "@/lib/enterprise-session";
 import { sha256 } from "@/lib/crypto";
 
 export const dynamic = "force-dynamic";
@@ -134,8 +135,17 @@ export async function GET(request: Request) {
   const [membership] = await db.select({ id: userOrganizations.id }).from(userOrganizations).where(and(
     eq(userOrganizations.userId, user.id),
     eq(userOrganizations.organizationId, provider.organizationId),
+    eq(userOrganizations.active, true),
   )).limit(1);
   if (!membership) return Response.json({ error: "The user no longer belongs to this workspace." }, { status: 403 });
+
+  const effectivePolicy = await effectiveSessionPolicyForUser(user.id);
+  if (effectivePolicy.requireMfa && !identity.mfaSatisfied) {
+    return Response.json({
+      error: "One of this user's active Linaw workspaces requires MFA, but the identity provider did not assert an MFA authentication method.",
+      code: "MFA_REQUIRED",
+    }, { status: 403 });
+  }
 
   const session = await createSession(user.id, requestMeta(request), {
     mfaVerifiedAt: identity.mfaSatisfied ? new Date() : null,
