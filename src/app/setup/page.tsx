@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 
 export default async function SetupPage() {
   return (
-    <div className="min-h-screen bg-white text-[#0B0D1A]">
+    <div className="marketing-page min-h-screen bg-white text-[#101323]">
       <SiteNav />
       <SetupWizard needsSetup={await needsSetup()} />
       <SiteFooter />
