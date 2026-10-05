@@ -39,6 +39,7 @@ export type WorkforceScheduleAssignment = {
   effectiveUntil?: string | null;
   anchorDate: string;
   workLocationOrgUnitId?: number | null;
+  worksiteId?: number | null;
 };
 
 export type WorkforceScheduleOverrideSegment = {
@@ -53,6 +54,7 @@ export type WorkforceScheduleOverride = {
   isRestDay: boolean;
   segments?: WorkforceScheduleOverrideSegment[];
   workLocationOrgUnitId?: number | null;
+  worksiteId?: number | null;
   status?: "pending" | "approved" | "rejected" | "cancelled";
   reason?: string;
 };
@@ -77,6 +79,7 @@ export type ResolvedDailySchedule = {
   patternDayIndex: number | null;
   overrideId: number | null;
   workLocationOrgUnitId: number | null;
+  worksiteId: number | null;
   segments: ResolvedScheduleSegment[];
   audit: string[];
 };
@@ -224,6 +227,7 @@ export function resolveDailySchedule(input: {
   patternSegments: WorkforceSchedulePatternSegment[];
   shifts: WorkforceShiftDefinition[];
   overrides?: WorkforceScheduleOverride[];
+  defaultWorksiteId?: number | null;
 }): ResolvedDailySchedule {
   assertIsoDate(input.date, "Work date");
 
@@ -240,6 +244,7 @@ export function resolveDailySchedule(input: {
       patternDayIndex: null,
       overrideId: null,
       workLocationOrgUnitId: null,
+      worksiteId: input.defaultWorksiteId ?? null,
       segments: [],
       audit: ["No effective schedule assignment; schedule was not guessed."],
     };
@@ -286,6 +291,7 @@ export function resolveDailySchedule(input: {
       patternDayIndex,
       overrideId: null,
       workLocationOrgUnitId: assignment.workLocationOrgUnitId ?? null,
+      worksiteId: assignment.worksiteId ?? input.defaultWorksiteId ?? null,
       segments,
       audit: [
         `assignmentId=${assignment.id}`,
@@ -322,6 +328,7 @@ export function resolveDailySchedule(input: {
       overrideId: override.id,
       workLocationOrgUnitId:
         override.workLocationOrgUnitId ?? base.workLocationOrgUnitId,
+      worksiteId: override.worksiteId ?? base.worksiteId,
       segments: [],
       audit: [
         ...base.audit,
@@ -344,6 +351,7 @@ export function resolveDailySchedule(input: {
       overrideId: override.id,
       workLocationOrgUnitId:
         override.workLocationOrgUnitId ?? base.workLocationOrgUnitId,
+      worksiteId: override.worksiteId ?? base.worksiteId,
       audit: [
         ...base.audit,
         `overrideId=${override.id}`,
@@ -366,6 +374,7 @@ export function resolveDailySchedule(input: {
     overrideId: override.id,
     workLocationOrgUnitId:
       override.workLocationOrgUnitId ?? base.workLocationOrgUnitId,
+    worksiteId: override.worksiteId ?? base.worksiteId,
     segments: overrideSegments,
     audit: [
       ...base.audit,
