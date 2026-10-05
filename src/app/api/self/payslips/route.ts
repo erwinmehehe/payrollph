@@ -1,7 +1,7 @@
 import { contributionCaseServiceStatus } from "@/lib/statutory-contribution-case-aging";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, leaveBalances, leavePolicies, leaveRequests, organizations, payrollEntries, payrollRuns, payslips, statutoryContributionIssueCases, statutoryContributionIssueEvents, statutoryRemittanceBatches, statutoryRemittanceMembers, timePunches, userOrganizations, users } from "@/db/schema";
+import { employees, governmentLoanRemittanceBatches, governmentLoanRemittanceMembers, leaveBalances, leavePolicies, leaveRequests, organizations, payrollEntries, payrollRuns, payslips, statutoryContributionIssueCases, statutoryContributionIssueEvents, statutoryRemittanceBatches, statutoryRemittanceMembers, timePunches, userOrganizations, users } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { employeePayStatusLabel } from "@/lib/payroll-handoff";
 import { recordAuditEvent } from "@/lib/audit";
@@ -62,7 +62,7 @@ export async function GET() {
   }).format(new Date());
   const currentYear = Number(currentTaxYear);
 
-  const [attendanceRows, leaveRows, policyRows, storedBalanceRows, contributionRows] = await Promise.all([
+  const [attendanceRows, leaveRows, policyRows, storedBalanceRows, contributionRows, governmentLoanRows] = await Promise.all([
     db.select({
       id: timePunches.id,
       workDate: timePunches.workDate,
@@ -123,6 +123,34 @@ export async function GET() {
         eq(statutoryRemittanceMembers.employeeId, session.employeeId),
       ))
       .orderBy(desc(statutoryRemittanceBatches.applicableMonth), desc(statutoryRemittanceBatches.id))
+      .limit(36),
+    db.select({
+      memberId: governmentLoanRemittanceMembers.id,
+      batchId: governmentLoanRemittanceBatches.id,
+      agency: governmentLoanRemittanceBatches.agency,
+      applicableMonth: governmentLoanRemittanceBatches.applicableMonth,
+      dueDate: governmentLoanRemittanceBatches.dueDate,
+      batchStatus: governmentLoanRemittanceBatches.status,
+      amountPaid: governmentLoanRemittanceBatches.amountPaid,
+      paidAt: governmentLoanRemittanceBatches.paidAt,
+      loanType: governmentLoanRemittanceMembers.loanType,
+      loanReferenceNo: governmentLoanRemittanceMembers.loanReferenceNo,
+      deductedAmount: governmentLoanRemittanceMembers.deductedAmount,
+      postingStatus: governmentLoanRemittanceMembers.postingStatus,
+      postingReference: governmentLoanRemittanceMembers.postingReference,
+      postedAmount: governmentLoanRemittanceMembers.postedAmount,
+      postedAt: governmentLoanRemittanceMembers.postedAt,
+      exceptionNote: governmentLoanRemittanceMembers.exceptionNote,
+    }).from(governmentLoanRemittanceMembers)
+      .innerJoin(
+        governmentLoanRemittanceBatches,
+        eq(governmentLoanRemittanceMembers.batchId, governmentLoanRemittanceBatches.id),
+      )
+      .where(and(
+        eq(governmentLoanRemittanceMembers.organizationId, employee.organizationId),
+        eq(governmentLoanRemittanceMembers.employeeId, session.employeeId),
+      ))
+      .orderBy(desc(governmentLoanRemittanceBatches.applicableMonth), desc(governmentLoanRemittanceBatches.id))
       .limit(36),
   ]);
 
@@ -250,6 +278,24 @@ export async function GET() {
       employeeShare: row.employeeShare,
       employerShare: row.employerShare,
       totalContribution: row.totalContribution,
+      postingStatus: row.postingStatus,
+      postingReference: row.postingReference,
+      postedAmount: row.postedAmount,
+      postedAt: row.postedAt,
+      exceptionNote: row.exceptionNote,
+    })),
+    governmentLoanRemittances: governmentLoanRows.map((row) => ({
+      memberId: row.memberId,
+      batchId: row.batchId,
+      agency: row.agency,
+      applicableMonth: row.applicableMonth,
+      dueDate: row.dueDate,
+      paymentStatus: row.batchStatus,
+      amountPaid: row.amountPaid,
+      paidAt: row.paidAt,
+      loanType: row.loanType,
+      loanReferenceNo: row.loanReferenceNo,
+      deductedAmount: row.deductedAmount,
       postingStatus: row.postingStatus,
       postingReference: row.postingReference,
       postedAmount: row.postedAmount,
