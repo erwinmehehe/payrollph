@@ -56,6 +56,10 @@ type ContributionPosting = {
   postingReference: string | null;
   postedAmount: string | null;
   postedAt: string | null;
+  postingEvidenceSource: string | null;
+  postingEvidenceFileName: string | null;
+  postingEvidenceHashSha256: string | null;
+  postingEvidenceRecordedAt: string | null;
   exceptionNote: string | null;
 };
 
@@ -708,6 +712,21 @@ export function SelfServicePortal() {
                   <div><span>Agency posting</span><strong>{row.postingStatus}</strong></div>
                   {row.postedAmount && <div><span>Amount posted</span><strong>{peso(row.postedAmount)}</strong></div>}
                   {row.postingReference && <div><span>Posting reference</span><strong>{row.postingReference}</strong></div>}
+                  {row.postingStatus === "confirmed" && (
+                    <div>
+                      <span>Confirmation source</span>
+                      <strong>
+                        {row.postingEvidenceSource === "csv_import"
+                          ? `Imported agency evidence${row.postingEvidenceFileName ? ` · ${row.postingEvidenceFileName}` : ""}`
+                          : row.postingEvidenceSource === "manual_confirmation"
+                            ? "Manual payroll confirmation"
+                            : "Legacy confirmation · source not recorded"}
+                      </strong>
+                    </div>
+                  )}
+                  {row.postingEvidenceHashSha256 && (
+                    <div><span>Evidence hash</span><strong>{row.postingEvidenceHashSha256.slice(0, 12)}…</strong></div>
+                  )}
                   {row.exceptionNote && <div><span>Issue</span><strong>{row.exceptionNote}</strong></div>}
                   <div>
                     <span>Evidence</span>
