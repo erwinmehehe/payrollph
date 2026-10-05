@@ -6,12 +6,13 @@ const read = (path: string) => readFileSync(path, "utf8");
 
 test("Wave 6 closes the remaining mapped industry gaps", () => {
   const content = read("src/lib/seo-content-wave6.ts");
-  for (const slug of ["construction", "logistics", "real-estate", "media", "ngo", "shopping-centers"]) {
+  for (const slug of ["construction", "logistics", "security-agencies", "real-estate", "media", "ngo", "shopping-centers"]) {
     assert.ok(content.includes(`slug: "${slug}"`), `missing Wave 6 industry: ${slug}`);
   }
   for (const title of [
     "Construction Payroll Software Philippines | Linaw",
     "Logistics Payroll Software Philippines | Linaw",
+    "Security Agency Payroll Software Philippines | Linaw",
     "Real Estate Payroll Software Philippines | Linaw",
     "Media Payroll Software Philippines | Linaw",
     "NGO Payroll Software Philippines | Nonprofit Payroll | Linaw",
@@ -54,6 +55,23 @@ test("logistics payroll page stays scoped to implemented payroll capabilities", 
   assert.ok(page.includes("GPS, route planning, fleet maintenance and fuel management"));
   assert.ok(intents.includes('primaryIntent: "logistics payroll software philippines"'));
   assert.ok(intents.includes('ownerPath: "/industries/logistics"'));
+});
+
+test("security agency payroll page stays scoped to implemented payroll capabilities", () => {
+  const content = read("src/lib/seo-content-wave6.ts");
+  const intents = read("src/lib/seo-intent-ownership.ts");
+
+  const start = content.indexOf('slug: "security-agencies"');
+  const end = content.indexOf("\n  },", start);
+  assert.ok(start >= 0 && end > start, "security-agency industry page must exist");
+  const page = content.slice(start, end);
+
+  assert.ok(page.includes("Guard and office employee payroll"));
+  assert.ok(page.includes("Maker-checker payroll release controls"));
+  assert.ok(page.includes("does not claim SOSIA reporting"));
+  assert.ok(page.includes("firearm tracking, guard-post deployment, licensing or guard-tour management"));
+  assert.ok(intents.includes('primaryIntent: "security agency payroll software philippines"'));
+  assert.ok(intents.includes('ownerPath: "/industries/security-agencies"'));
 });
 
 test("Wave 6 integration pages stay tied to implemented product surfaces", () => {
