@@ -34,9 +34,11 @@ function issueLabel(issueType: string) {
 
 export function StatutoryContributionDisputesPanel({
   organizationId,
+  role,
   notify,
 }: {
   organizationId: number;
+  role: string;
   notify: Notify;
 }) {
   const [disputes, setDisputes] = useState<Dispute[]>([]);
@@ -44,6 +46,8 @@ export function StatutoryContributionDisputesPanel({
   const [selected, setSelected] = useState<number | null>(null);
   const [resolutionCode, setResolutionCode] = useState("posted_confirmed");
   const [resolutionNote, setResolutionNote] = useState("");
+  const canDismissAsNotError = ["owner", "admin", "checker"].includes(role);
+  const canPostResolution = ["owner", "admin", "bookkeeper", "payroll"].includes(role);
 
   const load = useCallback(async () => {
     const response = await fetch(
@@ -151,10 +155,10 @@ export function StatutoryContributionDisputesPanel({
                       {selected === dispute.id ? (
                         <div style={{ display: "grid", gap: 6, minWidth: 260 }}>
                           <select value={resolutionCode} onChange={(event) => setResolutionCode(event.target.value)}>
-                            <option value="posted_confirmed">Agency posting confirmed</option>
-                            <option value="corrected">Contribution corrected</option>
-                            <option value="not_an_error">Verified as not an error</option>
-                            <option value="duplicate">Duplicate report</option>
+                            {canPostResolution && <option value="posted_confirmed">Agency posting confirmed</option>}
+                            {canPostResolution && <option value="corrected">Contribution corrected</option>}
+                            {canDismissAsNotError && <option value="not_an_error">Verified as not an error</option>}
+                            {canPostResolution && <option value="duplicate">Duplicate report</option>}
                           </select>
                           <textarea
                             rows={2}
@@ -181,7 +185,7 @@ export function StatutoryContributionDisputesPanel({
                       ) : (
                         <button className="secondary-button" type="button" onClick={() => {
                           setSelected(dispute.id);
-                          setResolutionCode("posted_confirmed");
+                          setResolutionCode(canPostResolution ? "posted_confirmed" : "not_an_error");
                           setResolutionNote("");
                         }}>
                           Review
@@ -199,7 +203,7 @@ export function StatutoryContributionDisputesPanel({
           <div className="notice notice-amber" style={{ margin: 0 }}>
             <AlertTriangle size={15} />
             <span>
-              <strong>Queue acknowledgement is not resolution.</strong> Corrected/confirmed outcomes require matching agency posting evidence.
+              <strong>Queue acknowledgement is not resolution.</strong> Corrected/confirmed outcomes require matching agency posting evidence. Dismissal as “not an error” requires Owner, Admin, or independent Checker review.
             </span>
           </div>
         )}
