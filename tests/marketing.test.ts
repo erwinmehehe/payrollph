@@ -46,16 +46,33 @@ test("robots and sitemap expose only intentional public marketing routes", () =>
   const robots = read("src/app/robots.ts");
   const sitemap = read("src/app/sitemap.ts");
 
-  for (const route of ["/api/", "/app", "/workspace", "/setup", "/invite", "/reset-password", "/verify-email", "/login"]) {
-    assert.ok(robots.includes(`"${route}"`), `robots must keep ${route} out of search`);
+  for (const route of ["/api/", "/app", "/workspace"]) {
+    assert.ok(robots.includes(`"${route}"`), `robots must block crawler access to ${route}`);
+  }
+
+  for (const route of ["/setup", "/invite", "/reset-password", "/verify-email", "/login"]) {
+    assert.ok(!robots.includes(`"${route}"`), `robots must allow crawlers to see the noindex directive on ${route}`);
   }
 
   for (const route of ["/payroll-outsourcing", "/demo", "/scorecard", "/book-demo"]) {
     assert.ok(sitemap.includes(`path: "${route}"`), `sitemap must expose ${route}`);
   }
 
-  for (const route of ["/login", "/setup", "/app", "/workspace", "/invite", "/reset-password", "/verify-email"]) {
+  for (const route of ["/login", "/setup", "/app", "/workspace", "/invite", "/reset-password", "/verify-email", "/signup", "/status"]) {
     assert.ok(!sitemap.includes(`path: "${route}"`), `sitemap must not publish ${route}`);
+  }
+
+  for (const path of [
+    "src/app/login/page.tsx",
+    "src/app/setup/page.tsx",
+    "src/app/signup/page.tsx",
+    "src/app/status/page.tsx",
+    "src/app/book-demo/page.tsx",
+    "src/app/invite/page.tsx",
+    "src/app/reset-password/page.tsx",
+    "src/app/verify-email/page.tsx",
+  ]) {
+    assert.ok(read(path).includes("robots: { index: false"), `${path} must be explicitly noindex`);
   }
 });
 
