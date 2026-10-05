@@ -33,6 +33,7 @@ const GOVERNMENT_DRAFTS = [
 
 // Forms with a recorded-evidence flow. Each one renders its own card.
 const EVIDENCE_FORMS = [
+  { agency: "BIR", form: "1601-C" },
   { agency: "SSS", form: "R-3" },
   { agency: "BIR", form: "1604-C" },
   { agency: "PhilHealth", form: "RF-1" },
@@ -607,7 +608,7 @@ export function ExportsView({
                 organizationId={organizationId}
                 agency={item.agency}
                 form={item.form}
-                run={{ id: run.id, periodLabel: run.periodLabel }}
+                run={{ id: run.id, periodLabel: run.periodLabel, periodEnd: run.periodEnd }}
                 notify={notify}
                 onRefresh={onRefresh}
               />
