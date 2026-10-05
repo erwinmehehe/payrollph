@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, Landmark, RefreshCw, ShieldCheck } from "lucide-react";
 import type { Notify } from "./types";
 import { Spinner, Status, money } from "./ui";
+import { StatutoryPostingImport } from "./statutory-posting-import";
 
 type Agency = "SSS" | "PhilHealth" | "Pag-IBIG";
 type Batch = {
@@ -253,6 +254,17 @@ export function StatutoryRemittancePanel({
                     </div>
                   )}
                 </>
+              )}
+
+              {batch.status !== "open" && batch.status !== "reconciled" && (
+                <StatutoryPostingImport
+                  organizationId={organizationId}
+                  batchId={batch.id}
+                  agency={batch.agency}
+                  applicableMonth={batch.applicableMonth}
+                  notify={notify}
+                  onImported={load}
+                />
               )}
 
               {batch.status !== "open" && rows.length > 0 && (
