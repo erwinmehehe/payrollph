@@ -16,6 +16,9 @@ test("public enquiries have their own durable marketing lead record", () => {
   assert.ok(storage.includes("ensureMarketingLeadSchema"), "public capture must self-heal an older production database");
   assert.ok(storage.includes("INSERT INTO marketing_leads"), "lead capture must write an independent durable record");
   assert.ok(storage.includes("notification_status"), "lead record must track notification state separately");
+  assert.ok(storage.includes("marketing_leads_kind_check"), "runtime upgrade must enforce lead kinds");
+  assert.ok(storage.includes("marketing_leads_status_check"), "runtime upgrade must enforce lead lifecycle states");
+  assert.ok(migration.includes("notification_attempts integer NOT NULL DEFAULT 0"), "migration must persist retry attempts");
 });
 
 test("demo and trial requests persist before best-effort email notification", () => {
@@ -88,7 +91,13 @@ test("operators can inspect durable leads without exposing them in tenant naviga
 
   assert.ok(script.includes("FROM marketing_leads"), "operator report must read the durable lead store");
   assert.ok(script.includes("ORDER BY created_at DESC"), "operator report must show newest enquiries first");
+  const statusScript = read("scripts/update-marketing-lead-status.ts");
+  const retention = read("src/lib/data-retention.ts");
   assert.ok(packageJson.includes('"leads:list": "tsx scripts/list-marketing-leads.ts"'), "lead report must be runnable through npm");
+  assert.ok(packageJson.includes('"leads:set-status": "tsx scripts/update-marketing-lead-status.ts"'), "operators must be able to update lead lifecycle state");
+  assert.ok(statusScript.includes('"contacted", "qualified", "closed"'), "lead status command must use a bounded lifecycle");
+  assert.ok(retention.includes("retentionDaysAfterLastUpdate: 365"), "marketing PII must have a bounded inactivity retention window");
+  assert.ok(retention.includes("deletedMarketingLeads"), "daily retention purge must delete expired marketing leads");
   assert.ok(!nav.includes("Marketing leads"), "prospect PII must not be exposed in tenant workspace navigation");
 });
 
