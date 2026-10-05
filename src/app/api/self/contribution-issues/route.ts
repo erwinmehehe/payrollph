@@ -9,6 +9,7 @@ import {
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { notifyPayrollOfContributionCase } from "@/lib/statutory-contribution-case-notifications";
+import { contributionCaseServiceStatus, contributionCaseServiceTargets } from "@/lib/statutory-contribution-case-aging";
 import { invalidateStatutoryRemittanceMonthCertification } from "@/lib/statutory-remittance-certification";
 import { getSessionUser } from "@/lib/auth";
 import {
@@ -74,6 +75,7 @@ export async function GET() {
       resolvedByName: row.resolvedByName,
       resolvedAt: row.resolvedAt,
       createdAt: row.createdAt,
+      service: contributionCaseServiceStatus(row),
     })),
     userId: user.id,
   });
@@ -202,6 +204,8 @@ export async function POST(request: Request) {
       reportedByName: user.name,
     }).returning();
 
+    const serviceTargets = contributionCaseServiceTargets(issue);
+
     await tx.insert(complianceActionTasks).values({
       organizationId: employee.organizationId,
       sourceType: "employee_contribution_issue",
@@ -212,6 +216,7 @@ export async function POST(request: Request) {
       title: `${agency} contribution issue reported by ${employee.employeeNo}`.slice(0, 180),
       detail: `${applicableMonth} · ${issueType.replaceAll("_", " ")} · ${description}`.slice(0, 360),
       status: "open",
+      dueDate: serviceTargets.firstReviewDue.toISOString().slice(0, 10),
       firstDetectedAt: new Date(),
       lastDetectedAt: new Date(),
     });
@@ -270,6 +275,7 @@ export async function POST(request: Request) {
       issueType: created.issueType,
       status: created.status,
       createdAt: created.createdAt,
+      service: contributionCaseServiceStatus(created),
     },
   }, { status: 201 });
 }

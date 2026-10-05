@@ -13,7 +13,7 @@ type ContributionCase = typeof statutoryContributionIssueCases.$inferSelect;
 function caseDedupeKey(input: {
   organizationId: number;
   caseId: number;
-  event: "reported" | "review_started" | "resolved";
+  event: "reported" | "review_started" | "resolved" | "review_overdue" | "resolution_overdue";
   recipientUserId: number;
 }) {
   return [
@@ -25,18 +25,31 @@ function caseDedupeKey(input: {
   ].join(":").slice(0, 200);
 }
 
-function payrollBody(issue: ContributionCase, recipientName: string) {
+function payrollBody(
+  issue: ContributionCase,
+  recipientName: string,
+  event: "reported" | "review_overdue" | "resolution_overdue" = "reported",
+) {
+  const opening = event === "reported"
+    ? "An employee reported a mandatory contribution issue in PayrollPH."
+    : event === "review_overdue"
+      ? "A mandatory contribution case has missed PayrollPH's internal first-review target."
+      : "A mandatory contribution case has missed PayrollPH's internal resolution target.";
+
   return [
     `Hi ${recipientName},`,
     "",
-    "An employee reported a mandatory contribution issue in PayrollPH.",
+    opening,
     "",
     `${issue.agency} · ${issue.applicableMonth}`,
     `Issue type: ${issue.issueType.replaceAll("_", " ")}`,
     `Employee report: ${issue.description}`,
+    `Case status: ${issue.status.replaceAll("_", " ")}`,
+    issue.assignedToName ? `Assigned to: ${issue.assignedToName}` : "Assigned to: unassigned",
     "",
     "Open Payroll > Employee Contribution Cases to review the report against payslip, remittance and agency-posting evidence.",
     "",
+    "PayrollPH service targets are internal operational targets, not statutory or agency deadlines.",
     "Do not change statutory evidence from the case itself. Use the audited correction workflow when evidence must be corrected.",
   ].join("\n");
 }
@@ -102,7 +115,7 @@ export async function notifyPayrollOfContributionCase(input: {
       organizationId: input.issue.organizationId,
       recipient: recipient.email,
       subject: `[Payroll compliance] Employee reported ${input.issue.agency} contribution issue`.slice(0, 180),
-      body: payrollBody(input.issue, recipient.name),
+      body: payrollBody(input.issue, recipient.name, "reported"),
       purpose: "employee-contribution-case",
       dedupeKey: caseDedupeKey({
         organizationId: input.issue.organizationId,
@@ -183,4 +196,67 @@ export async function notifyEmployeeOfContributionCase(input: {
       },
     },
   })];
+}
+
+
+export async function notifyPayrollOfContributionCaseEscalation(input: {
+  issue: ContributionCase;
+  event: "review_overdue" | "resolution_overdue";
+  actor: string;
+}) {
+  const recipients = await db.select({
+    userId: userOrganizations.userId,
+    role: userOrganizations.role,
+    orgUnitId: userOrganizations.orgUnitId,
+    name: users.name,
+    email: users.email,
+  })
+    .from(userOrganizations)
+    .innerJoin(users, eq(userOrganizations.userId, users.id))
+    .where(eq(userOrganizations.organizationId, input.issue.organizationId));
+
+  const payrollRecipients = recipients.filter((recipient) =>
+    recipient.orgUnitId == null
+    && roleAllowed(recipient.role, PAYROLL_OPERATOR_ROLES),
+  );
+
+  const subject = input.event === "review_overdue"
+    ? `[Payroll compliance] Contribution case needs review: ${input.issue.agency}`
+    : `[Payroll compliance] Contribution case resolution target missed: ${input.issue.agency}`;
+
+  const results = [];
+  for (const recipient of payrollRecipients) {
+    results.push(await queueMessage({
+      organizationId: input.issue.organizationId,
+      recipient: recipient.email,
+      subject: subject.slice(0, 180),
+      body: payrollBody(input.issue, recipient.name, input.event),
+      purpose: "employee-contribution-case",
+      dedupeKey: caseDedupeKey({
+        organizationId: input.issue.organizationId,
+        caseId: input.issue.id,
+        event: input.event,
+        recipientUserId: recipient.userId,
+      }),
+      metadata: {
+        contributionCaseId: input.issue.id,
+        event: input.event,
+        employeeId: input.issue.employeeId,
+        agency: input.issue.agency,
+        applicableMonth: input.issue.applicableMonth,
+        recipientUserId: recipient.userId,
+        internalServiceTarget: true,
+      },
+      audit: {
+        actor: input.actor,
+        metadata: {
+          contributionCaseId: input.issue.id,
+          event: input.event,
+          recipientUserId: recipient.userId,
+          internalServiceTarget: true,
+        },
+      },
+    }));
+  }
+  return results;
 }
