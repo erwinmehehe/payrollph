@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { createHash } from "node:crypto";\nimport { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
   managedPayrollEngagements,
@@ -31,6 +31,22 @@ export async function seedManagedPayrollGates(engagementId: number) {
   }
 }
 
+export async function managedPayrollRunFingerprint(payrollRunId: number) {
+  const rows = await db.select({
+    employeeId: payrollEntries.employeeId,
+    grossPay: payrollEntries.grossPay,
+    deductions: payrollEntries.deductions,
+    netPay: payrollEntries.netPay,
+    status: payrollEntries.status,
+    lineItems: payrollEntries.lineItems,
+    trace: payrollEntries.trace,
+  }).from(payrollEntries)
+    .where(eq(payrollEntries.payrollRunId, payrollRunId))
+    .orderBy(asc(payrollEntries.employeeId));
+
+  return createHash("sha256").update(JSON.stringify(rows)).digest("hex");
+}
+
 export async function managedPayrollReleaseRequirement(
   organizationId: number,
   payrollRunId: number,
@@ -42,16 +58,30 @@ export async function managedPayrollReleaseRequirement(
     return { required: false as const, engagement: null, approval: null };
   }
 
-  const [approval] = await db.select().from(managedPayrollRunApprovals)
-    .where(and(
-      eq(managedPayrollRunApprovals.engagementId, engagement.id),
-      eq(managedPayrollRunApprovals.payrollRunId, payrollRunId),
-    ))
-    .limit(1);
+  const [[approval], [run]] = await Promise.all([
+    db.select().from(managedPayrollRunApprovals)
+      .where(and(
+        eq(managedPayrollRunApprovals.engagementId, engagement.id),
+        eq(managedPayrollRunApprovals.payrollRunId, payrollRunId),
+      ))
+      .limit(1),
+    db.select().from(payrollRuns).where(eq(payrollRuns.id, payrollRunId)).limit(1),
+  ]);
+  const fingerprint = approval ? await managedPayrollRunFingerprint(payrollRunId) : null;
+  const approvalValid = Boolean(
+    approval
+    && run
+    && fingerprint === approval.payrollFingerprint
+    && Number(run.grossPay) === Number(approval.approvedGross)
+    && Number(run.netPay) === Number(approval.approvedNet)
+    && Number(run.employeeCount) === Number(approval.approvedEmployeeCount),
+  );
 
   return {
     required: true as const,
     engagement,
     approval: approval ?? null,
+    approvalValid,
+    currentFingerprint: fingerprint,
   };
 }
