@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { PayrollQuoteForm } from "@/components/marketing/payroll-quote-form";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
+import { absolutePublicUrl } from "@/lib/site-url";
 
 export const dynamic = "force-dynamic";
 
@@ -36,13 +37,17 @@ export const metadata: Metadata = {
 const outsourcingSchema = {
   "@context": "https://schema.org",
   "@type": "Service",
+  "@id": absolutePublicUrl("/payroll-outsourcing#service"),
+  url: absolutePublicUrl("/payroll-outsourcing"),
   name: "Linaw Payroll Outsourcing",
   serviceType: "Payroll outsourcing and managed payroll processing",
   description:
     "Managed payroll processing for Philippine businesses with payroll calculation, validation, exception handling, approval handoff, payslips, reports and supported payroll outputs.",
   provider: {
     "@type": "Organization",
+    "@id": absolutePublicUrl("/#organization"),
     name: "Linaw",
+    url: absolutePublicUrl("/"),
   },
   areaServed: {
     "@type": "Country",
