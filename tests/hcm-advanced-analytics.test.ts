@@ -82,6 +82,8 @@ test("advanced analytics joins HCM domains while keeping sensitive buckets aggre
   assert.ok(route.includes("employerBenefitMonthlyRunRate"));
   assert.ok(route.includes("forecastAnnualLoadedCost"));
   assert.ok(route.includes("current organization unit"));
+  assert.ok(route.includes("scopedCostReportable"));
+  assert.ok(route.includes("At least 5 active employees are required before unit-scoped payroll cost aggregates are shown."));
   assert.ok(route.includes("bucket.count === 0 || bucket.count >= HCM_ANALYTICS_PRIVACY_THRESHOLD"));
   assert.ok(route.includes("readyCountReportable"));
   assert.ok(route.includes("reportableCohort(scopedResponses.length, threshold)"));
