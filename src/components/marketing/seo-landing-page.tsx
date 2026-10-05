@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight, Check, ExternalLink } from "lucide-react";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 
 export type SeoSection = {
@@ -23,6 +23,8 @@ type Props = {
   related: SeoRelatedLink[];
   ctaTitle?: string;
   ctaBody?: string;
+  lastReviewed?: string;
+  sources?: Array<{ label: string; href: string }>;
 };
 
 export function SeoLandingPage({
@@ -34,6 +36,8 @@ export function SeoLandingPage({
   related,
   ctaTitle = "See the workflow before you commit.",
   ctaBody = "Open the role-based product demo or book a walkthrough with your own payroll questions.",
+  lastReviewed,
+  sources,
 }: Props) {
   return (
     <div className="min-h-screen bg-white text-[#0B0D1A]">
@@ -49,6 +53,7 @@ export function SeoLandingPage({
               {title}
             </h1>
             <p className="mt-6 max-w-[780px] text-[17px] leading-relaxed text-[#5B6080]">{intro}</p>
+            {lastReviewed ? <p className="mt-3 text-[11.5px] font-medium text-[#8B90AA]">Last reviewed: {lastReviewed}</p> : null}
             <div className="mt-8 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
               {proof.map((item) => (
                 <div key={item} className="flex gap-2.5 rounded-2xl border border-[#E6E8F2] bg-white/90 p-4 text-[13px] font-medium leading-relaxed text-[#34394F] shadow-sm">
@@ -90,6 +95,27 @@ export function SeoLandingPage({
             ))}
           </div>
         </section>
+
+        {sources?.length ? (
+          <section className="border-y border-[#EDEFF7] bg-white py-12">
+            <div className="mx-auto max-w-[1180px] px-5 sm:px-8">
+              <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#7C82A1]">Official references</p>
+              <div className="mt-4 flex flex-wrap gap-3">
+                {sources.map((source) => (
+                  <a
+                    key={source.href}
+                    href={source.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 rounded-full border border-[#DFE2EC] bg-[#FAFBFD] px-4 py-2.5 text-[12px] font-semibold text-[#34394F]"
+                  >
+                    {source.label} <ExternalLink size={12} />
+                  </a>
+                ))}
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         <section className="border-y border-[#EDEFF7] bg-[#FAFBFD] py-14 sm:py-16">
           <div className="mx-auto max-w-[1180px] px-5 sm:px-8">
