@@ -9,6 +9,7 @@ const read = (path: string) => readFileSync(path, "utf8");
 test("public enquiries have their own durable marketing lead record", () => {
   const schema = read("src/db/schema.ts");
   const migration = read("drizzle/0024_marketing_leads.sql");
+  const baseline = read("drizzle/baseline.sql");
   const storage = read("src/lib/marketing-leads.ts");
 
   assert.ok(schema.includes('export const marketingLeads = pgTable('), "Drizzle schema must include marketing leads");
@@ -19,6 +20,9 @@ test("public enquiries have their own durable marketing lead record", () => {
   assert.ok(storage.includes("marketing_leads_kind_check"), "runtime upgrade must enforce lead kinds");
   assert.ok(storage.includes("marketing_leads_status_check"), "runtime upgrade must enforce lead lifecycle states");
   assert.ok(migration.includes("notification_attempts integer NOT NULL DEFAULT 0"), "migration must persist retry attempts");
+  assert.ok(migration.includes("attribution jsonb NOT NULL DEFAULT '{}'::jsonb"), "migration must persist sanitized attribution");
+  assert.ok(baseline.includes('CREATE TABLE IF NOT EXISTS "marketing_leads"'), "fresh database baseline must include marketing leads");
+  assert.ok(baseline.includes('"attribution" jsonb'), "fresh database baseline must include durable attribution");
 });
 
 test("demo and trial requests persist before best-effort email notification", () => {
@@ -30,6 +34,7 @@ test("demo and trial requests persist before best-effort email notification", ()
   assert.ok(notifyIndex > recordIndex, "notification must happen only after durable lead capture");
   assert.ok(route.includes('body.requestType === "trial-access"'), "trial access must be distinguishable from a demo");
   assert.ok(route.includes('sourcePath: requestType === "trial-access" ? "/signup" : "/book-demo"'), "lead source path must be explicit");
+  assert.ok(route.includes("attribution,"), "sanitized attribution must be stored with the durable lead");
   assert.ok(route.includes("notifyMarketingLead(lead.id)"), "demo route must delegate delivery to the shared recovery workflow");
   assert.ok(!route.includes(".invalid"), "public lead delivery must never target an invalid fallback address");
   assert.ok(route.includes("recorded: true"), "public response must confirm durable capture");
