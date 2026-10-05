@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from "react";
+import { HOMEPAGE_FAQS } from "../homepage-faqs";
 import {
   Activity,
   AlertTriangle,
@@ -515,6 +516,31 @@ function Pricing({ plans }: { plans: Plan[] }) {
   );
 }
 
+
+function FAQ() {
+  return (
+    <section className="linaw-section linaw-faq" id="faq">
+      <div className="linaw-shell">
+        <div className="linaw-section-head">
+          <div>
+            <span className="linaw-section-kicker">Common questions</span>
+            <h2>Know exactly what Linaw does, and what still needs human review.</h2>
+          </div>
+          <p>Payroll software should reduce ambiguity, not replace required judgment. These are the questions buyers ask before trusting a new payroll workflow.</p>
+        </div>
+        <div className="linaw-faq-list">
+          {HOMEPAGE_FAQS.map((item, index) => (
+            <details key={item.q} open={index === 0}>
+              <summary>{item.q}<ChevronRight aria-hidden="true" /></summary>
+              <p>{item.a}</p>
+            </details>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function FinalCTA() {
   return (
     <section className="linaw-final">
@@ -545,7 +571,7 @@ function Footer() {
           </div>
           <div className="linaw-footer-col"><strong>Product</strong><a href="/demo">Live demo</a><a href="#pricing">Pricing</a><a href="/payroll-outsourcing">Payroll outsourcing</a></div>
           <div className="linaw-footer-col"><strong>Company</strong><a href="/about">About</a><a href="/contact">Contact</a><a href="/status">Status</a></div>
-          <div className="linaw-footer-col"><strong>Resources</strong><a href="/resources">Resources</a><a href="/calculators">Calculators</a><a href="/security">Security</a></div>
+          <div className="linaw-footer-col"><strong>Resources</strong><a href="/resources">Resources</a><a href="/calculators">Calculators</a><a href="/trust">Security</a></div>
         </div>
         <div className="linaw-footer-bottom">
           <span>© 2026 Linaw. Built for Philippine payroll operations.</span>
@@ -567,6 +593,7 @@ export default function ModernHome({ plans }: { plans: Plan[] }) {
         <Workflow />
         <ProofAndRoles />
         <Pricing plans={plans} />
+        <FAQ />
         <FinalCTA />
       </main>
       <Footer />
