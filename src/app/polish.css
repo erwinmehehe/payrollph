@@ -914,7 +914,7 @@ textarea,
 .app-shell:has(.mockup-role-page) .nav-item.active .nav-icon {
   border-color: transparent;
   background: transparent;
-  color: #444ce7;
+  color: #7d889c;
   box-shadow: none;
 }
 
