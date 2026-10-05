@@ -5,6 +5,7 @@ import test from "node:test";
 const worksites = readFileSync("src/app/api/workforce/worksites/route.ts", "utf8");
 const schedules = readFileSync("src/app/api/workforce/schedules/route.ts", "utf8");
 const schema = readFileSync("src/db/schema.ts", "utf8");
+const payroll = readFileSync("src/lib/payroll-engine.ts", "utf8");
 
 test("worksite mutations use workforce RBAC, MFA, same-origin and rate-limit gates", () => {
   assert.ok(worksites.includes("WORKFORCE_MANAGER_ROLES"));
@@ -36,4 +37,12 @@ test("schedule assignments and overrides can explicitly select physical worksite
 test("inactive worksites cannot receive new assignments or be deactivated while still in use", () => {
   assert.ok(worksites.includes("Inactive worksites cannot receive new employee assignments."));
   assert.ok(worksites.includes("This worksite still has current or future workforce assignments."));
+});
+
+
+test("payroll resolves effective default worksites but does not yet price site-specific holidays", () => {
+  assert.ok(payroll.includes("workforceWorksitesByEmployee"));
+  assert.ok(payroll.includes("selectEffectiveWorksiteAssignment("));
+  assert.ok(payroll.includes("defaultWorksiteId:"));
+  assert.ok(payroll.includes("if (row.worksiteId != null) return [];"));
 });
