@@ -1,11 +1,19 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte, inArray, lte } from "drizzle-orm";
 import { db } from "@/db";
-import { statutoryRemittanceMonthClosures } from "@/db/schema";
+import {
+  payrollEntries,
+  payrollRuns,
+  statutoryRemittanceMonthClosures,
+} from "@/db/schema";
 import { assertOrganizationRole, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { evaluateRemittanceMonthClose } from "@/lib/statutory-remittance-close";
-import { currentManilaMonth, loadStatutoryRemittanceState } from "@/lib/statutory-remittance-state";
+import {
+  currentManilaMonth,
+  loadStatutoryRemittanceState,
+  statutoryLiabilityKeys,
+} from "@/lib/statutory-remittance-state";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -23,15 +31,54 @@ async function requirePayrollOperator(userId: number, organizationId: number) {
   );
 }
 
+function monthStart(month: string) {
+  return `${month}-01`;
+}
+
+function monthEnd(month: string) {
+  const [year, rawMonth] = month.split("-").map(Number);
+  return new Date(Date.UTC(year, rawMonth, 0)).toISOString().slice(0, 10);
+}
+
 async function loadCloseState(organizationId: number, applicableMonth: string) {
   const state = await loadStatutoryRemittanceState(organizationId);
   if (!state) return null;
+
+  const monthRuns = await db.select({
+    id: payrollRuns.id,
+    status: payrollRuns.status,
+    periodEnd: payrollRuns.periodEnd,
+  }).from(payrollRuns).where(and(
+    eq(payrollRuns.organizationId, organizationId),
+    gte(payrollRuns.periodEnd, monthStart(applicableMonth)),
+    lte(payrollRuns.periodEnd, monthEnd(applicableMonth)),
+  ));
+
+  const runIds = monthRuns.map((run) => run.id);
+  const entries = runIds.length
+    ? await db.select({
+        payrollRunId: payrollEntries.payrollRunId,
+        employeeId: payrollEntries.employeeId,
+        lineItems: payrollEntries.lineItems,
+        trace: payrollEntries.trace,
+      }).from(payrollEntries).where(inArray(payrollEntries.payrollRunId, runIds))
+    : [];
+  const runMonths = Object.fromEntries(
+    monthRuns.map((run) => [run.id, applicableMonth]),
+  ) as Record<number, string>;
+  const requiredAgencies = [...statutoryLiabilityKeys({ runMonths, entries })]
+    .map((key) => key.split("|")[1])
+    .filter(Boolean)
+    .sort();
 
   const evaluation = evaluateRemittanceMonthClose({
     applicableMonth,
     batches: state.batches,
     members: state.members,
     alerts: state.alerts,
+    requiredAgencies,
+    allPayrollRunsReleased:
+      monthRuns.length > 0 && monthRuns.every((run) => run.status === "Released"),
   });
 
   const [closure] = await db.select().from(statutoryRemittanceMonthClosures)
