@@ -1347,6 +1347,40 @@ export const statutoryRemittanceMonthClosures = pgTable(
   ],
 );
 
+export const statutoryContributionIssueCases = pgTable(
+  "statutory_contribution_issue_cases",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    batchId: integer("batch_id").references(() => statutoryRemittanceBatches.id, { onDelete: "set null" }),
+    remittanceMemberId: integer("remittance_member_id").references(() => statutoryRemittanceMembers.id, { onDelete: "set null" }),
+    agency: varchar("agency", { length: 24 }).notNull(),
+    applicableMonth: varchar("applicable_month", { length: 7 }).notNull(),
+    issueType: varchar("issue_type", { length: 48 }).notNull(),
+    description: varchar("description", { length: 500 }).notNull(),
+    employeeSnapshot: jsonb("employee_snapshot").notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("open"),
+    reportedByUserId: integer("reported_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    reportedByName: varchar("reported_by_name", { length: 120 }).notNull(),
+    assignedToUserId: integer("assigned_to_user_id").references(() => users.id, { onDelete: "set null" }),
+    assignedToName: varchar("assigned_to_name", { length: 120 }),
+    reviewStartedAt: timestamp("review_started_at", { withTimezone: true }),
+    resolutionOutcome: varchar("resolution_outcome", { length: 48 }),
+    resolutionNote: varchar("resolution_note", { length: 600 }),
+    resolvedByUserId: integer("resolved_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    resolvedByName: varchar("resolved_by_name", { length: 120 }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("statutory_contribution_issue_org_status_idx").on(table.organizationId, table.status, table.createdAt),
+    index("statutory_contribution_issue_employee_idx").on(table.organizationId, table.employeeId, table.createdAt),
+    index("statutory_contribution_issue_member_idx").on(table.organizationId, table.remittanceMemberId),
+  ],
+);
+
 export const complianceActionTasks = pgTable(
   "compliance_action_tasks",
   {
