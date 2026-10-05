@@ -61,7 +61,7 @@ const sections = [
 
 export default function PayrollSecurityChecklistPage() {
   return (
-    <div className="min-h-screen bg-[#FAFBFD] text-[#0B0D1A]">
+    <div className="marketing-page min-h-screen bg-[#FCFCFD] text-[#101323]">
       <StructuredData breadcrumbs={[{ name: "Home", path: "/" }, { name: "Templates", path: "/templates/payroll-security-checklist" }, { name: "Payroll security checklist", path: "/templates/payroll-security-checklist" }]} />
       <SiteNav />
       <main className="py-12 sm:py-16">
