@@ -1235,6 +1235,9 @@ export const jobApplicants = pgTable("job_applicants", {
   resumeUrl: text("resume_url"),
   notes: text("notes"),
   offeredSalary: numeric("offered_salary", { precision: 12, scale: 2 }),
+  hiredEmployeeId: integer("hired_employee_id").unique().references(() => employees.id, { onDelete: "set null" }),
+  hiredByUserId: integer("hired_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  hiredAt: timestamp("hired_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
