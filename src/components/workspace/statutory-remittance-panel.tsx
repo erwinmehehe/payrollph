@@ -54,6 +54,8 @@ export function StatutoryRemittancePanel({
   const [paymentReference, setPaymentReference] = useState("");
   const [agencyReceiptReference, setAgencyReceiptReference] = useState("");
   const [paymentChannel, setPaymentChannel] = useState("");
+  const [amountPaid, setAmountPaid] = useState("");
+  const [paymentVarianceNote, setPaymentVarianceNote] = useState("");
   const [postingMemberId, setPostingMemberId] = useState<number | null>(null);
   const [postingReference, setPostingReference] = useState("");
   const [exceptionNote, setExceptionNote] = useState("");
@@ -109,16 +111,19 @@ export function StatutoryRemittancePanel({
   async function recordPayment(batch: Batch) {
     const ok = await mutate("record_payment", {
       batchId: batch.id,
-      amountPaid: Number(batch.expectedTotal),
+      amountPaid: Number(amountPaid || batch.expectedTotal),
       paymentReference,
       agencyReceiptReference,
       paymentChannel,
+      paymentVarianceNote,
     }, `${batch.agency} payment recorded. Employee posting reconciliation is still required.`);
     if (ok) {
       setPaymentBatchId(null);
       setPaymentReference("");
       setAgencyReceiptReference("");
       setPaymentChannel("");
+      setAmountPaid("");
+      setPaymentVarianceNote("");
     }
   }
 
@@ -213,12 +218,14 @@ export function StatutoryRemittancePanel({
                   </button>
                   {paymentOpen && (
                     <div className="setting-form">
+                      <label>Amount paid<input type="number" min={batch.expectedTotal} step="0.01" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)} placeholder={batch.expectedTotal} /></label>
                       <label>Payment reference<input value={paymentReference} onChange={(e) => setPaymentReference(e.target.value)} placeholder="PRN / SPA / OPIN / bank reference" /></label>
                       <label>Agency receipt / acknowledgement<input value={agencyReceiptReference} onChange={(e) => setAgencyReceiptReference(e.target.value)} placeholder="Official agency receipt reference" /></label>
                       <label>Payment channel<input value={paymentChannel} onChange={(e) => setPaymentChannel(e.target.value)} placeholder="My.SSS / EPRS / Virtual Pag-IBIG" /></label>
+                      <label>Penalty / variance note<input value={paymentVarianceNote} onChange={(e) => setPaymentVarianceNote(e.target.value)} placeholder="Required only if payment exceeds contribution liability" /></label>
                       <div style={{ alignSelf: "end" }}>
                         <button className="primary-button brand" disabled={busy !== null} onClick={() => void recordPayment(batch)}>
-                          Record exact payment {money(batch.expectedTotal)}
+                          Record payment
                         </button>
                       </div>
                     </div>
