@@ -31,6 +31,7 @@ export const dynamic = "force-dynamic";
 const LEARNING_ROLES = WORKFORCE_MANAGER_ROLES;
 const ACTIVITY_TYPES = ["training", "mentoring", "project", "coaching", "certification", "reading"] as const;
 const ENROLLMENT_STATUSES = ["assigned", "in_progress", "completed", "cancelled"] as const;
+const SKILL_SOURCES = ["manager", "assessment", "training", "certification", "import"] as const;
 
 function validDate(value: string | null) {
   return !value || /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -276,6 +277,10 @@ export async function POST(request: Request) {
     }
     const scoped = await scopedEmployee(user.id, organizationId, employeeId);
     if ("error" in scoped) return scoped.error;
+    const source = String(body.source ?? "manager");
+    if (!SKILL_SOURCES.includes(source as (typeof SKILL_SOURCES)[number])) {
+      return Response.json({ error: "Invalid skill evidence source." }, { status: 400 });
+    }
     const [skill] = await db.select({ id: skillCatalog.id }).from(skillCatalog)
       .where(and(eq(skillCatalog.id, skillId), eq(skillCatalog.organizationId, organizationId))).limit(1);
     if (!skill) return Response.json({ error: "Skill not found in this workspace." }, { status: 404 });
@@ -285,7 +290,7 @@ export async function POST(request: Request) {
       employeeId,
       skillId,
       proficiencyLevel,
-      source: String(body.source ?? "manager").slice(0, 32),
+      source,
       verifiedByUserId: user.id,
       verifiedAt: new Date(),
       notes: body.notes ? String(body.notes).slice(0, 4000) : null,
@@ -293,7 +298,7 @@ export async function POST(request: Request) {
       target: [employeeSkills.employeeId, employeeSkills.skillId],
       set: {
         proficiencyLevel,
-        source: String(body.source ?? "manager").slice(0, 32),
+        source,
         verifiedByUserId: user.id,
         verifiedAt: new Date(),
         notes: body.notes ? String(body.notes).slice(0, 4000) : null,
@@ -686,6 +691,14 @@ export async function PATCH(request: Request) {
     if (denied) return denied;
     const scoped = await scopedEmployee(user.id, plan.organizationId, plan.employeeId);
     if ("error" in scoped) return scoped.error;
+    if (status !== "completed") {
+      const [completedEnrollment] = await db.select({ id: learningEnrollments.id }).from(learningEnrollments)
+        .where(and(eq(learningEnrollments.developmentPlanItemId, itemId), eq(learningEnrollments.status, "completed")))
+        .limit(1);
+      if (completedEnrollment) {
+        return Response.json({ error: "This activity is locked because its linked learning enrollment is already completed." }, { status: 409 });
+      }
+    }
 
     const row = await db.transaction(async (tx) => {
       const [updated] = await tx.update(developmentPlanItems).set({ status, updatedAt: new Date() })
