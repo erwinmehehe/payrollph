@@ -24,7 +24,7 @@ BEGIN
   ) THEN
     ALTER TABLE "statutory_contribution_issue_events"
       ADD CONSTRAINT "statutory_contribution_issue_event_type_check"
-      CHECK ("event_type" IN ('reported', 'review_started', 'payroll_update', 'resolved'));
+      CHECK ("event_type" IN ('reported', 'review_started', 'payroll_update', 'referred', 'resolved'));
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
