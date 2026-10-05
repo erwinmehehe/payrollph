@@ -21,7 +21,7 @@ const industryGroups = [
   {
     title: "Shift-heavy and frontline operations",
     description: "Payroll where schedules, attendance, overtime, night work, weekends and holiday context drive the calculation.",
-    slugs: ["bpo", "retail", "healthcare", "hospitality", "manufacturing", "logistics", "shopping-centers"],
+    slugs: ["bpo", "security-agencies", "retail", "healthcare", "hospitality", "manufacturing", "logistics", "shopping-centers"],
   },
   {
     title: "Distributed and field workforces",
@@ -37,7 +37,7 @@ const industryGroups = [
 
 export const metadata: Metadata = {
   title: "Payroll Software by Industry Philippines | Linaw",
-  description: "Industry payroll workflows for BPO, construction, logistics, manpower, manufacturing, retail, healthcare, hospitality, finance, education and other Philippine teams.",
+  description: "Industry payroll workflows for BPO, security agencies, construction, logistics, manpower, manufacturing, retail, healthcare, hospitality, finance and other Philippine teams.",
   alternates: { canonical: "/industries" },
 };
 
