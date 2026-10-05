@@ -43,6 +43,7 @@ import {
   X,
 } from "lucide-react";
 import { AccountPanel } from "@/components/account-panel";
+import { ComplianceEvidenceCenter } from "@/components/workspace/compliance-evidence-center";
 import { INVITABLE_ROLES, invitableRoleLabel } from "@/lib/roles";
 import type { AuditEvent, DashboardData, Employee, OrgUnit, PayrollEntry, PayrollRun, PricingPlan } from "./types";
 import { Avatar, Metric, PageHeading, Status, formatDate, formatDateTime as formatTime, money } from "./ui";
@@ -252,37 +253,16 @@ export function CompliancePage({ data, setNotice, onOpenGovModal }: { data: Dash
     <>
       <PageHeading
         eyebrow="COMPLIANCE CENTRE"
-        title="Rules visible, not mysterious."
-        copy="Versioned statutory formulas, BIR TRAIN tax brackets, and official Philippine verification seals."
+        title="Evidence before confidence."
+        copy="See the payroll controls, statutory-rule governance, remittance proof, filing acknowledgements, and bank UAT evidence that support each compliance claim."
         actions={
-          <button className="primary-button" onClick={onOpenGovModal}>
-            <ShieldCheck size={16} className="i-green" /> Run Gov Validation Seal
+          <button className="secondary-button" onClick={onOpenGovModal}>
+            <FileSpreadsheet size={16} className="i-teal" /> Government evidence
           </button>
         }
       />
-      <section className="module-grid three">
-        <article className="card compliance-tile">
-          <div className="inline-icon mint"><ShieldCheck size={19} /></div>
-          <span>STATUTORY CONTRIBUTIONS</span>
-          <h2>Versioned</h2>
-          <p>SSS, PhilHealth & Pag-IBIG formulas are executable and unit-tested.</p>
-          <Status value="Tested" />
-        </article>
-        <article className="card compliance-tile">
-          <div className="inline-icon purple"><ReceiptText size={19} /></div>
-          <span>WITHHOLDING TAX</span>
-          <h2>TRAIN + MWE</h2>
-          <p>Annual tax brackets and MWE full-exemption paths are modeled.</p>
-          <Status value="Tested" />
-        </article>
-        <article className="card compliance-tile">
-          <div className="inline-icon amber"><FileSpreadsheet size={19} /></div>
-          <span>GOVERNMENT OUTPUTS</span>
-          <h2>Draft Worksheets</h2>
-          <p>2316, 1601-C, Alphalist, SSS R-3, PhilHealth RF-1, Pag-IBIG MCRF.</p>
-          <Status value="Draft only" />
-        </article>
-      </section>
+
+      <ComplianceEvidenceCenter data={data} setNotice={setNotice} />
 
       {data.advisories.length > 0 && (
         <section className="card calamity-card" style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 20px", marginTop: 16 }}>
@@ -292,7 +272,7 @@ export function CompliancePage({ data, setNotice, onOpenGovModal }: { data: Dash
             <p style={{ margin: "2px 0 0", color: "var(--muted)", fontSize: 11 }}>{data.advisories[0].affectedUnit} · {formatDate(data.advisories[0].startDate)}–{formatDate(data.advisories[0].endDate)}</p>
           </div>
           <div style={{ marginLeft: "auto" }}>
-            <span className="status status-verified">Auto-Applied in Payroll Calc</span>
+            <span className="status status-verified">Applied by configured payroll policy</span>
           </div>
         </section>
       )}
