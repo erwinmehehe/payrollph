@@ -109,12 +109,14 @@ export async function POST(request: Request) {
     return Response.json({ error: "This requisition has been cancelled." }, { status: 409 });
   }
 
-  const [position] = await db.select().from(positions)
-    .where(and(
-      eq(positions.organizationId, applicant.organizationId),
-      eq(positions.requisitionId, requisition.id),
-    ))
-    .limit(1);
+  const [position] = requisition.positionId
+    ? await db.select().from(positions)
+        .where(and(
+          eq(positions.id, requisition.positionId),
+          eq(positions.organizationId, applicant.organizationId),
+        ))
+        .limit(1)
+    : [];
 
   if (position) {
     const scope = assertScope(access, position.orgUnitId);
@@ -247,7 +249,7 @@ export async function POST(request: Request) {
       })),
     ).returning();
 
-    let assignment = null;
+    let assignment: typeof positionAssignments.$inferSelect | null = null;
     if (position) {
       const [createdAssignment] = await tx.insert(positionAssignments).values({
         organizationId: applicant.organizationId,
