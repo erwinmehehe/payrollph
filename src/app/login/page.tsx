@@ -12,6 +12,7 @@ export const metadata: Metadata = {
   title: "Sign in | Linaw",
   description: "Sign in to your Linaw Philippine payroll workspace.",
   alternates: { canonical: "/login" },
+  robots: { index: false, follow: false },
 };
 
 export default async function LoginPage() {

@@ -153,7 +153,8 @@ jobs:
               const primaryNav = page.getByRole("navigation", { name: "Primary" });
               check((await primaryNav.getByRole("link", { name: "Live demo", exact: true }).getAttribute("href")) === "/demo", "desktop: primary nav does not expose role-based demo");
               check((await primaryNav.getByRole("link", { name: "Payroll outsourcing", exact: true }).getAttribute("href")) === "/payroll-outsourcing", "desktop: primary nav does not expose payroll outsourcing");
-              check((await primaryNav.getByRole("link", { name: "Trust", exact: true }).getAttribute("href")) === "/scorecard", "desktop: primary nav does not expose scorecard");
+              check((await primaryNav.getByRole("link", { name: "Trust", exact: true }).getAttribute("href")) === "/trust", "desktop: primary nav does not expose trust center");
+              check((await primaryNav.getByRole("link", { name: "Pricing", exact: true }).getAttribute("href")) === "/pricing", "desktop: primary nav does not expose dedicated pricing page");
             } else {
               const menu = page.getByRole("button", { name: "Open menu" });
               check((await menu.count()) === 1, "mobile-390: menu button is missing");
@@ -161,7 +162,8 @@ jobs:
               const mobileHeader = page.getByRole("banner");
               check((await mobileHeader.getByRole("link", { name: "Live demo", exact: true }).getAttribute("href")) === "/demo", "mobile-390: menu does not expose role-based demo");
               check((await mobileHeader.getByRole("link", { name: "Payroll outsourcing", exact: true }).getAttribute("href")) === "/payroll-outsourcing", "mobile-390: menu does not expose payroll outsourcing");
-              check((await mobileHeader.getByRole("link", { name: "Trust", exact: true }).getAttribute("href")) === "/scorecard", "mobile-390: menu does not expose scorecard");
+              check((await mobileHeader.getByRole("link", { name: "Trust", exact: true }).getAttribute("href")) === "/trust", "mobile-390: menu does not expose trust center");
+              check((await mobileHeader.getByRole("link", { name: "Pricing", exact: true }).getAttribute("href")) === "/pricing", "mobile-390: menu does not expose dedicated pricing page");
               await page.getByRole("button", { name: "Close menu" }).click();
             }
 
