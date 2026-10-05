@@ -12,6 +12,7 @@ export const metadata: Metadata = {
   title: "System Status | Linaw",
   description: "Live health history and database round-trip status for this Linaw deployment.",
   alternates: { canonical: "/status" },
+  robots: { index: false, follow: true },
 };
 
 export default async function StatusPage() {
