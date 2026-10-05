@@ -93,7 +93,7 @@ export async function managedPayrollReleaseRequirement(
     return { required: false as const, engagement: null, approval: null };
   }
 
-  const [[approval], [run]] = await Promise.all([
+  const [[approval], [run], gates] = await Promise.all([
     db.select().from(managedPayrollRunApprovals)
       .where(and(
         eq(managedPayrollRunApprovals.engagementId, engagement.id),
@@ -101,7 +101,13 @@ export async function managedPayrollReleaseRequirement(
       ))
       .limit(1),
     db.select().from(payrollRuns).where(eq(payrollRuns.id, payrollRunId)).limit(1),
+    db.select().from(managedPayrollGates)
+      .where(eq(managedPayrollGates.engagementId, engagement.id)),
   ]);
+  const requiredGateKeys = new Set(MANAGED_PAYROLL_GATES.map((gate) => gate.key));
+  const verifiedGateKeys = new Set(gates.filter((gate) => gate.status === "verified").map((gate) => gate.gateKey));
+  const missingGateKeys = [...requiredGateKeys].filter((key) => !verifiedGateKeys.has(key));
+  const gatesComplete = missingGateKeys.length === 0;
   const fingerprint = approval ? await managedPayrollRunFingerprint(payrollRunId) : null;
   const approvalValid = Boolean(
     approval
@@ -115,6 +121,8 @@ export async function managedPayrollReleaseRequirement(
     engagement,
     approval: approval ?? null,
     approvalValid,
+    gatesComplete,
+    missingGateKeys,
     currentFingerprint: fingerprint,
   };
 }
