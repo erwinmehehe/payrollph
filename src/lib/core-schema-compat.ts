@@ -1061,6 +1061,42 @@ export async function ensureCoreCompatibilitySchema() {
         END
         $compat$;
       `);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS attendance_correction_requests (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          employee_id integer NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+          punch_id integer NOT NULL REFERENCES time_punches(id) ON DELETE CASCADE,
+          work_date date NOT NULL,
+          original_punch_snapshot jsonb NOT NULL,
+          proposed_punch_snapshot jsonb NOT NULL,
+          reason varchar(240) NOT NULL,
+          status varchar(24) NOT NULL DEFAULT 'pending',
+          requested_by varchar(120) NOT NULL,
+          requested_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          decided_by varchar(120),
+          decided_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          decided_at timestamptz,
+          decision_note varchar(240),
+          applied_at timestamptz,
+          invalidated_payroll_run_ids jsonb NOT NULL DEFAULT '[]'::jsonb,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS attendance_corrections_org_status_idx
+        ON attendance_correction_requests(organization_id, status)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS attendance_corrections_employee_date_idx
+        ON attendance_correction_requests(employee_id, work_date)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS attendance_corrections_punch_idx
+        ON attendance_correction_requests(punch_id)
+      `);
+
       await client.query("COMMIT");
       coreSchemaReady = true;
     } catch (error) {
