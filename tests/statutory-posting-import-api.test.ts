@@ -77,3 +77,26 @@ test("bulk apply fails closed if batch or member posting state changes concurren
 test("row validation errors preserve the original CSV source line", () => {
   assert.ok(route.includes("const line = row.sourceLine"));
 });
+
+
+test("amount mismatches can open employee contribution cases without applying the invalid file", () => {
+  assert.ok(route.includes("amountMismatchCandidates"));
+  assert.ok(route.includes("openMismatchCases"));
+  assert.ok(route.includes('issueType: "wrong_posted_amount"'));
+  assert.ok(route.includes('sourceType: "employee_contribution_issue"'));
+  assert.ok(route.includes("autoCaseIds"));
+  assert.ok(route.includes("No posting rows were applied."));
+});
+
+test("dry-run validation does not create compliance cases unless operator explicitly escalates", () => {
+  assert.ok(route.includes("if (openMismatchCases && amountMismatchCandidates.length > 0)"));
+  assert.ok(panel.includes("Open {result.amountMismatchCount} compliance case"));
+  assert.ok(panel.includes("submit(true, true)"));
+  assert.ok(panel.includes("The invalid posting file was not applied."));
+});
+
+test("posting mismatch auto-cases are deduplicated against existing open employee cases", () => {
+  assert.ok(route.includes('eq(statutoryContributionIssueCases.issueType, "wrong_posted_amount")'));
+  assert.ok(route.includes('inArray(statutoryContributionIssueCases.status, ["open", "in_review"])'));
+  assert.ok(route.includes("existingEmployeeIds"));
+});
