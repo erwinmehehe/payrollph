@@ -1209,20 +1209,26 @@ export const disciplinaryCases = pgTable("disciplinary_cases", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const jobRequisitions = pgTable("job_requisitions", {
-  id: serial("id").primaryKey(),
-  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  positionId: integer("position_id"),
-  title: varchar("title", { length: 160 }).notNull(),
-  department: varchar("department", { length: 120 }).notNull(),
-  headcount: integer("headcount").notNull().default(1),
-  salaryMin: numeric("salary_min", { precision: 12, scale: 2 }),
-  salaryMax: numeric("salary_max", { precision: 12, scale: 2 }),
-  employmentType: varchar("employment_type", { length: 32 }).notNull().default("Full-time"),
-  status: varchar("status", { length: 32 }).notNull().default("open"), // "open", "interviewing", "filled", "cancelled"
-  description: text("description"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const jobRequisitions = pgTable(
+  "job_requisitions",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    positionId: integer("position_id").references(() => positions.id, { onDelete: "set null" }),
+    title: varchar("title", { length: 160 }).notNull(),
+    department: varchar("department", { length: 120 }).notNull(),
+    headcount: integer("headcount").notNull().default(1),
+    salaryMin: numeric("salary_min", { precision: 12, scale: 2 }),
+    salaryMax: numeric("salary_max", { precision: 12, scale: 2 }),
+    employmentType: varchar("employment_type", { length: 32 }).notNull().default("Full-time"),
+    status: varchar("status", { length: 32 }).notNull().default("open"), // "open", "interviewing", "filled", "cancelled"
+    description: text("description"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("job_requisitions_position_idx").on(table.organizationId, table.positionId),
+  ],
+);
 
 export const jobApplicants = pgTable("job_applicants", {
   id: serial("id").primaryKey(),
