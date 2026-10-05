@@ -39,3 +39,11 @@ test("payroll UI clearly separates month certification from remittance reconcili
   assert.ok(panel.includes("Cannot certify."));
   assert.ok(payroll.includes("<StatutoryRemittanceMonthClose"));
 });
+
+
+test("month close derives required agencies from the selected month's payroll liability", () => {
+  assert.ok(route.includes("statutoryLiabilityKeys"));
+  assert.ok(route.includes("requiredAgencies"));
+  assert.ok(route.includes('monthRuns.every((run) => run.status === "Released")'));
+  assert.ok(route.includes("payrollEntries"));
+});
