@@ -21,6 +21,7 @@ type ActionTask = {
   acknowledgedAt: string | null;
   resolvedAt: string | null;
   ageHours: number;
+  severityAgeHours: number;
   escalationStage: 0 | 1 | 2 | 3;
 };
 
@@ -205,11 +206,11 @@ export function StatutoryRemittanceActionQueue({
                             : "Initial"}
                       </strong>
                       <small style={{ display: "block", color: "var(--muted)", marginTop: 4 }}>
-                        Open {task.ageHours}h
+                        Open {task.ageHours}h · current risk level {task.severityAgeHours}h
                         {task.escalationStage === 1
-                          ? ` · next follow-up in ${Math.max(0, 24 - task.ageHours)}h`
+                          ? ` · next follow-up in ${Math.max(0, 24 - task.severityAgeHours)}h`
                           : task.escalationStage === 2
-                            ? ` · executive escalation in ${Math.max(0, 72 - task.ageHours)}h`
+                            ? ` · executive escalation in ${Math.max(0, 72 - task.severityAgeHours)}h`
                             : " · highest escalation stage"}
                       </small>
                     </td>
