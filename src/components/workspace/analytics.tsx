@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Download, FileBarChart2, RefreshCw, TrendingDown, UsersRound, WalletCards } from "lucide-react";
+import { AlertTriangle, Download, FileBarChart2, RefreshCw, ShieldCheck, TrendingDown, UsersRound, WalletCards } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
 import { HcmAnalyticsPanel } from "@/components/hcm-analytics-panel";
 import {
@@ -33,6 +33,7 @@ export function AnalyticsView({ data, notify, hcmEnabled = false }: { data: Dash
   const [error, setError] = useState("");
 
   const organizationId = data.selectedOrganization.id;
+  const companyWideReports = data.access?.companyWide !== false;
 
   const [nonce, setNonce] = useState(0);
 
@@ -40,6 +41,7 @@ export function AnalyticsView({ data, notify, hcmEnabled = false }: { data: Dash
   // await, so switching report or client never cascades a synchronous render.
   // `alive` stops a slow response from overwriting a newer one.
   useEffect(() => {
+    if (!companyWideReports) return;
     let alive = true;
     (async () => {
       try {
@@ -63,7 +65,7 @@ export function AnalyticsView({ data, notify, hcmEnabled = false }: { data: Dash
     return () => {
       alive = false;
     };
-  }, [organizationId, active, nonce]);
+  }, [organizationId, active, nonce, companyWideReports]);
 
   const reload = useCallback(() => {
     setState("loading");
@@ -107,135 +109,144 @@ export function AnalyticsView({ data, notify, hcmEnabled = false }: { data: Dash
 
       {hcmEnabled && <HcmAnalyticsPanel organizationId={organizationId} />}
 
-      <section className="stats-grid">
-        <Metric
-          label="Runs on record"
-          value={String(data.payrollRuns.length)}
-          hint={`${data.employees.length} people on this client`}
-          icon={<FileBarChart2 size={16} className="i-teal" />}
-          tone="blue"
-        />
-        <Metric label="Total gross paid" value={shortMoney(totalCost)} hint="across every stored run" icon={<WalletCards size={16} className="i-green" />} tone="mint" />
-        <Metric label="Total net paid" value={shortMoney(totalNet)} hint="after employee deductions" icon={<WalletCards size={16} className="i-green" />} tone="purple" />
-        <Metric
-          label="Open exceptions"
-          value={String(exceptions)}
-          hint={exceptions ? "across all runs" : "nothing flagged"}
-          icon={<AlertTriangle size={16} className="i-red" />}
-          tone={exceptions ? "amber" : "slate"}
-        />
-      </section>
-
-      {costSeries.length > 0 && (
-        <article className="card" style={{ marginBottom: 16 }}>
-          <div className="card-header">
-            <div>
-              <div className="card-kicker">Payroll cost history</div>
-              <h2>Net pay and deductions by run</h2>
-              <p>Read from the stored run records, hover a bar for the period and headcount.</p>
-            </div>
-          </div>
-          <StackedBars
-            data={costSeries}
-            legend={[
-              { key: "net", label: "Net pay", color: "var(--brand)" },
-              { key: "deductions", label: "Employee deductions", color: "var(--active-bright)" },
-            ]}
-          />
-        </article>
-      )}
-
-      <div className="report-grid">
-        {REPORTS.map((report) => {
-          const Icon = report.icon;
-          return (
-            <button
-              key={report.key}
-              className={`report-hero ${active === report.key ? "on" : ""}`}
-              onClick={() => {
-                setState("loading");
-                setActive(report.key);
-              }}
-              aria-pressed={active === report.key}
-            >
-              <span className="report-icon" aria-hidden>
-                <Icon size={15} />
-              </span>
-              <h3>{report.name}</h3>
-              <p>{report.description}</p>
-            </button>
-          );
-        })}
-      </div>
-
-      <article className="card table-card">
-        <div className="card-header">
-          <div>
-            <div className="card-kicker">Result</div>
-            <h2>{REPORTS.find((report) => report.key === active)?.name}</h2>
-            <p>
-              {state === "ready" && result
-                ? `${result.rows.length} row${result.rows.length === 1 ? "" : "s"} returned${result.generatedAt ? ` · generated ${new Date(result.generatedAt).toLocaleTimeString("en-PH")}` : ""}`
-                : "Running the aggregate query…"}
-            </p>
-          </div>
-          <button
-            className="secondary-button"
-            disabled={state !== "ready" || !result?.rows.length}
-            onClick={() => {
-              window.open(`/api/reports?organizationId=${organizationId}&key=${active}&format=csv`, "_blank", "noopener");
-              notify("Report CSV requested, the export is recorded in the audit trail.", "info");
-            }}
-          >
-            <Download size={15} className="i-teal" /> Export CSV
-          </button>
+      {companyWideReports ? (
+        <>
+                <section className="stats-grid">
+                  <Metric
+                    label="Runs on record"
+                    value={String(data.payrollRuns.length)}
+                    hint={`${data.employees.length} people on this client`}
+                    icon={<FileBarChart2 size={16} className="i-teal" />}
+                    tone="blue"
+                  />
+                  <Metric label="Total gross paid" value={shortMoney(totalCost)} hint="across every stored run" icon={<WalletCards size={16} className="i-green" />} tone="mint" />
+                  <Metric label="Total net paid" value={shortMoney(totalNet)} hint="after employee deductions" icon={<WalletCards size={16} className="i-green" />} tone="purple" />
+                  <Metric
+                    label="Open exceptions"
+                    value={String(exceptions)}
+                    hint={exceptions ? "across all runs" : "nothing flagged"}
+                    icon={<AlertTriangle size={16} className="i-red" />}
+                    tone={exceptions ? "amber" : "slate"}
+                  />
+                </section>
+          
+                {costSeries.length > 0 && (
+                  <article className="card" style={{ marginBottom: 16 }}>
+                    <div className="card-header">
+                      <div>
+                        <div className="card-kicker">Payroll cost history</div>
+                        <h2>Net pay and deductions by run</h2>
+                        <p>Read from the stored run records, hover a bar for the period and headcount.</p>
+                      </div>
+                    </div>
+                    <StackedBars
+                      data={costSeries}
+                      legend={[
+                        { key: "net", label: "Net pay", color: "var(--brand)" },
+                        { key: "deductions", label: "Employee deductions", color: "var(--active-bright)" },
+                      ]}
+                    />
+                  </article>
+                )}
+          
+                <div className="report-grid">
+                  {REPORTS.map((report) => {
+                    const Icon = report.icon;
+                    return (
+                      <button
+                        key={report.key}
+                        className={`report-hero ${active === report.key ? "on" : ""}`}
+                        onClick={() => {
+                          setState("loading");
+                          setActive(report.key);
+                        }}
+                        aria-pressed={active === report.key}
+                      >
+                        <span className="report-icon" aria-hidden>
+                          <Icon size={15} />
+                        </span>
+                        <h3>{report.name}</h3>
+                        <p>{report.description}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+          
+                <article className="card table-card">
+                  <div className="card-header">
+                    <div>
+                      <div className="card-kicker">Result</div>
+                      <h2>{REPORTS.find((report) => report.key === active)?.name}</h2>
+                      <p>
+                        {state === "ready" && result
+                          ? `${result.rows.length} row${result.rows.length === 1 ? "" : "s"} returned${result.generatedAt ? ` · generated ${new Date(result.generatedAt).toLocaleTimeString("en-PH")}` : ""}`
+                          : "Running the aggregate query…"}
+                      </p>
+                    </div>
+                    <button
+                      className="secondary-button"
+                      disabled={state !== "ready" || !result?.rows.length}
+                      onClick={() => {
+                        window.open(`/api/reports?organizationId=${organizationId}&key=${active}&format=csv`, "_blank", "noopener");
+                        notify("Report CSV requested, the export is recorded in the audit trail.", "info");
+                      }}
+                    >
+                      <Download size={15} className="i-teal" /> Export CSV
+                    </button>
+                  </div>
+          
+                  {state === "loading" && <TableSkeleton rows={5} label="Running report" />}
+          
+                  {state === "error" && <ErrorState title="That report could not run" detail={error} onRetry={reload} />}
+          
+                  {state === "ready" && result && (
+                    <>
+                      {result.rows.length === 0 ? (
+                        <EmptyState icon={<FileBarChart2 size={20} className="i-teal" />} title="No rows matched">
+                          This client has no data for that report yet. It fills in as payroll runs and employee records accumulate.
+                        </EmptyState>
+                      ) : (
+                        <div className="data-table-wrap slim-scroll">
+                          <table className="data-table">
+                            <thead>
+                              <tr>
+                                {result.columns.map((column) => (
+                                  <th key={column} className={isNumericColumn(column) ? "right" : undefined}>
+                                    {column}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {result.rows.map((row, index) => (
+                                <tr key={index}>
+                                  {row.map((cell, cellIndex) => {
+                                    const column = result.columns[cellIndex] ?? "";
+                                    const numeric = isNumericColumn(column);
+                                    return (
+                                      <td key={cellIndex} className={numeric ? "right num" : undefined}>
+                                        {numeric && isMoneyColumn(column) && cell !== "" && !Number.isNaN(Number(cell))
+                                          ? money(cell)
+                                          : cell}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </article>
+        </>
+      ) : (
+        <div className="notice" style={{ marginTop: 16 }}>
+          <ShieldCheck size={14} className="i-green" />
+          <span>Your HCM analytics above are scoped to your assigned organization unit. Legacy payroll report exports remain company-wide and are intentionally hidden here.</span>
         </div>
-
-        {state === "loading" && <TableSkeleton rows={5} label="Running report" />}
-
-        {state === "error" && <ErrorState title="That report could not run" detail={error} onRetry={reload} />}
-
-        {state === "ready" && result && (
-          <>
-            {result.rows.length === 0 ? (
-              <EmptyState icon={<FileBarChart2 size={20} className="i-teal" />} title="No rows matched">
-                This client has no data for that report yet. It fills in as payroll runs and employee records accumulate.
-              </EmptyState>
-            ) : (
-              <div className="data-table-wrap slim-scroll">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      {result.columns.map((column) => (
-                        <th key={column} className={isNumericColumn(column) ? "right" : undefined}>
-                          {column}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.rows.map((row, index) => (
-                      <tr key={index}>
-                        {row.map((cell, cellIndex) => {
-                          const column = result.columns[cellIndex] ?? "";
-                          const numeric = isNumericColumn(column);
-                          return (
-                            <td key={cellIndex} className={numeric ? "right num" : undefined}>
-                              {numeric && isMoneyColumn(column) && cell !== "" && !Number.isNaN(Number(cell))
-                                ? money(cell)
-                                : cell}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
-        )}
-      </article>
+      )}
     </>
   );
 }
