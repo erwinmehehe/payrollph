@@ -25,6 +25,7 @@ test("approved positions are the governed entry point into recruitment", () => {
   assert.ok(recruitment.includes('positionId: position.id'));
   assert.ok(recruitment.includes('status: "open"'));
   assert.ok(recruitment.includes('"Approved position opened for recruitment"'));
+  assert.ok(recruitment.includes("pg_advisory_xact_lock(4102"));
 });
 
 test("unit-scoped HR sees only position-owned requisitions in their scope", () => {
