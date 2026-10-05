@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  * With no mail provider configured the row stays `queued` and the response says
  * so; it is never reported as sent.
  */
-const OPERATOR_INBOX = process.env.DEMO_REQUEST_INBOX ?? "demo-requests@linaw.invalid";
+const OPERATOR_INBOX = process.env.DEMO_REQUEST_INBOX?.trim() ?? "";
 
 export async function POST(request: Request) {
   const originDenied = enforceSameOriginMutation(request);
@@ -25,6 +25,13 @@ export async function POST(request: Request) {
   const limited = await rateLimitDistributed(`demo-request:${ip}`, { limit: 5, windowMs: 60 * 60 * 1000 });
   if (!limited.allowed) {
     return Response.json({ error: "Too many demo requests from this address. Try again later." }, { status: 429 });
+  }
+
+  if (process.env.NODE_ENV === "production" && !validEmail(OPERATOR_INBOX)) {
+    return Response.json(
+      { error: "Demo requests are temporarily unavailable. Please try again shortly." },
+      { status: 503 },
+    );
   }
 
   const body = await request.json().catch(() => ({}));
