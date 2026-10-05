@@ -44,6 +44,9 @@ test("public SEO always resolves to payrollsoftware.ph", () => {
     assert.ok(nextConfig.includes(host), `stable Vercel alias ${host} must be redirected`);
   }
   assert.ok(nextConfig.includes('destination: "https://payrollsoftware.ph/:path*"'), "stable Vercel production aliases must 308 to the canonical domain");
+  const mailer = read("src/lib/mailer.ts");
+  assert.ok(mailer.includes("notifications@payrollsoftware.ph"), "transactional email must default to the production sending domain");
+  assert.ok(!mailer.includes("@linaw.ph"), "transactional sender defaults must not use the retired linaw.ph domain");
 });
 
 
