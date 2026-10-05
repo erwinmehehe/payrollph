@@ -47,6 +47,24 @@ export async function managedPayrollRunFingerprint(payrollRunId: number) {
   return createHash("sha256").update(JSON.stringify(rows)).digest("hex");
 }
 
+export function managedPayrollApprovalMatches(
+  run: { grossPay: string; netPay: string; employeeCount: number },
+  approval: {
+    payrollFingerprint: string;
+    approvedGross: string;
+    approvedNet: string;
+    approvedEmployeeCount: number;
+  },
+  currentFingerprint: string,
+) {
+  return (
+    currentFingerprint === approval.payrollFingerprint
+    && Number(run.grossPay) === Number(approval.approvedGross)
+    && Number(run.netPay) === Number(approval.approvedNet)
+    && Number(run.employeeCount) === Number(approval.approvedEmployeeCount)
+  );
+}
+
 export async function managedPayrollReleaseRequirement(
   organizationId: number,
   payrollRunId: number,
@@ -71,10 +89,8 @@ export async function managedPayrollReleaseRequirement(
   const approvalValid = Boolean(
     approval
     && run
-    && fingerprint === approval.payrollFingerprint
-    && Number(run.grossPay) === Number(approval.approvedGross)
-    && Number(run.netPay) === Number(approval.approvedNet)
-    && Number(run.employeeCount) === Number(approval.approvedEmployeeCount),
+    && fingerprint
+    && managedPayrollApprovalMatches(run, approval, fingerprint),
   );
 
   return {
