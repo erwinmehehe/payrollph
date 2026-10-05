@@ -292,6 +292,11 @@ export const industryPages: AuthorityPage[] = [
       { title: "Use role boundaries inside each client", body: "Bookkeepers can work alongside owners, HR, payroll officers and checkers without every role needing identical access." },
       { title: "Scale process without copying workbooks", body: "A multi-client workspace is designed to make repeatable operating controls reusable while keeping each client's employees, payroll and evidence scoped correctly." },
     ],
+    faq: [
+      { question: "How should an accounting firm keep multiple payroll clients separated?", answer: "Each client should remain in its own tenant-scoped workspace with independent employees, payroll runs, approvals, exports and audit evidence so one client's records cannot be treated as another client's data." },
+      { question: "Can bookkeepers prepare payroll without having release authority?", answer: "Yes. Role-based controls can separate payroll preparation from approval and release so client work can be prepared operationally without giving every operator final authority." },
+      { question: "What evidence helps an accounting firm support a client payroll close?", answer: "Keep the released payroll version, accounting export, payout or settlement evidence, statutory review status and audit trail that show what was prepared, approved and released for the client." },
+    ],
     related: [
       { label: "Payroll outsourcing", href: "/payroll-outsourcing", description: "See the managed payroll operating model." },
       { label: "Developer center", href: "/developers", description: "Review API and webhook capabilities for connected workflows." },
@@ -312,6 +317,11 @@ export const industryPages: AuthorityPage[] = [
       { title: "Handle recurring deductions and employee obligations", body: "Loans, benefits and other payroll-impacting items can be represented in the payroll data model rather than tracked only in side spreadsheets." },
       { title: "Separate preparation from release authority", body: "Payroll staff can prepare the run while independent reviewers and owners retain the decision to approve or release it." },
     ],
+    faq: [
+      { question: "How can manpower agencies manage large employee rosters without creating duplicates?", answer: "Use stable employee identifiers and validated bulk updates so recurring roster changes update the intended worker record rather than creating a new employee each cutoff." },
+      { question: "Why should attendance and assignment data be reviewed before payroll release?", answer: "Variable assignments, schedules, overtime and deductions can materially change payroll, so incomplete or conflicting inputs should remain visible for review instead of being silently guessed." },
+      { question: "Can payroll preparation and release be separated in a staffing operation?", answer: "Yes. Payroll staff can prepare and reconcile a run while an independent checker, approver or owner retains the authority to approve and release it." },
+    ],
     related: [
       { label: "Time & attendance", href: "/time-and-attendance", description: "See how attendance moves into payroll." },
       { label: "HRIS", href: "/hris", description: "Review employee master-data workflows." },
@@ -331,6 +341,11 @@ export const industryPages: AuthorityPage[] = [
       { title: "Preserve department and work-group scope", body: "Department-scoped access lets teams work within their assigned operational area while company-wide roles retain broader oversight." },
       { title: "Handle premium-pay context", body: "Holiday, rest-day, overtime and night differential calculations use the work-date context instead of a single flat overtime rule." },
       { title: "Keep exceptions visible before release", body: "Incomplete punches and payroll-relevant review conditions can be surfaced for human sign-off rather than silently guessed." },
+    ],
+    faq: [
+      { question: "Why is manufacturing payroll sensitive to shift and work-date context?", answer: "Overtime, rest-day work, holidays and night work can overlap, so payroll needs the actual schedule and work date rather than a single flat premium rule." },
+      { question: "What should happen when biometric or punch data is incomplete?", answer: "Incomplete or invalid punch sequences should create a review exception. Payroll should not invent missing time or silently convert an uncertain attendance record into payable hours." },
+      { question: "How should schedule changes affect historical payroll recalculation?", answer: "Schedules and rest-day assignments should be effective-dated so recalculating an older period uses the context that applied when the work was performed." },
     ],
     related: [
       { label: "Time & attendance", href: "/time-and-attendance", description: "Explore the attendance-to-payroll workflow." },
