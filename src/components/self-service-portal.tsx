@@ -59,6 +59,25 @@ type ContributionPosting = {
   exceptionNote: string | null;
 };
 
+type GovernmentLoanRemittance = {
+  memberId: number;
+  batchId: number;
+  agency: string;
+  applicableMonth: string;
+  dueDate: string;
+  paymentStatus: string;
+  amountPaid: string | null;
+  paidAt: string | null;
+  loanType: string;
+  loanReferenceNo: string;
+  deductedAmount: string;
+  postingStatus: string;
+  postingReference: string | null;
+  postedAmount: string | null;
+  postedAt: string | null;
+  exceptionNote: string | null;
+};
+
 type ContributionIssueCase = {
   id: number;
   agency: string;
@@ -149,6 +168,7 @@ type Payload = {
   nextPay: { period: string; payDate: string; status: string; label: string } | null;
   payslips: Payslip[];
   contributions: ContributionPosting[];
+  governmentLoanRemittances: GovernmentLoanRemittance[];
   contributionIssues: ContributionIssueCase[];
   attendance: {
     recent: AttendanceRow[];
@@ -736,6 +756,53 @@ export function SelfServicePortal() {
             ))}
             <div className="employee-rule-note">
               <ShieldCheck size={12} /> “Deducted” comes from released payroll. “Payment recorded” is employer evidence. “Agency posting confirmed” is the final reconciliation state.
+            </div>
+          </article>
+
+          <article className="employee-list-card">
+            <div className="employee-list-card-head">
+              <div>
+                <span className="card-kicker">SSS / PAG-IBIG LOANS</span>
+                <h3>Government loan remittance</h3>
+              </div>
+            </div>
+            {data.governmentLoanRemittances.length === 0 ? (
+              <div className="employee-empty-row">
+                No government-loan remittance reconciliation has been published to your account yet. Your released payslip remains the record of any loan deduction.
+              </div>
+            ) : data.governmentLoanRemittances.slice(0, 12).map((row) => (
+              <div className="employee-pay-row" key={row.memberId}>
+                <div className="employee-pay-row-main" style={{ cursor: "default" }}>
+                  <div>
+                    <strong>{row.agency} · {row.applicableMonth}</strong>
+                    <span>{row.loanType} · {row.loanReferenceNo}</span>
+                  </div>
+                  <div className="employee-pay-row-amount">
+                    <strong>{peso(row.deductedAmount)}</strong>
+                    <span>deducted from payroll</span>
+                  </div>
+                  <span className={"employee-status-pill " + statusTone(row.postingStatus)}>
+                    {row.postingStatus === "confirmed"
+                      ? "Loan posting confirmed"
+                      : row.postingStatus === "exception"
+                        ? "Posting exception"
+                        : row.paymentStatus === "open"
+                          ? "Employer payment pending"
+                          : "Payment recorded · posting pending"}
+                  </span>
+                </div>
+                <div className="employee-pay-row-detail" style={{ display: "grid" }}>
+                  <div><span>Employer payment</span><strong>{row.paymentStatus}</strong></div>
+                  <div><span>Agency loan posting</span><strong>{row.postingStatus}</strong></div>
+                  <div><span>Control due date</span><strong>{row.dueDate}</strong></div>
+                  {row.postedAmount && <div><span>Amount posted</span><strong>{peso(row.postedAmount)}</strong></div>}
+                  {row.postingReference && <div><span>Posting reference</span><strong>{row.postingReference}</strong></div>}
+                  {row.exceptionNote && <div><span>Issue</span><strong>{row.exceptionNote}</strong></div>}
+                </div>
+              </div>
+            ))}
+            <div className="employee-rule-note">
+              <ShieldCheck size={12} /> A payroll loan deduction is not shown as reconciled until employer payment is recorded and the matching SSS/Pag-IBIG loan posting is confirmed.
             </div>
           </article>
 
