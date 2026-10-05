@@ -69,7 +69,7 @@ export function evidenceSection<T>(name: string, rows: T[]): EvidenceSection<T> 
   return {
     name,
     rowCount: rows.length,
-    sha256: sha256Evidence(rows),
+    sha256: sha256Evidence({ name, rows }),
     rows,
   };
 }
@@ -100,7 +100,7 @@ export function buildLaborInspectionEvidencePack(input: Omit<LaborInspectionEvid
 export function verifyLaborInspectionEvidencePack(pack: LaborInspectionEvidencePack) {
   const sectionEntries = Object.entries(pack.sections);
   const sectionHashes = Object.fromEntries(
-    sectionEntries.map(([name, section]) => [name, sha256Evidence(section.rows)]),
+    sectionEntries.map(([name, section]) => [name, sha256Evidence({ name: section.name, rows: section.rows })]),
   );
   const sectionsValid = sectionEntries.every(([name, section]) =>
     section.sha256 === sectionHashes[name]
