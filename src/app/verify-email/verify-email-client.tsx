@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { ArrowRight, Check, LoaderCircle } from "lucide-react";
 
 export default function VerifyEmailClient({ token }: { token: string }) {
   const [busy, setBusy] = useState(false);
@@ -24,46 +26,47 @@ export default function VerifyEmailClient({ token }: { token: string }) {
       }
       setSuccess(true);
       setMessage(data.message ?? "Email verified. Sign in again with your new address.");
+    } catch {
+      setMessage("Could not reach the server. Please try again.");
     } finally {
       setBusy(false);
     }
   }
 
   if (!token) {
-    return <p style={{ margin: 0, color: "#9b2c2c" }}>This verification link is incomplete.</p>;
+    return (
+      <div className="rounded-2xl border border-[#FFD5DC] bg-[#FFF6F7] p-4 text-[13.5px] leading-relaxed text-[#9E2239]">
+        This verification link is incomplete. Open the complete link from the email change message.
+      </div>
+    );
   }
 
   return (
     <div>
-      <p style={{ margin: "0 0 18px", color: "#52605c", lineHeight: 1.6 }}>
-        Confirming this link changes your Linaw sign-in email and signs out all existing sessions.
+      <p className="text-[14px] leading-relaxed text-[#5B6080]">
+        Confirming this change updates your Linaw sign-in email and signs out existing sessions.
       </p>
+
       <button
         type="button"
         onClick={verify}
         disabled={busy || success}
-        style={{
-          border: 0,
-          borderRadius: 12,
-          padding: "11px 18px",
-          background: "#176B5D",
-          color: "white",
-          fontWeight: 700,
-          cursor: busy || success ? "default" : "pointer",
-          opacity: busy || success ? 0.7 : 1,
-        }}
+        className="mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-[12px] bg-[#6161FF] px-5 text-[13.5px] font-semibold text-white transition hover:brightness-95 disabled:cursor-default disabled:opacity-65"
       >
+        {busy ? <LoaderCircle size={15} className="animate-spin" /> : success ? <Check size={15} /> : null}
         {busy ? "Verifying…" : success ? "Email verified" : "Verify email"}
       </button>
+
       {message && (
-        <p style={{ margin: "16px 0 0", color: success ? "#176B5D" : "#9b2c2c", lineHeight: 1.55 }}>
+        <div className={`mt-4 rounded-2xl border p-4 text-[13px] leading-relaxed ${success ? "border-[#BDE9D5] bg-[#F1FBF6] text-[#176A4E]" : "border-[#FFD5DC] bg-[#FFF6F7] text-[#9E2239]"}`}>
           {message}
-        </p>
+        </div>
       )}
+
       {success && (
-        <p style={{ margin: "12px 0 0" }}>
-          <a href="/login" style={{ color: "#176B5D", fontWeight: 700 }}>Sign in again</a>
-        </p>
+        <Link href="/login" className="mt-5 inline-flex items-center gap-2 text-[13px] font-semibold text-[#4A4AE0]">
+          Sign in again <ArrowRight size={14} />
+        </Link>
       )}
     </div>
   );
