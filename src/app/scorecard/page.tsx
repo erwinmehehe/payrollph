@@ -11,6 +11,18 @@ export const metadata: Metadata = {
   description:
     "See which Linaw payroll capabilities are verified, partial, or not yet available, including the evidence and external validation still required.",
   alternates: { canonical: "/scorecard" },
+  openGraph: {
+    title: "Payroll Capability Scorecard | Linaw",
+    description:
+      "See which Linaw payroll capabilities are verified, partial or not ready, including evidence and external validation still required.",
+    url: "/scorecard",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Payroll Capability Scorecard | Linaw",
+    description:
+      "A transparent view of verified, partial and not-ready Linaw payroll capabilities.",
+  },
 };
 
 type Status = "verified" | "partial" | "absent";
