@@ -7,6 +7,7 @@ import { StructuredData } from "@/components/marketing/structured-data";
 const comparisons = [
   { title: "Sprout Payroll alternative", href: "/resources/sprout-payroll-alternative", description: "Compare product scope, payroll controls, compliance workflow, integrations and implementation using current public evidence." },
   { title: "Salarium alternative", href: "/resources/salarium-alternative", description: "Compare employee records, attendance, government outputs, payroll controls, integrations and migration using current official documentation." },
+  { title: "PayrollHero alternative", href: "/resources/payrollhero-alternative", description: "Compare Philippine payroll scope, attendance, government and bank outputs, approval controls, integrations and implementation." },
   { title: "Payroll system comparison", href: "/resources/payroll-system-comparison", description: "Use one evaluation matrix for calculations, controls, implementation, integrations, security and evidence." },
   { title: "HRIS vs payroll system", href: "/resources/hris-vs-payroll-system", description: "Compare employee-information workflows with payroll calculation, compliance and release responsibilities." },
   { title: "Payroll software vs outsourcing", href: "/resources/payroll-software-vs-outsourcing", description: "Compare operating ownership, staffing, approvals and exception handling." },
