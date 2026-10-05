@@ -71,6 +71,45 @@ test("policy review API is company-wide and Compliance Center renders the panel"
   assert.ok(route.includes("checker"));
   assert.ok(route.includes("Cache-Control"));
   assert.ok(panels.includes("CompliancePolicyReviewPanel"));
+  assert.ok(ui.includes("actual released pay dates") || ui.includes("pay frequency"));
   assert.ok(ui.includes("not a legal opinion or DOLE certification"));
   assert.ok(ui.includes("Needs attention"));
+});
+
+test("actual released pay-date gap above 16 days is a high finding even when period lengths look normal", () => {
+  const input = baseInput();
+  input.releasedRuns = [
+    { id: 1, periodLabel: "Aug 16-31", periodStart: "2026-08-16", periodEnd: "2026-08-31", payDate: "2026-08-31" },
+    { id: 2, periodLabel: "Sep 1-15", periodStart: "2026-09-01", periodEnd: "2026-09-15", payDate: "2026-09-18" },
+  ];
+  const finding = buildCompliancePolicyReview(input).findings.find((row) => row.key === "PAY_FREQUENCY_INTERVAL");
+  assert.equal(finding?.severity, "high");
+  assert.match(finding?.detail ?? "", /18 days/);
+});
+
+test("current advanced schedule takes precedence over legacy fixed rest day", () => {
+  const input = baseInput();
+  input.employees[0].restDay = "Sunday";
+  input.scheduleAssignments = [{ employeeId: 1, patternId: 9, effectiveFrom: "2026-01-01", effectiveUntil: null }];
+  input.patterns = [{ id: 9, code: "BAD14", name: "No weekly rest", cycleDays: 14, active: true }];
+  input.patternDays = [{ patternId: 9, dayIndex: 13, isRestDay: true }];
+  const finding = buildCompliancePolicyReview(input).findings.find((row) => row.key === "WEEKLY_REST_CONTROL");
+  assert.equal(finding?.severity, "medium");
+  assert.match(finding?.detail ?? "", /Advanced schedule assignments take precedence/);
+});
+
+test("unused risky schedule templates do not create employee compliance findings", () => {
+  const input = baseInput();
+  input.patterns = [{ id: 22, code: "UNUSED", name: "Unused bad template", cycleDays: 14, active: true }];
+  input.patternDays = [{ patternId: 22, dayIndex: 13, isRestDay: true }];
+  const finding = buildCompliancePolicyReview(input).findings.find((row) => row.key === "WEEKLY_REST_CONTROL");
+  assert.equal(finding?.severity, "pass");
+  assert.equal(finding?.affectedPatterns, undefined);
+});
+
+test("partially paid leave does not automatically satisfy the fully-paid SIL coverage screen", () => {
+  const input = baseInput();
+  input.leavePolicies = [{ leaveType: "Annual leave", annualDays: 10, payTreatment: "paid", paidPercentage: 50, active: true }];
+  const finding = buildCompliancePolicyReview(input).findings.find((row) => row.key === "SIL_POLICY_COVERAGE");
+  assert.equal(finding?.severity, "medium");
 });
