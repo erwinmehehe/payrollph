@@ -3,6 +3,8 @@ import test from "node:test";
 import {
   chooseEscalationRecipients,
   escalationDedupeKey,
+  escalationStage,
+  escalationSubject,
 } from "../src/lib/statutory-remittance-escalations";
 
 const recipients = [
@@ -82,6 +84,7 @@ test("dedupe key stays stable within one episode but changes on severity or reop
     taskId: 41,
     episode: 1,
     severity: "warning",
+    stage: 1,
     recipientUserId: 3,
   };
   assert.equal(escalationDedupeKey(base), escalationDedupeKey(base));
@@ -92,5 +95,55 @@ test("dedupe key stays stable within one episode but changes on severity or reop
   assert.notEqual(
     escalationDedupeKey(base),
     escalationDedupeKey({ ...base, episode: 2 }),
+  );
+});
+
+
+test("escalation stage advances only at bounded 24h and 72h thresholds", () => {
+  const detected = new Date("2026-10-01T00:00:00Z");
+  const baseTask = task({ firstDetectedAt: detected });
+
+  assert.equal(escalationStage(baseTask, new Date("2026-10-01T23:59:59Z")), 1);
+  assert.equal(escalationStage(baseTask, new Date("2026-10-02T00:00:00Z")), 2);
+  assert.equal(escalationStage(baseTask, new Date("2026-10-03T23:59:59Z")), 2);
+  assert.equal(escalationStage(baseTask, new Date("2026-10-04T00:00:00Z")), 3);
+});
+
+test("resolved and informational actions have no escalation stage", () => {
+  assert.equal(escalationStage(task({ status: "resolved" })), 0);
+  assert.equal(escalationStage(task({ severity: "info" })), 0);
+});
+
+test("stage is part of the outbox dedupe key so follow-ups can send once per threshold", () => {
+  const base = {
+    organizationId: 9,
+    taskId: 41,
+    episode: 1,
+    severity: "danger",
+    recipientUserId: 1,
+  };
+  assert.notEqual(
+    escalationDedupeKey({ ...base, stage: 1 }),
+    escalationDedupeKey({ ...base, stage: 2 }),
+  );
+  assert.notEqual(
+    escalationDedupeKey({ ...base, stage: 2 }),
+    escalationDedupeKey({ ...base, stage: 3 }),
+  );
+});
+
+test("24h warning follow-up includes owner/admin even when assigned", () => {
+  const selected = chooseEscalationRecipients(
+    task({ assignedToUserId: 3, assignedToName: "Payroll Three" }),
+    recipients,
+    2,
+  );
+  assert.deepEqual(selected.map((row) => row.userId).sort(), [1, 2, 3]);
+});
+
+test("72h subject is explicitly executive escalation", () => {
+  assert.match(
+    escalationSubject(task({ severity: "danger" }), 3),
+    /Executive critical payroll compliance/,
   );
 });
