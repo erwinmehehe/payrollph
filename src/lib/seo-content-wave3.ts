@@ -16,6 +16,7 @@ const PAGIBIG_GUIDELINES =
   "https://www.pagibigfund.gov.ph/document/pdf/circulars/provident/HDMF%20Circular%20No.%20274%20-%20Revised%20Guidelines%20on%20Pag-IBIG%20Fund%20Membership.pdf";
 
 const reviewed = "October 5, 2026";
+const reviewedIso = "2026-10-05";
 
 export const resourceWave3: AuthorityPage[] = [
   {
@@ -44,6 +45,7 @@ export const resourceWave3: AuthorityPage[] = [
       { label: "Payroll compliance", href: "/compliance", description: "Review the wider statutory payroll workflow." },
     ],
     lastReviewed: reviewed,
+    lastReviewedIso: reviewedIso,
     sources: [
       { label: "DOLE Workers' Statutory Monetary Benefits Handbook", href: DOLE_HANDBOOK_2024 },
       { label: "DOLE labor advisories", href: DOLE_ADVISORIES },
@@ -75,6 +77,7 @@ export const resourceWave3: AuthorityPage[] = [
       { label: "DOLE payroll guide", href: "/compliance/dole", description: "Review premium-pay and schedule context." },
     ],
     lastReviewed: reviewed,
+    lastReviewedIso: reviewedIso,
     sources: [{ label: "DOLE Workers' Statutory Monetary Benefits Handbook", href: DOLE_HANDBOOK_2024 }],
   },
   {
@@ -97,6 +100,7 @@ export const resourceWave3: AuthorityPage[] = [
       { label: "Time & attendance", href: "/time-and-attendance", description: "Review attendance-to-payroll processing." },
     ],
     lastReviewed: reviewed,
+    lastReviewedIso: reviewedIso,
     sources: [{ label: "DOLE Workers' Statutory Monetary Benefits Handbook", href: DOLE_HANDBOOK_2024 }],
   },
   {
@@ -119,6 +123,7 @@ export const resourceWave3: AuthorityPage[] = [
       { label: "DOLE payroll guide", href: "/compliance/dole", description: "Review premium-pay controls." },
     ],
     lastReviewed: reviewed,
+    lastReviewedIso: reviewedIso,
     sources: [
       { label: "DOLE Workers' Statutory Monetary Benefits Handbook", href: DOLE_HANDBOOK_2024 },
       { label: "DOLE labor advisories", href: DOLE_ADVISORIES },
@@ -150,6 +155,7 @@ export const resourceWave3: AuthorityPage[] = [
       { label: "Payroll audit checklist", href: "/resources/payroll-audit-checklist", description: "Use a structured review before release." },
     ],
     lastReviewed: reviewed,
+    lastReviewedIso: reviewedIso,
     sources: [{ label: "DOLE final pay and COE reminder — January 21, 2026", href: DOLE_FINAL_PAY }],
   },
   {
@@ -172,6 +178,7 @@ export const resourceWave3: AuthorityPage[] = [
       { label: "Payroll compliance", href: "/compliance", description: "See how Linaw separates automated calculation from human/legal validation." },
     ],
     lastReviewed: reviewed,
+    lastReviewedIso: reviewedIso,
     sources: [{ label: "DOLE Workers' Statutory Monetary Benefits Handbook", href: DOLE_HANDBOOK_2024 }],
   },
   {
@@ -299,6 +306,7 @@ export const resourceWave3: AuthorityPage[] = [
       { label: "BIR compliance", href: "/compliance/bir", description: "See the broader BIR payroll workflow." },
     ],
     lastReviewed: reviewed,
+    lastReviewedIso: reviewedIso,
     sources: [
       { label: "BIR forms", href: BIR_FORMS },
       { label: "BIR Form 2316 information", href: BIR_2316 },
@@ -333,6 +341,7 @@ export const complianceWave3: AuthorityPage[] = [
       { label: "Alphalist guide", href: "/compliance/alphalist", description: "Review annual employee/payee reporting context." },
     ],
     lastReviewed: reviewed,
+    lastReviewedIso: reviewedIso,
     sources: [
       { label: "BIR Form 2316 information", href: BIR_2316 },
       { label: "BIR forms library", href: BIR_FORMS },
@@ -364,6 +373,7 @@ export const complianceWave3: AuthorityPage[] = [
       { label: "BIR compliance", href: "/compliance/bir", description: "See the complete payroll-tax workflow." },
     ],
     lastReviewed: reviewed,
+    lastReviewedIso: reviewedIso,
     sources: [
       { label: "BIR 1601-C guidelines", href: BIR_1601C },
       { label: "BIR tax reminder", href: BIR_TAX_REMINDER },
@@ -395,6 +405,7 @@ export const complianceWave3: AuthorityPage[] = [
       { label: "Regulatory updates", href: "/resources/updates", description: "Track dated BIR reminders affecting payroll reporting." },
     ],
     lastReviewed: reviewed,
+    lastReviewedIso: reviewedIso,
     sources: [
       { label: "BIR forms", href: BIR_FORMS },
       { label: "BIR tax reminder", href: BIR_TAX_REMINDER },
@@ -426,6 +437,7 @@ export const complianceWave3: AuthorityPage[] = [
       { label: "Payroll annualization", href: "/resources/payroll-annualization", description: "Review the year-end reconciliation." },
     ],
     lastReviewed: reviewed,
+    lastReviewedIso: reviewedIso,
     sources: [
       { label: "BIR 1601-C guidelines", href: BIR_1601C },
       { label: "BIR forms library", href: BIR_FORMS },
@@ -451,6 +463,7 @@ export const complianceWave3: AuthorityPage[] = [
       { label: "Payroll audit", href: "/compliance/payroll-audit", description: "Reconcile compliance evidence after the payroll run." },
     ],
     lastReviewed: reviewed,
+    lastReviewedIso: reviewedIso,
     sources: [
       { label: "BIR tax reminder", href: BIR_TAX_REMINDER },
       { label: "DOLE labor advisories", href: DOLE_ADVISORIES },
