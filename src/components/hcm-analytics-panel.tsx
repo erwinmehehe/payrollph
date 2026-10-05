@@ -244,7 +244,7 @@ export function HcmAnalyticsPanel({ organizationId }: { organizationId: number }
           <h3>12-month reconstructed workforce</h3>
           <p style={{ color: "var(--muted)", marginBottom: 16 }}>{data.headcount.methodology}</p>
           {data.headcount.trend.map((row) => <Meter key={row.key} label={row.label} value={row.headcount} max={maxHeadcount} />)}
-          <div className="metric-strip" style={{ marginTop: 14 }}>
+          <div className="hcm-metric-strip" style={{ marginTop: 14 }}>
             <div><span>Opening YTD</span><strong>{data.headcount.openingYtd}</strong></div>
             <div><span>Hires YTD</span><strong>{data.headcount.hiresYtd}</strong></div>
             <div><span>Separations YTD</span><strong>{data.headcount.separationsYtd}</strong></div>
@@ -256,7 +256,7 @@ export function HcmAnalyticsPanel({ organizationId }: { organizationId: number }
           <h3>Funnel and time-to-fill</h3>
           <p style={{ color: "var(--muted)", marginBottom: 16 }}>{data.recruiting.methodology}</p>
           {data.recruiting.funnel.map((row) => <Meter key={row.stage} label={row.stage} value={row.count} max={maxFunnel} />)}
-          <div className="metric-strip" style={{ marginTop: 14 }}>
+          <div className="hcm-metric-strip" style={{ marginTop: 14 }}>
             <div><span>Open requisitions</span><strong>{data.recruiting.openRequisitions}</strong></div>
             <div><span>Avg fill</span><strong>{data.recruiting.averageTimeToFillDays === null ? "—" : Math.round(data.recruiting.averageTimeToFillDays) + "d"}</strong></div>
             <div><span>Median fill</span><strong>{data.recruiting.medianTimeToFillDays === null ? "—" : Math.round(data.recruiting.medianTimeToFillDays) + "d"}</strong></div>
@@ -271,7 +271,7 @@ export function HcmAnalyticsPanel({ organizationId }: { organizationId: number }
           <div style={{ marginTop: 14 }}>
             {data.workforce.positionStatus.map((row) => <Meter key={row.status} label={row.status} value={row.count} max={maxPosition} />)}
           </div>
-          <div className="metric-strip" style={{ marginTop: 14 }}>
+          <div className="hcm-metric-strip" style={{ marginTop: 14 }}>
             <div><span>Vacancy rate</span><strong>{data.workforce.vacancyRate.toFixed(1)}%</strong></div>
             <div><span>Avg span</span><strong>{number1(data.workforce.averageSpanOfControl)}</strong></div>
             <div><span>Max span</span><strong>{data.workforce.maxSpanOfControl}</strong></div>
@@ -292,7 +292,7 @@ export function HcmAnalyticsPanel({ organizationId }: { organizationId: number }
           ) : (
             <>
               <div style={{ marginTop: 14 }}>{data.performance.distribution.map((row) => <Meter key={row.label} label={row.label} value={row.count} max={maxPerformance} />)}</div>
-              <div className="metric-strip" style={{ marginTop: 14 }}>
+              <div className="hcm-metric-strip" style={{ marginTop: 14 }}>
                 <div><span>Reviews</span><strong>{data.performance.reviewCount}</strong></div>
                 <div><span>Average</span><strong>{number1(data.performance.averageScore)}</strong></div>
                 <div><span>Median</span><strong>{number1(data.performance.medianScore)}</strong></div>
@@ -316,7 +316,7 @@ export function HcmAnalyticsPanel({ organizationId }: { organizationId: number }
             <div className="notice" style={{ marginTop: 14 }}><ShieldCheck size={14} /><span>{data.compensation.suppressionReason}</span></div>
           ) : (
             <>
-              <div className="metric-strip" style={{ marginTop: 14 }}>
+              <div className="hcm-metric-strip" style={{ marginTop: 14 }}>
                 <div><span>Band coverage</span><strong>{number1(data.compensation.bandCoveragePercent)}%</strong></div>
                 <div><span>Avg compa-ratio</span><strong>{number1(data.compensation.averageCompaRatio)}</strong></div>
                 <div><span>Monthly cohort</span><strong>{data.compensation.monthlyPayPopulation ?? "Suppressed"}</strong></div>
@@ -345,7 +345,7 @@ export function HcmAnalyticsPanel({ organizationId }: { organizationId: number }
             <div className="notice" style={{ marginTop: 14 }}><ShieldCheck size={14} /><span>{data.mobility.suppressionReason}</span></div>
           ) : (
             <>
-              <div className="metric-strip" style={{ marginTop: 14 }}>
+              <div className="hcm-metric-strip" style={{ marginTop: 14 }}>
                 <div><span>Ready for move</span><strong>{data.mobility.readyForMove}</strong></div>
                 <div><span>Ready rate</span><strong>{number1(data.mobility.readyForMovePercent)}%</strong></div>
                 <div><span>Skill evidence</span><strong>{number1(data.mobility.verifiedSkillCoveragePercent)}%</strong></div>
@@ -365,7 +365,7 @@ export function HcmAnalyticsPanel({ organizationId }: { organizationId: number }
         <div className="card-kicker">LABOR COST</div>
         <h3>Payroll actuals vs annualized loaded forecast</h3>
         <p style={{ color: "var(--muted)" }}>{data.cost.methodology}</p>
-        <div className="metric-strip" style={{ marginTop: 14 }}>
+        <div className="hcm-metric-strip" style={{ marginTop: 14 }}>
           <div><span>Gross YTD</span><strong>{money(data.cost.actualGrossYtd)}</strong></div>
           <div><span>Employer statutory YTD</span><strong>{money(data.cost.employerStatutoryYtd)}</strong></div>
           <div><span>Loaded payroll YTD</span><strong>{money(data.cost.loadedPayrollYtd)}</strong></div>
