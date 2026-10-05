@@ -259,6 +259,7 @@ jobs:
           async function qaPublicRoutes(browser) {
             const routes = [
               { path: "/demo", heading: "See Linaw from the seat you actually use." },
+              { path: "/signup", heading: "Request access to a Linaw trial workspace." },
               { path: "/payroll-outsourcing", heading: "Payroll outsourcing in the Philippines, without losing control." },
               { path: "/book-demo", heading: "Bring your actual payroll questions." },
               { path: "/status", heading: "Linaw system status." },
