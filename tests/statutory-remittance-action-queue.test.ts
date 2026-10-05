@@ -33,7 +33,10 @@ test("dashboard alerts and action queue share one remittance state loader", () =
 
 test("queue sync creates, reopens and auto-resolves from underlying evidence", () => {
   assert.ok(actions.includes("activeKeys"));
-  assert.ok(actions.includes('status: wasResolved ? "open" : current.status'));
+  assert.ok(actions.includes('if (current.status === "resolved")'));
+  assert.ok(actions.includes('status: "open"'));
+  assert.ok(actions.includes("acknowledgedAt: null"));
+  assert.ok(actions.includes("resolvedAt: null"));
   assert.ok(actions.includes('status: "resolved"'));
   assert.ok(actions.includes("resolved += 1"));
   assert.ok(actions.includes("reopened += 1"));
