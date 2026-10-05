@@ -87,5 +87,6 @@ export default function HrisPage() {
         { label: "Implementation", href: "/implementation", description: "See how existing employee and payroll data can be migrated into Linaw." },
       ]}
     />
+    </>
   );
 }
