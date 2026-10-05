@@ -15,11 +15,6 @@ const questions = [
   { id: "selfservice", label: "Employees regularly ask payroll to resend payslips or explain basic payroll history.", area: "Employee experience" },
 ] as const;
 
-const answerOptions = [
-  ["yes", true],
-  ["no", false],
-] as const;
-
 export function PayrollHealthCheck() {
   const [answers, setAnswers] = useState<Record<string, boolean>>({});
 
@@ -46,7 +41,7 @@ export function PayrollHealthCheck() {
             <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8B90AA]">{question.area}</p>
             <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#2B2F45]">{question.label}</p>
             <div className="mt-4 flex gap-2">
-              {answerOptions.map(([labelText, value]) => (
+              {([["yes", true], ["no", false]] as const).map(([labelText, value]) => (
                 <button
                   key={labelText}
                   type="button"
@@ -62,19 +57,12 @@ export function PayrollHealthCheck() {
       </div>
       <aside className="h-fit rounded-[26px] bg-[#11141F] p-7 text-white lg:sticky lg:top-24">
         <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-white/45">Payroll health score</p>
-        <p className="mt-4 text-[54px] font-semibold tracking-[-0.05em]">
-          {result.answered ? result.score : "—"}
-          <span className="text-[20px] text-white/35">{result.answered ? "/100" : ""}</span>
-        </p>
+        <p className="mt-4 text-[54px] font-semibold tracking-[-0.05em]">{result.answered ? result.score : "—"}<span className="text-[20px] text-white/35">{result.answered ? "/100" : ""}</span></p>
         <h2 className="mt-3 text-[22px] font-semibold">{label}</h2>
         <p className="mt-3 text-[13px] leading-relaxed text-white/60">
           This is a process-maturity screen, not a legal compliance certification. A lower score means more of the common payroll-control risks above are present.
         </p>
-        {result.answered ? (
-          <p className="mt-5 text-[12px] text-white/50">
-            {result.risks} risk signal{result.risks === 1 ? "" : "s"} identified across {result.answered} answered questions.
-          </p>
-        ) : null}
+        {result.answered ? <p className="mt-5 text-[12px] text-white/50">{result.risks} risk signal{result.risks === 1 ? "" : "s"} identified across {result.answered} answered questions.</p> : null}
       </aside>
     </div>
   );
