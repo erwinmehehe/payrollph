@@ -55,7 +55,7 @@ export async function roleGateAllowed(userId: number, organizationId: number, pe
     return { allowed: false as const, restricted: true as const, permissionSet };
   }
   const permissions = Array.isArray(permissionSet.permissions)
-    ? permissionSet.permissions.filter((value): value is string => typeof value === "string")
+    ? permissionSet.permissions.filter((value: unknown): value is string => typeof value === "string")
     : [];
   return {
     allowed: permissions.includes(permission),
