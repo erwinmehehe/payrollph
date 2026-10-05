@@ -31,6 +31,8 @@ export function evaluateRemittanceMonthClose(input: {
   batches: Batch[];
   members: Member[];
   alerts: Alert[];
+  requiredAgencies: string[];
+  allPayrollRunsReleased: boolean;
 }) {
   const monthBatches = input.batches
     .filter((batch) => batch.applicableMonth === input.applicableMonth)
@@ -40,6 +42,17 @@ export function evaluateRemittanceMonthClose(input: {
   );
 
   const blockers: string[] = [];
+  if (!input.allPayrollRunsReleased) {
+    blockers.push("Every payroll run in the month must be Released before remittance close.");
+  }
+  if (input.requiredAgencies.length === 0) {
+    blockers.push("No released statutory contribution liability was found for this month.");
+  }
+  for (const agency of input.requiredAgencies) {
+    if (!monthBatches.some((batch) => batch.agency === agency)) {
+      blockers.push(`${agency} remittance batch is missing for this month.`);
+    }
+  }
   if (monthBatches.length === 0) blockers.push("No remittance batches exist for this month.");
   for (const alert of monthAlerts) blockers.push(alert.title);
   for (const batch of monthBatches) {
