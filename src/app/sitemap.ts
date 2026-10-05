@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { absolutePublicUrl } from "@/lib/site-url";
 import { CALCULATORS } from "@/lib/calculators";
 import { compliancePages, industryPages, resourcePages } from "@/lib/seo-content";
+import { industryWave2, resourceWave2 } from "@/lib/seo-content-wave2";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const staticRoutes = [
@@ -29,8 +30,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   const dynamicRoutes = [
     ...compliancePages.map(({ slug }) => ({ path: `/compliance/${slug}`, priority: 0.8, changeFrequency: "monthly" as const })),
-    ...resourcePages.map(({ slug }) => ({ path: `/resources/${slug}`, priority: 0.8, changeFrequency: "monthly" as const })),
-    ...industryPages.map(({ slug }) => ({ path: `/industries/${slug}`, priority: 0.8, changeFrequency: "monthly" as const })),
+    ...[...resourcePages, ...resourceWave2].map(({ slug }) => ({ path: `/resources/${slug}`, priority: 0.8, changeFrequency: "monthly" as const })),
+    ...[...industryPages, ...industryWave2].map(({ slug }) => ({ path: `/industries/${slug}`, priority: 0.8, changeFrequency: "monthly" as const })),
     ...Object.keys(CALCULATORS).map((slug) => ({ path: `/calculators/${slug}`, priority: 0.8, changeFrequency: "monthly" as const })),
   ];
 
