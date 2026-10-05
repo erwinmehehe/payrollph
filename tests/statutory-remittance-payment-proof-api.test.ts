@@ -44,6 +44,9 @@ test("payment proof upload is tenant-scoped, MFA-protected, bounded and hashed s
   assert.ok(uploadRoute.includes("enforceSameOriginMutation(request)"));
   assert.ok(uploadRoute.includes("const MAX_BYTES = 2 * 1024 * 1024"));
   assert.ok(uploadRoute.includes("application/pdf"));
+  assert.ok(uploadRoute.includes("bytesMatchMime"));
+  assert.ok(uploadRoute.includes("%PDF-"));
+  assert.ok(uploadRoute.includes("Payment proof contents do not match the declared PDF/JPEG/PNG file type."));
   assert.ok(uploadRoute.includes('createHash("sha256").update(bytes).digest("hex")'));
 });
 
