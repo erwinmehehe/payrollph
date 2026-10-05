@@ -17,7 +17,8 @@ import {
 } from "lucide-react";
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
 import { FilingEvidencePanel } from "./filing-evidence";
-import { BookkeeperPayrollClose } from "./bookkeeper-payroll-close";\nimport { ManagedPayrollControlRoom } from "./managed-payroll-control-room";
+import { BookkeeperPayrollClose } from "./bookkeeper-payroll-close";
+import { ManagedPayrollControlRoom } from "./managed-payroll-control-room";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, PageHeading, Segmented, Status, formatDate, money } from "./ui";
 
