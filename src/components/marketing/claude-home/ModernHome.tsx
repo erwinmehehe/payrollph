@@ -17,7 +17,6 @@ import {
   Menu,
   Search,
   ShieldCheck,
-  Sparkles,
   X,
 } from "lucide-react";
 
