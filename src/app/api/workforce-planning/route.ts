@@ -1,9 +1,10 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employees,
   jobProfiles,
+  jobRequisitions,
   orgUnits,
   positionAssignments,
   positions,
@@ -52,7 +53,7 @@ export async function GET(request: Request) {
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
 
-  const [profiles, plans, allPositions, assignments, units, staff] = await Promise.all([
+  const [profiles, plans, allPositions, assignments, units, staff, requisitions] = await Promise.all([
     db.select().from(jobProfiles).where(eq(jobProfiles.organizationId, organizationId)).orderBy(jobProfiles.title),
     db.select().from(workforcePlans).where(eq(workforcePlans.organizationId, organizationId)).orderBy(desc(workforcePlans.startDate)),
     db.select().from(positions).where(eq(positions.organizationId, organizationId)).orderBy(desc(positions.id)),
@@ -66,6 +67,14 @@ export async function GET(request: Request) {
       orgUnitId: employees.orgUnitId,
       status: employees.status,
     }).from(employees).where(eq(employees.organizationId, organizationId)),
+    db.select({
+      id: jobRequisitions.id,
+      positionId: jobRequisitions.positionId,
+      status: jobRequisitions.status,
+      createdAt: jobRequisitions.createdAt,
+    }).from(jobRequisitions)
+      .where(eq(jobRequisitions.organizationId, organizationId))
+      .orderBy(desc(jobRequisitions.id)),
   ]);
 
   const visiblePositions = access.companyWide
@@ -76,10 +85,28 @@ export async function GET(request: Request) {
     ? staff
     : staff.filter((employee) => employee.orgUnitId === access.orgUnitId);
 
+  const activeRequisitionByPosition = new Map<number, (typeof requisitions)[number]>();
+  for (const requisition of requisitions) {
+    if (
+      requisition.positionId != null &&
+      !activeRequisitionByPosition.has(requisition.positionId) &&
+      !["filled", "cancelled"].includes(requisition.status)
+    ) {
+      activeRequisitionByPosition.set(requisition.positionId, requisition);
+    }
+  }
+
   return Response.json({
     profiles,
     plans,
-    positions: visiblePositions,
+    positions: visiblePositions.map((position) => {
+      const activeRequisition = activeRequisitionByPosition.get(position.id);
+      return {
+        ...position,
+        activeRequisitionId: activeRequisition?.id ?? null,
+        activeRequisitionStatus: activeRequisition?.status ?? null,
+      };
+    }),
     assignments: assignments.filter((assignment) => visiblePositionIds.has(assignment.positionId)),
     orgUnits: access.companyWide ? units : units.filter((unit) => unit.id === access.orgUnitId),
     employees: visibleEmployees,
@@ -257,6 +284,12 @@ export async function POST(request: Request) {
     if (!position) return Response.json({ error: "Position not found in this workspace." }, { status: 404 });
     const unitScope = await scopedUnit(user.id, organizationId, position.orgUnitId);
     if ("error" in unitScope) return unitScope.error;
+    if (!["approved", "open"].includes(position.status)) {
+      return Response.json({
+        error: "A position must be approved or actively recruiting before an incumbent can be assigned.",
+        positionStatus: position.status,
+      }, { status: 409 });
+    }
 
     const [employee] = await db.select({ id: employees.id, orgUnitId: employees.orgUnitId }).from(employees)
       .where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId))).limit(1);
@@ -265,11 +298,26 @@ export async function POST(request: Request) {
     const employeeScope = assertScope(access, employee.orgUnitId);
     if (!employeeScope.ok) return Response.json({ error: employeeScope.error }, { status: employeeScope.status });
 
-    const [openAssignment] = await db.select({ id: positionAssignments.id }).from(positionAssignments)
-      .where(and(eq(positionAssignments.positionId, positionId), isNull(positionAssignments.effectiveUntil))).limit(1);
-    if (openAssignment) return Response.json({ error: "This position already has an active assignment." }, { status: 409 });
+    const requisitions = await db.select({ id: jobRequisitions.id, status: jobRequisitions.status })
+      .from(jobRequisitions)
+      .where(and(
+        eq(jobRequisitions.organizationId, organizationId),
+        eq(jobRequisitions.positionId, positionId),
+      ))
+      .orderBy(desc(jobRequisitions.id));
+    const activeRequisition = requisitions.find((row) => !["filled", "cancelled"].includes(row.status));
 
-    const [row] = await db.transaction(async (tx) => {
+    const row = await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(4102, ${positionId})`);
+      const [openAssignment] = await tx.select({ id: positionAssignments.id })
+        .from(positionAssignments)
+        .where(and(
+          eq(positionAssignments.positionId, positionId),
+          isNull(positionAssignments.effectiveUntil),
+        ))
+        .limit(1);
+      if (openAssignment) return null;
+
       const [assignment] = await tx.insert(positionAssignments).values({
         organizationId,
         positionId,
@@ -278,16 +326,34 @@ export async function POST(request: Request) {
         reason: body.reason ? String(body.reason).slice(0, 240) : "Position assignment",
         createdByUserId: user.id,
       }).returning();
-      await tx.update(positions).set({ status: "filled", updatedAt: new Date() }).where(eq(positions.id, positionId));
-      return [assignment];
+
+      await tx.update(positions)
+        .set({ status: "filled", updatedAt: new Date() })
+        .where(eq(positions.id, positionId));
+
+      if (activeRequisition) {
+        await tx.update(jobRequisitions)
+          .set({ status: "filled" })
+          .where(eq(jobRequisitions.id, activeRequisition.id));
+      }
+      return assignment;
     });
+    if (!row) {
+      return Response.json({ error: "This position already has an active assignment." }, { status: 409 });
+    }
 
     await recordAuditEvent({
       organizationId,
       actor: user.name,
       action: "Employee assigned to position",
       resource: position.code,
-      metadata: { positionId, employeeId, assignmentId: row.id, effectiveFrom },
+      metadata: {
+        positionId,
+        employeeId,
+        assignmentId: row.id,
+        effectiveFrom,
+        requisitionId: activeRequisition?.id ?? null,
+      },
     });
     return Response.json(row, { status: 201 });
   }
@@ -316,19 +382,68 @@ export async function PATCH(request: Request) {
   const unitScope = await scopedUnit(user.id, position.organizationId, position.orgUnitId);
   if ("error" in unitScope) return unitScope.error;
 
+  const requisitions = await db.select({ id: jobRequisitions.id, status: jobRequisitions.status })
+    .from(jobRequisitions)
+    .where(and(
+      eq(jobRequisitions.organizationId, position.organizationId),
+      eq(jobRequisitions.positionId, position.id),
+    ))
+    .orderBy(desc(jobRequisitions.id));
+  const activeRequisition = requisitions.find((row) => !["filled", "cancelled"].includes(row.status));
+
+  if (status === "open" && !activeRequisition) {
+    return Response.json({
+      error: "A position becomes open only by creating a requisition from the Recruitment workflow.",
+    }, { status: 409 });
+  }
+
+  if (position.status === "filled" && status !== "filled") {
+    return Response.json({
+      error: "End the active position assignment before changing a filled position's lifecycle state.",
+    }, { status: 409 });
+  }
+
   if (status === "filled") {
     const [activeAssignment] = await db.select({ id: positionAssignments.id }).from(positionAssignments)
       .where(and(eq(positionAssignments.positionId, id), isNull(positionAssignments.effectiveUntil))).limit(1);
-    if (!activeAssignment) return Response.json({ error: "A position can be marked filled only through an active employee assignment." }, { status: 409 });
+    if (!activeAssignment) {
+      return Response.json({
+        error: "A position can be marked filled only through an active employee assignment.",
+      }, { status: 409 });
+    }
   }
 
-  const [row] = await db.update(positions).set({ status, updatedAt: new Date() }).where(eq(positions.id, id)).returning();
+  if (activeRequisition && position.status === "open" && !["open", "filled", "frozen", "closed"].includes(status)) {
+    return Response.json({
+      error: "An actively recruiting position can only remain open, be filled, frozen, or closed.",
+    }, { status: 409 });
+  }
+
+  const row = await db.transaction(async (tx) => {
+    if (activeRequisition && ["frozen", "closed"].includes(status)) {
+      await tx.update(jobRequisitions)
+        .set({ status: "cancelled" })
+        .where(eq(jobRequisitions.id, activeRequisition.id));
+    }
+    const [updated] = await tx.update(positions)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(positions.id, id))
+      .returning();
+    return updated;
+  });
+
   await recordAuditEvent({
     organizationId: position.organizationId,
     actor: user.name,
     action: "Position status changed",
     resource: position.code,
-    metadata: { positionId: id, from: position.status, to: status },
+    metadata: {
+      positionId: id,
+      from: position.status,
+      to: status,
+      requisitionId: activeRequisition?.id ?? null,
+      requisitionCancelled: Boolean(activeRequisition && ["frozen", "closed"].includes(status)),
+    },
   });
   return Response.json(row);
 }
