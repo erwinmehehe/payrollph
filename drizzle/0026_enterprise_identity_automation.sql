@@ -47,7 +47,9 @@ CREATE TABLE IF NOT EXISTS "identity_domains" (
   "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
   "provider_id" integer NOT NULL REFERENCES "identity_providers"("id") ON DELETE cascade,
   "domain" varchar(180) NOT NULL,
+  "verification_token_hash" text NOT NULL,
   "verified" boolean DEFAULT false NOT NULL,
+  "verified_at" timestamp with time zone,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "identity_domains_domain_unique" ON "identity_domains" ("domain");
