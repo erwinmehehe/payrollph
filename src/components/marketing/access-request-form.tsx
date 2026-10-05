@@ -34,7 +34,7 @@ export function AccessRequestForm() {
           ...form,
           requestType: "trial",
           attribution: readMarketingAttribution(),
-          notes: ["Trial access request.", form.notes].filter(Boolean).join("\n\n"),
+          requestType: "trial-access",
         }),
       });
       const payload = await response.json().catch(() => ({}));

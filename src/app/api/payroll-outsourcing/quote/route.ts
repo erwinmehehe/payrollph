@@ -1,15 +1,14 @@
-import { enforceSameOriginMutation } from "@/lib/security-request";
-import { queueMessage } from "@/lib/mailer";
-import { activeMailProvider, deliveryCapable } from "@/lib/mail-provider";
+import {
+  notifyMarketingLead,
+  recordMarketingLead,
+  updateMarketingLeadNotification,
+  type MarketingLeadNotificationStatus,
+} from "@/lib/marketing-leads";
 import { clientIp, rateLimitDistributed } from "@/lib/rate-limit";
+import { enforceSameOriginMutation } from "@/lib/security-request";
 import { normalizeEmail, validEmail } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
-
-const OPERATOR_INBOX =
-  process.env.PAYROLL_OUTSOURCING_INBOX ??
-  process.env.DEMO_REQUEST_INBOX ??
-  "payroll-outsourcing@linaw.invalid";
 
 export async function POST(request: Request) {
   const originDenied = enforceSameOriginMutation(request);
@@ -43,47 +42,44 @@ export async function POST(request: Request) {
     return Response.json({ error: "Validation failed.", problems }, { status: 422 });
   }
 
-  let result: Awaited<ReturnType<typeof queueMessage>>;
+  let lead: Awaited<ReturnType<typeof recordMarketingLead>>;
   try {
-    result = await queueMessage({
-      recipient: OPERATOR_INBOX,
-      subject: `Payroll outsourcing enquiry: ${company}`,
-      purpose: "payroll-outsourcing-enquiry",
-      body: [
-        "A payroll outsourcing enquiry was submitted from the public site.",
-        "",
-        `Name:      ${name}`,
-        `Email:     ${email}`,
-        `Company:   ${company}`,
-        `Headcount: ${headcount}`,
-        `Frequency: ${frequency || "not stated"}`,
-        `Entities:  ${entities || "not stated"}`,
-        "",
-        "Requested scope / notes:",
-        notes || "(none)",
-      ].join("\n"),
+    lead = await recordMarketingLead({
+      kind: "payroll-outsourcing",
+      name,
+      email,
+      company,
+      headcount,
+      payrollFrequency: frequency,
+      entities,
+      notes,
+      sourcePath: "/payroll-outsourcing",
     });
   } catch (error) {
-    console.error("payroll-outsourcing: could not write to the outbox", error);
+    console.error("marketing-lead: could not persist payroll outsourcing request", error);
     return Response.json(
       { error: "We could not record your request right now. Please try again shortly." },
       { status: 503 },
     );
   }
 
-  const provider = activeMailProvider();
+  let status: MarketingLeadNotificationStatus = "not-configured";
+  try {
+    const notification = await notifyMarketingLead(lead.id);
+    status = notification.status;
+  } catch (error) {
+    console.error("marketing-lead: notification failed after durable outsourcing capture", error);
+    status = "failed";
+    await updateMarketingLeadNotification({ id: lead.id, status }).catch(() => {});
+  }
 
   return Response.json(
     {
       ok: true,
-      queued: result.queued,
-      delivered: result.delivered,
-      provider,
-      deliveryCapable: deliveryCapable(),
-      message: result.delivered
-        ? `Payroll outsourcing enquiry sent to the Linaw team via ${provider}.`
-        : "Payroll outsourcing enquiry recorded in the outbox. No email provider is configured, so it has not been emailed yet.",
-      reason: result.reason ?? null,
+      recorded: true,
+      leadId: lead.id,
+      notified: status === "sent",
+      notificationStatus: status,
     },
     { status: 201 },
   );

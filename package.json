@@ -11,6 +11,8 @@
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "security:preflight": "tsx scripts/security-preflight.ts",
+    "leads:list": "tsx scripts/list-marketing-leads.ts",
+    "leads:set-status": "tsx scripts/update-marketing-lead-status.ts",
     "seo:audit": "tsx scripts/seo-launch-audit.ts"
   },
   "dependencies": {

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { AlertTriangle, ArrowRight, CalendarDays, Check, LoaderCircle } from "lucide-react";
 import { readMarketingAttribution } from "@/lib/marketing-attribution-client";
 
-type Result = { message: string; queued: boolean; delivered: boolean; provider: string };
+type Result = { leadId: number; recorded: boolean };
 
 const inputClass =
   "mt-2 w-full rounded-xl border border-[#D9DCEC] bg-white px-3.5 py-3 text-[14px] text-[#11141F] outline-none transition focus:border-[#6161FF] focus:ring-4 focus:ring-[#6161FF]/10";

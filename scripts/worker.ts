@@ -3,6 +3,7 @@ import { pool } from "../src/db";
 import { processNextPayrollJob } from "../src/lib/payroll-engine";
 import { drainWebhookRetries } from "../src/lib/webhooks";
 import { drainOutboxRetries } from "../src/lib/mailer";
+import { drainMarketingLeadNotifications } from "../src/lib/marketing-leads";
 import { runScheduledStatutoryRemittanceSync } from "../src/lib/statutory-remittance-actions";
 
 const POLL_MS = Math.max(1000, Number(process.env.WORKER_POLL_MS ?? "3000"));
@@ -40,7 +41,7 @@ async function main() {
   while (!stopping) {
     try {
       const result = await tick();
-      if (!result.payrollProcessed && result.webhookRetries === 0 && result.mailRetries === 0) {
+      if (!result.payrollProcessed && result.webhookRetries === 0 && result.mailRetries === 0 && result.marketingLeadNotifications === 0) {
         await sleep(POLL_MS);
       }
     } catch (error) {
