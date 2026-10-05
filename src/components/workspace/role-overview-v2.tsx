@@ -68,11 +68,6 @@ function OwnerWorkspace({ data, currentRun, firstName, onPage, onNewRun }: Commo
       <ContractGreeting firstName={firstName} />
       <span className="role-contract-copy">Can I safely release this payroll?</span>
 
-      <StatutoryRemittanceWatch
-        organizationId={data.selectedOrganization.id}
-        onOpen={() => onPage("Payroll")}
-      />
-
       <section className="mockup-owner-release dashboard-alert-banner">
         <div className="mockup-owner-head">
           <div>
@@ -112,6 +107,11 @@ function OwnerWorkspace({ data, currentRun, firstName, onPage, onNewRun }: Commo
           <MockCheck ok={hardBlockers === 0} label={String(hardBlockers) + " hard blockers"} detail={hardBlockers ? "Resolve before release" : "All clear"} />
         </div>
       </section>
+
+      <StatutoryRemittanceWatch
+        organizationId={data.selectedOrganization.id}
+        onOpen={() => onPage("Payroll")}
+      />
 
       <section className="mockup-section mockup-owner-alerts">
         <MockupSectionHeader title="Things to know before releasing" />
@@ -178,11 +178,6 @@ function PayrollWorkspace({ data, currentRun, firstName, onPage, onNewRun }: Com
       <ContractGreeting firstName={firstName} />
       <span className="role-contract-copy">What do I need to fix before I can submit?</span>
 
-      <StatutoryRemittanceWatch
-        organizationId={data.selectedOrganization.id}
-        onOpen={() => onPage("Payroll")}
-      />
-
       <section className="mockup-page-intro">
         <div>
           <h1>{currentRun?.periodLabel ?? "Next payroll"} payroll</h1>
@@ -202,6 +197,11 @@ function PayrollWorkspace({ data, currentRun, firstName, onPage, onNewRun }: Com
           <MockStep index={4} label="Submit" detail={canSubmit ? "Ready" : "Locked"} state={canSubmit ? "current" : "locked"} />
         </div>
       </section>
+
+      <StatutoryRemittanceWatch
+        organizationId={data.selectedOrganization.id}
+        onOpen={() => onPage("Payroll")}
+      />
 
       <section className="mockup-kpi-row mockup-kpi-four payroll-focus-summary">
         <MockKpi value={String(total)} label="Employees" />
