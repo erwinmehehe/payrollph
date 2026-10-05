@@ -9,7 +9,7 @@ import {
 import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { notifyEmployeeOfContributionCase } from "@/lib/statutory-contribution-case-notifications";
-import { invalidateStatutoryRemittanceMonthCertification } from "@/lib/statutory-remittance-certification";
+import { contributionCaseServiceStatus, contributionCaseServiceTargets } from "@/lib/statutory-contribution-case-aging";
 import { getSessionUser } from "@/lib/auth";
 import {
   enforceSameOriginMutation,
@@ -80,6 +80,7 @@ export async function GET(request: Request) {
       ...row.issue,
       employeeNo: row.employeeNo,
       employeeName: `${row.firstName} ${row.lastName}`,
+      service: contributionCaseServiceStatus(row.issue),
     })),
   });
 }
@@ -145,6 +146,8 @@ export async function POST(request: Request) {
       eq(statutoryContributionIssueCases.organizationId, organizationId),
     )).returning();
 
+    const serviceTargets = contributionCaseServiceTargets(updated);
+
     await db.update(complianceActionTasks).set({
       status: "in_progress",
       assignedToUserId: user.id,
@@ -152,6 +155,7 @@ export async function POST(request: Request) {
       acknowledgedAt: now,
       acknowledgedByUserId: user.id,
       acknowledgedByName: user.name,
+      dueDate: serviceTargets.resolutionDue.toISOString().slice(0, 10),
       updatedAt: now,
     }).where(and(
       eq(complianceActionTasks.organizationId, organizationId),
@@ -260,25 +264,6 @@ export async function POST(request: Request) {
         linkedMemberId: issue.remittanceMemberId,
       },
     });
-
-    const invalidatedClosures = await invalidateStatutoryRemittanceMonthCertification({
-      organizationId,
-      applicableMonth: issue.applicableMonth,
-      reason: `Employee contribution case #${issue.id} resolution changed certified month evidence.`,
-    });
-    if (invalidatedClosures.length > 0) {
-      await recordAuditEvent({
-        organizationId,
-        actor: user.name,
-        action: "Statutory remittance month certification invalidated",
-        resource: issue.applicableMonth,
-        metadata: {
-          reason: "employee_contribution_issue_resolved",
-          caseId: issue.id,
-          invalidatedClosureIds: invalidatedClosures.map((row) => row.id),
-        },
-      });
-    }
 
     try {
       await notifyEmployeeOfContributionCase({
