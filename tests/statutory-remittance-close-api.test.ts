@@ -73,3 +73,20 @@ test("month close self-initializes additive schema for existing deployments", ()
   assert.ok(guard.includes("pg_advisory_xact_lock"));
   assert.ok(guard.includes("ensureStatutoryRemittanceCorrectionSchema"));
 });
+
+
+test("month close includes employee contribution case history and unresolved blockers", () => {
+  assert.ok(route.includes("statutoryContributionIssueCases"));
+  assert.ok(route.includes("issueCases"));
+  assert.ok(route.includes("current.evaluation.issueCases.map"));
+  assert.ok(route.includes("resolvedByName"));
+  assert.ok(route.includes("recorded, confirmed, corrected, or resolved"));
+});
+
+test("certification snapshot invalidation helper preserves history instead of deleting closures", () => {
+  const helper = readFileSync("src/lib/statutory-remittance-certification.ts", "utf8");
+  assert.ok(helper.includes('status: "invalidated"'));
+  assert.ok(helper.includes("invalidatedAt"));
+  assert.ok(helper.includes("invalidationReason"));
+  assert.ok(!helper.includes("delete("));
+});
