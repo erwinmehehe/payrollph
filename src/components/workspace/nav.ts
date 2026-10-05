@@ -1,6 +1,7 @@
 import {
   AlertCircle,
   Banknote,
+  BriefcaseBusiness,
   CalendarDays,
   Calculator,
   ClipboardCheck,
@@ -60,6 +61,7 @@ export const NAVIGATION: NavGroup[] = [
       { name: "Migration", icon: RefreshCcw, hint: "Switch from another payroll or HRIS with validated imports", tone: "teal" },
       { name: "Time & attendance", icon: Clock3, hint: "Punches, exceptions and derived hours", tone: "cyan" },
       { name: "Workforce", icon: CalendarDays, hint: "Rotations, roster assignments and rest-day overrides", tone: "teal" },
+      { name: "Planning", icon: BriefcaseBusiness, hint: "Job architecture, positions, headcount plans and incumbents", tone: "purple" },
       { name: "Leave", icon: CalendarDays, hint: "Leave requests and balances", tone: "pink" },
       { name: "Approvals", icon: ClipboardCheck, hint: "Decisions assigned to you or your delegates", tone: "amber", badge: "approvals" },
     ],
@@ -103,6 +105,7 @@ export const FREELANCER_HIDDEN = new Set([
   "Payroll",
   "Time & attendance",
   "Workforce",
+  "Planning",
   "Leave",
   "Approvals",
   "Developer",

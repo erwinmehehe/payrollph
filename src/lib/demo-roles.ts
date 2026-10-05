@@ -140,6 +140,7 @@ export const DEMO_ROLE_PAGES: Partial<Record<DemoRoleId, readonly string[]>> = {
     "Overview",
     "Payroll",
     "People",
+    "Planning",
     "Migration",
     "Time & attendance",
     "Workforce",
@@ -182,6 +183,7 @@ export const DEMO_ROLE_PAGES: Partial<Record<DemoRoleId, readonly string[]>> = {
   hr: [
     "Overview",
     "People",
+    "Planning",
     "Time & attendance",
     "Workforce",
     "Leave",
