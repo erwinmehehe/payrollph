@@ -16,6 +16,7 @@ type Survey = {
   anonymityReady: boolean;
   questions: SurveyQuestion[];
 };
+type FollowThrough = { id: number; title: string; status: string; dueDate: string | null; publicUpdate: string | null; surveyName: string };
 type RecognitionEmployee = { id: number; firstName: string; lastName: string; title: string };
 type Recognition = {
   id: number;
@@ -29,6 +30,7 @@ type Recognition = {
 export function EmployeeEngagementPanel({ organizationId }: { organizationId: number }) {
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [privacyNotice, setPrivacyNotice] = useState("");
+  const [followThrough, setFollowThrough] = useState<FollowThrough[]>([]);
   const [answers, setAnswers] = useState<Record<number, Record<number, string>>>({});
   const [employees, setEmployees] = useState<RecognitionEmployee[]>([]);
   const [recognition, setRecognition] = useState<Recognition[]>([]);
@@ -49,6 +51,7 @@ export function EmployeeEngagementPanel({ organizationId }: { organizationId: nu
     if (surveyResponse.ok) {
       setSurveys(surveyPayload.surveys ?? []);
       setPrivacyNotice(surveyPayload.privacyNotice ?? "");
+      setFollowThrough(surveyPayload.followThrough ?? []);
     }
     if (recognitionResponse.ok) {
       setEmployees(recognitionPayload.employees ?? []);
@@ -225,6 +228,21 @@ export function EmployeeEngagementPanel({ organizationId }: { organizationId: nu
           </form>
         </article>
       </div>
+
+      <article className="card" style={{ marginTop: 16 }}>
+        <div className="card-header"><div><div className="card-kicker">YOU SAID, WE DID</div><h3>Follow-through from employee listening</h3><p>Only updates deliberately published for employees appear here; private survey comments and management notes stay hidden.</p></div></div>
+        {followThrough.length === 0 && <div className="empty-state">No employee-visible action updates have been published yet.</div>}
+        {followThrough.map((item) => (
+          <div className="leave-request" key={item.id}>
+            <div className="inline-icon mint"><ShieldCheck size={16} /></div>
+            <div style={{ flex: 1 }}>
+              <strong>{item.title}</strong>
+              <span>{item.publicUpdate}</span>
+              <small style={{ color: "var(--muted)" }}>{item.surveyName} · {item.status}{item.dueDate ? " · due " + item.dueDate : ""}</small>
+            </div>
+          </div>
+        ))}
+      </article>
 
       <article className="card" style={{ marginTop: 16 }}>
         <div className="card-header"><div><div className="card-kicker">RECOGNITION FEED</div><h3>Recent appreciation</h3></div></div>
