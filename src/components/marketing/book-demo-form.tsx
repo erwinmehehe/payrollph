@@ -8,7 +8,7 @@ import { readMarketingAttribution } from "@/lib/marketing-attribution-client";
 type Result = { message: string; queued: boolean; delivered: boolean; provider: string };
 
 const inputClass =
-  "mt-2 w-full rounded-xl border border-[#D9DCEC] bg-white px-3.5 py-3 text-[14px] text-[#11141F] outline-none transition focus:border-[#6161FF] focus:ring-4 focus:ring-[#6161FF]/10";
+  "mt-2 w-full rounded-[10px] border border-[#D0D5DD] bg-white px-3.5 py-3 text-[14px] text-[#101323] outline-none transition focus:border-[#444CE7] focus:ring-4 focus:ring-[#444CE7]/10";
 
 export function BookDemoForm() {
   const [form, setForm] = useState({ name: "", email: "", company: "", headcount: "", notes: "" });
@@ -55,7 +55,7 @@ export function BookDemoForm() {
 
   if (result) {
     return (
-      <div className="rounded-[26px] border border-[#E2E4F0] bg-white p-6 shadow-[0_22px_60px_-38px_rgba(30,34,70,.38)] sm:p-7">
+      <div className="rounded-[16px] border border-[#EAECF0] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,.04)] sm:p-7">
         <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#E3FAF0] text-[#0A8A53]">
           <Check size={19} />
         </span>
@@ -66,10 +66,10 @@ export function BookDemoForm() {
                 <p className="mt-3 text-[14px] leading-relaxed text-[#5B6080]">We recorded your payroll brief so the walkthrough can focus on your headcount, structure and cutoff questions.</p>
 
         <div className="mt-6 flex flex-wrap gap-2.5">
-          <Link href="/demo" className="inline-flex items-center gap-2 rounded-full bg-[#11141F] px-5 py-3 text-[13.5px] font-semibold text-white">
+          <Link href="/demo" className="inline-flex items-center gap-2 rounded-[10px] bg-[#101323] px-5 py-3 text-[13.5px] font-semibold text-white">
             Open role demo <ArrowRight size={14} />
           </Link>
-          <Link href="/" className="rounded-full border border-[#D9DCEC] px-5 py-3 text-[13.5px] font-semibold text-[#2B2F45]">
+          <Link href="/" className="rounded-[10px] border border-[#D0D5DD] px-5 py-3 text-[13.5px] font-semibold text-[#2B2F45]">
             Back to product
           </Link>
         </div>
@@ -78,7 +78,7 @@ export function BookDemoForm() {
   }
 
   return (
-    <form className="rounded-[26px] border border-[#E2E4F0] bg-white p-6 shadow-[0_22px_60px_-38px_rgba(30,34,70,.38)] sm:p-7" onSubmit={submit} noValidate>
+    <form className="rounded-[16px] border border-[#EAECF0] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,.04)] sm:p-7" onSubmit={submit} noValidate>
       <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#ECECFF] text-[#4A4AE0]">
         <CalendarDays size={19} />
       </span>
@@ -155,7 +155,7 @@ export function BookDemoForm() {
       <button
         type="submit"
         disabled={saving}
-        className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#6161FF] px-5 py-3.5 text-[14px] font-semibold text-white transition-transform hover:scale-[1.01] disabled:cursor-wait disabled:opacity-60"
+        className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-[10px] bg-[#444CE7] px-5 py-3.5 text-[14px] font-semibold text-white transition-transform hover:bg-[#3538CD] disabled:cursor-wait disabled:opacity-60"
       >
         {saving ? <LoaderCircle size={15} className="animate-spin" /> : <CalendarDays size={15} />}
         {saving ? "Submitting…" : "Request a demo"}
