@@ -70,6 +70,53 @@ test("calculator pages reuse payroll rule functions", () => {
   assert.ok(calculator.includes("Educational estimate only"), "calculator must carry an explicit estimate disclaimer");
 });
 
+test("calculator pages have unique metadata, explanation depth and FAQ schema", () => {
+  const config = read("src/lib/calculators.ts");
+  const page = read("src/app/calculators/[slug]/page.tsx");
+  const structured = read("src/components/marketing/structured-data.tsx");
+
+  for (const slug of [
+    "13th-month-pay",
+    "overtime-pay",
+    "night-differential",
+    "holiday-pay",
+    "sss-contribution",
+    "philhealth-contribution",
+    "pag-ibig-contribution",
+    "withholding-tax",
+    "payroll-cost",
+    "final-pay",
+    "daily-rate",
+    "hourly-rate",
+    "payroll-outsourcing-roi",
+  ]) {
+    const start = config.indexOf(`"${slug}": {`, config.indexOf("CALCULATOR_GUIDES"));
+    const end = config.indexOf("\n  },", start);
+    assert.ok(start >= 0 && end > start, `calculator guide ${slug} must exist`);
+    const block = config.slice(start, end);
+    assert.ok(block.includes("metaTitle:"), `calculator guide ${slug} must have a unique meta title`);
+    assert.ok(block.includes("howItWorks:"), `calculator guide ${slug} must explain how the estimate works`);
+    assert.ok(block.includes("assumptions:"), `calculator guide ${slug} must document assumptions`);
+    assert.ok(block.includes("faq:"), `calculator guide ${slug} must include FAQ depth`);
+  }
+
+  assert.ok(page.includes("guide.howItWorks"), "calculator page must render calculation context");
+  assert.ok(page.includes("guide.assumptions.map"), "calculator page must render assumptions");
+  assert.ok(page.includes("guide.faq.map"), "calculator page must render FAQs");
+  assert.ok(page.includes("faq={guide.faq}"), "calculator page must pass FAQs into structured data");
+  assert.ok(structured.includes('"@type": "FAQPage"'), "shared structured data must support FAQPage schema");
+});
+
+test("public calculators keep one source of payroll math", () => {
+  const calculator = read("src/components/marketing/payroll-calculator.tsx");
+  const config = read("src/lib/calculators.ts");
+  assert.ok(calculator.includes("computeSss") && calculator.includes("computePhilHealth") && calculator.includes("computePagIbig"));
+  assert.ok(calculator.includes("computeMonthlyWithholdingTax") && calculator.includes("holidayMultiplier"));
+  assert.ok(!config.includes("function computeSss"), "calculator content config must not duplicate SSS math");
+  assert.ok(!config.includes("function computePhilHealth"), "calculator content config must not duplicate PhilHealth math");
+  assert.ok(!config.includes("function computePagIbig"), "calculator content config must not duplicate Pag-IBIG math");
+});
+
 test("payroll health check does not collect employee PII or claim certification", () => {
   const health = read("src/components/marketing/payroll-health-check.tsx");
   assert.ok(health.includes("process-maturity screen"), "health check must describe itself as process maturity");
