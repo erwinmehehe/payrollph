@@ -22,6 +22,17 @@ type Member = {
   confirmedBy?: string | null;
 };
 
+type PaymentEvidence = {
+  id: number;
+  batchId: number;
+  fileName: string;
+  fileSha256: string;
+  byteSize: number;
+  status: string;
+  uploadedByName: string;
+  uploadedAt: Date | string;
+};
+
 type Correction = {
   id: number;
   batchId: number;
@@ -60,6 +71,7 @@ export function evaluateRemittanceMonthClose(input: {
   members: Member[];
   alerts: Alert[];
   corrections?: Correction[];
+  paymentEvidence?: PaymentEvidence[];
   issueCases?: ContributionIssueCase[];
   requiredAgencies: string[];
   allPayrollRunsReleased: boolean;
@@ -85,7 +97,12 @@ export function evaluateRemittanceMonthClose(input: {
   }
   if (monthBatches.length === 0) blockers.push("No remittance batches exist for this month.");
   for (const alert of monthAlerts) blockers.push(alert.title);
+  const activePaymentEvidence = (input.paymentEvidence ?? [])
+    .filter((evidence) => evidence.status === "active");
   for (const batch of monthBatches) {
+    if (!activePaymentEvidence.some((evidence) => evidence.batchId === batch.id)) {
+      blockers.push(`${batch.agency} has no active hashed payment proof artifact.`);
+    }
     if (batch.status !== "reconciled") {
       blockers.push(`${batch.agency} is ${batch.status}, not reconciled.`);
     }
@@ -125,6 +142,18 @@ export function evaluateRemittanceMonthClose(input: {
       pendingPostingCount: batch.pendingPostingCount,
       exceptionCount: batch.exceptionCount,
     })),
+    paymentEvidence: activePaymentEvidence
+      .filter((evidence) => monthBatchIds.has(evidence.batchId))
+      .sort((a, b) => a.batchId - b.batchId || a.id - b.id)
+      .map((evidence) => ({
+        id: evidence.id,
+        batchId: evidence.batchId,
+        fileName: evidence.fileName,
+        fileSha256: evidence.fileSha256,
+        byteSize: evidence.byteSize,
+        uploadedByName: evidence.uploadedByName,
+        uploadedAt: String(evidence.uploadedAt),
+      })),
     members: members.map((member) => ({
       batchId: member.batchId,
       employeeId: member.employeeId,
@@ -171,6 +200,7 @@ export function evaluateRemittanceMonthClose(input: {
     memberCount: members.length,
     batches: evidence.batches,
     members: evidence.members,
+    paymentEvidence: evidence.paymentEvidence,
     corrections: evidence.corrections,
     issueCases: evidence.issueCases,
   };
