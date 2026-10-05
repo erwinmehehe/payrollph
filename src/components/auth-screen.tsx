@@ -18,14 +18,22 @@ type Mode = "login" | "forgot";
 const inputClass =
   "h-12 w-full rounded-[12px] border border-[#DDE0EA] bg-white pl-11 pr-3.5 text-[14px] text-[#11141F] outline-none transition placeholder:text-[#A0A6B8] focus:border-[#8F8FFF] focus:ring-4 focus:ring-[#6161FF]/10";
 
-export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoMode?: boolean; setupAvailable?: boolean }) {
+export function AuthScreen({
+  demoMode = false,
+  setupAvailable = false,
+  initialError = "",
+}: {
+  demoMode?: boolean;
+  setupAvailable?: boolean;
+  initialError?: string;
+}) {
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [totpCode, setTotpCode] = useState("");
   const [requiresTotp, setRequiresTotp] = useState(false);
   const [message, setMessage] = useState("Use the account created for your workspace or the invitation you accepted.");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(initialError);
   const [busy, setBusy] = useState(false);
   const [ssoBusy, setSsoBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
