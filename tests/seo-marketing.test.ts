@@ -386,8 +386,8 @@ test("new SEO waves keep search snippets concise", () => {
     "src/lib/seo-content-wave14.ts",
   ]) {
     const source = read(path);
-    const descriptions = [...source.matchAll(/description:\s*"([^"]+)"/g)].map((match) => match[1]);
-    assert.ok(descriptions.length > 0, `${path} must expose descriptions`);
+    const descriptions = [...source.matchAll(/slug:\s*"[^"]+"[\s\S]*?description:\s*"([^"]+)"[\s\S]*?intro:/g)].map((match) => match[1]);
+    assert.ok(descriptions.length > 0, `${path} must expose page-level descriptions`);
     for (const description of descriptions) {
       assert.ok(description.length <= 160, `${path} has an overlong meta description: ${description.length} chars`);
       assert.ok(description.length >= 120, `${path} has a thin meta description: ${description.length} chars`);
