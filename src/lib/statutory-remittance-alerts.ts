@@ -18,6 +18,7 @@ type BatchSummary = {
   status: string;
   pendingPostingCount: number;
   exceptionCount: number;
+  paymentShortfall?: number;
   filingCheck?: {
     status: "matched" | "mismatch" | "unverified";
     filingRecordId: number | null;
@@ -93,6 +94,19 @@ export function buildStatutoryRemittanceAlerts(input: {
     }
 
     if (batch.status === "reconciled") continue;
+
+    if (batch.status !== "open" && Number(batch.paymentShortfall ?? 0) > 0.01) {
+      alerts.push({
+        id: `batch:${batch.id}`,
+        tone: "danger",
+        title: `${batch.agency} payment evidence is short of the remittance liability`,
+        detail: `${batch.applicableMonth} is short by ₱${Number(batch.paymentShortfall).toFixed(2)}. Update employer payment evidence before this month can be reconciled.`,
+        agency: batch.agency,
+        applicableMonth: batch.applicableMonth,
+        dueDate: batch.dueDate,
+      });
+      continue;
+    }
 
     if (batch.status === "exception" || batch.exceptionCount > 0) {
       alerts.push({
