@@ -30,7 +30,7 @@ const OUTCOMES = [
   ["correction_completed", "Correction completed"],
   ["no_issue_found", "No issue found"],
   ["employee_advised", "Employee advised"],
-  ["referred_to_agency", "Referred to agency"],
+  ["referred_to_agency", "Referred to agency · keep case open"],
 ] as const;
 
 export function StatutoryContributionIssueCasesPanel({
@@ -109,11 +109,14 @@ export function StatutoryContributionIssueCasesPanel({
       notify("Add a resolution note of at least 20 characters.", "err");
       return;
     }
+    const referred = resolutionOutcome === "referred_to_agency";
     const ok = await mutate(
       "resolve",
       issue.id,
       { resolutionOutcome, resolutionNote },
-      "Employee contribution issue resolved with an audit trail.",
+      referred
+        ? "Contribution case referred to the agency and kept open."
+        : "Employee contribution issue resolved with an audit trail.",
     );
     if (ok) {
       setResolveId(null);
