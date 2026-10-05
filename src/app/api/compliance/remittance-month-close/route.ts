@@ -12,6 +12,10 @@ import { assertOrganizationRole } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { evaluateRemittanceMonthClose } from "@/lib/statutory-remittance-close";
+import {
+  buildEvidenceActorIdentity,
+  certifierConflictsWithEvidence,
+} from "@/lib/statutory-remittance-independence";
 import { ensureStatutoryRemittanceMonthCloseSchema } from "@/lib/statutory-remittance-month-close-schema";
 import {
   currentManilaMonth,
@@ -101,6 +105,7 @@ async function loadCloseState(organizationId: number, applicableMonth: string) {
         fileSha256: statutoryRemittancePaymentEvidence.fileSha256,
         byteSize: statutoryRemittancePaymentEvidence.byteSize,
         status: statutoryRemittancePaymentEvidence.status,
+        uploadedByUserId: statutoryRemittancePaymentEvidence.uploadedByUserId,
         uploadedByName: statutoryRemittancePaymentEvidence.uploadedByName,
         uploadedAt: statutoryRemittancePaymentEvidence.uploadedAt,
       }).from(statutoryRemittancePaymentEvidence).where(and(
@@ -137,11 +142,42 @@ async function loadCloseState(organizationId: number, applicableMonth: string) {
     && evaluation.ready,
   );
 
+  const monthBatchIdSet = new Set(monthBatchIds);
+  const evidenceActorIdentity = buildEvidenceActorIdentity([
+    ...state.batches
+      .filter((batch) => batch.applicableMonth === applicableMonth)
+      .flatMap((batch) => [
+        { userId: batch.paymentRecordedByUserId, name: batch.paymentRecordedBy },
+        { userId: batch.reconciledByUserId, name: batch.reconciledBy },
+      ]),
+    ...state.members
+      .filter((member) => monthBatchIdSet.has(member.batchId))
+      .map((member) => ({
+        userId: member.confirmedByUserId,
+        name: member.confirmedBy,
+      })),
+    ...corrections.map((correction) => ({
+      userId: correction.decidedByUserId,
+      name: correction.decidedByName,
+    })),
+    ...issueCases.map((issue) => ({
+      userId: issue.resolvedByUserId,
+      name: issue.resolvedByName,
+    })),
+    ...paymentEvidence
+      .filter((evidence) => evidence.status === "active")
+      .map((evidence) => ({
+        userId: evidence.uploadedByUserId,
+        name: evidence.uploadedByName,
+      })),
+  ]);
+
   return {
     evaluation,
     closure,
     certificationHistory: closures,
     certificationValid,
+    evidenceActorIdentity,
   };
 }
 
@@ -162,8 +198,9 @@ export async function GET(request: Request) {
 
   const result = await loadCloseState(organizationId, applicableMonth);
   if (!result) return Response.json({ error: "Organization not found." }, { status: 404 });
+  const { evidenceActorIdentity: _evidenceActorIdentity, ...publicResult } = result;
   return Response.json({
-    ...result,
+    ...publicResult,
     certificationRole: "independent-reviewer",
   });
 }
@@ -205,18 +242,13 @@ export async function POST(request: Request) {
   const current = await loadCloseState(organizationId, applicableMonth);
   if (!current) return Response.json({ error: "Organization not found." }, { status: 404 });
 
-  const evidenceActors = new Set([
-    ...current.evaluation.batches.flatMap((batch) => [
-      batch.paymentRecordedBy,
-      batch.reconciledBy,
-    ]),
-    ...current.evaluation.members.map((member) => member.confirmedBy),
-    ...current.evaluation.corrections.map((correction) => correction.decidedByName),
-    ...current.evaluation.issueCases.map((issue) => issue.resolvedByName),
-  ].filter((value): value is string => Boolean(value && value.trim())));
-  if (evidenceActors.has(user.name)) {
+  if (certifierConflictsWithEvidence({
+    certifierUserId: user.id,
+    certifierName: user.name,
+    evidence: current.evidenceActorIdentity,
+  })) {
     return Response.json({
-      error: "The certifier cannot certify a remittance month containing evidence they recorded, confirmed, corrected, or resolved. Use another Owner, Admin, or Checker.",
+      error: "The certifier cannot certify a remittance month containing evidence they recorded, uploaded, confirmed, corrected, or resolved. Use another Owner, Admin, or Checker.",
     }, { status: 409 });
   }
 
