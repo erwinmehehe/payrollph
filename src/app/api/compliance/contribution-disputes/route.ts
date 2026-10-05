@@ -10,6 +10,7 @@ import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { validateContributionDisputeResolution } from "@/lib/statutory-contribution-dispute";
+import { ensureStatutoryContributionDisputeSchema } from "@/lib/statutory-contribution-dispute-schema";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -40,6 +41,7 @@ async function requireCompanywidePayroll(userId: number, organizationId: number)
 }
 
 export async function GET(request: Request) {
+  await ensureStatutoryContributionDisputeSchema();
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -80,6 +82,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  await ensureStatutoryContributionDisputeSchema();
   const originDenied = enforceSameOriginMutation(request);
   if (originDenied) return originDenied;
 
