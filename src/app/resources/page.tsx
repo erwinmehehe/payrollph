@@ -3,6 +3,9 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 import { resourcePages } from "@/lib/seo-content";
+import { resourceWave2 } from "@/lib/seo-content-wave2";
+
+const resources = [...resourcePages, ...resourceWave2];
 
 export const metadata: Metadata = {
   title: "Philippine Payroll Guides & Buyer Resources | Linaw",
@@ -28,7 +31,7 @@ export default function ResourcesPage() {
         </section>
         <section className="py-16 sm:py-20">
           <div className="mx-auto grid max-w-[1180px] gap-4 px-5 sm:px-8 md:grid-cols-2">
-            {resourcePages.map((page) => (
+            {resources.map((page) => (
               <Link key={page.slug} href={`/resources/${page.slug}`} className="group rounded-[24px] border border-[#E4E6F0] bg-[#FAFBFD] p-6 transition hover:-translate-y-0.5 hover:border-[#CFCFFF]">
                 <p className="text-[10px] font-bold uppercase tracking-[0.13em] text-[#7C82A1]">{page.eyebrow}</p>
                 <h2 className="font-display mt-2 text-[24px] font-semibold tracking-[-0.03em]">{page.title}</h2>
