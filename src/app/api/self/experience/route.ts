@@ -56,7 +56,9 @@ export async function GET(request: Request) {
   const [
     staff,
     goals,
-    reviews,
+    reviews: reviews.map((review) => review.status === "completed"
+      ? review
+      : { ...review, managerScore: null, finalScore: null, managerSummary: null, completedAt: null }),
     alignments,
     strategicRows,
     seriesRows,
@@ -87,7 +89,7 @@ export async function GET(request: Request) {
     db.select().from(strategicGoals).where(eq(strategicGoals.organizationId, organizationId)),
     db.select().from(oneOnOneSeries).where(and(
       eq(oneOnOneSeries.organizationId, organizationId),
-      or(eq(oneOnOneSeries.employeeId, employee.id), eq(oneOnOneSeries.managerEmployeeId, employee.id)),
+      eq(oneOnOneSeries.employeeId, employee.id),
     )).orderBy(desc(oneOnOneSeries.id)),
     db.select().from(oneOnOneMeetings).where(eq(oneOnOneMeetings.organizationId, organizationId)).orderBy(desc(oneOnOneMeetings.scheduledDate)),
     db.select().from(oneOnOneActionItems).where(eq(oneOnOneActionItems.organizationId, organizationId)).orderBy(desc(oneOnOneActionItems.id)),
@@ -114,8 +116,8 @@ export async function GET(request: Request) {
     scheduledDate: row.scheduledDate,
     status: row.status,
     employeeUpdate: row.employeeUpdate,
-    managerUpdate: row.managerUpdate,
-    sharedNotes: row.sharedNotes,
+    managerUpdate: row.status === "completed" ? row.managerUpdate : null,
+    sharedNotes: row.status === "completed" ? row.sharedNotes : null,
     managerPrivateNotes: null,
     completedAt: row.completedAt,
     createdAt: row.createdAt,
@@ -127,21 +129,6 @@ export async function GET(request: Request) {
   const aligned = alignments.filter((row) => ownGoalIds.has(row.performanceGoalId));
   const strategicIds = new Set(aligned.map((row) => row.strategicGoalId));
   const employeeById = new Map(staff.map((row) => [row.id, row]));
-
-  const incomingFeedbackRequests = requests.flatMap((request) => {
-    if (request.reviewerEmployeeId !== employee.id || request.status !== "requested") return [];
-    const [round] = (roundIds.has(request.roundId) ? rounds : []).filter((candidate) => candidate.id === request.roundId);
-    const actualRound = round ?? null;
-    const sourceRound = actualRound ?? null;
-    if (sourceRound) {
-      return [{
-        ...request,
-        round: sourceRound,
-        subjectName: employee.firstName + " " + employee.lastName,
-      }];
-    }
-    return [];
-  });
 
   // A reviewer may be asked to give feedback about somebody else, so fetch those
   // round headers separately without exposing anybody else's submitted feedback.
