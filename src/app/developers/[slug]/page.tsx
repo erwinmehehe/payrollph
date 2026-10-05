@@ -28,16 +28,16 @@ export default async function DeveloperDocPage({ params }: { params: Promise<{ s
   const path = `/developers/${slug}`;
 
   return (
-    <div className="min-h-screen bg-white text-[#0B0D1A]">
+    <div className="marketing-page min-h-screen bg-white text-[#101323]">
       <StructuredData
         breadcrumbs={[{ name: "Home", path: "/" }, { name: "Developers", path: "/developers" }, { name: doc.title, path }]}
         article={{ headline: doc.title, description: doc.description, path, dateModified: "2026-10-05" }}
       />
       <SiteNav />
       <main>
-        <section className="border-b border-[#EDEFF7] bg-[#FAFBFD] py-16 sm:py-20">
+        <section className="border-b border-[#EAECF0] bg-[#FCFCFD] py-16 sm:py-20">
           <div className="mx-auto max-w-[980px] px-5 sm:px-8">
-            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6161FF]">Developer documentation</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#444CE7]">Developer documentation</p>
             <h1 className="font-display mt-4 text-[44px] font-semibold tracking-[-0.045em] sm:text-[58px]">{doc.title}</h1>
             <p className="mt-5 max-w-[760px] text-[16px] leading-relaxed text-[#5B6080]">{doc.intro}</p>
           </div>
@@ -60,13 +60,13 @@ export default async function DeveloperDocPage({ params }: { params: Promise<{ s
             ))}
           </div>
         </section>
-        <section className="border-y border-[#EDEFF7] bg-[#FAFBFD] py-12">
+        <section className="border-y border-[#EAECF0] bg-[#FCFCFD] py-12">
           <div className="mx-auto grid max-w-[980px] gap-3 px-5 sm:grid-cols-3 sm:px-8">
             {doc.related.map((item) => (
               <Link key={item.href} href={item.href} className="rounded-[18px] border border-[#E3E5EF] bg-white p-4">
                 <strong className="text-[14px]">{item.label}</strong>
                 <p className="mt-2 text-[12px] leading-relaxed text-[#6B718C]">{item.description}</p>
-                <span className="mt-3 inline-flex items-center gap-1 text-[12px] font-semibold text-[#4A4AE0]">Open <ArrowRight size={12}/></span>
+                <span className="mt-3 inline-flex items-center gap-1 text-[12px] font-semibold text-[#444CE7]">Open <ArrowRight size={12}/></span>
               </Link>
             ))}
           </div>
