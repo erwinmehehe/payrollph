@@ -12,6 +12,7 @@ import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { currentManilaMonth, loadStatutoryRemittanceState } from "@/lib/statutory-remittance-state";
+import { auditStatutoryContributionMonth } from "@/lib/statutory-contribution-assurance";
 import {
   buildStatutoryRemittanceSnapshot,
   canConfirmMemberPosting,
@@ -151,6 +152,7 @@ export async function POST(request: Request) {
     const runIds = monthRuns.map((run) => run.id);
     const entries = await db.select({
       employeeId: payrollEntries.employeeId,
+      grossPay: payrollEntries.grossPay,
       lineItems: payrollEntries.lineItems,
       trace: payrollEntries.trace,
     }).from(payrollEntries).where(inArray(payrollEntries.payrollRunId, runIds));
@@ -167,6 +169,36 @@ export async function POST(request: Request) {
       .where(eq(organizations.id, organizationId))
       .limit(1);
     if (!organization) return Response.json({ error: "Organization not found." }, { status: 404 });
+
+    const assurance = auditStatutoryContributionMonth({
+      agency,
+      entries,
+      employees: employeeRows,
+    });
+    if (!assurance.ok) {
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Statutory remittance blocked by contribution assurance",
+        resource: `${agency} · ${applicableMonth}`,
+        metadata: {
+          agency,
+          applicableMonth,
+          payrollRunIds: runIds,
+          checkedEmployees: assurance.checkedEmployees,
+          issueCount: assurance.issues.length,
+          issues: assurance.issues.slice(0, 25),
+        },
+      });
+      return Response.json({
+        error:
+          `Cannot open ${agency} remittance for ${applicableMonth}: `
+          + `${assurance.issues.length} statutory contribution variance`
+          + `${assurance.issues.length === 1 ? "" : "s"} must be corrected first. `
+          + assurance.issues.slice(0, 3).map((issue) => issue.message).join(" "),
+        assurance,
+      }, { status: 409 });
+    }
 
     const snapshot = buildStatutoryRemittanceSnapshot({
       agency,
@@ -238,6 +270,10 @@ export async function POST(request: Request) {
         dueDate,
         snapshotHash: snapshot.snapshotHash,
         payrollRunIds: runIds,
+        contributionAssurance: {
+          checkedEmployees: assurance.checkedEmployees,
+          issueCount: assurance.issues.length,
+        },
       },
     });
 
