@@ -2,10 +2,12 @@ export type AuthorityPage = {
   slug: string;
   eyebrow: string;
   title: string;
+  metaTitle?: string;
   description: string;
   intro: string;
   proof: string[];
   sections: Array<{ title: string; body: string; bullets?: string[] }>;
+  faq?: Array<{ question: string; answer: string }>;
   related: Array<{ label: string; href: string; description: string }>;
   lastReviewed?: string;
   sources?: Array<{ label: string; href: string }>;
@@ -35,7 +37,7 @@ export const compliancePages: AuthorityPage[] = [
     slug: "sss",
     eyebrow: "SSS payroll compliance",
     title: "SSS contribution handling inside Philippine payroll.",
-    description: "Understand SSS employee and employer contribution handling, payroll deduction timing and validation controls in Linaw.",
+    description: "SSS payroll compliance guide for Philippine employers covering employee and employer shares, EC, salary credits, cutoff timing and R-3 validation controls.",
     intro: "Linaw contains a tested SSS contribution path that separates employee contribution, employer share and EC, while keeping filing acceptance as a separate proof requirement.",
     proof: ["Employee and employer SSS share calculation", "Employer EC handling", "Monthly salary credit logic", "Cutoff deduction timing controls", "R-3 draft workflow", "Validation evidence gate"],
     sections: [
@@ -54,7 +56,8 @@ export const compliancePages: AuthorityPage[] = [
     slug: "philhealth",
     eyebrow: "PhilHealth payroll compliance",
     title: "PhilHealth contribution handling for Philippine payroll.",
-    description: "PhilHealth payroll contribution guide covering contribution base, employee and employer shares, payroll treatment and validation status.",
+    metaTitle: "PhilHealth Payroll Compliance Philippines | Linaw",
+    description: "PhilHealth payroll compliance guide covering contribution-base rules, employee and employer shares, centavo reconciliation, deductions and RF-1 validation.",
     intro: "Linaw's payroll rules compute the PhilHealth premium and split the resulting statutory amount between employee and employer while preserving centavo-level reconciliation.",
     proof: ["Contribution-base floor and ceiling logic", "Employee/employer split", "Centavo reconciliation", "Payroll deduction integration", "RF-1 draft workflow", "Validation evidence gate"],
     sections: [
@@ -73,7 +76,8 @@ export const compliancePages: AuthorityPage[] = [
     slug: "pag-ibig",
     eyebrow: "Pag-IBIG payroll compliance",
     title: "Pag-IBIG contribution handling for Philippine payroll.",
-    description: "Pag-IBIG payroll contribution guide for employee and employer shares, payroll deduction timing and filing-validation controls.",
+    metaTitle: "Pag-IBIG Payroll Compliance Philippines | Linaw",
+    description: "Pag-IBIG payroll compliance guide for Philippine employers covering employee and employer shares, fund-salary caps, cutoff timing, monthly liability and MCRF validation.",
     intro: "Linaw computes Pag-IBIG contribution shares in the payroll rules and keeps monthly liability, cutoff collection and government-output validation as distinct concerns.",
     proof: ["Fund-salary cap logic", "Employee rate handling", "Employer share calculation", "Cutoff deduction timing", "MCRF draft workflow", "Validation evidence gate"],
     sections: [
@@ -92,7 +96,7 @@ export const compliancePages: AuthorityPage[] = [
     slug: "dole",
     eyebrow: "DOLE payroll compliance",
     title: "DOLE payroll rules that affect pay calculations.",
-    description: "Guide to payroll rules involving overtime, night differential, holidays, rest days, pay intervals and wage-order review in the Philippines.",
+    description: "DOLE payroll compliance guide for Philippine employers covering overtime, night differential, holidays, rest days, pay intervals and wage-order review.",
     intro: "Linaw models several DOLE-relevant payroll conditions directly in the calculation path, including overtime, night differential, holiday premiums, rest-day context and payroll interval checks.",
     proof: ["Overtime multipliers", "Night differential handling", "Holiday and double-holiday context", "Effective-dated rest days", "Regional wage-order screening references", "Payroll interval validation"],
     sections: [
@@ -114,7 +118,8 @@ export const resourcePages: AuthorityPage[] = [
     slug: "best-payroll-software-philippines",
     eyebrow: "Payroll software buyer guide",
     title: "How to evaluate payroll software in the Philippines.",
-    description: "A practical buyer guide for comparing Philippine payroll systems across calculations, controls, implementation, security, integrations and proof.",
+    metaTitle: "Best Payroll Software Philippines: Buyer Guide | Linaw",
+    description: "Compare Philippine payroll software by calculation depth, approvals, implementation, security, integrations and evidence before choosing a system.",
     intro: "The strongest payroll buying process evaluates more than a feature checklist. It tests whether the system can explain calculations, handle your workforce rules, control approvals and prove its operational claims.",
     proof: ["Statutory calculation depth", "Time and attendance integration", "Role separation and approvals", "Migration and reconciliation", "Security controls", "API and export options"],
     sections: [
@@ -122,6 +127,12 @@ export const resourcePages: AuthorityPage[] = [
       { title: "Ask how payroll is reviewed before release", body: "A system should make calculation state, exceptions, reviewer ownership and final release authority visible instead of hiding the whole cycle behind one Process button." },
       { title: "Require an implementation proof plan", body: "A credible rollout should include migration validation, role configuration, parallel or controlled payroll, independent reconciliation and a clear go-live gate." },
       { title: "Make security evidence part of procurement", body: "Evaluate MFA, session controls, tenant isolation, access scope, encryption practices, audit events, incident handling and the difference between implemented controls and formal certifications." },
+    ],
+    faq: [
+      { question: "What should I test in a Philippine payroll software demo?", answer: "Use the payroll cases that create the most rework in your business: overtime, night work, rest days, holidays, variable schedules, deductions, exceptions and approval handoffs. A polished happy-path demo is not enough." },
+      { question: "Should I choose payroll software based on the longest feature list?", answer: "No. Prioritize calculation traceability, exception handling, role separation, migration controls, security evidence and the workflows your payroll team actually uses each cutoff." },
+      { question: "How should I verify payroll compliance claims?", answer: "Separate payroll calculation capability from filing acceptance. Ask which rules are implemented and tested, which government outputs are validation-gated, and what evidence exists for any filing-readiness claim." },
+      { question: "What should happen before a payroll system goes live?", answer: "A controlled rollout should validate migrated data, configure roles and approvals, run independent reconciliation or parallel payroll, clear material variances and document a go-live decision." },
     ],
     related: [
       { label: "Capability scorecard", href: "/scorecard", description: "See how Linaw classifies its own verified, partial and absent capabilities." },
@@ -133,7 +144,8 @@ export const resourcePages: AuthorityPage[] = [
     slug: "payroll-software-vs-outsourcing",
     eyebrow: "Payroll operating model",
     title: "Payroll software vs payroll outsourcing: which model fits?",
-    description: "Compare running payroll in-house with software versus using a managed payroll service in the Philippines.",
+    metaTitle: "Payroll Software vs Outsourcing Philippines | Linaw",
+    description: "Compare payroll software and managed payroll outsourcing in the Philippines by control, staffing, approvals, exception handling, cost and continuity.",
     intro: "Software and outsourcing solve different operational problems. The right choice depends on who should own payroll preparation, exceptions, approvals, staffing and day-to-day process knowledge.",
     proof: ["In-house control vs managed processing", "Internal capability requirements", "Approval ownership", "Exception handling", "Cost structure", "Continuity risk"],
     sections: [
@@ -141,6 +153,12 @@ export const resourcePages: AuthorityPage[] = [
       { title: "Choose managed payroll when repetitive cycle work is the constraint", body: "Outsourcing can reduce processing workload while the employer still retains business decisions, approved inputs and final release authority." },
       { title: "Compare the exception model, not only the happy path", body: "Ask what happens when attendance is incomplete, a deduction is disputed, a new hire is missing data or a payroll run needs to be recalculated." },
       { title: "Use a hybrid model if ownership needs differ by entity", body: "Some groups may keep payroll in-house for one entity while using managed processing for another. Multi-client and multi-entity architecture can make that operating model easier." },
+    ],
+    faq: [
+      { question: "When does payroll software make more sense than outsourcing?", answer: "Software fits teams that want payroll knowledge, configuration and daily operating control to remain in-house and have people who can own the recurring payroll process." },
+      { question: "When does payroll outsourcing make more sense?", answer: "Managed payroll is useful when repetitive cycle work, staffing capacity or continuity is the constraint, while the employer still keeps responsibility for approved inputs and business decisions." },
+      { question: "Does outsourcing remove employer approval responsibility?", answer: "No. A sound managed-payroll model keeps exception decisions and final payroll approval with authorized employer representatives rather than treating the provider as the business decision-maker." },
+      { question: "Can a company use both models?", answer: "Yes. Different entities or business units can use different operating models when ownership, staffing or complexity differs, provided access and payroll data remain clearly scoped." },
     ],
     related: [
       { label: "Payroll outsourcing", href: "/payroll-outsourcing", description: "See Linaw's managed payroll service model." },
@@ -152,7 +170,8 @@ export const resourcePages: AuthorityPage[] = [
     slug: "payroll-migration-checklist",
     eyebrow: "Payroll migration checklist",
     title: "Payroll migration checklist for Philippine businesses.",
-    description: "A practical checklist for moving employee, payroll, attendance, statutory and approval data into a new payroll system.",
+    metaTitle: "Payroll Migration Checklist Philippines | Linaw",
+    description: "Use a Philippine payroll migration checklist covering employee data, YTD balances, schedules, deductions, government IDs, roles and reconciliation.",
     intro: "Payroll migration is not a CSV upload project. It is a controlled transfer of employee data, balances, policies, schedules, statutory context and approval ownership.",
     proof: ["Employee master data", "Opening balances and YTD values", "Schedules and rest days", "Benefits and deductions", "Government IDs", "Roles and approval matrix"],
     sections: [
@@ -160,6 +179,12 @@ export const resourcePages: AuthorityPage[] = [
       { title: "Define what must be historically accurate", body: "Rest-day revisions, year-to-date tax, benefit-pool consumption and prior payroll values can affect future calculations and should not be reduced to today's values." },
       { title: "Validate the import before calculating payroll", body: "Use row-level validation, duplicate controls and reconciliation totals before the first migrated payroll is run." },
       { title: "Reconcile independently before go-live", body: "Prepare expected figures outside the new system and compare gross, deductions, contributions, tax, net pay, payout total, payslips and accounting output." },
+    ],
+    faq: [
+      { question: "What payroll data should be migrated first?", answer: "Start with the employee master, pay setup, year-to-date balances, schedules and rest days, recurring deductions, benefits, loans, government identifiers and approval ownership." },
+      { question: "Why do year-to-date payroll balances matter?", answer: "Current-period payroll can depend on earlier taxable compensation, tax already withheld, benefit-pool usage and other cumulative values, so opening balances must be reconciled rather than guessed." },
+      { question: "Should historical schedules and rest days be migrated?", answer: "If historical or future calculations depend on them, yes. Effective-dated work rules prevent today's schedule from silently rewriting the context of an older payroll period." },
+      { question: "How should the first payroll in a new system be validated?", answer: "Prepare an independent expected result and compare gross pay, deductions, statutory contributions, tax, net pay, payout totals, payslips and accounting outputs before go-live." },
     ],
     related: [
       { label: "Implementation", href: "/implementation", description: "See the full Linaw migration and rollout model." },
@@ -171,7 +196,8 @@ export const resourcePages: AuthorityPage[] = [
     slug: "payroll-security-checklist",
     eyebrow: "Payroll software security checklist",
     title: "Payroll software security checklist for buyers.",
-    description: "Questions to ask about authentication, authorization, tenant isolation, sensitive payroll data, auditability and deployment security.",
+    metaTitle: "Payroll Software Security Checklist Philippines | Linaw",
+    description: "Evaluate Philippine payroll software security across MFA, sessions, tenant isolation, role scope, encryption, audit trails and deployment controls.",
     intro: "Payroll systems hold compensation, identity and bank information. Security evaluation should focus on enforceable controls and evidence rather than generic statements that a platform is secure.",
     proof: ["MFA", "Revocable sessions", "Tenant isolation", "Role scope", "Sensitive-field encryption", "Audit and security testing"],
     sections: [
@@ -179,6 +205,12 @@ export const resourcePages: AuthorityPage[] = [
       { title: "Authorization", body: "Confirm organization, department and employee boundaries are enforced by the server on every sensitive request instead of being only hidden in the interface." },
       { title: "Sensitive data", body: "Ask which payroll fields receive dedicated encryption, how encryption keys are managed and what happens to historical plaintext during a security migration." },
       { title: "Proof and operations", body: "Review security tests, audit logs, production-readiness gates, incident processes and the difference between code controls and independently audited certifications." },
+    ],
+    faq: [
+      { question: "What security controls matter most in payroll software?", answer: "Focus on authentication, MFA, session revocation, server-side authorization, tenant isolation, least-privilege role scope, protection of sensitive payroll fields and auditable sensitive actions." },
+      { question: "Is hiding data in the user interface enough for payroll security?", answer: "No. Organization, department and employee boundaries should be enforced on the server for each sensitive request rather than relying on the browser to hide inaccessible data." },
+      { question: "Should payroll bank and government ID data be encrypted?", answer: "Sensitive payroll fields should have explicit protection at rest and controlled access paths. Buyers should also ask how keys, migrations and historical plaintext are handled operationally." },
+      { question: "How is a security checklist different from a certification?", answer: "A checklist helps buyers inspect implemented controls and evidence. It does not replace an independent certification or audit, and a vendor should not imply certifications it has not obtained." },
     ],
     related: [
       { label: "Security", href: "/security", description: "See Linaw's repository-evidenced security controls." },
@@ -190,7 +222,8 @@ export const resourcePages: AuthorityPage[] = [
     slug: "payroll-software-vs-excel",
     eyebrow: "Payroll process comparison",
     title: "Payroll software vs Excel for Philippine payroll.",
-    description: "Compare spreadsheet payroll with a controlled payroll system across calculations, approvals, auditability, employee access and recurring compliance work.",
+    metaTitle: "Payroll Software vs Excel Philippines | Linaw",
+    description: "Compare payroll software and Excel in the Philippines across formulas, approvals, audit trails, attendance, payslips, exceptions and repeatable outputs.",
     intro: "Excel can be flexible, but payroll risk grows when formulas, source data, approvals, exceptions and release evidence live across disconnected files and inboxes.",
     proof: ["Formula governance", "Change history", "Approval separation", "Attendance integration", "Employee payslips", "Repeatable exports"],
     sections: [
@@ -198,6 +231,12 @@ export const resourcePages: AuthorityPage[] = [
       { title: "A payroll system can preserve workflow state", body: "Calculation, exception review, checker approval, owner release, payout evidence and payslip delivery can be represented as explicit states rather than comments in a workbook." },
       { title: "Automation only helps when the underlying rule is reviewable", body: "The goal is not to eliminate humans. It is to make repetitive calculation consistent while surfacing cases that still need judgment." },
       { title: "Migration should preserve reconciliation discipline", body: "Moving away from spreadsheets should start with parallel validation, not an assumption that the new system must be right because it is software." },
+    ],
+    faq: [
+      { question: "When is Excel still reasonable for payroll?", answer: "A tightly controlled spreadsheet can work for very small and simple payrolls, especially when one knowledgeable owner maintains the formulas and review process. Risk rises as complexity and handoffs increase." },
+      { question: "What payroll risks grow when spreadsheets are copied?", answer: "Multiple workbook versions can make formula ownership, source data, review state and the final approved result difficult to reconstruct after the fact." },
+      { question: "Does payroll software remove the need for human review?", answer: "No. Good payroll software automates repeatable calculation while making exceptions, approvals and business judgment more visible before release." },
+      { question: "How should a company move from Excel to payroll software?", answer: "Treat the move as a reconciliation project: validate imported data, preserve relevant historical context, run controlled comparisons and resolve material differences before production use." },
     ],
     related: [
       { label: "Payroll migration checklist", href: "/resources/payroll-migration-checklist", description: "Plan a controlled move away from spreadsheets." },
@@ -212,7 +251,8 @@ export const industryPages: AuthorityPage[] = [
     slug: "accounting-firms",
     eyebrow: "Payroll software for accounting firms",
     title: "Multi-client payroll for Philippine accounting firms and bookkeepers.",
-    description: "Payroll workspace for bookkeepers and accounting firms managing multiple Philippine client businesses with scoped access, payroll runs, exports and compliance context.",
+    metaTitle: "Payroll Software for Accounting Firms Philippines | Linaw",
+    description: "Payroll software for Philippine accounting firms managing multiple client businesses with tenant-scoped access, payroll runs, exports and audit trails.",
     intro: "Linaw's multi-client architecture is built for operators who need to switch between client businesses without collapsing every company into one payroll workspace.",
     proof: ["Multi-client bookkeeper hub", "Tenant-scoped authorization", "Client-specific payroll runs", "Accounting exports", "Compliance context", "Audit trail"],
     sections: [
@@ -231,6 +271,7 @@ export const industryPages: AuthorityPage[] = [
     slug: "manpower",
     eyebrow: "Payroll software for manpower agencies",
     title: "Payroll for Philippine manpower and staffing operations.",
+    metaTitle: "Manpower Payroll Software Philippines | Linaw",
     description: "Payroll software for manpower agencies handling large rosters, variable assignments, timekeeping, deductions, statutory contributions and payroll approvals.",
     intro: "Staffing and manpower payroll becomes difficult when employee volume, changing assignments, attendance inputs, deductions and client operations create constant cutoff changes.",
     proof: ["CSV bulk employee import", "Large roster processing", "Attendance and scheduling", "Loans and deductions", "Statutory payroll", "Role-based review"],
@@ -250,7 +291,8 @@ export const industryPages: AuthorityPage[] = [
     slug: "manufacturing",
     eyebrow: "Manufacturing payroll Philippines",
     title: "Payroll and timekeeping for Philippine manufacturing teams.",
-    description: "Payroll software for manufacturers with shifts, biometrics, overtime, rest days, holidays, multiple work groups and controlled payroll review.",
+    metaTitle: "Manufacturing Payroll Software Philippines | Linaw",
+    description: "Payroll software for Philippine manufacturers with shifts, biometrics, overtime, rest days, holiday premiums, work groups and controlled payroll review.",
     intro: "Manufacturing payroll is heavily shaped by attendance, schedules, overtime, rest days and holiday work. Linaw models those conditions before payroll reaches review and release.",
     proof: ["Shift scheduling", "Biometric sync endpoint", "Overtime workflows", "Effective-dated rest days", "Holiday premium logic", "Department scope"],
     sections: [
