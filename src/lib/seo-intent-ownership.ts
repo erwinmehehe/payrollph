@@ -188,6 +188,13 @@ export const SEO_INTENT_OWNERS: SeoIntentOwner[] = [
     supportingIntents: ["sprout payroll alternatives", "alternative to sprout payroll philippines"],
     note: "Branded competitor-alternative intent only. Do not broaden into generic payroll software Philippines intent.",
   },
+  {
+    primaryIntent: "salarium alternative philippines",
+    ownerPath: "/resources/salarium-alternative",
+    intentClass: "guide",
+    supportingIntents: ["salarium alternatives", "alternative to salarium philippines"],
+    note: "Branded competitor-alternative intent only. Do not broaden into generic payroll software Philippines intent.",
+  },
   { primaryIntent: "payroll software vs outsourcing philippines", ownerPath: "/resources/payroll-software-vs-outsourcing", intentClass: "guide" },
   {
     primaryIntent: "payroll software vs excel",
