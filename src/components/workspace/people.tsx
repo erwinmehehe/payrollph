@@ -16,7 +16,6 @@ import {
   X,
 } from "lucide-react";
 import { ImportPanel } from "@/components/import-panel";
-import { HrPayrollReadinessCenter } from "./hr-payroll-readiness";
 import type { DashboardData, Employee } from "./types";
 import { REST_DAY_NAMES } from "@/lib/payroll-rules";
 import { Avatar, EmptyState, PageHeading, Status, formatDate, formatTimeOnly, money } from "./ui";
@@ -114,10 +113,10 @@ export function PeopleView({
     <>
       <PageHeading
         eyebrow={hrMode ? `${data.selectedOrganization.legalName} · HR Admin` : "People"}
-        title={hrMode ? "Payroll readiness." : "Your people, in context."}
+        title={hrMode ? "People." : "Your people, in context."}
         copy={
           hrMode
-            ? "Clear employee, attendance, leave and onboarding blockers before Payroll takes the cutoff."
+            ? "Manage employee records, pay profiles, employment status and organizational structure without duplicating the payroll-readiness dashboard."
             : "Department and branch structure stay optional for small teams and are ready when a client grows into them."
         }
         actions={
@@ -137,14 +136,6 @@ export function PeopleView({
             this is enforced in the query, not hidden in the UI.
           </span>
         </div>
-      )}
-
-      {hrMode && (
-        <HrPayrollReadinessCenter
-          data={data}
-          onOpenEmployee={setPicked}
-          onPage={onPage}
-        />
       )}
 
       {canManage && <ImportPanel organizationId={data.selectedOrganization.id} onImported={onRefresh} />}
