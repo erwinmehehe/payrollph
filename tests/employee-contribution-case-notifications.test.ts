@@ -17,10 +17,12 @@ test("new employee contribution cases notify only company-wide payroll operators
 test("case lifecycle emails are bound to the dedicated employee login", () => {
   assert.ok(notifications.includes("eq(users.employeeId, input.issue.employeeId)"));
   assert.ok(notifications.includes('eq(users.role, "employee")'));
-  assert.ok(notifications.includes('event: "review_started" | "resolved"'));
+  assert.ok(notifications.includes("event: string"));
   assert.ok(notifications.includes("event: input.event"));
   assert.ok(payrollApi.includes('event: "review_started"'));
   assert.ok(payrollApi.includes('event: "resolved"'));
+  assert.ok(notifications.includes("notifyEmployeeOfContributionCaseUpdate"));
+  assert.ok(notifications.includes("payroll_update-"));
 });
 
 test("case notifications never request employee agency credentials", () => {
