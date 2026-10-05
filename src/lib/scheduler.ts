@@ -4,6 +4,7 @@ import { schedulerState } from "@/db/schema";
 import { drainWebhookRetries } from "@/lib/webhooks";
 import { drainOutboxRetries } from "@/lib/mailer";
 import { purgeExpiredOperationalData } from "@/lib/data-retention";
+import { queueStatutoryRemittanceReminders } from "@/lib/statutory-remittance-reminders";
 
 const MIN_INTERVAL_MS = 30_000;
 
@@ -17,6 +18,32 @@ export async function tickScheduler(force = false) {
 
   if (!force && row?.lastRunAt && now.getTime() - row.lastRunAt.getTime() < MIN_INTERVAL_MS) {
     return { skipped: true as const, reason: "interval", lastRunAt: row.lastRunAt };
+  }
+
+  const [remittanceState] = await db.select().from(schedulerState)
+    .where(eq(schedulerState.jobName, "statutory-remittance-reminders"))
+    .limit(1);
+  const remittanceReminderDue =
+    !remittanceState?.lastRunAt
+    || now.getTime() - remittanceState.lastRunAt.getTime() >= 24 * 60 * 60 * 1000;
+  const remittanceReminders = remittanceReminderDue
+    ? await queueStatutoryRemittanceReminders(now)
+    : null;
+
+  if (remittanceReminderDue) {
+    const remittancePayload = remittanceReminders ?? { at: now.toISOString(), queued: 0 };
+    if (remittanceState) {
+      await db.update(schedulerState).set({
+        lastRunAt: now,
+        lastResult: remittancePayload,
+      }).where(eq(schedulerState.id, remittanceState.id));
+    } else {
+      await db.insert(schedulerState).values({
+        jobName: "statutory-remittance-reminders",
+        lastRunAt: now,
+        lastResult: remittancePayload,
+      });
+    }
   }
 
   const webhookResults = await drainWebhookRetries(25);
@@ -52,6 +79,7 @@ export async function tickScheduler(force = false) {
     webhookRetries: webhookResults.length,
     mailRetries: mailRetried.length,
     retentionPurge: retention,
+    statutoryRemittanceReminders: remittanceReminders,
     at: now.toISOString(),
     results: {
       webhooks: webhookResults.slice(0, 10),
