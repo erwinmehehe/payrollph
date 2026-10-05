@@ -28,6 +28,10 @@ function samplePack(generatedAt = "2026-10-05T08:00:00.000Z", generatedBy = "Own
       payslipIndex: evidenceSection("payslip-index", [{ payslipId: 5, contentSha256: sha256Text("pdf-bytes") }]),
       thirteenthMonth: empty,
       statutoryRemittances: empty,
+      governmentFilingEvidence: empty,
+      complianceCalendar: empty,
+      policyReview: empty,
+      contributionCases: empty,
       finalPay: empty,
       remediationRegister: empty,
       activeFindings: empty,
@@ -101,4 +105,64 @@ test("payslip text hash fingerprints the exact served body", () => {
     sha256Text("pdf-bytes"),
     "29d1283686193dc1461a7deac4f53d9bc5402a28b95d854f69e94986756fd0a9",
   );
+});
+
+
+test("v2 includes newer compliance surfaces in the tamper-evident snapshot", () => {
+  const pack = samplePack();
+  assert.equal(pack.schemaVersion, "labor-inspection-pack-v2");
+  for (const key of [
+    "governmentFilingEvidence",
+    "complianceCalendar",
+    "policyReview",
+    "contributionCases",
+  ] as const) {
+    assert.ok(pack.sections[key]);
+    assert.equal(typeof pack.snapshot.sectionHashes[key], "string");
+  }
+
+  const tampered = structuredClone(pack);
+  tampered.sections.policyReview.rows.push({ key: "PAY_FREQUENCY_INTERVAL", severity: "high" });
+  assert.equal(verifyLaborInspectionEvidencePack(tampered).valid, false);
+});
+
+test("expanded pack server includes current compliance evidence without raw case snapshots or protected identifiers", () => {
+  const server = readFileSync("src/lib/labor-inspection-evidence-pack-server.ts", "utf8");
+  assert.ok(server.includes("buildCompliancePolicyReviewForOrganization"));
+  assert.ok(server.includes("buildComplianceCalendar"));
+  assert.ok(server.includes("governmentFilingValidations"));
+  assert.ok(server.includes("statutoryContributionIssueCases"));
+  assert.ok(server.includes('evidenceSection("government-filing-evidence"'));
+  assert.ok(server.includes('evidenceSection("compliance-calendar"'));
+  assert.ok(server.includes('evidenceSection("policy-review"'));
+  assert.ok(server.includes('evidenceSection("employee-contribution-cases"'));
+  assert.equal(server.includes("employeeSnapshot:"), false);
+  assert.equal(server.includes("reportedByUserId:"), false);
+  assert.equal(server.includes("assignedToUserId:"), false);
+  assert.equal(server.includes("resolvedByUserId:"), false);
+});
+
+test("government filing evidence preserves exact generated-file hash and agency acknowledgement metadata", () => {
+  const server = readFileSync("src/lib/labor-inspection-evidence-pack-server.ts", "utf8");
+  assert.ok(server.includes("fileSha256: row.fileSha256"));
+  assert.ok(server.includes("generatorVersion: row.generatorVersion"));
+  assert.ok(server.includes("agencyReference: row.agencyReference"));
+  assert.ok(server.includes("submissionMethod: row.submissionMethod"));
+  assert.ok(server.includes("provesOperationalFiling"));
+});
+
+test("compliance calendar snapshot separates BIR pay month from contribution months", () => {
+  const server = readFileSync("src/lib/labor-inspection-evidence-pack-server.ts", "utf8");
+  assert.ok(server.includes("String(run.periodEnd).slice(0, 7)"));
+  assert.ok(server.includes("String(run.payDate).slice(0, 7)"));
+  assert.ok(server.includes("birApplicableMonths"));
+  assert.ok(server.includes("bir1601cOperationalMonths"));
+});
+
+
+test("PhilHealth employer number is used only for deadline resolution and is not exported in organization metadata", () => {
+  const server = readFileSync("src/lib/labor-inspection-evidence-pack-server.ts", "utf8");
+  assert.ok(server.includes("philHealthEmployerNo: organization.philHealthEmployerNo"));
+  assert.ok(server.includes("organization: {\n      id: organization.id,\n      legalName: organization.legalName,\n    }"));
+  assert.equal(server.includes("organization,\n    range:"), false);
 });
