@@ -1,6 +1,11 @@
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { statutoryRemittanceBatches, statutoryRemittanceMembers } from "@/db/schema";
+import {
+  complianceActionTasks,
+  statutoryContributionIssueCases,
+  statutoryRemittanceBatches,
+  statutoryRemittanceMembers,
+} from "@/db/schema";
 import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
@@ -105,6 +110,13 @@ export async function POST(request: Request) {
     postedAt: Date;
   }> = [];
 
+  const amountMismatchCandidates: Array<{
+    member: typeof members[number];
+    postedAmount: number;
+    postingReference: string;
+    sourceLine: number;
+  }> = [];
+
   parsed.valid.forEach((row) => {
     const line = row.sourceLine;
     const member = byEmployeeNo.get(row.employeeNo);
@@ -117,12 +129,22 @@ export async function POST(request: Request) {
       return;
     }
 
+    const expectedTotal = Number(member.totalContribution);
+    const amountMismatch = Math.abs(expectedTotal - row.postedAmount) > 0.01;
     const gate = canConfirmMemberPosting({
-      expectedTotal: Number(member.totalContribution),
+      expectedTotal,
       postedAmount: row.postedAmount,
       postingReference: row.postingReference,
     });
     if (!gate.ok) {
+      if (amountMismatch && Number.isFinite(row.postedAmount) && row.postedAmount >= 0) {
+        amountMismatchCandidates.push({
+          member,
+          postedAmount: row.postedAmount,
+          postingReference: row.postingReference,
+          sourceLine: line,
+        });
+      }
       errors.push({ line, problems: [gate.error] });
       return;
     }
@@ -136,6 +158,98 @@ export async function POST(request: Request) {
   });
 
   if (errors.length > 0) {
+    let autoCaseIds: number[] = [];
+
+    if (!dryRun && amountMismatchCandidates.length > 0) {
+      const candidateEmployeeIds = [...new Set(
+        amountMismatchCandidates.map((candidate) => candidate.member.employeeId),
+      )];
+      const existingCases = candidateEmployeeIds.length
+        ? await db.select({
+            id: statutoryContributionIssueCases.id,
+            employeeId: statutoryContributionIssueCases.employeeId,
+          }).from(statutoryContributionIssueCases).where(and(
+            eq(statutoryContributionIssueCases.organizationId, organizationId),
+            eq(statutoryContributionIssueCases.agency, batch.agency),
+            eq(statutoryContributionIssueCases.applicableMonth, batch.applicableMonth),
+            eq(statutoryContributionIssueCases.issueType, "wrong_posted_amount"),
+            inArray(statutoryContributionIssueCases.employeeId, candidateEmployeeIds),
+            inArray(statutoryContributionIssueCases.status, ["open", "in_review"]),
+          ))
+        : [];
+      const existingEmployeeIds = new Set(existingCases.map((row) => row.employeeId));
+
+      autoCaseIds = await db.transaction(async (tx) => {
+        const createdIds: number[] = [];
+        for (const candidate of amountMismatchCandidates) {
+          if (existingEmployeeIds.has(candidate.member.employeeId)) continue;
+
+          const expectedTotal = Number(candidate.member.totalContribution);
+          const description =
+            `Agency posting import shows ${candidate.postedAmount.toFixed(2)} but payroll expects ${expectedTotal.toFixed(2)} for ${candidate.member.employeeNo}.`;
+
+          const [issue] = await tx.insert(statutoryContributionIssueCases).values({
+            organizationId,
+            employeeId: candidate.member.employeeId,
+            batchId: batch.id,
+            remittanceMemberId: candidate.member.id,
+            agency: batch.agency,
+            applicableMonth: batch.applicableMonth,
+            issueType: "wrong_posted_amount",
+            description,
+            employeeSnapshot: {
+              source: "statutory_posting_import",
+              fileName,
+              fileHash: parsed.hash,
+              sourceLine: candidate.sourceLine,
+              employeeNo: candidate.member.employeeNo,
+              expectedTotal,
+              postedAmount: candidate.postedAmount,
+              postingReference: candidate.postingReference,
+              postingStatus: candidate.member.postingStatus,
+            },
+            status: "open",
+            reportedByUserId: user.id,
+            reportedByName: `Posting import · ${user.name}`.slice(0, 120),
+          }).returning({ id: statutoryContributionIssueCases.id });
+
+          await tx.insert(complianceActionTasks).values({
+            organizationId,
+            sourceType: "employee_contribution_issue",
+            sourceKey: `employee-contribution-issue:${issue.id}`,
+            agency: batch.agency,
+            applicableMonth: batch.applicableMonth,
+            severity: "danger",
+            title: `${batch.agency} posting amount mismatch · ${candidate.member.employeeNo}`.slice(0, 180),
+            detail: description.slice(0, 360),
+            status: "open",
+            firstDetectedAt: new Date(),
+            lastDetectedAt: new Date(),
+          });
+
+          createdIds.push(issue.id);
+          existingEmployeeIds.add(candidate.member.employeeId);
+        }
+        return createdIds;
+      });
+
+      if (autoCaseIds.length > 0) {
+        await recordAuditEvent({
+          organizationId,
+          actor: user.name,
+          action: "Agency posting import mismatches opened contribution cases",
+          resource: `${batch.agency} · ${batch.applicableMonth}`,
+          metadata: {
+            batchId,
+            fileName,
+            fileHash: parsed.hash,
+            caseIds: autoCaseIds,
+            mismatchCount: autoCaseIds.length,
+          },
+        });
+      }
+    }
+
     return Response.json({
       dryRun,
       fileName,
@@ -146,6 +260,7 @@ export async function POST(request: Request) {
       errors: errors.slice(0, 50),
       unmappedColumns: parsed.unmapped,
       applied: false,
+      autoCaseIds,
       message: "No posting rows were applied because the file did not pass full validation.",
     }, { status: 422 });
   }
