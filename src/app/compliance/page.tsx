@@ -3,7 +3,7 @@ import { SeoLandingPage } from "@/components/marketing/seo-landing-page";
 
 export const metadata: Metadata = {
   title: "Payroll Compliance Philippines | SSS, PhilHealth, BIR | Linaw",
-  description: "Philippine payroll compliance workflows for statutory calculations, validation evidence, data requests, tax settlement and clearly labelled government output drafts.",
+  description: "Philippine payroll compliance workflows for SSS, PhilHealth, Pag-IBIG, BIR tax, rule governance, privacy requests and validation-gated filing outputs.",
   alternates: { canonical: "/compliance" },
 };
 
