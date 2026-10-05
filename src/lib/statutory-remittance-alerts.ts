@@ -19,6 +19,7 @@ type BatchSummary = {
   pendingPostingCount: number;
   exceptionCount: number;
   paymentShortfall?: number;
+  hasActivePaymentProof?: boolean;
   filingCheck?: {
     status: "matched" | "mismatch" | "unverified";
     filingRecordId: number | null;
@@ -75,6 +76,18 @@ export function buildStatutoryRemittanceAlerts(input: {
   }
 
   for (const batch of input.batches) {
+    if (batch.status !== "open" && batch.hasActivePaymentProof === false) {
+      alerts.push({
+        id: `proof:${batch.id}`,
+        tone: "danger",
+        title: `${batch.agency} payment is missing hashed proof`,
+        detail: `${batch.applicableMonth} is marked ${batch.status}, but no active receipt or acknowledgement artifact is bound to the remittance batch. Backfill official proof before treating the month as fully evidenced.`,
+        agency: batch.agency,
+        applicableMonth: batch.applicableMonth,
+        dueDate: batch.dueDate,
+      });
+    }
+
     if (batch.filingCheck?.status === "mismatch") {
       const countPart = batch.filingCheck.employeeCountDifference
         ? `employee count differs by ${batch.filingCheck.employeeCountDifference > 0 ? "+" : ""}${batch.filingCheck.employeeCountDifference}`
