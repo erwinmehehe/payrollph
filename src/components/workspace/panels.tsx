@@ -43,7 +43,7 @@ import {
   X,
 } from "lucide-react";
 import { AccountPanel } from "@/components/account-panel";
-import { ComplianceEvidenceCenter } from "@/components/workspace/compliance-evidence-center";
+import { ComplianceEvidenceCenter } from "@/components/workspace/compliance-evidence-center";\nimport { AskLinawPanel } from "@/components/workspace/ask-linaw-panel";
 import { INVITABLE_ROLES, invitableRoleLabel } from "@/lib/roles";
 import type { AuditEvent, DashboardData, Employee, OrgUnit, PayrollEntry, PayrollRun, PricingPlan } from "./types";
 import { Avatar, Metric, PageHeading, Status, formatDate, formatDateTime as formatTime, money } from "./ui";
@@ -262,7 +262,7 @@ export function CompliancePage({ data, setNotice, onOpenGovModal }: { data: Dash
         }
       />
 
-      <ComplianceEvidenceCenter data={data} setNotice={setNotice} />
+      <ComplianceEvidenceCenter data={data} setNotice={setNotice} />\n      <AskLinawPanel data={data} setNotice={setNotice} />
 
       {data.advisories.length > 0 && (
         <section className="card calamity-card" style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 20px", marginTop: 16 }}>
