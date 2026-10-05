@@ -808,3 +808,120 @@ textarea,
   box-shadow: var(--ring);
   outline: none;
 }
+
+
+/* Workspace theme unification -------------------------------------------- */
+/* These selectors intentionally match the higher-specificity legacy role
+   theme so role demos and the real app cannot fall back to green/rainbow
+   styling after the shared polish layer loads. */
+
+.app-shell[data-demo-role],
+.app-shell:has(.payrollph-dashboard),
+.app-shell:has(.mockup-role-page) {
+  --brand: #444ce7;
+  --brand-hover: #3538cd;
+  --brand-bright: #6172f3;
+  --brand-deep: #2d31a6;
+  --brand-bg: #eef0ff;
+  --brand-border: #c7d0ff;
+  --canvas: #f8f9fc;
+  background: var(--canvas);
+}
+
+.app-shell .sidebar,
+.app-shell[data-demo-role] .sidebar,
+.app-shell:has(.payrollph-dashboard) .sidebar,
+.app-shell:has(.mockup-role-page) .sidebar {
+  border-right-color: #eaecf0;
+  background: rgba(255,255,255,.98);
+}
+
+.app-shell[data-demo-role] .sidebar-brand,
+.app-shell:has(.payrollph-dashboard) .sidebar-brand,
+.app-shell:has(.mockup-role-page) .sidebar-brand {
+  border-bottom-color: #eaecf0;
+  background: rgba(255,255,255,.98);
+  color: #101323;
+}
+
+.app-shell[data-demo-role] .sidebar-brand strong,
+.app-shell:has(.payrollph-dashboard) .sidebar-brand strong,
+.app-shell:has(.mockup-role-page) .sidebar-brand strong {
+  color: #101323;
+}
+
+.app-shell[data-demo-role] .brand-mark,
+.app-shell:has(.payrollph-dashboard) .brand-mark,
+.app-shell:has(.mockup-role-page) .brand-mark {
+  background: #444ce7;
+  color: #fff;
+  box-shadow: none;
+}
+
+.app-shell .nav-item[data-tone] {
+  --nav-ink: #7d889c;
+  --nav-soft: #f6f7f9;
+  --nav-border: #eaecf0;
+}
+
+.app-shell .nav-item,
+.app-shell[data-demo-role] .nav-item,
+.app-shell:has(.payrollph-dashboard) .nav-item,
+.app-shell:has(.mockup-role-page) .nav-item {
+  border-color: transparent;
+  color: #475467;
+  transform: none;
+}
+
+.app-shell .nav-item:hover,
+.app-shell[data-demo-role] .nav-item:hover,
+.app-shell:has(.payrollph-dashboard) .nav-item:hover,
+.app-shell:has(.mockup-role-page) .nav-item:hover {
+  border-color: transparent;
+  background: #f6f7f9;
+  color: #101323;
+  transform: none;
+}
+
+.app-shell .nav-item .nav-icon,
+.app-shell .nav-item:hover .nav-icon,
+.app-shell[data-demo-role] .nav-item .nav-icon,
+.app-shell[data-demo-role] .nav-item:hover .nav-icon,
+.app-shell:has(.payrollph-dashboard) .nav-item .nav-icon,
+.app-shell:has(.payrollph-dashboard) .nav-item:hover .nav-icon,
+.app-shell:has(.mockup-role-page) .nav-item .nav-icon,
+.app-shell:has(.mockup-role-page) .nav-item:hover .nav-icon {
+  border-color: transparent;
+  background: transparent;
+  color: #7d889c;
+  box-shadow: none;
+  transform: none;
+}
+
+.app-shell .nav-item.active,
+.app-shell[data-demo-role] .nav-item.active,
+.app-shell:has(.payrollph-dashboard) .nav-item.active,
+.app-shell:has(.mockup-role-page) .nav-item.active {
+  border-color: transparent;
+  background: #eef0ff;
+  color: #2d31a6;
+  box-shadow: none;
+}
+
+.app-shell .nav-item.active .nav-icon,
+.app-shell[data-demo-role] .nav-item.active .nav-icon,
+.app-shell:has(.payrollph-dashboard) .nav-item.active .nav-icon,
+.app-shell:has(.mockup-role-page) .nav-item.active .nav-icon {
+  border-color: transparent;
+  background: transparent;
+  color: #444ce7;
+  box-shadow: none;
+}
+
+.app-shell[data-demo-role] .topbar,
+.app-shell:has(.payrollph-dashboard) .topbar,
+.app-shell:has(.mockup-role-page) .topbar {
+  border-bottom-color: #eaecf0;
+  background: rgba(255,255,255,.92);
+  backdrop-filter: blur(18px) saturate(1.2);
+}
