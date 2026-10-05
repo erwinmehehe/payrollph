@@ -56,6 +56,7 @@ export async function POST(request: Request) {
   const csv = typeof body.csv === "string" ? body.csv : "";
   const fileName = String(body.fileName ?? "posting-evidence.csv").slice(0, 200);
   const dryRun = Boolean(body.dryRun);
+  const openMismatchCases = Boolean(body.openMismatchCases);
 
   if (!Number.isInteger(organizationId) || !Number.isInteger(batchId) || !csv.trim()) {
     return Response.json({
@@ -160,7 +161,7 @@ export async function POST(request: Request) {
   if (errors.length > 0) {
     let autoCaseIds: number[] = [];
 
-    if (!dryRun && amountMismatchCandidates.length > 0) {
+    if (openMismatchCases && amountMismatchCandidates.length > 0) {
       const candidateEmployeeIds = [...new Set(
         amountMismatchCandidates.map((candidate) => candidate.member.employeeId),
       )];
@@ -260,9 +261,14 @@ export async function POST(request: Request) {
       errors: errors.slice(0, 50),
       unmappedColumns: parsed.unmapped,
       applied: false,
+      validationFailed: true,
+      amountMismatchCount: amountMismatchCandidates.length,
       autoCaseIds,
-      message: "No posting rows were applied because the file did not pass full validation.",
-    }, { status: 422 });
+      casesOpened: openMismatchCases && autoCaseIds.length > 0,
+      message: openMismatchCases && autoCaseIds.length > 0
+        ? `${autoCaseIds.length} employee contribution compliance case${autoCaseIds.length === 1 ? "" : "s"} opened from agency amount mismatches. No posting rows were applied.`
+        : "No posting rows were applied because the file did not pass full validation.",
+    }, { status: openMismatchCases && autoCaseIds.length > 0 ? 200 : 422 });
   }
 
   if (matched.length === 0) {
