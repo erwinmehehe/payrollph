@@ -2,6 +2,7 @@ import "@/components/marketing/claude-home/home.css";
 import type { Metadata } from "next";
 import { SoftwareHome } from "@/components/marketing/software-home";
 import { HOMEPAGE_FAQS } from "@/components/marketing/homepage-faqs";
+import { absolutePublicUrl } from "@/lib/site-url";
 
 export const dynamic = "force-dynamic";
 
@@ -17,27 +18,27 @@ const softwareSchema = {
   "@graph": [
     {
       "@type": "Organization",
-      "@id": "#organization",
+      "@id": absolutePublicUrl("/#organization"),
       name: "Linaw",
       description: "Philippine payroll software for controlled, traceable payroll operations.",
       areaServed: { "@type": "Country", name: "Philippines" },
     },
     {
       "@type": "WebSite",
-      "@id": "#website",
+      "@id": absolutePublicUrl("/#website"),
       name: "Linaw",
       description: "Philippine payroll software for controlled, traceable payroll operations.",
       inLanguage: "en-PH",
-      publisher: { "@id": "#organization" },
+      publisher: { "@id": absolutePublicUrl("/#organization") },
     },
     {
       "@type": "SoftwareApplication",
-      "@id": "#software",
+      "@id": absolutePublicUrl("/#software"),
       name: "Linaw",
       applicationCategory: "BusinessApplication",
       applicationSubCategory: "Payroll Software",
       operatingSystem: "Web",
-      provider: { "@id": "#organization" },
+      provider: { "@id": absolutePublicUrl("/#organization") },
       description:
         "Philippine payroll software with statutory calculations, role-based approvals, employee payslips, attendance workflows and controlled payroll outputs.",
       areaServed: { "@type": "Country", name: "Philippines" },
@@ -52,7 +53,7 @@ const softwareSchema = {
     },
     {
       "@type": "FAQPage",
-      "@id": "#faq",
+      "@id": absolutePublicUrl("/#faq"),
       mainEntity: HOMEPAGE_FAQS.map((faq) => ({
         "@type": "Question",
         name: faq.q,
