@@ -26,6 +26,7 @@ import { industryWave6, integrationWave6 } from "../src/lib/seo-content-wave6";
 import { resourceWave14 } from "../src/lib/seo-content-wave14";
 import { resourceWave16 } from "../src/lib/seo-content-wave16";
 import { resourceWave17 } from "../src/lib/seo-content-wave17";
+import { resourceWave18 } from "../src/lib/seo-content-wave18";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -99,7 +100,7 @@ test("withholding compliance, calculator and glossary remain separate intent cla
 test("authority page slugs are unique inside each route family", () => {
   const families = [
     ["compliance", [...compliancePages, ...complianceWave3]],
-    ["resources", [...resourcePages, ...resourceWave2, ...resourceWave3, ...resourceWave14, ...resourceWave16, ...resourceWave17]],
+    ["resources", [...resourcePages, ...resourceWave2, ...resourceWave3, ...resourceWave14, ...resourceWave16, ...resourceWave17, ...resourceWave18]],
     ["industries", [...industryPages, ...industryWave2, ...industryWave6]],
     ["integrations", integrationWave6],
   ] as const;
@@ -123,6 +124,7 @@ test("authority metadata titles do not collide across dynamic SEO pages", () => 
     ...resourceWave14.map((page) => ({ prefix: "/resources", page })),
     ...resourceWave16.map((page) => ({ prefix: "/resources", page })),
     ...resourceWave17.map((page) => ({ prefix: "/resources", page })),
+    ...resourceWave18.map((page) => ({ prefix: "/resources", page })),
     ...industryPages.map((page) => ({ prefix: "/industries", page })),
     ...industryWave2.map((page) => ({ prefix: "/industries", page })),
     ...industryWave6.map((page) => ({ prefix: "/industries", page })),
@@ -151,6 +153,7 @@ test("authority related links stay internal, public and discoverable", () => {
     ...resourceWave14,
     ...resourceWave16,
     ...resourceWave17,
+    ...resourceWave18,
     ...industryPages,
     ...industryWave2,
     ...industryWave6,
