@@ -36,7 +36,6 @@ test("open remittance due within seven days is proactively warned", () => {
       status: "open",
       pendingPostingCount: 10,
       exceptionCount: 0,
-      hasActivePaymentProof: true,
     }],
   });
 
@@ -57,7 +56,6 @@ test("paid remittance remains warning until every employee posting is confirmed"
       status: "paid",
       pendingPostingCount: 3,
       exceptionCount: 0,
-      hasActivePaymentProof: true,
     }],
   });
 
@@ -82,7 +80,6 @@ test("employee posting exceptions outrank ordinary warnings", () => {
       status: "exception",
       pendingPostingCount: 0,
       exceptionCount: 1,
-      hasActivePaymentProof: true,
     }],
   });
 
@@ -102,14 +99,13 @@ test("reconciled batches do not create alerts", () => {
       status: "reconciled",
       pendingPostingCount: 0,
       exceptionCount: 0,
-      hasActivePaymentProof: true,
     }],
   });
   assert.deepEqual(alerts, []);
 });
 
 
-test("paid batch without active hashed proof creates a separate critical evidence alert", () => {
+test("paid batch without active hashed proof creates a critical evidence alert", () => {
   const alerts = buildStatutoryRemittanceAlerts({
     today: "2026-10-20",
     coverageGaps: [],
@@ -124,7 +120,6 @@ test("paid batch without active hashed proof creates a separate critical evidenc
       hasActivePaymentProof: false,
     }],
   });
-
   const proof = alerts.find((alert) => alert.id === "proof:91");
   assert.ok(proof);
   assert.equal(proof.tone, "danger");
@@ -146,7 +141,6 @@ test("reconciled historical batch without proof still alerts instead of being sk
       hasActivePaymentProof: false,
     }],
   });
-
   assert.equal(alerts.length, 1);
   assert.equal(alerts[0].id, "proof:92");
   assert.equal(alerts[0].tone, "danger");

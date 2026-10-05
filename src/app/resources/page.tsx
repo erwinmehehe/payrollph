@@ -8,8 +8,9 @@ import { resourceWave2 } from "@/lib/seo-content-wave2";
 import { resourceWave3 } from "@/lib/seo-content-wave3";
 import { resourceWave14 } from "@/lib/seo-content-wave14";
 import { resourceWave16 } from "@/lib/seo-content-wave16";
+import { resourceWave17 } from "@/lib/seo-content-wave17";
 
-const resources = [...resourcePages, ...resourceWave2, ...resourceWave3, ...resourceWave14, ...resourceWave16];
+const resources = [...resourcePages, ...resourceWave2, ...resourceWave3, ...resourceWave14, ...resourceWave16, ...resourceWave17];
 const bySlug = new Map(resources.map((page) => [page.slug, page]));
 
 const resourceGroups = [

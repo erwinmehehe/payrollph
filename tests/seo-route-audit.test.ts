@@ -97,20 +97,23 @@ test("application routes remain outside the public sitemap", () => {
   assert.equal(publicPaths.has("/workspace"), false);
 });
 
-test("CI runs both SEO audits before production build", () => {
+test("CI runs all SEO audits before production build", () => {
   const ci = read(".github/workflows/ci.yml");
   const pkg = JSON.parse(read("package.json")) as { scripts?: Record<string, string> };
 
   assert.equal(pkg.scripts?.["seo:audit"], "tsx scripts/seo-launch-audit.ts");
   assert.equal(pkg.scripts?.["seo:routes"], "tsx scripts/seo-route-audit.ts");
+  assert.equal(pkg.scripts?.["seo:links"], "tsx scripts/seo-internal-link-audit.ts");
 
   const ownershipIndex = ci.indexOf("npm run seo:audit");
   const routeIndex = ci.indexOf("npm run seo:routes");
+  const linkIndex = ci.indexOf("npm run seo:links");
   const buildIndex = ci.indexOf("npx next build");
 
   assert.ok(ownershipIndex >= 0);
   assert.ok(routeIndex > ownershipIndex);
-  assert.ok(buildIndex > routeIndex);
+  assert.ok(linkIndex > routeIndex);
+  assert.ok(buildIndex > linkIndex);
 });
 
 test("route audit checks canonical metadata and noindex conflicts", () => {
@@ -119,4 +122,26 @@ test("route audit checks canonical metadata and noindex conflicts", () => {
   assert.ok(audit.includes("sitemap-noindex-conflict"));
   assert.ok(audit.includes("private-route-in-sitemap"));
   assert.ok(audit.includes("private-route-not-noindex"));
+});
+
+
+test("internal-link audit prevents sitemap-only orphan SEO children", () => {
+  const audit = read("scripts/seo-internal-link-audit.ts");
+
+  assert.ok(audit.includes("orphan-hub-child"), "link audit must fail child routes that are absent from their hub");
+  assert.ok(audit.includes("resourcePages"), "link audit must cover resource authority pages");
+  assert.ok(audit.includes("compliancePages"), "link audit must cover compliance authority pages");
+  assert.ok(audit.includes("industryPages"), "link audit must cover industry authority pages");
+  assert.ok(audit.includes("integrationWave6"), "link audit must cover integration child pages");
+  assert.ok(audit.includes("Object.keys(CALCULATORS)"), "link audit must cover every calculator");
+  assert.ok(audit.includes("glossaryEntries"), "link audit must cover glossary discovery");
+  assert.ok(audit.includes("regulatoryUpdates"), "link audit must cover regulatory update discovery");
+  assert.ok(audit.includes("PUBLISHABLE_CUSTOMER_STORIES"), "link audit must cover approved customer stories");
+});
+
+
+test("launch audit rejects sitemap pages without intent ownership", () => {
+  const audit = read("scripts/seo-launch-audit.ts");
+  assert.ok(audit.includes("sitemap-path-without-intent-owner"));
+  assert.ok(audit.includes("intentOwnerPaths"));
 });

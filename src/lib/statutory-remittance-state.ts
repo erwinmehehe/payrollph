@@ -91,7 +91,7 @@ export async function loadStatutoryRemittanceState(organizationId: number) {
     : [];
   const activePaymentProofBatchIds = new Set(
     paymentProofRows
-      .filter((row) => row.status === "active")
+      .filter((row) => row.status === "active" && Boolean(row.fileSha256))
       .map((row) => row.batchId),
   );
 

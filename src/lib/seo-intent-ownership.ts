@@ -141,6 +141,10 @@ export const SEO_INTENT_OWNERS: SeoIntentOwner[] = [
     intentClass: "developer",
     supportingIntents: ["payroll api documentation philippines"],
   },
+  { primaryIntent: "payroll api authentication documentation", ownerPath: "/developers/authentication", intentClass: "developer" },
+  { primaryIntent: "payroll employee api documentation", ownerPath: "/developers/employees", intentClass: "developer" },
+  { primaryIntent: "payroll runs api documentation", ownerPath: "/developers/payroll-runs", intentClass: "developer" },
+  { primaryIntent: "payroll webhook documentation", ownerPath: "/developers/webhooks", intentClass: "developer" },
   {
     primaryIntent: "payroll compliance philippines",
     ownerPath: "/compliance",
@@ -177,6 +181,13 @@ export const SEO_INTENT_OWNERS: SeoIntentOwner[] = [
   { primaryIntent: "shopping center payroll software philippines", ownerPath: "/industries/shopping-centers", intentClass: "industry" },
 
   { primaryIntent: "best payroll software philippines", ownerPath: "/resources/best-payroll-software-philippines", intentClass: "guide" },
+  {
+    primaryIntent: "sprout payroll alternative philippines",
+    ownerPath: "/resources/sprout-payroll-alternative",
+    intentClass: "guide",
+    supportingIntents: ["sprout payroll alternatives", "alternative to sprout payroll philippines"],
+    note: "Branded competitor-alternative intent only. Do not broaden into generic payroll software Philippines intent.",
+  },
   { primaryIntent: "payroll software vs outsourcing philippines", ownerPath: "/resources/payroll-software-vs-outsourcing", intentClass: "guide" },
   {
     primaryIntent: "payroll software vs excel",
@@ -283,6 +294,9 @@ export const SEO_INTENT_OWNERS: SeoIntentOwner[] = [
     intentClass: "guide",
     supportingIntents: ["payroll regulatory update archive philippines", "payroll updates philippines"],
   },
+  { primaryIntent: "dole final pay reminder 2026", ownerPath: "/resources/updates/dole-final-pay-reminder-2026", intentClass: "guide" },
+  { primaryIntent: "dole 13th month pay guidelines 2025", ownerPath: "/resources/updates/dole-13th-month-guidelines-2025", intentClass: "guide" },
+  { primaryIntent: "bir alphalist reminder 2026", ownerPath: "/resources/updates/bir-alphalist-reminder-2026", intentClass: "guide" },
   {
     primaryIntent: "linaw payroll capability scorecard",
     ownerPath: "/scorecard",
@@ -311,8 +325,23 @@ export const SEO_INTENT_OWNERS: SeoIntentOwner[] = [
   { primaryIntent: "withholding tax calculator philippines", ownerPath: "/calculators/withholding-tax", intentClass: "calculator" },
   { primaryIntent: "final pay calculator philippines", ownerPath: "/calculators/final-pay", intentClass: "calculator" },
   { primaryIntent: "payroll cost calculator philippines", ownerPath: "/calculators/payroll-cost", intentClass: "calculator" },
+  { primaryIntent: "daily rate calculator philippines", ownerPath: "/calculators/daily-rate", intentClass: "calculator" },
+  { primaryIntent: "hourly rate calculator philippines", ownerPath: "/calculators/hourly-rate", intentClass: "calculator" },
+  { primaryIntent: "payroll outsourcing roi calculator philippines", ownerPath: "/calculators/payroll-outsourcing-roi", intentClass: "calculator" },
 
   { primaryIntent: "payroll glossary philippines", ownerPath: "/glossary", intentClass: "glossary" },
+  { primaryIntent: "basic salary payroll definition philippines", ownerPath: "/glossary/basic-salary", intentClass: "glossary" },
+  { primaryIntent: "gross pay payroll definition philippines", ownerPath: "/glossary/gross-pay", intentClass: "glossary" },
+  { primaryIntent: "net pay payroll definition philippines", ownerPath: "/glossary/net-pay", intentClass: "glossary" },
+  { primaryIntent: "taxable compensation definition philippines", ownerPath: "/glossary/taxable-compensation", intentClass: "glossary" },
+  { primaryIntent: "payroll cutoff definition philippines", ownerPath: "/glossary/payroll-cutoff", intentClass: "glossary" },
+  { primaryIntent: "night differential definition philippines", ownerPath: "/glossary/night-differential", intentClass: "glossary" },
+  { primaryIntent: "premium pay definition philippines", ownerPath: "/glossary/premium-pay", intentClass: "glossary" },
+  { primaryIntent: "rest day payroll definition philippines", ownerPath: "/glossary/rest-day", intentClass: "glossary" },
+  { primaryIntent: "withholding tax payroll definition", ownerPath: "/glossary/withholding-tax", intentClass: "glossary" },
+  { primaryIntent: "monthly salary credit definition philippines", ownerPath: "/glossary/monthly-salary-credit", intentClass: "glossary" },
+  { primaryIntent: "13th month pay definition philippines", ownerPath: "/glossary/13th-month-pay", intentClass: "glossary" },
+  { primaryIntent: "payroll annualization definition philippines", ownerPath: "/glossary/annualization", intentClass: "glossary" },
   { primaryIntent: "payroll software trial philippines", ownerPath: "/trial", intentClass: "conversion" },
   {
     primaryIntent: "payroll software demo philippines",

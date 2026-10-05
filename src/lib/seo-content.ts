@@ -343,6 +343,8 @@ export const industryPages: AuthorityPage[] = [
       { question: "How should released payroll connect to accounting close?", answer: "The released payroll should reconcile to supported journal exports, payout evidence and the client-specific payroll totals used by the accounting workflow." },
       { question: "What matters most when scaling payroll across many clients?", answer: "Repeatable controls, tenant isolation, clear role boundaries, consistent imports and traceable exports matter more than copying a workbook template into a larger folder structure." },
     ],
+    lastReviewed: "October 5, 2026",
+    lastReviewedIso: "2026-10-05",
     related: [
       { label: "Payroll outsourcing", href: "/payroll-outsourcing", description: "See the managed payroll operating model." },
       { label: "Developer center", href: "/developers", description: "Review API and webhook capabilities for connected workflows." },
@@ -369,6 +371,8 @@ export const industryPages: AuthorityPage[] = [
       { question: "How should recurring deductions be handled for large rosters?", answer: "Loans, benefits and other recurring deductions should live in the payroll data model with clear employee ownership and deduction history rather than being re-keyed from side spreadsheets every cutoff." },
       { question: "Should the payroll processor also release manpower payroll?", answer: "A stronger control model separates payroll preparation from independent review and final release, particularly when a high-volume run can move a large payout amount at once." },
     ],
+    lastReviewed: "October 5, 2026",
+    lastReviewedIso: "2026-10-05",
     related: [
       { label: "Time & attendance", href: "/time-and-attendance", description: "See how attendance moves into payroll." },
       { label: "HRIS", href: "/hris", description: "Review employee master-data workflows." },
@@ -396,6 +400,8 @@ export const industryPages: AuthorityPage[] = [
       { question: "Why do effective-dated rest days matter in manufacturing payroll?", answer: "If a work group's rest day changes, historical payroll should still use the schedule that applied on the original work date instead of today's assignment." },
       { question: "How should holiday and overtime premiums be reviewed?", answer: "Payroll should preserve the actual day type, rest-day status, worked time and overtime context so reviewers can trace the resulting premium rather than receiving only a final peso total." },
     ],
+    lastReviewed: "October 5, 2026",
+    lastReviewedIso: "2026-10-05",
     related: [
       { label: "Time & attendance", href: "/time-and-attendance", description: "Explore the attendance-to-payroll workflow." },
       { label: "DOLE payroll guide", href: "/compliance/dole", description: "Review premium-pay and wage-screening context." },
