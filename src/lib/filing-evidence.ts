@@ -10,9 +10,10 @@ import { createHash } from "node:crypto";
  *   - a filing is identified by the SHA-256 of the file's bytes, and the
  *     download route refuses to serve a file whose bytes no longer match;
  *   - "accepted" needs an agency reference and how the file was submitted;
- *   - only an upload of the generated file counts as proof the FORMAT works.
- *     Re-typing the figures into a portal proves a person filed, not that
- *     Linaw's file is importable, so it is recorded but never counted.
+ *   - only an upload of the generated file can prove the FORMAT works;
+ *   - some portal-first workflows can instead be proven operationally by the
+ *     agency's own acknowledgement, without claiming the PayrollPH worksheet
+ *     is an agency-prescribed upload format.
  */
 
 export type FilingAgency = "SSS" | "BIR" | "PhilHealth" | "Pag-IBIG";
@@ -22,6 +23,12 @@ export type FilingFormDefinition = {
   form: string;
   /** The generateGovernmentDraft kind that produces this file. */
   kind: string;
+  /** Whether readiness proves the generated file layout or the operational filing workflow. */
+  evidenceMode: "file-format" | "operational";
+  /** Submission methods the UI/API may accept for this filing. */
+  submissionMethods: readonly SubmissionMethod[];
+  /** Monthly worksheets must be tied to the final cutoff so the month is complete. */
+  requiresFinalCutoff?: boolean;
   /**
    * Bump whenever the generated file's columns or layout change. Acceptance of
    * an older layout says nothing about the new one, so readiness only counts
@@ -37,7 +44,7 @@ export type FilingFormDefinition = {
     portalLabel: string;
     /** What "submitted" means for this form, shown for each submission method. */
     methodLabels: Record<"file_upload" | "manual_entry", string>;
-    /** Why a hand-typed filing does not count. */
+    /** What portal/manual filing evidence proves and what it does not prove. */
     manualEntryNote: string;
     /** What the agency says back, so the person knows what to copy. */
     answerLabel: string;
@@ -49,6 +56,7 @@ export type FilingFormDefinition = {
 };
 
 export const SSS_R3_GENERATOR_VERSION = "sss-r3-worksheet-v2";
+export const BIR_1601C_GENERATOR_VERSION = "bir-1601c-monthly-v1";
 export const BIR_1604C_GENERATOR_VERSION = "bir-1604c-source-v2";
 export const PHILHEALTH_RF1_GENERATOR_VERSION = "philhealth-rf1-worksheet-v1";
 export const PAGIBIG_MCRF_GENERATOR_VERSION = "pagibig-mcrf-worksheet-v2";
@@ -58,6 +66,9 @@ export const FILING_FORMS: readonly FilingFormDefinition[] = [
     agency: "SSS",
     form: "R-3",
     kind: "sss-r3",
+    evidenceMode: "operational",
+    submissionMethods: ["file_upload", "manual_entry"],
+    requiresFinalCutoff: true,
     generatorVersion: SSS_R3_GENERATOR_VERSION,
     referenceLabel: "SSS PRN or acknowledgement number from My.SSS",
     copy: {
@@ -68,7 +79,7 @@ export const FILING_FORMS: readonly FilingFormDefinition[] = [
         file_upload: "Uploaded the file Linaw generated",
         manual_entry: "Typed the figures in by hand",
       },
-      manualEntryNote: "If you retyped the figures into My.SSS, record it as typed in: it is kept, but it does not prove the file works.",
+      manualEntryNote: "A My.SSS acknowledgement can prove the operational filing even when figures were entered manually; it does not prove the PayrollPH worksheet is an SSS upload format.",
       answerLabel: "SSS PRN or acknowledgement number",
       scopeNote: null,
       unconfirmedNote: "It is not yet confirmed that SSS takes this worksheet at all, so a rejection is useful information, record it.",
@@ -76,8 +87,33 @@ export const FILING_FORMS: readonly FilingFormDefinition[] = [
   },
   {
     agency: "BIR",
+    form: "1601-C",
+    kind: "bir-1601c",
+    evidenceMode: "operational",
+    submissionMethods: ["manual_entry"],
+    requiresFinalCutoff: true,
+    generatorVersion: BIR_1601C_GENERATOR_VERSION,
+    referenceLabel: "BIR eBIRForms/eFPS filing or payment confirmation reference",
+    copy: {
+      title: "BIR 1601-C: was the monthly withholding return filed and paid?",
+      agencyLabel: "BIR",
+      portalLabel: "eBIRForms or eFPS",
+      methodLabels: {
+        file_upload: "Uploaded the PayrollPH worksheet",
+        manual_entry: "Filed in eBIRForms/eFPS using PayrollPH's figures",
+      },
+      manualEntryNote: "For 1601-C, the PayrollPH file is a source/checking worksheet. An accepted eBIRForms/eFPS filing with BIR's own reference proves the operational filing, not an upload-file format.",
+      answerLabel: "BIR filing/payment confirmation reference",
+      scopeNote: "PayrollPH does not claim that its 1601-C CSV is a BIR-prescribed upload file. Record the official eBIRForms/eFPS acknowledgement for the monthly return and retain the payment evidence.",
+      unconfirmedNote: "The exact due date can vary by eFPS filer group and the published BIR calendar; the Compliance Calendar therefore uses a conservative internal target.",
+    },
+  },
+  {
+    agency: "BIR",
     form: "1604-C",
     kind: "bir-1604c-source",
+    evidenceMode: "file-format",
+    submissionMethods: ["file_upload", "manual_entry"],
     generatorVersion: BIR_1604C_GENERATOR_VERSION,
     referenceLabel: "BIR validation report or ticket reference from esubmission@bir.gov.ph",
     copy: {
@@ -98,6 +134,9 @@ export const FILING_FORMS: readonly FilingFormDefinition[] = [
     agency: "PhilHealth",
     form: "RF-1",
     kind: "philhealth-rf1",
+    evidenceMode: "operational",
+    submissionMethods: ["file_upload", "manual_entry"],
+    requiresFinalCutoff: true,
     generatorVersion: PHILHEALTH_RF1_GENERATOR_VERSION,
     referenceLabel: "PhilHealth acknowledgement receipt (ePAR) number from EPRS",
     copy: {
@@ -108,7 +147,7 @@ export const FILING_FORMS: readonly FilingFormDefinition[] = [
         file_upload: "Loaded Linaw's file into EPRS",
         manual_entry: "Typed the figures into EPRS by hand",
       },
-      manualEntryNote: "If you typed the figures into EPRS, record it as typed in: it is kept, but it does not prove Linaw's file loads.",
+      manualEntryNote: "An EPRS acknowledgement can prove the operational filing even when figures were entered manually; it does not prove the PayrollPH worksheet is an EPRS upload format.",
       answerLabel: "PhilHealth acknowledgement receipt (ePAR) number",
       scopeNote: "PhilHealth issues the acknowledgement receipt when the premium is paid, so the number shows the report was filed and paid in EPRS. Linaw's figures are recomputed from monthly basic salary, so check they match the amount you actually remitted.",
       unconfirmedNote: "EPRS takes RF-1 data in its own prescribed template. It is not confirmed that Linaw's CSV matches it, so a rejection or a typed-in filing is useful information, record it.",
@@ -118,6 +157,9 @@ export const FILING_FORMS: readonly FilingFormDefinition[] = [
     agency: "Pag-IBIG",
     form: "MCRF",
     kind: "pagibig-mcrf",
+    evidenceMode: "operational",
+    submissionMethods: ["file_upload", "manual_entry"],
+    requiresFinalCutoff: true,
     generatorVersion: PAGIBIG_MCRF_GENERATOR_VERSION,
     referenceLabel: "Pag-IBIG online payment instruction number (OPIN) or the confirmation reference you were given",
     copy: {
@@ -128,7 +170,7 @@ export const FILING_FORMS: readonly FilingFormDefinition[] = [
         file_upload: "Uploaded the file Linaw generated",
         manual_entry: "Typed the figures in by hand",
       },
-      manualEntryNote: "If you typed the figures in, record it as typed in: it is kept, but it does not prove Linaw's file loads.",
+      manualEntryNote: "A Pag-IBIG acknowledgement can prove the operational filing even when figures were entered manually; it does not prove the PayrollPH worksheet is the prescribed eSRS upload format.",
       answerLabel: "Pag-IBIG payment instruction number (OPIN) or confirmation reference",
       scopeNote: "A payment instruction or confirmation reference shows the submitted remittance reached the selected Pag-IBIG payment workflow. It does not by itself prove the contribution was finally posted to every member account, so retain the posting/remittance acknowledgement too.",
       unconfirmedNote: "Pag-IBIG publishes MCRF spreadsheet encoding instructions and also provides eSRS. Linaw mirrors the published fields as a worksheet, but it does not claim that this CSV is the agency-prescribed upload workbook. Record portal/bank acceptance for the exact submitted version.",
@@ -253,6 +295,7 @@ export function provesFileFormat(row: FilingEvidenceRow, definition: FilingFormD
     && row.form === definition.form
     && row.status === "accepted"
     && row.submissionMethod === "file_upload"
+    && definition.submissionMethods.includes(row.submissionMethod as SubmissionMethod)
     && row.generatorVersion === definition.generatorVersion
   );
 }
@@ -271,6 +314,7 @@ export function provesOperationalFiling(
     row.agency === definition.agency
     && row.form === definition.form
     && row.status === "accepted"
+    && definition.submissionMethods.includes(row.submissionMethod as SubmissionMethod)
     && (row.submissionMethod === "file_upload" || row.submissionMethod === "manual_entry")
     && row.generatorVersion === definition.generatorVersion
     && Boolean(row.agencyReference?.trim())
@@ -285,7 +329,20 @@ type EvidenceSummary = ReturnType<typeof summarizeFilingEvidence>;
  * recorded, and never suggests they count.
  */
 export function describeEvidenceGap(summary: EvidenceSummary | null, definition: FilingFormDefinition): string {
-  const parts = [`No recorded ${definition.copy.agencyLabel} acceptance of a Linaw-generated ${definition.form} file in the current layout yet.`];
+  if (definition.evidenceMode === "operational") {
+    const parts = [`No recorded current-version ${definition.copy.agencyLabel} operational acknowledgement for ${definition.form} yet.`];
+    if (summary?.acceptedByManualEntry) {
+      parts.push(`${summary.acceptedByManualEntry} portal/manual filing acknowledgement(s) exist, but none qualifies as current-version operational evidence.`);
+    }
+    if (summary?.acceptedOnOlderLayout) {
+      parts.push(`${summary.acceptedOnOlderLayout} file acceptance(s) were recorded against an older generator version.`);
+    }
+    if (summary?.rejected) parts.push(`${summary.rejected} rejection(s) are recorded.`);
+    parts.push("Create a record on the Exports page, complete the agency workflow, then record the agency's own acknowledgement.");
+    return parts.join(" ");
+  }
+
+  const parts = [`No recorded ${definition.copy.agencyLabel} acceptance of a PayrollPH-generated ${definition.form} file in the current layout yet.`];
   if (summary?.acceptedByManualEntry) {
     parts.push(`${summary.acceptedByManualEntry} filing(s) were typed in by hand, which proves a filing was made but not that the generated file works.`);
   }

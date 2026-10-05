@@ -44,6 +44,8 @@ import {
 } from "lucide-react";
 import { AccountPanel } from "@/components/account-panel";
 import { StatutoryRemittancePanel } from "@/components/workspace/statutory-remittance-panel";
+import { ComplianceCalendarPanel } from "@/components/workspace/compliance-calendar-panel";
+import { LaborInspectionReadinessPanel } from "@/components/workspace/labor-inspection-readiness-panel";
 import { INVITABLE_ROLES, invitableRoleLabel } from "@/lib/roles";
 import type { AuditEvent, DashboardData, Employee, OrgUnit, PayrollEntry, PayrollRun, PricingPlan } from "./types";
 import { Avatar, Metric, PageHeading, Status, formatDate, formatDateTime as formatTime, money } from "./ui";
@@ -325,6 +327,17 @@ export function CompliancePage({ data, setNotice, onOpenGovModal }: { data: Dash
           <Status value="Portal proof required" />
         </article>
       </section>
+
+      <div style={{ marginTop: 16 }}>
+        <LaborInspectionReadinessPanel
+          organizationId={data.selectedOrganization.id}
+          notify={(message) => setNotice(message)}
+        />
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <ComplianceCalendarPanel organizationId={data.selectedOrganization.id} />
+      </div>
 
       <div style={{ marginTop: 16 }}>
         <StatutoryRemittancePanel

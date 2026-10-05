@@ -86,6 +86,7 @@ export async function buildReadinessPayload() {
   const evidenceFor = (agency: string, form: string) =>
     filingEvidence.find((item) => item.definition.agency === agency && item.definition.form === form) ?? null;
   const sssEvidence = evidenceFor("SSS", "R-3");
+  const bir1601Evidence = evidenceFor("BIR", "1601-C");
   const birEvidence = evidenceFor("BIR", "1604-C");
   const philhealthEvidence = evidenceFor("PhilHealth", "RF-1");
   const pagibigEvidence = evidenceFor("Pag-IBIG", "MCRF");
@@ -139,6 +140,7 @@ export async function buildReadinessPayload() {
   // employer workflows, so an agency acknowledgement can prove the operational
   // filing even when the Linaw worksheet itself is not an agency upload file.
   const demoMode = enabled("DEMO_MODE");
+  const bir1601cValidated = Boolean(bir1601Evidence?.operationallyProven);
   const birAlphalistValidated = Boolean(birEvidence?.proven);
   const sssR3Validated = Boolean(sssEvidence?.operationallyProven);
   const philhealthValidated = Boolean(philhealthEvidence?.operationallyProven);
@@ -281,6 +283,19 @@ export async function buildReadinessPayload() {
       manualWorkaround: Number(productionPilotSignoffs) > 0
         ? undefined
         : "Complete one controlled production payroll, reconcile it independently, then record the production pilot sign-off before broad launch.",
+    },
+    {
+      key: "gov-bir-1601c",
+      label: "BIR 1601-C monthly filing workflow proven",
+      ready: bir1601cValidated,
+      detail: bir1601cValidated
+        ? `BIR 1601-C operational filing evidence is recorded (${bir1601Evidence?.operationalProvingCount} accepted filing(s)${bir1601Evidence?.latestOperational?.agencyReference ? `, latest reference ${bir1601Evidence.latestOperational.agencyReference}` : ""}). This proves the monthly eBIRForms/eFPS filing workflow, not a PayrollPH upload-file format.`
+        : filingEvidenceError
+          ?? "No current-version BIR 1601-C filing acknowledgement is recorded yet. PayrollPH can generate the monthly withholding worksheet from the final cutoff, but launch readiness stays red until the employer files/pays through the applicable BIR channel and records BIR's own acknowledgement.",
+      blocks: bir1601cValidated ? "none" : "launch",
+      manualWorkaround: bir1601cValidated
+        ? undefined
+        : "Generate the BIR 1601-C worksheet from the month's final cutoff, file and pay through the employer's applicable eBIRForms/eFPS workflow, retain BIR's official acknowledgement/payment reference, then record that acceptance in Exports.",
     },
     {
       key: "gov-bir-alphalist",

@@ -1181,6 +1181,30 @@ export const auditEvents = pgTable("audit_events", {
  * trusting an environment flag. Rows are never deleted by the app, and an
  * accepted row cannot be edited.
  */
+export const laborInspectionRemediations = pgTable(
+  "labor_inspection_remediations",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    findingKey: varchar("finding_key", { length: 220 }).notNull(),
+    ruleCode: varchar("rule_code", { length: 80 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("open"),
+    owner: varchar("owner", { length: 120 }),
+    acknowledgedBy: varchar("acknowledged_by", { length: 120 }),
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+    resolutionNote: text("resolution_note"),
+    evidenceReference: varchar("evidence_reference", { length: 240 }),
+    resolvedBy: varchar("resolved_by", { length: 120 }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("labor_inspection_remediation_unique").on(table.organizationId, table.findingKey),
+    index("labor_inspection_remediation_status_idx").on(table.organizationId, table.status),
+  ],
+);
+
 export const governmentFilingValidations = pgTable(
   "government_filing_validations",
   {
