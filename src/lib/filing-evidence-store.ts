@@ -9,6 +9,7 @@ import {
   type FilingFormDefinition,
   type FilingOutcomeInput,
 } from "@/lib/filing-evidence";
+import { summarizeMonthlyContributionFile } from "@/lib/filing-remittance-snapshot";
 
 export type FilingValidationRow = typeof governmentFilingValidations.$inferSelect;
 
@@ -32,6 +33,13 @@ export async function recordGeneratedFiling(input: {
 
   const file = await generateGovernmentDraft(run.id, input.definition.kind);
   const fileSha256 = sha256Hex(file.body);
+  const applicableMonth = String(run.payDate).slice(0, 7);
+  const remittanceSnapshot = summarizeMonthlyContributionFile({
+    agency: input.definition.agency,
+    form: input.definition.form,
+    body: file.body,
+    applicableMonth,
+  });
 
   const [inserted] = await db
     .insert(governmentFilingValidations)
@@ -41,6 +49,9 @@ export async function recordGeneratedFiling(input: {
       agency: input.definition.agency,
       form: input.definition.form,
       periodLabel: run.periodLabel,
+      applicableMonth: remittanceSnapshot?.applicableMonth ?? null,
+      employeeCount: remittanceSnapshot?.employeeCount ?? null,
+      reportedTotal: remittanceSnapshot ? remittanceSnapshot.reportedTotal.toFixed(2) : null,
       fileName: file.filename,
       fileSha256,
       generatorVersion: input.definition.generatorVersion,
