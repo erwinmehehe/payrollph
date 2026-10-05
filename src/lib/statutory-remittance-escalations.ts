@@ -24,11 +24,11 @@ function isOwnerAdmin(role: string) {
 export type EscalationStage = 0 | 1 | 2 | 3;
 
 export function escalationStage(
-  task: Pick<ComplianceTask, "status" | "severity" | "firstDetectedAt">,
+  task: Pick<ComplianceTask, "status" | "severity" | "severityChangedAt">,
   now = new Date(),
 ): EscalationStage {
   if (task.status === "resolved" || task.severity === "info") return 0;
-  const ageMs = Math.max(0, now.getTime() - new Date(task.firstDetectedAt).getTime());
+  const ageMs = Math.max(0, now.getTime() - new Date(task.severityChangedAt).getTime());
   if (ageMs >= 72 * 60 * 60 * 1000) return 3;
   if (ageMs >= 24 * 60 * 60 * 1000) return 2;
   return 1;
@@ -82,7 +82,7 @@ export function escalationBody(
   const status = task.status === "in_progress" ? "In progress" : "Open";
   const ageHours = Math.max(
     0,
-    Math.floor((now.getTime() - new Date(task.firstDetectedAt).getTime()) / (60 * 60 * 1000)),
+    Math.floor((now.getTime() - new Date(task.severityChangedAt).getTime()) / (60 * 60 * 1000)),
   );
   const escalation = stage >= 3
     ? "Escalation stage: executive escalation (unresolved for at least 72 hours)"
@@ -103,7 +103,7 @@ export function escalationBody(
     due,
     ownership,
     `Status: ${status}`,
-    `Open for: ${ageHours} hour${ageHours === 1 ? "" : "s"}`,
+    `Current risk level for: ${ageHours} hour${ageHours === 1 ? "" : "s"}`,
     escalation,
     "",
     "Open Payroll > Statutory Remittance Control to resolve the underlying payment or employee-posting issue.",
