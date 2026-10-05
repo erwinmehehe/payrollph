@@ -36,6 +36,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/scorecard", priority: 0.7, changeFrequency: "weekly" as const },
     { path: "/demo", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/book-demo", priority: 0.6, changeFrequency: "monthly" as const },
+    { path: "/trial", priority: 0.8, changeFrequency: "monthly" as const },
     ...(approvedStories.length > 0 ? [{ path: "/customers", priority: 0.8, changeFrequency: "monthly" as const }] : []),
   ];
 
