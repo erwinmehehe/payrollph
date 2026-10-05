@@ -71,7 +71,9 @@ export async function GET(request: Request) {
       .innerJoin(userOrganizations, eq(userOrganizations.userId, users.id))
       .where(and(
         eq(users.email, identity.email),
+        eq(users.active, true),
         eq(userOrganizations.organizationId, connection.organizationId),
+        eq(userOrganizations.active, true),
       ))
       .limit(1);
     if (!membership) return loginFailure(request);
@@ -81,6 +83,8 @@ export async function GET(request: Request) {
       // policy from an unverified ACR claim. Sensitive payroll actions still
       // require a recent Linaw MFA event until an explicit assurance mapping is built.
       mfaVerifiedAt: null,
+      authMethod: "oidc",
+      ssoConnectionId: connection.id,
     });
     const jar = await cookies();
     jar.set(SESSION_COOKIE, session.token, sessionCookieOptions(session.expiresAt));
