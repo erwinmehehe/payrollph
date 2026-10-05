@@ -57,9 +57,12 @@ test("marketing lead notifications are provider-gated, idempotent and recoverabl
   assert.ok(storage.includes('dedupeKey: `marketing-lead:${lead.id}`'), "lead notification must be idempotent");
   assert.ok(storage.includes("retryOutboxMessage({"), "failed platform notifications must be retryable");
   assert.ok(storage.includes("organizationId: null"), "platform lead retries must remain outside tenant scope");
+  assert.ok(storage.includes("notification_attempts < 4"), "marketing lead retries must stop after the bounded attempt budget");
+  assert.ok(storage.includes("INTERVAL '5 minutes'"), "failed marketing notifications must back off before retry");
   assert.ok(storage.includes("drainMarketingLeadNotifications"), "lead notification recovery must have a worker drain");
   assert.ok(!storage.includes(".invalid"), "shared notification logic must never use invalid fallback recipients");
   assert.ok(mailer.includes("organizationId: number | null"), "mailer retry scope must support platform-only outbox rows");
+  assert.ok(mailer.includes('"demo-request"') && mailer.includes('"trial-access-request"') && mailer.includes('"payroll-outsourcing-enquiry"'), "marketing notifications must carry the same bounded outbox retry budget");
   assert.ok(mailer.includes("isNull(outbox.organizationId)"), "null-organization retries must be explicitly scoped");
   assert.ok(worker.includes("drainMarketingLeadNotifications"), "dedicated worker must recover lead notifications");
   assert.ok(scheduler.includes("drainMarketingLeadNotifications"), "remote scheduler must recover lead notifications");
