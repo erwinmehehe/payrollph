@@ -30,22 +30,29 @@ export async function queueStatutoryRemittanceReminders(now = new Date()) {
   const obligations = await db.select().from(statutoryRemittanceObligations)
     .where(ne(statutoryRemittanceObligations.status, "confirmed"));
 
-  const candidates = obligations.flatMap((row) => {
+  type ReminderCandidate = {
+    row: (typeof obligations)[number];
+    stage: "needs-configuration" | "overdue" | "due-soon";
+    daysRemaining: number | null;
+  };
+  const candidates: ReminderCandidate[] = [];
+  for (const row of obligations) {
     const dueDate = row.dueDate ? String(row.dueDate) : null;
     if (!dueDate) {
-      return row.applicableMonth < month
-        ? [{ row, stage: "needs-configuration" as const, daysRemaining: null }]
-        : [];
+      if (row.applicableMonth < month) {
+        candidates.push({ row, stage: "needs-configuration", daysRemaining: null });
+      }
+      continue;
     }
     const daysRemaining = daysBetween(today, dueDate);
     if (daysRemaining < 0) {
-      return [{ row, stage: "overdue" as const, daysRemaining }];
+      candidates.push({ row, stage: "overdue", daysRemaining });
+      continue;
     }
     if (daysRemaining <= 3) {
-      return [{ row, stage: "due-soon" as const, daysRemaining }];
+      candidates.push({ row, stage: "due-soon", daysRemaining });
     }
-    return [];
-  });
+  }
 
   let queued = 0;
   let skipped = 0;
