@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import nodemailer from "nodemailer";
 import { db } from "@/db";
 import { auditEvents, outbox } from "@/db/schema";
@@ -236,6 +236,7 @@ export async function queueMessage(input: {
   purpose: string;
   dedupeKey?: string | null;
   audit?: MailAuditContext;
+  metadata?: Record<string, unknown>;
 }) {
   await ensureOutboxDeliverySchema();
   const providerName = provider();
@@ -251,7 +252,10 @@ export async function queueMessage(input: {
     status: providerName === "none" ? "queued" : "pending",
     deliveryStatus: providerName === "none" ? "queued" : "sending",
     deliveryUpdatedAt: new Date(),
-    metadata: input.audit?.metadata ?? {},
+    metadata: {
+      ...(input.metadata ?? {}),
+      ...(input.audit?.metadata ?? {}),
+    },
     maxAttempts: input.purpose === "payslip-ready" ? MAX_AUTOMATIC_RETRIES + 1 : 1,
   }).onConflictDoNothing().returning();
 
@@ -457,6 +461,25 @@ function stateLabel(row: OutboxRow, retryCount: number, deliveryStatus?: string 
   if (row.status === "pending") return "Sending";
   if (row.status === "queued") return retryCount > 0 ? "Queued for retry" : "Queued";
   return row.status;
+}
+
+export const PUBLIC_LEAD_PURPOSES = [
+  "demo-request",
+  "trial-access-request",
+  "payroll-outsourcing-enquiry",
+] as const;
+
+export async function recentPublicLeadOutbox(limit = 100) {
+  await ensureOutboxDeliverySchema();
+  return db
+    .select()
+    .from(outbox)
+    .where(and(
+      isNull(outbox.organizationId),
+      inArray(outbox.purpose, [...PUBLIC_LEAD_PURPOSES]),
+    ))
+    .orderBy(desc(outbox.id))
+    .limit(Math.max(1, Math.min(limit, 250)));
 }
 
 export async function recentOutbox(limit = 25, organizationId?: number) {
