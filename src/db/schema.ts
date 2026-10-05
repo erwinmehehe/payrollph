@@ -1481,3 +1481,93 @@ export const performanceReviews = pgTable(
   ],
 );
 
+/* -------------------------------------------------------------------------- */
+/* HCM: job architecture and position planning                                */
+/* -------------------------------------------------------------------------- */
+
+export const jobProfiles = pgTable(
+  "job_profiles",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 160 }).notNull(),
+    family: varchar("family", { length: 120 }).notNull().default("General"),
+    level: varchar("level", { length: 80 }).notNull().default("Individual Contributor"),
+    grade: varchar("grade", { length: 40 }),
+    description: text("description"),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("job_profiles_org_title_level_unique").on(table.organizationId, table.title, table.level),
+    index("job_profiles_org_active_idx").on(table.organizationId, table.active),
+  ],
+);
+
+export const workforcePlans = pgTable(
+  "workforce_plans",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 160 }).notNull(),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date").notNull(),
+    budget: numeric("budget", { precision: 14, scale: 2 }).notNull().default("0"),
+    status: varchar("status", { length: 24 }).notNull().default("draft"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("workforce_plans_org_name_dates_unique").on(table.organizationId, table.name, table.startDate, table.endDate),
+    index("workforce_plans_org_status_idx").on(table.organizationId, table.status),
+  ],
+);
+
+export const positions = pgTable(
+  "positions",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    code: varchar("code", { length: 48 }).notNull(),
+    jobProfileId: integer("job_profile_id").notNull().references(() => jobProfiles.id, { onDelete: "restrict" }),
+    orgUnitId: integer("org_unit_id").references(() => orgUnits.id, { onDelete: "set null" }),
+    planId: integer("plan_id").references(() => workforcePlans.id, { onDelete: "set null" }),
+    managerEmployeeId: integer("manager_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    employmentType: varchar("employment_type", { length: 32 }).notNull().default("Regular"),
+    status: varchar("status", { length: 24 }).notNull().default("planned"),
+    plannedStartDate: date("planned_start_date"),
+    annualBudget: numeric("annual_budget", { precision: 14, scale: 2 }).notNull().default("0"),
+    notes: text("notes"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("positions_org_code_unique").on(table.organizationId, table.code),
+    index("positions_org_status_idx").on(table.organizationId, table.status),
+    index("positions_org_unit_idx").on(table.organizationId, table.orgUnitId),
+    index("positions_plan_idx").on(table.planId),
+  ],
+);
+
+export const positionAssignments = pgTable(
+  "position_assignments",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    positionId: integer("position_id").notNull().references(() => positions.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    effectiveFrom: date("effective_from").notNull(),
+    effectiveUntil: date("effective_until"),
+    reason: varchar("reason", { length: 240 }).notNull().default("Position assignment"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("position_assignments_position_from_unique").on(table.positionId, table.effectiveFrom),
+    index("position_assignments_employee_idx").on(table.organizationId, table.employeeId),
+  ],
+);

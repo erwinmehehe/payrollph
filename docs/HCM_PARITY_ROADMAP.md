@@ -50,7 +50,9 @@ Next improvements inside this module:
 
 ## Tranche 2 — Job architecture and position control
 
-Build before expanding recruiting:
+Status: implemented on `feat/hcm-position-planning-clean`.
+
+Built:
 - Job families, job profiles, levels/grades, skills and competencies
 - Position records separate from employee records
 - Position status: planned / approved / open / filled / frozen / closed
@@ -63,7 +65,9 @@ Why: Deel connects workforce planning to ATS; Frappe validates openings against 
 
 ## Tranche 3 — Workforce and headcount planning
 
-- Annual/quarterly workforce plans
+Foundation implemented with planning windows, plan budgets, position-level budgets, statuses, and effective-dated incumbents. Remaining:
+
+- Annual/quarterly workforce plan versioning
 - Requested vs approved vs filled headcount
 - Scenario planning
 - Fully loaded cost forecast using Linaw payroll/benefit data
