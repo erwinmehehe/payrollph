@@ -971,6 +971,51 @@ export async function ensureCoreCompatibilitySchema() {
         $compat$;
       `);
 
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS statutory_contribution_issue_events (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          case_id integer NOT NULL REFERENCES statutory_contribution_issue_cases(id) ON DELETE CASCADE,
+          employee_id integer NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+          event_type varchar(32) NOT NULL,
+          visibility varchar(24) NOT NULL DEFAULT 'employee',
+          message varchar(1000) NOT NULL,
+          actor_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          actor_name varchar(120) NOT NULL,
+          created_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS statutory_contribution_issue_event_case_idx
+        ON statutory_contribution_issue_events(organization_id, case_id, created_at)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS statutory_contribution_issue_event_employee_idx
+        ON statutory_contribution_issue_events(organization_id, employee_id, created_at)
+      `);
+      await client.query(`
+        DO $compat$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'statutory_contribution_issue_event_type_check'
+          ) THEN
+            ALTER TABLE statutory_contribution_issue_events
+              ADD CONSTRAINT statutory_contribution_issue_event_type_check
+              CHECK (event_type IN ('reported', 'review_started', 'payroll_update', 'resolved'));
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'statutory_contribution_issue_event_visibility_check'
+          ) THEN
+            ALTER TABLE statutory_contribution_issue_events
+              ADD CONSTRAINT statutory_contribution_issue_event_visibility_check
+              CHECK (visibility IN ('employee', 'internal'));
+          END IF;
+        END
+        $compat$;
+      `);
+
       await client.query("COMMIT");
       coreSchemaReady = true;
     } catch (error) {

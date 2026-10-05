@@ -69,7 +69,7 @@ test("case creation and review advance the compliance task due date", () => {
 
   assert.ok(selfApi.includes("contributionCaseServiceTargets(issue)"));
   assert.ok(selfApi.includes("dueDate: serviceTargets.firstReviewDue.toISOString().slice(0, 10)"));
-  assert.ok(payrollApi.includes("contributionCaseServiceTargets(updated)"));
+  assert.ok(payrollApi.includes("contributionCaseServiceTargets(next)"));
   assert.ok(payrollApi.includes("dueDate: serviceTargets.resolutionDue.toISOString().slice(0, 10)"));
   assert.ok(selfApi.includes("service: contributionCaseServiceStatus"));
   assert.ok(payrollApi.includes("service: contributionCaseServiceStatus"));

@@ -23,6 +23,14 @@ type ContributionIssueCase = {
   resolvedByName: string | null;
   resolvedAt: string | null;
   createdAt: string;
+  events: Array<{
+    id: number;
+    eventType: string;
+    visibility: string;
+    message: string;
+    actorName: string;
+    createdAt: string;
+  }>;
   service: {
     state: "resolved" | "on_track" | "review_due_today" | "review_overdue" | "resolution_due_today" | "resolution_overdue";
     overdue: boolean;
@@ -54,6 +62,8 @@ export function StatutoryContributionIssueCasesPanel({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [resolveId, setResolveId] = useState<number | null>(null);
+  const [updateId, setUpdateId] = useState<number | null>(null);
+  const [updateMessage, setUpdateMessage] = useState("");
   const [resolutionOutcome, setResolutionOutcome] = useState("posting_confirmed");
   const [resolutionNote, setResolutionNote] = useState("");
 
@@ -90,7 +100,7 @@ export function StatutoryContributionIssueCasesPanel({
   );
 
   async function mutate(
-    action: "start_review" | "resolve",
+    action: "start_review" | "add_update" | "resolve",
     caseId: number,
     payload: Record<string, unknown>,
     success: string,
@@ -113,6 +123,23 @@ export function StatutoryContributionIssueCasesPanel({
       return false;
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function postUpdate(issue: ContributionIssueCase) {
+    if (updateMessage.trim().length < 20) {
+      notify("Add an employee-visible update of at least 20 characters.", "err");
+      return;
+    }
+    const ok = await mutate(
+      "add_update",
+      issue.id,
+      { message: updateMessage },
+      "Employee-visible contribution case update posted.",
+    );
+    if (ok) {
+      setUpdateId(null);
+      setUpdateMessage("");
     }
   }
 
@@ -181,6 +208,16 @@ export function StatutoryContributionIssueCasesPanel({
                     <td style={{ maxWidth: 420 }}>
                       <strong>{issue.issueType.replaceAll("_", " ")}</strong>
                       <div className="id" style={{ whiteSpace: "normal" }}>{issue.description}</div>
+                      {issue.events.length > 0 && (
+                        <div style={{ display: "grid", gap: 4, marginTop: 8 }}>
+                          {issue.events.slice(0, 3).map((event) => (
+                            <div className="id" key={event.id} style={{ whiteSpace: "normal" }}>
+                              <strong>{event.eventType.replaceAll("_", " ")}</strong> · {event.actorName} · {new Date(event.createdAt).toLocaleString("en-PH", { timeZone: "Asia/Manila" })}<br />
+                              {event.message}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </td>
                     <td>
                       <Status value={issue.service.state === "review_overdue"
@@ -208,6 +245,25 @@ export function StatutoryContributionIssueCasesPanel({
                           {busy === `start_review:${issue.id}` ? <Spinner label="Saving" /> : <SearchCheck size={14} />}
                           Start review
                         </button>
+                      ) : updateId === issue.id ? (
+                        <div style={{ display: "grid", gap: 6, minWidth: 260 }}>
+                          <textarea
+                            value={updateMessage}
+                            onChange={(event) => setUpdateMessage(event.target.value)}
+                            placeholder="Tell the employee what payroll checked, what is pending, or what happens next."
+                            maxLength={1000}
+                          />
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                            <button
+                              className="primary-button brand"
+                              disabled={busy !== null || updateMessage.trim().length < 20}
+                              onClick={() => void postUpdate(issue)}
+                            >
+                              {busy === `add_update:${issue.id}` ? <Spinner label="Saving" /> : "Post update"}
+                            </button>
+                            <button className="secondary-button" onClick={() => { setUpdateId(null); setUpdateMessage(""); }}>Cancel</button>
+                          </div>
+                        </div>
                       ) : resolveId === issue.id ? (
                         <div style={{ display: "grid", gap: 6, minWidth: 250 }}>
                           <select value={resolutionOutcome} onChange={(event) => setResolutionOutcome(event.target.value)}>
@@ -233,16 +289,29 @@ export function StatutoryContributionIssueCasesPanel({
                           </div>
                         </div>
                       ) : (
-                        <button
-                          className="secondary-button"
-                          onClick={() => {
-                            setResolveId(issue.id);
-                            setResolutionOutcome("posting_confirmed");
-                            setResolutionNote("");
-                          }}
-                        >
-                          Resolve
-                        </button>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          <button
+                            className="secondary-button"
+                            onClick={() => {
+                              setUpdateId(issue.id);
+                              setUpdateMessage("");
+                              setResolveId(null);
+                            }}
+                          >
+                            Post update
+                          </button>
+                          <button
+                            className="secondary-button"
+                            onClick={() => {
+                              setResolveId(issue.id);
+                              setUpdateId(null);
+                              setResolutionOutcome("posting_confirmed");
+                              setResolutionNote("");
+                            }}
+                          >
+                            Resolve
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>

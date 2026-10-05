@@ -4,6 +4,7 @@ import {
   complianceActionTasks,
   employees,
   statutoryContributionIssueCases,
+  statutoryContributionIssueEvents,
   statutoryRemittanceBatches,
   statutoryRemittanceMembers,
 } from "@/db/schema";
@@ -61,6 +62,19 @@ export async function GET() {
     .orderBy(desc(statutoryContributionIssueCases.createdAt), desc(statutoryContributionIssueCases.id))
     .limit(30);
 
+  const events = await db.select().from(statutoryContributionIssueEvents)
+    .where(and(
+      eq(statutoryContributionIssueEvents.organizationId, employee.organizationId),
+      eq(statutoryContributionIssueEvents.employeeId, employee.id),
+      eq(statutoryContributionIssueEvents.visibility, "employee"),
+    ))
+    .orderBy(desc(statutoryContributionIssueEvents.createdAt), desc(statutoryContributionIssueEvents.id))
+    .limit(200);
+  const eventsByCase = new Map<number, typeof events>();
+  for (const event of events) {
+    eventsByCase.set(event.caseId, [...(eventsByCase.get(event.caseId) ?? []), event]);
+  }
+
   return Response.json({
     cases: cases.map((row) => ({
       id: row.id,
@@ -76,6 +90,7 @@ export async function GET() {
       resolvedAt: row.resolvedAt,
       createdAt: row.createdAt,
       service: contributionCaseServiceStatus(row),
+      events: eventsByCase.get(row.id) ?? [],
     })),
     userId: user.id,
   });
@@ -203,6 +218,17 @@ export async function POST(request: Request) {
       reportedByUserId: user.id,
       reportedByName: user.name,
     }).returning();
+
+    await tx.insert(statutoryContributionIssueEvents).values({
+      organizationId: employee.organizationId,
+      caseId: issue.id,
+      employeeId: employee.id,
+      eventType: "reported",
+      visibility: "employee",
+      message: `Employee reported: ${description}`,
+      actorUserId: user.id,
+      actorName: user.name,
+    });
 
     const serviceTargets = contributionCaseServiceTargets(issue);
 
