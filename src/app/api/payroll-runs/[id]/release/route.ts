@@ -87,14 +87,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const managedRequirement = await managedPayrollReleaseRequirement(run.organizationId, run.id);
-  if (managedRequirement.required && (!managedRequirement.approval || !managedRequirement.approvalValid)) {
+  if (
+    managedRequirement.required
+    && (
+      !managedRequirement.gatesComplete
+      || !managedRequirement.approval
+      || !managedRequirement.approvalValid
+    )
+  ) {
     return Response.json({
-      error: managedRequirement.approval
-        ? "Managed payroll client approval is stale because the payroll contents changed. The designated client approver must review and approve this exact run again."
-        : "Managed payroll requires designated client approval of this exact run before release.",
+      error: !managedRequirement.gatesComplete
+        ? `Managed payroll implementation evidence is incomplete. Re-verify: ${managedRequirement.missingGateKeys.join(", ")}.`
+        : managedRequirement.approval
+          ? "Managed payroll client approval is stale because the payroll contents changed. The designated client approver must review and approve this exact run again."
+          : "Managed payroll requires designated client approval of this exact run before release.",
       managedPayroll: {
         required: true,
         approverUserId: managedRequirement.engagement.clientApproverUserId,
+        gatesComplete: managedRequirement.gatesComplete,
+        missingGateKeys: managedRequirement.missingGateKeys,
         approvalRecorded: Boolean(managedRequirement.approval),
         approvalValid: Boolean(managedRequirement.approvalValid),
       },
