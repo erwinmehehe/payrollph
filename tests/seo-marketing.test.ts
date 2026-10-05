@@ -513,6 +513,8 @@ test("industry authority pages stay maintained and decision-focused", () => {
   assert.ok(route.includes("lastReviewed={page.lastReviewed}"), "dynamic industry pages must show review dates when provided");
   assert.ok(route.includes("sources={page.sources}"), "dynamic industry pages must support evidence sources when provided");
   assert.ok(bpo.includes('lastReviewed="October 5, 2026"'), "BPO industry page must show a review date");
+  assert.ok(bpo.includes("<StructuredData"), "BPO industry page must emit structured data");
+  assert.ok(bpo.includes('path: "/industries/bpo"'), "BPO structured data must use the canonical industry path");
 
   for (const source of [base, wave2, wave6]) {
     assert.ok(source.includes('lastReviewed: "October 5, 2026"'), "industry content must carry explicit review dates");
