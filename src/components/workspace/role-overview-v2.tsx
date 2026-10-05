@@ -13,6 +13,7 @@ import {
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { buildPayrollHandoff } from "@/lib/payroll-handoff";
 import { readLineItems, type DashboardData, type PayrollRun } from "./types";
+import { StatutoryRemittanceWatch } from "./statutory-remittance-watch";
 import { Avatar, EmptyState, Status } from "./ui";
 
 export type RoleOverviewV2Role = "owner" | "hr" | "payroll" | "checker" | "bookkeeper";
@@ -107,6 +108,11 @@ function OwnerWorkspace({ data, currentRun, firstName, onPage, onNewRun }: Commo
         </div>
       </section>
 
+      <StatutoryRemittanceWatch
+        organizationId={data.selectedOrganization.id}
+        onOpen={() => onPage("Payroll")}
+      />
+
       <section className="mockup-section mockup-owner-alerts">
         <MockupSectionHeader title="Things to know before releasing" />
         <div className="mockup-knowledge-grid">
@@ -191,6 +197,11 @@ function PayrollWorkspace({ data, currentRun, firstName, onPage, onNewRun }: Com
           <MockStep index={4} label="Submit" detail={canSubmit ? "Ready" : "Locked"} state={canSubmit ? "current" : "locked"} />
         </div>
       </section>
+
+      <StatutoryRemittanceWatch
+        organizationId={data.selectedOrganization.id}
+        onOpen={() => onPage("Payroll")}
+      />
 
       <section className="mockup-kpi-row mockup-kpi-four payroll-focus-summary">
         <MockKpi value={String(total)} label="Employees" />
