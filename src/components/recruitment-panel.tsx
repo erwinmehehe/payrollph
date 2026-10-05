@@ -365,7 +365,7 @@ export function RecruitmentPanel({ organizationId, setNotice }: { organizationId
 
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingTop: 6, borderTop: "1px solid #edf2ee" }}>
                       <span style={{ fontSize: 9.5, color: "var(--muted)" }}>★ {app.rating}/5</span>
-                      {stage.key === "offer" && !app.hiredEmployeeId && (
+                      {stage.key === "offer" && !app.hiredEmployeeId && activeReq?.positionId && (
                         <button
                           className="primary-button"
                           style={{ height: 24, fontSize: 9.5, padding: "0 8px" }}
@@ -391,6 +391,9 @@ export function RecruitmentPanel({ organizationId, setNotice }: { organizationId
                         >
                           Next <ChevronRight size={10} />
                         </button>
+                      )}
+                      {stage.key === "offer" && !activeReq?.positionId && (
+                        <span style={{ fontSize: 9, color: "var(--muted)" }}>Position required</span>
                       )}
                       {stage.key === "hired" && (
                         <span className="status status-verified" style={{ fontSize: 8 }}>Hired ✓{app.hiredEmployeeId ? ` · EMP #${app.hiredEmployeeId}` : ""}</span>
