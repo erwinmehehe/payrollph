@@ -553,12 +553,12 @@ test("statutory calculators show review freshness and official references", () =
     assert.ok(start >= 0, `calculator ${slug} must have official source references`);
   }
 
-  assert.ok(calculators.includes("https://www.sss.gov.ph/"), "calculator sources must include SSS");
-  assert.ok(calculators.includes("https://www.philhealth.gov.ph/"), "calculator sources must include PhilHealth");
-  assert.ok(calculators.includes("https://www.pagibigfund.gov.ph/"), "calculator sources must include Pag-IBIG");
+  assert.ok(calculators.includes("SSS Pay Contributions"), "calculator sources must identify the SSS reference");
+  assert.ok(calculators.includes("PhilHealth Premium Contribution Advisory 2025-0002"), "calculator sources must identify the PhilHealth advisory");
+  assert.ok(calculators.includes("Pag-IBIG 2025 Payment Guide"), "calculator sources must identify the current Pag-IBIG payment guide");
   assert.ok(calculators.includes("current ₱10,000 MFS"), "Pag-IBIG source labeling must reflect the current MFS evidence");
-  assert.ok(calculators.includes("https://www.bir.gov.ph/"), "calculator sources must include BIR");
-  assert.ok(calculators.includes("https://dole.gov.ph/"), "calculator sources must include DOLE");
+  assert.ok(calculators.includes("BIR Withholding Tax Calculator"), "calculator sources must identify the BIR reference");
+  assert.ok(calculators.includes("DOLE Labor Code, Book III"), "calculator sources must identify the DOLE reference");
 });
 
 test("public navigation exposes the SEO program without hiding the live demo", () => {
