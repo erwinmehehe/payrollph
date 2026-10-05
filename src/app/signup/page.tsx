@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Check, ShieldCheck } from "lucide-react";
-import { needsSetup } from "@/app/api/setup/route";
-import { SetupWizard } from "@/components/setup-wizard";
 import { AccessRequestForm } from "@/components/marketing/access-request-form";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 
@@ -15,19 +13,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/signup" },
 };
 
-export default async function SignupPage() {
-  const empty = await needsSetup();
-
-  if (empty) {
-    return (
-      <div className="min-h-screen bg-white text-[#0B0D1A]">
-        <SiteNav />
-        <SetupWizard needsSetup />
-        <SiteFooter />
-      </div>
-    );
-  }
-
+export default function SignupPage() {
   return (
     <div className="min-h-screen bg-white text-[#0B0D1A]">
       <SiteNav />
