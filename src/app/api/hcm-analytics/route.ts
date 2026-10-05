@@ -407,7 +407,7 @@ export async function GET(request: Request) {
       kind: survey.kind,
       status: survey.status,
       anonymous: survey.anonymous,
-      date: survey.closesAt?.toISOString?.() ?? survey.closesAt ?? survey.opensAt?.toISOString?.() ?? survey.opensAt ?? survey.createdAt.toISOString(),
+      date: (survey.closesAt ?? survey.opensAt ?? survey.createdAt).toISOString(),
       reportable,
       responseCount: access.companyWide || reportable ? scopedResponses.length : null,
       enps: reportable && enpsValues.length ? enpsSummary(enpsValues).score : null,
