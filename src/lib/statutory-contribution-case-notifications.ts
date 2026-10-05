@@ -226,7 +226,7 @@ export async function notifyEmployeeOfContributionCaseUpdate(input: {
 
 export async function notifyEmployeeOfContributionCase(input: {
   issue: ContributionCase;
-  event: "review_started" | "resolved";
+  event: "review_started" | "referred" | "resolved";
   actor: string;
 }) {
   const [recipient] = await db.select({
