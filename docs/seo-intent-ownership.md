@@ -114,3 +114,20 @@ These pages intentionally do not own the broader commercial queries:
 - `HRIS Philippines` remains owned by `/hris`.
 - `payroll outsourcing Philippines` remains owned by `/payroll-outsourcing`.
 - `best payroll software Philippines` remains owned by `/resources/best-payroll-software-philippines`.
+
+
+## Employee-loan and retro-pay ownership
+
+| Primary intent | Owner |
+| --- | --- |
+| employee loans payroll Philippines | /resources/employee-loans-payroll |
+| retroactive pay Philippines | /resources/retroactive-pay |
+
+Manual-payroll comparison intent is deliberately consolidated into the existing Excel comparison page:
+
+- `/resources/payroll-software-vs-excel` owns `manual payroll vs software Philippines` and related spreadsheet/manual-payroll comparison queries.
+- Do not create a separate `/resources/manual-payroll-vs-software` page unless search intent later proves meaningfully different.
+
+The employee-loan page owns payroll deduction/ledger process intent. It does not determine external lender eligibility or loan approval.
+
+The retroactive-pay page owns payroll correction mechanics for effective-dated pay changes. It does not determine universal legal entitlement to retroactive compensation.
