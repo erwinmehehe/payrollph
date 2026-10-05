@@ -41,7 +41,7 @@ export function PayrollHealthCheck() {
             <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8B90AA]">{question.area}</p>
             <p className="mt-2 text-[14px] font-medium leading-relaxed text-[#2B2F45]">{question.label}</p>
             <div className="mt-4 flex gap-2">
-              {[["yes", true], ["no", false]] as const}.map(([labelText, value]) => (
+              {([["yes", true], ["no", false]] as const).map(([labelText, value]) => (
                 <button
                   key={labelText}
                   type="button"
