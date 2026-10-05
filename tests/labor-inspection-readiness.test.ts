@@ -178,3 +178,18 @@ test("unmapped region fails closed instead of borrowing NCR wage rates", () => {
   assert.ok(result.findings.some((row) => row.ruleCode === "WAGE_REGION_UNMAPPED"));
   assert.equal(result.findings.some((row) => row.ruleCode === "WAGE_FLOOR_SCREEN"), false);
 });
+
+
+test("missing imported basic salary blocks a false-complete 13th-month screen", () => {
+  const input = baseInput("2026-12-24");
+  input.entries[0].lineItems = [{ code: "BASIC", label: "Basic pay", amount: "120000.00" }];
+  input.historicalEntries = [{
+    employeeId: 1,
+    payDate: "2026-03-31",
+    basicSalary: null,
+    thirteenthMonth: 0,
+  }];
+  const result = buildLaborInspectionFindings(input);
+  assert.ok(result.findings.some((row) => row.ruleCode === "HISTORICAL_BASIC_MISSING"));
+  assert.equal(result.findings.some((row) => row.ruleCode === "THIRTEENTH_MONTH_SCREEN"), false);
+});
