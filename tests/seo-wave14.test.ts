@@ -99,3 +99,10 @@ test("Wave 14 related links remain contextual and public", () => {
     }
   }
 });
+
+
+test("comparison hub surfaces the new Wave 14 comparison guides", () => {
+  const compare = read("src/app/compare/page.tsx");
+  assert.ok(compare.includes('href: "/resources/payroll-system-comparison"'));
+  assert.ok(compare.includes('href: "/resources/hris-vs-payroll-system"'));
+});
