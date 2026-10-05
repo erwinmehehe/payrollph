@@ -15,6 +15,8 @@ import { getSessionUser } from "@/lib/auth";
 import {
   batchPaymentSnapshot,
   memberPostingSnapshot,
+  type BatchPaymentEvidence,
+  type MemberPostingEvidence,
   snapshotsMatch,
   validatePaymentCorrection,
   validatePostingCorrection,
