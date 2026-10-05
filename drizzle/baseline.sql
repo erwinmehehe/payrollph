@@ -981,4 +981,7 @@ CREATE INDEX IF NOT EXISTS statutory_contribution_disputes_org_status_idx
   ON statutory_contribution_disputes(organization_id, status, created_at);
 CREATE INDEX IF NOT EXISTS statutory_contribution_disputes_employee_month_idx
   ON statutory_contribution_disputes(employee_id, applicable_month, agency);
+CREATE UNIQUE INDEX IF NOT EXISTS statutory_contribution_disputes_open_unique
+  ON statutory_contribution_disputes(organization_id, employee_id, agency, applicable_month, issue_type)
+  WHERE status = 'open';
 
