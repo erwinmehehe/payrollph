@@ -23,6 +23,16 @@ type ContributionIssueCase = {
   resolvedByName: string | null;
   resolvedAt: string | null;
   createdAt: string;
+  service: {
+    state: "resolved" | "on_track" | "review_due_today" | "review_overdue" | "resolution_due_today" | "resolution_overdue";
+    overdue: boolean;
+    targetDate: string | null;
+    targetLabel: string;
+    ageDays: number;
+    firstReviewDue: string;
+    resolutionDue: string;
+    internalPolicyNote: string;
+  };
 };
 
 const OUTCOMES = [
@@ -69,7 +79,9 @@ export function StatutoryContributionIssueCasesPanel({
   }, [load]);
 
   const active = useMemo(
-    () => cases.filter((issue) => issue.status !== "resolved"),
+    () => cases
+      .filter((issue) => issue.status !== "resolved")
+      .sort((a, b) => Number(b.service.overdue) - Number(a.service.overdue) || b.service.ageDays - a.service.ageDays),
     [cases],
   );
   const resolved = useMemo(
@@ -171,8 +183,15 @@ export function StatutoryContributionIssueCasesPanel({
                       <div className="id" style={{ whiteSpace: "normal" }}>{issue.description}</div>
                     </td>
                     <td>
-                      <Status value={issue.status === "in_review" ? "In review" : "Open"} />
+                      <Status value={issue.service.state === "review_overdue"
+                        ? "Review overdue"
+                        : issue.service.state === "resolution_overdue"
+                          ? "Resolution overdue"
+                          : issue.status === "in_review" ? "In review" : "Open"} />
                       {issue.assignedToName && <div className="id">{issue.assignedToName}</div>}
+                      <div className="id">
+                        {issue.service.targetLabel}: {issue.service.targetDate ?? "complete"} · age {issue.service.ageDays}d
+                      </div>
                     </td>
                     <td>
                       {issue.status === "open" ? (
@@ -230,6 +249,15 @@ export function StatutoryContributionIssueCasesPanel({
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {active.some((issue) => issue.service.overdue) && (
+          <div className="notice notice-red" style={{ margin: 0 }}>
+            <AlertTriangle size={15} />
+            <span>
+              One or more employee contribution cases missed a PayrollPH internal service target. These are operational targets, not statutory or agency deadlines.
+            </span>
           </div>
         )}
 
