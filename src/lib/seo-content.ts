@@ -299,8 +299,8 @@ export const resourcePages: AuthorityPage[] = [
     eyebrow: "Payroll process comparison",
     title: "Payroll software vs Excel for Philippine payroll.",
     metaTitle: "Payroll Software vs Excel Philippines | Linaw",
-    description: "Compare payroll software and Excel in the Philippines across formulas, approvals, audit trails, attendance, payslips, exceptions and repeatable outputs.",
-    intro: "Excel can be flexible, but payroll risk grows when formulas, source data, approvals, exceptions and release evidence live across disconnected files and inboxes.",
+    description: "Compare manual or Excel payroll with payroll software in the Philippines across formulas, approvals, audit trails, attendance, exceptions and repeatable outputs.",
+    intro: "Manual payroll often depends on Excel or similar spreadsheets. That can be flexible, but risk grows when formulas, source data, approvals, exceptions and release evidence live across disconnected files and inboxes.",
     proof: ["Formula governance", "Change history", "Approval separation", "Attendance integration", "Employee payslips", "Repeatable exports"],
     sections: [
       { title: "Spreadsheets are flexible but easy to fork", body: "When multiple copies circulate, it becomes difficult to know which formula set, employee data and approval state produced the final payroll." },
@@ -309,7 +309,7 @@ export const resourcePages: AuthorityPage[] = [
       { title: "Migration should preserve reconciliation discipline", body: "Moving away from spreadsheets should start with parallel validation, not an assumption that the new system must be right because it is software." },
     ],
     faq: [
-      { question: "When is Excel still reasonable for payroll?", answer: "A tightly controlled spreadsheet can work for very small and simple payrolls, especially when one knowledgeable owner maintains the formulas and review process. Risk rises as complexity and handoffs increase." },
+      { question: "When is manual or Excel payroll still reasonable?", answer: "A tightly controlled spreadsheet can work for very small and simple payrolls, especially when one knowledgeable owner maintains the formulas and review process. Risk rises as complexity and handoffs increase." },
       { question: "What payroll risks grow when spreadsheets are copied?", answer: "Multiple workbook versions can make formula ownership, source data, review state and the final approved result difficult to reconstruct after the fact." },
       { question: "Does payroll software remove the need for human review?", answer: "No. Good payroll software automates repeatable calculation while making exceptions, approvals and business judgment more visible before release." },
       { question: "How should a company move from Excel to payroll software?", answer: "Treat the move as a reconciliation project: validate imported data, preserve relevant historical context, run controlled comparisons and resolve material differences before production use." },
@@ -373,6 +373,7 @@ export const industryPages: AuthorityPage[] = [
       { label: "Time & attendance", href: "/time-and-attendance", description: "See how attendance moves into payroll." },
       { label: "HRIS", href: "/hris", description: "Review employee master-data workflows." },
       { label: "Implementation", href: "/implementation", description: "Plan roster migration and payroll reconciliation." },
+      { label: "Employee loan deductions", href: "/resources/employee-loans-payroll", description: "See how recurring loan schedules can stay tied to payroll." },
     ],
   },
   {
