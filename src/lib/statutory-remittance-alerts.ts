@@ -18,6 +18,16 @@ type BatchSummary = {
   status: string;
   pendingPostingCount: number;
   exceptionCount: number;
+  filingCheck?: {
+    status: "matched" | "mismatch" | "unverified";
+    filingRecordId: number | null;
+    filingEmployeeCount: number | null;
+    remittanceEmployeeCount: number;
+    filingTotal: number | null;
+    remittanceTotal: number;
+    employeeCountDifference: number | null;
+    totalDifference: number | null;
+  };
 };
 
 type CoverageGap = {
@@ -64,6 +74,24 @@ export function buildStatutoryRemittanceAlerts(input: {
   }
 
   for (const batch of input.batches) {
+    if (batch.filingCheck?.status === "mismatch") {
+      const countPart = batch.filingCheck.employeeCountDifference
+        ? `employee count differs by ${batch.filingCheck.employeeCountDifference > 0 ? "+" : ""}${batch.filingCheck.employeeCountDifference}`
+        : null;
+      const totalPart = batch.filingCheck.totalDifference
+        ? `filing total differs by ₱${Math.abs(batch.filingCheck.totalDifference).toFixed(2)}`
+        : null;
+      alerts.push({
+        id: `filing:${batch.id}`,
+        tone: "danger",
+        title: `${batch.agency} accepted filing does not match the remittance liability`,
+        detail: `${batch.applicableMonth}: ${[countPart, totalPart].filter(Boolean).join("; ")}. Review the accepted filing before treating this month as compliant.`,
+        agency: batch.agency,
+        applicableMonth: batch.applicableMonth,
+        dueDate: batch.dueDate,
+      });
+    }
+
     if (batch.status === "reconciled") continue;
 
     if (batch.status === "exception" || batch.exceptionCount > 0) {

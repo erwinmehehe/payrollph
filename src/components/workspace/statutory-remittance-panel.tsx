@@ -24,6 +24,16 @@ type Batch = {
   paidAt: string | null;
   pendingPostingCount: number;
   exceptionCount: number;
+  filingCheck?: {
+    status: "matched" | "mismatch" | "unverified";
+    filingRecordId: number | null;
+    filingEmployeeCount: number | null;
+    remittanceEmployeeCount: number;
+    filingTotal: number | null;
+    remittanceTotal: number;
+    employeeCountDifference: number | null;
+    totalDifference: number | null;
+  };
 };
 type CoverageGap = { applicableMonth: string; agency: Agency };
 
@@ -233,6 +243,34 @@ export function StatutoryRemittancePanel({
                 <div><span>Employer share</span><strong>{money(batch.expectedEmployerShare)}</strong></div>
                 <div><span>Posting left</span><strong>{batch.pendingPostingCount}</strong><small>{batch.exceptionCount ? `${batch.exceptionCount} exception(s)` : "employee records"}</small></div>
               </div>
+
+              {batch.filingCheck?.status === "matched" && (
+                <div className="notice notice-green" style={{ margin: 0 }}>
+                  <CheckCircle2 size={15} />
+                  <span>
+                    <strong>Accepted filing matches this remittance snapshot.</strong>{" "}
+                    {batch.filingCheck.filingEmployeeCount} employees · {money(batch.filingCheck.filingTotal ?? 0)} total contribution.
+                  </span>
+                </div>
+              )}
+              {batch.filingCheck?.status === "mismatch" && (
+                <div className="notice notice-red" style={{ margin: 0 }}>
+                  <AlertTriangle size={15} />
+                  <span>
+                    <strong>Accepted filing does not match this remittance liability.</strong>{" "}
+                    Filing: {batch.filingCheck.filingEmployeeCount} employees / {money(batch.filingCheck.filingTotal ?? 0)}.
+                    Remittance: {batch.filingCheck.remittanceEmployeeCount} employees / {money(batch.filingCheck.remittanceTotal)}.
+                  </span>
+                </div>
+              )}
+              {batch.filingCheck?.status === "unverified" && (
+                <div className="notice notice-blue" style={{ margin: 0 }}>
+                  <ShieldCheck size={15} />
+                  <span>
+                    No accepted current-version file upload is available to cross-check this remittance total yet. Manual-entry filing evidence does not prove the generated file totals matched.
+                  </span>
+                </div>
+              )}
 
               {batch.status === "open" && (
                 <>

@@ -11,6 +11,9 @@ type FilingRecord = {
   agency: string;
   form: string;
   periodLabel: string;
+  applicableMonth: string | null;
+  employeeCount: number | null;
+  reportedTotal: string | null;
   fileName: string;
   fileSha256: string;
   generatorVersion: string;
@@ -298,6 +301,11 @@ export function FilingEvidencePanel({
                     Created {formatDate(record.createdAt)} by {record.generatedBy} · file fingerprint{" "}
                     <code title={record.fileSha256}>{record.fileSha256.slice(0, 12)}</code>
                   </p>
+                  {record.applicableMonth && record.employeeCount != null && record.reportedTotal != null && (
+                    <p style={{ margin: "2px 0 0" }}>
+                      Monthly snapshot · {record.applicableMonth} · {record.employeeCount} employees · ₱{Number(record.reportedTotal).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  )}
                 </div>
                 <Status value={record.status === "generated" ? "Pending" : record.status === "accepted" ? "Accepted" : "Rejected"} />
               </div>

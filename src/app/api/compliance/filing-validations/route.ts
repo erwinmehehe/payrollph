@@ -96,6 +96,9 @@ export async function POST(request: Request) {
           recordId: record.id,
           fileSha256: record.fileSha256,
           generatorVersion: record.generatorVersion,
+          applicableMonth: record.applicableMonth,
+          employeeCount: record.employeeCount,
+          reportedTotal: record.reportedTotal == null ? null : Number(record.reportedTotal),
           submittedToAgency: false,
         },
       });
