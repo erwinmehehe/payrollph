@@ -1325,6 +1325,26 @@ export const statutoryRemittanceCorrectionRequests = pgTable(
   ],
 );
 
+export const payrollMonthClosures = pgTable(
+  "payroll_month_closures",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    applicableMonth: varchar("applicable_month", { length: 7 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("certified"),
+    snapshotHash: varchar("snapshot_hash", { length: 64 }).notNull(),
+    evidenceSnapshot: jsonb("evidence_snapshot").notNull(),
+    certifiedByUserId: integer("certified_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    certifiedByName: varchar("certified_by_name", { length: 120 }).notNull(),
+    certifiedAt: timestamp("certified_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("payroll_month_closure_snapshot_unique").on(table.organizationId, table.applicableMonth, table.snapshotHash),
+    index("payroll_month_closure_status_idx").on(table.organizationId, table.applicableMonth, table.status),
+  ],
+);
+
 export const statutoryRemittanceMonthClosures = pgTable(
   "statutory_remittance_month_closures",
   {
