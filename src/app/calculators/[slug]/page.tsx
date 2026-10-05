@@ -80,7 +80,7 @@ export default async function CalculatorPage({ params }: { params: Promise<{ slu
   const related = relatedByCalculator[typedSlug] ?? [];
 
   return (
-    <div className="min-h-screen bg-[#FAFBFD] text-[#0B0D1A]">
+    <div className="marketing-page min-h-screen bg-[#FCFCFD] text-[#101323]">
       <StructuredData
         breadcrumbs={[{ name: "Home", path: "/" }, { name: "Payroll calculators", path: "/calculators" }, { name: item.title, path }]}
         webApplication={{ name: item.title, description: item.description, path }}
@@ -88,9 +88,9 @@ export default async function CalculatorPage({ params }: { params: Promise<{ slu
       />
       <SiteNav />
       <main>
-        <section className="border-b border-[#EDEFF7] bg-white py-14 sm:py-16">
+        <section className="border-b border-[#EAECF0] bg-white py-14 sm:py-16">
           <div className="mx-auto max-w-[980px] px-5 sm:px-8">
-            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6161FF]">Payroll calculator</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#444CE7]">Payroll calculator</p>
             <h1 className="font-display mt-4 text-[42px] font-semibold tracking-[-0.045em] sm:text-[54px]">{item.title}</h1>
             <p className="mt-4 max-w-[760px] text-[15px] leading-relaxed text-[#5B6080]">{item.intro}</p>
           </div>
@@ -102,9 +102,9 @@ export default async function CalculatorPage({ params }: { params: Promise<{ slu
               : <PayrollCalculator slug={typedSlug} />}
           </div>
         </section>
-        <section className="border-t border-[#EDEFF7] bg-white py-14 sm:py-16">
+        <section className="border-t border-[#EAECF0] bg-white py-14 sm:py-16">
           <div className="mx-auto grid max-w-[980px] gap-5 px-5 sm:px-8 lg:grid-cols-[1.05fr_.95fr]">
-            <article className="rounded-[24px] border border-[#E4E6F0] bg-[#FAFBFD] p-6 sm:p-7">
+            <article className="rounded-[24px] border border-[#E4E6F0] bg-[#FCFCFD] p-6 sm:p-7">
               <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">How this estimate works</p>
               <h2 className="font-display mt-2 text-[27px] font-semibold tracking-[-0.03em]">Understand the inputs before you use the result.</h2>
               <p className="mt-3 text-[14px] leading-relaxed text-[#5B6080]">{guide.howItWorks}</p>
@@ -114,7 +114,7 @@ export default async function CalculatorPage({ params }: { params: Promise<{ slu
               <ul className="mt-4 grid gap-3">
                 {guide.assumptions.map((item) => (
                   <li key={item} className="flex gap-2.5 text-[13.5px] leading-relaxed text-[#4A5068]">
-                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#6161FF]" />
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#444CE7]" />
                     {item}
                   </li>
                 ))}
@@ -123,7 +123,7 @@ export default async function CalculatorPage({ params }: { params: Promise<{ slu
           </div>
         </section>
 
-        <section className="border-t border-[#EDEFF7] bg-[#FAFBFD] py-14 sm:py-16">
+        <section className="border-t border-[#EAECF0] bg-[#FCFCFD] py-14 sm:py-16">
           <div className="mx-auto max-w-[860px] px-5 sm:px-8">
             <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Common questions</p>
             <h2 className="font-display mt-2 text-[30px] font-semibold tracking-[-0.035em]">Use the estimate in the right payroll context.</h2>
@@ -139,12 +139,12 @@ export default async function CalculatorPage({ params }: { params: Promise<{ slu
         </section>
 
         {related.length ? (
-          <section className="border-t border-[#EDEFF7] bg-white py-12 sm:py-14">
+          <section className="border-t border-[#EAECF0] bg-white py-12 sm:py-14">
             <div className="mx-auto max-w-[980px] px-5 sm:px-8">
               <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Use the estimate in context</p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {related.map((link) => (
-                  <Link key={link.href} href={link.href} className="rounded-[20px] border border-[#E4E6F0] bg-[#FAFBFD] p-5 transition hover:border-[#CFCFFF]">
+                  <Link key={link.href} href={link.href} className="rounded-[20px] border border-[#E4E6F0] bg-[#FCFCFD] p-5 transition hover:border-[#CFCFFF]">
                     <strong className="text-[14px] font-semibold text-[#11141F]">{link.label}</strong>
                     <p className="mt-2 text-[12.5px] leading-relaxed text-[#6B718C]">{link.copy}</p>
                   </Link>
