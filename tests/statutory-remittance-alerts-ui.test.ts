@@ -26,3 +26,16 @@ test("dashboard watch never silently treats an API failure as compliant", () => 
   assert.ok(watch.includes("Statutory remittances need attention"));
   assert.ok(watch.includes("Statutory remittances are on track"));
 });
+
+
+test("remittance watch stays secondary to the primary owner and payroll workflow banners", () => {
+  const ownerStart = overview.indexOf("function OwnerWorkspace");
+  const payrollStart = overview.indexOf("function PayrollWorkspace");
+  const checkerStart = overview.indexOf("function CheckerWorkspace");
+
+  const ownerBlock = overview.slice(ownerStart, payrollStart);
+  const payrollBlock = overview.slice(payrollStart, checkerStart);
+
+  assert.ok(ownerBlock.indexOf("mockup-owner-release dashboard-alert-banner") < ownerBlock.indexOf("<StatutoryRemittanceWatch"));
+  assert.ok(payrollBlock.indexOf("mockup-progress-block dashboard-alert-banner") < payrollBlock.indexOf("<StatutoryRemittanceWatch"));
+});
