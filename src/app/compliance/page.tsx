@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { SeoLandingPage } from "@/components/marketing/seo-landing-page";
 
 export const metadata: Metadata = {
-  title: "Payroll Compliance Philippines | SSS, PhilHealth, BIR | Linaw",
+  title: "Payroll Compliance Philippines | Statutory Payroll | Linaw",
   description: "Philippine payroll compliance workflows for SSS, PhilHealth, Pag-IBIG, BIR tax, rule governance, privacy requests and validation-gated filing outputs.",
   alternates: { canonical: "/compliance" },
 };
