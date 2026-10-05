@@ -13,7 +13,7 @@ test("public SEO infrastructure exists", () => {
   for (const route of ["/hris", "/time-and-attendance", "/employee-self-service", "/compliance", "/implementation", "/security", "/trust", "/integrations", "/developers", "/resources", "/calculators", "/payroll-health-check", "/industries/bpo"]) {
     assert.ok(sitemap.includes(`path: "${route}"`), `sitemap must include ${route}`);
   }
-  assert.ok(sitemap.includes("compliancePages.map"), "compliance child pages must be generated into the sitemap");
+  assert.ok(sitemap.includes("compliancePages") && sitemap.includes("complianceWave3"), "compliance child pages from the canonical registries must be generated into the sitemap");
   assert.ok(sitemap.includes("resourcePages") && sitemap.includes("resourceWave2"), "resource child pages from both SEO waves must be generated into the sitemap");
   assert.ok(sitemap.includes("Object.keys(CALCULATORS)"), "calculator pages must be generated into the sitemap");
   assert.ok(robots.includes('"/api/"'), "robots must keep API routes out of crawl discovery");
@@ -114,10 +114,12 @@ test("non-content auth routes stay out of the search index", () => {
   }
 });
 
-test("canonical host fallback stays aligned with the deployed public app", () => {
+test("canonical host fallback stays aligned with payrollsoftware.ph, not the deployment origin", () => {
   const helper = read("src/lib/site-url.ts");
-  assert.ok(helper.includes("APP_BASE_URL"), "site URL helper must prefer the configured public base URL");
-  assert.ok(!helper.includes("payrollph-three.vercel.app"), "stale fallback domain must not return");
+  assert.ok(helper.includes("PUBLIC_SITE_URL"), "site URL helper must use an explicit public-site setting");
+  assert.ok(helper.includes("https://payrollsoftware.ph"), "public canonical fallback must be payrollsoftware.ph");
+  assert.ok(!helper.includes("APP_BASE_URL"), "deployment origin must not control SEO canonicals");
+  assert.ok(!helper.includes("vercel.app"), "Vercel deployment domains must not be canonical fallbacks");
 });
 
 test("buyer guides use page-specific metadata instead of generic eyebrow titles", () => {
