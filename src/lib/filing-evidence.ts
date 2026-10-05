@@ -22,6 +22,12 @@ export type FilingFormDefinition = {
   form: string;
   /** The generateGovernmentDraft kind that produces this file. */
   kind: string;
+  /** Whether readiness proves the generated file layout or the operational filing workflow. */
+  evidenceMode: "file-format" | "operational";
+  /** Submission methods the UI/API may accept for this filing. */
+  submissionMethods: readonly SubmissionMethod[];
+  /** Monthly worksheets must be tied to the final cutoff so the month is complete. */
+  requiresFinalCutoff?: boolean;
   /**
    * Bump whenever the generated file's columns or layout change. Acceptance of
    * an older layout says nothing about the new one, so readiness only counts
@@ -49,6 +55,7 @@ export type FilingFormDefinition = {
 };
 
 export const SSS_R3_GENERATOR_VERSION = "sss-r3-worksheet-v2";
+export const BIR_1601C_GENERATOR_VERSION = "bir-1601c-monthly-v1";
 export const BIR_1604C_GENERATOR_VERSION = "bir-1604c-source-v2";
 export const PHILHEALTH_RF1_GENERATOR_VERSION = "philhealth-rf1-worksheet-v1";
 export const PAGIBIG_MCRF_GENERATOR_VERSION = "pagibig-mcrf-worksheet-v2";
@@ -58,6 +65,9 @@ export const FILING_FORMS: readonly FilingFormDefinition[] = [
     agency: "SSS",
     form: "R-3",
     kind: "sss-r3",
+    evidenceMode: "operational",
+    submissionMethods: ["file_upload", "manual_entry"],
+    requiresFinalCutoff: true,
     generatorVersion: SSS_R3_GENERATOR_VERSION,
     referenceLabel: "SSS PRN or acknowledgement number from My.SSS",
     copy: {
@@ -76,8 +86,33 @@ export const FILING_FORMS: readonly FilingFormDefinition[] = [
   },
   {
     agency: "BIR",
+    form: "1601-C",
+    kind: "bir-1601c",
+    evidenceMode: "operational",
+    submissionMethods: ["manual_entry"],
+    requiresFinalCutoff: true,
+    generatorVersion: BIR_1601C_GENERATOR_VERSION,
+    referenceLabel: "BIR eBIRForms/eFPS filing or payment confirmation reference",
+    copy: {
+      title: "BIR 1601-C: was the monthly withholding return filed and paid?",
+      agencyLabel: "BIR",
+      portalLabel: "eBIRForms or eFPS",
+      methodLabels: {
+        file_upload: "Uploaded the PayrollPH worksheet",
+        manual_entry: "Filed in eBIRForms/eFPS using PayrollPH's figures",
+      },
+      manualEntryNote: "For 1601-C, the PayrollPH file is a source/checking worksheet. An accepted eBIRForms/eFPS filing with BIR's own reference proves the operational filing, not an upload-file format.",
+      answerLabel: "BIR filing/payment confirmation reference",
+      scopeNote: "PayrollPH does not claim that its 1601-C CSV is a BIR-prescribed upload file. Record the official eBIRForms/eFPS acknowledgement for the monthly return and retain the payment evidence.",
+      unconfirmedNote: "The exact due date can vary by eFPS filer group and the published BIR calendar; the Compliance Calendar therefore uses a conservative internal target.",
+    },
+  },
+  {
+    agency: "BIR",
     form: "1604-C",
     kind: "bir-1604c-source",
+    evidenceMode: "file-format",
+    submissionMethods: ["file_upload", "manual_entry"],
     generatorVersion: BIR_1604C_GENERATOR_VERSION,
     referenceLabel: "BIR validation report or ticket reference from esubmission@bir.gov.ph",
     copy: {
@@ -98,6 +133,9 @@ export const FILING_FORMS: readonly FilingFormDefinition[] = [
     agency: "PhilHealth",
     form: "RF-1",
     kind: "philhealth-rf1",
+    evidenceMode: "operational",
+    submissionMethods: ["file_upload", "manual_entry"],
+    requiresFinalCutoff: true,
     generatorVersion: PHILHEALTH_RF1_GENERATOR_VERSION,
     referenceLabel: "PhilHealth acknowledgement receipt (ePAR) number from EPRS",
     copy: {
@@ -118,6 +156,9 @@ export const FILING_FORMS: readonly FilingFormDefinition[] = [
     agency: "Pag-IBIG",
     form: "MCRF",
     kind: "pagibig-mcrf",
+    evidenceMode: "operational",
+    submissionMethods: ["file_upload", "manual_entry"],
+    requiresFinalCutoff: true,
     generatorVersion: PAGIBIG_MCRF_GENERATOR_VERSION,
     referenceLabel: "Pag-IBIG online payment instruction number (OPIN) or the confirmation reference you were given",
     copy: {
