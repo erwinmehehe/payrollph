@@ -13109,3 +13109,27 @@
     grid-template-columns: 18px minmax(0, 1fr);
   }
 }
+
+
+/* Connected HCM analytics */
+.hcm-metric-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+}
+.hcm-metric-strip > div {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--panel-soft, #f8faf9);
+}
+.hcm-metric-strip span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+.hcm-metric-strip strong {
+  display: block;
+  font-size: 14px;
+}
