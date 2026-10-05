@@ -274,6 +274,20 @@ test("homepage navigation exposes the real public site", () => {
 
 
 
+test("public lead endpoints fail closed without a real operator inbox", () => {
+  const demoRoute = read("src/app/api/demo-requests/route.ts");
+  const outsourcingRoute = read("src/app/api/payroll-outsourcing/quote/route.ts");
+
+  assert.ok(demoRoute.includes("DEMO_REQUEST_INBOX"), "demo requests must use an explicit operator inbox");
+  assert.ok(demoRoute.includes("!validEmail(OPERATOR_INBOX)"), "demo requests must reject missing or invalid production routing");
+  assert.ok(!demoRoute.includes("demo-requests@linaw.invalid"), "demo requests must not retain a fake fallback address");
+
+  assert.ok(outsourcingRoute.includes("PAYROLL_OUTSOURCING_INBOX"), "outsourcing enquiries must allow a dedicated operator inbox");
+  assert.ok(outsourcingRoute.includes("!validEmail(OPERATOR_INBOX)"), "outsourcing enquiries must reject missing or invalid production routing");
+  assert.ok(!outsourcingRoute.includes("payroll-outsourcing@linaw.invalid"), "outsourcing enquiries must not retain a fake fallback address");
+});
+
+
 test("public signup requests controlled trial access instead of exposing tenant provisioning", () => {
   const signup = read("src/app/signup/page.tsx");
   const form = read("src/components/marketing/access-request-form.tsx");
