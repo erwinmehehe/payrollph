@@ -464,7 +464,7 @@ export async function POST(request: Request) {
     const name = String(body.name ?? "").trim();
     const description = String(body.description ?? "").trim();
     const requested = Array.isArray(body.permissions) ? body.permissions.filter((value: unknown): value is string => typeof value === "string") : [];
-    const permissions = [...new Set(requested.filter((permission) => (ROLE_GATE_PERMISSIONS as readonly string[]).includes(permission)))];
+    const permissions = [...new Set(requested.filter((permission: string) => (ROLE_GATE_PERMISSIONS as readonly string[]).includes(permission)))];
     if (!name || permissions.length === 0) {
       return Response.json({ error: "Permission-set name and at least one valid permission are required." }, { status: 400 });
     }
