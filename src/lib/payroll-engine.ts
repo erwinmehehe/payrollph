@@ -446,9 +446,10 @@ async function processPayrollChunk(input: {
   const holidayRows = await db.select().from(holidays).where(
     or(isNull(holidays.organizationId), eq(holidays.organizationId, input.organizationId)),
   );
+  const holidayWindowStart = addDays(String(run.periodStart), -14);
   const localHolidayRows = holidayRows.flatMap((row) => {
     const date = String(row.holidayDate);
-    if (date > String(run.periodEnd)) return [];
+    if (date < holidayWindowStart || date > String(run.periodEnd)) return [];
     const kind = row.kind === "regular" || row.kind === "special" ? row.kind : null;
     return kind ? [{
       date,
@@ -465,7 +466,7 @@ async function processPayrollChunk(input: {
   // Workforce schedules are organization-level reusable definitions plus
   // employee-specific effective assignments/overrides. Load the reusable
   // definitions once per chunk and only the employee rows needed for this run.
-  const scheduleWindowStart = addDays(String(run.periodStart), -14);
+  const scheduleWindowStart = holidayWindowStart;
   const [workforceShiftRows, workforcePatternRows] = await Promise.all([
     db.select().from(shiftDefinitions).where(eq(shiftDefinitions.organizationId, input.organizationId)),
     db.select().from(schedulePatterns).where(eq(schedulePatterns.organizationId, input.organizationId)),
