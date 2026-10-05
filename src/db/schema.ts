@@ -92,6 +92,7 @@ export const userOrganizations = pgTable(
     id: serial("id").primaryKey(),
     userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    active: boolean("active").notNull().default(true),
     role: varchar("role", { length: 32 }).notNull().default("admin"),
     orgUnitId: integer("org_unit_id"),
   },
@@ -112,8 +113,98 @@ export const sessions = pgTable("sessions", {
   // Records whether this specific session completed MFA. Privileged actions
   // must never rely on the account-level totpEnabled flag alone.
   mfaVerifiedAt: timestamp("mfa_verified_at", { withTimezone: true }),
+  authMethod: varchar("auth_method", { length: 24 }).notNull().default("local"),
+  ssoConnectionId: integer("sso_connection_id").references(() => ssoConnections.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+
+export const organizationSecurityPolicies = pgTable(
+  "organization_security_policies",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    sessionIdleMinutes: integer("session_idle_minutes").notNull().default(1440),
+    sessionMaxHours: integer("session_max_hours").notNull().default(336),
+    maxActiveSessions: integer("max_active_sessions").notNull().default(10),
+    requireLocalMfa: boolean("require_local_mfa").notNull().default(false),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("organization_security_policies_org_unique").on(table.organizationId),
+    index("organization_security_policies_org_idx").on(table.organizationId),
+  ],
+);
+
+export const scimTokens = pgTable(
+  "scim_tokens",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 120 }).notNull(),
+    prefix: varchar("prefix", { length: 20 }).notNull(),
+    tokenHash: text("token_hash").notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("scim_tokens_hash_unique").on(table.tokenHash),
+    index("scim_tokens_org_idx").on(table.organizationId),
+  ],
+);
+
+export const scimIdentities = pgTable(
+  "scim_identities",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    externalId: varchar("external_id", { length: 240 }).notNull(),
+    active: boolean("active").notNull().default(true),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("scim_identities_org_external_unique").on(table.organizationId, table.externalId),
+    uniqueIndex("scim_identities_org_user_unique").on(table.organizationId, table.userId),
+  ],
+);
+
+export const permissionSets = pgTable(
+  "permission_sets",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 120 }).notNull(),
+    description: text("description"),
+    permissions: jsonb("permissions").notNull().default([]),
+    active: boolean("active").notNull().default(true),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("permission_sets_org_name_unique").on(table.organizationId, table.name)],
+);
+
+export const userPermissionAssignments = pgTable(
+  "user_permission_assignments",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    userOrganizationId: integer("user_organization_id").notNull().references(() => userOrganizations.id, { onDelete: "cascade" }),
+    permissionSetId: integer("permission_set_id").notNull().references(() => permissionSets.id, { onDelete: "cascade" }),
+    assignedByUserId: integer("assigned_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("user_permission_assignments_membership_unique").on(table.userOrganizationId),
+    index("user_permission_assignments_org_idx").on(table.organizationId),
+  ],
+);
 
 export const passwordResetTokens = pgTable("password_reset_tokens", {
   id: serial("id").primaryKey(),
