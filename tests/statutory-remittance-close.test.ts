@@ -25,6 +25,8 @@ test("remittance month close is ready only when tracked evidence is fully reconc
       postingReference: "POST-1",
     }],
     alerts: [],
+    requiredAgencies: ["SSS"],
+    allPayrollRunsReleased: true,
   });
 
   assert.equal(result.ready, true);
@@ -47,6 +49,8 @@ test("active alerts and unreconciled batches block month certification", () => {
       title: "SSS payment recorded, member posting still unconfirmed",
       tone: "warning",
     }],
+    requiredAgencies: ["SSS"],
+    allPayrollRunsReleased: true,
   });
 
   assert.equal(result.ready, false);
@@ -60,6 +64,8 @@ test("no remittance batches cannot produce a false green month close", () => {
     batches: [],
     members: [],
     alerts: [],
+    requiredAgencies: ["SSS"],
+    allPayrollRunsReleased: true,
   });
 
   assert.equal(result.ready, false);
@@ -71,6 +77,8 @@ test("snapshot changes when employee posting evidence changes", () => {
     applicableMonth: "2026-09",
     batches: [reconciledBatch],
     alerts: [],
+    requiredAgencies: ["SSS"],
+    allPayrollRunsReleased: true,
   };
   const before = evaluateRemittanceMonthClose({
     ...base,
@@ -94,4 +102,33 @@ test("snapshot changes when employee posting evidence changes", () => {
   });
 
   assert.notEqual(before.snapshotHash, after.snapshotHash);
+});
+
+
+test("unreleased payroll blocks remittance month close", () => {
+  const result = evaluateRemittanceMonthClose({
+    applicableMonth: "2026-09",
+    batches: [reconciledBatch],
+    members: [],
+    alerts: [],
+    requiredAgencies: ["SSS"],
+    allPayrollRunsReleased: false,
+  });
+
+  assert.equal(result.ready, false);
+  assert.ok(result.blockers.some((value) => /Every payroll run/i.test(value)));
+});
+
+test("missing required agency batch blocks remittance month close", () => {
+  const result = evaluateRemittanceMonthClose({
+    applicableMonth: "2026-09",
+    batches: [reconciledBatch],
+    members: [],
+    alerts: [],
+    requiredAgencies: ["SSS", "PhilHealth"],
+    allPayrollRunsReleased: true,
+  });
+
+  assert.equal(result.ready, false);
+  assert.ok(result.blockers.some((value) => /PhilHealth remittance batch is missing/i.test(value)));
 });
