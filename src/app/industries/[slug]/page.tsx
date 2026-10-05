@@ -43,6 +43,8 @@ export default async function IndustryPage({ params }: { params: Promise<{ slug:
         sections={page.sections}
         faq={page.faq}
         related={page.related}
+        lastReviewed={page.lastReviewed}
+        sources={page.sources}
       />
     </>
   );

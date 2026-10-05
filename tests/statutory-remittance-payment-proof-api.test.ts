@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const schema = readFileSync("src/db/schema.ts", "utf8");
+const storage = readFileSync("src/lib/storage.ts", "utf8");
 const uploadRoute = readFileSync(
   "src/app/api/compliance/statutory-remittances/payment-evidence/route.ts",
   "utf8",
@@ -43,10 +44,10 @@ test("payment proof upload is tenant-scoped, MFA-protected, bounded and hashed s
   assert.ok(uploadRoute.includes("requireSensitiveActionMfa(user)"));
   assert.ok(uploadRoute.includes("enforceSameOriginMutation(request)"));
   assert.ok(uploadRoute.includes("const MAX_BYTES = 2 * 1024 * 1024"));
-  assert.ok(uploadRoute.includes("application/pdf"));
-  assert.ok(uploadRoute.includes("bytesMatchMime"));
-  assert.ok(uploadRoute.includes("%PDF-"));
-  assert.ok(uploadRoute.includes("Payment proof contents do not match the declared PDF/JPEG/PNG file type."));
+  assert.ok(storage.includes("application/pdf"));
+  assert.ok(storage.includes("image/jpeg"));
+  assert.ok(storage.includes("image/png"));
+  assert.ok(uploadRoute.includes("validateUpload(bytes, file.type, file.name)"));
   assert.ok(uploadRoute.includes('createHash("sha256").update(bytes).digest("hex")'));
 });
 
