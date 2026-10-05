@@ -30,6 +30,24 @@ test("pricing is read from the database, never hardcoded in the homepage UI", ()
   assert.ok(!/₱\s?1,499|₱\s?4,499|₱\s?12,999/.test(page), "prices must not be hardcoded in the page");
 });
 
+test("robots and sitemap expose only intentional public marketing routes", () => {
+  const robots = read("src/app/robots.ts");
+  const sitemap = read("src/app/sitemap.ts");
+
+  for (const route of ["/api/", "/app", "/workspace", "/setup", "/invite", "/reset-password", "/verify-email", "/login"]) {
+    assert.ok(robots.includes(`"${route}"`), `robots must keep ${route} out of search`);
+  }
+
+  for (const route of ["/payroll-outsourcing", "/demo", "/scorecard", "/book-demo"]) {
+    assert.ok(sitemap.includes(`path: "${route}"`), `sitemap must expose ${route}`);
+  }
+
+  for (const route of ["/login", "/setup", "/app", "/workspace", "/invite", "/reset-password", "/verify-email"]) {
+    assert.ok(!sitemap.includes(`path: "${route}"`), `sitemap must not publish ${route}`);
+  }
+});
+
+
 test("public marketing pages expose truthful structured data", () => {
   const home = read("src/app/page.tsx");
   const outsourcing = read("src/app/payroll-outsourcing/page.tsx");
