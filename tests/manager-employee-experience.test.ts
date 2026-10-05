@@ -12,6 +12,7 @@ const managerRoute = readFileSync("src/app/api/experience/route.ts", "utf8");
 const selfRoute = readFileSync("src/app/api/self/experience/route.ts", "utf8");
 const engagementRoute = readFileSync("src/app/api/engagement/route.ts", "utf8");
 const engagementResponse = readFileSync("src/app/api/engagement/respond/route.ts", "utf8");
+const performanceRoute = readFileSync("src/app/api/performance/route.ts", "utf8");
 const performancePanel = readFileSync("src/components/performance-panel.tsx", "utf8");
 const managerPanel = readFileSync("src/components/manager-experience-panel.tsx", "utf8");
 const growthPanel = readFileSync("src/components/employee-growth-panel.tsx", "utf8");
@@ -57,6 +58,9 @@ test("manager experience API excludes bookkeepers and enforces assigned-manager 
   assert.ok(managerRoute.includes("Only the assigned manager can update or complete this one-on-one."));
   assert.ok(managerRoute.includes("Only the assigned manager can add one-on-one action items."));
   assert.ok(managerRoute.includes("Only the assigned manager can update one-on-one action items."));
+  assert.ok(managerRoute.includes('access.role !== "manager" || series.managerEmployeeId === user.employeeId'));
+  assert.ok(managerRoute.includes("A selected feedback reviewer is outside your assigned organization unit."));
+  assert.ok(managerRoute.includes("Mentor is outside your assigned organization unit."));
   assert.ok(managerRoute.includes("nextCadenceDate(meeting.scheduledDate"));
   assert.ok(managerRoute.includes("onConflictDoNothing"));
   assert.ok(managerRoute.includes("managerPrivateNotes: maySeePrivate ? meeting.managerPrivateNotes : null"));
@@ -70,6 +74,14 @@ test("goal cascading links governed employee goals to strategic objectives", () 
   assert.ok(managerRoute.includes("Goal organization unit not found in this workspace."));
 });
 
+test("formal performance excludes bookkeepers and protects assigned reviewer ownership", () => {
+  assert.ok(performanceRoute.includes('const PERFORMANCE_ROLES = ["owner", "admin", "hr", "manager"] as const'));
+  assert.ok(performanceRoute.includes("Only the assigned reviewer can complete this performance review."));
+  assert.ok(performanceRoute.includes("A manager score and evidence-based summary are required to complete a review."));
+  assert.ok(performancePanel.includes("Performance review opened. The employee can now submit a self-assessment"));
+  assert.ok(performancePanel.includes("completeReview(review)"));
+});
+
 test("employee self-service hides manager drafts while allowing self-assessment and own goal progress", () => {
   assert.ok(selfRoute.includes('action === "self_assessment"'));
   assert.ok(selfRoute.includes('action === "goal_progress"'));
@@ -78,6 +90,7 @@ test("employee self-service hides manager drafts while allowing self-assessment 
   assert.ok(selfRoute.includes("managerScore: null, finalScore: null, managerSummary: null"));
   assert.ok(selfRoute.includes('row.status === "completed" ? row.managerUpdate : null'));
   assert.ok(selfRoute.includes('eq(oneOnOneSeries.employeeId, employee.id)'));
+  assert.ok(selfRoute.includes('eq(continuousFeedback.visibility, "manager_and_recipient")'));
 });
 
 test("360 feedback foundation is explicitly named and recipient-bound", () => {
@@ -111,7 +124,7 @@ test("manager and employee experience UIs are integrated without replacing forma
   assert.ok(performancePanel.includes("<ManagerExperiencePanel"));
   assert.ok(managerPanel.includes("CONTINUOUS PERFORMANCE"));
   assert.ok(managerPanel.includes("Named 360 feedback workflow"));
-  assert.ok(employeePortal.includes('["growth", "My growth"]'));
+  assert.ok(employeePortal.match(/\["growth", "My growth"\]/g)?.length === 2);
   assert.ok(employeePortal.includes("<EmployeeGrowthPanel"));
   assert.ok(growthPanel.includes("MY GROWTH"));
   assert.ok(growthPanel.includes("SELF-ASSESSMENT"));
