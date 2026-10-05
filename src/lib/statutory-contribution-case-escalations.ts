@@ -19,8 +19,6 @@ export async function runScheduledContributionCaseEscalations(input: {
   if (!input.force && now.getTime() < nextRunAt) {
     return { checked: 0, escalated: 0, skipped: true as const };
   }
-  nextRunAt = now.getTime() + RUN_EVERY_MS;
-
   const cases = await db.select()
     .from(statutoryContributionIssueCases)
     .where(inArray(statutoryContributionIssueCases.status, ["open", "in_review"]))
@@ -53,6 +51,7 @@ export async function runScheduledContributionCaseEscalations(input: {
     escalated += 1;
   }
 
+  nextRunAt = now.getTime() + RUN_EVERY_MS;
   return {
     checked: cases.length,
     escalated,
