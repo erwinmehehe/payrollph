@@ -20,6 +20,7 @@ export const PUBLIC_FOOTER_GROUPS: Array<{ label: string; links: PublicLink[] }>
       { label: "Time & attendance", href: "/time-and-attendance" },
       { label: "Employee self-service", href: "/employee-self-service" },
       { label: "Integrations", href: "/integrations" },
+      { label: "Workforce analytics", href: "/workforce-analytics" },
       { label: "Developer center", href: "/developers" },
       { label: "Pricing", href: "/pricing" },
       { label: "Payroll outsourcing", href: "/payroll-outsourcing" },
