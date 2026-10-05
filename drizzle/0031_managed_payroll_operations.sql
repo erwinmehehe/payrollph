@@ -32,6 +32,10 @@ CREATE TABLE IF NOT EXISTS "managed_payroll_run_approvals" (
   "approver_user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
   "approved_by_user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
   "approved_by" varchar(120) NOT NULL,
+  "payroll_fingerprint" varchar(64) NOT NULL,
+  "approved_gross" numeric(14,2) NOT NULL,
+  "approved_net" numeric(14,2) NOT NULL,
+  "approved_employee_count" integer NOT NULL,
   "note" text,
   "approved_at" timestamptz NOT NULL DEFAULT now()
 );
