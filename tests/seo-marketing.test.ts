@@ -120,6 +120,65 @@ test("canonical host fallback stays aligned with the deployed public app", () =>
   assert.ok(!helper.includes("payrollph-three.vercel.app"), "stale fallback domain must not return");
 });
 
+test("buyer guides use page-specific metadata instead of generic eyebrow titles", () => {
+  const resourceRoute = read("src/app/resources/[slug]/page.tsx");
+  const content = read("src/lib/seo-content.ts");
+  assert.ok(resourceRoute.includes("page.metaTitle ??"), "resource route must prefer a page-specific meta title");
+  for (const title of [
+    "Best Payroll Software Philippines: Buyer Guide | Linaw",
+    "Payroll Software vs Outsourcing Philippines | Linaw",
+    "Payroll Migration Checklist Philippines | Linaw",
+    "Payroll Software Security Checklist Philippines | Linaw",
+    "Payroll Software vs Excel Philippines | Linaw",
+  ]) {
+    assert.ok(content.includes(title), `buyer guide metadata must include ${title}`);
+  }
+});
+
+test("authority pages support real FAQ depth and FAQ structured data", () => {
+  const landing = read("src/components/marketing/seo-landing-page.tsx");
+  const content = read("src/lib/seo-content.ts");
+  assert.ok(landing.includes('"@type": "FAQPage"'), "authority template must emit FAQPage structured data");
+  assert.ok(landing.includes("faq.map"), "authority template must render FAQ content visibly");
+  for (const slug of [
+    "best-payroll-software-philippines",
+    "payroll-software-vs-outsourcing",
+    "payroll-migration-checklist",
+    "payroll-security-checklist",
+    "payroll-software-vs-excel",
+  ]) {
+    const start = content.indexOf(`slug: "${slug}"`);
+    const end = content.indexOf("\n  },", start);
+    assert.ok(start >= 0 && end > start, `resource page ${slug} must exist`);
+    assert.ok(content.slice(start, end).includes("faq: ["), `resource page ${slug} must include FAQ depth`);
+  }
+});
+
+test("integration, developer and trust pages keep distinct authority intent", () => {
+  const integrations = read("src/app/integrations/page.tsx");
+  const developers = read("src/app/developers/page.tsx");
+  const trust = read("src/app/trust/page.tsx");
+  assert.ok(integrations.includes("Payroll Integrations Philippines | API & Webhooks | Linaw"));
+  assert.ok(integrations.includes("Does an export file count as a native integration?"));
+  assert.ok(developers.includes("Payroll API Philippines | Developer Center | Linaw"));
+  assert.ok(developers.includes("What API scopes are available today?"));
+  assert.ok(trust.includes("Payroll Trust Center | Security, Status & Product Evidence | Linaw"));
+  assert.ok(trust.includes("Does a green CI run mean payroll is certified for production?"));
+});
+
+test("long dynamic compliance and industry H1s have dedicated search titles", () => {
+  const content = read("src/lib/seo-content.ts");
+  for (const title of [
+    "PhilHealth Payroll Compliance Philippines | Linaw",
+    "Pag-IBIG Payroll Compliance Philippines | Linaw",
+    "Payroll Software for Accounting Firms Philippines | Linaw",
+    "Manpower Payroll Software Philippines | Linaw",
+    "Manufacturing Payroll Software Philippines | Linaw",
+  ]) {
+    assert.ok(content.includes(title), `SEO content must include ${title}`);
+  }
+});
+
 test("public navigation exposes the SEO program without hiding the live demo", () => {
   const navigation = read("src/components/marketing/public-navigation.ts");
   for (const route of ["/demo", "/resources", "/compliance", "/trust", "/integrations", "/developers", "/calculators", "/payroll-health-check", "/industries"]) {
