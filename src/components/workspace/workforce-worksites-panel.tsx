@@ -60,6 +60,9 @@ export function WorkforceWorksitesPanel({
   canManage: boolean;
 }) {
   const organizationId = data.selectedOrganization.id;
+  const canManageHolidayCalendar =
+    data.access?.companyWide === true
+    && ["owner", "admin", "bookkeeper", "hr", "payroll"].includes(data.access.role ?? "");
   const [payload, setPayload] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
@@ -87,36 +90,38 @@ export function WorkforceWorksitesPanel({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [worksiteResponse, holidayResponse] = await Promise.all([
-        fetch(
-          `/api/workforce/worksites?organizationId=${organizationId}`,
-          { cache: "no-store" },
-        ),
-        fetch(
-          `/api/holidays?organizationId=${organizationId}`,
-          { cache: "no-store" },
-        ),
-      ]);
-      const [worksiteBody, holidayBody] = await Promise.all([
-        worksiteResponse.json().catch(() => ({})),
-        holidayResponse.json().catch(() => ({})),
-      ]);
+      const worksiteResponse = await fetch(
+        `/api/workforce/worksites?organizationId=${organizationId}`,
+        { cache: "no-store" },
+      );
+      const worksiteBody = await worksiteResponse.json().catch(() => ({}));
       if (!worksiteResponse.ok) {
         throw new Error(worksiteBody.error ?? "Could not load worksites.");
       }
-      if (!holidayResponse.ok) {
-        throw new Error(holidayBody.error ?? "Could not load local holidays.");
+
+      let holidayRows: HolidayRow[] = [];
+      if (canManageHolidayCalendar) {
+        const holidayResponse = await fetch(
+          `/api/holidays?organizationId=${organizationId}`,
+          { cache: "no-store" },
+        );
+        const holidayBody = await holidayResponse.json().catch(() => ({}));
+        if (!holidayResponse.ok) {
+          throw new Error(holidayBody.error ?? "Could not load local holidays.");
+        }
+        holidayRows = Array.isArray(holidayBody.holidays) ? holidayBody.holidays : [];
       }
+
       setPayload({
         ...(worksiteBody as Omit<Payload, "holidays">),
-        holidays: Array.isArray(holidayBody.holidays) ? holidayBody.holidays : [],
+        holidays: holidayRows,
       });
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not load worksites.", "err");
     } finally {
       setLoading(false);
     }
-  }, [notify, organizationId]);
+  }, [canManageHolidayCalendar, notify, organizationId]);
 
   useEffect(() => {
     void load();
@@ -357,7 +362,7 @@ export function WorkforceWorksitesPanel({
         </div>
       )}
 
-      {canManage && data.access?.companyWide && activeWorksites.length > 0 && (
+      {canManage && canManageHolidayCalendar && activeWorksites.length > 0 && (
         <div style={{ padding: "0 18px 18px" }}>
           <div className="card-kicker" style={{ marginBottom: 8 }}>Worksite holiday calendar</div>
           <div className="setting-form">
