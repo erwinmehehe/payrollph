@@ -79,3 +79,22 @@ test("an empty payslip still renders a valid document", () => {
   assert.ok(text.includes("None"));
   assert.ok(text.startsWith("%PDF-1.4"));
 });
+
+
+test("long payslips paginate instead of writing below the A4 canvas", () => {
+  const many = Array.from({ length: 70 }, (_, index) => ({
+    label: `Detailed earning line ${index + 1}`,
+    amount: peso(100 + index),
+    note: "Traceable payroll detail that must remain visible on a printed payslip.",
+  }));
+  const text = renderPayslipPdf({
+    ...sample,
+    lines: many,
+    contributions: many.slice(0, 25).map((row) => ({ ...row, label: `Deduction ${row.label}` })),
+  }).toString("latin1");
+
+  const count = Number(text.match(/\/Type \/Pages \/Kids \[[^\]]+\] \/Count (\d+)/)?.[1]);
+  assert.ok(count >= 2, `expected a multi-page payslip, got ${count} page(s)`);
+  assert.ok(text.includes(`Page 1 of ${count}`));
+  assert.ok(text.includes(`Page ${count} of ${count}`));
+});

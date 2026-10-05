@@ -2,7 +2,7 @@ export const ROLE_PRIMARY_PAGES: Partial<Record<string, readonly string[]>> = {
   owner: ["Overview", "Payroll", "Analytics", "People", "Settings"],
   admin: ["Overview", "Payroll", "Exports", "Compliance", "Analytics", "Settings"],
   bookkeeper: ["Overview", "Exports", "Compliance", "Analytics"],
-  hr: ["Overview", "People", "Planning", "Workforce", "Time & attendance", "Leave", "Recruitment", "Performance"],
+  hr: ["Overview", "People"],
   payroll: ["Overview", "Payroll", "Time & attendance", "People"],
   checker: ["Overview", "Audit trail"],
   manager: ["Overview", "Planning", "Performance", "Approvals", "Analytics"],
