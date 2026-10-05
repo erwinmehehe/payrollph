@@ -48,7 +48,7 @@ export async function getDashboardData(organizationId?: number) {
   const memberships = await db
     .select({ organizationId: userOrganizations.organizationId })
     .from(userOrganizations)
-    .where(eq(userOrganizations.userId, sessionUser.id))
+    .where(and(eq(userOrganizations.userId, sessionUser.id), eq(userOrganizations.active, true)))
     .orderBy(asc(userOrganizations.organizationId));
 
   const organizationIds = memberships.map((membership) => membership.organizationId);
@@ -230,7 +230,10 @@ export async function getDashboardData(organizationId?: number) {
     ? await db
         .select({ role: userOrganizations.role })
         .from(userOrganizations)
-        .where(eq(userOrganizations.organizationId, selectedOrganization.id))
+        .where(and(
+          eq(userOrganizations.organizationId, selectedOrganization.id),
+          eq(userOrganizations.active, true),
+        ))
     : [];
   const firstPayrollReadiness = canViewFirstPayrollReadiness
     ? buildFirstPayrollReadiness({
