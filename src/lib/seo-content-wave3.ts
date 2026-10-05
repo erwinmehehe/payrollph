@@ -22,7 +22,8 @@ export const resourceWave3: AuthorityPage[] = [
     slug: "13th-month-pay-philippines",
     eyebrow: "13th-month pay Philippines",
     title: "13th-month pay in the Philippines: payroll guide.",
-    description: "Understand 13th-month pay coverage, basic-salary treatment, timing and payroll calculation in the Philippines.",
+    metaTitle: "13th Month Pay Philippines: Payroll Guide | Linaw",
+    description: "13th-month pay guide for Philippine payroll covering the 1/12 basic-salary formula, part-year service, separation treatment, timing and calculator context.",
     intro: "For covered rank-and-file employees, the statutory 13th-month amount is based on one-twelfth of total basic salary earned during the calendar year. Payroll still needs to distinguish basic salary from payments that are not part of the statutory base.",
     proof: ["1/12 statutory formula", "Basic-salary base", "Proration for part-year service", "December payment timing", "Separation handling", "Calculator link"],
     sections: [
@@ -30,6 +31,12 @@ export const resourceWave3: AuthorityPage[] = [
       { title: "Do not automatically include every payroll earning", body: "Overtime, premium pay, night differential and holiday pay are generally outside the statutory basic-salary base unless an agreement or established company practice treats an item as part of basic salary." },
       { title: "Separated employees can still have a prorated amount", body: "Employees who resign or are terminated can still be entitled to a proportionate 13th-month amount based on covered basic salary earned before separation." },
       { title: "Calculate, review, then release", body: "A payroll system should show the salary base used, the resulting amount and any employer policy treatment that changes what is included before the benefit is released." },
+    ],
+    faq: [
+      { question: "How is 13th-month pay generally calculated in the Philippines?", answer: "For covered employees, the statutory amount is generally one-twelfth of total basic salary earned during the calendar year, subject to current DOLE guidance and any more favorable company practice or agreement." },
+      { question: "Are overtime and holiday premiums automatically included in the 13th-month base?", answer: "Not automatically. The statutory base is basic salary, while premium and variable items need to be classified under current rules, agreements and established employer practice." },
+      { question: "Can a separated employee still receive prorated 13th-month pay?", answer: "A covered employee who resigns or is separated can still have a proportionate 13th-month amount based on basic salary earned during the covered part of the year." },
+      { question: "When should employers verify the year-end timing?", answer: "Use the current DOLE advisory or official guidance for the applicable year rather than relying on an undated blog post or old payroll calendar." },
     ],
     related: [
       { label: "13th-month calculator", href: "/calculators/13th-month-pay", description: "Estimate the statutory amount from total basic salary earned." },
@@ -46,7 +53,8 @@ export const resourceWave3: AuthorityPage[] = [
     slug: "overtime-pay-philippines",
     eyebrow: "Overtime pay Philippines",
     title: "Overtime pay in the Philippines: what payroll must track.",
-    description: "Guide to overtime payroll inputs, ordinary days, rest days, holidays and the importance of work-date context.",
+    metaTitle: "Overtime Pay Philippines: Payroll Guide | Linaw",
+    description: "Overtime pay guide for Philippine payroll covering ordinary days, rest days, holidays, attendance evidence, approvals and work-date premium context.",
     intro: "Overtime pay is not one universal multiplier. Payroll must know the employee's hourly basis, the type of day worked, whether it was a rest day and how many qualifying overtime hours were actually worked.",
     proof: ["Ordinary-day overtime", "Rest-day context", "Holiday context", "Attendance evidence", "Approval workflow", "Calculator link"],
     sections: [
@@ -54,6 +62,12 @@ export const resourceWave3: AuthorityPage[] = [
       { title: "Attendance and approval should agree", body: "Approved overtime without corresponding attendance evidence, or attendance hours without an approved workflow, should be treated as an exception rather than silently paid or discarded." },
       { title: "Historical schedule context matters", body: "When rest days or schedules change, recalculating an older payroll should use the work arrangement that applied on the actual work date." },
       { title: "Keep the calculation traceable", body: "Payroll reviewers should be able to see the hourly basis, day multiplier, overtime hours and resulting premium instead of receiving only a final peso amount." },
+    ],
+    faq: [
+      { question: "Is overtime pay one fixed multiplier?", answer: "No. The applicable premium depends on the type of day worked, whether it is also a rest day, the employee's pay basis and the qualifying overtime hours." },
+      { question: "Why does attendance evidence matter for overtime?", answer: "Payroll needs reliable worked-time evidence to support the hours being priced. Approval records and attendance should be reconciled rather than treated as independent sources of truth." },
+      { question: "Can overtime overlap with holiday or rest-day premiums?", answer: "Yes. Payroll must preserve the full work-date context because overtime can occur on ordinary days, rest days, special days or regular holidays." },
+      { question: "What should a payroll reviewer see?", answer: "A reviewable result should expose the hourly basis, day classification, premium multiplier, overtime hours and resulting amount instead of only a final total." },
     ],
     related: [
       { label: "Overtime calculator", href: "/calculators/overtime-pay", description: "Estimate overtime under different day conditions." },
@@ -67,7 +81,8 @@ export const resourceWave3: AuthorityPage[] = [
     slug: "night-differential-philippines",
     eyebrow: "Night differential Philippines",
     title: "Night differential in Philippine payroll.",
-    description: "Understand night-work payroll inputs, overlap with overtime and premium days, and how attendance time ranges affect calculation.",
+    metaTitle: "Night Differential Philippines: Payroll Guide | Linaw",
+    description: "Night differential guide for Philippine payroll covering qualifying night work, attendance-derived hours, overtime overlap, holidays, rest days and review.",
     intro: "Night differential is tied to qualifying work performed during the statutory night period, so accurate time ranges matter. The same minutes can also interact with overtime or premium-day treatment.",
     proof: ["Night-work time range", "Attendance-derived minutes", "Overtime overlap", "Holiday/rest-day context", "Reviewable calculation", "Calculator link"],
     sections: [
@@ -88,7 +103,8 @@ export const resourceWave3: AuthorityPage[] = [
     slug: "holiday-pay-philippines",
     eyebrow: "Holiday pay Philippines",
     title: "Holiday pay in the Philippines: payroll guide.",
-    description: "Guide to regular holidays, special non-working days, rest-day overlap and worked-day payroll context.",
+    metaTitle: "Holiday Pay Philippines: Payroll Guide | Linaw",
+    description: "Holiday pay guide for Philippine payroll covering regular holidays, special non-working days, worked and unworked cases, rest-day overlap and updates.",
     intro: "Holiday payroll depends on the legal classification of the date, whether the employee worked, and whether the date also fell on the employee's rest day. Payroll should not infer that context from a label alone.",
     proof: ["Regular holiday context", "Special non-working day context", "Rest-day overlap", "Worked vs unworked treatment", "Effective calendar", "Calculator link"],
     sections: [
@@ -112,7 +128,8 @@ export const resourceWave3: AuthorityPage[] = [
     slug: "final-pay-philippines",
     eyebrow: "Final pay Philippines",
     title: "Final pay in the Philippines: payroll closeout guide.",
-    description: "Guide to final pay timing, unpaid wages, prorated 13th-month pay, leave conversion, tax adjustments and separation payroll review.",
+    metaTitle: "Final Pay Philippines: Payroll Closeout Guide | Linaw",
+    description: "Final pay guide for Philippine employers covering timing, unpaid salary, prorated 13th-month pay, leave conversion, tax adjustments and closeout review.",
     intro: "Final pay is a payroll closeout, not one universal formula. DOLE reiterated in January 2026 that final pay should generally be released within 30 days after separation unless a more favorable employer policy applies.",
     proof: ["Unpaid salary", "Prorated 13th month", "Leave conversion where applicable", "Tax refund or adjustment", "Separation/retirement pay where applicable", "30-day DOLE reminder"],
     sections: [
@@ -120,6 +137,12 @@ export const resourceWave3: AuthorityPage[] = [
       { title: "Add benefits that become due on separation", body: "Depending on the employee and employer policy, final pay can include prorated 13th-month pay, convertible unused leave, separation or retirement pay, tax refunds and other amounts due under policy or agreement." },
       { title: "Do not turn every separation into the same formula", body: "The reason for separation, employee status, applicable agreement and company policy can affect which components are actually payable." },
       { title: "Use a closeout checklist before payment", body: "A strong final-pay workflow reconciles attendance, outstanding loans or authorized deductions, tax position, company assets, payslip details and release evidence before the case is closed." },
+    ],
+    faq: [
+      { question: "Is final pay one universal formula?", answer: "No. Final pay is a closeout of amounts that are actually due, and the components depend on wages earned, benefits, tax position, employer policy, agreements and the reason for separation." },
+      { question: "Does Linaw's final-pay calculator determine entitlement?", answer: "No. The calculator only totals components entered by the user and does not decide whether separation pay, leave conversion or another benefit is legally due." },
+      { question: "What should be reconciled before final pay is released?", answer: "Typical checks include unpaid salary, prorated 13th-month pay, approved leave conversion, tax adjustments, authorized deductions, outstanding obligations and the final payslip." },
+      { question: "What timing should employers follow?", answer: "Use current DOLE guidance and any more favorable company policy. The Wave 3 guide cites the January 2026 DOLE reminder rather than presenting an unsupported permanent deadline." },
     ],
     related: [
       { label: "Final pay calculator", href: "/calculators/final-pay", description: "Add known final-pay components without pretending every component is legally required." },
@@ -133,7 +156,8 @@ export const resourceWave3: AuthorityPage[] = [
     slug: "separation-pay-philippines",
     eyebrow: "Separation pay Philippines",
     title: "Separation pay in the Philippines: payroll considerations.",
-    description: "Understand why separation-pay entitlement and amount depend on the reason for separation and applicable labor rules.",
+    metaTitle: "Separation Pay Philippines: Payroll Guide | Linaw",
+    description: "Separation pay guide for Philippine payroll explaining why entitlement and amount depend on the separation basis, service, policy and human or legal review.",
     intro: "Separation pay should not be treated as an automatic amount for every employee who leaves. Entitlement and calculation depend on the legal basis for separation, the employee's circumstances and any more favorable agreement or policy.",
     proof: ["Reason for separation", "Length of service", "Applicable statutory basis", "Company policy", "Final-pay interaction", "Human/legal review"],
     sections: [
@@ -154,7 +178,8 @@ export const resourceWave3: AuthorityPage[] = [
     slug: "payroll-process-philippines",
     eyebrow: "Philippine payroll process",
     title: "A controlled payroll process from inputs to release.",
-    description: "Walk through a Philippine payroll process covering employee data, time, calculation, exceptions, approvals, payout and post-payroll review.",
+    metaTitle: "Payroll Process Philippines: From Inputs to Release | Linaw",
+    description: "Philippine payroll process guide covering employee data, attendance cutoff, calculation, exception review, checker approval, release and post-payroll close.",
     intro: "A reliable payroll process is a sequence of controlled handoffs. Each stage should make its inputs, owner, exceptions and completion evidence visible.",
     proof: ["Employee data", "Attendance cutoff", "Calculation", "Exception review", "Checker approval", "Release and close"],
     sections: [
@@ -174,7 +199,8 @@ export const resourceWave3: AuthorityPage[] = [
     slug: "payroll-cutoff",
     eyebrow: "Payroll cutoff",
     title: "How to design a payroll cutoff that reduces rework.",
-    description: "Guide to payroll cutoff dates, late attendance, overtime approvals, exceptions and change control.",
+    metaTitle: "Payroll Cutoff Philippines: Process Guide | Linaw",
+    description: "Payroll cutoff guide for Philippine teams covering input deadlines, late attendance, overtime approvals, exceptions, change freezes and controlled reopen rules.",
     intro: "A payroll cutoff is a control boundary: it defines which employee, time, leave and adjustment data is considered complete enough to calculate the run.",
     proof: ["Cutoff ownership", "Late-data policy", "Overtime approvals", "Attendance exceptions", "Change freeze", "Reopen controls"],
     sections: [
@@ -194,7 +220,8 @@ export const resourceWave3: AuthorityPage[] = [
     slug: "common-payroll-errors",
     eyebrow: "Payroll errors",
     title: "Common payroll errors and the controls that prevent them.",
-    description: "Review common Philippine payroll errors involving employee data, attendance, statutory deductions, approvals and payout.",
+    metaTitle: "Common Payroll Errors Philippines: Prevention Guide | Linaw",
+    description: "Common Philippine payroll errors involving employee setup, attendance, statutory rules, adjustments, approvals and payout, plus controls that reduce rework.",
     intro: "Most payroll failures are not caused by one bad formula. They come from weak handoffs between employee data, time, rules, exceptions, review and release.",
     proof: ["Wrong employee setup", "Duplicate/manual encoding", "Attendance gaps", "Outdated rules", "Unreviewed adjustments", "Payout mismatch"],
     sections: [
@@ -214,7 +241,8 @@ export const resourceWave3: AuthorityPage[] = [
     slug: "payroll-audit-checklist",
     eyebrow: "Payroll audit checklist",
     title: "Payroll audit checklist before release.",
-    description: "A practical payroll review checklist covering headcount, gross pay, deductions, statutory contributions, tax, net pay, payout and approvals.",
+    metaTitle: "Payroll Audit Checklist Philippines | Linaw",
+    description: "Payroll audit checklist for Philippine teams covering employee data, time, statutory deductions, tax, approvals, payout reconciliation and release evidence.",
     intro: "A payroll audit does not need to mean a formal external audit. Every payroll run benefits from a structured pre-release review that compares source data, calculations and final money movement.",
     proof: ["Headcount reconciliation", "Gross-to-net review", "Statutory checks", "Tax review", "Payout reconciliation", "Approval evidence"],
     sections: [
@@ -234,7 +262,8 @@ export const resourceWave3: AuthorityPage[] = [
     slug: "payslip-guide",
     eyebrow: "Payslip guide Philippines",
     title: "What a useful payroll payslip should explain.",
-    description: "Guide to clear payslip presentation of earnings, deductions, statutory items and net pay for Philippine employees.",
+    metaTitle: "Payslip Guide Philippines: Payroll Information | Linaw",
+    description: "Philippine payslip guide covering earnings, deductions, statutory items, net pay, payroll period, employee access and why released payslips should match payroll.",
     intro: "A payslip should help an employee understand how gross pay became net pay. Clear line items reduce repeated questions and make payroll corrections easier to investigate.",
     proof: ["Pay period", "Earnings", "Premiums", "Deductions", "Statutory items", "Net pay"],
     sections: [
@@ -254,7 +283,8 @@ export const resourceWave3: AuthorityPage[] = [
     slug: "payroll-annualization",
     eyebrow: "Payroll annualization Philippines",
     title: "Payroll annualization and year-end tax review.",
-    description: "Understand why year-end payroll annualization reconciles cumulative taxable compensation and tax withheld instead of treating the final cutoff independently.",
+    metaTitle: "Payroll Annualization Philippines: Year-End Tax Guide | Linaw",
+    description: "Payroll annualization guide for Philippine employers covering year-to-date taxable compensation, tax withheld, year-end adjustment and BIR Form 2316 context.",
     intro: "Year-end payroll needs a cumulative view. Annualization reconciles taxable compensation and tax already withheld across the year so the final payroll position reflects the employee's annual compensation record.",
     proof: ["Year-to-date taxable income", "Tax already withheld", "Year-end adjustment", "2316 preparation", "Terminated employees", "Audit trail"],
     sections: [
@@ -281,7 +311,8 @@ export const complianceWave3: AuthorityPage[] = [
     slug: "bir-2316",
     eyebrow: "BIR Form 2316",
     title: "BIR Form 2316 and payroll year-end data.",
-    description: "Guide to BIR Form 2316, employee compensation and tax-withheld data, year-end preparation and termination handling.",
+    metaTitle: "BIR Form 2316 Payroll Guide Philippines | Linaw",
+    description: "BIR Form 2316 payroll guide covering employee compensation and tax data, annualization, certificate preparation and validation before year-end delivery.",
     intro: "BIR describes Form 2316 as the certificate showing compensation paid and tax withheld for an employee. The form depends on complete year-to-date payroll data, and BIR states it should generally be issued by January 31 of the succeeding year or on the last wage payment when employment terminates.",
     proof: ["Employee compensation certificate", "Year-to-date payroll data", "Tax withheld", "January 31 issuance context", "Termination issuance context", "Validation before submission"],
     sections: [
@@ -289,6 +320,12 @@ export const complianceWave3: AuthorityPage[] = [
       { title: "Year-end and separation events both matter", body: "Employers need a process for annual certificate preparation as well as employees who separate before year-end." },
       { title: "Use the latest official form version", body: "BIR guidance requires the current official form or exact replica when using an electronic signature workflow." },
       { title: "Keep generation separate from filing validation", body: "Producing a 2316 PDF or data row does not by itself prove that every downstream submission or substituted-filing requirement has been satisfied." },
+    ],
+    faq: [
+      { question: "What payroll data feeds BIR Form 2316?", answer: "The certificate depends on annual compensation and withholding records, so payroll should reconcile year-to-date taxable compensation, tax withheld and year-end adjustments first." },
+      { question: "Is generating a 2316 the same as completing the employer's year-end process?", answer: "No. Prepared output still needs review, employee-data validation and the employer's required delivery or filing workflow." },
+      { question: "Why is annualization important before 2316 preparation?", answer: "Annualization reconciles cumulative taxable compensation and tax already withheld, helping the year-end certificate reflect the employee's final payroll tax position." },
+      { question: "Should payroll keep evidence of the generated certificate?", answer: "Yes. Versioning and audit evidence help show which payroll values produced the final certificate when corrections occur." },
     ],
     related: [
       { label: "Payroll annualization", href: "/resources/payroll-annualization", description: "Review the cumulative payroll values feeding 2316." },
@@ -305,7 +342,8 @@ export const complianceWave3: AuthorityPage[] = [
     slug: "1601-c",
     eyebrow: "BIR Form 1601-C",
     title: "BIR Form 1601-C and monthly withholding remittance.",
-    description: "Guide to BIR Form 1601-C, monthly compensation withholding, payroll reconciliation and deadline verification.",
+    metaTitle: "BIR Form 1601-C Payroll Guide Philippines | Linaw",
+    description: "BIR Form 1601-C payroll guide covering compensation withholding totals, monthly remittance-return context, reconciliation and current filing-date verification.",
     intro: "BIR Form 1601-C is the monthly remittance return for income taxes withheld on compensation. Payroll should reconcile taxable compensation and tax withheld before the return is prepared, then verify the current BIR calendar for the applicable filing and payment deadline.",
     proof: ["Monthly compensation withholding", "Tax-withheld reconciliation", "Adjustments", "Filer-specific deadlines", "Current BIR calendar", "Submission evidence"],
     sections: [
@@ -313,6 +351,12 @@ export const complianceWave3: AuthorityPage[] = [
       { title: "Handle adjustments explicitly", body: "Corrections to prior withholding periods should be documented and reconciled rather than silently changing current-month payroll totals." },
       { title: "Do not hard-code one universal filing date", body: "BIR calendars can distinguish non-eFPS and eFPS filer groups, so the current official tax reminder should be checked for the actual month." },
       { title: "Store evidence of the filed result", body: "A mature payroll/compliance process records the filed period, amount, confirmation or receipt and the payroll totals that supported it." },
+    ],
+    faq: [
+      { question: "What does payroll contribute to BIR Form 1601-C preparation?", answer: "Payroll provides the compensation withholding totals and supporting employee-level records that should reconcile to the monthly remittance-return amount." },
+      { question: "Should one permanent filing date be hard-coded into payroll guidance?", answer: "No. Filing calendars can vary by filer type and current BIR schedules, so the applicable official tax reminder should be checked for the actual period." },
+      { question: "What should be reconciled before the return is treated as ready?", answer: "The approved payroll withholding totals, remittance amount, covered period and any corrections should agree before filing evidence is recorded." },
+      { question: "Does a correct withholding calculation prove the return was accepted?", answer: "No. Calculation accuracy and filing acceptance are separate controls; submission confirmation or other official evidence remains necessary." },
     ],
     related: [
       { label: "Withholding tax guide", href: "/compliance/withholding-tax", description: "Review how payroll determines tax withheld." },
@@ -329,7 +373,8 @@ export const complianceWave3: AuthorityPage[] = [
     slug: "alphalist",
     eyebrow: "BIR Alphalist",
     title: "BIR Alphalist and payroll data readiness.",
-    description: "Guide to payroll data needed for BIR Alphalist preparation, annual reconciliation and submission validation.",
+    metaTitle: "BIR Alphalist Payroll Guide Philippines | Linaw",
+    description: "BIR Alphalist payroll guide covering employee and payee identity data, annual compensation, tax withheld, reconciliation, output versioning and validation.",
     intro: "The Alphalist is a reporting output built from withholding records. The payroll job is to preserve complete employee/payee data and reconcile annual compensation and tax values before the file is treated as ready.",
     proof: ["Employee/payee identity data", "Annual compensation", "Tax withheld", "Return attachment context", "January annual reporting", "Validation evidence"],
     sections: [
@@ -337,6 +382,12 @@ export const complianceWave3: AuthorityPage[] = [
       { title: "Validate employee identifiers and totals", body: "Missing or inconsistent employee data can turn a correct payroll calculation into a rejected or inaccurate reporting output." },
       { title: "Tie the Alphalist back to annual withholding returns", body: "BIR reminders treat required alphalists as attachments to relevant withholding returns, so the payroll reporting totals should reconcile." },
       { title: "Track the exact generated version", body: "If the output is regenerated after corrections, the compliance record should identify which version was ultimately submitted." },
+    ],
+    faq: [
+      { question: "What payroll information is needed for an Alphalist?", answer: "The output depends on complete employee or payee identity data plus annual compensation and tax-withheld records that reconcile to the related withholding returns." },
+      { question: "Should the Alphalist be maintained as a separate source-of-truth spreadsheet?", answer: "A stronger model generates it from reconciled payroll and withholding data so the reporting output does not drift away from the payroll records." },
+      { question: "Why should generated versions be tracked?", answer: "Corrections can cause the output to be regenerated, so the compliance record should identify which version was ultimately validated or submitted." },
+      { question: "Does Linaw claim an Alphalist is filing-ready immediately after generation?", answer: "No. The product separates prepared output from external validation and acceptance evidence." },
     ],
     related: [
       { label: "BIR 2316", href: "/compliance/bir-2316", description: "Connect employee certificates with annual payroll data." },
@@ -353,7 +404,8 @@ export const complianceWave3: AuthorityPage[] = [
     slug: "withholding-tax",
     eyebrow: "Withholding tax on compensation",
     title: "Withholding tax on compensation in Philippine payroll.",
-    description: "Guide to taxable compensation, payroll withholding, year-to-date reconciliation and BIR reporting context.",
+    metaTitle: "Withholding Tax on Compensation Philippines | Linaw",
+    description: "Withholding tax on compensation guide covering taxable pay, payroll-frequency tables, minimum-wage-earner treatment, annualization, 1601-C and 2316 context.",
     intro: "Payroll withholding starts with taxable compensation, not gross salary. Statutory and non-taxable treatment, minimum-wage-earner rules where applicable and year-end annualization all affect the final tax result.",
     proof: ["Taxable compensation", "Monthly/semi-monthly payroll", "Minimum-wage-earner handling", "Year-end annualization", "1601-C connection", "2316 connection"],
     sections: [
@@ -361,6 +413,12 @@ export const complianceWave3: AuthorityPage[] = [
       { title: "Use the table that matches the payroll frequency", body: "Monthly and semi-monthly payroll can use different table thresholds, so the payroll function should match the actual pay frequency." },
       { title: "Annualization is not optional cleanup", body: "The year-end process reconciles cumulative taxable compensation and tax already withheld so the employee's annual position is consistent." },
       { title: "Reporting follows the calculation", body: "1601-C, 2316 and annual reporting rely on the payroll tax records, but preparing those outputs still requires separate validation and filing evidence." },
+    ],
+    faq: [
+      { question: "Is withholding tax calculated from gross pay?", answer: "Not necessarily. Payroll first needs the taxable compensation base after applying the relevant statutory and non-taxable treatment." },
+      { question: "Why does payroll frequency matter?", answer: "Withholding thresholds and tables can differ by payroll frequency, so the calculation must use the table that matches the actual payroll cadence." },
+      { question: "How does annualization relate to regular payroll withholding?", answer: "Regular payroll withholding is reconciled at year-end against cumulative taxable compensation and tax already withheld to determine the employee's final annual position." },
+      { question: "How are 1601-C and 2316 connected to payroll withholding?", answer: "Those outputs rely on payroll tax records, but preparing or generating them remains separate from filing validation or employee-delivery evidence." },
     ],
     related: [
       { label: "Withholding tax calculator", href: "/calculators/withholding-tax", description: "Estimate monthly withholding from taxable compensation." },
@@ -377,7 +435,8 @@ export const complianceWave3: AuthorityPage[] = [
     slug: "calendar",
     eyebrow: "Payroll compliance calendar",
     title: "Philippine payroll compliance calendar: how to manage deadlines.",
-    description: "Build a payroll compliance calendar around current BIR, SSS, PhilHealth, Pag-IBIG and DOLE source dates instead of stale hard-coded deadlines.",
+    metaTitle: "Payroll Compliance Calendar Philippines | Linaw",
+    description: "Philippine payroll compliance calendar guide for BIR, SSS, PhilHealth, Pag-IBIG and DOLE obligations using current official schedules, owners and evidence.",
     intro: "A compliance calendar should be a maintained operational tool, not a permanent table copied from an old blog post. Official schedules and advisories can change, and filing dates can differ by filer type or circumstance.",
     proof: ["BIR tax reminders", "DOLE advisories", "SSS contribution schedule", "PhilHealth issuances", "Pag-IBIG guidance", "Owner and evidence fields"],
     sections: [
@@ -403,8 +462,9 @@ export const complianceWave3: AuthorityPage[] = [
   {
     slug: "regulatory-updates",
     eyebrow: "Payroll regulatory updates",
-    title: "How PayrollPH tracks Philippine payroll rule changes.",
-    description: "Understand the difference between evergreen payroll guidance and dated regulatory updates from Philippine government agencies.",
+    title: "How Linaw tracks Philippine payroll rule changes.",
+    metaTitle: "Philippine Payroll Regulatory Updates | Linaw",
+    description: "Method for tracking Philippine payroll regulatory changes by agency, publication date, effective date, official source, affected workflow and review status.",
     intro: "Evergreen pages explain a payroll topic. Dated updates record what changed, when it changed, the source and which payroll workflows may need review. Keeping those two content types separate reduces stale guidance.",
     proof: ["Effective date", "Issuing agency", "Source document", "Affected workflow", "Rule-review status", "Evergreen cross-links"],
     sections: [
@@ -424,7 +484,8 @@ export const complianceWave3: AuthorityPage[] = [
     slug: "payroll-audit",
     eyebrow: "Payroll compliance audit",
     title: "Payroll compliance audit: evidence to review after each run.",
-    description: "Review statutory calculations, tax, government outputs, approvals and completion evidence after payroll.",
+    metaTitle: "Payroll Compliance Audit Philippines | Linaw",
+    description: "Payroll compliance audit guide covering released payroll, statutory liabilities, tax withheld, government outputs, submission evidence and unresolved exceptions.",
     intro: "A compliance audit should connect the approved payroll run with the statutory calculations and reporting evidence that followed it. The goal is traceability, not a blanket statement that everything is compliant.",
     proof: ["Approved payroll version", "Statutory liabilities", "Tax withheld", "Government output", "Submission/remittance evidence", "Exceptions"],
     sections: [
