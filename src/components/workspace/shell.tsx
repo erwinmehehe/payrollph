@@ -552,6 +552,33 @@ export function buildNotifications(data: DashboardData, role?: string | null): N
     });
   };
 
+  const addComplianceActionNotifications = () => {
+    if (!["owner", "admin", "bookkeeper", "payroll"].includes(effectiveRole ?? "")) return;
+    const rank: Record<string, number> = { danger: 0, warning: 1, info: 2 };
+    const actions = [...(data.complianceActions ?? [])]
+      .filter((task) => task.status !== "resolved")
+      .sort((a, b) =>
+        (rank[a.severity] ?? 9) - (rank[b.severity] ?? 9)
+        || String(a.dueDate ?? "9999-99-99").localeCompare(String(b.dueDate ?? "9999-99-99"))
+        || a.id - b.id,
+      )
+      .slice(0, 3);
+
+    for (const task of actions) {
+      const unassigned = task.assignedToUserId == null;
+      const critical = task.severity === "danger";
+      items.push({
+        id: `compliance-action-${task.id}`,
+        title: critical && unassigned ? `Unassigned critical: ${task.title}` : task.title,
+        detail: `${task.detail} · ${task.assignedToName ? `Owner: ${task.assignedToName}` : "Unassigned"}`,
+        tone: critical ? "danger" : task.severity === "warning" ? "review" : "active",
+        page: "Payroll",
+      });
+    }
+  };
+
+  addComplianceActionNotifications();
+
   if (effectiveRole === "hr") {
     const handoffRun = data.payrollHandoffRun;
     if (handoffRun && payrollHandoffRank(handoffRun.status) === 0) {
