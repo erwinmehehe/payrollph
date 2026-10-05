@@ -43,6 +43,7 @@ import {
   X,
 } from "lucide-react";
 import { AccountPanel } from "@/components/account-panel";
+import { EnterpriseAccessSettings } from "@/components/enterprise-access-settings";
 import { StatutoryRemittancePanel } from "@/components/workspace/statutory-remittance-panel";
 import { INVITABLE_ROLES, invitableRoleLabel } from "@/lib/roles";
 import type { AuditEvent, DashboardData, Employee, OrgUnit, PayrollEntry, PayrollRun, PricingPlan } from "./types";
@@ -964,6 +965,7 @@ function SecuritySettings({ data, setNotice }: { data: DashboardData; setNotice:
         ))}
       </div>
       <EnterpriseSsoSettings data={data} setNotice={setNotice} />
+      {data.access?.role === "owner" && <EnterpriseAccessSettings organizationId={data.selectedOrganization.id} setNotice={setNotice} />}
     </>
   );
 }
