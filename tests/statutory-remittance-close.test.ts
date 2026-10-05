@@ -15,6 +15,17 @@ const reconciledBatch = {
   exceptionCount: 0,
 };
 
+const paymentEvidence = [{
+  id: 11,
+  batchId: 1,
+  fileName: "sss-payment.pdf",
+  fileSha256: "a".repeat(64),
+  byteSize: 1200,
+  status: "active",
+  uploadedByName: "Payroll A",
+  uploadedAt: "2026-10-15T00:00:00.000Z",
+}];
+
 test("remittance month close is ready only when tracked evidence is fully reconciled", () => {
   const result = evaluateRemittanceMonthClose({
     applicableMonth: "2026-09",
@@ -28,6 +39,7 @@ test("remittance month close is ready only when tracked evidence is fully reconc
       confirmedBy: "Payroll B",
     }],
     alerts: [],
+    paymentEvidence,
     requiredAgencies: ["SSS"],
     allPayrollRunsReleased: true,
   });
@@ -46,6 +58,7 @@ test("active alerts and unreconciled batches block month certification", () => {
       pendingPostingCount: 1,
     }],
     members: [],
+    paymentEvidence,
     alerts: [{
       agency: "SSS",
       applicableMonth: "2026-09",
@@ -67,6 +80,7 @@ test("no remittance batches cannot produce a false green month close", () => {
     batches: [],
     members: [],
     alerts: [],
+    paymentEvidence,
     requiredAgencies: ["SSS"],
     allPayrollRunsReleased: true,
   });
@@ -80,6 +94,7 @@ test("snapshot changes when employee posting evidence changes", () => {
     applicableMonth: "2026-09",
     batches: [reconciledBatch],
     alerts: [],
+    paymentEvidence,
     requiredAgencies: ["SSS"],
     allPayrollRunsReleased: true,
   };
@@ -114,6 +129,7 @@ test("unreleased payroll blocks remittance month close", () => {
     batches: [reconciledBatch],
     members: [],
     alerts: [],
+    paymentEvidence,
     requiredAgencies: ["SSS"],
     allPayrollRunsReleased: false,
   });
@@ -128,6 +144,7 @@ test("missing required agency batch blocks remittance month close", () => {
     batches: [reconciledBatch],
     members: [],
     alerts: [],
+    paymentEvidence,
     requiredAgencies: ["SSS", "PhilHealth"],
     allPayrollRunsReleased: true,
   });
@@ -150,6 +167,7 @@ test("approved correction changes the close snapshot and is preserved in certifi
       confirmedBy: "Payroll B",
     }],
     alerts: [],
+    paymentEvidence,
     requiredAgencies: ["SSS"],
     allPayrollRunsReleased: true,
   };
@@ -217,6 +235,7 @@ test("employee issue history permanently changes certification snapshot even aft
       confirmedBy: "Payroll B",
     }],
     alerts: [],
+    paymentEvidence,
     requiredAgencies: ["SSS"],
     allPayrollRunsReleased: true,
   };
