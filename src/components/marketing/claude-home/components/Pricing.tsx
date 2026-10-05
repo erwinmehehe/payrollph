@@ -163,7 +163,7 @@ export default function Pricing({ plans }: { plans: PublicPlan[] }) {
                         : "border border-[#D9DCEC] bg-white text-[#2B2F45] hover:border-[#B9BDE0] hover:bg-[#F7F8FC]"
                     )}
                   >
-                    Start 14-day trial
+                    Request trial access
                     <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
                   </a>
                 </article>
