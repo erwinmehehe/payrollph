@@ -1200,6 +1200,35 @@ export const auditEvents = pgTable("audit_events", {
  * trusting an environment flag. Rows are never deleted by the app, and an
  * accepted row cannot be edited.
  */
+export const laborInspectionDrills = pgTable(
+  "labor_inspection_drills",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    status: varchar("status", { length: 24 }).notNull(),
+    rangeLabel: varchar("range_label", { length: 120 }).notNull(),
+    evidencePackSha256: varchar("evidence_pack_sha256", { length: 64 }).notNull(),
+    evidencePackVersion: varchar("evidence_pack_version", { length: 64 }).notNull(),
+    snapshotSha256: varchar("snapshot_sha256", { length: 64 }).notNull(),
+    highFindings: integer("high_findings").notNull().default(0),
+    mediumFindings: integer("medium_findings").notNull().default(0),
+    infoFindings: integer("info_findings").notNull().default(0),
+    recordedExposure: numeric("recorded_exposure", { precision: 14, scale: 2 }).notNull().default("0"),
+    screeningExposure: numeric("screening_exposure", { precision: 14, scale: 2 }).notNull().default("0"),
+    unownedActionable: integer("unowned_actionable").notNull().default(0),
+    readyToClose: integer("ready_to_close").notNull().default(0),
+    blockerSummary: jsonb("blocker_summary").notNull().default([]),
+    actionPlan: jsonb("action_plan").notNull().default([]),
+    sectionRowCounts: jsonb("section_row_counts").notNull().default({}),
+    generatedBy: varchar("generated_by", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("labor_inspection_drills_org_created_idx").on(table.organizationId, table.createdAt),
+    index("labor_inspection_drills_status_idx").on(table.organizationId, table.status),
+  ],
+);
+
 export const laborInspectionRemediations = pgTable(
   "labor_inspection_remediations",
   {
