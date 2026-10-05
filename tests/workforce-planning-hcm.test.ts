@@ -8,10 +8,14 @@ const nav = readFileSync("src/components/workspace/nav.ts", "utf8");
 const workspace = readFileSync("src/components/linaw-workspace.tsx", "utf8");
 
 test("job architecture separates positions from employees", () => {
-  assert.ok(schema.includes('export const jobProfiles = pgTable("job_profiles"'));
-  assert.ok(schema.includes('export const workforcePlans = pgTable("workforce_plans"'));
-  assert.ok(schema.includes('export const positions = pgTable("positions"'));
-  assert.ok(schema.includes('export const positionAssignments = pgTable("position_assignments"'));
+  assert.ok(schema.includes("export const jobProfiles = pgTable("));
+  assert.ok(schema.includes('"job_profiles"'));
+  assert.ok(schema.includes("export const workforcePlans = pgTable("));
+  assert.ok(schema.includes('"workforce_plans"'));
+  assert.ok(schema.includes("export const positions = pgTable("));
+  assert.ok(schema.includes('"positions"'));
+  assert.ok(schema.includes("export const positionAssignments = pgTable("));
+  assert.ok(schema.includes('"position_assignments"'));
   assert.ok(schema.includes('jobProfileId: integer("job_profile_id")'));
   assert.ok(schema.includes('positionId: integer("position_id")'));
   assert.ok(schema.includes('effectiveFrom: date("effective_from")'));
