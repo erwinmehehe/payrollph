@@ -79,7 +79,8 @@ test("comparison hub keeps neutral guides and requires evidence for named compet
     assert.ok(existsSync("src/lib/seo-content-wave18.ts"), "Salarium comparison must have a source-backed content registry");
     const salarium = read("src/lib/seo-content-wave18.ts");
     assert.ok(salarium.includes("https://support.salarium.com/"));
-    assert.ok(salarium.includes("not claiming to be better"));
+    assert.ok(salarium.toLowerCase().includes("is linaw claiming to be better than salarium?"));
+    assert.ok(salarium.toLowerCase().includes("no. this is an alternative-comparison guide"));
     assert.ok(!salarium.toLowerCase().includes("salarium is insecure"));
     assert.ok(!salarium.toLowerCase().includes("salarium is non-compliant"));
   }
