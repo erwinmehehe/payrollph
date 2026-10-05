@@ -213,23 +213,31 @@ export function buildComplianceCalendar(input: {
   legalName: string;
   philHealthEmployerNo?: string | null;
   batches: CalendarBatch[];
+  bir1601cOperationalMonths?: string[];
 }) {
   const byKey = new Map(input.batches.map((batch) => [`${batch.applicableMonth}|${batch.agency}`, batch]));
+  const birOperationalMonths = new Set(input.bir1601cOperationalMonths ?? []);
   const items: ComplianceCalendarItem[] = [];
 
   for (const applicableMonth of input.applicableMonths) {
     const birDue = nominalBir1601CDueDate(applicableMonth);
     const birTime = timeStatus(birDue, input.today);
+    const birOperationallyProven = birOperationalMonths.has(applicableMonth);
     items.push({
       id: `BIR-1601C-${applicableMonth}`,
       agency: "BIR",
       obligation: "BIR Form 1601-C withholding remittance",
       applicableMonth,
       dueDate: birDue,
-      status: birTime === "overdue" ? "verification-required" : birTime,
-      detail:
-        birTime === "overdue"
-          ? "Linaw does not yet hold authoritative monthly BIR filing acknowledgement for this obligation. Verify the filed return/payment externally and retain the official evidence."
+      status: birOperationallyProven
+        ? "complete"
+        : birTime === "overdue"
+          ? "verification-required"
+          : birTime,
+      detail: birOperationallyProven
+        ? "A current-version BIR 1601-C filing acknowledgement is recorded for this payroll month. This proves the operational filing, not that PayrollPH produced an official BIR upload file."
+        : birTime === "overdue"
+          ? "PayrollPH does not yet hold authoritative monthly BIR filing acknowledgement for this obligation. Verify the filed return/payment externally and retain the official evidence."
           : "Conservative internal target based on the non-eFPS 1601-C deadline. eFPS filing/payment dates vary by filer group, so confirm the published BIR calendar for the taxpayer.",
       sourceLabel: SOURCES.BIR.label,
       sourceUrl: SOURCES.BIR.url,
