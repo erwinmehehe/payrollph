@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  governmentFilingValidations,
   organizations,
   payrollRuns,
   statutoryRemittanceBatches,
@@ -8,6 +9,7 @@ import {
 } from "@/db/schema";
 import { assertOrganizationRole, getAccess } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
+import { findFilingForm, provesOperationalFiling } from "@/lib/filing-evidence";
 import { buildComplianceCalendar } from "@/lib/compliance-calendar";
 
 export const dynamic = "force-dynamic";
@@ -86,6 +88,34 @@ export async function GET(request: Request) {
         .where(inArray(statutoryRemittanceMembers.batchId, batchIds))
     : [];
 
+  const bir1601Definition = findFilingForm("BIR", "1601-C");
+  const bir1601Evidence = bir1601Definition
+    ? await db.select({
+        agency: governmentFilingValidations.agency,
+        form: governmentFilingValidations.form,
+        status: governmentFilingValidations.status,
+        submissionMethod: governmentFilingValidations.submissionMethod,
+        generatorVersion: governmentFilingValidations.generatorVersion,
+        agencyReference: governmentFilingValidations.agencyReference,
+        submittedAt: governmentFilingValidations.submittedAt,
+        payDate: payrollRuns.payDate,
+      })
+        .from(governmentFilingValidations)
+        .innerJoin(payrollRuns, eq(governmentFilingValidations.payrollRunId, payrollRuns.id))
+        .where(and(
+          eq(governmentFilingValidations.organizationId, organizationId),
+          eq(governmentFilingValidations.agency, "BIR"),
+          eq(governmentFilingValidations.form, "1601-C"),
+        ))
+    : [];
+  const bir1601cOperationalMonths = bir1601Definition
+    ? [...new Set(
+        bir1601Evidence
+          .filter((row) => provesOperationalFiling(row, bir1601Definition))
+          .map((row) => String(row.payDate).slice(0, 7)),
+      )]
+    : [];
+
   const today = manilaDate();
   const currentMonth = today.slice(0, 7);
   const items = buildComplianceCalendar({
@@ -94,6 +124,7 @@ export async function GET(request: Request) {
     applicableMonths,
     legalName: organization.legalName,
     philHealthEmployerNo: organization.philHealthEmployerNo,
+    bir1601cOperationalMonths,
     batches: organizationBatches.map((batch) => ({
       agency: batch.agency,
       applicableMonth: batch.applicableMonth,
