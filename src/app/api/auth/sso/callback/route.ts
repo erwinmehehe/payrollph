@@ -113,6 +113,7 @@ export async function GET(request: Request) {
     const [membership] = await db.select({ id: userOrganizations.id }).from(userOrganizations).where(and(
       eq(userOrganizations.userId, user.id),
       eq(userOrganizations.organizationId, provider.organizationId),
+      eq(userOrganizations.active, true),
     )).limit(1);
     if (!membership) return Response.json({ error: "The user is not a member of this SSO workspace." }, { status: 403 });
 
