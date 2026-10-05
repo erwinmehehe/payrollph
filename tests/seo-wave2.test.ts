@@ -58,7 +58,7 @@ test("SEO wave 2 pages use distinct meta titles and FAQ depth", () => {
   const content = read("src/lib/seo-content-wave2.ts");
   for (const title of [
     "Cloud vs On-Premise Payroll Philippines | Linaw",
-    "Payroll Software RFP Checklist Philippines | Linaw",
+    "Payroll RFP Checklist Guide Philippines | Linaw",
     "Payroll System Implementation Guide Philippines | Linaw",
     "Payroll Software ROI Philippines | Evaluation Guide | Linaw",
     "Build vs Buy Payroll Software Philippines | Linaw",
