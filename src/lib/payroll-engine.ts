@@ -446,6 +446,10 @@ async function processPayrollChunk(input: {
     or(isNull(holidays.organizationId), eq(holidays.organizationId, input.organizationId)),
   );
   const localHolidayRows = holidayRows.flatMap((row) => {
+    // Worksite-scoped holidays are deliberately excluded until payroll resolves
+    // the holiday calendar per worksite/date. Treating them as organization-wide
+    // would overpay employees at other sites.
+    if (row.worksiteId != null) return [];
     const date = String(row.holidayDate);
     if (date > String(run.periodEnd)) return [];
     const kind = row.kind === "regular" || row.kind === "special" ? row.kind : null;
