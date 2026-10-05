@@ -32,11 +32,11 @@ export default function Navbar() {
       >
         <nav aria-label="Primary" className="mx-auto flex h-[68px] max-w-[1200px] items-center justify-between px-5 sm:px-8">
           <a href="/" className="group flex items-center gap-2.5" aria-label="Linaw home">
-            <span className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-[#102A4C] p-0.5 transition-transform duration-300 group-hover:rotate-[-4deg] group-hover:scale-105">
+            <span className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-[#444CE7] p-0.5 transition-transform duration-300 group-hover:rotate-[-4deg] group-hover:scale-105">
               <ShieldCheck className="h-[18px] w-[18px] text-white" aria-hidden />
             </span>
             <span className="leading-none">
-              <span className="font-display block text-[18px] font-extrabold tracking-tight text-[#102A4C]">linaw</span>
+              <span className="font-display block text-[18px] font-bold tracking-tight text-[#101323]">linaw</span>
               <span className="block text-[8px] font-bold uppercase tracking-[0.15em] text-[#7C8EA0]">Philippine Payroll</span>
             </span>
           </a>
@@ -46,7 +46,7 @@ export default function Navbar() {
               <a
                 key={l.label}
                 href={l.href}
-                className="rounded-full px-4 py-2 text-[14px] font-medium text-[#2B2F45] transition-colors hover:bg-[#F1F2F8] hover:text-[#0B0D1A]"
+                className="rounded-lg px-3.5 py-2 text-[14px] font-medium text-[#2B2F45] transition-colors hover:bg-[#F1F2F8] hover:text-[#0B0D1A]"
               >
                 {l.label}
               </a>
@@ -56,13 +56,13 @@ export default function Navbar() {
           <div className="hidden items-center gap-2 lg:flex">
             <a
               href="/login"
-              className="rounded-full px-4 py-2 text-[14px] font-semibold text-[#2B2F45] transition-colors hover:bg-[#F1F2F8]"
+              className="rounded-lg px-3.5 py-2 text-[14px] font-semibold text-[#2B2F45] transition-colors hover:bg-[#F1F2F8]"
             >
               Sign in
             </a>
             <a
               href="/demo"
-              className="nav-start-cta inline-flex items-center rounded-[10px] border border-[#D9D9FF] bg-[#F5F5FF] px-4 py-2.5 text-[14px] font-semibold text-[#4A4AE0] transition-all hover:border-[#C5C5FF] hover:bg-[#ECECFF]"
+              className="nav-start-cta inline-flex items-center rounded-[10px] bg-[#444CE7] px-4 py-2.5 text-[14px] font-semibold text-white shadow-[0_1px_2px_rgba(68,76,231,.18)] transition-all hover:bg-[#3538CD]"
             >
               Try live demo
             </a>
@@ -100,14 +100,14 @@ export default function Navbar() {
               <a
                 href="/login"
                 onClick={() => setOpen(false)}
-                className="flex-1 rounded-full border border-[#E8EAF3] px-5 py-3 text-center text-[14px] font-semibold"
+                className="flex-1 rounded-[10px] border border-[#E1E4EA] px-5 py-3 text-center text-[14px] font-semibold"
               >
                 Sign in
               </a>
               <a
                 href="/demo"
                 onClick={() => setOpen(false)}
-                className="flex-1 rounded-[10px] border border-[#D9D9FF] bg-[#F5F5FF] px-5 py-3 text-center text-[14px] font-semibold text-[#4A4AE0]"
+                className="flex-1 rounded-[10px] bg-[#444CE7] px-5 py-3 text-center text-[14px] font-semibold text-white"
               >
                 Try live demo
               </a>
