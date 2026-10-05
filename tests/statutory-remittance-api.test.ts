@@ -13,6 +13,7 @@ test("statutory remittance ledger separates batch payment from employee posting"
   assert.ok(schema.includes('export const statutoryRemittanceBatches = pgTable('));
   assert.ok(schema.includes('export const statutoryRemittanceMembers = pgTable('));
   assert.ok(schema.includes('postingStatus: varchar("posting_status"'));
+  assert.ok(schema.includes('postedAmount: numeric("posted_amount"'));
   assert.ok(schema.includes('agencyReceiptReference: varchar("agency_receipt_reference"'));
 });
 
@@ -25,6 +26,8 @@ test("remittance snapshot is restricted to closed months and released payroll", 
 
 test("payment cannot hide under-remittance and employee posting is a separate gate", () => {
   assert.ok(route.includes("canMarkRemittancePaid"));
+  assert.ok(route.includes("canConfirmMemberPosting"));
+  assert.ok(route.includes("postedAmount: postedAmount.toFixed(2)"));
   assert.ok(route.includes("Record the agency payment before confirming employee posting."));
   assert.ok(route.includes('postingStatus: "confirmed"'));
   assert.ok(route.includes('status: "reconciled"'));
@@ -57,6 +60,8 @@ test("employee self-service exposes only the signed-in employee contribution pos
   assert.ok(selfUi.includes("MANDATORY CONTRIBUTIONS"));
   assert.ok(selfUi.includes("Agency posting confirmed"));
   assert.ok(selfUi.includes("Employer payment pending"));
+  assert.ok(selfApi.includes("postedAmount: statutoryRemittanceMembers.postedAmount"));
+  assert.ok(selfUi.includes("Amount posted"));
 });
 
 
@@ -72,4 +77,13 @@ test("closed payroll months with no remittance batch are surfaced as compliance 
 test("recorded payment evidence cannot be silently overwritten", () => {
   assert.ok(route.includes("Payment evidence is immutable once recorded."));
   assert.ok(route.includes('batch.status !== "open"'));
+});
+
+
+test("employee posting amount mismatch cannot be marked confirmed", () => {
+  assert.ok(route.includes("expectedTotal: Number(member.totalContribution)"));
+  assert.ok(route.includes("postedAmount,"));
+  assert.ok(route.includes("postingGate.error"));
+  assert.ok(panel.includes("postedAmount: Number(postingAmount)"));
+  assert.ok(panel.includes("Posted {money(member.postedAmount ?? member.totalContribution)}"));
 });
