@@ -25,7 +25,7 @@ function clampInt(value: unknown, min: number, max: number, fallback: number) {
 export async function effectiveSessionPolicyForUser(userId: number): Promise<EffectiveSessionPolicy> {
   const memberships = await db.select({ organizationId: userOrganizations.organizationId })
     .from(userOrganizations)
-    .where(eq(userOrganizations.userId, userId));
+    .where(and(eq(userOrganizations.userId, userId), eq(userOrganizations.active, true)));
   if (memberships.length === 0) return DEFAULT_POLICY;
 
   const policies = await db.select().from(organizationSecurityPolicies)
@@ -50,7 +50,7 @@ export async function organizationSecurityPolicy(organizationId: number) {
 export async function organizationMfaReadiness(organizationId: number) {
   const memberships = await db.select({ userId: userOrganizations.userId })
     .from(userOrganizations)
-    .where(eq(userOrganizations.organizationId, organizationId));
+    .where(and(eq(userOrganizations.organizationId, organizationId), eq(userOrganizations.active, true)));
   if (memberships.length === 0) return { total: 0, ready: 0, notReadyUserIds: [] as number[] };
   const memberUsers = await db.select({ id: users.id, totpEnabled: users.totpEnabled, active: users.active, localPasswordEnabled: users.localPasswordEnabled })
     .from(users)
