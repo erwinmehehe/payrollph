@@ -323,6 +323,11 @@ export async function POST(request: Request) {
       eq(statutoryRemittanceBatches.organizationId, organizationId),
     )).limit(1);
     if (!batch) return Response.json({ error: "Remittance batch not found." }, { status: 404 });
+    if (member.postingStatus === "confirmed") {
+      return Response.json({
+        error: "Confirmed employee posting evidence is immutable. Use an audited correction workflow for agency-posting corrections.",
+      }, { status: 409 });
+    }
     if (batch.status === "open") {
       return Response.json({ error: "Record the agency payment before confirming employee posting." }, { status: 409 });
     }
