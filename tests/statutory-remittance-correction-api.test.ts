@@ -80,3 +80,11 @@ test("payroll UI exposes four-eyes request and approval workflow", () => {
   assert.ok(panel.includes('void decide(correction, "approve")'));
   assert.ok(payroll.includes("<StatutoryRemittanceCorrectionsPanel"));
 });
+
+
+test("correction API self-initializes its additive table for existing deployments", () => {
+  const schemaGuard = readFileSync("src/lib/statutory-remittance-correction-schema.ts", "utf8");
+  assert.ok(route.includes("ensureStatutoryRemittanceCorrectionSchema"));
+  assert.ok(schemaGuard.includes("CREATE TABLE IF NOT EXISTS statutory_remittance_correction_requests"));
+  assert.ok(schemaGuard.includes("pg_advisory_xact_lock"));
+});
