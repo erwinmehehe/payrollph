@@ -1,7 +1,24 @@
 import { pool } from "@/db";
+import { deliveryCapable } from "@/lib/mail-provider";
+import { queueMessage, retryOutboxMessage } from "@/lib/mailer";
 
 export type MarketingLeadKind = "demo" | "trial-access" | "payroll-outsourcing";
 export type MarketingLeadNotificationStatus = "not-configured" | "queued" | "sent" | "failed";
+
+type MarketingLeadRow = {
+  id: number;
+  kind: MarketingLeadKind;
+  name: string;
+  email: string;
+  company: string;
+  headcount: string | null;
+  payroll_frequency: string | null;
+  entities: string | null;
+  notes: string | null;
+  notification_status: MarketingLeadNotificationStatus;
+  notification_provider: string | null;
+  notification_outbox_id: number | null;
+};
 
 let schemaReady = false;
 let schemaInFlight: Promise<void> | null = null;
@@ -116,4 +133,156 @@ export async function updateMarketingLeadNotification(input: {
      WHERE id = $1`,
     [input.id, input.status, input.provider ?? null, input.outboxId ?? null],
   );
+}
+
+
+function operatorInbox(kind: MarketingLeadKind) {
+  if (kind === "payroll-outsourcing") {
+    return process.env.PAYROLL_OUTSOURCING_INBOX?.trim()
+      || process.env.DEMO_REQUEST_INBOX?.trim()
+      || null;
+  }
+  return process.env.DEMO_REQUEST_INBOX?.trim() || null;
+}
+
+function notificationPurpose(kind: MarketingLeadKind) {
+  if (kind === "trial-access") return "trial-access-request";
+  if (kind === "payroll-outsourcing") return "payroll-outsourcing-enquiry";
+  return "demo-request";
+}
+
+function notificationSubject(lead: MarketingLeadRow) {
+  if (lead.kind === "trial-access") return `Trial access request: ${lead.company}`;
+  if (lead.kind === "payroll-outsourcing") return `Payroll outsourcing enquiry: ${lead.company}`;
+  return `Demo request: ${lead.company}`;
+}
+
+function notificationBody(lead: MarketingLeadRow) {
+  const heading = lead.kind === "trial-access"
+    ? "A trial access request was submitted from the public site."
+    : lead.kind === "payroll-outsourcing"
+      ? "A payroll outsourcing enquiry was submitted from the public site."
+      : "A demo was requested from the public site.";
+
+  return [
+    heading,
+    "",
+    `Lead ID:   ${lead.id}`,
+    `Name:      ${lead.name}`,
+    `Email:     ${lead.email}`,
+    `Company:   ${lead.company}`,
+    `Headcount: ${lead.headcount || "not stated"}`,
+    ...(lead.kind === "payroll-outsourcing"
+      ? [
+          `Frequency: ${lead.payroll_frequency || "not stated"}`,
+          `Entities:  ${lead.entities || "not stated"}`,
+        ]
+      : []),
+    "",
+    lead.kind === "payroll-outsourcing" ? "Requested scope / notes:" : "Notes:",
+    lead.notes || "(none)",
+  ].join("\n");
+}
+
+async function getMarketingLead(id: number) {
+  await ensureMarketingLeadSchema();
+  const result = await pool.query<MarketingLeadRow>(
+    `SELECT id, kind, name, email, company, headcount, payroll_frequency, entities, notes,
+            notification_status, notification_provider, notification_outbox_id
+     FROM marketing_leads
+     WHERE id = $1
+     LIMIT 1`,
+    [id],
+  );
+  return result.rows[0] ?? null;
+}
+
+export async function notifyMarketingLead(id: number) {
+  const lead = await getMarketingLead(id);
+  if (!lead) {
+    return { notified: false as const, status: "failed" as const, reason: "lead-not-found" };
+  }
+  if (lead.notification_status === "sent") {
+    return { notified: true as const, status: "sent" as const, alreadySent: true as const };
+  }
+
+  const recipient = operatorInbox(lead.kind);
+  if (!recipient || !deliveryCapable()) {
+    await updateMarketingLeadNotification({
+      id: lead.id,
+      status: "not-configured",
+      provider: null,
+      outboxId: lead.notification_outbox_id,
+    });
+    return { notified: false as const, status: "not-configured" as const };
+  }
+
+  if (lead.notification_outbox_id) {
+    const retried = await retryOutboxMessage({
+      id: lead.notification_outbox_id,
+      organizationId: null,
+      actor: "system:marketing-lead-worker",
+      trigger: "automatic",
+    });
+    const status: MarketingLeadNotificationStatus = retried.ok
+      ? "sent"
+      : ("queued" in retried && retried.queued ? "queued" : "failed");
+    await updateMarketingLeadNotification({
+      id: lead.id,
+      status,
+      provider: "provider" in retried ? String(retried.provider ?? "") || null : null,
+      outboxId: lead.notification_outbox_id,
+    });
+    return {
+      notified: retried.ok,
+      status,
+      reason: retried.ok ? null : retried.error,
+    };
+  }
+
+  const result = await queueMessage({
+    recipient,
+    subject: notificationSubject(lead),
+    purpose: notificationPurpose(lead.kind),
+    dedupeKey: `marketing-lead:${lead.id}`,
+    body: notificationBody(lead),
+  });
+  const status: MarketingLeadNotificationStatus = result.delivered
+    ? "sent"
+    : result.queued
+      ? "queued"
+      : "failed";
+
+  await updateMarketingLeadNotification({
+    id: lead.id,
+    status,
+    provider: result.provider,
+    outboxId: result.id,
+  });
+
+  return {
+    notified: result.delivered,
+    status,
+    reason: result.reason ?? null,
+  };
+}
+
+export async function drainMarketingLeadNotifications(limit = 20) {
+  await ensureMarketingLeadSchema();
+  if (!deliveryCapable()) return [];
+
+  const result = await pool.query<{ id: number }>(
+    `SELECT id
+     FROM marketing_leads
+     WHERE notification_status IN ('not-configured', 'queued', 'failed')
+     ORDER BY created_at ASC
+     LIMIT $1`,
+    [Math.max(1, Math.min(limit, 100))],
+  );
+
+  const outcomes = [];
+  for (const row of result.rows) {
+    outcomes.push({ id: row.id, ...(await notifyMarketingLead(row.id)) });
+  }
+  return outcomes;
 }
