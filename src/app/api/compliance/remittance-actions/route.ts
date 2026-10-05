@@ -13,7 +13,10 @@ import {
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { syncStatutoryRemittanceActions } from "@/lib/statutory-remittance-actions";
-import { queueStatutoryComplianceEscalations } from "@/lib/statutory-remittance-escalations";
+import {
+  escalationStage,
+  queueStatutoryComplianceEscalations,
+} from "@/lib/statutory-remittance-escalations";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -67,9 +70,21 @@ async function listQueue(organizationId: number, currentUserId: number) {
     )
     .sort((a, b) => a.name.localeCompare(b.name));
 
+  const now = new Date();
   return {
     currentUserId,
-    tasks,
+    tasks: tasks.map((task) => ({
+      ...task,
+      ageHours: Math.max(
+        0,
+        Math.floor((now.getTime() - new Date(task.firstDetectedAt).getTime()) / (60 * 60 * 1000)),
+      ),
+      severityAgeHours: Math.max(
+        0,
+        Math.floor((now.getTime() - new Date(task.severityChangedAt).getTime()) / (60 * 60 * 1000)),
+      ),
+      escalationStage: escalationStage(task, now),
+    })),
     assignees,
   };
 }

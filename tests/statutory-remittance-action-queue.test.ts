@@ -133,3 +133,11 @@ test("notification dashboard fetch is limited to approved statutory compliance a
   assert.ok(dashboardData.includes('inArray(complianceActionTasks.sourceType, ["statutory_remittance", "employee_contribution_issue"])'));
   assert.ok(dashboardData.includes('ne(complianceActionTasks.status, "resolved")'));
 });
+
+test("compliance queue exposes total age and current severity age to operators", () => {
+  assert.ok(route.includes("severityAgeHours"));
+  assert.ok(route.includes("escalationStage: escalationStage(task, now)"));
+  assert.ok(queue.includes("current risk level"));
+  assert.ok(queue.includes("24h follow-up"));
+  assert.ok(queue.includes("executive escalation in"));
+});

@@ -20,6 +20,9 @@ type ActionTask = {
   acknowledgedByName: string | null;
   acknowledgedAt: string | null;
   resolvedAt: string | null;
+  ageHours: number;
+  severityAgeHours: number;
+  escalationStage: 0 | 1 | 2 | 3;
 };
 
 type Assignee = {
@@ -153,6 +156,7 @@ export function StatutoryRemittanceActionQueue({
                   <th>Due</th>
                   <th>Owner</th>
                   <th>Status</th>
+                  <th>Escalation</th>
                   <th>Action</th>
                 </tr>
               </thead>
@@ -191,6 +195,23 @@ export function StatutoryRemittanceActionQueue({
                       <Status value={severityLabel(task.severity)} />
                       <small style={{ display: "block", color: "var(--muted)", marginTop: 4 }}>
                         {task.status === "in_progress" ? "In progress" : "Open"}
+                      </small>
+                    </td>
+                    <td>
+                      <strong>
+                        {task.escalationStage >= 3
+                          ? "Executive"
+                          : task.escalationStage === 2
+                            ? "24h follow-up"
+                            : "Initial"}
+                      </strong>
+                      <small style={{ display: "block", color: "var(--muted)", marginTop: 4 }}>
+                        Open {task.ageHours}h · current risk level {task.severityAgeHours}h
+                        {task.escalationStage === 1
+                          ? ` · next follow-up in ${Math.max(0, 24 - task.severityAgeHours)}h`
+                          : task.escalationStage === 2
+                            ? ` · executive escalation in ${Math.max(0, 72 - task.severityAgeHours)}h`
+                            : " · highest escalation stage"}
                       </small>
                     </td>
                     <td>
