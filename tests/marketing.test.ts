@@ -103,6 +103,16 @@ test("homepage simulation uses the real workspace navigation and no dead client 
   assert.ok(!preview.includes("client.id !== 1"), "homepage preview must not branch into disconnected client datasets");
 });
 
+test("public marketing examples use the production payrollsoftware.ph domain", () => {
+  const trust = read("src/components/marketing/claude-home/components/Trust.tsx");
+  const helper = read("src/lib/site-url.ts");
+
+  assert.ok(helper.includes("https://payrollsoftware.ph"), "canonical host must default to payrollsoftware.ph");
+  assert.ok(trust.includes("https://payrollsoftware.ph/api/v1/employees"), "public API example must use the production domain");
+  assert.ok(!trust.includes("app.linaw.ph"), "obsolete app.linaw.ph examples must not return");
+});
+
+
 test("homepage buyer flow explains payroll handoffs before secondary tools", () => {
   const home = read("src/components/marketing/claude-home/App.tsx");
   const product = read("src/components/marketing/claude-home/components/Product.tsx");
