@@ -101,3 +101,11 @@ test("posting mismatch auto-cases are deduplicated against existing open employe
   assert.ok(route.includes('inArray(statutoryContributionIssueCases.status, ["open", "in_review"])'));
   assert.ok(route.includes("existingEmployeeIds"));
 });
+
+
+test("posting mismatch auto-cases invalidate any prior certified remittance month", () => {
+  assert.ok(route.includes("invalidateStatutoryRemittanceMonthCertification"));
+  assert.ok(route.includes("agency_posting_amount_mismatch_cases_opened"));
+  assert.ok(route.includes("Statutory remittance month certification invalidated"));
+  assert.ok(route.includes("invalidatedClosureIds"));
+});
