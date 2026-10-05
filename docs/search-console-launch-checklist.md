@@ -66,6 +66,10 @@ For high-risk compliance pages:
 
 Before release, run `npm run seo:audit` and `npm run seo:routes`. The ownership audit must pass with no duplicate intent owners, duplicate sitemap paths, private-route ownership, title collisions or broken authority related links. The route audit must confirm every sitemap URL resolves to an indexable page with title, description and canonical metadata.
 
+## Dynamic SEO route contracts
+
+`npm run seo:audit` also validates dynamic SEO families for static params, generated title/description metadata, self-canonical URLs, not-found handling and the expected structured-data type. Customer stories are the only dynamic SEO family allowed conditional noindex because publication is evidence-gated.
+
 ## Release gate
 
 Before considering a new SEO wave complete:
