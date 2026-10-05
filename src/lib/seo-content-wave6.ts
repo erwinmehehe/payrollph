@@ -246,7 +246,7 @@ export const integrationWave6: AuthorityPage[] = [
       },
       {
         title: "Treat hardware compatibility as an implementation question",
-        body: "The route exposes ADMS push, TCP/IP gateway and REST webhook patterns, but a specific device should still be tested before describing it as supported.",
+        body: "The route exposes ADMS push, TCP/IP gateway and REST webhook patterns, but specific hardware should still be tested before describing it as supported.",
       },
     ],
     faq: [
