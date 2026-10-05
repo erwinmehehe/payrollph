@@ -1212,21 +1212,30 @@ export const disciplinaryCases = pgTable("disciplinary_cases", {
 export const jobRequisitions = pgTable("job_requisitions", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  positionId: integer("position_id").references(() => positions.id, { onDelete: "set null" }),
+  jobProfileId: integer("job_profile_id").references(() => jobProfiles.id, { onDelete: "set null" }),
+  orgUnitId: integer("org_unit_id").references(() => orgUnits.id, { onDelete: "set null" }),
+  managerEmployeeId: integer("manager_employee_id").references(() => employees.id, { onDelete: "set null" }),
   title: varchar("title", { length: 160 }).notNull(),
   department: varchar("department", { length: 120 }).notNull(),
   headcount: integer("headcount").notNull().default(1),
   salaryMin: numeric("salary_min", { precision: 12, scale: 2 }),
   salaryMax: numeric("salary_max", { precision: 12, scale: 2 }),
   employmentType: varchar("employment_type", { length: 32 }).notNull().default("Full-time"),
+  targetStartDate: date("target_start_date"),
   status: varchar("status", { length: 32 }).notNull().default("open"), // "open", "interviewing", "filled", "cancelled"
   description: text("description"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("job_requisitions_position_idx").on(table.organizationId, table.positionId),
+  index("job_requisitions_org_unit_idx").on(table.organizationId, table.orgUnitId),
+]);
 
 export const jobApplicants = pgTable("job_applicants", {
   id: serial("id").primaryKey(),
   requisitionId: integer("requisition_id").notNull().references(() => jobRequisitions.id, { onDelete: "cascade" }),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  hiredEmployeeId: integer("hired_employee_id").references(() => employees.id, { onDelete: "set null" }),
   fullName: varchar("full_name", { length: 160 }).notNull(),
   email: varchar("email", { length: 160 }).notNull(),
   phone: varchar("phone", { length: 32 }),
@@ -1235,6 +1244,7 @@ export const jobApplicants = pgTable("job_applicants", {
   resumeUrl: text("resume_url"),
   notes: text("notes"),
   offeredSalary: numeric("offered_salary", { precision: 12, scale: 2 }),
+  hiredAt: timestamp("hired_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
