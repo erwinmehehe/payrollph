@@ -1,4 +1,4 @@
-import { asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
   organizations,
@@ -73,7 +73,7 @@ export async function GET(request: Request) {
   }
 
   const batches = await db.select().from(statutoryRemittanceBatches)
-    .where(inArray(statutoryRemittanceBatches.applicableMonth, applicableMonths))
+    .where(and(\n      eq(statutoryRemittanceBatches.organizationId, organizationId),\n      inArray(statutoryRemittanceBatches.applicableMonth, applicableMonths),\n    ))
     .orderBy(asc(statutoryRemittanceBatches.applicableMonth), asc(statutoryRemittanceBatches.agency));
 
   const organizationBatches = batches.filter((batch) => batch.organizationId === organizationId);
