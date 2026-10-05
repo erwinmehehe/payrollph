@@ -9,6 +9,7 @@ import {
 import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { notifyEmployeeOfContributionCase } from "@/lib/statutory-contribution-case-notifications";
+import { contributionCaseServiceStatus, contributionCaseServiceTargets } from "@/lib/statutory-contribution-case-aging";
 import { getSessionUser } from "@/lib/auth";
 import {
   enforceSameOriginMutation,
@@ -79,6 +80,7 @@ export async function GET(request: Request) {
       ...row.issue,
       employeeNo: row.employeeNo,
       employeeName: `${row.firstName} ${row.lastName}`,
+      service: contributionCaseServiceStatus(row.issue),
     })),
   });
 }
@@ -144,6 +146,8 @@ export async function POST(request: Request) {
       eq(statutoryContributionIssueCases.organizationId, organizationId),
     )).returning();
 
+    const serviceTargets = contributionCaseServiceTargets(updated);
+
     await db.update(complianceActionTasks).set({
       status: "in_progress",
       assignedToUserId: user.id,
@@ -151,6 +155,7 @@ export async function POST(request: Request) {
       acknowledgedAt: now,
       acknowledgedByUserId: user.id,
       acknowledgedByName: user.name,
+      dueDate: serviceTargets.resolutionDue.toISOString().slice(0, 10),
       updatedAt: now,
     }).where(and(
       eq(complianceActionTasks.organizationId, organizationId),
