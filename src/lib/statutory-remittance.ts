@@ -174,6 +174,28 @@ export function effectiveRemittanceDueDate(input: {
   return nextWorkingDay(nominal);
 }
 
+export function canConfirmMemberPosting(input: {
+  expectedTotal: number;
+  postedAmount: number;
+  postingReference: string;
+}) {
+  const expected = round2(input.expectedTotal);
+  const posted = round2(input.postedAmount);
+  if (!Number.isFinite(posted) || posted < 0) {
+    return { ok: false as const, error: "Posted amount must be a valid non-negative number." };
+  }
+  if (Math.abs(expected - posted) > 0.01) {
+    return {
+      ok: false as const,
+      error: "Agency-posted amount must match the employee's expected contribution. Record a posting exception instead.",
+    };
+  }
+  if (input.postingReference.trim().length < 4) {
+    return { ok: false as const, error: "Agency posting reference is required." };
+  }
+  return { ok: true as const };
+}
+
 export function canMarkRemittancePaid(input: {
   expectedTotal: number;
   amountPaid: number;
