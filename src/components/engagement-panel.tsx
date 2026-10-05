@@ -138,7 +138,7 @@ export function EngagementPanel({ organizationId, setNotice }: { organizationId:
         prompt: questionForm.prompt,
         type: questionForm.type,
         required: questionForm.required,
-        sortOrder: selectedSurvey?.questions.length ?? 0,
+        sortOrder: data.surveys.find((survey) => survey.id === Number(questionForm.surveyId))?.questions.length ?? 0,
       });
       setQuestionForm({ surveyId: "", prompt: "", type: "rating_1_5", required: true });
       setShowQuestion(false);
