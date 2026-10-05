@@ -452,3 +452,11 @@ npm run build
 - **pilot** mode requires the security-critical gates to be green and permits only readiness gates that already document a manual operational workaround.
 - **full** mode requires `status: launch-ready`; no launch blocker may remain.
 - The workflow uploads a seven-day JSON report and never writes the readiness token into the artifact.
+
+### Enterprise identity and automation
+- Verified OIDC SSO uses authorization-code + PKCE, signed ID-token validation, verified company domains and encrypted client secrets; SSO-required mode cannot be enabled from an unproven local session.
+- SCIM-style provisioning uses one-time bearer tokens stored only as hashes and deactivates the workspace membership rather than a shared global user account.
+- Session policy supports idle timeout, absolute lifetime, concurrent-session caps and optional MFA requirements; the strictest active workspace policy governs a multi-workspace user.
+- Custom permission sets are deny-only overlays: they may remove role capabilities but never grant privileges outside the base role.
+- Joiner/mover/leaver rules run only after authoritative HR events commit, are idempotent by rule/event, isolate failures, and keep execution evidence.
+- Governed position transfer closes the old assignment, fills the approved target position, updates employee structure and then triggers mover automation.
