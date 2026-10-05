@@ -11,43 +11,6 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
-const softwareSchema = {
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "WebSite",
-      name: "Linaw",
-      description: "Philippine payroll software for controlled, traceable payroll operations.",
-      inLanguage: "en-PH",
-    },
-    {
-      "@type": "SoftwareApplication",
-      name: "Linaw",
-      applicationCategory: "BusinessApplication",
-      operatingSystem: "Web",
-      description:
-        "Philippine payroll software with statutory calculations, role-based approvals, employee payslips, attendance workflows and controlled payroll outputs.",
-      areaServed: { "@type": "Country", name: "Philippines" },
-      featureList: [
-        "Philippine payroll calculations",
-        "Role-based payroll approvals",
-        "Employee payslips",
-        "Attendance and workforce scheduling",
-        "Accounting exports",
-        "Draft government payroll worksheets",
-      ],
-    },
-  ],
-};
-
 export default function HomePage() {
-  return (
-    <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareSchema).replace(/</g, "\\u003c") }}
-      />
-      <SoftwareHome />
-    </>
-  );
+  return <SoftwareHome />;
 }
