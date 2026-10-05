@@ -44,3 +44,24 @@ test("compliance escalation email retries use bounded outbox backoff", () => {
   assert.ok(mailer.includes("MAX_AUTOMATIC_RETRIES + 1"));
   assert.ok(mailer.includes('inArray(outbox.purpose, ["payslip-ready", "statutory-remittance-escalation", "employee-contribution-case"])'));
 });
+
+test("aged escalation stages are deduped per episode, severity, stage and recipient", () => {
+  assert.ok(escalations.includes("stage: EscalationStage"));
+  assert.ok(escalations.includes("stage-"));
+  assert.ok(escalations.includes("const stage = escalationStage(task, now)"));
+  assert.ok(escalations.includes("stage,"));
+});
+
+test("severity changes reset escalation aging instead of inheriting warning lifetime", () => {
+  assert.ok(schema.includes('severityChangedAt: timestamp("severity_changed_at"'));
+  assert.ok(actions.includes("severityChanged = current.severity !== alert.tone"));
+  assert.ok(actions.includes("severityChangedAt: severityChanged ? now : current.severityChangedAt"));
+  assert.ok(actions.includes("severityChangedAt: now"));
+});
+
+test("escalation stage is based on current severity age, with bounded 24h and 72h thresholds", () => {
+  assert.ok(escalations.includes("task.severityChangedAt"));
+  assert.ok(escalations.includes("24 * 60 * 60 * 1000"));
+  assert.ok(escalations.includes("72 * 60 * 60 * 1000"));
+  assert.ok(escalations.includes("Executive payroll compliance escalation"));
+});
