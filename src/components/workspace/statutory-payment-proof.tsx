@@ -67,6 +67,10 @@ export function StatutoryPaymentProof({
       notify("Explain why the active payment proof is being replaced.", "err");
       return;
     }
+    if (!active && batchStatus !== "open" && replacementReason.trim().length < 8) {
+      notify("Explain why historical payment proof is being backfilled.", "err");
+      return;
+    }
 
     setBusy(true);
     try {
@@ -118,7 +122,7 @@ export function StatutoryPaymentProof({
         </div>
       )}
 
-      {batchStatus === "open" && (
+      {(batchStatus === "open" || !active) && (
         <div className="setting-form">
           <label>
             Receipt / acknowledgement file
@@ -128,20 +132,22 @@ export function StatutoryPaymentProof({
               onChange={(event) => setFile(event.target.files?.[0] ?? null)}
             />
           </label>
-          {active && (
+          {(active || batchStatus !== "open") && (
             <label>
-              Replacement reason
+              {active ? "Replacement reason" : "Historical backfill reason"}
               <input
                 value={replacementReason}
                 onChange={(event) => setReplacementReason(event.target.value)}
-                placeholder="Why the previous proof must be superseded"
+                placeholder={active
+                  ? "Why the previous proof must be superseded"
+                  : "Why this paid historical batch needs evidence backfilled"}
               />
             </label>
           )}
           <div style={{ alignSelf: "end" }}>
             <button className="secondary-button" disabled={busy || !file} onClick={() => void upload()}>
               {busy ? <Spinner label="Uploading" /> : <UploadCloud size={14} />}
-              {active ? "Replace proof" : "Upload proof"}
+              {active ? "Replace proof" : batchStatus === "open" ? "Upload proof" : "Backfill proof"}
             </button>
           </div>
         </div>
