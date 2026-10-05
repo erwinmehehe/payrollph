@@ -138,7 +138,10 @@ export async function GET(request: Request) {
   );
   const visibleStrategicIds = new Set(visibleStrategic.map((goal) => goal.id));
 
-  const visibleSeries = seriesRows.filter((series) => visibleIds.has(series.employeeId));
+  const visibleSeries = seriesRows.filter((series) =>
+    visibleIds.has(series.employeeId)
+    && (access.role !== "manager" || series.managerEmployeeId === user.employeeId)
+  );
   const visibleSeriesIds = new Set(visibleSeries.map((series) => series.id));
   const visibleMeetings = meetingRows.filter((meeting) => visibleSeriesIds.has(meeting.seriesId));
   const visibleMeetingIds = new Set(visibleMeetings.map((meeting) => meeting.id));
@@ -474,12 +477,15 @@ export async function POST(request: Request) {
       if (!Number.isInteger(employeeId) || employeeId === subjectEmployeeId || seen.has(employeeId) || !(FEEDBACK_RELATIONSHIPS as readonly string[]).includes(relationship)) {
         return Response.json({ error: "Each 360 reviewer must be unique, valid, not the subject, and have a valid relationship." }, { status: 400 });
       }
-      const [reviewer] = await db.select({ id: employees.id }).from(employees).where(and(
+      const [reviewer] = await db.select({ id: employees.id, orgUnitId: employees.orgUnitId }).from(employees).where(and(
         eq(employees.id, employeeId),
         eq(employees.organizationId, organizationId),
         eq(employees.status, "Active"),
       )).limit(1);
       if (!reviewer) return Response.json({ error: "A selected feedback reviewer is not an active employee." }, { status: 404 });
+      if (!access.companyWide && reviewer.orgUnitId !== access.orgUnitId) {
+        return Response.json({ error: "A selected feedback reviewer is outside your assigned organization unit." }, { status: 403 });
+      }
       seen.add(employeeId);
       reviewers.push({ employeeId, relationship });
     }
@@ -531,6 +537,9 @@ export async function POST(request: Request) {
       eq(employees.status, "Active"),
     )).limit(1);
     if (!mentor) return Response.json({ error: "Mentor employee profile not found or inactive." }, { status: 404 });
+    if (!access.companyWide && mentor.orgUnitId !== access.orgUnitId) {
+      return Response.json({ error: "Mentor is outside your assigned organization unit." }, { status: 403 });
+    }
 
     const [row] = await db.insert(mentorships).values({
       organizationId,
