@@ -148,6 +148,7 @@ test("Pag-IBIG monthly worksheet uses its dedicated compensation base, not the S
     name: "HDMF Base Audit",
     legalName: "HDMF Base Audit Inc.",
     plan: "Core",
+    pagIbigEmployerNo: "123456789012",
   }).returning();
 
   try {
