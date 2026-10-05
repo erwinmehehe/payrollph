@@ -170,3 +170,82 @@ test("approved correction changes the close snapshot and is preserved in certifi
   assert.equal(after.batches[0]?.paymentRecordedBy, "Payroll A");
   assert.equal(after.members[0]?.confirmedBy, "Payroll B");
 });
+
+
+test("unresolved employee contribution issue blocks month certification", () => {
+  const result = evaluateRemittanceMonthClose({
+    applicableMonth: "2026-09",
+    batches: [reconciledBatch],
+    members: [{
+      batchId: 1,
+      employeeId: 10,
+      postingStatus: "confirmed",
+      postedAmount: "1000.00",
+      postingReference: "POST-1",
+      confirmedBy: "Payroll B",
+    }],
+    alerts: [],
+    issueCases: [{
+      id: 501,
+      employeeId: 10,
+      agency: "SSS",
+      applicableMonth: "2026-09",
+      issueType: "missing_posting",
+      status: "open",
+      reportedByName: "Employee A",
+      createdAt: "2026-10-22T00:00:00.000Z",
+    }],
+    requiredAgencies: ["SSS"],
+    allPayrollRunsReleased: true,
+  });
+
+  assert.equal(result.ready, false);
+  assert.ok(result.blockers.some((value) => /employee contribution issue case/i.test(value)));
+  assert.equal(result.issueCases.length, 1);
+});
+
+test("employee issue history permanently changes certification snapshot even after resolution", () => {
+  const base = {
+    applicableMonth: "2026-09",
+    batches: [reconciledBatch],
+    members: [{
+      batchId: 1,
+      employeeId: 10,
+      postingStatus: "confirmed",
+      postedAmount: "1000.00",
+      postingReference: "POST-1",
+      confirmedBy: "Payroll B",
+    }],
+    alerts: [],
+    requiredAgencies: ["SSS"],
+    allPayrollRunsReleased: true,
+  };
+
+  const original = evaluateRemittanceMonthClose({
+    ...base,
+    issueCases: [],
+  });
+
+  const resolved = evaluateRemittanceMonthClose({
+    ...base,
+    issueCases: [{
+      id: 501,
+      employeeId: 10,
+      agency: "SSS",
+      applicableMonth: "2026-09",
+      issueType: "missing_posting",
+      status: "resolved",
+      reportedByName: "Employee A",
+      assignedToName: "Payroll C",
+      resolutionOutcome: "posting_confirmed",
+      resolutionNote: "Agency posting was reconciled and employee was notified.",
+      resolvedByName: "Payroll C",
+      createdAt: "2026-10-22T00:00:00.000Z",
+      resolvedAt: "2026-10-23T00:00:00.000Z",
+    }],
+  });
+
+  assert.equal(resolved.ready, true);
+  assert.notEqual(original.snapshotHash, resolved.snapshotHash);
+  assert.equal(resolved.issueCases[0]?.resolvedByName, "Payroll C");
+});
