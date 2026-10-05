@@ -68,6 +68,48 @@ export const CALCULATORS = {
 
 export type CalculatorSlug = keyof typeof CALCULATORS;
 
+export const CALCULATOR_LAST_REVIEWED = "October 5, 2026";
+
+export const CALCULATOR_SOURCES: Partial<Record<CalculatorSlug, Array<{ label: string; href: string }>>> = {
+  "13th-month-pay": [
+    { label: "NWPC/BWC Handbook on Workers' Statutory Monetary Benefits", href: "https://nwpc.dole.gov.ph/bwc-handbook-workers-statutory-monetary-benefits/" },
+  ],
+  "overtime-pay": [
+    { label: "DOLE Labor Code, Book III", href: "https://dole.gov.ph/book-3-conditions-of-employment/" },
+    { label: "NWPC/BWC Handbook on Workers' Statutory Monetary Benefits", href: "https://nwpc.dole.gov.ph/bwc-handbook-workers-statutory-monetary-benefits/" },
+  ],
+  "night-differential": [
+    { label: "DOLE Labor Code, Book III", href: "https://dole.gov.ph/book-3-conditions-of-employment/" },
+    { label: "NWPC/BWC Handbook on Workers' Statutory Monetary Benefits", href: "https://nwpc.dole.gov.ph/bwc-handbook-workers-statutory-monetary-benefits/" },
+  ],
+  "holiday-pay": [
+    { label: "DOLE Labor Code, Book III", href: "https://dole.gov.ph/book-3-conditions-of-employment/" },
+    { label: "NWPC/BWC Handbook on Workers' Statutory Monetary Benefits", href: "https://nwpc.dole.gov.ph/bwc-handbook-workers-statutory-monetary-benefits/" },
+  ],
+  "sss-contribution": [
+    { label: "SSS Pay Contributions", href: "https://www.sss.gov.ph/pay-contribution/" },
+    { label: "SSS Contribution Table", href: "https://www.sss.gov.ph/sss-contribution-table/" },
+  ],
+  "philhealth-contribution": [
+    { label: "PhilHealth Premium Contribution Advisory 2025-0002", href: "https://www.philhealth.gov.ph/advisories/2025/PA2025-0002.pdf" },
+    { label: "PhilHealth Universal Health Care contribution schedule", href: "https://www.philhealth.gov.ph/uhc/" },
+  ],
+  "pag-ibig-contribution": [
+    { label: "Pag-IBIG Membership Guidelines", href: "https://www.pagibigfund.gov.ph/document/pdf/circulars/provident/HDMF%20Circular%20No.%20274%20-%20Revised%20Guidelines%20on%20Pag-IBIG%20Fund%20Membership.pdf" },
+    { label: "Pag-IBIG Employer Contribution and Remittance Guidelines", href: "https://www.pagibigfund.gov.ph/document/pdf/circulars/provident/HDMF%20Circular%20275%20-%20Implementing%20Guidelines%20on%20Employer%20Registration%20Contribution%20and%20Remittance.pdf" },
+  ],
+  "withholding-tax": [
+    { label: "BIR Withholding Tax Calculator", href: "https://web-services.bir.gov.ph/tax_calculator/wt_calculator.html" },
+    { label: "BIR 2026 Revenue Regulations", href: "https://www.bir.gov.ph/2026-Revenue-Regulations" },
+  ],
+  "payroll-cost": [
+    { label: "SSS Pay Contributions", href: "https://www.sss.gov.ph/pay-contribution/" },
+    { label: "PhilHealth Universal Health Care contribution schedule", href: "https://www.philhealth.gov.ph/uhc/" },
+    { label: "Pag-IBIG Employer Contribution and Remittance Guidelines", href: "https://www.pagibigfund.gov.ph/document/pdf/circulars/provident/HDMF%20Circular%20275%20-%20Implementing%20Guidelines%20on%20Employer%20Registration%20Contribution%20and%20Remittance.pdf" },
+  ],
+};
+
+
 export const ADVANCED_CALCULATOR_SLUGS = [
   "final-pay",
   "daily-rate",
