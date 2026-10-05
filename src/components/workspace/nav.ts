@@ -1,6 +1,7 @@
 import {
   AlertCircle,
   Banknote,
+  BriefcaseBusiness,
   CalendarDays,
   Calculator,
   ClipboardCheck,
