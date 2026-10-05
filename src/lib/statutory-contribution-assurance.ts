@@ -1,3 +1,4 @@
+import { decryptGovernmentId } from "@/lib/government-id-crypto";
 import { computePagIbig, computePhilHealth, computeSss } from "@/lib/payroll-rules";
 import type { StatutoryAgency } from "@/lib/statutory-remittance";
 
@@ -11,13 +12,16 @@ type Entry = {
 type EmployeeIdentity = {
   id: number;
   employeeNo: string;
+  sssNo?: string | null;
+  philHealthNo?: string | null;
+  pagIbigNo?: string | null;
 };
 
 export type StatutoryContributionVariance = {
   employeeId: number;
   employeeNo: string;
   agency: StatutoryAgency;
-  component: "employee" | "employer" | "basis";
+  component: "employee" | "employer" | "basis" | "identity";
   expected: number | null;
   actual: number | null;
   difference: number | null;
@@ -61,6 +65,34 @@ function expenseReimbursements(lineItems: unknown) {
     .reduce((sum, item) =>
       sum + Math.max(0, Number((item as { amount?: unknown }).amount ?? 0) || 0),
     0));
+}
+
+function validateAgencyIdentity(
+  employee: EmployeeIdentity,
+  agency: StatutoryAgency,
+): string | null {
+  const stored =
+    agency === "SSS"
+      ? employee.sssNo
+      : agency === "PhilHealth"
+        ? employee.philHealthNo
+        : employee.pagIbigNo;
+  if (!stored?.trim()) {
+    return `${employee.employeeNo} is missing the ${agency} membership number required for member posting.`;
+  }
+
+  let plain: string | null;
+  try {
+    plain = decryptGovernmentId(stored);
+  } catch {
+    return `${employee.employeeNo} has a ${agency} membership number that cannot be decrypted with the configured key.`;
+  }
+  const digits = String(plain ?? "").replace(/\D/g, "");
+  const expectedDigits = agency === "SSS" ? 10 : 12;
+  if (digits.length !== expectedDigits) {
+    return `${employee.employeeNo} has a ${agency} membership number with an invalid digit count.`;
+  }
+  return null;
 }
 
 function addVariance(
@@ -173,6 +205,20 @@ export function auditStatutoryContributionMonth(input: {
         message: `Employee #${employeeId} is missing from statutory assurance identity data.`,
       });
       continue;
+    }
+
+    const identityError = validateAgencyIdentity(employee, input.agency);
+    if (identityError) {
+      issues.push({
+        employeeId,
+        employeeNo: employee.employeeNo,
+        agency: input.agency,
+        component: "identity",
+        expected: null,
+        actual: null,
+        difference: null,
+        message: identityError,
+      });
     }
 
     if (input.agency === "SSS") {
