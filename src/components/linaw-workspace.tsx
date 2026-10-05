@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Clock, ShieldCheck, Sparkles } from "lucide-react";
 import { AssetsPanel } from "@/components/assets-panel";
 import { BenefitsPanel } from "@/components/benefits-panel";
-import { ContractorsPanel } from "@/components/contractors-panel";
+import { ContractorsPanel } from "@/components/contractors-panel";\nimport { CompensationPanel } from "@/components/compensation-panel";
 import { DeMinimisPanel } from "@/components/de-minimis-panel";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { DisciplinePanel } from "@/components/discipline-panel";
@@ -448,7 +448,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
           />
         )}
 
-        {page === "Planning" && <WorkforcePlanningPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Planning" && <WorkforcePlanningPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}\n        {page === "Compensation" && <CompensationPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Workforce" && (
           <WorkforcePlanner
             data={data}
