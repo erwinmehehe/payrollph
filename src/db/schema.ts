@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   date,
@@ -1472,6 +1473,9 @@ export const positionAssignments = pgTable(
   },
   (table) => [
     uniqueIndex("position_assignments_position_from_unique").on(table.positionId, table.effectiveFrom),
+    uniqueIndex("position_assignments_active_position_unique")
+      .on(table.positionId)
+      .where(sql`${table.effectiveUntil} is null`),
     index("position_assignments_employee_idx").on(table.organizationId, table.employeeId),
   ],
 );
