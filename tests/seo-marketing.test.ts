@@ -185,3 +185,35 @@ test("public navigation exposes the SEO program without hiding the live demo", (
     assert.ok(navigation.includes(`href: "${route}"`), `public navigation must expose ${route}`);
   }
 });
+
+
+test("homepage schema reuses the visible FAQ content and identifies the provider", () => {
+  const home = read("src/app/page.tsx");
+  const closing = read("src/components/marketing/claude-home/components/Closing.tsx");
+  const faqData = read("src/components/marketing/homepage-faqs.ts");
+
+  assert.ok(home.includes('"@type": "Organization"'), "homepage schema must identify Linaw as the provider organization");
+  assert.ok(home.includes('"@type": "SoftwareApplication"'), "homepage must keep SoftwareApplication schema");
+  assert.ok(home.includes('"@type": "FAQPage"'), "visible homepage FAQs must have FAQPage structured data");
+  assert.ok(home.includes("HOMEPAGE_FAQS.map"), "FAQ schema must come from the visible FAQ source");
+  assert.ok(closing.includes("HOMEPAGE_FAQS.map"), "visible FAQ must use the same shared FAQ source");
+  assert.ok(faqData.includes("They stay labelled DRAFT"), "government-output qualification must stay in the shared FAQ copy");
+  assert.ok(!home.includes("aggregateRating"), "homepage schema must not invent ratings");
+  assert.ok(!home.includes("review:"), "homepage schema must not invent reviews");
+});
+
+test("outsourcing and key landing pages have page-specific share metadata", () => {
+  const outsourcing = read("src/app/payroll-outsourcing/page.tsx");
+  const demo = read("src/app/demo/page.tsx");
+  const scorecard = read("src/app/scorecard/page.tsx");
+
+  assert.ok(outsourcing.includes('"@type": "Service"'), "outsourcing page must expose Service schema");
+  assert.ok(outsourcing.includes('serviceType: "Payroll outsourcing and managed payroll processing"'));
+  assert.ok(!outsourcing.includes("aggregateRating"), "service schema must not invent ratings");
+
+  for (const [name, source] of [["outsourcing", outsourcing], ["demo", demo], ["scorecard", scorecard]]) {
+    assert.ok(source.includes("openGraph:"), `${name} must override generic homepage Open Graph metadata`);
+    assert.ok(source.includes("twitter:"), `${name} must override generic homepage Twitter metadata`);
+    assert.ok(source.includes('card: "summary_large_image"'), `${name} must keep large-image social cards`);
+  }
+});

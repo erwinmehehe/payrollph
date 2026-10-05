@@ -19,6 +19,35 @@ export const metadata: Metadata = {
   title: "Payroll Outsourcing Philippines | Managed Payroll | Linaw",
   description: "Payroll outsourcing for Philippine businesses covering payroll processing, exception review, statutory calculations, approvals, reports and supported outputs.",
   alternates: { canonical: "/payroll-outsourcing" },
+  openGraph: {
+    title: "Payroll Outsourcing Philippines | Managed Payroll | Linaw",
+    description:
+      "Managed payroll processing for Philippine businesses with a controlled input, exception, approval and output workflow.",
+    url: "/payroll-outsourcing",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Payroll Outsourcing Philippines | Linaw",
+    description:
+      "Managed Philippine payroll processing with clear exceptions, approval handoff, payslips, reports and supported outputs.",
+  },
+};
+
+const outsourcingSchema = {
+  "@context": "https://schema.org",
+  "@type": "Service",
+  name: "Linaw Payroll Outsourcing",
+  serviceType: "Payroll outsourcing and managed payroll processing",
+  description:
+    "Managed payroll processing for Philippine businesses with payroll calculation, validation, exception handling, approval handoff, payslips, reports and supported payroll outputs.",
+  provider: {
+    "@type": "Organization",
+    name: "Linaw",
+  },
+  areaServed: {
+    "@type": "Country",
+    name: "Philippines",
+  },
 };
 
 const PROCESS = [
@@ -74,6 +103,10 @@ const SCOPE = [
 export default function PayrollOutsourcingPage() {
   return (
     <div className="min-h-screen bg-white text-[#0B0D1A]">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(outsourcingSchema).replace(/</g, "\\u003c") }}
+      />
       <SiteNav />
 
       <main>
