@@ -9,7 +9,7 @@ import {
 } from "@/db/schema";
 import { buildStatutoryRemittanceAlerts } from "@/lib/statutory-remittance-alerts";
 import {
-  nominalRemittanceDueDate,
+  effectiveRemittanceDueDate,
   statutorySharesForEntry,
   type StatutoryAgency,
 } from "@/lib/statutory-remittance";
@@ -122,7 +122,7 @@ export async function loadStatutoryRemittanceState(organizationId: number) {
       .map((agency) => {
         let dueDate: string | null = null;
         try {
-          dueDate = nominalRemittanceDueDate({
+          dueDate = effectiveRemittanceDueDate({
             agency,
             applicableMonth,
             legalName: organization.legalName,
