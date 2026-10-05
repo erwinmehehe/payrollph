@@ -683,6 +683,15 @@ export function SelfServicePortal() {
                   {row.postingReference && <div><span>Posting reference</span><strong>{row.postingReference}</strong></div>}
                   {row.exceptionNote && <div><span>Issue</span><strong>{row.exceptionNote}</strong></div>}
                   <div>
+                    <span>Evidence</span>
+                    <a
+                      className="secondary-button"
+                      href={`/api/self/contribution-evidence?agency=${encodeURIComponent(row.agency)}&month=${encodeURIComponent(row.applicableMonth)}`}
+                    >
+                      <Download size={13} /> Download evidence
+                    </a>
+                  </div>
+                  <div>
                     <span>Something wrong?</span>
                     <button
                       className="secondary-button"
@@ -728,6 +737,15 @@ export function SelfServicePortal() {
                   {issue.assignedToName && <div><span>Reviewing</span><strong>{issue.assignedToName}</strong></div>}
                   {issue.resolutionOutcome && <div><span>Outcome</span><strong>{issue.resolutionOutcome.replaceAll("_", " ")}</strong></div>}
                   {issue.resolutionNote && <div><span>Payroll response</span><strong>{issue.resolutionNote}</strong></div>}
+                  <div>
+                    <span>Evidence packet</span>
+                    <a
+                      className="secondary-button"
+                      href={`/api/self/contribution-evidence?agency=${encodeURIComponent(issue.agency)}&month=${encodeURIComponent(issue.applicableMonth)}`}
+                    >
+                      <Download size={13} /> Download case evidence
+                    </a>
+                  </div>
                 </div>
               </div>
             ))}
