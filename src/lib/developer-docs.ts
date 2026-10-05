@@ -1,6 +1,8 @@
 export type DeveloperDoc = {
   slug: string;
   title: string;
+  metaTitle?: string;
+  metaDescription?: string;
   description: string;
   intro: string;
   sections: Array<{
@@ -16,6 +18,8 @@ export const developerDocs: DeveloperDoc[] = [
   {
     slug: "authentication",
     title: "API Authentication & Scopes",
+    metaTitle: "Payroll API Authentication & Scopes | Linaw Developers",
+    metaDescription: "Learn how Linaw payroll API keys are created, scoped, stored, revoked and authenticated, including MFA-protected administration and least-privilege access.",
     description: "How Linaw API keys are created, stored, scoped, revoked and used to authenticate public API requests.",
     intro: "Linaw API keys are organization-scoped credentials created by company-wide administrators. The full key is shown once, while only a SHA-256 hash is stored after creation.",
     sections: [
@@ -48,6 +52,8 @@ export const developerDocs: DeveloperDoc[] = [
   {
     slug: "employees",
     title: "Employees API",
+    metaTitle: "Payroll Employee API Philippines | Linaw Developers",
+    metaDescription: "Use the Linaw employee API to list and create organization-scoped employee records with explicit read/write scopes, pagination, validation and idempotency.",
     description: "Read paginated employee records and create employees through the Linaw public API.",
     intro: "The employee API is organization-scoped through the API key. Reads require employees:read, while writes require employees:write.",
     sections: [
@@ -94,6 +100,8 @@ Content-Type: application/json
   {
     slug: "payroll-runs",
     title: "Payroll Runs API",
+    metaTitle: "Payroll Runs API Philippines | Linaw Developers",
+    metaDescription: "Read organization-scoped payroll run summaries through the Linaw API with payroll:read scope, pagination, rate limits and protected release workflows.",
     description: "Read payroll run summaries through the Linaw public API with payroll:read scope.",
     intro: "The payroll-runs endpoint is currently read-only. It exposes payroll run status and summary values for the organization associated with the API key.",
     sections: [
@@ -125,6 +133,8 @@ Authorization: Bearer <your-api-key>`,
   {
     slug: "webhooks",
     title: "Webhooks & Signature Verification",
+    metaTitle: "Payroll Webhooks & Signatures | Linaw Developers",
+    metaDescription: "Receive Linaw payroll and employee events through HMAC-signed webhooks with timestamps, delivery logging, retry behavior and signature verification guidance.",
     description: "Receive signed Linaw payroll, employee, leave and approval events with retry-aware delivery behavior.",
     intro: "Linaw webhooks use per-endpoint secrets and an HMAC-SHA256 signature. Delivery attempts are logged and failed deliveries can be retried using a bounded backoff schedule.",
     sections: [
