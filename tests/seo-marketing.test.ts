@@ -337,6 +337,32 @@ test("payroll glossary entries have useful search and explanatory depth", () => 
   assert.ok(structured.includes('"@type": "DefinedTerm"'), "shared structured data must support DefinedTerm schema");
 });
 
+test("dated regulatory updates stay source-specific and actionable", () => {
+  const wave3 = read("src/lib/seo-content-wave3.ts");
+  const page = read("src/app/resources/updates/[slug]/page.tsx");
+
+  for (const slug of [
+    "dole-final-pay-reminder-2026",
+    "dole-13th-month-guidelines-2025",
+    "bir-alphalist-reminder-2026",
+  ]) {
+    const start = wave3.indexOf(`slug: "${slug}"`, wave3.indexOf("regulatoryUpdates"));
+    const end = wave3.indexOf("\n  },", start);
+    assert.ok(start >= 0 && end > start, `regulatory update ${slug} must exist`);
+    const update = wave3.slice(start, end);
+    assert.ok(update.includes("reviewedDate:"), `regulatory update ${slug} must track its review date`);
+    assert.ok(update.includes("whatChanged: ["), `regulatory update ${slug} must explain what changed`);
+    assert.ok(update.includes("payrollActions: ["), `regulatory update ${slug} must tell payroll teams what to check`);
+    assert.ok(update.includes("sourceUrl:"), `regulatory update ${slug} must keep an official source`);
+  }
+
+  assert.ok(wave3.includes("labor-advisory-no-16-25-guidelines-on-the-payment-of-the-thirteenth-month-pay"), "13th-month update must link directly to the official DOLE advisory");
+  assert.ok(page.includes("dateModified: update.reviewedDate"), "Article schema must use each update's review date");
+  assert.ok(page.includes("update.whatChanged.map"), "update page must render the change summary");
+  assert.ok(page.includes("update.payrollActions.map"), "update page must render payroll actions");
+  assert.ok(page.includes("Open {update.sourceLabel}"), "official source CTA must identify the source");
+});
+
 test("public navigation exposes the SEO program without hiding the live demo", () => {
   const navigation = read("src/components/marketing/public-navigation.ts");
   for (const route of ["/demo", "/resources", "/compliance", "/trust", "/integrations", "/developers", "/calculators", "/payroll-health-check", "/industries"]) {
