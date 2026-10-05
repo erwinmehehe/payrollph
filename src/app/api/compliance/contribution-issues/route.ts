@@ -172,16 +172,6 @@ export async function POST(request: Request) {
 
     try {
       await notifyEmployeeOfContributionCase({
-        issue: result,
-        event: "resolved",
-        actor: user.name,
-      });
-    } catch {
-      // The audited case resolution remains authoritative if email delivery is unavailable.
-    }
-
-    try {
-      await notifyEmployeeOfContributionCase({
         issue: updated,
         event: "review_started",
         actor: user.name,
@@ -269,6 +259,16 @@ export async function POST(request: Request) {
         linkedMemberId: issue.remittanceMemberId,
       },
     });
+
+    try {
+      await notifyEmployeeOfContributionCase({
+        issue: result,
+        event: "resolved",
+        actor: user.name,
+      });
+    } catch {
+      // The audited case resolution remains authoritative if email delivery is unavailable.
+    }
 
     return Response.json({ case: result });
   }
