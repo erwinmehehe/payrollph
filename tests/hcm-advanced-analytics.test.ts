@@ -108,6 +108,7 @@ test("talent analytics are layered into Analytics only for HCM roles", () => {
   const panel = readFileSync("src/components/hcm-analytics-panel.tsx", "utf8");
 
   assert.ok(analytics.includes("<HcmAnalyticsPanel"));
+  assert.ok(analytics.includes('["owner", "admin", "bookkeeper", "hr", "payroll"].includes(legacyReportRole)'));
   assert.ok(workspace.includes('["owner", "admin", "hr", "manager"].includes(effectiveRole ?? "")'));
   assert.ok(panel.includes("CONNECTED HCM INTELLIGENCE"));
   assert.ok(panel.includes("Small compensation buckets remain hidden"));
