@@ -301,6 +301,42 @@ test("core industry pages keep commercial FAQ depth", () => {
   assert.ok(bpo.includes("faq={["), "BPO industry page must keep FAQ depth");
 });
 
+test("payroll glossary entries have useful search and explanatory depth", () => {
+  const wave3 = read("src/lib/seo-content-wave3.ts");
+  const page = read("src/app/glossary/[slug]/page.tsx");
+  const structured = read("src/components/marketing/structured-data.tsx");
+
+  for (const slug of [
+    "basic-salary",
+    "gross-pay",
+    "net-pay",
+    "taxable-compensation",
+    "payroll-cutoff",
+    "night-differential",
+    "premium-pay",
+    "rest-day",
+    "withholding-tax",
+    "monthly-salary-credit",
+    "13th-month-pay",
+    "annualization",
+  ]) {
+    const start = wave3.indexOf(`slug: "${slug}"`, wave3.indexOf("glossaryEntries"));
+    const end = wave3.indexOf("\n  },", start);
+    assert.ok(start >= 0 && end > start, `glossary entry ${slug} must exist`);
+    const entry = wave3.slice(start, end);
+    assert.ok(entry.includes("metaDescription:"), `glossary entry ${slug} must have a search description`);
+    assert.ok(entry.includes("whyItMatters:"), `glossary entry ${slug} must explain payroll relevance`);
+    assert.ok(entry.includes("example:"), `glossary entry ${slug} must include a concrete example`);
+    assert.ok(entry.includes("related:"), `glossary entry ${slug} must keep internal links`);
+  }
+
+  assert.ok(page.includes("description: entry.metaDescription"), "glossary metadata must use the page-specific search description");
+  assert.ok(page.includes("entry.whyItMatters"), "glossary page must render payroll relevance");
+  assert.ok(page.includes("entry.example"), "glossary page must render the concrete example");
+  assert.ok(page.includes("definedTerm={{"), "glossary page must keep DefinedTerm structured data");
+  assert.ok(structured.includes('"@type": "DefinedTerm"'), "shared structured data must support DefinedTerm schema");
+});
+
 test("public navigation exposes the SEO program without hiding the live demo", () => {
   const navigation = read("src/components/marketing/public-navigation.ts");
   for (const route of ["/demo", "/resources", "/compliance", "/trust", "/integrations", "/developers", "/calculators", "/payroll-health-check", "/industries"]) {
