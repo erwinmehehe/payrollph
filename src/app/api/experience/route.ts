@@ -329,8 +329,20 @@ export async function POST(request: Request) {
       eq(strategicGoals.organizationId, organizationId),
     )).limit(1);
     if (!strategicGoal) return Response.json({ error: "Strategic goal not found." }, { status: 404 });
+    if (strategicGoal.status !== "active") {
+      return Response.json({ error: "Employee goals can align only to active strategic goals." }, { status: 409 });
+    }
     if (!access.companyWide && strategicGoal.scope !== "company" && strategicGoal.orgUnitId !== access.orgUnitId) {
       return Response.json({ error: "Strategic goal is outside your assigned organization unit." }, { status: 403 });
+    }
+
+    const siblingAlignments = await db.select().from(performanceGoalAlignments)
+      .where(eq(performanceGoalAlignments.performanceGoalId, performanceGoalId));
+    const otherWeight = siblingAlignments
+      .filter((row) => row.strategicGoalId !== strategicGoalId)
+      .reduce((sum, row) => sum + row.contributionWeight, 0);
+    if (otherWeight + contributionWeight > 100) {
+      return Response.json({ error: "Goal alignment contribution weights cannot exceed 100%." }, { status: 409 });
     }
 
     const [row] = await db.insert(performanceGoalAlignments).values({
@@ -427,6 +439,9 @@ export async function POST(request: Request) {
       eq(oneOnOneMeetings.organizationId, organizationId),
     )).limit(1);
     if (!meeting) return Response.json({ error: "One-on-one meeting not found." }, { status: 404 });
+    if (meeting.status === "completed") {
+      return Response.json({ error: "Completed one-on-one meetings are immutable." }, { status: 409 });
+    }
     const [series] = await db.select().from(oneOnOneSeries).where(eq(oneOnOneSeries.id, meeting.seriesId)).limit(1);
     if (!series) return Response.json({ error: "One-on-one series is missing." }, { status: 409 });
     const scoped = await scopedEmployee(user.id, organizationId, series.employeeId);
@@ -539,6 +554,15 @@ export async function POST(request: Request) {
     if (!mentor) return Response.json({ error: "Mentor employee profile not found or inactive." }, { status: 404 });
     if (!access.companyWide && mentor.orgUnitId !== access.orgUnitId) {
       return Response.json({ error: "Mentor is outside your assigned organization unit." }, { status: 403 });
+    }
+
+    const existingMentorships = await db.select().from(mentorships).where(and(
+      eq(mentorships.organizationId, organizationId),
+      eq(mentorships.mentorEmployeeId, mentorEmployeeId),
+      eq(mentorships.menteeEmployeeId, menteeEmployeeId),
+    ));
+    if (existingMentorships.some((row) => ["requested", "active"].includes(row.status))) {
+      return Response.json({ error: "An active or requested mentorship already exists for this pair." }, { status: 409 });
     }
 
     const [row] = await db.insert(mentorships).values({
@@ -715,6 +739,17 @@ export async function PATCH(request: Request) {
     if (!mentorship) return Response.json({ error: "Mentorship not found." }, { status: 404 });
     const scoped = await scopedEmployee(user.id, organizationId, mentorship.menteeEmployeeId);
     if ("error" in scoped) return scoped.error;
+    const allowedTransitions: Record<string, string[]> = {
+      requested: ["active", "declined", "cancelled"],
+      active: ["completed", "cancelled"],
+      declined: [],
+      completed: [],
+      cancelled: [],
+    };
+    if (!(allowedTransitions[mentorship.status] ?? []).includes(status)) {
+      return Response.json({ error: "That mentorship status transition is not allowed." }, { status: 409 });
+    }
+
     const [row] = await db.update(mentorships).set({
       status,
       startDate: status === "active" && !mentorship.startDate ? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date()) : mentorship.startDate,
