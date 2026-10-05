@@ -956,3 +956,20 @@ CREATE TABLE IF NOT EXISTS "position_assignments" (
 CREATE UNIQUE INDEX IF NOT EXISTS "position_assignments_position_from_unique" ON "position_assignments" ("position_id","effective_from");
 CREATE INDEX IF NOT EXISTS "position_assignments_employee_idx" ON "position_assignments" ("organization_id","employee_id");
 
+-- HCM recruiting -> position -> employee handoff
+ALTER TABLE "job_requisitions"
+  ADD COLUMN IF NOT EXISTS "position_id" integer REFERENCES "positions"("id") ON DELETE set null,
+  ADD COLUMN IF NOT EXISTS "job_profile_id" integer REFERENCES "job_profiles"("id") ON DELETE set null,
+  ADD COLUMN IF NOT EXISTS "org_unit_id" integer REFERENCES "org_units"("id") ON DELETE set null,
+  ADD COLUMN IF NOT EXISTS "manager_employee_id" integer REFERENCES "employees"("id") ON DELETE set null,
+  ADD COLUMN IF NOT EXISTS "target_start_date" date;
+
+CREATE INDEX IF NOT EXISTS "job_requisitions_position_idx"
+  ON "job_requisitions" ("organization_id","position_id");
+CREATE INDEX IF NOT EXISTS "job_requisitions_org_unit_idx"
+  ON "job_requisitions" ("organization_id","org_unit_id");
+
+ALTER TABLE "job_applicants"
+  ADD COLUMN IF NOT EXISTS "hired_employee_id" integer REFERENCES "employees"("id") ON DELETE set null,
+  ADD COLUMN IF NOT EXISTS "hired_at" timestamp with time zone;
+
