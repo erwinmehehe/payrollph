@@ -56,6 +56,35 @@ export function statutorySharesForEntry(entry: Entry, agency: StatutoryAgency) {
   };
 }
 
+export function statutoryRemittanceSnapshotHash(input: {
+  agency: StatutoryAgency;
+  applicableMonth: string;
+  members: Array<{
+    employeeId: number;
+    employeeNo: string;
+    employeeShare: number;
+    employerShare: number;
+    totalContribution: number;
+  }>;
+}) {
+  const members = [...input.members]
+    .map((member) => ({
+      employeeId: member.employeeId,
+      employeeNo: member.employeeNo,
+      employeeShare: round2(member.employeeShare),
+      employerShare: round2(member.employerShare),
+      totalContribution: round2(member.totalContribution),
+    }))
+    .sort((a, b) => a.employeeId - b.employeeId);
+  return createHash("sha256")
+    .update(JSON.stringify({
+      agency: input.agency,
+      applicableMonth: input.applicableMonth,
+      members,
+    }))
+    .digest("hex");
+}
+
 export function buildStatutoryRemittanceSnapshot(input: {
   agency: StatutoryAgency;
   applicableMonth: string;
@@ -91,9 +120,11 @@ export function buildStatutoryRemittanceSnapshot(input: {
   const expectedEmployeeShare = round2(members.reduce((sum, row) => sum + row.employeeShare, 0));
   const expectedEmployerShare = round2(members.reduce((sum, row) => sum + row.employerShare, 0));
   const expectedTotal = round2(expectedEmployeeShare + expectedEmployerShare);
-  const snapshotHash = createHash("sha256")
-    .update(JSON.stringify({ agency: input.agency, applicableMonth: input.applicableMonth, members }))
-    .digest("hex");
+  const snapshotHash = statutoryRemittanceSnapshotHash({
+    agency: input.agency,
+    applicableMonth: input.applicableMonth,
+    members,
+  });
 
   return {
     members,
