@@ -1476,3 +1476,104 @@ export const positionAssignments = pgTable(
   ],
 );
 
+/* -------------------------------------------------------------------------- */
+/* HCM: compensation architecture and review cycles                           */
+/* -------------------------------------------------------------------------- */
+
+export const compensationBands = pgTable(
+  "compensation_bands",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    jobProfileId: integer("job_profile_id").notNull().references(() => jobProfiles.id, { onDelete: "cascade" }),
+    orgUnitId: integer("org_unit_id").references(() => orgUnits.id, { onDelete: "set null" }),
+    locationKey: varchar("location_key", { length: 80 }).notNull().default("company"),
+    currency: varchar("currency", { length: 8 }).notNull().default("PHP"),
+    minimumMonthly: numeric("minimum_monthly", { precision: 14, scale: 2 }).notNull(),
+    midpointMonthly: numeric("midpoint_monthly", { precision: 14, scale: 2 }).notNull(),
+    maximumMonthly: numeric("maximum_monthly", { precision: 14, scale: 2 }).notNull(),
+    active: boolean("active").notNull().default(true),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("compensation_bands_org_profile_location_unique").on(table.organizationId, table.jobProfileId, table.locationKey),
+    index("compensation_bands_org_active_idx").on(table.organizationId, table.active),
+  ],
+);
+
+export const compensationCycles = pgTable(
+  "compensation_cycles",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 160 }).notNull(),
+    effectiveDate: date("effective_date").notNull(),
+    totalBudget: numeric("total_budget", { precision: 14, scale: 2 }).notNull().default("0"),
+    status: varchar("status", { length: 24 }).notNull().default("open"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("compensation_cycles_org_name_effective_unique").on(table.organizationId, table.name, table.effectiveDate),
+    index("compensation_cycles_org_status_idx").on(table.organizationId, table.status),
+  ],
+);
+
+export const compensationBudgetPools = pgTable(
+  "compensation_budget_pools",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    cycleId: integer("cycle_id").notNull().references(() => compensationCycles.id, { onDelete: "cascade" }),
+    orgUnitId: integer("org_unit_id").notNull().references(() => orgUnits.id, { onDelete: "cascade" }),
+    managerEmployeeId: integer("manager_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    budget: numeric("budget", { precision: 14, scale: 2 }).notNull().default("0"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("compensation_budget_pools_cycle_unit_unique").on(table.cycleId, table.orgUnitId),
+    index("compensation_budget_pools_org_cycle_idx").on(table.organizationId, table.cycleId),
+  ],
+);
+
+export const compensationRecommendations = pgTable(
+  "compensation_recommendations",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    cycleId: integer("cycle_id").notNull().references(() => compensationCycles.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    orgUnitId: integer("org_unit_id").references(() => orgUnits.id, { onDelete: "set null" }),
+    positionId: integer("position_id").references(() => positions.id, { onDelete: "set null" }),
+    bandId: integer("band_id").references(() => compensationBands.id, { onDelete: "set null" }),
+    performanceReviewId: integer("performance_review_id").references(() => performanceReviews.id, { onDelete: "set null" }),
+    adjustmentType: varchar("adjustment_type", { length: 32 }).notNull().default("merit"),
+    currentMonthlyRate: numeric("current_monthly_rate", { precision: 14, scale: 2 }).notNull(),
+    proposedMonthlyRate: numeric("proposed_monthly_rate", { precision: 14, scale: 2 }).notNull(),
+    annualizedIncrease: numeric("annualized_increase", { precision: 14, scale: 2 }).notNull().default("0"),
+    rationale: text("rationale"),
+    bandExceptionReason: text("band_exception_reason"),
+    status: varchar("status", { length: 24 }).notNull().default("submitted"),
+    proposedByUserId: integer("proposed_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    approvedByUserId: integer("approved_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    appliedByUserId: integer("applied_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    appliedPayRevisionId: integer("applied_pay_revision_id").references(() => employeePayRevisions.id, { onDelete: "set null" }),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    appliedAt: timestamp("applied_at", { withTimezone: true }),
+    decisionNote: text("decision_note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("compensation_recommendations_cycle_employee_unique").on(table.cycleId, table.employeeId),
+    index("compensation_recommendations_org_status_idx").on(table.organizationId, table.status),
+    index("compensation_recommendations_cycle_idx").on(table.cycleId),
+  ],
+);
+
