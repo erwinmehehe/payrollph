@@ -573,8 +573,8 @@ jobs:
                   background: getComputedStyle(element).backgroundColor,
                 })),
               ]);
-              check(iconColors[0].color !== iconColors[1].color, "Owner: sidebar module icons were flattened to one color");
-              check(iconColors[0].background !== "rgba(0, 0, 0, 0)", "Owner: sidebar icon tint background is transparent");
+              check(iconColors[0].color === iconColors[1].color, "Owner: sidebar module icons should use one calm neutral color");
+              check(iconColors[0].background === "rgba(0, 0, 0, 0)", "Owner: sidebar icon background should stay transparent");
 
               const profile = page.locator("aside .side-profile");
               check((await profile.count()) === 1, "Owner: interactive profile control is missing");
