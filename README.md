@@ -105,6 +105,12 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
 - Employer share is tracked separately as cost, never deducted from the employee
 - **This was caught being decorative:** the first wiring accepted `benefits` in the calculation but the engine never queried the tables, so a run produced no `BEN-` line. `tests/benefits-wiring.test.ts` now fails the build if the engine stops loading enrolments.
 
+### Performance management
+- Review cycles, employee goals, progress tracking and formal manager reviews live in the same tenant-scoped employee workspace.
+- Goals and reviews respect organization-unit scope and write to the audit trail.
+- Performance is deliberately separated from pay changes; a future compensation cycle must explicitly approve any salary action.
+- See `docs/HCM_PARITY_ROADMAP.md` for the HCM build sequence covering positions/headcount, compensation, learning, engagement and enterprise IAM.
+
 ### Public capability scorecard
 - `/scorecard` and `GET /api/capabilities` render a 22-row competitive parity grid plus a 15-row capability matrix
 - Every Linaw claim is classified **verified / partial / absent** and carries its evidence (a file path, a test name, or a live row count), generated from this deployment's code and database
