@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { SeoLandingPage } from "@/components/marketing/seo-landing-page";
 
 export const metadata: Metadata = {
-  title: "Payroll Trust Center | Security, Status & Product Evidence | Linaw",
-  description: "Linaw trust center for security controls, capability evidence, product status and rollout transparency.",
+  title: "Payroll Trust Center | Security & Product Evidence | Linaw",
+  description: "Inspect Linaw payroll security controls, capability evidence, product status, rollout gates and validation limits before relying on a product claim.",
   alternates: { canonical: "/trust" },
 };
 
@@ -26,6 +26,14 @@ export default function TrustPage() {
         { title: "Operational status", body: "The status page is separate from marketing claims and is designed to reflect application health evidence rather than a manually written uptime percentage." },
         { title: "Security controls", body: "Authentication, tenant authorization, role scope, sensitive-data protection and security testing are documented as implementation controls without implying certifications that have not been obtained." },
         { title: "Compliance transparency", body: "Payroll calculation capability and government filing acceptance are deliberately kept separate. Prepared output stays validation-gated until evidence exists." },
+        { title: "External dependencies remain visible", body: "Email delivery, billing proof, bank-template acceptance and government filing validation are tracked as operational dependencies instead of being hidden behind a generic production-ready badge." },
+        { title: "The sandbox is proof of workflow, not certification", body: "The role-based demo lets buyers inspect how work moves between payroll, checker, owner and employee views, while the trust center separately documents what still requires external validation." },
+      ]}
+      faq={[
+        { question: "What does verified, partial or absent mean in the capability scorecard?", answer: "Verified means the capability has implementation and supporting evidence in the product. Partial means an important part is present but a dependency or validation gap remains. Absent means the product does not currently claim that capability." },
+        { question: "Does a green CI run mean payroll is certified for production?", answer: "No. Automated tests prove code behavior under the tested scenarios. Independent payroll reconciliation, operational evidence and external acceptance checks remain separate launch gates." },
+        { question: "Does Linaw claim ISO or SOC 2 certification?", answer: "No. The trust and security pages describe implemented controls and test evidence without implying certifications the project has not independently obtained." },
+        { question: "How are government filing claims handled?", answer: "Payroll calculations and generated government outputs are kept separate from agency acceptance. Outputs remain validation-gated until appropriate evidence exists." },
       ]}
       related={[
         { label: "Capability scorecard", href: "/scorecard", description: "Inspect verified, partial and absent capabilities." },
