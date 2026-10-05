@@ -17,7 +17,7 @@ test("new employee contribution cases notify only company-wide payroll operators
 test("case lifecycle emails are bound to the dedicated employee login", () => {
   assert.ok(notifications.includes("eq(users.employeeId, input.issue.employeeId)"));
   assert.ok(notifications.includes('eq(users.role, "employee")'));
-  assert.ok(notifications.includes('event: "review_started" | "resolved"'));
+  assert.ok(notifications.includes('"review_overdue" | "resolution_overdue"'));
   assert.ok(notifications.includes("event: input.event"));
   assert.ok(payrollApi.includes('event: "review_started"'));
   assert.ok(payrollApi.includes('event: "resolved"'));
@@ -46,4 +46,13 @@ test("employee contribution case notices use bounded automatic outbox retries", 
   assert.ok(mailer.includes('"employee-contribution-case"'));
   assert.ok(mailer.includes("MAX_AUTOMATIC_RETRIES + 1"));
   assert.ok(mailer.includes('inArray(outbox.purpose, ["payslip-ready", "statutory-remittance-escalation", "employee-contribution-case"])'));
+});
+
+
+test("overdue contribution case notices are internal service escalations, not legal deadlines", () => {
+  assert.ok(notifications.includes("notifyPayrollOfContributionCaseEscalation"));
+  assert.ok(notifications.includes('"review_overdue"'));
+  assert.ok(notifications.includes('"resolution_overdue"'));
+  assert.ok(notifications.includes("internal operational targets, not statutory or agency deadlines"));
+  assert.ok(notifications.includes("internalServiceTarget: true"));
 });
