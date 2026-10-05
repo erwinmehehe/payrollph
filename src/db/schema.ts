@@ -1814,7 +1814,9 @@ export const identityDomains = pgTable(
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     providerId: integer("provider_id").notNull().references(() => identityProviders.id, { onDelete: "cascade" }),
     domain: varchar("domain", { length: 180 }).notNull(),
+    verificationTokenHash: text("verification_token_hash").notNull(),
     verified: boolean("verified").notNull().default(false),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
