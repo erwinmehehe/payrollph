@@ -13,7 +13,7 @@ type ContributionCase = typeof statutoryContributionIssueCases.$inferSelect;
 function caseDedupeKey(input: {
   organizationId: number;
   caseId: number;
-  event: "reported" | "review_started" | "resolved" | "review_overdue" | "resolution_overdue";
+  event: string;
   recipientUserId: number;
 }) {
   return [
@@ -259,4 +259,69 @@ export async function notifyPayrollOfContributionCaseEscalation(input: {
     }));
   }
   return results;
+}
+
+
+export async function notifyEmployeeOfContributionCaseUpdate(input: {
+  issue: ContributionCase;
+  eventId: number;
+  message: string;
+  actor: string;
+}) {
+  const [recipient] = await db.select({
+    userId: users.id,
+    name: users.name,
+    email: users.email,
+  })
+    .from(users)
+    .where(and(
+      eq(users.employeeId, input.issue.employeeId),
+      eq(users.role, "employee"),
+    ))
+    .limit(1);
+
+  if (!recipient) return [];
+
+  return [await queueMessage({
+    organizationId: input.issue.organizationId,
+    recipient: recipient.email,
+    subject: `Payroll update on your ${input.issue.agency} contribution case`.slice(0, 180),
+    body: [
+      `Hi ${recipient.name},`,
+      "",
+      "Payroll posted an update on the mandatory contribution issue you reported.",
+      "",
+      `${input.issue.agency} · ${input.issue.applicableMonth}`,
+      `Update from ${input.actor}: ${input.message}`,
+      "",
+      "You can review the full timeline in Employee Self-Service > Pay > Contribution Cases.",
+      "",
+      "You do not need to share your agency password, OTP or login credentials with payroll.",
+    ].join("\n"),
+    purpose: "employee-contribution-case",
+    dedupeKey: caseDedupeKey({
+      organizationId: input.issue.organizationId,
+      caseId: input.issue.id,
+      event: `payroll_update-${input.eventId}`,
+      recipientUserId: recipient.userId,
+    }),
+    metadata: {
+      contributionCaseId: input.issue.id,
+      caseEventId: input.eventId,
+      event: "payroll_update",
+      employeeId: input.issue.employeeId,
+      agency: input.issue.agency,
+      applicableMonth: input.issue.applicableMonth,
+      recipientUserId: recipient.userId,
+    },
+    audit: {
+      actor: input.actor,
+      metadata: {
+        contributionCaseId: input.issue.id,
+        caseEventId: input.eventId,
+        event: "payroll_update",
+        recipientUserId: recipient.userId,
+      },
+    },
+  })];
 }
