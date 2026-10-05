@@ -18,6 +18,7 @@ import { readBasicAndThirteenth } from "@/lib/final-pay";
 import {
   buildLaborInspectionEvidencePack,
   evidenceSection,
+  sha256Evidence,
 } from "@/lib/labor-inspection-evidence-pack";
 import { buildLaborInspectionReadiness } from "@/lib/labor-inspection-readiness-server";
 
@@ -185,7 +186,7 @@ export async function buildLaborInspectionEvidencePackForOrganization(input: {
       employeeNo: employee?.employeeNo ?? `#${slip.employeeId}`,
       employeeName: employee ? `${employee.firstName} ${employee.lastName}` : null,
       ruleVersion: slip.ruleVersion,
-      contentSha256: (await import("@/lib/labor-inspection-evidence-pack")).sha256Evidence(slip.content),
+      contentSha256: sha256Evidence(slip.content),
       downloadPath: `/api/payroll-runs/${run.id}/exports?kind=payslip&payslipId=${slip.id}`,
     }];
   });
