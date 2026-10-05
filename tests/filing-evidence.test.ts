@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  BIR_1601C_GENERATOR_VERSION,
   BIR_1604C_GENERATOR_VERSION,
   PAGIBIG_MCRF_GENERATOR_VERSION,
   PHILHEALTH_RF1_GENERATOR_VERSION,
@@ -11,6 +12,7 @@ import {
   findFilingForm,
   parseFilingOutcome,
   provesFileFormat,
+  provesOperationalFiling,
   sha256Hex,
   summarizeFilingEvidence,
   type FilingEvidenceRow,
@@ -102,7 +104,7 @@ test("the file hash is stable and sensitive to a single changed byte", () => {
 
 test("only forms Linaw actually generates can be tracked", () => {
   assert.equal(findFilingForm("SSS", "R-3")?.kind, "sss-r3");
-  assert.equal(findFilingForm("BIR", "1601-C"), null, "no evidence rows for a form with no evidence flow yet");
+  assert.equal(findFilingForm("BIR", "1601-C")?.kind, "bir-1601c");
   assert.equal(findFilingForm("Pag-IBIG", "STL"), null, "loan files are not tracked");
   assert.equal(findFilingForm("Pag-IBIG", "MCRF")?.kind, "pagibig-mcrf");
   assert.equal(findFilingForm("PhilHealth", "RF-1")?.kind, "philhealth-rf1");
@@ -119,6 +121,7 @@ test("changing a tracked file's columns forces a generator version bump", () => 
     { form: "SSS R-3", pattern: /"(SSSNo,LastName[^"]+)"/, version: SSS_R3_GENERATOR_VERSION, expected: "sss-r3-worksheet-v2|SSSNo,LastName,FirstName,MiddleName,MSC,RegularMSC,MPFMSC,SS_EE_Regular,SS_EE_MPF,SS_ER_Regular,SS_ER_MPF,EC_Employer,Total_Contribution" },
     { form: "Pag-IBIG MCRF", pattern: /"(PagIBIGMID,AccountNumber[^"]+)"/, version: PAGIBIG_MCRF_GENERATOR_VERSION, expected: "pagibig-mcrf-worksheet-v2|PagIBIGMID,AccountNumber,MembershipProgram,LastName,FirstName,NameExtension,MiddleName,PeriodCovered,EmployeeShare,EmployerShare,Remarks,FundSalary,TotalContribution" },
     { form: "PhilHealth RF-1", pattern: /"(PIN,LastName[^"]+)"/, version: PHILHEALTH_RF1_GENERATOR_VERSION, expected: "philhealth-rf1-worksheet-v1|PIN,LastName,FirstName,MiddleName,MonthlySalaryBase,EmployeeShare,EmployerShare,TotalPremium" },
+    { form: "BIR 1601-C", pattern: /"(Form,ApplicableMonth[^"]+)"/, version: BIR_1601C_GENERATOR_VERSION, expected: "bir-1601c-monthly-v1|Form,ApplicableMonth,WithholdingTax,Employees,PayrollRunsIncluded,Status" },
     { form: "BIR 1604-C", pattern: /"(EmployerTIN,EmployerBranchCode[^"]+)"/, version: BIR_1604C_GENERATOR_VERSION, expected: "bir-1604c-source-v2|EmployerTIN,EmployerBranchCode,EmployeeTIN,EmployeeBranchCode,LastName,FirstName,MiddleName,Nationality,GrossCompensation,TaxWithheld,MWE,Status" },
   ];
   for (const pin of pins) {
@@ -126,6 +129,22 @@ test("changing a tracked file's columns forces a generator version bump", () => 
     assert.ok(header, `could not find the ${pin.form} header line`);
     assert.equal(sha256Hex(`${pin.version}|${header}`), sha256Hex(pin.expected), `${pin.form} columns changed without a version bump`);
   }
+});
+
+test("BIR 1601-C counts portal acknowledgement as operational proof, never file-format proof", () => {
+  const bir = findFilingForm("BIR", "1601-C")!;
+  assert.equal(bir.kind, "bir-1601c");
+  assert.deepEqual(bir.submissionMethods, ["manual_entry"]);
+  const row = accepted({
+    agency: "BIR",
+    form: "1601-C",
+    submissionMethod: "manual_entry",
+    generatorVersion: BIR_1601C_GENERATOR_VERSION,
+    agencyReference: "BIR-1601C-202609",
+  });
+  assert.equal(provesOperationalFiling(row, bir), true);
+  assert.equal(provesFileFormat(row, bir), false);
+  assert.equal(provesOperationalFiling({ ...row, submissionMethod: "file_upload" }, bir), false);
 });
 
 test("BIR evidence follows the same rules and never borrows SSS's acceptance", () => {
@@ -172,12 +191,15 @@ test("Pag-IBIG evidence follows the same rules and every agency stays separate",
   const rows = FILING_FORMS.map((definition) => accepted({
     agency: definition.agency,
     form: definition.form,
+    submissionMethod: definition.submissionMethods[0],
     generatorVersion: definition.generatorVersion,
   }));
   for (const definition of FILING_FORMS) {
-    const others = rows.filter((item) => item.agency !== definition.agency);
-    assert.equal(summarizeFilingEvidence(others, definition).proven, false, `${definition.agency} was proven by another agency's rows`);
-    assert.equal(summarizeFilingEvidence(rows, definition).provingCount, 1);
+    const others = rows.filter((item) => item.agency !== definition.agency || item.form !== definition.form);
+    const summary = summarizeFilingEvidence(rows, definition);
+    assert.equal(summarizeFilingEvidence(others, definition).operationallyProven, false, `${definition.agency} ${definition.form} was proven by another form's rows`);
+    if (definition.evidenceMode === "file-format") assert.equal(summary.provingCount, 1);
+    else assert.equal(summary.operationalProvingCount, 1);
   }
 });
 
