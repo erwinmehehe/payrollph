@@ -1,4 +1,4 @@
-import { createHash, createPublicKey, verify } from "node:crypto";
+import { createHash, createPublicKey, verify, type JsonWebKey as NodeJsonWebKey } from "node:crypto";
 import { getValidatedJson, postValidatedForm, resolveWebhookTarget } from "@/lib/security-network";
 import { decryptEnterpriseSecret } from "@/lib/enterprise-secret";
 
@@ -116,7 +116,7 @@ export async function verifyOidcIdToken(input: {
   );
   if (!key) throw new Error("OIDC signing key was not found in the provider JWKS.");
 
-  const publicKey = createPublicKey({ key: key as JsonWebKey, format: "jwk" });
+  const publicKey = createPublicKey({ key: key as NodeJsonWebKey, format: "jwk" });
   const signingInput = Buffer.from(parts[0] + "." + parts[1]);
   const signature = Buffer.from(parts[2], "base64url");
   if (!verify("RSA-SHA256", signingInput, publicKey, signature)) throw new Error("OIDC ID token signature is invalid.");
