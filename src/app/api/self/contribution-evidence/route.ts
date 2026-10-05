@@ -193,6 +193,18 @@ export async function GET(request: Request) {
     };
   });
 
+  const employeeShareDeducted = payrollEvidence.reduce(
+    (sum, row) => sum + Number(row.employeeShareDeducted || 0),
+    0,
+  );
+  const employerShareCalculated = payrollEvidence.reduce(
+    (sum, row) => sum + Number(row.employerShareCalculated || 0),
+    0,
+  );
+  const round2 = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+  const remittanceEmployeeShare = member ? Number(member.employeeShare) : null;
+  const remittanceEmployerShare = member ? Number(member.employerShare) : null;
+
   const filingEvidence = filings.map((filing) => {
     let matchedToRemittance: boolean | null = null;
     if (
@@ -261,6 +273,20 @@ export async function GET(request: Request) {
     agency,
     applicableMonth,
     payrollEvidence,
+    reconciliation: {
+      employeeShareDeducted: round2(employeeShareDeducted),
+      employerShareCalculated: round2(employerShareCalculated),
+      remittanceEmployeeShare,
+      remittanceEmployerShare,
+      employeeShareMatchesRemittance:
+        remittanceEmployeeShare == null
+          ? null
+          : Math.abs(round2(employeeShareDeducted) - round2(remittanceEmployeeShare)) <= 0.01,
+      employerShareMatchesRemittance:
+        remittanceEmployerShare == null
+          ? null
+          : Math.abs(round2(employerShareCalculated) - round2(remittanceEmployerShare)) <= 0.01,
+    },
     remittanceEvidence: batch ? {
       batchId: batch.id,
       status: batch.status,
@@ -286,7 +312,7 @@ export async function GET(request: Request) {
       "The evidence hash verifies the contents of this export; agency file hashes verify the stored filing artifacts referenced here.",
       "No other employee's payroll or contribution amounts are included.",
     ],
-  } as const;
+  };
 
   const pack = buildContributionEvidencePack(payload);
 
