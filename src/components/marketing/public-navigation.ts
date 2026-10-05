@@ -8,7 +8,7 @@ export const PUBLIC_PRIMARY_LINKS: PublicLink[] = [
   { label: "Live demo", href: "/demo" },
   { label: "Pricing", href: "/#pricing" },
   { label: "Payroll outsourcing", href: "/payroll-outsourcing" },
-  { label: "Trust", href: "/scorecard" },
+  { label: "Trust", href: "/trust" },
 ];
 
 export const PUBLIC_FOOTER_GROUPS: Array<{ label: string; links: PublicLink[] }> = [
@@ -24,7 +24,7 @@ export const PUBLIC_FOOTER_GROUPS: Array<{ label: string; links: PublicLink[] }>
   {
     label: "Company",
     links: [
-      { label: "Capability scorecard", href: "/scorecard" },
+      { label: "Trust Center", href: "/trust" },\n      { label: "Capability scorecard", href: "/scorecard" },
       { label: "Security", href: "/#security" },
       { label: "System status", href: "/status" },
       { label: "Book a demo", href: "/book-demo" },
