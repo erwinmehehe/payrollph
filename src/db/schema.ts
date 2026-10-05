@@ -1270,6 +1270,31 @@ export const statutoryRemittanceBatches = pgTable(
   ],
 );
 
+export const statutoryPostingEvidenceArtifacts = pgTable(
+  "statutory_posting_evidence_artifacts",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    batchId: integer("batch_id").notNull().references(() => statutoryRemittanceBatches.id, { onDelete: "cascade" }),
+    sourceType: varchar("source_type", { length: 32 }).notNull(),
+    fileName: varchar("file_name", { length: 200 }),
+    contentSha256: varchar("content_sha256", { length: 64 }).notNull(),
+    evidenceReference: varchar("evidence_reference", { length: 160 }),
+    rowCount: integer("row_count").notNull().default(1),
+    recordedByUserId: integer("recorded_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    recordedByName: varchar("recorded_by_name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("statutory_posting_evidence_batch_hash_unique").on(
+      table.organizationId,
+      table.batchId,
+      table.contentSha256,
+    ),
+    index("statutory_posting_evidence_batch_idx").on(table.organizationId, table.batchId),
+  ],
+);
+
 export const statutoryRemittanceMembers = pgTable(
   "statutory_remittance_members",
   {
@@ -1283,6 +1308,7 @@ export const statutoryRemittanceMembers = pgTable(
     totalContribution: numeric("total_contribution", { precision: 12, scale: 2 }).notNull().default("0"),
     postingStatus: varchar("posting_status", { length: 24 }).notNull().default("pending"),
     postingReference: varchar("posting_reference", { length: 120 }),
+    postingEvidenceArtifactId: integer("posting_evidence_artifact_id").references(() => statutoryPostingEvidenceArtifacts.id, { onDelete: "set null" }),
     postedAmount: numeric("posted_amount", { precision: 12, scale: 2 }),
     postedAt: timestamp("posted_at", { withTimezone: true }),
     confirmedBy: varchar("confirmed_by", { length: 120 }),
