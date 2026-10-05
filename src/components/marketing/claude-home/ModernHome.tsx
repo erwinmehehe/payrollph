@@ -118,7 +118,8 @@ function PayrollHeroPreview() {
         <div className="linaw-ui-meta">
           <div>
             <span className="linaw-ui-kicker">Current payroll</span>
-            <h2>Can I safely release this payroll?</h2>\n            <p className="linaw-ui-period-copy">October 1–15, 2026</p>
+            <h2>Can I safely release this payroll?</h2>
+            <p className="linaw-ui-period-copy">October 1–15, 2026</p>
           </div>
           <div className="linaw-ui-period">
             <span>Release window</span>
