@@ -58,18 +58,15 @@ export async function GET(request: Request) {
   const visiblePositions = access.companyWide
     ? allPositions
     : allPositions.filter((position) => position.orgUnitId === access.orgUnitId);
-  const positionByRequisition = new Map(
-    visiblePositions
-      .filter((position) => position.requisitionId != null)
-      .map((position) => [Number(position.requisitionId), position]),
-  );
+  const visiblePositionIds = new Set(visiblePositions.map((position) => position.id));
+  const positionById = new Map(allPositions.map((position) => [position.id, position]));
 
   // Legacy requisitions predate explicit org-unit ownership. Company-wide People
-  // admins retain access to them; scoped HR users see only requisitions attached
-  // to a position in their own unit.
+  // admins retain access; scoped HR sees only requisitions tied to positions in
+  // their own unit.
   let reqs = access.companyWide
     ? allReqs
-    : allReqs.filter((row) => positionByRequisition.has(row.id));
+    : allReqs.filter((row) => row.positionId != null && visiblePositionIds.has(row.positionId));
 
   if (requisitionId > 0) {
     reqs = reqs.filter((row) => row.id === requisitionId);
@@ -98,7 +95,7 @@ export async function GET(request: Request) {
 
   return Response.json({
     requisitions: reqs.map((row) => {
-      const linked = positionByRequisition.get(row.id);
+      const linked = row.positionId ? positionById.get(row.positionId) : null;
       const reqApplicants = applicantsByReq.get(row.id) ?? [];
       return {
         ...row,
@@ -106,7 +103,6 @@ export async function GET(request: Request) {
         interviewCount: reqApplicants.filter((applicant) => applicant.stage === "interview").length,
         offerCount: reqApplicants.filter((applicant) => applicant.stage === "offer").length,
         hiredCount: reqApplicants.filter((applicant) => applicant.stage === "hired").length,
-        positionId: linked?.id ?? null,
         positionCode: linked?.code ?? null,
         orgUnitId: linked?.orgUnitId ?? null,
         annualPositionBudget: linked?.annualBudget ?? null,
@@ -156,13 +152,24 @@ export async function POST(request: Request) {
 
       const scope = assertScope(access, position.orgUnitId);
       if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
-      if (position.requisitionId) {
-        return Response.json({ error: "This position already has a linked requisition." }, { status: 409 });
-      }
       if (position.status !== "approved") {
         return Response.json({
           error: "Only an approved position can be opened for recruitment.",
           positionStatus: position.status,
+        }, { status: 409 });
+      }
+
+      const priorSearches = await db.select({ id: jobRequisitions.id, status: jobRequisitions.status })
+        .from(jobRequisitions)
+        .where(and(
+          eq(jobRequisitions.organizationId, organizationId),
+          eq(jobRequisitions.positionId, position.id),
+        ));
+      const activeSearch = priorSearches.find((row) => !["filled", "cancelled"].includes(row.status));
+      if (activeSearch) {
+        return Response.json({
+          error: "This position already has an active requisition.",
+          requisitionId: activeSearch.id,
         }, { status: 409 });
       }
 
@@ -188,51 +195,42 @@ export async function POST(request: Request) {
         ? Number(position.annualBudget) / 12
         : 0;
 
-      try {
-        const created = await db.transaction(async (tx) => {
-          const [requisition] = await tx.insert(jobRequisitions).values({
-            organizationId,
-            title: profile.title,
-            department: unit?.name ?? "Company-wide",
-            headcount: 1,
-            salaryMin: monthlyBudget ? monthlyBudget.toFixed(2) : null,
-            salaryMax: monthlyBudget ? monthlyBudget.toFixed(2) : null,
-            employmentType: positionEmploymentType(position.employmentType),
-            status: "open",
-            description: profile.description ?? position.notes ?? "",
-          }).returning();
-
-          await tx.update(positions)
-            .set({
-              requisitionId: requisition.id,
-              status: "open",
-              updatedAt: new Date(),
-            })
-            .where(eq(positions.id, position.id));
-
-          return requisition;
-        });
-
-        await recordAuditEvent({
+      const created = await db.transaction(async (tx) => {
+        const [requisition] = await tx.insert(jobRequisitions).values({
           organizationId,
-          actor: user.name,
-          action: "Approved position opened for recruitment",
-          resource: `${position.code} -> ${created.title}`,
-          metadata: {
-            positionId: position.id,
-            positionCode: position.code,
-            requisitionId: created.id,
-            orgUnitId: position.orgUnitId,
-            annualBudget: Number(position.annualBudget),
-          },
-        });
+          positionId: position.id,
+          title: profile.title,
+          department: unit?.name ?? "Company-wide",
+          headcount: 1,
+          salaryMin: monthlyBudget ? monthlyBudget.toFixed(2) : null,
+          salaryMax: monthlyBudget ? monthlyBudget.toFixed(2) : null,
+          employmentType: positionEmploymentType(position.employmentType),
+          status: "open",
+          description: profile.description ?? position.notes ?? "",
+        }).returning();
 
-        return Response.json(created, { status: 201 });
-      } catch {
-        return Response.json({
-          error: "The position could not be opened for recruitment. It may already be linked to another requisition.",
-        }, { status: 409 });
-      }
+        await tx.update(positions)
+          .set({ status: "open", updatedAt: new Date() })
+          .where(eq(positions.id, position.id));
+
+        return requisition;
+      });
+
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Approved position opened for recruitment",
+        resource: `${position.code} -> ${created.title}`,
+        metadata: {
+          positionId: position.id,
+          positionCode: position.code,
+          requisitionId: created.id,
+          orgUnitId: position.orgUnitId,
+          annualBudget: Number(position.annualBudget),
+        },
+      });
+
+      return Response.json(created, { status: 201 });
     }
 
     if (!access.companyWide) {
@@ -264,6 +262,7 @@ export async function POST(request: Request) {
 
     const [created] = await db.insert(jobRequisitions).values({
       organizationId,
+      positionId: null,
       title: title.slice(0, 160),
       department: department.slice(0, 120),
       headcount,
@@ -307,12 +306,14 @@ export async function POST(request: Request) {
       return Response.json({ error: "This requisition is no longer accepting candidates." }, { status: 409 });
     }
 
-    const [linkedPosition] = await db.select().from(positions)
-      .where(and(
-        eq(positions.organizationId, organizationId),
-        eq(positions.requisitionId, requisitionId),
-      ))
-      .limit(1);
+    const [linkedPosition] = req.positionId
+      ? await db.select().from(positions)
+          .where(and(
+            eq(positions.id, req.positionId),
+            eq(positions.organizationId, organizationId),
+          ))
+          .limit(1)
+      : [];
 
     if (linkedPosition) {
       const scope = assertScope(access, linkedPosition.orgUnitId);
@@ -392,12 +393,14 @@ export async function PATCH(request: Request) {
     .limit(1);
   if (!req) return Response.json({ error: "Requisition not found." }, { status: 404 });
 
-  const [linkedPosition] = await db.select().from(positions)
-    .where(and(
-      eq(positions.organizationId, applicant.organizationId),
-      eq(positions.requisitionId, req.id),
-    ))
-    .limit(1);
+  const [linkedPosition] = req.positionId
+    ? await db.select().from(positions)
+        .where(and(
+          eq(positions.id, req.positionId),
+          eq(positions.organizationId, applicant.organizationId),
+        ))
+        .limit(1)
+    : [];
 
   if (linkedPosition) {
     const scope = assertScope(access, linkedPosition.orgUnitId);
