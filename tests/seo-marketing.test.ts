@@ -408,7 +408,8 @@ test("SEO hubs group large route inventories by user intent", () => {
   ]) {
     assert.ok(resources.includes(heading), `resources hub must include ${heading}`);
   }
-  assert.ok(!resources.includes("resources.map((page)"), "resources hub must not regress to one flat card wall");
+  assert.ok(resources.includes("resourceGroups.map"), "resources hub must render grouped resource sections");
+  assert.ok(resources.includes("group.slugs.map"), "resources hub must render resources from explicit group membership");
 
   for (const heading of [
     "Shift-heavy and frontline operations",
