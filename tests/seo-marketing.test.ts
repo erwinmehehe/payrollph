@@ -287,6 +287,20 @@ test("statutory wave 3 guides preserve official reference links", () => {
   assert.ok(wave3.includes("BIR Form 2316 information"));
 });
 
+test("core industry pages keep commercial FAQ depth", () => {
+  const core = read("src/lib/seo-content.ts");
+  const bpo = read("src/app/industries/bpo/page.tsx");
+
+  for (const slug of ["accounting-firms", "manpower", "manufacturing"]) {
+    const start = core.indexOf(`slug: "${slug}"`);
+    const end = core.indexOf("\n  },", start);
+    assert.ok(start >= 0 && end > start, `core industry page ${slug} must exist`);
+    assert.ok(core.slice(start, end).includes("faq: ["), `core industry page ${slug} must include FAQ depth`);
+  }
+
+  assert.ok(bpo.includes("faq={["), "BPO industry page must keep FAQ depth");
+});
+
 test("public navigation exposes the SEO program without hiding the live demo", () => {
   const navigation = read("src/components/marketing/public-navigation.ts");
   for (const route of ["/demo", "/resources", "/compliance", "/trust", "/integrations", "/developers", "/calculators", "/payroll-health-check", "/industries"]) {
