@@ -1,6 +1,5 @@
-import { queueMessage } from "@/lib/mailer";
-import { deliveryCapable } from "@/lib/mail-provider";
 import {
+  notifyMarketingLead,
   recordMarketingLead,
   updateMarketingLeadNotification,
   type MarketingLeadKind,
@@ -11,14 +10,6 @@ import { enforceSameOriginMutation } from "@/lib/security-request";
 import { normalizeEmail, validEmail } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
-
-const OPERATOR_INBOX = process.env.DEMO_REQUEST_INBOX?.trim() || null;
-
-function notificationStatus(result: Awaited<ReturnType<typeof queueMessage>>): MarketingLeadNotificationStatus {
-  if (result.delivered) return "sent";
-  if (result.queued) return "queued";
-  return "failed";
-}
 
 export async function POST(request: Request) {
   const originDenied = enforceSameOriginMutation(request);
@@ -64,42 +55,13 @@ export async function POST(request: Request) {
   }
 
   let status: MarketingLeadNotificationStatus = "not-configured";
-  if (OPERATOR_INBOX && deliveryCapable()) {
-    try {
-      const result = await queueMessage({
-        recipient: OPERATOR_INBOX,
-        subject: requestType === "trial-access"
-          ? `Trial access request: ${company}`
-          : `Demo request: ${company}`,
-        purpose: requestType === "trial-access" ? "trial-access-request" : "demo-request",
-        dedupeKey: `marketing-lead:${lead.id}`,
-        body: [
-          requestType === "trial-access"
-            ? "A trial access request was submitted from the public site."
-            : "A demo was requested from the public site.",
-          "",
-          `Lead ID:   ${lead.id}`,
-          `Name:      ${name}`,
-          `Email:     ${email}`,
-          `Company:   ${company}`,
-          `Headcount: ${headcount || "not stated"}`,
-          "",
-          "Notes:",
-          notes || "(none)",
-        ].join("\n"),
-      });
-      status = notificationStatus(result);
-      await updateMarketingLeadNotification({
-        id: lead.id,
-        status,
-        provider: result.provider,
-        outboxId: result.id,
-      });
-    } catch (error) {
-      console.error("marketing-lead: notification failed after durable demo/trial capture", error);
-      status = "failed";
-      await updateMarketingLeadNotification({ id: lead.id, status }).catch(() => {});
-    }
+  try {
+    const notification = await notifyMarketingLead(lead.id);
+    status = notification.status;
+  } catch (error) {
+    console.error("marketing-lead: notification failed after durable demo/trial capture", error);
+    status = "failed";
+    await updateMarketingLeadNotification({ id: lead.id, status }).catch(() => {});
   }
 
   return Response.json(
