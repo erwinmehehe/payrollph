@@ -265,3 +265,13 @@ test("capability report requires provider-confirmed email delivery before callin
   assert.ok(source.includes("${mailDelivered} delivered"), "scorecard proof must expose the delivered count");
   assert.ok(!source.includes('status: "verified",\n      proof: emailCapable'), "email capability must not be unconditionally verified");
 });
+
+
+test("monthly BIR 1601-C readiness requires recorded agency acknowledgement, not a generated worksheet", () => {
+  const readiness = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  assert.ok(readiness.includes('key: "gov-bir-1601c"'));
+  assert.ok(readiness.includes("bir1601Evidence?.operationallyProven"));
+  assert.ok(readiness.includes("monthly eBIRForms/eFPS filing workflow"));
+  assert.ok(readiness.includes("not a PayrollPH upload-file format"));
+  assert.ok(readiness.includes("records BIR's own acknowledgement"));
+});
