@@ -90,7 +90,7 @@ test("deadline helper follows current published employer schedules", () => {
     agency: "PhilHealth",
     applicableMonth: "2026-08",
     philHealthEmployerNo: "PEN-1239",
-  }).dueDate, "2026-09-20");
+  }).dueDate, "2026-09-21");
 
   assert.equal(statutoryRemittanceDeadline({
     agency: "Pag-IBIG",
