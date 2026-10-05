@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { statutoryRemittanceBatches, statutoryRemittanceMembers } from "@/db/schema";
 import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
@@ -105,8 +105,8 @@ export async function POST(request: Request) {
     postedAt: Date;
   }> = [];
 
-  parsed.valid.forEach((row, index) => {
-    const line = index + 2;
+  parsed.valid.forEach((row) => {
+    const line = row.sourceLine;
     const member = byEmployeeNo.get(row.employeeNo);
     if (!member) {
       errors.push({ line, problems: [`Employee "${row.employeeNo}" is not part of this remittance batch.`] });
@@ -175,8 +175,18 @@ export async function POST(request: Request) {
   }
 
   const result = await db.transaction(async (tx) => {
+    const [currentBatch] = await tx.select({
+      status: statutoryRemittanceBatches.status,
+    }).from(statutoryRemittanceBatches).where(and(
+      eq(statutoryRemittanceBatches.id, batchId),
+      eq(statutoryRemittanceBatches.organizationId, organizationId),
+    )).limit(1);
+    if (!currentBatch || currentBatch.status === "open" || currentBatch.status === "reconciled") {
+      throw new Error("Remittance batch changed while the import was being applied. Refresh and validate the file again.");
+    }
+
     for (const row of matched) {
-      await tx.update(statutoryRemittanceMembers).set({
+      const updated = await tx.update(statutoryRemittanceMembers).set({
         postingStatus: "confirmed",
         postingReference: row.postingReference,
         postedAmount: row.postedAmount.toFixed(2),
@@ -187,7 +197,11 @@ export async function POST(request: Request) {
       }).where(and(
         eq(statutoryRemittanceMembers.id, row.member.id),
         eq(statutoryRemittanceMembers.organizationId, organizationId),
-      ));
+        ne(statutoryRemittanceMembers.postingStatus, "confirmed"),
+      )).returning({ id: statutoryRemittanceMembers.id });
+      if (updated.length !== 1) {
+        throw new Error(`Employee "${row.member.employeeNo}" posting evidence changed concurrently. No rows were applied.`);
+      }
     }
 
     const refreshed = await tx.select({
