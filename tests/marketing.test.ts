@@ -57,8 +57,7 @@ test("the homepage leads with the approved Linaw payroll hero", () => {
   const trust = read("src/components/marketing/claude-home/components/Trust.tsx");
   const product = read("src/components/marketing/claude-home/components/Product.tsx");
 
-  assert.ok(hero.includes("Philippine payroll software"), "hero must lead with the Philippine payroll search intent");
-  assert.ok(hero.includes("you can verify before you pay."), "hero must explain the review-before-release value proposition");
+  assert.ok(hero.includes("Philippine payroll you can verify before you pay."), "hero must lead with Philippine payroll and the review-before-release value proposition");
   assert.ok(hero.includes("Try Live Demo"), "hero must expose the primary live-demo CTA");
   assert.ok(hero.includes("See Pricing"), "hero must expose the pricing CTA");
   assert.ok(hero.includes("SSS, PhilHealth, Pag-IBIG & TRAIN calculations"), "hero must show the statutory calculation proof point");
