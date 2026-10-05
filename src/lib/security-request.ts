@@ -125,6 +125,7 @@ export async function enforceSensitiveActionRateLimit(
 export function requireSensitiveActionMfa(user: {
   totpEnabled: boolean;
   mfaVerifiedAt?: Date | string | null;
+  authMethod?: string | null;
 }) {
   if (process.env.NODE_ENV !== "production" || process.env.REQUIRE_PRIVILEGED_MFA === "false") {
     return null;
@@ -137,10 +138,11 @@ export function requireSensitiveActionMfa(user: {
     : 12;
   const recent = verifiedAt > 0 && Date.now() - verifiedAt <= maxAgeHours * 60 * 60 * 1000;
 
-  if (!user.totpEnabled || !recent) {
+  const factorAvailable = user.totpEnabled || user.authMethod === "oidc";
+  if (!factorAvailable || !recent) {
     return Response.json(
       {
-        error: user.totpEnabled
+        error: factorAvailable
           ? "Re-authenticate with multi-factor authentication before this sensitive action."
           : "Multi-factor authentication is required for this sensitive action.",
         code: "MFA_REQUIRED",
