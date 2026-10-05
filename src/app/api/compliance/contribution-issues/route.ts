@@ -124,6 +124,12 @@ export async function POST(request: Request) {
 
   const sourceKey = `employee-contribution-issue:${issue.id}`;
 
+  if (issue.assignedToUserId != null && issue.assignedToUserId !== user.id) {
+    return Response.json({
+      error: `This contribution case is assigned to ${issue.assignedToName ?? "another payroll operator"}.`,
+    }, { status: 409 });
+  }
+
   if (action === "start_review") {
     const now = new Date();
     const [updated] = await db.update(statutoryContributionIssueCases).set({
