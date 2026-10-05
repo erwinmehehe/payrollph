@@ -288,7 +288,7 @@ export function Scorecard() {
   );
 }
 
-const snippet = `curl https://app.linaw.ph/api/v1/employees \\
+const snippet = `curl https://payrollsoftware.ph/api/v1/employees \\
   -H "Authorization: Bearer lk_live_9f2c…" \\
   -H "Idempotency-Key: onboard-0042" \\
   -d '{"employeeNo":"EMP-0042","monthlyBasic":28000}'
