@@ -6,7 +6,7 @@ import { StructuredData } from "@/components/marketing/structured-data";
 import { regulatoryUpdates } from "@/lib/seo-content-wave3";
 
 export const metadata: Metadata = {
-  title: "Philippine Payroll Regulatory Updates | Linaw",
+  title: "Philippine Payroll Regulatory Updates Archive | Linaw",
   description: "Dated Philippine payroll regulatory updates with official sources and links back to evergreen payroll guidance.",
   alternates: { canonical: "/resources/updates" },
 };
