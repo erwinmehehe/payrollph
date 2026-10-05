@@ -33,6 +33,9 @@ export async function POST(request: Request) {
   const company = String(body.company ?? "").trim().slice(0, 160);
   const headcount = String(body.headcount ?? "").trim().slice(0, 40);
   const notes = String(body.notes ?? "").trim().slice(0, 1000);
+  const requestType = body.requestType === "trial" ? "trial" : "demo";
+  const purpose = requestType === "trial" ? "trial-access-request" : "demo-request";
+  const subjectPrefix = requestType === "trial" ? "Trial access request" : "Demo request";
 
   const problems: string[] = [];
   if (name.length < 2) problems.push("Your name is required.");
@@ -47,10 +50,12 @@ export async function POST(request: Request) {
   try {
     result = await queueMessage({
       recipient: OPERATOR_INBOX,
-      subject: `Demo request: ${company}`,
-      purpose: "demo-request",
+      subject: `${subjectPrefix}: ${company}`,
+      purpose,
       body: [
-        "A demo was requested from the public site.",
+        requestType === "trial"
+          ? "Trial workspace access was requested from the public site."
+          : "A demo was requested from the public site.",
         "",
         `Name:      ${name}`,
         `Email:     ${email}`,
@@ -60,6 +65,15 @@ export async function POST(request: Request) {
         "Notes:",
         notes || "(none)",
       ].join("\n"),
+      metadata: {
+        leadType: requestType,
+        name,
+        email,
+        company,
+        headcount: headcount || null,
+        notes: notes || null,
+        source: requestType === "trial" ? "/signup" : "/book-demo",
+      },
     });
   } catch (error) {
     console.error("demo-request: could not write to the outbox", error);
