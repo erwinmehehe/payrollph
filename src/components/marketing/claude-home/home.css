@@ -2217,10 +2217,10 @@
   max-width: 620px;
 }
 .home-redesign .payroll-home-hero-copy-v2 h1 {
-  max-width: 640px;
-  font-size: clamp(54px,4.8vw,72px);
-  line-height: .97;
-  letter-spacing: -.052em;
+  max-width: 650px;
+  font-size: clamp(52px,4.45vw,68px);
+  line-height: .99;
+  letter-spacing: -.048em;
 }
 .home-redesign .payroll-home-hero-copy-v2 .payroll-home-lede {
   max-width: 560px;
