@@ -263,7 +263,7 @@ export const resourceWave3: AuthorityPage[] = [
     eyebrow: "Payslip guide Philippines",
     title: "What a useful payroll payslip should explain.",
     metaTitle: "Payslip Guide Philippines: Payroll Information | Linaw",
-    description: "Philippine payslip guide covering earnings, deductions, statutory items, net pay, payroll period, employee access and why released payslips should match payroll.",
+    description: "Philippine payslip guide covering earnings, deductions, statutory items, net pay, payroll period, employee access and why payslips should match payroll.",
     intro: "A payslip should help an employee understand how gross pay became net pay. Clear line items reduce repeated questions and make payroll corrections easier to investigate.",
     proof: ["Pay period", "Earnings", "Premiums", "Deductions", "Statutory items", "Net pay"],
     sections: [
@@ -283,7 +283,7 @@ export const resourceWave3: AuthorityPage[] = [
     slug: "payroll-annualization",
     eyebrow: "Payroll annualization Philippines",
     title: "Payroll annualization and year-end tax review.",
-    metaTitle: "Payroll Annualization Philippines: Year-End Tax Guide | Linaw",
+    metaTitle: "Payroll Annualization Philippines: Tax Guide | Linaw",
     description: "Payroll annualization guide for Philippine employers covering year-to-date taxable compensation, tax withheld, year-end adjustment and BIR Form 2316 context.",
     intro: "Year-end payroll needs a cumulative view. Annualization reconciles taxable compensation and tax already withheld across the year so the final payroll position reflects the employee's annual compensation record.",
     proof: ["Year-to-date taxable income", "Tax already withheld", "Year-end adjustment", "2316 preparation", "Terminated employees", "Audit trail"],
@@ -485,7 +485,7 @@ export const complianceWave3: AuthorityPage[] = [
     eyebrow: "Payroll compliance audit",
     title: "Payroll compliance audit: evidence to review after each run.",
     metaTitle: "Payroll Compliance Audit Philippines | Linaw",
-    description: "Payroll compliance audit guide covering released payroll, statutory liabilities, tax withheld, government outputs, submission evidence and unresolved exceptions.",
+    description: "Payroll compliance audit guide covering released payroll, statutory liabilities, tax withheld, government outputs, filing evidence and unresolved exceptions.",
     intro: "A compliance audit should connect the approved payroll run with the statutory calculations and reporting evidence that followed it. The goal is traceability, not a blanket statement that everything is compliant.",
     proof: ["Approved payroll version", "Statutory liabilities", "Tax withheld", "Government output", "Submission/remittance evidence", "Exceptions"],
     sections: [
