@@ -1,6 +1,6 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, jobProfiles, positionAssignments, positions } from "@/db/schema";
+import { employees, jobProfiles, jobRequisitions, positionAssignments, positions } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
@@ -85,6 +85,16 @@ export async function POST(request: Request) {
     isNull(positionAssignments.effectiveUntil),
   )).limit(1);
   if (targetIncumbent) return Response.json({ error: "The target position already has an active incumbent." }, { status: 409 });
+
+  const targetRequisitions = await db.select({ id: jobRequisitions.id, status: jobRequisitions.status }).from(jobRequisitions).where(and(
+    eq(jobRequisitions.organizationId, organizationId),
+    eq(jobRequisitions.positionId, targetPosition.id),
+  ));
+  if (targetRequisitions.some((requisition) => !["filled", "cancelled"].includes(requisition.status))) {
+    return Response.json({
+      error: "The target position has an active recruiting requisition. Cancel or resolve that requisition before filling the position through an internal transfer.",
+    }, { status: 409 });
+  }
 
   const [currentAssignment] = await db.select().from(positionAssignments).where(and(
     eq(positionAssignments.organizationId, organizationId),
