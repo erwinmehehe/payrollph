@@ -198,7 +198,8 @@ jobs:
 
             if (name === "desktop") {
               const hero = page.locator("#top");
-              check((await hero.locator(".payroll-home-real-preview .system-demo-product .frame").count()) === 1, "desktop: real Linaw workspace hero preview is missing");
+              check((await hero.locator(".payroll-hero-control-card").count()) === 1, "desktop: release-readiness proof card is missing");
+              check((await hero.getByRole("heading", { name: "Can I safely release this payroll?" }).count()) === 1, "desktop: release-readiness question is missing");
               check((await hero.locator(".payroll-hero-owl").count()) === 0, "desktop: homepage mascot must stay removed");
               check((await hero.locator(".payroll-hero-speech").count()) === 0, "desktop: mascot speech bubble must stay removed");
               check((await hero.locator(".payroll-home-trust li").count()) === 3, "desktop: hero trust list must expose three proof points");
@@ -248,7 +249,7 @@ jobs:
               check(migrationStyles.columns !== "none", "desktop: Migration preview has no grid columns");
               check(migrationStyles.scrollWidth <= migrationStyles.width + 1, `desktop: Migration preview overflows ${migrationStyles.scrollWidth}px > ${migrationStyles.width}px`);
               check((await demo.getByRole("link", { name: /Open role-based sandbox/i }).count()) === 1, "desktop: role-based sandbox handoff is missing");
-              report.modules.push({ module: "Linaw real-workspace hero", active: true });
+              report.modules.push({ module: "Release-readiness hero", active: true });
               report.modules.push({ module: "Shared Linaw workspace preview", active: true });
             }
 
@@ -259,14 +260,17 @@ jobs:
                 `mobile-390: hero words collided after responsive line-break removal; saw "${normalizedHeading}"`,
               );
 
-              const mobilePreview = page.locator(".payroll-home-real-preview").first();
-              const previewPosition = await mobilePreview.evaluate((element) => getComputedStyle(element).position);
-              check(
-                previewPosition === "absolute",
-                `mobile-390: scaled hero preview must be removed from document flow; position=${previewPosition}`,
-              );
-
               const mobileHero = page.locator("#top");
+              const mobileControlCard = mobileHero.locator(".payroll-hero-control-card").first();
+              check((await mobileControlCard.count()) === 1, "mobile-390: release-readiness proof card is missing");
+              const controlFit = await mobileControlCard.evaluate((element) => ({
+                clientWidth: element.clientWidth,
+                scrollWidth: element.scrollWidth,
+              }));
+              check(
+                controlFit.scrollWidth <= controlFit.clientWidth + 1,
+                `mobile-390: release-readiness card clips ${controlFit.scrollWidth}px > ${controlFit.clientWidth}px`,
+              );
               const securityProof = page.locator("#security article").first();
               const securityHeading = securityProof.getByRole("heading", { name: "One workspace can never read another's payroll." });
               const securityCopy = securityProof.locator("p").filter({ hasText: "Every session route passes one shared membership gate." }).first();
