@@ -3,7 +3,7 @@ import { SeoLandingPage } from "@/components/marketing/seo-landing-page";
 
 export const metadata: Metadata = {
   title: "Payroll Integrations Philippines | API & Webhooks | Linaw",
-  description: "Connect Philippine payroll through scoped APIs, signed webhooks, biometric attendance input, accounting exports and supported payout handoffs.",
+  description: "Connect Philippine payroll through scoped APIs, signed webhooks, biometric attendance input, accounting exports and supported payout handoffs for teams.",
   alternates: { canonical: "/integrations" },
 };
 
