@@ -103,6 +103,7 @@ export async function GET(request: Request) {
     db.select().from(continuousFeedback).where(and(
       eq(continuousFeedback.organizationId, organizationId),
       eq(continuousFeedback.recipientEmployeeId, employee.id),
+      eq(continuousFeedback.visibility, "manager_and_recipient"),
     )).orderBy(desc(continuousFeedback.createdAt)),
   ]);
 
@@ -125,7 +126,6 @@ export async function GET(request: Request) {
   const roundIds = new Set(rounds.map((row) => row.id));
   const ownGoalIds = new Set(goals.map((row) => row.id));
   const aligned = alignments.filter((row) => ownGoalIds.has(row.performanceGoalId));
-  const strategicIds = new Set(aligned.map((row) => row.strategicGoalId));
   const employeeById = new Map(staff.map((row) => [row.id, row]));
 
   // A reviewer may be asked to give feedback about somebody else, so fetch those
