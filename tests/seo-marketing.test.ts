@@ -503,6 +503,34 @@ test("compliance hub groups agency, BIR and governance workflows", () => {
   assert.ok(landing.includes("Find the compliance workflow you actually need."), "directory must explain its browsing purpose");
 });
 
+test("statutory calculators show review freshness and official references", () => {
+  const route = read("src/app/calculators/[slug]/page.tsx");
+  const calculators = read("src/lib/calculators.ts");
+  assert.ok(route.includes("CALCULATOR_LAST_REVIEWED"), "calculator pages must show a review date");
+  assert.ok(route.includes("Official references"), "calculator pages must render official references when available");
+
+  for (const slug of [
+    "13th-month-pay",
+    "overtime-pay",
+    "night-differential",
+    "holiday-pay",
+    "sss-contribution",
+    "philhealth-contribution",
+    "pag-ibig-contribution",
+    "withholding-tax",
+    "payroll-cost",
+  ]) {
+    const start = calculators.indexOf(`"${slug}": [`);
+    assert.ok(start >= 0, `calculator ${slug} must have official source references`);
+  }
+
+  assert.ok(calculators.includes("https://www.sss.gov.ph/"), "calculator sources must include SSS");
+  assert.ok(calculators.includes("https://www.philhealth.gov.ph/"), "calculator sources must include PhilHealth");
+  assert.ok(calculators.includes("https://www.pagibigfund.gov.ph/"), "calculator sources must include Pag-IBIG");
+  assert.ok(calculators.includes("https://www.bir.gov.ph/"), "calculator sources must include BIR");
+  assert.ok(calculators.includes("https://dole.gov.ph/"), "calculator sources must include DOLE");
+});
+
 test("public navigation exposes the SEO program without hiding the live demo", () => {
   const navigation = read("src/components/marketing/public-navigation.ts");
   for (const route of ["/demo", "/resources", "/compliance", "/trust", "/integrations", "/developers", "/calculators", "/payroll-health-check", "/industries"]) {
