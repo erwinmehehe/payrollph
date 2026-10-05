@@ -4,7 +4,7 @@ import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 
 export const metadata: Metadata = {
   title: "Payroll Health Check Philippines | Linaw",
-  description: "Assess payroll process maturity across efficiency, automation, approvals, compliance, security, auditability and employee self-service.",
+  description: "Assess Philippine payroll process maturity across manual work, attendance, approvals, compliance controls, security, auditability and employee self-service.",
   alternates: { canonical: "/payroll-health-check" },
 };
 

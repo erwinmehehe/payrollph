@@ -9,7 +9,7 @@ const resources = [...resourcePages, ...resourceWave2];
 
 export const metadata: Metadata = {
   title: "Philippine Payroll Guides & Buyer Resources | Linaw",
-  description: "Payroll software buying guides, migration checklists, security guidance and operational resources for Philippine employers.",
+  description: "Philippine payroll guides for software buying, migration, security, outsourcing decisions and spreadsheet-to-system planning for employers and payroll teams.",
   alternates: { canonical: "/resources" },
 };
 
@@ -25,7 +25,7 @@ export default function ResourcesPage() {
               Practical guides for buying, migrating and operating Philippine payroll.
             </h1>
             <p className="mt-5 max-w-[760px] text-[16px] leading-relaxed text-[#5B6080]">
-              Use these resources to evaluate payroll software, plan migration, review security, build an RFP and choose the operating model that fits your team.
+              Use these resources to evaluate payroll software, plan migration, review security and choose the operating model that fits your team.
             </p>
           </div>
         </section>
