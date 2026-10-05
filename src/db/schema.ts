@@ -593,7 +593,7 @@ export const statutoryRemittanceObligations = pgTable(
     agency: varchar("agency", { length: 16 }).notNull(),
     applicableMonth: varchar("applicable_month", { length: 7 }).notNull(),
     dueDate: date("due_date"),
-    dueRule: varchar("due_rule", { length: 240 }).notNull(),
+    dueRule: text("due_rule").notNull(),
     expectedEmployeeAmount: numeric("expected_employee_amount", { precision: 14, scale: 2 }).notNull().default("0"),
     expectedEmployerAmount: numeric("expected_employer_amount", { precision: 14, scale: 2 }).notNull().default("0"),
     expectedTotalAmount: numeric("expected_total_amount", { precision: 14, scale: 2 }).notNull().default("0"),
