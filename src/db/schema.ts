@@ -1179,6 +1179,7 @@ export const statutoryRemittanceBatches = pgTable(
     paymentReference: varchar("payment_reference", { length: 120 }),
     agencyReceiptReference: varchar("agency_receipt_reference", { length: 120 }),
     paymentChannel: varchar("payment_channel", { length: 80 }),
+    paymentVarianceNote: varchar("payment_variance_note", { length: 240 }),
     paidAt: timestamp("paid_at", { withTimezone: true }),
     paymentRecordedBy: varchar("payment_recorded_by", { length: 120 }),
     reconciledAt: timestamp("reconciled_at", { withTimezone: true }),
