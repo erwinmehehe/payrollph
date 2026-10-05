@@ -1,4 +1,5 @@
 import { queueMessage } from "@/lib/mailer";
+import { deliveryCapable } from "@/lib/mail-provider";
 import {
   recordMarketingLead,
   updateMarketingLeadNotification,
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
   }
 
   let status: MarketingLeadNotificationStatus = "not-configured";
-  if (OPERATOR_INBOX) {
+  if (OPERATOR_INBOX && deliveryCapable()) {
     try {
       const result = await queueMessage({
         recipient: OPERATOR_INBOX,
