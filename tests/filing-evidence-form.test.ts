@@ -43,18 +43,32 @@ test("the form is honest about what counts and that results are permanent", () =
   assert.ok(panel.includes("Linaw cannot check {agencyLabel} for you"));
   assert.ok(panel.includes("Linaw does not submit to {agencyLabel}"), "the card must not imply Linaw files for you");
   for (const definition of FILING_FORMS) {
-    assert.match(definition.copy.manualEntryNote, /does not prove/, `${definition.form}: typed-in filings must not read as proof`);
+    if (definition.evidenceMode === "file-format") {
+      assert.match(definition.copy.manualEntryNote, /does not prove/, `${definition.form}: typed-in filings must not read as file-format proof`);
+    } else {
+      assert.match(definition.copy.manualEntryNote, /operational|filing/i, `${definition.form}: operational evidence copy must explain what the acknowledgement proves`);
+    }
     assert.ok(definition.copy.unconfirmedNote.length > 0, `${definition.form}: say what is unconfirmed`);
   }
 });
 
 test("BIR's card says what source-extract acceptance does not prove", () => {
-  const bir = FILING_FORMS.find((item) => item.agency === "BIR")!;
+  const bir = FILING_FORMS.find((item) => item.agency === "BIR" && item.form === "1604-C")!;
   assert.match(bir.copy.scopeNote ?? "", /source extract for BIR validation/);
   assert.match(bir.copy.scopeNote ?? "", /does not replace BIR Alphalist v7\.4 validation/);
   assert.match(bir.copy.scopeNote ?? "", /annual filing acknowledgement/);
   assert.match(bir.copy.unconfirmedNote, /Linaw does not produce that \.DAT/);
   assert.ok(panel.includes("copy.scopeNote"), "the panel must show the scope note");
+});
+
+test("BIR 1601-C card allows portal evidence without pretending the worksheet is an upload format", () => {
+  const bir = FILING_FORMS.find((item) => item.agency === "BIR" && item.form === "1601-C")!;
+  assert.equal(bir.evidenceMode, "operational");
+  assert.deepEqual(bir.submissionMethods, ["manual_entry"]);
+  assert.equal(bir.requiresFinalCutoff, true);
+  assert.match(bir.copy.scopeNote ?? "", /does not claim/);
+  assert.match(bir.copy.scopeNote ?? "", /1601-C CSV/);
+  assert.match(bir.copy.manualEntryNote, /operational filing/);
 });
 
 test("PhilHealth's card says what the receipt does and does not show", () => {

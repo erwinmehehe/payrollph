@@ -30,6 +30,9 @@ type FilingForm = {
   form: string;
   generatorVersion: string;
   referenceLabel: string;
+  evidenceMode: "file-format" | "operational";
+  submissionMethods: Array<"file_upload" | "manual_entry">;
+  requiresFinalCutoff?: boolean;
   copy: {
     title: string;
     agencyLabel: string;
@@ -46,13 +49,20 @@ function todayInput() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function isMonthEnd(value?: string) {
+  if (!value) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return false;
+  return day === new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
 /**
  * Records what an agency said about a file Linaw generated. The wording comes
  * from the form's definition on the server (src/lib/filing-evidence.ts), so the
  * claims on screen are reviewed with the rules that decide what counts. The three steps are on one
- * card on purpose: create the record, download exactly that file, then record
- * the answer. Only an accepted upload of the generated file turns the readiness
- * gate on, and the form says so before anyone clicks.
+ * card on purpose: create the record, download the exact worksheet, then record
+ * the agency answer. Each filing definition says whether readiness requires
+ * file-format acceptance or operational portal acknowledgement.
  */
 export function FilingEvidencePanel({
   organizationId,
@@ -65,7 +75,7 @@ export function FilingEvidencePanel({
   organizationId: number;
   agency: string;
   form: string;
-  run: { id: number; periodLabel: string };
+  run: { id: number; periodLabel: string; periodEnd?: string };
   notify: Notify;
   onRefresh: () => Promise<void>;
 }) {
@@ -115,10 +125,15 @@ export function FilingEvidencePanel({
   const currentVersion = definition?.generatorVersion;
   const copy = definition?.copy;
   const agencyLabel = copy?.agencyLabel ?? agency;
+  const allowedMethods = definition?.submissionMethods?.length
+    ? definition.submissionMethods
+    : ["file_upload", "manual_entry"] as const;
+  const finalCutoffRequired = definition?.requiresFinalCutoff === true;
+  const isFinalCutoff = !finalCutoffRequired || isMonthEnd(run.periodEnd);
 
   function reset() {
     setOutcome("accepted");
-    setMethod("file_upload");
+    setMethod(allowedMethods[0] ?? "manual_entry");
     setReference("");
     setSubmittedAt(todayInput());
     setNote("");
@@ -209,11 +224,14 @@ export function FilingEvidencePanel({
         if (response.status === 409) reload();
         return;
       }
+      const countsOperationally = definition?.evidenceMode === "operational" && allowedMethods.includes(method);
       notify(
         outcome === "accepted"
-          ? method === "file_upload"
-            ? `Acceptance recorded. This counts toward the ${agency} ${form} readiness gate.`
-            : "Filing recorded. Because the figures were typed in, it does not count as proof the generated file imports."
+          ? countsOperationally
+            ? `Agency acknowledgement recorded. This counts as operational ${agency} ${form} filing evidence, not proof of an upload-file format.`
+            : method === "file_upload"
+              ? `Acceptance recorded. This counts toward the ${agency} ${form} file-format readiness gate.`
+              : "Filing recorded. Because the figures were typed in, it does not count as proof the generated file imports."
           : "Rejection recorded. Fix the cause, then create a new record for the corrected file.",
         "ok",
       );
@@ -230,9 +248,16 @@ export function FilingEvidencePanel({
 
   function evidenceLabel(record: FilingRecord) {
     if (record.status !== "accepted") return null;
-    if (record.submissionMethod !== "file_upload") return { tone: "amber", text: "Recorded, but typed in by hand, so it does not prove the generated file works." };
-    if (currentVersion && record.generatorVersion !== currentVersion) return { tone: "amber", text: "Accepted for an older file layout, so it no longer counts." };
-    return { tone: "green", text: `Counts toward the ${agency} ${form} readiness gate.` };
+    if (currentVersion && record.generatorVersion !== currentVersion) {
+      return { tone: "amber", text: "Accepted for an older generator version, so it no longer counts toward current readiness." };
+    }
+    if (definition?.evidenceMode === "operational" && allowedMethods.includes(record.submissionMethod as "file_upload" | "manual_entry")) {
+      return { tone: "green", text: `Counts as operational ${agency} ${form} filing evidence. It does not certify the generated file as an agency upload format.` };
+    }
+    if (record.submissionMethod !== "file_upload") {
+      return { tone: "amber", text: "Recorded, but typed in by hand, so it does not prove the generated file works." };
+    }
+    return { tone: "green", text: `Counts toward the ${agency} ${form} file-format readiness gate.` };
   }
 
   return (
@@ -253,7 +278,14 @@ export function FilingEvidencePanel({
         <div className="notice notice-blue" style={{ margin: 0 }}>
           <Info size={15} className="i-blue" />
           <span>
-            Only an accepted <strong>use of the file Linaw generated</strong> turns the readiness gate on.{" "}
+            {definition?.evidenceMode === "operational" ? (
+              <>
+                An accepted filing with the agency&apos;s own acknowledgement can satisfy the <strong>operational filing</strong> gate.
+                That does not certify the PayrollPH worksheet as an agency upload format.{" "}
+              </>
+            ) : (
+              <>Only an accepted <strong>use of the file PayrollPH generated</strong> turns the file-format readiness gate on.{" "}</>
+            )}
             {copy?.manualEntryNote} {copy?.unconfirmedNote}
           </span>
         </div>
@@ -273,12 +305,18 @@ export function FilingEvidencePanel({
         )}
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <button className="secondary-button" disabled={creating || records === null} onClick={() => void createRecord()}>
+          <button
+            className="secondary-button"
+            disabled={creating || records === null || !isFinalCutoff}
+            onClick={() => void createRecord()}
+          >
             <FileCheck2 size={14} className="i-teal" />
             {creating ? "Creating record…" : `Create ${agency} ${form} record for ${run.periodLabel}`}
           </button>
           <small className="field-help" style={{ margin: 0 }}>
-            Uses this run&apos;s data as it is now. Creating it again with unchanged data returns the same record.
+            {!isFinalCutoff
+              ? "This monthly filing record must be created from the final cutoff of the month."
+              : "Uses this run's data as it is now. Creating it again with unchanged data returns the same record."}
           </small>
         </div>
 
@@ -334,8 +372,11 @@ export function FilingEvidencePanel({
                       <label className="field">
                         <span>How it was submitted</span>
                         <select value={method} onChange={(event) => setMethod(event.target.value as typeof method)}>
-                          <option value="file_upload">{copy?.methodLabels.file_upload}</option>
-                          <option value="manual_entry">{copy?.methodLabels.manual_entry}</option>
+                          {allowedMethods.map((submissionMethod) => (
+                            <option key={submissionMethod} value={submissionMethod}>
+                              {copy?.methodLabels[submissionMethod]}
+                            </option>
+                          ))}
                         </select>
                       </label>
                       {outcome === "accepted" ? (
