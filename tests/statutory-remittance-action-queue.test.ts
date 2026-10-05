@@ -110,3 +110,21 @@ test("dashboard payload excludes resolved compliance history and stays bounded",
   assert.ok(dashboardData.includes('ne(complianceActionTasks.status, "resolved")'));
   assert.ok(dashboardData.includes(".limit(20)"));
 });
+
+
+test("assigned compliance actions require explicit reassignment before another user can acknowledge", () => {
+  assert.ok(route.includes("task.assignedToUserId != null && task.assignedToUserId !== user.id"));
+  assert.ok(route.includes("Reassign it before acknowledging."));
+  assert.ok(queue.includes("Assigned to {task.assignedToName"));
+  assert.ok(queue.includes('task.assignedToUserId == null ? "Take ownership" : "Start work"'));
+});
+
+test("reassigning in-progress compliance work resets acknowledgement for the new owner", () => {
+  assert.ok(route.includes("ownershipChanged && task.status === \"in_progress\""));
+  assert.ok(route.includes('status: "open"'));
+  assert.ok(route.includes("acknowledgedByUserId: null"));
+});
+
+test("notification dashboard fetch is limited to statutory remittance action sources", () => {
+  assert.ok(dashboardData.includes('eq(complianceActionTasks.sourceType, "statutory_remittance")'));
+});
