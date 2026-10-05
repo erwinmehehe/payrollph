@@ -30,10 +30,15 @@ export const PUBLIC_FOOTER_GROUPS: Array<{ label: string; links: PublicLink[] }>
     links: [
       { label: "Payroll guides", href: "/resources" },
       { label: "Payroll calculators", href: "/calculators" },
+      { label: "Payroll glossary", href: "/glossary" },
+      { label: "Regulatory updates", href: "/resources/updates" },
       { label: "Payroll compliance", href: "/compliance" },
       { label: "Implementation & migration", href: "/implementation" },
       { label: "Industries", href: "/industries" },
       { label: "Payroll health check", href: "/payroll-health-check" },
+      { label: "Payroll comparisons", href: "/compare" },
+      { label: "RFP checklist", href: "/templates/payroll-rfp-checklist" },
+      { label: "Security checklist", href: "/templates/payroll-security-checklist" },
     ],
   },
   {
