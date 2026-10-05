@@ -5,8 +5,9 @@ export type PublicLink = {
 
 export const PUBLIC_PRIMARY_LINKS: PublicLink[] = [
   { label: "Product", href: "/#product" },
-  { label: "Live demo", href: "/demo" },
-  { label: "Pricing", href: "/#pricing" },
+  { label: "HRIS", href: "/hris" },
+  { label: "Time & attendance", href: "/time-and-attendance" },
+  { label: "Compliance", href: "/compliance" },
   { label: "Payroll outsourcing", href: "/payroll-outsourcing" },
   { label: "Trust", href: "/scorecard" },
 ];
@@ -16,16 +17,27 @@ export const PUBLIC_FOOTER_GROUPS: Array<{ label: string; links: PublicLink[] }>
     label: "Product",
     links: [
       { label: "Product overview", href: "/#product" },
+      { label: "HRIS", href: "/hris" },
+      { label: "Time & attendance", href: "/time-and-attendance" },
+      { label: "Employee self-service", href: "/employee-self-service" },
       { label: "Role-based demo", href: "/demo" },
-      { label: "Payroll outsourcing", href: "/payroll-outsourcing" },
       { label: "Pricing", href: "/#pricing" },
     ],
   },
   {
-    label: "Company",
+    label: "Solutions",
+    links: [
+      { label: "Payroll outsourcing", href: "/payroll-outsourcing" },
+      { label: "Payroll compliance", href: "/compliance" },
+      { label: "Implementation & migration", href: "/implementation" },
+      { label: "BPO payroll", href: "/industries/bpo" },
+    ],
+  },
+  {
+    label: "Trust",
     links: [
       { label: "Capability scorecard", href: "/scorecard" },
-      { label: "Security", href: "/#security" },
+      { label: "Security", href: "/security" },
       { label: "System status", href: "/status" },
       { label: "Book a demo", href: "/book-demo" },
     ],
