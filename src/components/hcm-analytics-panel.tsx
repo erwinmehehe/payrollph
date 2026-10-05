@@ -36,6 +36,7 @@ type HcmAnalytics = {
     turnoverRateYtd: number;
     trend: Array<{ key: string; label: string; date: string; headcount: number }>;
     methodology: string;
+    scopeCaveat: string | null;
   };
   recruiting: {
     openRequisitions: number;
@@ -92,16 +93,18 @@ type HcmAnalytics = {
     suppressionReason: string | null;
   };
   cost: {
-    actualGrossYtd: number;
-    actualNetYtd: number;
-    employerStatutoryYtd: number;
-    loadedPayrollYtd: number;
-    employerBenefitMonthlyRunRate: number;
-    forecastAnnualLoadedCost: number;
-    positionSalaryBudget: number;
+    reportable: boolean;
+    actualGrossYtd: number | null;
+    actualNetYtd: number | null;
+    employerStatutoryYtd: number | null;
+    loadedPayrollYtd: number | null;
+    employerBenefitMonthlyRunRate: number | null;
+    forecastAnnualLoadedCost: number | null;
+    positionSalaryBudget: number | null;
     forecastVsPositionBudget: number | null;
     workforcePlan: { id: number; name: string; budget: number } | null;
     methodology: string;
+    suppressionReason: string | null;
     scopeCaveat: string | null;
   };
   engagement: {
@@ -235,7 +238,7 @@ export function HcmAnalyticsPanel({ organizationId }: { organizationId: number }
         <AnalyticsMetric label="PERFORMANCE" value={data.executive.averagePerformanceScore === null ? "Suppressed" : data.executive.averagePerformanceScore.toFixed(2)} hint="completed scored reviews" icon={<BarChart3 size={16} />} />
         <AnalyticsMetric label="CAREER READY" value={data.executive.careerReadyEmployees === null ? "Suppressed" : String(data.executive.careerReadyEmployees)} hint="80%+ readiness, no critical gaps" icon={<UserRoundCheck size={16} />} />
         <AnalyticsMetric label="LATEST eNPS" value={data.executive.latestReportableEnps === null ? "—" : String(data.executive.latestReportableEnps)} hint="latest reportable survey" icon={<ShieldCheck size={16} />} />
-        <AnalyticsMetric label="LOADED COST FORECAST" value={money(data.cost.forecastAnnualLoadedCost)} hint="gross + employer statutory + benefit run rate" icon={<WalletCards size={16} />} />
+        <AnalyticsMetric label="LOADED COST FORECAST" value={data.cost.forecastAnnualLoadedCost === null ? "Suppressed" : money(data.cost.forecastAnnualLoadedCost)} hint="gross + employer statutory + benefit run rate" icon={<WalletCards size={16} />} />
       </section>
 
       <section className="module-grid two" style={{ marginTop: 16 }}>
@@ -243,6 +246,7 @@ export function HcmAnalyticsPanel({ organizationId }: { organizationId: number }
           <div className="card-kicker">HEADCOUNT</div>
           <h3>12-month reconstructed workforce</h3>
           <p style={{ color: "var(--muted)", marginBottom: 16 }}>{data.headcount.methodology}</p>
+          {data.headcount.scopeCaveat && <div className="notice notice-amber" style={{ marginBottom: 14 }}><span>{data.headcount.scopeCaveat}</span></div>}
           {data.headcount.trend.map((row) => <Meter key={row.key} label={row.label} value={row.headcount} max={maxHeadcount} />)}
           <div className="hcm-metric-strip" style={{ marginTop: 14 }}>
             <div><span>Opening YTD</span><strong>{data.headcount.openingYtd}</strong></div>
@@ -367,14 +371,18 @@ export function HcmAnalyticsPanel({ organizationId }: { organizationId: number }
         <div className="card-kicker">LABOR COST</div>
         <h3>Payroll actuals vs annualized loaded forecast</h3>
         <p style={{ color: "var(--muted)" }}>{data.cost.methodology}</p>
-        <div className="hcm-metric-strip" style={{ marginTop: 14 }}>
-          <div><span>Gross YTD</span><strong>{money(data.cost.actualGrossYtd)}</strong></div>
-          <div><span>Employer statutory YTD</span><strong>{money(data.cost.employerStatutoryYtd)}</strong></div>
-          <div><span>Loaded payroll YTD</span><strong>{money(data.cost.loadedPayrollYtd)}</strong></div>
-          <div><span>Employer benefits / month</span><strong>{money(data.cost.employerBenefitMonthlyRunRate)}</strong></div>
-          <div><span>Annual loaded forecast</span><strong>{money(data.cost.forecastAnnualLoadedCost)}</strong></div>
-          <div><span>Position salary budget</span><strong>{money(data.cost.positionSalaryBudget)}</strong></div>
-        </div>
+        {!data.cost.reportable ? (
+          <div className="notice" style={{ marginTop: 14 }}><ShieldCheck size={14} /><span>{data.cost.suppressionReason}</span></div>
+        ) : (
+          <div className="hcm-metric-strip" style={{ marginTop: 14 }}>
+            <div><span>Gross YTD</span><strong>{money(data.cost.actualGrossYtd ?? 0)}</strong></div>
+            <div><span>Employer statutory YTD</span><strong>{money(data.cost.employerStatutoryYtd ?? 0)}</strong></div>
+            <div><span>Loaded payroll YTD</span><strong>{money(data.cost.loadedPayrollYtd ?? 0)}</strong></div>
+            <div><span>Employer benefits / month</span><strong>{money(data.cost.employerBenefitMonthlyRunRate ?? 0)}</strong></div>
+            <div><span>Annual loaded forecast</span><strong>{money(data.cost.forecastAnnualLoadedCost ?? 0)}</strong></div>
+            <div><span>Position salary budget</span><strong>{money(data.cost.positionSalaryBudget ?? 0)}</strong></div>
+          </div>
+        )}
         {data.cost.forecastVsPositionBudget !== null && (
           <div className="notice" style={{ marginTop: 14 }}>
             <span>Forecast minus position salary budget: <strong>{money(data.cost.forecastVsPositionBudget)}</strong>. This is a planning comparison, not an accounting variance.</span>
