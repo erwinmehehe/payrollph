@@ -20,6 +20,10 @@ type ImportResult = {
   exceptionCount?: number;
   message?: string;
   error?: string;
+  validationFailed?: boolean;
+  amountMismatchCount?: number;
+  autoCaseIds?: number[];
+  casesOpened?: boolean;
 };
 
 export function StatutoryPostingImport({
@@ -43,7 +47,7 @@ export function StatutoryPostingImport({
   const [busy, setBusy] = useState<"validate" | "apply" | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
 
-  async function submit(dryRun: boolean) {
+  async function submit(dryRun: boolean, openMismatchCases = false) {
     setBusy(dryRun ? "validate" : "apply");
     setResult(null);
     try {
@@ -56,12 +60,20 @@ export function StatutoryPostingImport({
           csv,
           fileName,
           dryRun,
+          openMismatchCases,
         }),
       });
       const body = await response.json().catch(() => ({})) as ImportResult;
       setResult(body);
       if (!response.ok) {
         notify(body.error ?? body.message ?? "Posting evidence did not pass validation.", "err");
+        return;
+      }
+      if (openMismatchCases) {
+        notify(
+          body.message ?? `${body.autoCaseIds?.length ?? 0} compliance case(s) opened from posting mismatches.`,
+          "ok",
+        );
         return;
       }
       notify(
@@ -159,6 +171,35 @@ export function StatutoryPostingImport({
                   <span>
                     <strong>{result.errorCount ?? 1} issue(s) found.</strong>{" "}
                     No rows were applied.
+                  </span>
+                </div>
+              )}
+
+              {(result.amountMismatchCount ?? 0) > 0 && !result.casesOpened && (
+                <div className="notice notice-amber" style={{ margin: 0 }}>
+                  <FileCheck2 size={15} />
+                  <span>
+                    <strong>{result.amountMismatchCount} agency amount mismatch{result.amountMismatchCount === 1 ? "" : "es"} detected.</strong>{" "}
+                    These can be opened as employee contribution compliance cases without applying the invalid posting file.
+                  </span>
+                </div>
+              )}
+              {(result.amountMismatchCount ?? 0) > 0 && !result.casesOpened && (
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={busy !== null}
+                  onClick={() => void submit(true, true)}
+                >
+                  Open {result.amountMismatchCount} compliance case{result.amountMismatchCount === 1 ? "" : "s"}
+                </button>
+              )}
+              {result.casesOpened && (
+                <div className="notice notice-green" style={{ margin: 0 }}>
+                  <FileCheck2 size={15} />
+                  <span>
+                    <strong>{result.autoCaseIds?.length ?? 0} compliance case(s) opened.</strong>{" "}
+                    The invalid posting file was not applied.
                   </span>
                 </div>
               )}
