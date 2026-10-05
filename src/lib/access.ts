@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { orgUnits, userOrganizations } from "@/db/schema";
+import { roleGateAllowed, type RoleGatePermission } from "@/lib/permissions";
 
 export type AccessScope = {
   organizationId: number;
@@ -19,6 +20,7 @@ export async function getAccess(userId: number, organizationId: number): Promise
   const [membership] = await db.select().from(userOrganizations).where(and(
     eq(userOrganizations.userId, userId),
     eq(userOrganizations.organizationId, organizationId),
+    eq(userOrganizations.active, true),
   )).limit(1);
 
   if (!membership) return null;
@@ -50,7 +52,7 @@ export async function primaryOrganizationId(userId: number): Promise<number | nu
   const [row] = await db
     .select({ organizationId: userOrganizations.organizationId })
     .from(userOrganizations)
-    .where(eq(userOrganizations.userId, userId))
+    .where(and(eq(userOrganizations.userId, userId), eq(userOrganizations.active, true)))
     .orderBy(userOrganizations.organizationId)
     .limit(1);
   return row?.organizationId ?? null;
@@ -83,7 +85,7 @@ export async function assertMembership(userId: number, organizationId: number): 
   const [row] = await db
     .select({ id: userOrganizations.id })
     .from(userOrganizations)
-    .where(and(eq(userOrganizations.userId, userId), eq(userOrganizations.organizationId, organizationId)))
+    .where(and(eq(userOrganizations.userId, userId), eq(userOrganizations.organizationId, organizationId), eq(userOrganizations.active, true)))
     .limit(1);
   if (row) return null;
   return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
@@ -132,6 +134,26 @@ export const PAYROLL_CHECKER_ROLES = ["owner", "admin", "manager", "checker"] as
 export const PAYROLL_RELEASE_ROLES = ["owner", "admin"] as const;
 export const PAYROLL_DISBURSEMENT_ROLES = ["owner"] as const;
 
+function sameRoles(a: readonly string[], b: readonly string[]) {
+  return a.length === b.length && a.every((role, index) => role === b[index]);
+}
+
+function gatePermissionForRoles(allowedRoles: readonly string[]): RoleGatePermission | null {
+  if (sameRoles(allowedRoles, ORG_ADMIN_ROLES)) return "org.admin";
+  if (sameRoles(allowedRoles, PEOPLE_ADMIN_ROLES)) return "people.admin";
+  if (sameRoles(allowedRoles, PEOPLE_PAYROLL_ROLES)) return "people.payroll";
+  if (sameRoles(allowedRoles, WORKFORCE_MANAGER_ROLES)) return "workforce.manage";
+  if (sameRoles(allowedRoles, DEVELOPER_ADMIN_ROLES)) return "developer.admin";
+  if (sameRoles(allowedRoles, BILLING_ADMIN_ROLES)) return "billing.admin";
+  if (sameRoles(allowedRoles, APPROVAL_ADMIN_ROLES)) return "approval.admin";
+  if (sameRoles(allowedRoles, PAYROLL_OPERATOR_ROLES)) return "payroll.operate";
+  if (sameRoles(allowedRoles, PAYROLL_VIEW_ROLES)) return "payroll.view";
+  if (sameRoles(allowedRoles, PAYROLL_CHECKER_ROLES)) return "payroll.check";
+  if (sameRoles(allowedRoles, PAYROLL_RELEASE_ROLES)) return "payroll.release";
+  if (sameRoles(allowedRoles, PAYROLL_DISBURSEMENT_ROLES)) return "payroll.disburse";
+  return null;
+}
+
 export function roleAllowed(role: string, allowedRoles: readonly string[]) {
   return allowedRoles.includes(role);
 }
@@ -148,6 +170,13 @@ export async function assertOrganizationRole(
   }
   if (!roleAllowed(access.role, allowedRoles)) {
     return Response.json({ error: message, role: access.role }, { status: 403 });
+  }
+  const permission = gatePermissionForRoles(allowedRoles);
+  if (permission) {
+    const overlay = await roleGateAllowed(userId, organizationId, permission);
+    if (!overlay.allowed) {
+      return Response.json({ error: "Your custom permission set does not allow this action.", permission }, { status: 403 });
+    }
   }
   return null;
 }
