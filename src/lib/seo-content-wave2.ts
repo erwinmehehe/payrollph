@@ -31,7 +31,7 @@ export const resourceWave2: AuthorityPage[] = [
     slug: "payroll-rfp-checklist",
     eyebrow: "Payroll RFP checklist",
     title: "Payroll software RFP checklist for Philippine buyers.",
-    metaTitle: "Payroll Software RFP Checklist Philippines | Linaw",
+    metaTitle: "Payroll RFP Checklist Guide Philippines | Linaw",
     description: "A procurement checklist for evaluating payroll vendors across calculations, compliance, controls, implementation, security, integrations and support.",
     intro: "A good payroll RFP forces vendors to demonstrate the difficult parts of payroll rather than answering a generic yes-or-no feature matrix.",
     proof: ["Calculation scenarios", "Approval controls", "Migration plan", "Security evidence", "API and exports", "Support ownership"],
