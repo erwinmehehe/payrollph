@@ -12,6 +12,10 @@ import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { notifyEmployeeOfContributionCase, notifyEmployeeOfContributionCaseUpdate } from "@/lib/statutory-contribution-case-notifications";
 import { contributionCaseServiceStatus, contributionCaseServiceTargets } from "@/lib/statutory-contribution-case-aging";
+import {
+  contributionCaseOutcomeAllowed,
+  contributionCaseResolutionPolicyMessage,
+} from "@/lib/statutory-contribution-case-resolution";
 import { invalidateStatutoryRemittanceMonthCertification } from "@/lib/statutory-remittance-certification";
 import { getSessionUser } from "@/lib/auth";
 import {
@@ -295,6 +299,18 @@ export async function POST(request: Request) {
       return Response.json({
         error: "A supported resolution outcome and a resolution note of at least 20 characters are required.",
       }, { status: 400 });
+    }
+
+    if (!contributionCaseOutcomeAllowed(
+      issue.issueType,
+      resolutionOutcome,
+      { hasLinkedPosting: issue.remittanceMemberId != null },
+    )) {
+      return Response.json({
+        error: contributionCaseResolutionPolicyMessage(issue.issueType),
+        issueType: issue.issueType,
+        resolutionOutcome,
+      }, { status: 409 });
     }
 
     if (resolutionOutcome === "posting_confirmed") {
