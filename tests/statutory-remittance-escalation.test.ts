@@ -85,7 +85,7 @@ test("dedupe key stays stable within one episode but changes on severity or reop
     taskId: 41,
     episode: 1,
     severity: "warning",
-    stage: 1,
+    stage: 1 as const,
     recipientUserId: 3,
   };
   assert.equal(escalationDedupeKey(base), escalationDedupeKey(base));
