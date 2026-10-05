@@ -8,6 +8,7 @@ import {
   oneOnOneActionItems,
   oneOnOneMeetings,
   oneOnOneSeries,
+  orgUnits,
   performanceCycles,
   performanceGoalAlignments,
   performanceGoals,
@@ -97,6 +98,7 @@ export async function GET(request: Request) {
 
   const [
     staff,
+    units,
     strategicRows,
     employeeGoals,
     alignmentRows,
@@ -111,6 +113,7 @@ export async function GET(request: Request) {
     positionRows,
   ] = await Promise.all([
     db.select().from(employees).where(eq(employees.organizationId, organizationId)),
+    db.select().from(orgUnits).where(eq(orgUnits.organizationId, organizationId)),
     db.select().from(strategicGoals).where(eq(strategicGoals.organizationId, organizationId)).orderBy(desc(strategicGoals.id)),
     db.select().from(performanceGoals).where(eq(performanceGoals.organizationId, organizationId)).orderBy(desc(performanceGoals.id)),
     db.select().from(performanceGoalAlignments).where(eq(performanceGoalAlignments.organizationId, organizationId)),
@@ -152,6 +155,7 @@ export async function GET(request: Request) {
   return Response.json({
     access,
     currentEmployeeId: user.employeeId ?? null,
+    orgUnits: access.companyWide ? units : units.filter((unit) => unit.id === access.orgUnitId),
     employees: visibleEmployees.map((employee) => ({
       id: employee.id,
       firstName: employee.firstName,
