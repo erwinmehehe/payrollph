@@ -3,7 +3,7 @@ import { SeoLandingPage } from "@/components/marketing/seo-landing-page";
 
 export const metadata: Metadata = {
   title: "Payroll API Philippines | Developer Center | Linaw",
-  description: "Linaw developer center covering scoped API keys, employee and payroll-run endpoints, HMAC-signed webhooks and delivery security.",
+  description: "Linaw payroll API documentation covering scoped keys, employee and payroll-run endpoints, HMAC-signed webhooks, delivery security and admin controls.",
   alternates: { canonical: "/developers" },
 };
 
@@ -26,6 +26,14 @@ export default function DevelopersPage() {
         { title: "Payroll and employee resources", body: "Implemented public API paths include employees and payroll runs with scope checks and pagination rather than an undocumented catch-all interface." },
         { title: "Signed webhooks", body: "Webhook deliveries include an HMAC-SHA256 signature with a timestamp so receivers can verify authenticity and apply replay-tolerance rules." },
         { title: "Administrative controls", body: "Developer credential and webhook changes require organization authorization, company-wide administrator access and sensitive-action MFA checks." },
+        { title: "Design integrations around explicit scopes", body: "A key should receive only the permissions required by the connected workflow. The current scope model separates employee read/write access from payroll-run read access instead of issuing an unrestricted application token." },
+        { title: "Treat webhook verification as part of the integration", body: "Receivers should verify the signature and timestamp before trusting a payroll event, then handle retries and duplicate delivery safely on their side." },
+      ]}
+      faq={[
+        { question: "How are Linaw API keys stored?", answer: "The full key is shown at creation, while the persisted credential is stored as a SHA-256 hash with an identifying prefix so it can be revoked without retaining the secret value." },
+        { question: "What API scopes are available today?", answer: "The current implementation exposes explicit employee read, employee write and payroll read scopes rather than one unrestricted API permission." },
+        { question: "How are payroll webhooks authenticated?", answer: "Webhook deliveries use HMAC-SHA256 signatures with a timestamp so the receiving system can verify that the event was sent with the configured signing secret." },
+        { question: "Who can create API keys or change webhook settings?", answer: "Those mutations are restricted to authorized company-wide administrators and protected by sensitive-action controls, including MFA-sensitive checks in production workflows." },
       ]}
       related={[
         { label: "Integrations", href: "/integrations", description: "See where API, webhook and export capabilities fit into the product." },
