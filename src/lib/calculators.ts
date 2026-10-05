@@ -44,6 +44,39 @@ export const CALCULATORS = {
     description: "Estimate monthly employer payroll cost from salary plus configured employer SSS, PhilHealth and Pag-IBIG contributions.",
     intro: "Estimate core monthly employer payroll cost using the same statutory contribution functions used by Linaw. This does not include every possible benefit, premium or employer-specific cost.",
   },
+  "final-pay": {
+    title: "Final Pay Calculator Philippines",
+    description: "Add known final-pay components such as unpaid salary, prorated 13th-month pay, leave conversion and other approved amounts.",
+    intro: "This tool totals final-pay components you already know. It does not decide legal entitlement to separation pay, leave conversion or another benefit.",
+  },
+  "daily-rate": {
+    title: "Daily Rate Calculator Philippines",
+    description: "Estimate a daily payroll rate from monthly salary using a divisor you control.",
+    intro: "Enter the monthly salary and the divisor used by your payroll policy or applicable rule. The tool does not assume one divisor is correct for every employee.",
+  },
+  "hourly-rate": {
+    title: "Hourly Rate Calculator Philippines",
+    description: "Estimate an hourly payroll rate from monthly salary, a daily-rate divisor and paid hours per day.",
+    intro: "Enter the payroll divisor and hours per day that apply to the employee. Different work arrangements can require different bases.",
+  },
+  "payroll-outsourcing-roi": {
+    title: "Payroll Outsourcing ROI Calculator Philippines",
+    description: "Compare estimated internal payroll labor cost with a proposed managed payroll service cost.",
+    intro: "Estimate the labor-cost difference between an internal payroll process and a managed service. This is an operating-cost screen, not a guarantee of savings.",
+  },
 } as const;
 
 export type CalculatorSlug = keyof typeof CALCULATORS;
+
+export const ADVANCED_CALCULATOR_SLUGS = [
+  "final-pay",
+  "daily-rate",
+  "hourly-rate",
+  "payroll-outsourcing-roi",
+] as const;
+
+export type AdvancedCalculatorSlug = (typeof ADVANCED_CALCULATOR_SLUGS)[number];
+
+export function isAdvancedCalculatorSlug(slug: CalculatorSlug): slug is AdvancedCalculatorSlug {
+  return (ADVANCED_CALCULATOR_SLUGS as readonly string[]).includes(slug);
+}
