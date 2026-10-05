@@ -79,10 +79,13 @@ test("case creation and review advance the compliance task due date", () => {
 
 test("hourly worker escalates only overdue internal service targets and keeps tenant scope", () => {
   const worker = readFileSync("scripts/worker.ts", "utf8");
+  const scheduler = readFileSync("src/lib/scheduler.ts", "utf8");
   const escalations = readFileSync("src/lib/statutory-contribution-case-escalations.ts", "utf8");
   const notifications = readFileSync("src/lib/statutory-contribution-case-notifications.ts", "utf8");
 
   assert.ok(worker.includes("runScheduledContributionCaseEscalations"));
+  assert.ok(scheduler.includes("runScheduledContributionCaseEscalations"));
+  assert.ok(scheduler.includes("contributionCaseEscalations"));
   assert.ok(escalations.includes('service.state !== "review_overdue"'));
   assert.ok(escalations.includes('service.state !== "resolution_overdue"'));
   assert.ok(escalations.includes("RUN_EVERY_MS = 60 * 60 * 1000"));
@@ -148,4 +151,26 @@ test("hourly employee-case monitor passes bounded stages and preserves critical 
   assert.ok(escalations.includes('action.severity === "danger"'));
   assert.ok(escalations.includes("action.severityChangedAt"));
   assert.ok(escalations.includes("stageCounts"));
+});
+
+
+test("database-backed scheduler state prevents duplicate worker and scheduler scans", () => {
+  const escalations = readFileSync("src/lib/statutory-contribution-case-escalations.ts", "utf8");
+  assert.ok(escalations.includes('SCHEDULE_JOB = "employee-contribution-case-escalations"'));
+  assert.ok(escalations.includes("schedulerState"));
+  assert.ok(escalations.includes("schedule?.lastRunAt"));
+  assert.ok(escalations.includes("onConflictDoUpdate"));
+  assert.ok(escalations.includes('reason: "scheduler-interval"'));
+  assert.ok(escalations.includes('reason: "local-interval"'));
+});
+
+test("one contribution-case escalation failure does not abort later cases or erase escalation stages", () => {
+  const escalations = readFileSync("src/lib/statutory-contribution-case-escalations.ts", "utf8");
+  assert.ok(escalations.includes("let failures = 0"));
+  assert.ok(escalations.includes("for (const issue of cases)"));
+  assert.ok(escalations.includes("failures += 1"));
+  assert.ok(escalations.includes("errors: errors.slice(0, 25)"));
+  assert.ok(escalations.includes("contributionCaseEscalationStage(issue, now)"));
+  assert.ok(escalations.includes("stageCounts"));
+  assert.ok(escalations.includes("severityChangedAt"));
 });
