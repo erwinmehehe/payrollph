@@ -2,7 +2,6 @@ import { useState } from "react";
 import {
   ArrowRight,
   BriefcaseBusiness,
-  Building2,
   Check,
   CircleDollarSign,
   ClipboardCheck,
