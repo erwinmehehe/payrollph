@@ -82,6 +82,26 @@ export async function GET(request: Request) {
     day: "2-digit",
   }).format(new Date());
 
+  const releasedRuns = await db.select({
+    periodEnd: payrollRuns.periodEnd,
+  }).from(payrollRuns).where(and(
+    eq(payrollRuns.organizationId, organizationId),
+    eq(payrollRuns.status, "Released"),
+  ));
+  const closedMonths = [...new Set(
+    releasedRuns
+      .map((run) => String(run.periodEnd).slice(0, 7))
+      .filter((month) => month < currentManilaMonth()),
+  )].sort().slice(-6);
+  const existingKeys = new Set(
+    batches.map((batch) => `${batch.applicableMonth}|${batch.agency}`),
+  );
+  const coverageGaps = closedMonths.flatMap((applicableMonth) =>
+    (["SSS", "PhilHealth", "Pag-IBIG"] as const)
+      .filter((agency) => !existingKeys.has(`${applicableMonth}|${agency}`))
+      .map((agency) => ({ applicableMonth, agency })),
+  );
+
   return Response.json({
     batches: batches.map((batch) => ({
       ...batch,
@@ -97,6 +117,7 @@ export async function GET(request: Request) {
       ).length,
     })),
     members,
+    coverageGaps,
   });
 }
 
