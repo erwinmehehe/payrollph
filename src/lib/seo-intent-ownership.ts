@@ -20,6 +20,13 @@ export const SEO_PRIVATE_ROUTE_PREFIXES = [
 
 export const SEO_INTENT_OWNERS: SeoIntentOwner[] = [
   {
+    primaryIntent: "about linaw payrollph",
+    ownerPath: "/about",
+    intentClass: "trust",
+    supportingIntents: ["about linaw", "about payrollph"],
+    note: "Own branded company/product identity intent only; do not broaden into generic payroll software intent.",
+  },
+  {
     primaryIntent: "payroll software philippines",
     ownerPath: "/",
     intentClass: "commercial",
