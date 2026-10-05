@@ -16,10 +16,22 @@ export type ContributionCaseLike = {
 
 const DAY_MS = 86_400_000;
 
-function startOfUtcDay(value: Date | string) {
+function manilaDateParts(value: Date | string) {
   const date = value instanceof Date ? value : new Date(value);
   if (!Number.isFinite(date.getTime())) throw new Error("Invalid contribution-case timestamp.");
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const read = (type: "year" | "month" | "day") => Number(parts.find((part) => part.type === type)?.value);
+  return { year: read("year"), month: read("month"), day: read("day") };
+}
+
+function startOfManilaDay(value: Date | string) {
+  const parts = manilaDateParts(value);
+  return new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
 }
 
 function isWeekend(date: Date) {
@@ -31,7 +43,7 @@ export function addBusinessDays(value: Date | string, businessDays: number) {
   if (!Number.isInteger(businessDays) || businessDays < 0) {
     throw new Error("businessDays must be a non-negative integer.");
   }
-  const date = startOfUtcDay(value);
+  const date = startOfManilaDay(value);
   let remaining = businessDays;
   while (remaining > 0) {
     date.setUTCDate(date.getUTCDate() + 1);
@@ -45,11 +57,11 @@ function isoDate(date: Date) {
 }
 
 function calendarDaysBetween(from: Date | string, to: Date | string) {
-  return Math.floor((startOfUtcDay(to).getTime() - startOfUtcDay(from).getTime()) / DAY_MS);
+  return Math.floor((startOfManilaDay(to).getTime() - startOfManilaDay(from).getTime()) / DAY_MS);
 }
 
 export function contributionCaseServiceTargets(caseRow: ContributionCaseLike) {
-  const createdAt = startOfUtcDay(caseRow.createdAt);
+  const createdAt = startOfManilaDay(caseRow.createdAt);
   return {
     firstReviewDue: addBusinessDays(createdAt, 1),
     resolutionDue: addBusinessDays(createdAt, 5),
@@ -60,7 +72,7 @@ export function contributionCaseServiceStatus(
   caseRow: ContributionCaseLike,
   now: Date | string = new Date(),
 ) {
-  const nowDay = startOfUtcDay(now);
+  const nowDay = startOfManilaDay(now);
   const targets = contributionCaseServiceTargets(caseRow);
   const resolved = caseRow.status === "resolved" || Boolean(caseRow.resolvedAt);
 
