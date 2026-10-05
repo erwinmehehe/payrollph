@@ -55,7 +55,7 @@ test("Wave 4 adds RFP and security procurement templates", () => {
   assert.ok(security.includes("Certifications are distinguished from internal controls."));
 });
 
-test("comparison hub uses existing decision guides instead of unsupported competitor claims", () => {
+test("comparison hub keeps neutral guides and requires evidence for named competitors", () => {
   const compare = read("src/app/compare/page.tsx");
   for (const route of [
     "/resources/payroll-software-vs-outsourcing",
@@ -65,9 +65,26 @@ test("comparison hub uses existing decision guides instead of unsupported compet
   ]) {
     assert.ok(compare.includes(route), `comparison hub must include ${route}`);
   }
-  assert.ok(!compare.includes("Sprout"));
-  assert.ok(!compare.includes("Salarium"));
-  assert.ok(!compare.includes("GreatDay"));
+
+  if (compare.includes("Sprout")) {
+    assert.ok(existsSync("src/lib/seo-content-wave17.ts"), "Sprout comparison must have a source-backed content registry");
+    const sprout = read("src/lib/seo-content-wave17.ts");
+    assert.ok(sprout.includes("https://sprout.ph/product/payroll-management/"));
+    assert.ok(sprout.includes("not a universal ranking"));
+    assert.ok(!sprout.toLowerCase().includes("sprout is insecure"));
+    assert.ok(!sprout.toLowerCase().includes("sprout is non-compliant"));
+  }
+
+  if (compare.includes("Salarium")) {
+    assert.ok(existsSync("src/lib/seo-content-wave18.ts"), "Salarium comparison must have a source-backed content registry");
+    const salarium = read("src/lib/seo-content-wave18.ts");
+    assert.ok(salarium.includes("https://support.salarium.com/"));
+    assert.ok(salarium.includes("not claiming to be better"));
+    assert.ok(!salarium.toLowerCase().includes("salarium is insecure"));
+    assert.ok(!salarium.toLowerCase().includes("salarium is non-compliant"));
+  }
+
+  assert.ok(!compare.includes("GreatDay"), "GreatDay must not be named until a source-backed comparison page exists");
 });
 
 test("customer story infrastructure cannot fabricate social proof", () => {
