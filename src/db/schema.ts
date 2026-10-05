@@ -1212,6 +1212,7 @@ export const disciplinaryCases = pgTable("disciplinary_cases", {
 export const jobRequisitions = pgTable("job_requisitions", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  positionId: integer("position_id"),
   title: varchar("title", { length: 160 }).notNull(),
   department: varchar("department", { length: 120 }).notNull(),
   headcount: integer("headcount").notNull().default(1),
