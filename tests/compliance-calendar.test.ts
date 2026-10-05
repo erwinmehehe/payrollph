@@ -94,3 +94,20 @@ test("accepted BIR acknowledgement closes the monthly calendar obligation withou
   assert.match(bir?.detail ?? "", /operational filing/);
   assert.match(bir?.detail ?? "", /not that PayrollPH produced an official BIR upload file/);
 });
+
+
+test("BIR follows pay month independently from contribution month", () => {
+  const items = buildComplianceCalendar({
+    today: "2026-11-05",
+    currentMonth: "2026-11",
+    applicableMonths: ["2026-09"],
+    birApplicableMonths: ["2026-10"],
+    legalName: "Acme Payroll Inc.",
+    philHealthEmployerNo: "00-123456789-3",
+    batches: [],
+  });
+
+  assert.equal(items.find((item) => item.agency === "BIR")?.applicableMonth, "2026-10");
+  assert.equal(items.find((item) => item.agency === "SSS")?.applicableMonth, "2026-09");
+  assert.equal(items.some((item) => item.agency === "BIR" && item.applicableMonth === "2026-09"), false);
+});
