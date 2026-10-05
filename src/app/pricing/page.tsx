@@ -21,7 +21,7 @@ export default async function PricingPage() {
           <div className="mx-auto max-w-[1180px] px-5 sm:px-8">
             <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#444CE7]">Payroll software pricing Philippines</p>
             <h1 className="font-display mt-4 text-[42px] font-semibold tracking-[-0.05em] sm:text-[56px]">Published pricing from the live product catalog.</h1>
-            <p className="mt-5 max-w-[720px] text-[16px] leading-relaxed text-[#5B6080]">Plan values below come from the same persisted pricing source used by the homepage rather than duplicated marketing constants.</p>
+            <p className="mt-5 max-w-[720px] text-[16px] leading-relaxed text-[#5B6080]">Plan values below come directly from the persisted product catalog rather than duplicated marketing constants.</p>
           </div>
         </section>
         <section className="py-16 sm:py-20">
