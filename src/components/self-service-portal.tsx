@@ -96,6 +96,17 @@ type Payload = {
   yearToDate: { gross: string; net: string; deductions: string; tax: string; periodsPaid: number };
   nextPay: { period: string; payDate: string; status: string; label: string } | null;
   payslips: Payslip[];
+  contributionStatus: Array<{
+    month: string;
+    agencies: Array<{
+      agency: "SSS" | "PhilHealth" | "Pag-IBIG";
+      employeeDeducted: string;
+      remittanceStatus: string;
+      dueDate: string | null;
+      paymentRecordedAt: string | null;
+      postingConfirmedAt: string | null;
+    }>;
+  }>;
   attendance: {
     recent: AttendanceRow[];
     today: AttendanceRow | null;
@@ -595,6 +606,59 @@ export function SelfServicePortal() {
               <div className="employee-rule-note"><ShieldCheck size={12} /> Rule version {latestPayslip.ruleVersion}</div>
             </article>
           )}
+
+          <article className="employee-list-card" data-contribution-status>
+            <div className="employee-list-card-head">
+              <div>
+                <span className="card-kicker">MANDATORY CONTRIBUTIONS</span>
+                <h3>Were my deductions remitted?</h3>
+              </div>
+            </div>
+            {data.contributionStatus.length === 0 ? (
+              <div className="employee-empty-row">No released contribution deductions yet.</div>
+            ) : data.contributionStatus.slice(0, 6).map((month) => (
+              <div className="employee-pay-row" key={month.month}>
+                <div className="employee-pay-row-main" style={{ cursor: "default" }}>
+                  <div>
+                    <strong>{month.month}</strong>
+                    <span>SSS · PhilHealth · Pag-IBIG</span>
+                  </div>
+                  <div className="employee-pay-row-amount">
+                    <strong>{peso(month.agencies.reduce((sum, item) => sum + Number(item.employeeDeducted), 0))}</strong>
+                    <span>deducted from your pay</span>
+                  </div>
+                </div>
+                <div className="employee-pay-row-detail" style={{ display: "grid" }}>
+                  {month.agencies.map((item) => (
+                    <div key={item.agency} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center" }}>
+                      <div>
+                        <strong>{item.agency}</strong>
+                        <span style={{ display: "block" }}>
+                          {peso(item.employeeDeducted)} deducted
+                          {item.dueDate ? ` · employer due ${dateLabel(item.dueDate)}` : ""}
+                        </span>
+                      </div>
+                      <span className={"employee-status-pill " + statusTone(
+                        item.remittanceStatus === "confirmed"
+                          ? "complete"
+                          : item.remittanceStatus === "payment_recorded"
+                            ? "pending"
+                            : "incomplete"
+                      )}>
+                        {item.remittanceStatus === "confirmed"
+                          ? "Agency posting confirmed"
+                          : item.remittanceStatus === "payment_recorded"
+                            ? "Payment recorded, posting pending"
+                            : item.remittanceStatus === "not_recorded"
+                              ? "Awaiting employer remittance record"
+                              : item.remittanceStatus.replaceAll("_", " ")}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </article>
 
           <article className="employee-list-card">
             <div className="employee-list-card-head">
