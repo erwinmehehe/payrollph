@@ -26,6 +26,7 @@ Canonical site: ${PUBLIC_SITE_URL}
 - Payroll calculators: ${absolutePublicUrl("/calculators")}
 
 ## Product evidence and technical documentation
+- About Linaw: ${absolutePublicUrl("/about")}
 - Trust center: ${absolutePublicUrl("/trust")}
 - Security: ${absolutePublicUrl("/security")}
 - Capability scorecard: ${absolutePublicUrl("/scorecard")}
