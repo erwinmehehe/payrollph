@@ -55,7 +55,7 @@ test("certifier cannot certify evidence they helped create or correct", () => {
   assert.ok(route.includes("paymentRecordedBy"));
   assert.ok(route.includes("confirmedBy"));
   assert.ok(route.includes("decidedByName"));
-  assert.ok(route.includes("cannot certify a remittance month containing evidence they recorded, confirmed, or corrected"));
+  assert.ok(route.includes("cannot certify a remittance month containing evidence they recorded, confirmed, corrected, or resolved"));
 });
 
 test("certification history is immutable per evidence snapshot", () => {
