@@ -447,7 +447,6 @@ async function processPayrollChunk(input: {
   const holidayRows = await db.select().from(holidays).where(
     or(isNull(holidays.organizationId), eq(holidays.organizationId, input.organizationId)),
   );
-  const workforcePricingWindowEnd = addDays(String(run.periodEnd), 1);
   const holidayWindowStart = addDays(String(run.periodStart), -14);
   const workforcePricingWindowEnd = addDays(String(run.periodEnd), 1);
   const localHolidayRows = holidayRows.flatMap((row) => {
@@ -1535,12 +1534,6 @@ function calculateEmployeePay(input: {
     }
   }
 
-  for (const note of segmentedPremiumNotes.values()) {
-    holidayNotes.push(
-      `${note.date} ${note.label} ×${note.multiplier} · ${note.minutes} min → +${money(note.extra)}`,
-    );
-  }
-
   const attendanceCalendarDates = new Set<string>();
   const payableTimeTrace: Array<{
     punchId: number;
@@ -1566,6 +1559,7 @@ function calculateEmployeePay(input: {
   }>();
 
   for (const punch of eligiblePunches) {
+    const workDate = String(punch.workDate);
     const scheduledSegment = workforceSegmentByPunchId.get(punch.id);
     const shiftForPunch = {
       start: scheduledSegment?.startTime ?? punch.shiftStart,
@@ -1812,6 +1806,12 @@ function calculateEmployeePay(input: {
     if (derived.flags.length) {
       punchNotes.push(`${workDate}: ${derived.flags.join("; ")}`);
     }
+  }
+
+  for (const note of segmentedPremiumNotes.values()) {
+    holidayNotes.push(
+      `${note.date} ${note.label} ×${note.multiplier} · ${note.minutes} min → +${money(note.extra)}`,
+    );
   }
 
   const overtimeRequestsByWorkDate = new Map<string, Array<OvertimeRequestEvidence>>();
