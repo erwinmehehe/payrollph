@@ -11,6 +11,7 @@ import {
 import { assertOrganizationRole, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { buildStatutoryRemittanceAlerts } from "@/lib/statutory-remittance-alerts";
 import {
   buildStatutoryRemittanceSnapshot,
   canMarkRemittancePaid,
@@ -65,6 +66,11 @@ export async function GET(request: Request) {
   const denied = await requirePayrollOperator(user.id, organizationId);
   if (denied) return denied;
 
+  const [organization] = await db.select().from(organizations)
+    .where(eq(organizations.id, organizationId))
+    .limit(1);
+  if (!organization) return Response.json({ error: "Organization not found." }, { status: 404 });
+
   const batches = await db.select().from(statutoryRemittanceBatches)
     .where(eq(statutoryRemittanceBatches.organizationId, organizationId))
     .orderBy(asc(statutoryRemittanceBatches.applicableMonth), asc(statutoryRemittanceBatches.agency));
@@ -99,25 +105,47 @@ export async function GET(request: Request) {
   const coverageGaps = closedMonths.flatMap((applicableMonth) =>
     (["SSS", "PhilHealth", "Pag-IBIG"] as const)
       .filter((agency) => !existingKeys.has(`${applicableMonth}|${agency}`))
-      .map((agency) => ({ applicableMonth, agency })),
+      .map((agency) => {
+        let dueDate: string | null = null;
+        try {
+          dueDate = nominalRemittanceDueDate({
+            agency,
+            applicableMonth,
+            legalName: organization.legalName,
+            philHealthEmployerNo: organization.philHealthEmployerNo,
+          });
+        } catch {
+          dueDate = null;
+        }
+        return { applicableMonth, agency, dueDate };
+      }),
   );
 
+  const batchSummaries = batches.map((batch) => ({
+    ...batch,
+    displayStatus:
+      batch.status === "open" && String(batch.dueDate) < today
+        ? "overdue"
+        : batch.status,
+    pendingPostingCount: members.filter(
+      (member) => member.batchId === batch.id && member.postingStatus === "pending",
+    ).length,
+    exceptionCount: members.filter(
+      (member) => member.batchId === batch.id && member.postingStatus === "exception",
+    ).length,
+  }));
+  const alerts = buildStatutoryRemittanceAlerts({
+    today,
+    batches: batchSummaries,
+    coverageGaps,
+  });
+
   return Response.json({
-    batches: batches.map((batch) => ({
-      ...batch,
-      displayStatus:
-        batch.status === "open" && String(batch.dueDate) < today
-          ? "overdue"
-          : batch.status,
-      pendingPostingCount: members.filter(
-        (member) => member.batchId === batch.id && member.postingStatus === "pending",
-      ).length,
-      exceptionCount: members.filter(
-        (member) => member.batchId === batch.id && member.postingStatus === "exception",
-      ).length,
-    })),
+    today,
+    batches: batchSummaries,
     members,
     coverageGaps,
+    alerts,
   });
 }
 
