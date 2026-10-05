@@ -19,6 +19,7 @@ type ContributionIssueCase = {
   applicableMonth: string;
   issueType: string;
   description: string;
+  remittanceMemberId: number | null;
   status: string;
   assignedToUserId: number | null;
   assignedToName: string | null;
@@ -285,7 +286,10 @@ export function StatutoryContributionIssueCasesPanel({
                             value={resolutionOutcome}
                             onChange={(event) => setResolutionOutcome(event.target.value as ContributionResolutionOutcome)}
                           >
-                            {allowedContributionCaseOutcomes(issue.issueType).map((value) => (
+                            {allowedContributionCaseOutcomes(
+                              issue.issueType,
+                              { hasLinkedPosting: issue.remittanceMemberId != null },
+                            ).map((value) => (
                               <option key={value} value={value}>{OUTCOME_LABELS[value]}</option>
                             ))}
                           </select>
@@ -326,7 +330,10 @@ export function StatutoryContributionIssueCasesPanel({
                             onClick={() => {
                               setResolveId(issue.id);
                               setUpdateId(null);
-                              setResolutionOutcome(allowedContributionCaseOutcomes(issue.issueType)[0]);
+                              setResolutionOutcome(allowedContributionCaseOutcomes(
+                                issue.issueType,
+                                { hasLinkedPosting: issue.remittanceMemberId != null },
+                              )[0]);
                               setResolutionNote("");
                             }}
                           >
