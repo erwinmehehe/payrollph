@@ -4,7 +4,7 @@ import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 import { StructuredData } from "@/components/marketing/structured-data";
 
 export const metadata: Metadata = {
-  title: "Payroll Software RFP Checklist Philippines | Linaw",
+  title: "Payroll Software RFP Checklist Template Philippines | Linaw",
   description: "Interactive payroll software RFP checklist covering calculations, implementation, security, integrations, controls and vendor evidence.",
   alternates: { canonical: "/templates/payroll-rfp-checklist" },
 };

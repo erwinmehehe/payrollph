@@ -4,7 +4,7 @@ import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 import { StructuredData } from "@/components/marketing/structured-data";
 
 export const metadata: Metadata = {
-  title: "Payroll Software Security Checklist Philippines | Linaw",
+  title: "Payroll Software Security Checklist Template Philippines | Linaw",
   description: "Interactive security review checklist for payroll software authentication, authorization, sensitive data, API security, auditability and operations.",
   alternates: { canonical: "/templates/payroll-security-checklist" },
 };
