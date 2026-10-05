@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS "statutory_remittance_obligations" (
   "agency" varchar(16) NOT NULL,
   "applicable_month" varchar(7) NOT NULL,
   "due_date" date,
-  "due_rule" varchar(240) NOT NULL,
+  "due_rule" text NOT NULL,
   "expected_employee_amount" numeric(14,2) DEFAULT '0' NOT NULL,
   "expected_employer_amount" numeric(14,2) DEFAULT '0' NOT NULL,
   "expected_total_amount" numeric(14,2) DEFAULT '0' NOT NULL,
