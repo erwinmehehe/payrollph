@@ -94,6 +94,12 @@ export const resourceWave3: AuthorityPage[] = [
       { title: "Incomplete punches should become exceptions", body: "A missing clock-out can make night minutes ambiguous. The safer workflow is to surface the attendance issue for review instead of inventing an end time." },
       { title: "Keep the formula visible to reviewers", body: "The payroll review should expose the hourly basis, qualifying night hours and applicable base-day multiplier." },
     ],
+    faq: [
+      { question: "What payroll records should support night differential?", answer: "Use actual worked-time evidence, such as attendance or approved time records, together with the employee's pay basis and the work-date context used by payroll." },
+      { question: "Can night differential overlap with overtime or holiday pay?", answer: "Yes. The same worked minutes can fall inside a night period while also being overtime, rest-day work or holiday work, so payroll should preserve each layer of context before pricing the result." },
+      { question: "What should happen when a night-shift punch is incomplete?", answer: "An incomplete time record should become an attendance exception for review instead of having payroll invent a clock-out time or assume the full scheduled shift was worked." },
+      { question: "What should a reviewer see before approving night differential?", answer: "The review should expose the hourly basis, qualifying night hours, applicable day context and resulting premium so the amount can be traced back to worked time." },
+    ],
     related: [
       { label: "Night differential calculator", href: "/calculators/night-differential", description: "Estimate the night differential component." },
       { label: "BPO payroll", href: "/industries/bpo", description: "See how night work fits shift-heavy payroll." },
@@ -116,6 +122,12 @@ export const resourceWave3: AuthorityPage[] = [
       { title: "Worked and unworked cases differ", body: "Payroll should distinguish whether the employee actually worked on the holiday rather than applying a worked-day multiplier to every employee in the company." },
       { title: "Rest-day overlap changes context", body: "When the holiday also falls on the employee's rest day, the payroll engine needs both facts to determine the relevant premium treatment." },
       { title: "Treat new proclamations and advisories as rule updates", body: "Holiday payroll is a good example of why evergreen guide pages should link to dated regulatory updates instead of hard-coding every year's calendar into the main URL." },
+    ],
+    faq: [
+      { question: "Why does the holiday type matter in payroll?", answer: "Regular holidays and special non-working days can receive different treatment, so payroll must classify the date correctly before applying worked or unworked pay rules." },
+      { question: "Does every employee receive the same holiday treatment?", answer: "No. Payroll still needs the employee's work status, actual work performed, pay basis and whether the date also fell on a rest day before determining the applicable treatment." },
+      { question: "What changes when a holiday falls on a rest day?", answer: "Rest-day overlap changes the work-date context used for premium calculations, so both facts should be preserved instead of flattening the date into a single holiday label." },
+      { question: "How should payroll handle new holiday proclamations or advisories?", answer: "Use the effective calendar and current DOLE or official government advisory for the covered date rather than hard-coding one permanent holiday calendar into payroll." },
     ],
     related: [
       { label: "Holiday pay calculator", href: "/calculators/holiday-pay", description: "Estimate worked-day pay under several day types." },
@@ -172,6 +184,12 @@ export const resourceWave3: AuthorityPage[] = [
       { title: "Separate the benefit from other final-pay components", body: "Separation pay, when due, is only one component of the employee's overall final payroll closeout." },
       { title: "Record the approved basis", body: "The payroll record should preserve the approved separation type, authorized amount and reviewer so the payment can be explained later." },
     ],
+    faq: [
+      { question: "Is separation pay automatic whenever an employee leaves?", answer: "No. Entitlement depends on the legal basis for separation, the employee's circumstances and any applicable agreement or more favorable company policy." },
+      { question: "Why should payroll not use one universal separation-pay formula?", answer: "The amount can depend on the legally approved separation basis and length-of-service rules, so eligibility should be determined before payroll calculates or records the authorized benefit." },
+      { question: "Is separation pay the same as final pay?", answer: "No. Separation pay, when due, is one possible component of the broader final-pay closeout, which can also include unpaid wages, prorated benefits, leave conversion or tax adjustments." },
+      { question: "What evidence should be kept for a separation-pay payment?", answer: "Keep the approved separation basis, authorized amount, service data used in the decision and the reviewer or approver responsible for the final payroll instruction." },
+    ],
     related: [
       { label: "Final pay guide", href: "/resources/final-pay-philippines", description: "See the full payroll closeout context." },
       { label: "Implementation controls", href: "/implementation", description: "Review how sensitive payroll decisions are reconciled." },
@@ -195,12 +213,19 @@ export const resourceWave3: AuthorityPage[] = [
       { title: "Calculate and review exceptions", body: "The payroll engine should calculate traceable results while surfacing incomplete punches, missing data, unusual adjustments and policy conflicts for human review." },
       { title: "Approve, release and reconcile", body: "An independent checker and release owner should review totals before payout, followed by payslip, accounting, statutory and audit-close activities." },
     ],
+    faq: [
+      { question: "What are the main stages of a controlled payroll process?", answer: "A strong process prepares employee data, closes time and variable inputs, calculates payroll, reviews exceptions, gets independent approval, releases payroll and reconciles the completed run." },
+      { question: "Why should payroll inputs have an explicit cutoff?", answer: "A cutoff tells the team which attendance, leave, overtime, salary changes and one-time adjustments are complete enough to calculate, and which late items still need an exception decision." },
+      { question: "Why separate payroll preparation from approval?", answer: "Role separation reduces the risk that one person can change inputs, calculate the run and release money without an independent review of totals and exceptions." },
+      { question: "What should happen after payroll is released?", answer: "Reconcile payout totals, publish payslips, complete accounting and statutory handoffs, and retain the approved payroll version plus review evidence for the close." },
+    ],
     related: [
       { label: "Payroll cutoff guide", href: "/resources/payroll-cutoff", description: "Design the cutoff that feeds this process." },
       { label: "Payroll audit checklist", href: "/resources/payroll-audit-checklist", description: "Review the run before and after release." },
       { label: "Live demo", href: "/demo", description: "Inspect the role-based payroll workflow." },
     ],
     lastReviewed: reviewed,
+    lastReviewedIso: reviewedIso,
   },
   {
     slug: "payroll-cutoff",
@@ -216,12 +241,19 @@ export const resourceWave3: AuthorityPage[] = [
       { title: "Do not hide unresolved attendance", body: "Missing punches or schedule conflicts should become visible exceptions instead of being silently converted into zero hours or guessed time." },
       { title: "Lock only when the review state is clear", body: "A cutoff should help the team reach a stable review state, not merely stop users from editing data at an arbitrary time." },
     ],
+    faq: [
+      { question: "What does payroll cutoff mean?", answer: "A payroll cutoff is the operational boundary that defines which employee, attendance, leave, overtime and adjustment data is considered complete for a specific payroll run." },
+      { question: "What should happen to data submitted after cutoff?", answer: "The team should have a documented rule for late inputs: reopen the current run with approval, move the item to the next run or use an authorized off-cycle process." },
+      { question: "Should missing punches be converted to zero hours at cutoff?", answer: "Not automatically. Missing or conflicting attendance should remain visible as an exception so a reviewer can resolve it using evidence instead of payroll silently guessing." },
+      { question: "When should a payroll cutoff be reopened?", answer: "Reopening should require a clear reason, an authorized owner and a traceable recalculation so the reviewed payroll version cannot change without visibility." },
+    ],
     related: [
       { label: "Time & attendance", href: "/time-and-attendance", description: "See the source data feeding payroll cutoff." },
       { label: "Common payroll errors", href: "/resources/common-payroll-errors", description: "See what weak cutoff controls tend to create." },
       { label: "Payroll process", href: "/resources/payroll-process-philippines", description: "Place cutoff inside the broader payroll workflow." },
     ],
     lastReviewed: reviewed,
+    lastReviewedIso: reviewedIso,
   },
   {
     slug: "common-payroll-errors",
@@ -237,12 +269,19 @@ export const resourceWave3: AuthorityPage[] = [
       { title: "Rule and statutory errors", body: "Hard-coded contribution tables or tax formulas without effective dates make it easy to apply the wrong rule to a historical or future period." },
       { title: "Release-control errors", body: "Even correct calculations can fail operationally when the wrong payout total is uploaded, approvals are skipped or the released run no longer matches the reviewed run." },
     ],
+    faq: [
+      { question: "What causes the most payroll errors?", answer: "Many errors begin before calculation: incorrect employee setup, stale schedules, missing attendance, duplicate encoding, outdated rules, unreviewed adjustments or payout files that no longer match the approved run." },
+      { question: "How can duplicate payroll encoding be reduced?", answer: "Use one controlled source for employee and payroll inputs, validate imports and updates by stable employee identifiers, and avoid maintaining competing spreadsheets as parallel sources of truth." },
+      { question: "Why are effective-dated rules important?", answer: "Effective dates help payroll apply the rule that belonged to the covered period instead of accidentally using today's contribution table, schedule or rest-day setup for historical payroll." },
+      { question: "How can a correct payroll still fail at release?", answer: "The reviewed calculation can still become an operational failure if approvals are skipped, bank totals differ from the released net-pay total or the payout file comes from a different payroll version." },
+    ],
     related: [
       { label: "Payroll audit checklist", href: "/resources/payroll-audit-checklist", description: "Turn these risks into a repeatable control list." },
       { label: "Payroll health check", href: "/payroll-health-check", description: "Assess where your current process is vulnerable." },
       { label: "Capability scorecard", href: "/scorecard", description: "See which Linaw controls are verified, partial or absent." },
     ],
     lastReviewed: reviewed,
+    lastReviewedIso: reviewedIso,
   },
   {
     slug: "payroll-audit-checklist",
@@ -258,12 +297,19 @@ export const resourceWave3: AuthorityPage[] = [
       { title: "Tie payroll to the payout file", body: "The bank or payout total should equal the final approved net-pay total, with any excluded or failed payments clearly identified." },
       { title: "Preserve reviewer evidence", body: "Record who reviewed the run, what exceptions were resolved and which exact payroll version was approved for release." },
     ],
+    faq: [
+      { question: "What should be reconciled before payroll release?", answer: "Reconcile the expected employee population, gross-to-net totals, material pay changes, statutory deductions, tax, exceptions, approval status and the payout total tied to the run being released." },
+      { question: "Why compare payroll with the prior period?", answer: "Prior-period comparison can surface unusual movement in overtime, deductions, employer costs or net pay that deserves review before money moves." },
+      { question: "Should the bank payout total equal payroll net pay?", answer: "The final supported payout total should reconcile to the approved payroll net-pay amount, with any excluded, held or failed payments identified separately." },
+      { question: "What audit evidence should a payroll run retain?", answer: "Keep the exact payroll version, reviewer and approver identity, resolved exceptions, release decision and downstream payout or close evidence needed to reconstruct what happened." },
+    ],
     related: [
       { label: "Payroll process", href: "/resources/payroll-process-philippines", description: "Use the checklist inside a controlled payroll cycle." },
       { label: "Payroll implementation", href: "/resources/payroll-implementation-guide", description: "Use independent reconciliation during migration." },
       { label: "Security", href: "/security", description: "Review access controls around payroll approval and release." },
     ],
     lastReviewed: reviewed,
+    lastReviewedIso: reviewedIso,
   },
   {
     slug: "payslip-guide",
@@ -279,12 +325,19 @@ export const resourceWave3: AuthorityPage[] = [
       { title: "Make statutory deductions recognizable", body: "SSS, PhilHealth, Pag-IBIG and withholding tax should be presented clearly enough for employees to identify the item being deducted." },
       { title: "Use self-service for repeat access", body: "A secure employee portal can reduce payroll-team work by letting employees retrieve released payslips and payroll history themselves." },
     ],
+    faq: [
+      { question: "What should a useful payslip show?", answer: "At minimum, employees should be able to identify the payroll period, payment date, earnings, premiums, deductions, statutory items and resulting net pay." },
+      { question: "Should the payslip match the released payroll run?", answer: "Yes. A payslip should be generated from the same approved payroll result used for release so employee-facing figures do not drift from the employer's final payroll record." },
+      { question: "Why is employee self-service useful for payslips?", answer: "Secure self-service lets employees retrieve released payslips and history without repeatedly asking payroll staff to resend documents." },
+      { question: "What should happen when an employee disputes a payslip item?", answer: "The payroll team should trace the questioned line back to the approved payroll inputs and calculation, record any correction and preserve the revised payroll evidence if a change is required." },
+    ],
     related: [
       { label: "Employee self-service", href: "/employee-self-service", description: "See how employees access released payroll information." },
       { label: "Payroll software", href: "/", description: "Review the calculation workflow behind the payslip." },
       { label: "Payroll glossary", href: "/glossary", description: "Look up common payroll terms." },
     ],
     lastReviewed: reviewed,
+    lastReviewedIso: reviewedIso,
   },
   {
     slug: "payroll-annualization",
@@ -299,6 +352,12 @@ export const resourceWave3: AuthorityPage[] = [
       { title: "Reconcile tax already withheld", body: "The year-end calculation should compare the annual tax position with amounts previously withheld rather than simply applying the monthly table one more time." },
       { title: "Handle separated employees deliberately", body: "Employees who leave during the year may need tax reconciliation and certificate handling at separation rather than only during the employer's December close." },
       { title: "Tie annualization into 2316 preparation", body: "Year-end payroll review should produce traceable values that can flow into the employee's compensation and tax certificate, while filing or submission readiness remains separately validated." },
+    ],
+    faq: [
+      { question: "Why is payroll annualization needed?", answer: "Annualization reconciles cumulative taxable compensation and tax already withheld so the employee's year-end tax position is based on the full year rather than one isolated cutoff." },
+      { question: "What data does annualization depend on?", answer: "It depends on complete year-to-date taxable compensation, tax withheld and any year-end or separation adjustments, which is why opening balances and migration accuracy matter." },
+      { question: "How should separated employees be handled?", answer: "Employees who leave during the year may need their tax position reconciled at separation rather than waiting for the employer's December close." },
+      { question: "Does annualization make BIR Form 2316 automatically filing-ready?", answer: "No. Annualization prepares the payroll values that feed the certificate, while document review, delivery and any filing or substituted-filing requirements remain separate controls." },
     ],
     related: [
       { label: "BIR 2316 guide", href: "/compliance/bir-2316", description: "See how annual payroll values connect to the employee certificate." },
