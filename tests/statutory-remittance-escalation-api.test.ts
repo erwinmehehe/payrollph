@@ -42,5 +42,5 @@ test("new assignments immediately notify the assigned operator without blocking 
 test("compliance escalation email retries use bounded outbox backoff", () => {
   assert.ok(mailer.includes('"statutory-remittance-escalation"'));
   assert.ok(mailer.includes("MAX_AUTOMATIC_RETRIES + 1"));
-  assert.ok(mailer.includes('inArray(outbox.purpose, ["payslip-ready", "statutory-remittance-escalation"])'));
+  assert.ok(mailer.includes('inArray(outbox.purpose, ["payslip-ready", "statutory-remittance-escalation", "employee-contribution-case"])'));
 });
