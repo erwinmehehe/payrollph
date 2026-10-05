@@ -26,6 +26,7 @@ CI runs this audit before the production build.
 | payroll integrations Philippines | /integrations |
 | payroll implementation Philippines | /implementation |
 | payroll software pricing Philippines | /pricing |
+| workforce analytics Philippines | /workforce-analytics |
 | payroll compliance Philippines | /compliance |
 | payroll software security Philippines | /security |
 | payroll API Philippines | /developers |
