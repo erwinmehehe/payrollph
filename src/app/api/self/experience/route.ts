@@ -56,9 +56,7 @@ export async function GET(request: Request) {
   const [
     staff,
     goals,
-    reviews: reviews.map((review) => review.status === "completed"
-      ? review
-      : { ...review, managerScore: null, finalScore: null, managerSummary: null, completedAt: null }),
+    reviews,
     alignments,
     strategicRows,
     seriesRows,
@@ -169,7 +167,9 @@ export async function GET(request: Request) {
         strategicGoal: strategicById.get(row.strategicGoalId) ?? null,
       })),
     })),
-    reviews,
+    reviews: reviews.map((review) => review.status === "completed"
+      ? review
+      : { ...review, managerScore: null, finalScore: null, managerSummary: null, completedAt: null }),
     oneOnOneSeries: seriesRows,
     oneOnOneMeetings: meetings,
     oneOnOneActionItems: actionRows.filter((row) => meetingIds.has(row.meetingId)),
