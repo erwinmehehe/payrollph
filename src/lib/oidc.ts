@@ -29,6 +29,8 @@ type IdTokenPayload = {
   email?: string;
   email_verified?: boolean;
   name?: string;
+  amr?: string[];
+  acr?: string;
   [key: string]: unknown;
 };
 
@@ -129,10 +131,14 @@ export async function verifyOidcIdToken(input: {
   const email = typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : "";
   if (!email || email.length > 180 || !email.includes("@")) throw new Error("OIDC ID token does not contain a usable email claim.");
 
+  const amr = Array.isArray(payload.amr) ? payload.amr.filter((value): value is string => typeof value === "string") : [];
+  const mfaSatisfied = amr.some((value) => ["mfa", "otp", "hwk", "fido", "webauthn"].includes(value.toLowerCase()));
+
   return {
     subject: payload.sub,
     email,
     name: typeof payload.name === "string" ? payload.name.slice(0, 120) : null,
+    mfaSatisfied,
     payload,
   };
 }
