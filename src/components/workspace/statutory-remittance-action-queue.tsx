@@ -189,7 +189,10 @@ export function StatutoryRemittanceActionQueue({
                       </select>
                     </td>
                     <td>
-                      <Status value={task.status === "in_progress" ? "In progress" : severityLabel(task.severity)} />
+                      <Status value={severityLabel(task.severity)} />
+                      <small style={{ display: "block", color: "var(--muted)", marginTop: 4 }}>
+                        {task.status === "in_progress" ? "In progress" : "Open"}
+                      </small>
                     </td>
                     <td>
                       {task.status === "open" ? (
