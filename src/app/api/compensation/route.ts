@@ -496,9 +496,10 @@ export async function PATCH(request: Request) {
     const outsideBand = band
       ? proposed < Number(band.minimumMonthly) || proposed > Number(band.maximumMonthly)
       : false;
+    const requiresBandException = !band || outsideBand;
     const exceptionReason = String(body.bandExceptionReason ?? recommendation.bandExceptionReason ?? "").trim();
-    if (outsideBand && !exceptionReason) {
-      return Response.json({ error: "An explicit band exception reason is required before approving pay outside the salary range." }, { status: 409 });
+    if (requiresBandException && !exceptionReason) {
+      return Response.json({ error: "An explicit band exception reason is required when no salary band exists or proposed pay is outside the range." }, { status: 409 });
     }
 
     const [cycle] = await db.select().from(compensationCycles)
@@ -530,7 +531,7 @@ export async function PATCH(request: Request) {
       actor: user.name,
       action: "Compensation recommendation approved",
       resource: "Recommendation #" + recommendationId,
-      metadata: { recommendationId, employeeId: recommendation.employeeId, outsideBand },
+      metadata: { recommendationId, employeeId: recommendation.employeeId, outsideBand, missingBand: !band },
     });
     return Response.json(row);
   }
