@@ -72,6 +72,16 @@ type ContributionIssueCase = {
   resolvedByName: string | null;
   resolvedAt: string | null;
   createdAt: string;
+  service: {
+    state: "resolved" | "on_track" | "review_due_today" | "review_overdue" | "resolution_due_today" | "resolution_overdue";
+    overdue: boolean;
+    targetDate: string | null;
+    targetLabel: string;
+    ageDays: number;
+    firstReviewDue: string;
+    resolutionDue: string;
+    internalPolicyNote: string;
+  };
 };
 
 type AttendanceRow = {
@@ -726,12 +736,26 @@ export function SelfServicePortal() {
                 <div className="employee-pay-row-detail" style={{ display: "grid" }}>
                   <div><span>Your report</span><strong>{issue.description}</strong></div>
                   {issue.assignedToName && <div><span>Reviewing</span><strong>{issue.assignedToName}</strong></div>}
+                  {issue.status !== "resolved" && (
+                    <div>
+                      <span>PayrollPH service target</span>
+                      <strong>
+                        {issue.service.targetLabel} by {issue.service.targetDate ?? "complete"}
+                        {issue.service.overdue ? " · overdue" : ""}
+                      </strong>
+                    </div>
+                  )}
                   {issue.resolutionOutcome && <div><span>Outcome</span><strong>{issue.resolutionOutcome.replaceAll("_", " ")}</strong></div>}
                   {issue.resolutionNote && <div><span>Payroll response</span><strong>{issue.resolutionNote}</strong></div>}
                 </div>
               </div>
             ))}
           </article>
+          {data.contributionIssues.some((issue) => issue.status !== "resolved") && (
+            <div className="employee-rule-note">
+              <Clock size={12} /> Internal service targets are not statutory or agency deadlines. They are PayrollPH follow-up targets so your report does not sit unattended.
+            </div>
+          )}
 
           <article className="employee-list-card">
             <div className="employee-list-card-head">
