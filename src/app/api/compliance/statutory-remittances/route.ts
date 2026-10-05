@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, eq, gte, inArray, lte } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employees,
@@ -8,14 +8,15 @@ import {
   statutoryRemittanceBatches,
   statutoryRemittanceMembers,
 } from "@/db/schema";
-import { assertOrganizationRole, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
+import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
-import { buildStatutoryRemittanceAlerts } from "@/lib/statutory-remittance-alerts";
+import { currentManilaMonth, loadStatutoryRemittanceState } from "@/lib/statutory-remittance-state";
 import {
   buildStatutoryRemittanceSnapshot,
+  canConfirmMemberPosting,
   canMarkRemittancePaid,
-  nominalRemittanceDueDate,
+  effectiveRemittanceDueDate,
   type StatutoryAgency,
 } from "@/lib/statutory-remittance";
 import {
@@ -37,21 +38,23 @@ function monthEnd(month: string) {
   return new Date(Date.UTC(year, rawMonth, 0)).toISOString().slice(0, 10);
 }
 
-function currentManilaMonth() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Manila",
-    year: "numeric",
-    month: "2-digit",
-  }).format(new Date());
-}
-
 async function requirePayrollOperator(userId: number, organizationId: number) {
-  return assertOrganizationRole(
-    userId,
-    organizationId,
-    PAYROLL_OPERATOR_ROLES,
-    "Only authorized payroll operators can manage statutory remittance reconciliation.",
-  );
+  const access = await getAccess(userId, organizationId);
+  if (!access) {
+    return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  }
+  if (!access.companyWide) {
+    return Response.json({
+      error: "Statutory remittance reconciliation is company-wide and is not available to unit-scoped users.",
+    }, { status: 403 });
+  }
+  if (!roleAllowed(access.role, PAYROLL_OPERATOR_ROLES)) {
+    return Response.json({
+      error: "Only authorized payroll operators can manage statutory remittance reconciliation.",
+      role: access.role,
+    }, { status: 403 });
+  }
+  return null;
 }
 
 export async function GET(request: Request) {
@@ -66,86 +69,15 @@ export async function GET(request: Request) {
   const denied = await requirePayrollOperator(user.id, organizationId);
   if (denied) return denied;
 
-  const [organization] = await db.select().from(organizations)
-    .where(eq(organizations.id, organizationId))
-    .limit(1);
-  if (!organization) return Response.json({ error: "Organization not found." }, { status: 404 });
-
-  const batches = await db.select().from(statutoryRemittanceBatches)
-    .where(eq(statutoryRemittanceBatches.organizationId, organizationId))
-    .orderBy(asc(statutoryRemittanceBatches.applicableMonth), asc(statutoryRemittanceBatches.agency));
-  const batchIds = batches.map((batch) => batch.id);
-  const members = batchIds.length
-    ? await db.select().from(statutoryRemittanceMembers)
-        .where(inArray(statutoryRemittanceMembers.batchId, batchIds))
-        .orderBy(asc(statutoryRemittanceMembers.batchId), asc(statutoryRemittanceMembers.employeeNo))
-    : [];
-
-  const today = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Manila",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-
-  const releasedRuns = await db.select({
-    periodEnd: payrollRuns.periodEnd,
-  }).from(payrollRuns).where(and(
-    eq(payrollRuns.organizationId, organizationId),
-    eq(payrollRuns.status, "Released"),
-  ));
-  const closedMonths = [...new Set(
-    releasedRuns
-      .map((run) => String(run.periodEnd).slice(0, 7))
-      .filter((month) => month < currentManilaMonth()),
-  )].sort().slice(-6);
-  const existingKeys = new Set(
-    batches.map((batch) => `${batch.applicableMonth}|${batch.agency}`),
-  );
-  const coverageGaps = closedMonths.flatMap((applicableMonth) =>
-    (["SSS", "PhilHealth", "Pag-IBIG"] as const)
-      .filter((agency) => !existingKeys.has(`${applicableMonth}|${agency}`))
-      .map((agency) => {
-        let dueDate: string | null = null;
-        try {
-          dueDate = nominalRemittanceDueDate({
-            agency,
-            applicableMonth,
-            legalName: organization.legalName,
-            philHealthEmployerNo: organization.philHealthEmployerNo,
-          });
-        } catch {
-          dueDate = null;
-        }
-        return { applicableMonth, agency, dueDate };
-      }),
-  );
-
-  const batchSummaries = batches.map((batch) => ({
-    ...batch,
-    displayStatus:
-      batch.status === "open" && String(batch.dueDate) < today
-        ? "overdue"
-        : batch.status,
-    pendingPostingCount: members.filter(
-      (member) => member.batchId === batch.id && member.postingStatus === "pending",
-    ).length,
-    exceptionCount: members.filter(
-      (member) => member.batchId === batch.id && member.postingStatus === "exception",
-    ).length,
-  }));
-  const alerts = buildStatutoryRemittanceAlerts({
-    today,
-    batches: batchSummaries,
-    coverageGaps,
-  });
+  const state = await loadStatutoryRemittanceState(organizationId);
+  if (!state) return Response.json({ error: "Organization not found." }, { status: 404 });
 
   return Response.json({
-    today,
-    batches: batchSummaries,
-    members,
-    coverageGaps,
-    alerts,
+    today: state.today,
+    batches: state.batches,
+    members: state.members,
+    coverageGaps: state.coverageGaps,
+    alerts: state.alerts,
   });
 }
 
@@ -250,7 +182,7 @@ export async function POST(request: Request) {
 
     let dueDate: string;
     try {
-      dueDate = nominalRemittanceDueDate({
+      dueDate = effectiveRemittanceDueDate({
         agency,
         applicableMonth,
         legalName: organization.legalName,
@@ -391,6 +323,11 @@ export async function POST(request: Request) {
       eq(statutoryRemittanceBatches.organizationId, organizationId),
     )).limit(1);
     if (!batch) return Response.json({ error: "Remittance batch not found." }, { status: 404 });
+    if (member.postingStatus === "confirmed") {
+      return Response.json({
+        error: "Confirmed employee posting evidence is immutable. Use an audited correction workflow for agency-posting corrections.",
+      }, { status: 409 });
+    }
     if (batch.status === "open") {
       return Response.json({ error: "Record the agency payment before confirming employee posting." }, { status: 409 });
     }
@@ -407,6 +344,7 @@ export async function POST(request: Request) {
         postingStatus: "exception",
         exceptionNote,
         postingReference: null,
+        postedAmount: null,
         postedAt: null,
         confirmedBy: user.name,
         updatedAt: new Date(),
@@ -427,16 +365,26 @@ export async function POST(request: Request) {
     }
 
     const postingReference = String(body.postingReference ?? "").trim();
+    const postedAmount = Number(body.postedAmount);
     const postedAt = body.postedAt ? new Date(String(body.postedAt)) : new Date();
-    if (postingReference.length < 4 || !Number.isFinite(postedAt.getTime())) {
+    if (!Number.isFinite(postedAt.getTime())) {
       return Response.json({
-        error: "Agency posting reference and a valid posting date are required.",
+        error: "A valid agency posting date is required.",
       }, { status: 400 });
+    }
+    const postingGate = canConfirmMemberPosting({
+      expectedTotal: Number(member.totalContribution),
+      postedAmount,
+      postingReference,
+    });
+    if (!postingGate.ok) {
+      return Response.json({ error: postingGate.error }, { status: 409 });
     }
 
     const [updatedMember] = await db.update(statutoryRemittanceMembers).set({
       postingStatus: "confirmed",
       postingReference,
+      postedAmount: postedAmount.toFixed(2),
       postedAt,
       confirmedBy: user.name,
       exceptionNote: null,
@@ -480,6 +428,8 @@ export async function POST(request: Request) {
         memberId,
         employeeId: member.employeeId,
         postingReference,
+        expectedContribution: Number(member.totalContribution),
+        postedAmount,
         postedAt: postedAt.toISOString(),
       },
     });
