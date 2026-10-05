@@ -17,6 +17,7 @@ import type { DashboardData, Notify } from "./types";
 import { EmptyState, Metric, PageHeading, Spinner, Status } from "./ui";
 import { WorkforceOvertimePanel } from "./workforce-overtime-panel";
 import { WorkforceScheduleSwapPanel } from "./workforce-schedule-swap-panel";
+import { WorkforceWorksitesPanel } from "./workforce-worksites-panel";
 
 type ShiftRow = {
   id: number;
@@ -60,6 +61,7 @@ type AssignmentRow = {
   effectiveUntil: string | null;
   anchorDate: string;
   workLocationOrgUnitId: number | null;
+  worksiteId: number | null;
   reason: string;
 };
 
@@ -70,8 +72,24 @@ type OverrideRow = {
   kind: string;
   isRestDay: boolean;
   segments: Array<{ shiftDefinitionId: number; segmentOrder: number }> | unknown;
+  worksiteId: number | null;
   reason: string;
   status: string;
+};
+
+type WorksiteRow = {
+  id: number;
+  code: string;
+  name: string;
+  active: boolean;
+};
+
+type WorksiteAssignmentRow = {
+  id: number;
+  employeeId: number;
+  worksiteId: number;
+  effectiveFrom: string;
+  effectiveUntil: string | null;
 };
 
 type Catalog = {
@@ -81,6 +99,8 @@ type Catalog = {
   patternSegments: PatternSegmentRow[];
   assignments: AssignmentRow[];
   overrides: OverrideRow[];
+  worksites: WorksiteRow[];
+  worksiteAssignments: WorksiteAssignmentRow[];
 };
 
 type Preview = {
@@ -153,10 +173,12 @@ export function WorkforcePlanner({
   const [assignmentStart, setAssignmentStart] = useState(localToday());
   const [assignmentEnd, setAssignmentEnd] = useState("");
   const [assignmentReason, setAssignmentReason] = useState("Roster assignment");
+  const [assignmentWorksiteId, setAssignmentWorksiteId] = useState("");
 
   const [overrideDate, setOverrideDate] = useState(localToday());
   const [overrideMode, setOverrideMode] = useState("REST");
   const [overrideReason, setOverrideReason] = useState("Roster adjustment");
+  const [overrideWorksiteId, setOverrideWorksiteId] = useState("");
 
   const rangeEnd = useMemo(() => addDays(rangeStart, 13), [rangeStart]);
 
@@ -290,6 +312,7 @@ export function WorkforcePlanner({
       effectiveFrom: assignmentStart,
       effectiveUntil: assignmentEnd || null,
       anchorDate: assignmentStart,
+      worksiteId: assignmentWorksiteId ? Number(assignmentWorksiteId) : null,
       reason: assignmentReason,
     }, "Effective-dated employee roster assignment saved.");
   }
@@ -306,6 +329,7 @@ export function WorkforcePlanner({
       kind: restDay ? "rest_day" : "shift",
       isRestDay: restDay,
       segments: restDay ? [] : [{ shiftDefinitionId: Number(overrideMode) }],
+      worksiteId: overrideWorksiteId ? Number(overrideWorksiteId) : null,
       reason: overrideReason,
     }, restDay ? "Rest-day override saved." : "Shift override saved.");
   }
@@ -378,6 +402,8 @@ export function WorkforcePlanner({
         </span>
       </div>
 
+      <WorkforceWorksitesPanel data={data} notify={notify} canManage={canManage} />
+
       <article className="card" style={{ marginTop: 16 }}>
         <div className="card-header">
           <div>
@@ -430,7 +456,13 @@ export function WorkforcePlanner({
                   <td><Status value={day.source === "override" ? "Override" : day.source === "pattern" ? "Pattern" : "Unassigned"} /></td>
                   <td>{scheduleLabel(day)}</td>
                   <td>{day.isRestDay ? <Status value="Rest day" /> : <span className="id">Working day</span>}</td>
-                  <td className="num">{day.workLocationOrgUnitId ?? "—"}</td>
+                  <td>
+                    {day.worksiteId != null
+                      ? catalog?.worksites.find((site) => site.id === day.worksiteId)?.name ?? `Worksite #${day.worksiteId}`
+                      : day.workLocationOrgUnitId != null
+                        ? `Legacy org unit #${day.workLocationOrgUnitId}`
+                        : "—"}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -544,6 +576,15 @@ export function WorkforcePlanner({
               </label>
               <label>Effective from<input type="date" value={assignmentStart} onChange={(event) => setAssignmentStart(event.target.value)} /></label>
               <label>Effective until (optional)<input type="date" min={assignmentStart} value={assignmentEnd} onChange={(event) => setAssignmentEnd(event.target.value)} /></label>
+              <label>
+                Worksite override (optional)
+                <select value={assignmentWorksiteId} onChange={(event) => setAssignmentWorksiteId(event.target.value)}>
+                  <option value="">Use employee default worksite</option>
+                  {(catalog?.worksites ?? []).filter((site) => site.active).map((site) => (
+                    <option key={site.id} value={site.id}>{site.code} · {site.name}</option>
+                  ))}
+                </select>
+              </label>
               <label>Reason<input value={assignmentReason} onChange={(event) => setAssignmentReason(event.target.value)} /></label>
             </div>
             <div className="run-actions">
@@ -558,7 +599,9 @@ export function WorkforcePlanner({
                   <span key={assignment.id}>
                     <b>{pattern?.code ?? `Pattern #${assignment.patternId}`}</b>
                     <small style={{ display: "block", color: "var(--muted)" }}>
-                      {assignment.effectiveFrom} → {assignment.effectiveUntil ?? "open-ended"} · {assignment.reason}
+                      {assignment.effectiveFrom} → {assignment.effectiveUntil ?? "open-ended"}
+                      {assignment.worksiteId ? ` · ${catalog?.worksites.find((site) => site.id === assignment.worksiteId)?.code ?? `site #${assignment.worksiteId}`}` : ""}
+                      · {assignment.reason}
                     </small>
                   </span>
                 );
@@ -582,6 +625,15 @@ export function WorkforcePlanner({
                 <select value={overrideMode} onChange={(event) => setOverrideMode(event.target.value)}>
                   <option value="REST">Rest day / off</option>
                   {(catalog?.shifts ?? []).map((shift) => <option key={shift.id} value={shift.id}>{shift.code} · {shift.name}</option>)}
+                </select>
+              </label>
+              <label>
+                Worksite override (optional)
+                <select value={overrideWorksiteId} onChange={(event) => setOverrideWorksiteId(event.target.value)}>
+                  <option value="">Keep resolved worksite</option>
+                  {(catalog?.worksites ?? []).filter((site) => site.active).map((site) => (
+                    <option key={site.id} value={site.id}>{site.code} · {site.name}</option>
+                  ))}
                 </select>
               </label>
               <label>Reason<input value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} /></label>
