@@ -446,16 +446,31 @@ export async function POST(request: Request) {
         eq(statutoryRemittanceMembers.postingStatus, "exception"),
       ));
 
-    if (remaining.length === 0 && exceptions.length === 0) {
+    const paymentShortfall = Math.max(
+      0,
+      Number(batch.expectedTotal) - Number(batch.amountPaid ?? 0),
+    );
+    const paymentCoversLiability = paymentShortfall <= 0.01;
+
+    if (remaining.length === 0 && exceptions.length === 0 && paymentCoversLiability) {
       await db.update(statutoryRemittanceBatches).set({
         status: "reconciled",
         reconciledAt: new Date(),
         reconciledBy: user.name,
         updatedAt: new Date(),
       }).where(eq(statutoryRemittanceBatches.id, batch.id));
+    } else if (!paymentCoversLiability) {
+      await db.update(statutoryRemittanceBatches).set({
+        status: "exception",
+        reconciledAt: null,
+        reconciledBy: null,
+        updatedAt: new Date(),
+      }).where(eq(statutoryRemittanceBatches.id, batch.id));
     } else if (batch.status === "exception" && exceptions.length === 0) {
       await db.update(statutoryRemittanceBatches).set({
         status: "paid",
+        reconciledAt: null,
+        reconciledBy: null,
         updatedAt: new Date(),
       }).where(eq(statutoryRemittanceBatches.id, batch.id));
     }
