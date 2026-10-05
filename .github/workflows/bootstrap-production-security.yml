@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 20
     environment: production
     env:
-      PRODUCTION_URL: https://erwinmehehe-payrollph.vercel.app
+      PRODUCTION_URL: https://payrollsoftware.ph
       VERCEL_TOKEN: ${{ secrets.PRODUCTION_VERCEL_TOKEN || secrets.VERCEL_TOKEN }}
       TOTP_MASTER: ${{ secrets.PRODUCTION_TOTP_ENCRYPTION_KEY || secrets.TOTP_ENCRYPTION_KEY }}
     steps:
