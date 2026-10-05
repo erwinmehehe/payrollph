@@ -80,16 +80,33 @@ This should become a differentiator because Linaw can use actual Philippine payr
 
 ## Tranche 4 — Compensation management
 
-- Salary bands by job profile + level + location
-- Compa-ratio and range penetration
-- Compensation review cycles
-- Merit, promotion, market adjustment and bonus recommendations
-- Budget pools and manager allocations
-- Approval workflow and audit trail
-- Approved compensation change creates an effective-dated pay revision
-- Pay-equity reporting with privacy controls
+Foundation implemented on `feat/hcm-compensation-management`.
 
-Guardrail: performance scores may inform a cycle, but no automatic salary change should happen without an explicit compensation approval.
+Built:
+- Salary bands by job profile and location/org-unit, with company-wide fallback
+- Minimum / midpoint / maximum monthly PHP ranges
+- Compa-ratio against band midpoint
+- Compensation review cycles with effective date and annualized increase budget
+- Org-unit manager budget pools that cannot exceed the parent cycle budget
+- Merit, promotion, market, equity, retention and other recommendation types
+- Latest completed performance score surfaced as context, never as an automatic pay rule
+- Four-eyes approval: proposer cannot approve or apply their own recommendation
+- Missing-band and out-of-range approvals require an explicit exception reason
+- Stale-pay detection before applying an approved recommendation
+- Approved changes create the existing effective-dated `employee_pay_revisions` record and update the active pay profile
+- Future-dated approved changes cannot be applied early
+- Historical application fails closed when released payroll would require retro reconciliation
+- Audit events for bands, cycles, pools, recommendations, approval and payroll application
+
+Remaining:
+- Bonus / variable-pay pools and award types
+- Bulk cycle approval and scheduled effective-date application
+- Automated retro-pay reconciliation for a missed effective date
+- Pay-equity analytics with minimum cohort/privacy thresholds
+- Compensation statements / employee letters
+- Market benchmark imports
+
+Guardrail: performance scores may inform a cycle, but no automatic salary change happens without explicit compensation approval and payroll application.
 
 ## Tranche 5 — Learning, skills and career
 
@@ -159,7 +176,7 @@ Only after clean data models:
 2. Job architecture + positions
 3. Workforce/headcount planning
 4. Recruitment-to-position handoff — implemented foundation
-5. Compensation bands + review cycles
+5. Compensation bands + review cycles — implemented foundation
 6. Learning/skills/career
 7. SSO/OIDC + SCIM
 8. Engagement/surveys
