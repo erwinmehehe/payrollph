@@ -133,6 +133,7 @@ test("joiner mover and leaver automations are connected only after authoritative
 test("mover flow requires an authoritative current position and approved vacant target", () => {
   assert.ok(transfer.includes('["approved", "open"].includes(targetPosition.status)'));
   assert.ok(transfer.includes("The target position already has an active incumbent."));
+  assert.ok(transfer.includes("The target position has an active recruiting requisition."));
   assert.ok(transfer.includes("Employee does not have an active authoritative position assignment."));
   assert.ok(transfer.includes("Cross-unit transfers require company-wide People administration."));
   assert.ok(transfer.includes("current Philippine business date only"));
