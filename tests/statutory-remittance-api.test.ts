@@ -7,6 +7,7 @@ const panel = readFileSync("src/components/workspace/statutory-remittance-panel.
 const selfApi = readFileSync("src/app/api/self/payslips/route.ts", "utf8");
 const selfUi = readFileSync("src/components/self-service-portal.tsx", "utf8");
 const schema = readFileSync("src/db/schema.ts", "utf8");
+const state = readFileSync("src/lib/statutory-remittance-state.ts", "utf8");
 
 test("statutory remittance ledger separates batch payment from employee posting", () => {
   assert.ok(schema.includes('export const statutoryRemittanceBatches = pgTable('));
@@ -60,9 +61,10 @@ test("employee self-service exposes only the signed-in employee contribution pos
 
 
 test("closed payroll months with no remittance batch are surfaced as compliance gaps", () => {
-  assert.ok(route.includes("coverageGaps"));
-  assert.ok(route.includes("releasedRuns"));
-  assert.ok(route.includes('eq(payrollRuns.status, "Released")'));
+  assert.ok(route.includes("loadStatutoryRemittanceState"));
+  assert.ok(state.includes("coverageGaps"));
+  assert.ok(state.includes("releasedRuns"));
+  assert.ok(state.includes('eq(payrollRuns.status, "Released")'));
   assert.ok(panel.includes("missing remittance control"));
 });
 
