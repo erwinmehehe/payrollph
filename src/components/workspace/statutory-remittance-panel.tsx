@@ -272,8 +272,6 @@ export function StatutoryRemittancePanel({
                                 <span className="green-number"><CheckCircle2 size={13} /> Confirmed</span>
                                 <div className="id">Posted {money(member.postedAmount ?? member.totalContribution)}</div>
                               </div>
-                            ) : member.postingStatus === "exception" ? (
-                              <div><Status value="Exception" /><div className="id">{member.exceptionNote}</div></div>
                             ) : postingMemberId === member.id ? (
                               <div style={{ display: "grid", gap: 6 }}>
                                 <input
@@ -290,6 +288,17 @@ export function StatutoryRemittancePanel({
                                   <button className="secondary-button" disabled={!postingReference.trim() || !postingAmount || busy !== null} onClick={() => void confirmPosting(member)}>Confirm posted</button>
                                   <button className="secondary-button" disabled={!exceptionNote.trim() || busy !== null} onClick={() => void markException(member)}>Flag exception</button>
                                 </div>
+                              </div>
+                            ) : member.postingStatus === "exception" ? (
+                              <div style={{ display: "grid", gap: 6 }}>
+                                <Status value="Exception" />
+                                <div className="id">{member.exceptionNote}</div>
+                                <button className="secondary-button" onClick={() => {
+                                  setPostingMemberId(member.id);
+                                  setPostingAmount(member.totalContribution);
+                                  setPostingReference("");
+                                  setExceptionNote(member.exceptionNote ?? "");
+                                }}>Resolve exception</button>
                               </div>
                             ) : (
                               <button className="secondary-button" onClick={() => {
