@@ -30,6 +30,18 @@ test("pricing is read from the database, never hardcoded in the homepage UI", ()
   assert.ok(!/₱\s?1,499|₱\s?4,499|₱\s?12,999/.test(page), "prices must not be hardcoded in the page");
 });
 
+test("obsolete standalone marketing prototypes stay removed", () => {
+  assert.ok(!existsSync("landing/sahod-landing.html"), "legacy Sahod HTML landing page must not return");
+  assert.ok(!existsSync("landing-v2/linaw-landing.html"), "legacy Linaw v2 HTML landing page must not return");
+  assert.ok(!existsSync("src/components/marketing/software-home.module.css"), "abandoned software-home CSS module must stay removed");
+  assert.ok(!existsSync("src/components/marketing/demo-role-picker.module.css"), "abandoned demo-role CSS module must stay removed");
+  assert.ok(!existsSync("src/components/marketing/capability-grid.tsx"), "unused capability grid must stay removed");
+  assert.ok(!existsSync("src/components/marketing/hero-actions.tsx"), "unused legacy hero actions must stay removed");
+  assert.ok(!existsSync("src/components/marketing/pricing-table.tsx"), "unused legacy pricing component must stay removed");
+  assert.ok(!existsSync("src/components/marketing/statutory-lab.tsx"), "unused legacy statutory lab must stay removed");
+});
+
+
 test("the software homepage uses the real Linaw workspace preview", () => {
   const home = read("src/components/marketing/claude-home/App.tsx");
   const demo = read("src/components/marketing/claude-home/components/Demo.tsx");
@@ -149,7 +161,7 @@ test("real workspace navigation keeps module colors and profile interaction", ()
 
 test("homepage simulation keeps colored module navigation and collapsible groups", () => {
   const preview = read("src/components/marketing/workspace-preview.tsx");
-  const css = read("src/components/marketing/software-home.module.css");
+  const css = read("src/components/marketing/claude-home/home.css");
   assert.ok(preview.includes("data-tone={tone}"), "module tone must reach the simulated nav item");
   assert.ok(preview.includes("pv-nav-group-toggle"), "workspace groups must be collapsible");
   assert.ok(preview.includes("collapsedGroups"), "collapsed nav state must be interactive");
@@ -161,13 +173,13 @@ test("homepage simulation keeps colored module navigation and collapsible groups
 
 test("homepage People simulation can add and inspect employees", () => {
   const preview = read("src/components/marketing/workspace-preview.tsx");
-  const css = read("src/components/marketing/software-home.module.css");
+  const css = read("src/components/marketing/claude-home/home.css");
   assert.ok(preview.includes("function PeopleDemo"), "People must have a dedicated interactive demo");
   assert.ok(preview.includes("function addEmployee"), "People demo must support adding a local employee");
   assert.ok(preview.includes("Import people"), "People demo must link into migration");
   assert.ok(preview.includes("preview-people-overlay"), "People rows must open an employee detail surface");
   assert.ok(preview.includes("Government IDs"), "employee detail must show payroll-relevant identity state");
-  assert.ok(css.includes("/* People demo */"), "premium homepage must include the scoped People demo styles");
+  assert.ok(css.includes(".preview-people-shell"), "premium homepage must include the scoped People demo styles");
   assert.ok(css.includes(".preview-people-drawer"), "People detail/add flow must have a designed drawer");
 });
 
@@ -195,8 +207,8 @@ test("homepage hero and deeper demo both use the shared Linaw workspace preview"
 });
 
 test("pricing explains who each plan is for instead of dumping internal module names", () => {
-  const pricing = read("src/components/marketing/pricing-table.tsx");
-  assert.ok(pricing.includes("BUYER_POINTS"), "pricing must use buyer-oriented outcomes");
+  const pricing = read("src/components/marketing/claude-home/components/Pricing.tsx");
+  assert.ok(pricing.includes("PLAN_COPY"), "pricing must use buyer-oriented outcomes");
   assert.ok(pricing.includes("Checker approvals, audit trail and stronger controls"), "Scale must explain operational value");
   assert.ok(!pricing.includes("modules.map"), "pricing must not dump persisted module names directly into the cards");
 });
