@@ -149,6 +149,30 @@ export function StatutoryContributionIssueCasesPanel({
     }
   }
 
+  async function requestMissingMemberCorrection(issue: ContributionIssueCase) {
+    setBusy(`missing_member:${issue.id}`);
+    try {
+      const response = await fetch("/api/compliance/statutory-remittance-corrections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          action: "request_missing_member_correction",
+          caseId: issue.id,
+          reason: `Employee contribution case #${issue.id}: ${issue.description}`,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? "Missing-member correction could not be requested.");
+      notify("Missing-member correction sent for independent approval.", "ok");
+      window.dispatchEvent(new Event("statutory-remittance-changed"));
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Missing-member correction could not be requested.", "err");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function resolveCase(issue: ContributionIssueCase) {
     if (resolutionNote.trim().length < 20) {
       notify("Add a resolution note of at least 20 characters.", "err");
@@ -315,6 +339,15 @@ export function StatutoryContributionIssueCasesPanel({
                         </div>
                       ) : (
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          {issue.issueType === "missing_posting" && issue.remittanceMemberId == null && (
+                            <button
+                              className="secondary-button"
+                              disabled={busy !== null}
+                              onClick={() => void requestMissingMemberCorrection(issue)}
+                            >
+                              {busy === `missing_member:${issue.id}` ? <Spinner label="Submitting" /> : "Request missing-member correction"}
+                            </button>
+                          )}
                           <button
                             className="secondary-button"
                             onClick={() => {
