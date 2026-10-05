@@ -131,3 +131,19 @@ Manual-payroll comparison intent is deliberately consolidated into the existing 
 The employee-loan page owns payroll deduction/ledger process intent. It does not determine external lender eligibility or loan approval.
 
 The retroactive-pay page owns payroll correction mechanics for effective-dated pay changes. It does not determine universal legal entitlement to retroactive compensation.
+
+
+## Competitor-alternative ownership
+
+| Primary intent | Owner |
+| --- | --- |
+| Sprout Payroll alternative Philippines | /resources/sprout-payroll-alternative |
+
+The competitor-alternative page owns branded comparison intent only.
+
+It must not replace or compete with:
+- `payroll software Philippines` → `/`
+- `best payroll software Philippines` → `/resources/best-payroll-software-philippines`
+- `payroll system comparison Philippines` → `/resources/payroll-system-comparison`
+
+Competitor pages must use current public evidence, link the source material, state the review date and avoid unsupported superiority, security, compliance, pricing or product-defect claims.
