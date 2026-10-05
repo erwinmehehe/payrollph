@@ -503,6 +503,31 @@ test("compliance hub groups agency, BIR and governance workflows", () => {
   assert.ok(landing.includes("Find the compliance workflow you actually need."), "directory must explain its browsing purpose");
 });
 
+test("industry authority pages stay maintained and decision-focused", () => {
+  const route = read("src/app/industries/[slug]/page.tsx");
+  const base = read("src/lib/seo-content.ts");
+  const wave2 = read("src/lib/seo-content-wave2.ts");
+  const wave6 = read("src/lib/seo-content-wave6.ts");
+  const bpo = read("src/app/industries/bpo/page.tsx");
+
+  assert.ok(route.includes("lastReviewed={page.lastReviewed}"), "dynamic industry pages must show review dates when provided");
+  assert.ok(route.includes("sources={page.sources}"), "dynamic industry pages must support evidence sources when provided");
+  assert.ok(bpo.includes('lastReviewed="October 5, 2026"'), "BPO industry page must show a review date");
+
+  for (const source of [base, wave2, wave6]) {
+    assert.ok(source.includes('lastReviewed: "October 5, 2026"'), "industry content must carry explicit review dates");
+  }
+
+  for (const slug of ["real-estate", "media", "ngo", "shopping-centers"]) {
+    const start = wave6.indexOf(`slug: "${slug}"`);
+    const end = wave6.indexOf("\n  },", start);
+    assert.ok(start >= 0 && end > start, `industry page ${slug} must exist`);
+    const item = wave6.slice(start, end);
+    const faqCount = (item.match(/question:/g) ?? []).length;
+    assert.ok(faqCount >= 4, `industry page ${slug} must have at least four FAQs`);
+  }
+});
+
 test("public navigation exposes the SEO program without hiding the live demo", () => {
   const navigation = read("src/components/marketing/public-navigation.ts");
   for (const route of ["/demo", "/resources", "/compliance", "/trust", "/integrations", "/developers", "/calculators", "/payroll-health-check", "/industries"]) {
