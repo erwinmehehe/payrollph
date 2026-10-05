@@ -64,6 +64,8 @@ export const industryWave6: AuthorityPage[] = [
         answer: "Linaw includes supported payout and accounting export workflows, with validation gates for proprietary formats. An export is not described as a native integration unless a programmatic connector actually exists.",
       },
     ],
+    lastReviewed: "October 5, 2026",
+    lastReviewedIso: "2026-10-05",
     related: [
       { label: "Time & attendance", href: "/time-and-attendance", description: "Review shifts, punches, overtime, night work and attendance exceptions." },
       { label: "Biometric payroll integration", href: "/integrations/biometrics", description: "See supported biometric-ingestion patterns and device-validation boundaries." },
@@ -134,6 +136,8 @@ export const industryWave6: AuthorityPage[] = [
         answer: "No. This page is about payroll and workforce controls. Project costing, equipment, procurement and other construction-ERP capabilities should only be claimed where a dedicated implemented product surface exists.",
       },
     ],
+    lastReviewed: "October 5, 2026",
+    lastReviewedIso: "2026-10-05",
     related: [
       { label: "Time & attendance", href: "/time-and-attendance", description: "Review punches, schedules, overtime and attendance exceptions before payroll." },
       { label: "Biometric payroll integration", href: "/integrations/biometrics", description: "See supported biometric-ingestion patterns and device-validation boundaries." },
@@ -188,6 +192,8 @@ export const industryWave6: AuthorityPage[] = [
         answer: "Linaw can generate an accounting journal export after payroll release. An export is a controlled handoff, not a claim of a native connection to every accounting platform.",
       },
     ],
+    lastReviewed: "October 5, 2026",
+    lastReviewedIso: "2026-10-05",
     related: [
       { label: "Time & attendance", href: "/time-and-attendance", description: "Review schedules, punches and payroll-relevant attendance." },
       { label: "Employee self-service", href: "/employee-self-service", description: "See employee access to released payroll information." },
@@ -241,6 +247,8 @@ export const industryWave6: AuthorityPage[] = [
         answer: "Yes. Payroll should preserve the applicable work-day and overtime context while calculating night-work amounts rather than replacing one premium with another.",
       },
     ],
+    lastReviewed: "October 5, 2026",
+    lastReviewedIso: "2026-10-05",
     related: [
       { label: "Time & attendance", href: "/time-and-attendance", description: "See how worked-time evidence reaches payroll." },
       { label: "Night differential calculator", href: "/calculators/night-differential", description: "Estimate night-work payroll impact." },
@@ -294,6 +302,8 @@ export const industryWave6: AuthorityPage[] = [
         answer: "The application includes organization and unit-scoped authorization paths so access does not depend only on hiding records in the browser.",
       },
     ],
+    lastReviewed: "October 5, 2026",
+    lastReviewedIso: "2026-10-05",
     related: [
       { label: "Payroll compliance", href: "/compliance", description: "Review statutory calculation and filing-validation separation." },
       { label: "Trust center", href: "/trust", description: "Inspect evidence-backed capability claims." },
@@ -347,6 +357,8 @@ export const industryWave6: AuthorityPage[] = [
         answer: "Access should be enforced by organization and role on the server rather than relying only on what a user can see in the interface.",
       },
     ],
+    lastReviewed: "October 5, 2026",
+    lastReviewedIso: "2026-10-05",
     related: [
       { label: "Time & attendance", href: "/time-and-attendance", description: "Review schedule and attendance processing." },
       { label: "Holiday pay calculator", href: "/calculators/holiday-pay", description: "Estimate premium pay by day type." },
