@@ -17,6 +17,7 @@ import {
   Pencil,
   Phone,
   Search,
+  MessageSquare,
   ShieldCheck,
   UserCheck,
   UserRound,
@@ -25,6 +26,7 @@ import {
 import { WebBundyModal } from "@/components/web-bundy-modal";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { PayrollHandoff } from "@/components/payroll-handoff";
+import { EmployeeEngagementPanel } from "@/components/employee-engagement-panel";
 import { DEMO_ROLES, demoRolePath, type DemoRoleId } from "@/lib/demo-roles";
 import { buildPayrollHandoff } from "@/lib/payroll-handoff";
 
@@ -109,7 +111,7 @@ type Payload = {
   };
 };
 
-type SelfTab = "home" | "pay" | "time" | "leave" | "profile";
+type SelfTab = "home" | "pay" | "time" | "leave" | "voice" | "profile";
 
 const peso = (value: string | number) =>
   new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 2 }).format(Number(value));
@@ -381,11 +383,12 @@ export function SelfServicePortal() {
             ["pay", "Pay"],
             ["time", "Time"],
             ["leave", "Leave"],
+            ["voice", "My voice"],
             ["profile", "Profile"],
           ] as Array<[SelfTab, string]>).map(([value, label]) => (
             <button key={value} className={`nav-item ${tab === value ? "active" : ""}`} data-tone="green" onClick={() => setTab(value)}>
               <span className="nav-icon t-green">
-                {value === "home" ? <House size={15} /> : value === "pay" ? <WalletCards size={15} /> : value === "time" ? <Clock size={15} /> : value === "leave" ? <CalendarDays size={15} /> : <UserRound size={15} />}
+                {value === "home" ? <House size={15} /> : value === "pay" ? <WalletCards size={15} /> : value === "time" ? <Clock size={15} /> : value === "leave" ? <CalendarDays size={15} /> : value === "voice" ? <MessageSquare size={15} /> : <UserRound size={15} />}
               </span>
               {label}
             </button>
@@ -432,11 +435,12 @@ export function SelfServicePortal() {
           ["pay", "Pay"],
           ["time", "Time"],
           ["leave", "Leave"],
+          ["voice", "My voice"],
           ["profile", "Profile"],
         ] as Array<[SelfTab, string]>).map(([value, label]) => (
           <button key={value} className={tab === value ? "active" : ""} onClick={() => setTab(value)}>
             <span className="employee-tab-icon">
-              {value === "home" ? <House size={16} /> : value === "pay" ? <WalletCards size={16} /> : value === "time" ? <Clock size={16} /> : value === "leave" ? <CalendarDays size={16} /> : <UserRound size={16} />}
+              {value === "home" ? <House size={16} /> : value === "pay" ? <WalletCards size={16} /> : value === "time" ? <Clock size={16} /> : value === "leave" ? <CalendarDays size={16} /> : value === "voice" ? <MessageSquare size={16} /> : <UserRound size={16} />}
             </span>
             <span>{label}</span>
           </button>
@@ -711,6 +715,10 @@ export function SelfServicePortal() {
             ))}
           </article>
         </section>
+      )}
+
+      {tab === "voice" && data.employer && (
+        <EmployeeEngagementPanel organizationId={data.employer.id} />
       )}
 
       {tab === "profile" && (
