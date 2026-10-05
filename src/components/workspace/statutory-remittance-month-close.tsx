@@ -20,7 +20,15 @@ type CloseState = {
     certifiedAt: string;
     snapshotHash: string;
   } | null;
+  certificationHistory?: Array<{
+    id: number;
+    status: string;
+    certifiedByName: string;
+    certifiedAt: string;
+    snapshotHash: string;
+  }>;
   certificationValid: boolean;
+  certificationRole?: "independent-reviewer";
 };
 
 export function StatutoryRemittanceMonthClose({
@@ -86,7 +94,7 @@ export function StatutoryRemittanceMonthClose({
           <div className="card-kicker">REMITTANCE MONTH CLOSE</div>
           <h2>{applicableMonth} mandatory contribution cycle</h2>
           <p>
-            Certification proves the current SSS, PhilHealth and Pag-IBIG remittance evidence was fully reconciled at this snapshot.
+            Independent certification proves the current SSS, PhilHealth and Pag-IBIG remittance evidence was fully reconciled at this snapshot. The certifier cannot be an actor who recorded, confirmed, or approved a correction in the same evidence set.
           </p>
         </div>
         <button className="secondary-button" onClick={() => void load()} disabled={busy}>
@@ -100,14 +108,14 @@ export function StatutoryRemittanceMonthClose({
             <BadgeCheck size={15} />
             <span>
               <strong>Certified and still valid.</strong>{" "}
-              {state.closure?.certifiedByName} certified this evidence snapshot.
+              Independent reviewer {state.closure?.certifiedByName} certified this exact evidence snapshot.
             </span>
           </div>
         ) : state.closure ? (
           <div className="notice notice-red" style={{ margin: 0 }}>
             <ShieldAlert size={15} />
             <span>
-              <strong>Previous certification is no longer valid.</strong> The current remittance evidence no longer matches the certified snapshot.
+              <strong>Previous certification is no longer current.</strong> The prior immutable certification remains in history, but the live remittance evidence now has a different snapshot and must be independently certified again.
             </span>
           </div>
         ) : null}
@@ -139,6 +147,24 @@ export function StatutoryRemittanceMonthClose({
               Certify remittance month
             </button>
           </div>
+        )}
+
+        {(state.certificationHistory?.length ?? 0) > 0 && (
+          <details>
+            <summary style={{ cursor: "pointer", fontWeight: 800, fontSize: 12 }}>
+              Certification history ({state.certificationHistory?.length ?? 0})
+            </summary>
+            <div className="policy-lines" style={{ marginTop: 8 }}>
+              {(state.certificationHistory ?? []).slice(0, 8).map((item) => (
+                <span key={item.id}>
+                  <b>{item.certifiedByName}</b>
+                  <small style={{ display: "block", color: "var(--muted)" }}>
+                    {new Date(item.certifiedAt).toLocaleString("en-PH")} · snapshot {item.snapshotHash.slice(0, 12)}…
+                  </small>
+                </span>
+              ))}
+            </div>
+          </details>
         )}
       </div>
     </article>
