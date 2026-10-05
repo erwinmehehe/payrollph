@@ -12,13 +12,13 @@ export const metadata: Metadata = {
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen bg-white text-[#0B0D1A]">
+    <div className="marketing-page min-h-screen bg-white text-[#101323]">
       <StructuredData breadcrumbs={[{ name: "Home", path: "/" }, { name: "About Linaw", path: "/about" }]} />
       <SiteNav />
       <main>
-        <section className="border-b border-[#EDEFF7] bg-[#FAFBFD] py-16 sm:py-20">
+        <section className="border-b border-[#EAECF0] bg-[#FCFCFD] py-16 sm:py-20">
           <div className="mx-auto max-w-[1080px] px-5 sm:px-8">
-            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6161FF]">About Linaw</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#444CE7]">About Linaw</p>
             <h1 className="font-display mt-4 max-w-[860px] text-[44px] font-semibold leading-[1.03] tracking-[-0.045em] sm:text-[60px]">
               Building clearer payroll operations for Philippine teams.
             </h1>
@@ -59,7 +59,7 @@ export default function AboutPage() {
           </div>
         </section>
 
-        <section className="border-y border-[#EDEFF7] bg-[#11141F] py-16 text-white">
+        <section className="border-y border-[#EAECF0] bg-[#11141F] py-16 text-white">
           <div className="mx-auto max-w-[1080px] px-5 sm:px-8">
             <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-white/45">How we want buyers to evaluate Linaw</p>
             <h2 className="font-display mt-4 max-w-[820px] text-[34px] font-semibold tracking-[-0.035em] sm:text-[44px]">
@@ -98,7 +98,7 @@ export default function AboutPage() {
                 <Link
                   key={href}
                   href={href}
-                  className="flex items-center justify-between rounded-[18px] border border-[#E3E5EF] bg-[#FAFBFD] p-4 text-[13px] font-semibold text-[#34394F]"
+                  className="flex items-center justify-between rounded-[18px] border border-[#E3E5EF] bg-[#FCFCFD] p-4 text-[13px] font-semibold text-[#34394F]"
                 >
                   {label}
                   <ArrowRight size={14} />
