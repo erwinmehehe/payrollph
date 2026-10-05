@@ -7,7 +7,6 @@ const publicRoutes = [
   { path: "/payroll-outsourcing", changeFrequency: "monthly", priority: 0.9 },
   { path: "/demo", changeFrequency: "monthly", priority: 0.8 },
   { path: "/scorecard", changeFrequency: "weekly", priority: 0.7 },
-  { path: "/book-demo", changeFrequency: "monthly", priority: 0.6 },
 ] as const;
 
 export default function sitemap(): MetadataRoute.Sitemap {
