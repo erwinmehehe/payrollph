@@ -16,6 +16,7 @@ import { RecruitmentPanel } from "@/components/recruitment-panel";
 import { PerformancePanel } from "@/components/performance-panel";
 import { CompensationPanel } from "@/components/compensation-panel";
 import { LearningCareerPanel } from "@/components/learning-career-panel";
+import { EnterpriseControlsPanel } from "@/components/enterprise-controls-panel";
 import { SeparationPanel } from "@/components/separation-panel";
 import { EwaPanel, ExpensesPanel } from "@/components/wallet-panel";
 import { WebBundyModal } from "@/components/web-bundy-modal";
@@ -522,6 +523,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         {page === "Freelancer hub" && <FreelancerPage data={data} setNotice={noticeAdapter} />}
 
         {page === "Integrations" && <IntegrationsPage onOpenOutbox={canManageDeliveryOutbox ? () => setOutboxOpen(true) : undefined} />}
+        {page === "Enterprise" && <EnterpriseControlsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Developer" && <DeveloperPage organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Pricing" && <PricingPage plans={data.plans} onSelectPlan={(plan) => setCheckoutPlan(plan)} />}
         {page === "Audit trail" && <AuditPage events={data.auditEvents} organizationId={data.selectedOrganization.id} />}
