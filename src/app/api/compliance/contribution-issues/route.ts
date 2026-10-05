@@ -150,6 +150,10 @@ export async function POST(request: Request) {
     }, { status: 409 });
   }
 
+  if (action === "start_review" && issue.status !== "open") {
+    return Response.json({ error: "This case review has already started." }, { status: 409 });
+  }
+
   if (action === "start_review") {
     const now = new Date();
     const updated = await db.transaction(async (tx) => {
