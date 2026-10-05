@@ -263,8 +263,8 @@ export function buildComplianceCalendar(input: {
   const rank: Record<ComplianceCalendarStatus, number> = {
     overdue: 0,
     exception: 1,
-    configuration-required: 2,
-    verification-required: 3,
+    "configuration-required": 2,
+    "verification-required": 3,
     "posting-pending": 4,
     "due-soon": 5,
     upcoming: 6,
