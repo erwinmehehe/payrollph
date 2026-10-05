@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Banknote, Check, DollarSign, Pause, Play, Plus, ReceiptText, ShieldCheck, X } from "lucide-react";
+import { GovernmentLoanRemittancePanel } from "@/components/government-loan-remittance-panel";
 
 type Loan = {
   id: number;
@@ -302,6 +303,8 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
           </table>
         </div>
       </article>
-    </div>
+    
+      <GovernmentLoanRemittancePanel organizationId={organizationId} setNotice={setNotice} />
+</div>
   );
 }
