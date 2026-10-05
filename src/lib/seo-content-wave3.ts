@@ -482,7 +482,7 @@ export const complianceWave3: AuthorityPage[] = [
     slug: "regulatory-updates",
     eyebrow: "Payroll regulatory updates",
     title: "How Linaw tracks Philippine payroll rule changes.",
-    metaTitle: "Philippine Payroll Regulatory Updates | Linaw",
+    metaTitle: "Payroll Regulatory Update Process Philippines | Linaw",
     description: "Method for tracking Philippine payroll regulatory changes by agency, publication date, effective date, official source, affected workflow and review status.",
     intro: "Evergreen pages explain a payroll topic. Dated updates record what changed, when it changed, the source and which payroll workflows may need review. Keeping those two content types separate reduces stale guidance.",
     proof: ["Effective date", "Issuing agency", "Source document", "Affected workflow", "Rule-review status", "Evergreen cross-links"],
