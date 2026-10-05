@@ -382,14 +382,15 @@ export async function POST(request: Request) {
           .where(and(eq(compensationBudgetPools.cycleId, cycleId), eq(compensationBudgetPools.orgUnitId, employee.orgUnitId))).limit(1)
       : [];
 
-    const usage = await cycleBudgetUsage(cycleId, pool ? employee.orgUnitId : null);
-    const budgetLimit = pool ? Number(pool.budget) : Number(cycle.totalBudget);
-    if (usage + annualizedIncrease > budgetLimit + 0.005) {
-      return Response.json({
-        error: pool
-          ? "This recommendation would exceed the employee's org-unit compensation budget."
-          : "This recommendation would exceed the compensation cycle budget.",
-      }, { status: 409 });
+    const totalUsage = await cycleBudgetUsage(cycleId, null);
+    if (totalUsage + annualizedIncrease > Number(cycle.totalBudget) + 0.005) {
+      return Response.json({ error: "This recommendation would exceed the compensation cycle budget." }, { status: 409 });
+    }
+    if (pool) {
+      const poolUsage = await cycleBudgetUsage(cycleId, employee.orgUnitId);
+      if (poolUsage + annualizedIncrease > Number(pool.budget) + 0.005) {
+        return Response.json({ error: "This recommendation would exceed the employee's org-unit compensation budget." }, { status: 409 });
+      }
     }
 
     try {
@@ -511,10 +512,15 @@ export async function PATCH(request: Request) {
       ? await db.select().from(compensationBudgetPools)
           .where(and(eq(compensationBudgetPools.cycleId, recommendation.cycleId), eq(compensationBudgetPools.orgUnitId, recommendation.orgUnitId))).limit(1)
       : [];
-    const usage = await cycleBudgetUsage(recommendation.cycleId, pool ? recommendation.orgUnitId : null, recommendation.id);
-    const limit = pool ? Number(pool.budget) : Number(cycle.totalBudget);
-    if (usage + Number(recommendation.annualizedIncrease) > limit + 0.005) {
-      return Response.json({ error: "Budget changed after submission; this recommendation no longer fits the available compensation budget." }, { status: 409 });
+    const totalUsage = await cycleBudgetUsage(recommendation.cycleId, null, recommendation.id);
+    if (totalUsage + Number(recommendation.annualizedIncrease) > Number(cycle.totalBudget) + 0.005) {
+      return Response.json({ error: "Budget changed after submission; this recommendation no longer fits the compensation cycle budget." }, { status: 409 });
+    }
+    if (pool) {
+      const poolUsage = await cycleBudgetUsage(recommendation.cycleId, recommendation.orgUnitId, recommendation.id);
+      if (poolUsage + Number(recommendation.annualizedIncrease) > Number(pool.budget) + 0.005) {
+        return Response.json({ error: "Budget changed after submission; this recommendation no longer fits the org-unit compensation pool." }, { status: 409 });
+      }
     }
 
     const [row] = await db.update(compensationRecommendations).set({
