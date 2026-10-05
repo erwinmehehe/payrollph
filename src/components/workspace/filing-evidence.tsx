@@ -60,9 +60,9 @@ function isMonthEnd(value?: string) {
  * Records what an agency said about a file Linaw generated. The wording comes
  * from the form's definition on the server (src/lib/filing-evidence.ts), so the
  * claims on screen are reviewed with the rules that decide what counts. The three steps are on one
- * card on purpose: create the record, download exactly that file, then record
- * the answer. Only an accepted upload of the generated file turns the readiness
- * gate on, and the form says so before anyone clicks.
+ * card on purpose: create the record, download the exact worksheet, then record
+ * the agency answer. Each filing definition says whether readiness requires
+ * file-format acceptance or operational portal acknowledgement.
  */
 export function FilingEvidencePanel({
   organizationId,
