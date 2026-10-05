@@ -182,6 +182,25 @@ test("long dynamic compliance and industry H1s have dedicated search titles", ()
   }
 });
 
+test("core and operational compliance guides include FAQ depth", () => {
+  const core = read("src/lib/seo-content.ts");
+  const wave3 = read("src/lib/seo-content-wave3.ts");
+
+  for (const slug of ["bir", "sss", "philhealth", "pag-ibig", "dole"]) {
+    const start = core.indexOf(`slug: "${slug}"`);
+    const end = core.indexOf("\n  },", start);
+    assert.ok(start >= 0 && end > start, `core compliance page ${slug} must exist`);
+    assert.ok(core.slice(start, end).includes("faq: ["), `core compliance page ${slug} must include FAQ depth`);
+  }
+
+  for (const slug of ["calendar", "regulatory-updates", "payroll-audit"]) {
+    const start = wave3.indexOf(`slug: "${slug}"`);
+    const end = wave3.indexOf("\n  },", start);
+    assert.ok(start >= 0 && end > start, `compliance operations page ${slug} must exist`);
+    assert.ok(wave3.slice(start, end).includes("faq: ["), `compliance operations page ${slug} must include FAQ depth`);
+  }
+});
+
 test("public navigation exposes the SEO program without hiding the live demo", () => {
   const navigation = read("src/components/marketing/public-navigation.ts");
   for (const route of ["/demo", "/resources", "/compliance", "/trust", "/integrations", "/developers", "/calculators", "/payroll-health-check", "/industries"]) {
