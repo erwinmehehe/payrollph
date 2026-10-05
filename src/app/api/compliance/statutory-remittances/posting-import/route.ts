@@ -3,12 +3,14 @@ import { db } from "@/db";
 import {
   complianceActionTasks,
   statutoryContributionIssueCases,
+  statutoryContributionIssueEvents,
   statutoryRemittanceBatches,
   statutoryRemittanceMembers,
 } from "@/db/schema";
 import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { contributionCaseServiceTargets } from "@/lib/statutory-contribution-case-aging";
 import { canConfirmMemberPosting } from "@/lib/statutory-remittance";
 import { invalidateStatutoryRemittanceMonthCertification } from "@/lib/statutory-remittance-certification";
 import {
@@ -213,7 +215,9 @@ export async function POST(request: Request) {
             status: "open",
             reportedByUserId: user.id,
             reportedByName: `Posting import · ${user.name}`.slice(0, 120),
-          }).returning({ id: statutoryContributionIssueCases.id });
+          }).returning();
+
+          const serviceTargets = contributionCaseServiceTargets(issue);
 
           await tx.insert(complianceActionTasks).values({
             organizationId,
@@ -225,8 +229,20 @@ export async function POST(request: Request) {
             title: `${batch.agency} posting amount mismatch · ${candidate.member.employeeNo}`.slice(0, 180),
             detail: description.slice(0, 360),
             status: "open",
+            dueDate: serviceTargets.firstReviewDue.toISOString().slice(0, 10),
             firstDetectedAt: new Date(),
             lastDetectedAt: new Date(),
+          });
+
+          await tx.insert(statutoryContributionIssueEvents).values({
+            organizationId,
+            caseId: issue.id,
+            employeeId: candidate.member.employeeId,
+            eventType: "reported",
+            visibility: "employee",
+            message: `Payroll detected a ${batch.agency} contribution amount mismatch from agency posting evidence for ${batch.applicableMonth}. Expected ${expectedTotal.toFixed(2)}, agency evidence shows ${candidate.postedAmount.toFixed(2)}. The invalid posting file was not applied.`,
+            actorUserId: user.id,
+            actorName: `Posting import · ${user.name}`.slice(0, 120),
           });
 
           createdIds.push(issue.id);
