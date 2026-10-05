@@ -8,6 +8,7 @@ import {
   payrollRuns,
   payslips,
   statutoryContributionIssueCases,
+  statutoryPostingEvidenceArtifacts,
   statutoryRemittanceBatches,
   statutoryRemittanceMembers,
   statutoryRemittanceMonthClosures,
@@ -134,6 +135,24 @@ export async function GET(request: Request) {
           eq(statutoryRemittanceMembers.organizationId, employee.organizationId),
           eq(statutoryRemittanceMembers.batchId, batch.id),
           eq(statutoryRemittanceMembers.employeeId, employee.id),
+        ))
+        .limit(1)
+    : [];
+
+  const [postingEvidenceArtifact] = member?.postingEvidenceArtifactId
+    ? await db.select({
+        id: statutoryPostingEvidenceArtifacts.id,
+        sourceType: statutoryPostingEvidenceArtifacts.sourceType,
+        fileName: statutoryPostingEvidenceArtifacts.fileName,
+        contentSha256: statutoryPostingEvidenceArtifacts.contentSha256,
+        evidenceReference: statutoryPostingEvidenceArtifacts.evidenceReference,
+        recordedByName: statutoryPostingEvidenceArtifacts.recordedByName,
+        createdAt: statutoryPostingEvidenceArtifacts.createdAt,
+      }).from(statutoryPostingEvidenceArtifacts)
+        .where(and(
+          eq(statutoryPostingEvidenceArtifacts.id, member.postingEvidenceArtifactId),
+          eq(statutoryPostingEvidenceArtifacts.organizationId, employee.organizationId),
+          eq(statutoryPostingEvidenceArtifacts.batchId, batch!.id),
         ))
         .limit(1)
     : [];
@@ -302,6 +321,20 @@ export async function GET(request: Request) {
       postingReference: member?.postingReference ?? null,
       postedAmount: member?.postedAmount ?? null,
       postedAt: member?.postedAt?.toISOString() ?? null,
+      postingEvidence: postingEvidenceArtifact ? {
+        evidenceArtifactId: postingEvidenceArtifact.id,
+        sourceType: postingEvidenceArtifact.sourceType,
+        sourceLabel: postingEvidenceArtifact.sourceType === "csv_import"
+          ? "Imported agency evidence"
+          : postingEvidenceArtifact.sourceType === "manual_confirmation"
+            ? "Manual payroll confirmation"
+            : "Unknown source",
+        fileName: postingEvidenceArtifact.fileName,
+        contentSha256: postingEvidenceArtifact.contentSha256,
+        evidenceReference: postingEvidenceArtifact.evidenceReference,
+        recordedByName: postingEvidenceArtifact.recordedByName,
+        recordedAt: postingEvidenceArtifact.createdAt.toISOString(),
+      } : null,
       exceptionNote: member?.exceptionNote ?? null,
     } : null,
     filingEvidence,
