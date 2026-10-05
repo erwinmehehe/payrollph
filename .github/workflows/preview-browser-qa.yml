@@ -778,9 +778,9 @@ jobs:
                   "HR: secondary module navigation fell back to the old dark sidebar",
                 );
                 check((await page.locator(".demo-sandbox:visible").count()) === 0, "HR: secondary module reintroduced the bulky demo tools strip");
-                const backToPeople = page.locator("aside .nav-item").filter({ hasText: /^People$/ }).first();
-                await backToPeople.click();
-                await page.waitForTimeout(120);
+                // People was already exercised above. The secondary-module check only needs
+                // to prove the compact HR shell survives navigation away from People; returning
+                // here adds a second click target after the More group expands and is redundant.
               }
             }
 
