@@ -7,6 +7,7 @@ import {
   payrollRuns,
   statutoryRemittanceBatches,
   statutoryRemittanceMembers,
+  statutoryRemittancePaymentEvidence,
 } from "@/db/schema";
 import { buildStatutoryRemittanceAlerts } from "@/lib/statutory-remittance-alerts";
 import { FILING_FORMS } from "@/lib/filing-evidence";
@@ -76,6 +77,23 @@ export async function loadStatutoryRemittanceState(organizationId: number) {
         ))
         .orderBy(asc(statutoryRemittanceMembers.batchId), asc(statutoryRemittanceMembers.employeeNo))
     : [];
+
+  const paymentProofRows = batchIds.length
+    ? await db.select({
+        batchId: statutoryRemittancePaymentEvidence.batchId,
+        status: statutoryRemittancePaymentEvidence.status,
+        fileSha256: statutoryRemittancePaymentEvidence.fileSha256,
+      }).from(statutoryRemittancePaymentEvidence)
+        .where(and(
+          eq(statutoryRemittancePaymentEvidence.organizationId, organizationId),
+          inArray(statutoryRemittancePaymentEvidence.batchId, batchIds),
+        ))
+    : [];
+  const activePaymentProofBatchIds = new Set(
+    paymentProofRows
+      .filter((row) => row.status === "active" && Boolean(row.fileSha256))
+      .map((row) => row.batchId),
+  );
 
   const filingRows = await db.select().from(governmentFilingValidations)
     .where(eq(governmentFilingValidations.organizationId, organizationId))
@@ -192,6 +210,7 @@ export async function loadStatutoryRemittanceState(organizationId: number) {
         0,
         Number(batch.expectedTotal) - Number(batch.amountPaid ?? 0),
       ),
+      hasActivePaymentProof: activePaymentProofBatchIds.has(batch.id),
       filingCheck: filing && comparison
         ? {
             status: comparison.matched ? "matched" as const : "mismatch" as const,

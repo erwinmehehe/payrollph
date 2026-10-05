@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const schema = readFileSync("src/db/schema.ts", "utf8");
+const storage = readFileSync("src/lib/storage.ts", "utf8");
 const uploadRoute = readFileSync(
   "src/app/api/compliance/statutory-remittances/payment-evidence/route.ts",
   "utf8",
@@ -43,10 +44,10 @@ test("payment proof upload is tenant-scoped, MFA-protected, bounded and hashed s
   assert.ok(uploadRoute.includes("requireSensitiveActionMfa(user)"));
   assert.ok(uploadRoute.includes("enforceSameOriginMutation(request)"));
   assert.ok(uploadRoute.includes("const MAX_BYTES = 2 * 1024 * 1024"));
-  assert.ok(uploadRoute.includes("application/pdf"));
-  assert.ok(uploadRoute.includes("bytesMatchMime"));
-  assert.ok(uploadRoute.includes("%PDF-"));
-  assert.ok(uploadRoute.includes("Payment proof contents do not match the declared PDF/JPEG/PNG file type."));
+  assert.ok(storage.includes("application/pdf"));
+  assert.ok(storage.includes("image/jpeg"));
+  assert.ok(storage.includes("image/png"));
+  assert.ok(uploadRoute.includes("validateUpload(bytes, file.type, file.name)"));
   assert.ok(uploadRoute.includes('createHash("sha256").update(bytes).digest("hex")'));
 });
 
@@ -94,4 +95,25 @@ test("payroll UI makes proof upload and historical backfill explicit", () => {
   assert.ok(proofUi.includes("Backfill proof"));
   assert.ok(proofUi.includes("SHA-256"));
   assert.ok(proofUi.includes("Superseded proof history"));
+});
+
+
+test("payment proof uses the shared fail-closed malware scanner before storage", () => {
+  assert.ok(uploadRoute.includes('from "@/lib/storage"'));
+  assert.ok(uploadRoute.includes("validateUpload(bytes, file.type, file.name)"));
+  assert.ok(uploadRoute.includes("await scanUpload(bytes"));
+  assert.ok(uploadRoute.includes("MALWARE_SCAN_UNAVAILABLE"));
+  assert.ok(uploadRoute.includes("MALWARE_DETECTED"));
+  assert.ok(uploadRoute.includes("Statutory remittance payment proof scan unavailable"));
+  assert.ok(uploadRoute.includes("Statutory remittance payment proof blocked by malware scan"));
+});
+
+test("payment proof is stored only after a clean scan and records scan telemetry", () => {
+  const scanGate = uploadRoute.indexOf("if (!scan.scannedClean)");
+  const insert = uploadRoute.indexOf("tx.insert(statutoryRemittancePaymentEvidence)");
+  assert.ok(scanGate >= 0);
+  assert.ok(insert > scanGate);
+  assert.ok(uploadRoute.includes("malwareScannedClean: scan.scannedClean"));
+  assert.ok(uploadRoute.includes("malwareScanEngine: scan.engine"));
+  assert.ok(uploadRoute.includes("malwareScanNote: scan.note"));
 });

@@ -8,6 +8,7 @@ import {
 import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { safeFileName, scanUpload, validateUpload } from "@/lib/storage";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -17,7 +18,6 @@ import {
 export const dynamic = "force-dynamic";
 
 const MAX_BYTES = 2 * 1024 * 1024;
-const ALLOWED_TYPES = new Set(["application/pdf", "image/jpeg", "image/png"]);
 
 async function requirePayrollOperator(userId: number, organizationId: number) {
   const access = await getAccess(userId, organizationId);
@@ -130,22 +130,44 @@ export async function POST(request: Request) {
   )).limit(1);
   if (!batch) return Response.json({ error: "Remittance batch not found." }, { status: 404 });
 
-  if (!ALLOWED_TYPES.has(file.type)) {
-    return Response.json({ error: "Only PDF, JPEG and PNG payment proof files are allowed." }, { status: 415 });
-  }
   if (file.size <= 0 || file.size > MAX_BYTES) {
     return Response.json({ error: "Payment proof must be between 1 byte and 2 MB." }, { status: 413 });
   }
 
-  const bytes = Buffer.from(await file.arrayBuffer());
-  if (!bytesMatchMime(bytes, file.type)) {
-    return Response.json({
-      error: "Payment proof contents do not match the declared PDF/JPEG/PNG file type.",
-    }, { status: 415 });
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const validation = validateUpload(bytes, file.type, file.name);
+  if (!validation.ok) {
+    return Response.json({ error: validation.error }, { status: 422 });
   }
+
+  const scan = await scanUpload(bytes, { fileName: file.name, mime: validation.mime });
+  if (!scan.scannedClean) {
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: scan.unavailable
+        ? "Statutory remittance payment proof scan unavailable"
+        : "Statutory remittance payment proof blocked by malware scan",
+      resource: safeFileName(file.name),
+      metadata: {
+        batchId,
+        unavailable: scan.unavailable === true,
+        engine: scan.engine ?? null,
+        threat: scan.threat ?? null,
+        note: scan.note,
+      },
+    });
+    return Response.json({
+      error: scan.unavailable
+        ? "Payment proof cannot be accepted because malware scanning is unavailable."
+        : "Payment proof was rejected by malware scanning.",
+      code: scan.unavailable ? "MALWARE_SCAN_UNAVAILABLE" : "MALWARE_DETECTED",
+    }, { status: scan.unavailable ? 503 : 422 });
+  }
+
   const fileSha256 = createHash("sha256").update(bytes).digest("hex");
-  const fileDataBase64 = bytes.toString("base64");
-  const fileName = sanitizeFileName(file.name);
+  const fileDataBase64 = Buffer.from(bytes).toString("base64");
+  const fileName = safeFileName(file.name);
 
   const existing = await db.select().from(statutoryRemittancePaymentEvidence).where(and(
     eq(statutoryRemittancePaymentEvidence.organizationId, organizationId),
@@ -194,8 +216,8 @@ export async function POST(request: Request) {
       organizationId,
       batchId,
       fileName,
-      mimeType: file.type,
-      byteSize: file.size,
+      mimeType: validation.mime,
+      byteSize: bytes.byteLength,
       fileSha256,
       fileDataBase64,
       status: "active",
@@ -231,6 +253,9 @@ export async function POST(request: Request) {
       mimeType: created.mimeType,
       byteSize: created.byteSize,
       fileSha256: created.fileSha256,
+      malwareScannedClean: scan.scannedClean,
+      malwareScanEngine: scan.engine ?? null,
+      malwareScanNote: scan.note,
       replacedEvidenceId: active?.id ?? null,
       replacementReason,
       batchStatusAtUpload: batch.status,

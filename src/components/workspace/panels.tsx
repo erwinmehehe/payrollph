@@ -47,6 +47,7 @@ import { StatutoryRemittancePanel } from "@/components/workspace/statutory-remit
 import { ComplianceCalendarPanel } from "@/components/workspace/compliance-calendar-panel";
 import { LaborInspectionReadinessPanel } from "@/components/workspace/labor-inspection-readiness-panel";
 import { PayrollMonthClosePanel } from "@/components/workspace/payroll-month-close-panel";
+import { DoleThirteenthMonthReportPanel } from "@/components/workspace/dole-thirteenth-month-report-panel";
 import { CompliancePolicyReviewPanel } from "@/components/workspace/compliance-policy-review-panel";
 import { INVITABLE_ROLES, invitableRoleLabel } from "@/lib/roles";
 import type { AuditEvent, DashboardData, Employee, OrgUnit, PayrollEntry, PayrollRun, PricingPlan } from "./types";
@@ -374,6 +375,10 @@ export function CompliancePage({ data, setNotice, onOpenGovModal }: { data: Dash
       )}
 
       <YearEndPanel organizationId={data.selectedOrganization.id} setNotice={setNotice} />
+      <DoleThirteenthMonthReportPanel
+        organizationId={data.selectedOrganization.id}
+        notify={(message) => setNotice(message)}
+      />
     </>
   );
 }

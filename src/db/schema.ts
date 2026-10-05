@@ -1355,6 +1355,38 @@ export const statutoryRemittanceCorrectionRequests = pgTable(
   ],
 );
 
+export const doleReportingProfiles = pgTable("dole_reporting_profiles", {
+  organizationId: integer("organization_id").primaryKey().references(() => organizations.id, { onDelete: "cascade" }),
+  establishmentAddress: text("establishment_address").notNull().default(""),
+  principalBusiness: varchar("principal_business", { length: 240 }).notNull().default(""),
+  contactName: varchar("contact_name", { length: 160 }).notNull().default(""),
+  contactPosition: varchar("contact_position", { length: 160 }).notNull().default(""),
+  contactPhone: varchar("contact_phone", { length: 48 }).notNull().default(""),
+  updatedBy: varchar("updated_by", { length: 120 }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const doleComplianceSubmissions = pgTable(
+  "dole_compliance_submissions",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    reportType: varchar("report_type", { length: 48 }).notNull(),
+    reportYear: integer("report_year").notNull(),
+    reportHash: varchar("report_hash", { length: 64 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("submitted"),
+    portalReference: varchar("portal_reference", { length: 160 }).notNull(),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull(),
+    recordedByUserId: integer("recorded_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    recordedByName: varchar("recorded_by_name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("dole_compliance_submission_snapshot_unique").on(table.organizationId, table.reportType, table.reportYear, table.reportHash),
+    index("dole_compliance_submission_year_idx").on(table.organizationId, table.reportYear, table.reportType),
+  ],
+);
+
 export const payrollMonthClosures = pgTable(
   "payroll_month_closures",
   {
