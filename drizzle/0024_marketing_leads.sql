@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS marketing_leads (
   entities varchar(40),
   notes text,
   source_path varchar(120) NOT NULL,
+  attribution jsonb NOT NULL DEFAULT '{}'::jsonb,
   status varchar(24) NOT NULL DEFAULT 'new',
   notification_status varchar(24) NOT NULL DEFAULT 'not-configured',
   notification_provider varchar(40),
@@ -30,6 +31,9 @@ CREATE INDEX IF NOT EXISTS marketing_leads_status_created_idx
 CREATE INDEX IF NOT EXISTS marketing_leads_kind_created_idx
   ON marketing_leads(kind, created_at DESC);
 
+
+ALTER TABLE marketing_leads
+  ADD COLUMN IF NOT EXISTS attribution jsonb NOT NULL DEFAULT '{}'::jsonb;
 
 DO $compat$
 BEGIN
