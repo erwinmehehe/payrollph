@@ -34,7 +34,7 @@ type Survey = {
   questions: QuestionAnalytics[];
   unitBreakdown: Array<{ orgUnitId: number; orgUnitName: string; responseCount: number | null; reportable: boolean }>;
 };
-type ActionPlan = { id: number; surveyId: number; questionId: number | null; orgUnitId: number | null; ownerEmployeeId: number | null; title: string; dueDate: string | null; status: string; notes: string | null };
+type ActionPlan = { id: number; surveyId: number; questionId: number | null; orgUnitId: number | null; ownerEmployeeId: number | null; title: string; dueDate: string | null; status: string; notes: string | null; employeeVisible: boolean; publicUpdate: string | null };
 type Employee = { id: number; firstName: string; lastName: string; title: string; orgUnitId: number | null; status: string };
 type Unit = { id: number; name: string };
 type Recognition = { id: number; senderName: string; recipientName: string; category: string; message: string; createdAt: string };
@@ -181,6 +181,25 @@ export function EngagementPanel({ organizationId, setNotice }: { organizationId:
       await load();
       setNotice("Action plan updated.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not update action plan."); }
+  }
+
+  async function publishActionPlan(plan: ActionPlan) {
+    try {
+      if (plan.employeeVisible) {
+        await patch({ action: "action_plan_publish", actionPlanId: plan.id, employeeVisible: false, publicUpdate: "" });
+        await load();
+        setNotice("Employee follow-through update unpublished.");
+        return;
+      }
+      const publicUpdate = window.prompt(
+        "Employee-visible update. Do not paste anonymous comments or identifying survey detail.",
+        plan.publicUpdate ?? "",
+      );
+      if (!publicUpdate?.trim()) return;
+      await patch({ action: "action_plan_publish", actionPlanId: plan.id, employeeVisible: true, publicUpdate: publicUpdate.trim() });
+      await load();
+      setNotice("Published to employees in You said, we did.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Could not publish employee update."); }
   }
 
   async function createFeedback(event: React.FormEvent) {
@@ -340,9 +359,9 @@ export function EngagementPanel({ organizationId, setNotice }: { organizationId:
           <button className="primary-button" onClick={() => setShowAction(true)} disabled={!data.surveys.length}><Plus size={13} /> Action</button>
         </div>
         <div className="data-table-wrap"><table className="data-table">
-          <thead><tr><th>ACTION</th><th>SURVEY</th><th>OWNER / UNIT</th><th>DUE</th><th>STATUS</th><th>NEXT</th></tr></thead>
+          <thead><tr><th>ACTION</th><th>SURVEY</th><th>OWNER / UNIT</th><th>DUE</th><th>STATUS</th><th>NEXT</th><th>EMPLOYEES</th></tr></thead>
           <tbody>
-            {data.actionPlans.length === 0 && <tr><td colSpan={6}><div className="empty-state">No engagement action plans yet.</div></td></tr>}
+            {data.actionPlans.length === 0 && <tr><td colSpan={7}><div className="empty-state">No engagement action plans yet.</div></td></tr>}
             {data.actionPlans.map((plan) => (
               <tr key={plan.id}>
                 <td><strong>{plan.title}</strong></td>
@@ -351,6 +370,12 @@ export function EngagementPanel({ organizationId, setNotice }: { organizationId:
                 <td>{plan.dueDate ?? "—"}</td>
                 <td><span className={plan.status === "completed" ? "status status-verified" : "status"}>{plan.status}</span></td>
                 <td>{plan.status === "open" ? <button className="secondary-button" onClick={() => void updateActionPlan(plan, "in_progress")}>Start</button> : plan.status === "in_progress" ? <button className="primary-button" onClick={() => void updateActionPlan(plan, "completed")}>Complete</button> : "—"}</td>
+                <td>
+                  <button className={plan.employeeVisible ? "primary-button" : "secondary-button"} onClick={() => void publishActionPlan(plan)}>
+                    {plan.employeeVisible ? "Unpublish" : "Publish update"}
+                  </button>
+                  {plan.employeeVisible && plan.publicUpdate && <small style={{ display: "block", maxWidth: 220, marginTop: 5, color: "var(--muted)" }}>{plan.publicUpdate}</small>}
+                </td>
               </tr>
             ))}
           </tbody>
