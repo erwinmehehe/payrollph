@@ -43,7 +43,7 @@ test("recommendations are budget aware and monthly-pay only", () => {
 
 test("four-eyes approval and band exceptions fail closed", () => {
   assert.ok(route.includes("the proposer cannot approve or reject their own compensation recommendation"));
-  assert.ok(route.includes("An explicit band exception reason is required"));
+  assert.ok(route.includes("when no salary band exists or proposed pay is outside the range"));
   assert.ok(route.includes("Budget changed after submission"));
   assert.ok(route.includes('status: "approved"'));
 });
