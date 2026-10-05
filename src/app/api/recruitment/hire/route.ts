@@ -15,6 +15,7 @@ import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { resolvePayProfile } from "@/lib/pay-basis";
+import { runLifecycleAutomations } from "@/lib/automation";
 
 export const dynamic = "force-dynamic";
 
@@ -211,11 +212,24 @@ export async function POST(request: Request) {
     },
   });
 
+  const automation = await runLifecycleAutomations({
+    organizationId,
+    employeeId: result.employee.id,
+    trigger: "employee.hired",
+    eventKey: "candidate-hire:" + applicant.id,
+    context: {
+      orgUnitId: result.employee.orgUnitId,
+      employmentType: result.employee.employmentType,
+      title: result.employee.title,
+    },
+  });
+
   return Response.json({
     employee: result.employee,
     position,
     assignment: result.assignment,
     onboarding: result.onboarding,
+    automation,
     candidate: { ...applicant, stage: "hired", hiredEmployeeId: result.employee.id },
   }, { status: 201 });
 }
