@@ -158,7 +158,13 @@ export async function POST(request: Request) {
     }).from(payrollEntries).where(inArray(payrollEntries.payrollRunId, runIds));
     const employeeIds = [...new Set(entries.map((entry) => entry.employeeId))];
     const employeeRows = employeeIds.length
-      ? await db.select({ id: employees.id, employeeNo: employees.employeeNo })
+      ? await db.select({
+          id: employees.id,
+          employeeNo: employees.employeeNo,
+          sssNo: employees.sssNo,
+          philHealthNo: employees.philHealthNo,
+          pagIbigNo: employees.pagIbigNo,
+        })
           .from(employees)
           .where(and(
             eq(employees.organizationId, organizationId),
