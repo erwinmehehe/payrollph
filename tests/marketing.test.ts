@@ -4,6 +4,13 @@ import { existsSync, readFileSync } from "node:fs";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
+test("public URL helpers default to payrollsoftware.ph", () => {
+  const siteUrl = read("src/lib/site-url.ts");
+  assert.ok(siteUrl.includes('"https://payrollsoftware.ph"'), "canonical fallback must use the production domain");
+  assert.ok(!siteUrl.includes("erwinmehehe-payrollph.vercel.app"), "public URL fallback must not point to the Vercel hostname");
+});
+
+
 test("the root route always owns the public payroll software landing page", () => {
   const root = read("src/app/page.tsx");
   const app = read("src/app/app/page.tsx");
