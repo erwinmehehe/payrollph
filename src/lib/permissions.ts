@@ -23,6 +23,7 @@ export async function permissionSetForMembership(userId: number, organizationId:
   const [membership] = await db.select().from(userOrganizations).where(and(
     eq(userOrganizations.userId, userId),
     eq(userOrganizations.organizationId, organizationId),
+    eq(userOrganizations.active, true),
   )).limit(1);
   if (!membership) return { membership: null, permissionSet: null };
 
