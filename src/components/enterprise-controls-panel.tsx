@@ -35,6 +35,7 @@ type Member = {
   role: string;
   orgUnitId: number | null;
   active: boolean;
+  membershipActive: boolean;
   localPasswordEnabled: boolean;
   totpEnabled: boolean;
 };
@@ -368,7 +369,7 @@ export function EnterpriseControlsPanel({ organizationId, setNotice }: { organiz
             <thead><tr><th>MEMBER</th><th>BASE ROLE</th><th>RESTRICTION</th></tr></thead>
             <tbody>{data.members.map((member) => {
               const assignment = assignmentByMembership.get(member.membershipId);
-              return <tr key={member.membershipId}><td><strong>{member.name}</strong><small style={{ display: "block", color: "var(--muted)" }}>{member.email}</small></td><td>{member.role}</td><td><select value={assignment?.permissionSetId ?? ""} onChange={(e) => void assignPermission(member.membershipId, e.target.value)}><option value="">Base role only</option>{data.permissionSets.filter((set) => set.active).map((set) => <option key={set.id} value={set.id}>{set.name}</option>)}</select></td></tr>;
+              return <tr key={member.membershipId}><td><strong>{member.name}</strong><small style={{ display: "block", color: "var(--muted)" }}>{member.email}</small></td><td>{member.role}{!member.membershipActive && <small style={{ display: "block", color: "var(--muted)" }}>deprovisioned</small>}</td><td><select disabled={!member.membershipActive} value={assignment?.permissionSetId ?? ""} onChange={(e) => void assignPermission(member.membershipId, e.target.value)}><option value="">Base role only</option>{data.permissionSets.filter((set) => set.active).map((set) => <option key={set.id} value={set.id}>{set.name}</option>)}</select></td></tr>;
             })}</tbody>
           </table></div>
         </article>
