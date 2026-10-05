@@ -59,7 +59,7 @@ const sections = [
 
 export default function PayrollRfpChecklistPage() {
   return (
-    <div className="min-h-screen bg-[#FAFBFD] text-[#0B0D1A]">
+    <div className="marketing-page min-h-screen bg-[#FCFCFD] text-[#101323]">
       <StructuredData breadcrumbs={[{ name: "Home", path: "/" }, { name: "Templates", path: "/templates/payroll-rfp-checklist" }, { name: "Payroll RFP checklist", path: "/templates/payroll-rfp-checklist" }]} />
       <SiteNav />
       <main className="py-12 sm:py-16">
