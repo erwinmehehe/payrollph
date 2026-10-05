@@ -19,6 +19,25 @@ test("the root route always owns the public payroll software landing page", () =
   assert.ok(welcome.includes('permanentRedirect("/")'), "/welcome must redirect to the canonical root");
 });
 
+test("public SEO always resolves to payrollsoftware.ph", () => {
+  const siteUrl = read("src/lib/site-url.ts");
+  const layout = read("src/app/layout.tsx");
+  const robots = read("src/app/robots.ts");
+  const sitemap = read("src/app/sitemap.ts");
+  const home = read("src/app/page.tsx");
+  const outsourcing = read("src/app/payroll-outsourcing/page.tsx");
+
+  assert.ok(siteUrl.includes('PUBLIC_SITE_URL = "https://payrollsoftware.ph"'), "canonical public origin must be payrollsoftware.ph");
+  assert.ok(!siteUrl.includes("vercel.app"), "public URL helper must not fall back to a Vercel hostname");
+  assert.ok(layout.includes("metadataBase: new URL(PUBLIC_SITE_URL)"), "global metadata must resolve from the canonical public origin");
+  assert.ok(robots.includes('absolutePublicUrl("/sitemap.xml")'), "robots sitemap must use the canonical public URL helper");
+  assert.ok(sitemap.includes("absolutePublicUrl(route.path)"), "sitemap entries must use the canonical public URL helper");
+  assert.ok(home.includes('absolutePublicUrl("/#organization")'), "homepage organization schema must use an absolute canonical ID");
+  assert.ok(home.includes('absolutePublicUrl("/#software")'), "software schema must use an absolute canonical ID");
+  assert.ok(outsourcing.includes('absolutePublicUrl("/payroll-outsourcing#service")'), "service schema must use the canonical production origin");
+});
+
+
 test("pricing is read from the database, never hardcoded in the homepage UI", () => {
   const page = read("src/components/marketing/software-home.tsx");
   const catalog = read("src/lib/pricing-catalog.ts");
