@@ -38,16 +38,12 @@ export function evidenceHash(value: unknown) {
   return createHash("sha256").update(canonicalize(asJsonValue(value))).digest("hex");
 }
 
-export function buildContributionEvidencePack<T>(payload: T): T & { evidenceHashSha256: string } {
+export function buildContributionEvidencePack<T extends Record<string, unknown>>(
+  payload: T,
+): T & { evidenceHashSha256: string } {
   const evidenceHashSha256 = evidenceHash(payload);
-  if (typeof payload === "object" && payload !== null && !Array.isArray(payload)) {
-    return {
-      ...(payload as Record<string, unknown>),
-      evidenceHashSha256,
-    } as T & { evidenceHashSha256: string };
-  }
   return {
-    payload,
+    ...payload,
     evidenceHashSha256,
-  } as T & { evidenceHashSha256: string };
+  };
 }
