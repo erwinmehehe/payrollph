@@ -1617,6 +1617,62 @@ export const loanPayments = pgTable("loan_payments", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const governmentLoanRemittanceBatches = pgTable(
+  "government_loan_remittance_batches",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    agency: varchar("agency", { length: 16 }).notNull(),
+    applicableMonth: varchar("applicable_month", { length: 7 }).notNull(),
+    dueDate: date("due_date").notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("open"),
+    employeeCount: integer("employee_count").notNull().default(0),
+    loanCount: integer("loan_count").notNull().default(0),
+    expectedTotal: numeric("expected_total", { precision: 14, scale: 2 }).notNull().default("0"),
+    amountPaid: numeric("amount_paid", { precision: 14, scale: 2 }),
+    paymentReference: varchar("payment_reference", { length: 120 }),
+    agencyAcknowledgementReference: varchar("agency_acknowledgement_reference", { length: 120 }),
+    paymentVarianceNote: varchar("payment_variance_note", { length: 240 }),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    paymentRecordedBy: varchar("payment_recorded_by", { length: 120 }),
+    snapshotHash: varchar("snapshot_hash", { length: 64 }).notNull(),
+    createdBy: varchar("created_by", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("government_loan_remittance_batch_unique").on(table.organizationId, table.agency, table.applicableMonth),
+    index("government_loan_remittance_due_idx").on(table.organizationId, table.status, table.dueDate),
+  ],
+);
+
+export const governmentLoanRemittanceMembers = pgTable(
+  "government_loan_remittance_members",
+  {
+    id: serial("id").primaryKey(),
+    batchId: integer("batch_id").notNull().references(() => governmentLoanRemittanceBatches.id, { onDelete: "cascade" }),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    loanId: integer("loan_id").notNull().references(() => employeeLoans.id, { onDelete: "restrict" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    employeeNo: varchar("employee_no", { length: 32 }).notNull(),
+    loanType: varchar("loan_type", { length: 64 }).notNull(),
+    loanReferenceNo: varchar("loan_reference_no", { length: 64 }).notNull(),
+    deductedAmount: numeric("deducted_amount", { precision: 12, scale: 2 }).notNull(),
+    postingStatus: varchar("posting_status", { length: 24 }).notNull().default("pending"),
+    postedAmount: numeric("posted_amount", { precision: 12, scale: 2 }),
+    postingReference: varchar("posting_reference", { length: 120 }),
+    postedAt: timestamp("posted_at", { withTimezone: true }),
+    confirmedBy: varchar("confirmed_by", { length: 120 }),
+    exceptionNote: text("exception_note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("government_loan_remittance_member_unique").on(table.batchId, table.loanId),
+    index("government_loan_remittance_member_status_idx").on(table.organizationId, table.postingStatus),
+  ],
+);
+
 export const disciplinaryCases = pgTable("disciplinary_cases", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
