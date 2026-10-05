@@ -10,6 +10,7 @@ import { clientIp, rateLimitDistributed, requestMeta } from "@/lib/rate-limit";
 import { verifyTotp } from "@/lib/totp";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { decryptTotpSecret, encryptTotpSecret, isEncryptedTotpSecret, totpEncryptionConfigured } from "@/lib/security-secret";
+import { effectiveSessionPolicyForUser } from "@/lib/enterprise-session";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,11 @@ export async function POST(request: Request) {
   // Enforce the durable account lock without changing the outward response.
   // Returning the same generic 401 avoids making the lock state an account-
   // enumeration signal while still preventing password guesses during the lock.
+  if (!user.active) {
+    verifyPassword(password, user.passwordHash);
+    return Response.json({ error: "Invalid email or password." }, { status: 401 });
+  }
+
   const lock = currentLoginLock(user.lockedUntil);
   if (lock.locked) {
     verifyPassword(password, user.passwordHash);
@@ -72,6 +78,21 @@ export async function POST(request: Request) {
       lockedUntil: failure.lockedUntil,
     }).where(eq(users.id, user.id));
     return Response.json({ error: "Invalid email or password." }, { status: 401 });
+  }
+
+  if (!user.localPasswordEnabled) {
+    return Response.json({
+      error: "Password sign-in is disabled for this account. Use your organization's single sign-on.",
+      code: "SSO_ONLY",
+    }, { status: 403 });
+  }
+
+  const enterprisePolicy = await effectiveSessionPolicyForUser(user.id);
+  if (enterprisePolicy.requireMfa && !user.totpEnabled) {
+    return Response.json({
+      error: "Your workspace requires multi-factor authentication before local sign-in. Contact your workspace administrator to complete enrollment.",
+      code: "MFA_ENROLLMENT_REQUIRED",
+    }, { status: 403 });
   }
 
   if (user.totpEnabled) {
@@ -125,6 +146,7 @@ export async function POST(request: Request) {
   }).where(eq(users.id, user.id));
   const session = await createSession(user.id, requestMeta(request), {
     mfaVerifiedAt: user.totpEnabled ? new Date() : null,
+    authMethod: "local",
   });
   const jar = await cookies();
   jar.set(SESSION_COOKIE, session.token, sessionCookieOptions(session.expiresAt));
