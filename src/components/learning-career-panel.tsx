@@ -46,6 +46,7 @@ export function LearningCareerPanel({ organizationId, setNotice }: { organizatio
   const [showPlanItem, setShowPlanItem] = useState(false);
   const [showCourse, setShowCourse] = useState(false);
   const [showEnrollment, setShowEnrollment] = useState(false);
+  const [showCertification, setShowCertification] = useState(false);
   const [selectedCareerEmployee, setSelectedCareerEmployee] = useState("");
 
   const [skillForm, setSkillForm] = useState({ name: "", category: "General", description: "" });
@@ -55,6 +56,7 @@ export function LearningCareerPanel({ organizationId, setNotice }: { organizatio
   const [itemForm, setItemForm] = useState({ planId: "", skillId: "", title: "", activityType: "training", targetLevel: "", dueDate: "", notes: "" });
   const [courseForm, setCourseForm] = useState({ code: "", title: "", provider: "Internal", deliveryMode: "self_paced", skillId: "", awardedLevel: "", certificationName: "", validityMonths: "" });
   const [enrollmentForm, setEnrollmentForm] = useState({ employeeId: "", courseId: "", developmentPlanItemId: "", dueDate: "" });
+  const [certificationForm, setCertificationForm] = useState({ employeeId: "", skillId: "", name: "", issuer: "", credentialId: "", issuedOn: new Date().toISOString().slice(0, 10), expiresOn: "", evidenceUrl: "" });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -224,6 +226,27 @@ export function LearningCareerPanel({ organizationId, setNotice }: { organizatio
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not assign learning."); }
   }
 
+  async function recordCertification(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      await post({
+        entityType: "certification",
+        employeeId: Number(certificationForm.employeeId),
+        skillId: certificationForm.skillId ? Number(certificationForm.skillId) : null,
+        name: certificationForm.name,
+        issuer: certificationForm.issuer || "External",
+        credentialId: certificationForm.credentialId || null,
+        issuedOn: certificationForm.issuedOn,
+        expiresOn: certificationForm.expiresOn || null,
+        evidenceUrl: certificationForm.evidenceUrl || null,
+      });
+      setCertificationForm({ employeeId: "", skillId: "", name: "", issuer: "", credentialId: "", issuedOn: new Date().toISOString().slice(0, 10), expiresOn: "", evidenceUrl: "" });
+      setShowCertification(false);
+      await load();
+      setNotice("External certification recorded.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Could not record certification."); }
+  }
+
   async function updateEnrollment(enrollment: Enrollment, status: "in_progress" | "completed") {
     const response = await fetch("/api/learning-career", {
       method: "PATCH",
@@ -349,6 +372,19 @@ export function LearningCareerPanel({ organizationId, setNotice }: { organizatio
         </div><div className="run-actions"><button type="button" className="secondary-button" onClick={() => setShowEnrollment(false)}>Cancel</button><button className="primary-button">Assign course</button></div></form>
       )}
 
+      {showCertification && formCard("Record an external certification", "CREDENTIAL EVIDENCE", () => setShowCertification(false),
+        <form onSubmit={recordCertification}><div className="setting-form">
+          <label>Employee<select required value={certificationForm.employeeId} onChange={(e) => setCertificationForm({ ...certificationForm, employeeId: e.target.value })}><option value="">Select employee</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.firstName} {employee.lastName}</option>)}</select></label>
+          <label>Linked skill<select value={certificationForm.skillId} onChange={(e) => setCertificationForm({ ...certificationForm, skillId: e.target.value })}><option value="">No linked skill</option>{skills.map((skill) => <option key={skill.id} value={skill.id}>{skill.name}</option>)}</select></label>
+          <label>Certification<input required value={certificationForm.name} onChange={(e) => setCertificationForm({ ...certificationForm, name: e.target.value })} placeholder="Certified Payroll Professional" /></label>
+          <label>Issuer<input required value={certificationForm.issuer} onChange={(e) => setCertificationForm({ ...certificationForm, issuer: e.target.value })} placeholder="Issuing organization" /></label>
+          <label>Credential ID<input value={certificationForm.credentialId} onChange={(e) => setCertificationForm({ ...certificationForm, credentialId: e.target.value })} /></label>
+          <label>Issued on<input required type="date" value={certificationForm.issuedOn} onChange={(e) => setCertificationForm({ ...certificationForm, issuedOn: e.target.value })} /></label>
+          <label>Expires on<input type="date" value={certificationForm.expiresOn} onChange={(e) => setCertificationForm({ ...certificationForm, expiresOn: e.target.value })} /></label>
+          <label>Evidence URL<input value={certificationForm.evidenceUrl} onChange={(e) => setCertificationForm({ ...certificationForm, evidenceUrl: e.target.value })} placeholder="Optional credential evidence" /></label>
+        </div><div className="run-actions"><button type="button" className="secondary-button" onClick={() => setShowCertification(false)}>Cancel</button><button className="primary-button">Record certification</button></div></form>
+      )}
+
       <section className="module-grid two">
         <article className="card">
           <div className="card-header">
@@ -385,6 +421,25 @@ export function LearningCareerPanel({ organizationId, setNotice }: { organizatio
           })}
         </article>
       </section>
+
+      <article className="card" style={{ marginTop: 16 }}>
+        <div className="card-header"><div><div className="card-kicker">SKILL EVIDENCE</div><h2>Verified employee proficiency</h2><p>Manual manager verification and completed learning both feed the same evidence-backed skill profile.</p></div></div>
+        <div className="data-table-wrap"><table className="data-table">
+          <thead><tr><th>EMPLOYEE</th><th>SKILL</th><th>LEVEL</th><th>SOURCE</th><th>VERIFIED</th></tr></thead>
+          <tbody>
+            {employeeSkills.length === 0 && <tr><td colSpan={5}><div className="empty-state">No verified employee skills yet.</div></td></tr>}
+            {employeeSkills.map((row) => (
+              <tr key={row.id}>
+                <td><strong>{employeeById.get(row.employeeId)?.firstName} {employeeById.get(row.employeeId)?.lastName}</strong></td>
+                <td>{skillById.get(row.skillId)?.name ?? `Skill #${row.skillId}`}</td>
+                <td><strong>{row.proficiencyLevel}/5</strong></td>
+                <td>{row.source}</td>
+                <td>{row.verifiedAt ? new Date(row.verifiedAt).toLocaleDateString("en-PH") : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table></div>
+      </article>
 
       <article className="card" style={{ marginTop: 16 }}>
         <div className="card-header">
@@ -435,7 +490,7 @@ export function LearningCareerPanel({ organizationId, setNotice }: { organizatio
         </article>
 
         <article className="card">
-          <div className="card-header"><div><div className="card-kicker">CERTIFICATIONS</div><h2>Credential evidence and expiry</h2></div></div>
+          <div className="card-header"><div><div className="card-kicker">CERTIFICATIONS</div><h2>Credential evidence and expiry</h2></div>{canDevelop && <button className="secondary-button" onClick={() => setShowCertification(true)}><Plus size={14} /> External</button>}</div>
           {certifications.length === 0 && <div className="empty-state">No certifications recorded.</div>}
           {certifications.slice(0, 12).map((cert) => (
             <div className="leave-request" key={cert.id}>
