@@ -1303,3 +1303,75 @@ export const leaveConversions = pgTable("leave_conversions", {
   status: varchar("status", { length: 32 }).notNull().default("pending"), // "pending", "approved", "paid"
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/* -------------------------------------------------------------------------- */
+/* HCM: performance management                                                */
+/* -------------------------------------------------------------------------- */
+
+export const performanceCycles = pgTable(
+  "performance_cycles",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 160 }).notNull(),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date").notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("draft"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("performance_cycles_org_status_idx").on(table.organizationId, table.status),
+    uniqueIndex("performance_cycles_org_name_dates_unique").on(table.organizationId, table.name, table.startDate, table.endDate),
+  ],
+);
+
+export const performanceGoals = pgTable(
+  "performance_goals",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    cycleId: integer("cycle_id").references(() => performanceCycles.id, { onDelete: "set null" }),
+    title: varchar("title", { length: 180 }).notNull(),
+    description: text("description"),
+    weight: numeric("weight", { precision: 5, scale: 2 }).notNull().default("0"),
+    progress: integer("progress").notNull().default(0),
+    status: varchar("status", { length: 24 }).notNull().default("active"),
+    dueDate: date("due_date"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("performance_goals_org_employee_idx").on(table.organizationId, table.employeeId),
+    index("performance_goals_cycle_idx").on(table.cycleId),
+  ],
+);
+
+export const performanceReviews = pgTable(
+  "performance_reviews",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    cycleId: integer("cycle_id").notNull().references(() => performanceCycles.id, { onDelete: "cascade" }),
+    reviewerUserId: integer("reviewer_user_id").references(() => users.id, { onDelete: "set null" }),
+    status: varchar("status", { length: 24 }).notNull().default("draft"),
+    selfScore: numeric("self_score", { precision: 4, scale: 2 }),
+    managerScore: numeric("manager_score", { precision: 4, scale: 2 }),
+    finalScore: numeric("final_score", { precision: 4, scale: 2 }),
+    employeeReflection: text("employee_reflection"),
+    managerSummary: text("manager_summary"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("performance_reviews_cycle_employee_unique").on(table.cycleId, table.employeeId),
+    index("performance_reviews_org_employee_idx").on(table.organizationId, table.employeeId),
+  ],
+);
+
