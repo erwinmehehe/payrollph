@@ -176,7 +176,7 @@ export async function buildLaborInspectionEvidencePackForOrganization(input: {
   const payslipIndex = payslipRows.flatMap((slip) => {
     const entry = entryById.get(slip.payrollEntryId);
     const run = entry ? runById.get(entry.payrollRunId) : null;
-    if (!entry || !run) return [];
+    if (!entry || !run || run.status !== "Released") return [];
     const employee = employeeById.get(slip.employeeId);
     return [{
       payslipId: slip.id,
