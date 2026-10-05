@@ -97,3 +97,19 @@ Before creating a new indexable route:
 6. Add contextual internal links.
 7. Run `npm run seo:audit`.
 8. Run the full CI suite before merge.
+
+
+## BOFU decision-guide ownership
+
+| Primary intent | Owner |
+| --- | --- |
+| HRIS vs payroll system Philippines | /resources/hris-vs-payroll-system |
+| payroll system comparison Philippines | /resources/payroll-system-comparison |
+| payroll outsourcing cost Philippines | /resources/payroll-outsourcing-cost |
+| how payroll outsourcing works Philippines | /resources/payroll-outsourcing-guide |
+
+These pages intentionally do not own the broader commercial queries:
+
+- `HRIS Philippines` remains owned by `/hris`.
+- `payroll outsourcing Philippines` remains owned by `/payroll-outsourcing`.
+- `best payroll software Philippines` remains owned by `/resources/best-payroll-software-philippines`.
