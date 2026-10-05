@@ -11,6 +11,7 @@ import {
   resourceWave3,
 } from "../src/lib/seo-content-wave3";
 import { industryWave6, integrationWave6 } from "../src/lib/seo-content-wave6";
+import { resourceWave14 } from "../src/lib/seo-content-wave14";
 import {
   SEO_INTENT_OWNERS,
   SEO_PRIVATE_ROUTE_PREFIXES,
@@ -98,7 +99,7 @@ for (const [path, count] of sitemapCounts) {
 
 const authorityFamilies: Array<{ prefix: string; pages: AuthorityPage[] }> = [
   { prefix: "/compliance", pages: [...compliancePages, ...complianceWave3] },
-  { prefix: "/resources", pages: [...resourcePages, ...resourceWave2, ...resourceWave3] },
+  { prefix: "/resources", pages: [...resourcePages, ...resourceWave2, ...resourceWave3, ...resourceWave14] },
   { prefix: "/industries", pages: [...industryPages, ...industryWave2, ...industryWave6] },
   { prefix: "/integrations", pages: integrationWave6 },
 ];
