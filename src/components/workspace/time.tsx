@@ -196,6 +196,8 @@ export function TimeView({
         employees={data.employees}
         notify={notify}
         canManage={canManage}
+        canDecide={["owner", "admin", "bookkeeper", "hr", "manager"].includes(data.access?.role ?? "")}
+        currentUserId={data.user?.id ?? null}
       />
 
       <article className="card table-card" style={{ marginTop: 16 }}>
