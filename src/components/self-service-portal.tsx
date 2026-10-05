@@ -646,9 +646,9 @@ export function SelfServicePortal() {
                             : "incomplete"
                       )}>
                         {item.remittanceStatus === "confirmed"
-                          ? "Agency posting confirmed"
+                          ? "Employer-recorded posting confirmation"
                           : item.remittanceStatus === "payment_recorded"
-                            ? "Payment recorded, posting pending"
+                            ? "Employer payment recorded, posting evidence pending"
                             : item.remittanceStatus === "not_recorded"
                               ? "Awaiting employer remittance record"
                               : item.remittanceStatus.replaceAll("_", " ")}
