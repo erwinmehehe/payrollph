@@ -27,6 +27,7 @@ import { PayrollOfficerWorkspace } from "./payroll-officer-workspace";
 import { StatutoryRemittancePanel } from "./statutory-remittance-panel";
 import { StatutoryRemittanceActionQueue } from "./statutory-remittance-action-queue";
 import { StatutoryRemittanceCorrectionsPanel } from "./statutory-remittance-corrections-panel";
+import { StatutoryRemittanceMonthClose } from "./statutory-remittance-month-close";
 import { OwnerPayrollRelease } from "./owner-payroll-release";
 import { ExplainPayDrawer } from "./explain-pay-drawer";
 import {
@@ -462,6 +463,14 @@ export function PayrollRunView({
       {["owner", "admin", "bookkeeper", "payroll", "checker"].includes(data.access?.role ?? "") && (
         <StatutoryRemittanceCorrectionsPanel
           organizationId={data.selectedOrganization.id}
+          notify={notify}
+        />
+      )}
+
+      {["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "") && (
+        <StatutoryRemittanceMonthClose
+          organizationId={data.selectedOrganization.id}
+          applicableMonth={String(run.periodEnd).slice(0, 7)}
           notify={notify}
         />
       )}
