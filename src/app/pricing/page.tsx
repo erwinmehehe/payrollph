@@ -35,7 +35,7 @@ export default async function PricingPage() {
             ))}
           </div>
           <div className="mx-auto mt-8 flex max-w-[1180px] gap-3 px-5 sm:px-8">
-            <Link href="/signup" className="rounded-full bg-[#6161FF] px-6 py-3.5 text-[14px] font-semibold text-white">Request trial access</Link>
+            <Link href="/trial" className="rounded-full bg-[#6161FF] px-6 py-3.5 text-[14px] font-semibold text-white">Request trial access</Link>
             <Link href="/book-demo" className="inline-flex items-center gap-2 rounded-full border border-[#D9DCEC] px-6 py-3.5 text-[14px] font-semibold">Book a demo <ArrowRight size={14}/></Link>
           </div>
         </section>
