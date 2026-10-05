@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
   managedPayrollEngagements,
+  managedPayrollGates,
   managedPayrollRunApprovals,
   payrollRuns,
   userOrganizations,
@@ -9,7 +10,7 @@ import {
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
-import { managedPayrollRunFingerprint } from "@/lib/managed-payroll";
+import { MANAGED_PAYROLL_GATES, managedPayrollRunFingerprint } from "@/lib/managed-payroll";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -51,6 +52,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }, { status: 409 });
   }
 
+  const gates = await db.select().from(managedPayrollGates)
+    .where(eq(managedPayrollGates.engagementId, engagement.id));
+  const requiredGateKeys = new Set(MANAGED_PAYROLL_GATES.map((gate) => gate.key));
+  const verifiedGateKeys = new Set(gates.filter((gate) => gate.status === "verified").map((gate) => gate.gateKey));
+  const missingGateKeys = [...requiredGateKeys].filter((key) => !verifiedGateKeys.has(key));
+  if (missingGateKeys.length > 0) {
+    return Response.json({
+      error: `Managed payroll implementation evidence is incomplete. Re-verify: ${missingGateKeys.join(", ")}.`,
+      missingGateKeys,
+    }, { status: 409 });
+  }
+
   const [existing] = await db.select().from(managedPayrollRunApprovals)
     .where(eq(managedPayrollRunApprovals.payrollRunId, run.id))
     .limit(1);
@@ -85,6 +98,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         runId: run.id,
         approvalId: approval.id,
         previousFingerprint: existing.payrollFingerprint,
+        previousGross: existing.approvedGross,
+        previousNet: existing.approvedNet,
+        previousEmployeeCount: existing.approvedEmployeeCount,
+        previousApprovedAt: existing.approvedAt,
+        previousApprovedByUserId: existing.approvedByUserId,
         payrollFingerprint: fingerprint,
         grossPay: run.grossPay,
         netPay: run.netPay,
