@@ -130,7 +130,8 @@ export function CTA() {
             <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <a
                 href="/signup"
-                className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-white px-9 py-4.5 text-[15px] font-semibold text-[#11141F] shadow-[0_10px_34px_-12px_rgba(255,255,255,.45)] transition-all hover:scale-[1.025] hover:bg-[#F6F7FB] sm:w-auto"
+                className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-white px-9 py-4.5 text-[15px] font-semibold shadow-[0_10px_34px_-12px_rgba(255,255,255,.45)] transition-all hover:scale-[1.025] hover:bg-[#F6F7FB] sm:w-auto"
+                style={{ color: "#11141F" }}
               >
                 Request trial access
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" aria-hidden />
