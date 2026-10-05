@@ -17,6 +17,7 @@ async function tick() {
   const payroll = await processNextPayrollJob("dedicated-worker");
   const webhooks = await drainWebhookRetries(20);
   const mail = await drainOutboxRetries(20);
+  const marketingLeads = await drainMarketingLeadNotifications(20);
   const statutoryRemittanceActions = await runScheduledStatutoryRemittanceSync({
     actor: "Dedicated worker",
   });
@@ -24,6 +25,7 @@ async function tick() {
     payrollProcessed: payroll.processed,
     webhookRetries: webhooks.length,
     mailRetries: mail.filter((item) => item.retried).length,
+    marketingLeadNotifications: marketingLeads.filter((item) => item.notified).length,
     statutoryRemittanceActions,
   };
 }
