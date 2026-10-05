@@ -27,6 +27,8 @@ test("agency referral does not resolve the employee case or its compliance actio
   assert.ok(route.includes("resolvedAt: null"));
   assert.ok(route.includes("resolved: false"));
   assert.ok(route.includes("Employee contribution issue referred to agency"));
+  assert.ok(route.includes('eventType: "referred"'));
+  assert.ok(route.includes("statutoryContributionIssueEvents"));
 });
 
 test("agency referral is communicated as an open case to employee and payroll UI", () => {
