@@ -12,14 +12,14 @@ import {
   positions,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES, PAYROLL_RELEASE_ROLES } from "@/lib/access";
+import { assertOrganizationRole, assertScope, getAccess, PAYROLL_RELEASE_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { annualizePay, compaRatio, proposalBudgetDelta, proposalWithinBand, rateFromAnnual, validateBand } from "@/lib/compensation";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
 
-const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+const COMPENSATION_MANAGER_ROLES = ["owner", "admin", "hr"] as const;\n\nconst validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
 
 async function employeeInScope(userId: number, organizationId: number, employeeId: number) {
   const access = await getAccess(userId, organizationId);
@@ -38,7 +38,7 @@ export async function GET(request: Request) {
   const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
   if (!Number.isInteger(organizationId)) return Response.json({ error: "organizationId is required." }, { status: 400 });
 
-  const denied = await assertOrganizationRole(user.id, organizationId, PEOPLE_ADMIN_ROLES, "Your role is not allowed to view compensation.");
+  const denied = await assertOrganizationRole(user.id, organizationId, COMPENSATION_MANAGER_ROLES, "Your role is not allowed to view compensation.");
   if (denied) return denied;
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
   const entityType = String(body.entityType ?? "");
   if (!Number.isInteger(organizationId)) return Response.json({ error: "organizationId is required." }, { status: 400 });
 
-  const denied = await assertOrganizationRole(user.id, organizationId, PEOPLE_ADMIN_ROLES, "Your role is not allowed to manage compensation.");
+  const denied = await assertOrganizationRole(user.id, organizationId, COMPENSATION_MANAGER_ROLES, "Your role is not allowed to manage compensation.");
   if (denied) return denied;
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
