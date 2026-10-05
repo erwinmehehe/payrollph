@@ -145,7 +145,19 @@ export async function syncAllStatutoryRemittanceActions(actor = "System complian
   const rows = await db.select({ id: organizations.id }).from(organizations);
   const results = [];
   for (const organization of rows) {
-    results.push(await syncStatutoryRemittanceActions(organization.id, actor));
+    try {
+      results.push(await syncStatutoryRemittanceActions(organization.id, actor));
+    } catch (error) {
+      results.push({
+        organizationId: organization.id,
+        created: 0,
+        reopened: 0,
+        resolved: 0,
+        activeAlerts: 0,
+        missingOrganization: false,
+        error: error instanceof Error ? error.message : "Unknown remittance monitor error",
+      });
+    }
   }
   return results;
 }
@@ -176,11 +188,13 @@ export async function runScheduledStatutoryRemittanceSync(options?: {
     0,
   );
   const activeAlerts = results.reduce((sum, result) => sum + result.activeAlerts, 0);
+  const failures = results.filter((result) => "error" in result && Boolean(result.error)).length;
   const payload = {
     at: now.toISOString(),
     organizations: results.length,
     changed,
     activeAlerts,
+    failures,
     results: results.slice(0, 50),
   };
 
