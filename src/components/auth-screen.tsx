@@ -83,7 +83,7 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
   }
 
   return (
-    <main className="relative overflow-hidden bg-[#F8F9FC] py-10 sm:py-14">
+    <main className="auth-screen-polish relative overflow-hidden bg-[#F8F9FC] py-10 sm:py-14">
       <div aria-hidden className="pointer-events-none absolute inset-0">
         <div className="absolute left-[8%] top-0 h-[420px] w-[520px] rounded-full bg-[#ECECFF] opacity-55 blur-3xl" />
         <div className="absolute right-[6%] top-24 h-[360px] w-[420px] rounded-full bg-[#EAF7F3] opacity-45 blur-3xl" />
