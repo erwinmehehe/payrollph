@@ -82,3 +82,38 @@ test("customer hub remains outside intent ownership until approved proof makes i
   assert.ok(page.includes("approvedStories.length > 0"));
   assert.ok(page.includes("{ index: false, follow: true }"));
 });
+
+
+test("all currently indexable sitemap families have explicit intent ownership", () => {
+  const requiredPaths = [
+    "/calculators/daily-rate",
+    "/calculators/hourly-rate",
+    "/calculators/payroll-outsourcing-roi",
+    "/developers/authentication",
+    "/developers/employees",
+    "/developers/payroll-runs",
+    "/developers/webhooks",
+    "/glossary/basic-salary",
+    "/glossary/gross-pay",
+    "/glossary/net-pay",
+    "/glossary/taxable-compensation",
+    "/glossary/payroll-cutoff",
+    "/glossary/night-differential",
+    "/glossary/premium-pay",
+    "/glossary/rest-day",
+    "/glossary/withholding-tax",
+    "/glossary/monthly-salary-credit",
+    "/glossary/13th-month-pay",
+    "/glossary/annualization",
+    "/resources/updates/dole-final-pay-reminder-2026",
+    "/resources/updates/dole-13th-month-guidelines-2025",
+    "/resources/updates/bir-alphalist-reminder-2026",
+  ];
+
+  for (const path of requiredPaths) {
+    assert.ok(
+      SEO_INTENT_OWNERS.some((entry) => entry.ownerPath === path),
+      `${path} must have explicit SEO intent ownership`,
+    );
+  }
+});
