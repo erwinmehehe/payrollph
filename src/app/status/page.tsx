@@ -66,9 +66,9 @@ export default async function StatusPage() {
                 },
                 {
                   icon: Database,
-                  label: "Scheduler",
-                  value: "Opportunistic",
-                  detail: "Webhook drain ticks from health checks, not a dedicated cron",
+                  label: "Coverage",
+                  value: "App + database",
+                  detail: "This page measures application reachability and database round-trip health.",
                   tone: "bg-[#E0F7FA] text-[#00838F]",
                 },
               ].map(({ icon: Icon, label, value, detail, tone }) => (
@@ -87,6 +87,13 @@ export default async function StatusPage() {
 
         <section className="py-14 sm:py-16">
           <div className="mx-auto max-w-[1040px] px-5 sm:px-8">
+            <div className="mb-7 rounded-[22px] border border-[#DDE0EF] bg-[#FAFBFD] p-5">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">What this page covers</p>
+              <p className="mt-2 text-[13.5px] leading-relaxed text-[#5B6080]">
+                These checks cover Linaw application reachability and database response. They do not certify transactional email,
+                PayMongo or bank payout availability, or BIR, SSS, PhilHealth and Pag-IBIG portal availability.
+              </p>
+            </div>
             <div className="flex items-end justify-between gap-4">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Recent checks</p>
