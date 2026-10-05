@@ -76,7 +76,7 @@ test("SEO operating SOPs exist and prevent fabricated proof", () => {
 });
 
 test("methodology is indexable and discoverable without crowding primary navigation", () => {
-  const sitemap = read("src/app/sitemap.ts");
+  const sitemap = read("src/lib/sitemap-data.ts");
   const nav = read("src/components/marketing/public-navigation.ts");
 
   assert.ok(sitemap.includes('{ path: "/methodology"'));
