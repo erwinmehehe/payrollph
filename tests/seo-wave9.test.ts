@@ -63,7 +63,7 @@ test("operational and authentication routes never enter sitemap data", () => {
 
 test("customer sitemap is omitted from the index until approved proof exists", () => {
   const data = read("src/lib/sitemap-data.ts");
-  assert.ok(data.includes("CUSTOMER_STORIES.filter((story) => story.approved)"));
+  assert.ok(data.includes("PUBLISHABLE_CUSTOMER_STORIES"));
   assert.ok(data.includes("if (approvedStories.length === 0) return []"));
   assert.ok(data.includes('"/customer-stories-sitemap.xml"'));
   assert.ok(data.includes("approvedCustomerSitemapEntries().length > 0"));
