@@ -31,6 +31,44 @@ export const organizations = pgTable("organizations", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const ssoConnections = pgTable(
+  "sso_connections",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    providerName: varchar("provider_name", { length: 80 }).notNull(),
+    emailDomain: varchar("email_domain", { length: 190 }).notNull(),
+    issuer: text("issuer").notNull(),
+    clientId: varchar("client_id", { length: 240 }).notNull(),
+    clientSecretCiphertext: text("client_secret_ciphertext").notNull(),
+    enabled: boolean("enabled").notNull().default(false),
+    createdBy: varchar("created_by", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("sso_connections_org_unique").on(table.organizationId),
+    uniqueIndex("sso_connections_domain_unique").on(table.emailDomain),
+  ],
+);
+
+export const ssoLoginStates = pgTable(
+  "sso_login_states",
+  {
+    id: serial("id").primaryKey(),
+    connectionId: integer("connection_id").notNull().references(() => ssoConnections.id, { onDelete: "cascade" }),
+    stateHash: varchar("state_hash", { length: 64 }).notNull(),
+    pkceVerifierCiphertext: text("pkce_verifier_ciphertext").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("sso_login_states_hash_unique").on(table.stateHash),
+    index("sso_login_states_expiry_idx").on(table.expiresAt),
+  ],
+);
+
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   email: varchar("email", { length: 180 }).notNull().unique(),
