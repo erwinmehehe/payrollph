@@ -32,6 +32,16 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  async redirects() {
+    return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.payrollsoftware.ph" }],
+        destination: "https://payrollsoftware.ph/:path*",
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {
