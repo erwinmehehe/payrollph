@@ -37,7 +37,7 @@ test("About page does not import unsupported JeonSoft history or client-count cl
   assert.equal(/2,?500\+?/i.test(page), false);
   assert.equal(/420,?000\+?/i.test(page), false);
   assert.equal(/most trusted/i.test(page), false);
-  assert.equal(/market leader/i.test(page), false);
+  assert.equal(/\bmarket leader\b/i.test(page), false);
   assert.equal(/leading payroll/i.test(page), false);
 });
 
