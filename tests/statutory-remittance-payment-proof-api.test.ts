@@ -64,6 +64,9 @@ test("proof is immutable after payment except one-time historical backfill when 
 test("proof downloads are audited and expose the stored hash", () => {
   assert.ok(downloadRoute.includes("Statutory remittance payment proof downloaded"));
   assert.ok(downloadRoute.includes("X-Payment-Proof-Sha256"));
+  assert.ok(downloadRoute.includes('createHash("sha256").update(bytes).digest("hex")'));
+  assert.ok(downloadRoute.includes("failed its SHA-256 integrity check"));
+  assert.ok(downloadRoute.includes("Statutory remittance payment proof integrity check failed"));
   assert.ok(downloadRoute.includes('Cache-Control": "no-store, private"'));
 });
 
