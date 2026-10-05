@@ -9,6 +9,7 @@ export const metadata: Metadata = {
   title: "Set up Linaw",
   description: "Create the first owner account for an empty Linaw workspace.",
   alternates: { canonical: "/setup" },
+  robots: { index: false, follow: false },
 };
 
 export default async function SetupPage() {
