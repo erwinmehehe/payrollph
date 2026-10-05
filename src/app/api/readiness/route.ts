@@ -12,6 +12,7 @@ import { operationalSecret, operationalSecretConfigured, operationalSecretSource
 import { documentUploadsEnabled, malwareScannerConfigured } from "@/lib/storage";
 import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
 import { acceptedBankFileValidationCount } from "@/lib/bank-evidence-store";
+import { validEmail } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -99,6 +100,14 @@ export async function buildReadinessPayload() {
   const pagibigEvidence = evidenceFor("Pag-IBIG", "MCRF");
 
   const provider = activeMailProvider();
+  const demoRequestInboxConfigured = validEmail(process.env.DEMO_REQUEST_INBOX?.trim() ?? "");
+  const payrollOutsourcingInboxConfigured = validEmail(
+    process.env.PAYROLL_OUTSOURCING_INBOX?.trim()
+      || process.env.DEMO_REQUEST_INBOX?.trim()
+      || "",
+  );
+  const publicLeadRoutingConfigured =
+    demoRequestInboxConfigured && payrollOutsourcingInboxConfigured;
 
   // A review account with a publicly known password must never survive into a
   // customer deployment. Detect it by hashing the known value rather than
@@ -225,6 +234,15 @@ export async function buildReadinessPayload() {
             : `Provider ${provider} is configured, but this deployment has not recorded a successful send or verified delivery yet.`
         : `No provider configured. Messages remain queued until a transactional email provider is connected. Public enquiry backlog: ${publicLeadBacklog}.`,
       blocks: deliveryCapable() && Number(deliveredMail) > 0 ? "none" : "launch",
+    },
+    {
+      key: "public-lead-routing",
+      label: "Public enquiry routing",
+      ready: publicLeadRoutingConfigured,
+      detail: publicLeadRoutingConfigured
+        ? "Demo/trial and payroll-outsourcing enquiries have a valid operator inbox configured."
+        : "Configure DEMO_REQUEST_INBOX with a real operator address. PAYROLL_OUTSOURCING_INBOX may override it for outsourcing enquiries.",
+      blocks: publicLeadRoutingConfigured ? "none" : "launch",
     },
     {
       key: "billing",
