@@ -269,6 +269,7 @@ export async function POST(request: Request) {
     const paymentReference = String(body.paymentReference ?? "").trim();
     const agencyReceiptReference = String(body.agencyReceiptReference ?? "").trim();
     const paymentChannel = String(body.paymentChannel ?? "").trim().slice(0, 80) || null;
+    const paymentVarianceNote = String(body.paymentVarianceNote ?? "").trim().slice(0, 240) || null;
     const paidAt = body.paidAt ? new Date(String(body.paidAt)) : new Date();
 
     const [batch] = await db.select().from(statutoryRemittanceBatches).where(and(
@@ -288,6 +289,7 @@ export async function POST(request: Request) {
       amountPaid,
       paymentReference,
       agencyReceiptReference,
+      paymentVarianceNote: paymentVarianceNote ?? undefined,
     });
     if (!gate.ok) return Response.json({ error: gate.error }, { status: 409 });
 
@@ -297,6 +299,7 @@ export async function POST(request: Request) {
       paymentReference,
       agencyReceiptReference,
       paymentChannel,
+      paymentVarianceNote,
       paidAt,
       paymentRecordedBy: user.name,
       updatedAt: new Date(),
@@ -317,6 +320,7 @@ export async function POST(request: Request) {
         paymentReference,
         agencyReceiptReference,
         paymentChannel,
+        paymentVarianceNote,
         paidAt: paidAt.toISOString(),
       },
     });
