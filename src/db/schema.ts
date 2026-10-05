@@ -2109,3 +2109,176 @@ export const continuousFeedback = pgTable(
   ],
 );
 
+
+
+/* -------------------------------------------------------------------------- */
+/* HCM: manager and employee experience                                       */
+/* -------------------------------------------------------------------------- */
+
+export const strategicGoals = pgTable(
+  "strategic_goals",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    cycleId: integer("cycle_id").references(() => performanceCycles.id, { onDelete: "set null" }),
+    orgUnitId: integer("org_unit_id").references(() => orgUnits.id, { onDelete: "set null" }),
+    ownerEmployeeId: integer("owner_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    scope: varchar("scope", { length: 24 }).notNull().default("company"),
+    title: varchar("title", { length: 200 }).notNull(),
+    description: text("description"),
+    progress: integer("progress").notNull().default(0),
+    status: varchar("status", { length: 24 }).notNull().default("active"),
+    dueDate: date("due_date"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("strategic_goals_org_scope_idx").on(table.organizationId, table.scope),
+    index("strategic_goals_org_unit_idx").on(table.organizationId, table.orgUnitId),
+  ],
+);
+
+export const performanceGoalAlignments = pgTable(
+  "performance_goal_alignments",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    performanceGoalId: integer("performance_goal_id").notNull().references(() => performanceGoals.id, { onDelete: "cascade" }),
+    strategicGoalId: integer("strategic_goal_id").notNull().references(() => strategicGoals.id, { onDelete: "cascade" }),
+    contributionWeight: integer("contribution_weight").notNull().default(100),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("performance_goal_alignments_unique").on(table.performanceGoalId, table.strategicGoalId),
+    index("performance_goal_alignments_strategic_idx").on(table.strategicGoalId),
+  ],
+);
+
+export const oneOnOneSeries = pgTable(
+  "one_on_one_series",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    managerEmployeeId: integer("manager_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    cadence: varchar("cadence", { length: 24 }).notNull().default("biweekly"),
+    agendaTemplate: text("agenda_template"),
+    active: boolean("active").notNull().default(true),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("one_on_one_series_manager_employee_unique").on(table.organizationId, table.managerEmployeeId, table.employeeId),
+    index("one_on_one_series_employee_idx").on(table.organizationId, table.employeeId),
+  ],
+);
+
+export const oneOnOneMeetings = pgTable(
+  "one_on_one_meetings",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    seriesId: integer("series_id").notNull().references(() => oneOnOneSeries.id, { onDelete: "cascade" }),
+    scheduledDate: date("scheduled_date").notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("scheduled"),
+    employeeUpdate: text("employee_update"),
+    managerUpdate: text("manager_update"),
+    sharedNotes: text("shared_notes"),
+    managerPrivateNotes: text("manager_private_notes"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("one_on_one_meetings_series_date_unique").on(table.seriesId, table.scheduledDate),
+    index("one_on_one_meetings_org_date_idx").on(table.organizationId, table.scheduledDate),
+  ],
+);
+
+export const oneOnOneActionItems = pgTable(
+  "one_on_one_action_items",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    meetingId: integer("meeting_id").notNull().references(() => oneOnOneMeetings.id, { onDelete: "cascade" }),
+    ownerEmployeeId: integer("owner_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    title: varchar("title", { length: 240 }).notNull(),
+    dueDate: date("due_date"),
+    status: varchar("status", { length: 24 }).notNull().default("open"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("one_on_one_action_items_meeting_idx").on(table.meetingId),
+    index("one_on_one_action_items_owner_idx").on(table.organizationId, table.ownerEmployeeId),
+  ],
+);
+
+export const feedbackRounds = pgTable(
+  "feedback_rounds",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    subjectEmployeeId: integer("subject_employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 180 }).notNull(),
+    prompt: text("prompt").notNull(),
+    dueDate: date("due_date"),
+    status: varchar("status", { length: 24 }).notNull().default("open"),
+    createdByEmployeeId: integer("created_by_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("feedback_rounds_subject_idx").on(table.organizationId, table.subjectEmployeeId),
+    index("feedback_rounds_status_idx").on(table.organizationId, table.status),
+  ],
+);
+
+export const feedbackRequests = pgTable(
+  "feedback_requests",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    roundId: integer("round_id").notNull().references(() => feedbackRounds.id, { onDelete: "cascade" }),
+    reviewerEmployeeId: integer("reviewer_employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    relationship: varchar("relationship", { length: 32 }).notNull().default("peer"),
+    status: varchar("status", { length: 24 }).notNull().default("requested"),
+    responseText: text("response_text"),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("feedback_requests_round_reviewer_unique").on(table.roundId, table.reviewerEmployeeId),
+    index("feedback_requests_reviewer_status_idx").on(table.organizationId, table.reviewerEmployeeId, table.status),
+  ],
+);
+
+export const mentorships = pgTable(
+  "mentorships",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    mentorEmployeeId: integer("mentor_employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    menteeEmployeeId: integer("mentee_employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    requestedByEmployeeId: integer("requested_by_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    goal: varchar("goal", { length: 500 }).notNull(),
+    cadence: varchar("cadence", { length: 24 }).notNull().default("monthly"),
+    status: varchar("status", { length: 24 }).notNull().default("requested"),
+    startDate: date("start_date"),
+    endDate: date("end_date"),
+    notes: text("notes"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("mentorships_mentor_idx").on(table.organizationId, table.mentorEmployeeId, table.status),
+    index("mentorships_mentee_idx").on(table.organizationId, table.menteeEmployeeId, table.status),
+  ],
+);
