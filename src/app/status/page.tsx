@@ -29,12 +29,12 @@ export default async function StatusPage() {
   const healthy = latest?.ok ?? false;
 
   return (
-    <div className="min-h-screen bg-white text-[#0B0D1A]">
+    <div className="marketing-page min-h-screen bg-white text-[#101323]">
       <StructuredData breadcrumbs={[{ name: "Home", path: "/" }, { name: "System status", path: "/status" }]} />
       <SiteNav />
 
       <main>
-        <section className="border-b border-[#EDEFF7] bg-[#FAFBFD] py-14 sm:py-18">
+        <section className="border-b border-[#EAECF0] bg-[#FCFCFD] py-14 sm:py-18">
           <div className="mx-auto max-w-[1040px] px-5 sm:px-8">
             <span className={`inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-[12px] font-bold ${
               healthy ? "bg-[#E3FAF0] text-[#0A8A53]" : "bg-[#FFF4D6] text-[#9A6B00]"
@@ -64,7 +64,7 @@ export default async function StatusPage() {
                   label: "24h uptime",
                   value: uptime.uptimeLabel,
                   detail: `${uptime.samples} samples · median ${uptime.medianLatencyMs ?? "-"} ms`,
-                  tone: "bg-[#ECECFF] text-[#4A4AE0]",
+                  tone: "bg-[#ECECFF] text-[#444CE7]",
                 },
                 {
                   icon: Database,
@@ -89,7 +89,7 @@ export default async function StatusPage() {
 
         <section className="py-14 sm:py-16">
           <div className="mx-auto max-w-[1040px] px-5 sm:px-8">
-            <div className="mb-7 rounded-[22px] border border-[#DDE0EF] bg-[#FAFBFD] p-5">
+            <div className="mb-7 rounded-[22px] border border-[#DDE0EF] bg-[#FCFCFD] p-5">
               <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">What this page covers</p>
               <p className="mt-2 text-[13.5px] leading-relaxed text-[#5B6080]">
                 These checks cover Linaw application reachability and database response. They do not certify transactional email,
