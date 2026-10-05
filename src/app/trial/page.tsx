@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Check, ShieldCheck } from "lucide-react";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
+import { StructuredData } from "@/components/marketing/structured-data";
 
 export const metadata: Metadata = {
   title: "Payroll Software Trial Philippines | Linaw",
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
 export default function TrialPage() {
   return (
     <div className="min-h-screen bg-white text-[#0B0D1A]">
+      <StructuredData breadcrumbs={[{ name: "Home", path: "/" }, { name: "Payroll software trial", path: "/trial" }]} />
       <SiteNav />
       <main>
         <section className="relative overflow-hidden border-b border-[#EDEFF7] py-16 sm:py-20">
