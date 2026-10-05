@@ -2,6 +2,7 @@ import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employeeScheduleAssignments,
+  employeeWorksiteAssignments,
   employees,
   orgUnits,
   scheduleOverrides,
@@ -9,6 +10,7 @@ import {
   schedulePatternSegments,
   schedulePatterns,
   shiftDefinitions,
+  worksites,
 } from "@/db/schema";
 import {
   assertOrganizationRole,
@@ -28,6 +30,7 @@ import {
   validateSchedulePattern,
   type WorkforceScheduleOverrideSegment,
 } from "@/lib/workforce-scheduling";
+import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
 
 export const dynamic = "force-dynamic";
 
@@ -156,7 +159,7 @@ export async function GET(request: Request) {
     const data = await organizationScheduleData(organizationId);
     const rangeStart = previewDates[0];
     const rangeEnd = previewDates[previewDates.length - 1];
-    const [assignments, overrides] = await Promise.all([
+    const [assignments, overrides, worksiteAssignments] = await Promise.all([
       db.select().from(employeeScheduleAssignments).where(and(
         eq(employeeScheduleAssignments.organizationId, organizationId),
         eq(employeeScheduleAssignments.employeeId, employeeId),
@@ -167,6 +170,13 @@ export async function GET(request: Request) {
         gte(scheduleOverrides.workDate, rangeStart),
         lte(scheduleOverrides.workDate, rangeEnd),
       )).orderBy(asc(scheduleOverrides.workDate), asc(scheduleOverrides.id)),
+      db.select().from(employeeWorksiteAssignments).where(and(
+        eq(employeeWorksiteAssignments.organizationId, organizationId),
+        eq(employeeWorksiteAssignments.employeeId, employeeId),
+      )).orderBy(
+        asc(employeeWorksiteAssignments.effectiveFrom),
+        asc(employeeWorksiteAssignments.id),
+      ),
     ]);
 
     const resolverInput = {
@@ -177,6 +187,7 @@ export async function GET(request: Request) {
         effectiveUntil: row.effectiveUntil ? String(row.effectiveUntil) : null,
         anchorDate: String(row.anchorDate),
         workLocationOrgUnitId: row.workLocationOrgUnitId,
+        worksiteId: row.worksiteId,
       })),
       patterns: data.patterns.map((row) => ({
         id: row.id,
@@ -214,14 +225,24 @@ export async function GET(request: Request) {
           ? row.segments as WorkforceScheduleOverrideSegment[]
           : [],
         workLocationOrgUnitId: row.workLocationOrgUnitId,
+        worksiteId: row.worksiteId,
         status: row.status as "pending" | "approved" | "rejected" | "cancelled",
         reason: row.reason,
       })),
     };
 
+    const defaultWorksites = worksiteAssignments.map((row) => ({
+      id: row.id,
+      worksiteId: row.worksiteId,
+      effectiveFrom: String(row.effectiveFrom),
+      effectiveUntil: row.effectiveUntil ? String(row.effectiveUntil) : null,
+    }));
+
     const resolvedDays = previewDates.map((previewDate) => resolveDailySchedule({
       date: previewDate,
       ...resolverInput,
+      defaultWorksiteId:
+        selectEffectiveWorksiteAssignment(defaultWorksites, previewDate)?.worksiteId ?? null,
     }));
 
     return Response.json({
@@ -249,13 +270,22 @@ export async function GET(request: Request) {
     : employeeRows.filter((employee) => employee.orgUnitId === access.orgUnitId);
   const visibleEmployeeIds = new Set(visibleEmployees.map((employee) => employee.id));
 
-  const [assignmentRows, overrideRows] = await Promise.all([
+  const [assignmentRows, overrideRows, worksiteRows, worksiteAssignmentRows] = await Promise.all([
     db.select().from(employeeScheduleAssignments)
       .where(eq(employeeScheduleAssignments.organizationId, organizationId))
       .orderBy(asc(employeeScheduleAssignments.employeeId), asc(employeeScheduleAssignments.effectiveFrom)),
     db.select().from(scheduleOverrides)
       .where(eq(scheduleOverrides.organizationId, organizationId))
       .orderBy(asc(scheduleOverrides.workDate), asc(scheduleOverrides.employeeId)),
+    db.select().from(worksites)
+      .where(eq(worksites.organizationId, organizationId))
+      .orderBy(asc(worksites.name), asc(worksites.id)),
+    db.select().from(employeeWorksiteAssignments)
+      .where(eq(employeeWorksiteAssignments.organizationId, organizationId))
+      .orderBy(
+        asc(employeeWorksiteAssignments.employeeId),
+        asc(employeeWorksiteAssignments.effectiveFrom),
+      ),
   ]);
 
   return Response.json({
@@ -265,6 +295,10 @@ export async function GET(request: Request) {
     patternSegments: data.segments,
     assignments: assignmentRows.filter((row) => visibleEmployeeIds.has(row.employeeId)),
     overrides: overrideRows.filter((row) => visibleEmployeeIds.has(row.employeeId)),
+    worksites: worksiteRows.filter((site) =>
+      access.companyWide || site.orgUnitId == null || site.orgUnitId === access.orgUnitId,
+    ),
+    worksiteAssignments: worksiteAssignmentRows.filter((row) => visibleEmployeeIds.has(row.employeeId)),
   });
 }
 
@@ -538,6 +572,26 @@ export async function POST(request: Request) {
       return Response.json({ error: "Schedule pattern not found in this organization." }, { status: 404 });
     }
 
+    const worksiteId = body.worksiteId == null || body.worksiteId === ""
+      ? null
+      : Number(body.worksiteId);
+    if (worksiteId != null && !Number.isInteger(worksiteId)) {
+      return Response.json({ error: "worksiteId must be an integer or null." }, { status: 400 });
+    }
+    if (worksiteId != null) {
+      const [site] = await db.select().from(worksites).where(and(
+        eq(worksites.id, worksiteId),
+        eq(worksites.organizationId, organizationId),
+        eq(worksites.active, true),
+      )).limit(1);
+      if (!site) {
+        return Response.json({ error: "Active worksite does not belong to this organization." }, { status: 422 });
+      }
+      if (!access.companyWide && site.orgUnitId != null && site.orgUnitId !== access.orgUnitId) {
+        return Response.json({ error: "Scoped People administrators cannot assign this worksite." }, { status: 403 });
+      }
+    }
+
     const workLocationOrgUnitId = body.workLocationOrgUnitId == null
       ? employeeCheck.employee!.orgUnitId
       : Number(body.workLocationOrgUnitId);
@@ -565,6 +619,7 @@ export async function POST(request: Request) {
       effectiveUntil,
       anchorDate,
       workLocationOrgUnitId,
+      worksiteId,
       reason,
       createdBy: user.name,
     }).returning();
@@ -582,6 +637,7 @@ export async function POST(request: Request) {
         effectiveUntil,
         anchorDate,
         workLocationOrgUnitId,
+        worksiteId,
       },
     });
 
@@ -629,6 +685,26 @@ export async function POST(request: Request) {
       }
     }
 
+    const worksiteId = body.worksiteId == null || body.worksiteId === ""
+      ? null
+      : Number(body.worksiteId);
+    if (worksiteId != null && !Number.isInteger(worksiteId)) {
+      return Response.json({ error: "worksiteId must be an integer or null." }, { status: 400 });
+    }
+    if (worksiteId != null) {
+      const [site] = await db.select().from(worksites).where(and(
+        eq(worksites.id, worksiteId),
+        eq(worksites.organizationId, organizationId),
+        eq(worksites.active, true),
+      )).limit(1);
+      if (!site) {
+        return Response.json({ error: "Active worksite does not belong to this organization." }, { status: 422 });
+      }
+      if (!access.companyWide && site.orgUnitId != null && site.orgUnitId !== access.orgUnitId) {
+        return Response.json({ error: "Scoped People administrators cannot override to this worksite." }, { status: 403 });
+      }
+    }
+
     const workLocationOrgUnitId = body.workLocationOrgUnitId == null
       ? null
       : Number(body.workLocationOrgUnitId);
@@ -657,6 +733,7 @@ export async function POST(request: Request) {
         isRestDay,
         segments,
         workLocationOrgUnitId,
+        worksiteId,
         reason,
         status: "approved",
         createdBy: user.name,
@@ -677,6 +754,7 @@ export async function POST(request: Request) {
           isRestDay,
           shiftSegments: segments,
           workLocationOrgUnitId,
+          worksiteId,
           reason,
         },
       });
