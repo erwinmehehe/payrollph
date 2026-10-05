@@ -73,6 +73,20 @@ export async function primaryCompanyOrganizationId(userId: number): Promise<numb
   return row?.organizationId ?? null;
 }
 
+export async function primaryEmployeeOrganizationId(userId: number): Promise<number | null> {
+  const [row] = await db
+    .select({ organizationId: userOrganizations.organizationId })
+    .from(userOrganizations)
+    .where(and(
+      eq(userOrganizations.userId, userId),
+      eq(userOrganizations.active, true),
+      eq(userOrganizations.role, "employee"),
+    ))
+    .orderBy(userOrganizations.organizationId)
+    .limit(1);
+  return row?.organizationId ?? null;
+}
+
 export function assertScope(access: AccessScope | null, employeeOrgUnitId: number | null) {
   if (!access) return { ok: false as const, error: "No membership in this organization.", status: 403 };
   if (access.companyWide) return { ok: true as const };
