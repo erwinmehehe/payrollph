@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, leaveBalances, leavePolicies, leaveRequests, organizations, payrollEntries, payrollRuns, payslips, timePunches, userOrganizations, users } from "@/db/schema";
+import { employees, leaveBalances, leavePolicies, leaveRequests, organizations, payrollEntries, payrollRuns, payslips, statutoryRemittanceBatches, statutoryRemittanceMembers, timePunches, userOrganizations, users } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { employeePayStatusLabel } from "@/lib/payroll-handoff";
 import { recordAuditEvent } from "@/lib/audit";
@@ -61,7 +61,7 @@ export async function GET() {
   }).format(new Date());
   const currentYear = Number(currentTaxYear);
 
-  const [attendanceRows, leaveRows, policyRows, storedBalanceRows] = await Promise.all([
+  const [attendanceRows, leaveRows, policyRows, storedBalanceRows, contributionRows] = await Promise.all([
     db.select({
       id: timePunches.id,
       workDate: timePunches.workDate,
@@ -95,6 +95,31 @@ export async function GET() {
         eq(leaveBalances.employeeId, session.employeeId),
         eq(leaveBalances.year, currentYear),
       )),
+    db.select({
+      agency: statutoryRemittanceBatches.agency,
+      applicableMonth: statutoryRemittanceBatches.applicableMonth,
+      dueDate: statutoryRemittanceBatches.dueDate,
+      batchStatus: statutoryRemittanceBatches.status,
+      amountPaid: statutoryRemittanceBatches.amountPaid,
+      paidAt: statutoryRemittanceBatches.paidAt,
+      employeeShare: statutoryRemittanceMembers.employeeShare,
+      employerShare: statutoryRemittanceMembers.employerShare,
+      totalContribution: statutoryRemittanceMembers.totalContribution,
+      postingStatus: statutoryRemittanceMembers.postingStatus,
+      postingReference: statutoryRemittanceMembers.postingReference,
+      postedAt: statutoryRemittanceMembers.postedAt,
+      exceptionNote: statutoryRemittanceMembers.exceptionNote,
+    }).from(statutoryRemittanceMembers)
+      .innerJoin(
+        statutoryRemittanceBatches,
+        eq(statutoryRemittanceMembers.batchId, statutoryRemittanceBatches.id),
+      )
+      .where(and(
+        eq(statutoryRemittanceMembers.organizationId, employee.organizationId),
+        eq(statutoryRemittanceMembers.employeeId, session.employeeId),
+      ))
+      .orderBy(desc(statutoryRemittanceBatches.applicableMonth), desc(statutoryRemittanceBatches.id))
+      .limit(36),
   ]);
   const releasedThisYear = released.filter((row) => String(row.run.payDate).startsWith(`${currentTaxYear}-`));
 
@@ -183,6 +208,21 @@ export async function GET() {
       net: row.entry.netPay,
       ruleVersion: row.run.ruleVersion,
       lineItems: row.entry.lineItems,
+    })),
+    contributions: contributionRows.map((row) => ({
+      agency: row.agency,
+      applicableMonth: row.applicableMonth,
+      dueDate: row.dueDate,
+      paymentStatus: row.batchStatus,
+      amountPaid: row.amountPaid,
+      paidAt: row.paidAt,
+      employeeShare: row.employeeShare,
+      employerShare: row.employerShare,
+      totalContribution: row.totalContribution,
+      postingStatus: row.postingStatus,
+      postingReference: row.postingReference,
+      postedAt: row.postedAt,
+      exceptionNote: row.exceptionNote,
     })),
     attendance: {
       recent: attendanceRows,
