@@ -116,8 +116,8 @@ test("non-content auth routes stay out of the search index", () => {
 
 test("canonical host fallback stays aligned with payrollsoftware.ph, not the deployment origin", () => {
   const helper = read("src/lib/site-url.ts");
-  assert.ok(helper.includes("PUBLIC_SITE_URL"), "site URL helper must use an explicit public-site setting");
-  assert.ok(helper.includes("https://payrollsoftware.ph"), "public canonical fallback must be payrollsoftware.ph");
+  assert.ok(helper.includes('PUBLIC_SITE_URL = "https://payrollsoftware.ph"'), "public canonical origin must be fixed to payrollsoftware.ph");
+  assert.ok(!helper.includes("process.env"), "public canonical origin must not vary by deployment environment");
   assert.ok(!helper.includes("APP_BASE_URL"), "deployment origin must not control SEO canonicals");
   assert.ok(!helper.includes("vercel.app"), "Vercel deployment domains must not be canonical fallbacks");
 });
