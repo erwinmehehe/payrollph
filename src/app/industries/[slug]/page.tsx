@@ -4,8 +4,9 @@ import { SeoLandingPage } from "@/components/marketing/seo-landing-page";
 import { StructuredData } from "@/components/marketing/structured-data";
 import { authorityPage, industryPages } from "@/lib/seo-content";
 import { industryWave2 } from "@/lib/seo-content-wave2";
+import { industryWave6 } from "@/lib/seo-content-wave6";
 
-const pages = [...industryPages, ...industryWave2];
+const pages = [...industryPages, ...industryWave2, ...industryWave6];
 
 export function generateStaticParams() {
   return pages.map(({ slug }) => ({ slug }));
