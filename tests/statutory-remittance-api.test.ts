@@ -87,3 +87,11 @@ test("employee posting amount mismatch cannot be marked confirmed", () => {
   assert.ok(panel.includes("postedAmount: Number(postingAmount)"));
   assert.ok(panel.includes("Posted {money(member.postedAmount ?? member.totalContribution)}"));
 });
+
+
+test("employee posting exceptions can be reopened and corrected from payroll UI", () => {
+  assert.ok(panel.includes("Resolve exception"));
+  assert.ok(panel.includes('setPostingMemberId(member.id)'));
+  assert.ok(panel.includes('setExceptionNote(member.exceptionNote ?? "")'));
+  assert.ok(route.includes('batch.status === "exception" && exceptions.length === 0'));
+});
