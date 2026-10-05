@@ -1,6 +1,6 @@
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalTasks, holidays, orgUnits, payrollEntries, payrollRuns } from "@/db/schema";
+import { approvalTasks, holidays, orgUnits, payrollEntries, payrollRuns, worksites } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import {
@@ -102,6 +102,29 @@ async function validateOrgUnit(organizationId: number, value: unknown) {
   return unit.id;
 }
 
+async function validateWorksite(
+  organizationId: number,
+  value: unknown,
+  orgUnitId: number | null,
+) {
+  if (value == null || value === "") return null;
+  const worksiteId = Number(value);
+  if (!Number.isInteger(worksiteId) || worksiteId <= 0) {
+    throw new Error("Invalid worksite.");
+  }
+  const [site] = await db.select().from(worksites).where(and(
+    eq(worksites.id, worksiteId),
+    eq(worksites.organizationId, organizationId),
+  )).limit(1);
+  if (!site) {
+    throw new Error("The selected worksite does not belong to this organization.");
+  }
+  if (orgUnitId != null && site.orgUnitId != null && site.orgUnitId !== orgUnitId) {
+    throw new Error("The selected worksite does not belong to the selected organization unit.");
+  }
+  return site.id;
+}
+
 export async function GET(request: Request) {
   const session = await getSessionUser();
   if (!session) return Response.json({ error: "Authentication required." }, { status: 401 });
@@ -121,11 +144,12 @@ export async function GET(request: Request) {
   const access = await getAccess(session.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
 
-  const [organizationRows, unitRows] = await Promise.all([
+  const [organizationRows, unitRows, worksiteRows] = await Promise.all([
     db.select().from(holidays).where(
       eq(holidays.organizationId, organizationId),
     ).orderBy(asc(holidays.holidayDate), asc(holidays.id)),
     db.select().from(orgUnits).where(eq(orgUnits.organizationId, organizationId)),
+    db.select().from(worksites).where(eq(worksites.organizationId, organizationId)),
   ]);
 
   const unitById = new Map(unitRows.map((unit) => [unit.id, unit]));
@@ -139,15 +163,27 @@ export async function GET(request: Request) {
     scopeGuard += 1;
   }
 
+  const visibleWorksiteIds = new Set(
+    worksiteRows
+      .filter((site) =>
+        access.companyWide
+        || site.orgUnitId == null
+        || visibleScopeIds.has(site.orgUnitId),
+      )
+      .map((site) => site.id),
+  );
+
   const visible = access.companyWide
     ? organizationRows
     : organizationRows.filter(
-        (row) => row.orgUnitId == null || visibleScopeIds.has(row.orgUnitId),
+        (row) =>
+          (row.orgUnitId == null || visibleScopeIds.has(row.orgUnitId))
+          && (row.worksiteId == null || visibleWorksiteIds.has(row.worksiteId)),
       );
 
   return Response.json({
     holidays: visible,
-    note: "National statutory holidays are maintained separately by the payroll ruleset; these rows are organization/local declarations.",
+    note: "National statutory holidays are maintained separately by the payroll ruleset; local declarations can be organization-wide, org-unit scoped, worksite scoped, or both.",
   });
 }
 
@@ -200,9 +236,11 @@ export async function POST(request: Request) {
   if (rateDenied) return rateDenied;
 
   let orgUnitId: number | null;
+  let worksiteId: number | null;
   let affectedRuns: Awaited<ReturnType<typeof affectedPayrollRuns>>;
   try {
     orgUnitId = await validateOrgUnit(organizationId, body.orgUnitId);
+    worksiteId = await validateWorksite(organizationId, body.worksiteId, orgUnitId);
     affectedRuns = await assertHolidayMutationNotRacingPayroll(organizationId, [holidayDate]);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Invalid holiday change.";
@@ -226,6 +264,7 @@ export async function POST(request: Request) {
   const [row] = await db.insert(holidays).values({
     organizationId,
     orgUnitId,
+    worksiteId,
     holidayDate,
     name,
     kind,
@@ -244,6 +283,7 @@ export async function POST(request: Request) {
       holidayDate,
       kind,
       orgUnitId,
+      worksiteId,
       invalidatedPayrollRunIds,
       releasedPayrollRunIdsRequiringRetroReview,
     },
@@ -302,12 +342,22 @@ export async function PATCH(request: Request) {
   }
 
   let orgUnitId = existing.orgUnitId;
-  if (body.orgUnitId !== undefined) {
-    try {
+  let worksiteId = existing.worksiteId;
+  try {
+    if (body.orgUnitId !== undefined) {
       orgUnitId = await validateOrgUnit(existing.organizationId, body.orgUnitId);
-    } catch (error) {
-      return Response.json({ error: error instanceof Error ? error.message : "Invalid organization unit." }, { status: 422 });
     }
+    if (body.worksiteId !== undefined || body.orgUnitId !== undefined) {
+      worksiteId = await validateWorksite(
+        existing.organizationId,
+        body.worksiteId === undefined ? existing.worksiteId : body.worksiteId,
+        orgUnitId,
+      );
+    }
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "Invalid holiday scope.",
+    }, { status: 422 });
   }
 
   let affectedRuns: Awaited<ReturnType<typeof affectedPayrollRuns>>;
@@ -336,6 +386,7 @@ export async function PATCH(request: Request) {
     name,
     kind,
     orgUnitId,
+    worksiteId,
   }).where(and(
     eq(holidays.id, id),
     eq(holidays.organizationId, existing.organizationId),
@@ -356,8 +407,9 @@ export async function PATCH(request: Request) {
         name: existing.name,
         kind: existing.kind,
         orgUnitId: existing.orgUnitId,
+        worksiteId: existing.worksiteId,
       },
-      after: { holidayDate, name, kind, orgUnitId },
+      after: { holidayDate, name, kind, orgUnitId, worksiteId },
       invalidatedPayrollRunIds,
       releasedPayrollRunIdsRequiringRetroReview,
     },
@@ -442,6 +494,7 @@ export async function DELETE(request: Request) {
     metadata: {
       holidayId: id,
       orgUnitId: existing.orgUnitId,
+      worksiteId: existing.worksiteId,
       kind: existing.kind,
       invalidatedPayrollRunIds,
       releasedPayrollRunIdsRequiringRetroReview,

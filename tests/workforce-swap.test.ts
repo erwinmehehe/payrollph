@@ -18,6 +18,7 @@ function schedule(overrides: Partial<ResolvedDailySchedule> = {}): ResolvedDaily
     patternDayIndex: 0,
     overrideId: null,
     workLocationOrgUnitId: 10,
+    worksiteId: 77,
     segments: [{
       shiftDefinitionId: 3,
       shiftCode: "DAY",
@@ -44,6 +45,7 @@ test("swap snapshot preserves payroll-relevant resolved schedule identity", () =
     patternDayIndex: 0,
     overrideId: null,
     workLocationOrgUnitId: 10,
+    worksiteId: 77,
     segments: [{
       shiftDefinitionId: 3,
       shiftCode: "DAY",
@@ -92,6 +94,7 @@ test("incoming schedule is converted into an approved day override without inven
     isRestDay: false,
     segments: [{ shiftDefinitionId: 3, segmentOrder: 1 }],
     workLocationOrgUnitId: 10,
+    worksiteId: 77,
     reason: "Swap #18",
   });
 });

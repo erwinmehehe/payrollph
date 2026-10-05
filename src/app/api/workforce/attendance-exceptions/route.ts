@@ -2,6 +2,7 @@ import { and, asc, eq, gte, inArray, lte } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employeeScheduleAssignments,
+  employeeWorksiteAssignments,
   employees,
   overtimeRequests,
   scheduleOverrides,
@@ -23,6 +24,7 @@ import {
   resolveDailySchedule,
   type WorkforceScheduleOverrideSegment,
 } from "@/lib/workforce-scheduling";
+import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
 import type {
   OvertimeRequestKind,
   OvertimeRequestStatus,
@@ -126,6 +128,7 @@ export async function GET(request: Request) {
     patternSegments,
     assignments,
     overrides,
+    worksiteAssignments,
     punches,
     overtimeRows,
   ] = await Promise.all([
@@ -173,6 +176,14 @@ export async function GET(request: Request) {
       asc(scheduleOverrides.workDate),
       asc(scheduleOverrides.id),
     ),
+    db.select().from(employeeWorksiteAssignments).where(and(
+      eq(employeeWorksiteAssignments.organizationId, organizationId),
+      inArray(employeeWorksiteAssignments.employeeId, employeeIds),
+    )).orderBy(
+      asc(employeeWorksiteAssignments.employeeId),
+      asc(employeeWorksiteAssignments.effectiveFrom),
+      asc(employeeWorksiteAssignments.id),
+    ),
     db.select().from(timePunches).where(and(
       eq(timePunches.organizationId, organizationId),
       inArray(timePunches.employeeId, employeeIds),
@@ -211,6 +222,14 @@ export async function GET(request: Request) {
     );
   }
 
+  const worksiteAssignmentsByEmployee = new Map<number, typeof worksiteAssignments>();
+  for (const row of worksiteAssignments) {
+    worksiteAssignmentsByEmployee.set(
+      row.employeeId,
+      [...(worksiteAssignmentsByEmployee.get(row.employeeId) ?? []), row],
+    );
+  }
+
   const punchesByEmployeeDate = new Map<string, typeof punches>();
   for (const row of punches) {
     const key = `${row.employeeId}|${String(row.workDate)}`;
@@ -232,6 +251,7 @@ export async function GET(request: Request) {
       effectiveUntil: row.effectiveUntil ? String(row.effectiveUntil) : null,
       anchorDate: String(row.anchorDate),
       workLocationOrgUnitId: row.workLocationOrgUnitId,
+      worksiteId: row.worksiteId,
     }));
     const employeeOverrides = (overridesByEmployee.get(employee.id) ?? []).map((row) => ({
       id: row.id,
@@ -242,8 +262,16 @@ export async function GET(request: Request) {
         ? row.segments as WorkforceScheduleOverrideSegment[]
         : [],
       workLocationOrgUnitId: row.workLocationOrgUnitId,
+      worksiteId: row.worksiteId,
       status: row.status as "pending" | "approved" | "rejected" | "cancelled",
       reason: row.reason,
+    }));
+
+    const employeeWorksites = (worksiteAssignmentsByEmployee.get(employee.id) ?? []).map((row) => ({
+      id: row.id,
+      worksiteId: row.worksiteId,
+      effectiveFrom: String(row.effectiveFrom),
+      effectiveUntil: row.effectiveUntil ? String(row.effectiveUntil) : null,
     }));
 
     for (const workDate of dates) {
@@ -278,6 +306,8 @@ export async function GET(request: Request) {
           spansMidnight: row.spansMidnight,
         })),
         overrides: employeeOverrides,
+        defaultWorksiteId:
+          selectEffectiveWorksiteAssignment(employeeWorksites, workDate)?.worksiteId ?? null,
       });
       const key = `${employee.id}|${workDate}`;
       const dayPunches = punchesByEmployeeDate.get(key) ?? [];

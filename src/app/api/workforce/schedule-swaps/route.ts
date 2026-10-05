@@ -2,6 +2,7 @@ import { and, asc, eq, inArray, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employeeScheduleAssignments,
+  employeeWorksiteAssignments,
   employees,
   scheduleOverrides,
   schedulePatternDays,
@@ -27,6 +28,7 @@ import {
   resolveDailySchedule,
   type WorkforceScheduleOverrideSegment,
 } from "@/lib/workforce-scheduling";
+import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
 import {
   assertScheduleSwappable,
   scheduleSwapOverrideValues,
@@ -68,7 +70,7 @@ async function resolveSchedulesForPair(input: {
   const employeeIds = [input.requesterEmployeeId, input.counterpartyEmployeeId];
   const dates = [...new Set([input.requesterWorkDate, input.counterpartyWorkDate])];
 
-  const [shifts, patterns, assignments, overrides] = await Promise.all([
+  const [shifts, patterns, assignments, overrides, worksiteAssignments] = await Promise.all([
     db.select().from(shiftDefinitions)
       .where(eq(shiftDefinitions.organizationId, input.organizationId))
       .orderBy(asc(shiftDefinitions.code)),
@@ -91,6 +93,14 @@ async function resolveSchedulesForPair(input: {
       asc(scheduleOverrides.employeeId),
       asc(scheduleOverrides.workDate),
       asc(scheduleOverrides.id),
+    ),
+    db.select().from(employeeWorksiteAssignments).where(and(
+      eq(employeeWorksiteAssignments.organizationId, input.organizationId),
+      inArray(employeeWorksiteAssignments.employeeId, employeeIds),
+    )).orderBy(
+      asc(employeeWorksiteAssignments.employeeId),
+      asc(employeeWorksiteAssignments.effectiveFrom),
+      asc(employeeWorksiteAssignments.id),
     ),
   ]);
 
@@ -130,6 +140,7 @@ async function resolveSchedulesForPair(input: {
           effectiveUntil: row.effectiveUntil ? String(row.effectiveUntil) : null,
           anchorDate: String(row.anchorDate),
           workLocationOrgUnitId: row.workLocationOrgUnitId,
+          worksiteId: row.worksiteId,
         })),
       patterns: patterns.map((row) => ({
         id: row.id,
@@ -169,9 +180,22 @@ async function resolveSchedulesForPair(input: {
             ? row.segments as WorkforceScheduleOverrideSegment[]
             : [],
           workLocationOrgUnitId: row.workLocationOrgUnitId,
+          worksiteId: row.worksiteId,
           status: row.status as "pending" | "approved" | "rejected" | "cancelled",
           reason: row.reason,
         })),
+      defaultWorksiteId:
+        selectEffectiveWorksiteAssignment(
+          worksiteAssignments
+            .filter((row) => row.employeeId === employeeId)
+            .map((row) => ({
+              id: row.id,
+              worksiteId: row.worksiteId,
+              effectiveFrom: String(row.effectiveFrom),
+              effectiveUntil: row.effectiveUntil ? String(row.effectiveUntil) : null,
+            })),
+          date,
+        )?.worksiteId ?? null,
     });
   }
 

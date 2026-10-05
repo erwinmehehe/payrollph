@@ -74,6 +74,7 @@ function fourOnTwoOffFixture() {
     effectiveUntil: null,
     anchorDate: "2026-10-01",
     workLocationOrgUnitId: 77,
+    worksiteId: 301,
   }];
   return { pattern, days, segments, assignments };
 }
@@ -101,6 +102,7 @@ test("4-on/2-off rotation repeats from its explicit anchor date", () => {
     assert.equal(resolved.patternDayIndex, dayIndex);
     assert.equal(resolved.isRestDay, isRestDay);
     assert.equal(resolved.workLocationOrgUnitId, 77);
+    assert.equal(resolved.worksiteId, 301);
     assert.equal(resolved.segments.length, isRestDay ? 0 : 1);
   }
 });
@@ -224,6 +226,7 @@ test("location-only override preserves the underlying shift while changing work 
       kind: "location",
       isRestDay: false,
       workLocationOrgUnitId: 88,
+      worksiteId: 302,
       status: "approved",
       reason: "Temporary site coverage",
     }],
@@ -231,6 +234,7 @@ test("location-only override preserves the underlying shift while changing work 
 
   assert.equal(resolved.source, "override");
   assert.equal(resolved.workLocationOrgUnitId, 88);
+  assert.equal(resolved.worksiteId, 302);
   assert.equal(resolved.segments.length, 1);
   assert.equal(resolved.segments[0].shiftCode, "DAY");
 });
@@ -329,4 +333,60 @@ test("pattern validation rejects gaps because payroll must not infer missing rot
     }],
     shifts,
   }), /missing day index 1/i);
+});
+
+
+test("employee default worksite is used when the schedule does not override it", () => {
+  const fixture = fourOnTwoOffFixture();
+  const assignments = fixture.assignments.map((assignment) => ({
+    ...assignment,
+    worksiteId: null,
+  }));
+
+  const resolved = resolveDailySchedule({
+    date: "2026-10-02",
+    assignments,
+    patterns: [fixture.pattern],
+    patternDays: fixture.days,
+    patternSegments: fixture.segments,
+    shifts,
+    defaultWorksiteId: 450,
+  });
+
+  assert.equal(resolved.worksiteId, 450);
+});
+
+test("schedule worksite wins over employee default and location override wins over both", () => {
+  const fixture = fourOnTwoOffFixture();
+
+  const assigned = resolveDailySchedule({
+    date: "2026-10-02",
+    assignments: fixture.assignments,
+    patterns: [fixture.pattern],
+    patternDays: fixture.days,
+    patternSegments: fixture.segments,
+    shifts,
+    defaultWorksiteId: 450,
+  });
+  assert.equal(assigned.worksiteId, 301);
+
+  const overridden = resolveDailySchedule({
+    date: "2026-10-02",
+    assignments: fixture.assignments,
+    patterns: [fixture.pattern],
+    patternDays: fixture.days,
+    patternSegments: fixture.segments,
+    shifts,
+    defaultWorksiteId: 450,
+    overrides: [{
+      id: 999,
+      workDate: "2026-10-02",
+      kind: "location",
+      isRestDay: false,
+      worksiteId: 9999,
+      status: "approved",
+      reason: "Temporary coverage",
+    }],
+  });
+  assert.equal(overridden.worksiteId, 9999);
 });

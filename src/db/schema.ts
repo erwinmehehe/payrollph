@@ -105,6 +105,31 @@ export const orgUnits = pgTable("org_units", {
   code: varchar("code", { length: 32 }).notNull(),
 });
 
+export const worksites = pgTable(
+  "worksites",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    orgUnitId: integer("org_unit_id").references(() => orgUnits.id, { onDelete: "set null" }),
+    code: varchar("code", { length: 32 }).notNull(),
+    name: varchar("name", { length: 160 }).notNull(),
+    siteType: varchar("site_type", { length: 32 }).notNull().default("office"),
+    timezone: varchar("timezone", { length: 64 }).notNull().default("Asia/Manila"),
+    region: varchar("region", { length: 64 }),
+    province: varchar("province", { length: 100 }),
+    cityMunicipality: varchar("city_municipality", { length: 120 }),
+    addressLine1: varchar("address_line_1", { length: 200 }),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("worksites_org_code_unique").on(table.organizationId, table.code),
+    index("worksites_org_active_idx").on(table.organizationId, table.active),
+    index("worksites_org_unit_idx").on(table.organizationId, table.orgUnitId),
+  ],
+);
+
 export const employees = pgTable("employees", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
@@ -144,6 +169,25 @@ export const employees = pgTable("employees", {
   startDate: date("start_date").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const employeeWorksiteAssignments = pgTable(
+  "employee_worksite_assignments",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    worksiteId: integer("worksite_id").notNull().references(() => worksites.id, { onDelete: "restrict" }),
+    effectiveFrom: date("effective_from").notNull(),
+    effectiveUntil: date("effective_until"),
+    reason: varchar("reason", { length: 240 }).notNull().default("Worksite assignment"),
+    createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("employee_worksite_assignments_employee_date_idx").on(table.employeeId, table.effectiveFrom),
+    index("employee_worksite_assignments_org_worksite_idx").on(table.organizationId, table.worksiteId),
+  ],
+);
 
 export const employeePayProfiles = pgTable(
   "employee_pay_profiles",
@@ -282,6 +326,7 @@ export const employeeScheduleAssignments = pgTable(
     effectiveUntil: date("effective_until"),
     anchorDate: date("anchor_date").notNull(),
     workLocationOrgUnitId: integer("work_location_org_unit_id").references(() => orgUnits.id, { onDelete: "set null" }),
+    worksiteId: integer("worksite_id").references(() => worksites.id, { onDelete: "set null" }),
     reason: varchar("reason", { length: 240 }).notNull().default("Schedule assignment"),
     createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -303,6 +348,7 @@ export const scheduleOverrides = pgTable(
     isRestDay: boolean("is_rest_day").notNull().default(false),
     segments: jsonb("segments").notNull().default([]),
     workLocationOrgUnitId: integer("work_location_org_unit_id").references(() => orgUnits.id, { onDelete: "set null" }),
+    worksiteId: integer("worksite_id").references(() => worksites.id, { onDelete: "set null" }),
     reason: varchar("reason", { length: 240 }).notNull(),
     status: varchar("status", { length: 24 }).notNull().default("approved"),
     createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
@@ -912,6 +958,7 @@ export const holidays = pgTable("holidays", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id"),
   orgUnitId: integer("org_unit_id").references(() => orgUnits.id, { onDelete: "cascade" }),
+  worksiteId: integer("worksite_id").references(() => worksites.id, { onDelete: "cascade" }),
   holidayDate: date("holiday_date").notNull(),
   name: varchar("name", { length: 120 }).notNull(),
   kind: varchar("kind", { length: 24 }).notNull().default("regular"),

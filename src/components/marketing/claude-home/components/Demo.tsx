@@ -8,23 +8,23 @@ export default function Demo() {
       <div className="mx-auto max-w-[1320px] px-5 sm:px-8">
         <div className="grid gap-7 lg:grid-cols-[0.82fr_1.18fr] lg:items-end">
           <SectionHeading
-            title={<>Explore the <span className="text-[#6161FF]">actual Linaw workspace.</span></>}
-            description="This homepage preview now uses the same navigation contract, sample payroll data and workspace interactions as the product instead of a separate marketing-only payroll mockup."
+            title={<>See how payroll moves from <span className="text-[#6161FF]">preparation to approval.</span></>}
+            description="Explore a populated sample workspace, then open the role-based sandbox to see what the Payroll Officer, Checker, Owner and Employee each need to do next."
           />
 
           <Reveal delay={100}>
             <div className="flex flex-wrap gap-2 lg:justify-end">
               <span className="system-demo-proof">
                 <CheckCircle2 aria-hidden />
-                Same workspace navigation
+                Real product navigation
               </span>
               <span className="system-demo-proof">
                 <Database aria-hidden />
-                Populated sample payroll
+                Sample payroll already loaded
               </span>
               <span className="system-demo-proof">
                 <ShieldCheck aria-hidden />
-                Nothing saved here
+                Safe to explore
               </span>
             </div>
           </Reveal>
@@ -34,7 +34,7 @@ export default function Demo() {
           <div className="system-demo-stage mt-8">
             <div className="system-demo-toolbar">
               <div>
-                <span className="system-demo-kicker">Interactive product preview</span>
+                <span className="system-demo-kicker">Interactive payroll workflow</span>
                 <strong>Masigla Foods · Linaw workspace</strong>
               </div>
               <a href="/demo" className="system-demo-open">
@@ -52,8 +52,8 @@ export default function Demo() {
         <Reveal delay={160}>
           <div className="system-demo-foot">
             <p>
-              Use the preview to explore modules locally. The role-based sandbox opens the real product shell with Owner,
-              HR Admin, Payroll Officer, Checker and Employee permissions enforced by the server.
+              Explore the sample workspace here, then switch into the full sandbox to see how preparation, checking,
+              release and employee self-service hand off between roles.
             </p>
             <a href="/demo">
               Choose a role
