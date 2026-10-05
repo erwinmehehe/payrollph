@@ -4,6 +4,7 @@ import {
   complianceActionTasks,
   employees,
   statutoryContributionDisputes,
+  statutoryRemittanceBatches,
   statutoryRemittanceMembers,
 } from "@/db/schema";
 import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
@@ -54,7 +55,6 @@ export async function GET(request: Request) {
 
   const accessCheck = await requireCompanywidePayroll(user.id, organizationId);
   if (accessCheck instanceof Response) return accessCheck;
-  const access = accessCheck.access;
 
   const rows = await db.select({
     id: statutoryContributionDisputes.id,
@@ -149,6 +149,11 @@ export async function POST(request: Request) {
   if (dispute.status === "resolved") {
     return Response.json({ error: "This contribution dispute is already resolved." }, { status: 409 });
   }
+  if (resolutionCode === "not_an_error" && dispute.reportedByUserId === user.id) {
+    return Response.json({
+      error: "The reporter cannot dismiss their own contribution dispute as not an error.",
+    }, { status: 403 });
+  }
 
   let member = null;
   if (dispute.memberId != null) {
@@ -156,6 +161,23 @@ export async function POST(request: Request) {
       eq(statutoryRemittanceMembers.id, dispute.memberId),
       eq(statutoryRemittanceMembers.organizationId, organizationId),
     )).limit(1);
+  }
+  if (!member) {
+    const [currentBatch] = await db.select({ id: statutoryRemittanceBatches.id })
+      .from(statutoryRemittanceBatches)
+      .where(and(
+        eq(statutoryRemittanceBatches.organizationId, organizationId),
+        eq(statutoryRemittanceBatches.agency, dispute.agency),
+        eq(statutoryRemittanceBatches.applicableMonth, dispute.applicableMonth),
+      ))
+      .limit(1);
+    if (currentBatch) {
+      [member] = await db.select().from(statutoryRemittanceMembers).where(and(
+        eq(statutoryRemittanceMembers.organizationId, organizationId),
+        eq(statutoryRemittanceMembers.batchId, currentBatch.id),
+        eq(statutoryRemittanceMembers.employeeId, dispute.employeeId),
+      )).limit(1);
+    }
   }
   const resolutionGate = validateContributionDisputeResolution({
     resolutionCode: resolutionCode as "posted_confirmed" | "corrected" | "not_an_error" | "duplicate",
@@ -169,6 +191,7 @@ export async function POST(request: Request) {
   const result = await db.transaction(async (tx) => {
     const [updated] = await tx.update(statutoryContributionDisputes).set({
       status: "resolved",
+      memberId: member?.id ?? dispute.memberId,
       resolutionCode,
       resolutionNote,
       resolvedByUserId: user.id,
