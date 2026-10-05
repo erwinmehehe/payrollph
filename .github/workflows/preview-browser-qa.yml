@@ -820,7 +820,7 @@ jobs:
               headers: sameOriginHeaders,
             });
             const releasePayload = await releaseResponse.json();
-            check(releaseResponse.ok(), `Lifecycle: owner release failed: ${releasePayload.error ?? releaseResponse.status()}`);
+            check(releaseResponse.ok(), `Lifecycle: owner release failed: ${releasePayload.error ?? releaseResponse.status()} | checklist=${JSON.stringify(releasePayload.checklist ?? [])}`);
             check(releasePayload.receipt?.employeeCount > 0, "Lifecycle: release receipt is missing employee count");
             check(Number(releasePayload.receipt?.totalNetPay) > 0, "Lifecycle: release receipt is missing net payroll");
             check(releasePayload.receipt?.bankExport?.status === "waiting", "Lifecycle: optional bank fallback should remain unused after release");
