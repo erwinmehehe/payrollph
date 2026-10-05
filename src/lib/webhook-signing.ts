@@ -4,6 +4,7 @@ export const WEBHOOK_EVENTS = [
   "payroll.released",
   "payroll.processed",
   "employee.onboarded",
+  "employee.moved",
   "employee.offboarded",
   "leave.approved",
   "approval.decided",
