@@ -457,6 +457,12 @@ export const complianceWave3: AuthorityPage[] = [
       { title: "Track completion evidence", body: "The useful calendar record includes what was filed or paid, the covered period, completion date and confirmation evidence." },
       { title: "Publish updates without changing the evergreen URL", body: "The evergreen calendar page should explain the process, while dated regulatory updates record specific new advisories or schedule changes." },
     ],
+    faq: [
+      { question: "Should a payroll compliance calendar use permanent hard-coded deadlines?", answer: "No. The calendar should be checked against current official agency schedules because deadlines can vary by filer type, advisory, holiday or other circumstance." },
+      { question: "What should each compliance-calendar item contain?", answer: "At minimum, identify the obligation, covered period, responsible owner, current official source, due-date basis, completion status and supporting evidence." },
+      { question: "Why should a compliance calendar record completion evidence?", answer: "A checked box only shows that someone marked the task complete. Evidence such as a receipt, confirmation, accepted file or internal review record makes the completion traceable." },
+      { question: "How should regulatory changes affect the calendar?", answer: "Dated updates should record what changed and when, while the evergreen calendar continues to point users to the current official source for the applicable period." },
+    ],
     related: [
       { label: "Regulatory updates", href: "/resources/updates", description: "See dated changes and government reminders." },
       { label: "1601-C", href: "/compliance/1601-c", description: "Review monthly BIR withholding-remittance context." },
@@ -486,6 +492,12 @@ export const complianceWave3: AuthorityPage[] = [
       { title: "Map the update to product rules", body: "Changes affecting contribution rates, tax tables, holidays or filing outputs should point to the exact calculation or compliance workflow that needs review." },
       { title: "Keep old updates available as history", body: "Historical updates help explain why an older payroll used a different rule version, while evergreen pages continue to describe the current process." },
     ],
+    faq: [
+      { question: "What information should a payroll regulatory update include?", answer: "Record the issuing agency, publication date, effective date, official source, affected payroll workflow and the internal review status." },
+      { question: "Why separate publication date from effective date?", answer: "A rule or advisory can be published before it takes effect, so payroll needs both dates to know which payroll periods are actually affected." },
+      { question: "Should old regulatory updates be deleted after a rule changes?", answer: "Usually no. Historical updates help explain why an older payroll used a different rule version, while evergreen guidance should describe the current process." },
+      { question: "How should a regulatory update connect to payroll software?", answer: "Map the update to the exact rule, calculation, reporting output or operational workflow that needs review rather than treating the update as a generic news item." },
+    ],
     related: [
       { label: "Regulatory update archive", href: "/resources/updates", description: "Browse dated government payroll updates." },
       { label: "Compliance calendar", href: "/compliance/calendar", description: "Manage recurring deadlines using current sources." },
@@ -506,6 +518,12 @@ export const complianceWave3: AuthorityPage[] = [
       { title: "Reconcile statutory liabilities", body: "Employee deductions and employer shares should tie back to payroll totals and the reporting or remittance amount prepared for each agency." },
       { title: "Keep validation status visible", body: "A generated worksheet can be complete as a payroll artifact while still waiting for external filing validation or submission evidence." },
       { title: "Close exceptions explicitly", body: "If an employee record, contribution, tax amount or filing output remains unresolved, the compliance record should show the owner and next action." },
+    ],
+    faq: [
+      { question: "Which payroll version should a compliance audit use?", answer: "Use the exact payroll version that was approved and released so the audit matches the money paid, employee payslips and downstream liabilities." },
+      { question: "What should be reconciled after payroll release?", answer: "Reconcile employee deductions, employer contributions, tax withheld, payout totals, accounting outputs and any government reporting or remittance records created from that run." },
+      { question: "How should unresolved payroll compliance exceptions be handled?", answer: "Keep the exception open with a clear owner, affected employee or period, supporting evidence and next action until the issue has a documented resolution." },
+      { question: "Does completing a payroll audit mean every government filing was accepted?", answer: "No. An internal payroll audit can confirm traceability and reconciliation while external filing, remittance or agency acceptance evidence remains a separate control." },
     ],
     related: [
       { label: "Payroll audit checklist", href: "/resources/payroll-audit-checklist", description: "Review operational payroll before release." },
