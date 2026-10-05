@@ -83,7 +83,7 @@ const SCOPE = [
     icon: Gauge,
     title: "Reviewed payroll register",
     copy: "A gross-to-net payroll register with calculation trace, statutory figures and the exceptions that still need a decision.",
-    tone: "bg-[#ECECFF] text-[#4A4AE0]",
+    tone: "bg-[#ECECFF] text-[#444CE7]",
   },
   {
     icon: ShieldCheck,
@@ -107,7 +107,7 @@ const SCOPE = [
 
 export default function PayrollOutsourcingPage() {
   return (
-    <div className="min-h-screen bg-white text-[#0B0D1A]">
+    <div className="marketing-page min-h-screen bg-white text-[#101323]">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(outsourcingSchema).replace(/</g, "\\u003c") }}
@@ -115,14 +115,14 @@ export default function PayrollOutsourcingPage() {
       <SiteNav />
 
       <main>
-        <section className="relative overflow-hidden border-b border-[#EDEFF7] py-16 sm:py-20">
+        <section className="relative overflow-hidden border-b border-[#EAECF0] py-16 sm:py-20">
           <div aria-hidden className="pointer-events-none absolute inset-0">
             <div className="absolute -right-32 -top-52 h-[620px] w-[720px] rounded-full bg-gradient-to-br from-[#ECECFF] via-[#EAF4FF] to-[#E3FAF0] opacity-85 blur-3xl" />
           </div>
 
           <div className="relative mx-auto grid max-w-[1180px] items-center gap-10 px-5 sm:px-8 lg:grid-cols-[1.05fr_.95fr]">
             <div>
-              <span className="inline-flex items-center gap-2 rounded-full border border-[#DDE0EF] bg-white px-3.5 py-2 text-[12px] font-bold text-[#4A4AE0] shadow-sm">
+              <span className="inline-flex items-center gap-2 rounded-full border border-[#DDE0EF] bg-white px-3.5 py-2 text-[12px] font-bold text-[#444CE7] shadow-sm">
                 <ShieldCheck size={14} aria-hidden />
                 Payroll outsourcing Philippines · managed payroll
               </span>
@@ -135,7 +135,7 @@ export default function PayrollOutsourcingPage() {
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <a href="#quote" className="group inline-flex items-center justify-center gap-2 rounded-full bg-[#6161FF] px-7 py-4 text-[14.5px] font-semibold text-white">
+                <a href="#quote" className="group inline-flex items-center justify-center gap-2 rounded-full bg-[#444CE7] px-7 py-4 text-[14.5px] font-semibold text-white">
                   Get a payroll quote
                   <ArrowRight size={15} className="transition-transform group-hover:translate-x-0.5" />
                 </a>
@@ -165,7 +165,7 @@ export default function PayrollOutsourcingPage() {
               <h2 className="font-display mt-2 text-[28px] font-semibold tracking-[-0.035em]">A payroll pack your approver can actually review.</h2>
               <div className="mt-6 grid gap-3">
                 {SCOPE.map(({ icon: Icon, title, copy, tone }) => (
-                  <div key={title} className="flex gap-3.5 rounded-2xl border border-[#EDEFF7] p-4">
+                  <div key={title} className="flex gap-3.5 rounded-2xl border border-[#EAECF0] p-4">
                     <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tone}`}>
                       <Icon size={17} aria-hidden />
                     </span>
@@ -193,7 +193,7 @@ export default function PayrollOutsourcingPage() {
 
             <div className="mt-9 grid gap-4 md:grid-cols-5">
               {PROCESS.map((step, index) => (
-                <article key={step.title} className="rounded-[22px] border border-[#E5E7F0] bg-[#FAFBFD] p-5">
+                <article key={step.title} className="rounded-[22px] border border-[#E5E7F0] bg-[#FCFCFD] p-5">
                   <span className="mono text-[11px] font-bold text-[#6161FF]">{String(index + 1).padStart(2, "0")}</span>
                   <h3 className="font-display mt-4 text-[17px] font-semibold leading-snug">{step.title}</h3>
                   <p className="mt-2 text-[12.5px] leading-relaxed text-[#6B718C]">{step.copy}</p>
@@ -203,7 +203,7 @@ export default function PayrollOutsourcingPage() {
           </div>
         </section>
 
-        <section className="border-y border-[#EDEFF7] bg-[#FAFBFD] py-16 sm:py-20">
+        <section className="border-y border-[#EAECF0] bg-[#FCFCFD] py-16 sm:py-20">
           <div className="mx-auto max-w-[1180px] px-5 sm:px-8">
             <div className="max-w-[760px]">
               <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#7C82A1]">Division of responsibility</p>
@@ -281,7 +281,7 @@ export default function PayrollOutsourcingPage() {
           </div>
         </section>
 
-        <section className="border-t border-[#EDEFF7] bg-[#FAFBFD] py-16 sm:py-20" id="quote">
+        <section className="border-t border-[#EAECF0] bg-[#FCFCFD] py-16 sm:py-20" id="quote">
           <div className="mx-auto grid max-w-[1120px] gap-8 px-5 sm:px-8 lg:grid-cols-[.82fr_1.18fr] lg:items-start">
             <div className="lg:sticky lg:top-24">
               <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#7C82A1]">Payroll outsourcing quote</p>
