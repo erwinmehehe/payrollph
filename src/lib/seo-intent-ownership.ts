@@ -100,6 +100,17 @@ export const SEO_INTENT_OWNERS: SeoIntentOwner[] = [
     supportingIntents: ["payroll software price philippines", "payroll system cost philippines"],
   },
   {
+    primaryIntent: "small business payroll software philippines",
+    ownerPath: "/small-business-payroll",
+    intentClass: "commercial",
+    supportingIntents: [
+      "sme payroll software philippines",
+      "payroll system for small business philippines",
+      "small business payroll system philippines"
+    ],
+    note: "Own SME/small-business solution intent. The homepage remains the broad payroll software Philippines owner.",
+  },
+  {
     primaryIntent: "workforce analytics philippines",
     ownerPath: "/workforce-analytics",
     intentClass: "commercial",
