@@ -179,10 +179,12 @@ export async function POST(request: Request) {
           employeeId: employee?.id ?? null,
         }).returning();
       } else {
+        if (employee?.id && user.employeeId && user.employeeId !== employee.id) {
+          throw new Error("Existing Linaw user is already linked to a different employee record.");
+        }
         const [updated] = await tx.update(users).set({
           name: name.slice(0, 120),
-          active,
-          ...(employee?.id ? { employeeId: employee.id } : {}),
+          ...(employee?.id && !user.employeeId ? { employeeId: employee.id } : {}),
         }).where(eq(users.id, user.id)).returning();
         user = updated;
       }
