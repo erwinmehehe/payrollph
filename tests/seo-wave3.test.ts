@@ -168,3 +168,30 @@ test("Wave 3 regulatory methodology uses the Linaw brand", () => {
   assert.ok(content.includes("How Linaw tracks Philippine payroll rule changes."));
   assert.ok(!content.includes("How PayrollPH tracks Philippine payroll rule changes."));
 });
+
+
+test("source-backed Article schema uses explicit review metadata instead of a blanket date", () => {
+  const content = read("src/lib/seo-content-wave3.ts");
+  const resource = read("src/app/resources/[slug]/page.tsx");
+  const compliance = read("src/app/compliance/[slug]/page.tsx");
+  assert.ok(content.includes('const reviewedIso = "2026-10-05"'));
+  assert.ok(content.includes("lastReviewedIso: reviewedIso"));
+  assert.ok(resource.includes("dateModified: page.lastReviewedIso"));
+  assert.ok(compliance.includes("dateModified: page.lastReviewedIso"));
+  assert.ok(!resource.includes('dateModified: "2026-10-05"'));
+  assert.ok(!compliance.includes('dateModified: "2026-10-05"'));
+});
+
+test("advanced calculators link back into the authority cluster", () => {
+  const page = read("src/app/calculators/[slug]/page.tsx");
+  for (const route of [
+    "/resources/final-pay-philippines",
+    "/resources/13th-month-pay-philippines",
+    "/resources/overtime-pay-philippines",
+    "/resources/night-differential-philippines",
+    "/resources/payroll-software-vs-outsourcing",
+    "/payroll-outsourcing",
+  ]) {
+    assert.ok(page.includes(route), `advanced calculator context must include ${route}`);
+  }
+});
