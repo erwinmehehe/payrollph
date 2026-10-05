@@ -65,27 +65,26 @@ test("public SEO origin is payrollsoftware.ph and is independent of app deployme
 
 test("the software homepage keeps the full workspace demo off the marketing page", () => {
   const home = read("src/components/marketing/claude-home/App.tsx");
-  const hero = read("src/components/marketing/claude-home/components/Hero.tsx");
-  assert.ok(!home.includes('import Demo from "./components/Demo"'), "homepage must not import the oversized embedded product demo");
-  assert.ok(!home.includes("<Demo />"), "homepage must not mount the oversized embedded product demo");
-  assert.ok(hero.includes('href="/demo"'), "homepage hero must still hand off to the dedicated role-based demo");
-  assert.ok(hero.includes("payroll-hero-control-card"), "homepage must retain the focused release-readiness product proof");
+  const modern = read("src/components/marketing/claude-home/ModernHome.tsx");
+  assert.ok(home.includes('import ModernHome from "./ModernHome"'), "homepage must use the focused modern marketing shell");
+  assert.ok(!modern.includes("WorkspacePreview"), "homepage must not mount the full workspace preview");
+  assert.ok(!modern.includes("system-demo-product"), "legacy full product demo must stay off the homepage");
+  assert.ok(modern.includes('href="/demo"'), "homepage must hand off to the dedicated role-based demo");
+  assert.ok(modern.includes("payroll-hero-control-card"), "homepage must retain focused release-readiness product proof");
 });
 
 test("the homepage leads with the approved Linaw payroll hero", () => {
-  const hero = read("src/components/marketing/claude-home/components/Hero.tsx");
-  const trust = read("src/components/marketing/claude-home/components/Trust.tsx");
-  const product = read("src/components/marketing/claude-home/components/Product.tsx");
+  const modern = read("src/components/marketing/claude-home/ModernHome.tsx");
 
-  assert.ok(hero.includes("Philippine payroll you can verify before you pay."), "hero must lead with Philippine payroll and the review-before-release value proposition");
-  assert.ok(hero.includes("Try Live Demo"), "hero must expose the primary live-demo CTA");
-  assert.ok(hero.includes("See Pricing"), "hero must expose the pricing CTA");
-  assert.ok(hero.includes("SSS, PhilHealth, Pag-IBIG & TRAIN calculations"), "hero must show the statutory calculation proof point");
-  assert.ok(hero.includes("Government worksheets clearly labelled"), "hero must avoid implying certified filing");
-  assert.ok(hero.includes("Maker-checker release controls"), "hero must show the release-control proof point");
-  assert.ok(!hero.includes("Let’s make payroll easier"), "hero must stay mascot-free");
-  assert.ok(product.includes("See how a payroll calculation explains itself."), "statutory explanation must stay visible below the fold");
-  assert.ok(trust.includes("Controls that return 403, not a tooltip."), "security controls must remain a primary product story");
+  assert.ok(modern.includes("Philippine payroll you can"), "hero must lead with Philippine payroll");
+  assert.ok(modern.includes("verify before you pay."), "hero must keep the review-before-release value proposition");
+  assert.ok(modern.includes('href="/signup"'), "hero must expose a primary get-started CTA");
+  assert.ok(modern.includes('href="/book-demo"'), "hero must expose a book-demo CTA");
+  assert.ok(modern.includes("Statutory calculation controls"), "hero must show the statutory calculation proof point");
+  assert.ok(modern.includes("Maker-checker"), "homepage must show the release-control proof point");
+  assert.ok(modern.includes("SSS") && modern.includes("PhilHealth") && modern.includes("Pag-IBIG") && modern.includes("BIR"), "homepage must keep Philippine payroll rails visible");
+  assert.ok(modern.includes("Government ID") || modern.includes("Gov worksheets"), "homepage must show government-output/readiness context without implying certified filing");
+  assert.ok(!modern.includes("Let’s make payroll easier"), "hero must stay mascot-free");
 });
 
 test("a dedicated role-based demo page exists", () => {
@@ -124,36 +123,38 @@ test("homepage simulation uses the real workspace navigation and no dead client 
 });
 
 test("homepage buyer flow explains payroll handoffs before secondary tools", () => {
-  const home = read("src/components/marketing/claude-home/App.tsx");
-  const product = read("src/components/marketing/claude-home/components/Product.tsx");
-  const trust = read("src/components/marketing/claude-home/components/Trust.tsx");
+  const modern = read("src/components/marketing/claude-home/ModernHome.tsx");
 
-  assert.ok(!home.includes("<TrustStrip />"), "homepage must not render the animated output marquee");
-  assert.ok(!product.includes("export function TrustStrip"), "obsolete output marquee component must stay removed");
-  assert.ok(home.includes("<PayrollWorkflow />"), "homepage must explain the payroll handoff");
-  assert.ok(!home.includes("<Audiences />"), "generic audience cards must not interrupt the payroll story");
+  assert.ok(modern.includes("FeatureBento"), "homepage must explain core payroll controls");
+  assert.ok(modern.includes("Workflow"), "homepage must explain the payroll handoff");
+  assert.ok(modern.includes("ProofAndRoles"), "homepage must explain role ownership");
+  assert.ok(!modern.includes("TrustStrip"), "homepage must not render the old animated output marquee");
+  assert.ok(!modern.includes("Audiences"), "generic audience cards must not interrupt the payroll story");
+  assert.ok(!modern.includes("WorkspacePreview"), "full application chrome must stay off the landing page");
 
-  const workflowIndex = home.indexOf("<PayrollWorkflow />");
-  const pricingIndex = home.indexOf("<Pricing plans={plans} />");
-  const calculatorIndex = home.indexOf("<Calculator />");
-  assert.ok(workflowIndex > home.indexOf("<Demo />"), "workflow must follow the real product demo");
-  assert.ok(calculatorIndex > pricingIndex, "salary calculator must sit below pricing instead of interrupting the buyer journey");
+  const featureIndex = modern.indexOf("<FeatureBento />");
+  const workflowIndex = modern.indexOf("<Workflow />");
+  const pricingIndex = modern.indexOf("<Pricing plans={plans} />");
+  assert.ok(featureIndex >= 0 && workflowIndex > featureIndex, "workflow must follow the product-value bento");
+  assert.ok(pricingIndex > workflowIndex, "pricing must follow the core workflow story");
 
-  for (const role of ["HR Admin", "Payroll Officer", "Checker", "Owner", "Employee"]) {
-    assert.ok(trust.includes(role), `workflow must include ${role}`);
+  for (const role of ["HR Admin", "Payroll Officer", "Checker", "Owner"]) {
+    assert.ok(modern.includes(role), `workflow must include ${role}`);
   }
-  assert.ok(trust.includes("Who owns the next decision before money moves?"), "workflow must frame the next payroll decision");
-  assert.ok(!trust.includes("Solo is free"), "homepage must not revive stale self-serve Solo claims");
+  assert.ok(modern.includes("Employee readiness"), "employee readiness must remain part of the payroll story");
+  assert.ok(!modern.includes("Solo is free"), "homepage must not revive stale self-serve Solo claims");
 });
 
 test("homepage pricing keeps persisted plan values inside the redesigned cards", () => {
   const wrapper = read("src/components/marketing/software-home.tsx");
-  const pricing = read("src/components/marketing/claude-home/components/Pricing.tsx");
+  const modern = read("src/components/marketing/claude-home/ModernHome.tsx");
   assert.ok(wrapper.includes("getPublicPricingPlans"), "homepage must continue loading persisted pricing");
   assert.ok(wrapper.includes("<ClaudeHomepage plans={plans} />"), "database pricing must flow into the redesign");
-  assert.ok(pricing.includes("monthlyBase"), "redesigned pricing must use the persisted monthly base");
-  assert.ok(pricing.includes("perEmployee"), "redesigned pricing must use the persisted per-employee price");
-  assert.ok(!pricing.includes("modules.map"), "redesigned pricing must explain buyer outcomes instead of dumping module names");
+  assert.ok(modern.includes("monthlyBase"), "redesigned pricing must use the persisted monthly base");
+  assert.ok(modern.includes("perEmployee"), "redesigned pricing must use the persisted per-employee price");
+  assert.ok(modern.includes("data-headcount"), "redesigned pricing must keep the employee-count interaction");
+  assert.ok(modern.includes("currencyNumber"), "pricing estimates must be derived from persisted plan values");
+  assert.ok(!modern.includes("modules.map"), "redesigned pricing must explain buyer outcomes instead of dumping module names");
 });
 
 test("role demo launches the same product instead of rendering a second fake app", () => {
