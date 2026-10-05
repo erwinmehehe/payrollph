@@ -9,7 +9,7 @@ const payroll = readFileSync("src/components/workspace/payroll-run.tsx", "utf8")
 
 test("month close persists a unique evidence certification per organization and month", () => {
   assert.ok(schema.includes('export const statutoryRemittanceMonthClosures = pgTable('));
-  assert.ok(schema.includes('uniqueIndex("statutory_remittance_month_closure_unique")'));
+  assert.ok(schema.includes('uniqueIndex("statutory_remittance_month_closure_snapshot_unique")'));
   assert.ok(schema.includes('snapshotHash: varchar("snapshot_hash"'));
 });
 
@@ -21,7 +21,7 @@ test("certification is restricted to prior months and current reconciled evidenc
 });
 
 test("certification uses payroll RBAC, MFA, rate limits, same-origin and audit trail", () => {
-  assert.ok(route.includes("PAYROLL_OPERATOR_ROLES"));
+  assert.ok(route.includes('const REMITTANCE_CLOSE_ROLES = ["owner", "admin", "checker"]'));
   assert.ok(route.includes("enforceSameOriginMutation(request)"));
   assert.ok(route.includes("requireSensitiveActionMfa(user)"));
   assert.ok(route.includes("enforceSensitiveActionRateLimit(request"));
@@ -46,4 +46,28 @@ test("month close derives required agencies from the selected month's payroll li
   assert.ok(route.includes("requiredAgencies"));
   assert.ok(route.includes('monthRuns.every((run) => run.status === "Released")'));
   assert.ok(route.includes("payrollEntries"));
+});
+
+
+test("certifier cannot certify evidence they helped create or correct", () => {
+  assert.ok(route.includes("evidenceActors"));
+  assert.ok(route.includes("paymentRecordedBy"));
+  assert.ok(route.includes("confirmedBy"));
+  assert.ok(route.includes("decidedByName"));
+  assert.ok(route.includes("cannot certify a remittance month containing evidence they recorded or confirmed"));
+});
+
+test("certification history is immutable per evidence snapshot", () => {
+  assert.ok(route.includes("existingSnapshot"));
+  assert.ok(route.includes("certificationHistory: closures"));
+  assert.ok(route.includes("certificationHistoryPreserved: true"));
+  assert.ok(!route.includes("db.update(statutoryRemittanceMonthClosures).set({"));
+});
+
+test("month close self-initializes additive schema for existing deployments", () => {
+  const guard = readFileSync("src/lib/statutory-remittance-month-close-schema.ts", "utf8");
+  assert.ok(route.includes("ensureStatutoryRemittanceMonthCloseSchema"));
+  assert.ok(guard.includes("CREATE TABLE IF NOT EXISTS statutory_remittance_month_closures"));
+  assert.ok(guard.includes("statutory_remittance_month_closure_snapshot_unique"));
+  assert.ok(guard.includes("pg_advisory_xact_lock"));
 });
