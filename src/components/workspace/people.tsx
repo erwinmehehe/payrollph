@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { ImportPanel } from "@/components/import-panel";
+import { EmployeeLifecyclePanel } from "./employee-lifecycle-panel";
 import type { DashboardData, Employee } from "./types";
 import { REST_DAY_NAMES } from "@/lib/payroll-rules";
 import { Avatar, EmptyState, PageHeading, Status, formatDate, formatTimeOnly, money } from "./ui";
@@ -139,6 +140,12 @@ export function PeopleView({
       )}
 
       {canManage && <ImportPanel organizationId={data.selectedOrganization.id} onImported={onRefresh} />}
+
+      <EmployeeLifecyclePanel
+        data={data}
+        canManage={canManage}
+        onRefresh={onRefresh}
+      />
 
       {openOffboarding > 0 && (
         <div className="notice notice-blue">
