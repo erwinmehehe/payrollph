@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     env:
-      BASE_URL: https://erwinmehehe-payrollph.vercel.app
+      BASE_URL: https://payrollsoftware.ph
       EXPECTED_COMMIT_SHA: ${{ github.sha }}
     steps:
       - name: Wait for exact production deployment
