@@ -9,20 +9,20 @@ import { CALCULATORS, CALCULATOR_GUIDES, isAdvancedCalculatorSlug, type Calculat
 
 const relatedByCalculator: Partial<Record<CalculatorSlug, Array<{ label: string; href: string; copy: string }>>> = {
   "13th-month-pay": [
-    { label: "DOLE payroll guide", href: "/compliance/dole", copy: "Review the payroll-rule context around premium and mandatory pay treatment." },
-    { label: "Payroll software", href: "/", copy: "See how payroll calculations move through review and release." },
+    { label: "13th-month pay guide", href: "/resources/13th-month-pay-philippines", copy: "Review the statutory base, timing, proration and separation context behind the estimate." },
+    { label: "DOLE payroll guide", href: "/compliance/dole", copy: "Review the wider pay-rule context and official-source discipline." },
   ],
   "overtime-pay": [
-    { label: "DOLE payroll guide", href: "/compliance/dole", copy: "Review overtime, rest-day and holiday premium context." },
-    { label: "Time & attendance", href: "/time-and-attendance", copy: "See how worked time becomes payroll evidence." },
+    { label: "Overtime pay guide", href: "/resources/overtime-pay-philippines", copy: "Review day type, worked-time evidence, approvals and premium context behind the estimate." },
+    { label: "DOLE payroll guide", href: "/compliance/dole", copy: "Review overtime, rest-day and holiday premium rules in the wider compliance workflow." },
   ],
   "night-differential": [
-    { label: "DOLE payroll guide", href: "/compliance/dole", copy: "Review night differential and premium-day payroll context." },
-    { label: "Time & attendance", href: "/time-and-attendance", copy: "See how night minutes are derived from time ranges." },
+    { label: "Night differential guide", href: "/resources/night-differential-philippines", copy: "Review covered hours, overtime overlap and premium-day context behind the estimate." },
+    { label: "DOLE payroll guide", href: "/compliance/dole", copy: "Review the wider statutory payroll context for night work and premium pay." },
   ],
   "holiday-pay": [
-    { label: "DOLE payroll guide", href: "/compliance/dole", copy: "Review regular, special and rest-day premium context." },
-    { label: "Retail payroll", href: "/industries/retail", copy: "See how holiday work fits a branch-heavy payroll workflow." },
+    { label: "Holiday pay guide", href: "/resources/holiday-pay-philippines", copy: "Review regular, special, rest-day and attendance context behind the estimate." },
+    { label: "DOLE payroll guide", href: "/compliance/dole", copy: "Review premium-pay rules in the wider Philippine payroll compliance workflow." },
   ],
   "sss-contribution": [
     { label: "SSS payroll compliance", href: "/compliance/sss", copy: "Review employee, employer and EC contribution handling." },
@@ -34,7 +34,8 @@ const relatedByCalculator: Partial<Record<CalculatorSlug, Array<{ label: string;
     { label: "Pag-IBIG payroll compliance", href: "/compliance/pag-ibig", copy: "Review contribution timing, employer shares and validation controls." },
   ],
   "withholding-tax": [
-    { label: "BIR payroll compliance", href: "/compliance/bir", copy: "Review withholding, annualization and filing-validation separation." },
+    { label: "Withholding tax compliance", href: "/compliance/withholding-tax", copy: "Review taxable compensation, payroll-frequency tables and annualization context." },
+    { label: "Payroll annualization", href: "/resources/payroll-annualization", copy: "See how regular payroll withholding is reconciled at year-end." },
   ],
   "payroll-cost": [
     { label: "Payroll pricing", href: "/pricing", copy: "Compare employer payroll cost with the current product plan catalog." },
