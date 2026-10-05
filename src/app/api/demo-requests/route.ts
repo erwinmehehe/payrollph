@@ -52,6 +52,13 @@ export async function POST(request: Request) {
       recipient: OPERATOR_INBOX,
       subject: `${requestType === "trial" ? "Trial access request" : "Demo request"}: ${company}`,
       purpose: "demo-request",
+      metadata: {
+        marketing: {
+          requestType,
+          headcount: headcount || "not stated",
+          ...attribution,
+        },
+      },
       body: [
         requestType === "trial"
           ? "Trial workspace access was requested from the public site."
