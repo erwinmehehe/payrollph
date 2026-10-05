@@ -37,9 +37,9 @@ test("customer stories use article and breadcrumb schema without review fabricat
 });
 
 test("customer URLs enter XML sitemap only after approval", () => {
-  const sitemap = read("src/app/sitemap.ts");
+  const sitemap = read("src/lib/sitemap-data.ts");
   assert.ok(sitemap.includes("CUSTOMER_STORIES.filter((story) => story.approved)"));
-  assert.ok(sitemap.includes('approvedStories.length > 0 ? [{ path: "/customers"'));
+  assert.ok(sitemap.includes("if (approvedStories.length === 0) return []"));
   assert.ok(sitemap.includes('path: `/customers/${slug}`'));
 });
 
