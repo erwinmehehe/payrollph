@@ -35,6 +35,7 @@ import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
 import { buildFirstPayrollReadiness } from "@/lib/first-payroll-readiness";
+import { assertOrganizationSessionPolicy } from "@/lib/organization-auth-policy";
 
 export async function getDashboardData(organizationId?: number) {
   await ensureCoreCompatibilitySchema();
@@ -72,6 +73,11 @@ export async function getDashboardData(organizationId?: number) {
 
   if (!selectedOrganization) {
     throw new Error("The requested workspace is not available to this account.");
+  }
+
+  const policyDenied = await assertOrganizationSessionPolicy(sessionUser.id, selectedOrganization.id);
+  if (policyDenied) {
+    throw new Error("This workspace requires single sign-on.");
   }
 
   const access = await getAccess(sessionUser.id, selectedOrganization.id);
