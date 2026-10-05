@@ -167,6 +167,21 @@ async function deriveMissingMemberAddition(organizationId: number, caseId: numbe
     throw new Error("Batch liability totals do not match existing member rows. Resolve the batch variance first.");
   }
 
+  const currentSnapshotHash = statutoryRemittanceSnapshotHash({
+    agency: issue.agency as StatutoryAgency,
+    applicableMonth: issue.applicableMonth,
+    members: existingMembers.map((member) => ({
+      employeeId: member.employeeId,
+      employeeNo: member.employeeNo,
+      employeeShare: Number(member.employeeShare),
+      employerShare: Number(member.employerShare),
+      totalContribution: Number(member.totalContribution),
+    })),
+  });
+  if (currentSnapshotHash !== batch.snapshotHash) {
+    throw new Error("Batch membership hash does not match its current member rows. Resolve the snapshot mismatch first.");
+  }
+
   const membersAfter = [
     ...existingMembers.map((member) => ({
       employeeId: member.employeeId,
