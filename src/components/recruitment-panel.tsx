@@ -263,9 +263,12 @@ export function RecruitmentPanel({
   const activeReq = requisitions.find((row) => row.id === selectedReqId) ?? requisitions[0];
   const reqApplicants = applicants.filter((row) => (activeReq ? row.requisitionId === activeReq.id : false));
   const totalHired = applicants.filter((row) => row.stage === "hired").length;
-  const activeMonthlyBudget =
-    activeReq?.annualPositionBudget && Number(activeReq.annualPositionBudget) > 0
-      ? Number(activeReq.annualPositionBudget) / 12
+  const hiringReq = hiringApplicant
+    ? requisitions.find((row) => row.id === hiringApplicant.requisitionId) ?? null
+    : null;
+  const hiringMonthlyBudget =
+    hiringReq?.annualPositionBudget && Number(hiringReq.annualPositionBudget) > 0
+      ? Number(hiringReq.annualPositionBudget) / 12
       : null;
 
   const stageCounts = useMemo(() => {
@@ -406,12 +409,12 @@ export function RecruitmentPanel({
             <button className="icon-button" onClick={() => setHiringApplicant(null)}><X size={16} /></button>
           </div>
 
-          {requisitions.find((row) => row.id === hiringApplicant.requisitionId)?.positionCode && (
+          {hiringReq?.positionCode && (
             <div className="notice notice-green" style={{ marginBottom: 14 }}>
               <UserCheck size={15} />
               <span>
-                Position <strong>{requisitions.find((row) => row.id === hiringApplicant.requisitionId)?.positionCode}</strong>
-                {activeMonthlyBudget ? <> · approved monthly-equivalent budget <strong>{peso(activeMonthlyBudget)}</strong></> : null}
+                Position <strong>{hiringReq?.positionCode}</strong>
+                {hiringMonthlyBudget ? <> · approved monthly-equivalent budget <strong>{peso(hiringMonthlyBudget)}</strong></> : null}
               </span>
             </div>
           )}
