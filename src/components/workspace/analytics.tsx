@@ -33,7 +33,10 @@ export function AnalyticsView({ data, notify, hcmEnabled = false }: { data: Dash
   const [error, setError] = useState("");
 
   const organizationId = data.selectedOrganization.id;
-  const companyWideReports = data.access?.companyWide !== false;
+  const legacyReportRole = data.access?.role ?? data.user?.role ?? "";
+  const companyWideReports =
+    data.access?.companyWide !== false
+    && ["owner", "admin", "bookkeeper", "hr", "payroll"].includes(legacyReportRole);
 
   const [nonce, setNonce] = useState(0);
 
