@@ -1,14 +1,15 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
   complianceActionTasks,
   employees,
   statutoryContributionIssueCases,
+  statutoryContributionIssueEvents,
   statutoryRemittanceMembers,
 } from "@/db/schema";
 import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
-import { notifyEmployeeOfContributionCase } from "@/lib/statutory-contribution-case-notifications";
+import { notifyEmployeeOfContributionCase, notifyEmployeeOfContributionCaseUpdate } from "@/lib/statutory-contribution-case-notifications";
 import { contributionCaseServiceStatus, contributionCaseServiceTargets } from "@/lib/statutory-contribution-case-aging";
 import { getSessionUser } from "@/lib/auth";
 import {
@@ -75,12 +76,28 @@ export async function GET(request: Request) {
     )
     .limit(100);
 
+  const caseIds = rows.map((row) => row.issue.id);
+  const events = caseIds.length
+    ? await db.select().from(statutoryContributionIssueEvents)
+        .where(and(
+          eq(statutoryContributionIssueEvents.organizationId, organizationId),
+          inArray(statutoryContributionIssueEvents.caseId, caseIds),
+        ))
+        .orderBy(desc(statutoryContributionIssueEvents.createdAt), desc(statutoryContributionIssueEvents.id))
+        .limit(500)
+    : [];
+  const eventsByCase = new Map<number, typeof events>();
+  for (const event of events) {
+    eventsByCase.set(event.caseId, [...(eventsByCase.get(event.caseId) ?? []), event]);
+  }
+
   return Response.json({
     cases: rows.map((row) => ({
       ...row.issue,
       employeeNo: row.employeeNo,
       employeeName: `${row.firstName} ${row.lastName}`,
       service: contributionCaseServiceStatus(row.issue),
+      events: eventsByCase.get(row.issue.id) ?? [],
     })),
   });
 }
@@ -133,35 +150,53 @@ export async function POST(request: Request) {
     }, { status: 409 });
   }
 
+  if (action === "start_review" && issue.status !== "open") {
+    return Response.json({ error: "This case review has already started." }, { status: 409 });
+  }
+
   if (action === "start_review") {
     const now = new Date();
-    const [updated] = await db.update(statutoryContributionIssueCases).set({
-      status: "in_review",
-      assignedToUserId: user.id,
-      assignedToName: user.name,
-      reviewStartedAt: issue.reviewStartedAt ?? now,
-      updatedAt: now,
-    }).where(and(
-      eq(statutoryContributionIssueCases.id, caseId),
-      eq(statutoryContributionIssueCases.organizationId, organizationId),
-    )).returning();
+    const updated = await db.transaction(async (tx) => {
+      const [next] = await tx.update(statutoryContributionIssueCases).set({
+        status: "in_review",
+        assignedToUserId: user.id,
+        assignedToName: user.name,
+        reviewStartedAt: issue.reviewStartedAt ?? now,
+        updatedAt: now,
+      }).where(and(
+        eq(statutoryContributionIssueCases.id, caseId),
+        eq(statutoryContributionIssueCases.organizationId, organizationId),
+      )).returning();
 
-    const serviceTargets = contributionCaseServiceTargets(updated);
+      const serviceTargets = contributionCaseServiceTargets(next);
+      await tx.update(complianceActionTasks).set({
+        status: "in_progress",
+        assignedToUserId: user.id,
+        assignedToName: user.name,
+        acknowledgedAt: now,
+        acknowledgedByUserId: user.id,
+        acknowledgedByName: user.name,
+        dueDate: serviceTargets.resolutionDue.toISOString().slice(0, 10),
+        updatedAt: now,
+      }).where(and(
+        eq(complianceActionTasks.organizationId, organizationId),
+        eq(complianceActionTasks.sourceType, "employee_contribution_issue"),
+        eq(complianceActionTasks.sourceKey, sourceKey),
+      ));
 
-    await db.update(complianceActionTasks).set({
-      status: "in_progress",
-      assignedToUserId: user.id,
-      assignedToName: user.name,
-      acknowledgedAt: now,
-      acknowledgedByUserId: user.id,
-      acknowledgedByName: user.name,
-      dueDate: serviceTargets.resolutionDue.toISOString().slice(0, 10),
-      updatedAt: now,
-    }).where(and(
-      eq(complianceActionTasks.organizationId, organizationId),
-      eq(complianceActionTasks.sourceType, "employee_contribution_issue"),
-      eq(complianceActionTasks.sourceKey, sourceKey),
-    ));
+      await tx.insert(statutoryContributionIssueEvents).values({
+        organizationId,
+        caseId,
+        employeeId: issue.employeeId,
+        eventType: "review_started",
+        visibility: "employee",
+        message: `Payroll review started by ${user.name}.`,
+        actorUserId: user.id,
+        actorName: user.name,
+      });
+
+      return next;
+    });
 
     await recordAuditEvent({
       organizationId,
@@ -186,6 +221,66 @@ export async function POST(request: Request) {
     }
 
     return Response.json({ case: updated });
+  }
+
+  if (action === "add_update") {
+    if (issue.status !== "in_review") {
+      return Response.json({ error: "Start review before posting an employee-visible case update." }, { status: 409 });
+    }
+
+    const message = String(body.message ?? "").trim().replace(/\s+/g, " ").slice(0, 1000);
+    if (message.length < 20) {
+      return Response.json({ error: "A case update of at least 20 characters is required." }, { status: 400 });
+    }
+
+    const now = new Date();
+    const result = await db.transaction(async (tx) => {
+      const [updated] = await tx.update(statutoryContributionIssueCases).set({
+        updatedAt: now,
+      }).where(and(
+        eq(statutoryContributionIssueCases.id, caseId),
+        eq(statutoryContributionIssueCases.organizationId, organizationId),
+      )).returning();
+
+      const [event] = await tx.insert(statutoryContributionIssueEvents).values({
+        organizationId,
+        caseId,
+        employeeId: issue.employeeId,
+        eventType: "payroll_update",
+        visibility: "employee",
+        message,
+        actorUserId: user.id,
+        actorName: user.name,
+      }).returning();
+
+      return { updated, event };
+    });
+
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "Employee contribution issue update posted",
+      resource: `${issue.agency} · ${issue.applicableMonth} · case #${issue.id}`,
+      metadata: {
+        caseId: issue.id,
+        employeeId: issue.employeeId,
+        caseEventId: result.event.id,
+        message,
+      },
+    });
+
+    try {
+      await notifyEmployeeOfContributionCaseUpdate({
+        issue: result.updated,
+        eventId: result.event.id,
+        message,
+        actor: user.name,
+      });
+    } catch {
+      // The append-only case event remains authoritative if notification delivery is unavailable.
+    }
+
+    return Response.json({ case: result.updated, event: result.event });
   }
 
   if (action === "resolve") {
@@ -248,6 +343,17 @@ export async function POST(request: Request) {
         eq(complianceActionTasks.sourceKey, sourceKey),
       ));
 
+      await tx.insert(statutoryContributionIssueEvents).values({
+        organizationId,
+        caseId,
+        employeeId: issue.employeeId,
+        eventType: "resolved",
+        visibility: "employee",
+        message: `Resolved as ${resolutionOutcome.replaceAll("_", " ")}. ${resolutionNote}`,
+        actorUserId: user.id,
+        actorName: user.name,
+      });
+
       return updated;
     });
 
@@ -279,6 +385,6 @@ export async function POST(request: Request) {
   }
 
   return Response.json({
-    error: "Unsupported action. Use start_review or resolve.",
+    error: "Unsupported action. Use start_review, add_update or resolve.",
   }, { status: 400 });
 }
