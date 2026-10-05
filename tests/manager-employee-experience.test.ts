@@ -12,6 +12,7 @@ const managerRoute = readFileSync("src/app/api/experience/route.ts", "utf8");
 const selfRoute = readFileSync("src/app/api/self/experience/route.ts", "utf8");
 const engagementRoute = readFileSync("src/app/api/engagement/route.ts", "utf8");
 const engagementResponse = readFileSync("src/app/api/engagement/respond/route.ts", "utf8");
+const access = readFileSync("src/lib/access.ts", "utf8");
 const performanceRoute = readFileSync("src/app/api/performance/route.ts", "utf8");
 const performancePanel = readFileSync("src/components/performance-panel.tsx", "utf8");
 const managerPanel = readFileSync("src/components/manager-experience-panel.tsx", "utf8");
@@ -54,7 +55,9 @@ test("experience input guards bound progress and review scores", () => {
 });
 
 test("manager experience API excludes bookkeepers and enforces assigned-manager one-on-one ownership", () => {
-  assert.ok(managerRoute.includes('EXPERIENCE_ROLES = new Set(["owner", "admin", "hr", "manager"])'));
+  assert.ok(managerRoute.includes("TALENT_MANAGER_ROLES"));
+  assert.ok(access.includes('export const TALENT_MANAGER_ROLES = ["owner", "admin", "hr", "manager"] as const'));
+  assert.ok(access.includes('if (allowedRoles === TALENT_MANAGER_ROLES) return "workforce.manage"'));
   assert.ok(managerRoute.includes("Only the assigned manager can update or complete this one-on-one."));
   assert.ok(managerRoute.includes("Only the assigned manager can add one-on-one action items."));
   assert.ok(managerRoute.includes("Only the assigned manager can update one-on-one action items."));
@@ -79,7 +82,7 @@ test("goal cascading links governed employee goals to strategic objectives", () 
 });
 
 test("formal performance excludes bookkeepers and protects assigned reviewer ownership", () => {
-  assert.ok(performanceRoute.includes('const PERFORMANCE_ROLES = ["owner", "admin", "hr", "manager"] as const'));
+  assert.ok(performanceRoute.includes("const PERFORMANCE_ROLES = TALENT_MANAGER_ROLES"));
   assert.ok(performanceRoute.includes("Only the assigned reviewer can complete this performance review."));
   assert.ok(performanceRoute.includes("A manager score and evidence-based summary are required to complete a review."));
   assert.ok(performanceRoute.includes("Completed performance reviews are immutable."));
