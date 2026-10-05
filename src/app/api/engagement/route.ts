@@ -319,6 +319,9 @@ export async function POST(request: Request) {
     }
     const scoped = await surveyForScope(user.id, organizationId, surveyId);
     if ("error" in scoped) return scoped.error;
+    if (!scoped.access.companyWide && scoped.survey.audienceOrgUnitId !== scoped.access.orgUnitId) {
+      return Response.json({ error: "Unit-scoped managers cannot edit a company-wide survey." }, { status: 403 });
+    }
     if (scoped.survey.status !== "draft") {
       return Response.json({ error: "Questions can only be changed while a survey is in draft." }, { status: 409 });
     }
@@ -465,6 +468,9 @@ export async function PATCH(request: Request) {
     const scoped = await surveyForScope(user.id, organizationId, surveyId);
     if ("error" in scoped) return scoped.error;
     const { access, survey } = scoped;
+    if (!access.companyWide && survey.audienceOrgUnitId !== access.orgUnitId) {
+      return Response.json({ error: "Unit-scoped managers cannot administer a company-wide survey." }, { status: 403 });
+    }
 
     if (action === "close_survey") {
       if (survey.status !== "open") return Response.json({ error: "Only an open survey can be closed." }, { status: 409 });
