@@ -30,6 +30,14 @@ test("pricing is read from the database, never hardcoded in the homepage UI", ()
   assert.ok(!/₱\s?1,499|₱\s?4,499|₱\s?12,999/.test(page), "prices must not be hardcoded in the page");
 });
 
+test("obsolete standalone marketing prototypes stay removed", () => {
+  assert.ok(!existsSync("landing/sahod-landing.html"), "legacy Sahod HTML landing page must not return");
+  assert.ok(!existsSync("landing-v2/linaw-landing.html"), "legacy Linaw v2 HTML landing page must not return");
+  assert.ok(!existsSync("src/components/marketing/software-home.module.css"), "abandoned software-home CSS module must stay removed");
+  assert.ok(!existsSync("src/components/marketing/demo-role-picker.module.css"), "abandoned demo-role CSS module must stay removed");
+});
+
+
 test("the software homepage uses the real Linaw workspace preview", () => {
   const home = read("src/components/marketing/claude-home/App.tsx");
   const demo = read("src/components/marketing/claude-home/components/Demo.tsx");
