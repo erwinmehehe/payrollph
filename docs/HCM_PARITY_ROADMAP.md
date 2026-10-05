@@ -231,16 +231,39 @@ Remaining:
 - Security event dashboards and anomaly detection
 - Break-glass recovery identities and formal access-review campaigns
 
-## Tranche 9 — Analytics and AI layer
+## Tranche 9 — Advanced HCM analytics
 
-Only after clean data models:
-- Workforce KPIs and trend dashboards
-- Attrition, hiring funnel and time-to-fill
-- Performance distribution and goal attainment
-- Span of control, manager load and position vacancy
-- Labor-cost forecast vs actual
-- Natural-language reporting with strict tenant/RBAC enforcement
-- Explainable payroll/compliance assistant using existing payroll trace data
+Foundation implemented on `feat/hcm-advanced-analytics`.
+
+Built:
+- Connected executive HCM metrics across headcount, recruiting, positions, performance, compensation, mobility, payroll cost and engagement
+- Reconstructed 12-month headcount trend from employee start dates and released separation records
+- YTD hires, released separations, net growth and turnover using average opening/current reconstructed headcount
+- Recruiting funnel and average/median time-to-fill from requisition creation to recorded hire timestamp
+- Position-status mix, open vacancy rate and manager span-of-control distribution
+- Completed performance score distribution and cycle trends with minimum cohort suppression
+- Salary-band coverage, average compa-ratio and below/in/above-band aggregates with independent small-bucket suppression
+- Evidence-based internal mobility readiness reused from the Learning & Career calculation; 80%+ readiness still requires no critical skill gaps
+- Verified-skill coverage and privacy-safe target-role readiness counts
+- Released payroll actuals with employer statutory cost read from immutable payroll trace
+- Annualized loaded payroll forecast plus current employer-benefit run rate
+- Position salary-budget comparison and active workforce-plan context
+- Privacy-safe engagement trend using the survey-specific anonymity threshold; no raw anonymous comments
+- Org-unit scoped analytics for managers/HR while legacy payroll CSV reports remain company-wide
+- Bookkeeper access deliberately excluded from talent/listening analytics
+- Shared calculation primitives and regression coverage for privacy, cost trace and career-readiness consistency
+
+Remaining:
+- Effective-dated org-unit snapshots on payroll entries so historical unit cost survives employee transfers
+- Goal-attainment trend and calibration analytics
+- Recruiting source/referral attribution and stage-duration analytics
+- Fully versioned workforce scenarios and forecast-vs-actual headcount
+- Pay-equity analytics once protected demographic dimensions and legal/privacy policy are explicitly defined
+- Scheduled analytics snapshots for longitudinal benchmarking at very large scale
+- Natural-language HCM reporting only after the aggregate metric layer is stable and permission-aware
+- Predictive attrition or other ML only with documented model governance, explainability and human review
+
+Guardrail: analytics do not manufacture missing history. Where Linaw lacks a historical snapshot (for example org-unit ownership on old payroll entries), the UI states the limitation rather than presenting an inferred fact as authoritative.
 
 ## Priority order
 
@@ -252,6 +275,6 @@ Only after clean data models:
 6. Learning/skills/career — implemented foundation
 7. SSO/OIDC + SCIM — implemented foundation
 8. Engagement/surveys — implemented foundation
-9. Broader analytics/AI
+9. Advanced HCM analytics — implemented foundation
 
 This order creates a connected HCM data model instead of accumulating isolated modules.
