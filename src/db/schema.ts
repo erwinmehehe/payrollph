@@ -1021,6 +1021,7 @@ export const marketingLeads = pgTable(
     entities: varchar("entities", { length: 40 }),
     notes: text("notes"),
     sourcePath: varchar("source_path", { length: 120 }).notNull(),
+    attribution: jsonb("attribution").notNull().default({}),
     status: varchar("status", { length: 24 }).notNull().default("new"),
     notificationStatus: varchar("notification_status", { length: 24 }).notNull().default("not-configured"),
     notificationProvider: varchar("notification_provider", { length: 40 }),
