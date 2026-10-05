@@ -29,6 +29,22 @@ test("homepage and authority routes keep distinct search intent ownership", () =
   assert.ok(hris.includes("HRIS Philippines"), "/hris must own HRIS Philippines intent");
 });
 
+test("small-business payroll has a dedicated commercial owner page", () => {
+  const page = read("src/app/small-business-payroll/page.tsx");
+  const intents = read("src/lib/seo-intent-ownership.ts");
+  const sitemap = read("src/lib/sitemap-data.ts");
+  const nav = read("src/components/marketing/public-navigation.ts");
+
+  assert.ok(page.includes('title: "Small Business Payroll Software Philippines | Linaw"'));
+  assert.ok(page.includes('alternates: { canonical: "/small-business-payroll" }'));
+  assert.ok(page.includes('service={{'));
+  assert.ok(page.includes('faq={faq}'));
+  assert.ok(intents.includes('primaryIntent: "small business payroll software philippines"'));
+  assert.ok(intents.includes('ownerPath: "/small-business-payroll"'));
+  assert.ok(sitemap.includes('path: "/small-business-payroll"'));
+  assert.ok(nav.includes('href: "/small-business-payroll"'));
+});
+
 test("money and authority pages have dedicated indexable routes", () => {
   const pages = [
     ["src/app/hris/page.tsx", "HRIS Philippines"],
