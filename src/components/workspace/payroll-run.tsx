@@ -24,6 +24,7 @@ import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
 import { readLineItems, readTrace, type BankTemplate, type DashboardData, type Notify, type PayrollEntry, type PayrollLineItem, type PayrollReleaseReceipt, type PayrollRun, type Task } from "./types";
 import { PayrollAssurancePanel } from "./payroll-assurance-panel";
 import { PayrollOfficerWorkspace } from "./payroll-officer-workspace";
+import { StatutoryRemittancePanel } from "./statutory-remittance-panel";
 import { OwnerPayrollRelease } from "./owner-payroll-release";
 import { ExplainPayDrawer } from "./explain-pay-drawer";
 import {
@@ -438,6 +439,14 @@ export function PayrollRunView({
             setOnlyExceptions(true);
             document.getElementById("payroll-register")?.scrollIntoView({ behavior: "smooth", block: "start" });
           }}
+        />
+      )}
+
+      {["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "") && (
+        <StatutoryRemittancePanel
+          organizationId={data.selectedOrganization.id}
+          defaultMonth={String(run.periodEnd).slice(0, 7)}
+          notify={notify}
         />
       )}
 
