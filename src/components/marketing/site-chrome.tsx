@@ -149,7 +149,7 @@ export function SiteFooter() {
         </div>
 
         <div className="mt-12 flex flex-col gap-2 border-t border-[#E2E4F0] pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-[13px] font-medium text-[#5B6080]">Linaw · Philippine HR and payroll workspace.</p>
+          <p className="text-[13px] font-medium text-[#5B6080]">Linaw · Philippine payroll software.</p>
           <p className="text-[12.5px] text-[#8B90AA]">Government worksheet output is labelled DRAFT until validated.</p>
         </div>
       </div>
