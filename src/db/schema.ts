@@ -1335,6 +1335,7 @@ export const complianceActionTasks = pgTable(
     agency: varchar("agency", { length: 24 }),
     applicableMonth: varchar("applicable_month", { length: 7 }),
     severity: varchar("severity", { length: 16 }).notNull(),
+    escalationEpisode: integer("escalation_episode").notNull().default(1),
     title: varchar("title", { length: 180 }).notNull(),
     detail: varchar("detail", { length: 360 }).notNull(),
     dueDate: date("due_date"),
