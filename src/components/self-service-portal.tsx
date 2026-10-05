@@ -72,6 +72,13 @@ type ContributionIssueCase = {
   resolvedByName: string | null;
   resolvedAt: string | null;
   createdAt: string;
+  events: Array<{
+    id: number;
+    eventType: string;
+    message: string;
+    actorName: string;
+    createdAt: string;
+  }>;
   service: {
     state: "resolved" | "on_track" | "review_due_today" | "review_overdue" | "resolution_due_today" | "resolution_overdue";
     overdue: boolean;
@@ -168,6 +175,16 @@ const payDateLabel = (value: string) =>
 
 const dateLabel = (value: string) =>
   new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric" }).format(new Date(value + "T00:00:00+08:00"));
+
+const dateTimeLabel = (value: string) =>
+  new Intl.DateTimeFormat("en-PH", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Asia/Manila",
+  }).format(new Date(value));
 
 const timeLabel = (value: string | null) =>
   value
@@ -747,6 +764,20 @@ export function SelfServicePortal() {
                   )}
                   {issue.resolutionOutcome && <div><span>Outcome</span><strong>{issue.resolutionOutcome.replaceAll("_", " ")}</strong></div>}
                   {issue.resolutionNote && <div><span>Payroll response</span><strong>{issue.resolutionNote}</strong></div>}
+                  {issue.events.length > 0 && (
+                    <div style={{ gridColumn: "1 / -1", display: "grid", gap: 6 }}>
+                      <span>Case timeline</span>
+                      {issue.events.slice(0, 5).reverse().map((event) => (
+                        <div key={event.id} className="employee-rule-note">
+                          <History size={12} />
+                          <span>
+                            <strong>{event.actorName}</strong> · {dateTimeLabel(event.createdAt)}<br />
+                            {event.message}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
