@@ -22,6 +22,24 @@ export const metadata: Metadata = {
   alternates: { canonical: "/payroll-outsourcing" },
 };
 
+
+const outsourcingSchema = {
+  "@context": "https://schema.org",
+  "@type": "Service",
+  name: "Linaw Payroll Outsourcing",
+  serviceType: "Payroll outsourcing and managed payroll processing",
+  description:
+    "Managed payroll processing for Philippine businesses with payroll calculation, validation, exception handling, approval handoff, payslips, reports and supported payroll outputs.",
+  provider: {
+    "@type": "Organization",
+    name: "Linaw",
+  },
+  areaServed: {
+    "@type": "Country",
+    name: "Philippines",
+  },
+};
+
 const PROCESS = [
   {
     title: "Send approved payroll inputs",
@@ -75,6 +93,10 @@ const SCOPE = [
 export default function PayrollOutsourcingPage() {
   return (
     <div className="min-h-screen bg-white text-[#0B0D1A]">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(outsourcingSchema).replace(/</g, "\\u003c") }}
+      />
       <SiteNav />
 
       <main>
