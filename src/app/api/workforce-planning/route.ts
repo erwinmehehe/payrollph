@@ -1,5 +1,5 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employees,
@@ -298,10 +298,6 @@ export async function POST(request: Request) {
     const employeeScope = assertScope(access, employee.orgUnitId);
     if (!employeeScope.ok) return Response.json({ error: employeeScope.error }, { status: employeeScope.status });
 
-    const [openAssignment] = await db.select({ id: positionAssignments.id }).from(positionAssignments)
-      .where(and(eq(positionAssignments.positionId, positionId), isNull(positionAssignments.effectiveUntil))).limit(1);
-    if (openAssignment) return Response.json({ error: "This position already has an active assignment." }, { status: 409 });
-
     const requisitions = await db.select({ id: jobRequisitions.id, status: jobRequisitions.status })
       .from(jobRequisitions)
       .where(and(
@@ -311,7 +307,17 @@ export async function POST(request: Request) {
       .orderBy(desc(jobRequisitions.id));
     const activeRequisition = requisitions.find((row) => !["filled", "cancelled"].includes(row.status));
 
-    const [row] = await db.transaction(async (tx) => {
+    const row = await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(4102, ${positionId})`);
+      const [openAssignment] = await tx.select({ id: positionAssignments.id })
+        .from(positionAssignments)
+        .where(and(
+          eq(positionAssignments.positionId, positionId),
+          isNull(positionAssignments.effectiveUntil),
+        ))
+        .limit(1);
+      if (openAssignment) return null;
+
       const [assignment] = await tx.insert(positionAssignments).values({
         organizationId,
         positionId,
@@ -330,8 +336,11 @@ export async function POST(request: Request) {
           .set({ status: "filled" })
           .where(eq(jobRequisitions.id, activeRequisition.id));
       }
-      return [assignment];
+      return assignment;
     });
+    if (!row) {
+      return Response.json({ error: "This position already has an active assignment." }, { status: 409 });
+    }
 
     await recordAuditEvent({
       organizationId,
