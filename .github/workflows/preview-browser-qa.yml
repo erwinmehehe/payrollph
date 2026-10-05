@@ -345,6 +345,7 @@ jobs:
               { path: "/resources", heading: "Practical guidance for buying, migrating and operating Philippine payroll." },
               { path: "/industries", heading: "Payroll workflows shaped by how your workforce actually operates." },
               { path: "/calculators", heading: "Start with the payroll question you need to estimate." },
+              { path: "/compliance", heading: "Compliance support with evidence, validation states and fewer hidden assumptions." },
               { path: "/industries/construction", heading: "Payroll and timekeeping for Philippine construction teams." },
               { path: "/industries/logistics", heading: "Payroll and timekeeping for Philippine logistics teams." },
               { path: "/book-demo", heading: "Bring your actual payroll questions." },
