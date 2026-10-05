@@ -13,7 +13,8 @@ const schema = readFileSync("src/db/schema.ts", "utf8");
 
 test("employee contribution reports are scoped to the signed-in employee", () => {
   assert.ok(selfRoute.includes("if (!user.employeeId)"));
-  assert.ok(selfRoute.includes("assertMembership(user.id, organizationId)"));
+  assert.ok(selfRoute.includes("assertMembership(userId, organizationId)"));
+  assert.ok(selfRoute.includes("employeeForSession(user.id, user.employeeId, organizationId)"));
   assert.ok(selfRoute.includes("eq(statutoryContributionDisputes.employeeId, user.employeeId)"));
   assert.ok(selfRoute.includes("eq(employees.id, employeeId)"));
 });
