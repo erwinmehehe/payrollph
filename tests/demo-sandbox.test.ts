@@ -541,7 +541,7 @@ test("workspace dashboard matches the PayrollPH mockup using modular real-data c
   assert.ok(shell.includes("nav-more-toggle"), "secondary features must be grouped under More instead of deleted");
   assert.deepEqual(ROLE_PRIMARY_PAGES.owner, ["Overview", "Payroll", "Analytics", "People", "Settings"]);
   assert.deepEqual(ROLE_PRIMARY_PAGES.hr, ["Overview", "People"]);
-  for (const page of ["Planning", "Workforce", "Time & attendance", "Leave", "Recruitment", "Performance"]) {
+  for (const page of ["Planning", "Compensation", "Workforce", "Time & attendance", "Leave", "Recruitment", "Performance"]) {
     assert.ok(REAL_ROLE_PAGE_ACCESS.hr?.includes(page), `HR secondary page ${page} must remain accessible under More`);
   }
   assert.deepEqual(ROLE_PRIMARY_PAGES.payroll, ["Overview", "Payroll", "Time & attendance", "People"]);
