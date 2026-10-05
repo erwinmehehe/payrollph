@@ -1379,6 +1379,7 @@ export const performanceReviews = pgTable(
     managerScore: numeric("manager_score", { precision: 4, scale: 2 }),
     finalScore: numeric("final_score", { precision: 4, scale: 2 }),
     employeeReflection: text("employee_reflection"),
+    selfSubmittedAt: timestamp("self_submitted_at", { withTimezone: true }),
     managerSummary: text("manager_summary"),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
