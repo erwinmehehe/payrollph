@@ -60,14 +60,14 @@ export function SetupWizard({ needsSetup }: { needsSetup: boolean }) {
         <>
           <p className="eyebrow">FIRST-RUN SETUP</p>
           <h1 style={{ fontSize: 27, letterSpacing: "-.045em", margin: "4px 0 8px" }}>Create your workspace owner</h1>
-          <p className="heading-copy">No accounts are pre-seeded. The first person to set up this instance becomes its owner.</p>
+          <p className="heading-copy">Create the organization and its first owner account. Additional people join later through role-based invitations.</p>
 
           <article className="card" style={{ marginTop: 20 }}>
             <div className="setting-form" style={{ gridTemplateColumns: "1fr", display: "grid" }}>
               <label>Company name<input value={companyName} onChange={(event) => setCompanyName(event.target.value)} placeholder="Loom & Local" /></label>
               <label>Your name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Celine Yao" /></label>
               <label>Work email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.ph" /></label>
-              <label>Master password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+              <label>Owner password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
             </div>
             <div style={{ padding: "0 17px 12px", display: "flex", gap: 12, flexWrap: "wrap" }}>
               {rules.map((rule) => (
@@ -85,7 +85,7 @@ export function SetupWizard({ needsSetup }: { needsSetup: boolean }) {
 
           <div className="notice notice-blue" style={{ margin: "16px 0 0" }}>
             <ShieldCheck size={17} className="i-green" />
-            <span><strong>After setup:</strong> enable TOTP in Settings → Security, then invite your team. Password resets need an email provider (RESEND_API_KEY or POSTMARK_SERVER_TOKEN) to send mail.</span>
+            <span><strong>After setup:</strong> enable TOTP in Settings → Security, then invite your team. Configure transactional email before relying on invitations or password recovery for a live team.</span>
           </div>
         </>
       )}
