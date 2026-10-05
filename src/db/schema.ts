@@ -585,6 +585,49 @@ export const bankFileValidations = pgTable(
   ],
 );
 
+export const statutoryRemittanceObligations = pgTable(
+  "statutory_remittance_obligations",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    agency: varchar("agency", { length: 16 }).notNull(),
+    applicableMonth: varchar("applicable_month", { length: 7 }).notNull(),
+    dueDate: date("due_date"),
+    dueRule: varchar("due_rule", { length: 240 }).notNull(),
+    expectedEmployeeAmount: numeric("expected_employee_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+    expectedEmployerAmount: numeric("expected_employer_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+    expectedTotalAmount: numeric("expected_total_amount", { precision: 14, scale: 2 }).notNull().default("0"),
+    employeeCount: integer("employee_count").notNull().default(0),
+    sourcePayrollRunIds: jsonb("source_payroll_run_ids").notNull().default([]),
+    status: varchar("status", { length: 24 }).notNull().default("pending"),
+    paymentReference: varchar("payment_reference", { length: 120 }),
+    paidAmount: numeric("paid_amount", { precision: 14, scale: 2 }),
+    remittedAt: timestamp("remitted_at", { withTimezone: true }),
+    postingReference: varchar("posting_reference", { length: 120 }),
+    postingConfirmedAt: timestamp("posting_confirmed_at", { withTimezone: true }),
+    evidenceNote: text("evidence_note"),
+    recordedBy: varchar("recorded_by", { length: 120 }),
+    recordedByUserId: integer("recorded_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    confirmedBy: varchar("confirmed_by", { length: 120 }),
+    confirmedByUserId: integer("confirmed_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("statutory_remittance_org_agency_month_unique").on(
+      table.organizationId,
+      table.agency,
+      table.applicableMonth,
+    ),
+    index("statutory_remittance_due_status_idx").on(
+      table.organizationId,
+      table.dueDate,
+      table.status,
+    ),
+  ],
+);
+
 export const approvalTasks = pgTable("approval_tasks", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
