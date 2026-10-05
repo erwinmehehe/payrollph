@@ -10,6 +10,7 @@ import {
   schedulePatternSegments,
   schedulePatterns,
   shiftDefinitions,
+  workforceScheduleGuardrailPolicies,
   worksites,
 } from "@/db/schema";
 import {
@@ -30,6 +31,13 @@ import {
   validateSchedulePattern,
   type WorkforceScheduleOverrideSegment,
 } from "@/lib/workforce-scheduling";
+import {
+  DEFAULT_SCHEDULE_GUARDRAIL_POLICY,
+  evaluateScheduleGuardrails,
+  scheduleGuardrailBlocksMutation,
+  type ScheduleGuardrailPolicy,
+} from "@/lib/workforce-schedule-guardrails";
+import { resolveEmployeeScheduleWindow } from "@/lib/workforce-schedule-window";
 import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +63,26 @@ function inclusiveDates(startDate: string, endDate: string) {
     dates.push(cursor.toISOString().slice(0, 10));
   }
   return dates;
+}
+
+function addDays(dateText: string, days: number) {
+  const date = new Date(`${dateText}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+async function scheduleGuardrailPolicy(organizationId: number): Promise<ScheduleGuardrailPolicy> {
+  const [row] = await db.select().from(workforceScheduleGuardrailPolicies)
+    .where(eq(workforceScheduleGuardrailPolicies.organizationId, organizationId))
+    .limit(1);
+  if (!row) return DEFAULT_SCHEDULE_GUARDRAIL_POLICY;
+  return {
+    minimumRestMinutes: row.minimumRestMinutes,
+    maxConsecutiveWorkingDays: row.maxConsecutiveWorkingDays,
+    rollingSevenDayMinutes: row.rollingSevenDayMinutes,
+    enforcementMode: row.enforcementMode === "block" ? "block" : "advisory",
+    active: row.active,
+  };
 }
 
 async function scopedEmployee(userId: number, organizationId: number, employeeId: number) {
@@ -244,6 +272,20 @@ export async function GET(request: Request) {
       defaultWorksiteId:
         selectEffectiveWorksiteAssignment(defaultWorksites, previewDate)?.worksiteId ?? null,
     }));
+    const guardrailPolicy = await scheduleGuardrailPolicy(organizationId);
+    const guardrailEvaluationDays = await resolveEmployeeScheduleWindow({
+      organizationId,
+      employeeId,
+      startDate: addDays(previewDates[0], -7),
+      endDate: previewDates[previewDates.length - 1],
+    });
+    const guardrailIssues = evaluateScheduleGuardrails({
+      days: guardrailEvaluationDays,
+      policy: guardrailPolicy,
+    }).filter((issue) =>
+      issue.date >= previewDates[0]
+      && issue.date <= previewDates[previewDates.length - 1],
+    );
 
     return Response.json({
       employee: {
@@ -253,6 +295,8 @@ export async function GET(request: Request) {
       },
       resolved: resolvedDays.length === 1 ? resolvedDays[0] : null,
       resolvedDays,
+      guardrailPolicy,
+      guardrailIssues,
     });
   }
 
@@ -611,6 +655,41 @@ export async function POST(request: Request) {
       }
     }
 
+    const guardrailPolicy = await scheduleGuardrailPolicy(organizationId);
+    let guardrailIssues;
+    try {
+      const prospectiveDays = await resolveEmployeeScheduleWindow({
+        organizationId,
+        employeeId,
+        startDate: addDays(effectiveFrom, -7),
+        endDate: addDays(effectiveFrom, 13),
+        prospectiveAssignment: {
+          id: Number.MAX_SAFE_INTEGER,
+          patternId,
+          effectiveFrom,
+          effectiveUntil,
+          anchorDate,
+          workLocationOrgUnitId,
+          worksiteId,
+        },
+      });
+      guardrailIssues = evaluateScheduleGuardrails({
+        days: prospectiveDays,
+        policy: guardrailPolicy,
+      });
+    } catch (error) {
+      return Response.json({
+        error: error instanceof Error ? error.message : "Could not validate the prospective schedule.",
+      }, { status: 409 });
+    }
+
+    if (scheduleGuardrailBlocksMutation(guardrailIssues)) {
+      return Response.json({
+        error: "WFM schedule guardrails blocked this roster assignment.",
+        guardrailIssues,
+      }, { status: 409 });
+    }
+
     const [created] = await db.insert(employeeScheduleAssignments).values({
       organizationId,
       employeeId,
@@ -641,7 +720,11 @@ export async function POST(request: Request) {
       },
     });
 
-    return Response.json({ assignment: created }, { status: 201 });
+    return Response.json({
+      assignment: created,
+      guardrailIssues,
+      guardrailPolicy,
+    }, { status: 201 });
   }
 
   if (action === "create_override") {
@@ -724,6 +807,43 @@ export async function POST(request: Request) {
       }
     }
 
+    const guardrailPolicy = await scheduleGuardrailPolicy(organizationId);
+    let guardrailIssues;
+    try {
+      const prospectiveDays = await resolveEmployeeScheduleWindow({
+        organizationId,
+        employeeId,
+        startDate: addDays(workDate, -7),
+        endDate: addDays(workDate, 7),
+        prospectiveOverride: {
+          id: Number.MAX_SAFE_INTEGER,
+          workDate,
+          kind: kind as "shift" | "split_shift" | "rest_day" | "off" | "location",
+          isRestDay,
+          segments,
+          workLocationOrgUnitId,
+          worksiteId,
+          status: "approved",
+          reason,
+        },
+      });
+      guardrailIssues = evaluateScheduleGuardrails({
+        days: prospectiveDays,
+        policy: guardrailPolicy,
+      });
+    } catch (error) {
+      return Response.json({
+        error: error instanceof Error ? error.message : "Could not validate the prospective override.",
+      }, { status: 409 });
+    }
+
+    if (scheduleGuardrailBlocksMutation(guardrailIssues)) {
+      return Response.json({
+        error: "WFM schedule guardrails blocked this roster override.",
+        guardrailIssues,
+      }, { status: 409 });
+    }
+
     try {
       const [created] = await db.insert(scheduleOverrides).values({
         organizationId,
@@ -759,7 +879,11 @@ export async function POST(request: Request) {
         },
       });
 
-      return Response.json({ override: created }, { status: 201 });
+      return Response.json({
+        override: created,
+        guardrailIssues,
+        guardrailPolicy,
+      }, { status: 201 });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Schedule override could not be created.";
       return Response.json({ error: message }, { status: 409 });

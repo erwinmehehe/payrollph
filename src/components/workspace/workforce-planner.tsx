@@ -13,10 +13,15 @@ import {
   UserRound,
 } from "lucide-react";
 import type { ResolvedDailySchedule } from "@/lib/workforce-scheduling";
+import type {
+  ScheduleGuardrailIssue,
+  ScheduleGuardrailPolicy,
+} from "@/lib/workforce-schedule-guardrails";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, Metric, PageHeading, Spinner, Status } from "./ui";
 import { WorkforceOvertimePanel } from "./workforce-overtime-panel";
 import { WorkforceScheduleSwapPanel } from "./workforce-schedule-swap-panel";
+import { WorkforceScheduleGuardrailsPanel } from "./workforce-schedule-guardrails-panel";
 import { WorkforceWorksitesPanel } from "./workforce-worksites-panel";
 
 type ShiftRow = {
@@ -107,6 +112,8 @@ type Preview = {
   employee: { id: number; employeeNo: string; name: string };
   resolved: ResolvedDailySchedule | null;
   resolvedDays: ResolvedDailySchedule[];
+  guardrailPolicy: ScheduleGuardrailPolicy;
+  guardrailIssues: ScheduleGuardrailIssue[];
 };
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -363,6 +370,13 @@ export function WorkforcePlanner({
         }
       />
 
+      <WorkforceScheduleGuardrailsPanel
+        data={data}
+        notify={notify}
+        canManage={canManage}
+        onSaved={() => void loadPreview()}
+      />
+
       <section className="stats-grid">
         <Metric
           label="Shift definitions"
@@ -413,6 +427,26 @@ export function WorkforcePlanner({
           </div>
           {loadingPreview ? <Spinner label="Resolving roster" /> : <Status value="Live preview" />}
         </div>
+
+        {(preview?.guardrailIssues.length ?? 0) > 0 && (
+          <div style={{ display: "grid", gap: 8, padding: "0 18px 18px" }}>
+            {(preview?.guardrailIssues ?? []).slice(0, 8).map((issue, index) => (
+              <div
+                className={issue.blocking ? "notice notice-red" : "notice notice-amber"}
+                style={{ margin: 0 }}
+                key={`${issue.code}-${issue.date}-${issue.relatedDate ?? ""}-${index}`}
+              >
+                <ShieldCheck size={15} />
+                <span>
+                  <strong>{issue.title}</strong> · {issue.date}{issue.relatedDate ? ` / ${issue.relatedDate}` : ""} · {issue.detail}
+                </span>
+              </div>
+            ))}
+            {(preview?.guardrailIssues.length ?? 0) > 8 && (
+              <div className="id">+{(preview?.guardrailIssues.length ?? 0) - 8} more guardrail issue(s) in this window</div>
+            )}
+          </div>
+        )}
 
         <div className="setting-form" style={{ paddingTop: 0 }}>
           <label>

@@ -270,6 +270,25 @@ export const shiftDefinitions = pgTable(
   ],
 );
 
+export const workforceScheduleGuardrailPolicies = pgTable(
+  "workforce_schedule_guardrail_policies",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().unique().references(() => organizations.id, { onDelete: "cascade" }),
+    minimumRestMinutes: integer("minimum_rest_minutes").notNull().default(0),
+    maxConsecutiveWorkingDays: integer("max_consecutive_working_days").notNull().default(0),
+    rollingSevenDayMinutes: integer("rolling_seven_day_minutes").notNull().default(0),
+    enforcementMode: varchar("enforcement_mode", { length: 24 }).notNull().default("advisory"),
+    active: boolean("active").notNull().default(true),
+    updatedBy: varchar("updated_by", { length: 120 }).notNull().default("System"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("workforce_schedule_guardrail_policy_org_idx").on(table.organizationId),
+  ],
+);
+
 export const schedulePatterns = pgTable(
   "schedule_patterns",
   {
