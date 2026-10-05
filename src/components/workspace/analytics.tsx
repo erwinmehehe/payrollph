@@ -100,11 +100,11 @@ export function AnalyticsView({ data, notify, hcmEnabled = false }: { data: Dash
         eyebrow="Analytics"
         title="Workforce, talent, and payroll analytics."
         copy="Connected HCM metrics sit above the existing auditable payroll reports. Sensitive talent and compensation distributions stay suppressed until privacy thresholds are met."
-        actions={
+        actions={companyWideReports ? (
           <button className="secondary-button" onClick={reload} disabled={state === "loading"}>
             <RefreshCw size={15} className="i-blue" /> Refresh
           </button>
-        }
+        ) : undefined}
       />
 
       {hcmEnabled && <HcmAnalyticsPanel organizationId={organizationId} />}
