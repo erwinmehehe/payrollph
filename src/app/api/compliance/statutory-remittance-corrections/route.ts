@@ -631,6 +631,7 @@ export async function POST(request: Request) {
 
     const now = new Date();
     let resource = `Correction #${correction.id}`;
+    let appliedMemberId: number | null = correction.memberId;
     let missingMemberAddition: Awaited<ReturnType<typeof deriveMissingMemberAddition>> | null = null;
 
     if (correction.targetType === "member_addition") {
@@ -768,7 +769,7 @@ export async function POST(request: Request) {
           actorName: user.name,
         });
 
-        correction.memberId = newMember.id;
+        appliedMemberId = newMember.id;
         resource = `${currentBatch.agency} · ${currentBatch.applicableMonth} · ${newMember.employeeNo}`;
       } else if (correction.targetType === "member_posting") {
         if (correction.memberId == null) throw new Error("Posting correction has no member target.");
@@ -809,6 +810,7 @@ export async function POST(request: Request) {
 
       const [updated] = await tx.update(statutoryRemittanceCorrectionRequests).set({
         status: "approved",
+        memberId: appliedMemberId,
         decidedByUserId: user.id,
         decidedByName: user.name,
         decisionNote,
@@ -837,7 +839,7 @@ export async function POST(request: Request) {
         correctionId: correction.id,
         targetType: correction.targetType,
         batchId: correction.batchId,
-        memberId: correction.memberId,
+        memberId: updatedCorrection.memberId,
         requestedByUserId: correction.requestedByUserId,
         requestedByName: correction.requestedByName,
         before: correction.originalSnapshot,
