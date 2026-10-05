@@ -8,6 +8,7 @@ import {
   statutoryRemittanceMembers,
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
+import { notifyPayrollOfContributionCase } from "@/lib/statutory-contribution-case-notifications";
 import { getSessionUser } from "@/lib/auth";
 import {
   enforceSameOriginMutation,
@@ -231,6 +232,15 @@ export async function POST(request: Request) {
       snapshot,
     },
   });
+
+  try {
+    await notifyPayrollOfContributionCase({
+      issue: created,
+      actor: user.name,
+    });
+  } catch {
+    // The compliance case is authoritative even when notification delivery is unavailable.
+  }
 
   return Response.json({
     case: {
