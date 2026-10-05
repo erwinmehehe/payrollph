@@ -344,6 +344,7 @@ jobs:
               { path: "/small-business-payroll", heading: "A clearer payroll process for Philippine small businesses." },
               { path: "/industries/construction", heading: "Payroll and timekeeping for Philippine construction teams." },
               { path: "/industries/logistics", heading: "Payroll and timekeeping for Philippine logistics teams." },
+              { path: "/industries/security-agencies", heading: "Payroll and timekeeping for Philippine security agencies." },
               { path: "/book-demo", heading: "Bring your actual payroll questions." },
               { path: "/status", heading: "Linaw system status." },
               { path: "/scorecard", heading: "Verified claims only." },
