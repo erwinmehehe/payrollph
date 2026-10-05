@@ -184,6 +184,13 @@ export function StatutoryRemittancePanel({
           </span>
         </div>
 
+        <div className="notice" style={{ margin: 0 }}>
+          <ShieldCheck size={15} />
+          <span>
+            Before a remittance batch opens, PayrollPH independently recomputes the month&apos;s mandatory SSS, PhilHealth and Pag-IBIG employee/employer shares. Any material variance blocks the batch until payroll is corrected.
+          </span>
+        </div>
+
         {coverageGaps.length > 0 && (
           <div className="notice notice-red" style={{ margin: 0 }}>
             <AlertTriangle size={15} />
