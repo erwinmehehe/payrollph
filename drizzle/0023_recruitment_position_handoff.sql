@@ -7,9 +7,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS "job_applicants_hired_employee_unique"
   ON "job_applicants" ("hired_employee_id")
   WHERE "hired_employee_id" IS NOT NULL;
 
-ALTER TABLE "positions"
-  ADD COLUMN IF NOT EXISTS "requisition_id" integer REFERENCES "job_requisitions"("id") ON DELETE set null;
+ALTER TABLE "job_requisitions"
+  ADD COLUMN IF NOT EXISTS "position_id" integer REFERENCES "positions"("id") ON DELETE set null;
 
-CREATE UNIQUE INDEX IF NOT EXISTS "positions_requisition_unique"
-  ON "positions" ("requisition_id")
-  WHERE "requisition_id" IS NOT NULL;
+CREATE INDEX IF NOT EXISTS "job_requisitions_position_idx"
+  ON "job_requisitions" ("organization_id", "position_id");
