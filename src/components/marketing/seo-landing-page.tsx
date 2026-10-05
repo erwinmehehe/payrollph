@@ -20,6 +20,7 @@ type Props = {
   intro: string;
   proof: string[];
   sections: SeoSection[];
+  faq?: Array<{ question: string; answer: string }>;
   related: SeoRelatedLink[];
   ctaTitle?: string;
   ctaBody?: string;
@@ -33,14 +34,33 @@ export function SeoLandingPage({
   intro,
   proof,
   sections,
+  faq = [],
   related,
   ctaTitle = "See the workflow before you commit.",
   ctaBody = "Open the role-based product demo or book a walkthrough with your own payroll questions.",
   lastReviewed,
   sources,
 }: Props) {
+  const faqSchema = faq.length
+    ? {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        mainEntity: faq.map((item) => ({
+          "@type": "Question",
+          name: item.question,
+          acceptedAnswer: { "@type": "Answer", text: item.answer },
+        })),
+      }
+    : null;
+
   return (
     <div className="min-h-screen bg-white text-[#0B0D1A]">
+      {faqSchema ? (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema).replace(/</g, "\\u003c") }}
+        />
+      ) : null}
       <SiteNav />
       <main>
         <section className="relative overflow-hidden border-b border-[#EDEFF7] py-16 sm:py-20">
@@ -95,6 +115,25 @@ export function SeoLandingPage({
             ))}
           </div>
         </section>
+
+        {faq.length ? (
+          <section className="border-t border-[#EDEFF7] py-16 sm:py-20">
+            <div className="mx-auto max-w-[920px] px-5 sm:px-8">
+              <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#7C82A1]">Common questions</p>
+              <h2 className="font-display mt-2 text-[32px] font-semibold tracking-[-0.035em] sm:text-[40px]">
+                Questions buyers usually ask before the next step.
+              </h2>
+              <div className="mt-8 divide-y divide-[#E6E8F0] border-y border-[#E6E8F0]">
+                {faq.map((item) => (
+                  <article key={item.question} className="py-6">
+                    <h3 className="font-display text-[19px] font-semibold tracking-[-0.02em]">{item.question}</h3>
+                    <p className="mt-2 text-[14px] leading-relaxed text-[#5B6080]">{item.answer}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         {sources?.length ? (
           <section className="border-y border-[#EDEFF7] bg-white py-12">
