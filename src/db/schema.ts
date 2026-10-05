@@ -1301,6 +1301,28 @@ export const statutoryRemittanceCorrectionRequests = pgTable(
   ],
 );
 
+export const statutoryRemittanceMonthClosures = pgTable(
+  "statutory_remittance_month_closures",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    applicableMonth: varchar("applicable_month", { length: 7 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("certified"),
+    snapshotHash: varchar("snapshot_hash", { length: 64 }).notNull(),
+    certifiedByUserId: integer("certified_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    certifiedByName: varchar("certified_by_name", { length: 120 }).notNull(),
+    certifiedAt: timestamp("certified_at", { withTimezone: true }).notNull().defaultNow(),
+    invalidatedAt: timestamp("invalidated_at", { withTimezone: true }),
+    invalidationReason: varchar("invalidation_reason", { length: 280 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("statutory_remittance_month_closure_snapshot_unique").on(table.organizationId, table.applicableMonth, table.snapshotHash),
+    index("statutory_remittance_month_closure_status_idx").on(table.organizationId, table.status),
+  ],
+);
+
 export const complianceActionTasks = pgTable(
   "compliance_action_tasks",
   {
