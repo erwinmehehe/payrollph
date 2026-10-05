@@ -347,6 +347,7 @@ export async function POST(request: Request) {
       paymentChannel,
       paymentVarianceNote,
       paidAt,
+      paymentRecordedByUserId: user.id,
       paymentRecordedBy: user.name,
       updatedAt: new Date(),
     }).where(and(
@@ -415,6 +416,7 @@ export async function POST(request: Request) {
         postingReference: null,
         postedAmount: null,
         postedAt: null,
+        confirmedByUserId: user.id,
         confirmedBy: user.name,
         updatedAt: new Date(),
       }).where(eq(statutoryRemittanceMembers.id, memberId)).returning();
@@ -455,6 +457,7 @@ export async function POST(request: Request) {
       postingReference,
       postedAmount: postedAmount.toFixed(2),
       postedAt,
+      confirmedByUserId: user.id,
       confirmedBy: user.name,
       exceptionNote: null,
       updatedAt: new Date(),
@@ -483,6 +486,7 @@ export async function POST(request: Request) {
       await db.update(statutoryRemittanceBatches).set({
         status: "reconciled",
         reconciledAt: new Date(),
+        reconciledByUserId: user.id,
         reconciledBy: user.name,
         updatedAt: new Date(),
       }).where(eq(statutoryRemittanceBatches.id, batch.id));
@@ -490,6 +494,7 @@ export async function POST(request: Request) {
       await db.update(statutoryRemittanceBatches).set({
         status: "exception",
         reconciledAt: null,
+        reconciledByUserId: null,
         reconciledBy: null,
         updatedAt: new Date(),
       }).where(eq(statutoryRemittanceBatches.id, batch.id));
@@ -497,6 +502,7 @@ export async function POST(request: Request) {
       await db.update(statutoryRemittanceBatches).set({
         status: "paid",
         reconciledAt: null,
+        reconciledByUserId: null,
         reconciledBy: null,
         updatedAt: new Date(),
       }).where(eq(statutoryRemittanceBatches.id, batch.id));
