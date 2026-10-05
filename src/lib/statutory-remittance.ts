@@ -212,7 +212,11 @@ export function statutoryRemittanceDeadline(input: {
 }
 
 export function remittanceAmountMatches(expected: number, paid: number) {
-  return Math.abs(roundMoney(expected) - roundMoney(paid)) < 0.01;
+  const expectedCents = Math.round(Number(expected) * 100);
+  const paidCents = Math.round(Number(paid) * 100);
+  return Number.isFinite(expectedCents)
+    && Number.isFinite(paidCents)
+    && expectedCents === paidCents;
 }
 
 export function remittanceIsOverdue(input: {
