@@ -291,12 +291,14 @@ export async function POST(request: Request) {
     )).limit(1);
     if (!mentor) return Response.json({ error: "Mentor is not an active employee." }, { status: 404 });
 
-    const [existing] = await db.select({ id: mentorships.id }).from(mentorships).where(and(
+    const existingMentorships = await db.select({ id: mentorships.id, status: mentorships.status }).from(mentorships).where(and(
       eq(mentorships.organizationId, organizationId),
       eq(mentorships.mentorEmployeeId, mentorEmployeeId),
       eq(mentorships.menteeEmployeeId, employee.id),
-    )).orderBy(desc(mentorships.id)).limit(1);
-    if (existing) return Response.json({ error: "A mentorship record already exists with this mentor." }, { status: 409 });
+    )).orderBy(desc(mentorships.id));
+    if (existingMentorships.some((row) => ["requested", "active"].includes(row.status))) {
+      return Response.json({ error: "An active or requested mentorship already exists with this mentor." }, { status: 409 });
+    }
 
     const [row] = await db.insert(mentorships).values({
       organizationId,
@@ -452,12 +454,11 @@ export async function PATCH(request: Request) {
     const isMentee = mentorship.menteeEmployeeId === employee.id;
     if (!isMentor && !isMentee) return Response.json({ error: "This mentorship does not belong to your employee record." }, { status: 403 });
 
-    const allowed = isMentor ? ["active", "declined", "completed"] : ["cancelled", "completed"];
+    const allowed = isMentor
+      ? (mentorship.status === "requested" ? ["active", "declined"] : mentorship.status === "active" ? ["completed"] : [])
+      : (mentorship.status === "requested" ? ["cancelled"] : mentorship.status === "active" ? ["completed", "cancelled"] : []);
     if (!allowed.includes(status)) {
-      return Response.json({ error: "That mentorship transition is not available to you." }, { status: 400 });
-    }
-    if (isMentor && mentorship.status !== "requested" && status !== "completed") {
-      return Response.json({ error: "Only a requested mentorship can be accepted or declined." }, { status: 409 });
+      return Response.json({ error: "That mentorship status transition is not available from the current state." }, { status: 409 });
     }
 
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
