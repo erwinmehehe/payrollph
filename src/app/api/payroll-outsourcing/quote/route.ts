@@ -62,6 +62,17 @@ export async function POST(request: Request) {
         "Requested scope / notes:",
         notes || "(none)",
       ].join("\n"),
+      metadata: {
+        leadType: "payroll-outsourcing",
+        name,
+        email,
+        company,
+        headcount,
+        frequency: frequency || null,
+        entities: entities || null,
+        notes: notes || null,
+        source: "/payroll-outsourcing",
+      },
     });
   } catch (error) {
     console.error("payroll-outsourcing: could not write to the outbox", error);
