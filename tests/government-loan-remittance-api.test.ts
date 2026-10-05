@@ -6,6 +6,8 @@ const route = readFileSync("src/app/api/compliance/government-loan-remittances/r
 const schema = readFileSync("src/db/schema.ts", "utf8");
 const panel = readFileSync("src/components/government-loan-remittance-panel.tsx", "utf8");
 const loansPanel = readFileSync("src/components/loans-panel.tsx", "utf8");
+const selfApi = readFileSync("src/app/api/self/payslips/route.ts", "utf8");
+const selfUi = readFileSync("src/components/self-service-portal.tsx", "utf8");
 
 test("government loan remittance is separate from ordinary loan balance tracking", () => {
   assert.ok(schema.includes('export const governmentLoanRemittanceBatches = pgTable('));
@@ -48,4 +50,15 @@ test("Loans UI exposes SSS and Pag-IBIG government loan remittance controls", ()
   assert.ok(panel.includes("Pag-IBIG MPL/Calamity Loans"));
   assert.ok(panel.includes("Record agency payment"));
   assert.ok(loansPanel.includes("<GovernmentLoanRemittancePanel"));
+});
+
+
+test("employee self-service exposes only the signed-in employee government loan postings", () => {
+  assert.ok(selfApi.includes("governmentLoanRemittanceMembers"));
+  assert.ok(selfApi.includes("eq(governmentLoanRemittanceMembers.employeeId, session.employeeId)"));
+  assert.ok(selfApi.includes("governmentLoanRemittances: governmentLoanRows.map"));
+  assert.ok(selfUi.includes("SSS / PAG-IBIG LOANS"));
+  assert.ok(selfUi.includes("Government loan remittance"));
+  assert.ok(selfUi.includes("Employer payment pending"));
+  assert.ok(selfUi.includes("Loan posting confirmed"));
 });
