@@ -8,7 +8,7 @@ const comparisons = [
   { title: "Payroll system comparison", href: "/resources/payroll-system-comparison", description: "Use one evaluation matrix for calculations, controls, implementation, integrations, security and evidence." },
   { title: "HRIS vs payroll system", href: "/resources/hris-vs-payroll-system", description: "Compare employee-information workflows with payroll calculation, compliance and release responsibilities." },
   { title: "Payroll software vs outsourcing", href: "/resources/payroll-software-vs-outsourcing", description: "Compare operating ownership, staffing, approvals and exception handling." },
-  { title: "Payroll software vs Excel", href: "/resources/payroll-software-vs-excel", description: "Compare spreadsheet flexibility with controlled payroll workflow." },
+  { title: "Manual / Excel payroll vs software", href: "/resources/payroll-software-vs-excel", description: "Compare spreadsheet flexibility with controlled payroll workflow, approvals and repeatability." },
   { title: "Cloud vs on-premise payroll", href: "/resources/cloud-vs-on-premise-payroll", description: "Compare infrastructure, updates, access and continuity responsibilities." },
   { title: "Build vs buy payroll software", href: "/resources/build-vs-buy-payroll-software", description: "Compare permanent internal engineering ownership with purchasing a dedicated platform." },
 ];
