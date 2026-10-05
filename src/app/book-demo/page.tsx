@@ -6,8 +6,8 @@ import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Book a Linaw demo",
-  description: "Walk through Philippine payroll, approvals and exports against your own headcount and entity structure.",
+  title: "Book Payroll Software Demo Philippines | Linaw",
+  description: "Book a guided Linaw payroll software demo for your Philippine payroll workflow, headcount, entity structure, approvals, exceptions and exports.",
   alternates: { canonical: "/book-demo" },
 };
 
