@@ -172,13 +172,40 @@ Remaining:
 
 ## Tranche 8 — Enterprise identity and automation
 
-- OIDC first, then SAML if customer demand requires it
-- SCIM provisioning/deprovisioning
-- Custom roles/permission sets
-- Approval workflow builder
-- Event/rule automation
-- IP/session policies
-- Security audit views
+Foundation implemented on `feat/hcm-enterprise-identity-automation`.
+
+Built:
+- OIDC authorization-code sign-in with PKCE, nonce/state replay protection and RS256/JWKS signature verification
+- SSRF-safe OIDC discovery, token exchange and JWKS retrieval with DNS validation and pinned public IPs
+- Encrypted OIDC client secrets and login code verifiers via `ENTERPRISE_IDENTITY_ENCRYPTION_KEY`
+- Verified company email domains using one-time DNS TXT proof
+- Existing-account-only SSO linking; no unsafe just-in-time privilege creation
+- SSO-required workspace mode with administrator lockout protection
+- Optional organization MFA policy; OIDC MFA must be explicitly asserted by the upstream provider
+- Session idle timeout, absolute lifetime and concurrent-session controls applied to existing and new sessions
+- SCIM 2.0-style Users list/provision/update/deactivate endpoints with hashed bearer tokens
+- SCIM deprovisioning disables only the target workspace membership, preserving multi-company access
+- Safe SCIM role allowlist that cannot provision owner/admin/bookkeeper privileges
+- Custom permission sets as deny-only overlays on existing role gates; they never elevate the base role
+- Joiner/mover/leaver automation rules with org-unit/employment/title conditions
+- Idempotent lifecycle execution history and failure isolation
+- Supported actions: create provisioning task, assign course, send webhook, and revoke sessions on separation
+- Joiner automation connected to recruited and manually created employees
+- Mover automation connected to governed effective-dated position transfers
+- Leaver automation connected to final-pay release and employee separation
+- Enterprise workspace for security policy, OIDC, SCIM, permission restrictions and lifecycle rules
+- Audit events across identity, provisioning, permission and automation administration
+
+Remaining:
+- SAML 2.0 if customer demand justifies it
+- OIDC algorithms/providers beyond the current RS256 foundation
+- SCIM Groups / group-to-permission-set mapping
+- More complete SCIM PATCH filter/value-path coverage
+- Scheduled future-dated position transfers and mover actions
+- General no-code approval workflow builder beyond lifecycle rules
+- IP allowlists / trusted-network policy
+- Security event dashboards and anomaly detection
+- Break-glass recovery identities and formal access-review campaigns
 
 ## Tranche 9 — Analytics and AI layer
 
@@ -199,7 +226,7 @@ Only after clean data models:
 4. Recruitment-to-position handoff — implemented foundation
 5. Compensation bands + review cycles — implemented foundation
 6. Learning/skills/career — implemented foundation
-7. SSO/OIDC + SCIM
+7. SSO/OIDC + SCIM — implemented foundation
 8. Engagement/surveys
 9. Broader analytics/AI
 
