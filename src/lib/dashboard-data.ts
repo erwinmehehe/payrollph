@@ -1,6 +1,6 @@
 import { maskBankAccount } from "@/lib/bank-account-crypto";
 import { maskGovernmentId } from "@/lib/government-id-crypto";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalDelegations,
@@ -167,8 +167,12 @@ export async function getDashboardData(organizationId?: number) {
           updatedAt: complianceActionTasks.updatedAt,
         })
         .from(complianceActionTasks)
-        .where(eq(complianceActionTasks.organizationId, selectedOrganization.id))
+        .where(and(
+          eq(complianceActionTasks.organizationId, selectedOrganization.id),
+          ne(complianceActionTasks.status, "resolved"),
+        ))
         .orderBy(desc(complianceActionTasks.updatedAt))
+        .limit(20)
     : [];
 
   const handoffRunRows = canViewPayroll
