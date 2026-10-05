@@ -169,6 +169,7 @@ export async function getDashboardData(organizationId?: number) {
         .from(complianceActionTasks)
         .where(and(
           eq(complianceActionTasks.organizationId, selectedOrganization.id),
+          eq(complianceActionTasks.sourceType, "statutory_remittance"),
           ne(complianceActionTasks.status, "resolved"),
         ))
         .orderBy(desc(complianceActionTasks.updatedAt))
