@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
   complianceActionTasks,
@@ -21,6 +21,7 @@ import {
 export const dynamic = "force-dynamic";
 
 const SOURCE_TYPE = "statutory_remittance";
+const SUPPORTED_SOURCE_TYPES = [SOURCE_TYPE, "employee_contribution_dispute"] as const;
 
 async function requirePayrollOperator(userId: number, organizationId: number) {
   const access = await getAccess(userId, organizationId);
@@ -45,7 +46,7 @@ async function listQueue(organizationId: number, currentUserId: number) {
   const tasks = await db.select().from(complianceActionTasks)
     .where(and(
       eq(complianceActionTasks.organizationId, organizationId),
-      eq(complianceActionTasks.sourceType, SOURCE_TYPE),
+      inArray(complianceActionTasks.sourceType, [...SUPPORTED_SOURCE_TYPES]),
     ))
     .orderBy(asc(complianceActionTasks.status), asc(complianceActionTasks.dueDate), desc(complianceActionTasks.updatedAt));
 
@@ -133,7 +134,7 @@ export async function POST(request: Request) {
     .where(and(
       eq(complianceActionTasks.id, taskId),
       eq(complianceActionTasks.organizationId, organizationId),
-      eq(complianceActionTasks.sourceType, SOURCE_TYPE),
+      inArray(complianceActionTasks.sourceType, [...SUPPORTED_SOURCE_TYPES]),
     ))
     .limit(1);
   if (!task) return Response.json({ error: "Compliance action not found." }, { status: 404 });
