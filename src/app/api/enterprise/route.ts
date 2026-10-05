@@ -541,7 +541,7 @@ export async function POST(request: Request) {
     )).limit(1);
     if (!permissionSet) return Response.json({ error: "Active permission set not found." }, { status: 404 });
     const permissionValues = Array.isArray(permissionSet.permissions)
-      ? permissionSet.permissions.filter((value): value is string => typeof value === "string")
+      ? permissionSet.permissions.filter((value: unknown): value is string => typeof value === "string")
       : [];
     if (membership.userId === user.id && !permissionValues.includes("org.admin")) {
       return Response.json({
