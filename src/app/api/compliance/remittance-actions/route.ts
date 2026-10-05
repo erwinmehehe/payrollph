@@ -54,7 +54,6 @@ async function listQueue(organizationId: number, currentUserId: number) {
     role: userOrganizations.role,
     orgUnitId: userOrganizations.orgUnitId,
     name: users.name,
-    email: users.email,
   })
     .from(userOrganizations)
     .innerJoin(users, eq(userOrganizations.userId, users.id))
