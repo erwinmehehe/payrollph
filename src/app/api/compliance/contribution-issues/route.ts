@@ -261,13 +261,11 @@ export async function POST(request: Request) {
     });
 
     try {
-      if (result[0]) {
-        await notifyEmployeeOfContributionCase({
-          issue: result[0],
-          event: "resolved",
-          actor: user.name,
-        });
-      }
+      await notifyEmployeeOfContributionCase({
+        issue: result,
+        event: "resolved",
+        actor: user.name,
+      });
     } catch {
       // The audited case resolution remains authoritative if email delivery is unavailable.
     }
