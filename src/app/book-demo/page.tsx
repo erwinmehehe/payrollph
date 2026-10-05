@@ -9,6 +9,7 @@ export const metadata: Metadata = {
   title: "Book a Linaw demo",
   description: "Walk through Philippine payroll, approvals and exports against your own headcount and entity structure.",
   alternates: { canonical: "/book-demo" },
+  robots: { index: false, follow: true },
 };
 
 export default function BookDemoPage() {
