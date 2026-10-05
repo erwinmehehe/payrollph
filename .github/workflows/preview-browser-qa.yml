@@ -211,52 +211,11 @@ jobs:
               check((await hero.locator(".payroll-home-trust li").count()) === 3, "desktop: hero trust list must expose three proof points");
 
               const demo = page.locator("#demo");
-              check((await demo.count()) === 1, "desktop: live demo section is missing");
-              check((await demo.getByText("Interactive payroll workflow").count()) === 1, "desktop: payroll workflow preview chrome did not render");
-              const systemPreview = demo.locator(".system-demo-product .frame.standalone");
-              check((await systemPreview.count()) === 1, "desktop: shared Linaw workspace preview did not render");
-              const previewNav = systemPreview.locator(".nav-item");
-              check((await previewNav.count()) >= 8, "desktop: real workspace navigation is unexpectedly sparse");
-              const peopleNav = previewNav.filter({ hasText: /^People/ }).first();
-              check((await peopleNav.count()) === 1, "desktop: People module is missing from the real-system preview");
-              await peopleNav.click();
-              await page.waitForTimeout(100);
-              check((await peopleNav.getAttribute("aria-current")) === "page", "desktop: real-system preview navigation did not update");
-              const peopleShell = systemPreview.locator(".preview-people-shell");
-              check((await peopleShell.count()) === 1, "desktop: People preview shell is missing");
-              const firstPersonRow = peopleShell.locator(".preview-person-row").first();
-              check((await firstPersonRow.count()) === 1, "desktop: People preview rows are missing");
-              const personRowStyles = await firstPersonRow.evaluate((element) => ({
-                display: getComputedStyle(element).display,
-                columns: getComputedStyle(element).gridTemplateColumns,
-                width: element.getBoundingClientRect().width,
-                scrollWidth: element.scrollWidth,
-              }));
-              check(personRowStyles.display === "grid", `desktop: People preview row styling did not load; display=${personRowStyles.display}`);
-              check(personRowStyles.columns !== "none", "desktop: People preview row has no grid columns");
-              check(personRowStyles.scrollWidth <= personRowStyles.width + 1, `desktop: People preview row overflows ${personRowStyles.scrollWidth}px > ${personRowStyles.width}px`);
-              check((await peopleShell.locator(".preview-people-summary").count()) === 1, "desktop: People summary is missing");
-              check((await peopleShell.locator(".preview-people-controls").count()) === 1, "desktop: People filters/search are missing");
-
-              const migrationNav = previewNav.filter({ hasText: /^Migration/ }).first();
-              check((await migrationNav.count()) === 1, "desktop: Migration module is missing from the real-system preview");
-              await migrationNav.click();
-              await page.waitForTimeout(100);
-              const migrationCard = systemPreview.locator(".preview-migration-card");
-              check((await migrationCard.count()) === 1, "desktop: Migration preview card is missing");
-              const migrationStep = migrationCard.locator(".preview-migration-step").first();
-              const migrationStyles = await migrationStep.evaluate((element) => ({
-                display: getComputedStyle(element).display,
-                columns: getComputedStyle(element).gridTemplateColumns,
-                width: element.getBoundingClientRect().width,
-                scrollWidth: element.scrollWidth,
-              }));
-              check(migrationStyles.display === "grid", `desktop: Migration preview styling did not load; display=${migrationStyles.display}`);
-              check(migrationStyles.columns !== "none", "desktop: Migration preview has no grid columns");
-              check(migrationStyles.scrollWidth <= migrationStyles.width + 1, `desktop: Migration preview overflows ${migrationStyles.scrollWidth}px > ${migrationStyles.width}px`);
-              check((await demo.getByRole("link", { name: /Open role-based sandbox/i }).count()) === 1, "desktop: role-based sandbox handoff is missing");
+              check((await demo.count()) === 0, "desktop: oversized embedded homepage product demo returned");
+              check((await page.locator(".system-demo-section").count()) === 0, "desktop: legacy interactive demo section returned");
+              check((await page.locator(".system-demo-product").count()) === 0, "desktop: full workspace preview should stay off the homepage");
               report.modules.push({ module: "Release-readiness hero", active: true });
-              report.modules.push({ module: "Shared Linaw workspace preview", active: true });
+              report.modules.push({ module: "Homepage embedded demo removed", active: true });
             }
 
             if (name === "mobile-390") {
@@ -277,17 +236,18 @@ jobs:
                 controlFit.scrollWidth <= controlFit.clientWidth + 1,
                 `mobile-390: release-readiness card clips ${controlFit.scrollWidth}px > ${controlFit.clientWidth}px`,
               );
-              const securityProof = page.locator("#security article").first();
-              const securityHeading = securityProof.getByRole("heading", { name: "One workspace can never read another's payroll." });
-              const securityCopy = securityProof.locator("p").filter({ hasText: "Every session route passes one shared membership gate." }).first();
+              const securityProof = page.locator("#platform .linaw-card").filter({ hasText: "Separate preparation from approval." }).first();
+              const securityHeading = securityProof.getByRole("heading", { name: "Separate preparation from approval." });
+              const securityCopy = securityProof.locator("p").filter({ hasText: "Make the handoff obvious" }).first();
 
               check(
                 !(await pricing.innerText()).includes("No credit card to start") &&
-                  !(await pricing.innerText()).includes("Cancel anytime"),
+                  !(await pricing.innerText()).includes("Cancel anytime") &&
+                  !(await pricing.innerText()).includes("Solo"),
                 "mobile-390: stale self-serve pricing promises returned",
               );
 
-              const closingCta = page.locator("#cta");
+              const closingCta = page.locator(".linaw-final-card").first();
               const trialCta = closingCta.locator('a[href="/signup"]').first();
               check((await trialCta.count()) === 1, "mobile-390: trial access CTA is missing");
               const trialCtaStyles = await trialCta.evaluate((element) => ({
@@ -295,12 +255,13 @@ jobs:
                 backgroundColor: getComputedStyle(element).backgroundColor,
               }));
               check(
-                trialCtaStyles.color === "rgb(17, 20, 31)",
-                `mobile-390: trial CTA text lost dark contrast on white; saw ${trialCtaStyles.color}`,
+                trialCtaStyles.color === "rgb(255, 255, 255)",
+                `mobile-390: trial CTA text lost white contrast; saw ${trialCtaStyles.color}`,
               );
               check(
-                trialCtaStyles.backgroundColor === "rgb(255, 255, 255)",
-                `mobile-390: trial CTA background is not white; saw ${trialCtaStyles.backgroundColor}`,
+                trialCtaStyles.backgroundColor !== "rgba(0, 0, 0, 0)" &&
+                  trialCtaStyles.backgroundColor !== "rgb(255, 255, 255)",
+                `mobile-390: trial CTA background lost dark-page contrast; saw ${trialCtaStyles.backgroundColor}`,
               );
 
               await mobileHero.screenshot({ path: `${outDir}/homepage-mobile-390-hero.png` });
