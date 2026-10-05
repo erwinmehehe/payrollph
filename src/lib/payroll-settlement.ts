@@ -2,6 +2,10 @@ import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import { sameBankAccount } from "@/lib/bank-account-crypto";
 import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
+import {
+  statutoryRemittanceDeadline,
+  statutoryRemittanceTotals,
+} from "@/lib/statutory-remittance";
 import { NATIONAL_HOLIDAYS_2026, type HolidayCalendarEntry } from "@/lib/wage-orders";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import {
@@ -14,10 +18,12 @@ import {
   expenseClaims,
   holidays,
   orgUnits,
+  organizations,
   leaveConversions,
   loanPayments,
   payrollEntries,
   payrollRuns,
+  statutoryRemittanceObligations,
   supplementaryEarnings,
   yearEndAdjustments,
 } from "@/db/schema";
@@ -695,6 +701,92 @@ export async function settlePayrollRun(
       throw new Error("Payroll release state changed during settlement.");
     }
 
+    const applicableMonth = String(run.periodEnd).slice(0, 7);
+    const monthStart = `${applicableMonth}-01`;
+    const monthEndDate = new Date(`${applicableMonth}-01T00:00:00Z`);
+    monthEndDate.setUTCMonth(monthEndDate.getUTCMonth() + 1, 0);
+    const monthEnd = monthEndDate.toISOString().slice(0, 10);
+
+    const [organization] = await tx.select().from(organizations)
+      .where(eq(organizations.id, run.organizationId))
+      .limit(1);
+    if (!organization) {
+      throw new Error("Payroll organization disappeared during release.");
+    }
+
+    const monthlyReleasedEntries = await tx
+      .select({
+        employeeId: payrollEntries.employeeId,
+        payrollRunId: payrollEntries.payrollRunId,
+        lineItems: payrollEntries.lineItems,
+        trace: payrollEntries.trace,
+      })
+      .from(payrollEntries)
+      .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
+      .where(and(
+        eq(payrollRuns.organizationId, run.organizationId),
+        eq(payrollRuns.status, "Released"),
+        gte(payrollRuns.periodEnd, monthStart),
+        lte(payrollRuns.periodEnd, monthEnd),
+      ));
+
+    const remittanceTotals = statutoryRemittanceTotals(monthlyReleasedEntries);
+    const remittanceObligationIds: number[] = [];
+    for (const total of remittanceTotals) {
+      if (total.totalAmount <= 0) continue;
+      const deadline = statutoryRemittanceDeadline({
+        agency: total.agency,
+        applicableMonth,
+        philHealthEmployerNo: organization.philHealthEmployerNo,
+        employerName: organization.legalName || organization.name,
+      });
+      const [existing] = await tx.select().from(statutoryRemittanceObligations).where(and(
+        eq(statutoryRemittanceObligations.organizationId, run.organizationId),
+        eq(statutoryRemittanceObligations.agency, total.agency),
+        eq(statutoryRemittanceObligations.applicableMonth, applicableMonth),
+      )).limit(1);
+
+      if (!existing) {
+        const [created] = await tx.insert(statutoryRemittanceObligations).values({
+          organizationId: run.organizationId,
+          agency: total.agency,
+          applicableMonth,
+          dueDate: deadline.dueDate,
+          dueRule: deadline.dueRule,
+          expectedEmployeeAmount: money(total.employeeAmount),
+          expectedEmployerAmount: money(total.employerAmount),
+          expectedTotalAmount: money(total.totalAmount),
+          employeeCount: total.employeeCount,
+          sourcePayrollRunIds: total.sourcePayrollRunIds,
+          status: deadline.dueDate ? "pending" : "needs_configuration",
+        }).returning({ id: statutoryRemittanceObligations.id });
+        remittanceObligationIds.push(created.id);
+        continue;
+      }
+
+      const amountChanged = !samePayrollNumber(existing.expectedTotalAmount, total.totalAmount);
+      const evidenceStatus = ["payment_recorded", "confirmed"].includes(existing.status);
+      const nextStatus = amountChanged && evidenceStatus
+        ? "needs_review"
+        : existing.status === "needs_configuration" && deadline.dueDate
+          ? "pending"
+          : existing.status;
+
+      const [updatedObligation] = await tx.update(statutoryRemittanceObligations).set({
+        dueDate: deadline.dueDate,
+        dueRule: deadline.dueRule,
+        expectedEmployeeAmount: money(total.employeeAmount),
+        expectedEmployerAmount: money(total.employerAmount),
+        expectedTotalAmount: money(total.totalAmount),
+        employeeCount: total.employeeCount,
+        sourcePayrollRunIds: total.sourcePayrollRunIds,
+        status: nextStatus,
+        updatedAt: new Date(),
+      }).where(eq(statutoryRemittanceObligations.id, existing.id))
+        .returning({ id: statutoryRemittanceObligations.id });
+      remittanceObligationIds.push(updatedObligation.id);
+    }
+
     const settlement = {
       expensesSettled,
       advancesSettled,
@@ -703,6 +795,7 @@ export async function settlePayrollRun(
       retroAdjustmentsSettled,
       supplementaryEarningsSettled,
       yearEndTaxAdjustmentsSettled,
+      remittanceObligations: remittanceObligationIds,
     };
 
     // The release audit is part of the same transaction as the ledger changes.
