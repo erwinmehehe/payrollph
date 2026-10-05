@@ -1,3 +1,4 @@
+import { contributionCaseServiceStatus } from "@/lib/statutory-contribution-case-aging";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, leaveBalances, leavePolicies, leaveRequests, organizations, payrollEntries, payrollRuns, payslips, statutoryContributionIssueCases, statutoryRemittanceBatches, statutoryRemittanceMembers, timePunches, userOrganizations, users } from "@/db/schema";
@@ -252,6 +253,7 @@ export async function GET() {
       resolvedByName: row.resolvedByName,
       resolvedAt: row.resolvedAt,
       createdAt: row.createdAt,
+      service: contributionCaseServiceStatus(row),
     })),
     attendance: {
       recent: attendanceRows,
