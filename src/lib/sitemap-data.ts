@@ -37,6 +37,7 @@ export const productSitemapEntries: SitemapEntry[] = [
   ...integrationWave6.map(({ slug }) => ({ path: `/integrations/${slug}`, changeFrequency: "monthly" as const })),
   { path: "/implementation", changeFrequency: "monthly" },
   { path: "/pricing", changeFrequency: "weekly" },
+  { path: "/small-business-payroll", changeFrequency: "monthly" },
   { path: "/payroll-outsourcing", changeFrequency: "monthly" },
   { path: "/payroll-health-check", changeFrequency: "monthly" },
   { path: "/workforce-analytics", changeFrequency: "monthly" },
