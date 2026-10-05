@@ -778,3 +778,33 @@ textarea,
     min-width: 140px;
   }
 }
+
+
+/* Account and setup surfaces --------------------------------------------- */
+
+.auth-card {
+  border-color: #e1e4ea;
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(16,24,40,.04);
+}
+
+.auth-card h2 {
+  font-weight: 660;
+}
+
+.auth-form input,
+.auth-form select,
+.auth-form textarea {
+  min-height: 42px;
+  border-color: #d0d5dd;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.auth-form input:focus,
+.auth-form select:focus,
+.auth-form textarea:focus {
+  border-color: var(--brand);
+  box-shadow: var(--ring);
+  outline: none;
+}
