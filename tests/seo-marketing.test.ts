@@ -123,6 +123,43 @@ test("calculator pages have unique metadata, explanation depth and FAQ schema", 
   assert.ok(structured.includes('"@type": "FAQPage"'), "shared structured data must support FAQPage schema");
 });
 
+test("high-intent calculators link to their exact guide or compliance owner and back", () => {
+  const calculatorPage = read("src/app/calculators/[slug]/page.tsx");
+  const wave3 = read("src/lib/seo-content-wave3.ts");
+
+  for (const [calculatorSlug, target] of [
+    ["13th-month-pay", "/resources/13th-month-pay-philippines"],
+    ["overtime-pay", "/resources/overtime-pay-philippines"],
+    ["night-differential", "/resources/night-differential-philippines"],
+    ["holiday-pay", "/resources/holiday-pay-philippines"],
+    ["withholding-tax", "/compliance/withholding-tax"],
+  ] as const) {
+    const start = calculatorPage.indexOf(`"${calculatorSlug}": [`);
+    const end = calculatorPage.indexOf("\n  ],", start);
+    assert.ok(start >= 0 && end > start, `calculator related block ${calculatorSlug} must exist`);
+    assert.ok(
+      calculatorPage.slice(start, end).includes(`href: "${target}"`),
+      `${calculatorSlug} calculator must link to exact intent owner ${target}`,
+    );
+  }
+
+  for (const [ownerSlug, calculatorPath] of [
+    ["13th-month-pay-philippines", "/calculators/13th-month-pay"],
+    ["overtime-pay-philippines", "/calculators/overtime-pay"],
+    ["night-differential-philippines", "/calculators/night-differential"],
+    ["holiday-pay-philippines", "/calculators/holiday-pay"],
+    ["withholding-tax", "/calculators/withholding-tax"],
+  ] as const) {
+    const start = wave3.indexOf(`slug: "${ownerSlug}"`);
+    const end = wave3.indexOf("\n  },", start);
+    assert.ok(start >= 0 && end > start, `intent owner ${ownerSlug} must exist`);
+    assert.ok(
+      wave3.slice(start, end).includes(`href: "${calculatorPath}"`),
+      `${ownerSlug} must link back to ${calculatorPath}`,
+    );
+  }
+});
+
 test("public calculators keep one source of payroll math", () => {
   const calculator = read("src/components/marketing/payroll-calculator.tsx");
   const config = read("src/lib/calculators.ts");
