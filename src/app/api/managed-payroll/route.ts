@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
   managedPayrollEngagements,
@@ -136,8 +136,11 @@ export async function POST(request: Request) {
     role: userOrganizations.role,
     orgUnitId: userOrganizations.orgUnitId,
   }).from(userOrganizations)
-    .where(eq(userOrganizations.organizationId, organizationId))
-    .then((rows) => rows.filter((row) => row.userId === approverUserId));
+    .where(and(
+      eq(userOrganizations.organizationId, organizationId),
+      eq(userOrganizations.userId, approverUserId),
+    ))
+    .limit(1);
   if (!approverMembership || approverMembership.orgUnitId != null || !["owner", "admin"].includes(approverMembership.role)) {
     return Response.json({ error: "The managed-payroll client approver must be a company-wide owner or administrator." }, { status: 422 });
   }
