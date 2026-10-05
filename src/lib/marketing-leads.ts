@@ -15,6 +15,7 @@ type MarketingLeadRow = {
   payroll_frequency: string | null;
   entities: string | null;
   notes: string | null;
+  attribution: Record<string, string>;
   notification_status: MarketingLeadNotificationStatus;
   notification_provider: string | null;
   notification_outbox_id: number | null;
@@ -45,6 +46,7 @@ export async function ensureMarketingLeadSchema() {
           entities varchar(40),
           notes text,
           source_path varchar(120) NOT NULL,
+          attribution jsonb NOT NULL DEFAULT '{}'::jsonb,
           status varchar(24) NOT NULL DEFAULT 'new',
           notification_status varchar(24) NOT NULL DEFAULT 'not-configured',
           notification_provider varchar(40),
@@ -62,7 +64,8 @@ export async function ensureMarketingLeadSchema() {
       `);
       await client.query(`
         ALTER TABLE marketing_leads
-          ADD COLUMN IF NOT EXISTS notification_attempts integer NOT NULL DEFAULT 0
+          ADD COLUMN IF NOT EXISTS notification_attempts integer NOT NULL DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS attribution jsonb NOT NULL DEFAULT '{}'::jsonb
       `);
       await client.query(`
         DO $compat$
@@ -117,12 +120,13 @@ export async function recordMarketingLead(input: {
   entities?: string | null;
   notes?: string | null;
   sourcePath: string;
+  attribution?: Record<string, string>;
 }) {
   await ensureMarketingLeadSchema();
   const result = await pool.query<{ id: number; created_at: Date }>(
     `INSERT INTO marketing_leads (
-       kind, name, email, company, headcount, payroll_frequency, entities, notes, source_path
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       kind, name, email, company, headcount, payroll_frequency, entities, notes, source_path, attribution
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb)
      RETURNING id, created_at`,
     [
       input.kind,
@@ -134,6 +138,7 @@ export async function recordMarketingLead(input: {
       input.entities || null,
       input.notes || null,
       input.sourcePath,
+      JSON.stringify(input.attribution ?? {}),
     ],
   );
   const created = result.rows[0];
@@ -216,7 +221,7 @@ function notificationBody(lead: MarketingLeadRow) {
 async function getMarketingLead(id: number) {
   await ensureMarketingLeadSchema();
   const result = await pool.query<MarketingLeadRow>(
-    `SELECT id, kind, name, email, company, headcount, payroll_frequency, entities, notes,
+    `SELECT id, kind, name, email, company, headcount, payroll_frequency, entities, notes, attribution,
             notification_status, notification_provider, notification_outbox_id, notification_attempts
      FROM marketing_leads
      WHERE id = $1
@@ -279,6 +284,13 @@ export async function notifyMarketingLead(id: number) {
     subject: notificationSubject(lead),
     purpose: notificationPurpose(lead.kind),
     dedupeKey: `marketing-lead:${lead.id}`,
+    metadata: {
+      marketing: {
+        requestType: lead.kind === "trial-access" ? "trial" : "demo",
+        headcount: lead.headcount || "not stated",
+        ...(lead.attribution ?? {}),
+      },
+    },
     body: notificationBody(lead),
   });
   const status: MarketingLeadNotificationStatus = result.delivered
