@@ -5,6 +5,7 @@ import {
   organizations,
   payrollEntries,
   payrollRuns,
+  statutoryPostingEvidenceArtifacts,
   statutoryRemittanceBatches,
   statutoryRemittanceMembers,
 } from "@/db/schema";
@@ -12,6 +13,7 @@ import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { currentManilaMonth, loadStatutoryRemittanceState } from "@/lib/statutory-remittance-state";
+import { manualPostingEvidenceHash } from "@/lib/statutory-posting-evidence";
 import { auditStatutoryContributionMonth } from "@/lib/statutory-contribution-assurance";
 import {
   buildStatutoryRemittanceSnapshot,
@@ -386,6 +388,7 @@ export async function POST(request: Request) {
         postingStatus: "exception",
         exceptionNote,
         postingReference: null,
+        postingEvidenceArtifactId: null,
         postedAmount: null,
         postedAt: null,
         confirmedBy: user.name,
@@ -423,42 +426,76 @@ export async function POST(request: Request) {
       return Response.json({ error: postingGate.error }, { status: 409 });
     }
 
-    const [updatedMember] = await db.update(statutoryRemittanceMembers).set({
-      postingStatus: "confirmed",
+    const manualEvidenceHash = manualPostingEvidenceHash({
+      organizationId,
+      batchId: batch.id,
+      memberId,
       postingReference,
-      postedAmount: postedAmount.toFixed(2),
-      postedAt,
-      confirmedBy: user.name,
-      exceptionNote: null,
-      updatedAt: new Date(),
-    }).where(eq(statutoryRemittanceMembers.id, memberId)).returning();
+      postedAmount,
+      postedAt: postedAt.toISOString(),
+    });
 
-    const remaining = await db.select({ id: statutoryRemittanceMembers.id })
-      .from(statutoryRemittanceMembers)
-      .where(and(
-        eq(statutoryRemittanceMembers.batchId, batch.id),
-        eq(statutoryRemittanceMembers.postingStatus, "pending"),
-      ));
-    const exceptions = await db.select({ id: statutoryRemittanceMembers.id })
-      .from(statutoryRemittanceMembers)
-      .where(and(
-        eq(statutoryRemittanceMembers.batchId, batch.id),
-        eq(statutoryRemittanceMembers.postingStatus, "exception"),
-      ));
+    const confirmation = await db.transaction(async (tx) => {
+      const [artifact] = await tx.insert(statutoryPostingEvidenceArtifacts).values({
+        organizationId,
+        batchId: batch.id,
+        sourceType: "manual_confirmation",
+        fileName: null,
+        contentSha256: manualEvidenceHash,
+        evidenceReference: postingReference,
+        rowCount: 1,
+        recordedByUserId: user.id,
+        recordedByName: user.name,
+      }).returning();
 
-    if (remaining.length === 0 && exceptions.length === 0) {
-      await db.update(statutoryRemittanceBatches).set({
-        status: "reconciled",
-        reconciledAt: new Date(),
-        reconciledBy: user.name,
+      const [updatedMember] = await tx.update(statutoryRemittanceMembers).set({
+        postingStatus: "confirmed",
+        postingReference,
+        postingEvidenceArtifactId: artifact.id,
+        postedAmount: postedAmount.toFixed(2),
+        postedAt,
+        confirmedBy: user.name,
+        exceptionNote: null,
         updatedAt: new Date(),
-      }).where(eq(statutoryRemittanceBatches.id, batch.id));
-    } else if (batch.status === "exception" && exceptions.length === 0) {
-      await db.update(statutoryRemittanceBatches).set({
-        status: "paid",
-        updatedAt: new Date(),
-      }).where(eq(statutoryRemittanceBatches.id, batch.id));
-    }
+      }).where(and(
+        eq(statutoryRemittanceMembers.id, memberId),
+        eq(statutoryRemittanceMembers.organizationId, organizationId),
+      )).returning();
+
+      const remaining = await tx.select({ id: statutoryRemittanceMembers.id })
+        .from(statutoryRemittanceMembers)
+        .where(and(
+          eq(statutoryRemittanceMembers.batchId, batch.id),
+          eq(statutoryRemittanceMembers.postingStatus, "pending"),
+        ));
+      const exceptions = await tx.select({ id: statutoryRemittanceMembers.id })
+        .from(statutoryRemittanceMembers)
+        .where(and(
+          eq(statutoryRemittanceMembers.batchId, batch.id),
+          eq(statutoryRemittanceMembers.postingStatus, "exception"),
+        ));
+
+      if (remaining.length === 0 && exceptions.length === 0) {
+        await tx.update(statutoryRemittanceBatches).set({
+          status: "reconciled",
+          reconciledAt: new Date(),
+          reconciledBy: user.name,
+          updatedAt: new Date(),
+        }).where(eq(statutoryRemittanceBatches.id, batch.id));
+      } else if (batch.status === "exception" && exceptions.length === 0) {
+        await tx.update(statutoryRemittanceBatches).set({
+          status: "paid",
+          updatedAt: new Date(),
+        }).where(eq(statutoryRemittanceBatches.id, batch.id));
+      }
+
+      return {
+        member: updatedMember,
+        artifact,
+        pendingPostingCount: remaining.length,
+        exceptionCount: exceptions.length,
+      };
+    });
 
     await recordAuditEvent({
       organizationId,
@@ -473,9 +510,17 @@ export async function POST(request: Request) {
         expectedContribution: Number(member.totalContribution),
         postedAmount,
         postedAt: postedAt.toISOString(),
+        evidenceArtifactId: confirmation.artifact.id,
+        evidenceSource: confirmation.artifact.sourceType,
+        evidenceHashSha256: confirmation.artifact.contentSha256,
       },
     });
-    return Response.json({ member: updatedMember });
+    return Response.json({
+      member: confirmation.member,
+      evidenceArtifact: confirmation.artifact,
+      pendingPostingCount: confirmation.pendingPostingCount,
+      exceptionCount: confirmation.exceptionCount,
+    });
   }
 
   return Response.json({
