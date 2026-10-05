@@ -41,3 +41,5 @@ the first one, so it closes itself.
 - `0021_performance_management.sql` adds the HCM performance foundation: cycles, employee goals, and formal reviews.
 
 - `0022_job_architecture_positions.sql` adds job profiles, workforce plans, positions, and effective-dated position assignments.
+
+- `0023_recruitment_position_handoff.sql` connects approved positions to requisitions and records the employee created from a hired candidate.
