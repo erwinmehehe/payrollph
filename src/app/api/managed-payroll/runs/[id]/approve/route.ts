@@ -45,29 +45,55 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
-  if (!["Needs review", "Pending approval", "Ready for release"].includes(run.status)) {
-    return Response.json({ error: `Client approval is not available while payroll is ${run.status}.` }, { status: 409 });
+  if (run.status !== "Ready for release") {
+    return Response.json({
+      error: `Client approval is available only after independent checker approval (currently ${run.status}).`,
+    }, { status: 409 });
   }
 
   const [existing] = await db.select().from(managedPayrollRunApprovals)
     .where(eq(managedPayrollRunApprovals.payrollRunId, run.id))
     .limit(1);
+  const body = await request.json().catch(() => ({}));
+  const note = typeof body.note === "string" ? body.note.trim().slice(0, 1000) : "";
+  const fingerprint = await managedPayrollRunFingerprint(run.id);
   if (existing) {
-    const fingerprint = await managedPayrollRunFingerprint(run.id);
     const valid =
       fingerprint === existing.payrollFingerprint
       && Number(run.grossPay) === Number(existing.approvedGross)
       && Number(run.netPay) === Number(existing.approvedNet)
       && Number(run.employeeCount) === Number(existing.approvedEmployeeCount);
     if (valid) return Response.json({ approval: existing, alreadyApproved: true });
-    return Response.json({
-      error: "A prior client approval exists but the payroll contents changed. Recalculation invalidated that approval; reopen it before recording a new approval.",
-    }, { status: 409 });
+
+    const [approval] = await db.update(managedPayrollRunApprovals).set({
+      approvedByUserId: user.id,
+      approvedBy: user.name,
+      payrollFingerprint: fingerprint,
+      approvedGross: run.grossPay,
+      approvedNet: run.netPay,
+      approvedEmployeeCount: run.employeeCount,
+      note: note || null,
+      approvedAt: new Date(),
+    }).where(eq(managedPayrollRunApprovals.id, existing.id)).returning();
+
+    await recordAuditEvent({
+      organizationId: run.organizationId,
+      actor: user.name,
+      action: "Managed payroll client re-approved after payroll change",
+      resource: run.periodLabel,
+      metadata: {
+        runId: run.id,
+        approvalId: approval.id,
+        previousFingerprint: existing.payrollFingerprint,
+        payrollFingerprint: fingerprint,
+        grossPay: run.grossPay,
+        netPay: run.netPay,
+        employeeCount: run.employeeCount,
+      },
+    });
+    return Response.json({ approval, replacedStaleApproval: true });
   }
 
-  const body = await request.json().catch(() => ({}));
-  const note = typeof body.note === "string" ? body.note.trim().slice(0, 1000) : "";
-  const fingerprint = await managedPayrollRunFingerprint(run.id);
   const [approval] = await db.insert(managedPayrollRunApprovals).values({
     engagementId: engagement.id,
     payrollRunId: run.id,
