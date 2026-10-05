@@ -158,7 +158,12 @@ export function WorkspaceShell({
   }
 
   return (
-    <div className={`app-shell ${rail ? "rail" : ""} ${drawer ? "drawer-open" : ""}`} data-workspace-page={page} data-workspace-role={workspaceRole ?? undefined}>
+    <div
+      className={`app-shell ${rail ? "rail" : ""} ${drawer ? "drawer-open" : ""}`}
+      data-workspace-page={page}
+      data-workspace-role={workspaceRole ?? undefined}
+      data-demo-role={displayRole ?? undefined}
+    >
       <button className="nav-scrim" aria-label="Close navigation" onClick={() => setDrawer(false)} tabIndex={drawer ? 0 : -1} />
 
       <aside className="sidebar" aria-label="Workspace navigation">
