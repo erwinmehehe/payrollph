@@ -34,6 +34,18 @@ export async function seedManagedPayrollGates(engagementId: number) {
   }
 }
 
+function canonicalizeManagedPayrollValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalizeManagedPayrollValue);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, nested]) => [key, canonicalizeManagedPayrollValue(nested)]),
+    );
+  }
+  return value;
+}
+
 export async function managedPayrollRunFingerprint(payrollRunId: number) {
   const rows = await db.select({
     employeeId: payrollEntries.employeeId,
@@ -47,7 +59,9 @@ export async function managedPayrollRunFingerprint(payrollRunId: number) {
     .where(eq(payrollEntries.payrollRunId, payrollRunId))
     .orderBy(asc(payrollEntries.employeeId));
 
-  return createHash("sha256").update(JSON.stringify(rows)).digest("hex");
+  return createHash("sha256")
+    .update(JSON.stringify(canonicalizeManagedPayrollValue(rows)))
+    .digest("hex");
 }
 
 export function managedPayrollApprovalMatches(
