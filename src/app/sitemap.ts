@@ -3,6 +3,7 @@ import { absolutePublicUrl } from "@/lib/site-url";
 import { CALCULATORS } from "@/lib/calculators";
 import { compliancePages, industryPages, resourcePages } from "@/lib/seo-content";
 import { industryWave2, resourceWave2 } from "@/lib/seo-content-wave2";
+import { complianceWave3, glossaryEntries, regulatoryUpdates, resourceWave3 } from "@/lib/seo-content-wave3";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const staticRoutes = [
@@ -18,6 +19,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/developers", priority: 0.8, changeFrequency: "monthly" as const },
     { path: "/pricing", priority: 0.9, changeFrequency: "weekly" as const },
     { path: "/resources", priority: 0.9, changeFrequency: "weekly" as const },
+    { path: "/resources/updates", priority: 0.8, changeFrequency: "weekly" as const },
+    { path: "/glossary", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/industries", priority: 0.8, changeFrequency: "monthly" as const },
     { path: "/industries/bpo", priority: 0.8, changeFrequency: "monthly" as const },
     { path: "/calculators", priority: 0.9, changeFrequency: "monthly" as const },
@@ -29,10 +32,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
   ];
 
   const dynamicRoutes = [
-    ...compliancePages.map(({ slug }) => ({ path: `/compliance/${slug}`, priority: 0.8, changeFrequency: "monthly" as const })),
-    ...[...resourcePages, ...resourceWave2].map(({ slug }) => ({ path: `/resources/${slug}`, priority: 0.8, changeFrequency: "monthly" as const })),
+    ...[...compliancePages, ...complianceWave3].map(({ slug }) => ({ path: `/compliance/${slug}`, priority: 0.8, changeFrequency: "monthly" as const })),
+    ...[...resourcePages, ...resourceWave2, ...resourceWave3].map(({ slug }) => ({ path: `/resources/${slug}`, priority: 0.8, changeFrequency: "monthly" as const })),
     ...[...industryPages, ...industryWave2].map(({ slug }) => ({ path: `/industries/${slug}`, priority: 0.8, changeFrequency: "monthly" as const })),
     ...Object.keys(CALCULATORS).map((slug) => ({ path: `/calculators/${slug}`, priority: 0.8, changeFrequency: "monthly" as const })),
+    ...glossaryEntries.map(({ slug }) => ({ path: `/glossary/${slug}`, priority: 0.6, changeFrequency: "monthly" as const })),
+    ...regulatoryUpdates.map(({ slug }) => ({ path: `/resources/updates/${slug}`, priority: 0.7, changeFrequency: "yearly" as const })),
   ];
 
   return [...staticRoutes, ...dynamicRoutes].map((route) => ({
