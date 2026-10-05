@@ -178,7 +178,7 @@ test("buyer guides use page-specific metadata instead of generic eyebrow titles"
     "Best Payroll Software Philippines: Buyer Guide | Linaw",
     "Payroll Software vs Outsourcing Philippines | Linaw",
     "Payroll Migration Checklist Philippines | Linaw",
-    "Payroll Software Security Checklist Philippines | Linaw",
+    "Payroll Security Checklist Guide Philippines | Linaw",
     "Payroll Software vs Excel Philippines | Linaw",
   ]) {
     assert.ok(content.includes(title), `buyer guide metadata must include ${title}`);
