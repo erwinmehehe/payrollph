@@ -351,10 +351,10 @@ export function ManagerExperiencePanel({ organizationId, setNotice }: { organiza
                     <label>Private manager notes<textarea rows={2} value={draft.managerPrivateNotes} onChange={(event) => setMeetingDrafts({ ...meetingDrafts, [meeting.id]: { ...draft, managerPrivateNotes: event.target.value } })} /></label>
                   </div>
                 )}
-                <div className="run-actions">
+                {mayComplete && <div className="run-actions">
                   <button type="button" className="secondary-button" onClick={() => void addAction(meeting.id)}><Plus size={13} /> Action item</button>
-                  {mayComplete && <button type="button" className="primary-button" onClick={() => void completeMeeting(meeting)}><CalendarCheck size={13} /> Complete & schedule next</button>}
-                </div>
+                  <button type="button" className="primary-button" onClick={() => void completeMeeting(meeting)}><CalendarCheck size={13} /> Complete & schedule next</button>
+                </div>}
                 {data.oneOnOneActionItems.filter((item) => item.meetingId === meeting.id).map((item) => <small key={item.id} style={{ display: "block", marginTop: 5 }}>{item.status === "completed" ? "✓" : "○"} {item.title}</small>)}
               </div>
             );
