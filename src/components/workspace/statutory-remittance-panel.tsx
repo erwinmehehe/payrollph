@@ -36,6 +36,7 @@ type Member = {
   totalContribution: string;
   postingStatus: string;
   postingReference: string | null;
+  postedAmount: string | null;
   exceptionNote: string | null;
 };
 
@@ -61,6 +62,7 @@ export function StatutoryRemittancePanel({
   const [paymentVarianceNote, setPaymentVarianceNote] = useState("");
   const [postingMemberId, setPostingMemberId] = useState<number | null>(null);
   const [postingReference, setPostingReference] = useState("");
+  const [postingAmount, setPostingAmount] = useState("");
   const [exceptionNote, setExceptionNote] = useState("");
 
   const load = useCallback(async () => {
@@ -136,10 +138,12 @@ export function StatutoryRemittancePanel({
     const ok = await mutate("confirm_member_posting", {
       memberId: member.id,
       postingReference,
+      postedAmount: Number(postingAmount),
     }, `${member.employeeNo} posting confirmed against agency evidence.`);
     if (ok) {
       setPostingMemberId(null);
       setPostingReference("");
+      setPostingAmount("");
     }
   }
 
@@ -150,6 +154,8 @@ export function StatutoryRemittancePanel({
     }, `${member.employeeNo} marked as a posting exception.`);
     if (ok) {
       setPostingMemberId(null);
+      setPostingAmount("");
+      setPostingReference("");
       setExceptionNote("");
     }
   }
@@ -262,20 +268,36 @@ export function StatutoryRemittancePanel({
                           <td className="num">{money(member.totalContribution)}</td>
                           <td>
                             {member.postingStatus === "confirmed" ? (
-                              <span className="green-number"><CheckCircle2 size={13} /> Confirmed</span>
+                              <div>
+                                <span className="green-number"><CheckCircle2 size={13} /> Confirmed</span>
+                                <div className="id">Posted {money(member.postedAmount ?? member.totalContribution)}</div>
+                              </div>
                             ) : member.postingStatus === "exception" ? (
                               <div><Status value="Exception" /><div className="id">{member.exceptionNote}</div></div>
                             ) : postingMemberId === member.id ? (
                               <div style={{ display: "grid", gap: 6 }}>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={postingAmount}
+                                  onChange={(e) => setPostingAmount(e.target.value)}
+                                  placeholder={member.totalContribution}
+                                />
                                 <input value={postingReference} onChange={(e) => setPostingReference(e.target.value)} placeholder="Agency member posting reference" />
                                 <input value={exceptionNote} onChange={(e) => setExceptionNote(e.target.value)} placeholder="Or explain missing / incorrect posting" />
                                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                  <button className="secondary-button" disabled={!postingReference.trim() || busy !== null} onClick={() => void confirmPosting(member)}>Confirm posted</button>
+                                  <button className="secondary-button" disabled={!postingReference.trim() || !postingAmount || busy !== null} onClick={() => void confirmPosting(member)}>Confirm posted</button>
                                   <button className="secondary-button" disabled={!exceptionNote.trim() || busy !== null} onClick={() => void markException(member)}>Flag exception</button>
                                 </div>
                               </div>
                             ) : (
-                              <button className="secondary-button" onClick={() => setPostingMemberId(member.id)}>Reconcile employee</button>
+                              <button className="secondary-button" onClick={() => {
+                                setPostingMemberId(member.id);
+                                setPostingAmount(member.totalContribution);
+                                setPostingReference("");
+                                setExceptionNote("");
+                              }}>Reconcile employee</button>
                             )}
                           </td>
                         </tr>
