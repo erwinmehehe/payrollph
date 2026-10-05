@@ -19,27 +19,6 @@ function clean(value: unknown, max = 160) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
-function marketingMetadata(value: unknown): MarketingMetadata | null {
-  if (!value || typeof value !== "object") return null;
-  const root = value as Record<string, unknown>;
-  const raw = root.marketing;
-  if (!raw || typeof raw !== "object") return null;
-  const input = raw as Record<string, unknown>;
-
-  return {
-    requestType: input.requestType === "trial" ? "trial" : "demo",
-    headcount: clean(input.headcount, 40) || "not stated",
-    landingPath: clean(input.landingPath, 300) || "(unknown)",
-    conversionPath: clean(input.conversionPath, 300) || "(unknown)",
-    referrer: clean(input.referrer, 500),
-    utmSource: clean(input.utmSource, 120),
-    utmMedium: clean(input.utmMedium, 120),
-    utmCampaign: clean(input.utmCampaign, 160),
-    utmContent: clean(input.utmContent, 160),
-    utmTerm: clean(input.utmTerm, 160),
-  };
-}
-
 function increment(map: Map<string, number>, key: string) {
   map.set(key, (map.get(key) ?? 0) + 1);
 }
