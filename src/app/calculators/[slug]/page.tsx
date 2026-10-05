@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AdvancedPayrollCalculator } from "@/components/marketing/advanced-payroll-calculator";
 import { PayrollCalculator } from "@/components/marketing/payroll-calculator";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
-import { CALCULATORS, type CalculatorSlug } from "@/lib/calculators";
+import { StructuredData } from "@/components/marketing/structured-data";
+import { CALCULATORS, isAdvancedCalculatorSlug, type CalculatorSlug } from "@/lib/calculators";
 
 const relatedByCalculator: Partial<Record<CalculatorSlug, Array<{ label: string; href: string; copy: string }>>> = {
   "13th-month-pay": [
@@ -53,12 +55,18 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function CalculatorPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const calculatorSlug = slug as CalculatorSlug;
-  const item = CALCULATORS[calculatorSlug];
+  const typedSlug = slug as CalculatorSlug;
+  const item = CALCULATORS[typedSlug];
   if (!item) notFound();
-  const related = relatedByCalculator[calculatorSlug] ?? [];
+  const path = `/calculators/${slug}`;
+  const related = relatedByCalculator[typedSlug] ?? [];
+
   return (
     <div className="min-h-screen bg-[#FAFBFD] text-[#0B0D1A]">
+      <StructuredData
+        breadcrumbs={[{ name: "Home", path: "/" }, { name: "Payroll calculators", path: "/calculators" }, { name: item.title, path }]}
+        webApplication={{ name: item.title, description: item.description, path }}
+      />
       <SiteNav />
       <main>
         <section className="border-b border-[#EDEFF7] bg-white py-14 sm:py-16">
@@ -68,16 +76,22 @@ export default async function CalculatorPage({ params }: { params: Promise<{ slu
             <p className="mt-4 max-w-[760px] text-[15px] leading-relaxed text-[#5B6080]">{item.intro}</p>
           </div>
         </section>
-        <section className="py-12 sm:py-16"><div className="mx-auto max-w-[980px] px-5 sm:px-8"><PayrollCalculator slug={calculatorSlug}/></div></section>
+        <section className="py-12 sm:py-16">
+          <div className="mx-auto max-w-[980px] px-5 sm:px-8">
+            {isAdvancedCalculatorSlug(typedSlug)
+              ? <AdvancedPayrollCalculator slug={typedSlug} />
+              : <PayrollCalculator slug={typedSlug} />}
+          </div>
+        </section>
         {related.length ? (
           <section className="border-t border-[#EDEFF7] bg-white py-12 sm:py-14">
             <div className="mx-auto max-w-[980px] px-5 sm:px-8">
               <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Use the estimate in context</p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {related.map((item) => (
-                  <Link key={item.href} href={item.href} className="rounded-[20px] border border-[#E4E6F0] bg-[#FAFBFD] p-5 transition hover:border-[#CFCFFF]">
-                    <strong className="text-[14px] font-semibold text-[#11141F]">{item.label}</strong>
-                    <p className="mt-2 text-[12.5px] leading-relaxed text-[#6B718C]">{item.copy}</p>
+                {related.map((link) => (
+                  <Link key={link.href} href={link.href} className="rounded-[20px] border border-[#E4E6F0] bg-[#FAFBFD] p-5 transition hover:border-[#CFCFFF]">
+                    <strong className="text-[14px] font-semibold text-[#11141F]">{link.label}</strong>
+                    <p className="mt-2 text-[12.5px] leading-relaxed text-[#6B718C]">{link.copy}</p>
                   </Link>
                 ))}
               </div>
