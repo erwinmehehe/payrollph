@@ -247,6 +247,47 @@ test("automatic payslip retry uses backoff after an attempted retry", async () =
   }
 });
 
+test("public lead notifications retry automatically even without an organization", async () => {
+  const previous = snapshotProviders();
+  clearProviders();
+  process.env.SMTP_URL = "smtp://user:pass@127.0.0.1:1";
+
+  let leadId: number | null = null;
+  try {
+    const initial = await queueMessage({
+      recipient: "operator@example.com",
+      subject: "Demo request",
+      body: "A public demo request was submitted.",
+      purpose: "demo-request",
+    });
+    leadId = initial.id;
+
+    assert.equal(initial.status, "failed");
+
+    const [stored] = await db.select().from(outbox).where(eq(outbox.id, initial.id)).limit(1);
+    assert.equal(stored.organizationId, null);
+    assert.equal(stored.maxAttempts, 4);
+    assert.ok(stored.nextAttemptAt);
+
+    await db.update(outbox)
+      .set({ nextAttemptAt: new Date(Date.now() - 1000) })
+      .where(eq(outbox.id, initial.id));
+
+    const drained = await drainOutboxRetries(25);
+    const retry = drained.find((item) => item.id === initial.id);
+    assert.ok(retry);
+    assert.equal(retry!.retried, true);
+
+    const [after] = await db.select().from(outbox).where(eq(outbox.id, initial.id)).limit(1);
+    assert.equal(after.attempts, 2);
+    assert.equal(after.status, "failed");
+  } finally {
+    restoreProviders(previous);
+    if (leadId != null) await db.delete(outbox).where(eq(outbox.id, leadId));
+  }
+});
+
+
 test("worker, scheduler and release route are wired to durable email recovery", () => {
   const worker = readFileSync("scripts/worker.ts", "utf8");
   const scheduler = readFileSync("src/lib/scheduler.ts", "utf8");
