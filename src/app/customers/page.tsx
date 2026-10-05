@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
-import { CUSTOMER_STORIES } from "@/lib/customer-stories";
+import { PUBLISHABLE_CUSTOMER_STORIES } from "@/lib/customer-stories";
 
-const approvedStories = CUSTOMER_STORIES.filter((story) => story.approved);
+const approvedStories = PUBLISHABLE_CUSTOMER_STORIES;
 
 export const metadata: Metadata = {
   title: "Payroll Customer Stories Philippines | Linaw",
