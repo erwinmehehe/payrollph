@@ -14,16 +14,6 @@ import {
   X,
 } from "lucide-react";
 
-type Plan = {
-  id: number;
-  name: string;
-  monthlyBase: string;
-  perEmployee: string;
-  modules: unknown;
-  version: string;
-  active?: boolean;
-};
-
 type FocusId = "changes" | "blockers" | "approvals";
 
 const focusTabs: Array<{ id: FocusId; label: string; title: string; copy: string }> = [
@@ -449,7 +439,7 @@ function Footer() {
   );
 }
 
-export default function ModernHome({ plans: _plans }: { plans: Plan[] }) {
+export default function ModernHome() {
   return (
     <div className="linaw-landing">
       <Navigation />
