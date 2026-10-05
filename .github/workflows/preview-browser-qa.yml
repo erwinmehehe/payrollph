@@ -252,6 +252,48 @@ jobs:
               report.modules.push({ module: "Shared Linaw workspace preview", active: true });
             }
 
+            if (name === "mobile-390") {
+              const normalizedHeading = h1.replace(/\s+/g, " ");
+              check(
+                normalizedHeading.includes("Philippine payroll software you can verify before you pay."),
+                `mobile-390: hero words collided after responsive line-break removal; saw "${normalizedHeading}"`,
+              );
+
+              const mobilePreview = page.locator(".payroll-home-real-preview").first();
+              const previewPosition = await mobilePreview.evaluate((element) => getComputedStyle(element).position);
+              check(
+                previewPosition === "absolute",
+                `mobile-390: scaled hero preview must be removed from document flow; position=${previewPosition}`,
+              );
+
+              const securityProof = page.locator("#security article").first();
+              const securityHeading = securityProof.getByRole("heading", { name: "One workspace can never read another's payroll." });
+              const securityCopy = securityProof.locator("p").filter({ hasText: "Every session route passes one shared membership gate." }).first();
+
+              for (const [label, locator] of [["heading", securityHeading], ["copy", securityCopy]]) {
+                check((await locator.count()) === 1, `mobile-390: security proof ${label} is missing`);
+                const fit = await locator.evaluate((element) => {
+                  const article = element.closest("article");
+                  const rect = element.getBoundingClientRect();
+                  const parentRect = article?.getBoundingClientRect();
+                  return {
+                    clientWidth: element.clientWidth,
+                    scrollWidth: element.scrollWidth,
+                    left: rect.left,
+                    right: rect.right,
+                    parentLeft: parentRect?.left ?? rect.left,
+                    parentRight: parentRect?.right ?? rect.right,
+                  };
+                });
+                check(
+                  fit.scrollWidth <= fit.clientWidth + 1 &&
+                    fit.left >= fit.parentLeft - 1 &&
+                    fit.right <= fit.parentRight + 1,
+                  `mobile-390: security proof ${label} is clipped inside its card`,
+                );
+              }
+            }
+
             check(errors.length === 0, `${name}: browser console/page errors: ${errors.join(" | ")}`);
             await context.close();
           }
