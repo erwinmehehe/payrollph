@@ -18,16 +18,20 @@ import { cn } from "../utils/cn";
 
 export function Audiences() {
   const items = [
-    { icon: UserRound, t: "Freelancers", c: "#00CA72", soft: "#E3FAF0", d: "A quiet self-employed profile. Solo is free, and team modules stay out of your way." },
-    { icon: Users, t: "Small teams", c: "#579BFC", soft: "#EAF3FF", d: "People, time, leave and payslips. CSV import accepts the spreadsheet you already have." },
-    { icon: Building2, t: "Bookkeepers", c: "#FF7A29", soft: "#FFF1E6", d: "Run payroll for many client businesses from one login. Every client is tenant-isolated." },
-    { icon: ShieldCheck, t: "Multi-branch", c: "#7C5CFF", soft: "#F1EDFF", d: "Org units, department-scoped access, delegated approvals, API and webhooks." },
+    { icon: Building2, t: "Small businesses", c: "#00CA72", soft: "#E3FAF0", d: "Move off spreadsheets without losing visibility. Keep employees, attendance, payroll and payslips in one controlled workflow." },
+    { icon: Users, t: "Payroll teams", c: "#579BFC", soft: "#EAF3FF", d: "Separate preparation, checking and release so one person does not have to own the entire payroll process." },
+    { icon: UserRound, t: "Accounting firms", c: "#FF7A29", soft: "#FFF1E6", d: "Run payroll across multiple client businesses from one login while keeping every client workspace tenant-isolated." },
+    { icon: ShieldCheck, t: "Multi-branch employers", c: "#7C5CFF", soft: "#F1EDFF", d: "Use organization units, scoped access and delegated approvals when payroll responsibility is split across locations." },
   ];
 
   return (
     <section id="product" className="scroll-mt-20 py-16 sm:py-20">
       <div className="mx-auto max-w-[1240px] px-5 sm:px-8">
-        <SectionHeading align="center" title="Simple when you're small. Serious when you're not." />
+        <SectionHeading
+          align="center"
+          title="Built for teams that need more control as payroll gets more complex."
+          description="Linaw stays simple enough for a small payroll, but adds role separation, scoped access and multi-client structure when the operation grows."
+        />
         <div className="mt-9 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {items.map((x, k) => (
             <Reveal key={x.t} delay={k * 80}>
@@ -99,21 +103,21 @@ export function Security() {
 
         <Reveal delay={100}>
           <article className="mt-8 overflow-hidden rounded-[30px] border border-[#CDEFDD] bg-[#11141F] text-white shadow-[0_30px_70px_-38px_rgba(17,20,31,.5)]">
-            <div className="grid gap-0 lg:grid-cols-[1.05fr_0.95fr]">
-              <div className="p-6 sm:p-8 lg:p-10">
+            <div className="grid min-w-0 gap-0 lg:grid-cols-[1.05fr_0.95fr]">
+              <div className="min-w-0 p-6 sm:p-8 lg:p-10">
                 <span className="inline-flex items-center gap-2 rounded-full bg-[#E3FAF0] px-3 py-1.5 text-[12px] font-bold text-[#0A8A53]">
                   <ShieldCheck className="h-4 w-4" aria-hidden />
                   Tenant isolation verified
                 </span>
-                <h3 className="font-display mt-5 max-w-[600px] text-[28px] font-semibold leading-tight sm:text-[36px]">
+                <h3 className="font-display mt-5 max-w-[600px] break-words text-[28px] font-semibold leading-tight sm:text-[36px]">
                   One workspace can never read another&apos;s payroll.
                 </h3>
-                <p className="mt-3 max-w-[640px] text-[15px] leading-relaxed text-white/65">
+                <p className="mt-3 max-w-[640px] break-words text-[15px] leading-relaxed text-white/65">
                   Every session route passes one shared membership gate. Resource URLs resolve their own organization, so an ID in the URL never counts as authorization.
                 </p>
               </div>
 
-              <div className="border-t border-white/10 bg-white/[0.04] p-5 sm:p-7 lg:border-l lg:border-t-0">
+              <div className="min-w-0 border-t border-white/10 bg-white/[0.04] p-5 sm:p-7 lg:border-l lg:border-t-0">
                 <div className="mono grid gap-2 rounded-2xl border border-white/10 bg-black/10 p-4 text-[12.5px]">
                   {[
                     "GET  /api/payroll-runs/:foreign/exports",

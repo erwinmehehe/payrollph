@@ -101,6 +101,7 @@ export function workforceScheduleTrace(
       patternDayIndex: schedule.patternDayIndex,
       overrideId: schedule.overrideId,
       workLocationOrgUnitId: schedule.workLocationOrgUnitId,
+      worksiteId: schedule.worksiteId,
       segments: schedule.segments.map((segment) => ({
         shiftDefinitionId: segment.shiftDefinitionId,
         shiftCode: segment.shiftCode,

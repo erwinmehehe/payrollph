@@ -140,7 +140,7 @@ jobs:
             check(response && response.ok(), `${name}: homepage did not return 2xx`);
 
             const h1 = (await page.locator("h1").first().innerText()).trim();
-            check(h1.includes("Philippine payroll software") && h1.includes("you can verify before you pay."), `${name}: expected Linaw payroll hero heading not found; saw "${h1}"`);
+            check(h1.includes("Philippine payroll you can verify before you pay."), `${name}: expected Linaw payroll hero heading not found; saw "${h1}"`);
             const heroPrimary = page.locator(".hero-primary-cta");
             check((await heroPrimary.count()) === 1, `${name}: hero primary CTA is missing`);
             const heroPrimaryStyles = await heroPrimary.evaluate((el) => {
@@ -198,14 +198,15 @@ jobs:
 
             if (name === "desktop") {
               const hero = page.locator("#top");
-              check((await hero.locator(".payroll-home-real-preview .system-demo-product .frame").count()) === 1, "desktop: real Linaw workspace hero preview is missing");
+              check((await hero.locator(".payroll-hero-control-card").count()) === 1, "desktop: release-readiness proof card is missing");
+              check((await hero.getByRole("heading", { name: "Can I safely release this payroll?" }).count()) === 1, "desktop: release-readiness question is missing");
               check((await hero.locator(".payroll-hero-owl").count()) === 0, "desktop: homepage mascot must stay removed");
               check((await hero.locator(".payroll-hero-speech").count()) === 0, "desktop: mascot speech bubble must stay removed");
               check((await hero.locator(".payroll-home-trust li").count()) === 3, "desktop: hero trust list must expose three proof points");
 
               const demo = page.locator("#demo");
               check((await demo.count()) === 1, "desktop: live demo section is missing");
-              check((await demo.getByText("Interactive product preview").count()) === 1, "desktop: real product preview chrome did not render");
+              check((await demo.getByText("Interactive payroll workflow").count()) === 1, "desktop: payroll workflow preview chrome did not render");
               const systemPreview = demo.locator(".system-demo-product .frame.standalone");
               check((await systemPreview.count()) === 1, "desktop: shared Linaw workspace preview did not render");
               const previewNav = systemPreview.locator(".nav-item");
@@ -248,8 +249,81 @@ jobs:
               check(migrationStyles.columns !== "none", "desktop: Migration preview has no grid columns");
               check(migrationStyles.scrollWidth <= migrationStyles.width + 1, `desktop: Migration preview overflows ${migrationStyles.scrollWidth}px > ${migrationStyles.width}px`);
               check((await demo.getByRole("link", { name: /Open role-based sandbox/i }).count()) === 1, "desktop: role-based sandbox handoff is missing");
-              report.modules.push({ module: "Linaw real-workspace hero", active: true });
+              report.modules.push({ module: "Release-readiness hero", active: true });
               report.modules.push({ module: "Shared Linaw workspace preview", active: true });
+            }
+
+            if (name === "mobile-390") {
+              const normalizedHeading = h1.replace(/\s+/g, " ");
+              check(
+                normalizedHeading.includes("Philippine payroll you can verify before you pay."),
+                `mobile-390: hero words collided after responsive line-break removal; saw "${normalizedHeading}"`,
+              );
+
+              const mobileHero = page.locator("#top");
+              const mobileControlCard = mobileHero.locator(".payroll-hero-control-card").first();
+              check((await mobileControlCard.count()) === 1, "mobile-390: release-readiness proof card is missing");
+              const controlFit = await mobileControlCard.evaluate((element) => ({
+                clientWidth: element.clientWidth,
+                scrollWidth: element.scrollWidth,
+              }));
+              check(
+                controlFit.scrollWidth <= controlFit.clientWidth + 1,
+                `mobile-390: release-readiness card clips ${controlFit.scrollWidth}px > ${controlFit.clientWidth}px`,
+              );
+              const securityProof = page.locator("#security article").first();
+              const securityHeading = securityProof.getByRole("heading", { name: "One workspace can never read another's payroll." });
+              const securityCopy = securityProof.locator("p").filter({ hasText: "Every session route passes one shared membership gate." }).first();
+
+              check(
+                !(await pricing.innerText()).includes("No credit card to start") &&
+                  !(await pricing.innerText()).includes("Cancel anytime"),
+                "mobile-390: stale self-serve pricing promises returned",
+              );
+
+              const closingCta = page.locator("#cta");
+              const trialCta = closingCta.locator('a[href="/signup"]').first();
+              check((await trialCta.count()) === 1, "mobile-390: trial access CTA is missing");
+              const trialCtaStyles = await trialCta.evaluate((element) => ({
+                color: getComputedStyle(element).color,
+                backgroundColor: getComputedStyle(element).backgroundColor,
+              }));
+              check(
+                trialCtaStyles.color === "rgb(17, 20, 31)",
+                `mobile-390: trial CTA text lost dark contrast on white; saw ${trialCtaStyles.color}`,
+              );
+              check(
+                trialCtaStyles.backgroundColor === "rgb(255, 255, 255)",
+                `mobile-390: trial CTA background is not white; saw ${trialCtaStyles.backgroundColor}`,
+              );
+
+              await mobileHero.screenshot({ path: `${outDir}/homepage-mobile-390-hero.png` });
+              await pricing.screenshot({ path: `${outDir}/homepage-mobile-390-pricing.png` });
+              await securityProof.screenshot({ path: `${outDir}/homepage-mobile-390-security.png` });
+              await closingCta.screenshot({ path: `${outDir}/homepage-mobile-390-cta.png` });
+
+              for (const [label, locator] of [["heading", securityHeading], ["copy", securityCopy]]) {
+                check((await locator.count()) === 1, `mobile-390: security proof ${label} is missing`);
+                const fit = await locator.evaluate((element) => {
+                  const article = element.closest("article");
+                  const rect = element.getBoundingClientRect();
+                  const parentRect = article?.getBoundingClientRect();
+                  return {
+                    clientWidth: element.clientWidth,
+                    scrollWidth: element.scrollWidth,
+                    left: rect.left,
+                    right: rect.right,
+                    parentLeft: parentRect?.left ?? rect.left,
+                    parentRight: parentRect?.right ?? rect.right,
+                  };
+                });
+                check(
+                  fit.scrollWidth <= fit.clientWidth + 1 &&
+                    fit.left >= fit.parentLeft - 1 &&
+                    fit.right <= fit.parentRight + 1,
+                  `mobile-390: security proof ${label} is clipped inside its card`,
+                );
+              }
             }
 
             check(errors.length === 0, `${name}: browser console/page errors: ${errors.join(" | ")}`);
@@ -508,7 +582,7 @@ jobs:
               const marketingResponse = await marketingPage.goto(base, { waitUntil: "networkidle", timeout: 90000 });
               check(marketingResponse && marketingResponse.ok(), "Owner: signed-in visit to / did not return 2xx");
               const marketingH1 = (await marketingPage.locator("h1").first().innerText()).trim();
-              check(marketingH1.includes("Philippine payroll software") && marketingH1.includes("you can verify before you pay."), `Owner: signed-in / should stay on the Linaw marketing homepage; saw "${marketingH1}"`);
+              check(marketingH1.includes("Philippine payroll you can verify before you pay."), `Owner: signed-in / should stay on the Linaw marketing homepage; saw "${marketingH1}"`);
               await marketingPage.close();
 
               const legacyPage = await context.newPage();
