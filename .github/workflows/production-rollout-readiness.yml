@@ -9,7 +9,7 @@ on:
       base_url:
         description: Production origin to verify
         required: true
-        default: https://erwinmehehe-payrollph.vercel.app
+        default: https://payrollsoftware.ph
         type: string
       rollout_mode:
         description: Code verifies the deployed build without claiming external launch acceptance; pilot/full enforce operational gates
@@ -29,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
-      PRODUCTION_BASE_URL: ${{ inputs.base_url || 'https://erwinmehehe-payrollph.vercel.app' }}
+      PRODUCTION_BASE_URL: ${{ inputs.base_url || 'https://payrollsoftware.ph' }}
       ROLLOUT_MODE: ${{ inputs.rollout_mode || 'code' }}
       PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}
       EXPECTED_COMMIT_SHA: ${{ github.sha }}
