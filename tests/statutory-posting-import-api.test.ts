@@ -42,7 +42,8 @@ test("bulk posting import checks batch population, immutability and exact posted
   assert.ok(route.includes("is not part of this remittance batch."));
   assert.ok(route.includes("already has immutable confirmed posting evidence."));
   assert.ok(route.includes("canConfirmMemberPosting({"));
-  assert.ok(route.includes("expectedTotal: Number(member.totalContribution)"));
+  assert.ok(route.includes("const expectedTotal = Number(member.totalContribution)"));
+  assert.ok(route.includes("expectedTotal,"));
 });
 
 test("clean apply updates members transactionally and recomputes batch reconciliation", () => {
