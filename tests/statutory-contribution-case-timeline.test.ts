@@ -7,6 +7,7 @@ test("contribution case timeline is append-only at the API surface", () => {
   assert.ok(route.includes("statutoryContributionIssueEvents"));
   assert.ok(route.includes('eventType: "review_started"'));
   assert.ok(route.includes('eventType: "payroll_update"'));
+  assert.ok(route.includes('eventType: "referred"'));
   assert.ok(route.includes('eventType: "resolved"'));
   assert.equal(route.includes("update(statutoryContributionIssueEvents)"), false);
   assert.equal(route.includes("delete(statutoryContributionIssueEvents)"), false);
@@ -66,6 +67,10 @@ test("timeline schema is additive and constrained", () => {
   assert.ok(migration.includes('CREATE TABLE IF NOT EXISTS "statutory_contribution_issue_events"'));
   assert.ok(migration.includes("statutory_contribution_issue_event_type_check"));
   assert.ok(migration.includes("statutory_contribution_issue_event_visibility_check"));
+  assert.ok(migration.includes("'referred'"));
+  const referralMigration = readFileSync("drizzle/0030_contribution_issue_event_referral.sql", "utf8");
+  assert.ok(referralMigration.includes("pg_get_constraintdef"));
+  assert.ok(referralMigration.includes("'referred'"));
   assert.ok(schema.includes("statutoryContributionIssueEvents"));
 });
 
