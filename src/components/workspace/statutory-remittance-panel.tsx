@@ -48,6 +48,10 @@ type Member = {
   postingStatus: string;
   postingReference: string | null;
   postedAmount: string | null;
+  postingEvidenceSource: string | null;
+  postingEvidenceFileName: string | null;
+  postingEvidenceHashSha256: string | null;
+  postingEvidenceRecordedBy: string | null;
   exceptionNote: string | null;
 };
 
@@ -328,6 +332,16 @@ export function StatutoryRemittancePanel({
                               <div>
                                 <span className="green-number"><CheckCircle2 size={13} /> Confirmed</span>
                                 <div className="id">Posted {money(member.postedAmount ?? member.totalContribution)}</div>
+                                <div className="id">
+                                  {member.postingEvidenceSource === "csv_import"
+                                    ? `Imported agency evidence${member.postingEvidenceFileName ? ` · ${member.postingEvidenceFileName}` : ""}`
+                                    : member.postingEvidenceSource === "manual_confirmation"
+                                      ? "Manual payroll confirmation"
+                                      : "Legacy confirmation · source not recorded"}
+                                </div>
+                                {member.postingEvidenceHashSha256 && (
+                                  <div className="id">Evidence SHA-256 {member.postingEvidenceHashSha256.slice(0, 12)}…</div>
+                                )}
                               </div>
                             ) : postingMemberId === member.id ? (
                               <div style={{ display: "grid", gap: 6 }}>
