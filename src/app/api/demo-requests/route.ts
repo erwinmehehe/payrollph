@@ -3,6 +3,7 @@ import { queueMessage } from "@/lib/mailer";
 import { activeMailProvider, deliveryCapable } from "@/lib/mail-provider";
 import { clientIp, rateLimitDistributed } from "@/lib/rate-limit";
 import { normalizeEmail, validEmail } from "@/lib/validation";
+import { sanitizeMarketingAttribution } from "@/lib/marketing-attribution";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,8 @@ export async function POST(request: Request) {
   const company = String(body.company ?? "").trim().slice(0, 160);
   const headcount = String(body.headcount ?? "").trim().slice(0, 40);
   const notes = String(body.notes ?? "").trim().slice(0, 1000);
+  const requestType = body.requestType === "trial" ? "trial" : "demo";
+  const attribution = sanitizeMarketingAttribution(body.attribution);
 
   const problems: string[] = [];
   if (name.length < 2) problems.push("Your name is required.");
@@ -47,15 +50,35 @@ export async function POST(request: Request) {
   try {
     result = await queueMessage({
       recipient: OPERATOR_INBOX,
-      subject: `Demo request: ${company}`,
+      subject: `${requestType === "trial" ? "Trial access request" : "Demo request"}: ${company}`,
       purpose: "demo-request",
+      metadata: {
+        marketing: {
+          requestType,
+          headcount: headcount || "not stated",
+          ...attribution,
+        },
+      },
       body: [
-        "A demo was requested from the public site.",
+        requestType === "trial"
+          ? "Trial workspace access was requested from the public site."
+          : "A demo was requested from the public site.",
         "",
-        `Name:      ${name}`,
-        `Email:     ${email}`,
-        `Company:   ${company}`,
-        `Headcount: ${headcount || "not stated"}`,
+        `Name:         ${name}`,
+        `Email:        ${email}`,
+        `Company:      ${company}`,
+        `Headcount:    ${headcount || "not stated"}`,
+        `Request type: ${requestType}`,
+        "",
+        "Attribution:",
+        `Landing path:    ${attribution.landingPath || "(unknown)"}`,
+        `Conversion path: ${attribution.conversionPath || "(unknown)"}`,
+        `Referrer:        ${attribution.referrer || "(direct / unknown)"}`,
+        `UTM source:      ${attribution.utmSource || "(not tagged)"}`,
+        `UTM medium:      ${attribution.utmMedium || "(not tagged)"}`,
+        `UTM campaign:    ${attribution.utmCampaign || "(not tagged)"}`,
+        `UTM content:     ${attribution.utmContent || "(not tagged)"}`,
+        `UTM term:        ${attribution.utmTerm || "(not tagged)"}`,
         "",
         "Notes:",
         notes || "(none)",

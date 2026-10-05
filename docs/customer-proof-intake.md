@@ -58,3 +58,20 @@ Store:
 - Never imply causation beyond the available evidence.
 - Avoid “best,” “guaranteed,” “zero errors” and similar unsupported claims.
 - If the customer requests anonymity, do not expose identifying details through screenshots, URLs or structured data.
+
+
+## Publication registry requirements
+
+Before setting a story to `approved: true`, populate:
+
+- `approvalEvidence`: where customer publication approval is stored.
+- `approvedAt`: approval date.
+- Every metric's `evidenceNote`: the source that substantiates the published value.
+- If a quote is present, `quote.approved` must be true.
+- An approved quote also needs `quote.approvalEvidence` and `quote.approvedAt`.
+
+The public site, customer-story sitemap and static story routes use the same publication validator. A story with `approved: true` but missing evidence remains unpublished.
+
+## Recommended evidence locations
+
+Evidence can reference an internal CRM record, signed approval email/thread, approved document, analytics report, implementation record or other durable source. Do not place private evidence material directly in public page copy.

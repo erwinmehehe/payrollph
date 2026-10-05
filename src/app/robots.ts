@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { absolutePublicUrl } from "@/lib/site-url";
+import { PUBLIC_SITE_URL, absolutePublicUrl } from "@/lib/site-url";
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -8,15 +8,11 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: [
         "/api/",
-        "/app/",
-        "/workspace/",
-        "/setup/",
-        "/invite/",
-        "/reset-password/",
-        "/verify-email/",
+        "/app",
+        "/workspace",
       ],
     },
     sitemap: absolutePublicUrl("/sitemap.xml"),
-    host: absolutePublicUrl("/"),
+    host: PUBLIC_SITE_URL,
   };
 }

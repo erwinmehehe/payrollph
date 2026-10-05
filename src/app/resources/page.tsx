@@ -6,8 +6,9 @@ import { StructuredData } from "@/components/marketing/structured-data";
 import { resourcePages } from "@/lib/seo-content";
 import { resourceWave2 } from "@/lib/seo-content-wave2";
 import { resourceWave3 } from "@/lib/seo-content-wave3";
+import { resourceWave14 } from "@/lib/seo-content-wave14";
 
-const resources = [...resourcePages, ...resourceWave2, ...resourceWave3];
+const resources = [...resourcePages, ...resourceWave2, ...resourceWave3, ...resourceWave14];
 
 export const metadata: Metadata = {
   title: "Philippine Payroll Guides & Buyer Resources | Linaw",
