@@ -2,12 +2,17 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
   organizations,
+  payrollEntries,
   payrollRuns,
   statutoryRemittanceBatches,
   statutoryRemittanceMembers,
 } from "@/db/schema";
 import { buildStatutoryRemittanceAlerts } from "@/lib/statutory-remittance-alerts";
-import { nominalRemittanceDueDate } from "@/lib/statutory-remittance";
+import {
+  nominalRemittanceDueDate,
+  statutorySharesForEntry,
+  type StatutoryAgency,
+} from "@/lib/statutory-remittance";
 
 export function currentManilaDate() {
   return new Intl.DateTimeFormat("en-CA", {
@@ -20,6 +25,33 @@ export function currentManilaDate() {
 
 export function currentManilaMonth() {
   return currentManilaDate().slice(0, 7);
+}
+
+export function statutoryLiabilityKeys(input: {
+  runMonths: Record<number, string>;
+  entries: Array<{
+    payrollRunId: number;
+    employeeId: number;
+    lineItems: unknown;
+    trace: unknown;
+  }>;
+}) {
+  const keys = new Set<string>();
+  const agencies: StatutoryAgency[] = ["SSS", "PhilHealth", "Pag-IBIG"];
+
+  for (const entry of input.entries) {
+    const applicableMonth = input.runMonths[entry.payrollRunId];
+    if (!applicableMonth) continue;
+
+    for (const agency of agencies) {
+      const shares = statutorySharesForEntry(entry, agency);
+      if (shares.employeeShare + shares.employerShare > 0) {
+        keys.add(`${applicableMonth}|${agency}`);
+      }
+    }
+  }
+
+  return keys;
 }
 
 export async function loadStatutoryRemittanceState(organizationId: number) {
@@ -43,6 +75,7 @@ export async function loadStatutoryRemittanceState(organizationId: number) {
     : [];
 
   const releasedRuns = await db.select({
+    id: payrollRuns.id,
     periodEnd: payrollRuns.periodEnd,
   }).from(payrollRuns).where(and(
     eq(payrollRuns.organizationId, organizationId),
@@ -55,6 +88,26 @@ export async function loadStatutoryRemittanceState(organizationId: number) {
       .map((run) => String(run.periodEnd).slice(0, 7))
       .filter((month) => month < currentManilaMonth()),
   )].sort().slice(-6);
+  const closedMonthSet = new Set(closedMonths);
+  const closedRuns = releasedRuns.filter((run) =>
+    closedMonthSet.has(String(run.periodEnd).slice(0, 7)),
+  );
+  const closedRunIds = closedRuns.map((run) => run.id);
+  const releasedEntries = closedRunIds.length
+    ? await db.select({
+        payrollRunId: payrollEntries.payrollRunId,
+        employeeId: payrollEntries.employeeId,
+        lineItems: payrollEntries.lineItems,
+        trace: payrollEntries.trace,
+      }).from(payrollEntries).where(inArray(payrollEntries.payrollRunId, closedRunIds))
+    : [];
+  const runMonths = Object.fromEntries(
+    closedRuns.map((run) => [run.id, String(run.periodEnd).slice(0, 7)]),
+  ) as Record<number, string>;
+  const liabilityKeys = statutoryLiabilityKeys({
+    runMonths,
+    entries: releasedEntries,
+  });
 
   const existingKeys = new Set(
     batches.map((batch) => `${batch.applicableMonth}|${batch.agency}`),
@@ -62,7 +115,10 @@ export async function loadStatutoryRemittanceState(organizationId: number) {
 
   const coverageGaps = closedMonths.flatMap((applicableMonth) =>
     (["SSS", "PhilHealth", "Pag-IBIG"] as const)
-      .filter((agency) => !existingKeys.has(`${applicableMonth}|${agency}`))
+      .filter((agency) =>
+        liabilityKeys.has(`${applicableMonth}|${agency}`)
+        && !existingKeys.has(`${applicableMonth}|${agency}`),
+      )
       .map((agency) => {
         let dueDate: string | null = null;
         try {
