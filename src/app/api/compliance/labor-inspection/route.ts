@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { laborInspectionRemediations } from "@/db/schema";
-import { assertOrganizationRole, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
+import { assertOrganizationRole, getAccess } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
@@ -15,9 +15,10 @@ import {
 export const dynamic = "force-dynamic";
 
 const DENIED = "Only company-wide People, Payroll, Checker, Bookkeeper, Admin or Owner roles can manage labor inspection readiness.";
+const INSPECTION_REVIEW_ROLES = ["owner", "admin", "bookkeeper", "hr", "payroll", "checker"] as const;
 
 async function requireAccess(userId: number, organizationId: number) {
-  const denied = await assertOrganizationRole(userId, organizationId, PEOPLE_PAYROLL_ROLES, DENIED);
+  const denied = await assertOrganizationRole(userId, organizationId, INSPECTION_REVIEW_ROLES, DENIED);
   if (denied) return denied;
   const access = await getAccess(userId, organizationId);
   if (!access?.companyWide) {
