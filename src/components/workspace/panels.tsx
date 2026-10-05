@@ -43,7 +43,7 @@ import {
   X,
 } from "lucide-react";
 import { AccountPanel } from "@/components/account-panel";
-import { StatutoryRemittancePanel } from "@/components/workspace/statutory-remittance-panel";
+import { StatutoryRemittancePanel } from "@/components/workspace/statutory-remittance-panel";\nimport { ComplianceCalendarPanel } from "@/components/workspace/compliance-calendar-panel";
 import { INVITABLE_ROLES, invitableRoleLabel } from "@/lib/roles";
 import type { AuditEvent, DashboardData, Employee, OrgUnit, PayrollEntry, PayrollRun, PricingPlan } from "./types";
 import { Avatar, Metric, PageHeading, Status, formatDate, formatDateTime as formatTime, money } from "./ui";
