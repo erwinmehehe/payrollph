@@ -211,7 +211,7 @@ export async function POST(request: Request) {
       },
     });
 
-    let escalation = [];
+    let escalation: Awaited<ReturnType<typeof queueStatutoryComplianceEscalations>> = [];
     try {
       escalation = await queueStatutoryComplianceEscalations({
         organizationId,
