@@ -174,7 +174,19 @@ export async function POST(request: Request) {
     }).returning();
 
     return { dispute, task };
+  }).catch((error: unknown) => {
+    const code = error && typeof error === "object" && "code" in error
+      ? String((error as { code?: unknown }).code ?? "")
+      : "";
+    if (code === "23505") {
+      return { error: "Contribution dispute was already reported by another request." } as const;
+    }
+    throw error;
   });
+
+  if ("error" in result) {
+    return Response.json({ error: result.error }, { status: 409 });
+  }
 
   await recordAuditEvent({
     organizationId,
