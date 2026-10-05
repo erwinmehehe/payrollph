@@ -165,6 +165,7 @@ export const SEO_INTENT_OWNERS: SeoIntentOwner[] = [
   { primaryIntent: "manufacturing payroll software philippines", ownerPath: "/industries/manufacturing", intentClass: "industry" },
   { primaryIntent: "construction payroll software philippines", ownerPath: "/industries/construction", intentClass: "industry", supportingIntents: ["construction payroll system philippines", "payroll software for construction companies philippines"] },
   { primaryIntent: "logistics payroll software philippines", ownerPath: "/industries/logistics", intentClass: "industry", supportingIntents: ["logistics payroll system philippines", "payroll software for logistics companies philippines"] },
+  { primaryIntent: "security agency payroll software philippines", ownerPath: "/industries/security-agencies", intentClass: "industry", supportingIntents: ["security guard payroll system philippines", "payroll software for security agencies philippines"] },
   { primaryIntent: "retail payroll software philippines", ownerPath: "/industries/retail", intentClass: "industry" },
   { primaryIntent: "healthcare payroll software philippines", ownerPath: "/industries/healthcare", intentClass: "industry" },
   { primaryIntent: "hospitality payroll software philippines", ownerPath: "/industries/hospitality", intentClass: "industry" },
