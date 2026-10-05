@@ -762,7 +762,7 @@ jobs:
                 const peopleText = (await page.locator(".content-area").innerText()).trim();
                 check(!peopleText.includes("Payroll readiness."), "HR: People duplicates the Today payroll-readiness dashboard");
 
-                const directPrimary = demoSidebar.locator(".side-navigation > .nav-group > .nav-item:visible");
+                const directPrimary = demoSidebar.locator(".side-navigation > .nav-group:not(.nav-more-group) > .nav-item:visible");
                 check((await directPrimary.count()) === 2, "HR: primary demo navigation should stay focused on Today and People");
                 check((await demoSidebar.locator(".nav-more-toggle:visible").count()) === 1, "HR: secondary HR modules should stay accessible under More");
               }
