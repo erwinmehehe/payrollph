@@ -607,7 +607,7 @@ export function ExportsView({
                 organizationId={organizationId}
                 agency={item.agency}
                 form={item.form}
-                run={{ id: run.id, periodLabel: run.periodLabel }}
+                run={{ id: run.id, periodLabel: run.periodLabel, periodEnd: run.periodEnd }}
                 notify={notify}
                 onRefresh={onRefresh}
               />
