@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Sign in | Linaw",
-  description: "Sign in to your Linaw Philippine payroll and HR workspace.",
+  description: "Sign in to your Linaw Philippine payroll workspace.",
   alternates: { canonical: "/login" },
 };
 
