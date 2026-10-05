@@ -47,4 +47,5 @@ jobs:
       - run: npx tsc --noEmit
       - run: npx tsx --test tests/*.test.ts
       - run: npm run seo:audit
+      - run: npm run seo:routes
       - run: npx next build
