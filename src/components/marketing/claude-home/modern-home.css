@@ -109,7 +109,20 @@
 
 .linaw-hero {
   position: relative;
-  padding: 104px 0 72px;
+  isolation: isolate;
+  padding: 112px 0 82px;
+}
+.linaw-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,.8), transparent 82%);
 }
 .linaw-hero::before {
   content: "";
@@ -325,25 +338,59 @@
 .linaw-check-status.warn { color: #fbbf24; }
 
 .linaw-proof-strip {
+  overflow: hidden;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
   background: rgba(255,255,255,.012);
 }
-.linaw-proof-row {
-  min-height: 94px;
-  display: grid;
-  grid-template-columns: 1.4fr repeat(4,1fr);
-  align-items: center;
-  gap: 28px;
-}
-.linaw-proof-row > p { margin: 0; color: #69768b; font-size: 11px; line-height: 1.5; }
-.linaw-proof-logo {
-  color: #758196;
-  font-size: 12px;
-  font-weight: 690;
-  letter-spacing: -.01em;
+.linaw-proof-intro {
+  padding-top: 22px;
   text-align: center;
-  filter: grayscale(1);
+}
+.linaw-proof-intro span {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.linaw-proof-marquee {
+  position: relative;
+  overflow: hidden;
+  padding: 18px 0 24px;
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+.linaw-proof-track {
+  display: flex;
+  width: max-content;
+  align-items: center;
+  gap: 10px;
+  animation: linawProofTicker 32s linear infinite;
+}
+.linaw-proof-logo {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 999px;
+  background: rgba(255,255,255,.018);
+  color: #7c8798;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: .01em;
+  white-space: nowrap;
+}
+.linaw-proof-logo i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #475569;
+}
+@keyframes linawProofTicker {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
 }
 
 .linaw-section { padding: 104px 0; }
@@ -669,5 +716,56 @@
     scroll-behavior: auto !important;
     animation-duration: .01ms !important;
     transition-duration: .01ms !important;
+  }
+}
+
+/* Final principal-design refinement */
+.linaw-hero-grid::before {
+  content: "";
+  position: absolute;
+  width: 42%;
+  height: 72%;
+  right: -4%;
+  top: 14%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(99,102,241,.18), transparent 68%);
+  filter: blur(36px);
+}
+.linaw-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(120deg, rgba(255,255,255,.025), transparent 26%, transparent 72%, rgba(99,102,241,.025));
+}
+.linaw-proof-section {
+  background:
+    radial-gradient(circle at 50% 10%, rgba(99,102,241,.06), transparent 34%),
+    #0b0c0e;
+}
+.linaw-workflow-preview,
+.linaw-ui {
+  box-shadow:
+    0 30px 80px -38px rgba(0,0,0,.85),
+    0 0 0 1px rgba(255,255,255,.015),
+    0 0 90px -55px rgba(99,102,241,.65);
+}
+.linaw-tab.active {
+  box-shadow: inset 0 0 0 1px rgba(129,140,248,.04), 0 10px 40px -30px rgba(99,102,241,.55);
+}
+@media (max-width: 760px) {
+  .linaw-hero {
+    padding-top: 84px;
+  }
+  .linaw-proof-intro {
+    width: min(100% - 36px, 680px);
+  }
+  .linaw-proof-intro span {
+    line-height: 1.5;
+  }
+  .linaw-proof-track {
+    animation-duration: 26s;
   }
 }
