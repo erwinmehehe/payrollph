@@ -20,6 +20,14 @@ test("public SEO infrastructure exists", () => {
   assert.ok(robots.includes('"/app/"'), "robots must keep the authenticated app out of crawl discovery");
 });
 
+test("homepage and authority routes keep distinct search intent ownership", () => {
+  const home = read("src/app/page.tsx");
+  const hris = read("src/app/hris/page.tsx");
+  assert.ok(home.includes("Payroll Software Philippines | Payroll System | Linaw"), "homepage must own payroll software intent");
+  assert.ok(!home.includes("HRIS & Payroll System"), "homepage must not reuse the HRIS title cluster");
+  assert.ok(hris.includes("HRIS Philippines"), "/hris must own HRIS Philippines intent");
+});
+
 test("money and authority pages have dedicated indexable routes", () => {
   const pages = [
     ["src/app/hris/page.tsx", "HRIS Philippines"],
@@ -96,6 +104,22 @@ test("developer center matches implemented API security model", () => {
   assert.ok(page.includes("HMAC-SHA256 webhook signatures"));
   assert.ok(route.includes("ALLOWED_API_SCOPES"), "developer route must define explicit scopes");
   assert.ok(route.includes("requireSensitiveActionMfa"), "developer credential mutations must retain MFA-sensitive control");
+});
+
+test("non-content auth routes stay out of the search index", () => {
+  const login = read("src/app/login/page.tsx");
+  const signup = read("src/app/signup/page.tsx");
+  for (const source of [login, signup]) {
+    assert.ok(source.includes("robots: { index: false, follow: false }"), "login and signup must be noindex");
+  }
+});
+
+test("canonical host fallback stays aligned with the deployed public app", () => {
+  const helper = read("src/lib/site-url.ts");
+  const layout = read("src/app/layout.tsx");
+  assert.ok(helper.includes("https://erwinmehehe-payrollph.vercel.app"), "site-url fallback must match the current public app");
+  assert.ok(!helper.includes("payrollph-three.vercel.app"), "stale fallback domain must not return");
+  assert.ok(layout.includes("PUBLIC_SITE_URL"), "global metadata must use the shared public URL helper");
 });
 
 test("public navigation exposes the SEO program without hiding the live demo", () => {
