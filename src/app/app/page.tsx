@@ -4,7 +4,8 @@ import { LinawWorkspace } from "@/components/linaw-workspace";
 import { SelfServicePortal } from "@/components/self-service-portal";
 import { getSessionUser } from "@/lib/auth";
 import { getDashboardData } from "@/lib/dashboard-data";
-import { primaryCompanyOrganizationId } from "@/lib/access";
+import { primaryCompanyOrganizationId, primaryEmployeeOrganizationId } from "@/lib/access";
+import { assertOrganizationSessionPolicy } from "@/lib/organization-auth-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,14 @@ export default async function WorkspacePage() {
   if (!user) redirect("/login");
 
   const companyOrganizationId = await primaryCompanyOrganizationId(user.id);
-  if (!companyOrganizationId) return <SelfServicePortal />;
+  if (!companyOrganizationId) {
+    const employeeOrganizationId = await primaryEmployeeOrganizationId(user.id);
+    if (employeeOrganizationId) {
+      const denied = await assertOrganizationSessionPolicy(user.id, employeeOrganizationId);
+      if (denied) redirect("/login?ssoRequired=1");
+    }
+    return <SelfServicePortal />;
+  }
 
   const data = await getDashboardData(companyOrganizationId);
   return <LinawWorkspace initialData={data} />;
