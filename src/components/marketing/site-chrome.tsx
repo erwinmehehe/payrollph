@@ -70,7 +70,7 @@ export function SiteNav() {
               href="/signup"
               className="inline-flex items-center rounded-[10px] border border-[#D9D9FF] bg-[#F5F5FF] px-4 py-2.5 text-[14px] font-semibold text-[#4A4AE0] transition-all hover:border-[#C5C5FF] hover:bg-[#ECECFF]"
             >
-              Start 14-day trial
+              Request trial access
             </Link>
           </div>
 
@@ -104,7 +104,7 @@ export function SiteNav() {
                 Sign in
               </Link>
               <Link href="/signup" onClick={() => setDrawer(false)} className="flex-1 rounded-[10px] border border-[#D9D9FF] bg-[#F5F5FF] px-5 py-3 text-center text-[14px] font-semibold text-[#4A4AE0]">
-                Start 14-day trial
+                Request trial access
               </Link>
             </div>
           </div>
