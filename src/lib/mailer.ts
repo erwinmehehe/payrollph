@@ -84,7 +84,7 @@ async function attemptDelivery(providerName: MailProvider, row: OutboxRow): Prom
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: process.env.MAIL_FROM ?? "Linaw <no-reply@linaw.ph>",
+        from: process.env.MAIL_FROM ?? "Linaw <notifications@payrollsoftware.ph>",
         to: [row.recipient],
         subject: row.subject,
         text: row.body,
@@ -111,7 +111,7 @@ async function attemptDelivery(providerName: MailProvider, row: OutboxRow): Prom
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        From: process.env.MAIL_FROM ?? "no-reply@linaw.ph",
+        From: process.env.MAIL_FROM ?? "notifications@payrollsoftware.ph",
         To: row.recipient,
         Subject: row.subject,
         TextBody: row.body,
