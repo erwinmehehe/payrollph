@@ -54,11 +54,11 @@ test("robots and sitemap expose only intentional public marketing routes", () =>
     assert.ok(!robots.includes(`"${route}"`), `robots must allow crawlers to see the noindex directive on ${route}`);
   }
 
-  for (const route of ["/payroll-outsourcing", "/demo", "/scorecard", "/book-demo"]) {
+  for (const route of ["/payroll-outsourcing", "/demo", "/scorecard"]) {
     assert.ok(sitemap.includes(`path: "${route}"`), `sitemap must expose ${route}`);
   }
 
-  for (const route of ["/login", "/setup", "/app", "/workspace", "/invite", "/reset-password", "/verify-email", "/signup", "/status"]) {
+  for (const route of ["/login", "/setup", "/app", "/workspace", "/invite", "/reset-password", "/verify-email", "/signup", "/status", "/book-demo"]) {
     assert.ok(!sitemap.includes(`path: "${route}"`), `sitemap must not publish ${route}`);
   }
 
