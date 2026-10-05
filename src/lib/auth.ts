@@ -8,7 +8,6 @@ import { effectiveSessionPolicyForUser, enforceActiveSessionLimit } from "@/lib/
 
 export const SESSION_COOKIE = process.env.NODE_ENV === "production" ? "__Host-linaw_session" : "linaw_session";
 const SESSION_DAYS = 14;
-const SESSION_IDLE_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 // Only write a "last seen" timestamp if it is older than this, so the read path
 // does not issue a database write on every single request.
 const LAST_SEEN_WRITE_INTERVAL_MS = 5 * 60 * 1000;
