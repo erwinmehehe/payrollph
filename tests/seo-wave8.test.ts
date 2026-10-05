@@ -10,6 +10,7 @@ test("public trial landing page exists and owns trial intent", () => {
   assert.ok(page.includes("Payroll Software Trial Philippines | Linaw"));
   assert.ok(page.includes('alternates: { canonical: "/trial" }'));
   assert.ok(page.includes("Controlled trial access"));
+  assert.ok(page.includes("StructuredData breadcrumbs="));
 });
 
 test("trial page does not invent free-trial terms", () => {
