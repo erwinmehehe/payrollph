@@ -1577,3 +1577,181 @@ export const compensationRecommendations = pgTable(
   ],
 );
 
+/* -------------------------------------------------------------------------- */
+/* HCM: learning, skills, development, and career readiness                   */
+/* -------------------------------------------------------------------------- */
+
+export const skillCatalog = pgTable(
+  "skill_catalog",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 160 }).notNull(),
+    category: varchar("category", { length: 100 }).notNull().default("General"),
+    description: text("description"),
+    active: boolean("active").notNull().default(true),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("skill_catalog_org_name_unique").on(table.organizationId, table.name),
+    index("skill_catalog_org_active_idx").on(table.organizationId, table.active),
+  ],
+);
+
+export const jobProfileSkills = pgTable(
+  "job_profile_skills",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    jobProfileId: integer("job_profile_id").notNull().references(() => jobProfiles.id, { onDelete: "cascade" }),
+    skillId: integer("skill_id").notNull().references(() => skillCatalog.id, { onDelete: "cascade" }),
+    requiredLevel: integer("required_level").notNull().default(3),
+    critical: boolean("critical").notNull().default(false),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("job_profile_skills_profile_skill_unique").on(table.jobProfileId, table.skillId),
+    index("job_profile_skills_org_profile_idx").on(table.organizationId, table.jobProfileId),
+  ],
+);
+
+export const employeeSkills = pgTable(
+  "employee_skills",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    skillId: integer("skill_id").notNull().references(() => skillCatalog.id, { onDelete: "cascade" }),
+    proficiencyLevel: integer("proficiency_level").notNull().default(1),
+    source: varchar("source", { length: 32 }).notNull().default("manager"),
+    verifiedByUserId: integer("verified_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("employee_skills_employee_skill_unique").on(table.employeeId, table.skillId),
+    index("employee_skills_org_employee_idx").on(table.organizationId, table.employeeId),
+  ],
+);
+
+export const developmentPlans = pgTable(
+  "development_plans",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    performanceReviewId: integer("performance_review_id").references(() => performanceReviews.id, { onDelete: "set null" }),
+    title: varchar("title", { length: 180 }).notNull(),
+    targetDate: date("target_date"),
+    status: varchar("status", { length: 24 }).notNull().default("active"),
+    notes: text("notes"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("development_plans_org_employee_idx").on(table.organizationId, table.employeeId),
+    index("development_plans_review_idx").on(table.performanceReviewId),
+  ],
+);
+
+export const developmentPlanItems = pgTable(
+  "development_plan_items",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    planId: integer("plan_id").notNull().references(() => developmentPlans.id, { onDelete: "cascade" }),
+    skillId: integer("skill_id").references(() => skillCatalog.id, { onDelete: "set null" }),
+    title: varchar("title", { length: 180 }).notNull(),
+    activityType: varchar("activity_type", { length: 40 }).notNull().default("training"),
+    targetLevel: integer("target_level"),
+    dueDate: date("due_date"),
+    status: varchar("status", { length: 24 }).notNull().default("planned"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("development_plan_items_plan_idx").on(table.planId),
+    index("development_plan_items_org_skill_idx").on(table.organizationId, table.skillId),
+  ],
+);
+
+export const learningCourses = pgTable(
+  "learning_courses",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    code: varchar("code", { length: 48 }).notNull(),
+    title: varchar("title", { length: 180 }).notNull(),
+    provider: varchar("provider", { length: 160 }).notNull().default("Internal"),
+    deliveryMode: varchar("delivery_mode", { length: 40 }).notNull().default("self_paced"),
+    description: text("description"),
+    skillId: integer("skill_id").references(() => skillCatalog.id, { onDelete: "set null" }),
+    awardedLevel: integer("awarded_level"),
+    certificationName: varchar("certification_name", { length: 180 }),
+    validityMonths: integer("validity_months"),
+    active: boolean("active").notNull().default(true),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("learning_courses_org_code_unique").on(table.organizationId, table.code),
+    index("learning_courses_org_active_idx").on(table.organizationId, table.active),
+  ],
+);
+
+export const learningEnrollments = pgTable(
+  "learning_enrollments",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    courseId: integer("course_id").notNull().references(() => learningCourses.id, { onDelete: "cascade" }),
+    developmentPlanItemId: integer("development_plan_item_id").references(() => developmentPlanItems.id, { onDelete: "set null" }),
+    status: varchar("status", { length: 24 }).notNull().default("assigned"),
+    assignedAt: timestamp("assigned_at", { withTimezone: true }).notNull().defaultNow(),
+    dueDate: date("due_date"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    score: numeric("score", { precision: 5, scale: 2 }),
+    evidenceUrl: text("evidence_url"),
+    assignedByUserId: integer("assigned_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("learning_enrollments_employee_course_unique").on(table.employeeId, table.courseId),
+    index("learning_enrollments_org_status_idx").on(table.organizationId, table.status),
+  ],
+);
+
+export const employeeCertifications = pgTable(
+  "employee_certifications",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    skillId: integer("skill_id").references(() => skillCatalog.id, { onDelete: "set null" }),
+    name: varchar("name", { length: 180 }).notNull(),
+    issuer: varchar("issuer", { length: 160 }).notNull().default("Internal"),
+    credentialId: varchar("credential_id", { length: 160 }),
+    issuedOn: date("issued_on").notNull(),
+    expiresOn: date("expires_on"),
+    status: varchar("status", { length: 24 }).notNull().default("active"),
+    evidenceUrl: text("evidence_url"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("employee_certifications_org_employee_idx").on(table.organizationId, table.employeeId),
+    index("employee_certifications_expiry_idx").on(table.organizationId, table.expiresOn),
+  ],
+);
+
