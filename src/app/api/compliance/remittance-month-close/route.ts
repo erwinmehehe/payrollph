@@ -3,6 +3,7 @@ import { db } from "@/db";
 import {
   payrollEntries,
   payrollRuns,
+  statutoryContributionIssueCases,
   statutoryRemittanceCorrectionRequests,
   statutoryRemittanceMonthClosures,
 } from "@/db/schema";
@@ -86,12 +87,18 @@ async function loadCloseState(organizationId: number, applicableMonth: string) {
       ))
     : [];
 
+  const issueCases = await db.select().from(statutoryContributionIssueCases).where(and(
+    eq(statutoryContributionIssueCases.organizationId, organizationId),
+    eq(statutoryContributionIssueCases.applicableMonth, applicableMonth),
+  ));
+
   const evaluation = evaluateRemittanceMonthClose({
     applicableMonth,
     batches: state.batches,
     members: state.members,
     alerts: state.alerts,
     corrections,
+    issueCases,
     requiredAgencies,
     allPayrollRunsReleased:
       monthRuns.length > 0 && monthRuns.every((run) => run.status === "Released"),
@@ -187,10 +194,11 @@ export async function POST(request: Request) {
     ]),
     ...current.evaluation.members.map((member) => member.confirmedBy),
     ...current.evaluation.corrections.map((correction) => correction.decidedByName),
+    ...current.evaluation.issueCases.map((issue) => issue.resolvedByName),
   ].filter((value): value is string => Boolean(value && value.trim())));
   if (evidenceActors.has(user.name)) {
     return Response.json({
-      error: "The certifier cannot certify a remittance month containing evidence they recorded, confirmed, or corrected. Use another Owner, Admin, or Checker.",
+      error: "The certifier cannot certify a remittance month containing evidence they recorded, confirmed, corrected, or resolved. Use another Owner, Admin, or Checker.",
     }, { status: 409 });
   }
 
