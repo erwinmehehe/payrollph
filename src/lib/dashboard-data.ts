@@ -276,7 +276,7 @@ export async function getDashboardData(organizationId?: number) {
 
   return {
     firstPayrollReadiness,
-    user: sessionUser ? publicUser(sessionUser) : null,
+    user: sessionUser ? { ...publicUser(sessionUser), role: access.role } : null,
     access,
     capabilities,
     organizations: orgs,
