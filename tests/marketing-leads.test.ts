@@ -21,13 +21,13 @@ test("public enquiries have their own durable marketing lead record", () => {
 test("demo and trial requests persist before best-effort email notification", () => {
   const route = read("src/app/api/demo-requests/route.ts");
   const recordIndex = route.indexOf("recordMarketingLead({");
-  const emailIndex = route.indexOf("queueMessage({");
+  const notifyIndex = route.indexOf("notifyMarketingLead(lead.id)");
 
   assert.ok(recordIndex >= 0, "demo route must persist a marketing lead");
-  assert.ok(emailIndex > recordIndex, "email notification must happen only after durable lead capture");
+  assert.ok(notifyIndex > recordIndex, "notification must happen only after durable lead capture");
   assert.ok(route.includes('body.requestType === "trial-access"'), "trial access must be distinguishable from a demo");
   assert.ok(route.includes('sourcePath: requestType === "trial-access" ? "/signup" : "/book-demo"'), "lead source path must be explicit");
-  assert.ok(route.includes("if (OPERATOR_INBOX && deliveryCapable())"), "email notification must require both an operator inbox and a live mail provider");
+  assert.ok(route.includes("notifyMarketingLead(lead.id)"), "demo route must delegate delivery to the shared recovery workflow");
   assert.ok(!route.includes(".invalid"), "public lead delivery must never target an invalid fallback address");
   assert.ok(route.includes("recorded: true"), "public response must confirm durable capture");
   assert.ok(!route.includes("deliveryCapable"), "public response must not expose mail deployment internals");
@@ -36,16 +36,35 @@ test("demo and trial requests persist before best-effort email notification", ()
 test("outsourcing enquiries persist before best-effort email notification", () => {
   const route = read("src/app/api/payroll-outsourcing/quote/route.ts");
   const recordIndex = route.indexOf("recordMarketingLead({");
-  const emailIndex = route.indexOf("queueMessage({");
+  const notifyIndex = route.indexOf("notifyMarketingLead(lead.id)");
 
   assert.ok(recordIndex >= 0, "outsourcing route must persist a marketing lead");
-  assert.ok(emailIndex > recordIndex, "email notification must happen only after durable lead capture");
+  assert.ok(notifyIndex > recordIndex, "notification must happen only after durable lead capture");
   assert.ok(route.includes('kind: "payroll-outsourcing"'), "outsourcing leads must have their own kind");
   assert.ok(route.includes('sourcePath: "/payroll-outsourcing"'), "outsourcing source must be explicit");
-  assert.ok(route.includes("if (OPERATOR_INBOX && deliveryCapable())"), "notification must require both an operator inbox and a live mail provider");
+  assert.ok(route.includes("notifyMarketingLead(lead.id)"), "outsourcing route must delegate delivery to the shared recovery workflow");
   assert.ok(!route.includes(".invalid"), "outsourcing delivery must never target an invalid fallback address");
-  assert.ok(route.includes('dedupeKey: `marketing-lead:${lead.id}`'), "lead notification must be idempotent");
 });
+
+test("marketing lead notifications are provider-gated, idempotent and recoverable", () => {
+  const storage = read("src/lib/marketing-leads.ts");
+  const mailer = read("src/lib/mailer.ts");
+  const worker = read("scripts/worker.ts");
+  const scheduler = read("src/lib/scheduler.ts");
+
+  assert.ok(storage.includes("operatorInbox(lead.kind)"), "notification workflow must resolve an explicitly configured operator inbox");
+  assert.ok(storage.includes("!recipient || !deliveryCapable()"), "lead notification must not create mail when delivery is unconfigured");
+  assert.ok(storage.includes('dedupeKey: `marketing-lead:${lead.id}`'), "lead notification must be idempotent");
+  assert.ok(storage.includes("retryOutboxMessage({"), "failed platform notifications must be retryable");
+  assert.ok(storage.includes("organizationId: null"), "platform lead retries must remain outside tenant scope");
+  assert.ok(storage.includes("drainMarketingLeadNotifications"), "lead notification recovery must have a worker drain");
+  assert.ok(!storage.includes(".invalid"), "shared notification logic must never use invalid fallback recipients");
+  assert.ok(mailer.includes("organizationId: number | null"), "mailer retry scope must support platform-only outbox rows");
+  assert.ok(mailer.includes("isNull(outbox.organizationId)"), "null-organization retries must be explicitly scoped");
+  assert.ok(worker.includes("drainMarketingLeadNotifications"), "dedicated worker must recover lead notifications");
+  assert.ok(scheduler.includes("drainMarketingLeadNotifications"), "remote scheduler must recover lead notifications");
+});
+
 
 test("public forms label demo and trial requests explicitly", () => {
   const demo = read("src/components/marketing/book-demo-form.tsx");
