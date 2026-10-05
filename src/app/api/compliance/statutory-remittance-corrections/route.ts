@@ -1,6 +1,11 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, lte } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  employees,
+  payrollEntries,
+  payrollRuns,
+  statutoryContributionIssueCases,
+  statutoryContributionIssueEvents,
   statutoryRemittanceBatches,
   statutoryRemittanceCorrectionRequests,
   statutoryRemittanceMembers,
@@ -22,6 +27,11 @@ import {
   validatePostingCorrection,
 } from "@/lib/statutory-remittance-correction";
 import { syncStatutoryRemittanceActions } from "@/lib/statutory-remittance-actions";
+import {
+  buildStatutoryRemittanceSnapshot,
+  statutoryRemittanceSnapshotHash,
+  type StatutoryAgency,
+} from "@/lib/statutory-remittance";
 import { invalidateStatutoryRemittanceMonthCertification } from "@/lib/statutory-remittance-certification";
 import { ensureStatutoryRemittanceCorrectionSchema } from "@/lib/statutory-remittance-correction-schema";
 import {
@@ -33,6 +43,191 @@ import {
 export const dynamic = "force-dynamic";
 
 const APPROVER_ROLES = ["owner", "admin", "checker"] as const;
+
+function monthStart(month: string) {
+  return `${month}-01`;
+}
+
+function monthEnd(month: string) {
+  const [year, rawMonth] = month.split("-").map(Number);
+  return new Date(Date.UTC(year, rawMonth, 0)).toISOString().slice(0, 10);
+}
+
+function round2(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+async function deriveMissingMemberAddition(organizationId: number, caseId: number) {
+  const [issue] = await db.select().from(statutoryContributionIssueCases).where(and(
+    eq(statutoryContributionIssueCases.id, caseId),
+    eq(statutoryContributionIssueCases.organizationId, organizationId),
+  )).limit(1);
+  if (!issue) throw new Error("Contribution issue case not found.");
+  if (issue.status === "resolved") throw new Error("Resolved contribution cases cannot request a missing-member correction.");
+  if (issue.issueType !== "missing_posting") {
+    throw new Error("Missing-member corrections are only available for missing-posting cases.");
+  }
+  if (issue.remittanceMemberId != null) {
+    throw new Error("This contribution case already has a linked remittance member.");
+  }
+
+  const [employee] = await db.select({
+    id: employees.id,
+    employeeNo: employees.employeeNo,
+  }).from(employees).where(and(
+    eq(employees.id, issue.employeeId),
+    eq(employees.organizationId, organizationId),
+  )).limit(1);
+  if (!employee) throw new Error("Employee record not found.");
+
+  const [batch] = await db.select().from(statutoryRemittanceBatches).where(and(
+    eq(statutoryRemittanceBatches.organizationId, organizationId),
+    eq(statutoryRemittanceBatches.agency, issue.agency),
+    eq(statutoryRemittanceBatches.applicableMonth, issue.applicableMonth),
+  )).limit(1);
+  if (!batch) {
+    throw new Error("No remittance batch exists for this agency and month. Create or reconcile the batch before adding a missing member.");
+  }
+  if (batch.status === "open") {
+    throw new Error("Record the employer remittance payment before using a missing-member correction.");
+  }
+
+  const existingMembers = await db.select().from(statutoryRemittanceMembers).where(and(
+    eq(statutoryRemittanceMembers.organizationId, organizationId),
+    eq(statutoryRemittanceMembers.batchId, batch.id),
+  )).orderBy(asc(statutoryRemittanceMembers.employeeId));
+
+  if (existingMembers.some((member) => member.employeeId === employee.id)) {
+    throw new Error("This employee already exists in the remittance batch.");
+  }
+
+  if (existingMembers.length !== batch.employeeCount) {
+    throw new Error("Batch employee count does not match its member rows. Resolve the batch reconciliation mismatch first.");
+  }
+
+  const runs = await db.select().from(payrollRuns).where(and(
+    eq(payrollRuns.organizationId, organizationId),
+    gte(payrollRuns.periodEnd, monthStart(issue.applicableMonth)),
+    lte(payrollRuns.periodEnd, monthEnd(issue.applicableMonth)),
+  ));
+  if (runs.length === 0 || runs.some((run) => run.status !== "Released")) {
+    throw new Error("All payroll runs for the contribution month must be Released before a missing member can be derived.");
+  }
+
+  const runIds = runs.map((run) => run.id);
+  const entries = await db.select({
+    employeeId: payrollEntries.employeeId,
+    lineItems: payrollEntries.lineItems,
+    trace: payrollEntries.trace,
+  }).from(payrollEntries).where(inArray(payrollEntries.payrollRunId, runIds));
+
+  const employeeIds = [...new Set(entries.map((entry) => entry.employeeId))];
+  const identities = employeeIds.length
+    ? await db.select({
+        id: employees.id,
+        employeeNo: employees.employeeNo,
+      }).from(employees).where(and(
+        eq(employees.organizationId, organizationId),
+        inArray(employees.id, employeeIds),
+      ))
+    : [];
+
+  const payrollSnapshot = buildStatutoryRemittanceSnapshot({
+    agency: issue.agency as StatutoryAgency,
+    applicableMonth: issue.applicableMonth,
+    entries,
+    employees: identities,
+  });
+  const expectedByEmployee = new Map(payrollSnapshot.members.map((member) => [member.employeeId, member]));
+  const target = expectedByEmployee.get(employee.id);
+  if (!target) {
+    throw new Error("Released payroll does not contain a positive statutory contribution for this employee and agency.");
+  }
+
+  for (const member of existingMembers) {
+    const expected = expectedByEmployee.get(member.employeeId);
+    if (
+      !expected
+      || Math.abs(Number(member.employeeShare) - expected.employeeShare) > 0.01
+      || Math.abs(Number(member.employerShare) - expected.employerShare) > 0.01
+      || Math.abs(Number(member.totalContribution) - expected.totalContribution) > 0.01
+    ) {
+      throw new Error("Existing remittance membership does not match released payroll. Resolve that broader variance before adding a member.");
+    }
+  }
+
+  const currentEmployeeShare = round2(existingMembers.reduce((sum, row) => sum + Number(row.employeeShare), 0));
+  const currentEmployerShare = round2(existingMembers.reduce((sum, row) => sum + Number(row.employerShare), 0));
+  const currentTotal = round2(existingMembers.reduce((sum, row) => sum + Number(row.totalContribution), 0));
+  if (
+    Math.abs(currentEmployeeShare - Number(batch.expectedEmployeeShare)) > 0.01
+    || Math.abs(currentEmployerShare - Number(batch.expectedEmployerShare)) > 0.01
+    || Math.abs(currentTotal - Number(batch.expectedTotal)) > 0.01
+  ) {
+    throw new Error("Batch liability totals do not match existing member rows. Resolve the batch variance first.");
+  }
+
+  const currentSnapshotHash = statutoryRemittanceSnapshotHash({
+    agency: issue.agency as StatutoryAgency,
+    applicableMonth: issue.applicableMonth,
+    members: existingMembers.map((member) => ({
+      employeeId: member.employeeId,
+      employeeNo: member.employeeNo,
+      employeeShare: Number(member.employeeShare),
+      employerShare: Number(member.employerShare),
+      totalContribution: Number(member.totalContribution),
+    })),
+  });
+  if (currentSnapshotHash !== batch.snapshotHash) {
+    throw new Error("Batch membership hash does not match its current member rows. Resolve the snapshot mismatch first.");
+  }
+
+  const membersAfter = [
+    ...existingMembers.map((member) => ({
+      employeeId: member.employeeId,
+      employeeNo: member.employeeNo,
+      employeeShare: Number(member.employeeShare),
+      employerShare: Number(member.employerShare),
+      totalContribution: Number(member.totalContribution),
+    })),
+    target,
+  ];
+
+  const proposedSnapshot = {
+    caseId: issue.id,
+    employeeId: target.employeeId,
+    employeeNo: target.employeeNo,
+    employeeShare: target.employeeShare.toFixed(2),
+    employerShare: target.employerShare.toFixed(2),
+    totalContribution: target.totalContribution.toFixed(2),
+    postingStatus: "exception",
+    exceptionNote: "Employee was omitted from the remittance member list; payment and agency posting must be reconciled.",
+    batchId: batch.id,
+    batchEmployeeCount: batch.employeeCount + 1,
+    batchExpectedEmployeeShare: round2(Number(batch.expectedEmployeeShare) + target.employeeShare).toFixed(2),
+    batchExpectedEmployerShare: round2(Number(batch.expectedEmployerShare) + target.employerShare).toFixed(2),
+    batchExpectedTotal: round2(Number(batch.expectedTotal) + target.totalContribution).toFixed(2),
+    batchSnapshotHash: statutoryRemittanceSnapshotHash({
+      agency: issue.agency as StatutoryAgency,
+      applicableMonth: issue.applicableMonth,
+      members: membersAfter,
+    }),
+  };
+
+  const originalSnapshot = {
+    caseId: issue.id,
+    employeeId: employee.id,
+    memberFound: false,
+    batchId: batch.id,
+    batchEmployeeCount: batch.employeeCount,
+    batchExpectedEmployeeShare: String(batch.expectedEmployeeShare),
+    batchExpectedEmployerShare: String(batch.expectedEmployerShare),
+    batchExpectedTotal: String(batch.expectedTotal),
+    batchSnapshotHash: batch.snapshotHash,
+  };
+
+  return { issue, employee, batch, originalSnapshot, proposedSnapshot };
+}
 
 async function requireRequester(userId: number, organizationId: number) {
   const access = await getAccess(userId, organizationId);
@@ -227,6 +422,81 @@ export async function POST(request: Request) {
     return Response.json({ correction: created }, { status: 201 });
   }
 
+  if (action === "request_missing_member_correction") {
+    const auth = await requireRequester(user.id, organizationId);
+    if (auth.denied) return auth.denied;
+
+    const caseId = Number(body.caseId);
+    if (!Number.isInteger(caseId)) {
+      return Response.json({ error: "caseId is required." }, { status: 400 });
+    }
+
+    let derived: Awaited<ReturnType<typeof deriveMissingMemberAddition>>;
+    try {
+      derived = await deriveMissingMemberAddition(organizationId, caseId);
+    } catch (error) {
+      return Response.json({
+        error: error instanceof Error ? error.message : "Could not derive the missing remittance member.",
+      }, { status: 409 });
+    }
+
+    if (derived.issue.assignedToUserId != null && derived.issue.assignedToUserId !== user.id) {
+      return Response.json({
+        error: `This contribution case is assigned to ${derived.issue.assignedToName ?? "another payroll operator"}.`,
+      }, { status: 409 });
+    }
+
+    const pendingAdditions = await db.select().from(statutoryRemittanceCorrectionRequests)
+      .where(and(
+        eq(statutoryRemittanceCorrectionRequests.organizationId, organizationId),
+        eq(statutoryRemittanceCorrectionRequests.batchId, derived.batch.id),
+        eq(statutoryRemittanceCorrectionRequests.targetType, "member_addition"),
+        eq(statutoryRemittanceCorrectionRequests.status, "pending"),
+      ));
+    const duplicate = pendingAdditions.some((item) => {
+      const proposed = item.proposedSnapshot as { employeeId?: unknown };
+      return Number(proposed.employeeId) === derived.employee.id;
+    });
+    if (duplicate) {
+      return Response.json({
+        error: "A missing-member correction is already pending for this employee.",
+      }, { status: 409 });
+    }
+
+    const reason = String(body.reason ?? "").trim().replace(/\s+/g, " ").slice(0, 360)
+      || `Missing-posting case #${derived.issue.id}: ${derived.issue.description}`;
+
+    const [created] = await db.insert(statutoryRemittanceCorrectionRequests).values({
+      organizationId,
+      targetType: "member_addition",
+      batchId: derived.batch.id,
+      memberId: null,
+      originalSnapshot: derived.originalSnapshot,
+      proposedSnapshot: derived.proposedSnapshot,
+      reason,
+      status: "pending",
+      requestedByUserId: user.id,
+      requestedByName: user.name,
+    }).returning();
+
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "Missing statutory remittance member correction requested",
+      resource: `${derived.batch.agency} · ${derived.batch.applicableMonth} · ${derived.employee.employeeNo}`,
+      metadata: {
+        correctionId: created.id,
+        caseId: derived.issue.id,
+        batchId: derived.batch.id,
+        employeeId: derived.employee.id,
+        before: derived.originalSnapshot,
+        proposed: derived.proposedSnapshot,
+      },
+    });
+
+    return Response.json({ correction: created }, { status: 201 });
+  }
+
   if (action === "request_posting_correction") {
     const auth = await requireRequester(user.id, organizationId);
     if (auth.denied) return auth.denied;
@@ -376,6 +646,31 @@ export async function POST(request: Request) {
 
     const now = new Date();
     let resource = `Correction #${correction.id}`;
+    let appliedMemberId: number | null = correction.memberId;
+    let missingMemberAddition: Awaited<ReturnType<typeof deriveMissingMemberAddition>> | null = null;
+
+    if (correction.targetType === "member_addition") {
+      const proposed = correction.proposedSnapshot as { caseId?: unknown };
+      const caseId = Number(proposed.caseId);
+      if (!Number.isInteger(caseId)) {
+        return Response.json({ error: "Missing-member correction has no valid contribution case." }, { status: 409 });
+      }
+      try {
+        missingMemberAddition = await deriveMissingMemberAddition(organizationId, caseId);
+      } catch (error) {
+        return Response.json({
+          error: error instanceof Error ? error.message : "Could not revalidate the missing-member correction.",
+        }, { status: 409 });
+      }
+      if (
+        !snapshotsMatch(missingMemberAddition.originalSnapshot, correction.originalSnapshot)
+        || !snapshotsMatch(missingMemberAddition.proposedSnapshot, correction.proposedSnapshot)
+      ) {
+        return Response.json({
+          error: "Payroll or remittance data changed after this missing-member correction was requested. Open a new correction request.",
+        }, { status: 409 });
+      }
+    }
 
     const updatedCorrection = await db.transaction(async (tx) => {
       if (correction.targetType === "batch_payment") {
@@ -416,6 +711,81 @@ export async function POST(request: Request) {
           eq(statutoryRemittanceBatches.organizationId, organizationId),
         ));
         resource = `${batch.agency} · ${batch.applicableMonth}`;
+      } else if (correction.targetType === "member_addition") {
+        if (!missingMemberAddition) throw new Error("Missing-member correction was not revalidated.");
+        const proposed = missingMemberAddition.proposedSnapshot;
+
+        const [currentBatch] = await tx.select().from(statutoryRemittanceBatches).where(and(
+          eq(statutoryRemittanceBatches.id, missingMemberAddition.batch.id),
+          eq(statutoryRemittanceBatches.organizationId, organizationId),
+        )).limit(1);
+        if (!currentBatch) throw new Error("Remittance batch no longer exists.");
+        if (
+          currentBatch.employeeCount !== missingMemberAddition.batch.employeeCount
+          || String(currentBatch.expectedTotal) !== String(missingMemberAddition.batch.expectedTotal)
+          || currentBatch.snapshotHash !== missingMemberAddition.batch.snapshotHash
+        ) {
+          throw new Error("Remittance batch changed before the missing member could be added.");
+        }
+
+        const [alreadyExists] = await tx.select({ id: statutoryRemittanceMembers.id })
+          .from(statutoryRemittanceMembers)
+          .where(and(
+            eq(statutoryRemittanceMembers.batchId, currentBatch.id),
+            eq(statutoryRemittanceMembers.employeeId, missingMemberAddition.employee.id),
+          ))
+          .limit(1);
+        if (alreadyExists) throw new Error("The employee was added to the remittance batch before approval.");
+
+        const [newMember] = await tx.insert(statutoryRemittanceMembers).values({
+          batchId: currentBatch.id,
+          organizationId,
+          employeeId: missingMemberAddition.employee.id,
+          employeeNo: missingMemberAddition.employee.employeeNo,
+          employeeShare: proposed.employeeShare,
+          employerShare: proposed.employerShare,
+          totalContribution: proposed.totalContribution,
+          postingStatus: "exception",
+          exceptionNote: proposed.exceptionNote,
+        }).returning();
+
+        await tx.update(statutoryRemittanceBatches).set({
+          employeeCount: proposed.batchEmployeeCount,
+          expectedEmployeeShare: proposed.batchExpectedEmployeeShare,
+          expectedEmployerShare: proposed.batchExpectedEmployerShare,
+          expectedTotal: proposed.batchExpectedTotal,
+          snapshotHash: proposed.batchSnapshotHash,
+          status: "exception",
+          reconciledAt: null,
+          reconciledBy: null,
+          updatedAt: now,
+        }).where(and(
+          eq(statutoryRemittanceBatches.id, currentBatch.id),
+          eq(statutoryRemittanceBatches.organizationId, organizationId),
+        ));
+
+        await tx.update(statutoryContributionIssueCases).set({
+          batchId: currentBatch.id,
+          remittanceMemberId: newMember.id,
+          updatedAt: now,
+        }).where(and(
+          eq(statutoryContributionIssueCases.id, missingMemberAddition.issue.id),
+          eq(statutoryContributionIssueCases.organizationId, organizationId),
+        ));
+
+        await tx.insert(statutoryContributionIssueEvents).values({
+          organizationId,
+          caseId: missingMemberAddition.issue.id,
+          employeeId: missingMemberAddition.issue.employeeId,
+          eventType: "missing_member_added",
+          visibility: "employee",
+          message: "Payroll added the omitted employee to the remittance liability. Employer payment and agency posting still require reconciliation.",
+          actorUserId: user.id,
+          actorName: user.name,
+        });
+
+        appliedMemberId = newMember.id;
+        resource = `${currentBatch.agency} · ${currentBatch.applicableMonth} · ${newMember.employeeNo}`;
       } else if (correction.targetType === "member_posting") {
         if (correction.memberId == null) throw new Error("Posting correction has no member target.");
         const [member] = await tx.select().from(statutoryRemittanceMembers).where(and(
@@ -455,6 +825,7 @@ export async function POST(request: Request) {
 
       const [updated] = await tx.update(statutoryRemittanceCorrectionRequests).set({
         status: "approved",
+        memberId: appliedMemberId,
         decidedByUserId: user.id,
         decidedByName: user.name,
         decisionNote,
@@ -483,7 +854,7 @@ export async function POST(request: Request) {
         correctionId: correction.id,
         targetType: correction.targetType,
         batchId: correction.batchId,
-        memberId: correction.memberId,
+        memberId: updatedCorrection.memberId,
         requestedByUserId: correction.requestedByUserId,
         requestedByName: correction.requestedByName,
         before: correction.originalSnapshot,
@@ -525,6 +896,6 @@ export async function POST(request: Request) {
   }
 
   return Response.json({
-    error: "Unsupported action. Use request_payment_correction, request_posting_correction, approve, or reject.",
+    error: "Unsupported action. Use request_payment_correction, request_posting_correction, request_missing_member_correction, approve, or reject.",
   }, { status: 400 });
 }
