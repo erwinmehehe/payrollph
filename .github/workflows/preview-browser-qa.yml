@@ -10,6 +10,7 @@ on:
     paths:
       - "src/components/marketing/**"
       - "src/app/workspace-theme.css"
+      - "src/app/polish.css"
       - "src/components/workspace/**"
       - "src/components/linaw-workspace.tsx"
       - "src/components/self-service-portal.tsx"
@@ -211,52 +212,11 @@ jobs:
               check((await hero.locator(".payroll-home-trust li").count()) === 3, "desktop: hero trust list must expose three proof points");
 
               const demo = page.locator("#demo");
-              check((await demo.count()) === 1, "desktop: live demo section is missing");
-              check((await demo.getByText("Interactive payroll workflow").count()) === 1, "desktop: payroll workflow preview chrome did not render");
-              const systemPreview = demo.locator(".system-demo-product .frame.standalone");
-              check((await systemPreview.count()) === 1, "desktop: shared Linaw workspace preview did not render");
-              const previewNav = systemPreview.locator(".nav-item");
-              check((await previewNav.count()) >= 8, "desktop: real workspace navigation is unexpectedly sparse");
-              const peopleNav = previewNav.filter({ hasText: /^People/ }).first();
-              check((await peopleNav.count()) === 1, "desktop: People module is missing from the real-system preview");
-              await peopleNav.click();
-              await page.waitForTimeout(100);
-              check((await peopleNav.getAttribute("aria-current")) === "page", "desktop: real-system preview navigation did not update");
-              const peopleShell = systemPreview.locator(".preview-people-shell");
-              check((await peopleShell.count()) === 1, "desktop: People preview shell is missing");
-              const firstPersonRow = peopleShell.locator(".preview-person-row").first();
-              check((await firstPersonRow.count()) === 1, "desktop: People preview rows are missing");
-              const personRowStyles = await firstPersonRow.evaluate((element) => ({
-                display: getComputedStyle(element).display,
-                columns: getComputedStyle(element).gridTemplateColumns,
-                width: element.getBoundingClientRect().width,
-                scrollWidth: element.scrollWidth,
-              }));
-              check(personRowStyles.display === "grid", `desktop: People preview row styling did not load; display=${personRowStyles.display}`);
-              check(personRowStyles.columns !== "none", "desktop: People preview row has no grid columns");
-              check(personRowStyles.scrollWidth <= personRowStyles.width + 1, `desktop: People preview row overflows ${personRowStyles.scrollWidth}px > ${personRowStyles.width}px`);
-              check((await peopleShell.locator(".preview-people-summary").count()) === 1, "desktop: People summary is missing");
-              check((await peopleShell.locator(".preview-people-controls").count()) === 1, "desktop: People filters/search are missing");
-
-              const migrationNav = previewNav.filter({ hasText: /^Migration/ }).first();
-              check((await migrationNav.count()) === 1, "desktop: Migration module is missing from the real-system preview");
-              await migrationNav.click();
-              await page.waitForTimeout(100);
-              const migrationCard = systemPreview.locator(".preview-migration-card");
-              check((await migrationCard.count()) === 1, "desktop: Migration preview card is missing");
-              const migrationStep = migrationCard.locator(".preview-migration-step").first();
-              const migrationStyles = await migrationStep.evaluate((element) => ({
-                display: getComputedStyle(element).display,
-                columns: getComputedStyle(element).gridTemplateColumns,
-                width: element.getBoundingClientRect().width,
-                scrollWidth: element.scrollWidth,
-              }));
-              check(migrationStyles.display === "grid", `desktop: Migration preview styling did not load; display=${migrationStyles.display}`);
-              check(migrationStyles.columns !== "none", "desktop: Migration preview has no grid columns");
-              check(migrationStyles.scrollWidth <= migrationStyles.width + 1, `desktop: Migration preview overflows ${migrationStyles.scrollWidth}px > ${migrationStyles.width}px`);
-              check((await demo.getByRole("link", { name: /Open role-based sandbox/i }).count()) === 1, "desktop: role-based sandbox handoff is missing");
+              check((await demo.count()) === 0, "desktop: oversized embedded homepage product demo returned");
+              check((await page.locator(".system-demo-section").count()) === 0, "desktop: legacy interactive demo section returned");
+              check((await page.locator(".system-demo-product").count()) === 0, "desktop: full workspace preview should stay off the homepage");
               report.modules.push({ module: "Release-readiness hero", active: true });
-              report.modules.push({ module: "Shared Linaw workspace preview", active: true });
+              report.modules.push({ module: "Homepage embedded demo removed", active: true });
             }
 
             if (name === "mobile-390") {
@@ -753,7 +713,10 @@ jobs:
                   demoSidebar.evaluate((element) => getComputedStyle(element).backgroundColor),
                   demoTopbar.evaluate((element) => getComputedStyle(element).backgroundColor),
                 ]);
-                check(shellStyles[0] === "rgb(252, 252, 251)", `HR: People fell back to the old dark sidebar; saw ${shellStyles[0]}`);
+                check(
+                  shellStyles[0] === "rgb(255, 255, 255)" || shellStyles[0] === "rgba(255, 255, 255, 0.98)",
+                  `HR: People sidebar should use the polished light shell; saw ${shellStyles[0]}`,
+                );
                 check(shellStyles[1] !== "rgb(15, 27, 24)", `HR: People fell back to the old dark topbar; saw ${shellStyles[1]}`);
                 check((await demoShell.locator(".demo-sandbox:visible").count()) === 0, "HR: People reintroduced the bulky demo tools strip");
 
@@ -774,7 +737,9 @@ jobs:
                 await page.waitForTimeout(180);
                 check((await page.locator('.app-shell[data-demo-role="hr"]').count()) === 1, "HR: demo shell marker was lost after opening a secondary module");
                 check(
-                  (await page.locator("aside.sidebar").first().evaluate((element) => getComputedStyle(element).backgroundColor)) === "rgb(252, 252, 251)",
+                  ["rgb(255, 255, 255)", "rgba(255, 255, 255, 0.98)"].includes(
+                    await page.locator("aside.sidebar").first().evaluate((element) => getComputedStyle(element).backgroundColor),
+                  ),
                   "HR: secondary module navigation fell back to the old dark sidebar",
                 );
                 check((await page.locator(".demo-sandbox:visible").count()) === 0, "HR: secondary module reintroduced the bulky demo tools strip");
