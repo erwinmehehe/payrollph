@@ -1256,6 +1256,7 @@ export const statutoryRemittanceMembers = pgTable(
     totalContribution: numeric("total_contribution", { precision: 12, scale: 2 }).notNull().default("0"),
     postingStatus: varchar("posting_status", { length: 24 }).notNull().default("pending"),
     postingReference: varchar("posting_reference", { length: 120 }),
+    postedAmount: numeric("posted_amount", { precision: 12, scale: 2 }),
     postedAt: timestamp("posted_at", { withTimezone: true }),
     confirmedBy: varchar("confirmed_by", { length: 120 }),
     exceptionNote: text("exception_note"),
