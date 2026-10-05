@@ -65,3 +65,9 @@ test("closed payroll months with no remittance batch are surfaced as compliance 
   assert.ok(route.includes('eq(payrollRuns.status, "Released")'));
   assert.ok(panel.includes("missing remittance control"));
 });
+
+
+test("recorded payment evidence cannot be silently overwritten", () => {
+  assert.ok(route.includes("Payment evidence is immutable once recorded."));
+  assert.ok(route.includes('batch.status !== "open"'));
+});
