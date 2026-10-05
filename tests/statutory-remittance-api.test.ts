@@ -95,3 +95,9 @@ test("employee posting exceptions can be reopened and corrected from payroll UI"
   assert.ok(panel.includes('setExceptionNote(member.exceptionNote ?? "")'));
   assert.ok(route.includes('batch.status === "exception" && exceptions.length === 0'));
 });
+
+
+test("confirmed employee posting evidence cannot be silently overwritten", () => {
+  assert.ok(route.includes("Confirmed employee posting evidence is immutable."));
+  assert.ok(route.includes('member.postingStatus === "confirmed"'));
+});
