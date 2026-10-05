@@ -154,6 +154,8 @@ export const industryWave2: AuthorityPage[] = [
       { question: "How should holiday work be handled in retail payroll?", answer: "The payroll calculation should use the actual work date and schedule context rather than applying one universal premium multiplier to every holiday hour." },
       { question: "How can retail employees get payslips without asking payroll?", answer: "Employee self-service can provide released payslips and payroll history directly to each employee within their own access scope." },
     ],
+    lastReviewed: "October 5, 2026",
+    lastReviewedIso: "2026-10-05",
     related: [
       { label: "Time & attendance", href: "/time-and-attendance", description: "See shift and attendance workflows." },
       { label: "Holiday pay calculator", href: "/calculators/holiday-pay", description: "Estimate premium pay for different day types." },
@@ -180,6 +182,8 @@ export const industryWave2: AuthorityPage[] = [
       { question: "Why do historical rest days matter?", answer: "If rest-day assignments change over time, historical payroll should use the schedule that was effective for the original work date." },
       { question: "Should the same person prepare and release payroll?", answer: "Separating payroll preparation, checking and release provides a stronger control model, especially in larger or more regulated organizations." },
     ],
+    lastReviewed: "October 5, 2026",
+    lastReviewedIso: "2026-10-05",
     related: [
       { label: "Night differential calculator", href: "/calculators/night-differential", description: "Estimate night-work payroll impact." },
       { label: "Time & attendance", href: "/time-and-attendance", description: "See schedule and punch processing." },
@@ -206,6 +210,8 @@ export const industryWave2: AuthorityPage[] = [
       { question: "How should unusual attendance be treated?", answer: "The safer workflow is to flag incomplete or unusual attendance for review before payroll is finalized instead of filling the gap with an automatic assumption." },
       { question: "Can hospitality employees access payslips directly?", answer: "Employee self-service can reduce repeated payroll desk requests by giving workers access to released payslips and payroll history." },
     ],
+    lastReviewed: "October 5, 2026",
+    lastReviewedIso: "2026-10-05",
     related: [
       { label: "Time & attendance", href: "/time-and-attendance", description: "Review scheduling and attendance workflows." },
       { label: "Overtime calculator", href: "/calculators/overtime-pay", description: "Estimate overtime under different day conditions." },
@@ -232,6 +238,8 @@ export const industryWave2: AuthorityPage[] = [
       { question: "Does payroll integration mean every downstream system is directly connected?", answer: "No. Some downstream workflows are APIs or webhooks, while others are controlled exports. The integration type should be described accurately." },
       { question: "How should sensitive payroll access be limited?", answer: "Tenant, organization-unit and department scope should be enforced server-side so users only access the payroll data required by their role." },
     ],
+    lastReviewed: "October 5, 2026",
+    lastReviewedIso: "2026-10-05",
     related: [
       { label: "Security", href: "/security", description: "Review authentication and authorization controls." },
       { label: "Trust center", href: "/trust", description: "See evidence-backed product claims." },
@@ -258,6 +266,8 @@ export const industryWave2: AuthorityPage[] = [
       { question: "How should recurring loans and deductions be handled?", answer: "Recurring payroll obligations should be represented in the payroll data model so they remain reviewable and do not depend on a side spreadsheet every cutoff." },
       { question: "Can employees retrieve old payslips themselves?", answer: "Employee self-service can expose released payroll history and payslips without giving an employee access to another person's payroll information." },
     ],
+    lastReviewed: "October 5, 2026",
+    lastReviewedIso: "2026-10-05",
     related: [
       { label: "HRIS", href: "/hris", description: "Review employee records and organizational structure." },
       { label: "Employee self-service", href: "/employee-self-service", description: "See employee payroll access." },
