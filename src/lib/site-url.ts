@@ -1,9 +1,9 @@
-const configuredBaseUrl = process.env.APP_BASE_URL?.trim();
+const configuredPublicSiteUrl = process.env.PUBLIC_SITE_URL?.trim();
 
 export const PUBLIC_SITE_URL = (
-  configuredBaseUrl && /^https:\/\//i.test(configuredBaseUrl)
-    ? configuredBaseUrl
-    : "https://erwinmehehe-payrollph.vercel.app"
+  configuredPublicSiteUrl && /^https:\/\//i.test(configuredPublicSiteUrl)
+    ? configuredPublicSiteUrl
+    : "https://payrollsoftware.ph"
 ).replace(/\/+$/, "");
 
 export function absolutePublicUrl(path = "/") {
