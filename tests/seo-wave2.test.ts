@@ -50,3 +50,72 @@ test("wave 2 routes are included in the sitemap", () => {
   assert.ok(sitemap.includes("industryWave2"));
   assert.ok(sitemap.includes("Object.keys(CALCULATORS)"));
 });
+
+
+test("SEO wave 2 pages use distinct meta titles and FAQ depth", () => {
+  const content = read("src/lib/seo-content-wave2.ts");
+  for (const title of [
+    "Cloud vs On-Premise Payroll Philippines | Linaw",
+    "Payroll Software RFP Checklist Philippines | Linaw",
+    "Payroll System Implementation Guide Philippines | Linaw",
+    "Payroll Software ROI Philippines | Evaluation Guide | Linaw",
+    "Build vs Buy Payroll Software Philippines | Linaw",
+    "Retail Payroll Software Philippines | Linaw",
+    "Healthcare Payroll Software Philippines | Linaw",
+    "Hospitality Payroll Software Philippines | Linaw",
+    "Payroll Software for Finance Companies Philippines | Linaw",
+    "Payroll Software for Schools Philippines | Linaw",
+  ]) {
+    assert.ok(content.includes(title), `missing Wave 2 meta title: ${title}`);
+  }
+
+  for (const slug of [
+    "cloud-vs-on-premise-payroll",
+    "payroll-rfp-checklist",
+    "payroll-implementation-guide",
+    "payroll-software-roi",
+    "build-vs-buy-payroll-software",
+    "retail",
+    "healthcare",
+    "hospitality",
+    "banking-finance",
+    "education",
+  ]) {
+    const start = content.indexOf(`slug: "${slug}"`);
+    const end = content.indexOf("\n  },", start);
+    assert.ok(start >= 0 && end > start, `missing Wave 2 page block: ${slug}`);
+    assert.ok(content.slice(start, end).includes("faq: ["), `Wave 2 page must include FAQ depth: ${slug}`);
+  }
+});
+
+test("BPO page carries the same FAQ depth as dynamic industry pages", () => {
+  const bpo = read("src/app/industries/bpo/page.tsx");
+  assert.ok(bpo.includes("What makes BPO payroll difficult in the Philippines?"));
+  assert.ok(bpo.includes("Can night differential and overtime apply to the same shift?"));
+});
+
+test("calculator pages link estimates into the relevant authority cluster", () => {
+  const page = read("src/app/calculators/[slug]/page.tsx");
+  for (const route of [
+    "/compliance/dole",
+    "/compliance/sss",
+    "/compliance/philhealth",
+    "/compliance/pag-ibig",
+    "/compliance/bir",
+    "/resources/payroll-software-roi",
+  ]) {
+    assert.ok(page.includes(route), `calculator context links must include ${route}`);
+  }
+  assert.ok(page.includes("Use the estimate in context"), "calculator pages must explain the surrounding authority links");
+});
+
+test("structured product identity is global and not duplicated on the homepage", () => {
+  const layout = read("src/app/layout.tsx");
+  const home = read("src/app/page.tsx");
+  for (const type of ['"@type": "Organization"', '"@type": "WebSite"', '"@type": "SoftwareApplication"']) {
+    assert.ok(layout.includes(type), `global graph must include ${type}`);
+  }
+  assert.ok(layout.includes('"@id": `${PUBLIC_SITE_URL}/#software`'), "software entity must have a stable global ID");
+  assert.ok(!home.includes("softwareSchema"), "homepage must not emit a second software graph");
+  assert.ok(!home.includes('"@type": "SoftwareApplication"'), "homepage must not duplicate SoftwareApplication structured data");
+});
