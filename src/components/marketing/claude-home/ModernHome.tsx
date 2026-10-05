@@ -24,6 +24,29 @@ type Plan = {
   active?: boolean;
 };
 
+type FocusId = "changes" | "blockers" | "approvals";
+
+const focusTabs: Array<{ id: FocusId; label: string; title: string; copy: string }> = [
+  {
+    id: "changes",
+    label: "What changed?",
+    title: "See the movement, not just the new total.",
+    copy: "Linaw compares the current calculation with the previous state so payroll teams can see which employees, earnings and deductions moved.",
+  },
+  {
+    id: "blockers",
+    label: "What blocks release?",
+    title: "Warnings become owned work, not background noise.",
+    copy: "Hard blockers stay visible, name the affected employee, and assign the next action before release can continue.",
+  },
+  {
+    id: "approvals",
+    label: "Who approved it?",
+    title: "Every release leaves a decision trail.",
+    copy: "Preparation, checking and final release remain separate actions with a user, timestamp and resulting payroll state.",
+  },
+];
+
 function Brand() {
   return (
     <a className="linaw-brand" href="/" aria-label="Linaw home">
@@ -132,21 +155,17 @@ function ProductWindow() {
               <a href="#workflow">View all</a>
             </div>
 
-            <div className="blocker-row">
-              <span className="blocker-icon"><AlertTriangle /></span>
-              <div><strong>Maria Reyes</strong><span>Government ID incomplete</span></div>
-              <span className="owner-tag">HR Admin</span>
-            </div>
-            <div className="blocker-row">
-              <span className="blocker-icon"><AlertTriangle /></span>
-              <div><strong>Jose Cruz</strong><span>Attendance exception unresolved</span></div>
-              <span className="owner-tag">Payroll</span>
-            </div>
-            <div className="blocker-row">
-              <span className="blocker-icon"><AlertTriangle /></span>
-              <div><strong>Anna Santos</strong><span>Payout account needs review</span></div>
-              <span className="owner-tag">HR Admin</span>
-            </div>
+            {[
+              ["Maria Reyes", "Government ID incomplete", "HR Admin"],
+              ["Jose Cruz", "Attendance exception unresolved", "Payroll"],
+              ["Anna Santos", "Payout account needs review", "HR Admin"],
+            ].map(([name, issue, owner]) => (
+              <div className="blocker-row" key={name}>
+                <span className="blocker-icon"><AlertTriangle /></span>
+                <div><strong>{name}</strong><span>{issue}</span></div>
+                <span className="owner-tag">{owner}</span>
+              </div>
+            ))}
           </section>
 
           <aside className="release-checks">
@@ -164,7 +183,7 @@ function ProductWindow() {
 function Hero() {
   return (
     <section className="hero">
-      <div className="linaw-shell">
+      <div className="linaw-shell hero-grid">
         <div className="hero-copy">
           <span className="hero-kicker">Payroll software for Philippine teams</span>
           <h1>Payroll should tell you <em>when not to pay.</em></h1>
@@ -190,7 +209,7 @@ function StatutoryStrip() {
   return (
     <section className="statutory-strip">
       <div className="linaw-shell statutory-inner">
-        <p>Built for the Philippine payroll reality, not adapted from a generic global HR tool.</p>
+        <p>Built for Philippine payroll operations, not adapted from a generic global HR workflow.</p>
         <div className="statutory-marks" aria-label="Philippine statutory systems">
           <span>SSS</span>
           <span>PhilHealth</span>
@@ -202,58 +221,62 @@ function StatutoryStrip() {
   );
 }
 
-function ChangeStoryVisual() {
+function ChangesView() {
   return (
-    <div className="story-visual change-visual">
-      <div className="visual-toolbar">
-        <span>Calculation changes</span>
-        <span>Compared with previous calculation</span>
+    <div className="focus-surface">
+      <div className="surface-top">
+        <div><span>CALCULATION COMPARISON</span><strong>What moved since the last calculation?</strong></div>
+        <span className="surface-state neutral">12 employees changed</span>
       </div>
-      <div className="change-summary">
-        <div><span>Net pay</span><strong>₱403,920</strong><small>+₱7,430</small></div>
-        <div><span>Employees changed</span><strong>12</strong><small>of 128</small></div>
-        <div><span>New exceptions</span><strong>2</strong><small>needs review</small></div>
+      <div className="change-metrics">
+        <div><span>Net payroll</span><strong>₱403,920</strong><small>+₱7,430</small></div>
+        <div><span>Gross pay</span><strong>₱512,840</strong><small>+₱9,310</small></div>
+        <div><span>Deductions</span><strong>₱108,920</strong><small>+₱1,880</small></div>
       </div>
-      <div className="change-table">
-        <div className="table-row table-head"><span>Employee</span><span>Change</span><span>Impact</span></div>
-        <div className="table-row"><strong>Anna Santos</strong><span>Overtime +4.0h</span><b>+₱1,840</b></div>
-        <div className="table-row"><strong>Jose Cruz</strong><span>Attendance correction</span><b>+₱920</b></div>
-        <div className="table-row"><strong>Maria Reyes</strong><span>Loan deduction updated</span><b className="negative">−₱1,200</b></div>
+      <div className="focus-table">
+        <div className="focus-row focus-head"><span>Employee</span><span>Change</span><span>Impact</span></div>
+        <div className="focus-row"><strong>Anna Santos</strong><span>Overtime +4.0h</span><b>+₱1,840</b></div>
+        <div className="focus-row"><strong>Jose Cruz</strong><span>Attendance correction</span><b>+₱920</b></div>
+        <div className="focus-row"><strong>Maria Reyes</strong><span>Loan deduction updated</span><b className="negative">−₱1,200</b></div>
       </div>
     </div>
   );
 }
 
-function BlockerStoryVisual() {
+function BlockersView() {
   return (
-    <div className="story-visual blocker-visual">
-      <div className="visual-toolbar">
-        <span>Release blockers</span>
-        <span>3 open</span>
+    <div className="focus-surface">
+      <div className="surface-top">
+        <div><span>RELEASE SAFETY</span><strong>Hard blockers</strong></div>
+        <span className="surface-state warning">3 open</span>
       </div>
-      <div className="large-blocker">
-        <span className="large-blocker-icon"><AlertTriangle /></span>
+      <div className="blocker-feature">
+        <span className="blocker-feature-icon"><AlertTriangle /></span>
         <div>
           <span>HARD BLOCKER</span>
           <strong>Government ID is incomplete</strong>
           <p>Maria Reyes cannot be included in the release until HR completes the required identifier.</p>
         </div>
       </div>
-      <div className="blocker-actions">
+      <div className="blocker-meta">
         <div><span>Owner</span><strong>HR Admin</strong></div>
         <div><span>Employee</span><strong>Maria Reyes</strong></div>
-        <a href="/demo">Open issue <ArrowRight size={14} /></a>
+        <div><span>Release state</span><strong className="warning-text">Blocked</strong></div>
+      </div>
+      <div className="blocker-queue">
+        <div><strong>Jose Cruz</strong><span>Attendance exception</span><b>Payroll</b></div>
+        <div><strong>Anna Santos</strong><span>Payout account review</span><b>HR Admin</b></div>
       </div>
     </div>
   );
 }
 
-function ApprovalStoryVisual() {
+function ApprovalsView() {
   return (
-    <div className="story-visual approval-visual">
-      <div className="visual-toolbar">
-        <span>Release evidence</span>
-        <span>Audit trail</span>
+    <div className="focus-surface">
+      <div className="surface-top">
+        <div><span>RELEASE EVIDENCE</span><strong>Approval chain</strong></div>
+        <span className="surface-state good">2 of 3 complete</span>
       </div>
       <div className="approval-chain">
         <div className="approval-step complete">
@@ -271,58 +294,54 @@ function ApprovalStoryVisual() {
           <span><strong>Owner</strong><small>Ready for release</small></span>
         </div>
       </div>
-      <div className="approval-note">
-        Every approval remains attached to the payroll run with the user, timestamp and resulting state.
+      <div className="evidence-note">
+        Every decision stays attached to the payroll run with the user, timestamp and resulting state.
       </div>
     </div>
   );
 }
 
-const stories = [
-  {
-    number: "01",
-    eyebrow: "See what changed",
-    title: "Stop recalculating blind.",
-    copy: "When payroll inputs change, Linaw shows the effect on the run instead of asking your team to remember what moved inside a spreadsheet.",
-    visual: <ChangeStoryVisual />,
-  },
-  {
-    number: "02",
-    eyebrow: "Block unsafe releases",
-    title: "A warning should actually stop the workflow.",
-    copy: "Hard blockers stay visible, have an owner, and prevent release. The interface does not pretend payroll is ready just because calculation finished.",
-    visual: <BlockerStoryVisual />,
-  },
-  {
-    number: "03",
-    eyebrow: "Keep the decision trail",
-    title: "Approval should leave evidence.",
-    copy: "Preparation, review and release remain separate actions with attributable timestamps, so the next audit does not depend on chat messages.",
-    visual: <ApprovalStoryVisual />,
-  },
-];
+function ProductFocus() {
+  const [active, setActive] = useState<FocusId>("changes");
+  const current = focusTabs.find((item) => item.id === active) ?? focusTabs[0];
 
-function ProductStories() {
   return (
-    <section className="product-stories" id="product">
+    <section className="focus-section" id="product">
       <div className="linaw-shell">
-        <div className="stories-intro">
-          <span>THE PRODUCT</span>
-          <h2>Three answers before every payroll release.</h2>
+        <div className="focus-heading">
+          <span>THREE ANSWERS BEFORE RELEASE</span>
+          <h2>Make payroll explain itself.</h2>
+          <p>Linaw is designed around the questions a real payroll team needs answered before money leaves the business.</p>
         </div>
 
-        <div className="story-list">
-          {stories.map((story, index) => (
-            <article className={"story-row " + (index % 2 ? "reverse" : "")} key={story.number}>
-              <div className="story-copy">
-                <span className="story-number">{story.number}</span>
-                <span className="story-eyebrow">{story.eyebrow}</span>
-                <h3>{story.title}</h3>
-                <p>{story.copy}</p>
-              </div>
-              {story.visual}
-            </article>
-          ))}
+        <div className="focus-layout">
+          <div className="focus-tabs" role="tablist" aria-label="Payroll control questions">
+            {focusTabs.map((tab, index) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={active === tab.id ? "active" : ""}
+                role="tab"
+                aria-selected={active === tab.id}
+                onClick={() => setActive(tab.id)}
+              >
+                <span>0{index + 1}</span>
+                <strong>{tab.label}</strong>
+              </button>
+            ))}
+          </div>
+
+          <div className="focus-copy">
+            <span>{current.label}</span>
+            <h3>{current.title}</h3>
+            <p>{current.copy}</p>
+          </div>
+
+          <div className="focus-preview" role="tabpanel" aria-label={current.label}>
+            {active === "changes" ? <ChangesView /> : null}
+            {active === "blockers" ? <BlockersView /> : null}
+            {active === "approvals" ? <ApprovalsView /> : null}
+          </div>
         </div>
       </div>
     </section>
@@ -331,11 +350,11 @@ function ProductStories() {
 
 function Workflow() {
   const steps = [
-    ["01", "Prepare", "Bring attendance, earnings, deductions and employee changes into the run."],
-    ["02", "Calculate", "Apply payroll logic and statutory calculations to the current cutoff."],
-    ["03", "Resolve", "Assign and clear blockers before anyone can approve the payroll."],
-    ["04", "Review", "Checker reviews the result without repeating the operator's work."],
-    ["05", "Release", "Owner releases bank, payslip and accounting outputs with evidence attached."],
+    ["01", "Prepare", "Attendance, earnings, deductions and employee changes enter the run."],
+    ["02", "Calculate", "Payroll logic and statutory calculations resolve the cutoff."],
+    ["03", "Resolve", "Owned blockers are cleared before approval can start."],
+    ["04", "Review", "Checker verifies the run without repeating preparation work."],
+    ["05", "Release", "Approved outputs are released with evidence attached."],
   ];
 
   return (
@@ -343,37 +362,27 @@ function Workflow() {
       <div className="linaw-shell">
         <div className="workflow-heading">
           <span>ONE CONTROLLED FLOW</span>
-          <h2>From raw inputs to releasable payroll.</h2>
-          <p>Each stage has a clear purpose. The product moves the team forward only when the previous decision is complete.</p>
+          <h2>Five stages. One clear release decision.</h2>
+          <p>The workflow is designed to make unsafe transitions impossible to miss.</p>
         </div>
 
-        <div className="workflow-rail">
-          {steps.map(([number, title, copy]) => (
-            <article key={number}>
-              <span>{number}</span>
+        <div className="workflow-rail" role="list">
+          {steps.map(([number, title, copy], index) => (
+            <article key={number} className={index === 2 ? "active" : ""} role="listitem">
+              <span className="workflow-number">{number}</span>
               <strong>{title}</strong>
               <p>{copy}</p>
             </article>
           ))}
         </div>
-      </div>
-    </section>
-  );
-}
 
-function RoleProof() {
-  return (
-    <section className="role-section">
-      <div className="linaw-shell">
-        <div className="role-heading">
-          <span>ROLE-AWARE</span>
-          <h2>Everyone sees the decision they own.</h2>
-        </div>
-        <div className="role-grid">
-          <article><strong>HR Admin</strong><p>Employee readiness, identifiers, payout details and attendance exceptions.</p></article>
-          <article><strong>Payroll Officer</strong><p>Inputs, calculations, deductions and resolution of payroll issues.</p></article>
-          <article><strong>Checker</strong><p>Exceptions, evidence and independent review before release.</p></article>
-          <article><strong>Owner</strong><p>One clear answer: is this payroll safe to release?</p></article>
+        <div className="workflow-state">
+          <div>
+            <span>Current state</span>
+            <strong>Resolve blockers</strong>
+          </div>
+          <p>3 hard blockers remain. Review and release stay locked until the owning roles resolve them.</p>
+          <span className="workflow-lock"><LockKeyhole /> Release locked</span>
         </div>
       </div>
     </section>
@@ -389,8 +398,9 @@ function FAQ() {
           <h2>What buyers need to know before trusting payroll software.</h2>
           <a href="/pricing">See pricing <ArrowRight size={14} /></a>
         </div>
+
         <div className="faq-list">
-          {HOMEPAGE_FAQS.slice(0, 5).map((item, index) => (
+          {HOMEPAGE_FAQS.slice(0, 4).map((item, index) => (
             <details key={item.q} open={index === 0}>
               <summary>{item.q}<ChevronRight /></summary>
               <p>{item.a}</p>
@@ -407,13 +417,11 @@ function FinalCTA() {
     <section className="final-section">
       <div className="linaw-shell final-inner">
         <div>
-          <span>SEE IT WITH A REAL PAYROLL FLOW</span>
-          <h2>Try Linaw before you trust it with payroll.</h2>
+          <span>SEE THE REAL WORKFLOW</span>
+          <h2>Do not trust the homepage. Try the payroll flow.</h2>
+          <p>Open the role-based demo and see how Linaw handles calculation changes, blockers, review and release.</p>
         </div>
-        <div className="final-actions">
-          <a className="primary-cta" href="/demo">Try the live demo <ArrowRight size={16} /></a>
-          <a className="text-cta" href="/book-demo">Book a walkthrough <ChevronRight size={15} /></a>
-        </div>
+        <a className="primary-cta final-primary" href="/demo">Try the live demo <ArrowRight size={16} /></a>
       </div>
     </section>
   );
@@ -448,9 +456,8 @@ export default function ModernHome({ plans: _plans }: { plans: Plan[] }) {
       <main id="main">
         <Hero />
         <StatutoryStrip />
-        <ProductStories />
+        <ProductFocus />
         <Workflow />
-        <RoleProof />
         <FAQ />
         <FinalCTA />
       </main>
