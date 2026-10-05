@@ -10,6 +10,7 @@ export type AuthorityPage = {
   faq?: Array<{ question: string; answer: string }>;
   related: Array<{ label: string; href: string; description: string }>;
   lastReviewed?: string;
+  lastReviewedIso?: string;
   sources?: Array<{ label: string; href: string }>;
 };
 
