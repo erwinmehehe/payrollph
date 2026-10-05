@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
   automationExecutions,
@@ -211,7 +211,7 @@ export async function runLifecycleAutomations(input: {
           let revoked = 0;
           for (const linkedUser of linkedUsers) {
             const rows = await db.update(sessions).set({ revokedAt: new Date() })
-              .where(and(eq(sessions.userId, linkedUser.id), eq(sessions.revokedAt, null as never)))
+              .where(and(eq(sessions.userId, linkedUser.id), isNull(sessions.revokedAt)))
               .returning({ id: sessions.id });
             revoked += rows.length;
           }
