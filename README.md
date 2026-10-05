@@ -131,6 +131,13 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
 - Small cohorts suppress scores, optional-answer counts and comments, and raw anonymous comments are never returned by the management analytics endpoint.
 - Employees can respond and share peer recognition from the My voice self-service tab; managers can convert reportable findings into owned action plans and record continuous coaching feedback separately from formal performance ratings.
 
+### Advanced HCM analytics
+- The Analytics workspace now connects headcount, recruiting, position control, performance, compensation, skills/mobility, payroll cost, benefits and engagement instead of reporting each module in isolation.
+- Headcount is reconstructed over 12 months from hire dates and released separations; recruiting adds funnel and time-to-fill; workforce analytics adds vacancy and manager span of control.
+- Performance, compensation and mobility analytics use a minimum five-person cohort and independently suppress small sensitive buckets.
+- Labor-cost analytics use released payroll entries plus the employer statutory cost persisted in payroll trace, then annualize the current employer-benefit run rate. Position budget is labelled as a salary-budget proxy rather than a full accounting forecast.
+- Engagement trend respects each survey's configured privacy threshold and never returns raw anonymous comments.
+
 ### Public capability scorecard
 - `/scorecard` and `GET /api/capabilities` render a 22-row competitive parity grid plus a 15-row capability matrix
 - Every Linaw claim is classified **verified / partial / absent** and carries its evidence (a file path, a test name, or a live row count), generated from this deployment's code and database
