@@ -626,8 +626,22 @@
   .linaw-hero-copy > p { font-size: 15px; }
   .linaw-hero-actions { flex-direction: column; }
   .linaw-primary, .linaw-secondary { width: 100%; }
+  .linaw-ui,
+  .linaw-ui-body,
+  .linaw-ui-top,
+  .linaw-ui-meta,
+  .linaw-check-list,
+  .linaw-check,
+  .linaw-check-copy {
+    min-width: 0;
+    max-width: 100%;
+  }
   .linaw-ui-body { padding: 13px; }
+  .linaw-ui-top { flex-wrap: wrap; }
+  .linaw-ui-state { min-width: 0; white-space: normal; }
   .linaw-ui-meta { align-items: flex-start; flex-direction: column; }
+  .linaw-check-copy strong,
+  .linaw-check-copy span { overflow-wrap: anywhere; }
   .linaw-ui-period { width: 100%; text-align: left; }
   .linaw-stage-row { grid-template-columns: repeat(3,1fr); }
   .linaw-stage:nth-child(4), .linaw-stage:nth-child(5) { display: none; }
