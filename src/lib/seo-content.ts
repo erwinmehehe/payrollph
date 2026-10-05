@@ -165,7 +165,7 @@ export const compliancePages: AuthorityPage[] = [
       { title: "Premium pay depends on the work-day context", body: "Overtime should not be priced with one universal multiplier. The payroll engine combines ordinary, rest-day and holiday context when calculating premium pay." },
       { title: "Night differential can overlap overtime and premium days", body: "Night work is derived from the actual time range and can be priced on both regular and overtime minutes using the day-specific multiplier." },
       { title: "Historical rest-day context matters", body: "Rest-day changes are effective-dated so recalculating an older payroll period does not simply apply today's weekly rest day to historical work." },
-      { title: "Wage screening is advisory, not a legal conclusion", body: "Regional wage-order references can surface a review warning, but employer category, sector, establishment size and location can affect the legally applicable minimum. Automated screening should surface a review rather than replace legal classification." },
+      { title: "Wage screening is advisory, not a legal conclusion", body: "Regional wage-order references can surface a review warning, but employer category, sector, establishment size and location can affect the legally applicable minimum. automated screening should surface a review rather than replace legal classification." },
     ],
     faq: [
       { question: "Why can overtime pay differ depending on the work date?", answer: "Overtime can interact with rest-day and holiday context, so the applicable premium cannot always be reduced to one universal multiplier." },
