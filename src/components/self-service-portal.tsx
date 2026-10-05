@@ -57,6 +57,13 @@ type ContributionPosting = {
   postedAmount: string | null;
   postedAt: string | null;
   exceptionNote: string | null;
+  certification: {
+    status: "certified" | "under_review" | "ready_for_review" | "not_certified";
+    label: string;
+    detail: string;
+    certifiedAt: string | null;
+    needsRecertification: boolean;
+  };
 };
 
 type ContributionIssueCase = {
@@ -675,10 +682,24 @@ export function SelfServicePortal() {
                           ? "Employer payment pending"
                           : "Payment recorded · posting pending"}
                   </span>
+                  <span className={"employee-status-pill " + (
+                    row.certification.status === "certified"
+                      ? "good"
+                      : row.certification.status === "under_review"
+                        ? "bad"
+                        : "warn"
+                  )}>
+                    {row.certification.label}
+                  </span>
                 </div>
                 <div className="employee-pay-row-detail" style={{ display: "grid" }}>
                   <div><span>Employer payment</span><strong>{row.paymentStatus}</strong></div>
                   <div><span>Agency posting</span><strong>{row.postingStatus}</strong></div>
+                  <div>
+                    <span>Independent month review</span>
+                    <strong>{row.certification.label}</strong>
+                    <small style={{ display: "block" }}>{row.certification.detail}</small>
+                  </div>
                   {row.postedAmount && <div><span>Amount posted</span><strong>{peso(row.postedAmount)}</strong></div>}
                   {row.postingReference && <div><span>Posting reference</span><strong>{row.postingReference}</strong></div>}
                   {row.exceptionNote && <div><span>Issue</span><strong>{row.exceptionNote}</strong></div>}
@@ -708,7 +729,7 @@ export function SelfServicePortal() {
               </div>
             ))}
             <div className="employee-rule-note">
-              <ShieldCheck size={12} /> “Deducted” comes from released payroll. “Payment recorded” is employer evidence. “Agency posting confirmed” is the final reconciliation state.
+              <ShieldCheck size={12} /> “Deducted” comes from released payroll. “Agency posting confirmed” proves this employee record was reconciled. “Certified” means the full month’s statutory evidence also passed independent review.
             </div>
           </article>
 
