@@ -62,10 +62,15 @@ For high-risk compliance pages:
 - update the evergreen guide when the current rule changes,
 - update Last reviewed after a real review, not automatically.
 
+## SEO ownership audit
+
+Before release, run `npm run seo:audit`. It must pass with no duplicate intent owners, duplicate sitemap paths, private-route ownership, title collisions or broken authority related links.
+
 ## Release gate
 
 Before considering a new SEO wave complete:
 - CI green
+- `npm run seo:audit` green
 - browser QA green
 - security smoke green
 - CodeQL green where configured
