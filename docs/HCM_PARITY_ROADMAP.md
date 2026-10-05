@@ -141,12 +141,36 @@ Remaining:
 
 ## Tranche 6 — Engagement
 
-- Pulse and lifecycle surveys
-- eNPS
-- Anonymous response mode
-- Team-level thresholds to avoid deanonymization
-- Action plans tied to survey findings
-- Recognition / feedback stream
+Foundation implemented on `feat/hcm-engagement-listening`.
+
+Built:
+- Pulse, eNPS, onboarding, exit, lifecycle and custom survey types
+- Draft -> open -> closed survey lifecycle
+- Company-wide or org-unit audiences
+- Anonymous or explicitly identified response mode
+- Anonymous respondent deduplication through a keyed HMAC token; user/employee IDs are not stored with anonymous responses
+- Minimum privacy threshold of 5, configurable upward to 50
+- Anonymous surveys cannot open when the eligible audience is smaller than the privacy threshold
+- Analytics suppress scores, optional-answer counts and comments until the threshold is met
+- Raw anonymous comments are never returned by the management analytics endpoint
+- Team/org-unit breakdowns are individually threshold-gated
+- eNPS promoter/passive/detractor classification and score
+- Employee self-service "My voice" survey experience
+- Engagement action plans tied to survey or question findings with owner, org unit, due date and status
+- Peer recognition feed available from employee self-service
+- Manager continuous feedback stream kept separate from formal performance scoring
+- Tenant/org-unit RBAC and audit events for survey administration, action planning, feedback and recognition
+- Anonymous survey submissions intentionally do not create actor/timestamp audit records that could weaken anonymity
+
+Remaining:
+- Recurring survey schedules and automated invitations/reminders
+- Benchmarking across historical survey waves
+- Employee-visible action-plan follow-through / "you said, we did"
+- Survey templates and question library
+- Recognition values taxonomy and moderation controls
+- Feedback requests / 360 feedback with recipient workflow
+- Privacy-safe demographic slicing with k-anonymity across multiple dimensions
+- Sentiment/theme summarization only after privacy thresholds and with no raw anonymous identity inference
 
 ## Tranche 7 — Recruitment maturity
 
@@ -227,7 +251,7 @@ Only after clean data models:
 5. Compensation bands + review cycles — implemented foundation
 6. Learning/skills/career — implemented foundation
 7. SSO/OIDC + SCIM — implemented foundation
-8. Engagement/surveys
+8. Engagement/surveys — implemented foundation
 9. Broader analytics/AI
 
 This order creates a connected HCM data model instead of accumulating isolated modules.
