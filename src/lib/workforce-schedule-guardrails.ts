@@ -8,6 +8,14 @@ export type ScheduleGuardrailPolicy = {
   active: boolean;
 };
 
+export const DEFAULT_SCHEDULE_GUARDRAIL_POLICY: ScheduleGuardrailPolicy = {
+  minimumRestMinutes: 0,
+  maxConsecutiveWorkingDays: 0,
+  rollingSevenDayMinutes: 0,
+  enforcementMode: "advisory",
+  active: true,
+};
+
 export type ScheduleGuardrailIssue = {
   code:
     | "segment_overlap"
