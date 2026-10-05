@@ -542,6 +542,8 @@ export const glossaryEntries: GlossaryEntry[] = [
 export type RegulatoryUpdate = {
   slug: string;
   title: string;
+  metaTitle?: string;
+  metaDescription?: string;
   summary: string;
   publishedDate: string;
   agency: string;
@@ -555,6 +557,8 @@ export const regulatoryUpdates: RegulatoryUpdate[] = [
   {
     slug: "dole-final-pay-reminder-2026",
     title: "DOLE reiterates final-pay and COE timing in January 2026.",
+    metaTitle: "DOLE Final Pay & COE Reminder 2026 | Linaw",
+    metaDescription: "DOLE reminder for Philippine employers on final-pay release timing, certificate-of-employment timing and payroll closeout responsibilities in 2026.",
     summary: "DOLE reminded employers that final pay should generally be released within 30 days after separation unless a more favorable company policy applies, and reiterated the separate COE timing requirement.",
     publishedDate: "2026-01-21",
     agency: "Department of Labor and Employment",
@@ -566,6 +570,8 @@ export const regulatoryUpdates: RegulatoryUpdate[] = [
   {
     slug: "dole-13th-month-guidelines-2025",
     title: "DOLE reiterates 13th-month pay rules for the 2025 year-end.",
+    metaTitle: "DOLE 13th-Month Pay Reminder 2025 | Linaw",
+    metaDescription: "DOLE Labor Advisory No. 16-25 reiterated 13th-month pay obligations and the December 24 payment timing for covered employees for the 2025 year-end.",
     summary: "DOLE Labor Advisory No. 16-25 reiterated the statutory 13th-month payment obligation and the December 24 payment timing for covered employees.",
     publishedDate: "2025-11-15",
     agency: "Department of Labor and Employment",
@@ -577,6 +583,8 @@ export const regulatoryUpdates: RegulatoryUpdate[] = [
   {
     slug: "bir-alphalist-reminder-2026",
     title: "BIR reminds withholding agents that required alphalists form part of withholding-return compliance.",
+    metaTitle: "BIR Alphalist Reminder 2026 | Linaw",
+    metaDescription: "BIR RMC No. 55-2026 reiterated alphalist submission obligations for covered withholding agents and linked applicable alphalists to withholding returns.",
     summary: "BIR Revenue Memorandum Circular No. 55-2026 reiterated alphalist submission obligations for covered withholding agents and tied applicable alphalists to the relevant withholding returns and deadlines.",
     publishedDate: "2026-05-26",
     agency: "Bureau of Internal Revenue",
