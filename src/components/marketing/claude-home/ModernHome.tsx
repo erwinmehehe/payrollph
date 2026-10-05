@@ -113,7 +113,7 @@ function PayrollHeroPreview() {
           <span className="linaw-window-dots" aria-hidden="true"><i /><i /><i /></span>
           <strong>Payroll control room</strong>
         </div>
-        <span className="linaw-ui-state"><i /> 3 checks remaining</span>
+        <span className="linaw-ui-state"><i /> Release blocked · 3 checks remaining</span>
       </div>
       <div className="linaw-ui-body">
         <div className="linaw-ui-meta">
@@ -166,46 +166,42 @@ function PayrollHeroPreview() {
 function Hero() {
   return (
     <section className="linaw-hero" id="top">
-      <div className="linaw-shell linaw-hero-grid">
+      <div className="linaw-shell">
         <div className="linaw-hero-copy">
-          <span className="linaw-badge"><i /> <Sparkles size={12} /> Introducing release readiness</span>
-          <h1>Run Philippine payroll with a <span>release process you can prove.</span></h1>
+          <span className="linaw-badge"><i /> Philippine payroll control</span>
+          <h1>Know your payroll is right <span>before money moves.</span></h1>
           <p>
-            Linaw turns payroll calculations, employee readiness, approvals and outputs into one controlled workflow,
-            so every cutoff has a clear owner, visible blockers and an auditable release decision.
+            Linaw gives HR, payroll officers, checkers and owners one place to calculate payroll, resolve blockers,
+            approve the run and release outputs with a clear audit trail.
           </p>
           <div className="linaw-hero-actions">
-            <a className="linaw-primary hero-primary-cta" href="/signup">Get started <ArrowRight size={15} /></a>
+            <a className="linaw-primary hero-primary-cta" href="/demo">Try live demo <ArrowRight size={15} /></a>
             <a className="linaw-secondary" href="/book-demo">Book demo</a>
           </div>
           <ul className="linaw-hero-proof payroll-home-trust">
-            <li><Check /> Statutory calculation controls</li>
-            <li><Check /> Maker-checker approvals</li>
-            <li><Check /> Traceable payroll outputs</li>
+            <li><Check /> Philippine statutory logic</li>
+            <li><Check /> Role-based approvals</li>
+            <li><Check /> Release evidence</li>
           </ul>
         </div>
-        <PayrollHeroPreview />
+        <div className="linaw-hero-product">
+          <PayrollHeroPreview />
+        </div>
       </div>
     </section>
   );
 }
 
-const payrollEcosystem = ["SSS", "PhilHealth", "Pag-IBIG", "BIR", "Maker-checker", "Audit trail", "Payslips", "Bank export"];
+const payrollEcosystem = ["SSS", "PhilHealth", "Pag-IBIG", "BIR"];
 
 function ProofStrip() {
   return (
     <section className="linaw-proof-strip" aria-label="Philippine payroll systems">
-      <div className="linaw-shell linaw-proof-intro">
-        <span>Built around the systems Philippine payroll teams reconcile every cutoff</span>
-      </div>
-      <div className="linaw-proof-marquee" aria-hidden="true">
-        <div className="linaw-proof-track">
-          {[...payrollEcosystem, ...payrollEcosystem].map((item, index) => (
-            <span className="linaw-proof-logo" key={item + index}>
-              <i /> {item}
-            </span>
-          ))}
-        </div>
+      <div className="linaw-shell linaw-proof-row">
+        <p>Designed around the statutory systems Philippine payroll teams reconcile every cutoff.</p>
+        {payrollEcosystem.map((item) => (
+          <span className="linaw-proof-logo" key={item}>{item}</span>
+        ))}
       </div>
     </section>
   );
@@ -281,8 +277,8 @@ function FeatureBento() {
       <div className="linaw-shell">
         <div className="linaw-section-head">
           <div>
-            <span className="linaw-section-kicker">A payroll control layer, not another HR dashboard</span>
-            <h2>Every critical payroll decision has a visible state.</h2>
+            <span className="linaw-section-kicker">The payroll control layer</span>
+            <h2>See what is ready, what is blocked, and who owns the next move.</h2>
           </div>
           <p>
             Instead of hiding payroll inside forms and spreadsheets, Linaw makes calculations, blockers, owners and
@@ -435,8 +431,8 @@ function ProofAndRoles() {
       <div className="linaw-shell">
         <div className="linaw-section-head">
           <div>
-            <span className="linaw-section-kicker">Operational proof, not vanity dashboards</span>
-            <h2>One release chain. Different responsibilities.</h2>
+            <span className="linaw-section-kicker">Role-aware by design</span>
+            <h2>One payroll run. Clear responsibilities.</h2>
           </div>
           <p>Linaw keeps each role focused on the decision it owns instead of giving everyone the same overloaded dashboard or inventing confidence from a green status card.</p>
         </div>
