@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Download, FileBarChart2, RefreshCw, TrendingDown, UsersRound, WalletCards } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
+import { HcmAnalyticsPanel } from "@/components/hcm-analytics-panel";
 import {
   EmptyState,
   ErrorState,
@@ -25,7 +26,7 @@ const REPORTS: Array<{ key: ReportKey; name: string; description: string; icon: 
 
 type ReportResult = { key: string; columns: string[]; rows: string[][]; generatedAt?: string };
 
-export function AnalyticsView({ data, notify }: { data: DashboardData; notify: Notify }) {
+export function AnalyticsView({ data, notify, hcmEnabled = false }: { data: DashboardData; notify: Notify; hcmEnabled?: boolean }) {
   const [active, setActive] = useState<ReportKey>("cost");
   const [state, setState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [result, setResult] = useState<ReportResult | null>(null);
@@ -95,14 +96,16 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
     <>
       <PageHeading
         eyebrow="Analytics"
-        title="Reports built on aggregate SQL."
-        copy="Each report runs a real aggregate query against this client's rows. Exporting one writes an audit event, so the CSV you hand an auditor is traceable."
+        title="Workforce, talent, and payroll analytics."
+        copy="Connected HCM metrics sit above the existing auditable payroll reports. Sensitive talent and compensation distributions stay suppressed until privacy thresholds are met."
         actions={
           <button className="secondary-button" onClick={reload} disabled={state === "loading"}>
             <RefreshCw size={15} className="i-blue" /> Refresh
           </button>
         }
       />
+
+      {hcmEnabled && <HcmAnalyticsPanel organizationId={organizationId} />}
 
       <section className="stats-grid">
         <Metric
