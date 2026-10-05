@@ -20,7 +20,8 @@ export function PerformancePanel({ organizationId, setNotice }: { organizationId
   const [showReview, setShowReview] = useState(false);
   const [cycleForm, setCycleForm] = useState({ name: "", startDate: "", endDate: "" });
   const [goalForm, setGoalForm] = useState({ employeeId: "", cycleId: "", title: "", description: "", weight: "25", dueDate: "" });
-  const [reviewForm, setReviewForm] = useState({ employeeId: "", cycleId: "", managerScore: "3", managerSummary: "" });
+  const [reviewForm, setReviewForm] = useState({ employeeId: "", cycleId: "" });
+  const [reviewDrafts, setReviewDrafts] = useState<Record<number, { managerScore: string; managerSummary: string }>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -96,29 +97,37 @@ export function PerformancePanel({ organizationId, setNotice }: { organizationId
   async function createReview(event: React.FormEvent) {
     event.preventDefault();
     try {
-      const review = await post({
+      await post({
         entityType: "review",
         employeeId: Number(reviewForm.employeeId),
         cycleId: Number(reviewForm.cycleId),
       });
+      setShowReview(false);
+      setReviewForm({ employeeId: "", cycleId: "" });
+      await load();
+      setNotice("Performance review opened. The employee can now submit a self-assessment before manager completion.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Could not open review."); }
+  }
+
+  async function completeReview(review: Review) {
+    const draft = reviewDrafts[review.id] ?? { managerScore: review.managerScore ?? "3", managerSummary: review.managerSummary ?? "" };
+    try {
       const response = await fetch("/api/performance", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           entityType: "review",
           id: review.id,
-          managerScore: Number(reviewForm.managerScore),
-          managerSummary: reviewForm.managerSummary,
+          managerScore: Number(draft.managerScore),
+          managerSummary: draft.managerSummary,
           status: "completed",
         }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error ?? "Could not complete review.");
-      setShowReview(false);
-      setReviewForm({ employeeId: "", cycleId: "", managerScore: "3", managerSummary: "" });
       await load();
       setNotice("Performance review completed.");
-    } catch (error) { setNotice(error instanceof Error ? error.message : "Could not save review."); }
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Could not complete review."); }
   }
 
   async function updateGoal(goal: Goal, progress: number) {
@@ -188,15 +197,14 @@ export function PerformancePanel({ organizationId, setNotice }: { organizationId
 
       {showReview && (
         <article className="card" style={{ padding: 20, marginBottom: 16 }}>
-          <div className="card-header"><div><div className="card-kicker">MANAGER REVIEW</div><h2>Complete a structured review</h2></div></div>
+          <div className="card-header"><div><div className="card-kicker">MANAGER REVIEW</div><h2>Open a structured review</h2></div></div>
           <form onSubmit={createReview}>
             <div className="setting-form">
               <label>Employee<select required value={reviewForm.employeeId} onChange={(e) => setReviewForm({ ...reviewForm, employeeId: e.target.value })}><option value="">Select employee</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.firstName} {employee.lastName}</option>)}</select></label>
               <label>Cycle<select required value={reviewForm.cycleId} onChange={(e) => setReviewForm({ ...reviewForm, cycleId: e.target.value })}><option value="">Select cycle</option>{cycles.map((cycle) => <option key={cycle.id} value={cycle.id}>{cycle.name}</option>)}</select></label>
-              <label>Manager score (1–5)<input required type="number" min="1" max="5" step="0.1" value={reviewForm.managerScore} onChange={(e) => setReviewForm({ ...reviewForm, managerScore: e.target.value })} /></label>
-              <label style={{ gridColumn: "1 / -1" }}>Summary<textarea required rows={3} value={reviewForm.managerSummary} onChange={(e) => setReviewForm({ ...reviewForm, managerSummary: e.target.value })} placeholder="Evidence, outcomes, strengths, and development priorities." /></label>
+              <div className="notice" style={{ gridColumn: "1 / -1" }}><span>Opening the review gives the employee time to submit their self-assessment. Manager score and summary are entered when you complete the open review.</span></div>
             </div>
-            <div className="run-actions"><button type="button" className="secondary-button" onClick={() => setShowReview(false)}>Cancel</button><button className="primary-button">Complete review</button></div>
+            <div className="run-actions"><button type="button" className="secondary-button" onClick={() => setShowReview(false)}>Cancel</button><button className="primary-button">Open review</button></div>
           </form>
         </article>
       )}
@@ -230,18 +238,30 @@ export function PerformancePanel({ organizationId, setNotice }: { organizationId
             <button className="secondary-button" onClick={() => setShowReview(!showReview)} disabled={!cycles.length || !employees.length}><Plus size={14} /> Review</button>
           </div>
           {reviews.length === 0 && <div className="empty-state">No formal reviews yet.</div>}
-          {reviews.map((review) => (
-            <div className="leave-request" key={review.id}>
-              <div className="inline-icon purple"><Trophy size={16} /></div>
-              <div style={{ flex: 1 }}>
-                <strong>{employeeName.get(review.employeeId) ?? `Employee #${review.employeeId}`}</strong>
-                <span>{cycles.find((cycle) => cycle.id === review.cycleId)?.name ?? `Cycle #${review.cycleId}`} · {review.status}</span>
-                {review.selfSubmittedAt && <span><strong>Self-assessment:</strong> {review.selfScore ? Number(review.selfScore).toFixed(1) + "/5 · " : ""}{review.employeeReflection ?? "Submitted"}</span>}
-                {review.managerSummary && <span><strong>Manager:</strong> {review.managerSummary}</span>}
+          {reviews.map((review) => {
+            const draft = reviewDrafts[review.id] ?? { managerScore: review.managerScore ?? "3", managerSummary: review.managerSummary ?? "" };
+            return (
+              <div key={review.id} style={{ padding: 16, borderTop: "1px solid var(--border)" }}>
+                <div className="leave-request" style={{ borderTop: 0, padding: 0 }}>
+                  <div className="inline-icon purple"><Trophy size={16} /></div>
+                  <div style={{ flex: 1 }}>
+                    <strong>{employeeName.get(review.employeeId) ?? `Employee #${review.employeeId}`}</strong>
+                    <span>{cycles.find((cycle) => cycle.id === review.cycleId)?.name ?? `Cycle #${review.cycleId}`} · {review.status}</span>
+                    {review.selfSubmittedAt && <span><strong>Self-assessment:</strong> {review.selfScore ? Number(review.selfScore).toFixed(1) + "/5 · " : ""}{review.employeeReflection ?? "Submitted"}</span>}
+                    {review.status === "completed" && review.managerSummary && <span><strong>Manager:</strong> {review.managerSummary}</span>}
+                  </div>
+                  <strong>{review.finalScore ? `${Number(review.finalScore).toFixed(1)}/5` : "Open"}</strong>
+                </div>
+                {review.status !== "completed" && (
+                  <div className="setting-form" style={{ marginTop: 10 }}>
+                    <label>Manager score (1–5)<input type="number" min="1" max="5" step="0.1" value={draft.managerScore} onChange={(event) => setReviewDrafts({ ...reviewDrafts, [review.id]: { ...draft, managerScore: event.target.value } })} /></label>
+                    <label style={{ gridColumn: "1 / -1" }}>Manager summary<textarea rows={3} value={draft.managerSummary} onChange={(event) => setReviewDrafts({ ...reviewDrafts, [review.id]: { ...draft, managerSummary: event.target.value } })} placeholder="Evidence, outcomes, strengths, and development priorities." /></label>
+                    <button className="primary-button" disabled={!draft.managerSummary.trim()} onClick={() => void completeReview(review)}>Complete review</button>
+                  </div>
+                )}
               </div>
-              <strong>{review.finalScore ? `${Number(review.finalScore).toFixed(1)}/5` : "Open"}</strong>
-            </div>
-          ))}
+            );
+          })}
         </article>
       </section>
     </div>
