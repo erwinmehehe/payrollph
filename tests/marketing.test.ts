@@ -238,6 +238,17 @@ test("homepage navigation exposes the real public site", () => {
 });
 
 
+
+
+test("public signup requests controlled trial access instead of exposing tenant provisioning", () => {
+  const signup = read("src/app/signup/page.tsx");
+  const form = read("src/components/marketing/access-request-form.tsx");
+  assert.ok(signup.includes("Request access to a Linaw trial workspace."), "signup must present the real access model");
+  assert.ok(signup.includes("<AccessRequestForm />"), "signup must collect a trial access request");
+  assert.ok(!signup.includes("This workspace already has an owner."), "public signup must not expose tenant provisioning as a dead end");
+  assert.ok(form.includes("Request trial access"), "trial access form must have a clear submission CTA");
+});
+
 test("login auth screen stays focused and product-consistent", () => {
   const auth = read("src/components/auth-screen.tsx");
   assert.ok(auth.includes("Sign in to Linaw."));
