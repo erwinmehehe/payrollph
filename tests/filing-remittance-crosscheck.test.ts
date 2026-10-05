@@ -18,6 +18,7 @@ test("filing evidence schema stores immutable monthly reconciliation snapshot fi
 
 test("generated filing record snapshots totals from the exact file bytes", () => {
   assert.ok(store.includes("summarizeMonthlyContributionFile"));
+  assert.ok(store.includes('String(run.periodEnd).slice(0, 7)'));
   assert.ok(store.includes("body: file.body"));
   assert.ok(store.includes("applicableMonth: remittanceSnapshot?.applicableMonth ?? null"));
   assert.ok(store.includes("reportedTotal: remittanceSnapshot ? remittanceSnapshot.reportedTotal.toFixed(2) : null"));
