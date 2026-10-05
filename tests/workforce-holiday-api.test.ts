@@ -26,6 +26,8 @@ test("payroll filters local holidays by resolved worksite on the holiday date", 
   assert.ok(payroll.includes("workforceHolidayApplies({"));
   assert.ok(payroll.includes("resolveWorkforceScheduleForDate(holiday.date).worksiteId"));
   assert.ok(payroll.includes("worksiteId: row.worksiteId"));
+  assert.ok(payroll.includes("workforceHolidayScope: applicableLocalHolidayRows.map"));
+  assert.ok(payroll.includes("resolvedWorksiteId: resolveWorkforceScheduleForDate(holiday.date).worksiteId"));
   assert.ok(!payroll.includes("if (row.worksiteId != null) return [];"));
 });
 
