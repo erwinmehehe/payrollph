@@ -13,15 +13,12 @@ export const metadata: Metadata = {
 
 export default function InvitePage() {
   return (
-    <div className="min-h-screen bg-white text-[#0B0D1A]">
+    <div className="marketing-page min-h-screen bg-white text-[#101323]">
       <SiteNav />
-      <main className="relative overflow-hidden py-14 sm:py-18">
-        <div aria-hidden className="pointer-events-none absolute inset-0">
-          <div className="absolute -right-36 -top-52 h-[580px] w-[640px] rounded-full bg-gradient-to-br from-[#ECECFF] via-[#EAF4FF] to-[#E3FAF0] opacity-75 blur-3xl" />
-        </div>
+      <main className="relative overflow-hidden bg-[#FCFCFD] py-14 sm:py-18">
         <div className="relative mx-auto grid max-w-[960px] gap-8 px-5 sm:px-8 lg:grid-cols-[.88fr_1.12fr] lg:items-center">
           <section>
-            <span className="inline-flex items-center gap-2 rounded-full border border-[#DDE0EF] bg-white px-3.5 py-2 text-[12px] font-bold text-[#4A4AE0] shadow-sm">
+            <span className="inline-flex items-center gap-2 border-l-2 border-[#444CE7] pl-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[#444CE7]">
               <ShieldCheck size={14} /> Secure invitation
             </span>
             <h1 className="font-display mt-6 text-[40px] font-semibold leading-[1.03] tracking-[-0.045em] sm:text-[52px]">Join your team on Linaw.</h1>
