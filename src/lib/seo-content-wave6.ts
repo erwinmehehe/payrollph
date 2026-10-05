@@ -6,7 +6,7 @@ export const industryWave6: AuthorityPage[] = [
     eyebrow: "Security agency payroll software Philippines",
     title: "Payroll and timekeeping for Philippine security agencies.",
     metaTitle: "Security Agency Payroll Software Philippines | Linaw",
-    description: "Payroll software for Philippine security agencies managing guard and office payroll, shifts, attendance, overtime, night work, deductions, approvals and payslips.",
+    description: "Payroll software for Philippine security agencies managing guard payroll, shifts, attendance, overtime, night work, deductions, approvals and payslips.",
     intro: "Security-agency payroll is shaped by long shifts, night work, rest days, holiday duty, changing work locations and a mix of guards and office staff. Linaw focuses on the payroll and workforce-control layer: attendance evidence, premium-pay context, employee records, deductions, approvals, payslips and controlled payroll outputs.",
     proof: [
       "Guard and office employee payroll",
