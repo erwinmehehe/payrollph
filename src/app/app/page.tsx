@@ -4,6 +4,7 @@ import { LinawWorkspace } from "@/components/linaw-workspace";
 import { SelfServicePortal } from "@/components/self-service-portal";
 import { getSessionUser } from "@/lib/auth";
 import { getDashboardData } from "@/lib/dashboard-data";
+import { primaryCompanyOrganizationId } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +18,9 @@ export default async function WorkspacePage() {
 
   if (!user) redirect("/login");
 
-  if (user.role === "employee") return <SelfServicePortal />;
+  const companyOrganizationId = await primaryCompanyOrganizationId(user.id);
+  if (!companyOrganizationId) return <SelfServicePortal />;
 
-  const data = await getDashboardData();
+  const data = await getDashboardData(companyOrganizationId);
   return <LinawWorkspace initialData={data} />;
 }
