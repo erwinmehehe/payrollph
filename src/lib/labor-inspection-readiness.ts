@@ -571,6 +571,32 @@ export function buildLaborInspectionFindings(input: InspectionInput) {
     });
   }
 
+  const historicalBasicMissing = new Set<number>();
+  for (const history of input.historicalEntries) {
+    if (!history.payDate.startsWith(`${input.taxYear}-`) || history.basicSalary != null) continue;
+    historicalBasicMissing.add(history.employeeId);
+    const employee = employeeById.get(history.employeeId);
+    addFinding(findings, {
+      key: `HISTORICAL_BASIC_MISSING:employee:${history.employeeId}:year:${input.taxYear}`,
+      ruleCode: "HISTORICAL_BASIC_MISSING",
+      category: "13th month",
+      severity: "high",
+      title: "Imported payroll history is missing basic salary needed for 13th-month proof",
+      detail: `${employee?.employeeNo ?? `Employee #${history.employeeId}`} · ${employee?.name ?? "Employee"} has imported payroll history in ${input.taxYear} with no basic-salary amount. PayrollPH will not treat the 13th-month entitlement screen as complete until that source data is corrected.`,
+      employeeId: history.employeeId,
+      employeeNo: employee?.employeeNo,
+      employeeName: employee?.name,
+      exposureAmount: null,
+      exposureConfidence: null,
+      governingRule: "The 13th-month formula depends on total basic salary earned during the calendar year; incomplete imported basic-salary history prevents a defensible reconciliation.",
+      sourceLabel: SOURCES.thirteenth.label,
+      sourceUrl: SOURCES.thirteenth.url,
+      evidenceRequired: ["Imported payroll basic salary earned", "Prior-provider payroll register or payslips"],
+      remediationHint: "Correct or re-import the historical payroll row with basic salary earned before relying on the 13th-month inspection screen.",
+      defaultOwner: "Payroll",
+    });
+  }
+
   if (input.today >= `${input.taxYear}-12-24`) {
     const ytd = new Map<number, { basic: number; thirteenthPaid: number }>();
     for (const entry of input.entries) {
@@ -591,6 +617,7 @@ export function buildLaborInspectionFindings(input: InspectionInput) {
     }
 
     for (const [employeeId, totals] of ytd) {
+      if (historicalBasicMissing.has(employeeId)) continue;
       const entitlement = round2(Math.max(0, totals.basic) / 12);
       const shortfall = round2(Math.max(0, entitlement - Math.max(0, totals.thirteenthPaid)));
       if (shortfall < 0.01) continue;
