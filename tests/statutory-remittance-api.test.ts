@@ -57,3 +57,11 @@ test("employee self-service exposes only the signed-in employee contribution pos
   assert.ok(selfUi.includes("Agency posting confirmed"));
   assert.ok(selfUi.includes("Employer payment pending"));
 });
+
+
+test("closed payroll months with no remittance batch are surfaced as compliance gaps", () => {
+  assert.ok(route.includes("coverageGaps"));
+  assert.ok(route.includes("releasedRuns"));
+  assert.ok(route.includes('eq(payrollRuns.status, "Released")'));
+  assert.ok(panel.includes("missing remittance control"));
+});
