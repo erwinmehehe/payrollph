@@ -13,6 +13,28 @@ export type PayrollPunchScheduleResolution = {
   exception: string | null;
 };
 
+export type PayableTimeSegment = {
+  punchId: number;
+  sourceWorkDate: string;
+  calendarDate: string;
+  start: string;
+  end: string;
+  minutes: number;
+  overtime: boolean;
+  night: boolean;
+};
+
+export type PayableTimeSegmentation = {
+  segments: PayableTimeSegment[];
+  attendanceCalendarDates: string[];
+  allocationComplete: boolean;
+  flags: string[];
+};
+
+const PH_OFFSET_MS = 8 * 60 * 60_000;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_OF_DAY = /^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/;
+
 export function advancedScheduleForPayroll(
   schedule: ResolvedDailySchedule | null | undefined,
 ) {
@@ -33,6 +55,230 @@ function punchSortValue(punch: PayrollPunchLike) {
     ? punch.timeIn.getTime()
     : Date.parse(String(punch.timeIn));
   return Number.isFinite(value) ? value : Number.POSITIVE_INFINITY;
+}
+
+function asInstant(value: Date | string | null | undefined) {
+  if (!value) return null;
+  const date = value instanceof Date ? new Date(value.getTime()) : new Date(value);
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
+function addIsoDays(dateText: string, days: number) {
+  const value = new Date(`${dateText}T00:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
+function phDateText(value: Date) {
+  return new Date(value.getTime() + PH_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+function phMinutesOfDay(value: Date) {
+  const shifted = new Date(value.getTime() + PH_OFFSET_MS);
+  return shifted.getUTCHours() * 60 + shifted.getUTCMinutes();
+}
+
+function phInstant(dateText: string, timeText: string) {
+  const normalized = timeText.length === 5 ? `${timeText}:00` : timeText;
+  const value = new Date(`${dateText}T${normalized}+08:00`);
+  return Number.isFinite(value.getTime()) ? value : null;
+}
+
+function calendarDatesTouched(start: Date, end: Date) {
+  if (end <= start) return [];
+  const first = phDateText(start);
+  const last = phDateText(new Date(end.getTime() - 1));
+  const dates: string[] = [];
+  for (
+    let date = first, guard = 0;
+    date <= last && guard < 8;
+    date = addIsoDays(date, 1), guard += 1
+  ) {
+    dates.push(date);
+  }
+  return dates;
+}
+
+function addBoundary(
+  boundaries: Map<number, Date>,
+  boundary: Date | null,
+  start: Date,
+  end: Date,
+) {
+  if (!boundary) return;
+  const value = boundary.getTime();
+  if (value > start.getTime() && value < end.getTime()) {
+    boundaries.set(value, boundary);
+  }
+}
+
+/**
+ * Splits one attendance punch into payroll-pricing segments using actual
+ * Philippine wall-clock boundaries.
+ *
+ * Boundaries are created at:
+ * - each local midnight, so holiday/rest-day classification can change;
+ * - 06:00 and 22:00, so night differential never leaks into daytime;
+ * - scheduled shift end, so overtime is independently priceable;
+ * - an explicitly located break.
+ *
+ * If a scheduled meal break has no actual break timestamps, the structural
+ * segments are still returned for audit, but allocationComplete is false.
+ * Payroll must then keep its legacy calculation and require review instead of
+ * guessing which premium bucket contained the break.
+ */
+export function segmentPayableTime(input: {
+  punch: {
+    id: number;
+    workDate: string;
+    timeIn: Date | string | null;
+    timeOut: Date | string | null;
+    breakStart?: Date | string | null;
+    breakEnd?: Date | string | null;
+  };
+  shift: {
+    start: string;
+    end: string;
+    breakMinutes?: number;
+    spansMidnight?: boolean;
+  };
+}): PayableTimeSegmentation {
+  const flags: string[] = [];
+  const actualIn = asInstant(input.punch.timeIn);
+  const actualOut = asInstant(input.punch.timeOut);
+
+  if (!ISO_DATE.test(input.punch.workDate)) {
+    return {
+      segments: [],
+      attendanceCalendarDates: [],
+      allocationComplete: false,
+      flags: ["Payable-time segmentation requires a YYYY-MM-DD work date."],
+    };
+  }
+  if (!TIME_OF_DAY.test(input.shift.start) || !TIME_OF_DAY.test(input.shift.end)) {
+    return {
+      segments: [],
+      attendanceCalendarDates: [],
+      allocationComplete: false,
+      flags: ["Payable-time segmentation requires valid 24-hour shift start/end times."],
+    };
+  }
+  if (!actualIn || !actualOut || actualOut <= actualIn) {
+    return {
+      segments: [],
+      attendanceCalendarDates: [],
+      allocationComplete: false,
+      flags: ["Payable-time segmentation requires a complete, valid punch pair."],
+    };
+  }
+
+  const attendanceCalendarDates = calendarDatesTouched(actualIn, actualOut);
+  const crossesMidnight =
+    Boolean(input.shift.spansMidnight) || input.shift.end <= input.shift.start;
+  const shiftEndDate = crossesMidnight
+    ? addIsoDays(input.punch.workDate, 1)
+    : input.punch.workDate;
+  const scheduledEnd = phInstant(shiftEndDate, input.shift.end);
+  if (!scheduledEnd) {
+    return {
+      segments: [],
+      attendanceCalendarDates,
+      allocationComplete: false,
+      flags: ["Scheduled shift end could not be resolved for payable-time segmentation."],
+    };
+  }
+
+  const scheduledBreakMinutes = Math.max(0, Number(input.shift.breakMinutes ?? 0));
+  const breakStart = asInstant(input.punch.breakStart);
+  const breakEnd = asInstant(input.punch.breakEnd);
+  let locatedBreak: { start: Date; end: Date } | null = null;
+  let allocationComplete = true;
+
+  if (breakStart || breakEnd) {
+    if (
+      !breakStart
+      || !breakEnd
+      || breakEnd <= breakStart
+      || breakStart < actualIn
+      || breakEnd > actualOut
+    ) {
+      allocationComplete = false;
+      flags.push(
+        "Break timestamps are incomplete or invalid; premium allocation was not inferred.",
+      );
+    } else {
+      locatedBreak = { start: breakStart, end: breakEnd };
+    }
+  } else if (scheduledBreakMinutes > 0) {
+    allocationComplete = false;
+    flags.push(
+      `Scheduled ${scheduledBreakMinutes}-minute break has no actual location; cross-boundary premium allocation requires review.`,
+    );
+  }
+
+  const boundaries = new Map<number, Date>([
+    [actualIn.getTime(), actualIn],
+    [actualOut.getTime(), actualOut],
+  ]);
+  addBoundary(boundaries, scheduledEnd, actualIn, actualOut);
+  if (locatedBreak) {
+    addBoundary(boundaries, locatedBreak.start, actualIn, actualOut);
+    addBoundary(boundaries, locatedBreak.end, actualIn, actualOut);
+  }
+
+  for (const dateText of attendanceCalendarDates) {
+    addBoundary(boundaries, phInstant(dateText, "00:00"), actualIn, actualOut);
+    addBoundary(boundaries, phInstant(dateText, "06:00"), actualIn, actualOut);
+    addBoundary(boundaries, phInstant(dateText, "22:00"), actualIn, actualOut);
+    addBoundary(
+      boundaries,
+      phInstant(addIsoDays(dateText, 1), "00:00"),
+      actualIn,
+      actualOut,
+    );
+  }
+
+  const points = [...boundaries.values()].sort(
+    (a, b) => a.getTime() - b.getTime(),
+  );
+  const segments: PayableTimeSegment[] = [];
+
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+    if (end <= start) continue;
+
+    const midpoint = (start.getTime() + end.getTime()) / 2;
+    if (
+      locatedBreak
+      && midpoint >= locatedBreak.start.getTime()
+      && midpoint < locatedBreak.end.getTime()
+    ) {
+      continue;
+    }
+
+    const minutes = Math.round((end.getTime() - start.getTime()) / 60_000);
+    if (minutes <= 0) continue;
+
+    const minuteOfDay = phMinutesOfDay(start);
+    segments.push({
+      punchId: input.punch.id,
+      sourceWorkDate: input.punch.workDate,
+      calendarDate: phDateText(start),
+      start: start.toISOString(),
+      end: end.toISOString(),
+      minutes,
+      overtime: start.getTime() >= scheduledEnd.getTime(),
+      night: minuteOfDay >= 22 * 60 || minuteOfDay < 6 * 60,
+    });
+  }
+
+  return {
+    segments,
+    attendanceCalendarDates,
+    allocationComplete,
+    flags,
+  };
 }
 
 /**
