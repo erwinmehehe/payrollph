@@ -63,7 +63,8 @@ test("manager experience API excludes bookkeepers and enforces assigned-manager 
   assert.ok(managerRoute.includes("Mentor is outside your assigned organization unit."));
   assert.ok(managerRoute.includes("nextCadenceDate(meeting.scheduledDate"));
   assert.ok(managerRoute.includes("onConflictDoNothing"));
-  assert.ok(managerRoute.includes("managerPrivateNotes: maySeePrivate ? meeting.managerPrivateNotes : null"));
+  assert.ok(managerRoute.includes("managerPrivateNotes: isManager ? meeting.managerPrivateNotes : null"));
+  assert.ok(managerRoute.includes("employeeUpdate: maySeeConversation ? meeting.employeeUpdate : null"));
 });
 
 test("goal cascading links governed employee goals to strategic objectives", () => {
@@ -123,7 +124,8 @@ test("manager and employee experience UIs are integrated without replacing forma
   assert.ok(performancePanel.includes('import { ManagerExperiencePanel }'));
   assert.ok(performancePanel.includes("<ManagerExperiencePanel"));
   assert.ok(managerPanel.includes("CONTINUOUS PERFORMANCE"));
-  assert.ok(managerPanel.includes("Named 360 feedback workflow"));
+  assert.ok(managerPanel.includes("NAMED 360 FEEDBACK"));
+  assert.ok(managerPanel.includes("This workflow is named, not anonymous."));
   assert.ok(employeePortal.match(/\["growth", "My growth"\]/g)?.length === 2);
   assert.ok(employeePortal.includes("<EmployeeGrowthPanel"));
   assert.ok(growthPanel.includes("MY GROWTH"));
