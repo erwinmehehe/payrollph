@@ -43,7 +43,7 @@ export function CompliancePolicyReviewPanel({ organizationId }: { organizationId
         <div>
           <div className="card-kicker">POLICY COMPLIANCE REVIEW</div>
           <h2>Catch risky payroll policy settings before payroll proves them wrong.</h2>
-          <p>Reviews pay frequency, pay-profile coverage, standard hours, weekly rest-day scheduling and leave treatment against Philippine labor controls.</p>
+          <p>Reviews actual released pay dates, pay-profile coverage, standard hours, active weekly rest-day scheduling and leave treatment against Philippine labor controls.</p>
         </div>
         <button className="secondary-button" type="button" disabled={loading} onClick={() => void load()}><RefreshCw size={14} /> {loading ? "Checking…" : "Review policies"}</button>
       </div>
