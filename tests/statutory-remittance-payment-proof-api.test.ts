@@ -95,3 +95,24 @@ test("payroll UI makes proof upload and historical backfill explicit", () => {
   assert.ok(proofUi.includes("SHA-256"));
   assert.ok(proofUi.includes("Superseded proof history"));
 });
+
+
+test("payment proof uses the shared fail-closed malware scanner before storage", () => {
+  assert.ok(uploadRoute.includes('from "@/lib/storage"'));
+  assert.ok(uploadRoute.includes("validateUpload(bytes, file.type, file.name)"));
+  assert.ok(uploadRoute.includes("await scanUpload(bytes"));
+  assert.ok(uploadRoute.includes("MALWARE_SCAN_UNAVAILABLE"));
+  assert.ok(uploadRoute.includes("MALWARE_DETECTED"));
+  assert.ok(uploadRoute.includes("Statutory remittance payment proof scan unavailable"));
+  assert.ok(uploadRoute.includes("Statutory remittance payment proof blocked by malware scan"));
+});
+
+test("payment proof is stored only after a clean scan and records scan telemetry", () => {
+  const scanGate = uploadRoute.indexOf("if (!scan.scannedClean)");
+  const insert = uploadRoute.indexOf("tx.insert(statutoryRemittancePaymentEvidence)");
+  assert.ok(scanGate >= 0);
+  assert.ok(insert > scanGate);
+  assert.ok(uploadRoute.includes("malwareScannedClean: scan.scannedClean"));
+  assert.ok(uploadRoute.includes("malwareScanEngine: scan.engine"));
+  assert.ok(uploadRoute.includes("malwareScanNote: scan.note"));
+});
