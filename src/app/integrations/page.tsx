@@ -33,9 +33,12 @@ export default function IntegrationsPage() {
         { question: "What payroll integrations does Linaw currently support?", answer: "The implemented connection surfaces include scoped API keys, employee and payroll-run APIs, HMAC-signed webhooks, a biometric synchronization route, accounting exports and supported payout outputs." },
         { question: "Does an export file count as a native integration?", answer: "No. Linaw treats file-based handoffs as exports and only describes an integration as native when there is an implemented programmatic connection or supported interface." },
         { question: "When should I use a webhook instead of polling the API?", answer: "Use webhooks when a downstream system needs event-driven notification. Use the API when it needs to request or update supported resources on demand." },
-        { question: "Are every bank and government portal directly integrated?", answer: "No. Some workflows use controlled files or validation-gated outputs rather than direct portal integrations, and the product copy keeps those distinctions explicit." },
+        { question: "Are all banks and government portals directly integrated?", answer: "No. Some workflows use controlled files or validation-gated outputs rather than direct portal integrations, and the product copy keeps those distinctions explicit." },
       ]}
       related={[
+        { label: "Biometric attendance", href: "/integrations/biometrics", description: "Review authenticated device ingestion and punch matching." },
+        { label: "Accounting exports", href: "/integrations/accounting-exports", description: "See released-payroll journal output and finance handoff." },
+        { label: "Bank & payout files", href: "/integrations/bank-payout-exports", description: "Review dry runs, release gates and bank-template validation." },
         { label: "Developer center", href: "/developers", description: "Review API scopes, webhooks and security behavior." },
         { label: "Time & attendance", href: "/time-and-attendance", description: "See attendance data flow into payroll." },
         { label: "Payroll software", href: "/", description: "Explore the complete payroll workflow." },
