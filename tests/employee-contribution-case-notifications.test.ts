@@ -22,6 +22,7 @@ test("case lifecycle emails are bound to the dedicated employee login", () => {
   assert.ok(notifications.includes("notifyEmployeeOfContributionCaseUpdate"));
   assert.ok(notifications.includes("payroll_update-"));
   assert.ok(payrollApi.includes('event: "review_started"'));
+  assert.ok(payrollApi.includes('event: "referred"'));
   assert.ok(payrollApi.includes('event: "resolved"'));
 });
 
