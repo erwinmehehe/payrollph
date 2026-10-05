@@ -1270,6 +1270,30 @@ export const statutoryRemittanceBatches = pgTable(
   ],
 );
 
+export const statutoryRemittancePaymentEvidence = pgTable(
+  "statutory_remittance_payment_evidence",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    batchId: integer("batch_id").notNull().references(() => statutoryRemittanceBatches.id, { onDelete: "cascade" }),
+    fileName: varchar("file_name", { length: 180 }).notNull(),
+    mimeType: varchar("mime_type", { length: 100 }).notNull(),
+    byteSize: integer("byte_size").notNull(),
+    fileSha256: varchar("file_sha256", { length: 64 }).notNull(),
+    fileDataBase64: text("file_data_base64").notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("active"),
+    replacementReason: varchar("replacement_reason", { length: 280 }),
+    uploadedByUserId: integer("uploaded_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    uploadedByName: varchar("uploaded_by_name", { length: 120 }).notNull(),
+    uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+    supersededAt: timestamp("superseded_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("statutory_remittance_payment_evidence_hash_unique").on(table.batchId, table.fileSha256),
+    index("statutory_remittance_payment_evidence_batch_idx").on(table.organizationId, table.batchId, table.status),
+  ],
+);
+
 export const statutoryRemittanceMembers = pgTable(
   "statutory_remittance_members",
   {

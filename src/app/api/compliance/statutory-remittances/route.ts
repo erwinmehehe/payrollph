@@ -7,6 +7,7 @@ import {
   payrollRuns,
   statutoryRemittanceBatches,
   statutoryRemittanceMembers,
+  statutoryRemittancePaymentEvidence,
 } from "@/db/schema";
 import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
@@ -300,6 +301,26 @@ export async function POST(request: Request) {
       eq(statutoryRemittanceBatches.organizationId, organizationId),
     )).limit(1);
     if (!batch) return Response.json({ error: "Remittance batch not found." }, { status: 404 });
+
+    const [paymentProof] = await db.select({
+      id: statutoryRemittancePaymentEvidence.id,
+      fileName: statutoryRemittancePaymentEvidence.fileName,
+      fileSha256: statutoryRemittancePaymentEvidence.fileSha256,
+      byteSize: statutoryRemittancePaymentEvidence.byteSize,
+      uploadedByName: statutoryRemittancePaymentEvidence.uploadedByName,
+      uploadedAt: statutoryRemittancePaymentEvidence.uploadedAt,
+    }).from(statutoryRemittancePaymentEvidence).where(and(
+      eq(statutoryRemittancePaymentEvidence.organizationId, organizationId),
+      eq(statutoryRemittancePaymentEvidence.batchId, batchId),
+      eq(statutoryRemittancePaymentEvidence.status, "active"),
+    )).limit(1);
+
+    if (!paymentProof) {
+      return Response.json({
+        error: "Upload the official payment receipt or acknowledgement before recording this remittance as paid.",
+      }, { status: 409 });
+    }
+
     if (batch.status !== "open") {
       return Response.json({
         error: "Payment evidence is immutable once recorded. Create an audited correction workflow instead of overwriting remittance proof.",
@@ -346,6 +367,12 @@ export async function POST(request: Request) {
         agencyReceiptReference,
         paymentChannel,
         paymentVarianceNote,
+        paymentProofEvidenceId: paymentProof.id,
+        paymentProofFileName: paymentProof.fileName,
+        paymentProofSha256: paymentProof.fileSha256,
+        paymentProofByteSize: paymentProof.byteSize,
+        paymentProofUploadedBy: paymentProof.uploadedByName,
+        paymentProofUploadedAt: paymentProof.uploadedAt.toISOString(),
         paidAt: paidAt.toISOString(),
       },
     });

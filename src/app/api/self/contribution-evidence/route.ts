@@ -12,6 +12,7 @@ import {
   statutoryRemittanceBatches,
   statutoryRemittanceMembers,
   statutoryRemittanceMonthClosures,
+  statutoryRemittancePaymentEvidence,
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
@@ -135,6 +136,24 @@ export async function GET(request: Request) {
           eq(statutoryRemittanceMembers.organizationId, employee.organizationId),
           eq(statutoryRemittanceMembers.batchId, batch.id),
           eq(statutoryRemittanceMembers.employeeId, employee.id),
+        ))
+        .limit(1)
+    : [];
+
+  const [paymentProof] = batch
+    ? await db.select({
+        id: statutoryRemittancePaymentEvidence.id,
+        fileName: statutoryRemittancePaymentEvidence.fileName,
+        mimeType: statutoryRemittancePaymentEvidence.mimeType,
+        byteSize: statutoryRemittancePaymentEvidence.byteSize,
+        fileSha256: statutoryRemittancePaymentEvidence.fileSha256,
+        uploadedByName: statutoryRemittancePaymentEvidence.uploadedByName,
+        uploadedAt: statutoryRemittancePaymentEvidence.uploadedAt,
+      }).from(statutoryRemittancePaymentEvidence)
+        .where(and(
+          eq(statutoryRemittancePaymentEvidence.organizationId, employee.organizationId),
+          eq(statutoryRemittancePaymentEvidence.batchId, batch.id),
+          eq(statutoryRemittancePaymentEvidence.status, "active"),
         ))
         .limit(1)
     : [];
@@ -322,6 +341,15 @@ export async function GET(request: Request) {
       agencyReceiptReference: batch.agencyReceiptReference,
       paymentChannel: batch.paymentChannel,
       paidAt: batch.paidAt?.toISOString() ?? null,
+      paymentProof: paymentProof ? {
+        evidenceId: paymentProof.id,
+        fileName: paymentProof.fileName,
+        mimeType: paymentProof.mimeType,
+        byteSize: paymentProof.byteSize,
+        fileSha256: paymentProof.fileSha256,
+        uploadedByName: paymentProof.uploadedByName,
+        uploadedAt: paymentProof.uploadedAt.toISOString(),
+      } : null,
       employeeShare: member?.employeeShare ?? null,
       employerShare: member?.employerShare ?? null,
       totalContribution: member?.totalContribution ?? null,
@@ -336,7 +364,7 @@ export async function GET(request: Request) {
     certificationHistory,
     notices: [
       "This export is generated from PayrollPH records and is not an agency-issued certificate.",
-      "The evidence hash verifies the contents of this export; agency file hashes verify the stored filing artifacts referenced here.",
+      "The evidence hash verifies the contents of this export; filing and payment-proof hashes identify the exact stored artifacts referenced here.",
       "No other employee's payroll or contribution amounts are included.",
       "Contribution-case timeline entries are limited to events explicitly marked employee-visible.",
     ],
@@ -356,6 +384,8 @@ export async function GET(request: Request) {
       evidenceHashSha256: pack.evidenceHashSha256,
       payrollEntries: payrollEvidence.length,
       filingArtifacts: filingEvidence.length,
+      paymentProofEvidenceId: paymentProof?.id ?? null,
+      paymentProofSha256: paymentProof?.fileSha256 ?? null,
       contributionCases: caseHistory.length,
       contributionCaseTimelineEvents: caseEvents.length,
     },
