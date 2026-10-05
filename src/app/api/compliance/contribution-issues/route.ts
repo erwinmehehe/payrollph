@@ -10,6 +10,7 @@ import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { notifyEmployeeOfContributionCase } from "@/lib/statutory-contribution-case-notifications";
 import { contributionCaseServiceStatus, contributionCaseServiceTargets } from "@/lib/statutory-contribution-case-aging";
+import { invalidateStatutoryRemittanceMonthCertification } from "@/lib/statutory-remittance-certification";
 import { getSessionUser } from "@/lib/auth";
 import {
   enforceSameOriginMutation,
@@ -264,6 +265,25 @@ export async function POST(request: Request) {
         linkedMemberId: issue.remittanceMemberId,
       },
     });
+
+    const invalidatedClosures = await invalidateStatutoryRemittanceMonthCertification({
+      organizationId,
+      applicableMonth: issue.applicableMonth,
+      reason: `Employee contribution case #${issue.id} resolution changed certified month evidence.`,
+    });
+    if (invalidatedClosures.length > 0) {
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Statutory remittance month certification invalidated",
+        resource: issue.applicableMonth,
+        metadata: {
+          reason: "employee_contribution_issue_resolved",
+          caseId: issue.id,
+          invalidatedClosureIds: invalidatedClosures.map((row) => row.id),
+        },
+      });
+    }
 
     try {
       await notifyEmployeeOfContributionCase({
