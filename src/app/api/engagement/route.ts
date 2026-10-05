@@ -168,20 +168,23 @@ export async function GET(request: Request) {
     const unitBreakdown = access.companyWide
       ? units.map((unit) => {
           const rows = scopeResponses.filter((response) => response.orgUnitIdSnapshot === unit.id);
+          const unitReportable = reportableCohort(rows.length, threshold);
           return {
             orgUnitId: unit.id,
             orgUnitName: unit.name,
-            responseCount: rows.length,
-            reportable: reportableCohort(rows.length, threshold),
+            responseCount: unitReportable ? rows.length : null,
+            reportable: unitReportable,
           };
         }).filter((row) => row.responseCount > 0)
       : [];
 
     return {
       ...survey,
-      responseCount: scopeResponses.length,
-      eligibleCount: eligible,
-      responseRate: eligible > 0 ? Math.round((scopeResponses.length / eligible) * 100) : 0,
+      responseCount: access.companyWide || reportable ? scopeResponses.length : null,
+      eligibleCount: access.companyWide || reportable ? eligible : null,
+      responseRate: access.companyWide || reportable
+        ? (eligible > 0 ? Math.round((scopeResponses.length / eligible) * 100) : 0)
+        : null,
       reportable,
       suppressionReason: reportable ? null : `At least ${threshold} responses are required before results are shown.`,
       questions: questionAnalytics,
