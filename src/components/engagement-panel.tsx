@@ -9,11 +9,11 @@ type QuestionAnalytics = {
   prompt: string;
   type: string;
   required: boolean;
-  responseCount: number;
+  responseCount: number | null;
   suppressed: boolean;
   average: number | null;
   enps: { score: number | null; promoters: number; passives: number; detractors: number; responses: number } | null;
-  textResponseCount: number;
+  textResponseCount: number | null;
   comments: Array<{ employeeId: number | null; employeeName: string; text: string | null }>;
 };
 type Survey = {
