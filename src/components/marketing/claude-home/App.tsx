@@ -1,12 +1,6 @@
 "use client";
 
-import Navbar from "./components/Navbar";
-import Hero from "./components/Hero";
-import Demo from "./components/Demo";
-import { Calculator, Exports } from "./components/Product";
-import { PayrollWorkflow, Security } from "./components/Trust";
-import Pricing from "./components/Pricing";
-import { CTA, FAQ, Footer } from "./components/Closing";
+import ModernHome from "./ModernHome";
 
 export type PublicPlan = {
   id: number;
@@ -19,21 +13,5 @@ export type PublicPlan = {
 };
 
 export default function ClaudeHomepage({ plans }: { plans: PublicPlan[] }) {
-  return (
-    <div className="home-redesign min-h-screen bg-white text-[#0B0D1A]">
-      <Navbar />
-      <main id="main">
-        <Hero />
-        <Demo />
-        <PayrollWorkflow />
-        <Exports />
-        <Security />
-        <Pricing plans={plans} />
-        <Calculator />
-        <FAQ />
-        <CTA />
-      </main>
-      <Footer />
-    </div>
-  );
+  return <ModernHome plans={plans} />;
 }
