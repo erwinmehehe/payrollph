@@ -26,6 +26,7 @@ import { PayrollAssurancePanel } from "./payroll-assurance-panel";
 import { PayrollOfficerWorkspace } from "./payroll-officer-workspace";
 import { StatutoryRemittancePanel } from "./statutory-remittance-panel";
 import { StatutoryRemittanceActionQueue } from "./statutory-remittance-action-queue";
+import { StatutoryRemittanceCorrectionsPanel } from "./statutory-remittance-corrections-panel";
 import { OwnerPayrollRelease } from "./owner-payroll-release";
 import { ExplainPayDrawer } from "./explain-pay-drawer";
 import {
@@ -453,6 +454,13 @@ export function PayrollRunView({
 
       {["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "") && (
         <StatutoryRemittanceActionQueue
+          organizationId={data.selectedOrganization.id}
+          notify={notify}
+        />
+      )}
+
+      {["owner", "admin", "bookkeeper", "payroll", "checker"].includes(data.access?.role ?? "") && (
+        <StatutoryRemittanceCorrectionsPanel
           organizationId={data.selectedOrganization.id}
           notify={notify}
         />
