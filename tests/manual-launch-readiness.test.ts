@@ -19,6 +19,7 @@ test("readiness reports which launch blockers have a manual workaround", async (
   const bank = body.gates.find((g: { key: string }) => g.key === "bank-validation");
   const gov = body.gates.find((g: { key: string }) => g.key === "gov-bir-alphalist");
   const email = body.gates.find((g: { key: string }) => g.key === "email-delivery");
+  const leadRouting = body.gates.find((g: { key: string }) => g.key === "public-lead-routing");
 
   assert.ok(billing.manualWorkaround?.includes("manual-activate-subscription"));
   assert.ok(bank.manualWorkaround?.toLowerCase().includes("upload"));
@@ -26,6 +27,9 @@ test("readiness reports which launch blockers have a manual workaround", async (
   // Email has no manual workaround field. An admin manually relaying reset
   // tokens is not something this readiness check should ever bless.
   assert.equal(email.manualWorkaround, undefined);
+  assert.ok(leadRouting);
+  assert.equal(typeof leadRouting.ready, "boolean");
+  assert.equal(leadRouting.blocks, leadRouting.ready ? "none" : "launch");
   assert.ok(Number.isInteger(Number(body.counts.publicLeadBacklog)));
   assert.ok(
     email.detail.includes("Public enquiry backlog") || body.counts.publicLeadBacklog === 0,
