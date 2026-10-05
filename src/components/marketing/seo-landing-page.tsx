@@ -14,6 +14,12 @@ export type SeoRelatedLink = {
   description: string;
 };
 
+export type SeoDirectoryGroup = {
+  title: string;
+  description: string;
+  links: SeoRelatedLink[];
+};
+
 type Props = {
   eyebrow: string;
   title: string;
@@ -21,6 +27,7 @@ type Props = {
   proof: string[];
   sections: SeoSection[];
   faq?: Array<{ question: string; answer: string }>;
+  directoryGroups?: SeoDirectoryGroup[];
   related: SeoRelatedLink[];
   ctaTitle?: string;
   ctaBody?: string;
@@ -35,6 +42,7 @@ export function SeoLandingPage({
   proof,
   sections,
   faq = [],
+  directoryGroups = [],
   related,
   ctaTitle = "See the workflow before you commit.",
   ctaBody = "Open the role-based product demo or book a walkthrough with your own payroll questions.",
@@ -115,6 +123,38 @@ export function SeoLandingPage({
             ))}
           </div>
         </section>
+
+        {directoryGroups.length ? (
+          <section className="border-y border-[#EDEFF7] bg-[#FAFBFD] py-14 sm:py-16">
+            <div className="mx-auto max-w-[1180px] px-5 sm:px-8">
+              <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#7C82A1]">Browse this topic</p>
+              <h2 className="font-display mt-2 max-w-[760px] text-[32px] font-semibold tracking-[-0.035em] sm:text-[40px]">
+                Find the compliance workflow you actually need.
+              </h2>
+              <div className="mt-8 divide-y divide-[#E3E5EE] border-y border-[#E3E5EE]">
+                {directoryGroups.map((group) => (
+                  <div key={group.title} className="grid gap-5 py-7 lg:grid-cols-[.72fr_1.28fr] lg:gap-10">
+                    <div>
+                      <h3 className="font-display text-[22px] font-semibold tracking-[-0.025em]">{group.title}</h3>
+                      <p className="mt-2 max-w-[430px] text-[13.5px] leading-relaxed text-[#5B6080]">{group.description}</p>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {group.links.map((item) => (
+                        <Link key={item.href} href={item.href} className="group rounded-[18px] border border-[#E2E4F0] bg-white p-4 transition hover:-translate-y-0.5 hover:border-[#CFCFFF]">
+                          <strong className="font-display text-[16px] font-semibold">{item.label}</strong>
+                          <p className="mt-1.5 text-[12px] leading-relaxed text-[#6B718C]">{item.description}</p>
+                          <span className="mt-3 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#4A4AE0]">
+                            Open guide <ArrowRight size={12} />
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         {faq.length ? (
           <section className="border-t border-[#EDEFF7] py-16 sm:py-20">
