@@ -177,9 +177,18 @@ export async function POST(request: Request) {
       assignedToName = membership.name;
     }
 
+    const ownershipChanged = assignedToUserId !== task.assignedToUserId;
     const [updated] = await db.update(complianceActionTasks).set({
       assignedToUserId,
       assignedToName,
+      ...(ownershipChanged && task.status === "in_progress"
+        ? {
+            status: "open",
+            acknowledgedAt: null,
+            acknowledgedByUserId: null,
+            acknowledgedByName: null,
+          }
+        : {}),
       updatedAt: new Date(),
     }).where(and(
       eq(complianceActionTasks.id, taskId),
@@ -204,6 +213,12 @@ export async function POST(request: Request) {
   }
 
   if (action === "acknowledge") {
+    if (task.assignedToUserId != null && task.assignedToUserId !== user.id) {
+      return Response.json({
+        error: `This compliance action is assigned to ${task.assignedToName ?? "another payroll operator"}. Reassign it before acknowledging.`,
+      }, { status: 409 });
+    }
+
     const now = new Date();
     const [updated] = await db.update(complianceActionTasks).set({
       status: "in_progress",
