@@ -48,6 +48,7 @@ export const PUBLIC_FOOTER_GROUPS: Array<{ label: string; links: PublicLink[] }>
       { label: "Capability scorecard", href: "/scorecard" },
       { label: "Security", href: "/security" },
       { label: "System status", href: "/status" },
+      { label: "Evidence methodology", href: "/methodology" },
       { label: "Request trial access", href: "/signup" },
       { label: "Book a demo", href: "/book-demo" },
       { label: "Sign in", href: "/login" },
