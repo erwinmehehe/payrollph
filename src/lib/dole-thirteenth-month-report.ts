@@ -8,6 +8,7 @@ export type DoleThirteenthWorker = {
   payrollThirteenthPaid: number;
   historicalThirteenthPaid: number;
   finalPayThirteenthPaid: number;
+  basicSalaryComplete: boolean;
 };
 
 export type DoleReportingProfile = {
@@ -48,7 +49,8 @@ export function buildDoleThirteenthMonthReport(input: {
   const totalBenefitsGranted = round2(
     beneficiaries.reduce((sum, worker) => sum + worker.amountGranted, 0),
   );
-  const reviewRows = workers.filter((worker) => worker.screeningShortfall >= 0.01);
+  const reviewRows = workers.filter((worker) => worker.basicSalaryComplete && worker.screeningShortfall >= 0.01);
+  const incompleteBasicRows = workers.filter((worker) => !worker.basicSalaryComplete);
   const profileComplete = Boolean(
     input.profile?.establishmentAddress.trim()
     && input.profile.principalBusiness.trim()
@@ -87,6 +89,7 @@ export function buildDoleThirteenthMonthReport(input: {
     reportHash,
     profileComplete,
     reviewRows,
+    incompleteBasicRows,
     readyToSubmit: profileComplete && workers.length > 0,
     sourceNote:
       "Source worksheet for the DOLE Online Compliance Portal. PayrollPH does not submit this report to DOLE and does not treat generation as proof of submission.",
