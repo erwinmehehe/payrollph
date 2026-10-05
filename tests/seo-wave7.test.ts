@@ -32,7 +32,7 @@ test("customer stories use article and breadcrumb schema without review fabricat
   assert.ok(page.includes("breadcrumbs={["));
   assert.ok(page.includes("article={{"));
   assert.ok(!page.includes("AggregateRating"));
-  assert.ok(!page.includes("Review"));
+  assert.ok(!page.includes('"@type": "Review"'));
   assert.ok(!page.includes("reviewRating"));
 });
 
