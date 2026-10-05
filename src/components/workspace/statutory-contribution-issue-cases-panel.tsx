@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, RefreshCcw, SearchCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, RefreshCcw, SearchCheck } from "lucide-react";
 import type { Notify } from "./types";
 import { Spinner, Status } from "./ui";
 
@@ -203,6 +203,13 @@ export function StatutoryContributionIssueCasesPanel({
                     <td>
                       <strong>{issue.employeeName}</strong>
                       <div className="id">{issue.employeeNo} · case #{issue.id}</div>
+                      <a
+                        className="secondary-button"
+                        style={{ marginTop: 6 }}
+                        href={`/api/compliance/contribution-issues/evidence?organizationId=${organizationId}&caseId=${issue.id}`}
+                      >
+                        <Download size={13} /> Evidence
+                      </a>
                     </td>
                     <td>
                       <strong>{issue.agency}</strong>
@@ -352,6 +359,13 @@ export function StatutoryContributionIssueCasesPanel({
                   <small style={{ display: "block", color: "var(--muted)" }}>
                     {issue.resolutionOutcome?.replaceAll("_", " ") ?? "resolved"} · {issue.resolutionNote}
                   </small>
+                  <a
+                    className="secondary-button"
+                    style={{ marginTop: 6 }}
+                    href={`/api/compliance/contribution-issues/evidence?organizationId=${organizationId}&caseId=${issue.id}`}
+                  >
+                    <Download size={13} /> Download evidence
+                  </a>
                 </span>
               ))}
             </div>
