@@ -295,6 +295,7 @@ export function provesFileFormat(row: FilingEvidenceRow, definition: FilingFormD
     && row.form === definition.form
     && row.status === "accepted"
     && row.submissionMethod === "file_upload"
+    && definition.submissionMethods.includes(row.submissionMethod as SubmissionMethod)
     && row.generatorVersion === definition.generatorVersion
   );
 }
