@@ -311,6 +311,9 @@ export async function PATCH(request: Request) {
     if (!Number.isInteger(id)) return Response.json({ error: "Review id is required." }, { status: 400 });
     const [existing] = await db.select().from(performanceReviews).where(eq(performanceReviews.id, id)).limit(1);
     if (!existing) return Response.json({ error: "Review not found." }, { status: 404 });
+    if (existing.status === "completed") {
+      return Response.json({ error: "Completed performance reviews are immutable." }, { status: 409 });
+    }
 
     const denied = await assertOrganizationRole(user.id, existing.organizationId, PERFORMANCE_ROLES);
     if (denied) return denied;
