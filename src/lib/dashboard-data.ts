@@ -1,6 +1,6 @@
 import { maskBankAccount } from "@/lib/bank-account-crypto";
 import { maskGovernmentId } from "@/lib/government-id-crypto";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalDelegations,
@@ -8,6 +8,7 @@ import {
   auditEvents,
   bankTemplates,
   calamityAdvisories,
+  complianceActionTasks,
   employeePayProfiles,
   employeePayRevisions,
   employeeRestDayRevisions,
@@ -29,7 +30,7 @@ import {
   userOrganizations,
 } from "@/db/schema";
 import { ensureSeedData } from "@/db/seed";
-import { getAccess, PAYROLL_CHECKER_ROLES, PAYROLL_VIEW_ROLES, PEOPLE_PAYROLL_ROLES, roleAllowed } from "@/lib/access";
+import { getAccess, PAYROLL_CHECKER_ROLES, PAYROLL_OPERATOR_ROLES, PAYROLL_VIEW_ROLES, PEOPLE_PAYROLL_ROLES, roleAllowed } from "@/lib/access";
 import { getSessionUser, publicUser } from "@/lib/auth";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
@@ -81,6 +82,7 @@ export async function getDashboardData(organizationId?: number) {
   const canViewPeoplePay = roleAllowed(access.role, PEOPLE_PAYROLL_ROLES);
   const canViewAudit = access.companyWide && ["owner", "admin", "bookkeeper", "payroll", "checker"].includes(access.role);
   const canViewDelegations = roleAllowed(access.role, PAYROLL_CHECKER_ROLES);
+  const canViewComplianceActions = access.companyWide && roleAllowed(access.role, PAYROLL_OPERATOR_ROLES);
 
   const employeeFilter = access && !access.companyWide && access.orgUnitId
     ? and(eq(employees.organizationId, selectedOrganization.id), eq(employees.orgUnitId, access.orgUnitId))
@@ -144,6 +146,35 @@ export async function getDashboardData(organizationId?: number) {
         }).from(separationRecords).where(eq(separationRecords.organizationId, selectedOrganization.id))
       : Promise.resolve([]),
   ]);
+
+  const complianceActions = canViewComplianceActions
+    ? await db
+        .select({
+          id: complianceActionTasks.id,
+          sourceKey: complianceActionTasks.sourceKey,
+          agency: complianceActionTasks.agency,
+          applicableMonth: complianceActionTasks.applicableMonth,
+          severity: complianceActionTasks.severity,
+          title: complianceActionTasks.title,
+          detail: complianceActionTasks.detail,
+          dueDate: complianceActionTasks.dueDate,
+          status: complianceActionTasks.status,
+          assignedToUserId: complianceActionTasks.assignedToUserId,
+          assignedToName: complianceActionTasks.assignedToName,
+          acknowledgedByName: complianceActionTasks.acknowledgedByName,
+          acknowledgedAt: complianceActionTasks.acknowledgedAt,
+          resolvedAt: complianceActionTasks.resolvedAt,
+          updatedAt: complianceActionTasks.updatedAt,
+        })
+        .from(complianceActionTasks)
+        .where(and(
+          eq(complianceActionTasks.organizationId, selectedOrganization.id),
+          eq(complianceActionTasks.sourceType, "statutory_remittance"),
+          ne(complianceActionTasks.status, "resolved"),
+        ))
+        .orderBy(desc(complianceActionTasks.updatedAt))
+        .limit(20)
+    : [];
 
   const handoffRunRows = canViewPayroll
     ? runRows
@@ -286,6 +317,7 @@ export async function getDashboardData(organizationId?: number) {
     payrollEntries: entries,
     payrollJobs: jobs,
     tasks: taskRows,
+    complianceActions,
     auditEvents: auditRows,
     plans,
     templates,

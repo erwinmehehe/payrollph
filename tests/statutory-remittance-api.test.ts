@@ -7,11 +7,13 @@ const panel = readFileSync("src/components/workspace/statutory-remittance-panel.
 const selfApi = readFileSync("src/app/api/self/payslips/route.ts", "utf8");
 const selfUi = readFileSync("src/components/self-service-portal.tsx", "utf8");
 const schema = readFileSync("src/db/schema.ts", "utf8");
+const state = readFileSync("src/lib/statutory-remittance-state.ts", "utf8");
 
 test("statutory remittance ledger separates batch payment from employee posting", () => {
   assert.ok(schema.includes('export const statutoryRemittanceBatches = pgTable('));
   assert.ok(schema.includes('export const statutoryRemittanceMembers = pgTable('));
   assert.ok(schema.includes('postingStatus: varchar("posting_status"'));
+  assert.ok(schema.includes('postedAmount: numeric("posted_amount"'));
   assert.ok(schema.includes('agencyReceiptReference: varchar("agency_receipt_reference"'));
 });
 
@@ -24,6 +26,8 @@ test("remittance snapshot is restricted to closed months and released payroll", 
 
 test("payment cannot hide under-remittance and employee posting is a separate gate", () => {
   assert.ok(route.includes("canMarkRemittancePaid"));
+  assert.ok(route.includes("canConfirmMemberPosting"));
+  assert.ok(route.includes("postedAmount: postedAmount.toFixed(2)"));
   assert.ok(route.includes("Record the agency payment before confirming employee posting."));
   assert.ok(route.includes('postingStatus: "confirmed"'));
   assert.ok(route.includes('status: "reconciled"'));
@@ -56,13 +60,16 @@ test("employee self-service exposes only the signed-in employee contribution pos
   assert.ok(selfUi.includes("MANDATORY CONTRIBUTIONS"));
   assert.ok(selfUi.includes("Agency posting confirmed"));
   assert.ok(selfUi.includes("Employer payment pending"));
+  assert.ok(selfApi.includes("postedAmount: statutoryRemittanceMembers.postedAmount"));
+  assert.ok(selfUi.includes("Amount posted"));
 });
 
 
 test("closed payroll months with no remittance batch are surfaced as compliance gaps", () => {
-  assert.ok(route.includes("coverageGaps"));
-  assert.ok(route.includes("releasedRuns"));
-  assert.ok(route.includes('eq(payrollRuns.status, "Released")'));
+  assert.ok(route.includes("loadStatutoryRemittanceState"));
+  assert.ok(state.includes("coverageGaps"));
+  assert.ok(state.includes("releasedRuns"));
+  assert.ok(state.includes('eq(payrollRuns.status, "Released")'));
   assert.ok(panel.includes("missing remittance control"));
 });
 
@@ -70,4 +77,27 @@ test("closed payroll months with no remittance batch are surfaced as compliance 
 test("recorded payment evidence cannot be silently overwritten", () => {
   assert.ok(route.includes("Payment evidence is immutable once recorded."));
   assert.ok(route.includes('batch.status !== "open"'));
+});
+
+
+test("employee posting amount mismatch cannot be marked confirmed", () => {
+  assert.ok(route.includes("expectedTotal: Number(member.totalContribution)"));
+  assert.ok(route.includes("postedAmount,"));
+  assert.ok(route.includes("postingGate.error"));
+  assert.ok(panel.includes("postedAmount: Number(postingAmount)"));
+  assert.ok(panel.includes("Posted {money(member.postedAmount ?? member.totalContribution)}"));
+});
+
+
+test("employee posting exceptions can be reopened and corrected from payroll UI", () => {
+  assert.ok(panel.includes("Resolve exception"));
+  assert.ok(panel.includes('setPostingMemberId(member.id)'));
+  assert.ok(panel.includes('setExceptionNote(member.exceptionNote ?? "")'));
+  assert.ok(route.includes('batch.status === "exception" && exceptions.length === 0'));
+});
+
+
+test("confirmed employee posting evidence cannot be silently overwritten", () => {
+  assert.ok(route.includes("Confirmed employee posting evidence is immutable."));
+  assert.ok(route.includes('member.postingStatus === "confirmed"'));
 });

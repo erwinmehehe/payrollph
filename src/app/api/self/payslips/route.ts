@@ -107,6 +107,7 @@ export async function GET() {
       totalContribution: statutoryRemittanceMembers.totalContribution,
       postingStatus: statutoryRemittanceMembers.postingStatus,
       postingReference: statutoryRemittanceMembers.postingReference,
+      postedAmount: statutoryRemittanceMembers.postedAmount,
       postedAt: statutoryRemittanceMembers.postedAt,
       exceptionNote: statutoryRemittanceMembers.exceptionNote,
     }).from(statutoryRemittanceMembers)
@@ -221,6 +222,7 @@ export async function GET() {
       totalContribution: row.totalContribution,
       postingStatus: row.postingStatus,
       postingReference: row.postingReference,
+      postedAmount: row.postedAmount,
       postedAt: row.postedAt,
       exceptionNote: row.exceptionNote,
     })),

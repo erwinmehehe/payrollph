@@ -51,6 +51,7 @@ type ContributionPosting = {
   totalContribution: string;
   postingStatus: string;
   postingReference: string | null;
+  postedAmount: string | null;
   postedAt: string | null;
   exceptionNote: string | null;
 };
@@ -648,6 +649,7 @@ export function SelfServicePortal() {
                 <div className="employee-pay-row-detail" style={{ display: "grid" }}>
                   <div><span>Employer payment</span><strong>{row.paymentStatus}</strong></div>
                   <div><span>Agency posting</span><strong>{row.postingStatus}</strong></div>
+                  {row.postedAmount && <div><span>Amount posted</span><strong>{peso(row.postedAmount)}</strong></div>}
                   {row.postingReference && <div><span>Posting reference</span><strong>{row.postingReference}</strong></div>}
                   {row.exceptionNote && <div><span>Issue</span><strong>{row.exceptionNote}</strong></div>}
                 </div>

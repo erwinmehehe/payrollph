@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildStatutoryRemittanceSnapshot,
+  canConfirmMemberPosting,
   canMarkRemittancePaid,
+  effectiveRemittanceDueDate,
   nominalRemittanceDueDate,
+  nextWorkingDay,
   statutorySharesForEntry,
 } from "../src/lib/statutory-remittance";
 
@@ -89,6 +92,34 @@ test("nominal deadlines follow current agency schedules", () => {
   }), "2026-10-19");
 });
 
+test("effective SSS and PhilHealth deadlines roll to the next working day", () => {
+  assert.equal(effectiveRemittanceDueDate({
+    agency: "SSS",
+    applicableMonth: "2026-09",
+    legalName: "Linaw Inc.",
+  }), "2026-11-03");
+
+  assert.equal(effectiveRemittanceDueDate({
+    agency: "PhilHealth",
+    applicableMonth: "2026-01",
+    legalName: "Linaw Inc.",
+    philHealthEmployerNo: "12-34567890-4",
+  }), "2026-02-16");
+
+  assert.equal(nextWorkingDay(
+    "2026-11-01",
+    new Set(["2026-11-02"]),
+  ), "2026-11-03");
+});
+
+test("Pag-IBIG keeps the published end of its remittance window", () => {
+  assert.equal(effectiveRemittanceDueDate({
+    agency: "Pag-IBIG",
+    applicableMonth: "2026-10",
+    legalName: "Acme Inc.",
+  }), "2026-11-14");
+});
+
 test("payment gate blocks underpayment but permits evidenced penalties", () => {
   assert.equal(canMarkRemittancePaid({
     expectedTotal: 1000,
@@ -118,4 +149,28 @@ test("payment gate blocks underpayment but permits evidenced penalties", () => {
     agencyReceiptReference: "OR-1",
     paymentVarianceNote: "Agency late-payment penalty",
   }).ok, true);
+});
+
+
+test("employee agency posting confirmation requires an exact amount match", () => {
+  assert.equal(canConfirmMemberPosting({
+    expectedTotal: 2250,
+    postedAmount: 2250,
+    postingReference: "POST-001",
+  }).ok, true);
+
+  const under = canConfirmMemberPosting({
+    expectedTotal: 2250,
+    postedAmount: 2200,
+    postingReference: "POST-001",
+  });
+  assert.equal(under.ok, false);
+  if (!under.ok) assert.match(under.error, /must match/i);
+
+  const over = canConfirmMemberPosting({
+    expectedTotal: 2250,
+    postedAmount: 2300,
+    postingReference: "POST-001",
+  });
+  assert.equal(over.ok, false);
 });
