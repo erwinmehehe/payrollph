@@ -150,6 +150,7 @@ export function renderForm2316(input: {
   const line = (label: string, value: string) => `${label.padEnd(56, ".")} ${value.padStart(16)}`;
 
   return [
+    "DRAFT - NOT A CERTIFIED SUBMISSION",
     "BIR 2316 RECONCILIATION SOURCE - NOT BIR FORM NO. 2316",
     "Use with the current official BIR Form No. 2316 September 2021 (ENCS).",
     "This text output does not reproduce the official certificate layout or all required identity/address fields.",
