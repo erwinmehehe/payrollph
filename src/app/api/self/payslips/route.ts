@@ -20,57 +20,7 @@ export async function GET() {
   if (!session) return Response.json({ error: "Authentication required." }, { status: 401 });
 
   if (session.role !== "employee") {
-    const remittanceByAgencyMonth = new Map(
-    remittanceRows.map((row) => [`${row.agency}:${row.applicableMonth}`, row]),
-  );
-  const contributionMonths = new Map<string, {
-    month: string;
-    sss: number;
-    philHealth: number;
-    pagIbig: number;
-  }>();
-  for (const row of released) {
-    const month = String(row.run.periodEnd).slice(0, 7);
-    const bucket = contributionMonths.get(month) ?? {
-      month,
-      sss: 0,
-      philHealth: 0,
-      pagIbig: 0,
-    };
-    const lines = Array.isArray(row.entry.lineItems)
-      ? row.entry.lineItems as Array<{ code?: string; amount?: number | string }>
-      : [];
-    const amountFor = (codes: string[]) => lines
-      .filter((line) => codes.includes(String(line.code ?? "")))
-      .reduce((sum, line) => sum + Math.abs(Number(line.amount ?? 0) || 0), 0);
-    bucket.sss += amountFor(["SSS"]);
-    bucket.philHealth += amountFor(["PHIC"]);
-    bucket.pagIbig += amountFor(["HDMF", "HDMF_VOL"]);
-    contributionMonths.set(month, bucket);
-  }
-  const contributionStatus = [...contributionMonths.values()]
-    .sort((a, b) => b.month.localeCompare(a.month))
-    .slice(0, 18)
-    .map((month) => ({
-      month: month.month,
-      agencies: [
-        { agency: "SSS", deducted: month.sss },
-        { agency: "PhilHealth", deducted: month.philHealth },
-        { agency: "Pag-IBIG", deducted: month.pagIbig },
-      ].map((item) => {
-        const obligation = remittanceByAgencyMonth.get(`${item.agency}:${month.month}`);
-        return {
-          agency: item.agency,
-          employeeDeducted: item.deducted.toFixed(2),
-          remittanceStatus: obligation?.status ?? "not_recorded",
-          dueDate: obligation?.dueDate ?? null,
-          paymentRecordedAt: obligation?.remittedAt ?? null,
-          postingConfirmedAt: obligation?.postingConfirmedAt ?? null,
-        };
-      }),
-    }));
-
-  return Response.json({ error: "This endpoint is for employee self-service accounts." }, { status: 403 });
+    return Response.json({ error: "This endpoint is for employee self-service accounts." }, { status: 403 });
   }
   if (!session.employeeId) {
     return Response.json({ error: "This account is not linked to an employee record. Contact your administrator." }, { status: 403 });
@@ -192,6 +142,56 @@ export async function GET() {
       paidPercentage: policy.paidPercentage,
     };
   });
+
+  const remittanceByAgencyMonth = new Map(
+    remittanceRows.map((row) => [`${row.agency}:${row.applicableMonth}`, row]),
+  );
+  const contributionMonths = new Map<string, {
+    month: string;
+    sss: number;
+    philHealth: number;
+    pagIbig: number;
+  }>();
+  for (const row of released) {
+    const month = String(row.run.periodEnd).slice(0, 7);
+    const bucket = contributionMonths.get(month) ?? {
+      month,
+      sss: 0,
+      philHealth: 0,
+      pagIbig: 0,
+    };
+    const lines = Array.isArray(row.entry.lineItems)
+      ? row.entry.lineItems as Array<{ code?: string; amount?: number | string }>
+      : [];
+    const amountFor = (codes: string[]) => lines
+      .filter((line) => codes.includes(String(line.code ?? "")))
+      .reduce((sum, line) => sum + Math.abs(Number(line.amount ?? 0) || 0), 0);
+    bucket.sss += amountFor(["SSS"]);
+    bucket.philHealth += amountFor(["PHIC"]);
+    bucket.pagIbig += amountFor(["HDMF", "HDMF_VOL"]);
+    contributionMonths.set(month, bucket);
+  }
+  const contributionStatus = [...contributionMonths.values()]
+    .sort((a, b) => b.month.localeCompare(a.month))
+    .slice(0, 18)
+    .map((month) => ({
+      month: month.month,
+      agencies: [
+        { agency: "SSS", deducted: month.sss },
+        { agency: "PhilHealth", deducted: month.philHealth },
+        { agency: "Pag-IBIG", deducted: month.pagIbig },
+      ].map((item) => {
+        const obligation = remittanceByAgencyMonth.get(`${item.agency}:${month.month}`);
+        return {
+          agency: item.agency,
+          employeeDeducted: item.deducted.toFixed(2),
+          remittanceStatus: obligation?.status ?? "not_recorded",
+          dueDate: obligation?.dueDate ?? null,
+          paymentRecordedAt: obligation?.remittedAt ?? null,
+          postingConfirmedAt: obligation?.postingConfirmedAt ?? null,
+        };
+      }),
+    }));
 
   return Response.json({
     employee: {
