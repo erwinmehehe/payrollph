@@ -111,6 +111,13 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
 - Performance is deliberately separated from pay changes; a future compensation cycle must explicitly approve any salary action.
 - See `docs/HCM_PARITY_ROADMAP.md` for the HCM build sequence covering positions/headcount, compensation, learning, engagement and enterprise IAM.
 
+### Compensation management
+- Salary bands attach to job architecture and location/org-unit scope, with company-wide fallback ranges.
+- Review cycles enforce annualized increase budgets and optional org-unit manager pools.
+- Recommendations carry current/proposed monthly pay, performance context, compa-ratio, rationale and band exceptions.
+- Proposer, approver and payroll application are separate governed steps; approved changes flow into effective-dated pay revisions only after explicit application.
+- Future effective dates cannot be applied early, and historical changes fail closed when released payroll would require retro reconciliation.
+
 ### Public capability scorecard
 - `/scorecard` and `GET /api/capabilities` render a 22-row competitive parity grid plus a 15-row capability matrix
 - Every Linaw claim is classified **verified / partial / absent** and carries its evidence (a file path, a test name, or a live row count), generated from this deployment's code and database
