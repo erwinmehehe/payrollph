@@ -70,6 +70,18 @@ for (const duplicate of duplicateSeoOwnerPaths()) {
   });
 }
 
+const intentOwnerPaths = new Set(SEO_INTENT_OWNERS.map((owner) => owner.ownerPath));
+
+for (const entry of sitemapEntries) {
+  if (entry.path === "/customers" || entry.path.startsWith("/customers/")) continue;
+  if (!intentOwnerPaths.has(entry.path)) {
+    issues.push({
+      code: "sitemap-path-without-intent-owner",
+      message: `Public sitemap path ${entry.path} has no declared SEO intent owner.`,
+    });
+  }
+}
+
 for (const owner of SEO_INTENT_OWNERS) {
   if (!sitemapPaths.has(owner.ownerPath)) {
     issues.push({

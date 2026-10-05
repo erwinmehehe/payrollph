@@ -138,3 +138,10 @@ test("internal-link audit prevents sitemap-only orphan SEO children", () => {
   assert.ok(audit.includes("regulatoryUpdates"), "link audit must cover regulatory update discovery");
   assert.ok(audit.includes("PUBLISHABLE_CUSTOMER_STORIES"), "link audit must cover approved customer stories");
 });
+
+
+test("launch audit rejects sitemap pages without intent ownership", () => {
+  const audit = read("scripts/seo-launch-audit.ts");
+  assert.ok(audit.includes("sitemap-path-without-intent-owner"));
+  assert.ok(audit.includes("intentOwnerPaths"));
+});
