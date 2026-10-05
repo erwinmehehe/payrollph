@@ -36,6 +36,24 @@ function sanitizeFileName(value: string) {
   return value.replace(/[^a-zA-Z0-9._ -]+/g, "").trim().slice(0, 180) || "payment-proof";
 }
 
+function bytesMatchMime(bytes: Buffer, mimeType: string) {
+  if (mimeType === "application/pdf") {
+    return bytes.length >= 5 && bytes.subarray(0, 5).toString("ascii") === "%PDF-";
+  }
+  if (mimeType === "image/jpeg") {
+    return bytes.length >= 3
+      && bytes[0] === 0xff
+      && bytes[1] === 0xd8
+      && bytes[2] === 0xff;
+  }
+  if (mimeType === "image/png") {
+    const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+    return bytes.length >= signature.length
+      && signature.every((value, index) => bytes[index] === value);
+  }
+  return false;
+}
+
 export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -120,6 +138,11 @@ export async function POST(request: Request) {
   }
 
   const bytes = Buffer.from(await file.arrayBuffer());
+  if (!bytesMatchMime(bytes, file.type)) {
+    return Response.json({
+      error: "Payment proof contents do not match the declared PDF/JPEG/PNG file type.",
+    }, { status: 415 });
+  }
   const fileSha256 = createHash("sha256").update(bytes).digest("hex");
   const fileDataBase64 = bytes.toString("base64");
   const fileName = sanitizeFileName(file.name);
