@@ -18,11 +18,14 @@ test("readiness reports which launch blockers have a manual workaround", async (
   const billing = body.gates.find((g: { key: string }) => g.key === "billing");
   const bank = body.gates.find((g: { key: string }) => g.key === "bank-validation");
   const gov = body.gates.find((g: { key: string }) => g.key === "gov-bir-alphalist");
+  const monthlyBir = body.gates.find((g: { key: string }) => g.key === "gov-bir-1601c");
   const email = body.gates.find((g: { key: string }) => g.key === "email-delivery");
 
   assert.ok(billing.manualWorkaround?.includes("manual-activate-subscription"));
   assert.ok(bank.manualWorkaround?.toLowerCase().includes("upload"));
   assert.ok(gov.manualWorkaround?.toLowerCase().includes("ades") || gov.manualWorkaround?.toLowerCase().includes("eafs"));
+  assert.ok(monthlyBir.manualWorkaround?.includes("eBIRForms/eFPS"));
+  assert.ok(monthlyBir.manualWorkaround?.toLowerCase().includes("acknowledgement"));
   // Email has no manual workaround field. An admin manually relaying reset
   // tokens is not something this readiness check should ever bless.
   assert.equal(email.manualWorkaround, undefined);
