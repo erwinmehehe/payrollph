@@ -5,7 +5,8 @@ export const resourceWave2: AuthorityPage[] = [
     slug: "cloud-vs-on-premise-payroll",
     eyebrow: "Payroll deployment comparison",
     title: "Cloud payroll vs on-premise payroll in the Philippines.",
-    description: "Compare cloud and on-premise payroll across updates, security, access, infrastructure, continuity and implementation effort.",
+    metaTitle: "Cloud vs On-Premise Payroll Philippines | Linaw",
+    description: "Compare cloud and on-premise payroll in the Philippines across infrastructure, updates, security, remote access, continuity, recovery and implementation effort.",
     intro: "Deployment model affects far more than where payroll software runs. It changes who owns infrastructure, updates, remote access, disaster recovery and rollout complexity.",
     proof: ["Infrastructure ownership", "Update cadence", "Remote access", "Security responsibilities", "Backup and recovery", "Implementation effort"],
     sections: [
@@ -13,6 +14,12 @@ export const resourceWave2: AuthorityPage[] = [
       { title: "On-premise can provide infrastructure control", body: "On-premise deployments may suit organizations with specific internal hosting requirements, but they also place more responsibility on the buyer for uptime, patching and recovery." },
       { title: "Compare operational ownership, not just licensing", body: "The important question is who is accountable for upgrades, security maintenance, availability, incident response and business continuity." },
       { title: "Migration quality matters more than the deployment label", body: "A move to cloud payroll should still include data mapping, validation, reconciliation, role setup and a controlled go-live." },
+    ],
+    faq: [
+      { question: "What is the biggest operational difference between cloud and on-premise payroll?", answer: "Cloud payroll shifts more hosting, deployment and update responsibility to the software provider, while on-premise payroll leaves more infrastructure, patching and recovery work with the employer." },
+      { question: "Is cloud payroll automatically more secure?", answer: "No. Security depends on concrete controls such as authentication, authorization, encryption, backups, monitoring and incident handling. Deployment model alone does not prove security quality." },
+      { question: "When can on-premise payroll still make sense?", answer: "Organizations with specific internal hosting, network or regulatory requirements may prefer on-premise systems if they also have the infrastructure and support capability to operate them reliably." },
+      { question: "Does moving payroll to the cloud remove migration risk?", answer: "No. Data mapping, opening balances, roles, reconciliation and controlled go-live are still required regardless of deployment model." },
     ],
     related: [
       { label: "Implementation", href: "/implementation", description: "See the migration and reconciliation model." },
@@ -24,6 +31,7 @@ export const resourceWave2: AuthorityPage[] = [
     slug: "payroll-rfp-checklist",
     eyebrow: "Payroll RFP checklist",
     title: "Payroll software RFP checklist for Philippine buyers.",
+    metaTitle: "Payroll Software RFP Checklist Philippines | Linaw",
     description: "A procurement checklist for evaluating payroll vendors across calculations, compliance, controls, implementation, security, integrations and support.",
     intro: "A good payroll RFP forces vendors to demonstrate the difficult parts of payroll rather than answering a generic yes-or-no feature matrix.",
     proof: ["Calculation scenarios", "Approval controls", "Migration plan", "Security evidence", "API and exports", "Support ownership"],
@@ -32,6 +40,12 @@ export const resourceWave2: AuthorityPage[] = [
       { title: "Request evidence for controls", body: "Ask how users are authenticated, how access is scoped, who can approve payroll and how actions are reconstructed later." },
       { title: "Make implementation part of the RFP", body: "Require a data migration plan, reconciliation process, parallel or controlled payroll, training approach and go-live criteria." },
       { title: "Separate built capability from roadmap promises", body: "Ask which items are live today, which depend on third parties and which are planned but unavailable." },
+    ],
+    faq: [
+      { question: "What should a payroll RFP ask vendors to demonstrate?", answer: "Require the vendor to run the difficult payroll scenarios your team actually handles, including overtime, holidays, night work, rest days, deductions, approvals and exceptions." },
+      { question: "How should an RFP handle compliance claims?", answer: "Ask which calculations are implemented and tested, which filing outputs are validation-gated, and what external evidence exists for any claim about government acceptance." },
+      { question: "Should implementation be scored in the RFP?", answer: "Yes. Data migration, reconciliation, role setup, training, parallel or controlled payroll, and go-live criteria should be part of the procurement evaluation." },
+      { question: "How do I separate live capability from roadmap promises?", answer: "Ask the vendor to classify each requirement as available now, partially available with a dependency, or planned but not currently delivered." },
     ],
     related: [
       { label: "Capability scorecard", href: "/scorecard", description: "See a verified/partial/absent product evidence model." },
@@ -43,7 +57,8 @@ export const resourceWave2: AuthorityPage[] = [
     slug: "payroll-implementation-guide",
     eyebrow: "Payroll implementation guide",
     title: "How to implement a new payroll system without losing control.",
-    description: "A practical Philippine payroll implementation guide covering discovery, migration, roles, reconciliation, rollout and post-launch checks.",
+    metaTitle: "Payroll System Implementation Guide Philippines | Linaw",
+    description: "Philippine payroll implementation guide covering discovery, data migration, role setup, parallel payroll, reconciliation, controlled go-live and post-launch review.",
     intro: "Payroll implementation should reduce uncertainty in stages. The goal is not simply to load data and switch systems, but to prove the new process before the first production release.",
     proof: ["Discovery", "Data mapping", "Role setup", "Reconciliation", "Controlled rollout", "Post-launch review"],
     sections: [
@@ -51,6 +66,12 @@ export const resourceWave2: AuthorityPage[] = [
       { title: "Migrate the minimum data needed for a provable run", body: "Prioritize employee records, payroll configuration, current balances and year-to-date values that directly affect the next payroll." },
       { title: "Run an independent reconciliation", body: "Compare expected gross pay, statutory deductions, tax, net pay, payout totals and employee-level results outside the new system before release." },
       { title: "Treat go-live as a controlled decision", body: "Define who signs off, what unresolved exceptions block release and what monitoring happens after the first production payroll." },
+    ],
+    faq: [
+      { question: "What should happen before payroll data is imported?", answer: "Document the current payroll process, identify the data that affects the next payroll, define roles and approvals, and decide how the first calculation will be independently reconciled." },
+      { question: "Do I need to migrate every historical payroll record?", answer: "Not always. Prioritize the historical values that affect future payroll, such as year-to-date tax, balances, effective-dated schedules, loans and other cumulative payroll context." },
+      { question: "What is a good first payroll validation method?", answer: "Compare employee-level and total expected results outside the new system, then reconcile gross pay, statutory deductions, tax, net pay, payouts and payslips before release." },
+      { question: "Who should approve payroll go-live?", answer: "The organization should name the people responsible for confirming data, payroll results, unresolved exceptions and operational readiness before the first production release." },
     ],
     related: [
       { label: "Implementation", href: "/implementation", description: "See Linaw's implementation workflow." },
@@ -62,6 +83,7 @@ export const resourceWave2: AuthorityPage[] = [
     slug: "payroll-software-roi",
     eyebrow: "Payroll software ROI",
     title: "How to evaluate the ROI of payroll software.",
+    metaTitle: "Payroll Software ROI Philippines | Evaluation Guide | Linaw",
     description: "A practical framework for estimating payroll software ROI from processing time, error rework, compliance effort, support workload and control improvements.",
     intro: "Payroll ROI should not be reduced to subscription cost. The useful comparison measures recurring manual effort, rework, operational risk and the cost of maintaining disconnected processes.",
     proof: ["Processing hours", "Rework", "Employee support", "Manual exports", "Control overhead", "Implementation cost"],
@@ -70,6 +92,12 @@ export const resourceWave2: AuthorityPage[] = [
       { title: "Count recurring rework", body: "Corrections caused by duplicate encoding, formula changes, incomplete attendance and disconnected approvals are part of payroll cost even when they are not separately invoiced." },
       { title: "Include implementation and change costs", body: "Software ROI should include migration, training and process redesign instead of assuming implementation is free." },
       { title: "Value stronger controls separately from labor savings", body: "Approval separation, auditability and rule consistency may justify a system even when headcount savings are not the primary objective." },
+    ],
+    faq: [
+      { question: "What costs should be included in payroll software ROI?", answer: "Include payroll processing time, attendance cleanup, rework, employee support, manual reporting, implementation, training and the ongoing cost of maintaining disconnected controls." },
+      { question: "Should ROI only measure headcount savings?", answer: "No. Stronger approvals, auditability, fewer duplicate inputs and more consistent rule execution can create value even when the payroll team size stays the same." },
+      { question: "How should I measure the current payroll process?", answer: "Track recurring hours by activity, correction volume, employee payroll queries, manual exports, approval handoffs and any recurring spreadsheet or file-maintenance work." },
+      { question: "How should implementation cost be treated?", answer: "Treat migration, training and process redesign as upfront investment and compare that with recurring operating savings and control improvements over a realistic time horizon." },
     ],
     related: [
       { label: "Payroll software vs Excel", href: "/resources/payroll-software-vs-excel", description: "Compare controlled workflow with spreadsheet operations." },
@@ -81,6 +109,7 @@ export const resourceWave2: AuthorityPage[] = [
     slug: "build-vs-buy-payroll-software",
     eyebrow: "Build vs buy payroll software",
     title: "Build vs buy payroll software for Philippine businesses.",
+    metaTitle: "Build vs Buy Payroll Software Philippines | Linaw",
     description: "Compare building an internal payroll system with buying a dedicated platform across statutory maintenance, security, testing, integrations and ownership.",
     intro: "Building payroll software is not only a software-development decision. It creates an ongoing obligation to maintain payroll rules, security controls, auditability, integrations and production reliability.",
     proof: ["Engineering ownership", "Rule maintenance", "Security", "Testing", "Support", "Long-term cost"],
@@ -89,6 +118,12 @@ export const resourceWave2: AuthorityPage[] = [
       { title: "Security scope is larger than the payroll formula", body: "An internal system still needs authentication, authorization, session management, sensitive-data protection, backups, monitoring and incident handling." },
       { title: "Buying trades customization for operating leverage", body: "A dedicated platform spreads product, testing and maintenance work across a broader customer base while still requiring configuration for your payroll policies." },
       { title: "Use ownership as the deciding framework", body: "Build when payroll software itself is strategically important enough to justify a permanent engineering and compliance-maintenance capability." },
+    ],
+    faq: [
+      { question: "What is usually underestimated when building payroll software internally?", answer: "Teams often underestimate ongoing rule maintenance, security controls, auditability, testing, integrations, operational support and the need to preserve historical payroll behavior." },
+      { question: "When can building payroll software make sense?", answer: "Build can make sense when payroll software itself is strategically important enough to justify permanent engineering, product, security and compliance-maintenance ownership." },
+      { question: "What is the main advantage of buying payroll software?", answer: "A dedicated platform spreads product development, testing and maintenance across a broader customer base while still allowing the employer to configure its operating policies." },
+      { question: "Can APIs reduce the need for a fully custom payroll system?", answer: "Often yes. If the core payroll platform has sufficient APIs, webhooks and exports, organizations can integrate surrounding systems without owning the entire payroll engine." },
     ],
     related: [
       { label: "Developer center", href: "/developers", description: "Review where APIs can extend a purchased platform." },
@@ -103,6 +138,7 @@ export const industryWave2: AuthorityPage[] = [
     slug: "retail",
     eyebrow: "Retail payroll Philippines",
     title: "Payroll and timekeeping for Philippine retail teams.",
+    metaTitle: "Retail Payroll Software Philippines | Linaw",
     description: "Payroll software for retail businesses managing branches, shifts, overtime, holidays, attendance and employee payroll across multiple locations.",
     intro: "Retail payroll combines branch operations, variable schedules, weekend work, holidays and high employee movement. Payroll needs to preserve location and schedule context without making every cutoff a manual rebuild.",
     proof: ["Multi-branch hierarchy", "Shift scheduling", "Attendance processing", "Holiday premiums", "Employee self-service", "Role-based access"],
@@ -111,6 +147,12 @@ export const industryWave2: AuthorityPage[] = [
       { title: "Handle changing schedules before payroll", body: "Time and attendance workflows can convert punches and schedules into payroll-relevant hours and exceptions." },
       { title: "Price holiday and overtime context", body: "Premium-pay logic uses the work date and schedule context rather than assuming every hour has the same multiplier." },
       { title: "Reduce payroll desk traffic", body: "Employee self-service gives workers direct access to released payslips and payroll history." },
+    ],
+    faq: [
+      { question: "What makes retail payroll difficult?", answer: "Branch structures, changing schedules, weekend work, holidays, attendance exceptions and frequent employee movement can make payroll heavily dependent on clean time and location context." },
+      { question: "Can payroll access be separated by branch?", answer: "A multi-branch payroll model should support organization and department scoping so local teams only work with the employees and workflows they are responsible for." },
+      { question: "How should holiday work be handled in retail payroll?", answer: "The payroll calculation should use the actual work date and schedule context rather than applying one universal premium multiplier to every holiday hour." },
+      { question: "How can retail employees get payslips without asking payroll?", answer: "Employee self-service can provide released payslips and payroll history directly to each employee within their own access scope." },
     ],
     related: [
       { label: "Time & attendance", href: "/time-and-attendance", description: "See shift and attendance workflows." },
@@ -122,6 +164,7 @@ export const industryWave2: AuthorityPage[] = [
     slug: "healthcare",
     eyebrow: "Healthcare payroll Philippines",
     title: "Payroll for Philippine healthcare teams with complex schedules.",
+    metaTitle: "Healthcare Payroll Software Philippines | Linaw",
     description: "Payroll software for healthcare employers managing round-the-clock shifts, overtime, night differential, rest days and role-based payroll review.",
     intro: "Healthcare payroll often involves continuous staffing, night work, schedule changes and overtime. The payroll process needs to preserve worked-time context while keeping approvals controlled.",
     proof: ["Night differential", "Overtime", "Shift scheduling", "Rest-day history", "Attendance exceptions", "Approval separation"],
@@ -130,6 +173,12 @@ export const industryWave2: AuthorityPage[] = [
       { title: "Keep historical schedule context", body: "Effective-dated rest-day data helps historical payroll calculations use the schedule that applied at the time." },
       { title: "Surface attendance exceptions", body: "Incomplete or inconsistent punch data can be flagged for review before payroll release." },
       { title: "Separate preparation and approval", body: "Payroll staff can prepare calculations while checkers and owners retain review and release authority." },
+    ],
+    faq: [
+      { question: "Why is healthcare payroll schedule-sensitive?", answer: "Round-the-clock operations create night work, overtime, rest-day changes and rotating schedules that affect how worked time should be interpreted before payroll." },
+      { question: "How should incomplete attendance be handled?", answer: "Incomplete or inconsistent punches should be surfaced as review exceptions rather than silently converted into assumed work time." },
+      { question: "Why do historical rest days matter?", answer: "If rest-day assignments change over time, historical payroll should use the schedule that was effective for the original work date." },
+      { question: "Should the same person prepare and release payroll?", answer: "Separating payroll preparation, checking and release provides a stronger control model, especially in larger or more regulated organizations." },
     ],
     related: [
       { label: "Night differential calculator", href: "/calculators/night-differential", description: "Estimate night-work payroll impact." },
@@ -141,7 +190,8 @@ export const industryWave2: AuthorityPage[] = [
     slug: "hospitality",
     eyebrow: "Hospitality payroll Philippines",
     title: "Payroll for Philippine hotels, restaurants and hospitality teams.",
-    description: "Payroll software for hospitality teams handling rotating shifts, holidays, night work, overtime, attendance and employee self-service.",
+    metaTitle: "Hospitality Payroll Software Philippines | Linaw",
+    description: "Payroll software for Philippine hotels, restaurants and hospitality teams handling rotating shifts, holidays, night work, overtime, attendance exceptions and payslips.",
     intro: "Hospitality payroll is shaped by weekends, holidays, late shifts and changing staffing patterns. Linaw models those time conditions before payroll reaches review.",
     proof: ["Rotating schedules", "Night work", "Holiday premiums", "Overtime", "Attendance exceptions", "Payslip self-service"],
     sections: [
@@ -149,6 +199,12 @@ export const industryWave2: AuthorityPage[] = [
       { title: "Handle late and overnight shifts", body: "Night differential minutes can be derived from actual time ranges and combined with overtime context." },
       { title: "Review exceptions before payroll closes", body: "Incomplete punches and unusual attendance states can stay visible instead of being silently converted into assumptions." },
       { title: "Give employees direct payroll access", body: "Released payslips and year-to-date pay can be available through employee self-service." },
+    ],
+    faq: [
+      { question: "What payroll issues are common in hospitality?", answer: "Rotating shifts, holidays, late-night work, overtime, attendance exceptions and seasonal staffing can make worked-time context the main source of payroll complexity." },
+      { question: "Can night differential overlap with overtime?", answer: "Yes. Night work can occur during overtime, so payroll logic should preserve both the day-specific premium context and the night-differential component." },
+      { question: "How should unusual attendance be treated?", answer: "The safer workflow is to flag incomplete or unusual attendance for review before payroll is finalized instead of filling the gap with an automatic assumption." },
+      { question: "Can hospitality employees access payslips directly?", answer: "Employee self-service can reduce repeated payroll desk requests by giving workers access to released payslips and payroll history." },
     ],
     related: [
       { label: "Time & attendance", href: "/time-and-attendance", description: "Review scheduling and attendance workflows." },
@@ -160,6 +216,7 @@ export const industryWave2: AuthorityPage[] = [
     slug: "banking-finance",
     eyebrow: "Finance payroll Philippines",
     title: "Controlled payroll workflows for Philippine finance teams.",
+    metaTitle: "Payroll Software for Finance Companies Philippines | Linaw",
     description: "Payroll software for finance organizations needing role separation, auditability, sensitive-data controls, payroll approvals and accounting outputs.",
     intro: "For finance-heavy organizations, payroll is not only a calculation problem. Review ownership, access boundaries, audit evidence and downstream accounting are equally important.",
     proof: ["Maker-checker roles", "Tenant and department scope", "Audit trail", "MFA", "Accounting exports", "Payroll release controls"],
@@ -168,6 +225,12 @@ export const industryWave2: AuthorityPage[] = [
       { title: "Keep sensitive access scoped", body: "Tenant and department authorization controls reduce unnecessary access to payroll and employee records." },
       { title: "Preserve audit evidence", body: "Critical payroll and approval actions can be reconstructed through audit records rather than relying on email history." },
       { title: "Connect payroll close to finance outputs", body: "Released payroll can feed accounting exports and payout evidence without treating every downstream file as a native integration." },
+    ],
+    faq: [
+      { question: "What payroll controls matter most for finance organizations?", answer: "Role separation, scoped access, MFA, auditability, controlled release and clear downstream accounting evidence are usually as important as calculation accuracy." },
+      { question: "Why separate maker, checker and releaser roles?", answer: "Role separation reduces the chance that one user can prepare, approve and release a material payroll action without independent review." },
+      { question: "Does payroll integration mean every downstream system is directly connected?", answer: "No. Some downstream workflows are APIs or webhooks, while others are controlled exports. The integration type should be described accurately." },
+      { question: "How should sensitive payroll access be limited?", answer: "Tenant, organization-unit and department scope should be enforced server-side so users only access the payroll data required by their role." },
     ],
     related: [
       { label: "Security", href: "/security", description: "Review authentication and authorization controls." },
@@ -179,6 +242,7 @@ export const industryWave2: AuthorityPage[] = [
     slug: "education",
     eyebrow: "Education payroll Philippines",
     title: "Payroll for Philippine schools and education organizations.",
+    metaTitle: "Payroll Software for Schools Philippines | Linaw",
     description: "Payroll software for schools and education organizations managing multiple employee groups, schedules, deductions, benefits and payroll review.",
     intro: "Education payroll can involve teaching and non-teaching groups, different schedules, recurring benefits, loans and administrative approval structures.",
     proof: ["Employee groups", "Schedules", "Benefits", "Loans and deductions", "Role-based approvals", "Employee payslips"],
@@ -187,6 +251,12 @@ export const industryWave2: AuthorityPage[] = [
       { title: "Connect recurring payroll items", body: "Benefits, loans and other payroll-impacting items can be represented alongside the employee and payroll record." },
       { title: "Use structured approvals", body: "Payroll preparation and review can follow defined roles rather than informal spreadsheet handoffs." },
       { title: "Give employees direct access to released pay information", body: "Self-service can reduce repeated requests for payslip copies and payroll history." },
+    ],
+    faq: [
+      { question: "What makes school payroll different from a simple office payroll?", answer: "Education organizations may have teaching and non-teaching employee groups, different schedules, recurring benefits, deductions and multiple administrative approval layers." },
+      { question: "Can different employee groups stay in one payroll system?", answer: "Yes, provided the system can represent department, role and payroll configuration differences without forcing every employee group into the same operating rules." },
+      { question: "How should recurring loans and deductions be handled?", answer: "Recurring payroll obligations should be represented in the payroll data model so they remain reviewable and do not depend on a side spreadsheet every cutoff." },
+      { question: "Can employees retrieve old payslips themselves?", answer: "Employee self-service can expose released payroll history and payslips without giving an employee access to another person's payroll information." },
     ],
     related: [
       { label: "HRIS", href: "/hris", description: "Review employee records and organizational structure." },
