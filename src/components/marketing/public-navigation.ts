@@ -6,9 +6,9 @@ export type PublicLink = {
 export const PUBLIC_PRIMARY_LINKS: PublicLink[] = [
   { label: "Product", href: "/#product" },
   { label: "Live demo", href: "/demo" },
-  { label: "Pricing", href: "/#pricing" },
+  { label: "Pricing", href: "/pricing" },
   { label: "Payroll outsourcing", href: "/payroll-outsourcing" },
-  { label: "Trust", href: "/scorecard" },
+  { label: "Trust", href: "/trust" },
 ];
 
 export const PUBLIC_FOOTER_GROUPS: Array<{ label: string; links: PublicLink[] }> = [
@@ -16,23 +16,33 @@ export const PUBLIC_FOOTER_GROUPS: Array<{ label: string; links: PublicLink[] }>
     label: "Product",
     links: [
       { label: "Product overview", href: "/#product" },
-      { label: "Role-based demo", href: "/demo" },
+      { label: "HRIS", href: "/hris" },
+      { label: "Time & attendance", href: "/time-and-attendance" },
+      { label: "Employee self-service", href: "/employee-self-service" },
+      { label: "Integrations", href: "/integrations" },
+      { label: "Developer center", href: "/developers" },
+      { label: "Pricing", href: "/pricing" },
       { label: "Payroll outsourcing", href: "/payroll-outsourcing" },
-      { label: "Pricing", href: "/#pricing" },
     ],
   },
   {
-    label: "Company",
+    label: "Resources",
     links: [
+      { label: "Payroll guides", href: "/resources" },
+      { label: "Payroll calculators", href: "/calculators" },
+      { label: "Payroll compliance", href: "/compliance" },
+      { label: "Implementation & migration", href: "/implementation" },
+      { label: "Industries", href: "/industries" },
+      { label: "Payroll health check", href: "/payroll-health-check" },
+    ],
+  },
+  {
+    label: "Trust & access",
+    links: [
+      { label: "Trust center", href: "/trust" },
       { label: "Capability scorecard", href: "/scorecard" },
-      { label: "Security", href: "/#security" },
+      { label: "Security", href: "/security" },
       { label: "System status", href: "/status" },
-      { label: "Book a demo", href: "/book-demo" },
-    ],
-  },
-  {
-    label: "Get started",
-    links: [
       { label: "Request trial access", href: "/signup" },
       { label: "Book a demo", href: "/book-demo" },
       { label: "Sign in", href: "/login" },
