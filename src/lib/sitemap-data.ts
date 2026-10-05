@@ -17,6 +17,7 @@ export const pagesSitemapEntries: SitemapEntry[] = [
   { path: "/contact", changeFrequency: "monthly" },
   { path: "/trust", changeFrequency: "monthly" },
   { path: "/security", changeFrequency: "monthly" },
+  { path: "/status", changeFrequency: "daily" },
   { path: "/methodology", changeFrequency: "monthly" },
   { path: "/scorecard", changeFrequency: "weekly" },
   { path: "/compare", changeFrequency: "monthly" },
