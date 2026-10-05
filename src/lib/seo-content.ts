@@ -2,10 +2,12 @@ export type AuthorityPage = {
   slug: string;
   eyebrow: string;
   title: string;
+  metaTitle?: string;
   description: string;
   intro: string;
   proof: string[];
   sections: Array<{ title: string; body: string; bullets?: string[] }>;
+  faq?: Array<{ question: string; answer: string }>;
   related: Array<{ label: string; href: string; description: string }>;
 };
 
