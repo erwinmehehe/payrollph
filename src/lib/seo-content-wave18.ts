@@ -53,7 +53,7 @@ export const resourceWave18: AuthorityPage[] = [
     faq: [
       {
         question: "Is Linaw claiming to be better than Salarium?",
-        answer: "No. This is an alternative-comparison guide. The right choice depends on your payroll rules, approval model, timekeeping complexity, implementation needs, commercial terms and the product behavior you verify during evaluation.",
+        answer: "No. This guide is not claiming to be better than Salarium. The right choice depends on your payroll rules, approval model, timekeeping complexity, implementation needs, commercial terms and the product behavior you verify during evaluation.",
       },
       {
         question: "What Salarium capabilities are referenced here?",
