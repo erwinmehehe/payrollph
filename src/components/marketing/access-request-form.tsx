@@ -6,7 +6,7 @@ import { AlertTriangle, ArrowRight, Check, LoaderCircle, Send } from "lucide-rea
 import { readMarketingAttribution } from "@/lib/marketing-attribution-client";
 
 const inputClass =
-  "mt-2 w-full rounded-xl border border-[#D9DCEC] bg-white px-3.5 py-3 text-[14px] text-[#11141F] outline-none transition focus:border-[#6161FF] focus:ring-4 focus:ring-[#6161FF]/10";
+  "mt-2 w-full rounded-[10px] border border-[#D0D5DD] bg-white px-3.5 py-3 text-[14px] text-[#101323] outline-none transition focus:border-[#444CE7] focus:ring-4 focus:ring-[#444CE7]/10";
 
 export function AccessRequestForm() {
   const [form, setForm] = useState({ name: "", email: "", company: "", headcount: "", notes: "" });
@@ -58,7 +58,7 @@ export function AccessRequestForm() {
 
   if (done) {
     return (
-      <div className="rounded-[26px] border border-[#E2E4F0] bg-white p-6 shadow-[0_22px_60px_-38px_rgba(30,34,70,.38)] sm:p-7">
+      <div className="rounded-[16px] border border-[#EAECF0] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,.04)] sm:p-7">
         <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#E3FAF0] text-[#0A8A53]">
           <Check size={19} />
         </span>
@@ -70,10 +70,10 @@ export function AccessRequestForm() {
           We recorded your company and headcount so workspace access can be provisioned without asking for employee payroll data.
         </p>
         <div className="mt-6 flex flex-wrap gap-2.5">
-          <Link href="/demo" className="inline-flex items-center gap-2 rounded-full bg-[#11141F] px-5 py-3 text-[13.5px] font-semibold text-white">
+          <Link href="/demo" className="inline-flex items-center gap-2 rounded-[10px] bg-[#101323] px-5 py-3 text-[13.5px] font-semibold text-white">
             Try the live demo <ArrowRight size={14} />
           </Link>
-          <Link href="/book-demo" className="rounded-full border border-[#D9DCEC] px-5 py-3 text-[13.5px] font-semibold text-[#2B2F45]">
+          <Link href="/book-demo" className="rounded-[10px] border border-[#D0D5DD] px-5 py-3 text-[13.5px] font-semibold text-[#2B2F45]">
             Book a walkthrough
           </Link>
         </div>
@@ -82,7 +82,7 @@ export function AccessRequestForm() {
   }
 
   return (
-    <form className="rounded-[26px] border border-[#E2E4F0] bg-white p-6 shadow-[0_22px_60px_-38px_rgba(30,34,70,.38)] sm:p-7" onSubmit={submit} noValidate>
+    <form className="rounded-[16px] border border-[#EAECF0] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,.04)] sm:p-7" onSubmit={submit} noValidate>
       <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Request trial access</p>
       <h2 className="font-display mt-2 text-[28px] font-semibold tracking-[-0.035em]">Tell us who will run payroll.</h2>
       <p className="mt-3 text-[14px] leading-relaxed text-[#5B6080]">
@@ -152,7 +152,7 @@ export function AccessRequestForm() {
       <button
         type="submit"
         disabled={saving}
-        className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#6161FF] px-5 py-3.5 text-[14px] font-semibold text-white transition-transform hover:scale-[1.01] disabled:cursor-wait disabled:opacity-60"
+        className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-[10px] bg-[#444CE7] px-5 py-3.5 text-[14px] font-semibold text-white transition-transform hover:bg-[#3538CD] disabled:cursor-wait disabled:opacity-60"
       >
         {saving ? <LoaderCircle size={15} className="animate-spin" /> : <Send size={15} />}
         {saving ? "Submitting…" : "Request trial access"}
