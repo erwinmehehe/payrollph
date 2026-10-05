@@ -1,7 +1,10 @@
 import { useState } from "react";
 import {
-  Building2,
+  ArrowRight,
+  BriefcaseBusiness,
   Check,
+  CircleDollarSign,
+  ClipboardCheck,
   Copy,
   FileLock2,
   Fingerprint,
@@ -16,35 +19,84 @@ import {
 import { Reveal, SectionHeading } from "./ui";
 import { cn } from "../utils/cn";
 
-export function Audiences() {
-  const items = [
-    { icon: Building2, t: "Small businesses", c: "#00CA72", soft: "#E3FAF0", d: "Move off spreadsheets without losing visibility. Keep employees, attendance, payroll and payslips in one controlled workflow." },
-    { icon: Users, t: "Payroll teams", c: "#579BFC", soft: "#EAF3FF", d: "Separate preparation, checking and release so one person does not have to own the entire payroll process." },
-    { icon: UserRound, t: "Accounting firms", c: "#FF7A29", soft: "#FFF1E6", d: "Run payroll across multiple client businesses from one login while keeping every client workspace tenant-isolated." },
-    { icon: ShieldCheck, t: "Multi-branch employers", c: "#7C5CFF", soft: "#F1EDFF", d: "Use organization units, scoped access and delegated approvals when payroll responsibility is split across locations." },
+export function PayrollWorkflow() {
+  const steps = [
+    {
+      icon: Users,
+      role: "HR Admin",
+      action: "Prepare approved inputs",
+      copy: "People changes, attendance decisions and other approved payroll inputs are ready before calculation starts.",
+      tone: "bg-[#F1F2F8] text-[#5B6080]",
+    },
+    {
+      icon: CircleDollarSign,
+      role: "Payroll Officer",
+      action: "Calculate and resolve",
+      copy: "Run payroll, inspect exceptions and hand the same run to an assigned checker for independent review.",
+      tone: "bg-[#ECECFF] text-[#4A4AE0]",
+    },
+    {
+      icon: ClipboardCheck,
+      role: "Checker",
+      action: "Review the run",
+      copy: "Review the submitted payroll and approve or decline it without gaining payroll-maker or release permissions.",
+      tone: "bg-[#FFF4D6] text-[#9A6B00]",
+    },
+    {
+      icon: BriefcaseBusiness,
+      role: "Owner",
+      action: "Release with context",
+      copy: "See approval state, exceptions and release readiness before the approved payroll is allowed to move.",
+      tone: "bg-[#E3FAF0] text-[#0A8A53]",
+    },
+    {
+      icon: UserRound,
+      role: "Employee",
+      action: "Receive and verify",
+      copy: "Open personal payslips and attendance details without access to another employee's payroll information.",
+      tone: "bg-[#F1EDFF] text-[#6D4DE0]",
+    },
   ];
 
   return (
-    <section id="product" className="scroll-mt-20 py-16 sm:py-20">
+    <section id="product" className="scroll-mt-20 border-y border-[#EDEFF7] bg-[#FAFBFD] py-16 sm:py-20">
       <div className="mx-auto max-w-[1240px] px-5 sm:px-8">
-        <SectionHeading
-          align="center"
-          title="Built for teams that need more control as payroll gets more complex."
-          description="Linaw stays simple enough for a small payroll, but adds role separation, scoped access and multi-client structure when the operation grows."
-        />
-        <div className="mt-9 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {items.map((x, k) => (
-            <Reveal key={x.t} delay={k * 80}>
-              <article className="card-hover group relative h-full overflow-hidden rounded-[26px] border border-[#E8EAF3] bg-white p-6">
-                <span className="absolute inset-x-0 top-0 h-1.5" style={{ background: x.c }} aria-hidden />
-                <span
-                  className="flex h-12 w-12 items-center justify-center rounded-2xl transition-transform duration-300 group-hover:-rotate-6 group-hover:scale-110"
-                  style={{ background: x.soft }}
-                >
-                  <x.icon className="h-6 w-6" style={{ color: x.c }} aria-hidden />
-                </span>
-                <h3 className="font-display mt-5 text-[20px] font-semibold">{x.t}</h3>
-                <p className="mt-2 text-[14.5px] leading-relaxed text-[#5B6080]">{x.d}</p>
+        <div className="grid gap-7 lg:grid-cols-[.82fr_1.18fr] lg:items-end">
+          <SectionHeading
+            title="One payroll. A clear owner at every handoff."
+            description="Linaw keeps preparation, calculation, review, release and employee self-service distinct, so the same payroll moves forward without blurring responsibilities."
+          />
+          <Reveal delay={90}>
+            <div className="rounded-[22px] border border-[#DDE0EF] bg-white p-5 lg:ml-auto lg:max-w-[560px]">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">The operating question</p>
+              <p className="font-display mt-2 text-[19px] font-semibold leading-snug text-[#11141F]">
+                Who owns the next decision before money moves?
+              </p>
+              <a href="/demo" className="mt-4 inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-[#4A4AE0]">
+                Try each role in the live demo <ArrowRight size={14} aria-hidden />
+              </a>
+            </div>
+          </Reveal>
+        </div>
+
+        <div className="mt-9 grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+          {steps.map((step, index) => (
+            <Reveal key={step.role} delay={index * 70}>
+              <article className="relative h-full rounded-[22px] border border-[#E2E4F0] bg-white p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${step.tone}`}>
+                    <step.icon size={17} aria-hidden />
+                  </span>
+                  <span className="mono text-[10px] font-bold text-[#A0A5B8]">{String(index + 1).padStart(2, "0")}</span>
+                </div>
+                <p className="mt-5 text-[10px] font-bold uppercase tracking-[0.13em] text-[#8B90AA]">{step.role}</p>
+                <h3 className="font-display mt-1.5 text-[18px] font-semibold leading-snug">{step.action}</h3>
+                <p className="mt-2 text-[13px] leading-relaxed text-[#606780]">{step.copy}</p>
+                {index < steps.length - 1 && (
+                  <span className="absolute -right-[10px] top-1/2 z-10 hidden h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full border border-[#DDE0EF] bg-[#FAFBFD] text-[#8B90AA] lg:flex" aria-hidden>
+                    <ArrowRight size={10} />
+                  </span>
+                )}
               </article>
             </Reveal>
           ))}
