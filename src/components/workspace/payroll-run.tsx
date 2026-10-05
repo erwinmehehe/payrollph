@@ -461,9 +461,10 @@ export function PayrollRunView({
         />
       )}
 
-      {["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "") && (
+      {["owner", "admin", "bookkeeper", "payroll", "checker"].includes(data.access?.role ?? "") && (
         <StatutoryContributionDisputesPanel
           organizationId={data.selectedOrganization.id}
+          role={data.access?.role ?? ""}
           notify={notify}
         />
       )}
