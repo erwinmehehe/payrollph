@@ -82,7 +82,7 @@ test("core product SEO pages keep buyer FAQ depth and service schema", () => {
   ] as const;
 
   for (const [path, faqQuestion] of pages) {
-    const source = read(path);
+    const source = readFileSync(path, "utf8");
     assert.ok(source.includes("<StructuredData"), `${path} must publish shared structured data`);
     assert.ok(source.includes("service={{"), `${path} must expose service schema`);
     assert.ok(source.includes("faq={faq}"), `${path} must expose FAQ structured data and visible FAQ content`);
