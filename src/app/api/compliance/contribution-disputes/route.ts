@@ -9,6 +9,7 @@ import {
 import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { validateContributionDisputeResolution } from "@/lib/statutory-contribution-dispute";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -128,31 +129,19 @@ export async function POST(request: Request) {
     return Response.json({ error: "This contribution dispute is already resolved." }, { status: 409 });
   }
 
-  if (resolutionCode === "posted_confirmed" || resolutionCode === "corrected") {
-    if (dispute.memberId == null) {
-      return Response.json({
-        error: "This report cannot be marked corrected until a remittance member posting record exists.",
-      }, { status: 409 });
-    }
-    const [member] = await db.select().from(statutoryRemittanceMembers).where(and(
+  let member = null;
+  if (dispute.memberId != null) {
+    [member] = await db.select().from(statutoryRemittanceMembers).where(and(
       eq(statutoryRemittanceMembers.id, dispute.memberId),
       eq(statutoryRemittanceMembers.organizationId, organizationId),
     )).limit(1);
-    if (!member) {
-      return Response.json({ error: "The linked remittance member record no longer exists." }, { status: 409 });
-    }
-    const expected = Number(member.totalContribution);
-    const posted = Number(member.postedAmount);
-    if (
-      member.postingStatus !== "confirmed"
-      || member.postedAmount == null
-      || !Number.isFinite(posted)
-      || Math.abs(posted - expected) > 0.01
-    ) {
-      return Response.json({
-        error: "Corrected resolution requires a confirmed agency posting whose amount matches the expected contribution.",
-      }, { status: 409 });
-    }
+  }
+  const resolutionGate = validateContributionDisputeResolution({
+    resolutionCode: resolutionCode as "posted_confirmed" | "corrected" | "not_an_error" | "duplicate",
+    member,
+  });
+  if (!resolutionGate.ok) {
+    return Response.json({ error: resolutionGate.error }, { status: 409 });
   }
 
   const now = new Date();
