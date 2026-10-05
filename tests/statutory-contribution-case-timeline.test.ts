@@ -73,7 +73,7 @@ test("payroll and employee UIs expose the immutable case timeline", () => {
   const payroll = readFileSync("src/components/workspace/statutory-contribution-issue-cases-panel.tsx", "utf8");
   const employee = readFileSync("src/components/self-service-portal.tsx", "utf8");
   assert.ok(payroll.includes("Post update"));
-  assert.ok(payroll.includes("employee-visible contribution case update"));
+  assert.ok(payroll.includes("Employee-visible contribution case update"));
   assert.ok(payroll.includes("issue.events.slice(0, 3)"));
   assert.ok(employee.includes("Case timeline"));
   assert.ok(employee.includes("issue.events.slice(0, 5).reverse()"));
