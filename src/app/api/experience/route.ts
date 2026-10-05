@@ -186,13 +186,23 @@ export async function GET(request: Request) {
     oneOnOneSeries: visibleSeries,
     oneOnOneMeetings: visibleMeetings.map((meeting) => {
       const series = seriesRows.find((row) => row.id === meeting.seriesId);
-      const maySeePrivate = Boolean(user.employeeId && series?.managerEmployeeId === user.employeeId);
+      const isManager = Boolean(user.employeeId && series?.managerEmployeeId === user.employeeId);
+      const isEmployee = Boolean(user.employeeId && series?.employeeId === user.employeeId);
+      const maySeeConversation = isManager || isEmployee;
       return {
         ...meeting,
-        managerPrivateNotes: maySeePrivate ? meeting.managerPrivateNotes : null,
+        employeeUpdate: maySeeConversation ? meeting.employeeUpdate : null,
+        managerUpdate: maySeeConversation && meeting.status === "completed" ? meeting.managerUpdate : null,
+        sharedNotes: maySeeConversation && meeting.status === "completed" ? meeting.sharedNotes : null,
+        managerPrivateNotes: isManager ? meeting.managerPrivateNotes : null,
       };
     }),
-    oneOnOneActionItems: actionRows.filter((row) => visibleMeetingIds.has(row.meetingId)),
+    oneOnOneActionItems: actionRows.filter((row) => {
+      if (!visibleMeetingIds.has(row.meetingId)) return false;
+      const meeting = meetingRows.find((candidate) => candidate.id === row.meetingId);
+      const series = meeting ? seriesRows.find((candidate) => candidate.id === meeting.seriesId) : null;
+      return Boolean(user.employeeId && series && (series.managerEmployeeId === user.employeeId || series.employeeId === user.employeeId));
+    }),
     feedbackRounds: visibleRounds,
     feedbackRequests: requestRows.filter((request) => visibleRoundIds.has(request.roundId)).map((request) => {
       const round = roundRows.find((row) => row.id === request.roundId);
