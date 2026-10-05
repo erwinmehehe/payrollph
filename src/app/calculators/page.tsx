@@ -6,7 +6,7 @@ import { CALCULATORS } from "@/lib/calculators";
 
 export const metadata: Metadata = {
   title: "Payroll Calculators Philippines | Linaw",
-  description: "Philippine payroll calculators for 13th-month pay, overtime, night differential, SSS, PhilHealth, Pag-IBIG and withholding tax.",
+  description: "Philippine payroll calculators for 13th-month pay, overtime, night differential, SSS, PhilHealth, Pag-IBIG and withholding tax using shared rule helpers.",
   alternates: { canonical: "/calculators" },
 };
 
