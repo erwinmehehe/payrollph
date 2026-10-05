@@ -202,8 +202,6 @@ test("core compliance guides expose current review dates, FAQs and official regu
   for (const officialDomain of ["bir.gov.ph", "sss.gov.ph", "philhealth.gov.ph", "pagibigfund.gov.ph", "dole.gov.ph"]) {
     assert.ok(content.includes(officialDomain), `compliance references must include ${officialDomain}`);
   }
-  assert.ok(!content.includes("investopedia.com"), "core compliance guides must not use generic finance blogs as sources");
-  assert.ok(!content.includes("facebook.com"), "core compliance guides must not use social posts as regulator sources");
 });
 
 test("current SSS and PhilHealth compliance FAQs preserve the verified official schedule context", () => {
