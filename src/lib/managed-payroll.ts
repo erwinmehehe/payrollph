@@ -5,6 +5,8 @@ import {
   managedPayrollEngagements,
   managedPayrollGates,
   managedPayrollRunApprovals,
+  payrollEntries,
+  payrollRuns,
 } from "@/db/schema";
 
 export const MANAGED_PAYROLL_GATES = [
