@@ -21,7 +21,7 @@ export default function Hero() {
 
           <Reveal delay={120}>
             <h1>
-              Philippine payroll software
+              Philippine payroll software{" "}
               <br />
               you can verify before you pay.
             </h1>
