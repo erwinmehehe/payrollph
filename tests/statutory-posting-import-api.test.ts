@@ -65,3 +65,15 @@ test("bulk posting UI requires a successful dry run before apply", () => {
   assert.ok(panel.includes("(result.errorCount ?? 1) > 0"));
   assert.ok(parent.includes("<StatutoryPostingImport"));
 });
+
+
+test("bulk apply fails closed if batch or member posting state changes concurrently", () => {
+  assert.ok(route.includes("currentBatch.status === \"open\" || currentBatch.status === \"reconciled\""));
+  assert.ok(route.includes("ne(statutoryRemittanceMembers.postingStatus, \"confirmed\")"));
+  assert.ok(route.includes("updated.length !== 1"));
+  assert.ok(route.includes("No rows were applied."));
+});
+
+test("row validation errors preserve the original CSV source line", () => {
+  assert.ok(route.includes("const line = row.sourceLine"));
+});
