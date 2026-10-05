@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employees,
+  engagementActionPlans,
   engagementAnswers,
   engagementQuestions,
   engagementResponses,
@@ -65,6 +66,16 @@ export async function GET(request: Request) {
     eq(engagementSurveys.status, "open"),
   ));
 
+  const [publishedPlans, surveyNames] = await Promise.all([
+    db.select().from(engagementActionPlans).where(and(
+      eq(engagementActionPlans.organizationId, organizationId),
+      eq(engagementActionPlans.employeeVisible, true),
+    )),
+    db.select({ id: engagementSurveys.id, name: engagementSurveys.name }).from(engagementSurveys)
+      .where(eq(engagementSurveys.organizationId, organizationId)),
+  ]);
+  const surveyNameById = new Map(surveyNames.map((survey) => [survey.id, survey.name]));
+
   const eligibleSurveys = surveys.filter((survey) => {
     if (survey.audienceOrgUnitId !== null && survey.audienceOrgUnitId !== employee.orgUnitId) return false;
     if (survey.opensAt && new Date(survey.opensAt).getTime() > now.getTime()) return false;
@@ -120,6 +131,16 @@ export async function GET(request: Request) {
     },
     anonymityConfigured: engagementAnonymityConfigured(),
     surveys: result,
+    followThrough: publishedPlans
+      .filter((plan) => plan.orgUnitId === null || plan.orgUnitId === employee.orgUnitId)
+      .map((plan) => ({
+        id: plan.id,
+        title: plan.title,
+        status: plan.status,
+        dueDate: plan.dueDate,
+        publicUpdate: plan.publicUpdate,
+        surveyName: surveyNameById.get(plan.surveyId) ?? "Employee listening",
+      })),
     privacyNotice: "Anonymous responses are stored without your user or employee ID. Managers receive results only after the survey privacy threshold is met.",
   });
 }
