@@ -35,6 +35,10 @@ test("obsolete standalone marketing prototypes stay removed", () => {
   assert.ok(!existsSync("landing-v2/linaw-landing.html"), "legacy Linaw v2 HTML landing page must not return");
   assert.ok(!existsSync("src/components/marketing/software-home.module.css"), "abandoned software-home CSS module must stay removed");
   assert.ok(!existsSync("src/components/marketing/demo-role-picker.module.css"), "abandoned demo-role CSS module must stay removed");
+  assert.ok(!existsSync("src/components/marketing/capability-grid.tsx"), "unused capability grid must stay removed");
+  assert.ok(!existsSync("src/components/marketing/hero-actions.tsx"), "unused legacy hero actions must stay removed");
+  assert.ok(!existsSync("src/components/marketing/pricing-table.tsx"), "unused legacy pricing component must stay removed");
+  assert.ok(!existsSync("src/components/marketing/statutory-lab.tsx"), "unused legacy statutory lab must stay removed");
 });
 
 
