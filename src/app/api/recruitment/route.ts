@@ -109,6 +109,7 @@ export async function GET(request: Request) {
       };
     }),
     applicants,
+    access,
   });
 }
 
