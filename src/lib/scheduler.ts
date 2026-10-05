@@ -4,6 +4,7 @@ import { schedulerState } from "@/db/schema";
 import { drainWebhookRetries } from "@/lib/webhooks";
 import { drainOutboxRetries } from "@/lib/mailer";
 import { purgeExpiredOperationalData } from "@/lib/data-retention";
+import { drainMarketingLeadNotifications } from "@/lib/marketing-leads";
 
 const MIN_INTERVAL_MS = 30_000;
 
@@ -22,6 +23,7 @@ export async function tickScheduler(force = false) {
   const webhookResults = await drainWebhookRetries(25);
   const mailResults = await drainOutboxRetries(25);
   const mailRetried = mailResults.filter((item) => item.retried);
+  const marketingLeadResults = await drainMarketingLeadNotifications(25);
 
   const [retentionState] = await db.select().from(schedulerState)
     .where(eq(schedulerState.jobName, "retention-purge"))
@@ -48,14 +50,16 @@ export async function tickScheduler(force = false) {
   }
 
   const payload = {
-    drained: webhookResults.length + mailRetried.length,
+    drained: webhookResults.length + mailRetried.length + marketingLeadResults.filter((item) => item.notified).length,
     webhookRetries: webhookResults.length,
     mailRetries: mailRetried.length,
+    marketingLeadNotifications: marketingLeadResults.filter((item) => item.notified).length,
     retentionPurge: retention,
     at: now.toISOString(),
     results: {
       webhooks: webhookResults.slice(0, 10),
       mail: mailResults.slice(0, 10),
+      marketingLeads: marketingLeadResults.slice(0, 10),
     },
   };
 
