@@ -1,3 +1,6 @@
+ALTER TABLE "user_organizations"
+  ADD COLUMN IF NOT EXISTS "active" boolean DEFAULT true NOT NULL;
+
 ALTER TABLE "users"
   ADD COLUMN IF NOT EXISTS "active" boolean DEFAULT true NOT NULL,
   ADD COLUMN IF NOT EXISTS "local_password_enabled" boolean DEFAULT true NOT NULL;
