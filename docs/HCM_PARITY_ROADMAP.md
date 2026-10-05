@@ -4,7 +4,7 @@ Updated: 2026-10-05
 
 ## Product direction
 
-Linaw already has a strong Philippine payroll and workforce foundation. The goal is not to imitate another HCM screen-for-screen. The goal is to connect the worker record, organization structure, time, payroll, recruiting, talent, compensation, and planning so data moves once through the employee lifecycle.
+Linaw already has a strong Philippine payroll and workforce foundation. The goal is not to imitate another HCM suite screen-for-screen. The product direction is enterprise Philippine payroll, workforce control, compliance evidence, compensation, identity and decision-grade analytics. New modules must strengthen that core instead of widening the product into unrelated HR categories.
 
 Public product research used for the roadmap:
 - Frappe HR: recruitment/staffing plans, employee lifecycle, goals and appraisal cycles.
@@ -19,7 +19,7 @@ Public product research used for the roadmap:
 - Workforce scheduling, schedule swaps, overtime approval and attendance exceptions.
 - Leave policies and payroll treatment.
 - Recruitment requisitions and candidate pipeline.
-- Expenses, benefits, loans, earned wage and company assets.
+- Expenses, benefits, loans, existing earned-wage functionality and company assets. Existing earned-wage functionality is maintenance scope, not a roadmap expansion area.
 - Onboarding/offboarding provisioning.
 - Separation/final-pay workflow.
 - Multi-client bookkeeper mode, multi-branch/org-unit model and scoped RBAC.
@@ -91,36 +91,32 @@ This should become a differentiator because Linaw can use actual Philippine payr
 
 Guardrail: performance scores may inform a cycle, but no automatic salary change should happen without an explicit compensation approval.
 
-## Tranche 5 — Learning, skills and career
+## Tranche 5 — Recruitment handoff only
 
-- Skills catalogue and employee skill profile
-- Role competency requirements
-- Development plans linked to performance reviews
-- Courses, sessions, enrolments and completion evidence
-- Certifications with expiry reminders
-- Career paths and readiness gaps
-- Internal mobility candidates
+Recruitment work stays narrow and connected to approved workforce demand:
 
-## Tranche 6 — Engagement
-
-- Pulse and lifecycle surveys
-- eNPS
-- Anonymous response mode
-- Team-level thresholds to avoid deanonymization
-- Action plans tied to survey findings
-- Recognition / feedback stream
-
-## Tranche 7 — Recruitment maturity
-
-Existing ATS is useful but shallow. Add:
-- Hiring stages configurable per requisition
-- Interview panels, scorecards and scheduling
-- Candidate source and referral tracking
-- Offer approval and document generation
+- Approved position -> requisition
+- Candidate -> offer -> employee without re-keying
 - Position/headcount linkage
-- Hire action converts candidate -> employee without re-keying
-- Talent pool and candidate deduplication
-- Careers page / job board publishing integrations
+- Interview evidence and offer approval where required for the handoff
+- No broad ATS integration marketplace or standalone recruiting-suite expansion
+
+## Explicit non-goals
+
+Do not expand Linaw into these categories as part of the Sprout parity effort:
+
+- Mental wellness or employee-wellness marketplace products
+- Rewards/recognition platforms
+- Salary advances or broader earned-wage-access expansion
+- LMS/course catalogues or learning-suite expansion
+- Engagement or pulse-survey products
+- Broad ATS integration ecosystems
+- Succession-management suites
+- Generic AI HR agents
+- Time-and-billing products
+- Marketplace products
+
+Existing functionality in adjacent areas may be maintained for customers, but it is not a strategic expansion priority.
 
 ## Tranche 8 — Enterprise identity and automation
 
@@ -132,7 +128,7 @@ Existing ATS is useful but shallow. Add:
 - IP/session policies
 - Security audit views
 
-## Tranche 9 — Analytics and AI layer
+## Tranche 9 — Payroll and workforce intelligence
 
 Only after clean data models:
 - Workforce KPIs and trend dashboards
@@ -140,19 +136,20 @@ Only after clean data models:
 - Performance distribution and goal attainment
 - Span of control, manager load and position vacancy
 - Labor-cost forecast vs actual
-- Natural-language reporting with strict tenant/RBAC enforcement
-- Explainable payroll/compliance assistant using existing payroll trace data
+- Payroll assurance, variance, release-blocker and compliance-exposure analytics grounded in stored payroll evidence
+- Labor-cost, headcount, position vacancy and compensation analytics with strict tenant/RBAC enforcement
+- No generic AI HR agent. Any future natural-language interface must only expose deterministic, source-grounded payroll/compliance evidence and must not become a standalone HR assistant.
 
 ## Priority order
 
-1. Performance foundation — now built
-2. Job architecture + positions
-3. Workforce/headcount planning
-4. Recruitment-to-position handoff
-5. Compensation bands + review cycles
-6. Learning/skills/career
-7. SSO/OIDC + SCIM
-8. Engagement/surveys
-9. Broader analytics/AI
+1. Payroll compliance, remittance integrity and government-output evidence
+2. Advanced workforce controls tied directly to payroll
+3. Position/headcount planning
+4. Governed compensation bands and review cycles
+5. Recruitment-to-approved-position handoff
+6. Enterprise SSO/OIDC, SCIM, MFA and permission controls
+7. Payroll assurance, variance and labor-cost analytics
+8. External validation: agency acceptance, bank UAT, production payroll reconciliation and security assurance
+9. Customer implementation, managed-payroll operations and production proof
 
-This order creates a connected HCM data model instead of accumulating isolated modules.
+This order deliberately keeps Linaw focused on enterprise Philippine payroll and workforce assurance instead of accumulating disconnected HR modules.
