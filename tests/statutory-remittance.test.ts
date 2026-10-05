@@ -73,6 +73,13 @@ test("deadline helper follows current published employer schedules", () => {
     applicableMonth: "2026-08",
   }).dueDate, "2026-09-30");
 
+  // October 31, 2026 is Saturday and November 2 is a proclaimed special
+  // non-working day, so the next working day is November 3.
+  assert.equal(statutoryRemittanceDeadline({
+    agency: "SSS",
+    applicableMonth: "2026-09",
+  }).dueDate, "2026-11-03");
+
   assert.equal(statutoryRemittanceDeadline({
     agency: "PhilHealth",
     applicableMonth: "2026-08",
