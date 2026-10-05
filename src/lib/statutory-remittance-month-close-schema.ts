@@ -1,3 +1,4 @@
+import { ensureStatutoryRemittanceCorrectionSchema } from "@/lib/statutory-remittance-correction-schema";
 import { pool } from "@/db";
 
 let ready = false;
@@ -8,6 +9,7 @@ export async function ensureStatutoryRemittanceMonthCloseSchema() {
   if (inFlight) return inFlight;
 
   inFlight = (async () => {
+    await ensureStatutoryRemittanceCorrectionSchema();
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
