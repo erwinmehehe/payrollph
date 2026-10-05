@@ -190,7 +190,7 @@ export async function POST(request: Request) {
   ].filter((value): value is string => Boolean(value && value.trim())));
   if (evidenceActors.has(user.name)) {
     return Response.json({
-      error: "The certifier cannot certify a remittance month containing evidence they recorded or confirmed. Use another Owner, Admin, or Checker.",
+      error: "The certifier cannot certify a remittance month containing evidence they recorded, confirmed, or corrected. Use another Owner, Admin, or Checker.",
     }, { status: 409 });
   }
 
