@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { parseCsv } from "@/lib/csv-import";
 
 export type PostingImportRow = {
+  sourceLine: number;
   employeeNo: string;
   postedAmount: number;
   postingReference: string;
@@ -45,13 +46,13 @@ export function parseStatutoryPostingCsv(text: string) {
     };
   }
 
-  const mapping = new Map<number, keyof PostingImportRow>();
+  const mapping = new Map<number, Exclude<keyof PostingImportRow, "sourceLine">>();
   headers.forEach((header, index) => {
     const key = COLUMN_ALIASES[headerKey(header)];
     if (key) mapping.set(index, key);
   });
 
-  const required = new Set<keyof PostingImportRow>([
+  const required = new Set<Exclude<keyof PostingImportRow, "sourceLine">>([
     "employeeNo",
     "postedAmount",
     "postingReference",
@@ -109,6 +110,7 @@ export function parseStatutoryPostingCsv(text: string) {
 
     seenEmployees.add(employeeNo);
     valid.push({
+      sourceLine: index + 1,
       employeeNo,
       postedAmount,
       postingReference,
