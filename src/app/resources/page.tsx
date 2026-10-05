@@ -2,31 +2,39 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
+import { StructuredData } from "@/components/marketing/structured-data";
 import { resourcePages } from "@/lib/seo-content";
 import { resourceWave2 } from "@/lib/seo-content-wave2";
+import { resourceWave3 } from "@/lib/seo-content-wave3";
 
-const resources = [...resourcePages, ...resourceWave2];
+const resources = [...resourcePages, ...resourceWave2, ...resourceWave3];
 
 export const metadata: Metadata = {
   title: "Philippine Payroll Guides & Buyer Resources | Linaw",
-  description: "Payroll software buying guides, migration checklists, security guidance and operational resources for Philippine employers.",
+  description: "Payroll software buying guides, Philippine payroll knowledge, migration checklists, security guidance and operational resources.",
   alternates: { canonical: "/resources" },
 };
 
 export default function ResourcesPage() {
   return (
     <div className="min-h-screen bg-white text-[#0B0D1A]">
+      <StructuredData breadcrumbs={[{ name: "Home", path: "/" }, { name: "Resources", path: "/resources" }]} />
       <SiteNav />
       <main>
         <section className="border-b border-[#EDEFF7] py-16 sm:py-20">
           <div className="mx-auto max-w-[1180px] px-5 sm:px-8">
             <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6161FF]">Payroll resources</p>
-            <h1 className="font-display mt-4 max-w-[820px] text-[44px] font-semibold leading-[1.04] tracking-[-0.045em] sm:text-[58px]">
-              Practical guides for buying, migrating and operating Philippine payroll.
+            <h1 className="font-display mt-4 max-w-[900px] text-[44px] font-semibold leading-[1.04] tracking-[-0.045em] sm:text-[58px]">
+              Practical guidance for buying, migrating and operating Philippine payroll.
             </h1>
-            <p className="mt-5 max-w-[760px] text-[16px] leading-relaxed text-[#5B6080]">
-              Use these resources to evaluate payroll software, plan migration, review security, build an RFP and choose the operating model that fits your team.
+            <p className="mt-5 max-w-[780px] text-[16px] leading-relaxed text-[#5B6080]">
+              Use evergreen payroll guides for permanent concepts, calculators for estimates, and the regulatory-update archive for dated government changes.
             </p>
+            <div className="mt-7 flex flex-wrap gap-3">
+              <Link href="/resources/updates" className="rounded-full border border-[#D9DCEC] px-5 py-3 text-[13px] font-semibold">Regulatory updates</Link>
+              <Link href="/glossary" className="rounded-full border border-[#D9DCEC] px-5 py-3 text-[13px] font-semibold">Payroll glossary</Link>
+              <Link href="/calculators" className="rounded-full border border-[#D9DCEC] px-5 py-3 text-[13px] font-semibold">Calculators</Link>
+            </div>
           </div>
         </section>
         <section className="py-16 sm:py-20">
