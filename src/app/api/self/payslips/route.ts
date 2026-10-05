@@ -7,6 +7,11 @@ import { recordAuditEvent } from "@/lib/audit";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { computeBalance } from "@/lib/leave-accrual";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
+import {
+  employeeCertificationStatus,
+  loadStatutoryRemittanceMonthCloseState,
+} from "@/lib/statutory-remittance-close-state";
+import { loadStatutoryRemittanceState } from "@/lib/statutory-remittance-state";
 
 export const dynamic = "force-dynamic";
 
@@ -133,6 +138,29 @@ export async function GET() {
     .orderBy(desc(statutoryContributionIssueCases.createdAt), desc(statutoryContributionIssueCases.id))
     .limit(30);
 
+  const contributionMonths = [...new Set(
+    contributionRows.map((row) => String(row.applicableMonth)),
+  )].slice(0, 12);
+  const remittanceState = contributionMonths.length
+    ? await loadStatutoryRemittanceState(employee.organizationId)
+    : null;
+  const certificationPairs = remittanceState
+    ? await Promise.all(contributionMonths.map(async (month) => {
+        const closeState = await loadStatutoryRemittanceMonthCloseState(
+          employee.organizationId,
+          month,
+          remittanceState,
+        );
+        if (!closeState) return [month, null] as const;
+        return [month, employeeCertificationStatus({
+          certificationValid: closeState.certificationValid,
+          closure: closeState.closure,
+          evaluationReady: closeState.evaluation.ready,
+        })] as const;
+      }))
+    : [];
+  const certificationByMonth = new Map(certificationPairs);
+
   const releasedThisYear = released.filter((row) => String(row.run.payDate).startsWith(`${currentTaxYear}-`));
 
   const yearToDate = releasedThisYear.reduce(
@@ -238,6 +266,13 @@ export async function GET() {
       postedAmount: row.postedAmount,
       postedAt: row.postedAt,
       exceptionNote: row.exceptionNote,
+      certification: certificationByMonth.get(String(row.applicableMonth)) ?? {
+        status: "not_certified",
+        label: "Not yet certified",
+        detail: "This month has not yet passed independent statutory remittance certification.",
+        certifiedAt: null,
+        needsRecertification: false,
+      },
     })),
     contributionIssues: contributionIssueRows.map((row) => ({
       id: row.id,
