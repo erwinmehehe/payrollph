@@ -2186,3 +2186,357 @@
     display: none;
   }
 }
+
+
+/* Hero v2: value proof, not an embedded product screenshot. */
+.home-redesign .payroll-home-hero-v2 {
+  min-height: 660px;
+  padding: 122px 0 84px;
+  background:
+    radial-gradient(circle at 74% 34%, rgba(99,102,241,.10), transparent 27%),
+    radial-gradient(circle at 92% 62%, rgba(18,183,106,.08), transparent 24%),
+    linear-gradient(180deg,#ffffff 0%,#f8faff 72%,#f6f8fc 100%);
+}
+.home-redesign .payroll-home-hero-v2::before {
+  opacity: .52;
+  mask-image: linear-gradient(90deg, transparent 0, rgba(0,0,0,.72) 12%, rgba(0,0,0,.26) 50%, transparent 82%);
+}
+.home-redesign .payroll-home-hero-v2 .payroll-home-hero-glow {
+  width: 620px;
+  height: 620px;
+  top: 42px;
+  right: -160px;
+  background: radial-gradient(circle, rgba(129,140,248,.16), rgba(191,219,254,.06) 50%, transparent 72%);
+}
+.home-redesign .payroll-home-hero-inner-v2 {
+  grid-template-columns: minmax(0,1.04fr) minmax(460px,.96fr);
+  gap: 70px;
+  width: min(1240px, calc(100% - 48px));
+}
+.home-redesign .payroll-home-hero-copy-v2 {
+  max-width: 620px;
+}
+.home-redesign .payroll-home-hero-copy-v2 h1 {
+  max-width: 650px;
+  font-size: clamp(52px,4.45vw,68px);
+  line-height: .99;
+  letter-spacing: -.048em;
+}
+.home-redesign .payroll-home-hero-copy-v2 .payroll-home-lede {
+  max-width: 560px;
+  font-size: 16px;
+}
+.home-redesign .payroll-home-control-wrap {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.home-redesign .payroll-hero-control-card {
+  position: relative;
+  width: min(100%, 520px);
+  overflow: hidden;
+  border: 1px solid #e1e5ee;
+  border-radius: 28px;
+  background: rgba(255,255,255,.96);
+  padding: 26px;
+  box-shadow:
+    0 34px 80px -38px rgba(30,34,70,.34),
+    0 10px 30px -22px rgba(17,20,31,.22);
+}
+.home-redesign .payroll-hero-control-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg,#6161ff 0%,#7a5af8 50%,#12b76a 100%);
+}
+.home-redesign .payroll-hero-control-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+.home-redesign .payroll-hero-control-eyebrow {
+  display: block;
+  color: #8b90aa;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.home-redesign .payroll-hero-control-head h2 {
+  max-width: 330px;
+  margin: 7px 0 0;
+  color: #11141f;
+  font-family: var(--font-display);
+  font-size: 27px;
+  font-weight: 680;
+  line-height: 1.06;
+  letter-spacing: -.035em;
+}
+.home-redesign .payroll-hero-review-pill {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid #f1cf8b;
+  border-radius: 999px;
+  background: #fff8e8;
+  color: #9a6200;
+  font-size: 10.5px;
+  font-weight: 750;
+}
+.home-redesign .payroll-hero-period {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #eceef4;
+}
+.home-redesign .payroll-hero-period > div {
+  display: grid;
+  gap: 3px;
+}
+.home-redesign .payroll-hero-period strong {
+  color: #242838;
+  font-size: 13.5px;
+  font-weight: 720;
+}
+.home-redesign .payroll-hero-period span {
+  color: #8b90aa;
+  font-size: 10.5px;
+}
+.home-redesign .payroll-hero-rule-badge {
+  flex: none;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: #f4f5f8;
+  color: #7d839a !important;
+  font-family: ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size: 9px !important;
+  font-weight: 700;
+}
+.home-redesign .payroll-hero-money-grid {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  margin-top: 18px;
+  overflow: hidden;
+  border: 1px solid #e6e8ef;
+  border-radius: 16px;
+  background: #fafbfc;
+}
+.home-redesign .payroll-hero-money-grid article {
+  min-width: 0;
+  padding: 15px 14px;
+  border-right: 1px solid #e6e8ef;
+}
+.home-redesign .payroll-hero-money-grid article:last-child {
+  border-right: 0;
+}
+.home-redesign .payroll-hero-money-grid span {
+  display: block;
+  color: #8b90aa;
+  font-size: 9.5px;
+  font-weight: 750;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.home-redesign .payroll-hero-money-grid strong {
+  display: block;
+  margin-top: 6px;
+  color: #11141f;
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+.home-redesign .payroll-hero-money-grid article:nth-child(3) strong {
+  color: #078a55;
+}
+.home-redesign .payroll-hero-checks {
+  display: grid;
+  gap: 0;
+  margin-top: 18px;
+  border: 1px solid #e7e9f0;
+  border-radius: 16px;
+  background: #fff;
+}
+.home-redesign .payroll-hero-check-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 11px;
+  min-height: 54px;
+  padding: 10px 13px;
+  border-bottom: 1px solid #eef0f4;
+}
+.home-redesign .payroll-hero-check-row:last-child {
+  border-bottom: 0;
+}
+.home-redesign .payroll-hero-check-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  place-items: center;
+  border-radius: 9px;
+}
+.home-redesign .payroll-hero-check-icon.ok {
+  background: #eafaf2;
+  color: #078a55;
+}
+.home-redesign .payroll-hero-check-icon.warn {
+  background: #fff5dd;
+  color: #b57400;
+}
+.home-redesign .payroll-hero-check-row > div {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.home-redesign .payroll-hero-check-row span {
+  color: #5b6080;
+  font-size: 12px;
+  font-weight: 600;
+}
+.home-redesign .payroll-hero-check-row strong {
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 750;
+}
+.home-redesign .payroll-hero-check-row strong.ok { color:#078a55; }
+.home-redesign .payroll-hero-check-row strong.warn { color:#a56800; }
+.home-redesign .payroll-hero-lock-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 16px;
+  padding: 13px 14px;
+  border-radius: 15px;
+  background: #11141f;
+  color: #fff;
+}
+.home-redesign .payroll-hero-lock-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  place-items: center;
+  border-radius: 10px;
+  background: rgba(255,255,255,.09);
+  color: #c7c9ff;
+}
+.home-redesign .payroll-hero-lock-row > div {
+  min-width: 0;
+}
+.home-redesign .payroll-hero-lock-row strong {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.home-redesign .payroll-hero-lock-row span {
+  display: block;
+  margin-top: 2px;
+  color: rgba(255,255,255,.55);
+  font-size: 9.5px;
+}
+.home-redesign .payroll-hero-control-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  color: #858ba0;
+  font-size: 9.5px;
+  font-weight: 650;
+}
+.home-redesign .payroll-hero-control-foot span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.home-redesign .payroll-hero-control-foot svg {
+  color: #6161ff;
+}
+
+@media (max-width: 1040px) {
+  .home-redesign .payroll-home-hero-inner-v2 {
+    grid-template-columns: minmax(0,1fr) minmax(410px,.92fr);
+    gap: 42px;
+  }
+}
+@media (max-width: 900px) {
+  .home-redesign .payroll-home-hero-v2 {
+    padding: 106px 0 60px;
+  }
+  .home-redesign .payroll-home-hero-inner-v2 {
+    grid-template-columns: 1fr;
+    gap: 42px;
+  }
+  .home-redesign .payroll-home-hero-copy-v2 {
+    max-width: 720px;
+  }
+  .home-redesign .payroll-home-hero-copy-v2 h1 {
+    max-width: 720px;
+  }
+  .home-redesign .payroll-home-control-wrap {
+    justify-content: flex-start;
+  }
+  .home-redesign .payroll-hero-control-card {
+    width: min(100%,680px);
+  }
+}
+@media (max-width: 560px) {
+  .home-redesign .payroll-home-hero-v2 {
+    padding: 92px 0 44px;
+  }
+  .home-redesign .payroll-home-hero-inner-v2 {
+    width: min(100% - 28px,640px);
+    gap: 30px;
+  }
+  .home-redesign .payroll-home-hero-copy-v2 h1 {
+    font-size: clamp(42px,12vw,54px);
+  }
+  .home-redesign .payroll-hero-control-card {
+    padding: 20px;
+    border-radius: 22px;
+  }
+  .home-redesign .payroll-hero-control-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .home-redesign .payroll-hero-control-head h2 {
+    max-width: none;
+    font-size: 24px;
+  }
+  .home-redesign .payroll-hero-period {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 9px;
+  }
+  .home-redesign .payroll-hero-money-grid article {
+    padding: 13px 10px;
+  }
+  .home-redesign .payroll-hero-money-grid strong {
+    font-size: 16px;
+  }
+  .home-redesign .payroll-hero-check-row > div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .home-redesign .payroll-hero-control-foot {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+}
