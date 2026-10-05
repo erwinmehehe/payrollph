@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { finalPayDueDate, readBasicAndThirteenth } from "@/lib/final-pay";
-import { isBelowMinimum } from "@/lib/wage-orders";
+import { isBelowMinimum, WAGE_ORDERS } from "@/lib/wage-orders";
 
 export type InspectionSeverity = "high" | "medium" | "info";
 export type InspectionCategory =
@@ -244,6 +244,30 @@ export function buildLaborInspectionFindings(input: InspectionInput) {
         sourceUrl: SOURCES.inspection.url,
         evidenceRequired: ["Employee pay profile", "Current wage rate", "Pay basis and standard work schedule"],
         remediationHint: "Create and verify the employee pay profile before the next payroll inspection export.",
+        defaultOwner: "People Ops",
+      });
+      continue;
+    }
+
+    const wageRegionKnown = WAGE_ORDERS.some((row) => row.region === employee.region);
+    if (!wageRegionKnown) {
+      addFinding(findings, {
+        key: `WAGE_REGION_UNMAPPED:employee:${employee.id}`,
+        ruleCode: "WAGE_REGION_UNMAPPED",
+        category: "Wages",
+        severity: "high",
+        title: "Employee wage jurisdiction is not mapped",
+        detail: `${employee.employeeNo} · ${employee.name} has region "${employee.region || "blank"}", which is not mapped to the verified NWPC wage registry. PayrollPH will not substitute NCR or another region for inspection screening.`,
+        employeeId: employee.id,
+        employeeNo: employee.employeeNo,
+        employeeName: employee.name,
+        exposureAmount: null,
+        exposureConfidence: null,
+        governingRule: "Minimum-wage review must use the employee's actual applicable regional wage order and category.",
+        sourceLabel: SOURCES.wages.label,
+        sourceUrl: SOURCES.wages.url,
+        evidenceRequired: ["Actual worksite/region", "Applicable wage order and establishment category"],
+        remediationHint: "Correct the employee work region before relying on wage-floor screening.",
         defaultOwner: "People Ops",
       });
       continue;
