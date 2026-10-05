@@ -2,6 +2,76 @@ import type { AuthorityPage } from "@/lib/seo-content";
 
 export const industryWave6: AuthorityPage[] = [
   {
+    slug: "construction",
+    eyebrow: "Construction payroll software Philippines",
+    title: "Payroll and timekeeping for Philippine construction teams.",
+    metaTitle: "Construction Payroll Software Philippines | Linaw",
+    description: "Payroll software for Philippine construction companies managing multiple sites, attendance, daily or hourly payroll inputs, overtime, deductions and controlled payroll review.",
+    intro: "Construction payroll gets harder when crews move across sites, time records arrive from the field, pay bases differ and overtime or rest-day work needs review. Linaw keeps the payroll inputs, exceptions and release controls in one workflow without pretending to be a full construction ERP.",
+    proof: [
+      "Multi-unit and department access scope",
+      "Attendance and biometric ingestion workflows",
+      "Daily and hourly payroll rate inputs",
+      "Overtime, rest-day and holiday context",
+      "Loans, benefits and payroll deductions",
+      "Maker-checker payroll release controls",
+    ],
+    sections: [
+      {
+        title: "Keep site and crew access scoped",
+        body: "Organization-unit and department controls can separate employee populations and operational responsibility without giving every payroll user access to the whole company.",
+      },
+      {
+        title: "Bring field time evidence into payroll review",
+        body: "Attendance records, biometric ingestion and punch exceptions can feed the payroll workflow so missing or inconsistent time remains visible before the run is approved.",
+      },
+      {
+        title: "Preserve the payroll basis instead of guessing one rate",
+        body: "Construction workforces can mix monthly, daily or hourly payroll bases. Linaw keeps rate inputs and payroll context explicit rather than assuming every worker should use one universal conversion.",
+      },
+      {
+        title: "Review overtime, rest-day and holiday context before release",
+        body: "Premium-pay calculations use the work-date context represented in payroll rules, while authorization and attendance evidence remain separate review controls.",
+      },
+      {
+        title: "Keep recurring employee deductions with the payroll record",
+        body: "Loans, benefits and other payroll-impacting deductions can be represented in the payroll workflow instead of being maintained only in side spreadsheets for each cutoff.",
+      },
+      {
+        title: "Release payroll through explicit roles",
+        body: "Payroll preparation, checker review and final release can remain separate responsibilities so one site or payroll operator does not have to control the whole money path.",
+      },
+    ],
+    faq: [
+      {
+        question: "Can Linaw support payroll across multiple construction sites?",
+        answer: "Linaw can organize employees and access by company structure such as organization units and departments while keeping payroll processing in one controlled workflow. It does not claim a full construction project-costing module.",
+      },
+      {
+        question: "Can construction attendance feed payroll?",
+        answer: "Yes. The product includes attendance workflows and biometric ingestion patterns that can feed payroll-relevant time data, with unmatched or incomplete punches remaining visible for review.",
+      },
+      {
+        question: "Can payroll handle daily or hourly workers?",
+        answer: "Linaw supports payroll rate inputs and public rate-conversion tools without forcing one divisor or work arrangement on every employee. The correct payroll basis still needs to be configured for the worker.",
+      },
+      {
+        question: "How are overtime and rest-day work handled?",
+        answer: "The payroll rules preserve day context such as ordinary work, rest days and holidays when calculating premium pay. Approval and attendance evidence remain separate controls.",
+      },
+      {
+        question: "Does Linaw claim project costing or full construction ERP features?",
+        answer: "No. This page is about payroll and workforce controls. Project costing, equipment, procurement and other construction-ERP capabilities should only be claimed where a dedicated implemented product surface exists.",
+      },
+    ],
+    related: [
+      { label: "Time & attendance", href: "/time-and-attendance", description: "Review punches, schedules, overtime and attendance exceptions before payroll." },
+      { label: "Biometric payroll integration", href: "/integrations/biometrics", description: "See supported biometric-ingestion patterns and device-validation boundaries." },
+      { label: "Daily rate calculator", href: "/calculators/daily-rate", description: "Convert a monthly payroll basis using the divisor that actually applies." },
+      { label: "Payroll implementation", href: "/implementation", description: "Plan roster migration, opening balances and a controlled first payroll." },
+    ],
+  },
+  {
     slug: "real-estate",
     eyebrow: "Real estate payroll Philippines",
     title: "Payroll and timekeeping for Philippine real estate organizations.",
