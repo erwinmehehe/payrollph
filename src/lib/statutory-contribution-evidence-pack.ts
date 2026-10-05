@@ -40,8 +40,14 @@ export function evidenceHash(value: unknown) {
 
 export function buildContributionEvidencePack<T>(payload: T): T & { evidenceHashSha256: string } {
   const evidenceHashSha256 = evidenceHash(payload);
-  return Object.assign(
-    typeof payload === "object" && payload !== null ? payload : { payload },
-    { evidenceHashSha256 },
-  ) as T & { evidenceHashSha256: string };
+  if (typeof payload === "object" && payload !== null && !Array.isArray(payload)) {
+    return {
+      ...(payload as Record<string, unknown>),
+      evidenceHashSha256,
+    } as T & { evidenceHashSha256: string };
+  }
+  return {
+    payload,
+    evidenceHashSha256,
+  } as T & { evidenceHashSha256: string };
 }
