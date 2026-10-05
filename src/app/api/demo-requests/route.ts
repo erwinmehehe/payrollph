@@ -40,19 +40,6 @@ export async function POST(request: Request) {
   if (company.length < 2) problems.push("Company or practice name is required.");
   if (problems.length) return Response.json({ error: "Validation failed.", problems }, { status: 422 });
 
-  const attributionNotes = [
-    notes,
-    "Attribution:",
-    `Landing path: ${attribution.landingPath || "(unknown)"}`,
-    `Conversion path: ${attribution.conversionPath || "(unknown)"}`,
-    `Referrer: ${attribution.referrer || "(direct / unknown)"}`,
-    `UTM source: ${attribution.utmSource || "(not tagged)"}`,
-    `UTM medium: ${attribution.utmMedium || "(not tagged)"}`,
-    `UTM campaign: ${attribution.utmCampaign || "(not tagged)"}`,
-    `UTM content: ${attribution.utmContent || "(not tagged)"}`,
-    `UTM term: ${attribution.utmTerm || "(not tagged)"}`,
-  ].filter(Boolean).join("\n").slice(0, 4000);
-
   let lead: Awaited<ReturnType<typeof recordMarketingLead>>;
   try {
     lead = await recordMarketingLead({
@@ -61,8 +48,9 @@ export async function POST(request: Request) {
       email,
       company,
       headcount,
-      notes: attributionNotes,
+      notes,
       sourcePath: requestType === "trial-access" ? "/signup" : "/book-demo",
+      attribution,
     });
   } catch (error) {
     console.error("marketing-lead: could not persist demo/trial request", error);
