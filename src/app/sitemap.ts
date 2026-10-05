@@ -36,7 +36,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
   ];
 
   const dynamicRoutes = [
-    ...[...compliancePages, ...complianceWave3].map(({ slug }) => ({ path: `/compliance/${slug}`, priority: 0.8, changeFrequency: "monthly" as const })),
+    ...compliancePages.map(({ slug }) => ({ path: `/compliance/${slug}`, priority: 0.8, changeFrequency: "monthly" as const })),
+    ...complianceWave3.map(({ slug }) => ({ path: `/compliance/${slug}`, priority: 0.8, changeFrequency: "monthly" as const })),
     ...[...resourcePages, ...resourceWave2, ...resourceWave3].map(({ slug }) => ({ path: `/resources/${slug}`, priority: 0.8, changeFrequency: "monthly" as const })),
     ...[...industryPages, ...industryWave2].map(({ slug }) => ({ path: `/industries/${slug}`, priority: 0.8, changeFrequency: "monthly" as const })),
     ...Object.keys(CALCULATORS).map((slug) => ({ path: `/calculators/${slug}`, priority: 0.8, changeFrequency: "monthly" as const })),
