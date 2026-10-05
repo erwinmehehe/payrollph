@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, lt } from "drizzle-orm";
 import { db } from "@/db";
 import { identityDomains, identityProviders, oidcLoginStates } from "@/db/schema";
 import { canonicalAppOrigin } from "@/lib/security-request";
@@ -30,6 +30,8 @@ export async function GET(request: Request) {
     eq(identityDomains.verified, true),
   )).limit(1);
   if (!verifiedDomain) return Response.json({ error: "This email domain is not verified for the selected SSO provider." }, { status: 403 });
+
+  await db.delete(oidcLoginStates).where(lt(oidcLoginStates.expiresAt, new Date()));
 
   const state = randomToken(32);
   const nonce = randomToken(24);
