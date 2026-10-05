@@ -19,7 +19,7 @@ import { recordAuditEvent } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
-const PERFORMANCE_ROLES = WORKFORCE_MANAGER_ROLES;
+const PERFORMANCE_ROLES = ["owner", "admin", "hr", "manager"] as const;
 
 function validIsoDate(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -317,6 +317,9 @@ export async function PATCH(request: Request) {
     if (denied) return denied;
     const scoped = await scopedEmployee(user.id, existing.organizationId, existing.employeeId);
     if ("error" in scoped) return scoped.error;
+    if (scoped.access.role === "manager" && existing.reviewerUserId !== user.id) {
+      return Response.json({ error: "Only the assigned reviewer can complete this performance review." }, { status: 403 });
+    }
 
     const managerScore = score(body.managerScore);
     const finalScore = score(body.finalScore ?? body.managerScore);
@@ -327,12 +330,16 @@ export async function PATCH(request: Request) {
     if (!["in_progress", "completed"].includes(status)) {
       return Response.json({ error: "Review status must be in_progress or completed." }, { status: 400 });
     }
+    const managerSummary = body.managerSummary === undefined ? existing.managerSummary : String(body.managerSummary ?? "").trim().slice(0, 8000) || null;
+    if (status === "completed" && (managerScore === null || !managerSummary)) {
+      return Response.json({ error: "A manager score and evidence-based summary are required to complete a review." }, { status: 400 });
+    }
 
     const [row] = await db.update(performanceReviews)
       .set({
         managerScore,
         finalScore,
-        managerSummary: body.managerSummary ? String(body.managerSummary).slice(0, 8000) : existing.managerSummary,
+        managerSummary,
         status,
         completedAt: status === "completed" ? new Date() : null,
         updatedAt: new Date(),
