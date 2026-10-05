@@ -1269,6 +1269,8 @@ export const statutoryRemittanceBatches = pgTable(
   (table) => [
     uniqueIndex("statutory_remittance_batch_unique").on(table.organizationId, table.agency, table.applicableMonth),
     index("statutory_remittance_due_idx").on(table.organizationId, table.status, table.dueDate),
+    index("statutory_remittance_batches_payment_recorder_idx").on(table.organizationId, table.paymentRecordedByUserId),
+    index("statutory_remittance_batches_reconciler_idx").on(table.organizationId, table.reconciledByUserId),
   ],
 );
 
@@ -1320,6 +1322,7 @@ export const statutoryRemittanceMembers = pgTable(
   (table) => [
     uniqueIndex("statutory_remittance_member_unique").on(table.batchId, table.employeeId),
     index("statutory_remittance_member_status_idx").on(table.organizationId, table.postingStatus),
+    index("statutory_remittance_members_confirmer_idx").on(table.organizationId, table.confirmedByUserId),
   ],
 );
 
