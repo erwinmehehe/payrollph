@@ -103,7 +103,7 @@ test("calculator pages link estimates into the relevant authority cluster", () =
     "/compliance/sss",
     "/compliance/philhealth",
     "/compliance/pag-ibig",
-    "/compliance/bir",
+    "/compliance/withholding-tax",
     "/resources/payroll-software-roi",
   ]) {
     assert.ok(page.includes(route), `calculator context links must include ${route}`);
