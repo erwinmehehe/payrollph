@@ -24,10 +24,19 @@ test("authorization failures become payroll review exceptions without suppressin
   assert.ok(source.includes('evidence.reviewReason === "not_approved"'));
   assert.ok(source.includes('evidence.reviewReason === "exceeds_approved_minutes"'));
 
-  const payFormula = source.indexOf("overtimePay += (derived.overtimeMinutes / 60)");
+  const segmentedPayFormula = source.indexOf(
+    "overtimePay += hours * punchProfile.hourlyRate * multiplier",
+  );
+  const fallbackPayFormula = source.indexOf(
+    "(segmentedOvertimeMinutes / 60) * punchProfile.hourlyRate * otMultiplier",
+  );
   const authorization = source.indexOf("resolveOvertimeAuthorizationDay({");
-  assert.ok(payFormula >= 0);
-  assert.ok(authorization > payFormula, "authorization evidence must be evaluated after statutory OT pay is calculated");
+  assert.ok(segmentedPayFormula >= 0);
+  assert.ok(fallbackPayFormula >= 0);
+  assert.ok(
+    authorization > segmentedPayFormula && authorization > fallbackPayFormula,
+    "authorization evidence must be evaluated after statutory OT pay is calculated",
+  );
 });
 
 test("payroll trace persists OT authorization evidence and its independence from wage entitlement", () => {
