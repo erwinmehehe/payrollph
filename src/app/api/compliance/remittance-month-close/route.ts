@@ -10,6 +10,7 @@ import { assertOrganizationRole } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { evaluateRemittanceMonthClose } from "@/lib/statutory-remittance-close";
+import { ensureStatutoryRemittanceMonthCloseSchema } from "@/lib/statutory-remittance-month-close-schema";
 import {
   currentManilaMonth,
   loadStatutoryRemittanceState,
@@ -120,6 +121,7 @@ async function loadCloseState(organizationId: number, applicableMonth: string) {
 }
 
 export async function GET(request: Request) {
+  await ensureStatutoryRemittanceMonthCloseSchema();
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -142,6 +144,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  await ensureStatutoryRemittanceMonthCloseSchema();
   const originDenied = enforceSameOriginMutation(request);
   if (originDenied) return originDenied;
 
