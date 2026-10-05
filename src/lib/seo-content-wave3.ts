@@ -734,10 +734,13 @@ export type RegulatoryUpdate = {
   metaDescription?: string;
   summary: string;
   publishedDate: string;
+  reviewedDate: string;
   agency: string;
   sourceUrl: string;
   sourceLabel: string;
   affected: string[];
+  whatChanged: string[];
+  payrollActions: string[];
   evergreenLinks: Array<{ label: string; href: string }>;
 };
 
@@ -749,10 +752,21 @@ export const regulatoryUpdates: RegulatoryUpdate[] = [
     metaDescription: "DOLE reminder for Philippine employers on final-pay release timing, certificate-of-employment timing and payroll closeout responsibilities in 2026.",
     summary: "DOLE reminded employers that final pay should generally be released within 30 days after separation unless a more favorable company policy applies, and reiterated the separate COE timing requirement.",
     publishedDate: "2026-01-21",
+    reviewedDate: "2026-10-05",
     agency: "Department of Labor and Employment",
     sourceUrl: DOLE_FINAL_PAY,
     sourceLabel: "DOLE final pay and COE reminder",
     affected: ["Final pay", "Employee separation", "Payroll closeout"],
+    whatChanged: [
+      "DOLE reiterated the final-pay timing in Labor Advisory No. 06, Series of 2020.",
+      "The reminder separately highlighted the Certificate of Employment timing after an employee request.",
+      "DOLE directed employees with unresolved delays to its assistance channels rather than treating the payroll calculation itself as proof of compliance.",
+    ],
+    payrollActions: [
+      "Track the employee's separation date and the employer's final-pay due date in the closeout workflow.",
+      "Reconcile unpaid salary, prorated 13th-month pay, leave conversion, tax adjustments and any approved separation or retirement amounts before release.",
+      "Keep final-pay release evidence separate from the payroll calculation record.",
+    ],
     evergreenLinks: [{ label: "Final pay guide", href: "/resources/final-pay-philippines" }, { label: "Payroll compliance", href: "/compliance" }],
   },
   {
@@ -762,10 +776,21 @@ export const regulatoryUpdates: RegulatoryUpdate[] = [
     metaDescription: "DOLE Labor Advisory No. 16-25 reiterated 13th-month pay obligations and the December 24 payment timing for covered employees for the 2025 year-end.",
     summary: "DOLE Labor Advisory No. 16-25 reiterated the statutory 13th-month payment obligation and the December 24 payment timing for covered employees.",
     publishedDate: "2025-11-15",
+    reviewedDate: "2026-10-05",
     agency: "Department of Labor and Employment",
-    sourceUrl: DOLE_ADVISORIES,
-    sourceLabel: "DOLE Labor Advisories",
+    sourceUrl: "https://dole.gov.ph/news/labor-advisory-no-16-25-guidelines-on-the-payment-of-the-thirteenth-month-pay/",
+    sourceLabel: "DOLE Labor Advisory No. 16-25",
     affected: ["13th-month pay", "Year-end payroll"],
+    whatChanged: [
+      "Labor Advisory No. 16-25 reiterated the 13th-month pay obligation for covered rank-and-file employees.",
+      "The advisory reiterated the December 24 payment deadline for the covered 2025 year-end.",
+      "The guidance reaffirmed the one-twelfth basic-salary formula and year-end employer responsibility.",
+    ],
+    payrollActions: [
+      "Reconcile each covered employee's total basic salary earned during the calendar year before calculating the benefit.",
+      "Review employees who joined, resigned or were separated during the year for the applicable proportionate amount.",
+      "Keep the dated advisory linked from the evergreen 13th-month guide instead of hard-coding the 2025 rule context into a permanent URL.",
+    ],
     evergreenLinks: [{ label: "13th-month pay guide", href: "/resources/13th-month-pay-philippines" }, { label: "13th-month calculator", href: "/calculators/13th-month-pay" }],
   },
   {
@@ -775,10 +800,21 @@ export const regulatoryUpdates: RegulatoryUpdate[] = [
     metaDescription: "BIR RMC No. 55-2026 reiterated alphalist submission obligations for covered withholding agents and linked applicable alphalists to withholding returns.",
     summary: "BIR Revenue Memorandum Circular No. 55-2026 reiterated alphalist submission obligations for covered withholding agents and tied applicable alphalists to the relevant withholding returns and deadlines.",
     publishedDate: "2026-05-26",
+    reviewedDate: "2026-10-05",
     agency: "Bureau of Internal Revenue",
     sourceUrl: "https://bir-cdn.bir.gov.ph/BIR/pdf/RMC%20No.%2055-2026%20Digest.pdf",
     sourceLabel: "BIR RMC No. 55-2026 Digest",
     affected: ["Alphalist", "Withholding returns", "Payroll reporting"],
+    whatChanged: [
+      "BIR RMC No. 55-2026 reiterated alphalist submission obligations for covered withholding agents.",
+      "The circular tied applicable alphalists to the related withholding-return compliance workflow.",
+      "The reminder reinforces the need to reconcile annual payroll and withholding data before treating an Alphalist output as ready.",
+    ],
+    payrollActions: [
+      "Reconcile employee or payee identity data, annual compensation and tax withheld before generating the reporting output.",
+      "Tie the generated Alphalist version back to the applicable withholding return and covered period.",
+      "Record the exact output version and submission or validation evidence used for the completed compliance workflow.",
+    ],
     evergreenLinks: [{ label: "Alphalist guide", href: "/compliance/alphalist" }, { label: "BIR compliance", href: "/compliance/bir" }],
   },
 ];
