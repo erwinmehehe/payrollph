@@ -46,4 +46,5 @@ jobs:
       - run: npm run db:push
       - run: npx tsc --noEmit
       - run: npx tsx --test tests/*.test.ts
+      - run: npm run seo:audit
       - run: npx next build
