@@ -3,7 +3,7 @@ import { compliancePages, industryPages, resourcePages } from "@/lib/seo-content
 import { industryWave2, resourceWave2 } from "@/lib/seo-content-wave2";
 import { complianceWave3, glossaryEntries, regulatoryUpdates, resourceWave3 } from "@/lib/seo-content-wave3";
 import { industryWave6, integrationWave6 } from "@/lib/seo-content-wave6";
-import { CUSTOMER_STORIES } from "@/lib/customer-stories";
+import { PUBLISHABLE_CUSTOMER_STORIES } from "@/lib/customer-stories";
 import { absolutePublicUrl } from "@/lib/site-url";
 
 export type SitemapEntry = {
@@ -91,7 +91,7 @@ export const developerSitemapEntries: SitemapEntry[] = [
 ];
 
 export function approvedCustomerSitemapEntries(): SitemapEntry[] {
-  const approvedStories = CUSTOMER_STORIES.filter((story) => story.approved);
+  const approvedStories = PUBLISHABLE_CUSTOMER_STORIES;
   if (approvedStories.length === 0) return [];
 
   return [
