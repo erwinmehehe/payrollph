@@ -23,13 +23,11 @@ export function StatutoryPaymentProof({
   batchId,
   batchStatus,
   notify,
-  onActiveChange,
 }: {
   organizationId: number;
   batchId: number;
   batchStatus: string;
   notify: Notify;
-  onActiveChange: (active: EvidenceRow | null) => void;
 }) {
   const [rows, setRows] = useState<EvidenceRow[]>([]);
   const [active, setActive] = useState<EvidenceRow | null>(null);
@@ -51,8 +49,7 @@ export function StatutoryPaymentProof({
     const nextActive = body.active ?? null;
     setRows(nextRows);
     setActive(nextActive);
-    onActiveChange(nextActive);
-  }, [batchId, onActiveChange, organizationId]);
+  }, [batchId, organizationId]);
 
   useEffect(() => {
     void load().catch((error) => notify(
