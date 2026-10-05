@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS "statutory_remittance_month_closures" (
   "created_at" timestamptz DEFAULT now() NOT NULL,
   "updated_at" timestamptz DEFAULT now() NOT NULL
 );
-CREATE UNIQUE INDEX IF NOT EXISTS "statutory_remittance_month_closure_unique"
-  ON "statutory_remittance_month_closures" ("organization_id", "applicable_month");
+CREATE UNIQUE INDEX IF NOT EXISTS "statutory_remittance_month_closure_snapshot_unique"
+  ON "statutory_remittance_month_closures" ("organization_id", "applicable_month", "snapshot_hash");
 CREATE INDEX IF NOT EXISTS "statutory_remittance_month_closure_status_idx"
   ON "statutory_remittance_month_closures" ("organization_id", "status");
