@@ -33,7 +33,7 @@ export default async function ResourceGuidePage({ params }: { params: Promise<{ 
     <>
       <StructuredData
         breadcrumbs={[{ name: "Home", path: "/" }, { name: "Resources", path: "/resources" }, { name: page.title, path }]}
-        article={{ headline: page.title, description: page.description, path, dateModified: "2026-10-05" }}
+        article={{ headline: page.title, description: page.description, path, dateModified: page.lastReviewedIso }}
       />
       <SeoLandingPage
         eyebrow={page.eyebrow}
