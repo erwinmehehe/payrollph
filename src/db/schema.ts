@@ -1162,6 +1162,64 @@ export const governmentFilingValidations = pgTable(
   ],
 );
 
+export const statutoryRemittanceBatches = pgTable(
+  "statutory_remittance_batches",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    agency: varchar("agency", { length: 16 }).notNull(),
+    applicableMonth: varchar("applicable_month", { length: 7 }).notNull(),
+    dueDate: date("due_date").notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("open"),
+    employeeCount: integer("employee_count").notNull().default(0),
+    expectedEmployeeShare: numeric("expected_employee_share", { precision: 14, scale: 2 }).notNull().default("0"),
+    expectedEmployerShare: numeric("expected_employer_share", { precision: 14, scale: 2 }).notNull().default("0"),
+    expectedTotal: numeric("expected_total", { precision: 14, scale: 2 }).notNull().default("0"),
+    amountPaid: numeric("amount_paid", { precision: 14, scale: 2 }),
+    paymentReference: varchar("payment_reference", { length: 120 }),
+    agencyReceiptReference: varchar("agency_receipt_reference", { length: 120 }),
+    paymentChannel: varchar("payment_channel", { length: 80 }),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    paymentRecordedBy: varchar("payment_recorded_by", { length: 120 }),
+    reconciledAt: timestamp("reconciled_at", { withTimezone: true }),
+    reconciledBy: varchar("reconciled_by", { length: 120 }),
+    snapshotHash: varchar("snapshot_hash", { length: 64 }).notNull(),
+    notes: text("notes"),
+    createdBy: varchar("created_by", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("statutory_remittance_batch_unique").on(table.organizationId, table.agency, table.applicableMonth),
+    index("statutory_remittance_due_idx").on(table.organizationId, table.status, table.dueDate),
+  ],
+);
+
+export const statutoryRemittanceMembers = pgTable(
+  "statutory_remittance_members",
+  {
+    id: serial("id").primaryKey(),
+    batchId: integer("batch_id").notNull().references(() => statutoryRemittanceBatches.id, { onDelete: "cascade" }),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    employeeNo: varchar("employee_no", { length: 32 }).notNull(),
+    employeeShare: numeric("employee_share", { precision: 12, scale: 2 }).notNull().default("0"),
+    employerShare: numeric("employer_share", { precision: 12, scale: 2 }).notNull().default("0"),
+    totalContribution: numeric("total_contribution", { precision: 12, scale: 2 }).notNull().default("0"),
+    postingStatus: varchar("posting_status", { length: 24 }).notNull().default("pending"),
+    postingReference: varchar("posting_reference", { length: 120 }),
+    postedAt: timestamp("posted_at", { withTimezone: true }),
+    confirmedBy: varchar("confirmed_by", { length: 120 }),
+    exceptionNote: text("exception_note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("statutory_remittance_member_unique").on(table.batchId, table.employeeId),
+    index("statutory_remittance_member_status_idx").on(table.organizationId, table.postingStatus),
+  ],
+);
+
 export const employeeLoans = pgTable("employee_loans", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
