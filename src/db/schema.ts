@@ -1272,6 +1272,34 @@ export const statutoryRemittanceMembers = pgTable(
   ],
 );
 
+export const statutoryContributionDisputes = pgTable(
+  "statutory_contribution_disputes",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    memberId: integer("member_id").references(() => statutoryRemittanceMembers.id, { onDelete: "set null" }),
+    agency: varchar("agency", { length: 16 }).notNull(),
+    applicableMonth: varchar("applicable_month", { length: 7 }).notNull(),
+    issueType: varchar("issue_type", { length: 32 }).notNull(),
+    description: varchar("description", { length: 500 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("open"),
+    reportedByUserId: integer("reported_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    reportedByName: varchar("reported_by_name", { length: 120 }).notNull(),
+    resolutionCode: varchar("resolution_code", { length: 32 }),
+    resolutionNote: varchar("resolution_note", { length: 500 }),
+    resolvedByUserId: integer("resolved_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    resolvedByName: varchar("resolved_by_name", { length: 120 }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("statutory_contribution_disputes_org_status_idx").on(table.organizationId, table.status, table.createdAt),
+    index("statutory_contribution_disputes_employee_month_idx").on(table.employeeId, table.applicableMonth, table.agency),
+  ],
+);
+
 export const statutoryRemittanceCorrectionRequests = pgTable(
   "statutory_remittance_correction_requests",
   {
