@@ -46,6 +46,7 @@ import { AccountPanel } from "@/components/account-panel";
 import { StatutoryRemittancePanel } from "@/components/workspace/statutory-remittance-panel";
 import { ComplianceCalendarPanel } from "@/components/workspace/compliance-calendar-panel";
 import { LaborInspectionReadinessPanel } from "@/components/workspace/labor-inspection-readiness-panel";
+import { LaborInspectionDrillPanel } from "@/components/workspace/labor-inspection-drill-panel";
 import { PayrollMonthClosePanel } from "@/components/workspace/payroll-month-close-panel";
 import { DoleThirteenthMonthReportPanel } from "@/components/workspace/dole-thirteenth-month-report-panel";
 import { CompliancePolicyReviewPanel } from "@/components/workspace/compliance-policy-review-panel";
@@ -344,6 +345,13 @@ export function CompliancePage({ data, setNotice, onOpenGovModal }: { data: Dash
 
       <div style={{ marginTop: 16 }}>
         <PayrollMonthClosePanel
+          organizationId={data.selectedOrganization.id}
+          notify={(message) => setNotice(message)}
+        />
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <LaborInspectionDrillPanel
           organizationId={data.selectedOrganization.id}
           notify={(message) => setNotice(message)}
         />
