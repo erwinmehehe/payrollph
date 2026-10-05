@@ -40,7 +40,7 @@ test("public navigation and pricing route trial intent through the indexable pag
 });
 
 test("trial landing page is included in sitemap while signup remains noindex", () => {
-  const sitemap = read("src/app/sitemap.ts");
+  const sitemap = read("src/lib/sitemap-data.ts");
   const signup = read("src/app/signup/page.tsx");
   assert.ok(sitemap.includes('{ path: "/trial"'));
   assert.ok(signup.includes("robots: { index: false, follow: false }"));
