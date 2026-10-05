@@ -98,6 +98,37 @@ jobs:
           cat /tmp/payrollph-next.log
           exit 1
 
+      - name: Configure isolated browser-QA bank layout
+        shell: bash
+        run: |
+          node <<'NODE'
+          const { Client } = require("pg");
+          (async () => {
+            const client = new Client({ connectionString: process.env.DATABASE_URL });
+            await client.connect();
+            const mapping = JSON.stringify({
+              columns: ["account_number", "employee_name", "net_pay", "employee_no", "payment_date", "reference"],
+              delimiter: ",",
+              includeHeader: true,
+              source: "github-actions-browser-qa",
+            });
+            const updated = await client.query(
+              "update bank_templates set mappings = $1::jsonb, version = 'ci-qa' where name = 'BDO DAT'",
+              [mapping],
+            );
+            if (updated.rowCount === 0) {
+              await client.query(
+                "insert into bank_templates (name, version, format, mappings, active) values ('BDO DAT', 'ci-qa', 'CSV', $1::jsonb, true)",
+                [mapping],
+              );
+            }
+            await client.end();
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+
       - name: Run Chromium homepage and persona QA
         shell: bash
         run: |
