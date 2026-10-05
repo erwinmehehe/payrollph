@@ -23,6 +23,7 @@ function task(overrides: Record<string, unknown> = {}) {
     agency: "SSS",
     applicableMonth: "2026-09",
     severity: "warning",
+    severityChangedAt: new Date("2026-10-25T00:00:00Z"),
     escalationEpisode: 1,
     title: "SSS remittance is due soon",
     detail: "Due in five days.",
@@ -100,8 +101,8 @@ test("dedupe key stays stable within one episode but changes on severity or reop
 
 
 test("escalation stage advances only at bounded 24h and 72h thresholds", () => {
-  const detected = new Date("2026-10-01T00:00:00Z");
-  const baseTask = task({ firstDetectedAt: detected });
+  const changed = new Date("2026-10-01T00:00:00Z");
+  const baseTask = task({ severityChangedAt: changed });
 
   assert.equal(escalationStage(baseTask, new Date("2026-10-01T23:59:59Z")), 1);
   assert.equal(escalationStage(baseTask, new Date("2026-10-02T00:00:00Z")), 2);
@@ -145,5 +146,23 @@ test("72h subject is explicitly executive escalation", () => {
   assert.match(
     escalationSubject(task({ severity: "danger" }), 3),
     /Executive critical payroll compliance/,
+  );
+});
+
+
+test("warning lifetime does not cause immediate executive escalation after severity becomes critical", () => {
+  const longLived = task({
+    severity: "danger",
+    firstDetectedAt: new Date("2026-09-20T00:00:00Z"),
+    severityChangedAt: new Date("2026-10-05T00:00:00Z"),
+  });
+
+  assert.equal(
+    escalationStage(longLived, new Date("2026-10-05T06:00:00Z")),
+    1,
+  );
+  assert.equal(
+    escalationStage(longLived, new Date("2026-10-06T00:00:00Z")),
+    2,
   );
 });
