@@ -16,7 +16,7 @@ import {
   positions,
   strategicGoals,
 } from "@/db/schema";
-import { assertOrganizationRole, assertScope, getAccess, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
+import { assertOrganizationRole, assertScope, getAccess, TALENT_MANAGER_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import {
@@ -30,7 +30,6 @@ import { enforceSameOriginMutation } from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
 
-const EXPERIENCE_ROLES = new Set(["owner", "admin", "hr", "manager"]);
 const STRATEGIC_SCOPES = ["company", "team"] as const;
 const GOAL_STATUSES = ["active", "completed", "cancelled"] as const;
 const MEETING_STATUSES = ["scheduled", "completed", "cancelled"] as const;
@@ -42,13 +41,13 @@ async function experienceAccess(userId: number, organizationId: number) {
   const denied = await assertOrganizationRole(
     userId,
     organizationId,
-    WORKFORCE_MANAGER_ROLES,
+    TALENT_MANAGER_ROLES,
     "Your role is not allowed to manage manager and employee experience.",
   );
   if (denied) return { error: denied };
   const access = await getAccess(userId, organizationId);
-  if (!access || !EXPERIENCE_ROLES.has(access.role)) {
-    return { error: Response.json({ error: "Your role is not allowed to manage manager and employee experience." }, { status: 403 }) };
+  if (!access) {
+    return { error: Response.json({ error: "You do not have access to this workspace." }, { status: 403 }) };
   }
   return { access };
 }
@@ -221,7 +220,7 @@ export async function GET(request: Request) {
       };
     }),
     mentorships: mentorshipRows.filter((row) => visibleIds.has(row.menteeEmployeeId) || visibleIds.has(row.mentorEmployeeId)),
-    employeeNames: Object.fromEntries(staff.map((employee) => [employee.id, employee.firstName + " " + employee.lastName])),
+    employeeNames: Object.fromEntries((access.companyWide ? staff : visibleEmployees).map((employee) => [employee.id, employee.firstName + " " + employee.lastName])),
   });
 }
 
