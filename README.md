@@ -138,6 +138,14 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
 - Labor-cost analytics use released payroll entries plus the employer statutory cost persisted in payroll trace, then annualize the current employer-benefit run rate. Position budget is labelled as a salary-budget proxy rather than a full accounting forecast.
 - Engagement trend respects each survey's configured privacy threshold and never returns raw anonymous comments.
 
+
+### Manager and employee experience
+- Performance now combines formal review cycles with a separate continuous-performance layer for strategic goal alignment, recurring 1:1s, named 360 feedback and mentorship.
+- Employees get a My growth self-service tab where they can update their own goal progress, submit self-assessments, prepare for 1:1s, respond to named feedback requests and request mentorship.
+- Completing a recurring 1:1 automatically schedules the next meeting; employee prep and shared notes are visible to the employee, while manager-private notes stay manager-only.
+- Named 360 responses are recipient-bound and audited. This foundation does not label feedback anonymous or expose it as anonymous.
+- Engagement action plans can publish a deliberately written employee update into My voice under "You said, we did"; raw anonymous comments and internal management notes are never published.
+
 ### Public capability scorecard
 - `/scorecard` and `GET /api/capabilities` render a 22-row competitive parity grid plus a 15-row capability matrix
 - Every Linaw claim is classified **verified / partial / absent** and carries its evidence (a file path, a test name, or a live row count), generated from this deployment's code and database
