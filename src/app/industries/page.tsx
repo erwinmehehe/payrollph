@@ -19,12 +19,12 @@ export const metadata: Metadata = {
 
 export default function IndustriesPage() {
   return (
-    <div className="min-h-screen bg-white text-[#0B0D1A]">
+    <div className="marketing-page min-h-screen bg-white text-[#101323]">
       <SiteNav />
       <main>
-        <section className="border-b border-[#EDEFF7] py-16 sm:py-20">
+        <section className="border-b border-[#EAECF0] py-16 sm:py-20">
           <div className="mx-auto max-w-[1180px] px-5 sm:px-8">
-            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6161FF]">Industry payroll</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#444CE7]">Industry payroll</p>
             <h1 className="font-display mt-4 max-w-[850px] text-[44px] font-semibold leading-[1.04] tracking-[-0.045em] sm:text-[58px]">
               Payroll workflows built around the way different Philippine teams actually work.
             </h1>
@@ -33,10 +33,10 @@ export default function IndustriesPage() {
         <section className="py-16 sm:py-20">
           <div className="mx-auto grid max-w-[1180px] gap-4 px-5 sm:px-8 md:grid-cols-2">
             {allIndustries.map((item) => (
-              <Link key={item.slug} href={`/industries/${item.slug}`} className="group rounded-[24px] border border-[#E4E6F0] bg-[#FAFBFD] p-6 transition hover:-translate-y-0.5 hover:border-[#CFCFFF]">
+              <Link key={item.slug} href={`/industries/${item.slug}`} className="group rounded-[24px] border border-[#E4E6F0] bg-[#FCFCFD] p-6 transition hover:-translate-y-0.5 hover:border-[#CFCFFF]">
                 <h2 className="font-display text-[24px] font-semibold tracking-[-0.03em]">{item.title}</h2>
                 <p className="mt-3 text-[13.5px] leading-relaxed text-[#5B6080]">{item.description}</p>
-                <span className="mt-5 inline-flex items-center gap-2 text-[13px] font-semibold text-[#4A4AE0]">Explore industry <ArrowRight size={14} /></span>
+                <span className="mt-5 inline-flex items-center gap-2 text-[13px] font-semibold text-[#444CE7]">Explore industry <ArrowRight size={14} /></span>
               </Link>
             ))}
           </div>
