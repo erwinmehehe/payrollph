@@ -80,8 +80,8 @@ test("the software homepage keeps the full workspace demo off the marketing page
 test("the homepage leads with the approved Linaw payroll hero", () => {
   const modern = read("src/components/marketing/claude-home/ModernHome.tsx");
 
-  assert.ok(modern.includes("Payroll should tell you"), "hero must lead with the payroll-control proposition");
-  assert.ok(modern.includes("when not to pay."), "hero must frame release safety clearly");
+  assert.ok(modern.includes("Payroll, <em>clearly.</em>"), "hero must lead with the simplified Linaw product proposition");
+  assert.ok(modern.includes("Know what changed. Know what is blocked."), "hero must frame payroll clarity and release safety clearly");
   assert.ok(modern.includes('href="/demo"'), "hero must expose the live demo as the primary CTA");
   assert.ok(modern.includes('href="/book-demo"'), "hero must expose a book-demo CTA");
   assert.ok(modern.includes("Release readiness"), "hero must show focused product proof");
