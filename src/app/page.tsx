@@ -5,9 +5,9 @@ import { SoftwareHome } from "@/components/marketing/software-home";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Payroll Software Philippines | HRIS & Payroll System | Linaw",
+  title: "Payroll Software Philippines | Payroll System | Linaw",
   description:
-    "Philippine payroll software for payroll automation, HRIS, attendance, SSS, PhilHealth, Pag-IBIG, TRAIN withholding, payslips, approvals and reporting.",
+    "Philippine payroll software for payroll automation, attendance, SSS, PhilHealth, Pag-IBIG, TRAIN withholding, payslips, approvals and reporting.",
   alternates: { canonical: "/" },
 };
 
