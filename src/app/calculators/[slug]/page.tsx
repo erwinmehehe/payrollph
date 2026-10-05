@@ -1,11 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ExternalLink } from "lucide-react";
 import { notFound } from "next/navigation";
 import { AdvancedPayrollCalculator } from "@/components/marketing/advanced-payroll-calculator";
 import { PayrollCalculator } from "@/components/marketing/payroll-calculator";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 import { StructuredData } from "@/components/marketing/structured-data";
-import { CALCULATORS, CALCULATOR_GUIDES, isAdvancedCalculatorSlug, type CalculatorSlug } from "@/lib/calculators";
+import {
+  CALCULATORS,
+  CALCULATOR_GUIDES,
+  CALCULATOR_LAST_REVIEWED,
+  CALCULATOR_SOURCES,
+  isAdvancedCalculatorSlug,
+  type CalculatorSlug,
+} from "@/lib/calculators";
 
 const relatedByCalculator: Partial<Record<CalculatorSlug, Array<{ label: string; href: string; copy: string }>>> = {
   "13th-month-pay": [
@@ -79,6 +87,7 @@ export default async function CalculatorPage({ params }: { params: Promise<{ slu
   const path = `/calculators/${slug}`;
   const guide = CALCULATOR_GUIDES[typedSlug];
   const related = relatedByCalculator[typedSlug] ?? [];
+  const sources = CALCULATOR_SOURCES[typedSlug] ?? [];
 
   return (
     <div className="min-h-screen bg-[#FAFBFD] text-[#0B0D1A]">
@@ -94,6 +103,7 @@ export default async function CalculatorPage({ params }: { params: Promise<{ slu
             <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6161FF]">Payroll calculator</p>
             <h1 className="font-display mt-4 text-[42px] font-semibold tracking-[-0.045em] sm:text-[54px]">{item.title}</h1>
             <p className="mt-4 max-w-[760px] text-[15px] leading-relaxed text-[#5B6080]">{item.intro}</p>
+            <p className="mt-3 text-[11.5px] font-medium text-[#8B90AA]">Last reviewed: {CALCULATOR_LAST_REVIEWED}</p>
           </div>
         </section>
         <section className="py-12 sm:py-16">
@@ -138,6 +148,30 @@ export default async function CalculatorPage({ params }: { params: Promise<{ slu
             </div>
           </div>
         </section>
+
+        {sources.length ? (
+          <section className="border-t border-[#EDEFF7] bg-white py-12 sm:py-14">
+            <div className="mx-auto max-w-[980px] px-5 sm:px-8">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Official references</p>
+              <p className="mt-2 max-w-[760px] text-[13px] leading-relaxed text-[#6B718C]">
+                These links are the rule references used to review the public estimate. The calculator remains an educational tool, not an agency filing or legal determination.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-3">
+                {sources.map((source) => (
+                  <a
+                    key={source.href}
+                    href={source.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 rounded-full border border-[#DFE2EC] bg-[#FAFBFD] px-4 py-2.5 text-[12px] font-semibold text-[#34394F]"
+                  >
+                    {source.label} <ExternalLink size={12} />
+                  </a>
+                ))}
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         {related.length ? (
           <section className="border-t border-[#EDEFF7] bg-white py-12 sm:py-14">
