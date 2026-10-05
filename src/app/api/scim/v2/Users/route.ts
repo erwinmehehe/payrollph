@@ -24,7 +24,7 @@ function resource(input: {
   scimId: number;
   externalId: string;
   user: { email: string; name: string; active: boolean; createdAt: Date };
-  membership: { role: string; orgUnitId: number | null };
+  membership: { role: string; orgUnitId: number | null; active: boolean };
   unitName?: string | null;
   employeeNo?: string | null;
 }) {
@@ -38,7 +38,7 @@ function resource(input: {
     userName: input.user.email,
     displayName: input.user.name,
     name: { formatted: input.user.name },
-    active: input.user.active,
+    active: input.user.active && input.membership.active,
     roles: [{ value: input.membership.role, primary: true }],
     "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User": {
       department: input.unitName ?? undefined,
@@ -174,7 +174,7 @@ export async function POST(request: Request) {
           name: name.slice(0, 120),
           passwordHash: hashPassword(randomToken(48)),
           role,
-          active,
+          active: true,
           localPasswordEnabled: false,
           employeeId: employee?.id ?? null,
         }).returning();
@@ -195,6 +195,7 @@ export async function POST(request: Request) {
       if (membership) {
         [membership] = await tx.update(userOrganizations).set({
           role,
+          active,
           orgUnitId: unit?.id ?? membership.orgUnitId,
         }).where(eq(userOrganizations.id, membership.id)).returning();
       } else {
@@ -202,6 +203,7 @@ export async function POST(request: Request) {
           userId: user.id,
           organizationId: auth.organizationId,
           role,
+          active,
           orgUnitId: unit?.id ?? null,
         }).returning();
       }
