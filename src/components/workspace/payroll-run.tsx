@@ -28,6 +28,7 @@ import { StatutoryRemittancePanel } from "./statutory-remittance-panel";
 import { StatutoryRemittanceActionQueue } from "./statutory-remittance-action-queue";
 import { StatutoryRemittanceCorrectionsPanel } from "./statutory-remittance-corrections-panel";
 import { StatutoryRemittanceMonthClose } from "./statutory-remittance-month-close";
+import { StatutoryContributionDisputesPanel } from "./statutory-contribution-disputes-panel";
 import { OwnerPayrollRelease } from "./owner-payroll-release";
 import { ExplainPayDrawer } from "./explain-pay-drawer";
 import {
@@ -456,6 +457,14 @@ export function PayrollRunView({
       {["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "") && (
         <StatutoryRemittanceActionQueue
           organizationId={data.selectedOrganization.id}
+          notify={notify}
+        />
+      )}
+
+      {["owner", "admin", "bookkeeper", "payroll", "checker"].includes(data.access?.role ?? "") && (
+        <StatutoryContributionDisputesPanel
+          organizationId={data.selectedOrganization.id}
+          role={data.access?.role ?? ""}
           notify={notify}
         />
       )}
