@@ -140,7 +140,7 @@ jobs:
             check(response && response.ok(), `${name}: homepage did not return 2xx`);
 
             const h1 = (await page.locator("h1").first().innerText()).trim();
-            check(h1.includes("Philippine payroll software") && h1.includes("you can verify before you pay."), `${name}: expected Linaw payroll hero heading not found; saw "${h1}"`);
+            check(h1.includes("Philippine payroll you can verify before you pay."), `${name}: expected Linaw payroll hero heading not found; saw "${h1}"`);
             const heroPrimary = page.locator(".hero-primary-cta");
             check((await heroPrimary.count()) === 1, `${name}: hero primary CTA is missing`);
             const heroPrimaryStyles = await heroPrimary.evaluate((el) => {
@@ -256,7 +256,7 @@ jobs:
             if (name === "mobile-390") {
               const normalizedHeading = h1.replace(/\s+/g, " ");
               check(
-                normalizedHeading.includes("Philippine payroll software you can verify before you pay."),
+                normalizedHeading.includes("Philippine payroll you can verify before you pay."),
                 `mobile-390: hero words collided after responsive line-break removal; saw "${normalizedHeading}"`,
               );
 
