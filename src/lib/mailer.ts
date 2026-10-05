@@ -235,6 +235,7 @@ export async function queueMessage(input: {
   body: string;
   purpose: string;
   dedupeKey?: string | null;
+  metadata?: Record<string, unknown>;
   audit?: MailAuditContext;
 }) {
   await ensureOutboxDeliverySchema();
@@ -251,7 +252,7 @@ export async function queueMessage(input: {
     status: providerName === "none" ? "queued" : "pending",
     deliveryStatus: providerName === "none" ? "queued" : "sending",
     deliveryUpdatedAt: new Date(),
-    metadata: input.audit?.metadata ?? {},
+    metadata: input.metadata ?? input.audit?.metadata ?? {},
     maxAttempts: input.purpose === "payslip-ready" ? MAX_AUTOMATIC_RETRIES + 1 : 1,
   }).onConflictDoNothing().returning();
 
@@ -286,6 +287,7 @@ export async function queueMessage(input: {
       outboxId: row.id,
       purpose: row.purpose,
       metadata: {
+        ...(input.metadata ?? {}),
         ...(input.audit.metadata ?? {}),
         provider: providerName,
         status: row.status,
