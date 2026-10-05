@@ -17,6 +17,7 @@ const expectedOwners: Record<string, string> = {
   "/resources": "payroll guides philippines",
   "/resources/updates": "philippine payroll regulatory updates",
   "/scorecard": "linaw payroll capability scorecard",
+  "/small-business-payroll": "small business payroll software philippines",
   "/templates/payroll-rfp-checklist": "payroll software rfp checklist template philippines",
   "/templates/payroll-security-checklist": "payroll software security checklist template philippines",
 };

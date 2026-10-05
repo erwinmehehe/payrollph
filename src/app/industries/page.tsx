@@ -13,7 +13,7 @@ const allIndustries = [
 
 export const metadata: Metadata = {
   title: "Payroll Software by Industry Philippines | Linaw",
-  description: "Industry payroll workflows for BPO, manpower, manufacturing, retail, healthcare, hospitality, finance, education, real estate, media, NGOs and shopping centers in the Philippines.",
+  description: "Industry payroll workflows for BPO, construction, manpower, manufacturing, retail, healthcare, hospitality, finance, education, real estate and other Philippine teams.",
   alternates: { canonical: "/industries" },
 };
 

@@ -24,6 +24,7 @@ export const STATIC_SEO_ROUTES: StaticSeoRoute[] = [
   { path: "/integrations", pageFile: "src/app/integrations/page.tsx" },
   { path: "/implementation", pageFile: "src/app/implementation/page.tsx" },
   { path: "/pricing", pageFile: "src/app/pricing/page.tsx" },
+  { path: "/small-business-payroll", pageFile: "src/app/small-business-payroll/page.tsx" },
   { path: "/payroll-outsourcing", pageFile: "src/app/payroll-outsourcing/page.tsx" },
   { path: "/payroll-health-check", pageFile: "src/app/payroll-health-check/page.tsx" },
   { path: "/workforce-analytics", pageFile: "src/app/workforce-analytics/page.tsx" },
