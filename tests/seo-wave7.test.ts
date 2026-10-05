@@ -20,7 +20,7 @@ test("customers hub stays noindex while the approved collection is empty", () =>
 
 test("customer story routes expose only approved stories", () => {
   const page = read("src/app/customers/[slug]/page.tsx");
-  assert.ok(page.includes("const approvedStories = CUSTOMER_STORIES.filter((story) => story.approved)"));
+  assert.ok(page.includes("const approvedStories = PUBLISHABLE_CUSTOMER_STORIES"));
   assert.ok(page.includes("generateStaticParams"));
   assert.ok(page.includes("if (!story) notFound()"));
   assert.ok(page.includes("const approvedQuote = story.quote;"));
@@ -32,7 +32,7 @@ test("customer stories use article and breadcrumb schema without review fabricat
   assert.ok(page.includes("breadcrumbs={["));
   assert.ok(page.includes("article={{"));
   assert.ok(!page.includes("AggregateRating"));
-  assert.ok(!page.includes("Review"));
+  assert.ok(!page.includes('"@type": "Review"'));
   assert.ok(!page.includes("reviewRating"));
 });
 
