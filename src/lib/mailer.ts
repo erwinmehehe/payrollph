@@ -19,6 +19,12 @@ const SENSITIVE_LINK_PURPOSES = new Set([
 ]);
 
 const MAX_AUTOMATIC_RETRIES = 3;
+const RETRYABLE_OPERATIONAL_PURPOSES = new Set([
+  "payslip-ready",
+  "demo-request",
+  "trial-access-request",
+  "payroll-outsourcing-enquiry",
+]);
 const AUTO_RETRY_DELAYS_MS = [
   5 * 60 * 1000,
   30 * 60 * 1000,
@@ -252,7 +258,7 @@ export async function queueMessage(input: {
     deliveryStatus: providerName === "none" ? "queued" : "sending",
     deliveryUpdatedAt: new Date(),
     metadata: input.audit?.metadata ?? {},
-    maxAttempts: input.purpose === "payslip-ready" ? MAX_AUTOMATIC_RETRIES + 1 : 1,
+    maxAttempts: RETRYABLE_OPERATIONAL_PURPOSES.has(input.purpose) ? MAX_AUTOMATIC_RETRIES + 1 : 1,
   }).onConflictDoNothing().returning();
 
   if (!created) {
