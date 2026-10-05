@@ -1,4 +1,5 @@
-import "@/components/marketing/claude-home/home.css";\nimport "@/components/marketing/claude-home/modern-home.css";
+import "@/components/marketing/claude-home/home.css";
+import "@/components/marketing/claude-home/modern-home.css";
 import type { Metadata } from "next";
 import { SoftwareHome } from "@/components/marketing/software-home";
 import { HOMEPAGE_FAQS } from "@/components/marketing/homepage-faqs";
