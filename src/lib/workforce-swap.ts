@@ -9,6 +9,7 @@ export type ScheduleSwapSnapshot = {
   patternDayIndex: number | null;
   overrideId: number | null;
   workLocationOrgUnitId: number | null;
+  worksiteId: number | null;
   segments: Array<{
     shiftDefinitionId: number;
     shiftCode: string;
@@ -30,6 +31,7 @@ export function scheduleSwapSnapshot(schedule: ResolvedDailySchedule): ScheduleS
     patternDayIndex: schedule.patternDayIndex,
     overrideId: schedule.overrideId,
     workLocationOrgUnitId: schedule.workLocationOrgUnitId,
+    worksiteId: schedule.worksiteId,
     segments: schedule.segments.map((segment) => ({
       shiftDefinitionId: segment.shiftDefinitionId,
       shiftCode: segment.shiftCode,
@@ -80,6 +82,7 @@ export function scheduleSwapOverrideValues(
       segmentOrder: segment.segmentOrder,
     })),
     workLocationOrgUnitId: incoming.workLocationOrgUnitId,
+    worksiteId: incoming.worksiteId,
     reason,
   };
 }
