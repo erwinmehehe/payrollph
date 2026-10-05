@@ -5,6 +5,8 @@ import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 import { StructuredData } from "@/components/marketing/structured-data";
 
 const comparisons = [
+  { title: "Payroll system comparison", href: "/resources/payroll-system-comparison", description: "Use one evaluation matrix for calculations, controls, implementation, integrations, security and evidence." },
+  { title: "HRIS vs payroll system", href: "/resources/hris-vs-payroll-system", description: "Compare employee-information workflows with payroll calculation, compliance and release responsibilities." },
   { title: "Payroll software vs outsourcing", href: "/resources/payroll-software-vs-outsourcing", description: "Compare operating ownership, staffing, approvals and exception handling." },
   { title: "Payroll software vs Excel", href: "/resources/payroll-software-vs-excel", description: "Compare spreadsheet flexibility with controlled payroll workflow." },
   { title: "Cloud vs on-premise payroll", href: "/resources/cloud-vs-on-premise-payroll", description: "Compare infrastructure, updates, access and continuity responsibilities." },
@@ -13,7 +15,7 @@ const comparisons = [
 
 export const metadata: Metadata = {
   title: "Payroll Software Comparisons Philippines | Linaw",
-  description: "Compare payroll software with outsourcing, spreadsheets, on-premise deployment and internal software development.",
+  description: "Compare Philippine payroll systems, HRIS, outsourcing, spreadsheets, cloud vs on-premise deployment and build-vs-buy operating models.",
   alternates: { canonical: "/compare" },
 };
 
