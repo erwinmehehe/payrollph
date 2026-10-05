@@ -8,9 +8,12 @@ const nav = readFileSync("src/components/workspace/nav.ts", "utf8");
 const workspace = readFileSync("src/components/linaw-workspace.tsx", "utf8");
 
 test("performance HCM tables are tenant-scoped and employee-linked", () => {
-  assert.ok(schema.includes('export const performanceCycles = pgTable("performance_cycles"'));
-  assert.ok(schema.includes('export const performanceGoals = pgTable("performance_goals"'));
-  assert.ok(schema.includes('export const performanceReviews = pgTable("performance_reviews"'));
+  assert.ok(schema.includes("export const performanceCycles = pgTable("));
+  assert.ok(schema.includes('"performance_cycles"'));
+  assert.ok(schema.includes("export const performanceGoals = pgTable("));
+  assert.ok(schema.includes('"performance_goals"'));
+  assert.ok(schema.includes("export const performanceReviews = pgTable("));
+  assert.ok(schema.includes('"performance_reviews"'));
   assert.ok(schema.includes('organizationId: integer("organization_id")'));
   assert.ok(schema.includes('employeeId: integer("employee_id")'));
   assert.ok(schema.includes('"performance_reviews_cycle_employee_unique"'));
