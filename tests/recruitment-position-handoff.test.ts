@@ -45,6 +45,8 @@ test("Hire and onboard is a single governed conversion", () => {
   assert.ok(hire.includes("applicant.hiredEmployeeId"));
   assert.ok(hire.includes("payProfile.monthlyEquivalent * 12 > annualBudget"));
   assert.ok(hire.includes("db.transaction"));
+  assert.ok(hire.includes("pg_advisory_xact_lock(4101"));
+  assert.ok(hire.includes("pg_advisory_xact_lock(4102"));
   assert.ok(hire.includes("tx.insert(employees)"));
   assert.ok(hire.includes("tx.insert(employeePayProfiles)"));
   assert.ok(hire.includes("tx.insert(provisioningTasks)"));
@@ -60,6 +62,8 @@ test("position state cannot claim recruiting or filled without its underlying re
   assert.ok(planning.includes('status === "filled"'));
   assert.ok(planning.includes('"A position can be marked filled only through an active employee assignment."'));
   assert.ok(planning.includes('set({ status: "cancelled" })'));
+  assert.ok(planning.includes("pg_advisory_xact_lock(4102"));
+  assert.ok(schema.includes('"position_assignments_active_position_unique"'));
 });
 
 test("Planning and Recruitment expose the end-to-end handoff", () => {
