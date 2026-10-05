@@ -1,7 +1,6 @@
 
 "use client";
 
-import { useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -10,17 +9,14 @@ import {
   Calculator,
   Check,
   ChevronRight,
-  CircleDollarSign,
-  Database,
   Download,
-  FileCheck2,
   History,
-  Landmark,
   LockKeyhole,
+  Menu,
   Search,
   ShieldCheck,
   Sparkles,
-  Users,
+  X,
 } from "lucide-react";
 
 type Plan = {
