@@ -22,6 +22,7 @@ import {
   validatePostingCorrection,
 } from "@/lib/statutory-remittance-correction";
 import { syncStatutoryRemittanceActions } from "@/lib/statutory-remittance-actions";
+import { invalidateStatutoryRemittanceMonthCertification } from "@/lib/statutory-remittance-certification";
 import { ensureStatutoryRemittanceCorrectionSchema } from "@/lib/statutory-remittance-correction-schema";
 import {
   enforceSameOriginMutation,
@@ -490,6 +491,34 @@ export async function POST(request: Request) {
         decisionNote,
       },
     });
+
+    const [correctedBatch] = await db.select({
+      applicableMonth: statutoryRemittanceBatches.applicableMonth,
+    }).from(statutoryRemittanceBatches).where(and(
+      eq(statutoryRemittanceBatches.id, correction.batchId),
+      eq(statutoryRemittanceBatches.organizationId, organizationId),
+    )).limit(1);
+    if (correctedBatch) {
+      const invalidatedClosures = await invalidateStatutoryRemittanceMonthCertification({
+        organizationId,
+        applicableMonth: correctedBatch.applicableMonth,
+        reason: `Approved remittance correction #${correction.id} changed certified month evidence.`,
+      });
+      if (invalidatedClosures.length > 0) {
+        await recordAuditEvent({
+          organizationId,
+          actor: user.name,
+          action: "Statutory remittance month certification invalidated",
+          resource: correctedBatch.applicableMonth,
+          metadata: {
+            reason: "approved_remittance_evidence_correction",
+            correctionId: correction.id,
+            invalidatedClosureIds: invalidatedClosures.map((row) => row.id),
+          },
+        });
+      }
+    }
+
     await syncStatutoryRemittanceActions(organizationId, user.name);
 
     return Response.json({ correction: updatedCorrection });
