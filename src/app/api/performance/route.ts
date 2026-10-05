@@ -13,12 +13,13 @@ import {
   assertScope,
   getAccess,
   PEOPLE_ADMIN_ROLES,
+  TALENT_MANAGER_ROLES,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
-const PERFORMANCE_ROLES = ["owner", "admin", "hr", "manager"] as const;
+const PERFORMANCE_ROLES = TALENT_MANAGER_ROLES;
 
 function validIsoDate(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -311,14 +312,14 @@ export async function PATCH(request: Request) {
     if (!Number.isInteger(id)) return Response.json({ error: "Review id is required." }, { status: 400 });
     const [existing] = await db.select().from(performanceReviews).where(eq(performanceReviews.id, id)).limit(1);
     if (!existing) return Response.json({ error: "Review not found." }, { status: 404 });
-    if (existing.status === "completed") {
-      return Response.json({ error: "Completed performance reviews are immutable." }, { status: 409 });
-    }
 
     const denied = await assertOrganizationRole(user.id, existing.organizationId, PERFORMANCE_ROLES);
     if (denied) return denied;
     const scoped = await scopedEmployee(user.id, existing.organizationId, existing.employeeId);
     if ("error" in scoped) return scoped.error;
+    if (existing.status === "completed") {
+      return Response.json({ error: "Completed performance reviews are immutable." }, { status: 409 });
+    }
     if (scoped.access.role === "manager" && existing.reviewerUserId !== user.id) {
       return Response.json({ error: "Only the assigned reviewer can complete this performance review." }, { status: 403 });
     }
