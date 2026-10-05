@@ -188,6 +188,13 @@ export const SEO_INTENT_OWNERS: SeoIntentOwner[] = [
     supportingIntents: ["sprout payroll alternatives", "alternative to sprout payroll philippines"],
     note: "Branded competitor-alternative intent only. Do not broaden into generic payroll software Philippines intent.",
   },
+  {
+    primaryIntent: "greatday hr alternative philippines",
+    ownerPath: "/resources/greatday-hr-alternative",
+    intentClass: "guide",
+    supportingIntents: ["greatday alternative philippines", "alternative to greatday hr philippines"],
+    note: "Branded competitor-alternative intent only. Do not broaden into generic payroll software Philippines intent.",
+  },
   { primaryIntent: "payroll software vs outsourcing philippines", ownerPath: "/resources/payroll-software-vs-outsourcing", intentClass: "guide" },
   {
     primaryIntent: "payroll software vs excel",

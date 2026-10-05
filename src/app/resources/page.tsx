@@ -9,8 +9,9 @@ import { resourceWave3 } from "@/lib/seo-content-wave3";
 import { resourceWave14 } from "@/lib/seo-content-wave14";
 import { resourceWave16 } from "@/lib/seo-content-wave16";
 import { resourceWave17 } from "@/lib/seo-content-wave17";
+import { resourceWave20 } from "@/lib/seo-content-wave20";
 
-const resources = [...resourcePages, ...resourceWave2, ...resourceWave3, ...resourceWave14, ...resourceWave16, ...resourceWave17];
+const resources = [...resourcePages, ...resourceWave2, ...resourceWave3, ...resourceWave14, ...resourceWave16, ...resourceWave17, ...resourceWave20];
 const bySlug = new Map(resources.map((page) => [page.slug, page]));
 
 const resourceGroups = [
@@ -19,6 +20,8 @@ const resourceGroups = [
     description: "Shortlist systems using evidence, operating fit, security, deployment model and total cost instead of a generic feature checklist.",
     slugs: [
       "best-payroll-software-philippines",
+      "sprout-payroll-alternative",
+      "greatday-hr-alternative",
       "payroll-system-comparison",
       "payroll-rfp-checklist",
       "payroll-software-vs-excel",

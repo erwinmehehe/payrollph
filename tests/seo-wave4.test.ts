@@ -84,7 +84,9 @@ test("comparison hub keeps neutral guides and requires evidence for named compet
     assert.ok(!salarium.toLowerCase().includes("salarium is non-compliant"));
   }
 
-  assert.ok(!compare.includes("GreatDay"), "GreatDay must not be named until a source-backed comparison page exists");
+  if (compare.includes("GreatDay")) {
+    assert.ok(existsSync("src/lib/seo-content-wave20.ts"), "GreatDay comparison must have a source-backed content registry");
+  }
 });
 
 test("customer story infrastructure cannot fabricate social proof", () => {
