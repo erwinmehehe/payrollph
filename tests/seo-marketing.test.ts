@@ -116,7 +116,7 @@ test("non-content auth routes stay out of the search index", () => {
 
 test("canonical host fallback stays aligned with the deployed public app", () => {
   const helper = read("src/lib/site-url.ts");
-  assert.ok(helper.includes("https://erwinmehehe-payrollph.vercel.app"), "site-url fallback must match the current public app");
+  assert.ok(helper.includes("APP_BASE_URL"), "site URL helper must prefer the configured public base URL");
   assert.ok(!helper.includes("payrollph-three.vercel.app"), "stale fallback domain must not return");
 });
 
