@@ -112,7 +112,17 @@ Guardrail: performance scores may inform a cycle, but no automatic salary change
 
 ## Tranche 7 — Recruitment maturity
 
-Existing ATS is useful but shallow. Add:
+Position-to-requisition and candidate-to-employee handoff foundation implemented on `feat/hcm-recruiting-lifecycle`.
+
+Built:
+- Approved/open position -> requisition without re-keying title, org unit, manager, employment type, target date or salary budget
+- One active requisition per planned position
+- Offer amount captured before hire
+- Candidate hire -> employee record + pay profile + position assignment + onboarding checklist in one transaction
+- Candidate and requisition retain employee/position lineage
+- Filled state cannot be reached by a cosmetic candidate-stage change
+
+Remaining:
 - Hiring stages configurable per requisition
 - Interview panels, scorecards and scheduling
 - Candidate source and referral tracking
@@ -148,7 +158,7 @@ Only after clean data models:
 1. Performance foundation — now built
 2. Job architecture + positions
 3. Workforce/headcount planning
-4. Recruitment-to-position handoff
+4. Recruitment-to-position handoff — implemented foundation
 5. Compensation bands + review cycles
 6. Learning/skills/career
 7. SSO/OIDC + SCIM
