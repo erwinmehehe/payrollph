@@ -35,7 +35,7 @@ export const compliancePages: AuthorityPage[] = [
     slug: "sss",
     eyebrow: "SSS payroll compliance",
     title: "SSS contribution handling inside Philippine payroll.",
-    description: "Understand SSS employee and employer contribution handling, payroll deduction timing and validation controls in Linaw.",
+    description: "SSS payroll compliance guide for Philippine employers covering employee and employer shares, EC, salary credits, cutoff timing and R-3 validation controls.",
     intro: "Linaw contains a tested SSS contribution path that separates employee contribution, employer share and EC, while keeping filing acceptance as a separate proof requirement.",
     proof: ["Employee and employer SSS share calculation", "Employer EC handling", "Monthly salary credit logic", "Cutoff deduction timing controls", "R-3 draft workflow", "Validation evidence gate"],
     sections: [
@@ -55,7 +55,7 @@ export const compliancePages: AuthorityPage[] = [
     eyebrow: "PhilHealth payroll compliance",
     title: "PhilHealth contribution handling for Philippine payroll.",
     metaTitle: "PhilHealth Payroll Compliance Philippines | Linaw",
-    description: "PhilHealth payroll contribution guide covering contribution base, employee and employer shares, payroll treatment and validation status.",
+    description: "PhilHealth payroll compliance guide covering contribution-base rules, employee and employer shares, centavo reconciliation, deductions and RF-1 validation.",
     intro: "Linaw's payroll rules compute the PhilHealth premium and split the resulting statutory amount between employee and employer while preserving centavo-level reconciliation.",
     proof: ["Contribution-base floor and ceiling logic", "Employee/employer split", "Centavo reconciliation", "Payroll deduction integration", "RF-1 draft workflow", "Validation evidence gate"],
     sections: [
@@ -75,7 +75,7 @@ export const compliancePages: AuthorityPage[] = [
     eyebrow: "Pag-IBIG payroll compliance",
     title: "Pag-IBIG contribution handling for Philippine payroll.",
     metaTitle: "Pag-IBIG Payroll Compliance Philippines | Linaw",
-    description: "Pag-IBIG payroll contribution guide for employee and employer shares, payroll deduction timing and filing-validation controls.",
+    description: "Pag-IBIG payroll compliance guide covering employee and employer shares, fund-salary caps, cutoff timing, monthly liability and MCRF validation.",
     intro: "Linaw computes Pag-IBIG contribution shares in the payroll rules and keeps monthly liability, cutoff collection and government-output validation as distinct concerns.",
     proof: ["Fund-salary cap logic", "Employee rate handling", "Employer share calculation", "Cutoff deduction timing", "MCRF draft workflow", "Validation evidence gate"],
     sections: [
@@ -94,7 +94,7 @@ export const compliancePages: AuthorityPage[] = [
     slug: "dole",
     eyebrow: "DOLE payroll compliance",
     title: "DOLE payroll rules that affect pay calculations.",
-    description: "Guide to payroll rules involving overtime, night differential, holidays, rest days, pay intervals and wage-order review in the Philippines.",
+    description: "DOLE payroll compliance guide for overtime, night differential, holidays, rest days, pay intervals and wage-order review in Philippine payroll.",
     intro: "Linaw models several DOLE-relevant payroll conditions directly in the calculation path, including overtime, night differential, holiday premiums, rest-day context and payroll interval checks.",
     proof: ["Overtime multipliers", "Night differential handling", "Holiday and double-holiday context", "Effective-dated rest days", "Regional wage-order screening references", "Payroll interval validation"],
     sections: [
@@ -250,7 +250,7 @@ export const industryPages: AuthorityPage[] = [
     eyebrow: "Payroll software for accounting firms",
     title: "Multi-client payroll for Philippine accounting firms and bookkeepers.",
     metaTitle: "Payroll Software for Accounting Firms Philippines | Linaw",
-    description: "Payroll workspace for bookkeepers and accounting firms managing multiple Philippine client businesses with scoped access, payroll runs, exports and compliance context.",
+    description: "Payroll software for Philippine accounting firms managing multiple client businesses with tenant-scoped access, payroll runs, exports and audit trails.",
     intro: "Linaw's multi-client architecture is built for operators who need to switch between client businesses without collapsing every company into one payroll workspace.",
     proof: ["Multi-client bookkeeper hub", "Tenant-scoped authorization", "Client-specific payroll runs", "Accounting exports", "Compliance context", "Audit trail"],
     sections: [
@@ -290,7 +290,7 @@ export const industryPages: AuthorityPage[] = [
     eyebrow: "Manufacturing payroll Philippines",
     title: "Payroll and timekeeping for Philippine manufacturing teams.",
     metaTitle: "Manufacturing Payroll Software Philippines | Linaw",
-    description: "Payroll software for manufacturers with shifts, biometrics, overtime, rest days, holidays, multiple work groups and controlled payroll review.",
+    description: "Payroll software for Philippine manufacturers with shifts, biometrics, overtime, rest days, holiday premiums, work groups and controlled payroll review.",
     intro: "Manufacturing payroll is heavily shaped by attendance, schedules, overtime, rest days and holiday work. Linaw models those conditions before payroll reaches review and release.",
     proof: ["Shift scheduling", "Biometric sync endpoint", "Overtime workflows", "Effective-dated rest days", "Holiday premium logic", "Department scope"],
     sections: [
