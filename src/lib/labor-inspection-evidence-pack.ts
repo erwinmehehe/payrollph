@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-export const LABOR_INSPECTION_EVIDENCE_PACK_VERSION = "labor-inspection-pack-v1";
+export const LABOR_INSPECTION_EVIDENCE_PACK_VERSION = "labor-inspection-pack-v2";
 
 export type EvidenceSection<T = unknown> = {
   name: string;
@@ -34,6 +34,10 @@ export type LaborInspectionEvidencePack = {
     payslipIndex: EvidenceSection;
     thirteenthMonth: EvidenceSection;
     statutoryRemittances: EvidenceSection;
+    governmentFilingEvidence: EvidenceSection;
+    complianceCalendar: EvidenceSection;
+    policyReview: EvidenceSection;
+    contributionCases: EvidenceSection;
     finalPay: EvidenceSection;
     remediationRegister: EvidenceSection;
     activeFindings: EvidenceSection;

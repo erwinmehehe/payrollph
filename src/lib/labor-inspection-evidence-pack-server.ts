@@ -3,6 +3,7 @@ import { db } from "@/db";
 import {
   employeePayProfiles,
   employees,
+  governmentFilingValidations,
   historicalPayrollEntries,
   laborInspectionRemediations,
   organizations,
@@ -10,11 +11,15 @@ import {
   payrollRuns,
   payslips,
   separationRecords,
+  statutoryContributionIssueCases,
   statutoryRemittanceBatches,
   statutoryRemittanceMembers,
   timePunches,
 } from "@/db/schema";
+import { buildComplianceCalendar } from "@/lib/compliance-calendar";
+import { buildCompliancePolicyReviewForOrganization } from "@/lib/compliance-policy-review-server";
 import { readBasicAndThirteenth } from "@/lib/final-pay";
+import { findFilingForm, provesOperationalFiling } from "@/lib/filing-evidence";
 import {
   buildLaborInspectionEvidencePack,
   evidenceSection,
@@ -36,6 +41,7 @@ export async function buildLaborInspectionEvidencePackForOrganization(input: {
   const [organization] = await db.select({
     id: organizations.id,
     legalName: organizations.legalName,
+    philHealthEmployerNo: organizations.philHealthEmployerNo,
   }).from(organizations)
     .where(eq(organizations.id, input.organizationId))
     .limit(1);
@@ -51,7 +57,10 @@ export async function buildLaborInspectionEvidencePackForOrganization(input: {
     remittanceMemberRows,
     separationRowsAll,
     remediationRows,
+    filingRowsAll,
+    contributionCaseRowsAll,
     readiness,
+    policyReview,
   ] = await Promise.all([
     db.select().from(employees)
       .where(eq(employees.organizationId, input.organizationId))
@@ -92,7 +101,14 @@ export async function buildLaborInspectionEvidencePackForOrganization(input: {
     db.select().from(laborInspectionRemediations)
       .where(eq(laborInspectionRemediations.organizationId, input.organizationId))
       .orderBy(asc(laborInspectionRemediations.createdAt), asc(laborInspectionRemediations.id)),
+    db.select().from(governmentFilingValidations)
+      .where(eq(governmentFilingValidations.organizationId, input.organizationId))
+      .orderBy(asc(governmentFilingValidations.createdAt), asc(governmentFilingValidations.id)),
+    db.select().from(statutoryContributionIssueCases)
+      .where(eq(statutoryContributionIssueCases.organizationId, input.organizationId))
+      .orderBy(asc(statutoryContributionIssueCases.createdAt), asc(statutoryContributionIssueCases.id)),
     buildLaborInspectionReadiness(input.organizationId, { today: input.today }),
+    buildCompliancePolicyReviewForOrganization(input.organizationId, input.today),
   ]);
 
   const employeeById = new Map(employeeRows.map((row) => [row.id, row]));
@@ -302,6 +318,118 @@ export async function buildLaborInspectionEvidencePackForOrganization(input: {
     };
   });
 
+  const filingRows = filingRowsAll.filter((row) =>
+    row.status !== "accepted"
+    || row.applicableMonth?.startsWith(`${taxYear}-`)
+    || row.periodLabel.includes(String(taxYear))
+  );
+  const governmentFilingEvidence = filingRows.map((row) => ({
+    agency: row.agency,
+    form: row.form,
+    periodLabel: row.periodLabel,
+    applicableMonth: row.applicableMonth,
+    employeeCount: row.employeeCount,
+    reportedTotal: row.reportedTotal == null ? null : Number(row.reportedTotal),
+    fileName: row.fileName,
+    fileSha256: row.fileSha256,
+    generatorVersion: row.generatorVersion,
+    status: row.status,
+    submissionMethod: row.submissionMethod,
+    agencyReference: row.agencyReference,
+    submittedAt: row.submittedAt ? new Date(row.submittedAt).toISOString() : null,
+    outcomeNote: row.outcomeNote,
+    generatedBy: row.generatedBy,
+    recordedBy: row.recordedBy,
+    recordedAt: row.recordedAt ? new Date(row.recordedAt).toISOString() : null,
+  }));
+
+  const bir1601Definition = findFilingForm("BIR", "1601-C");
+  const bir1601cOperationalMonths = bir1601Definition
+    ? [...new Set(
+        filingRowsAll
+          .filter((row) => provesOperationalFiling(row, bir1601Definition))
+          .flatMap((row) => row.applicableMonth ? [row.applicableMonth] : []),
+      )]
+    : [];
+  const contributionMonths = [...new Set(runRows.map((run) => String(run.periodEnd).slice(0, 7)))].sort();
+  const birApplicableMonths = [...new Set(runRows.map((run) => String(run.payDate).slice(0, 7)))].sort();
+  const currentMonth = input.today.slice(0, 7);
+  const complianceCalendar = buildComplianceCalendar({
+    today: input.today,
+    currentMonth,
+    applicableMonths: contributionMonths,
+    birApplicableMonths,
+    legalName: organization.legalName,
+    philHealthEmployerNo: organization.philHealthEmployerNo,
+    bir1601cOperationalMonths,
+    batches: remittanceRowsAll.map((batch) => ({
+      agency: batch.agency,
+      applicableMonth: batch.applicableMonth,
+      dueDate: String(batch.dueDate),
+      status: batch.status,
+      pendingPostingCount: remittanceMemberRows.filter(
+        (member) => member.batchId === batch.id && member.postingStatus === "pending",
+      ).length,
+      exceptionCount: remittanceMemberRows.filter(
+        (member) => member.batchId === batch.id && member.postingStatus === "exception",
+      ).length,
+    })),
+  }).map((item) => ({
+    id: item.id,
+    agency: item.agency,
+    obligation: item.obligation,
+    applicableMonth: item.applicableMonth,
+    dueDate: item.dueDate,
+    status: item.status,
+    exactness: item.exactness,
+    detail: item.detail,
+    sourceLabel: item.sourceLabel,
+    sourceUrl: item.sourceUrl,
+  }));
+
+  const policyReviewRows = policyReview.findings.map((finding) => ({
+    key: finding.key,
+    domain: finding.domain,
+    severity: finding.severity,
+    title: finding.title,
+    detail: finding.detail,
+    governingRule: finding.governingRule,
+    sourceLabel: finding.sourceLabel,
+    sourceUrl: finding.sourceUrl,
+    affectedEmployees: finding.affectedEmployees ?? null,
+    affectedPatterns: finding.affectedPatterns ?? null,
+    remediation: finding.remediation,
+    reviewWindow: policyReview.reviewWindow,
+  }));
+
+  const contributionCases = contributionCaseRowsAll
+    .filter((row) =>
+      row.status !== "resolved"
+      || new Date(row.createdAt).getUTCFullYear() === taxYear
+      || (row.resolvedAt ? new Date(row.resolvedAt).getUTCFullYear() === taxYear : false)
+    )
+    .map((row) => {
+      const employee = employeeById.get(row.employeeId);
+      return {
+        caseId: row.id,
+        employeeNo: employee?.employeeNo ?? `#${row.employeeId}`,
+        employeeName: employee ? `${employee.firstName} ${employee.lastName}` : null,
+        agency: row.agency,
+        applicableMonth: row.applicableMonth,
+        issueType: row.issueType,
+        description: row.description,
+        status: row.status,
+        reportedByName: row.reportedByName,
+        assignedToName: row.assignedToName,
+        reviewStartedAt: row.reviewStartedAt ? new Date(row.reviewStartedAt).toISOString() : null,
+        resolutionOutcome: row.resolutionOutcome,
+        resolutionNote: row.resolutionNote,
+        resolvedByName: row.resolvedByName,
+        resolvedAt: row.resolvedAt ? new Date(row.resolvedAt).toISOString() : null,
+        createdAt: new Date(row.createdAt).toISOString(),
+      };
+    });
+
   const remediationRegister = remediationRows.map((row) => ({
     findingKey: row.findingKey,
     ruleCode: row.ruleCode,
@@ -334,7 +462,10 @@ export async function buildLaborInspectionEvidencePackForOrganization(input: {
   return buildLaborInspectionEvidencePack({
     generatedAt: new Date().toISOString(),
     generatedBy: input.generatedBy,
-    organization,
+    organization: {
+      id: organization.id,
+      legalName: organization.legalName,
+    },
     range: {
       startDate,
       endDate,
@@ -343,7 +474,7 @@ export async function buildLaborInspectionEvidencePackForOrganization(input: {
     boundaries: {
       certification: "This evidence pack is generated from PayrollPH records for inspection preparation. It is not a DOLE certification, compliance order, or agency acceptance.",
       sensitiveData: "Raw bank account numbers, government ID/member numbers, IP addresses, device serials, geolocation and authentication data are intentionally excluded.",
-      scope: "Payroll and general labor-standards evidence only. Occupational safety and health evidence is outside this package.",
+      scope: "Payroll and general labor-standards evidence only. The pack now includes payroll policy controls, statutory filing/remittance evidence and employee contribution cases. Occupational safety and health evidence remains outside this package.",
     },
     sections: {
       workerRoster: evidenceSection("worker-roster", workerRoster),
@@ -352,6 +483,10 @@ export async function buildLaborInspectionEvidencePackForOrganization(input: {
       payslipIndex: evidenceSection("payslip-index", payslipIndex),
       thirteenthMonth: evidenceSection("13th-month", thirteenthMonth),
       statutoryRemittances: evidenceSection("statutory-remittances", statutoryRemittances),
+      governmentFilingEvidence: evidenceSection("government-filing-evidence", governmentFilingEvidence),
+      complianceCalendar: evidenceSection("compliance-calendar", complianceCalendar),
+      policyReview: evidenceSection("policy-review", policyReviewRows),
+      contributionCases: evidenceSection("employee-contribution-cases", contributionCases),
       finalPay: evidenceSection("final-pay", finalPay),
       remediationRegister: evidenceSection("remediation-register", remediationRegister),
       activeFindings: evidenceSection("active-findings", activeFindings),
