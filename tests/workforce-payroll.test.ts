@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   matchPunchesToWorkforceSegments,
   payrollRestDayFromSchedule,
+  segmentPayableTime,
   workforceScheduleTrace,
 } from "../src/lib/workforce-payroll";
 import type { ResolvedDailySchedule } from "../src/lib/workforce-scheduling";
@@ -173,4 +174,118 @@ test("workforce trace persists assignment pattern override and shift identifiers
       spansMidnight: false,
     }],
   });
+});
+
+
+test("overnight payable time splits at midnight, night differential, and overtime boundaries", () => {
+  const result = segmentPayableTime({
+    punch: {
+      id: 401,
+      workDate: "2026-10-04",
+      timeIn: "2026-10-04T18:00:00+08:00",
+      timeOut: "2026-10-05T03:00:00+08:00",
+    },
+    shift: {
+      start: "18:00",
+      end: "02:00",
+      breakMinutes: 0,
+      spansMidnight: true,
+    },
+  });
+
+  assert.equal(result.allocationComplete, true);
+  assert.deepEqual(result.attendanceCalendarDates, ["2026-10-04", "2026-10-05"]);
+  assert.deepEqual(
+    result.segments.map((segment) => ({
+      date: segment.calendarDate,
+      minutes: segment.minutes,
+      overtime: segment.overtime,
+      night: segment.night,
+    })),
+    [
+      { date: "2026-10-04", minutes: 240, overtime: false, night: false },
+      { date: "2026-10-04", minutes: 120, overtime: false, night: true },
+      { date: "2026-10-05", minutes: 120, overtime: false, night: true },
+      { date: "2026-10-05", minutes: 60, overtime: true, night: true },
+    ],
+  );
+});
+
+test("payable time stops night differential at 06:00", () => {
+  const result = segmentPayableTime({
+    punch: {
+      id: 402,
+      workDate: "2026-10-05",
+      timeIn: "2026-10-05T05:00:00+08:00",
+      timeOut: "2026-10-05T07:00:00+08:00",
+    },
+    shift: {
+      start: "05:00",
+      end: "07:00",
+      breakMinutes: 0,
+    },
+  });
+
+  assert.deepEqual(
+    result.segments.map((segment) => ({
+      minutes: segment.minutes,
+      night: segment.night,
+    })),
+    [
+      { minutes: 60, night: true },
+      { minutes: 60, night: false },
+    ],
+  );
+});
+
+test("explicit break is removed before premium buckets are priced", () => {
+  const result = segmentPayableTime({
+    punch: {
+      id: 403,
+      workDate: "2026-10-04",
+      timeIn: "2026-10-04T21:00:00+08:00",
+      timeOut: "2026-10-05T07:00:00+08:00",
+      breakStart: "2026-10-05T01:00:00+08:00",
+      breakEnd: "2026-10-05T02:00:00+08:00",
+    },
+    shift: {
+      start: "21:00",
+      end: "07:00",
+      breakMinutes: 60,
+      spansMidnight: true,
+    },
+  });
+
+  assert.equal(result.allocationComplete, true);
+  assert.equal(
+    result.segments.reduce((minutes, segment) => minutes + segment.minutes, 0),
+    540,
+  );
+  assert.equal(
+    result.segments
+      .filter((segment) => segment.night)
+      .reduce((minutes, segment) => minutes + segment.minutes, 0),
+    420,
+  );
+});
+
+test("unlocated scheduled break fails closed instead of guessing a premium bucket", () => {
+  const result = segmentPayableTime({
+    punch: {
+      id: 404,
+      workDate: "2026-10-04",
+      timeIn: "2026-10-04T21:00:00+08:00",
+      timeOut: "2026-10-05T07:00:00+08:00",
+    },
+    shift: {
+      start: "21:00",
+      end: "07:00",
+      breakMinutes: 60,
+      spansMidnight: true,
+    },
+  });
+
+  assert.equal(result.allocationComplete, false);
+  assert.match(result.flags.join(" "), /break has no actual location/i);
+  assert.deepEqual(result.attendanceCalendarDates, ["2026-10-04", "2026-10-05"]);
 });

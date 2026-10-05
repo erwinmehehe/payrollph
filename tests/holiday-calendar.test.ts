@@ -45,11 +45,19 @@ test("mixed regular and special collision does not invent an unsupported combine
   assert.doesNotMatch(context.label ?? "", /double/);
 });
 
-test("payroll engine consumes the classified holiday context instead of a single calendar row", () => {
+test("payroll engine consumes classified holiday context for each actual payable calendar segment", () => {
   const engine = readFileSync("src/lib/payroll-engine.ts", "utf8");
-  assert.ok(engine.includes("holidayPayContextOn(workDate, input.holidayCalendar ?? NATIONAL_HOLIDAYS_2026)"));
+  assert.match(
+    engine,
+    /holidayPayContextOn\(\s*segment\.calendarDate,\s*input\.holidayCalendar \?\? NATIONAL_HOLIDAYS_2026/,
+  );
+  assert.match(
+    engine,
+    /holidayPayContextOn\(\s*workDate,\s*input\.holidayCalendar \?\? NATIONAL_HOLIDAYS_2026/,
+  );
   assert.ok(engine.includes("holiday: holidayContext.holiday"));
   assert.ok(engine.includes("holidayContext.holidays.length > 0"));
+  assert.ok(engine.includes('version: "workforce-time-v1"'));
   assert.ok(engine.includes("const employeeHolidayCalendar: HolidayCalendarEntry[] = ["));
   assert.ok(engine.includes("localHolidayRows"));
   assert.ok(engine.includes("workforceHolidayApplies({"));
