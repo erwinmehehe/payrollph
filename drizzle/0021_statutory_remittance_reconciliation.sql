@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS "statutory_remittance_batches" (
   "payment_reference" varchar(120),
   "agency_receipt_reference" varchar(120),
   "payment_channel" varchar(80),
+  "payment_variance_note" varchar(240),
   "paid_at" timestamptz,
   "payment_recorded_by" varchar(120),
   "reconciled_at" timestamptz,
