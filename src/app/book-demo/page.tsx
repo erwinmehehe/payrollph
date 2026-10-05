@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Check, ShieldCheck } from "lucide-react";
 import { BookDemoForm } from "@/components/marketing/book-demo-form";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
+import { StructuredData } from "@/components/marketing/structured-data";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,7 @@ export const metadata: Metadata = {
 export default function BookDemoPage() {
   return (
     <div className="min-h-screen bg-white text-[#0B0D1A]">
+      <StructuredData breadcrumbs={[{ name: "Home", path: "/" }, { name: "Book a payroll demo", path: "/book-demo" }]} />
       <SiteNav />
 
       <main>
