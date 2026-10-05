@@ -14,6 +14,11 @@ export const CALCULATORS = {
     description: "Estimate night differential using hourly rate, hours and work-day context.",
     intro: "Estimate the 10% night differential component using the applicable base-day multiplier from Linaw's payroll rule implementation.",
   },
+  "holiday-pay": {
+    title: "Holiday Pay Calculator Philippines",
+    description: "Estimate premium pay for worked regular holidays, special non-working days and rest-day combinations.",
+    intro: "Enter a daily rate and choose the day context. The estimate uses Linaw's shared holiday/rest-day multiplier logic.",
+  },
   "sss-contribution": {
     title: "SSS Contribution Calculator Philippines",
     description: "Estimate employee, employer and EC SSS contributions using Linaw's configured payroll rules.",
@@ -33,6 +38,11 @@ export const CALCULATORS = {
     title: "Withholding Tax Calculator Philippines",
     description: "Estimate monthly compensation withholding using Linaw's BIR payroll rule implementation.",
     intro: "Enter monthly taxable compensation, not gross salary. This estimate uses Linaw's monthly withholding-tax function.",
+  },
+  "payroll-cost": {
+    title: "Employer Payroll Cost Calculator Philippines",
+    description: "Estimate monthly employer payroll cost from salary plus configured employer SSS, PhilHealth and Pag-IBIG contributions.",
+    intro: "Estimate core monthly employer payroll cost using the same statutory contribution functions used by Linaw. This does not include every possible benefit, premium or employer-specific cost.",
   },
 } as const;
 
