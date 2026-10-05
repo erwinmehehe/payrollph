@@ -56,6 +56,7 @@ export async function GET(request: Request) {
 
   const runs = await db.select({
     periodEnd: payrollRuns.periodEnd,
+    payDate: payrollRuns.payDate,
   }).from(payrollRuns)
     .where(eq(payrollRuns.organizationId, organizationId))
     .orderBy(desc(payrollRuns.periodEnd), desc(payrollRuns.id))
@@ -63,6 +64,9 @@ export async function GET(request: Request) {
 
   const applicableMonths = [...new Set(
     runs.map((run) => String(run.periodEnd).slice(0, 7)),
+  )].slice(0, 4);
+  const birApplicableMonths = [...new Set(
+    runs.map((run) => String(run.payDate).slice(0, 7)),
   )].slice(0, 4);
 
   if (applicableMonths.length === 0) {
@@ -122,6 +126,7 @@ export async function GET(request: Request) {
     today,
     currentMonth,
     applicableMonths,
+    birApplicableMonths,
     legalName: organization.legalName,
     philHealthEmployerNo: organization.philHealthEmployerNo,
     bir1601cOperationalMonths,
@@ -141,7 +146,7 @@ export async function GET(request: Request) {
 
   return Response.json({
     today,
-    applicableMonths,
+    applicableMonths: [...new Set([...applicableMonths, ...birApplicableMonths])],
     items,
     note: "Dates are nominal statutory dates or conservative internal targets. Published agency calendars, filer classification, weekends and holidays can change the final filing/payment date.",
   }, {
