@@ -10,6 +10,7 @@ const portal = readFileSync("src/components/self-service-portal.tsx", "utf8");
 const modal = readFileSync("src/components/employee-contribution-issue-modal.tsx", "utf8");
 const payrollPanel = readFileSync("src/components/workspace/statutory-contribution-issue-cases-panel.tsx", "utf8");
 const dashboardData = readFileSync("src/lib/dashboard-data.ts", "utf8");
+const remittanceActions = readFileSync("src/lib/statutory-remittance-actions.ts", "utf8");
 
 test("employee contribution issue cases are first-class immutable audit records", () => {
   assert.ok(schema.includes('export const statutoryContributionIssueCases = pgTable('));
@@ -81,4 +82,11 @@ test("payroll UI exposes a review inbox and reminds operators to use audited cor
 
 test("employee contribution cases flow into existing payroll notification data", () => {
   assert.ok(dashboardData.includes('inArray(complianceActionTasks.sourceType, ["statutory_remittance", "employee_contribution_issue"])'));
+});
+
+
+test("hourly remittance auto-sync cannot auto-resolve employee-reported contribution cases", () => {
+  assert.ok(remittanceActions.includes('const SOURCE_TYPE = "statutory_remittance"'));
+  assert.ok(remittanceActions.includes("eq(complianceActionTasks.sourceType, SOURCE_TYPE)"));
+  assert.ok(!remittanceActions.includes('"employee_contribution_issue"'));
 });
