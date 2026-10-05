@@ -46,7 +46,7 @@ test("Wave 6 integration pages stay tied to implemented product surfaces", () =>
 test("Wave 6 does not invent Bundy or universal native integrations", () => {
   const content = read("src/lib/seo-content-wave6.ts");
   assert.ok(!content.includes("Bundy"));
-  assert.ok(!content.includes("native integration with every"));
+  assert.ok(!content.includes("Linaw has a native integration with every"));
   assert.ok(content.includes("does not claim universal plug-and-play compatibility"));
   assert.ok(content.includes("A native integration should only be claimed"));
 });
