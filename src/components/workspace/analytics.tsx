@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Download, FileBarChart2, RefreshCw, TrendingDown, UsersRound, WalletCards } from "lucide-react";
+import { AlertTriangle, Download, FileBarChart2, RefreshCw, ShieldCheck, TrendingDown, UsersRound, WalletCards } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
 import {
   EmptyState,
@@ -14,13 +14,14 @@ import {
   shortMoney,
 } from "./ui";
 
-type ReportKey = "headcount" | "cost" | "turnover" | "compliance";
+type ReportKey = "headcount" | "cost" | "turnover" | "compliance" | "assurance";
 
 const REPORTS: Array<{ key: ReportKey; name: string; description: string; icon: typeof UsersRound }> = [
   { key: "headcount", name: "Headcount movement", description: "Active, leave, disciplinary and separating counts by employment type", icon: UsersRound },
   { key: "cost", name: "Payroll cost", description: "Gross, deductions and net by run, with the rule version applied", icon: WalletCards },
   { key: "turnover", name: "Turnover risk", description: "Separating and disciplinary headcount as a share of the workforce", icon: TrendingDown },
   { key: "compliance", name: "Compliance exceptions", description: "Punch exceptions and flagged entries requiring sign-off", icon: AlertTriangle },
+  { key: "assurance", name: "Payroll assurance", description: "Blocking controls and material employee-level changes versus the previous payroll", icon: ShieldCheck },
 ];
 
 type ReportResult = { key: string; columns: string[]; rows: string[][]; generatedAt?: string };
@@ -237,7 +238,7 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
   );
 }
 
-const MONEY_COLUMNS = ["gross", "deductions", "net", "avg monthly basic"];
+const MONEY_COLUMNS = ["gross", "deductions", "net", "avg monthly basic", "current", "delta"];
 const NUMERIC_COLUMNS = [...MONEY_COLUMNS, "people", "employees", "count", "share of workforce"];
 
 const isMoneyColumn = (column: string) => MONEY_COLUMNS.some((name) => column.toLowerCase().includes(name));

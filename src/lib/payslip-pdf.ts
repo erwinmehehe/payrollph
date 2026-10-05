@@ -67,9 +67,19 @@ export type PayslipPdfInput = {
 };
 
 export function renderPayslipPdf(input: PayslipPdfInput): Buffer {
-  const ops: Op[] = [];
+  const pages: Op[][] = [[]];
+  let ops = pages[0];
   let y = PAGE_HEIGHT - MARGIN;
+  const startNewPage = () => {
+    pages.push([]);
+    ops = pages[pages.length - 1];
+    y = PAGE_HEIGHT - MARGIN;
+  };
+  const ensureSpace = (height = 24) => {
+    if (y - height < MARGIN + 28) startNewPage();
+  };
   const push = (text: string, x: number, size = 9, bold = false, gray: [number, number, number] = [0.09, 0.15, 0.12]) => {
+    ensureSpace(size + 8);
     ops.push({ text, x, y, size, bold, gray });
     y -= size + 5;
   };
@@ -89,6 +99,7 @@ export function renderPayslipPdf(input: PayslipPdfInput): Buffer {
     ["Rule version", input.ruleVersion],
   ];
   for (const [label, value] of meta) {
+    ensureSpace(18);
     ops.push({ text: `${label}`, x: MARGIN, y, size: 8, bold: false, gray: [0.5, 0.55, 0.53] });
     ops.push({ text: value, x: MARGIN + 90, y, size: 9, bold: true, gray: [0.09, 0.15, 0.12] });
     y -= 14;
@@ -99,6 +110,7 @@ export function renderPayslipPdf(input: PayslipPdfInput): Buffer {
     push(heading, MARGIN, 9, true, [0.09, 0.42, 0.36]);
     if (rows.length === 0) { push("None", MARGIN + 6, 8, false, [0.55, 0.58, 0.56]); y -= 4; return; }
     for (const row of rows) {
+      ensureSpace(row.note ? 48 : 20);
       ops.push({ text: row.label, x: MARGIN + 8, y, size: 9, bold: false, gray: [0.12, 0.19, 0.16] });
       ops.push({ text: row.amount, x: PAGE_WIDTH - MARGIN - 110, y, size: 9, bold: true, gray: [0.12, 0.19, 0.16] });
       y -= 13;
@@ -113,40 +125,57 @@ export function renderPayslipPdf(input: PayslipPdfInput): Buffer {
   };
 
   section("EARNINGS", input.lines);
+  ensureSpace(28);
   ops.push({ text: "GROSS PAY", x: MARGIN, y, size: 9, bold: true, gray: [0.09, 0.15, 0.12] });
   ops.push({ text: money(input.gross), x: PAGE_WIDTH - MARGIN - 110, y, size: 9, bold: true, gray: [0.09, 0.15, 0.12] });
   y -= 20;
 
   section("DEDUCTIONS", input.contributions);
+  ensureSpace(28);
   ops.push({ text: "TOTAL DEDUCTIONS", x: MARGIN, y, size: 9, bold: true, gray: [0.09, 0.15, 0.12] });
   ops.push({ text: money(input.deductions), x: PAGE_WIDTH - MARGIN - 110, y, size: 9, bold: true, gray: [0.09, 0.15, 0.12] });
   y -= 26;
 
+  ensureSpace(34);
   ops.push({ text: "NET PAY", x: MARGIN + 8, y, size: 12, bold: true, gray: [0.06, 0.35, 0.28] });
   ops.push({ text: money(input.net), x: PAGE_WIDTH - MARGIN - 130, y, size: 12, bold: true, gray: [0.06, 0.35, 0.28] });
   y -= 24;
 
   for (const note of [...(input.advisories ?? []), ...(input.flags ?? [])].slice(0, 6)) {
     for (const wrapped of wrap(`Note: ${note}`, 96).slice(0, 2)) {
+      ensureSpace(16);
       ops.push({ text: wrapped, x: MARGIN, y, size: 7.5, bold: false, gray: [0.55, 0.42, 0.18] });
       y -= 11;
     }
   }
 
-  ops.push({
-    text: `Every amount traces to its inputs and to rule version ${input.ruleVersion}.`,
-    x: MARGIN, y: MARGIN + 12, size: 7, bold: false, gray: [0.52, 0.56, 0.54],
+  pages.forEach((pageOps, index) => {
+    pageOps.push({
+      text: `Every amount traces to its inputs and to rule version ${input.ruleVersion}. Page ${index + 1} of ${pages.length}.`,
+      x: MARGIN, y: MARGIN + 12, size: 7, bold: false, gray: [0.52, 0.56, 0.54],
+    });
   });
 
-  const content = buildContentStream(ops);
+  const pageObjectIds = pages.map((_, index) => 3 + index * 2);
+  const contentObjectIds = pages.map((_, index) => 4 + index * 2);
+  const fontRegularId = 3 + pages.length * 2;
+  const fontBoldId = fontRegularId + 1;
   const objects: string[] = [
     "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> /Contents 4 0 R >>`,
-    `<< /Length ${Buffer.byteLength(content)} >>\nstream\n${content}endstream`,
+    `<< /Type /Pages /Kids [${pageObjectIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pages.length} >>`,
+  ];
+
+  pages.forEach((pageOps, index) => {
+    const content = buildContentStream(pageOps);
+    objects.push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 ${fontRegularId} 0 R /F2 ${fontBoldId} 0 R >> >> /Contents ${contentObjectIds[index]} 0 R >>`,
+      `<< /Length ${Buffer.byteLength(content)} >>\nstream\n${content}endstream`,
+    );
+  });
+  objects.push(
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
-  ];
+  );
 
   let pdf = "%PDF-1.4\n";
   const offsets: number[] = [];
