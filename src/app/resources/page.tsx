@@ -18,13 +18,13 @@ export const metadata: Metadata = {
 
 export default function ResourcesPage() {
   return (
-    <div className="min-h-screen bg-white text-[#0B0D1A]">
+    <div className="marketing-page min-h-screen bg-white text-[#101323]">
       <StructuredData breadcrumbs={[{ name: "Home", path: "/" }, { name: "Resources", path: "/resources" }]} />
       <SiteNav />
       <main>
-        <section className="border-b border-[#EDEFF7] py-16 sm:py-20">
+        <section className="border-b border-[#EAECF0] py-16 sm:py-20">
           <div className="mx-auto max-w-[1180px] px-5 sm:px-8">
-            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6161FF]">Payroll resources</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#444CE7]">Payroll resources</p>
             <h1 className="font-display mt-4 max-w-[900px] text-[44px] font-semibold leading-[1.04] tracking-[-0.045em] sm:text-[58px]">
               Practical guidance for buying, migrating and operating Philippine payroll.
             </h1>
@@ -41,11 +41,11 @@ export default function ResourcesPage() {
         <section className="py-16 sm:py-20">
           <div className="mx-auto grid max-w-[1180px] gap-4 px-5 sm:px-8 md:grid-cols-2">
             {resources.map((page) => (
-              <Link key={page.slug} href={`/resources/${page.slug}`} className="group rounded-[24px] border border-[#E4E6F0] bg-[#FAFBFD] p-6 transition hover:-translate-y-0.5 hover:border-[#CFCFFF]">
+              <Link key={page.slug} href={`/resources/${page.slug}`} className="group rounded-[24px] border border-[#E4E6F0] bg-[#FCFCFD] p-6 transition hover:-translate-y-0.5 hover:border-[#CFCFFF]">
                 <p className="text-[10px] font-bold uppercase tracking-[0.13em] text-[#7C82A1]">{page.eyebrow}</p>
                 <h2 className="font-display mt-2 text-[24px] font-semibold tracking-[-0.03em]">{page.title}</h2>
                 <p className="mt-3 text-[13.5px] leading-relaxed text-[#5B6080]">{page.description}</p>
-                <span className="mt-5 inline-flex items-center gap-2 text-[13px] font-semibold text-[#4A4AE0]">Read guide <ArrowRight size={14} /></span>
+                <span className="mt-5 inline-flex items-center gap-2 text-[13px] font-semibold text-[#444CE7]">Read guide <ArrowRight size={14} /></span>
               </Link>
             ))}
           </div>
