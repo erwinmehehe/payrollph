@@ -39,6 +39,12 @@ export default function BpoPayrollPage() {
           body: "Employee self-service exposes personal payslips and year-to-date payroll figures without opening other employees' data.",
         },
       ]}
+      faq={[
+        { question: "What makes BPO payroll difficult in the Philippines?", answer: "Round-the-clock schedules, night differential, overtime, rest days, attendance exceptions and frequent schedule changes make worked-time context central to payroll accuracy." },
+        { question: "Can night differential and overtime apply to the same shift?", answer: "Yes. A night shift can also contain overtime, so payroll should preserve both the applicable day premium and the night-differential component instead of flattening everything into one allowance." },
+        { question: "Why should rest days be effective-dated?", answer: "When rest-day assignments change, historical payroll should still use the schedule that applied on the original work date rather than today's assignment." },
+        { question: "Should payroll preparation and release be separate roles?", answer: "Separating preparation, checker review and final release creates a stronger control model for high-volume payroll operations." },
+      ]}
       related={[
         { label: "Time & attendance", href: "/time-and-attendance", description: "Explore schedules, punches, overtime and attendance exceptions." },
         { label: "Employee self-service", href: "/employee-self-service", description: "See the payroll portal employees can use after release." },
