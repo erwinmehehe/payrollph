@@ -14,7 +14,7 @@ test("public SEO infrastructure exists", () => {
     assert.ok(sitemap.includes(`path: "${route}"`), `sitemap must include ${route}`);
   }
   assert.ok(sitemap.includes("compliancePages.map"), "compliance child pages must be generated into the sitemap");
-  assert.ok(sitemap.includes("resourcePages.map"), "resource child pages must be generated into the sitemap");
+  assert.ok(sitemap.includes("resourcePages") && sitemap.includes("resourceWave2"), "resource child pages from both SEO waves must be generated into the sitemap");
   assert.ok(sitemap.includes("Object.keys(CALCULATORS)"), "calculator pages must be generated into the sitemap");
   assert.ok(robots.includes('"/api/"'), "robots must keep API routes out of crawl discovery");
   assert.ok(robots.includes('"/app/"'), "robots must keep the authenticated app out of crawl discovery");
