@@ -103,17 +103,27 @@ test("homepage simulation uses the real workspace navigation and no dead client 
   assert.ok(!preview.includes("client.id !== 1"), "homepage preview must not branch into disconnected client datasets");
 });
 
-test("homepage buyer flow avoids the old marquee and freelancer-first positioning", () => {
+test("homepage buyer flow explains payroll handoffs before secondary tools", () => {
   const home = read("src/components/marketing/claude-home/App.tsx");
   const product = read("src/components/marketing/claude-home/components/Product.tsx");
   const trust = read("src/components/marketing/claude-home/components/Trust.tsx");
+
   assert.ok(!home.includes("<TrustStrip />"), "homepage must not render the animated output marquee");
   assert.ok(!product.includes("export function TrustStrip"), "obsolete output marquee component must stay removed");
-  assert.ok(!trust.includes("Freelancers"), "homepage audience section must not lead with freelancers");
-  assert.ok(!trust.includes("Solo is free"), "homepage must not revive stale self-serve Solo claims");
-  for (const buyer of ["Small businesses", "Payroll teams", "Accounting firms", "Multi-branch employers"]) {
-    assert.ok(trust.includes(buyer), `homepage audience section must include ${buyer}`);
+  assert.ok(home.includes("<PayrollWorkflow />"), "homepage must explain the payroll handoff");
+  assert.ok(!home.includes("<Audiences />"), "generic audience cards must not interrupt the payroll story");
+
+  const workflowIndex = home.indexOf("<PayrollWorkflow />");
+  const pricingIndex = home.indexOf("<Pricing plans={plans} />");
+  const calculatorIndex = home.indexOf("<Calculator />");
+  assert.ok(workflowIndex > home.indexOf("<Demo />"), "workflow must follow the real product demo");
+  assert.ok(calculatorIndex > pricingIndex, "salary calculator must sit below pricing instead of interrupting the buyer journey");
+
+  for (const role of ["HR Admin", "Payroll Officer", "Checker", "Owner", "Employee"]) {
+    assert.ok(trust.includes(role), `workflow must include ${role}`);
   }
+  assert.ok(trust.includes("Who owns the next decision before money moves?"), "workflow must frame the next payroll decision");
+  assert.ok(!trust.includes("Solo is free"), "homepage must not revive stale self-serve Solo claims");
 });
 
 test("homepage pricing keeps persisted plan values inside the redesigned cards", () => {
