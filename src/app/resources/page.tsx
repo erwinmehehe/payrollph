@@ -6,7 +6,7 @@ import { resourcePages } from "@/lib/seo-content";
 
 export const metadata: Metadata = {
   title: "Philippine Payroll Guides & Buyer Resources | Linaw",
-  description: "Payroll software buying guides, migration checklists, security guidance and operational resources for Philippine employers.",
+  description: "Philippine payroll guides for software buying, migration, security, outsourcing decisions and spreadsheet-to-system planning for employers and payroll teams.",
   alternates: { canonical: "/resources" },
 };
 
