@@ -55,7 +55,8 @@ test("Salarium comparison avoids unsupported superiority and defect claims", () 
   ]) {
     assert.ok(!page.includes(forbidden), `unsupported claim: ${forbidden}`);
   }
-  assert.ok(page.includes("not claiming to be better"));
+  assert.ok(page.includes("is linaw claiming to be better than salarium?"));
+  assert.ok(page.includes("no. this is an alternative-comparison guide"));
   assert.ok(page.includes("when might salarium fit well"));
 });
 
