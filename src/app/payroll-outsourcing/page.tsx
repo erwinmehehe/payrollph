@@ -16,9 +16,8 @@ import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Payroll Outsourcing Philippines | Managed Payroll Services | Linaw",
-  description:
-    "Payroll outsourcing for Philippine businesses. Linaw handles payroll processing, validation, statutory calculations, reports and payroll-cycle coordination while you retain approval authority.",
+  title: "Payroll Outsourcing Philippines | Managed Payroll | Linaw",
+  description: "Payroll outsourcing for Philippine businesses covering payroll processing, exception review, statutory calculations, approvals, reports and supported outputs.",
   alternates: { canonical: "/payroll-outsourcing" },
 };
 
