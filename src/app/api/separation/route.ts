@@ -27,6 +27,7 @@ import { computeFinalPay, finalPayDueDate, readBasicAndThirteenth } from "@/lib/
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { ensureSeparationSchema } from "@/lib/separation-schema";
 import { requireSensitiveActionMfa } from "@/lib/security-request";
+import { runLifecycleAutomations } from "@/lib/automation";
 
 export const dynamic = "force-dynamic";
 
@@ -549,7 +550,11 @@ export async function PATCH(request: Request) {
   if (denied) return denied;
   const access = await getAccess(user.id, sep.organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
-  const [employee] = await db.select({ orgUnitId: employees.orgUnitId }).from(employees)
+  const [employee] = await db.select({
+    orgUnitId: employees.orgUnitId,
+    title: employees.title,
+    employmentType: employees.employmentType,
+  }).from(employees)
     .where(and(eq(employees.id, sep.employeeId), eq(employees.organizationId, sep.organizationId)))
     .limit(1);
   if (!employee) return Response.json({ error: "Employee not found in this workspace." }, { status: 404 });
@@ -756,8 +761,21 @@ export async function PATCH(request: Request) {
       },
     });
 
+    const automation = await runLifecycleAutomations({
+      organizationId: sep.organizationId,
+      employeeId: sep.employeeId,
+      trigger: "employee.separated",
+      eventKey: "separation-release:" + sep.id,
+      context: {
+        orgUnitId: employee.orgUnitId,
+        employmentType: employee.employmentType,
+        title: employee.title,
+      },
+    });
+
     return Response.json({
       ...released,
+      automation,
       offboarding2316: {
         status: "available",
         href: `/api/separation/${released.id}/2316`,
