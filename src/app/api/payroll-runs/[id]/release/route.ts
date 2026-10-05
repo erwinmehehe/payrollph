@@ -14,7 +14,8 @@ import {
   enforceSensitiveActionRateLimit,
   requireSensitiveActionMfa,
 } from "@/lib/security-request";
-import { recordAuditEvent } from "@/lib/audit";\nimport { managedPayrollReleaseRequirement } from "@/lib/managed-payroll";
+import { recordAuditEvent } from "@/lib/audit";
+import { managedPayrollReleaseRequirement } from "@/lib/managed-payroll";
 
 const RELEASABLE = ["Ready for release"];
 
