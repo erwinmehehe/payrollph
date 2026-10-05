@@ -38,12 +38,29 @@ type Alert = {
   tone: string;
 };
 
+type ContributionIssueCase = {
+  id: number;
+  employeeId: number;
+  agency: string;
+  applicableMonth: string;
+  issueType: string;
+  status: string;
+  reportedByName: string;
+  assignedToName?: string | null;
+  resolutionOutcome?: string | null;
+  resolutionNote?: string | null;
+  resolvedByName?: string | null;
+  createdAt: Date | string;
+  resolvedAt?: Date | string | null;
+};
+
 export function evaluateRemittanceMonthClose(input: {
   applicableMonth: string;
   batches: Batch[];
   members: Member[];
   alerts: Alert[];
   corrections?: Correction[];
+  issueCases?: ContributionIssueCase[];
   requiredAgencies: string[];
   allPayrollRunsReleased: boolean;
 }) {
@@ -78,6 +95,16 @@ export function evaluateRemittanceMonthClose(input: {
     if (batch.exceptionCount > 0) {
       blockers.push(`${batch.agency} has ${batch.exceptionCount} employee posting exception(s).`);
     }
+  }
+
+  const issueCases = (input.issueCases ?? [])
+    .filter((issue) => issue.applicableMonth === input.applicableMonth)
+    .sort((a, b) => a.id - b.id);
+  const unresolvedIssueCases = issueCases.filter((issue) => issue.status !== "resolved");
+  if (unresolvedIssueCases.length > 0) {
+    blockers.push(
+      `${unresolvedIssueCases.length} employee contribution issue case(s) remain unresolved for this month.`,
+    );
   }
 
   const monthBatchIds = new Set(monthBatches.map((batch) => batch.id));
@@ -116,6 +143,20 @@ export function evaluateRemittanceMonthClose(input: {
         decidedByName: correction.decidedByName,
         appliedAt: correction.appliedAt ? String(correction.appliedAt) : null,
       })),
+    issueCases: issueCases.map((issue) => ({
+      id: issue.id,
+      employeeId: issue.employeeId,
+      agency: issue.agency,
+      issueType: issue.issueType,
+      status: issue.status,
+      reportedByName: issue.reportedByName,
+      assignedToName: issue.assignedToName ?? null,
+      resolutionOutcome: issue.resolutionOutcome ?? null,
+      resolutionNote: issue.resolutionNote ?? null,
+      resolvedByName: issue.resolvedByName ?? null,
+      createdAt: String(issue.createdAt),
+      resolvedAt: issue.resolvedAt ? String(issue.resolvedAt) : null,
+    })),
   };
 
   const snapshotHash = createHash("sha256")
@@ -131,5 +172,6 @@ export function evaluateRemittanceMonthClose(input: {
     batches: evidence.batches,
     members: evidence.members,
     corrections: evidence.corrections,
+    issueCases: evidence.issueCases,
   };
 }
