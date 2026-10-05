@@ -17,14 +17,11 @@ export default async function VerifyEmailPage({
   const token = Array.isArray(params.token) ? params.token[0] ?? "" : params.token ?? "";
 
   return (
-    <div className="min-h-screen bg-white text-[#0B0D1A]">
+    <div className="marketing-page min-h-screen bg-white text-[#101323]">
       <SiteNav />
-      <main className="relative overflow-hidden py-16 sm:py-20">
-        <div aria-hidden className="pointer-events-none absolute inset-0">
-          <div className="absolute -right-40 -top-48 h-[560px] w-[620px] rounded-full bg-gradient-to-br from-[#ECECFF] via-[#EAF4FF] to-[#E3FAF0] opacity-75 blur-3xl" />
-        </div>
+      <main className="relative overflow-hidden bg-[#FCFCFD] py-16 sm:py-20">
         <section className="relative mx-auto max-w-[620px] px-5 sm:px-8">
-          <div className="rounded-[28px] border border-[#E2E4F0] bg-white p-6 shadow-[0_26px_70px_-38px_rgba(30,34,70,.4)] sm:p-8">
+          <div className="rounded-[16px] border border-[#EAECF0] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,.04)] sm:p-8">
             <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#E3FAF0] text-[#0A8A53]">
               <MailCheck size={19} />
             </span>
