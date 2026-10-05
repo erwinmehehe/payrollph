@@ -16,7 +16,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const page = authorityPage(pages, slug);
   if (!page) return {};
   return {
-    title: `${page.eyebrow} | Linaw`,
+    title: page.metaTitle ?? `${page.title} | Linaw`,
     description: page.description,
     alternates: { canonical: `/compliance/${slug}` },
   };
@@ -40,6 +40,7 @@ export default async function ComplianceGuidePage({ params }: { params: Promise<
         intro={page.intro}
         proof={page.proof}
         sections={page.sections}
+        faq={page.faq}
         related={page.related}
         lastReviewed={page.lastReviewed}
         sources={page.sources}
