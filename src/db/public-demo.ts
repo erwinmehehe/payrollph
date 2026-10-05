@@ -12,6 +12,7 @@ import {
   orgUnits,
   payrollEntries,
   payrollRuns,
+  payslips,
   subscriptions,
   timePunches,
 } from "@/db/schema";
@@ -518,6 +519,43 @@ export async function ensurePublicDemoTenant() {
           },
         },
       }).where(eq(payrollEntries.id, entry.id));
+    }
+
+    // Release safety now requires one stored payslip per calculated entry.
+    // The public sandbox seeds entries directly instead of running the payroll
+    // worker, so repair the synthetic demo records here as well. This is demo
+    // evidence only and never bypasses the production release checklist.
+    const existingDemoPayslips = allDemoEntries.length
+      ? await tx
+          .select({ payrollEntryId: payslips.payrollEntryId })
+          .from(payslips)
+          .where(inArray(payslips.payrollEntryId, allDemoEntries.map((entry) => entry.id)))
+      : [];
+    const payslipEntryIds = new Set(existingDemoPayslips.map((row) => row.payrollEntryId));
+    const demoRunById = new Map([releasedRun, checkerRun, workRun].map((run) => [run.id, run]));
+    const demoEmployeeById = new Map(activeStaff.map((employee) => [employee.id, employee]));
+    const missingDemoPayslips = allDemoEntries.filter((entry) => !payslipEntryIds.has(entry.id));
+    if (missingDemoPayslips.length > 0) {
+      await tx.insert(payslips).values(missingDemoPayslips.map((entry) => {
+        const run = demoRunById.get(entry.payrollRunId);
+        const employee = demoEmployeeById.get(entry.employeeId);
+        return {
+          payrollEntryId: entry.id,
+          organizationId: organization.id,
+          employeeId: entry.employeeId,
+          periodLabel: run?.periodLabel ?? "Public demo payroll",
+          content: [
+            "LINAW PUBLIC DEMO PAYSLIP",
+            `Employee: ${employee ? `${employee.firstName} ${employee.lastName}` : `Employee #${entry.employeeId}`}`,
+            `Period: ${run?.periodLabel ?? "Public demo payroll"}`,
+            `Gross pay: PHP ${entry.grossPay}`,
+            `Deductions: PHP ${entry.deductions}`,
+            `Net pay: PHP ${entry.netPay}`,
+            "Synthetic redacted demo data. Not a real payroll record.",
+          ].join("\n"),
+          ruleVersion: String((entry.trace as { ruleVersion?: unknown } | null)?.ruleVersion ?? "PH-2026.01"),
+        };
+      }));
     }
 
     const demoEntries = await tx
