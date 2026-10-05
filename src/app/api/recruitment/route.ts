@@ -1,5 +1,5 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   jobApplicants,
@@ -18,6 +18,13 @@ import {
 import { recordAuditEvent } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
+
+class RecruitmentConflict extends Error {
+  constructor(message: string, readonly details: Record<string, unknown> = {}) {
+    super(message);
+    this.name = "RecruitmentConflict";
+  }
+}
 
 const CANDIDATE_STAGES = ["applied", "screening", "interview", "offer", "rejected"] as const;
 
@@ -196,7 +203,35 @@ export async function POST(request: Request) {
         ? Number(position.annualBudget) / 12
         : 0;
 
-      const created = await db.transaction(async (tx) => {
+      const createdOrResponse = await db.transaction(async (tx) => {
+        await tx.execute(sql`select pg_advisory_xact_lock(4102, ${position.id})`);
+
+        const lockedSearches = await tx.select({
+          id: jobRequisitions.id,
+          status: jobRequisitions.status,
+        }).from(jobRequisitions).where(and(
+          eq(jobRequisitions.organizationId, organizationId),
+          eq(jobRequisitions.positionId, position.id),
+        ));
+        const lockedActiveSearch = lockedSearches.find((row) => !["filled", "cancelled"].includes(row.status));
+        if (lockedActiveSearch) {
+          throw new RecruitmentConflict("This position already has an active requisition.", {
+            requisitionId: lockedActiveSearch.id,
+          });
+        }
+
+        const [freshPosition] = await tx.select({
+          status: positions.status,
+        }).from(positions).where(and(
+          eq(positions.id, position.id),
+          eq(positions.organizationId, organizationId),
+        )).limit(1);
+        if (!freshPosition || freshPosition.status !== "approved") {
+          throw new RecruitmentConflict("Only an approved position can be opened for recruitment.", {
+            positionStatus: freshPosition?.status ?? "missing",
+          });
+        }
+
         const [requisition] = await tx.insert(jobRequisitions).values({
           organizationId,
           positionId: position.id,
@@ -215,7 +250,14 @@ export async function POST(request: Request) {
           .where(eq(positions.id, position.id));
 
         return requisition;
+      }).catch((error: unknown) => {
+        if (error instanceof RecruitmentConflict) {
+          return Response.json({ error: error.message, ...error.details }, { status: 409 });
+        }
+        throw error;
       });
+      if (createdOrResponse instanceof Response) return createdOrResponse;
+      const created = createdOrResponse;
 
       await recordAuditEvent({
         organizationId,
