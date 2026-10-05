@@ -273,10 +273,16 @@ export async function GET(request: Request) {
         selectEffectiveWorksiteAssignment(defaultWorksites, previewDate)?.worksiteId ?? null,
     }));
     const guardrailPolicy = await scheduleGuardrailPolicy(organizationId);
-    const guardrailIssues = evaluateScheduleGuardrails({
-      days: resolvedDays,
-      policy: guardrailPolicy,
+    const guardrailEvaluationDays = await resolveEmployeeScheduleWindow({
+      organizationId,
+      employeeId,
+      startDate: addDays(rangeStart, -7),
+      endDate: rangeEnd,
     });
+    const guardrailIssues = evaluateScheduleGuardrails({
+      days: guardrailEvaluationDays,
+      policy: guardrailPolicy,
+    }).filter((issue) => issue.date >= rangeStart && issue.date <= rangeEnd);
 
     return Response.json({
       employee: {
