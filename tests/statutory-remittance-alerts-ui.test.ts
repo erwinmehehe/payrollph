@@ -11,7 +11,7 @@ test("remittance API returns deadline-aware alert data", () => {
   assert.ok(route.includes("loadStatutoryRemittanceState"));
   assert.ok(state.includes("buildStatutoryRemittanceAlerts"));
   assert.ok(state.includes("coverageGaps"));
-  assert.ok(state.includes("nominalRemittanceDueDate"));
+  assert.ok(state.includes("effectiveRemittanceDueDate"));
   assert.ok(route.includes("alerts: state.alerts"));
   assert.ok(route.includes("today: state.today"));
 });
