@@ -469,11 +469,30 @@ export async function POST(request: Request) {
       return Response.json({ error: "Permission-set name and at least one valid permission are required." }, { status: 400 });
     }
     if (id) {
+      const nextActive = body.active === undefined ? true : Boolean(body.active);
+      const [myMembership] = await db.select({ id: userOrganizations.id }).from(userOrganizations).where(and(
+        eq(userOrganizations.userId, user.id),
+        eq(userOrganizations.organizationId, organizationId),
+        eq(userOrganizations.active, true),
+      )).limit(1);
+      if (myMembership) {
+        const [myAssignment] = await db.select({ id: userPermissionAssignments.id }).from(userPermissionAssignments).where(and(
+          eq(userPermissionAssignments.organizationId, organizationId),
+          eq(userPermissionAssignments.userOrganizationId, myMembership.id),
+          eq(userPermissionAssignments.permissionSetId, id),
+        )).limit(1);
+        if (myAssignment && (!nextActive || !permissions.includes("org.admin"))) {
+          return Response.json({
+            error: "You cannot edit your own active permission restriction so that it removes organization administration. Clear your assignment first or have another administrator change it.",
+          }, { status: 409 });
+        }
+      }
+
       const [row] = await db.update(permissionSets).set({
         name: name.slice(0, 120),
         description: description.slice(0, 4000) || null,
         permissions,
-        active: body.active === undefined ? true : Boolean(body.active),
+        active: nextActive,
         updatedAt: new Date(),
       }).where(and(eq(permissionSets.id, id), eq(permissionSets.organizationId, organizationId))).returning();
       if (!row) return Response.json({ error: "Permission set not found." }, { status: 404 });
@@ -521,6 +540,14 @@ export async function POST(request: Request) {
       eq(permissionSets.active, true),
     )).limit(1);
     if (!permissionSet) return Response.json({ error: "Active permission set not found." }, { status: 404 });
+    const permissionValues = Array.isArray(permissionSet.permissions)
+      ? permissionSet.permissions.filter((value): value is string => typeof value === "string")
+      : [];
+    if (membership.userId === user.id && !permissionValues.includes("org.admin")) {
+      return Response.json({
+        error: "You cannot assign yourself a permission restriction that removes organization administration.",
+      }, { status: 409 });
+    }
 
     const [row] = await db.insert(userPermissionAssignments).values({
       organizationId,
