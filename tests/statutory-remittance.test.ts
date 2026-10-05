@@ -3,7 +3,9 @@ import test from "node:test";
 import {
   buildStatutoryRemittanceSnapshot,
   canMarkRemittancePaid,
+  effectiveRemittanceDueDate,
   nominalRemittanceDueDate,
+  nextWorkingDay,
   statutorySharesForEntry,
 } from "../src/lib/statutory-remittance";
 
@@ -87,6 +89,34 @@ test("nominal deadlines follow current agency schedules", () => {
     applicableMonth: "2026-09",
     legalName: "Linaw Inc.",
   }), "2026-10-19");
+});
+
+test("effective SSS and PhilHealth deadlines roll to the next working day", () => {
+  assert.equal(effectiveRemittanceDueDate({
+    agency: "SSS",
+    applicableMonth: "2026-09",
+    legalName: "Linaw Inc.",
+  }), "2026-11-03");
+
+  assert.equal(effectiveRemittanceDueDate({
+    agency: "PhilHealth",
+    applicableMonth: "2026-01",
+    legalName: "Linaw Inc.",
+    philHealthEmployerNo: "12-34567890-4",
+  }), "2026-02-16");
+
+  assert.equal(nextWorkingDay(
+    "2026-11-01",
+    new Set(["2026-11-02"]),
+  ), "2026-11-03");
+});
+
+test("Pag-IBIG keeps the published end of its remittance window", () => {
+  assert.equal(effectiveRemittanceDueDate({
+    agency: "Pag-IBIG",
+    applicableMonth: "2026-10",
+    legalName: "Acme Inc.",
+  }), "2026-11-14");
 });
 
 test("payment gate blocks underpayment but permits evidenced penalties", () => {
