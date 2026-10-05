@@ -47,7 +47,7 @@ test("Wave 2 preserves the homepage-owned product and FAQ structured data", () =
 });
 
 test("wave 2 routes are included in the sitemap", () => {
-  const sitemap = read("src/app/sitemap.ts");
+  const sitemap = read("src/lib/sitemap-data.ts");
   assert.ok(sitemap.includes("resourceWave2"));
   assert.ok(sitemap.includes("industryWave2"));
   assert.ok(sitemap.includes("Object.keys(CALCULATORS)"));
