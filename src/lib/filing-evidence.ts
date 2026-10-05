@@ -329,7 +329,20 @@ type EvidenceSummary = ReturnType<typeof summarizeFilingEvidence>;
  * recorded, and never suggests they count.
  */
 export function describeEvidenceGap(summary: EvidenceSummary | null, definition: FilingFormDefinition): string {
-  const parts = [`No recorded ${definition.copy.agencyLabel} acceptance of a Linaw-generated ${definition.form} file in the current layout yet.`];
+  if (definition.evidenceMode === "operational") {
+    const parts = [`No recorded current-version ${definition.copy.agencyLabel} operational acknowledgement for ${definition.form} yet.`];
+    if (summary?.acceptedByManualEntry) {
+      parts.push(`${summary.acceptedByManualEntry} portal/manual filing acknowledgement(s) exist, but none qualifies as current-version operational evidence.`);
+    }
+    if (summary?.acceptedOnOlderLayout) {
+      parts.push(`${summary.acceptedOnOlderLayout} file acceptance(s) were recorded against an older generator version.`);
+    }
+    if (summary?.rejected) parts.push(`${summary.rejected} rejection(s) are recorded.`);
+    parts.push("Create a record on the Exports page, complete the agency workflow, then record the agency's own acknowledgement.");
+    return parts.join(" ");
+  }
+
+  const parts = [`No recorded ${definition.copy.agencyLabel} acceptance of a PayrollPH-generated ${definition.form} file in the current layout yet.`];
   if (summary?.acceptedByManualEntry) {
     parts.push(`${summary.acceptedByManualEntry} filing(s) were typed in by hand, which proves a filing was made but not that the generated file works.`);
   }
