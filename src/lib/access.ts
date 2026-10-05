@@ -21,6 +21,7 @@ export async function getAccess(userId: number, organizationId: number): Promise
   const [membership] = await db.select().from(userOrganizations).where(and(
     eq(userOrganizations.userId, userId),
     eq(userOrganizations.organizationId, organizationId),
+    eq(userOrganizations.active, true),
   )).limit(1);
 
   if (!membership) return null;
@@ -52,7 +53,7 @@ export async function primaryOrganizationId(userId: number): Promise<number | nu
   const [row] = await db
     .select({ organizationId: userOrganizations.organizationId })
     .from(userOrganizations)
-    .where(eq(userOrganizations.userId, userId))
+    .where(and(eq(userOrganizations.userId, userId), eq(userOrganizations.active, true)))
     .orderBy(userOrganizations.organizationId)
     .limit(1);
   return row?.organizationId ?? null;
@@ -85,7 +86,11 @@ export async function assertMembership(userId: number, organizationId: number): 
   const [row] = await db
     .select({ id: userOrganizations.id })
     .from(userOrganizations)
-    .where(and(eq(userOrganizations.userId, userId), eq(userOrganizations.organizationId, organizationId)))
+    .where(and(
+      eq(userOrganizations.userId, userId),
+      eq(userOrganizations.organizationId, organizationId),
+      eq(userOrganizations.active, true),
+    ))
     .limit(1);
   if (!row) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
   return assertOrganizationSessionPolicy(userId, organizationId);
