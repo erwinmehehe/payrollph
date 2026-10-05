@@ -31,7 +31,7 @@ export function AccessRequestForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
-          notes: ["Trial access request.", form.notes ? "", form.notes : ""].filter(Boolean).join("\n"),
+          notes: ["Trial access request.", form.notes].filter(Boolean).join("\n\n"),
         }),
       });
       const payload = await response.json().catch(() => ({}));
