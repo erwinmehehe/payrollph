@@ -56,3 +56,31 @@ Useful monthly SEO conversion cuts include:
 ## GA4 / external analytics
 
 External analytics can be added later as a complementary behavioral layer. It should not replace first-party lead attribution, and tracking IDs should remain deployment configuration rather than committed source values.
+
+
+## Aggregate reporting endpoint
+
+When `MARKETING_REPORT_EMAILS` is configured, an authenticated allowlisted user with a recently MFA-verified session can request:
+
+`GET /api/marketing/leads?days=90`
+
+The endpoint returns aggregates only:
+
+- total requests
+- attributed vs unattributed requests
+- demo vs trial counts
+- landing-page counts
+- source / medium counts
+- campaign counts
+- headcount buckets
+- daily request counts
+
+It deliberately does not return:
+
+- contact names
+- email addresses
+- company names
+- free-text notes
+- message bodies
+
+Leave `MARKETING_REPORT_EMAILS` empty to disable the report completely.
