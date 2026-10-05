@@ -147,6 +147,20 @@ test("homepage buyer flow explains payroll handoffs before secondary tools", () 
   assert.ok(!trust.includes("Solo is free"), "homepage must not revive stale self-serve Solo claims");
 });
 
+test("dedicated pricing page uses live catalog values and explains plan fit", () => {
+  const page = read("src/app/pricing/page.tsx");
+  assert.ok(page.includes("getPublicPricingPlans"), "pricing page must load the persisted pricing catalog");
+  assert.ok(page.includes("plan.monthlyBase"), "pricing page must render the persisted monthly base");
+  assert.ok(page.includes("plan.perEmployee"), "pricing page must render the persisted per-employee amount");
+  assert.ok(page.includes("plan.modules"), "pricing page must expose the configured plan modules");
+  assert.ok(page.includes("plan.version"), "pricing page must identify the active catalog version");
+  assert.ok(page.includes("Example at {exampleHeads} employees"), "pricing page must make the pricing formula concrete");
+  assert.ok(page.includes("faq={faq}"), "pricing page must publish pricing FAQs through shared structured data");
+  assert.ok(page.includes("Which plan should a growing payroll team choose?"), "pricing page must explain plan fit instead of only listing prices");
+  assert.ok(!page.includes('monthlyBase: "1500"'), "pricing page must not hard-code catalog prices");
+  assert.ok(!page.includes('perEmployee: "50"'), "pricing page must not hard-code per-employee prices");
+});
+
 test("homepage pricing keeps persisted plan values inside the redesigned cards", () => {
   const wrapper = read("src/components/marketing/software-home.tsx");
   const pricing = read("src/components/marketing/claude-home/components/Pricing.tsx");
