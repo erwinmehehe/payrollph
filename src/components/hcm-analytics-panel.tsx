@@ -61,7 +61,7 @@ type HcmAnalytics = {
     reviewCount: number | null;
     averageScore: number | null;
     medianScore: number | null;
-    distribution: Array<{ label: string; count: number }>;
+    distribution: Array<{ label: string; count: number | null; suppressed: boolean }>;
     cycles: Array<{ cycleId: number; label: string; responseCount: number; averageScore: number; medianScore: number }>;
     suppressionReason: string | null;
   };
@@ -197,7 +197,7 @@ export function HcmAnalyticsPanel({ organizationId }: { organizationId: number }
     [data],
   );
   const maxPerformance = useMemo(
-    () => Math.max(1, ...(data?.performance.distribution.map((row) => row.count) ?? [1])),
+    () => Math.max(1, ...(data?.performance.distribution.map((row) => row.count ?? 0) ?? [1])),
     [data],
   );
 
@@ -291,7 +291,9 @@ export function HcmAnalyticsPanel({ organizationId }: { organizationId: number }
             <div className="notice" style={{ marginTop: 14 }}><ShieldCheck size={14} /><span>{data.performance.suppressionReason}</span></div>
           ) : (
             <>
-              <div style={{ marginTop: 14 }}>{data.performance.distribution.map((row) => <Meter key={row.label} label={row.label} value={row.count} max={maxPerformance} />)}</div>
+              <div style={{ marginTop: 14 }}>{data.performance.distribution.map((row) => row.count === null
+                ? <div key={row.label} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderTop: "1px solid var(--border)" }}><span>{row.label}</span><strong>Suppressed</strong></div>
+                : <Meter key={row.label} label={row.label} value={row.count} max={maxPerformance} />)}</div>
               <div className="hcm-metric-strip" style={{ marginTop: 14 }}>
                 <div><span>Reviews</span><strong>{data.performance.reviewCount}</strong></div>
                 <div><span>Average</span><strong>{number1(data.performance.averageScore)}</strong></div>
@@ -346,7 +348,7 @@ export function HcmAnalyticsPanel({ organizationId }: { organizationId: number }
           ) : (
             <>
               <div className="hcm-metric-strip" style={{ marginTop: 14 }}>
-                <div><span>Ready for move</span><strong>{data.mobility.readyForMove}</strong></div>
+                <div><span>Ready for move</span><strong>{data.mobility.readyForMove ?? "Suppressed"}</strong></div>
                 <div><span>Ready rate</span><strong>{number1(data.mobility.readyForMovePercent)}%</strong></div>
                 <div><span>Skill evidence</span><strong>{number1(data.mobility.verifiedSkillCoveragePercent)}%</strong></div>
               </div>
