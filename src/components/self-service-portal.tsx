@@ -438,6 +438,7 @@ export function SelfServicePortal() {
           ["pay", "Pay"],
           ["time", "Time"],
           ["leave", "Leave"],
+          ["growth", "My growth"],
           ["voice", "My voice"],
           ["profile", "Profile"],
         ] as Array<[SelfTab, string]>).map(([value, label]) => (
