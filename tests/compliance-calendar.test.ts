@@ -77,3 +77,20 @@ test("Compliance Center wiring keeps the calendar authenticated and evidence-awa
   assert.ok(panel.includes("What is due, what is proven, what still needs evidence."));
   assert.ok(compliance.includes("ComplianceCalendarPanel"));
 });
+
+
+test("accepted BIR acknowledgement closes the monthly calendar obligation without claiming file-format proof", () => {
+  const items = buildComplianceCalendar({
+    today: "2026-10-12",
+    currentMonth: "2026-10",
+    applicableMonths: ["2026-09"],
+    legalName: "Acme Payroll Inc.",
+    philHealthEmployerNo: "00-123456789-3",
+    bir1601cOperationalMonths: ["2026-09"],
+    batches: [],
+  });
+  const bir = items.find((item) => item.agency === "BIR");
+  assert.equal(bir?.status, "complete");
+  assert.match(bir?.detail ?? "", /operational filing/);
+  assert.match(bir?.detail ?? "", /not that PayrollPH produced an official BIR upload file/);
+});
