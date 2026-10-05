@@ -88,3 +88,11 @@ test("correction API self-initializes its additive table for existing deployment
   assert.ok(schemaGuard.includes("CREATE TABLE IF NOT EXISTS statutory_remittance_correction_requests"));
   assert.ok(schemaGuard.includes("pg_advisory_xact_lock"));
 });
+
+
+test("approved remittance correction invalidates prior month certification", () => {
+  assert.ok(route.includes("invalidateStatutoryRemittanceMonthCertification"));
+  assert.ok(route.includes("approved_remittance_evidence_correction"));
+  assert.ok(route.includes("Statutory remittance month certification invalidated"));
+  assert.ok(route.includes("correctedBatch.applicableMonth"));
+});
