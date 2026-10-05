@@ -22,6 +22,7 @@ import {
   validatePostingCorrection,
 } from "@/lib/statutory-remittance-correction";
 import { syncStatutoryRemittanceActions } from "@/lib/statutory-remittance-actions";
+import { ensureStatutoryRemittanceCorrectionSchema } from "@/lib/statutory-remittance-correction-schema";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -75,6 +76,7 @@ async function requireApprover(userId: number, organizationId: number) {
 }
 
 export async function GET(request: Request) {
+  await ensureStatutoryRemittanceCorrectionSchema();
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -104,6 +106,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  await ensureStatutoryRemittanceCorrectionSchema();
   const originDenied = enforceSameOriginMutation(request);
   if (originDenied) return originDenied;
 
