@@ -15,6 +15,7 @@ Canonical site: ${PUBLIC_SITE_URL}
 - Time and attendance: ${absolutePublicUrl("/time-and-attendance")}
 - Employee self-service: ${absolutePublicUrl("/employee-self-service")}
 - Payroll outsourcing: ${absolutePublicUrl("/payroll-outsourcing")}
+- Workforce analytics: ${absolutePublicUrl("/workforce-analytics")}
 - Pricing: ${absolutePublicUrl("/pricing")}
 
 ## Compliance and payroll knowledge
