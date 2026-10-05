@@ -118,6 +118,13 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
 - Proposer, approver and payroll application are separate governed steps; approved changes flow into effective-dated pay revisions only after explicit application.
 - Future effective dates cannot be applied early, and historical changes fail closed when released payroll would require retro reconciliation.
 
+### Learning, skills and career
+- A shared skill catalog and five-level proficiency model connect job profiles to verified employee capabilities.
+- Development plans can reference completed performance reviews and track concrete learning, mentoring, project, coaching and certification activities.
+- Course completion can verify a linked skill, close a development activity and issue an expiry-tracked credential when configured.
+- Internal-mobility readiness is calculated from evidence-backed employee proficiency against target job-profile requirements; critical gaps are surfaced explicitly.
+- External certifications can also be recorded with issuer, credential ID, issue/expiry dates and evidence URL.
+
 ### Public capability scorecard
 - `/scorecard` and `GET /api/capabilities` render a 22-row competitive parity grid plus a 15-row capability matrix
 - Every Linaw claim is classified **verified / partial / absent** and carries its evidence (a file path, a test name, or a live row count), generated from this deployment's code and database
