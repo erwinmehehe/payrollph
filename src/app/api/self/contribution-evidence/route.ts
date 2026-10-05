@@ -8,6 +8,7 @@ import {
   payrollRuns,
   payslips,
   statutoryContributionIssueCases,
+  statutoryContributionIssueEvents,
   statutoryRemittanceBatches,
   statutoryRemittanceMembers,
   statutoryRemittanceMonthClosures,
@@ -155,6 +156,25 @@ export async function GET(request: Request) {
     ))
     .orderBy(asc(statutoryContributionIssueCases.createdAt), asc(statutoryContributionIssueCases.id));
 
+  const caseIds = cases.map((issue) => issue.id);
+  const caseEvents = caseIds.length
+    ? await db.select().from(statutoryContributionIssueEvents)
+        .where(and(
+          eq(statutoryContributionIssueEvents.organizationId, employee.organizationId),
+          eq(statutoryContributionIssueEvents.employeeId, employee.id),
+          eq(statutoryContributionIssueEvents.visibility, "employee"),
+          inArray(statutoryContributionIssueEvents.caseId, caseIds),
+        ))
+        .orderBy(
+          asc(statutoryContributionIssueEvents.createdAt),
+          asc(statutoryContributionIssueEvents.id),
+        )
+    : [];
+  const eventsByCase = new Map<number, typeof caseEvents>();
+  for (const event of caseEvents) {
+    eventsByCase.set(event.caseId, [...(eventsByCase.get(event.caseId) ?? []), event]);
+  }
+
   const closures = await db.select().from(statutoryRemittanceMonthClosures)
     .where(and(
       eq(statutoryRemittanceMonthClosures.organizationId, employee.organizationId),
@@ -246,6 +266,13 @@ export async function GET(request: Request) {
     resolutionNote: issue.resolutionNote,
     resolvedByName: issue.resolvedByName,
     resolvedAt: issue.resolvedAt?.toISOString() ?? null,
+    timeline: (eventsByCase.get(issue.id) ?? []).map((event) => ({
+      eventId: event.id,
+      eventType: event.eventType,
+      message: event.message,
+      actorName: event.actorName,
+      createdAt: event.createdAt.toISOString(),
+    })),
   }));
 
   const certificationHistory = closures.map((closure) => ({
@@ -311,6 +338,7 @@ export async function GET(request: Request) {
       "This export is generated from PayrollPH records and is not an agency-issued certificate.",
       "The evidence hash verifies the contents of this export; agency file hashes verify the stored filing artifacts referenced here.",
       "No other employee's payroll or contribution amounts are included.",
+      "Contribution-case timeline entries are limited to events explicitly marked employee-visible.",
     ],
   };
 
@@ -329,6 +357,7 @@ export async function GET(request: Request) {
       payrollEntries: payrollEvidence.length,
       filingArtifacts: filingEvidence.length,
       contributionCases: caseHistory.length,
+      contributionCaseTimelineEvents: caseEvents.length,
     },
   });
 
