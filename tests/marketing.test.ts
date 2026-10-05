@@ -42,6 +42,27 @@ test("obsolete standalone marketing prototypes stay removed", () => {
 });
 
 
+test("public SEO origin is payrollsoftware.ph and is independent of app deployment origin", () => {
+  const siteUrl = read("src/lib/site-url.ts");
+  const layout = read("src/app/layout.tsx");
+  const home = read("src/app/page.tsx");
+  const outsourcing = read("src/app/payroll-outsourcing/page.tsx");
+  const robots = read("src/app/robots.ts");
+  const sitemap = read("src/app/sitemap.ts");
+
+  assert.ok(siteUrl.includes('"https://payrollsoftware.ph"'), "canonical public fallback must be payrollsoftware.ph");
+  assert.ok(siteUrl.includes("process.env.PUBLIC_SITE_URL"), "public origin may only be overridden by an explicit public-site setting");
+  assert.ok(!siteUrl.includes("APP_BASE_URL"), "application deployment origin must not control public SEO canonicals");
+  assert.ok(!siteUrl.includes("vercel.app"), "Vercel deployment URL must never be the canonical fallback");
+
+  assert.ok(layout.includes("metadataBase: new URL(PUBLIC_SITE_URL)"), "all relative metadata URLs must resolve from the canonical public origin");
+  assert.ok(robots.includes('absolutePublicUrl("/sitemap.xml")'), "robots sitemap must use the canonical public origin");
+  assert.ok(sitemap.includes("absolutePublicUrl(route.path)"), "sitemap entries must use the canonical public origin");
+  assert.ok(home.includes('absolutePublicUrl("/#organization")'), "homepage schema must use an absolute canonical organization ID");
+  assert.ok(outsourcing.includes('absolutePublicUrl("/payroll-outsourcing#service")'), "service schema must use the canonical public origin");
+});
+
+
 test("the software homepage uses the real Linaw workspace preview", () => {
   const home = read("src/components/marketing/claude-home/App.tsx");
   const demo = read("src/components/marketing/claude-home/components/Demo.tsx");
