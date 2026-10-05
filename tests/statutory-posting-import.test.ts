@@ -9,6 +9,7 @@ test("posting CSV parser accepts the normalized template", () => {
   const parsed = parseStatutoryPostingCsv(STATUTORY_POSTING_TEMPLATE);
   assert.equal(parsed.errors.length, 0);
   assert.equal(parsed.valid.length, 2);
+  assert.equal(parsed.valid[0].sourceLine, 2);
   assert.equal(parsed.valid[0].employeeNo, "EMP-001");
   assert.equal(parsed.valid[0].postedAmount, 1500);
   assert.equal(parsed.valid[0].postingReference, "AGENCY-POST-0001");
@@ -56,4 +57,16 @@ test("posting CSV parser supports quoted RFC-style fields", () => {
   assert.equal(parsed.errors.length, 0);
   assert.equal(parsed.valid[0].postedAmount, 1500);
   assert.equal(parsed.valid[0].postingReference, "REF,0001");
+});
+
+
+test("valid rows retain their original source line after earlier validation errors", () => {
+  const parsed = parseStatutoryPostingCsv([
+    "employee_no,posted_amount,posting_reference,posted_at",
+    "EMP-001,-1,REF-0001,2026-10-05",
+    "EMP-002,1500,REF-0002,2026-10-05",
+  ].join("\n"));
+  assert.equal(parsed.errors.length, 1);
+  assert.equal(parsed.valid.length, 1);
+  assert.equal(parsed.valid[0].sourceLine, 3);
 });
