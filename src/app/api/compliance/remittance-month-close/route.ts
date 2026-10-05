@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { db } from "@/db";
 import {
   payrollEntries,
@@ -96,12 +96,13 @@ async function loadCloseState(organizationId: number, applicableMonth: string) {
       monthRuns.length > 0 && monthRuns.every((run) => run.status === "Released"),
   });
 
-  const [closure] = await db.select().from(statutoryRemittanceMonthClosures)
+  const closures = await db.select().from(statutoryRemittanceMonthClosures)
     .where(and(
       eq(statutoryRemittanceMonthClosures.organizationId, organizationId),
       eq(statutoryRemittanceMonthClosures.applicableMonth, applicableMonth),
     ))
-    .limit(1);
+    .orderBy(desc(statutoryRemittanceMonthClosures.certifiedAt), desc(statutoryRemittanceMonthClosures.id));
+  const closure = closures[0] ?? null;
 
   const certificationValid = Boolean(
     closure
@@ -112,7 +113,8 @@ async function loadCloseState(organizationId: number, applicableMonth: string) {
 
   return {
     evaluation,
-    closure: closure ?? null,
+    closure,
+    certificationHistory: closures,
     certificationValid,
   };
 }
@@ -197,39 +199,23 @@ export async function POST(request: Request) {
   }
 
   const now = new Date();
-  const [existing] = await db.select().from(statutoryRemittanceMonthClosures)
+  const [existingSnapshot] = await db.select().from(statutoryRemittanceMonthClosures)
     .where(and(
       eq(statutoryRemittanceMonthClosures.organizationId, organizationId),
       eq(statutoryRemittanceMonthClosures.applicableMonth, applicableMonth),
+      eq(statutoryRemittanceMonthClosures.snapshotHash, current.evaluation.snapshotHash),
     ))
     .limit(1);
 
-  let closure;
-  if (existing) {
-    [closure] = await db.update(statutoryRemittanceMonthClosures).set({
-      status: "certified",
-      snapshotHash: current.evaluation.snapshotHash,
-      certifiedByUserId: user.id,
-      certifiedByName: user.name,
-      certifiedAt: now,
-      invalidatedAt: null,
-      invalidationReason: null,
-      updatedAt: now,
-    }).where(and(
-      eq(statutoryRemittanceMonthClosures.id, existing.id),
-      eq(statutoryRemittanceMonthClosures.organizationId, organizationId),
-    )).returning();
-  } else {
-    [closure] = await db.insert(statutoryRemittanceMonthClosures).values({
-      organizationId,
-      applicableMonth,
-      status: "certified",
-      snapshotHash: current.evaluation.snapshotHash,
-      certifiedByUserId: user.id,
-      certifiedByName: user.name,
-      certifiedAt: now,
-    }).returning();
-  }
+  const closure = existingSnapshot ?? (await db.insert(statutoryRemittanceMonthClosures).values({
+    organizationId,
+    applicableMonth,
+    status: "certified",
+    snapshotHash: current.evaluation.snapshotHash,
+    certifiedByUserId: user.id,
+    certifiedByName: user.name,
+    certifiedAt: now,
+  }).returning())[0];
 
   await recordAuditEvent({
     organizationId,
@@ -248,6 +234,7 @@ export async function POST(request: Request) {
   return Response.json({
     closure,
     certificationValid: true,
+    certificationHistoryPreserved: true,
     evaluation: current.evaluation,
   });
 }
