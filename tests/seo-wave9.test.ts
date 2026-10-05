@@ -113,3 +113,17 @@ test("segmented sitemap sources preserve all major SEO families", () => {
     assert.ok(data.includes(signal), `segmented sitemap data must preserve ${signal}`);
   }
 });
+
+
+test("canonical site fallback is payroll.ph, never the preview deployment", () => {
+  const siteUrl = read("src/lib/site-url.ts");
+  assert.ok(siteUrl.includes('"https://payroll.ph"'));
+  assert.ok(!siteUrl.includes("vercel.app"));
+  assert.ok(siteUrl.includes("APP_BASE_URL"));
+});
+
+test("production canonical environment guidance is documented", () => {
+  const env = read(".env.local.example");
+  assert.ok(env.includes("Production must set the canonical public origin"));
+  assert.ok(env.includes("https://payroll.ph"));
+});
