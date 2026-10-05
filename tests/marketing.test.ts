@@ -311,3 +311,23 @@ test("Linaw public navigation uses one product brand without a mascot mark", () 
   assert.ok(!nav.includes("PayrollOwl"), "public navigation must not use mascot branding");
   assert.ok(!nav.includes("payroll-owl"), "public navigation must not import mascot assets");
 });
+
+
+test("homepage tells the payroll handoff story before secondary tools", () => {
+  const app = read("src/components/marketing/claude-home/App.tsx");
+  const trust = read("src/components/marketing/claude-home/components/Trust.tsx");
+
+  assert.ok(app.includes("<PayrollWorkflow />"), "homepage must explain the payroll handoff");
+  assert.ok(!app.includes("<Audiences />"), "generic audience cards must not interrupt the payroll story");
+
+  const workflowIndex = app.indexOf("<PayrollWorkflow />");
+  const pricingIndex = app.indexOf("<Pricing plans={plans} />");
+  const calculatorIndex = app.indexOf("<Calculator />");
+  assert.ok(workflowIndex > app.indexOf("<Demo />"), "workflow must follow the real product demo");
+  assert.ok(calculatorIndex > pricingIndex, "salary calculator must sit below pricing instead of interrupting the buyer journey");
+
+  for (const role of ["HR Admin", "Payroll Officer", "Checker", "Owner", "Employee"]) {
+    assert.ok(trust.includes(role), `workflow must include ${role}`);
+  }
+  assert.ok(trust.includes("Who owns the next decision before money moves?"), "workflow must frame the release decision");
+});
