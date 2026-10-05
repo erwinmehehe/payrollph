@@ -52,12 +52,12 @@ export async function organizationMfaReadiness(organizationId: number) {
     .from(userOrganizations)
     .where(eq(userOrganizations.organizationId, organizationId));
   if (memberships.length === 0) return { total: 0, ready: 0, notReadyUserIds: [] as number[] };
-  const memberUsers = await db.select({ id: users.id, totpEnabled: users.totpEnabled, active: users.active })
+  const memberUsers = await db.select({ id: users.id, totpEnabled: users.totpEnabled, active: users.active, localPasswordEnabled: users.localPasswordEnabled })
     .from(users)
     .where(inArray(users.id, memberships.map((row) => row.userId)));
-  const active = memberUsers.filter((row) => row.active);
-  const notReadyUserIds = active.filter((row) => !row.totpEnabled).map((row) => row.id);
-  return { total: active.length, ready: active.length - notReadyUserIds.length, notReadyUserIds };
+  const localActive = memberUsers.filter((row) => row.active && row.localPasswordEnabled);
+  const notReadyUserIds = localActive.filter((row) => !row.totpEnabled).map((row) => row.id);
+  return { total: localActive.length, ready: localActive.length - notReadyUserIds.length, notReadyUserIds };
 }
 
 export async function enforceActiveSessionLimit(userId: number, keepSessionId: number, maxActiveSessions: number) {
