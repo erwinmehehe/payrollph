@@ -1,6 +1,7 @@
 import {
   AlertCircle,
   Banknote,
+  BadgeDollarSign,
   BriefcaseBusiness,
   CalendarDays,
   Calculator,
@@ -79,6 +80,7 @@ export const NAVIGATION: NavGroup[] = [
       { name: "Earned wage", icon: CircleDollarSign, hint: "Earned-wage advances", tone: "green" },
       { name: "Recruitment", icon: UserPlus, hint: "Pipeline and offers", tone: "blue" },
       { name: "Performance", icon: Trophy, hint: "Review cycles, employee goals and manager assessments", tone: "purple" },
+      { name: "Compensation", icon: BadgeDollarSign, hint: "Salary bands, review budgets and approved pay changes", tone: "green" },
       { name: "Discipline", icon: AlertCircle, hint: "Disciplinary cases", tone: "red" },
       { name: "Separation", icon: UserX, hint: "Offboarding and final pay", tone: "red" },
       { name: "Contractors", icon: Globe, hint: "Non-employee engagements", tone: "teal" },
@@ -114,6 +116,7 @@ export const FREELANCER_HIDDEN = new Set([
   "Discipline",
   "Recruitment",
   "Performance",
+  "Compensation",
   "Separation",
   "Contractors",
   "Assets",
