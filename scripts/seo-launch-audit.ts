@@ -14,6 +14,7 @@ import {
 import { industryWave6, integrationWave6 } from "../src/lib/seo-content-wave6";
 import { resourceWave14 } from "../src/lib/seo-content-wave14";
 import { resourceWave16 } from "../src/lib/seo-content-wave16";
+import { resourceWave17 } from "../src/lib/seo-content-wave17";
 import { STATIC_SEO_ROUTES } from "../src/lib/static-seo-routes";
 import { DYNAMIC_SEO_ROUTE_CONTRACTS } from "../src/lib/dynamic-seo-routes";
 import {
@@ -103,7 +104,7 @@ for (const [path, count] of sitemapCounts) {
 
 const authorityFamilies: Array<{ prefix: string; pages: AuthorityPage[] }> = [
   { prefix: "/compliance", pages: [...compliancePages, ...complianceWave3] },
-  { prefix: "/resources", pages: [...resourcePages, ...resourceWave2, ...resourceWave3, ...resourceWave14, ...resourceWave16] },
+  { prefix: "/resources", pages: [...resourcePages, ...resourceWave2, ...resourceWave3, ...resourceWave14, ...resourceWave16, ...resourceWave17] },
   { prefix: "/industries", pages: [...industryPages, ...industryWave2, ...industryWave6] },
   { prefix: "/integrations", pages: integrationWave6 },
 ];
