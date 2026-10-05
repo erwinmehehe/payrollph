@@ -24,7 +24,7 @@ type SubmittedAnswer = {
   textValue?: unknown;
 };
 
-async function eligibleEmployee(userId: number, employeeId: number | null, organizationId: number) {
+async function eligibleEmployee(employeeId: number | null, organizationId: number) {
   if (!employeeId) return null;
   const [employee] = await db.select().from(employees).where(and(
     eq(employees.id, employeeId),
@@ -50,7 +50,7 @@ export async function GET(request: Request) {
   const denied = await assertMembership(user.id, organizationId);
   if (denied) return denied;
 
-  const employee = await eligibleEmployee(user.id, user.employeeId, organizationId);
+  const employee = await eligibleEmployee(user.employeeId, organizationId);
   if (!employee) {
     return Response.json({
       employee: null,
@@ -142,7 +142,7 @@ export async function POST(request: Request) {
   const denied = await assertMembership(user.id, organizationId);
   if (denied) return denied;
 
-  const employee = await eligibleEmployee(user.id, user.employeeId, organizationId);
+  const employee = await eligibleEmployee(user.employeeId, organizationId);
   if (!employee) return Response.json({ error: "A linked active employee record is required to respond." }, { status: 403 });
 
   const [survey] = await db.select().from(engagementSurveys).where(and(
