@@ -110,13 +110,34 @@ Guardrail: performance scores may inform a cycle, but no automatic salary change
 
 ## Tranche 5 — Learning, skills and career
 
-- Skills catalogue and employee skill profile
-- Role competency requirements
-- Development plans linked to performance reviews
-- Courses, sessions, enrolments and completion evidence
-- Certifications with expiry reminders
-- Career paths and readiness gaps
-- Internal mobility candidates
+Foundation implemented on `feat/hcm-learning-skills-career`.
+
+Built:
+- Organization skill catalog with categories and descriptions
+- Five-level proficiency model
+- Job-profile competency requirements with critical-skill flags
+- Verified employee skill profiles with evidence source and verifier
+- Development plans optionally linked to the employee's completed performance review
+- Development activities for training, mentoring, projects, coaching, certifications and reading
+- Learning course catalog with provider and delivery mode
+- Course-to-skill mapping with verified proficiency awarded only after recorded completion
+- Learning assignments that can link back to a development-plan activity
+- Course completion can automatically close its development activity and completed plans
+- Certificate-generating courses with validity/expiry dates
+- External certification recording and expiry tracking
+- Internal-mobility readiness calculated from verified proficiency against target job-profile requirements
+- Critical requirements receive additional readiness weight and are surfaced as explicit gaps
+- Tenant/org-unit RBAC and audit events across talent-development mutations
+
+Remaining:
+- Employee self-assessment with manager verification queue
+- Learning sessions, attendance, instructors and cohort capacity
+- Content/LMS integrations and SCORM/xAPI support
+- Formal career-path sequences between job profiles
+- Mentorship matching and recurring 1:1 development check-ins
+- Certification renewal workflows and reminder automation
+- Skills inference from work history only with explicit human verification
+- Internal opportunity marketplace / talent marketplace
 
 ## Tranche 6 — Engagement
 
@@ -177,7 +198,7 @@ Only after clean data models:
 3. Workforce/headcount planning
 4. Recruitment-to-position handoff — implemented foundation
 5. Compensation bands + review cycles — implemented foundation
-6. Learning/skills/career
+6. Learning/skills/career — implemented foundation
 7. SSO/OIDC + SCIM
 8. Engagement/surveys
 9. Broader analytics/AI
