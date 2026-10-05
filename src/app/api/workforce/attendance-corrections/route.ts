@@ -384,7 +384,7 @@ export async function POST(request: Request) {
           decidedAt: new Date(),
           decisionNote,
           appliedAt: new Date(),
-          invalidatedPayrollRunIds: invalidatedRunIds,
+          invalidatedRunIds: invalidatedRunIds,
           updatedAt: new Date(),
         }).where(and(
           eq(attendanceCorrectionRequests.id, requestId),
@@ -409,7 +409,7 @@ export async function POST(request: Request) {
           employeeId: existing.employeeId,
           originalPunchSnapshot: original,
           proposedPunchSnapshot: proposed,
-          invalidatedPayrollRunIds,
+          invalidatedRunIds,
           decisionNote,
         },
       });
@@ -417,7 +417,7 @@ export async function POST(request: Request) {
       return Response.json({
         correction: result.updatedRequest,
         punch: result.updatedPunch,
-        invalidatedPayrollRunIds,
+        invalidatedRunIds,
       });
     } catch (error) {
       return Response.json({
