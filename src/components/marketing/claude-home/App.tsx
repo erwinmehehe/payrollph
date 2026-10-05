@@ -2,7 +2,6 @@
 
 import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
-import Demo from "./components/Demo";
 import { Calculator, Exports } from "./components/Product";
 import { PayrollWorkflow, Security } from "./components/Trust";
 import Pricing from "./components/Pricing";
@@ -24,7 +23,6 @@ export default function ClaudeHomepage({ plans }: { plans: PublicPlan[] }) {
       <Navbar />
       <main id="main">
         <Hero />
-        <Demo />
         <PayrollWorkflow />
         <Exports />
         <Security />
