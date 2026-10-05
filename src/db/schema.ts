@@ -1318,7 +1318,7 @@ export const statutoryRemittanceMonthClosures = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("statutory_remittance_month_closure_unique").on(table.organizationId, table.applicableMonth),
+    uniqueIndex("statutory_remittance_month_closure_snapshot_unique").on(table.organizationId, table.applicableMonth, table.snapshotHash),
     index("statutory_remittance_month_closure_status_idx").on(table.organizationId, table.status),
   ],
 );
