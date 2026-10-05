@@ -71,3 +71,21 @@ test("dynamic authority families remain outside static page registry", () => {
     assert.ok(!route.pageFile.includes("[slug]"));
   }
 });
+
+
+test("core product SEO pages keep buyer FAQ depth and service schema", () => {
+  const pages = [
+    ["src/app/hris/page.tsx", "What is the difference between HRIS and payroll software?"],
+    ["src/app/time-and-attendance/page.tsx", "What happens when a clock-in or clock-out is missing?"],
+    ["src/app/employee-self-service/page.tsx", "Can one employee view another employee's payslip?"],
+    ["src/app/implementation/page.tsx", "Should we run parallel payroll before going live?"],
+  ] as const;
+
+  for (const [path, faqQuestion] of pages) {
+    const source = readFileSync(path, "utf8");
+    assert.ok(source.includes("<StructuredData"), `${path} must publish shared structured data`);
+    assert.ok(source.includes("service={{"), `${path} must expose service schema`);
+    assert.ok(source.includes("faq={faq}"), `${path} must expose FAQ structured data and visible FAQ content`);
+    assert.ok(source.includes(faqQuestion), `${path} must retain buyer-focused FAQ depth`);
+  }
+});
