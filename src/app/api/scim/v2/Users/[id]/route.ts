@@ -47,7 +47,7 @@ function responseResource(row: NonNullable<Awaited<ReturnType<typeof loadResourc
     userName: row.user.email,
     displayName: row.user.name,
     name: { formatted: row.user.name },
-    active: row.user.active,
+    active: row.user.active && row.membership.active,
     roles: [{ value: row.membership.role, primary: true }],
     "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User": {
       department: row.unit?.name ?? undefined,
@@ -163,12 +163,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     await tx.update(users).set({
       ...(email !== undefined ? { email } : {}),
       ...(name !== undefined ? { name } : {}),
-      ...(active !== undefined ? { active } : {}),
       ...(employee ? { employeeId: employee.id } : {}),
     }).where(eq(users.id, current.user.id));
 
     await tx.update(userOrganizations).set({
       ...(role !== undefined ? { role } : {}),
+      ...(active !== undefined ? { active } : {}),
       ...(unit ? { orgUnitId: unit.id } : {}),
     }).where(eq(userOrganizations.id, current.membership.id));
 
@@ -209,7 +209,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   if (!current) return scimError(404, "SCIM user not found.");
 
   await db.transaction(async (tx) => {
-    await tx.update(users).set({ active: false }).where(eq(users.id, current.user.id));
+    await tx.update(userOrganizations).set({ active: false }).where(eq(userOrganizations.id, current.membership.id));
     await tx.update(scimIdentities).set({ active: false, lastSyncedAt: new Date() }).where(eq(scimIdentities.id, scimId));
     await tx.update(sessions).set({ revokedAt: new Date() }).where(and(
       eq(sessions.userId, current.user.id),
