@@ -30,8 +30,22 @@ const securityHeaders = [
     : []),
 ];
 
+const legacyProductionHosts = [
+  "erwinmehehe-payrollph.vercel.app",
+  "erwinmehehe-payrollph-payrollph.vercel.app",
+  "erwinmehehe-payrollph-git-main-payrollph.vercel.app",
+];
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  async redirects() {
+    return legacyProductionHosts.map((host) => ({
+      source: "/:path*",
+      has: [{ type: "host" as const, value: host }],
+      destination: "https://payrollsoftware.ph/:path*",
+      permanent: true,
+    }));
+  },
   async headers() {
     return [
       {
