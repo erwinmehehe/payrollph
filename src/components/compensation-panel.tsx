@@ -59,12 +59,12 @@ export function CompensationPanel({ organizationId, setNotice }: { organizationI
     });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) return setNotice(body.error ?? "Could not decide compensation proposal.");
-    setNotice(decision === "approved" ? "Pay change approved and written to effective-dated payroll history." : "Compensation proposal declined.");
+    setNotice(decision === "approved" ? "Pay change approved. Payroll will honor its effective-dated revision, and the live profile will switch only on the effective date." : "Compensation proposal declined.");
     await load();
   }
 
   const activeCycle = cycles.find((cycle) => cycle.status === "active");
-  const approvedSpend = useMemo(() => proposals.filter((proposal) => proposal.status === "approved")
+  const approvedSpend = useMemo(() => proposals.filter((proposal) => proposal.status === "approved" || proposal.status === "applied")
     .reduce((sum, proposal) => sum + Math.max(0, Number(proposal.proposedAnnual) - Number(proposal.currentAnnual)), 0), [proposals]);
 
   return (
@@ -79,7 +79,7 @@ export function CompensationPanel({ organizationId, setNotice }: { organizationI
       </div>
 
       <div className="notice notice-blue" style={{ marginBottom: 16 }}>
-        <ShieldCheck size={15} /><span><strong>Approval boundary:</strong> proposed pay stays separate from payroll until an Owner/Admin approves it. Approval creates an effective-dated pay revision and audit event.</span>
+        <ShieldCheck size={15} /><span><strong>Maker-checker boundary:</strong> the submitter cannot approve their own proposal. Approval creates a future-safe pay revision; the live pay profile changes only when the effective date arrives.</span>
       </div>
 
       <section className="stats-grid" style={{ marginBottom: 16 }}>
@@ -144,8 +144,8 @@ export function CompensationPanel({ organizationId, setNotice }: { organizationI
             return <tr key={proposal.id}>
               <td><strong>{employee ? `${employee.firstName} ${employee.lastName}` : `Employee #${proposal.employeeId}`}</strong><small style={{ display: "block" }}>{proposal.reason}</small></td>
               <td>{peso(proposal.currentAnnual)}</td><td>{peso(proposal.proposedAnnual)}</td><td>{proposal.compaRatio == null ? "—" : `${proposal.compaRatio.toFixed(1)}%`}</td>
-              <td>{proposal.status}</td>
-              <td>{proposal.status === "proposed" ? <span style={{ display: "flex", gap: 6 }}><button className="secondary-button" onClick={() => void decide(proposal.id, "approved")}><Check size={13} /> Approve</button><button className="secondary-button" onClick={() => void decide(proposal.id, "declined")}><X size={13} /> Decline</button></span> : "Decided"}</td>
+              <td>{proposal.status === "approved" ? "Approved · scheduled" : proposal.status === "applied" ? "Applied" : proposal.status}</td>
+              <td>{proposal.status === "proposed" ? <span style={{ display: "flex", gap: 6 }}><button className="secondary-button" onClick={() => void decide(proposal.id, "approved")}><Check size={13} /> Approve</button><button className="secondary-button" onClick={() => void decide(proposal.id, "declined")}><X size={13} /> Decline</button></span> : proposal.status === "approved" ? "Awaiting effective date" : proposal.status === "applied" ? "Live in payroll" : "Decided"}</td>
             </tr>;
           })}</tbody></table>
         </div>
