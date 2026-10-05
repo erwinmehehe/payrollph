@@ -12,7 +12,7 @@ The application emits verification metadata only when a value is configured. Nev
 
 1. Add the canonical production property.
 2. Complete ownership verification.
-3. Submit `/sitemap.xml`.
+3. Submit `/sitemap.xml`. It is the sitemap index and points to segmented product, compliance, industry, resource, calculator, glossary and developer sitemaps.
 4. Inspect the homepage and highest-priority commercial URLs.
 5. Request indexing only after production content, canonical and robots behavior are correct.
 6. Recheck indexing after major route launches.
@@ -70,7 +70,8 @@ Before considering a new SEO wave complete:
 - security smoke green
 - CodeQL green where configured
 - production deployment healthy
-- sitemap accessible
+- sitemap index accessible
+- segmented child sitemaps return XML successfully
 - robots accessible
 - canonical host correct
 - no auth/app routes accidentally indexed
