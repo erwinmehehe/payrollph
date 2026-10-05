@@ -1,3 +1,4 @@
+import { NATIONAL_HOLIDAYS_2026 } from "@/lib/wage-orders";
 export const STATUTORY_REMITTANCE_AGENCIES = ["SSS", "PhilHealth", "Pag-IBIG"] as const;
 export type StatutoryRemittanceAgency = (typeof STATUTORY_REMITTANCE_AGENCIES)[number];
 
@@ -134,6 +135,20 @@ function lastDigit(value: string | null | undefined) {
   return digits ? Number(digits.at(-1)) : null;
 }
 
+function nextWorkingDay(dateText: string) {
+  let date = new Date(`${dateText}T00:00:00Z`);
+  const known2026Holidays = new Set(NATIONAL_HOLIDAYS_2026.map((holiday) => holiday.date));
+  for (let guard = 0; guard < 10; guard += 1) {
+    const text = date.toISOString().slice(0, 10);
+    const day = date.getUTCDay();
+    const weekend = day === 0 || day === 6;
+    const knownHoliday = text.startsWith("2026-") && known2026Holidays.has(text);
+    if (!weekend && !knownHoliday) return text;
+    date = new Date(date.getTime() + 86_400_000);
+  }
+  throw new Error("Could not resolve the next statutory working day.");
+}
+
 export function statutoryRemittanceDeadline(input: {
   agency: StatutoryRemittanceAgency;
   applicableMonth: string;
@@ -143,9 +158,10 @@ export function statutoryRemittanceDeadline(input: {
   const next = followingMonth(input.applicableMonth);
 
   if (input.agency === "SSS") {
+    const nominalDueDate = dateText(next.year, next.month, daysInMonth(next.year, next.month));
     return {
-      dueDate: dateText(next.year, next.month, daysInMonth(next.year, next.month)),
-      dueRule: "Regular employer: last day of the month following the applicable month; SSS non-working-day extensions must be checked against the actual calendar.",
+      dueDate: nextWorkingDay(nominalDueDate),
+      dueRule: "Regular employer: last day of the month following the applicable month; when that day is a weekend or known national holiday, PayrollPH moves the deadline to the next working day. Future-year holiday proclamations still require calendar review.",
     };
   }
 
@@ -158,8 +174,9 @@ export function statutoryRemittanceDeadline(input: {
       };
     }
     const dueDay = penLastDigit <= 4 ? 15 : 20;
+    const nominalDueDate = dateText(next.year, next.month, dueDay);
     return {
-      dueDate: dateText(next.year, next.month, dueDay),
+      dueDate: nextWorkingDay(nominalDueDate),
       dueRule: penLastDigit <= 4
         ? "PhilHealth employer PEN ending 0-4: remit within the 11th-15th of the following month."
         : "PhilHealth employer PEN ending 5-9: remit within the 16th-20th of the following month.",
