@@ -3,6 +3,7 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, CalendarDays, Check, LoaderCircle } from "lucide-react";
+import { readMarketingAttribution } from "@/lib/marketing-attribution-client";
 
 type Result = { message: string; queued: boolean; delivered: boolean; provider: string };
 
@@ -31,7 +32,7 @@ export function BookDemoForm() {
       const response = await fetch("/api/demo-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, requestType: "demo", attribution: readMarketingAttribution() }),
       });
       const payload = await response.json().catch(() => ({}));
 
