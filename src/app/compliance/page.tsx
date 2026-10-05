@@ -37,7 +37,7 @@ export default function CompliancePage() {
         },
         {
           title: "Support privacy obligations as an operational workflow",
-          body: "Data requests include access, correction, deletion, portability and objection types with statutory due-date tracking and audit coverage.",
+          body: "Data requests include access, correction, deletion, portability and objection types with audit coverage, an internal response deadline and legal-retention review where required.",
         },
       ]}
       related={[
