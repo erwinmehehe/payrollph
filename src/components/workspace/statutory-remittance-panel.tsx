@@ -24,6 +24,8 @@ type Batch = {
   pendingPostingCount: number;
   exceptionCount: number;
 };
+type CoverageGap = { applicableMonth: string; agency: Agency };
+
 type Member = {
   id: number;
   batchId: number;
@@ -49,6 +51,7 @@ export function StatutoryRemittancePanel({
   const [month, setMonth] = useState(defaultMonth);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
+  const [coverageGaps, setCoverageGaps] = useState<CoverageGap[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [paymentBatchId, setPaymentBatchId] = useState<number | null>(null);
   const [paymentReference, setPaymentReference] = useState("");
@@ -69,6 +72,7 @@ export function StatutoryRemittancePanel({
     if (!response.ok) throw new Error(body.error ?? "Could not load statutory remittances.");
     setBatches(Array.isArray(body.batches) ? body.batches : []);
     setMembers(Array.isArray(body.members) ? body.members : []);
+    setCoverageGaps(Array.isArray(body.coverageGaps) ? body.coverageGaps : []);
   }, [organizationId]);
 
   useEffect(() => {
@@ -171,6 +175,17 @@ export function StatutoryRemittancePanel({
             A filing acceptance is not treated as proof of payment or employee posting. A batch is only <strong>reconciled</strong> when payment matches the payroll liability and every employee is confirmed.
           </span>
         </div>
+
+        {coverageGaps.length > 0 && (
+          <div className="notice notice-red" style={{ margin: 0 }}>
+            <AlertTriangle size={15} />
+            <span>
+              <strong>{coverageGaps.length} missing remittance control{coverageGaps.length === 1 ? "" : "s"}.</strong>{" "}
+              {coverageGaps.slice(0, 6).map((gap) => `${gap.agency} ${gap.applicableMonth}`).join(" · ")}
+              {coverageGaps.length > 6 ? " · …" : ""}
+            </span>
+          </div>
+        )}
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "end" }}>
           <label className="field" style={{ minWidth: 180 }}>
