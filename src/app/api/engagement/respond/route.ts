@@ -34,10 +34,10 @@ async function eligibleEmployee(employeeId: number | null, organizationId: numbe
   return employee;
 }
 
-function respondentKey(survey: typeof engagementSurveys.$inferSelect, userId: number) {
+function respondentKey(survey: typeof engagementSurveys.$inferSelect, employeeId: number) {
   return survey.anonymous
-    ? anonymousRespondentKey({ surveyId: survey.id, organizationId: survey.organizationId, userId })
-    : identifiableRespondentKey({ surveyId: survey.id, userId });
+    ? anonymousRespondentKey({ surveyId: survey.id, organizationId: survey.organizationId, employeeId })
+    : identifiableRespondentKey({ surveyId: survey.id, employeeId });
 }
 
 export async function GET(request: Request) {
@@ -77,7 +77,7 @@ export async function GET(request: Request) {
     let key: string | null = null;
     let anonymityReady = true;
     try {
-      key = respondentKey(survey, user.id);
+      key = respondentKey(survey, employee.id);
     } catch {
       anonymityReady = false;
     }
@@ -163,7 +163,7 @@ export async function POST(request: Request) {
 
   let key: string;
   try {
-    key = respondentKey(survey, user.id);
+    key = respondentKey(survey, employee.id);
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Anonymous survey security is not configured." }, { status: 503 });
   }
