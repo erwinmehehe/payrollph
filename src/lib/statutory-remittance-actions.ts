@@ -49,6 +49,7 @@ export async function syncStatutoryRemittanceActions(
           agency: alert.agency,
           applicableMonth: alert.applicableMonth,
           severity: alert.tone,
+          severityChangedAt: now,
           title: alert.title,
           detail: alert.detail,
           dueDate: alert.dueDate,
@@ -68,10 +69,12 @@ export async function syncStatutoryRemittanceActions(
         continue;
       }
 
+      const severityChanged = current.severity !== alert.tone;
       const alertFields = {
         agency: alert.agency,
         applicableMonth: alert.applicableMonth,
         severity: alert.tone,
+        severityChangedAt: severityChanged ? now : current.severityChangedAt,
         title: alert.title,
         detail: alert.detail,
         dueDate: alert.dueDate,
@@ -87,6 +90,7 @@ export async function syncStatutoryRemittanceActions(
           acknowledgedByUserId: null,
           acknowledgedByName: null,
           resolvedAt: null,
+          severityChangedAt: now,
           escalationEpisode: current.escalationEpisode + 1,
         }).where(and(
           eq(complianceActionTasks.id, current.id),
