@@ -79,6 +79,10 @@ async function listQueue(organizationId: number, currentUserId: number) {
         0,
         Math.floor((now.getTime() - new Date(task.firstDetectedAt).getTime()) / (60 * 60 * 1000)),
       ),
+      severityAgeHours: Math.max(
+        0,
+        Math.floor((now.getTime() - new Date(task.severityChangedAt).getTime()) / (60 * 60 * 1000)),
+      ),
       escalationStage: escalationStage(task, now),
     })),
     assignees,
