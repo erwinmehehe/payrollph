@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  governmentFilingValidations,
   organizations,
   payrollEntries,
   payrollRuns,
@@ -8,6 +9,8 @@ import {
   statutoryRemittanceMembers,
 } from "@/db/schema";
 import { buildStatutoryRemittanceAlerts } from "@/lib/statutory-remittance-alerts";
+import { FILING_FORMS } from "@/lib/filing-evidence";
+import { compareFilingToRemittance } from "@/lib/filing-remittance-snapshot";
 import {
   effectiveRemittanceDueDate,
   statutorySharesForEntry,
@@ -74,6 +77,10 @@ export async function loadStatutoryRemittanceState(organizationId: number) {
         .orderBy(asc(statutoryRemittanceMembers.batchId), asc(statutoryRemittanceMembers.employeeNo))
     : [];
 
+  const filingRows = await db.select().from(governmentFilingValidations)
+    .where(eq(governmentFilingValidations.organizationId, organizationId))
+    .orderBy(asc(governmentFilingValidations.id));
+
   const releasedRuns = await db.select({
     id: payrollRuns.id,
     periodEnd: payrollRuns.periodEnd,
@@ -135,19 +142,75 @@ export async function loadStatutoryRemittanceState(organizationId: number) {
       }),
   );
 
-  const batchSummaries = batches.map((batch) => ({
-    ...batch,
-    displayStatus:
-      batch.status === "open" && String(batch.dueDate) < today
-        ? "overdue"
-        : batch.status,
-    pendingPostingCount: members.filter(
-      (member) => member.batchId === batch.id && member.postingStatus === "pending",
-    ).length,
-    exceptionCount: members.filter(
-      (member) => member.batchId === batch.id && member.postingStatus === "exception",
-    ).length,
-  }));
+  const batchSummaries = batches.map((batch) => {
+    const definition = FILING_FORMS.find((item) =>
+      item.agency === batch.agency
+      && ((batch.agency === "SSS" && item.form === "R-3")
+        || (batch.agency === "PhilHealth" && item.form === "RF-1")
+        || (batch.agency === "Pag-IBIG" && item.form === "MCRF")),
+    );
+    const filing = definition
+      ? [...filingRows]
+          .filter((row) =>
+            row.agency === batch.agency
+            && row.form === definition.form
+            && row.applicableMonth === batch.applicableMonth
+            && row.status === "accepted"
+            && row.submissionMethod === "file_upload"
+            && row.generatorVersion === definition.generatorVersion
+            && row.employeeCount != null
+            && row.reportedTotal != null,
+          )
+          .sort((a, b) =>
+            (b.submittedAt?.getTime() ?? 0) - (a.submittedAt?.getTime() ?? 0)
+            || b.id - a.id,
+          )[0] ?? null
+      : null;
+
+    const comparison = filing
+      ? compareFilingToRemittance({
+          filingEmployeeCount: filing.employeeCount!,
+          filingTotal: Number(filing.reportedTotal),
+          remittanceEmployeeCount: batch.employeeCount,
+          remittanceTotal: Number(batch.expectedTotal),
+        })
+      : null;
+
+    return {
+      ...batch,
+      displayStatus:
+        batch.status === "open" && String(batch.dueDate) < today
+          ? "overdue"
+          : batch.status,
+      pendingPostingCount: members.filter(
+        (member) => member.batchId === batch.id && member.postingStatus === "pending",
+      ).length,
+      exceptionCount: members.filter(
+        (member) => member.batchId === batch.id && member.postingStatus === "exception",
+      ).length,
+      filingCheck: filing && comparison
+        ? {
+            status: comparison.matched ? "matched" as const : "mismatch" as const,
+            filingRecordId: filing.id,
+            filingEmployeeCount: filing.employeeCount,
+            remittanceEmployeeCount: batch.employeeCount,
+            filingTotal: Number(filing.reportedTotal),
+            remittanceTotal: Number(batch.expectedTotal),
+            employeeCountDifference: comparison.employeeCountDifference,
+            totalDifference: comparison.totalDifference,
+          }
+        : {
+            status: "unverified" as const,
+            filingRecordId: null,
+            filingEmployeeCount: null,
+            remittanceEmployeeCount: batch.employeeCount,
+            filingTotal: null,
+            remittanceTotal: Number(batch.expectedTotal),
+            employeeCountDifference: null,
+            totalDifference: null,
+          },
+    };
+  });
 
   const alerts = buildStatutoryRemittanceAlerts({
     today,
