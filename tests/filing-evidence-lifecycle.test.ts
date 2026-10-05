@@ -219,7 +219,7 @@ test("a BIR 1604-C record is tracked separately and its acceptance never counts 
     });
 
     const sssBefore = (await filingEvidenceSummaries()).find((item) => item.definition.agency === "SSS")!;
-    const birBefore = (await filingEvidenceSummaries()).find((item) => item.definition.agency === "BIR")!;
+    const birBefore = (await filingEvidenceSummaries()).find((item) => item.definition.agency === "BIR" && item.definition.form === "1604-C")!;
 
     const { record, file } = await recordGeneratedFiling({ organizationId: org.id, runId: run.id, definition: BIR, actor: "Tester" });
     assert.equal(record.agency, "BIR");
@@ -240,7 +240,7 @@ test("a BIR 1604-C record is tracked separately and its acceptance never counts 
     await recordFilingOutcome({ organizationId: org.id, id: record.id, actor: "Tester", outcome: acceptance() });
 
     const sssAfter = (await filingEvidenceSummaries()).find((item) => item.definition.agency === "SSS")!;
-    const birAfter = (await filingEvidenceSummaries()).find((item) => item.definition.agency === "BIR")!;
+    const birAfter = (await filingEvidenceSummaries()).find((item) => item.definition.agency === "BIR" && item.definition.form === "1604-C")!;
     assert.equal(birAfter.provingCount, birBefore.provingCount + 1);
     assert.equal(sssAfter.provingCount, sssBefore.provingCount, "a BIR acceptance must not turn on the SSS gate");
   } finally {
