@@ -22,3 +22,33 @@ CREATE INDEX IF NOT EXISTS "statutory_contribution_disputes_org_status_idx"
   ON "statutory_contribution_disputes" ("organization_id", "status", "created_at");
 CREATE INDEX IF NOT EXISTS "statutory_contribution_disputes_employee_month_idx"
   ON "statutory_contribution_disputes" ("employee_id", "applicable_month", "agency");
+
+
+DO $compat$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'statutory_contribution_disputes_status_check'
+  ) THEN
+    ALTER TABLE statutory_contribution_disputes
+      ADD CONSTRAINT statutory_contribution_disputes_status_check
+      CHECK (status IN ('open', 'resolved'));
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'statutory_contribution_disputes_agency_check'
+  ) THEN
+    ALTER TABLE statutory_contribution_disputes
+      ADD CONSTRAINT statutory_contribution_disputes_agency_check
+      CHECK (agency IN ('SSS', 'PhilHealth', 'Pag-IBIG'));
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'statutory_contribution_disputes_issue_check'
+  ) THEN
+    ALTER TABLE statutory_contribution_disputes
+      ADD CONSTRAINT statutory_contribution_disputes_issue_check
+      CHECK (issue_type IN ('missing_posting', 'wrong_amount', 'wrong_reference', 'other'));
+  END IF;
+END
+$compat$;
