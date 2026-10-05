@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { AlertTriangle, CalendarDays, Check, Clock3, Clock, Download, Search, Timer } from "lucide-react";
+import { AttendanceCorrectionsPanel } from "./attendance-corrections-panel";
 import { AttendanceExceptionsPanel } from "./attendance-exceptions-panel";
 import type { DashboardData, Notify, Punch } from "./types";
 import { Avatar, EmptyState, Metric, PageHeading, Progress, Segmented, Status, formatDate, formatTimeOnly } from "./ui";
@@ -187,6 +188,14 @@ export function TimeView({
       <AttendanceExceptionsPanel
         organizationId={data.selectedOrganization.id}
         notify={notify}
+      />
+
+      <AttendanceCorrectionsPanel
+        organizationId={data.selectedOrganization.id}
+        punches={punches}
+        employees={data.employees}
+        notify={notify}
+        canManage={canManage}
       />
 
       <article className="card table-card" style={{ marginTop: 16 }}>
