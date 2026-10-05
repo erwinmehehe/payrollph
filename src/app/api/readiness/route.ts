@@ -291,7 +291,7 @@ export async function buildReadinessPayload() {
         : filingEvidenceError
           ?? `${describeEvidenceGap(birEvidence, findFilingForm("BIR", "1604-C")!)} The current Linaw annual extract remains source data only, so direct DAT automation is not claimed.` ,
       blocks: birAlphalistValidated ? "none" : "scale",
-      manualWorkaround: birAlphalistValidated ? undefined : "Run annualization, use the current BIR Alphalist Data Entry and Validation Module to encode/convert the source figures, validate the DAT, then submit through the applicable BIR e-submission/eFPS workflow and retain the acknowledgement.",
+      manualWorkaround: birAlphalistValidated ? undefined : "Run annualization, use the current BIR Alphalist Data Entry and Validation Module (ADES) to encode/convert the source figures, validate the DAT, then submit through the applicable BIR e-submission/eFPS workflow and retain the acknowledgement.",
     },
     {
       key: "gov-sss-r3",
