@@ -2,6 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, Download, RefreshCcw, SearchCheck } from "lucide-react";
+import {
+  allowedContributionCaseOutcomes,
+  contributionCaseResolutionPolicyMessage,
+  type ContributionResolutionOutcome,
+} from "@/lib/statutory-contribution-case-resolution";
 import type { Notify } from "./types";
 import { Spinner, Status } from "./ui";
 
@@ -14,6 +19,7 @@ type ContributionIssueCase = {
   applicableMonth: string;
   issueType: string;
   description: string;
+  remittanceMemberId: number | null;
   status: string;
   assignedToUserId: number | null;
   assignedToName: string | null;
@@ -43,13 +49,13 @@ type ContributionIssueCase = {
   };
 };
 
-const OUTCOMES = [
-  ["posting_confirmed", "Agency posting confirmed"],
-  ["correction_completed", "Correction completed"],
-  ["no_issue_found", "No issue found"],
-  ["employee_advised", "Employee advised"],
-  ["referred_to_agency", "Referred to agency · keep case open"],
-] as const;
+const OUTCOME_LABELS: Record<ContributionResolutionOutcome, string> = {
+  posting_confirmed: "Agency posting confirmed",
+  correction_completed: "Correction completed",
+  no_issue_found: "No issue found",
+  employee_advised: "Employee advised",
+  referred_to_agency: "Referred to agency · keep case open",
+};
 
 export function StatutoryContributionIssueCasesPanel({
   organizationId,
@@ -64,7 +70,7 @@ export function StatutoryContributionIssueCasesPanel({
   const [resolveId, setResolveId] = useState<number | null>(null);
   const [updateId, setUpdateId] = useState<number | null>(null);
   const [updateMessage, setUpdateMessage] = useState("");
-  const [resolutionOutcome, setResolutionOutcome] = useState("posting_confirmed");
+  const [resolutionOutcome, setResolutionOutcome] = useState<ContributionResolutionOutcome>("posting_confirmed");
   const [resolutionNote, setResolutionNote] = useState("");
 
   const load = useCallback(async () => {
@@ -276,11 +282,20 @@ export function StatutoryContributionIssueCasesPanel({
                         </div>
                       ) : resolveId === issue.id ? (
                         <div style={{ display: "grid", gap: 6, minWidth: 250 }}>
-                          <select value={resolutionOutcome} onChange={(event) => setResolutionOutcome(event.target.value)}>
-                            {OUTCOMES.map(([value, label]) => (
-                              <option key={value} value={value}>{label}</option>
+                          <select
+                            value={resolutionOutcome}
+                            onChange={(event) => setResolutionOutcome(event.target.value as ContributionResolutionOutcome)}
+                          >
+                            {allowedContributionCaseOutcomes(
+                              issue.issueType,
+                              { hasLinkedPosting: issue.remittanceMemberId != null },
+                            ).map((value) => (
+                              <option key={value} value={value}>{OUTCOME_LABELS[value]}</option>
                             ))}
                           </select>
+                          <div className="id" style={{ whiteSpace: "normal" }}>
+                            {contributionCaseResolutionPolicyMessage(issue.issueType)}
+                          </div>
                           <textarea
                             value={resolutionNote}
                             onChange={(event) => setResolutionNote(event.target.value)}
@@ -315,7 +330,10 @@ export function StatutoryContributionIssueCasesPanel({
                             onClick={() => {
                               setResolveId(issue.id);
                               setUpdateId(null);
-                              setResolutionOutcome("posting_confirmed");
+                              setResolutionOutcome(allowedContributionCaseOutcomes(
+                                issue.issueType,
+                                { hasLinkedPosting: issue.remittanceMemberId != null },
+                              )[0]);
                               setResolutionNote("");
                             }}
                           >
