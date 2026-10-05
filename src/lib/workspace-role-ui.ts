@@ -12,6 +12,7 @@ export const REAL_ROLE_PAGE_ACCESS: Partial<Record<string, readonly string[]>> =
   hr: [
     "Overview",
     "People",
+    "Planning",
     "Time & attendance",
     "Workforce",
     "Leave",
@@ -52,6 +53,7 @@ export const REAL_ROLE_PAGE_ACCESS: Partial<Record<string, readonly string[]>> =
   bookkeeper: [
     "Overview",
     "Payroll",
+    "Planning",
     "Workforce",
     "Exports",
     "Compliance",
