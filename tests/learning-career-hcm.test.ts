@@ -7,6 +7,7 @@ const route = readFileSync("src/app/api/learning-career/route.ts", "utf8");
 const panel = readFileSync("src/components/learning-career-panel.tsx", "utf8");
 const nav = readFileSync("src/components/workspace/nav.ts", "utf8");
 const workspace = readFileSync("src/components/linaw-workspace.tsx", "utf8");
+const readiness = readFileSync("src/lib/career-readiness.ts", "utf8");
 
 test("learning and career schema models competencies development learning and certifications", () => {
   for (const table of [
@@ -43,11 +44,12 @@ test("development plans may link only to the same employee completed performance
 });
 
 test("career readiness is calculated from verified job requirements rather than manual percentages", () => {
-  assert.ok(route.includes("requirementsByProfile"));
-  assert.ok(route.includes("const weight = req.critical ? 2 : 1"));
-  assert.ok(route.includes("Math.min(current / req.requiredLevel, 1) * weight"));
-  assert.ok(route.includes("criticalGaps.push"));
-  assert.ok(route.includes("readinessPercent"));
+  assert.ok(route.includes("calculateCareerReadiness"));
+  assert.ok(readiness.includes("requirementsByProfile"));
+  assert.ok(readiness.includes("const weight = req.critical ? 2 : 1"));
+  assert.ok(readiness.includes("Math.min(currentLevel / req.requiredLevel, 1) * weight"));
+  assert.ok(readiness.includes("criticalGaps.push"));
+  assert.ok(readiness.includes("readinessPercent"));
   assert.ok(panel.includes("Internal mobility based on evidence"));
 });
 
