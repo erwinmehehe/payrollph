@@ -79,7 +79,7 @@ test("customer story infrastructure cannot fabricate social proof", () => {
 });
 
 test("Wave 4 routes are discoverable without crowding primary navigation", () => {
-  const sitemap = read("src/app/sitemap.ts");
+  const sitemap = read("src/lib/sitemap-data.ts");
   const nav = read("src/components/marketing/public-navigation.ts");
   for (const route of [
     "/compare",
