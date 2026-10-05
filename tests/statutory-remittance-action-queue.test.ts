@@ -129,6 +129,6 @@ test("reassigning in-progress compliance work resets acknowledgement for the new
   assert.ok(route.includes("acknowledgedByUserId: null"));
 });
 
-test("notification dashboard fetch is limited to statutory remittance action sources", () => {
-  assert.ok(dashboardData.includes('eq(complianceActionTasks.sourceType, "statutory_remittance")'));
+test("notification dashboard includes remittance actions and employee contribution disputes", () => {
+  assert.ok(dashboardData.includes('inArray(complianceActionTasks.sourceType, ["statutory_remittance", "employee_contribution_dispute"])'));
 });
