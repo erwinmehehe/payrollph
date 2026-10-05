@@ -35,10 +35,10 @@ test("login screen never hardcodes demo credentials", () => {
   assert.ok(loginRoute.includes("demoMode={DEMO_MODE}"), "/login must pass the demo flag explicitly");
 });
 
-test("stale rate-limit claim is gone from the auth screen", () => {
+test("auth screen keeps a truthful user-facing rate-limit proof point", () => {
   const source = read("src/components/auth-screen.tsx");
   assert.ok(!source.includes("single-instance"), "auth screen still claims single-instance rate limiting");
-  assert.ok(source.includes("distributed"), "auth screen should state the real distributed limiter");
+  assert.ok(source.includes("Rate-limited sign in"), "auth screen should state that sign-in is rate limited without exposing infrastructure jargon");
 });
 
 test("reset flow no longer depends on a token returned in the response", () => {

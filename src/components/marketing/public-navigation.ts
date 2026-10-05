@@ -5,9 +5,9 @@ export type PublicLink = {
 
 export const PUBLIC_PRIMARY_LINKS: PublicLink[] = [
   { label: "Product", href: "/#product" },
-  { label: "Demo", href: "/demo" },
-  { label: "Payroll outsourcing", href: "/payroll-outsourcing" },
+  { label: "Live demo", href: "/demo" },
   { label: "Pricing", href: "/#pricing" },
+  { label: "Payroll outsourcing", href: "/payroll-outsourcing" },
   { label: "Trust", href: "/scorecard" },
 ];
 
@@ -33,7 +33,7 @@ export const PUBLIC_FOOTER_GROUPS: Array<{ label: string; links: PublicLink[] }>
   {
     label: "Get started",
     links: [
-      { label: "Start free", href: "/signup" },
+      { label: "Request trial access", href: "/signup" },
       { label: "Book a demo", href: "/book-demo" },
       { label: "Sign in", href: "/login" },
     ],

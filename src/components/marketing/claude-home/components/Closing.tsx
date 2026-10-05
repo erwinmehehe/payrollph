@@ -7,7 +7,7 @@ import { PUBLIC_FOOTER_GROUPS } from "@/components/marketing/public-navigation";
 const faqs = [
   {
     q: "Are the statutory computations correct?",
-    a: "SSS, PhilHealth, Pag-IBIG and TRAIN withholding use tested formulas, cross-checked against an independent PH payroll reference package. Holiday stacking, DOLE regional wage floors, MWE exemptions and calamity advisory premiums are applied during calculation and traced on the payslip.",
+    a: "SSS, PhilHealth, Pag-IBIG and TRAIN withholding are implemented with automated regression tests. Holiday, rest-day, overtime, night-differential and MWE logic is traced during payroll, while external payroll reconciliation remains part of production certification.",
   },
   {
     q: "Can I file directly with BIR, SSS, PhilHealth and Pag-IBIG?",
@@ -27,7 +27,7 @@ const faqs = [
   },
   {
     q: "Can I get my data out?",
-    a: "Anytime. Full company data export, report builder CSVs and Xero/QBO journals are built in, and Data Privacy Act portability requests are tracked with a 30-day due date.",
+    a: "Anytime. Full company data export, report builder CSVs and Xero/QBO journals are built in. Privacy requests are tracked through a documented workflow with an internal response deadline and legal-retention review where required.",
   },
 ];
 
@@ -110,7 +110,7 @@ export function CTA() {
   return (
     <section id="cta" className="scroll-mt-20 px-5 pb-20 pt-2 sm:px-8 sm:pb-24">
       <Reveal>
-        <div className="relative mx-auto min-h-[500px] max-w-[1200px] overflow-hidden rounded-[34px] bg-[#11141F] px-6 py-20 text-center text-white sm:flex sm:min-h-[540px] sm:items-center sm:justify-center sm:px-12 sm:py-24">
+        <div className="relative mx-auto min-h-[360px] max-w-[1200px] overflow-hidden rounded-[34px] bg-[#11141F] px-6 py-16 text-center text-white sm:flex sm:min-h-[400px] sm:items-center sm:justify-center sm:px-12 sm:py-20">
           <div aria-hidden className="pointer-events-none absolute inset-0">
             <div className="bg-grid absolute inset-0 opacity-[0.12] [background-image:linear-gradient(to_right,rgba(255,255,255,0.5)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.5)_1px,transparent_1px)]" />
             <div className="absolute -left-24 -top-24 h-80 w-80 rounded-full bg-[#6161FF] opacity-55 blur-[110px]" />
@@ -121,10 +121,10 @@ export function CTA() {
           <div className="relative mx-auto max-w-[820px]">
             <p className="text-[12px] font-bold uppercase tracking-[0.16em] text-white/45">Ready when your payroll is</p>
             <h2 className="font-display mx-auto mt-4 max-w-[760px] text-balance text-[46px] font-semibold leading-[0.98] sm:text-[68px]">
-              Payroll you can explain, line by line.
+              Run your next Philippine payroll with Linaw.
             </h2>
             <p className="mx-auto mt-6 max-w-[560px] text-[17px] leading-relaxed text-white/68">
-              Start a 14-day Core trial, or open the playable preview. It runs the real payroll rules and saves nothing.
+              Request a trial workspace, or open the live role-based demo first. Review the workflow before you move a real payroll.
             </p>
 
             <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -132,18 +132,18 @@ export function CTA() {
                 href="/signup"
                 className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-white px-9 py-4.5 text-[15px] font-semibold text-[#11141F] shadow-[0_10px_34px_-12px_rgba(255,255,255,.45)] transition-all hover:scale-[1.025] hover:bg-[#F6F7FB] sm:w-auto"
               >
-                Start free
+                Request trial access
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" aria-hidden />
               </a>
               <a
                 href="/demo"
                 className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/20 bg-white/10 px-9 py-4.5 text-[15px] font-semibold text-white backdrop-blur transition-all hover:bg-white/15 sm:w-auto"
               >
-                Explore sandbox
+                Try live demo
               </a>
             </div>
 
-            <p className="mt-7 text-[13.5px] font-medium text-white/48">No credit card · Solo is free forever · Cancel anytime</p>
+            <p className="mt-7 text-[13.5px] font-medium text-white/48">Sample data first · Controlled workspace access · Keep approval with your team</p>
           </div>
         </div>
       </Reveal>
@@ -165,11 +165,11 @@ export function Footer() {
               </span>
               <span className="leading-none">
                 <span className="font-display block text-[22px] font-semibold tracking-tight">linaw</span>
-                <span className="mt-1 block text-[9px] font-bold uppercase tracking-[0.18em] text-[#7C82A1]">HR &amp; Payroll</span>
+                <span className="mt-1 block text-[9px] font-bold uppercase tracking-[0.18em] text-[#7C82A1]">Philippine Payroll</span>
               </span>
             </a>
             <p className="mt-5 max-w-[330px] text-[14px] leading-relaxed text-[#5B6080]">
-              Philippine payroll and HRIS for teams that want every run, approval and peso to be traceable.
+              Philippine payroll software for teams that want every run, approval and peso to be traceable.
             </p>
           </div>
 
@@ -190,7 +190,7 @@ export function Footer() {
         </div>
 
         <div className="mt-14 flex flex-col gap-2 border-t border-[#E2E4F0] pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-[13px] font-medium text-[#5B6080]">Linaw · Philippine HR and payroll workspace.</p>
+          <p className="text-[13px] font-medium text-[#5B6080]">Linaw · Philippine payroll software.</p>
           <p className="text-[12.5px] text-[#8B90AA]">Government worksheet output is labelled DRAFT until validated.</p>
         </div>
       </div>

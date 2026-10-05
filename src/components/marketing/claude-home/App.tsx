@@ -25,8 +25,8 @@ export default function ClaudeHomepage({ plans }: { plans: PublicPlan[] }) {
       <main id="main">
         <Hero />
         <TrustStrip />
-        <Audiences />
         <Demo />
+        <Audiences />
         <Calculator />
         <Exports />
         <Security />

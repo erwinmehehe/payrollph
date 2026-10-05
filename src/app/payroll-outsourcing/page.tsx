@@ -48,26 +48,26 @@ const PROCESS = [
 const SCOPE = [
   {
     icon: Gauge,
-    title: "Payroll processing",
-    copy: "Run the cycle from approved inputs and keep the computation trace available for review.",
+    title: "Reviewed payroll register",
+    copy: "A gross-to-net payroll register with calculation trace, statutory figures and the exceptions that still need a decision.",
     tone: "bg-[#ECECFF] text-[#4A4AE0]",
   },
   {
     icon: ShieldCheck,
-    title: "Validation",
-    copy: "Check calculations and surface exceptions before anyone is asked to approve payroll.",
+    title: "Exception list",
+    copy: "Missing inputs and business decisions are surfaced explicitly instead of being guessed or silently changed.",
     tone: "bg-[#E3FAF0] text-[#0A8A53]",
   },
   {
     icon: FileSpreadsheet,
-    title: "Payroll outputs",
-    copy: "Prepare payslips, payroll reports and supported export files after the run is approved.",
+    title: "Payslips and reports",
+    copy: "After approval, the cycle produces employee payslips, payroll reports and supported accounting outputs.",
     tone: "bg-[#E0F7FA] text-[#00838F]",
   },
   {
     icon: MessageSquareText,
-    title: "Cycle coordination",
-    copy: "Keep the cutoff moving when an input is missing or an exception needs your team.",
+    title: "Supported payout and agency outputs",
+    copy: "Bank and government outputs show their validation status clearly, including when a template or agency check is still required.",
     tone: "bg-[#F1EDFF] text-[#6D4DE0]",
   },
 ];
@@ -87,15 +87,14 @@ export default function PayrollOutsourcingPage() {
             <div>
               <span className="inline-flex items-center gap-2 rounded-full border border-[#DDE0EF] bg-white px-3.5 py-2 text-[12px] font-bold text-[#4A4AE0] shadow-sm">
                 <ShieldCheck size={14} aria-hidden />
-                Managed payroll · approval stays with you
+                Payroll outsourcing Philippines · managed payroll
               </span>
               <h1 className="font-display mt-6 max-w-[720px] text-balance text-[44px] font-semibold leading-[1.02] tracking-[-0.045em] sm:text-[62px]">
-                Payroll outsourcing without losing control of the run.
+                Payroll outsourcing in the Philippines, without losing control.
               </h1>
               <p className="mt-6 max-w-[680px] text-[17px] leading-relaxed text-[#5B6080]">
-                Hand off the repetitive payroll work while your authorized people keep the decisions. Linaw handles cycle
-                processing, validation, statutory calculations, reports and coordination, then returns exceptions and the
-                finished run for your approval.
+                Linaw provides managed payroll processing for Philippine businesses: approved inputs come in, the run is
+                calculated and checked, exceptions come back for decision, and your authorized approver controls release.
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -110,9 +109,9 @@ export default function PayrollOutsourcingPage() {
 
               <div className="mt-8 grid gap-2.5 text-[13.5px] font-medium text-[#2B2F45] sm:grid-cols-3">
                 {[
-                  "Approval stays with your team",
-                  "Exceptions are surfaced for review",
-                  "Bank credentials stay with you",
+                  "Semi-monthly and monthly payroll workflows",
+                  "Exceptions surfaced before approval",
+                  "No bank credentials needed for an enquiry",
                 ].map((item) => (
                   <span key={item} className="flex items-start gap-2">
                     <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#E3FAF0] text-[#0A8A53]">
@@ -125,8 +124,8 @@ export default function PayrollOutsourcingPage() {
             </div>
 
             <aside className="rounded-[28px] border border-[#E2E4F0] bg-white p-6 shadow-[0_26px_70px_-38px_rgba(30,34,70,.4)] sm:p-7">
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">What gets handed off</p>
-              <h2 className="font-display mt-2 text-[28px] font-semibold tracking-[-0.035em]">The payroll work, not your authority.</h2>
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">What you receive each cutoff</p>
+              <h2 className="font-display mt-2 text-[28px] font-semibold tracking-[-0.035em]">A payroll pack your approver can actually review.</h2>
               <div className="mt-6 grid gap-3">
                 {SCOPE.map(({ icon: Icon, title, copy, tone }) => (
                   <div key={title} className="flex gap-3.5 rounded-2xl border border-[#EDEFF7] p-4">
@@ -258,7 +257,7 @@ export default function PayrollOutsourcingPage() {
                 {[
                   "No employee personal data is needed for the enquiry",
                   "No bank credentials are requested",
-                  "The form reports whether the enquiry was delivered or only queued",
+                  "We only ask for the operating shape of your payroll",
                 ].map((item) => (
                   <span key={item} className="flex gap-2.5 text-[13.5px] leading-relaxed text-[#3E435B]">
                     <Check size={14} className="mt-0.5 shrink-0 text-[#0A8A53]" /> {item}

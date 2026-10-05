@@ -2,19 +2,17 @@
 
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, CalendarDays, Check, LoaderCircle } from "lucide-react";
-
-type Result = { message: string; queued: boolean; delivered: boolean; provider: string };
+import { AlertTriangle, ArrowRight, Check, LoaderCircle, Send } from "lucide-react";
 
 const inputClass =
   "mt-2 w-full rounded-xl border border-[#D9DCEC] bg-white px-3.5 py-3 text-[14px] text-[#11141F] outline-none transition focus:border-[#6161FF] focus:ring-4 focus:ring-[#6161FF]/10";
 
-export function BookDemoForm() {
+export function AccessRequestForm() {
   const [form, setForm] = useState({ name: "", email: "", company: "", headcount: "", notes: "" });
   const [problems, setProblems] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [result, setResult] = useState<Result | null>(null);
+  const [done, setDone] = useState(false);
 
   const set =
     (key: keyof typeof form) =>
@@ -31,7 +29,10 @@ export function BookDemoForm() {
       const response = await fetch("/api/demo-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          notes: ["Trial access request.", form.notes].filter(Boolean).join("\n\n"),
+        }),
       });
       const payload = await response.json().catch(() => ({}));
 
@@ -40,11 +41,11 @@ export function BookDemoForm() {
         return;
       }
       if (!response.ok) {
-        setError(payload.error ?? `The request could not be recorded (${response.status}).`);
+        setError(payload.error ?? "We could not record your access request.");
         return;
       }
 
-      setResult(payload as Result);
+      setDone(true);
     } catch {
       setError("Could not reach the server. Please try again.");
     } finally {
@@ -52,24 +53,25 @@ export function BookDemoForm() {
     }
   }
 
-  if (result) {
+  if (done) {
     return (
       <div className="rounded-[26px] border border-[#E2E4F0] bg-white p-6 shadow-[0_22px_60px_-38px_rgba(30,34,70,.38)] sm:p-7">
         <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#E3FAF0] text-[#0A8A53]">
           <Check size={19} />
         </span>
-        <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Demo request</p>
+        <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Access request</p>
         <h2 className="font-display mt-2 text-[28px] font-semibold tracking-[-0.035em] text-[#0B0D1A]">
           Your request is in.
         </h2>
-                <p className="mt-3 text-[14px] leading-relaxed text-[#5B6080]">We recorded your payroll brief so the walkthrough can focus on your headcount, structure and cutoff questions.</p>
-
+        <p className="mt-3 text-[14px] leading-relaxed text-[#5B6080]">
+          We recorded your company and headcount so workspace access can be provisioned without asking for employee payroll data.
+        </p>
         <div className="mt-6 flex flex-wrap gap-2.5">
           <Link href="/demo" className="inline-flex items-center gap-2 rounded-full bg-[#11141F] px-5 py-3 text-[13.5px] font-semibold text-white">
-            Open role demo <ArrowRight size={14} />
+            Try the live demo <ArrowRight size={14} />
           </Link>
-          <Link href="/" className="rounded-full border border-[#D9DCEC] px-5 py-3 text-[13.5px] font-semibold text-[#2B2F45]">
-            Back to product
+          <Link href="/book-demo" className="rounded-full border border-[#D9DCEC] px-5 py-3 text-[13.5px] font-semibold text-[#2B2F45]">
+            Book a walkthrough
           </Link>
         </div>
       </div>
@@ -78,13 +80,10 @@ export function BookDemoForm() {
 
   return (
     <form className="rounded-[26px] border border-[#E2E4F0] bg-white p-6 shadow-[0_22px_60px_-38px_rgba(30,34,70,.38)] sm:p-7" onSubmit={submit} noValidate>
-      <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#ECECFF] text-[#4A4AE0]">
-        <CalendarDays size={19} />
-      </span>
-      <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Book a walkthrough</p>
-      <h2 className="font-display mt-2 text-[28px] font-semibold tracking-[-0.035em] text-[#0B0D1A]">Tell us about your payroll.</h2>
+      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Request trial access</p>
+      <h2 className="font-display mt-2 text-[28px] font-semibold tracking-[-0.035em]">Tell us who will run payroll.</h2>
       <p className="mt-3 text-[14px] leading-relaxed text-[#5B6080]">
-        A short brief helps us use the call on your actual setup instead of giving you a generic product tour.
+        We only need your operating shape. Do not send employee names, government IDs, bank details or payroll files.
       </p>
 
       {problems.length > 0 && (
@@ -119,35 +118,31 @@ export function BookDemoForm() {
             <input className={inputClass} type="email" value={form.email} onChange={set("email")} autoComplete="email" required />
           </label>
         </div>
-
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="text-[12.5px] font-semibold text-[#2B2F45]">
-            Company or practice
+            Company
             <input className={inputClass} value={form.company} onChange={set("company")} autoComplete="organization" required />
           </label>
           <label className="text-[12.5px] font-semibold text-[#2B2F45]">
             People on payroll
             <select className={inputClass} value={form.headcount} onChange={set("headcount")}>
               <option value="">Select…</option>
-              <option value="1">Just me</option>
-              <option value="2-10">2 to 10</option>
+              <option value="1-10">1 to 10</option>
               <option value="11-50">11 to 50</option>
               <option value="51-200">51 to 200</option>
-              <option value="200+">200+</option>
-              <option value="multi-client">Multiple client companies</option>
+              <option value="201-500">201 to 500</option>
+              <option value="500+">More than 500</option>
             </select>
           </label>
         </div>
-
         <label className="text-[12.5px] font-semibold text-[#2B2F45]">
-          What would you like to see?
+          What should we know about your payroll?
           <textarea
-            className={`${inputClass} min-h-[120px] resize-y`}
+            className={`${inputClass} min-h-[112px] resize-y`}
             value={form.notes}
             onChange={set("notes")}
-            placeholder="Example: semi-monthly payroll across two branches, BIR worksheets, and how approvals work when our approver is on leave."
+            placeholder="Example: 80 employees, semi-monthly, two branches, currently using spreadsheets."
           />
-          <small className="mt-2 block text-[11px] font-normal text-[#8B90AA]">Optional. Do not include passwords or employee personal data.</small>
         </label>
       </div>
 
@@ -156,8 +151,8 @@ export function BookDemoForm() {
         disabled={saving}
         className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#6161FF] px-5 py-3.5 text-[14px] font-semibold text-white transition-transform hover:scale-[1.01] disabled:cursor-wait disabled:opacity-60"
       >
-        {saving ? <LoaderCircle size={15} className="animate-spin" /> : <CalendarDays size={15} />}
-        {saving ? "Submitting…" : "Request a demo"}
+        {saving ? <LoaderCircle size={15} className="animate-spin" /> : <Send size={15} />}
+        {saving ? "Submitting…" : "Request trial access"}
       </button>
     </form>
   );

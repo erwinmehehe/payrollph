@@ -46,7 +46,7 @@ export function SiteNav() {
             </span>
             <span className="leading-none">
               <span className="font-display block text-[19px] font-semibold tracking-tight text-[#0B0D1A]">linaw</span>
-              <span className="mt-1 block text-[8.5px] font-bold uppercase tracking-[0.18em] text-[#7C82A1]">HR &amp; Payroll</span>
+              <span className="mt-1 block text-[8.5px] font-bold uppercase tracking-[0.18em] text-[#7C82A1]">Philippine Payroll</span>
             </span>
           </Link>
 
@@ -70,7 +70,7 @@ export function SiteNav() {
               href="/signup"
               className="inline-flex items-center rounded-[10px] border border-[#D9D9FF] bg-[#F5F5FF] px-4 py-2.5 text-[14px] font-semibold text-[#4A4AE0] transition-all hover:border-[#C5C5FF] hover:bg-[#ECECFF]"
             >
-              Start free
+              Request trial access
             </Link>
           </div>
 
@@ -104,7 +104,7 @@ export function SiteNav() {
                 Sign in
               </Link>
               <Link href="/signup" onClick={() => setDrawer(false)} className="flex-1 rounded-[10px] border border-[#D9D9FF] bg-[#F5F5FF] px-5 py-3 text-center text-[14px] font-semibold text-[#4A4AE0]">
-                Start free
+                Request trial access
               </Link>
             </div>
           </div>
@@ -124,11 +124,11 @@ export function SiteFooter() {
               <BrandMark size={40} />
               <span className="leading-none">
                 <span className="font-display block text-[22px] font-semibold tracking-tight text-[#0B0D1A]">linaw</span>
-                <span className="mt-1 block text-[9px] font-bold uppercase tracking-[0.18em] text-[#7C82A1]">HR &amp; Payroll</span>
+                <span className="mt-1 block text-[9px] font-bold uppercase tracking-[0.18em] text-[#7C82A1]">Philippine Payroll</span>
               </span>
             </Link>
             <p className="mt-5 max-w-[340px] text-[14px] leading-relaxed text-[#5B6080]">
-              Philippine payroll and HRIS for teams that want every run, approval and peso to be traceable.
+              Philippine payroll software for teams that want every run, approval and peso to be traceable.
             </p>
           </div>
 

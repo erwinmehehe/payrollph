@@ -4,19 +4,31 @@ import { FileText, Gauge, Landmark, Lock, Wallet } from "lucide-react";
 import { Reveal, SectionHeading } from "./ui";
 import { cn } from "../utils/cn";
 
-const partners = ["BDO", "BPI", "UnionBank", "GCash", "PayMongo", "Xero", "QuickBooks", "SSS R-3", "PhilHealth RF-1", "Pag-IBIG MCRF", "BIR 1601-C", "Alphalist 2316"];
+const outputChannels = [
+  ["PayMongo", "Direct when configured"],
+  ["Xero", "Export"],
+  ["QuickBooks", "Export"],
+  ["BDO", "Validated template required"],
+  ["BPI", "Validated template required"],
+  ["UnionBank", "Validated template required"],
+  ["GCash", "Export"],
+  ["BIR 1601-C", "Draft"],
+  ["SSS R-3", "Draft"],
+  ["PhilHealth RF-1", "Draft"],
+  ["Pag-IBIG MCRF", "Draft"],
+] as const;
 
 export function TrustStrip() {
   return (
     <section aria-label="Exports and integrations" className="border-y border-[#EDEFF7] bg-[#FAFBFD] py-7">
       <p className="text-center text-[12px] font-bold uppercase tracking-[0.15em] text-[#8B90AA]">
-        Generates files for the banks, ledgers and agencies you already use
+        Clear status for every payout, accounting and government output
       </p>
       <div className="mask-fade-x mt-4 overflow-hidden">
         <div className="animate-marquee flex w-max gap-3 pr-3">
-          {[...partners, ...partners].map((p, i) => (
-            <span key={i} className="mono whitespace-nowrap rounded-full border border-[#E2E4F0] bg-white px-4 py-2 text-[13.5px] font-semibold text-[#3A3E59]">
-              {p}
+          {[...outputChannels, ...outputChannels].map(([name, status], i) => (
+            <span key={i} className="whitespace-nowrap rounded-full border border-[#E2E4F0] bg-white px-4 py-2 text-[13px] font-semibold text-[#3A3E59]">
+              {name} <span className="ml-1.5 text-[11px] font-medium text-[#8B90AA]">· {status}</span>
             </span>
           ))}
         </div>
@@ -42,8 +54,8 @@ export function Calculator() {
       <div className="mx-auto grid max-w-[1240px] items-center gap-10 px-5 sm:px-8 lg:grid-cols-[0.9fr_1.1fr]">
         <div>
           <SectionHeading
-            title="Drag a salary. Watch every deduction explain itself."
-            description="The same statutory rules Linaw runs on payroll, tested against an independent PH payroll reference. Monthly, employee share, 2025 tables."
+            title="See how a payroll calculation explains itself."
+            description="This simple salary example uses the same statutory formulas as Linaw's payroll engine. Real payroll adds attendance, holidays, overtime, benefits, exemptions and cutoff context."
           />
           <Reveal delay={180}>
             <p className="mt-5 text-[13.5px] leading-relaxed text-[#7C82A1]">
@@ -182,8 +194,8 @@ const exportGroups = [
     icon: Wallet,
     c: "#00A6B8",
     soft: "#E0F7FA",
-    items: [["BDO", "DAT"], ["BPI / UnionBank", "CSV"], ["GCash", "CSV"], ["PayMongo", "Transfers V2"]],
-    note: "Dry-run validated before file output",
+    items: [["BDO", "TEMPLATE"], ["BPI / UnionBank", "TEMPLATE"], ["GCash", "EXPORT"], ["PayMongo", "DIRECT*"]],
+    note: "Only enabled through a validated template or configured provider",
     preview: [
       "H|LINAW|20260320|40|0036128200",
       "D|EMP-0012|AIRA VILLANUEVA|...|0002431840",
@@ -209,7 +221,7 @@ const exportGroups = [
     c: "#7C5CFF",
     soft: "#F1EDFF",
     items: [["BIR 1601-C", "DRAFT"], ["Alphalist / 2316", "DRAFT"], ["SSS R-3", "DRAFT"], ["PhilHealth RF-1", "DRAFT"]],
-    note: "Honestly labelled until agency-validated",
+    note: "Draft until agency acceptance evidence is recorded",
     preview: [
       "BIR 1601-C · period 2026-03",
       "withholding_tax_payable: ₱42,218.44",
@@ -223,8 +235,8 @@ export function Exports() {
     <section id="exports" className="scroll-mt-20 bg-[#F7F8FC] py-16 sm:py-20">
       <div className="mx-auto max-w-[1240px] px-5 sm:px-8">
         <SectionHeading
-          title="From released run to the file your bank wants."
-          description="Outputs are not just labels in a menu. You can validate the rows, preview the structure and generate the format your downstream system expects."
+          title="From released payroll to a controlled payout or export path."
+          description="Every downstream output shows what it is: direct when configured, export when supported, template-dependent for proprietary bank files, or draft until agency validation."
         />
 
         <div className="mt-8 grid gap-4 lg:grid-cols-3">

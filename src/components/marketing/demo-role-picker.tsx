@@ -81,14 +81,14 @@ export function DemoRolePicker() {
         <div className="relative mx-auto max-w-[1120px] px-5 text-center sm:px-8">
           <span className="inline-flex items-center gap-2 rounded-full border border-[#DDE0EF] bg-white px-3.5 py-2 text-[12px] font-bold text-[#4A4AE0] shadow-sm">
             <ShieldCheck size={14} aria-hidden />
-            Real permissions · sample data · no signup
+            Real role boundaries · sample payroll · no setup
           </span>
           <h1 className="font-display mx-auto mt-6 max-w-[850px] text-balance text-[44px] font-semibold leading-[1.02] tracking-[-0.045em] sm:text-[64px]">
             See Linaw from the seat you actually use.
           </h1>
           <p className="mx-auto mt-6 max-w-[710px] text-[17px] leading-relaxed text-[#5B6080]">
-            Open the populated payroll workspace as Owner, HR Admin, Payroll Officer, Checker, Bookkeeper or Employee. The sandbox uses
-            the real role boundaries, so each person sees different work and different actions.
+            Open the populated payroll workspace as Owner, HR Admin, Payroll Officer, Checker, Bookkeeper or Employee.
+            Each role lands on the work it actually owns, with the same permission boundaries used by the application.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3 text-[13px] font-semibold text-[#5B6080]">
             <span className="rounded-full bg-[#F4F5FA] px-3 py-2">6 role-specific views</span>
@@ -104,7 +104,7 @@ export function DemoRolePicker() {
             <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#7C82A1]">Role-based product demo</p>
             <h2 className="font-display mt-2 text-[32px] font-semibold tracking-[-0.035em] sm:text-[40px]">Choose a seat, then do the work.</h2>
             <p className="mt-3 text-[15px] leading-relaxed text-[#5B6080]">
-              This is not a screenshot carousel. Each launch creates the matching demo session and opens the real workspace.
+              Pick the question you care about, launch that role, and work through it in the real product shell using sample data.
             </p>
           </div>
 
@@ -209,7 +209,7 @@ export function DemoRolePicker() {
                   </div>
 
                   <div className="mt-5 flex items-center gap-2 text-[11px] font-semibold text-white/45">
-                    <span>{selected.label}</span><ArrowRight size={12} /><span>{selected.landingPage}</span><ArrowRight size={12} /><span>Real shell</span>
+                    <span>{selected.label}</span><ArrowRight size={12} /><span>{selected.landingPage}</span><ArrowRight size={12} /><span>Workspace</span>
                   </div>
 
                   <button
@@ -235,14 +235,19 @@ export function DemoRolePicker() {
             </article>
           </div>
 
-          <div className="mt-8 grid gap-4 rounded-[24px] border border-[#E5E7F0] bg-[#FAFBFD] p-5 sm:grid-cols-[1fr_auto] sm:items-center sm:p-6">
+          <div className="mt-8 grid gap-4 rounded-[24px] border border-[#E5E7F0] bg-[#FAFBFD] p-5 lg:grid-cols-[1fr_auto] lg:items-center sm:p-6">
             <div>
-              <strong className="font-display text-[18px] font-semibold">Want us to run the payroll instead?</strong>
-              <p className="mt-1 text-[13.5px] text-[#5B6080]">The managed payroll service uses the same control model, with your team keeping final approval.</p>
+              <strong className="font-display text-[18px] font-semibold">Ready to move beyond sample data?</strong>
+              <p className="mt-1 text-[13.5px] text-[#5B6080]">Request a controlled trial workspace, or ask Linaw to handle the payroll cycle as a managed service.</p>
             </div>
-            <Link href="/payroll-outsourcing" className="inline-flex items-center justify-center gap-2 rounded-full border border-[#D9DCEC] bg-white px-5 py-3 text-[13.5px] font-semibold text-[#2B2F45]">
-              Payroll outsourcing <ArrowRight size={14} aria-hidden />
-            </Link>
+            <div className="flex flex-wrap gap-2.5">
+              <Link href="/signup" className="inline-flex items-center justify-center gap-2 rounded-full bg-[#6161FF] px-5 py-3 text-[13.5px] font-semibold text-white">
+                Request trial access <ArrowRight size={14} aria-hidden />
+              </Link>
+              <Link href="/payroll-outsourcing" className="inline-flex items-center justify-center gap-2 rounded-full border border-[#D9DCEC] bg-white px-5 py-3 text-[13.5px] font-semibold text-[#2B2F45]">
+                Payroll outsourcing
+              </Link>
+            </div>
           </div>
         </div>
       </section>

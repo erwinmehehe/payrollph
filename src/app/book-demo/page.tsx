@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { Check, Inbox, ShieldCheck } from "lucide-react";
+import { Check, ShieldCheck } from "lucide-react";
 import { BookDemoForm } from "@/components/marketing/book-demo-form";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
-import { activeMailProvider, deliveryCapable } from "@/lib/mail-provider";
 
 export const dynamic = "force-dynamic";
 
@@ -14,9 +12,6 @@ export const metadata: Metadata = {
 };
 
 export default function BookDemoPage() {
-  const provider = activeMailProvider();
-  const canDeliver = deliveryCapable();
-
   return (
     <div className="min-h-screen bg-white text-[#0B0D1A]">
       <SiteNav />
@@ -31,7 +26,7 @@ export default function BookDemoPage() {
             <div className="lg:sticky lg:top-24">
               <span className="inline-flex items-center gap-2 rounded-full border border-[#DDE0EF] bg-white px-3.5 py-2 text-[12px] font-bold text-[#4A4AE0] shadow-sm">
                 <ShieldCheck size={14} />
-                Product walkthrough
+                20-minute payroll walkthrough
               </span>
 
               <h1 className="font-display mt-6 text-balance text-[43px] font-semibold leading-[1.02] tracking-[-0.045em] sm:text-[58px]">
@@ -57,23 +52,6 @@ export default function BookDemoPage() {
                 ))}
               </div>
 
-              <div className={`mt-7 flex gap-3 rounded-2xl border p-4 text-[12.5px] leading-relaxed ${
-                canDeliver
-                  ? "border-[#BDE9D5] bg-[#F1FBF6] text-[#176A4E]"
-                  : "border-[#F4D79C] bg-[#FFF9EA] text-[#72520A]"
-              }`}>
-                {canDeliver ? <ShieldCheck size={16} className="mt-0.5 shrink-0" /> : <Inbox size={16} className="mt-0.5 shrink-0" />}
-                <span>
-                  {canDeliver ? (
-                    <>This deployment sends requests through <span className="mono font-semibold">{provider}</span>, so the request is delivered directly.</>
-                  ) : (
-                    <>
-                      This deployment has no email provider configured. Requests are still recorded, but for something you can use immediately, open the{" "}
-                      <Link href="/demo" className="font-semibold underline underline-offset-2">role-based demo</Link>.
-                    </>
-                  )}
-                </span>
-              </div>
             </div>
 
             <BookDemoForm />

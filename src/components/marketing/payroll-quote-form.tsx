@@ -2,7 +2,7 @@
 
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, Check, Inbox, LoaderCircle, Send } from "lucide-react";
+import { AlertTriangle, ArrowRight, Check, LoaderCircle, Send } from "lucide-react";
 
 type Result = { message: string; queued: boolean; delivered: boolean; provider: string };
 
@@ -63,23 +63,14 @@ export function PayrollQuoteForm() {
   if (result) {
     return (
       <div className="rounded-[26px] border border-[#E2E4F0] bg-white p-6 shadow-[0_22px_60px_-38px_rgba(30,34,70,.38)] sm:p-7">
-        <span className={`flex h-11 w-11 items-center justify-center rounded-2xl ${result.delivered ? "bg-[#E3FAF0] text-[#0A8A53]" : "bg-[#FFF4D6] text-[#9A6B00]"}`}>
-          {result.delivered ? <Check size={19} /> : <Inbox size={19} />}
+        <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#E3FAF0] text-[#0A8A53]">
+          <Check size={19} />
         </span>
         <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Payroll outsourcing enquiry</p>
         <h2 className="font-display mt-2 text-[28px] font-semibold tracking-[-0.035em] text-[#0B0D1A]">
-          {result.delivered ? "Your request was sent." : "Your request was recorded."}
+          We recorded your payroll enquiry.
         </h2>
-        <p className="mt-3 text-[14px] leading-relaxed text-[#5B6080]">{result.message}</p>
-
-        {!result.delivered && (
-          <div className="mt-5 flex gap-3 rounded-2xl border border-[#F4D79C] bg-[#FFF9EA] p-4 text-[13px] leading-relaxed text-[#72520A]">
-            <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-            <span>
-              This deployment has no active email provider. The enquiry is stored in the outbox, but it has not been delivered to an operator yet.
-            </span>
-          </div>
-        )}
+                <p className="mt-3 text-[14px] leading-relaxed text-[#5B6080]">Your operating details are saved so the payroll team can scope the cycle without asking for employee personal data or banking credentials.</p>
 
         <div className="mt-6 flex flex-wrap gap-2.5">
           <Link href="/payroll-outsourcing" className="rounded-full border border-[#D9DCEC] px-5 py-3 text-[13.5px] font-semibold text-[#2B2F45]">

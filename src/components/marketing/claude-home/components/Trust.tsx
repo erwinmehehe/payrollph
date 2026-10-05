@@ -67,15 +67,15 @@ const securityControls = [
   },
   {
     icon: FileLock2,
-    t: "Files sniffed and scanned",
-    d: "Magic-byte checks, ClamAV scanning that fails closed, 5 MB cap, sanitized filenames.",
+    t: "Document upload controls",
+    d: "Uploads stay disabled unless scanning is configured. When enabled, magic-byte checks, malware scanning, file limits and sanitized names fail closed.",
     c: "#FF5C7A",
     s: "#FFE8EC",
   },
   {
     icon: ShieldCheck,
-    t: "Data Privacy Act ready",
-    d: "Access, correction, deletion and portability requests, each with a 30-day due date and audit trail.",
+    t: "Privacy request workflow",
+    d: "Access, correction, deletion and portability requests include an audit trail, internal response deadline and legal-retention review.",
     c: "#7C5CFF",
     s: "#F1EDFF",
   },
@@ -153,12 +153,12 @@ export function Security() {
 type S = "verified" | "partial" | "absent";
 
 const score: { f: string; s: S; ev: string }[] = [
-  { f: "SSS, PhilHealth, Pag-IBIG, TRAIN", s: "verified", ev: "tests/payroll-rules.test.ts" },
-  { f: "Holiday stacking & regional wage floors", s: "verified", ev: "tests/wage-orders.test.ts" },
-  { f: "Year-end annualization (2316)", s: "verified", ev: "tests/annualization.test.ts" },
+  { f: "Core SSS, PhilHealth, Pag-IBIG & TRAIN engine", s: "partial", ev: "Automated tests pass; independent production reconciliation remains a gate" },
+  { f: "Holiday premium stacking", s: "verified", ev: "tests/payroll-complex-holiday-matrix.test.ts" },
+  { f: "Year-end annualization + 2316 draft", s: "partial", ev: "Automated tests pass; BIR workflow validation remains required" },
   { f: "Benefits deduct on next run", s: "verified", ev: "tests/benefits-wiring.test.ts" },
-  { f: "Government files byte-identical to ADES", s: "partial", ev: "DRAFT until agency tool validates" },
-  { f: "Transactional email delivery", s: "partial", ev: "Outbox queues without provider" },
+  { f: "Certified government filing", s: "absent", ev: "Draft outputs require recorded agency acceptance" },
+  { f: "Transactional email delivery", s: "partial", ev: "Provider-confirmed live delivery is an operational gate" },
   { f: "SSO / SAML", s: "absent", ev: "Not built yet" },
   { f: "SOC 2 report", s: "absent", ev: "Not built yet" },
 ];

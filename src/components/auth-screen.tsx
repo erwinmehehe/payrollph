@@ -74,11 +74,8 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
         setError(payload.error ?? "Could not start reset");
         return;
       }
-      const delivery = payload.delivery;
       setMessage(
-        delivery?.configured
-          ? "Check your email for a reset link. The link expires in 30 minutes."
-          : `Reset link queued in the database outbox (${delivery?.reason ?? "no email provider"}). An administrator can retrieve it from the outbox.`,
+        "If this email belongs to a Linaw account, the reset request has been recorded. Check your inbox for a link; if nothing arrives, contact your workspace administrator.",
       );
     } finally {
       setBusy(false);
@@ -104,7 +101,7 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
               Sign in to Linaw.
             </h2>
             <p className="mt-5 max-w-[590px] text-[15px] leading-[1.75] text-[#606780]">
-              One workspace for payroll, people, approvals and compliance. Your role decides what you can see and what you can do after sign-in.
+              One workspace for payroll, people and approvals. Your role decides what you can see and what you can do after sign-in.
             </p>
 
             <div className="mt-8 overflow-hidden rounded-[22px] border border-[#E5E7F0] bg-white">
@@ -133,7 +130,7 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
           </div>
 
           <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-[#ECEEF4] pt-5 text-[12px] font-medium text-[#6C7288]">
-            <span className="inline-flex items-center gap-2"><Check size={13} className="text-[#0A8A53]" /> Sign-in protection is distributed</span>
+            <span className="inline-flex items-center gap-2"><Check size={13} className="text-[#0A8A53]" /> Rate-limited sign in</span>
             <span className="inline-flex items-center gap-2"><Check size={13} className="text-[#0A8A53]" /> Role permissions</span>
             <span className="inline-flex items-center gap-2"><Check size={13} className="text-[#0A8A53]" /> TOTP when enabled</span>
           </div>
@@ -246,7 +243,7 @@ export function AuthScreen({ demoMode = false, setupAvailable = false }: { demoM
 
             <div className="mt-6 grid gap-3 border-t border-[#ECEEF4] pt-5">
               <p className="text-center text-[12px] text-[#777D93]">
-                New to Linaw? <Link href="/signup" className="font-semibold text-[#4A4AE0]">Create a workspace</Link>
+                New to Linaw? <Link href="/signup" className="font-semibold text-[#4A4AE0]">Request trial access</Link>
               </p>
               <Link href="/demo" className="inline-flex h-10 items-center justify-center gap-2 rounded-[10px] border border-[#E1E3EC] bg-[#FAFBFD] px-4 text-[12px] font-semibold text-[#4E546A] transition hover:border-[#D3D6E2] hover:bg-[#F4F5F9]">
                 Explore the role-based demo <ArrowRight size={13} aria-hidden />
