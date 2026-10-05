@@ -156,6 +156,7 @@ export const DEMO_ROLE_PAGES: Partial<Record<DemoRoleId, readonly string[]>> = {
     "Earned wage",
     "Recruitment",
     "Performance",
+    "Compensation",
     "Discipline",
     "Separation",
     "Contractors",
@@ -168,6 +169,7 @@ export const DEMO_ROLE_PAGES: Partial<Record<DemoRoleId, readonly string[]>> = {
   payroll: [
     "Overview",
     "Payroll",
+    "Compensation",
     "People",
     "Time & attendance",
     "Approvals",
@@ -196,6 +198,7 @@ export const DEMO_ROLE_PAGES: Partial<Record<DemoRoleId, readonly string[]>> = {
     "Expenses",
     "Recruitment",
     "Performance",
+    "Compensation",
     "Discipline",
     "Separation",
     "Assets",
