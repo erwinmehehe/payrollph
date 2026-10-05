@@ -63,30 +63,53 @@ function Brand() {
 }
 
 function Navigation() {
+  const [open, setOpen] = useState(false);
+  const navLinks = [
+    { label: "Live demo", href: "/demo" },
+    { label: "Payroll outsourcing", href: "/payroll-outsourcing" },
+    { label: "Trust", href: "/trust" },
+    { label: "Pricing", href: "/pricing" },
+  ];
+
   return (
     <header className="linaw-nav-wrap">
-      <nav className="linaw-nav linaw-shell" aria-label="Primary navigation">
+      <nav className="linaw-nav linaw-shell" aria-label="Primary">
         <Brand />
         <div className="linaw-nav-links">
-          <a href="#platform">Platform</a>
-          <a href="#workflow">Workflow</a>
-          <a href="#pricing">Pricing</a>
-          <a href="/resources">Resources</a>
+          {navLinks.map((link) => <a href={link.href} key={link.href}>{link.label}</a>)}
         </div>
         <div className="linaw-nav-actions">
           <a className="linaw-nav-signin" href="/login">Sign in</a>
           <a className="linaw-nav-cta" href="/signup">
             Get started <ArrowRight size={13} aria-hidden="true" />
           </a>
+          <button
+            className="linaw-menu-button"
+            type="button"
+            aria-label={open ? "Close menu" : "Open menu"}
+            aria-expanded={open}
+            onClick={() => setOpen((value) => !value)}
+          >
+            {open ? <X size={17} /> : <Menu size={17} />}
+          </button>
         </div>
       </nav>
+      {open ? (
+        <div className="linaw-mobile-menu linaw-shell">
+          {navLinks.map((link) => <a href={link.href} key={link.href} onClick={() => setOpen(false)}>{link.label}</a>)}
+          <div>
+            <a href="/login" onClick={() => setOpen(false)}>Sign in</a>
+            <a className="linaw-nav-cta" href="/signup" onClick={() => setOpen(false)}>Get started <ArrowRight size={13} /></a>
+          </div>
+        </div>
+      ) : null}
     </header>
   );
 }
 
 function PayrollHeroPreview() {
   return (
-    <div className="linaw-ui" aria-label="Payroll release readiness preview">
+    <div className="linaw-ui payroll-hero-control-card" aria-label="Payroll release readiness preview">
       <div className="linaw-ui-top">
         <div className="linaw-ui-title">
           <span className="linaw-window-dots" aria-hidden="true"><i /><i /><i /></span>
@@ -98,7 +121,7 @@ function PayrollHeroPreview() {
         <div className="linaw-ui-meta">
           <div>
             <span className="linaw-ui-kicker">Current payroll</span>
-            <h2>October 1–15, 2026</h2>
+            <h2>Can I safely release this payroll?</h2>\n            <p className="linaw-ui-period-copy">October 1–15, 2026</p>
           </div>
           <div className="linaw-ui-period">
             <span>Release window</span>
@@ -144,24 +167,24 @@ function PayrollHeroPreview() {
 
 function Hero() {
   return (
-    <section className="linaw-hero">
+    <section className="linaw-hero" id="top">
       <div className="linaw-shell linaw-hero-grid">
         <div className="linaw-hero-copy">
           <span className="linaw-badge"><i /> <Sparkles size={12} /> Introducing release readiness</span>
-          <h1>Run Philippine payroll with <span>proof before money moves.</span></h1>
+          <h1>Philippine payroll you can <span>verify before you pay.</span></h1>
           <p>
             Linaw brings calculations, employee readiness, approvals and payroll outputs into one controlled workflow
             built for Philippine teams.
           </p>
           <div className="linaw-hero-actions">
-            <a className="linaw-primary" href="/signup">Get started <ArrowRight size={15} /></a>
+            <a className="linaw-primary hero-primary-cta" href="/signup">Get started <ArrowRight size={15} /></a>
             <a className="linaw-secondary" href="/book-demo">Book demo</a>
           </div>
-          <div className="linaw-hero-proof">
-            <span><Check /> Statutory calculation controls</span>
-            <span><Check /> Maker-checker approvals</span>
-            <span><Check /> Traceable payroll outputs</span>
-          </div>
+          <ul className="linaw-hero-proof payroll-home-trust">
+            <li><Check /> Statutory calculation controls</li>
+            <li><Check /> Maker-checker approvals</li>
+            <li><Check /> Traceable payroll outputs</li>
+          </ul>
         </div>
         <PayrollHeroPreview />
       </div>
@@ -438,7 +461,13 @@ function ProofAndRoles() {
   );
 }
 
+function currencyNumber(value: string) {
+  const parsed = Number(value.replace(/[^0-9.]/g, ""));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function Pricing({ plans }: { plans: Plan[] }) {
+  const [headcount, setHeadcount] = useState(25);
   const visible = plans.filter((plan) => plan.active !== false).slice(0, 3);
   if (!visible.length) return null;
 
@@ -452,14 +481,37 @@ function Pricing({ plans }: { plans: Plan[] }) {
           </div>
           <p>Pricing values come from the live plan catalog. Start with software, then expand only when the workflow requires it.</p>
         </div>
+        <div className="linaw-pricing-controls" aria-label="Pricing employee count">
+          <span>{headcount} employees</span>
+          <div>
+            {[25, 50, 100].map((count) => (
+              <button
+                type="button"
+                data-headcount={count}
+                className={headcount === count ? "active" : ""}
+                onClick={() => setHeadcount(count)}
+                key={count}
+              >
+                {count}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="linaw-pricing-compact">
-          {visible.map((plan, index) => (
-            <article className={"linaw-price-card " + (index === 1 ? "featured" : "")} key={plan.id}>
-              <h3>{plan.name}</h3>
-              <div className="linaw-price">{plan.monthlyBase}<small>/ month base</small></div>
-              <p>{plan.perEmployee} per employee. Final inclusions follow the current plan configuration.</p>
-            </article>
-          ))}
+          {visible.map((plan, index) => {
+            const base = currencyNumber(plan.monthlyBase);
+            const perEmployee = currencyNumber(plan.perEmployee);
+            const estimated = base !== null && perEmployee !== null
+              ? new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 0 }).format(base + perEmployee * headcount)
+              : plan.monthlyBase;
+            return (
+              <article className={"linaw-price-card pricing-plan-card " + (index === 1 ? "featured" : "")} key={plan.id}>
+                <h3>{plan.name}</h3>
+                <div className="linaw-price pricing-amount">{estimated}<small>/ estimated month</small></div>
+                <p>{plan.monthlyBase} base + {plan.perEmployee} per employee. Final inclusions follow the current plan configuration.</p>
+              </article>
+            );
+          })}
         </div>
       </div>
     </section>
