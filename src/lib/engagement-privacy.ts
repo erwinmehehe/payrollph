@@ -8,18 +8,18 @@ export function engagementAnonymityConfigured() {
   return Buffer.byteLength(key, "utf8") >= MIN_ANONYMITY_KEY_BYTES;
 }
 
-export function anonymousRespondentKey(input: { surveyId: number; organizationId: number; userId: number }) {
+export function anonymousRespondentKey(input: { surveyId: number; organizationId: number; employeeId: number }) {
   const key = process.env.ENGAGEMENT_ANONYMITY_KEY ?? "";
   if (Buffer.byteLength(key, "utf8") < MIN_ANONYMITY_KEY_BYTES) {
     throw new Error("ENGAGEMENT_ANONYMITY_KEY must be at least 32 bytes before anonymous surveys can collect responses.");
   }
   return createHmac("sha256", key)
-    .update(`organization:${input.organizationId}|survey:${input.surveyId}|user:${input.userId}`)
+    .update(`organization:${input.organizationId}|survey:${input.surveyId}|employee:${input.employeeId}`)
     .digest("hex");
 }
 
-export function identifiableRespondentKey(input: { surveyId: number; userId: number }) {
-  return `identified:${input.surveyId}:${input.userId}`;
+export function identifiableRespondentKey(input: { surveyId: number; employeeId: number }) {
+  return `identified:${input.surveyId}:employee:${input.employeeId}`;
 }
 
 export function normalizedPrivacyThreshold(value: unknown) {
