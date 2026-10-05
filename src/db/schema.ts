@@ -1381,6 +1381,26 @@ export const statutoryContributionIssueCases = pgTable(
   ],
 );
 
+export const statutoryContributionIssueEvents = pgTable(
+  "statutory_contribution_issue_events",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    caseId: integer("case_id").notNull().references(() => statutoryContributionIssueCases.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    eventType: varchar("event_type", { length: 32 }).notNull(),
+    visibility: varchar("visibility", { length: 24 }).notNull().default("employee"),
+    message: varchar("message", { length: 1000 }).notNull(),
+    actorUserId: integer("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    actorName: varchar("actor_name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("statutory_contribution_issue_event_case_idx").on(table.organizationId, table.caseId, table.createdAt),
+    index("statutory_contribution_issue_event_employee_idx").on(table.organizationId, table.employeeId, table.createdAt),
+  ],
+);
+
 export const complianceActionTasks = pgTable(
   "compliance_action_tasks",
   {
