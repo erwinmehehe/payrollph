@@ -58,6 +58,7 @@ export const userOrganizations = pgTable(
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     role: varchar("role", { length: 32 }).notNull().default("admin"),
     orgUnitId: integer("org_unit_id"),
+    active: boolean("active").notNull().default(true),
   },
   (table) => [uniqueIndex("user_org_unique").on(table.userId, table.organizationId)],
 );
