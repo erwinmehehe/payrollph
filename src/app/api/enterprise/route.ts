@@ -1,5 +1,5 @@
 import { resolveTxt } from "node:dns/promises";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
   automationExecutions,
@@ -11,6 +11,7 @@ import {
   orgUnits,
   permissionSets,
   scimTokens,
+  sessions,
   userOrganizations,
   userPermissionAssignments,
   users,
@@ -362,6 +363,24 @@ export async function POST(request: Request) {
       eq(identityProviders.organizationId, organizationId),
     )).limit(1);
     if (!provider) return Response.json({ error: "OIDC provider not found." }, { status: 404 });
+
+    if (!enabled) {
+      const [policy] = await db.select().from(organizationSecurityPolicies)
+        .where(eq(organizationSecurityPolicies.organizationId, organizationId))
+        .limit(1);
+      if (policy?.ssoMode === "required") {
+        const otherProviders = await db.select({ id: identityProviders.id }).from(identityProviders).where(and(
+          eq(identityProviders.organizationId, organizationId),
+          eq(identityProviders.enabled, true),
+        ));
+        if (otherProviders.filter((row) => row.id !== providerId).length === 0) {
+          return Response.json({
+            error: "This is the last enabled SSO provider while SSO is required. Switch the workspace to optional SSO before disabling it.",
+          }, { status: 409 });
+        }
+      }
+    }
+
     if (enabled) {
       const [verifiedDomain] = await db.select({ id: identityDomains.id }).from(identityDomains).where(and(
         eq(identityDomains.organizationId, organizationId),
@@ -378,16 +397,27 @@ export async function POST(request: Request) {
         return Response.json({ error: error instanceof Error ? error.message : "OIDC discovery revalidation failed." }, { status: 422 });
       }
     }
-    const [row] = await db.update(identityProviders).set({ enabled, updatedAt: new Date() })
-      .where(eq(identityProviders.id, providerId)).returning();
+    const result = await db.transaction(async (tx) => {
+      const [row] = await tx.update(identityProviders).set({ enabled, updatedAt: new Date() })
+        .where(eq(identityProviders.id, providerId)).returning();
+      let revokedSessions = 0;
+      if (!enabled) {
+        const revoked = await tx.update(sessions).set({ revokedAt: new Date() }).where(and(
+          eq(sessions.identityProviderId, providerId),
+          isNull(sessions.revokedAt),
+        )).returning({ id: sessions.id });
+        revokedSessions = revoked.length;
+      }
+      return { row, revokedSessions };
+    });
     await recordAuditEvent({
       organizationId,
       actor: user.name,
       action: enabled ? "OIDC provider enabled" : "OIDC provider disabled",
       resource: provider.name,
-      metadata: { providerId },
+      metadata: { providerId, revokedSessions: result.revokedSessions },
     });
-    return Response.json({ id: row.id, enabled: row.enabled });
+    return Response.json({ id: result.row.id, enabled: result.row.enabled, revokedSessions: result.revokedSessions });
   }
 
   if (action === "create-scim-token") {
