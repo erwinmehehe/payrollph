@@ -30,6 +30,27 @@ test("pricing is read from the database, never hardcoded in the homepage UI", ()
   assert.ok(!/₱\s?1,499|₱\s?4,499|₱\s?12,999/.test(page), "prices must not be hardcoded in the page");
 });
 
+test("public marketing pages expose truthful structured data", () => {
+  const home = read("src/app/page.tsx");
+  const outsourcing = read("src/app/payroll-outsourcing/page.tsx");
+  const closing = read("src/components/marketing/claude-home/components/Closing.tsx");
+  const faqData = read("src/components/marketing/homepage-faqs.ts");
+
+  assert.ok(home.includes('"@type": "Organization"'), "homepage schema must identify Linaw as the provider organization");
+  assert.ok(home.includes('"@type": "SoftwareApplication"'), "homepage must expose software application schema");
+  assert.ok(home.includes('"@type": "FAQPage"'), "visible homepage FAQs must have FAQPage structured data");
+  assert.ok(home.includes("HOMEPAGE_FAQS.map"), "FAQ schema must be generated from the same content shown to visitors");
+  assert.ok(closing.includes("HOMEPAGE_FAQS.map"), "visible FAQ must use the shared FAQ source");
+  assert.ok(faqData.includes("They stay labelled DRAFT"), "shared FAQ content must preserve the government-output qualification");
+
+  assert.ok(outsourcing.includes('"@type": "Service"'), "payroll outsourcing page must expose Service structured data");
+  assert.ok(outsourcing.includes('serviceType: "Payroll outsourcing and managed payroll processing"'), "service schema must identify managed payroll intent");
+  assert.ok(!home.includes("aggregateRating"), "homepage schema must not invent rating markup");
+  assert.ok(!home.includes("review:"), "homepage schema must not invent review markup");
+  assert.ok(!outsourcing.includes("aggregateRating"), "service schema must not invent ratings");
+});
+
+
 test("the software homepage uses the real Linaw workspace preview", () => {
   const home = read("src/components/marketing/claude-home/App.tsx");
   const demo = read("src/components/marketing/claude-home/components/Demo.tsx");
