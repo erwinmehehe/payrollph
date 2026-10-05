@@ -1,5 +1,5 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employeePayProfiles,
@@ -189,17 +189,6 @@ export async function POST(request: Request) {
     title = profile.title;
   }
 
-  const reqApplicants = await db.select({
-    id: jobApplicants.id,
-    stage: jobApplicants.stage,
-  }).from(jobApplicants).where(and(
-    eq(jobApplicants.organizationId, applicant.organizationId),
-    eq(jobApplicants.requisitionId, requisition.id),
-    ne(jobApplicants.id, applicant.id),
-  ));
-  const otherHires = reqApplicants.filter((row) => row.stage === "hired").length;
-  const requisitionWillBeFilled = Boolean(position) || otherHires + 1 >= requisition.headcount;
-
   const employeeNo = String(
     body.employeeNo ?? `EMP-H${String(applicant.id).padStart(5, "0")}`,
   ).trim().slice(0, 32);
@@ -221,6 +210,7 @@ export async function POST(request: Request) {
     // database unique index is the final backstop; these locks make the losing
     // request fail cleanly before creating an extra employee.
     await tx.execute(sql`select pg_advisory_xact_lock(4101, ${applicant.id})`);
+    await tx.execute(sql`select pg_advisory_xact_lock(4103, ${requisition.id})`);
     if (position) {
       await tx.execute(sql`select pg_advisory_xact_lock(4102, ${position.id})`);
     }
@@ -253,6 +243,21 @@ export async function POST(request: Request) {
         throw new HireConflict("The linked position already has an active incumbent.");
       }
     }
+
+    const hiredRows = await tx.select({ id: jobApplicants.id })
+      .from(jobApplicants)
+      .where(and(
+        eq(jobApplicants.organizationId, applicant.organizationId),
+        eq(jobApplicants.requisitionId, requisition.id),
+        eq(jobApplicants.stage, "hired"),
+      ));
+    if (!position && hiredRows.length >= requisition.headcount) {
+      throw new HireConflict("This requisition has already reached its approved headcount.", {
+        headcount: requisition.headcount,
+      });
+    }
+    const requisitionWillBeFilled = Boolean(position) || hiredRows.length + 1 >= requisition.headcount;
+    const requisitionStatus = requisitionWillBeFilled ? "filled" : "interviewing";
 
     const [employee] = await tx.insert(employees).values({
       organizationId: applicant.organizationId,
@@ -321,10 +326,10 @@ export async function POST(request: Request) {
       .where(eq(jobApplicants.id, applicant.id));
 
     await tx.update(jobRequisitions)
-      .set({ status: requisitionWillBeFilled ? "filled" : "interviewing" })
+      .set({ status: requisitionStatus })
       .where(eq(jobRequisitions.id, requisition.id));
 
-    return { employee, onboarding, assignment };
+    return { employee, onboarding, assignment, requisitionStatus };
   }).catch((error: unknown) => {
     if (error instanceof HireConflict) {
       return Response.json({ error: error.message, ...error.details }, { status: 409 });
@@ -365,7 +370,7 @@ export async function POST(request: Request) {
     } : null,
     requisition: {
       id: requisition.id,
-      status: requisitionWillBeFilled ? "filled" : "interviewing",
+      status: result.requisitionStatus,
     },
   }, { status: 201 });
 }
