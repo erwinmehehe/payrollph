@@ -30,6 +30,36 @@ export const metadata: Metadata = {
   },
 };
 
+const softwareJsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": `${PUBLIC_SITE_URL}/#organization`,
+      name: "Linaw",
+      url: PUBLIC_SITE_URL,
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${PUBLIC_SITE_URL}/#website`,
+      url: PUBLIC_SITE_URL,
+      name: "Linaw",
+      publisher: { "@id": `${PUBLIC_SITE_URL}/#organization` },
+      inLanguage: "en-PH",
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": `${PUBLIC_SITE_URL}/#software`,
+      name: "Linaw",
+      applicationCategory: "BusinessApplication",
+      operatingSystem: "Web",
+      url: PUBLIC_SITE_URL,
+      description: "Philippine payroll software with HR, timekeeping, statutory payroll calculations, approvals, employee self-service and multi-client workflows.",
+      provider: { "@id": `${PUBLIC_SITE_URL}/#organization` },
+    },
+  ],
+};
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en-PH">
@@ -39,6 +69,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <link
           href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
           rel="stylesheet"
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd).replace(/</g, "\\u003c") }}
         />
       </head>
       <body>{children}</body>
