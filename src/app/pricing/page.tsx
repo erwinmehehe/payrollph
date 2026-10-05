@@ -7,7 +7,7 @@ import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Payroll Software Pricing Philippines | Linaw",
-  description: "View Linaw payroll software pricing loaded from the current product pricing catalog, with trial and demo options.",
+  description: "See Linaw payroll software pricing for Philippine businesses, loaded from the current product catalog, with controlled trial access and demo options.",
   alternates: { canonical: "/pricing" },
 };
 
