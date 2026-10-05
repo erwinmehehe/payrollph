@@ -109,3 +109,12 @@ test("posting mismatch auto-cases invalidate any prior certified remittance mont
   assert.ok(route.includes("Statutory remittance month certification invalidated"));
   assert.ok(route.includes("invalidatedClosureIds"));
 });
+
+
+test("auto-opened posting mismatch cases inherit service target and append-only timeline evidence", () => {
+  assert.ok(route.includes("contributionCaseServiceTargets(issue)"));
+  assert.ok(route.includes("dueDate: serviceTargets.firstReviewDue.toISOString().slice(0, 10)"));
+  assert.ok(route.includes("statutoryContributionIssueEvents"));
+  assert.ok(route.includes('eventType: "reported"'));
+  assert.ok(route.includes("The invalid posting file was not applied."));
+});
