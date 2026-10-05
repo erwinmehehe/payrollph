@@ -1,4 +1,4 @@
-import { and, count, eq, isNotNull, sql } from "drizzle-orm";
+import { and, count, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, contractors, employees, invoices, outbox, payrollEntries, subscriptions, users } from "@/db/schema";
 import { bankEncryptionConfigured, bankEncryptionKeySource } from "@/lib/bank-account-crypto";
@@ -25,6 +25,7 @@ type Gate = { key: string; label: string; ready: boolean; detail: string; blocks
  */
 const configured = (name: string) => Boolean(process.env[name]);
 const enabled = (name: string) => process.env[name] === "true";
+const PUBLIC_LEAD_PURPOSES = ["demo-request", "payroll-outsourcing-enquiry"] as const;
 
 export async function buildReadinessPayload() {
   await ensureCoreCompatibilitySchema();
@@ -33,6 +34,13 @@ export async function buildReadinessPayload() {
   const [{ value: sentMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "sent"));
   const [{ value: deliveredMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.deliveryStatus, "delivered"));
   const [{ value: failedMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "failed"));
+  const [{ value: publicLeadBacklog }] = await db
+    .select({ value: count() })
+    .from(outbox)
+    .where(and(
+      inArray(outbox.purpose, [...PUBLIC_LEAD_PURPOSES]),
+      inArray(outbox.status, ["queued", "pending", "failed"]),
+    ));
   const [{ value: paidInvoices }] = await db.select({ value: count() }).from(invoices).where(eq(invoices.status, "paid"));
   const [{ value: activeSubs }] = await db.select({ value: count() }).from(subscriptions).where(eq(subscriptions.status, "active"));
   const [{ value: paymongoPreflightPasses }] = await db.select({ value: count() }).from(auditEvents)
@@ -215,7 +223,7 @@ export async function buildReadinessPayload() {
           : Number(sentMail) > 0
             ? `Provider ${provider} accepted ${sentMail} send(s), but this deployment has no provider-confirmed delivered webhook event yet.`
             : `Provider ${provider} is configured, but this deployment has not recorded a successful send or verified delivery yet.`
-        : "No provider configured. Messages remain queued until a transactional email provider is connected.",
+        : `No provider configured. Messages remain queued until a transactional email provider is connected. Public enquiry backlog: ${publicLeadBacklog}.`,
       blocks: deliveryCapable() && Number(deliveredMail) > 0 ? "none" : "launch",
     },
     {
@@ -398,7 +406,7 @@ export async function buildReadinessPayload() {
           : `${unworkaroundableBlockers.length} blocker(s) have no manual workaround and must be fixed even for a manual-ops pilot: ${unworkaroundableBlockers.map((g) => g.label).join(", ")}.`,
     },
     gates,
-    counts: { users: userCount, queuedMail, sentMail, deliveredMail, failedMail, paidInvoices, activeSubs, paymongoPreflightPasses, productionPilotSignoffs, plaintextBankAccounts, plaintextBankSnapshots },
+    counts: { users: userCount, queuedMail, sentMail, deliveredMail, failedMail, publicLeadBacklog, paidInvoices, activeSubs, paymongoPreflightPasses, productionPilotSignoffs, plaintextBankAccounts, plaintextBankSnapshots },
     generatedAt: new Date().toISOString(),
   };
 }
