@@ -2,6 +2,76 @@ import type { AuthorityPage } from "@/lib/seo-content";
 
 export const industryWave6: AuthorityPage[] = [
   {
+    slug: "logistics",
+    eyebrow: "Logistics payroll software Philippines",
+    title: "Payroll and timekeeping for Philippine logistics teams.",
+    metaTitle: "Logistics Payroll Software Philippines | Linaw",
+    description: "Payroll software for Philippine logistics and warehouse teams managing shifts, attendance, overtime, night work, deductions, payroll review and payout handoffs.",
+    intro: "Logistics payroll often combines drivers, warehouse staff, office teams and changing schedules. Linaw focuses on the payroll and workforce-control layer: attendance evidence, premium-pay context, employee records, deductions, approvals, payslips and controlled finance handoffs.",
+    proof: [
+      "Multi-unit and department access scope",
+      "Shift and attendance workflows",
+      "Overtime and night-work payroll logic",
+      "Rest-day and holiday context",
+      "Employee deductions and benefits",
+      "Bank and accounting export workflows",
+    ],
+    sections: [
+      {
+        title: "Keep drivers, warehouse staff and office teams scoped correctly",
+        body: "Organization-unit and department controls help separate employee populations and payroll responsibility without requiring disconnected payroll files for every branch or operating group.",
+      },
+      {
+        title: "Bring attendance evidence into payroll review",
+        body: "Attendance and biometric-ingestion workflows can feed payroll-relevant time data while incomplete, unmatched or inconsistent records remain visible for review.",
+      },
+      {
+        title: "Preserve overtime, night-work and rest-day context",
+        body: "Payroll premium calculations use the represented work-date context instead of flattening every extra hour into one generic allowance or manual adjustment.",
+      },
+      {
+        title: "Keep recurring deductions and payroll adjustments traceable",
+        body: "Loans, benefits and other payroll-impacting items can stay with the employee and payroll workflow instead of being rebuilt from side spreadsheets each cutoff.",
+      },
+      {
+        title: "Separate payroll preparation from release",
+        body: "Payroll staff can prepare the run while checker and release roles provide independent review before final payroll output is produced.",
+      },
+      {
+        title: "Use exports without overstating native integrations",
+        body: "Released payroll can feed supported bank and accounting export workflows. File handoffs remain clearly labelled as exports rather than being marketed as universal direct bank or ERP integrations.",
+      },
+    ],
+    faq: [
+      {
+        question: "Can Linaw support payroll for drivers and warehouse staff?",
+        answer: "Yes. Linaw can manage employee records, attendance inputs, payroll calculations, deductions, review and payslip workflows for different employee groups, provided their payroll basis and work rules are configured correctly.",
+      },
+      {
+        question: "Can logistics attendance feed payroll?",
+        answer: "Yes. Attendance workflows and biometric-ingestion patterns can feed payroll-relevant time data while exceptions remain visible for human review before release.",
+      },
+      {
+        question: "How are night work and overtime handled?",
+        answer: "Linaw preserves the payroll context represented by the work date, including overtime, night differential, rest-day and holiday conditions, rather than treating every premium as a flat manual amount.",
+      },
+      {
+        question: "Does Linaw include GPS route tracking or fleet management?",
+        answer: "No such capability is claimed here. This page covers payroll, attendance and workforce controls. GPS, route planning, fleet maintenance and fuel management should only be claimed where a dedicated implemented product surface exists.",
+      },
+      {
+        question: "Can payroll outputs be handed off to banks or accounting?",
+        answer: "Linaw includes supported payout and accounting export workflows, with validation gates for proprietary formats. An export is not described as a native integration unless a programmatic connector actually exists.",
+      },
+    ],
+    related: [
+      { label: "Time & attendance", href: "/time-and-attendance", description: "Review shifts, punches, overtime, night work and attendance exceptions." },
+      { label: "Biometric payroll integration", href: "/integrations/biometrics", description: "See supported biometric-ingestion patterns and device-validation boundaries." },
+      { label: "Bank payout exports", href: "/integrations/bank-payout-exports", description: "Review released-payroll payout file controls and bank-template validation." },
+      { label: "Workforce analytics", href: "/workforce-analytics", description: "Review payroll cost, headcount and compliance-exception reporting." },
+    ],
+  },
+  {
     slug: "construction",
     eyebrow: "Construction payroll software Philippines",
     title: "Payroll and timekeeping for Philippine construction teams.",

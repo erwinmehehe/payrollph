@@ -6,11 +6,12 @@ const read = (path: string) => readFileSync(path, "utf8");
 
 test("Wave 6 closes the remaining mapped industry gaps", () => {
   const content = read("src/lib/seo-content-wave6.ts");
-  for (const slug of ["construction", "real-estate", "media", "ngo", "shopping-centers"]) {
+  for (const slug of ["construction", "logistics", "real-estate", "media", "ngo", "shopping-centers"]) {
     assert.ok(content.includes(`slug: "${slug}"`), `missing Wave 6 industry: ${slug}`);
   }
   for (const title of [
     "Construction Payroll Software Philippines | Linaw",
+    "Logistics Payroll Software Philippines | Linaw",
     "Real Estate Payroll Software Philippines | Linaw",
     "Media Payroll Software Philippines | Linaw",
     "NGO Payroll Software Philippines | Nonprofit Payroll | Linaw",
@@ -36,6 +37,23 @@ test("construction payroll page stays scoped to implemented payroll capabilities
   assert.ok(!page.includes("hazard pay automation"));
   assert.ok(intents.includes('primaryIntent: "construction payroll software philippines"'));
   assert.ok(intents.includes('ownerPath: "/industries/construction"'));
+});
+
+test("logistics payroll page stays scoped to implemented payroll capabilities", () => {
+  const content = read("src/lib/seo-content-wave6.ts");
+  const intents = read("src/lib/seo-intent-ownership.ts");
+
+  const start = content.indexOf('slug: "logistics"');
+  const end = content.indexOf("\n  },", start);
+  assert.ok(start >= 0 && end > start, "logistics industry page must exist");
+  const page = content.slice(start, end);
+
+  assert.ok(page.includes("Shift and attendance workflows"));
+  assert.ok(page.includes("Bank and accounting export workflows"));
+  assert.ok(page.includes("No such capability is claimed here"));
+  assert.ok(page.includes("GPS, route planning, fleet maintenance and fuel management"));
+  assert.ok(intents.includes('primaryIntent: "logistics payroll software philippines"'));
+  assert.ok(intents.includes('ownerPath: "/industries/logistics"'));
 });
 
 test("Wave 6 integration pages stay tied to implemented product surfaces", () => {

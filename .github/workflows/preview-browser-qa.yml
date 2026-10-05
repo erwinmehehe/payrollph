@@ -343,6 +343,7 @@ jobs:
               { path: "/payroll-outsourcing", heading: "Payroll outsourcing in the Philippines, without losing control." },
               { path: "/small-business-payroll", heading: "A clearer payroll process for Philippine small businesses." },
               { path: "/industries/construction", heading: "Payroll and timekeeping for Philippine construction teams." },
+              { path: "/industries/logistics", heading: "Payroll and timekeeping for Philippine logistics teams." },
               { path: "/book-demo", heading: "Bring your actual payroll questions." },
               { path: "/status", heading: "Linaw system status." },
               { path: "/scorecard", heading: "Verified claims only." },
