@@ -223,6 +223,7 @@ export const resourceWave3: AuthorityPage[] = [
       { label: "Payroll cutoff guide", href: "/resources/payroll-cutoff", description: "Design the cutoff that feeds this process." },
       { label: "Payroll audit checklist", href: "/resources/payroll-audit-checklist", description: "Review the run before and after release." },
       { label: "Live demo", href: "/demo", description: "Inspect the role-based payroll workflow." },
+      { label: "Retroactive pay", href: "/resources/retroactive-pay", description: "See how effective-dated pay corrections can be settled without rewriting released history." },
     ],
     lastReviewed: reviewed,
     lastReviewedIso: reviewedIso,
