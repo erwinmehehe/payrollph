@@ -1,14 +1,16 @@
 import { and, avg, count, desc, eq, sql, sum } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, payrollEntries, payrollRuns, timePunches } from "@/db/schema";
+import { evaluatePayrollAssurance } from "@/lib/payroll-assurance";
 
-export type ReportKey = "headcount" | "cost" | "turnover" | "compliance";
+export type ReportKey = "headcount" | "cost" | "turnover" | "compliance" | "assurance";
 
 export const REPORT_DEFINITIONS: Array<{ key: ReportKey; name: string; description: string; columns: string[] }> = [
   { key: "headcount", name: "Headcount movement", description: "Active, leave, disciplinary and separating counts by employment type", columns: ["Employment type", "Status", "People", "Avg monthly basic"] },
   { key: "cost", name: "Payroll cost", description: "Gross, deductions and net by payroll run with rule version", columns: ["Period", "Scope", "Employees", "Gross", "Deductions", "Net"] },
   { key: "turnover", name: "Turnover risk", description: "Separating and disciplinary headcount share of the workforce", columns: ["Metric", "People", "Share of workforce"] },
   { key: "compliance", name: "Compliance exceptions", description: "Punch exceptions and flagged payroll entries requiring sign-off", columns: ["Type", "Count", "Detail"] },
+  { key: "assurance", name: "Payroll assurance", description: "Latest payroll controls and employee variances against the previous run", columns: ["Severity", "Employee", "Control", "Detail", "Current", "Delta"] },
 ];
 
 export async function runReport(key: ReportKey, organizationId: number) {
@@ -72,6 +74,57 @@ export async function runReport(key: ReportKey, organizationId: number) {
     };
   }
 
+  if (key === "assurance") {
+    const runs = await db.select().from(payrollRuns)
+      .where(eq(payrollRuns.organizationId, organizationId))
+      .orderBy(desc(payrollRuns.id))
+      .limit(2);
+    const currentRun = runs[0];
+    const previousRun = runs[1] ?? null;
+    if (!currentRun) return { key, columns: REPORT_DEFINITIONS[4].columns, rows: [] };
+
+    const [currentEntries, previousEntries, staff] = await Promise.all([
+      db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, currentRun.id)),
+      previousRun ? db.select().from(payrollEntries).where(eq(payrollEntries.payrollRunId, previousRun.id)) : Promise.resolve([]),
+      db.select({
+        id: employees.id,
+        employeeNo: employees.employeeNo,
+        firstName: employees.firstName,
+        lastName: employees.lastName,
+        status: employees.status,
+        startDate: employees.startDate,
+        basicRate: employees.basicRate,
+        region: employees.region,
+        bankAccount: employees.bankAccount,
+        bankCode: employees.bankCode,
+      }).from(employees).where(eq(employees.organizationId, organizationId)),
+    ]);
+    const employeeById = new Map(staff.map((employee) => [employee.id, employee]));
+    const assurance = evaluatePayrollAssurance(currentEntries, previousEntries, {
+      periodStart: currentRun.periodStart,
+      periodEnd: currentRun.periodEnd,
+      payDate: currentRun.payDate,
+      employees: staff,
+    });
+
+    return {
+      key,
+      columns: REPORT_DEFINITIONS[4].columns,
+      rows: assurance.findings
+        .sort((a, b) => Number(Boolean(b.blocking)) - Number(Boolean(a.blocking)) || severityRank(b.severity) - severityRank(a.severity))
+        .map((finding) => {
+          const employee = finding.employeeId ? employeeById.get(finding.employeeId) : null;
+          return [
+            finding.blocking ? "Blocking" : finding.severity,
+            employee ? `${employee.employeeNo} · ${employee.firstName} ${employee.lastName}` : "Payroll run",
+            finding.title,
+            finding.detail,
+            finding.current == null ? "" : Number(finding.current).toFixed(2),
+            finding.delta == null ? "" : Number(finding.delta).toFixed(2),
+          ];
+        }),
+    };
+  }
   const [punchExceptions] = await db
     .select({ value: count() })
     .from(timePunches)
@@ -103,6 +156,10 @@ export async function runReport(key: ReportKey, organizationId: number) {
       ["Payroll runs on record", String(exceptionTotals?.runs ?? 0), `Total gross ${Number(exceptionTotals?.gross ?? 0).toFixed(2)}`],
     ],
   };
+}
+
+function severityRank(severity: "high" | "medium" | "info") {
+  return severity === "high" ? 3 : severity === "medium" ? 2 : 1;
 }
 
 export { toCsv as reportToCsv } from "@/lib/csv";
