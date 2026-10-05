@@ -145,7 +145,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
 
   const email = String(body.userName ?? "").trim().toLowerCase();
-  const name = String(body.displayName ?? body.name?.formatted ?? [body.name?.givenName, body.name?.familyName].filter(Boolean).join(" ") ?? "").trim();
+  const name = String(body.displayName ?? body.name?.formatted ?? [body.name?.givenName, body.name?.familyName].filter(Boolean).join(" ")).trim();
   const externalId = String(body.externalId ?? email).trim();
   const active = body.active !== false;
   const role = scimRole(Array.isArray(body.roles) ? body.roles[0]?.value : body.role);
@@ -162,6 +162,9 @@ export async function POST(request: Request) {
   if (existingIdentity) return scimError(409, "A SCIM user with this externalId already exists.");
 
   const [emailOwner] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  if (emailOwner && !emailOwner.active) {
+    return scimError(409, "An inactive global Linaw account already uses this userName. Reactivation requires an account administrator.");
+  }
   const unit = await resolvedUnit(auth.organizationId, enterprise.department);
   const employee = await resolvedEmployee(auth.organizationId, enterprise.employeeNumber, email);
 
@@ -188,6 +191,7 @@ export async function POST(request: Request) {
         }).where(eq(users.id, user.id)).returning();
         user = updated;
       }
+      if (!user) throw new Error("SCIM user creation returned no account.");
 
       const [existingMembership] = await tx.select().from(userOrganizations).where(and(
         eq(userOrganizations.userId, user.id),
@@ -209,6 +213,7 @@ export async function POST(request: Request) {
           orgUnitId: unit?.id ?? null,
         }).returning();
       }
+      if (!membership) throw new Error("SCIM membership creation returned no membership.");
 
       const [identity] = await tx.insert(scimIdentities).values({
         organizationId: auth.organizationId,
@@ -217,6 +222,7 @@ export async function POST(request: Request) {
         active,
         lastSyncedAt: new Date(),
       }).returning();
+      if (!identity) throw new Error("SCIM identity creation returned no record.");
 
       return { user, membership, identity };
     });
