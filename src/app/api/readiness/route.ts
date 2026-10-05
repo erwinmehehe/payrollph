@@ -6,6 +6,7 @@ import { governmentIdEncryptionConfigured } from "@/lib/government-id-crypto";
 import { describeEvidenceGap, findFilingForm } from "@/lib/filing-evidence";
 import { filingEvidenceSummaries } from "@/lib/filing-evidence-store";
 import { activeMailProvider, deliveryCapable } from "@/lib/mail-provider";
+import { platformOperatorConfigured } from "@/lib/platform-operator";
 import { verifyPassword } from "@/lib/crypto";
 import { constantTimeSecretEqual } from "@/lib/security-secret";
 import { operationalSecret, operationalSecretConfigured, operationalSecretSource } from "@/lib/operational-secret";
@@ -217,6 +218,18 @@ export async function buildReadinessPayload() {
             : `Provider ${provider} is configured, but this deployment has not recorded a successful send or verified delivery yet.`
         : "No provider configured. Messages remain queued until a transactional email provider is connected.",
       blocks: deliveryCapable() && Number(deliveredMail) > 0 ? "none" : "launch",
+    },
+    {
+      key: "public-lead-recovery",
+      label: "Public lead recovery queue",
+      ready: platformOperatorConfigured(),
+      detail: platformOperatorConfigured()
+        ? "PLATFORM_OPERATOR_EMAILS is configured, so authorized platform operators can recover demo, trial-access and payroll-outsourcing enquiries even when email delivery is unavailable."
+        : "Set PLATFORM_OPERATOR_EMAILS to one or more signed-in operator addresses. Public enquiries are durable in the outbox, but no tenant role is allowed to read the global queue.",
+      blocks: platformOperatorConfigured() ? "none" : "scale",
+      manualWorkaround: platformOperatorConfigured()
+        ? undefined
+        : "Inspect the production outbox directly for organization_id IS NULL and the public lead purposes until a platform operator allowlist is configured.",
     },
     {
       key: "billing",
