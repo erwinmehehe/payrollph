@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, leaveBalances, leavePolicies, leaveRequests, organizations, payrollEntries, payrollRuns, payslips, statutoryRemittanceBatches, statutoryRemittanceMembers, timePunches, userOrganizations, users } from "@/db/schema";
+import { employees, leaveBalances, leavePolicies, leaveRequests, organizations, payrollEntries, payrollRuns, payslips, statutoryContributionIssueCases, statutoryRemittanceBatches, statutoryRemittanceMembers, timePunches, userOrganizations, users } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { employeePayStatusLabel } from "@/lib/payroll-handoff";
 import { recordAuditEvent } from "@/lib/audit";
@@ -96,6 +96,8 @@ export async function GET() {
         eq(leaveBalances.year, currentYear),
       )),
     db.select({
+      memberId: statutoryRemittanceMembers.id,
+      batchId: statutoryRemittanceBatches.id,
       agency: statutoryRemittanceBatches.agency,
       applicableMonth: statutoryRemittanceBatches.applicableMonth,
       dueDate: statutoryRemittanceBatches.dueDate,
@@ -122,6 +124,15 @@ export async function GET() {
       .orderBy(desc(statutoryRemittanceBatches.applicableMonth), desc(statutoryRemittanceBatches.id))
       .limit(36),
   ]);
+
+  const contributionIssueRows = await db.select().from(statutoryContributionIssueCases)
+    .where(and(
+      eq(statutoryContributionIssueCases.organizationId, employee.organizationId),
+      eq(statutoryContributionIssueCases.employeeId, session.employeeId),
+    ))
+    .orderBy(desc(statutoryContributionIssueCases.createdAt), desc(statutoryContributionIssueCases.id))
+    .limit(30);
+
   const releasedThisYear = released.filter((row) => String(row.run.payDate).startsWith(`${currentTaxYear}-`));
 
   const yearToDate = releasedThisYear.reduce(
@@ -211,6 +222,8 @@ export async function GET() {
       lineItems: row.entry.lineItems,
     })),
     contributions: contributionRows.map((row) => ({
+      memberId: row.memberId,
+      batchId: row.batchId,
       agency: row.agency,
       applicableMonth: row.applicableMonth,
       dueDate: row.dueDate,
@@ -225,6 +238,20 @@ export async function GET() {
       postedAmount: row.postedAmount,
       postedAt: row.postedAt,
       exceptionNote: row.exceptionNote,
+    })),
+    contributionIssues: contributionIssueRows.map((row) => ({
+      id: row.id,
+      agency: row.agency,
+      applicableMonth: row.applicableMonth,
+      issueType: row.issueType,
+      description: row.description,
+      status: row.status,
+      assignedToName: row.assignedToName,
+      resolutionOutcome: row.resolutionOutcome,
+      resolutionNote: row.resolutionNote,
+      resolvedByName: row.resolvedByName,
+      resolvedAt: row.resolvedAt,
+      createdAt: row.createdAt,
     })),
     attendance: {
       recent: attendanceRows,
