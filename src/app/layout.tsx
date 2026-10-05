@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { PUBLIC_SITE_URL } from "@/lib/site-url";
 import "./globals.css";
 import "./workspace-theme.css";
 
-const metadataBase = new URL(
-  process.env.APP_BASE_URL ?? "https://erwinmehehe-payrollph.vercel.app",
-);
+const metadataBase = new URL(PUBLIC_SITE_URL);
 
 export const metadata: Metadata = {
   metadataBase,
