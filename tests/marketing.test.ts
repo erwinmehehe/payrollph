@@ -51,7 +51,7 @@ test("public SEO origin is payrollsoftware.ph and is independent of app deployme
   const sitemap = read("src/app/sitemap.ts");
 
   assert.ok(siteUrl.includes('"https://payrollsoftware.ph"'), "canonical public fallback must be payrollsoftware.ph");
-  assert.ok(siteUrl.includes("process.env.PUBLIC_SITE_URL"), "public origin may only be overridden by an explicit public-site setting");
+  assert.ok(!siteUrl.includes("process.env"), "public SEO origin must not vary with deployment environment");
   assert.ok(!siteUrl.includes("APP_BASE_URL"), "application deployment origin must not control public SEO canonicals");
   assert.ok(!siteUrl.includes("vercel.app"), "Vercel deployment URL must never be the canonical fallback");
 
