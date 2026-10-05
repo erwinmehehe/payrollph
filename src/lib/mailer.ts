@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import nodemailer from "nodemailer";
 import { db } from "@/db";
 import { auditEvents, outbox } from "@/db/schema";
@@ -19,6 +19,11 @@ const SENSITIVE_LINK_PURPOSES = new Set([
 ]);
 
 const MAX_AUTOMATIC_RETRIES = 3;
+const AUTOMATIC_RETRY_PURPOSES = new Set([
+  "payslip-ready",
+  "demo-request",
+  "payroll-outsourcing-enquiry",
+]);
 const AUTO_RETRY_DELAYS_MS = [
   5 * 60 * 1000,
   30 * 60 * 1000,
@@ -168,7 +173,7 @@ async function finishDeliveryAttempt(input: {
   const retryDelay = AUTO_RETRY_DELAYS_MS[Math.min(Math.max(attempts - 1, 0), AUTO_RETRY_DELAYS_MS.length - 1)];
   const nextAttemptAt =
     !input.result.ok
-    && input.row.purpose === "payslip-ready"
+    && AUTOMATIC_RETRY_PURPOSES.has(input.row.purpose)
     && attempts < input.row.maxAttempts
       ? new Date(now.getTime() + retryDelay)
       : null;
@@ -252,7 +257,7 @@ export async function queueMessage(input: {
     deliveryStatus: providerName === "none" ? "queued" : "sending",
     deliveryUpdatedAt: new Date(),
     metadata: input.audit?.metadata ?? {},
-    maxAttempts: input.purpose === "payslip-ready" ? MAX_AUTOMATIC_RETRIES + 1 : 1,
+    maxAttempts: AUTOMATIC_RETRY_PURPOSES.has(input.purpose) ? MAX_AUTOMATIC_RETRIES + 1 : 1,
   }).onConflictDoNothing().returning();
 
   if (!created) {
@@ -327,12 +332,15 @@ export async function queueMessage(input: {
   }
 }
 
-export async function getOutboxMessage(id: number, organizationId: number) {
+export async function getOutboxMessage(id: number, organizationId: number | null) {
   await ensureOutboxDeliverySchema();
+  const organizationScope = organizationId == null
+    ? isNull(outbox.organizationId)
+    : eq(outbox.organizationId, organizationId);
   const [row] = await db
     .select()
     .from(outbox)
-    .where(and(eq(outbox.id, id), eq(outbox.organizationId, organizationId)))
+    .where(and(eq(outbox.id, id), organizationScope))
     .limit(1);
   return row ?? null;
 }
@@ -344,7 +352,7 @@ export async function getOutboxMessage(id: number, organizationId: number) {
  */
 export async function retryOutboxMessage(input: {
   id: number;
-  organizationId: number;
+  organizationId: number | null;
   actor: string;
   trigger: "manual" | "automatic";
 }) {
@@ -637,9 +645,10 @@ export async function retryFailedPayslipNotices(input: {
 }
 
 /**
- * Background retry is deliberately narrow: only payslip-ready notices are
- * retried automatically. Password resets, invitations and email-change links
- * must be regenerated instead of replaying stale one-time credentials.
+ * Background retry is deliberately narrow: payslip-ready notices and public
+ * lead notifications are retried automatically. Password resets, invitations
+ * and email-change links must be regenerated instead of replaying stale
+ * one-time credentials.
  */
 export async function drainOutboxRetries(limit = 25) {
   await ensureOutboxDeliverySchema();
@@ -649,7 +658,7 @@ export async function drainOutboxRetries(limit = 25) {
     .select()
     .from(outbox)
     .where(and(
-      eq(outbox.purpose, "payslip-ready"),
+      inArray(outbox.purpose, [...AUTOMATIC_RETRY_PURPOSES]),
       inArray(outbox.status, ["queued", "failed"]),
     ))
     .orderBy(asc(outbox.id))
@@ -666,8 +675,6 @@ export async function drainOutboxRetries(limit = 25) {
   }> = [];
 
   for (const row of candidates) {
-    if (row.organizationId == null) continue;
-
     if (row.attempts >= row.maxAttempts) {
       results.push({ id: row.id, status: row.status, retried: false, reason: "automatic-retry-limit" });
       continue;
