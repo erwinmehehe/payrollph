@@ -115,15 +115,16 @@ test("segmented sitemap sources preserve all major SEO families", () => {
 });
 
 
-test("canonical site fallback is payroll.ph, never the preview deployment", () => {
+test("canonical public origin is fixed to payrollsoftware.ph", () => {
   const siteUrl = read("src/lib/site-url.ts");
-  assert.ok(siteUrl.includes('"https://payroll.ph"'));
+  assert.ok(siteUrl.includes('PUBLIC_SITE_URL = "https://payrollsoftware.ph"'));
   assert.ok(!siteUrl.includes("vercel.app"));
-  assert.ok(siteUrl.includes("APP_BASE_URL"));
+  assert.ok(!siteUrl.includes("APP_BASE_URL"));
+  assert.ok(!siteUrl.includes("process.env"));
 });
 
-test("production canonical environment guidance is documented", () => {
+test("SEO env example does not reintroduce deployment-driven canonical configuration", () => {
   const env = read(".env.local.example");
-  assert.ok(env.includes("Production must set the canonical public origin"));
-  assert.ok(env.includes("https://payroll.ph"));
+  assert.ok(!env.includes("APP_BASE_URL"));
+  assert.ok(!env.includes("https://payroll.ph"));
 });
