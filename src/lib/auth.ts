@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { sessions, users } from "@/db/schema";
 import { randomToken, sha256 } from "@/lib/crypto";
 import { shouldRevokeOnCredentialChange } from "@/lib/account";
+import { effectiveSessionPolicyForUser, enforceActiveSessionLimit } from "@/lib/enterprise-session";
 
 export const SESSION_COOKIE = process.env.NODE_ENV === "production" ? "__Host-linaw_session" : "linaw_session";
 const SESSION_DAYS = 14;
@@ -17,11 +18,12 @@ export type SessionMeta = { userAgent?: string | null; ip?: string | null };
 export async function createSession(
   userId: number,
   meta: SessionMeta = {},
-  options: { passwordChangedAt?: Date; mfaVerifiedAt?: Date | null } = {},
+  options: { passwordChangedAt?: Date; mfaVerifiedAt?: Date | null; authMethod?: "local" | "oidc"; ssoConnectionId?: number | null } = {},
 ) {
   const token = randomToken(32);
-  const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
-  await db.insert(sessions).values({
+  const policy = await effectiveSessionPolicyForUser(userId);
+  const expiresAt = new Date(Date.now() + Math.min(SESSION_DAYS * 24, policy.maxHours) * 60 * 60 * 1000);
+  const [created] = await db.insert(sessions).values({
     userId,
     tokenHash: sha256(token),
     expiresAt,
@@ -30,7 +32,10 @@ export async function createSession(
     lastSeenAt: new Date(),
     passwordChangedAt: options.passwordChangedAt ?? null,
     mfaVerifiedAt: options.mfaVerifiedAt ?? null,
-  });
+    authMethod: options.authMethod ?? "local",
+    ssoConnectionId: options.ssoConnectionId ?? null,
+  }).returning({ id: sessions.id });
+  if (created) await enforceActiveSessionLimit(userId, created.id, policy.maxActiveSessions);
   return { token, expiresAt };
 }
 
@@ -94,14 +99,25 @@ export async function getSessionUser() {
     ))
     .limit(1);
 
-  if (!row) return null;
+  if (!row || !row.user.active) return null;
 
-  const lastSeen = row.session.lastSeenAt ? new Date(row.session.lastSeenAt).getTime() : 0;
-  if (lastSeen && Date.now() - lastSeen > SESSION_IDLE_TIMEOUT_MS) {
+  const policy = await effectiveSessionPolicyForUser(row.user.id);
+  const now = Date.now();
+  const createdAt = new Date(row.session.createdAt).getTime();
+  const lastSeen = row.session.lastSeenAt ? new Date(row.session.lastSeenAt).getTime() : createdAt;
+  const idleTimeoutMs = policy.idleMinutes * 60 * 1000;
+  const maxLifetimeMs = policy.maxHours * 60 * 60 * 1000;
+  const localMfaMissing = policy.requireLocalMfa && row.session.authMethod === "local" && !row.session.mfaVerifiedAt;
+  if (
+    (lastSeen && now - lastSeen > idleTimeoutMs) ||
+    (createdAt && now - createdAt > maxLifetimeMs) ||
+    localMfaMissing
+  ) {
     await db.update(sessions).set({ revokedAt: new Date() }).where(eq(sessions.id, row.session.id));
     return null;
   }
-  if (Date.now() - lastSeen > LAST_SEEN_WRITE_INTERVAL_MS) {
+  await enforceActiveSessionLimit(row.user.id, row.session.id, policy.maxActiveSessions);
+  if (now - lastSeen > LAST_SEEN_WRITE_INTERVAL_MS) {
     await db.update(sessions).set({ lastSeenAt: new Date() }).where(eq(sessions.id, row.session.id));
   }
 
@@ -117,6 +133,9 @@ export async function getSessionUser() {
     sessionExpiresAt: row.session.expiresAt,
     passwordChangedAt: row.session.passwordChangedAt ?? null,
     mfaVerifiedAt: row.session.mfaVerifiedAt ?? null,
+    authMethod: row.session.authMethod,
+    ssoConnectionId: row.session.ssoConnectionId ?? null,
+    localPasswordEnabled: row.user.localPasswordEnabled,
   };
 }
 
