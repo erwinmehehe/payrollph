@@ -237,7 +237,7 @@ test("the routes enforce origin, role, MFA on acceptance, and file integrity", (
     assert.ok(source.includes("publicDemoMutationDenied"), "the shared public demo must not write evidence");
   }
   assert.ok(resolve.includes("requireSensitiveActionMfa"));
-  assert.ok(resolve.includes("parseFilingOutcome"));
+  assert.ok(resolve.includes("parseFilingOutcome"));\n  assert.ok(resolve.includes("definition.submissionMethods.includes"), "the API must reject evidence methods the filing definition does not allow");
   assert.ok(file.includes("regenerateRecordedFile"), "the download must be checked against the recorded hash");
   assert.ok(list.includes("organizationId, "), "the payroll run must be looked up inside the caller's workspace");
 });
