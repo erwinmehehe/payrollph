@@ -79,6 +79,17 @@
 }
 .linaw-nav-links a:hover, .linaw-nav-signin:hover { color: #fff; }
 .linaw-nav-actions { display: flex; justify-content: flex-end; align-items: center; gap: 14px; }
+.linaw-menu-button {
+  display: none;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255,255,255,.035);
+  color: #dce3ed;
+}
+.linaw-mobile-menu { display: none; }
 .linaw-nav-cta {
   display: inline-flex;
   min-height: 40px;
@@ -179,7 +190,8 @@
 }
 .linaw-primary {
   border: 1px solid #7375ff;
-  background: linear-gradient(180deg, #7173ff, #5b5ee8);
+  background-color: #6366f1;
+  background-image: linear-gradient(180deg, #7173ff, #5b5ee8);
   color: #fff;
   box-shadow: 0 12px 34px rgba(99,102,241,.22);
 }
@@ -201,7 +213,8 @@
   color: #78869b;
   font-size: 11.5px;
 }
-.linaw-hero-proof span { display: inline-flex; align-items: center; gap: 7px; }
+.linaw-hero-proof { padding: 0; list-style: none; }
+.linaw-hero-proof li { display: inline-flex; align-items: center; gap: 7px; }
 .linaw-hero-proof svg { width: 14px; height: 14px; color: #34d399; }
 
 .linaw-ui {
@@ -244,6 +257,7 @@
 .linaw-ui-meta { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
 .linaw-ui-kicker { color: #687489; font-size: 9px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
 .linaw-ui-meta h2 { margin: 5px 0 0; color: #f8fafc; font-size: 18px; font-weight: 650; letter-spacing: -.025em; }
+.linaw-ui-period-copy { margin: 4px 0 0; color: #69768b; font-size: 9px; }
 .linaw-ui-period {
   display: grid;
   gap: 3px;
@@ -451,7 +465,36 @@
 .linaw-quote-footer strong { display: block; color: #dbe4ef; font-size: 9.5px; font-weight: 610; }
 .linaw-quote-footer span { display: block; margin-top: 2px; color: #5f6b7d; font-size: 8px; }
 
-.linaw-pricing-compact { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-top: 32px; }
+.linaw-pricing-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 28px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #101216;
+}
+.linaw-pricing-controls > span { color: #94a3b8; font-size: 10px; font-weight: 620; }
+.linaw-pricing-controls > div { display: flex; gap: 6px; }
+.linaw-pricing-controls button {
+  min-width: 42px;
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: #718096;
+  font-size: 9px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.linaw-pricing-controls button.active {
+  border-color: rgba(129,140,248,.28);
+  background: rgba(99,102,241,.1);
+  color: #c7d2fe;
+}
+.linaw-pricing-compact { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-top: 12px; }
 .linaw-price-card { padding: 20px; border: 1px solid var(--line); border-radius: 15px; background: #101216; }
 .linaw-price-card.featured { border-color: rgba(129,140,248,.28); box-shadow: inset 0 1px 0 rgba(255,255,255,.025); }
 .linaw-price-card h3 { margin: 0; color: #e8edf5; font-size: 12px; font-weight: 620; }
@@ -506,7 +549,39 @@
   .linaw-shell { width: min(100% - 30px, 680px); }
   .linaw-nav { min-height: 64px; }
   .linaw-nav-signin { display: none; }
-  .linaw-nav-cta { min-height: 38px; padding-inline: 13px; }
+  .linaw-nav-actions > .linaw-nav-cta { display: none; }
+  .linaw-menu-button { display: grid; }
+  .linaw-mobile-menu {
+    display: grid;
+    gap: 2px;
+    padding-top: 8px;
+    padding-bottom: 14px;
+    border-top: 1px solid var(--line);
+  }
+  .linaw-mobile-menu > a {
+    padding: 12px 2px;
+    color: #aeb8c7;
+    font-size: 12px;
+    font-weight: 560;
+  }
+  .linaw-mobile-menu > div {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .linaw-mobile-menu > div > a:first-child {
+    display: inline-flex;
+    min-height: 40px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    color: #d8dee8;
+    font-size: 12px;
+    font-weight: 650;
+  }
+  .linaw-mobile-menu .linaw-nav-cta { min-height: 40px; padding-inline: 13px; }
   .linaw-hero { padding: 78px 0 52px; }
   .linaw-hero h1 { font-size: clamp(44px,13vw,62px); }
   .linaw-hero-copy > p { font-size: 15px; }
