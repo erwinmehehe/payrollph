@@ -246,6 +246,8 @@ test("public signup requests controlled trial access instead of exposing tenant 
   assert.ok(signup.includes("Request access to a Linaw trial workspace."), "signup must present the real access model");
   assert.ok(signup.includes("<AccessRequestForm />"), "signup must collect a trial access request");
   assert.ok(!signup.includes("This workspace already has an owner."), "public signup must not expose tenant provisioning as a dead end");
+  assert.ok(!signup.includes("SetupWizard"), "public signup must never become the owner bootstrap wizard");
+  assert.ok(!signup.includes("needsSetup"), "public signup must not change based on database initialization state");
   assert.ok(form.includes("Request trial access"), "trial access form must have a clear submission CTA");
 });
 
