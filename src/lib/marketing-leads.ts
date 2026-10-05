@@ -18,6 +18,7 @@ type MarketingLeadRow = {
   notification_status: MarketingLeadNotificationStatus;
   notification_provider: string | null;
   notification_outbox_id: number | null;
+  notification_attempts: number;
 };
 
 let schemaReady = false;
@@ -48,6 +49,7 @@ export async function ensureMarketingLeadSchema() {
           notification_status varchar(24) NOT NULL DEFAULT 'not-configured',
           notification_provider varchar(40),
           notification_outbox_id integer,
+          notification_attempts integer NOT NULL DEFAULT 0,
           created_at timestamptz NOT NULL DEFAULT NOW(),
           updated_at timestamptz NOT NULL DEFAULT NOW(),
           CONSTRAINT marketing_leads_kind_check
@@ -57,6 +59,10 @@ export async function ensureMarketingLeadSchema() {
           CONSTRAINT marketing_leads_notification_status_check
             CHECK (notification_status IN ('not-configured', 'queued', 'sent', 'failed'))
         )
+      `);
+      await client.query(`
+        ALTER TABLE marketing_leads
+          ADD COLUMN IF NOT EXISTS notification_attempts integer NOT NULL DEFAULT 0
       `);
       await client.query(`
         CREATE INDEX IF NOT EXISTS marketing_leads_status_created_idx
@@ -122,6 +128,7 @@ export async function updateMarketingLeadNotification(input: {
   status: MarketingLeadNotificationStatus;
   provider?: string | null;
   outboxId?: number | null;
+  attempted?: boolean;
 }) {
   await ensureMarketingLeadSchema();
   await pool.query(
@@ -129,9 +136,10 @@ export async function updateMarketingLeadNotification(input: {
      SET notification_status = $2,
          notification_provider = $3,
          notification_outbox_id = $4,
+         notification_attempts = notification_attempts + CASE WHEN $5::boolean THEN 1 ELSE 0 END,
          updated_at = NOW()
      WHERE id = $1`,
-    [input.id, input.status, input.provider ?? null, input.outboxId ?? null],
+    [input.id, input.status, input.provider ?? null, input.outboxId ?? null, input.attempted === true],
   );
 }
 
@@ -188,7 +196,7 @@ async function getMarketingLead(id: number) {
   await ensureMarketingLeadSchema();
   const result = await pool.query<MarketingLeadRow>(
     `SELECT id, kind, name, email, company, headcount, payroll_frequency, entities, notes,
-            notification_status, notification_provider, notification_outbox_id
+            notification_status, notification_provider, notification_outbox_id, notification_attempts
      FROM marketing_leads
      WHERE id = $1
      LIMIT 1`,
@@ -205,6 +213,9 @@ export async function notifyMarketingLead(id: number) {
   if (lead.notification_status === "sent") {
     return { notified: true as const, status: "sent" as const, alreadySent: true as const };
   }
+  if (lead.notification_attempts >= 4) {
+    return { notified: false as const, status: "failed" as const, reason: "notification-retry-limit" };
+  }
 
   const recipient = operatorInbox(lead.kind);
   if (!recipient || !deliveryCapable()) {
@@ -213,6 +224,7 @@ export async function notifyMarketingLead(id: number) {
       status: "not-configured",
       provider: null,
       outboxId: lead.notification_outbox_id,
+      attempted: false,
     });
     return { notified: false as const, status: "not-configured" as const };
   }
@@ -232,6 +244,7 @@ export async function notifyMarketingLead(id: number) {
       status,
       provider: "provider" in retried ? String(retried.provider ?? "") || null : null,
       outboxId: lead.notification_outbox_id,
+      attempted: true,
     });
     return {
       notified: retried.ok,
@@ -258,6 +271,7 @@ export async function notifyMarketingLead(id: number) {
     status,
     provider: result.provider,
     outboxId: result.id,
+    attempted: true,
   });
 
   return {
@@ -271,13 +285,26 @@ export async function drainMarketingLeadNotifications(limit = 20) {
   await ensureMarketingLeadSchema();
   if (!deliveryCapable()) return [];
 
+  const configuredKinds: MarketingLeadKind[] = [];
+  if (process.env.DEMO_REQUEST_INBOX?.trim()) configuredKinds.push("demo", "trial-access");
+  if (process.env.PAYROLL_OUTSOURCING_INBOX?.trim() || process.env.DEMO_REQUEST_INBOX?.trim()) {
+    configuredKinds.push("payroll-outsourcing");
+  }
+  if (configuredKinds.length === 0) return [];
+
   const result = await pool.query<{ id: number }>(
     `SELECT id
      FROM marketing_leads
-     WHERE notification_status IN ('not-configured', 'queued', 'failed')
+     WHERE kind = ANY($1::text[])
+       AND notification_status IN ('not-configured', 'queued', 'failed')
+       AND notification_attempts < 4
+       AND (
+         notification_status = 'not-configured'
+         OR updated_at <= NOW() - INTERVAL '5 minutes'
+       )
      ORDER BY created_at ASC
-     LIMIT $1`,
-    [Math.max(1, Math.min(limit, 100))],
+     LIMIT $2`,
+    [configuredKinds, Math.max(1, Math.min(limit, 100))],
   );
 
   const outcomes = [];
