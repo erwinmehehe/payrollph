@@ -27,12 +27,14 @@ export function validateContributionDisputeResolution(input: {
 
   const expected = Number(input.member.totalContribution);
   const posted = Number(input.member.postedAmount);
+  const expectedCentavos = Math.round(expected * 100);
+  const postedCentavos = Math.round(posted * 100);
   if (
     input.member.postingStatus !== "confirmed"
     || input.member.postedAmount == null
     || !Number.isFinite(expected)
     || !Number.isFinite(posted)
-    || Math.abs(posted - expected) > 0.01
+    || postedCentavos !== expectedCentavos
   ) {
     return {
       ok: false as const,
