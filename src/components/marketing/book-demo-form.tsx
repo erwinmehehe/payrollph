@@ -31,7 +31,7 @@ export function BookDemoForm() {
       const response = await fetch("/api/demo-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, requestType: "demo" }),
       });
       const payload = await response.json().catch(() => ({}));
 
