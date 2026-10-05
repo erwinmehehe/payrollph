@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from "node:fs";
 import {
   compliancePages,
   industryPages,
@@ -12,6 +13,7 @@ import {
 } from "../src/lib/seo-content-wave3";
 import { industryWave6, integrationWave6 } from "../src/lib/seo-content-wave6";
 import { resourceWave14 } from "../src/lib/seo-content-wave14";
+import { STATIC_SEO_ROUTES } from "../src/lib/static-seo-routes";
 import {
   SEO_INTENT_OWNERS,
   SEO_PRIVATE_ROUTE_PREFIXES,
@@ -148,6 +150,49 @@ for (const [title, owners] of titleOwners) {
     issues.push({
       code: "duplicate-authority-title",
       message: `Authority title "${title}" is shared by: ${owners.join(", ")}`,
+    });
+  }
+}
+
+
+for (const route of STATIC_SEO_ROUTES) {
+  if (!existsSync(route.pageFile)) {
+    issues.push({
+      code: "missing-static-page-file",
+      message: "Static SEO route " + route.path + " is mapped to missing file " + route.pageFile + ".",
+    });
+    continue;
+  }
+
+  const source = readFileSync(route.pageFile, "utf8");
+
+  if (!/\btitle\s*:/.test(source)) {
+    issues.push({
+      code: "missing-static-title",
+      message: "Static SEO route " + route.path + " is missing page-level title metadata.",
+    });
+  }
+
+  if (!/\bdescription\s*:/.test(source)) {
+    issues.push({
+      code: "missing-static-description",
+      message: "Static SEO route " + route.path + " is missing page-level description metadata.",
+    });
+  }
+
+  const doubleQuotedCanonical = 'alternates: { canonical: "' + route.path + '" }';
+  const singleQuotedCanonical = "alternates: { canonical: '" + route.path + "' }";
+  if (!source.includes(doubleQuotedCanonical) && !source.includes(singleQuotedCanonical)) {
+    issues.push({
+      code: "missing-or-mismatched-canonical",
+      message: "Static SEO route " + route.path + " must declare a self-canonical matching its route.",
+    });
+  }
+
+  if (/robots\s*:\s*\{[\s\S]{0,120}?index\s*:\s*false/.test(source)) {
+    issues.push({
+      code: "indexable-route-noindex",
+      message: "Static SEO route " + route.path + " is in public sitemap data but declares noindex.",
     });
   }
 }
