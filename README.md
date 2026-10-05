@@ -399,7 +399,8 @@ Set the environment variables before the first deploy, not after:
 | Variable | Value |
 | --- | --- |
 | `DATABASE_URL` | Postgres connection string, required |
-| `APP_BASE_URL` | the deployment's own URL, used in email links |
+| `APP_BASE_URL` | the deployment origin used for operational links such as email callbacks; this may be a Vercel deployment URL |
+| `PUBLIC_SITE_URL` | public SEO origin; set to `https://payrollsoftware.ph` in production. Canonicals, sitemap, robots and public schema use this instead of `APP_BASE_URL` |
 | `DEMO_MODE` | `false` for anything reachable publicly |
 | `WORKER_TOKEN` | strong random server-to-server secret |
 | `READINESS_TOKEN` | strong random secret for production readiness diagnostics |
