@@ -211,6 +211,41 @@ test("original industry payroll pages include FAQ depth", () => {
   }
 });
 
+test("calculator pages add content depth without duplicating payroll formulas", () => {
+  const route = read("src/app/calculators/[slug]/page.tsx");
+  const catalog = read("src/lib/calculators.ts");
+  const calculator = read("src/components/marketing/payroll-calculator.tsx");
+  const structured = read("src/components/marketing/structured-data.tsx");
+
+  assert.ok(route.includes("CALCULATOR_GUIDES"), "calculator route must load explanatory guide content");
+  assert.ok(route.includes("How this estimate works"), "calculator route must render calculation-path context");
+  assert.ok(route.includes("Before you use the result"), "calculator route must render verification guidance");
+  assert.ok(route.includes("guide.faq.map"), "calculator route must render visible FAQs");
+  assert.ok(structured.includes('"@type": "FAQPage"'), "shared structured data must support calculator FAQ schema");
+
+  for (const slug of Object.keys({
+    "13th-month-pay": true,
+    "overtime-pay": true,
+    "night-differential": true,
+    "holiday-pay": true,
+    "sss-contribution": true,
+    "philhealth-contribution": true,
+    "pag-ibig-contribution": true,
+    "withholding-tax": true,
+    "payroll-cost": true,
+    "final-pay": true,
+    "daily-rate": true,
+    "hourly-rate": true,
+    "payroll-outsourcing-roi": true,
+  })) {
+    assert.ok(catalog.includes(`"${slug}": {`), `calculator guide must cover ${slug}`);
+  }
+
+  for (const helper of ["computeSss", "computePhilHealth", "computePagIbig", "computeMonthlyWithholdingTax", "holidayMultiplier", "computeThirteenthMonthPay"]) {
+    assert.ok(calculator.includes(helper), `calculator must continue reusing shared payroll helper ${helper}`);
+  }
+});
+
 test("public navigation exposes the SEO program without hiding the live demo", () => {
   const navigation = read("src/components/marketing/public-navigation.ts");
   for (const route of ["/demo", "/resources", "/compliance", "/trust", "/integrations", "/developers", "/calculators", "/payroll-health-check", "/industries"]) {
