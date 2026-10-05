@@ -429,6 +429,36 @@ export const timePunches = pgTable("time_punches", {
   notes: text("notes"),
 });
 
+export const attendanceCorrectionRequests = pgTable(
+  "attendance_correction_requests",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    punchId: integer("punch_id").notNull().references(() => timePunches.id, { onDelete: "cascade" }),
+    workDate: date("work_date").notNull(),
+    originalPunchSnapshot: jsonb("original_punch_snapshot").notNull(),
+    proposedPunchSnapshot: jsonb("proposed_punch_snapshot").notNull(),
+    reason: varchar("reason", { length: 240 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("pending"),
+    requestedBy: varchar("requested_by", { length: 120 }).notNull(),
+    requestedByUserId: integer("requested_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    decidedBy: varchar("decided_by", { length: 120 }),
+    decidedByUserId: integer("decided_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decisionNote: varchar("decision_note", { length: 240 }),
+    appliedAt: timestamp("applied_at", { withTimezone: true }),
+    invalidatedPayrollRunIds: jsonb("invalidated_payroll_run_ids").notNull().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("attendance_corrections_org_status_idx").on(table.organizationId, table.status),
+    index("attendance_corrections_employee_date_idx").on(table.employeeId, table.workDate),
+    index("attendance_corrections_punch_idx").on(table.punchId),
+  ],
+);
+
 export const overtimeRequests = pgTable(
   "overtime_requests",
   {
