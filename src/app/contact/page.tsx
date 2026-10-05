@@ -50,13 +50,13 @@ const contactPaths = [
 
 export default function ContactPage() {
   return (
-    <div className="min-h-screen bg-white text-[#0B0D1A]">
+    <div className="marketing-page min-h-screen bg-white text-[#101323]">
       <StructuredData breadcrumbs={[{ name: "Home", path: "/" }, { name: "Contact Linaw", path: "/contact" }]} />
       <SiteNav />
       <main>
-        <section className="border-b border-[#EDEFF7] bg-[#FAFBFD] py-16 sm:py-20">
+        <section className="border-b border-[#EAECF0] bg-[#FCFCFD] py-16 sm:py-20">
           <div className="mx-auto max-w-[1080px] px-5 sm:px-8">
-            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6161FF]">Contact Linaw</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#444CE7]">Contact Linaw</p>
             <h1 className="font-display mt-4 max-w-[850px] text-[44px] font-semibold leading-[1.03] tracking-[-0.045em] sm:text-[60px]">
               Start with the contact path that matches what you need.
             </h1>
@@ -70,12 +70,12 @@ export default function ContactPage() {
           <div className="mx-auto grid max-w-[1080px] gap-5 px-5 sm:px-8 md:grid-cols-2">
             {contactPaths.map(({ title, body, href, cta, icon: Icon }) => (
               <article key={title} className="rounded-[24px] border border-[#E3E5EF] bg-white p-6 shadow-sm">
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F1F1FF] text-[#4A4AE0]">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F1F1FF] text-[#444CE7]">
                   <Icon size={18} />
                 </span>
                 <h2 className="font-display mt-4 text-[25px] font-semibold tracking-[-0.03em]">{title}</h2>
                 <p className="mt-3 text-[14px] leading-relaxed text-[#5B6080]">{body}</p>
-                <Link href={href} className="mt-5 inline-flex items-center gap-2 text-[13px] font-semibold text-[#4A4AE0]">
+                <Link href={href} className="mt-5 inline-flex items-center gap-2 text-[13px] font-semibold text-[#444CE7]">
                   {cta} <ArrowRight size={13} />
                 </Link>
               </article>
@@ -83,7 +83,7 @@ export default function ContactPage() {
           </div>
         </section>
 
-        <section className="border-y border-[#EDEFF7] bg-[#11141F] py-14 text-white">
+        <section className="border-y border-[#EAECF0] bg-[#11141F] py-14 text-white">
           <div className="mx-auto max-w-[1080px] px-5 sm:px-8">
             <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-white/45">Before sending sensitive information</p>
             <h2 className="font-display mt-4 max-w-[760px] text-[32px] font-semibold tracking-[-0.035em] sm:text-[40px]">
