@@ -52,7 +52,8 @@ test("payroll engine consumes the classified holiday context instead of a single
   assert.ok(engine.includes("holidayContext.holidays.length > 0"));
   assert.ok(engine.includes("const employeeHolidayCalendar: HolidayCalendarEntry[] = ["));
   assert.ok(engine.includes("localHolidayRows"));
-  assert.ok(engine.includes("holiday.orgUnitId == null || employeeHolidayScopeIds.has(holiday.orgUnitId)"));
+  assert.ok(engine.includes("workforceHolidayApplies({"));
+  assert.ok(engine.includes("resolveWorkforceScheduleForDate(holiday.date).worksiteId"));
 });
 
 test("2026 statutory calendar includes the current national proclamations and no demo holiday", () => {
