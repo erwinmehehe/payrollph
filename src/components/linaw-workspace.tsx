@@ -448,7 +448,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
           />
         )}
 
-        {page === "Planning" && <WorkforcePlanningPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Planning" && <WorkforcePlanningPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} onPage={setPage} />}
         {page === "Workforce" && (
           <WorkforcePlanner
             data={data}
