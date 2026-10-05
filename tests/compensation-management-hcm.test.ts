@@ -37,6 +37,8 @@ test("recommendations are budget aware and monthly-pay only", () => {
   assert.ok(route.includes('pay.payBasis !== "monthly"'));
   assert.ok(route.includes("annualizedIncrease"));
   assert.ok(route.includes("cycleBudgetUsage"));
+  assert.ok(route.includes("totalUsage + annualizedIncrease > Number(cycle.totalBudget)"));
+  assert.ok(route.includes("poolUsage + annualizedIncrease > Number(pool.budget)"))
   assert.ok(route.includes("would exceed the employee's org-unit compensation budget"));
   assert.ok(route.includes("would exceed the compensation cycle budget"));
 });
