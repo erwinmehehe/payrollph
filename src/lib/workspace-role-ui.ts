@@ -33,6 +33,7 @@ export const REAL_ROLE_PAGE_ACCESS: Partial<Record<string, readonly string[]>> =
   payroll: [
     "Overview",
     "Payroll",
+    "Compensation",
     "People",
     "Time & attendance",
     "Approvals",
@@ -43,7 +44,6 @@ export const REAL_ROLE_PAGE_ACCESS: Partial<Record<string, readonly string[]>> =
     "Benefits",
     "De minimis",
     "Expenses",
-    "Compensation",
     "Audit trail",
   ],
   checker: [
