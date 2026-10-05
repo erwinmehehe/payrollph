@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   CircleAlert,
   ClipboardCheck,
+  Download,
   ExternalLink,
   RefreshCw,
   ShieldCheck,
@@ -146,6 +147,38 @@ export function LaborInspectionReadinessPanel({
     [payload, attentionOnly],
   );
 
+  async function downloadEvidencePack() {
+    setBusy("export");
+    try {
+      const response = await fetch(
+        `/api/compliance/labor-inspection/evidence-pack?organizationId=${organizationId}`,
+        { cache: "no-store" },
+      );
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error ?? "Inspection evidence pack could not be generated.");
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") ?? "";
+      const filename = disposition.match(/filename="([^"]+)"/)?.[1]
+        ?? `labor-inspection-evidence-${organizationId}.json`;
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      const hash = response.headers.get("x-payrollph-evidence-sha256");
+      notify(hash ? `Evidence pack exported · SHA-256 ${hash.slice(0, 12)}…` : "Evidence pack exported.", "ok");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Inspection evidence pack could not be generated.", "err");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function mutate(
     action: "assign" | "acknowledge" | "close",
     findingKey: string,
@@ -190,9 +223,19 @@ export function LaborInspectionReadinessPanel({
             Findings are not hidden by acknowledgement. Close-out is allowed only after the issue is no longer detected.
           </p>
         </div>
-        <button className="secondary-button" type="button" onClick={() => void load()} disabled={loading}>
-          <RefreshCw size={14} /> {loading ? "Checking…" : "Run inspection check"}
-        </button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => void downloadEvidencePack()}
+            disabled={busy !== null || loading}
+          >
+            <Download size={14} /> {busy === "export" ? "Building pack…" : "Download evidence pack"}
+          </button>
+          <button className="secondary-button" type="button" onClick={() => void load()} disabled={loading}>
+            <RefreshCw size={14} /> {loading ? "Checking…" : "Run inspection check"}
+          </button>
+        </div>
       </div>
 
       {loadError ? (
