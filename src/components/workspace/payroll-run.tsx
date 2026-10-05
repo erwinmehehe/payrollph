@@ -25,6 +25,7 @@ import { readLineItems, readTrace, type BankTemplate, type DashboardData, type N
 import { PayrollAssurancePanel } from "./payroll-assurance-panel";
 import { PayrollOfficerWorkspace } from "./payroll-officer-workspace";
 import { StatutoryRemittancePanel } from "./statutory-remittance-panel";
+import { StatutoryRemittanceActionQueue } from "./statutory-remittance-action-queue";
 import { OwnerPayrollRelease } from "./owner-payroll-release";
 import { ExplainPayDrawer } from "./explain-pay-drawer";
 import {
@@ -446,6 +447,13 @@ export function PayrollRunView({
         <StatutoryRemittancePanel
           organizationId={data.selectedOrganization.id}
           defaultMonth={String(run.periodEnd).slice(0, 7)}
+          notify={notify}
+        />
+      )}
+
+      {["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "") && (
+        <StatutoryRemittanceActionQueue
+          organizationId={data.selectedOrganization.id}
           notify={notify}
         />
       )}

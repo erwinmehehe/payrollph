@@ -99,6 +99,7 @@ export function StatutoryRemittancePanel({
       if (!response.ok) throw new Error(body.error ?? "Statutory remittance action failed.");
       notify(success, "ok");
       await load();
+      window.dispatchEvent(new Event("statutory-remittance-changed"));
       return true;
     } catch (error) {
       notify(error instanceof Error ? error.message : "Statutory remittance action failed.", "err");
