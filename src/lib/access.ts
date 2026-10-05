@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { orgUnits, userOrganizations } from "@/db/schema";
 import { assertOrganizationSessionPolicy } from "@/lib/organization-auth-policy";
@@ -54,6 +54,20 @@ export async function primaryOrganizationId(userId: number): Promise<number | nu
     .select({ organizationId: userOrganizations.organizationId })
     .from(userOrganizations)
     .where(and(eq(userOrganizations.userId, userId), eq(userOrganizations.active, true)))
+    .orderBy(userOrganizations.organizationId)
+    .limit(1);
+  return row?.organizationId ?? null;
+}
+
+export async function primaryCompanyOrganizationId(userId: number): Promise<number | null> {
+  const [row] = await db
+    .select({ organizationId: userOrganizations.organizationId })
+    .from(userOrganizations)
+    .where(and(
+      eq(userOrganizations.userId, userId),
+      eq(userOrganizations.active, true),
+      ne(userOrganizations.role, "employee"),
+    ))
     .orderBy(userOrganizations.organizationId)
     .limit(1);
   return row?.organizationId ?? null;
