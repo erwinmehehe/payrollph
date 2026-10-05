@@ -237,6 +237,9 @@ export function LaborInspectionReadinessPanel({
           </button>
         </div>
       </div>
+      <div style={{ padding: "0 18px 12px", color: "var(--muted)", fontSize: 11 }}>
+        Evidence pack includes payroll, policy review, filing/calendar evidence and employee contribution cases. Sensitive account, member, device and authentication identifiers remain excluded.
+      </div>
 
       {loadError ? (
         <div className="card-body" style={{ paddingTop: 0 }}>
