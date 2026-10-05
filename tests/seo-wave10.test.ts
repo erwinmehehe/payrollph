@@ -62,27 +62,31 @@ test("trial and demo forms submit request type plus attribution", () => {
   const trial = read("src/components/marketing/access-request-form.tsx");
   const demo = read("src/components/marketing/book-demo-form.tsx");
 
-  assert.ok(trial.includes('requestType: "trial"'));
+  assert.ok(trial.includes('requestType: "trial-access"'));
   assert.ok(demo.includes('requestType: "demo"'));
   assert.ok(trial.includes("attribution: readMarketingAttribution()"));
   assert.ok(demo.includes("attribution: readMarketingAttribution()"));
 });
 
-test("demo request endpoint sanitizes and records attribution in the existing outbox", () => {
+test("demo request endpoint sanitizes attribution and durably records the lead before notification", () => {
   const route = read("src/app/api/demo-requests/route.ts");
+  const storage = read("src/lib/marketing-leads.ts");
   assert.ok(route.includes("sanitizeMarketingAttribution(body.attribution)"));
-  assert.ok(route.includes("Landing path:"));
-  assert.ok(route.includes("Conversion path:"));
-  assert.ok(route.includes("UTM source:"));
-  assert.ok(route.includes("UTM campaign:"));
-  assert.ok(route.includes('purpose: "demo-request"'));
-  assert.ok(!route.includes("marketing_attribution"));
+  assert.ok(route.includes("recordMarketingLead({"));
+  assert.ok(route.includes("attribution,"));
+  assert.ok(route.includes('sourcePath: requestType === "trial-access" ? "/signup" : "/book-demo"'));
+  assert.ok(route.indexOf("notifyMarketingLead(lead.id)") > route.indexOf("recordMarketingLead({"));
+  assert.ok(storage.includes("attribution jsonb"));
+  assert.ok(storage.includes("metadata: {"));
 });
 
-test("request type changes message labeling without creating a new public mail target", () => {
+test("request type changes durable lead kind and notification labeling without creating a public mail target", () => {
   const route = read("src/app/api/demo-requests/route.ts");
-  assert.ok(route.includes('body.requestType === "trial" ? "trial" : "demo"'));
-  assert.ok(route.includes('requestType === "trial" ? "Trial access request" : "Demo request"'));
-  assert.ok(route.includes("OPERATOR_INBOX"));
+  const storage = read("src/lib/marketing-leads.ts");
+  assert.ok(route.includes('body.requestType === "trial-access" || body.requestType === "trial"'));
+  assert.ok(route.includes('? "trial-access"'));
+  assert.ok(storage.includes('lead.kind === "trial-access"'));
+  assert.ok(storage.includes("Trial access request:"));
+  assert.ok(storage.includes("DEMO_REQUEST_INBOX"));
   assert.ok(!route.includes("body.recipient"));
 });
