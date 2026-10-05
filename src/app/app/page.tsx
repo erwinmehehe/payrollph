@@ -29,6 +29,9 @@ export default async function WorkspacePage() {
     return <SelfServicePortal />;
   }
 
+  const companyDenied = await assertOrganizationSessionPolicy(user.id, companyOrganizationId);
+  if (companyDenied) redirect("/login?ssoRequired=1");
+
   const data = await getDashboardData(companyOrganizationId);
   return <LinawWorkspace initialData={data} />;
 }
