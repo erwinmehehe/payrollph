@@ -298,8 +298,10 @@ export async function POST(request: Request) {
       eq(statutoryRemittanceBatches.organizationId, organizationId),
     )).limit(1);
     if (!batch) return Response.json({ error: "Remittance batch not found." }, { status: 404 });
-    if (batch.status === "reconciled") {
-      return Response.json({ error: "A reconciled remittance batch is immutable." }, { status: 409 });
+    if (batch.status !== "open") {
+      return Response.json({
+        error: "Payment evidence is immutable once recorded. Create an audited correction workflow instead of overwriting remittance proof.",
+      }, { status: 409 });
     }
     if (!Number.isFinite(paidAt.getTime())) {
       return Response.json({ error: "paidAt must be a valid date-time." }, { status: 400 });
