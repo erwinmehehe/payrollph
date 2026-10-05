@@ -28,6 +28,12 @@ export const compliancePages: AuthorityPage[] = [
       { title: "Prepared output is not the same as accepted filing", body: "Linaw keeps 2316 and Alphalist output in a validation-gated state until the relevant official workflow has accepted or validated the generated result." },
       { title: "Use evidence instead of blanket compliance claims", body: "The filing-validation model records evidence per government output so the system can say what has been checked and what still requires human confirmation." },
     ],
+    faq: [
+      { question: "What should payroll reconcile before preparing BIR year-end outputs?", answer: "Reconcile cumulative taxable compensation, tax already withheld, employee identity data and any year-end adjustments before preparing downstream certificates or annual reporting outputs." },
+      { question: "Is a generated BIR payroll output automatically filing-ready?", answer: "No. Calculation and document generation are separate from the employer's validation, filing, delivery and acceptance workflow." },
+      { question: "Why does payroll annualization matter for BIR reporting?", answer: "Annualization reconciles the employee's cumulative taxable compensation and tax withheld so year-end payroll records reflect the final annual position rather than isolated cutoff calculations." },
+      { question: "What evidence should be kept after a BIR payroll workflow is completed?", answer: "Keep the payroll version, covered period, generated output version, review status and any filing or delivery evidence needed to trace what was actually completed." },
+    ],
     related: [
       { label: "Withholding tax calculator", href: "/calculators/withholding-tax", description: "Estimate monthly compensation withholding using the shared payroll rule implementation." },
       { label: "Compliance center", href: "/compliance", description: "See the broader Philippine payroll compliance architecture." },
@@ -46,6 +52,12 @@ export const compliancePages: AuthorityPage[] = [
       { title: "Employer cost is not an employee deduction", body: "Employee contribution, employer contribution and EC are represented separately so payroll reports can distinguish take-home deductions from employer payroll cost." },
       { title: "Cutoff timing can differ from monthly liability", body: "The code supports split, first-cutoff and second-cutoff collection patterns so a monthly statutory target can be reconciled across the employer's payroll cycle." },
       { title: "R-3 output remains validation-gated", body: "A generated government file or worksheet should not be described as filing-ready until it has been checked in the relevant official process." },
+    ],
+    faq: [
+      { question: "Should employee and employer SSS amounts be tracked separately?", answer: "Yes. Employee deductions, employer contributions and employer-paid components should remain distinct so take-home pay and employer payroll cost are not mixed together." },
+      { question: "Why can SSS deduction timing differ from the monthly liability?", answer: "Employers may collect a monthly statutory obligation across their payroll cutoffs, so payroll needs a clear timing rule while still reconciling the final monthly amount." },
+      { question: "Does calculating SSS contributions prove the remittance was completed?", answer: "No. Payroll calculation, government reporting output and actual remittance or acceptance evidence are separate controls." },
+      { question: "What should happen when an employee contribution record needs correction?", answer: "The issue should be traceable to the employee, covered month and payroll evidence, assigned to an owner, and resolved with a documented outcome rather than silently changing history." },
     ],
     related: [
       { label: "SSS contribution calculator", href: "/calculators/sss-contribution", description: "Estimate SSS shares using the same contribution function used by the product." },
@@ -67,6 +79,12 @@ export const compliancePages: AuthorityPage[] = [
       { title: "Treat payroll calculation and agency submission as separate controls", body: "The product can calculate and report payroll liability without claiming that the agency filing format has already been accepted." },
       { title: "Review changes before they reach payroll", body: "Contribution rules are part of the broader compliance-rules governance model so future rule updates can be reviewed and effective-dated instead of silently overwriting history." },
     ],
+    faq: [
+      { question: "Why should PhilHealth employee and employer shares reconcile to the total premium?", answer: "Payroll reporting should preserve the total statutory amount while keeping the employee deduction and employer cost separately visible." },
+      { question: "How should rounding differences be handled in payroll?", answer: "Rounding should preserve the total contribution and follow the product's tested centavo-reconciliation rule rather than allowing employee and employer shares to drift from the total." },
+      { question: "Does a correct payroll deduction prove PhilHealth filing or remittance was accepted?", answer: "No. The payroll calculation and the agency submission or remittance workflow require separate validation evidence." },
+      { question: "What should payroll review when a PhilHealth contribution appears wrong?", answer: "Review the applicable payroll base, employee data, covered month, calculation trace, deduction timing and any remittance-member record before deciding whether a correction is needed." },
+    ],
     related: [
       { label: "PhilHealth calculator", href: "/calculators/philhealth-contribution", description: "Estimate the employee and employer premium shares." },
       { label: "Compliance center", href: "/compliance", description: "See validation and rule-governance controls." },
@@ -87,6 +105,12 @@ export const compliancePages: AuthorityPage[] = [
       { title: "Keep the government-output status honest", body: "Prepared MCRF output is not presented as agency-accepted simply because the payroll engine produced values." },
       { title: "Use effective-dated rule governance", body: "The broader compliance-rules model is designed to resolve the approved rule version for the payroll date and fail closed on ambiguous or missing statutory configuration." },
     ],
+    faq: [
+      { question: "Why should Pag-IBIG monthly liability be separated from cutoff collection?", answer: "The statutory obligation is monthly while an employer may operate multiple payroll cutoffs, so the payroll system should reconcile the final monthly target without double-collecting or missing an employee." },
+      { question: "Should the employer share appear as an employee deduction?", answer: "No. Employer contribution is an employer payroll cost and should remain distinct from the amount deducted from the employee's pay." },
+      { question: "Does generating an MCRF-related output prove agency acceptance?", answer: "No. Prepared payroll output remains separate from official validation, submission and remittance evidence." },
+      { question: "What should be checked when a Pag-IBIG contribution issue is reported?", answer: "Check the employee's covered month, applicable payroll base, deduction timing, monthly reconciliation and the remittance record before recording the resolution." },
+    ],
     related: [
       { label: "Pag-IBIG calculator", href: "/calculators/pag-ibig-contribution", description: "Estimate employee and employer contributions." },
       { label: "Payroll compliance", href: "/compliance", description: "See the compliance-rules and filing-validation model." },
@@ -105,6 +129,12 @@ export const compliancePages: AuthorityPage[] = [
       { title: "Night differential can overlap overtime and premium days", body: "Night work is derived from the actual time range and can be priced on both regular and overtime minutes using the day-specific multiplier." },
       { title: "Historical rest-day context matters", body: "Rest-day changes are effective-dated so recalculating an older payroll period does not simply apply today's weekly rest day to historical work." },
       { title: "Wage screening is advisory, not a legal conclusion", body: "Regional wage-order references can surface a review warning, but employer category, sector, establishment size and location can affect the legally applicable minimum." },
+    ],
+    faq: [
+      { question: "Why can overtime pay differ depending on the work date?", answer: "Overtime can interact with rest-day and holiday context, so the applicable premium cannot always be reduced to one universal multiplier." },
+      { question: "Can night differential overlap with overtime or holiday work?", answer: "Yes. Payroll should preserve the underlying work-time and day context so overlapping premium components are calculated from the actual shift rather than converted into a flat allowance." },
+      { question: "Why are historical rest-day assignments important?", answer: "If a rest-day assignment changes later, recalculating an older payroll period should still use the work schedule that applied on the original date." },
+      { question: "Does a wage-order screening warning determine the employee's legal minimum wage?", answer: "No. Screening can surface a review condition, but the legally applicable wage can depend on region, sector, employer category, establishment size and other facts that require confirmation." },
     ],
     related: [
       { label: "Overtime calculator", href: "/calculators/overtime-pay", description: "Estimate overtime using the product's holiday/rest-day multiplier logic." },
