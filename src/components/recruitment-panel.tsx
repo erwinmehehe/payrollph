@@ -13,6 +13,8 @@ type Requisition = {
   employmentType: string;
   status: string;
   description: string;
+  positionId: number | null;
+  targetStartDate: string | null;
   applicantCount: number;
   interviewCount: number;
   offerCount: number;
@@ -28,6 +30,7 @@ type Applicant = {
   rating: number;
   notes: string;
   offeredSalary: string | null;
+  hiredEmployeeId: number | null;
   createdAt: string;
 };
 
@@ -45,6 +48,8 @@ export function RecruitmentPanel({ organizationId, setNotice }: { organizationId
   const [selectedReqId, setSelectedReqId] = useState<number | null>(null);
   const [showReqModal, setShowReqModal] = useState(false);
   const [showAppModal, setShowAppModal] = useState(false);
+  const [offerDraft, setOfferDraft] = useState<{ applicantId: number; amount: string } | null>(null);
+  const [hireDraft, setHireDraft] = useState<{ applicantId: number; firstName: string; lastName: string; startDate: string; region: string } | null>(null);
 
   const [formReq, setFormReq] = useState({
     title: "",
@@ -134,16 +139,60 @@ export function RecruitmentPanel({ organizationId, setNotice }: { organizationId
     reload();
   }
 
-  async function updateStage(applicantId: number, nextStage: string) {
+  async function updateStage(applicantId: number, nextStage: string, offeredSalary?: number) {
     const res = await fetch("/api/recruitment", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ applicantId, stage: nextStage }),
+      body: JSON.stringify({ applicantId, stage: nextStage, offeredSalary }),
     });
-    if (res.ok) {
-      setNotice(`Candidate moved to ${nextStage}.`);
-      reload();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setNotice(data.error ?? "Could not update candidate stage.");
+      return false;
     }
+    setNotice(`Candidate moved to ${nextStage}.`);
+    reload();
+    return true;
+  }
+
+  async function submitOffer(event: React.FormEvent) {
+    event.preventDefault();
+    if (!offerDraft) return;
+    const amount = Number(offerDraft.amount);
+    if (!(amount > 0)) return setNotice("Enter the accepted monthly offer.");
+    const ok = await updateStage(offerDraft.applicantId, "offer", amount);
+    if (ok) setOfferDraft(null);
+  }
+
+  function startHire(applicant: Applicant) {
+    const parts = applicant.fullName.trim().split(/\s+/);
+    const firstName = parts.shift() ?? "";
+    const lastName = parts.join(" ") || firstName;
+    setHireDraft({
+      applicantId: applicant.id,
+      firstName,
+      lastName,
+      startDate: activeReq?.targetStartDate ?? new Date().toISOString().slice(0, 10),
+      region: "NCR",
+    });
+  }
+
+  async function submitHire(event: React.FormEvent) {
+    event.preventDefault();
+    if (!hireDraft) return;
+    const res = await fetch("/api/recruitment/hire", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ organizationId, ...hireDraft }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setNotice(data.error ?? "Could not hire this candidate.");
+      return;
+    }
+    setHireDraft(null);
+    setNotice(`Hired ${data.employee.firstName} ${data.employee.lastName}; employee, position assignment, and onboarding were created together.`);
+    reload();
   }
 
   const activeReq = requisitions.find((r) => r.id === selectedReqId) ?? requisitions[0];
@@ -286,7 +335,7 @@ export function RecruitmentPanel({ organizationId, setNotice }: { organizationId
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <strong style={{ fontSize: 14 }}>{activeReq.title}</strong>
-              <span style={{ display: "block", color: "var(--muted)", fontSize: 11 }}>{activeReq.department} · {activeReq.employmentType} · Target: {activeReq.headcount} headcount</span>
+              <span style={{ display: "block", color: "var(--muted)", fontSize: 11 }}>{activeReq.department} · {activeReq.employmentType} · Target: {activeReq.headcount} headcount{activeReq.positionId ? ` · Position-linked #${activeReq.positionId}` : " · Unlinked requisition"}</span>
             </div>
             <div>
               {activeReq.salaryMin && <strong style={{ color: "var(--green)", fontSize: 13 }}>₱{Number(activeReq.salaryMin).toLocaleString()} – ₱{Number(activeReq.salaryMax).toLocaleString()}</strong>}
@@ -316,20 +365,35 @@ export function RecruitmentPanel({ organizationId, setNotice }: { organizationId
 
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingTop: 6, borderTop: "1px solid #edf2ee" }}>
                       <span style={{ fontSize: 9.5, color: "var(--muted)" }}>★ {app.rating}/5</span>
-                      {stage.key !== "hired" && (
+                      {stage.key === "offer" && !app.hiredEmployeeId && (
+                        <button
+                          className="primary-button"
+                          style={{ height: 24, fontSize: 9.5, padding: "0 8px" }}
+                          onClick={() => startHire(app)}
+                        >
+                          Hire
+                        </button>
+                      )}
+                      {!["offer", "hired"].includes(stage.key) && (
                         <button
                           className="secondary-button"
                           style={{ height: 22, fontSize: 9.5, padding: "0 6px" }}
                           onClick={() => {
                             const nextIdx = STAGES.findIndex((s) => s.key === stage.key) + 1;
-                            if (nextIdx < STAGES.length) updateStage(app.id, STAGES[nextIdx].key);
+                            const next = STAGES[nextIdx]?.key;
+                            if (!next) return;
+                            if (next === "offer") {
+                              setOfferDraft({ applicantId: app.id, amount: activeReq?.salaryMax ?? "" });
+                            } else {
+                              void updateStage(app.id, next);
+                            }
                           }}
                         >
                           Next <ChevronRight size={10} />
                         </button>
                       )}
                       {stage.key === "hired" && (
-                        <span className="status status-verified" style={{ fontSize: 8 }}>Hired ✓</span>
+                        <span className="status status-verified" style={{ fontSize: 8 }}>Hired ✓{app.hiredEmployeeId ? ` · EMP #${app.hiredEmployeeId}` : ""}</span>
                       )}
                     </div>
                   </div>
@@ -339,6 +403,45 @@ export function RecruitmentPanel({ organizationId, setNotice }: { organizationId
           );
         })}
       </div>
+
+      {offerDraft && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Create job offer">
+          <section className="modal">
+            <button className="modal-close" onClick={() => setOfferDraft(null)}><X size={16} /></button>
+            <div className="card-kicker">JOB OFFER</div>
+            <h2>Record the accepted monthly salary</h2>
+            <p>This amount becomes the starting monthly pay only if the candidate is later hired.</p>
+            <form onSubmit={submitOffer}>
+              <div className="setting-form">
+                <label>Monthly salary (PHP)
+                  <input required type="number" min="1" step="0.01" value={offerDraft.amount} onChange={(e) => setOfferDraft({ ...offerDraft, amount: e.target.value })} />
+                </label>
+              </div>
+              <div className="run-actions"><button type="button" className="secondary-button" onClick={() => setOfferDraft(null)}>Cancel</button><button className="primary-button">Move to offer</button></div>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {hireDraft && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Hire candidate">
+          <section className="modal">
+            <button className="modal-close" onClick={() => setHireDraft(null)}><X size={16} /></button>
+            <div className="card-kicker">HIRE INTO POSITION</div>
+            <h2>Create employee, assignment, and onboarding</h2>
+            <p>The candidate must be linked to a planned position. The hire is committed as one transaction.</p>
+            <form onSubmit={submitHire}>
+              <div className="setting-form">
+                <label>First name<input required value={hireDraft.firstName} onChange={(e) => setHireDraft({ ...hireDraft, firstName: e.target.value })} /></label>
+                <label>Last name<input required value={hireDraft.lastName} onChange={(e) => setHireDraft({ ...hireDraft, lastName: e.target.value })} /></label>
+                <label>Start date<input required type="date" value={hireDraft.startDate} onChange={(e) => setHireDraft({ ...hireDraft, startDate: e.target.value })} /></label>
+                <label>Payroll region<input required value={hireDraft.region} onChange={(e) => setHireDraft({ ...hireDraft, region: e.target.value })} /></label>
+              </div>
+              <div className="run-actions"><button type="button" className="secondary-button" onClick={() => setHireDraft(null)}>Cancel</button><button className="primary-button">Hire and start onboarding</button></div>
+            </form>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
