@@ -12,7 +12,7 @@ import {
   recognitionEvents,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
+import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import {
@@ -29,6 +29,7 @@ const SURVEY_KINDS = ["pulse", "enps", "onboarding", "exit", "lifecycle", "custo
 const QUESTION_TYPES = ["rating_1_5", "enps_0_10", "text"] as const;
 const ACTION_STATUSES = ["open", "in_progress", "completed", "cancelled"] as const;
 const FEEDBACK_KINDS = ["praise", "coaching", "check_in"] as const;
+const ENGAGEMENT_MANAGER_ROLES = ["owner", "admin", "hr", "manager"] as const;
 
 function validDate(value: string | null) {
   return !value || /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -64,7 +65,7 @@ export async function GET(request: Request) {
   const denied = await assertOrganizationRole(
     user.id,
     organizationId,
-    WORKFORCE_MANAGER_ROLES,
+    ENGAGEMENT_MANAGER_ROLES,
     "Your role is not allowed to view employee-listening analytics.",
   );
   if (denied) return denied;
@@ -253,7 +254,7 @@ export async function POST(request: Request) {
   const denied = await assertOrganizationRole(
     user.id,
     organizationId,
-    WORKFORCE_MANAGER_ROLES,
+    ENGAGEMENT_MANAGER_ROLES,
     "Your role is not allowed to manage employee listening.",
   );
   if (denied) return denied;
@@ -356,6 +357,13 @@ export async function POST(request: Request) {
     }
     const scoped = await surveyForScope(user.id, organizationId, surveyId);
     if ("error" in scoped) return scoped.error;
+    if (orgUnitId) {
+      const [unit] = await db.select({ id: orgUnits.id }).from(orgUnits).where(and(
+        eq(orgUnits.id, orgUnitId),
+        eq(orgUnits.organizationId, organizationId),
+      )).limit(1);
+      if (!unit) return Response.json({ error: "Action-plan organization unit not found." }, { status: 404 });
+    }
     if (questionId) {
       const [question] = await db.select({ id: engagementQuestions.id }).from(engagementQuestions).where(and(
         eq(engagementQuestions.id, questionId),
@@ -459,7 +467,7 @@ export async function PATCH(request: Request) {
   const action = String(body.action ?? "");
   if (!Number.isInteger(organizationId)) return Response.json({ error: "organizationId is required." }, { status: 400 });
 
-  const denied = await assertOrganizationRole(user.id, organizationId, WORKFORCE_MANAGER_ROLES);
+  const denied = await assertOrganizationRole(user.id, organizationId, ENGAGEMENT_MANAGER_ROLES);
   if (denied) return denied;
 
   if (action === "open_survey" || action === "close_survey") {
