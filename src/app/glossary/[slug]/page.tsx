@@ -16,7 +16,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!entry) return {};
   return {
     title: `${entry.term} — Payroll Glossary | Linaw`,
-    description: entry.definition,
+    description: entry.metaDescription,
     alternates: { canonical: `/glossary/${slug}` },
   };
 }
@@ -43,6 +43,19 @@ export default async function GlossaryEntryPage({ params }: { params: Promise<{ 
             <p className="mt-5 text-[15px] leading-relaxed text-[#5B6080]">{entry.explanation}</p>
           </div>
         </section>
+        <section className="py-14 sm:py-16">
+          <div className="mx-auto grid max-w-[900px] gap-4 px-5 sm:px-8 md:grid-cols-2">
+            <article className="rounded-[22px] border border-[#E4E6F0] bg-[#FAFBFD] p-6">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Why it matters in payroll</p>
+              <p className="mt-3 text-[14px] leading-relaxed text-[#4F556D]">{entry.whyItMatters}</p>
+            </article>
+            <article className="rounded-[22px] border border-[#E4E6F0] bg-white p-6">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Simple example</p>
+              <p className="mt-3 text-[14px] leading-relaxed text-[#4F556D]">{entry.example}</p>
+            </article>
+          </div>
+        </section>
+
         <section className="py-14">
           <div className="mx-auto max-w-[900px] px-5 sm:px-8">
             <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#7C82A1]">Related guidance</p>
