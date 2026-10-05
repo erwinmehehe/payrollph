@@ -248,6 +248,45 @@ test("core and operational compliance guides include FAQ depth", () => {
   }
 });
 
+test("wave 3 payroll operations guides keep FAQ depth and review dates", () => {
+  const wave3 = read("src/lib/seo-content-wave3.ts");
+  for (const slug of [
+    "night-differential-philippines",
+    "holiday-pay-philippines",
+    "separation-pay-philippines",
+    "payroll-process-philippines",
+    "payroll-cutoff",
+    "common-payroll-errors",
+    "payroll-audit-checklist",
+    "payslip-guide",
+    "payroll-annualization",
+  ]) {
+    const start = wave3.indexOf(`slug: "${slug}"`);
+    const end = wave3.indexOf("\n  },", start);
+    assert.ok(start >= 0 && end > start, `wave 3 guide ${slug} must exist`);
+    const page = wave3.slice(start, end);
+    assert.ok(page.includes("faq: ["), `wave 3 guide ${slug} must include FAQ depth`);
+    assert.ok(page.includes("lastReviewedIso: reviewedIso"), `wave 3 guide ${slug} must expose a structured review date`);
+  }
+});
+
+test("statutory wave 3 guides preserve official reference links", () => {
+  const wave3 = read("src/lib/seo-content-wave3.ts");
+  for (const slug of [
+    "night-differential-philippines",
+    "holiday-pay-philippines",
+    "separation-pay-philippines",
+    "payroll-annualization",
+  ]) {
+    const start = wave3.indexOf(`slug: "${slug}"`);
+    const end = wave3.indexOf("\n  },", start);
+    const page = wave3.slice(start, end);
+    assert.ok(page.includes("sources: ["), `statutory guide ${slug} must retain official sources`);
+  }
+  assert.ok(wave3.includes("DOLE Workers' Statutory Monetary Benefits Handbook"));
+  assert.ok(wave3.includes("BIR Form 2316 information"));
+});
+
 test("public navigation exposes the SEO program without hiding the live demo", () => {
   const navigation = read("src/components/marketing/public-navigation.ts");
   for (const route of ["/demo", "/resources", "/compliance", "/trust", "/integrations", "/developers", "/calculators", "/payroll-health-check", "/industries"]) {
