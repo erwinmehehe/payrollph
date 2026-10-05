@@ -47,7 +47,7 @@ export function buildStatutoryRemittanceAlerts(input: {
     const overdue = days != null && days < 0;
     const dueSoon = days != null && days <= 7;
     alerts.push({
-      id: `missing-${gap.agency}-${gap.applicableMonth}`,
+      id: `coverage:${gap.agency}:${gap.applicableMonth}`,
       tone: overdue ? "danger" : dueSoon ? "warning" : "info",
       title: overdue
         ? `${gap.agency} remittance control is missing and overdue`
@@ -68,7 +68,7 @@ export function buildStatutoryRemittanceAlerts(input: {
 
     if (batch.status === "exception" || batch.exceptionCount > 0) {
       alerts.push({
-        id: `exception-${batch.id}`,
+        id: `batch:${batch.id}`,
         tone: "danger",
         title: `${batch.agency} has employee posting exceptions`,
         detail: `${batch.applicableMonth} has ${batch.exceptionCount} unresolved employee posting exception${batch.exceptionCount === 1 ? "" : "s"}. The month is not reconciled.`,
@@ -81,7 +81,7 @@ export function buildStatutoryRemittanceAlerts(input: {
 
     if (batch.status === "paid" && batch.pendingPostingCount > 0) {
       alerts.push({
-        id: `posting-${batch.id}`,
+        id: `batch:${batch.id}`,
         tone: "warning",
         title: `${batch.agency} payment recorded, member posting still unconfirmed`,
         detail: `${batch.applicableMonth} still has ${batch.pendingPostingCount} employee posting confirmation${batch.pendingPostingCount === 1 ? "" : "s"} outstanding.`,
@@ -96,7 +96,7 @@ export function buildStatutoryRemittanceAlerts(input: {
       const days = daysUntil(batch.dueDate, input.today);
       if (days < 0) {
         alerts.push({
-          id: `overdue-${batch.id}`,
+          id: `batch:${batch.id}`,
           tone: "danger",
           title: `${batch.agency} remittance is overdue`,
           detail: `${batch.applicableMonth} was due ${batch.dueDate}. Payment evidence has not been recorded.`,
@@ -106,7 +106,7 @@ export function buildStatutoryRemittanceAlerts(input: {
         });
       } else if (days <= 7) {
         alerts.push({
-          id: `due-${batch.id}`,
+          id: `batch:${batch.id}`,
           tone: "warning",
           title: `${batch.agency} remittance is due soon`,
           detail: days === 0
