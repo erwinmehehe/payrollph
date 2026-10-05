@@ -63,14 +63,13 @@ test("public SEO origin is payrollsoftware.ph and is independent of app deployme
 });
 
 
-test("the software homepage uses the real Linaw workspace preview", () => {
+test("the software homepage keeps the full workspace demo off the marketing page", () => {
   const home = read("src/components/marketing/claude-home/App.tsx");
-  const demo = read("src/components/marketing/claude-home/components/Demo.tsx");
-  assert.ok(home.includes("<Demo />"), "redesigned homepage must mount the product demo");
-  assert.ok(demo.includes('id="demo"'), "homepage must expose a stable live-demo anchor");
-  assert.ok(demo.includes('from "@/components/marketing/workspace-preview"'), "homepage demo must use the shared Linaw workspace preview");
-  assert.ok(demo.includes('<WorkspacePreview mode="interactive" />'), "homepage demo must expose the interactive real-system preview");
-  assert.ok(demo.includes("Open role-based sandbox"), "homepage demo must hand off to the real role-based sandbox");
+  const hero = read("src/components/marketing/claude-home/components/Hero.tsx");
+  assert.ok(!home.includes('import Demo from "./components/Demo"'), "homepage must not import the oversized embedded product demo");
+  assert.ok(!home.includes("<Demo />"), "homepage must not mount the oversized embedded product demo");
+  assert.ok(hero.includes('href="/demo"'), "homepage hero must still hand off to the dedicated role-based demo");
+  assert.ok(hero.includes("payroll-hero-control-card"), "homepage must retain the focused release-readiness product proof");
 });
 
 test("the homepage leads with the approved Linaw payroll hero", () => {
