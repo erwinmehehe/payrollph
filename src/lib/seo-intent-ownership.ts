@@ -219,7 +219,20 @@ export const SEO_INTENT_OWNERS: SeoIntentOwner[] = [
 
   { primaryIntent: "payroll glossary philippines", ownerPath: "/glossary", intentClass: "glossary" },
   { primaryIntent: "payroll software trial philippines", ownerPath: "/trial", intentClass: "conversion" },
-  { primaryIntent: "payroll software demo philippines", ownerPath: "/book-demo", intentClass: "conversion" },
+  {
+    primaryIntent: "payroll software demo philippines",
+    ownerPath: "/demo",
+    intentClass: "conversion",
+    supportingIntents: ["live payroll software demo philippines", "payroll product demo philippines"],
+    note: "Own self-serve product-demo intent using populated sample data.",
+  },
+  {
+    primaryIntent: "book payroll software demo philippines",
+    ownerPath: "/book-demo",
+    intentClass: "conversion",
+    supportingIntents: ["schedule payroll software demo philippines", "payroll software walkthrough philippines"],
+    note: "Own guided sales-conversation intent; do not compete with the self-serve /demo route.",
+  },
 ];
 
 export function normalizeSeoIntent(value: string) {

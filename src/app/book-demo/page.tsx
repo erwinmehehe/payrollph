@@ -2,18 +2,20 @@ import type { Metadata } from "next";
 import { Check, ShieldCheck } from "lucide-react";
 import { BookDemoForm } from "@/components/marketing/book-demo-form";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
+import { StructuredData } from "@/components/marketing/structured-data";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Book a Linaw demo",
-  description: "Walk through Philippine payroll, approvals and exports against your own headcount and entity structure.",
+  title: "Book Payroll Software Demo Philippines | Linaw",
+  description: "Book a guided Linaw payroll software demo for your Philippine payroll workflow, headcount, entity structure, approvals, exceptions and exports.",
   alternates: { canonical: "/book-demo" },
 };
 
 export default function BookDemoPage() {
   return (
     <div className="min-h-screen bg-white text-[#0B0D1A]">
+      <StructuredData breadcrumbs={[{ name: "Home", path: "/" }, { name: "Book a payroll demo", path: "/book-demo" }]} />
       <SiteNav />
 
       <main>
