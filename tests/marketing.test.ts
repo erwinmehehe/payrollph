@@ -203,8 +203,8 @@ test("homepage hero and deeper demo both use the shared Linaw workspace preview"
 });
 
 test("pricing explains who each plan is for instead of dumping internal module names", () => {
-  const pricing = read("src/components/marketing/pricing-table.tsx");
-  assert.ok(pricing.includes("BUYER_POINTS"), "pricing must use buyer-oriented outcomes");
+  const pricing = read("src/components/marketing/claude-home/components/Pricing.tsx");
+  assert.ok(pricing.includes("planCopy"), "pricing must use buyer-oriented outcomes");
   assert.ok(pricing.includes("Checker approvals, audit trail and stronger controls"), "Scale must explain operational value");
   assert.ok(!pricing.includes("modules.map"), "pricing must not dump persisted module names directly into the cards");
 });
