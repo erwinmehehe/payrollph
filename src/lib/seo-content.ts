@@ -9,6 +9,8 @@ export type AuthorityPage = {
   sections: Array<{ title: string; body: string; bullets?: string[] }>;
   faq?: Array<{ question: string; answer: string }>;
   related: Array<{ label: string; href: string; description: string }>;
+  lastReviewed?: string;
+  sources?: Array<{ label: string; href: string }>;
 };
 
 export const compliancePages: AuthorityPage[] = [
