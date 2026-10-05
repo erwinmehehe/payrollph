@@ -174,6 +174,24 @@ export type Task = {
   status: string;
 };
 
+export type ComplianceActionTask = {
+  id: number;
+  sourceKey: string;
+  agency?: string | null;
+  applicableMonth?: string | null;
+  severity: "danger" | "warning" | "info" | string;
+  title: string;
+  detail: string;
+  dueDate?: string | null;
+  status: "open" | "in_progress" | "resolved" | string;
+  assignedToUserId?: number | null;
+  assignedToName?: string | null;
+  acknowledgedByName?: string | null;
+  acknowledgedAt?: Date | string | null;
+  resolvedAt?: Date | string | null;
+  updatedAt?: Date | string | null;
+};
+
 export type AuditEvent = {
   id: number;
   actor: string;
@@ -321,6 +339,7 @@ export type DashboardData = {
   payrollEntries: PayrollEntry[];
   payrollJobs?: Array<{ id: number; status: string; chunkIndex: number }>;
   tasks: Task[];
+  complianceActions?: ComplianceActionTask[];
   auditEvents: AuditEvent[];
   plans: PricingPlan[];
   templates: BankTemplate[];
