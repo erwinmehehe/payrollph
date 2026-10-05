@@ -17,6 +17,7 @@ import { PerformancePanel } from "@/components/performance-panel";
 import { SeparationPanel } from "@/components/separation-panel";
 import { EwaPanel, ExpensesPanel } from "@/components/wallet-panel";
 import { WebBundyModal } from "@/components/web-bundy-modal";
+import { LaunchReadinessPanel } from "@/components/workspace/launch-readiness-panel";
 import { AnalyticsView } from "@/components/workspace/analytics";
 import { ApprovalsView } from "@/components/workspace/approvals";
 import { CommandPalette, usePaletteShortcut, type PaletteAction } from "@/components/workspace/command-palette";
@@ -519,6 +520,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
 
         {page === "Integrations" && <IntegrationsPage onOpenOutbox={canManageDeliveryOutbox ? () => setOutboxOpen(true) : undefined} />}
         {page === "Developer" && <DeveloperPage organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Readiness" && <LaunchReadinessPanel organizationId={data.selectedOrganization.id} />}
         {page === "Pricing" && <PricingPage plans={data.plans} onSelectPlan={(plan) => setCheckoutPlan(plan)} />}
         {page === "Audit trail" && <AuditPage events={data.auditEvents} organizationId={data.selectedOrganization.id} />}
         {page === "Settings" && <SettingsPage data={data} setNotice={noticeAdapter} initialTab={settingsInitialTab} />}
