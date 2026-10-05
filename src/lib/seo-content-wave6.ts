@@ -1,0 +1,378 @@
+import type { AuthorityPage } from "@/lib/seo-content";
+
+export const industryWave6: AuthorityPage[] = [
+  {
+    slug: "real-estate",
+    eyebrow: "Real estate payroll Philippines",
+    title: "Payroll and timekeeping for Philippine real estate organizations.",
+    metaTitle: "Real Estate Payroll Software Philippines | Linaw",
+    description: "Payroll software for Philippine real estate organizations managing multiple locations, employee groups, attendance, approvals, deductions and payroll reporting.",
+    intro: "Real estate organizations often combine office teams, property operations and location-based staff. Payroll needs clear employee scope, reliable time inputs and review controls without turning every location into a separate manual process.",
+    proof: [
+      "Multi-unit employee organization",
+      "Time and attendance workflows",
+      "Benefits and deductions",
+      "Role-based payroll review",
+      "Employee payslips",
+      "Accounting journal exports",
+    ],
+    sections: [
+      {
+        title: "Keep locations and employee groups organized",
+        body: "Organization-unit and department scope helps teams separate employees and access without relying on disconnected payroll files for every location.",
+      },
+      {
+        title: "Connect worked time to payroll review",
+        body: "Attendance records and exceptions can be reviewed before payroll release so schedule or punch issues remain visible rather than becoming silent assumptions.",
+      },
+      {
+        title: "Keep recurring payroll items with the employee record",
+        body: "Benefits, deductions, loans and other payroll-impacting items can be handled inside the employee and payroll workflow instead of being re-keyed from separate trackers.",
+      },
+      {
+        title: "Close payroll with controlled outputs",
+        body: "Released payroll can produce employee payslips and accounting journal output while keeping review and release responsibility explicit.",
+      },
+    ],
+    faq: [
+      {
+        question: "Can one payroll system support staff across multiple real estate locations?",
+        answer: "A multi-unit payroll model can organize employees and access by company structure while keeping payroll processing and reporting in one controlled workflow.",
+      },
+      {
+        question: "How should attendance exceptions be handled before payroll?",
+        answer: "Incomplete or inconsistent time records should remain visible for review rather than being silently converted into payable hours.",
+      },
+      {
+        question: "Can payroll outputs connect to accounting?",
+        answer: "Linaw can generate an accounting journal export after payroll release. An export is a controlled handoff, not a claim of a native connection to every accounting platform.",
+      },
+    ],
+    related: [
+      { label: "Time & attendance", href: "/time-and-attendance", description: "Review schedules, punches and payroll-relevant attendance." },
+      { label: "Employee self-service", href: "/employee-self-service", description: "See employee access to released payroll information." },
+      { label: "Accounting exports", href: "/integrations/accounting-exports", description: "Review the released-payroll journal handoff." },
+    ],
+  },
+  {
+    slug: "media",
+    eyebrow: "Media payroll Philippines",
+    title: "Payroll for Philippine media teams with variable schedules.",
+    metaTitle: "Media Payroll Software Philippines | Linaw",
+    description: "Payroll software for Philippine media organizations handling variable schedules, overtime, night work, employee payroll, contractor workflows and approvals.",
+    intro: "Media operations can combine regular employees, irregular schedules, late work and project-driven staffing. Payroll works better when time context, worker type and approval ownership stay visible.",
+    proof: [
+      "Overtime and night-work logic",
+      "Attendance processing",
+      "Employee payroll",
+      "Separate contractor workflows",
+      "Role-based review",
+      "Audit records",
+    ],
+    sections: [
+      {
+        title: "Preserve time context for late and irregular work",
+        body: "Night work and overtime should be calculated from the actual work context rather than flattened into one manual allowance.",
+      },
+      {
+        title: "Keep employee and contractor workflows distinct",
+        body: "The application has separate employee and contractor data paths, helping teams avoid treating every paid worker as the same payroll relationship.",
+      },
+      {
+        title: "Review exceptions before release",
+        body: "Attendance issues and payroll exceptions can remain visible through review instead of being buried in offline adjustments.",
+      },
+      {
+        title: "Maintain an audit trail around sensitive actions",
+        body: "Payroll and administrative actions can produce audit evidence so teams do not need to reconstruct every decision from chat threads or email.",
+      },
+    ],
+    faq: [
+      {
+        question: "Why is media payroll often difficult?",
+        answer: "Variable hours, overtime, night work and mixed worker arrangements create more payroll context than a fixed office schedule.",
+      },
+      {
+        question: "Should contractors be processed exactly like employees?",
+        answer: "No. Worker classification and tax treatment can differ, so systems should keep contractor and employee workflows distinct rather than assuming one treatment fits everyone.",
+      },
+      {
+        question: "Can late-night work and overtime overlap?",
+        answer: "Yes. Payroll should preserve the applicable work-day and overtime context while calculating night-work amounts rather than replacing one premium with another.",
+      },
+    ],
+    related: [
+      { label: "Time & attendance", href: "/time-and-attendance", description: "See how worked-time evidence reaches payroll." },
+      { label: "Night differential calculator", href: "/calculators/night-differential", description: "Estimate night-work payroll impact." },
+      { label: "Security", href: "/security", description: "Review access and audit controls around payroll data." },
+    ],
+  },
+  {
+    slug: "ngo",
+    eyebrow: "NGO payroll Philippines",
+    title: "Controlled payroll workflows for Philippine NGOs and nonprofits.",
+    metaTitle: "NGO Payroll Software Philippines | Nonprofit Payroll | Linaw",
+    description: "Payroll software for Philippine NGOs and nonprofits needing organizational scope, payroll approvals, auditability, statutory calculations and controlled reporting.",
+    intro: "NGOs and nonprofit organizations often need clear approval ownership and traceable payroll records across teams or operating units. Payroll should make those controls visible without adding unnecessary manual handoffs.",
+    proof: [
+      "Organization-unit access scope",
+      "Statutory payroll calculations",
+      "Maker-checker review",
+      "Audit records",
+      "Employee payslips",
+      "Controlled exports",
+    ],
+    sections: [
+      {
+        title: "Separate access by organizational responsibility",
+        body: "Tenant and organization-unit authorization helps limit payroll and employee access to the people responsible for that scope.",
+      },
+      {
+        title: "Keep statutory payroll inside the controlled process",
+        body: "SSS, PhilHealth, Pag-IBIG and compensation withholding calculations can flow through the payroll run while filing validation remains a separate evidence step.",
+      },
+      {
+        title: "Use explicit review roles",
+        body: "Preparation, checker review and release can remain distinct responsibilities instead of depending on one user or an informal approval message.",
+      },
+      {
+        title: "Preserve evidence for reporting and review",
+        body: "Audit records and controlled exports provide a clearer operational record than recreating payroll history from multiple spreadsheets.",
+      },
+    ],
+    faq: [
+      {
+        question: "What should an NGO look for in payroll software?",
+        answer: "Focus on access scope, statutory calculation depth, approval separation, auditability and reliable reporting rather than choosing from a generic feature checklist.",
+      },
+      {
+        question: "Does payroll calculation prove government filing compliance?",
+        answer: "No. Calculation capability and government filing acceptance are separate controls, and Linaw keeps filing readiness validation-gated.",
+      },
+      {
+        question: "Can payroll access be limited by organizational unit?",
+        answer: "The application includes organization and unit-scoped authorization paths so access does not depend only on hiding records in the browser.",
+      },
+    ],
+    related: [
+      { label: "Payroll compliance", href: "/compliance", description: "Review statutory calculation and filing-validation separation." },
+      { label: "Trust center", href: "/trust", description: "Inspect evidence-backed capability claims." },
+      { label: "Security", href: "/security", description: "Review authentication and authorization controls." },
+    ],
+  },
+  {
+    slug: "shopping-centers",
+    eyebrow: "Shopping center payroll Philippines",
+    title: "Payroll and timekeeping for Philippine shopping-center teams.",
+    metaTitle: "Shopping Center Payroll Software Philippines | Linaw",
+    description: "Payroll software for shopping-center and mall operations managing shifts, weekends, holidays, attendance, multiple employee groups and payroll review.",
+    intro: "Shopping-center operations can include rotating schedules, weekend work, holiday staffing and multiple operational teams. Payroll needs to keep work-date context and approval responsibility clear.",
+    proof: [
+      "Shift and attendance workflows",
+      "Holiday premium logic",
+      "Overtime handling",
+      "Rest-day context",
+      "Employee groups",
+      "Payroll approvals",
+    ],
+    sections: [
+      {
+        title: "Handle weekend and holiday staffing with work-date context",
+        body: "Payroll premium logic should use the applicable day and rest-day context instead of pricing every worked hour with one multiplier.",
+      },
+      {
+        title: "Keep rotating schedules connected to attendance",
+        body: "Schedule and punch workflows help payroll teams review the time evidence behind payable hours before the run is released.",
+      },
+      {
+        title: "Organize different operating teams",
+        body: "Employee and organization structures can separate operational groups while keeping one payroll process and approval model.",
+      },
+      {
+        title: "Give employees access after release",
+        body: "Employee self-service can provide released payslips and payroll history without exposing other employees' records.",
+      },
+    ],
+    faq: [
+      {
+        question: "How do holidays affect shopping-center payroll?",
+        answer: "Holiday and rest-day context can change premium pay, so payroll should preserve the actual work date and applicable schedule conditions.",
+      },
+      {
+        question: "Can rotating shifts be connected to payroll?",
+        answer: "Time and attendance workflows can preserve schedule and punch data so payroll reviewers can see the context behind worked hours.",
+      },
+      {
+        question: "How should payroll access work across operating teams?",
+        answer: "Access should be enforced by organization and role on the server rather than relying only on what a user can see in the interface.",
+      },
+    ],
+    related: [
+      { label: "Time & attendance", href: "/time-and-attendance", description: "Review schedule and attendance processing." },
+      { label: "Holiday pay calculator", href: "/calculators/holiday-pay", description: "Estimate premium pay by day type." },
+      { label: "Employee self-service", href: "/employee-self-service", description: "See employee access to released payroll information." },
+    ],
+  },
+];
+
+export const integrationWave6: AuthorityPage[] = [
+  {
+    slug: "biometrics",
+    eyebrow: "Biometric payroll integration Philippines",
+    title: "Biometric attendance ingestion for Philippine payroll.",
+    metaTitle: "Biometric Payroll Integration Philippines | Linaw",
+    description: "Connect registered biometric attendance devices to payroll workflows using authenticated device ingestion, punch validation and employee matching.",
+    intro: "Linaw includes a biometric attendance ingestion route designed for registered devices and trusted gateways. It receives punch logs into the attendance workflow; it does not claim universal plug-and-play compatibility with every hardware vendor.",
+    proof: [
+      "Registered-device requirement",
+      "Organization + device-bound credential validation",
+      "ADMS push support",
+      "TCP/IP gateway pattern",
+      "REST webhook pattern",
+      "Unmatched and invalid punch reporting",
+    ],
+    sections: [
+      {
+        title: "Authenticate the device or gateway before accepting punches",
+        body: "Device credentials are validated against the organization and device serial so a captured token cannot simply be replayed against another tenant.",
+      },
+      {
+        title: "Match punch logs to real employee records",
+        body: "Incoming logs are matched to employee numbers, while unmatched or invalid records are counted instead of silently creating payroll data.",
+      },
+      {
+        title: "Keep incomplete attendance visible",
+        body: "A single IN or OUT event can remain incomplete until its corresponding punch exists, preserving the need for review rather than fabricating a complete attendance day.",
+      },
+      {
+        title: "Treat hardware compatibility as an implementation question",
+        body: "The route exposes ADMS push, TCP/IP gateway and REST webhook patterns, but a specific device should still be tested before describing it as supported.",
+      },
+    ],
+    faq: [
+      {
+        question: "Does Linaw work with every biometric device?",
+        answer: "No universal hardware compatibility is claimed. The implemented ingestion patterns support ADMS push, TCP/IP gateway and REST webhook approaches, but specific hardware should be validated during implementation.",
+      },
+      {
+        question: "Can an unknown device send attendance into payroll?",
+        answer: "No. The ingestion path requires a registered device for the organization, and trusted gateway credentials are bound to the organization and device serial.",
+      },
+      {
+        question: "What happens to unmatched punch logs?",
+        answer: "The sync response tracks unmatched and invalid logs so they can be reviewed rather than silently attaching them to the wrong employee.",
+      },
+    ],
+    related: [
+      { label: "Time & attendance", href: "/time-and-attendance", description: "See how attendance evidence moves into payroll." },
+      { label: "Integrations", href: "/integrations", description: "Review all implemented integration surfaces." },
+      { label: "Security", href: "/security", description: "Review access and request-security controls." },
+    ],
+  },
+  {
+    slug: "accounting-exports",
+    eyebrow: "Payroll accounting integration Philippines",
+    title: "Released-payroll accounting journal exports.",
+    metaTitle: "Payroll Accounting Export Philippines | Linaw",
+    description: "Generate controlled accounting journal exports from released payroll while keeping file-based handoffs distinct from native accounting integrations.",
+    intro: "Linaw can generate an accounting journal CSV from a released payroll run. This is a controlled finance handoff, not a claim that every accounting platform has a live native connector.",
+    proof: [
+      "Released-payroll gate",
+      "Journal CSV generation",
+      "Salary and statutory accounts",
+      "Employee and employer contribution separation",
+      "Payroll period context",
+      "Audit evidence around exports",
+    ],
+    sections: [
+      {
+        title: "Generate finance output only from released payroll",
+        body: "Final accounting journals are gated to released payroll runs so the finance handoff does not imply that a draft or still-changing payroll is final.",
+      },
+      {
+        title: "Separate payroll liabilities from employer costs",
+        body: "The journal generator distinguishes employee deductions, employer statutory shares, wages, reimbursements and other payroll categories rather than collapsing everything into net pay.",
+      },
+      {
+        title: "Use exports where a file handoff is the real workflow",
+        body: "A CSV journal is useful when finance still reviews or imports a file. Linaw calls that an export rather than labeling it a native integration.",
+      },
+      {
+        title: "Validate the downstream mapping",
+        body: "Account names and downstream import requirements vary by organization, so implementation should confirm the receiving accounting workflow before automating handoff.",
+      },
+    ],
+    faq: [
+      {
+        question: "Does Linaw have a native integration with every accounting platform?",
+        answer: "No. The implemented evidence here is an accounting journal export. A native integration should only be claimed when a specific programmatic connector exists.",
+      },
+      {
+        question: "When can the final accounting journal be generated?",
+        answer: "The payroll-run export route requires the payroll run to be Released before producing a final accounting journal.",
+      },
+      {
+        question: "Does the journal include employer statutory costs?",
+        answer: "The journal-generation logic separates employer SSS, EC, PhilHealth and Pag-IBIG amounts from employee contribution liabilities.",
+      },
+    ],
+    related: [
+      { label: "Payroll software", href: "/", description: "See the payroll review and release workflow behind the journal." },
+      { label: "Integrations", href: "/integrations", description: "Review APIs, webhooks and export-based handoffs." },
+      { label: "Payroll pricing", href: "/pricing", description: "Review the current product plan catalog." },
+    ],
+  },
+  {
+    slug: "bank-payout-exports",
+    eyebrow: "Payroll bank file Philippines",
+    title: "Bank and payout file workflows with explicit validation gates.",
+    metaTitle: "Payroll Bank File Export Philippines | Linaw",
+    description: "Prepare payroll bank and payout files with dry-run validation, released-payroll gates and bank-template evidence instead of a guessed universal file format.",
+    intro: "Linaw includes payroll payout-file generation, but it deliberately does not pretend that one CSV works for every Philippine bank or portal. Final bank files depend on released payroll, immutable payment data and a validated template path.",
+    proof: [
+      "Dry-run file validation",
+      "Released-payroll requirement for final files",
+      "Immutable payment snapshot checks",
+      "Row and total reconciliation",
+      "Bank-template mappings",
+      "Portal/UAT validation requirements for proprietary formats",
+    ],
+    sections: [
+      {
+        title: "Use dry runs before payroll release",
+        body: "The export workflow can produce a dry-run validation view so missing payout destinations, totals and row counts can be reviewed before a final file is produced.",
+      },
+      {
+        title: "Require released payroll for final files",
+        body: "Final payout files are gated to Released payroll and checked against the released employee count and net-pay total.",
+      },
+      {
+        title: "Do not guess proprietary bank layouts",
+        body: "Bank-specific formats require an explicit bank-provided mapping or validated template path. The exporter fails rather than emitting a generic substitute for an unverified proprietary layout.",
+      },
+      {
+        title: "Keep bank acceptance separate from file generation",
+        body: "Generating a file does not prove that a bank portal accepted it. Portal UAT and template-version evidence remain separate implementation controls.",
+      },
+    ],
+    faq: [
+      {
+        question: "Does Linaw generate one universal payroll CSV for every bank?",
+        answer: "No. The exporter intentionally rejects unverified proprietary layouts instead of guessing a universal bank format.",
+      },
+      {
+        question: "Can a final bank file be generated before payroll is released?",
+        answer: "No. Final bank-file generation requires a Released payroll run; dry-run validation can be used earlier.",
+      },
+      {
+        question: "Does generating a bank file prove the bank will accept it?",
+        answer: "No. File generation and bank-portal acceptance are separate states. Proprietary formats should be validated using the bank's current specification and UAT process.",
+      },
+    ],
+    related: [
+      { label: "Trust center", href: "/trust", description: "Review how external validation dependencies stay visible." },
+      { label: "Payroll implementation", href: "/implementation", description: "See migration, validation and rollout controls." },
+      { label: "Integrations", href: "/integrations", description: "Review other implemented connection surfaces." },
+    ],
+  },
+];
