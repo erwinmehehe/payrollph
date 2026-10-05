@@ -195,19 +195,25 @@ export function StatutoryRemittanceActionQueue({
                     </td>
                     <td>
                       {task.status === "open" ? (
-                        <button
-                          className="secondary-button"
-                          disabled={busy !== null}
-                          onClick={() => void mutate(
-                            "acknowledge",
-                            task.id,
-                            {},
-                            "Compliance action acknowledged and marked in progress.",
-                          )}
-                        >
-                          {busy === `acknowledge:${task.id}` ? <Spinner label="Saving" /> : <UserCheck size={14} />}
-                          Take ownership
-                        </button>
+                        task.assignedToUserId == null || task.assignedToUserId === payload?.currentUserId ? (
+                          <button
+                            className="secondary-button"
+                            disabled={busy !== null}
+                            onClick={() => void mutate(
+                              "acknowledge",
+                              task.id,
+                              {},
+                              "Compliance action acknowledged and marked in progress.",
+                            )}
+                          >
+                            {busy === `acknowledge:${task.id}` ? <Spinner label="Saving" /> : <UserCheck size={14} />}
+                            {task.assignedToUserId == null ? "Take ownership" : "Start work"}
+                          </button>
+                        ) : (
+                          <span className="id">
+                            Assigned to {task.assignedToName ?? "another payroll operator"}
+                          </span>
+                        )
                       ) : (
                         <span className="id">
                           {task.assignedToName ?? task.acknowledgedByName ?? "Payroll"} is working this
