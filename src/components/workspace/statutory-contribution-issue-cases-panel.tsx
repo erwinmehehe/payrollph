@@ -212,7 +212,7 @@ export function StatutoryContributionIssueCasesPanel({
                         <div style={{ display: "grid", gap: 4, marginTop: 8 }}>
                           {issue.events.slice(0, 3).map((event) => (
                             <div className="id" key={event.id} style={{ whiteSpace: "normal" }}>
-                              <strong>{event.eventType.replaceAll("_", " ")}</strong> · {event.actorName} · {new Date(event.createdAt).toLocaleString("en-PH")}<br />
+                              <strong>{event.eventType.replaceAll("_", " ")}</strong> · {event.actorName} · {new Date(event.createdAt).toLocaleString("en-PH", { timeZone: "Asia/Manila" })}<br />
                               {event.message}
                             </div>
                           ))}
