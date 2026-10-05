@@ -1,7 +1,7 @@
 import { contributionCaseServiceStatus } from "@/lib/statutory-contribution-case-aging";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, leaveBalances, leavePolicies, leaveRequests, organizations, payrollEntries, payrollRuns, payslips, statutoryContributionIssueCases, statutoryRemittanceBatches, statutoryRemittanceMembers, timePunches, userOrganizations, users } from "@/db/schema";
+import { employees, leaveBalances, leavePolicies, leaveRequests, organizations, payrollEntries, payrollRuns, payslips, statutoryContributionIssueCases, statutoryContributionIssueEvents, statutoryRemittanceBatches, statutoryRemittanceMembers, timePunches, userOrganizations, users } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { employeePayStatusLabel } from "@/lib/payroll-handoff";
 import { recordAuditEvent } from "@/lib/audit";
@@ -134,6 +134,22 @@ export async function GET() {
     .orderBy(desc(statutoryContributionIssueCases.createdAt), desc(statutoryContributionIssueCases.id))
     .limit(30);
 
+  const contributionIssueEvents = await db.select().from(statutoryContributionIssueEvents)
+    .where(and(
+      eq(statutoryContributionIssueEvents.organizationId, employee.organizationId),
+      eq(statutoryContributionIssueEvents.employeeId, session.employeeId),
+      eq(statutoryContributionIssueEvents.visibility, "employee"),
+    ))
+    .orderBy(desc(statutoryContributionIssueEvents.createdAt), desc(statutoryContributionIssueEvents.id))
+    .limit(200);
+  const contributionIssueEventsByCase = new Map<number, typeof contributionIssueEvents>();
+  for (const event of contributionIssueEvents) {
+    contributionIssueEventsByCase.set(event.caseId, [
+      ...(contributionIssueEventsByCase.get(event.caseId) ?? []),
+      event,
+    ]);
+  }
+
   const releasedThisYear = released.filter((row) => String(row.run.payDate).startsWith(`${currentTaxYear}-`));
 
   const yearToDate = releasedThisYear.reduce(
@@ -254,6 +270,7 @@ export async function GET() {
       resolvedAt: row.resolvedAt,
       createdAt: row.createdAt,
       service: contributionCaseServiceStatus(row),
+      events: contributionIssueEventsByCase.get(row.id) ?? [],
     })),
     attendance: {
       recent: attendanceRows,
