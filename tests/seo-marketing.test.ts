@@ -162,7 +162,7 @@ test("integration, developer and trust pages keep distinct authority intent", ()
   assert.ok(integrations.includes("Does an export file count as a native integration?"));
   assert.ok(developers.includes("Payroll API Philippines | Developer Center | Linaw"));
   assert.ok(developers.includes("What API scopes are available today?"));
-  assert.ok(trust.includes("Payroll Trust Center | Security, Status & Product Evidence | Linaw"));
+  assert.ok(trust.includes("Payroll Trust Center | Security & Product Evidence | Linaw"));
   assert.ok(trust.includes("Does a green CI run mean payroll is certified for production?"));
 });
 
