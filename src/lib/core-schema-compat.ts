@@ -1047,6 +1047,20 @@ export async function ensureCoreCompatibilitySchema() {
         CREATE INDEX IF NOT EXISTS labor_inspection_drills_status_idx
         ON labor_inspection_drills(organization_id, status)
       `);
+      await client.query(`
+        DO $compat$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'labor_inspection_drills_status_check'
+          ) THEN
+            ALTER TABLE labor_inspection_drills
+              ADD CONSTRAINT labor_inspection_drills_status_check
+              CHECK (status IN ('blocked', 'needs-work', 'evidence-ready'));
+          END IF;
+        END
+        $compat$;
+      `);
       await client.query("COMMIT");
       coreSchemaReady = true;
     } catch (error) {
