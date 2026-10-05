@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { NATIONAL_HOLIDAYS_2026 } from "@/lib/wage-orders";
 
 export type StatutoryAgency = "SSS" | "PhilHealth" | "Pag-IBIG";
 
@@ -140,6 +141,59 @@ export function nominalRemittanceDueDate(input: {
   if (first >= "E" && first <= "L") return dateInNextMonth(input.applicableMonth, 19);
   if (first >= "M" && first <= "Q") return dateInNextMonth(input.applicableMonth, 24);
   return lastDayOfNextMonth(input.applicableMonth);
+}
+
+const NATIONAL_NON_WORKING_DATES_2026 = new Set(
+  NATIONAL_HOLIDAYS_2026.map((holiday) => holiday.date),
+);
+
+export function nextWorkingDay(
+  dateText: string,
+  holidayDates: ReadonlySet<string> = NATIONAL_NON_WORKING_DATES_2026,
+) {
+  let cursor = new Date(`${dateText}T00:00:00Z`);
+  for (let guard = 0; guard < 14; guard += 1) {
+    const current = cursor.toISOString().slice(0, 10);
+    const day = cursor.getUTCDay();
+    if (day !== 0 && day !== 6 && !holidayDates.has(current)) {
+      return current;
+    }
+    cursor = new Date(cursor.getTime() + 86_400_000);
+  }
+  throw new Error("Could not resolve the next working day within 14 days.");
+}
+
+export function effectiveRemittanceDueDate(input: {
+  agency: StatutoryAgency;
+  applicableMonth: string;
+  legalName: string;
+  philHealthEmployerNo?: string | null;
+}) {
+  const nominal = nominalRemittanceDueDate(input);
+  if (input.agency === "Pag-IBIG") return nominal;
+  return nextWorkingDay(nominal);
+}
+
+export function canConfirmMemberPosting(input: {
+  expectedTotal: number;
+  postedAmount: number;
+  postingReference: string;
+}) {
+  const expected = round2(input.expectedTotal);
+  const posted = round2(input.postedAmount);
+  if (!Number.isFinite(posted) || posted < 0) {
+    return { ok: false as const, error: "Posted amount must be a valid non-negative number." };
+  }
+  if (Math.abs(expected - posted) > 0.01) {
+    return {
+      ok: false as const,
+      error: "Agency-posted amount must match the employee's expected contribution. Record a posting exception instead.",
+    };
+  }
+  if (input.postingReference.trim().length < 4) {
+    return { ok: false as const, error: "Agency posting reference is required." };
+  }
+  return { ok: true as const };
 }
 
 export function canMarkRemittancePaid(input: {
