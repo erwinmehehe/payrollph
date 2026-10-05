@@ -125,6 +125,12 @@ processing one oversized transaction, so an 8,000-employee run completes in ~13 
 - Internal-mobility readiness is calculated from evidence-backed employee proficiency against target job-profile requirements; critical gaps are surfaced explicitly.
 - External certifications can also be recorded with issuer, credential ID, issue/expiry dates and evidence URL.
 
+### Engagement and employee listening
+- Pulse, lifecycle and eNPS surveys support company-wide or org-unit audiences with a minimum five-response privacy threshold.
+- Anonymous submissions use a keyed pseudonymous respondent token; Linaw does not store the user or employee ID with an anonymous response and does not emit a per-response actor audit event.
+- Small cohorts suppress scores, optional-answer counts and comments, and raw anonymous comments are never returned by the management analytics endpoint.
+- Employees can respond and share peer recognition from the My voice self-service tab; managers can convert reportable findings into owned action plans and record continuous coaching feedback separately from formal performance ratings.
+
 ### Public capability scorecard
 - `/scorecard` and `GET /api/capabilities` render a 22-row competitive parity grid plus a 15-row capability matrix
 - Every Linaw claim is classified **verified / partial / absent** and carries its evidence (a file path, a test name, or a live row count), generated from this deployment's code and database
