@@ -137,7 +137,7 @@ export async function notifyPayrollOfContributionCase(input: {
   );
 
   const results = [];
-  for (const recipient of selected) {
+  for (const recipient of payrollRecipients) {
     results.push(await queueMessage({
       organizationId: input.issue.organizationId,
       recipient: recipient.email,
@@ -285,7 +285,7 @@ export async function notifyEmployeeOfContributionCase(input: {
       actor: input.actor,
       metadata: {
         contributionCaseId: input.issue.id,
-        event: `${input.event}:stage-${input.stage}`,
+        event: input.event,
         recipientUserId: recipient.userId,
       },
     },
@@ -336,7 +336,7 @@ export async function notifyPayrollOfContributionCaseEscalation(input: {
     : `${prefix} Contribution case resolution target missed: ${input.issue.agency}`;
 
   const results = [];
-  for (const recipient of payrollRecipients) {
+  for (const recipient of selected) {
     results.push(await queueMessage({
       organizationId: input.issue.organizationId,
       recipient: recipient.email,
@@ -346,7 +346,7 @@ export async function notifyPayrollOfContributionCaseEscalation(input: {
       dedupeKey: caseDedupeKey({
         organizationId: input.issue.organizationId,
         caseId: input.issue.id,
-        event: input.event,
+        event: `${input.event}:stage-${input.stage}`,
         recipientUserId: recipient.userId,
       }),
       metadata: {
