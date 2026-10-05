@@ -13,6 +13,7 @@ import { LoansPanel } from "@/components/loans-panel";
 import { MigrationCenter } from "@/components/migration-center";
 import { NewHireModal } from "@/components/new-hire-modal";
 import { RecruitmentPanel } from "@/components/recruitment-panel";
+import { PerformancePanel } from "@/components/performance-panel";
 import { SeparationPanel } from "@/components/separation-panel";
 import { EwaPanel, ExpensesPanel } from "@/components/wallet-panel";
 import { WebBundyModal } from "@/components/web-bundy-modal";
@@ -507,6 +508,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         {page === "Expenses" && <ExpensesPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Earned wage" && <EwaPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Recruitment" && <RecruitmentPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Performance" && <PerformancePanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Discipline" && <DisciplinePanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Separation" && <SeparationPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Contractors" && <ContractorsPanel organizationId={data.selectedOrganization.id} />}
