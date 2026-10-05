@@ -75,7 +75,7 @@ export const compliancePages: AuthorityPage[] = [
     eyebrow: "Pag-IBIG payroll compliance",
     title: "Pag-IBIG contribution handling for Philippine payroll.",
     metaTitle: "Pag-IBIG Payroll Compliance Philippines | Linaw",
-    description: "Pag-IBIG payroll compliance guide covering employee and employer shares, fund-salary caps, cutoff timing, monthly liability and MCRF validation.",
+    description: "Pag-IBIG payroll compliance guide for Philippine employers covering employee and employer shares, fund-salary caps, cutoff timing, monthly liability and MCRF validation.",
     intro: "Linaw computes Pag-IBIG contribution shares in the payroll rules and keeps monthly liability, cutoff collection and government-output validation as distinct concerns.",
     proof: ["Fund-salary cap logic", "Employee rate handling", "Employer share calculation", "Cutoff deduction timing", "MCRF draft workflow", "Validation evidence gate"],
     sections: [
@@ -94,7 +94,7 @@ export const compliancePages: AuthorityPage[] = [
     slug: "dole",
     eyebrow: "DOLE payroll compliance",
     title: "DOLE payroll rules that affect pay calculations.",
-    description: "DOLE payroll compliance guide for overtime, night differential, holidays, rest days, pay intervals and wage-order review in Philippine payroll.",
+    description: "DOLE payroll compliance guide for Philippine employers covering overtime, night differential, holidays, rest days, pay intervals and wage-order review.",
     intro: "Linaw models several DOLE-relevant payroll conditions directly in the calculation path, including overtime, night differential, holiday premiums, rest-day context and payroll interval checks.",
     proof: ["Overtime multipliers", "Night differential handling", "Holiday and double-holiday context", "Effective-dated rest days", "Regional wage-order screening references", "Payroll interval validation"],
     sections: [
