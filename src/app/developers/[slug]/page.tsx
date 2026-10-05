@@ -15,8 +15,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const doc = developerDoc(slug);
   if (!doc) return {};
   return {
-    title: `${doc.title} | Linaw Developers`,
-    description: doc.description,
+    title: doc.metaTitle ?? `${doc.title} | Linaw Developers`,
+    description: doc.metaDescription ?? doc.description,
     alternates: { canonical: `/developers/${slug}` },
   };
 }
