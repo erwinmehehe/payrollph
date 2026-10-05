@@ -2,10 +2,10 @@ export const ROLE_PRIMARY_PAGES: Partial<Record<string, readonly string[]>> = {
   owner: ["Overview", "Payroll", "Analytics", "People", "Settings"],
   admin: ["Overview", "Payroll", "Exports", "Compliance", "Analytics", "Settings"],
   bookkeeper: ["Overview", "Exports", "Compliance", "Analytics"],
-  hr: ["Overview", "People", "Planning", "Workforce", "Time & attendance", "Leave", "Recruitment", "Performance", "Compensation", "Learning & Career"],
+  hr: ["Overview", "People", "Planning", "Workforce", "Time & attendance", "Leave", "Recruitment", "Performance", "Compensation", "Learning & Career", "Engagement"],
   payroll: ["Overview", "Payroll", "Compensation", "Time & attendance", "People"],
   checker: ["Overview", "Audit trail"],
-  manager: ["Overview", "Planning", "Performance", "Compensation", "Learning & Career", "Approvals", "Analytics"],
+  manager: ["Overview", "Planning", "Performance", "Compensation", "Learning & Career", "Engagement", "Approvals", "Analytics"],
 };
 
 export const REAL_ROLE_PAGE_ACCESS: Partial<Record<string, readonly string[]>> = {
@@ -27,6 +27,7 @@ export const REAL_ROLE_PAGE_ACCESS: Partial<Record<string, readonly string[]>> =
     "Performance",
     "Compensation",
     "Learning & Career",
+    "Engagement",
     "Discipline",
     "Separation",
     "Assets",
