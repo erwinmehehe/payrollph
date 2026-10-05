@@ -13,7 +13,6 @@ import {
   assertScope,
   getAccess,
   PEOPLE_ADMIN_ROLES,
-  WORKFORCE_MANAGER_ROLES,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 
