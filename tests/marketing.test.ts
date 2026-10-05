@@ -182,6 +182,22 @@ test("role sandbox uses six real identities and provisions checker and bookkeepe
   assert.ok(workspace.includes("onSwitchRole={demoRole ?"), "persona switching must only appear in demo sessions");
 });
 
+test("HR demo keeps the same compact shell when navigating from Today to People", () => {
+  const shell = read("src/components/workspace/shell.tsx");
+  const css = read("src/app/workspace-theme.css");
+  const people = read("src/components/workspace/people.tsx");
+  const roles = read("src/lib/workspace-role-ui.ts");
+
+  assert.ok(shell.includes("data-demo-role={displayRole ?? undefined}"), "workspace shell must expose demo state to CSS");
+  assert.ok(css.includes(".app-shell[data-demo-role] .sidebar"), "demo module pages must retain the light sidebar shell");
+  assert.ok(css.includes(".app-shell[data-demo-role] .topbar"), "demo module pages must retain the compact top bar");
+  assert.ok(css.includes(".app-shell[data-demo-role] .demo-sandbox"), "demo tools must not create a second page chrome after navigation");
+  assert.ok(roles.includes('hr: ["Overview", "People"]'), "HR primary navigation must stay focused on Today and People with the rest under More");
+  assert.ok(!people.includes("HrPayrollReadinessCenter"), "People must not repeat the Today payroll-readiness dashboard");
+  assert.ok(people.includes('title={hrMode ? "People."'), "HR People must present the employee directory as its own destination");
+});
+
+
 test("employee sandbox supports instant persona switching without exposing other employees", () => {
   const selfService = read("src/components/self-service-portal.tsx");
   assert.ok(selfService.includes("switchDemoRole"), "employee self-service must support instant demo persona switching");
