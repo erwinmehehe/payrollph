@@ -10,6 +10,7 @@ import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { canConfirmMemberPosting } from "@/lib/statutory-remittance";
+import { invalidateStatutoryRemittanceMonthCertification } from "@/lib/statutory-remittance-certification";
 import {
   parseStatutoryPostingCsv,
   STATUTORY_POSTING_TEMPLATE,
@@ -248,6 +249,26 @@ export async function POST(request: Request) {
             mismatchCount: autoCaseIds.length,
           },
         });
+
+        const invalidatedClosures = await invalidateStatutoryRemittanceMonthCertification({
+          organizationId,
+          applicableMonth: batch.applicableMonth,
+          reason: `Agency posting import opened ${autoCaseIds.length} contribution mismatch case(s).`,
+        });
+        if (invalidatedClosures.length > 0) {
+          await recordAuditEvent({
+            organizationId,
+            actor: user.name,
+            action: "Statutory remittance month certification invalidated",
+            resource: batch.applicableMonth,
+            metadata: {
+              reason: "agency_posting_amount_mismatch_cases_opened",
+              caseIds: autoCaseIds,
+              batchId,
+              invalidatedClosureIds: invalidatedClosures.map((row) => row.id),
+            },
+          });
+        }
       }
     }
 
