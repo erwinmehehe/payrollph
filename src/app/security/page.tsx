@@ -3,7 +3,7 @@ import { SeoLandingPage } from "@/components/marketing/seo-landing-page";
 
 export const metadata: Metadata = {
   title: "Payroll Software Security Philippines | Linaw",
-  description: "Payroll security controls including tenant isolation, RBAC, TOTP MFA, protected sessions, encrypted sensitive fields, audit trails and security-focused deployment checks.",
+  description: "Philippine payroll software security covering tenant isolation, RBAC, TOTP MFA, encrypted sensitive fields, audit trails, sessions and security checks.",
   alternates: { canonical: "/security" },
 };
 
