@@ -18,6 +18,7 @@ import {
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
 import { FilingEvidencePanel } from "./filing-evidence";
 import { BookkeeperPayrollClose } from "./bookkeeper-payroll-close";
+import { ManagedPayrollControlRoom } from "./managed-payroll-control-room";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, PageHeading, Segmented, Status, formatDate, money } from "./ui";
 
@@ -273,6 +274,10 @@ export function ExportsView({
           remain draft-only until agency acceptance evidence is recorded. See <a className="link-button" href="/api/readiness">/api/readiness</a>.
         </span>
       </div>
+      {data.access?.companyWide && ["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "") && (
+        <ManagedPayrollControlRoom data={data} run={run} notify={notify} />
+      )}
+
       {exportFailure && (
         <div className="notice notice-red" data-recovery-state="export-failed" style={{ marginTop: 12 }}>
           <AlertTriangle size={15} className="i-red" />
