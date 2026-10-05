@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
-    "security:preflight": "tsx scripts/security-preflight.ts"
+    "security:preflight": "tsx scripts/security-preflight.ts",
+    "leads:list": "tsx scripts/list-marketing-leads.ts"
   },
   "dependencies": {
     "@types/nodemailer": "^8.0.2",
