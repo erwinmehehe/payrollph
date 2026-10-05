@@ -5,6 +5,7 @@ import { drainWebhookRetries } from "../src/lib/webhooks";
 import { drainOutboxRetries } from "../src/lib/mailer";
 import { runScheduledStatutoryRemittanceSync } from "../src/lib/statutory-remittance-actions";
 import { runScheduledContributionCaseEscalations } from "../src/lib/statutory-contribution-case-escalations";
+import { runScheduledCompensationApplications } from "../src/lib/compensation-application";
 
 const POLL_MS = Math.max(1000, Number(process.env.WORKER_POLL_MS ?? "3000"));
 let stopping = false;
@@ -23,12 +24,16 @@ async function tick() {
   const contributionCaseEscalations = await runScheduledContributionCaseEscalations({
     actor: "Dedicated worker",
   });
+  const compensationApplications = await runScheduledCompensationApplications({
+    actor: "Dedicated worker",
+  });
   return {
     payrollProcessed: payroll.processed,
     webhookRetries: webhooks.length,
     mailRetries: mail.filter((item) => item.retried).length,
     statutoryRemittanceActions,
     contributionCaseEscalations,
+    compensationApplications,
   };
 }
 
