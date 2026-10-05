@@ -33,7 +33,7 @@ export const PUBLIC_FOOTER_GROUPS: Array<{ label: string; links: PublicLink[] }>
   {
     label: "Get started",
     links: [
-      { label: "Start 14-day trial", href: "/signup" },
+      { label: "Request trial access", href: "/signup" },
       { label: "Book a demo", href: "/book-demo" },
       { label: "Sign in", href: "/login" },
     ],
