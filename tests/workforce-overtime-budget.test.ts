@@ -122,3 +122,18 @@ test("OT UI exposes budget utilization and bulk decision operations", () => {
   assert.ok(source.includes('"upsert_budget"'));
   assert.ok(source.includes("Authorization and entitlement stay separate."));
 });
+
+
+test("blocking-budget authorization is serialized inside the approval transaction", () => {
+  const source = readFileSync("src/app/api/workforce/overtime/route.ts", "utf8");
+  const transactionIndex = source.indexOf("const decisionResult = await db.transaction");
+  const lockIndex = source.indexOf("pg_advisory_xact_lock", transactionIndex);
+  const budgetIndex = source.indexOf("approvalBudgetCheck", transactionIndex);
+  const updateIndex = source.indexOf("tx.update(overtimeRequests)", transactionIndex);
+
+  assert.ok(transactionIndex >= 0);
+  assert.ok(lockIndex > transactionIndex, "approval transaction must acquire the OT budget lock");
+  assert.ok(budgetIndex > lockIndex, "budget must be recalculated after acquiring the lock");
+  assert.ok(updateIndex > budgetIndex, "request approvals must commit only after the serialized budget check");
+  assert.ok(source.includes("overtime-budget:${organizationId}"));
+});
