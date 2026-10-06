@@ -1388,6 +1388,38 @@ function PersonDrawer({
           </section>
         )}
 
+        {canManage && connectedProfile?.position?.profile?.id && (
+          <>
+            {connectedProfile.capabilities.workforceEligibility && (
+              <div
+                className={`notice ${connectedProfile.capabilities.workforceEligibility.eligible ? "notice-green" : "notice-amber"}`}
+                style={{ marginBottom: 16 }}
+              >
+                <ShieldCheck size={15} />
+                <span>
+                  <strong>
+                    {connectedProfile.capabilities.workforceEligibility.eligible
+                      ? "Qualified for role-based WFM coverage."
+                      : "Blocked from qualified role coverage and role-specific open shifts."}
+                  </strong>
+                  {" "}
+                  {connectedProfile.capabilities.workforceEligibility.blockers.join(" ")}
+                  {connectedProfile.capabilities.workforceEligibility.warnings.length > 0
+                    ? " " + connectedProfile.capabilities.workforceEligibility.warnings.join(" ")
+                    : ""}
+                </span>
+              </div>
+            )}
+            <HcmCapabilitiesPanel
+              organizationId={data.selectedOrganization.id}
+              employeeId={employee.id}
+              jobProfileId={connectedProfile.position.profile.id}
+              canManage={canManage}
+              onChanged={refreshConnectedProfile}
+            />
+          </>
+        )}
+
         <section className="card" style={{ margin: "0 0 16px", boxShadow: "none" }}>
           <div className="card-header">
             <div>
