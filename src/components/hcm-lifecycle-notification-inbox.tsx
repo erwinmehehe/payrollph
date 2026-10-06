@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, BellRing, CheckCircle2, Clock3, RefreshCw, UserRoundCog } from "lucide-react";
+import { HcmEmploymentDecisionEvidence } from "@/components/hcm-employment-decision-evidence";
 
 type LifecycleTask = {
   id: number;
   employeeId: number;
+  sourceType: string;
+  sourceId: number | null;
   employeeNo: string;
   employeeName: string;
   action: string;
@@ -51,6 +54,7 @@ export function HcmLifecycleNotificationInbox({
   const [payload, setPayload] = useState<Payload | null>(null);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [evidenceDecisionId, setEvidenceDecisionId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setError("");
@@ -225,6 +229,15 @@ export function HcmLifecycleNotificationInbox({
                     >
                       Open
                     </button>
+                    {task.sourceId && ["employment_decision", "separation_handoff"].includes(task.sourceType) && (
+                      <button
+                        className="secondary-button"
+                        disabled={busyId === task.id}
+                        onClick={() => setEvidenceDecisionId(task.sourceId)}
+                      >
+                        Evidence
+                      </button>
+                    )}
                     {task.status !== "acknowledged" && (
                       <button
                         className="secondary-button"
@@ -255,6 +268,20 @@ export function HcmLifecycleNotificationInbox({
           </tbody>
         </table>
       </div>
+
+      {evidenceDecisionId && (
+        <div style={{ marginTop: 14 }}>
+          <div className="run-actions" style={{ justifyContent: "flex-end" }}>
+            <button className="secondary-button" onClick={() => setEvidenceDecisionId(null)}>Close evidence</button>
+          </div>
+          <HcmEmploymentDecisionEvidence
+            organizationId={organizationId}
+            decisionId={evidenceDecisionId}
+            compact
+            onChanged={load}
+          />
+        </div>
+      )}
 
       <div className="modal-note" style={{ marginTop: 12 }}>
         Reminder milestones: T-30, T-14, T-7, T-1, due, overdue, and escalated overdue. A new stage reopens an acknowledged or snoozed task and creates a new dedupe episode.
