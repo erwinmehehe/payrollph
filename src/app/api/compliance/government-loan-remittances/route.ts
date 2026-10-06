@@ -11,6 +11,7 @@ import {
 import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { legalEntityAuditMetadata, resolveComplianceLegalEntity } from "@/lib/compliance-legal-entity";
 import {
   buildGovernmentLoanRemittanceSnapshot,
   canConfirmGovernmentLoanPosting,
@@ -61,14 +62,31 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const organizationId = Number(url.searchParams.get("organizationId"));
+  const requestedLegalEntityId = Number(url.searchParams.get("legalEntityId"));
   if (!Number.isInteger(organizationId)) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
   }
   const denied = await requirePayrollOperator(user.id, organizationId);
   if (denied) return denied;
 
+  let legalEntity;
+  try {
+    legalEntity = await resolveComplianceLegalEntity({
+      organizationId,
+      requestedLegalEntityId: Number.isInteger(requestedLegalEntityId) ? requestedLegalEntityId : null,
+    });
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "Could not resolve legal employer.",
+      requiresLegalEntityId: true,
+    }, { status: 422 });
+  }
+
   const batches = await db.select().from(governmentLoanRemittanceBatches)
-    .where(eq(governmentLoanRemittanceBatches.organizationId, organizationId))
+    .where(and(
+      eq(governmentLoanRemittanceBatches.organizationId, organizationId),
+      eq(governmentLoanRemittanceBatches.legalEntityId, legalEntity.id),
+    ))
     .orderBy(asc(governmentLoanRemittanceBatches.applicableMonth), asc(governmentLoanRemittanceBatches.agency));
   const batchIds = batches.map((batch) => batch.id);
   const members = batchIds.length
@@ -85,6 +103,7 @@ export async function GET(request: Request) {
   }).format(new Date());
 
   return Response.json({
+    legalEntity,
     today,
     batches: batches.map((batch) => ({
       ...batch,
@@ -131,6 +150,19 @@ export async function POST(request: Request) {
   if (rateDenied) return rateDenied;
 
   if (action === "create_batch") {
+    let legalEntity;
+    try {
+      legalEntity = await resolveComplianceLegalEntity({
+        organizationId,
+        requestedLegalEntityId: Number.isInteger(Number(body.legalEntityId)) ? Number(body.legalEntityId) : null,
+      });
+    } catch (error) {
+      return Response.json({
+        error: error instanceof Error ? error.message : "Could not resolve legal employer.",
+        requiresLegalEntityId: true,
+      }, { status: 422 });
+    }
+
     const agency = String(body.agency ?? "") as GovernmentLoanAgency;
     const applicableMonth = String(body.applicableMonth ?? "").trim();
     if (!AGENCIES.has(agency) || !/^\d{4}-\d{2}$/.test(applicableMonth)) {
@@ -146,6 +178,7 @@ export async function POST(request: Request) {
       .from(governmentLoanRemittanceBatches)
       .where(and(
         eq(governmentLoanRemittanceBatches.organizationId, organizationId),
+        eq(governmentLoanRemittanceBatches.legalEntityId, legalEntity.id),
         eq(governmentLoanRemittanceBatches.agency, agency),
         eq(governmentLoanRemittanceBatches.applicableMonth, applicableMonth),
       )).limit(1);
@@ -157,6 +190,7 @@ export async function POST(request: Request) {
     const end = monthEnd(applicableMonth);
     const monthRuns = await db.select().from(payrollRuns).where(and(
       eq(payrollRuns.organizationId, organizationId),
+      eq(payrollRuns.legalEntityId, legalEntity.id),
       gte(payrollRuns.periodEnd, start),
       lte(payrollRuns.periodEnd, end),
     ));
@@ -185,7 +219,10 @@ export async function POST(request: Request) {
     })
       .from(employeeLoans)
       .innerJoin(employees, eq(employeeLoans.employeeId, employees.id))
-      .where(eq(employeeLoans.organizationId, organizationId));
+      .where(and(
+        eq(employeeLoans.organizationId, organizationId),
+        eq(employees.legalEntityId, legalEntity.id),
+      ));
 
     const snapshot = buildGovernmentLoanRemittanceSnapshot({
       agency,
@@ -203,6 +240,7 @@ export async function POST(request: Request) {
     const created = await db.transaction(async (tx) => {
       const [batch] = await tx.insert(governmentLoanRemittanceBatches).values({
         organizationId,
+        legalEntityId: legalEntity.id,
         agency,
         applicableMonth,
         dueDate,
@@ -237,6 +275,7 @@ export async function POST(request: Request) {
       resource: `${agency} loans · ${applicableMonth}`,
       metadata: {
         batchId: created.id,
+        ...legalEntityAuditMetadata(legalEntity),
         employeeCount: snapshot.employeeCount,
         loanCount: snapshot.loanCount,
         expectedTotal: snapshot.expectedTotal,
