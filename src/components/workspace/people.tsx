@@ -127,6 +127,54 @@ type ConnectedWorkerProfile = {
       };
     }>;
   };
+  effectiveChanges: Array<{
+    id: number;
+    changeType: string;
+    movementType: string;
+    effectiveDate: string;
+    status: string;
+    targetPositionId: number | null;
+    targetOrgUnitId: number | null;
+    targetSupervisoryOrgUnitId: number | null;
+    targetLegalEntityId: number | null;
+    targetCostCenterId: number | null;
+    targetManagerEmployeeId: number | null;
+    targetEmploymentType: string | null;
+    targetEmployeeStatus: string | null;
+    targetFte: string | null;
+    reason: string;
+    requestedByUserId: number | null;
+    requestedBy: string;
+    approvedByUserId: number | null;
+    approvedBy: string | null;
+    approvedAt: string | null;
+    appliedAt: string | null;
+    cancelledBy: string | null;
+    cancelledAt: string | null;
+    failure: string | null;
+    toSnapshot: unknown;
+  }>;
+  changeOptions: {
+    canManage: boolean;
+    positions: Array<{
+      id: number;
+      code: string;
+      orgUnitId: number | null;
+      supervisoryOrgUnitId: number | null;
+      legalEntityId: number | null;
+      costCenterId: number | null;
+      managerEmployeeId: number | null;
+      employmentType: string;
+      status: string;
+      profile: null | { id: number; title: string; family: string; level: string; grade: string | null };
+    }>;
+    orgUnits: Array<{ id: number; code: string; name: string; type: string; active: boolean }>;
+    legalEntities: Array<{ id: number; code: string; displayName: string; legalName: string; active: boolean }>;
+    costCenters: Array<{ id: number; code: string; name: string; active: boolean }>;
+    managers: Array<{ id: number; employeeNo: string; firstName: string; lastName: string; title: string }>;
+    employmentTypes: string[];
+    employeeStatuses: string[];
+  };
   identities: Array<{
     user: {
       id: number;
@@ -150,6 +198,7 @@ type ConnectedWorkerProfile = {
     pendingPolicyAcknowledgements: number;
     documentComplianceRisks: number;
     separationOpen: boolean;
+    pendingEffectiveChanges: number;
   };
 };
 
@@ -529,6 +578,24 @@ function PersonDrawer({
   const [connectedProfile, setConnectedProfile] = useState<ConnectedWorkerProfile | null>(null);
   const [connectedLoading, setConnectedLoading] = useState(false);
   const [connectedError, setConnectedError] = useState("");
+  const [showEffectiveChange, setShowEffectiveChange] = useState(false);
+  const [effectiveChangeBusy, setEffectiveChangeBusy] = useState(false);
+  const [effectiveChangeError, setEffectiveChangeError] = useState("");
+  const [changeEffectiveDate, setChangeEffectiveDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+  });
+  const [changeMovementType, setChangeMovementType] = useState("job_change");
+  const [changePositionId, setChangePositionId] = useState("");
+  const [changeFte, setChangeFte] = useState("1.0000");
+  const [changeOrgUnitId, setChangeOrgUnitId] = useState("");
+  const [changeSupervisoryOrgUnitId, setChangeSupervisoryOrgUnitId] = useState("");
+  const [changeLegalEntityId, setChangeLegalEntityId] = useState("");
+  const [changeCostCenterId, setChangeCostCenterId] = useState("");
+  const [changeManagerEmployeeId, setChangeManagerEmployeeId] = useState("");
+  const [changeEmploymentType, setChangeEmploymentType] = useState("");
+  const [changeEmployeeStatus, setChangeEmployeeStatus] = useState("");
+  const [changeReason, setChangeReason] = useState("");
 
   useEffect(() => {
     if (!canManage) {
@@ -561,6 +628,102 @@ function PersonDrawer({
     void loadConnectedProfile();
     return () => { cancelled = true; };
   }, [canManage, data.selectedOrganization.id, employee.id]);
+
+  async function refreshConnectedProfile() {
+    const response = await fetch(
+      `/api/hcm/worker-profile?organizationId=${data.selectedOrganization.id}&employeeId=${employee.id}`,
+      { cache: "no-store" },
+    );
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error ?? "Could not reload the connected worker profile.");
+    setConnectedProfile(payload as ConnectedWorkerProfile);
+    return payload as ConnectedWorkerProfile;
+  }
+
+  async function submitEffectiveChange(event: React.FormEvent) {
+    event.preventDefault();
+    setEffectiveChangeBusy(true);
+    setEffectiveChangeError("");
+    try {
+      const body: Record<string, unknown> = {
+        organizationId: data.selectedOrganization.id,
+        employeeId: employee.id,
+        effectiveDate: changeEffectiveDate,
+        movementType: changeMovementType,
+        reason: changeReason,
+      };
+
+      if (changePositionId) {
+        body.targetPositionId = Number(changePositionId);
+        body.targetFte = Number(changeFte);
+      } else {
+        if (changeOrgUnitId) body.targetOrgUnitId = Number(changeOrgUnitId);
+        if (changeSupervisoryOrgUnitId) body.targetSupervisoryOrgUnitId = changeSupervisoryOrgUnitId === "__clear__" ? null : Number(changeSupervisoryOrgUnitId);
+        if (changeLegalEntityId) body.targetLegalEntityId = Number(changeLegalEntityId);
+        if (changeCostCenterId) body.targetCostCenterId = changeCostCenterId === "__clear__" ? null : Number(changeCostCenterId);
+        if (changeManagerEmployeeId) body.targetManagerEmployeeId = changeManagerEmployeeId === "__clear__" ? null : Number(changeManagerEmployeeId);
+        if (changeEmploymentType) body.targetEmploymentType = changeEmploymentType;
+      }
+      if (changeEmployeeStatus) body.targetEmployeeStatus = changeEmployeeStatus;
+
+      const response = await fetch("/api/hcm/effective-changes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setEffectiveChangeError(payload.error ?? "Could not request the HCM change.");
+        return;
+      }
+
+      setShowEffectiveChange(false);
+      setChangePositionId("");
+      setChangeFte("1.0000");
+      setChangeOrgUnitId("");
+      setChangeSupervisoryOrgUnitId("");
+      setChangeLegalEntityId("");
+      setChangeCostCenterId("");
+      setChangeManagerEmployeeId("");
+      setChangeEmploymentType("");
+      setChangeEmployeeStatus("");
+      setChangeReason("");
+      await refreshConnectedProfile();
+    } catch (error) {
+      setEffectiveChangeError(error instanceof Error ? error.message : "Could not request the HCM change.");
+    } finally {
+      setEffectiveChangeBusy(false);
+    }
+  }
+
+  async function decideEffectiveChange(id: number, action: "approve" | "decline" | "cancel" | "retry") {
+    setEffectiveChangeBusy(true);
+    setEffectiveChangeError("");
+    try {
+      const response = await fetch("/api/hcm/effective-changes", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, action }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setEffectiveChangeError(payload.error ?? "Could not update the HCM change.");
+        await refreshConnectedProfile().catch(() => undefined);
+        return;
+      }
+
+      if (payload.applied && !payload.applied.skipped) {
+        await onRefresh();
+        onClose();
+        return;
+      }
+      await refreshConnectedProfile();
+    } catch (error) {
+      setEffectiveChangeError(error instanceof Error ? error.message : "Could not update the HCM change.");
+    } finally {
+      setEffectiveChangeBusy(false);
+    }
+  }
 
   async function saveEmploymentDate() {
     setSavingEmployment(true);
@@ -870,6 +1033,188 @@ function PersonDrawer({
                     <strong style={{ fontSize: 13 }}>{connectedProfile.summary.openLifecycleTasks} open task{connectedProfile.summary.openLifecycleTasks === 1 ? "" : "s"}</strong>
                     <small>{connectedProfile.lifecycle.automations.length} recent automation execution{connectedProfile.lifecycle.automations.length === 1 ? "" : "s"}</small>
                   </div>
+                </div>
+
+                <div style={{ marginTop: 14 }}>
+                  <div className="card-header" style={{ padding: 0, marginBottom: 8 }}>
+                    <div>
+                      <div className="card-kicker">EFFECTIVE-DATED EMPLOYMENT</div>
+                      <h2 style={{ fontSize: 14 }}>Schedule worker changes without mutating today early</h2>
+                      <p>Future changes require an independent People approver. Due changes apply through the worker scheduler and write immutable history evidence.</p>
+                    </div>
+                    {connectedProfile.changeOptions.canManage && (
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        disabled={connectedProfile.effectiveChanges.some((change) => ["pending_approval", "scheduled"].includes(change.status))}
+                        onClick={() => setShowEffectiveChange((value) => !value)}
+                      >
+                        <CalendarDays size={14} /> {showEffectiveChange ? "Close" : "Schedule change"}
+                      </button>
+                    )}
+                  </div>
+
+                  {!connectedProfile.changeOptions.canManage && (
+                    <div className="notice notice-slate" style={{ marginBottom: 10 }}>
+                      <LockKeyhole size={15} />
+                      <span>Scheduled job and organization changes require company-wide People access.</span>
+                    </div>
+                  )}
+
+                  {effectiveChangeError && (
+                    <div className="notice notice-amber" style={{ marginBottom: 10 }}>
+                      <span>{effectiveChangeError}</span>
+                    </div>
+                  )}
+
+                  {showEffectiveChange && connectedProfile.changeOptions.canManage && (
+                    <form onSubmit={submitEffectiveChange} className="card" style={{ padding: 14, boxShadow: "none", marginBottom: 10 }}>
+                      <div className="setting-form">
+                        <label>Effective date
+                          <input type="date" required value={changeEffectiveDate} onChange={(event) => setChangeEffectiveDate(event.target.value)} />
+                        </label>
+                        <label>Movement type
+                          <select value={changeMovementType} onChange={(event) => setChangeMovementType(event.target.value)}>
+                            <option value="job_change">Job change</option>
+                            <option value="transfer">Transfer</option>
+                            <option value="promotion">Promotion</option>
+                            <option value="lateral">Lateral move</option>
+                            <option value="manager_change">Manager change</option>
+                            <option value="org_change">Organization change</option>
+                            <option value="legal_employer_change">Legal employer change</option>
+                            <option value="employment_type_change">Employment type change</option>
+                            <option value="status_change">Status change</option>
+                          </select>
+                        </label>
+                        <label>Target position
+                          <select value={changePositionId} onChange={(event) => setChangePositionId(event.target.value)}>
+                            <option value="">Keep current position</option>
+                            {connectedProfile.changeOptions.positions.map((position) => (
+                              <option key={position.id} value={position.id}>
+                                {position.code} · {position.profile?.title ?? "Position"}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        {changePositionId && (
+                          <label>FTE
+                            <input type="number" min="0.01" max="1" step="0.01" value={changeFte} onChange={(event) => setChangeFte(event.target.value)} />
+                          </label>
+                        )}
+                        <label>Operating org
+                          <select disabled={Boolean(changePositionId)} value={changeOrgUnitId} onChange={(event) => setChangeOrgUnitId(event.target.value)}>
+                            <option value="">No change</option>
+                            {connectedProfile.changeOptions.orgUnits.filter((unit) => unit.type !== "supervisory").map((unit) => (
+                              <option key={unit.id} value={unit.id}>{unit.code} · {unit.name}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>Supervisory org
+                          <select disabled={Boolean(changePositionId)} value={changeSupervisoryOrgUnitId} onChange={(event) => setChangeSupervisoryOrgUnitId(event.target.value)}>
+                            <option value="">No change</option>
+                            <option value="__clear__">Clear supervisory org</option>
+                            {connectedProfile.changeOptions.orgUnits.filter((unit) => unit.type === "supervisory").map((unit) => (
+                              <option key={unit.id} value={unit.id}>{unit.code} · {unit.name}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>Legal employer
+                          <select disabled={Boolean(changePositionId)} value={changeLegalEntityId} onChange={(event) => setChangeLegalEntityId(event.target.value)}>
+                            <option value="">No change</option>
+                            {connectedProfile.changeOptions.legalEntities.map((entity) => (
+                              <option key={entity.id} value={entity.id}>{entity.code} · {entity.displayName}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>Cost center
+                          <select disabled={Boolean(changePositionId)} value={changeCostCenterId} onChange={(event) => setChangeCostCenterId(event.target.value)}>
+                            <option value="">No change</option>
+                            <option value="__clear__">Clear cost center</option>
+                            {connectedProfile.changeOptions.costCenters.map((center) => (
+                              <option key={center.id} value={center.id}>{center.code} · {center.name}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>Manager
+                          <select disabled={Boolean(changePositionId)} value={changeManagerEmployeeId} onChange={(event) => setChangeManagerEmployeeId(event.target.value)}>
+                            <option value="">No change</option>
+                            <option value="__clear__">Clear manager</option>
+                            {connectedProfile.changeOptions.managers.map((manager) => (
+                              <option key={manager.id} value={manager.id}>{manager.firstName} {manager.lastName} · {manager.title}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>Employment type
+                          <select disabled={Boolean(changePositionId)} value={changeEmploymentType} onChange={(event) => setChangeEmploymentType(event.target.value)}>
+                            <option value="">No change</option>
+                            {connectedProfile.changeOptions.employmentTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                          </select>
+                        </label>
+                        <label>Employee status
+                          <select value={changeEmployeeStatus} onChange={(event) => setChangeEmployeeStatus(event.target.value)}>
+                            <option value="">No change</option>
+                            {connectedProfile.changeOptions.employeeStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
+                          </select>
+                        </label>
+                        <label>Reason
+                          <input required minLength={3} value={changeReason} onChange={(event) => setChangeReason(event.target.value)} placeholder="Approved promotion effective next month" />
+                        </label>
+                      </div>
+                      <div className="modal-note" style={{ margin: "8px 0 10px" }}>
+                        Position moves inherit org, supervisory org, legal employer, cost center, manager, and employment type from the approved position. Retroactive position moves are blocked; guarded retroactive corrections are allowed only when no later employment event would be invalidated.
+                      </div>
+                      <div className="run-actions">
+                        <button type="button" className="secondary-button" onClick={() => setShowEffectiveChange(false)}>Cancel</button>
+                        <button className="primary-button" disabled={effectiveChangeBusy || !changeReason.trim()}>
+                          <CalendarDays size={14} /> {effectiveChangeBusy ? "Submitting…" : "Submit for approval"}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {connectedProfile.effectiveChanges.length > 0 && (
+                    <div>
+                      {connectedProfile.effectiveChanges.slice(0, 6).map((change) => (
+                        <div className="payslip-line" key={`effective-change-${change.id}`} style={{ gridTemplateColumns: "1fr auto" }}>
+                          <span>
+                            {change.movementType.replaceAll("_", " ")} · effective {formatDate(change.effectiveDate)}
+                            <em>
+                              {change.reason} · requested by {change.requestedBy}
+                              {change.approvedBy ? ` · approved by ${change.approvedBy}` : ""}
+                              {change.failure ? ` · failed: ${change.failure}` : ""}
+                            </em>
+                          </span>
+                          <div className="run-actions" style={{ justifyContent: "flex-end" }}>
+                            <span className={change.status === "applied" ? "status status-verified" : change.status === "failed" || change.status === "declined" ? "status status-rejected" : "status"}>
+                              {change.status.replaceAll("_", " ")}
+                            </span>
+                            {change.status === "pending_approval" && change.requestedByUserId !== data.user?.id && (
+                              <>
+                                <button type="button" className="secondary-button" disabled={effectiveChangeBusy} onClick={() => void decideEffectiveChange(change.id, "decline")}>Decline</button>
+                                <button type="button" className="primary-button" disabled={effectiveChangeBusy} onClick={() => void decideEffectiveChange(change.id, "approve")}>Approve</button>
+                              </>
+                            )}
+                            {change.status === "pending_approval" && (
+                              <button type="button" className="secondary-button" disabled={effectiveChangeBusy} onClick={() => void decideEffectiveChange(change.id, "cancel")}>Cancel</button>
+                            )}
+                            {change.status === "scheduled" && (
+                              <button type="button" className="secondary-button" disabled={effectiveChangeBusy} onClick={() => void decideEffectiveChange(change.id, "cancel")}>Cancel</button>
+                            )}
+                            {change.status === "failed" && (
+                              <>
+                                <button type="button" className="secondary-button" disabled={effectiveChangeBusy} onClick={() => void decideEffectiveChange(change.id, "cancel")}>Cancel</button>
+                                <button type="button" className="primary-button" disabled={effectiveChangeBusy} onClick={() => void decideEffectiveChange(change.id, "retry")}>Retry</button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {connectedProfile.effectiveChanges.length === 0 && (
+                    <div className="empty-state">No scheduled or historical HCM employment changes yet.</div>
+                  )}
                 </div>
 
                 <div className="module-grid two" style={{ marginTop: 14 }}>

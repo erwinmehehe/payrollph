@@ -1,5 +1,5 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, desc, eq, gte, isNull, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employeeLoans,
@@ -12,6 +12,7 @@ import {
   positionAssignments,
   positions,
   separationRecords,
+  workerEffectiveChanges,
   workerEmploymentEvents,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
@@ -304,6 +305,23 @@ export async function POST(request: Request) {
     if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
     if (lastDay < String(sources.employee.startDate)) {
       return Response.json({ error: "Last day cannot be before the employee's hire date." }, { status: 400 });
+    }
+
+    const [unresolvedEffectiveChange] = await db.select({ id: workerEffectiveChanges.id, status: workerEffectiveChanges.status, effectiveDate: workerEffectiveChanges.effectiveDate })
+      .from(workerEffectiveChanges)
+      .where(and(
+        eq(workerEffectiveChanges.organizationId, organizationId),
+        eq(workerEffectiveChanges.employeeId, employeeId),
+        inArray(workerEffectiveChanges.status, ["pending_approval", "scheduled", "failed"]),
+      ))
+      .limit(1);
+    if (unresolvedEffectiveChange) {
+      return Response.json({
+        error: "Cancel or resolve the worker's effective-dated HCM change before starting Separation.",
+        effectiveChangeId: unresolvedEffectiveChange.id,
+        effectiveChangeStatus: unresolvedEffectiveChange.status,
+        effectiveDate: unresolvedEffectiveChange.effectiveDate,
+      }, { status: 409 });
     }
 
     const [existingOpen] = await db.select().from(separationRecords).where(and(

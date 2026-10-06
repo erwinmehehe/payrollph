@@ -2654,6 +2654,54 @@ export const workerEmploymentEvents = pgTable(
   ],
 );
 
+export const workerEffectiveChanges = pgTable(
+  "worker_effective_changes",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    changeType: varchar("change_type", { length: 32 }).notNull().default("job_change"),
+    movementType: varchar("movement_type", { length: 24 }).notNull().default("job_change"),
+    effectiveDate: date("effective_date").notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("pending_approval"),
+    targetPositionId: integer("target_position_id").references(() => positions.id, { onDelete: "restrict" }),
+    targetOrgUnitId: integer("target_org_unit_id").references(() => orgUnits.id, { onDelete: "restrict" }),
+    targetSupervisoryOrgUnitId: integer("target_supervisory_org_unit_id").references(() => orgUnits.id, { onDelete: "restrict" }),
+    targetLegalEntityId: integer("target_legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
+    targetCostCenterId: integer("target_cost_center_id").references(() => costCenters.id, { onDelete: "restrict" }),
+    targetManagerEmployeeId: integer("target_manager_employee_id").references((): AnyPgColumn => employees.id, { onDelete: "restrict" }),
+    targetEmploymentType: varchar("target_employment_type", { length: 32 }),
+    targetEmployeeStatus: varchar("target_employee_status", { length: 32 }),
+    targetFte: numeric("target_fte", { precision: 5, scale: 4 }),
+    reason: varchar("reason", { length: 240 }).notNull(),
+    fromSnapshot: jsonb("from_snapshot").notNull().default({}),
+    toSnapshot: jsonb("to_snapshot").notNull().default({}),
+    requestedByUserId: integer("requested_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    requestedBy: varchar("requested_by", { length: 120 }).notNull(),
+    approvedByUserId: integer("approved_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    approvedBy: varchar("approved_by", { length: 120 }),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    appliedAt: timestamp("applied_at", { withTimezone: true }),
+    appliedEventId: integer("applied_event_id").references(() => workerEmploymentEvents.id, { onDelete: "set null" }),
+    cancelledByUserId: integer("cancelled_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    cancelledBy: varchar("cancelled_by", { length: 120 }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    failure: text("failure"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("worker_effective_changes_org_status_date_idx").on(table.organizationId, table.status, table.effectiveDate),
+    index("worker_effective_changes_employee_date_idx").on(table.organizationId, table.employeeId, table.effectiveDate),
+    uniqueIndex("worker_effective_changes_active_employee_unique")
+      .on(table.organizationId, table.employeeId)
+      .where(sql`${table.status} in ('pending_approval', 'scheduled')`),
+    uniqueIndex("worker_effective_changes_active_target_position_unique")
+      .on(table.targetPositionId)
+      .where(sql`${table.targetPositionId} is not null and ${table.status} in ('pending_approval', 'scheduled')`),
+  ],
+);
+
 /* -------------------------------------------------------------------------- */
 /* Enterprise identity, permissions, session policy, and workflow automation   */
 /* -------------------------------------------------------------------------- */
