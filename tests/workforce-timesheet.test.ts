@@ -12,6 +12,10 @@ test("scheduled minutes include cross-midnight duration less unpaid break", () =
     date: "2026-10-05",
     source: "pattern",
     isRestDay: false,
+    assignmentId: 1,
+    patternId: 1,
+    patternDayIndex: 0,
+    overrideId: null,
     workLocationOrgUnitId: null,
     worksiteId: 1,
     segments: [{
