@@ -140,11 +140,17 @@ export function WorkforceOvertimePanel({
   }, [load]);
 
   async function mutate(
-    action: "create_request" | "decide_request",
+    action: string,
     payload: Record<string, unknown>,
     success: string,
   ) {
-    setSaving(action === "create_request" ? "create" : String(payload.requestId ?? "decision"));
+    setSaving(
+      action === "create_request"
+        ? "create"
+        : action === "decide_request"
+          ? String(payload.requestId ?? "decision")
+          : action,
+    );
     try {
       const response = await fetch("/api/workforce/overtime", {
         method: "POST",
