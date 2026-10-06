@@ -26,6 +26,8 @@ test("core schema compatibility upgrades fields used by production demo and dash
     "CREATE TABLE IF NOT EXISTS statutory_remittance_members",
     "CREATE TABLE IF NOT EXISTS statutory_contribution_issue_cases",
     "CREATE TABLE IF NOT EXISTS statutory_contribution_issue_events",
+    "CREATE TABLE IF NOT EXISTS workforce_plans",
+    "CREATE TABLE IF NOT EXISTS workforce_planning_scenarios",
     "CREATE TABLE IF NOT EXISTS worksites",
     "CREATE TABLE IF NOT EXISTS employee_worksite_assignments",
     "ADD COLUMN IF NOT EXISTS worksite_id integer REFERENCES worksites(id) ON DELETE SET NULL",
@@ -107,3 +109,15 @@ test("statutory remittance compatibility creates the full parent chain before co
   assert.ok(source.includes("statutory_remittance_member_unique"));
   assert.ok(source.includes("statutory_remittance_members_evidence_idx"));
 });
+
+test("workforce planning compatibility creates plan parent before scenarios", () => {
+  const source = read("src/lib/core-schema-compat.ts");
+  const plansAt = source.indexOf("CREATE TABLE IF NOT EXISTS workforce_plans");
+  const scenariosAt = source.indexOf("CREATE TABLE IF NOT EXISTS workforce_planning_scenarios");
+
+  assert.ok(plansAt >= 0, "production compatibility must create workforce plans");
+  assert.ok(scenariosAt > plansAt, "workforce plans must exist before scenario foreign keys");
+  assert.ok(source.includes("workforce_plans_org_name_dates_unique"));
+  assert.ok(source.includes("workforce_plans_org_status_idx"));
+});
+
