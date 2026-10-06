@@ -865,6 +865,7 @@ export async function POST(request: Request) {
 
     const [correctedBatch] = await db.select({
       applicableMonth: statutoryRemittanceBatches.applicableMonth,
+      legalEntityId: statutoryRemittanceBatches.legalEntityId,
     }).from(statutoryRemittanceBatches).where(and(
       eq(statutoryRemittanceBatches.id, correction.batchId),
       eq(statutoryRemittanceBatches.organizationId, organizationId),
@@ -872,6 +873,7 @@ export async function POST(request: Request) {
     if (correctedBatch) {
       const invalidatedClosures = await invalidateStatutoryRemittanceMonthCertification({
         organizationId,
+        legalEntityId: correctedBatch.legalEntityId,
         applicableMonth: correctedBatch.applicableMonth,
         reason: `Approved remittance correction #${correction.id} changed certified month evidence.`,
       });
