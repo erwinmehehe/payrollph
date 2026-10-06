@@ -123,7 +123,6 @@ test("ambiguous organizations must choose a legal employer while single-employer
       displayName: "Second Employer",
       primaryEntity: false,
       active: true,
-      createdBy: "Test",
     }).returning();
 
     await assert.rejects(
