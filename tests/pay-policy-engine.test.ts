@@ -379,3 +379,37 @@ test("cross-midnight fallback blocks release rather than guessing effective-date
   assert.ok(source.includes("configurable company premium was not executed because cross-midnight payable-time allocation is incomplete"));
   assert.ok(source.includes("premiumRuleCouldApply"));
 });
+
+
+test("targeted worked-time premiums require resolvable shift and worksite evidence", () => {
+  const targeted = rule({
+    eventType: WORKED_TIME_PREMIUM_EVENT,
+    conditions: { shiftCodes: ["NIGHT"], worksiteIds: [8] },
+    outcome: {
+      premiumPercent: 10,
+      taxable: true,
+      includeInSssBase: true,
+      includeInPagIbigBase: true,
+    },
+  });
+  const base = {
+    organizationId: 7,
+    employeeId: 42,
+    workDate: "2026-10-05",
+    minutes: 60,
+    hourlyRate: 100,
+    policies: [policy()],
+    rules: [targeted],
+  };
+
+  assert.throws(() => resolveWorkedTimePremium({
+    ...base,
+    shiftCode: null,
+    worksiteId: 8,
+  }), /could not resolve a shift code/);
+  assert.throws(() => resolveWorkedTimePremium({
+    ...base,
+    shiftCode: "NIGHT",
+    worksiteId: null,
+  }), /could not resolve a worksite/);
+});
