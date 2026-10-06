@@ -97,10 +97,11 @@ test("secure evidence API permits company People admins or the worker's current 
   assert.ok(route.includes("This worker is not currently assigned to you as manager."));
 });
 
-test("managers can contribute manager review notes but cannot masquerade as HR evidence", () => {
+test("legacy manager-review notes remain readable but new manager evidence uses governed attestations", () => {
   const route = read("src/app/api/hcm/employment-term-decisions/[id]/evidence/route.ts");
-  assert.ok(route.includes('gate.managerReviewOnly && noteKind !== "manager_review"'));
-  assert.ok(route.includes("Managers can contribute manager-review notes only."));
+  assert.ok(route.includes('noteKind === "manager_review"'));
+  assert.ok(route.includes("USE_MANAGER_ATTESTATION"));
+  assert.ok(route.includes("Managers contribute through governed manager attestations"));
   assert.ok(route.includes("createdByUserId: user.id"));
   assert.ok(route.includes("createdByName: user.name"));
 });
