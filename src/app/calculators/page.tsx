@@ -11,7 +11,7 @@ const calculatorGroups: Array<{
   slugs: CalculatorSlug[];
 }> = [
   {
-    title: "Payroll Calculators Philippines | SSS, Tax & OT | Linaw",
+    title: "Pay, time and final-pay estimates",
     description: "Estimate common employee pay components and rate conversions using explicit day, hour and payroll-basis inputs.",
     slugs: ["13th-month-pay", "overtime-pay", "night-differential", "holiday-pay", "final-pay", "daily-rate", "hourly-rate"],
   },
@@ -28,7 +28,7 @@ const calculatorGroups: Array<{
 ];
 
 export const metadata: Metadata = {
-  title: "Payroll Calculators Philippines | Linaw",
+  title: "Payroll Calculators Philippines | SSS, Tax & OT | Linaw",
   description: "Philippine payroll calculators for 13th-month pay, overtime, night differential, SSS, PhilHealth, Pag-IBIG and withholding tax using shared rule helpers.",
   alternates: { canonical: "/calculators" },
 };
