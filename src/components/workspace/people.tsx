@@ -138,6 +138,54 @@ type ConnectedWorkerProfile = {
       };
     };
   };
+  worksiteGovernance: {
+    arrangement: null | {
+      id: number;
+      mode: string;
+      effectiveFrom: string;
+      effectiveUntil: string | null;
+      reason: string;
+    };
+    primaryWorksite: null | {
+      id: number;
+      worksiteId: number;
+      effectiveFrom: string;
+      effectiveUntil: string | null;
+      worksite: null | {
+        id: number;
+        code: string;
+        name: string;
+        siteType: string;
+        timezone: string;
+        active: boolean;
+      };
+    };
+    authorizations: Array<{
+      id: number;
+      worksiteId: number;
+      decision: "allow" | "deny";
+      effectiveFrom: string;
+      effectiveUntil: string | null;
+      reason: string;
+      worksite: null | {
+        id: number;
+        code: string;
+        name: string;
+        siteType: string;
+        timezone: string;
+        active: boolean;
+      };
+    }>;
+    currentEligibilitySummary: null | {
+      eligible: boolean;
+      status: "eligible" | "warning" | "ineligible";
+      source: "primary" | "authorization" | "legacy" | "none";
+      arrangement: string | null;
+      findings: Array<{ code: string; severity: "warning" | "blocker"; message: string }>;
+      blockers: string[];
+      warnings: string[];
+    };
+  };
   history: {
     employmentEvents: Array<{
       id: number;
@@ -1094,6 +1142,30 @@ function PersonDrawer({
                       {connectedProfile.summary.verifiedSkills} verified skill{connectedProfile.summary.verifiedSkills === 1 ? "" : "s"}
                       {" · "}
                       {connectedProfile.summary.workforceEligibilityBlockers} blocking gap{connectedProfile.summary.workforceEligibilityBlockers === 1 ? "" : "s"}
+                    </small>
+                  </div>
+                  <div>
+                    <span>Work arrangement</span>
+                    <strong style={{ fontSize: 13 }}>
+                      {connectedProfile.worksiteGovernance.arrangement?.mode
+                        ? connectedProfile.worksiteGovernance.arrangement.mode.replace("_", " ")
+                        : "Not configured"}
+                    </strong>
+                    <small>
+                      {connectedProfile.worksiteGovernance.arrangement
+                        ? `Effective ${formatDate(connectedProfile.worksiteGovernance.arrangement.effectiveFrom)}${connectedProfile.worksiteGovernance.arrangement.effectiveUntil ? ` to ${formatDate(connectedProfile.worksiteGovernance.arrangement.effectiveUntil)}` : " onward"}`
+                        : "Legacy worker location governance is not configured"}
+                    </small>
+                  </div>
+                  <div>
+                    <span>Worksite access</span>
+                    <strong style={{ fontSize: 13 }}>
+                      {connectedProfile.worksiteGovernance.primaryWorksite?.worksite?.name ?? "No effective primary worksite"}
+                    </strong>
+                    <small>
+                      {connectedProfile.worksiteGovernance.authorizations.filter((row) => row.decision === "allow").length} allowed
+                      {" · "}
+                      {connectedProfile.worksiteGovernance.authorizations.filter((row) => row.decision === "deny").length} restricted
                     </small>
                   </div>
                 </div>
