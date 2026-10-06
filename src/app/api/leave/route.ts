@@ -1,5 +1,5 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { approvalTasks, employeePayProfiles, employees, hcmLeaveTimeWindows, leavePolicies, leaveRequests, userOrganizations, users } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
@@ -51,11 +51,20 @@ export async function GET(request: Request) {
     ? rows.filter(({ leave }) => employeeIds!.includes(leave.employeeId))
     : rows;
 
+  const windows = visible.length
+    ? await db.select().from(hcmLeaveTimeWindows).where(and(
+        eq(hcmLeaveTimeWindows.organizationId, organizationId),
+        inArray(hcmLeaveTimeWindows.leaveRequestId, visible.map(({ leave }) => leave.id)),
+      ))
+    : [];
+  const windowByRequest = new Map(windows.map((window) => [window.leaveRequestId, window]));
+
   return Response.json({
     requests: visible.map(({ leave, employee }) => ({
       ...leave,
       employeeName: `${employee.firstName} ${employee.lastName}`,
       avatarInitials: employee.avatarInitials,
+      timeWindow: windowByRequest.get(leave.id) ?? null,
     })),
   });
 }
@@ -138,23 +147,17 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    const existing = await db.select({ id: leaveRequests.id }).from(leaveRequests).where(and(
+    const rows = await db.select().from(leaveRequests).where(and(
       eq(leaveRequests.organizationId, organizationId),
       eq(leaveRequests.employeeId, employeeId),
     ));
-    if (existing.length) {
-      const rows = await db.select().from(leaveRequests).where(and(
-        eq(leaveRequests.organizationId, organizationId),
-        eq(leaveRequests.employeeId, employeeId),
-      ));
-      if (rows.some((row) =>
-        ["Pending", "Approved"].includes(row.status)
-        && String(row.startDate) <= startDate && String(row.endDate) >= startDate
-      )) {
-        return Response.json({
-          error: "Another pending or approved leave request already covers this date. Resolve it before entering exact hours.",
-        }, { status: 409 });
-      }
+    if (rows.some((row) =>
+      ["Pending", "Approved"].includes(row.status)
+      && String(row.startDate) <= startDate && String(row.endDate) >= startDate
+    )) {
+      return Response.json({
+        error: "Another pending or approved leave request already covers this date. Resolve it before entering exact hours.",
+      }, { status: 409 });
     }
   }
 
