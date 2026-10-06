@@ -1509,6 +1509,40 @@ export const statutoryRemittancePaymentEvidence = pgTable(
   ],
 );
 
+export const statutoryPostingEvidenceArtifacts = pgTable(
+  "statutory_posting_evidence_artifacts",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    batchId: integer("batch_id").notNull().references(() => statutoryRemittanceBatches.id, { onDelete: "cascade" }),
+    sourceType: varchar("source_type", { length: 32 }).notNull(),
+    outcome: varchar("outcome", { length: 32 }).notNull(),
+    fileName: varchar("file_name", { length: 200 }),
+    mimeType: varchar("mime_type", { length: 100 }),
+    byteSize: integer("byte_size"),
+    contentSha256: varchar("content_sha256", { length: 64 }).notNull(),
+    fileDataBase64: text("file_data_base64"),
+    evidenceReference: varchar("evidence_reference", { length: 160 }),
+    rowCount: integer("row_count").notNull().default(1),
+    recordedByUserId: integer("recorded_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    recordedByName: varchar("recorded_by_name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("statutory_posting_evidence_batch_hash_unique").on(
+      table.organizationId,
+      table.batchId,
+      table.contentSha256,
+      table.outcome,
+    ),
+    index("statutory_posting_evidence_batch_idx").on(
+      table.organizationId,
+      table.batchId,
+      table.sourceType,
+    ),
+  ],
+);
+
 export const statutoryRemittanceMembers = pgTable(
   "statutory_remittance_members",
   {
@@ -1526,6 +1560,10 @@ export const statutoryRemittanceMembers = pgTable(
     postedAt: timestamp("posted_at", { withTimezone: true }),
     confirmedByUserId: integer("confirmed_by_user_id").references(() => users.id, { onDelete: "set null" }),
     confirmedBy: varchar("confirmed_by", { length: 120 }),
+    postingEvidenceArtifactId: integer("posting_evidence_artifact_id").references(
+      () => statutoryPostingEvidenceArtifacts.id,
+      { onDelete: "set null" },
+    ),
     exceptionNote: text("exception_note"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -1534,6 +1572,7 @@ export const statutoryRemittanceMembers = pgTable(
     uniqueIndex("statutory_remittance_member_unique").on(table.batchId, table.employeeId),
     index("statutory_remittance_member_status_idx").on(table.organizationId, table.postingStatus),
     index("statutory_remittance_members_confirmer_idx").on(table.organizationId, table.confirmedByUserId),
+    index("statutory_remittance_members_evidence_idx").on(table.organizationId, table.postingEvidenceArtifactId),
   ],
 );
 

@@ -24,7 +24,7 @@ test("public SEO infrastructure exists", () => {
 test("homepage and authority routes keep distinct search intent ownership", () => {
   const home = read("src/app/page.tsx");
   const hris = read("src/app/hris/page.tsx");
-  assert.ok(home.includes("Payroll Software Philippines | Payroll System | Linaw"), "homepage must own payroll software intent");
+  assert.ok(home.includes("Payroll Software Philippines | Payroll System PH | Linaw"), "homepage must own payroll software intent");
   assert.ok(!home.includes("HRIS & Payroll System"), "homepage must not reuse the HRIS title cluster");
   assert.ok(hris.includes("HRIS Philippines"), "/hris must own HRIS Philippines intent");
 });
@@ -263,7 +263,7 @@ test("integration, developer and trust pages keep distinct authority intent", ()
   const trust = read("src/app/trust/page.tsx");
   assert.ok(integrations.includes("Payroll Integrations Philippines | API & Webhooks | Linaw"));
   assert.ok(integrations.includes("Does an export file count as a native integration?"));
-  assert.ok(developers.includes("Payroll API Philippines | Developer Center | Linaw"));
+  assert.ok(developers.includes("Payroll API Philippines | Developer Tools & Webhooks | Linaw"));
   assert.ok(developers.includes("What API scopes are available today?"));
   assert.ok(trust.includes("Payroll Trust Center | Security & Product Evidence | Linaw"));
   assert.ok(trust.includes("Does a green CI run mean payroll is certified for production?"));
@@ -559,6 +559,36 @@ test("statutory calculators show review freshness and official references", () =
   assert.ok(calculators.includes("current ₱10,000 MFS"), "Pag-IBIG source labeling must reflect the current MFS evidence");
   assert.ok(calculators.includes("BIR Withholding Tax Calculator"), "calculator sources must identify the BIR reference");
   assert.ok(calculators.includes("DOLE Labor Code, Book III"), "calculator sources must identify the DOLE reference");
+});
+
+test("standalone SEO pages keep titles and descriptions in target SERP ranges", () => {
+  const pages = [
+    "src/app/page.tsx",
+    "src/app/hris/page.tsx",
+    "src/app/time-and-attendance/page.tsx",
+    "src/app/employee-self-service/page.tsx",
+    "src/app/compliance/page.tsx",
+    "src/app/implementation/page.tsx",
+    "src/app/security/page.tsx",
+    "src/app/trust/page.tsx",
+    "src/app/integrations/page.tsx",
+    "src/app/developers/page.tsx",
+    "src/app/pricing/page.tsx",
+    "src/app/resources/page.tsx",
+    "src/app/calculators/page.tsx",
+    "src/app/payroll-health-check/page.tsx",
+    "src/app/payroll-outsourcing/page.tsx",
+  ];
+
+  for (const path of pages) {
+    const source = read(path);
+    const metadataStart = source.indexOf("export const metadata");
+    const metadataSource = metadataStart >= 0 ? source.slice(metadataStart) : "";
+    const title = metadataSource.match(/title:\s*"([^"]+)"/)?.[1] ?? "";
+    const description = metadataSource.match(/description:\s*"([^"]+)"/)?.[1] ?? "";
+    assert.ok(title.length >= 55 && title.length <= 60, `${path} title length ${title.length} should be 55–60 characters`);
+    assert.ok(description.length >= 150 && description.length <= 160, `${path} description length ${description.length} should be 150–160 characters`);
+  }
 });
 
 test("public navigation exposes the SEO program without hiding the live demo", () => {

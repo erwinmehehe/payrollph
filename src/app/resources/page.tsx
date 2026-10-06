@@ -72,8 +72,8 @@ const resourceGroups = [
 ] as const;
 
 export const metadata: Metadata = {
-  title: "Philippine Payroll Guides & Buyer Resources | Linaw",
-  description: "Philippine payroll guides for software buying, migration, compliance, operations, security, outsourcing decisions and payroll teams.",
+  title: "Payroll Guides Philippines | Buyer Tools & Resources | Linaw",
+  description: "Philippine payroll guides for software buying, migration, security, outsourcing decisions and spreadsheet-to-system planning for employers and payroll teams.",
   alternates: { canonical: "/resources" },
 };
 

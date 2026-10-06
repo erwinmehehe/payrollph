@@ -67,9 +67,8 @@ function planModules(value: unknown) {
 }
 
 export const metadata: Metadata = {
-  title: "Payroll Software Pricing Philippines | Linaw",
-  description:
-    "See Linaw payroll software pricing for Philippine businesses, including live plan values, per-employee pricing, included modules, plan fit and controlled trial access.",
+  title: "Payroll Software Pricing Philippines | Plans & Costs | Linaw",
+  description: "See Linaw payroll software pricing for Philippine businesses, with current plan details, controlled trial access, live demo options and payroll outsourcing.",
   alternates: { canonical: "/pricing" },
 };
 
