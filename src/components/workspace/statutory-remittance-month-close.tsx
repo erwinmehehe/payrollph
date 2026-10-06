@@ -33,10 +33,12 @@ type CloseState = {
 
 export function StatutoryRemittanceMonthClose({
   organizationId,
+  legalEntityId,
   applicableMonth,
   notify,
 }: {
   organizationId: number;
+  legalEntityId?: number | null;
   applicableMonth: string;
   notify: Notify;
 }) {
@@ -45,13 +47,13 @@ export function StatutoryRemittanceMonthClose({
 
   const load = useCallback(async () => {
     const response = await fetch(
-      `/api/compliance/remittance-month-close?organizationId=${organizationId}&applicableMonth=${applicableMonth}`,
+      `/api/compliance/remittance-month-close?organizationId=${organizationId}${legalEntityId ? `&legalEntityId=${legalEntityId}` : ""}&applicableMonth=${applicableMonth}`,
       { cache: "no-store" },
     );
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error ?? "Could not load remittance month close.");
     setState(body as CloseState);
-  }, [applicableMonth, organizationId]);
+  }, [applicableMonth, legalEntityId, organizationId]);
 
   useEffect(() => {
     void load().catch((error) => notify(
@@ -69,7 +71,7 @@ export function StatutoryRemittanceMonthClose({
       const response = await fetch("/api/compliance/remittance-month-close", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ organizationId, applicableMonth }),
+        body: JSON.stringify({ organizationId, legalEntityId: legalEntityId ?? undefined, applicableMonth }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
