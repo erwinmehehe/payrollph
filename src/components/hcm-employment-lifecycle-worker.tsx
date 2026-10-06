@@ -243,7 +243,7 @@ export function HcmEmploymentLifecycleWorker({
   }
 
   const decisionOptions = activeTerm?.termKind === "probationary"
-    ? ["confirm_regular", "continue_current", "convert_terms"]
+    ? ["confirm_regular", "non_renew", "continue_current", "convert_terms"]
     : activeTerm
       ? ["renew_term", "extend_term", "convert_terms", "non_renew", "continue_current"]
       : [];
