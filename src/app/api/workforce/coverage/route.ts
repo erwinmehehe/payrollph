@@ -1037,6 +1037,18 @@ export async function POST(request: Request) {
           error: "The employee does not hold the job profile required by this open shift on the work date.",
         }, { status: 409 });
       }
+      const capabilityEligibility = await loadEmployeeWfmEligibility({
+        organizationId,
+        employeeId,
+        jobProfileId: shiftRow.jobProfileId,
+        workDate: String(shiftRow.workDate),
+      });
+      if (!capabilityEligibility.eligible) {
+        return Response.json({
+          error: "The employee does not meet the required skills or credentials for this open shift.",
+          capabilityEligibility,
+        }, { status: 409 });
+      }
     }
 
     const [shiftDefinition] = await db.select().from(shiftDefinitions).where(and(
