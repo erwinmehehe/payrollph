@@ -6,6 +6,8 @@ import {
   employeePayProfiles,
   employees,
   employeeWorksiteAssignments,
+  jobProfiles,
+  positionAssignments,
   positions,
   shiftDefinitions,
   staffingRequirements,
@@ -17,6 +19,7 @@ import {
   WORKFORCE_MANAGER_ROLES,
 } from "@/lib/access";
 import { buildWorkforceDemandForecast } from "@/lib/workforce-forecast";
+import { effectiveJobProfileId } from "@/lib/workforce-role";
 
 export type WorkforceForecastScope = {
   orgUnitId: number | null;
@@ -73,6 +76,8 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
     allocationRows,
     centerRows,
     worksiteAssignmentRows,
+    positionAssignmentRows,
+    jobProfileRows,
   ] = await Promise.all([
     db.select().from(employees)
       .where(eq(employees.organizationId, input.organizationId))
@@ -120,6 +125,19 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
         asc(employeeWorksiteAssignments.effectiveFrom),
         asc(employeeWorksiteAssignments.id),
       ),
+    db.select().from(positionAssignments)
+      .where(and(
+        eq(positionAssignments.organizationId, input.organizationId),
+        lte(positionAssignments.effectiveFrom, input.startDate),
+        or(
+          isNull(positionAssignments.effectiveUntil),
+          gte(positionAssignments.effectiveUntil, input.startDate),
+        ),
+      ))
+      .orderBy(asc(positionAssignments.employeeId), asc(positionAssignments.effectiveFrom), asc(positionAssignments.id)),
+    db.select().from(jobProfiles)
+      .where(eq(jobProfiles.organizationId, input.organizationId))
+      .orderBy(asc(jobProfiles.title), asc(jobProfiles.level)),
   ]);
 
   const requestedWorksite = input.worksiteId == null
@@ -189,6 +207,18 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
     employees: visibleEmployees.map((employee) => ({
       id: employee.id,
       status: employee.status,
+      jobProfileId: effectiveJobProfileId({
+        employeeId: employee.id,
+        date: input.startDate,
+        assignments: positionAssignmentRows.map((row) => ({
+          id: row.id,
+          employeeId: row.employeeId,
+          positionId: row.positionId,
+          effectiveFrom: String(row.effectiveFrom),
+          effectiveUntil: row.effectiveUntil ? String(row.effectiveUntil) : null,
+        })),
+        positions: positionRows.map((row) => ({ id: row.id, jobProfileId: row.jobProfileId })),
+      }),
     })),
     payProfiles: payProfileRows
       .filter((profile) => visibleEmployeeIds.has(profile.employeeId))
@@ -202,6 +232,7 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
     positions: visiblePositions.map((position) => ({
       id: position.id,
       status: position.status,
+      jobProfileId: position.jobProfileId,
       annualBudget: position.annualBudget,
       plannedStartDate: position.plannedStartDate ? String(position.plannedStartDate) : null,
     })),
@@ -210,8 +241,15 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
       .map((row) => ({
         workDate: String(row.workDate),
         shiftDefinitionId: row.shiftDefinitionId,
+        jobProfileId: row.jobProfileId,
         requiredHeadcount: row.requiredHeadcount,
       })),
+    jobProfiles: jobProfileRows.map((profile) => ({
+      id: profile.id,
+      title: profile.title,
+      family: profile.family,
+      level: profile.level,
+    })),
     shifts: shiftRows.map((shift) => ({
       id: shift.id,
       startTime: shift.startTime,

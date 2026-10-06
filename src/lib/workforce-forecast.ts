@@ -11,11 +11,13 @@ export type ForecastPayProfile = {
 export type ForecastEmployee = {
   id: number;
   status: string;
+  jobProfileId?: number | null;
 };
 
 export type ForecastPosition = {
   id: number;
   status: string;
+  jobProfileId?: number | null;
   annualBudget: number | string;
   plannedStartDate: string | null;
 };
@@ -23,7 +25,15 @@ export type ForecastPosition = {
 export type ForecastStaffingRequirement = {
   workDate: string;
   shiftDefinitionId: number;
+  jobProfileId?: number | null;
   requiredHeadcount: number;
+};
+
+export type ForecastJobProfile = {
+  id: number;
+  title: string;
+  family?: string;
+  level?: string;
 };
 
 export type ForecastShift = {
@@ -142,6 +152,7 @@ export function buildWorkforceDemandForecast(input: {
   positions: ForecastPosition[];
   staffingRequirements: ForecastStaffingRequirement[];
   shifts: ForecastShift[];
+  jobProfiles?: ForecastJobProfile[];
   laborAllocations: LaborAllocationRow[];
   costCenters: ForecastCostCenter[];
 }) {
@@ -245,6 +256,83 @@ export function buildWorkforceDemandForecast(input: {
     * averageBaseHourlyRate
     * (1 + employerLoadPercent / 100);
 
+  const jobProfileById = new Map((input.jobProfiles ?? []).map((profile) => [profile.id, profile]));
+  const currentCapacityByProfile = new Map<number, number>();
+  for (const employee of activeEmployees) {
+    if (employee.jobProfileId == null) continue;
+    const annualHours = annualCapacityByEmployee.get(employee.id);
+    if (annualHours == null) continue;
+    currentCapacityByProfile.set(
+      employee.jobProfileId,
+      (currentCapacityByProfile.get(employee.jobProfileId) ?? 0) + annualHours * windowDays / 365.25,
+    );
+  }
+
+  const averageAnnualCapacityByProfile = new Map<number, number>();
+  for (const profileId of new Set(activeEmployees.map((employee) => employee.jobProfileId).filter((value): value is number => value != null))) {
+    const employeesInProfile = activeEmployees.filter((employee) => employee.jobProfileId === profileId);
+    const values = employeesInProfile
+      .map((employee) => annualCapacityByEmployee.get(employee.id))
+      .filter((value): value is number => value != null);
+    if (values.length) {
+      averageAnnualCapacityByProfile.set(profileId, values.reduce((sum, value) => sum + value, 0) / values.length);
+    }
+  }
+
+  const vacancyCapacityByProfile = new Map<number, number>();
+  for (const position of vacantPositions) {
+    if (position.jobProfileId == null) continue;
+    const days = overlapDays(startDate, endDate, position.plannedStartDate);
+    const annualHours = averageAnnualCapacityByProfile.get(position.jobProfileId) ?? averageAnnualCapacityHours;
+    vacancyCapacityByProfile.set(
+      position.jobProfileId,
+      (vacancyCapacityByProfile.get(position.jobProfileId) ?? 0)
+        + annualHours * days / 365.25 * vacancyFillPercent / 100,
+    );
+  }
+
+  const demandByProfile = new Map<number | null, number>();
+  for (const requirement of input.staffingRequirements) {
+    if (requirement.workDate < startDate || requirement.workDate > endDate) continue;
+    const shift = shiftById.get(requirement.shiftDefinitionId);
+    if (!shift) continue;
+    let demandHours = 0;
+    try {
+      demandHours = paidShiftHours(shift) * Math.max(0, requirement.requiredHeadcount);
+    } catch {
+      continue;
+    }
+    const profileId = requirement.jobProfileId ?? null;
+    demandByProfile.set(profileId, (demandByProfile.get(profileId) ?? 0) + demandHours);
+  }
+
+  const roleDemand = [...demandByProfile.entries()]
+    .map(([jobProfileId, requiredHours]) => {
+      const forecastHours = requiredHours * (1 + demandGrowthPercent / 100);
+      const currentCapacityHours = jobProfileId == null
+        ? currentPeriodCapacityHours
+        : currentCapacityByProfile.get(jobProfileId) ?? 0;
+      const expectedVacancyCapacityHours = jobProfileId == null
+        ? expectedVacancyCapacityHours
+        : vacancyCapacityByProfile.get(jobProfileId) ?? 0;
+      const projectedCapacityHours = currentCapacityHours + expectedVacancyCapacityHours;
+      const profile = jobProfileId == null ? null : jobProfileById.get(jobProfileId);
+      return {
+        jobProfileId,
+        title: profile?.title ?? (jobProfileId == null ? "Any role" : `Job profile #${jobProfileId}`),
+        family: profile?.family ?? null,
+        level: profile?.level ?? null,
+        requiredHours: round2(requiredHours),
+        forecastHours: round2(forecastHours),
+        currentCapacityHours: round2(currentCapacityHours),
+        expectedVacancyCapacityHours: round2(expectedVacancyCapacityHours),
+        projectedCapacityHours: round2(projectedCapacityHours),
+        capacityGapHours: round2(forecastHours - projectedCapacityHours),
+        coveragePercent: round2(forecastHours > 0 ? projectedCapacityHours / forecastHours * 100 : 100),
+      };
+    })
+    .sort((a, b) => b.capacityGapHours - a.capacityGapHours || a.title.localeCompare(b.title));
+
   const costCenterById = new Map(input.costCenters.map((center) => [center.id, center]));
   const costCenterCost = new Map<number, number>();
   let unallocatedCurrentPeriodBaseCost = 0;
@@ -320,6 +408,7 @@ export function buildWorkforceDemandForecast(input: {
       capacityCoveragePercent: round2(capacityCoveragePercent),
     },
     costCenters,
+    roleDemand,
     unallocated: {
       currentPeriodBaseCost: round2(unallocatedCurrentPeriodBaseCost),
       plannedVacancyPeriodCost: round2(expectedVacancyPeriodCost),
