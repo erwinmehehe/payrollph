@@ -1,13 +1,14 @@
 import { contributionCaseServiceStatus } from "@/lib/statutory-contribution-case-aging";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, leaveBalances, leavePolicies, leaveRequests, organizations, payrollEntries, payrollRuns, payslips, statutoryContributionIssueCases, statutoryContributionIssueEvents, statutoryRemittanceBatches, statutoryRemittanceMembers, timePunches, userOrganizations, users } from "@/db/schema";
+import { employees, leaveBalances, leavePolicies, leaveRequests, organizations, payrollEntries, payrollRuns, payslips, statutoryContributionIssueCases, statutoryContributionIssueEvents, statutoryRemittanceBatches, statutoryRemittanceMembers, statutoryPostingEvidenceArtifacts, timePunches, userOrganizations, users } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { employeePayStatusLabel } from "@/lib/payroll-handoff";
 import { recordAuditEvent } from "@/lib/audit";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { computeBalance } from "@/lib/leave-accrual";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
+import { postingEvidenceSourceLabel } from "@/lib/statutory-posting-evidence";
 
 export const dynamic = "force-dynamic";
 
@@ -112,11 +113,19 @@ export async function GET() {
       postingReference: statutoryRemittanceMembers.postingReference,
       postedAmount: statutoryRemittanceMembers.postedAmount,
       postedAt: statutoryRemittanceMembers.postedAt,
+      postingEvidenceArtifactId: statutoryRemittanceMembers.postingEvidenceArtifactId,
+      postingEvidenceSourceType: statutoryPostingEvidenceArtifacts.sourceType,
+      postingEvidenceHashSha256: statutoryPostingEvidenceArtifacts.contentSha256,
+      postingEvidenceFileName: statutoryPostingEvidenceArtifacts.fileName,
       exceptionNote: statutoryRemittanceMembers.exceptionNote,
     }).from(statutoryRemittanceMembers)
       .innerJoin(
         statutoryRemittanceBatches,
         eq(statutoryRemittanceMembers.batchId, statutoryRemittanceBatches.id),
+      )
+      .leftJoin(
+        statutoryPostingEvidenceArtifacts,
+        eq(statutoryRemittanceMembers.postingEvidenceArtifactId, statutoryPostingEvidenceArtifacts.id),
       )
       .where(and(
         eq(statutoryRemittanceMembers.organizationId, employee.organizationId),
@@ -254,6 +263,12 @@ export async function GET() {
       postingReference: row.postingReference,
       postedAmount: row.postedAmount,
       postedAt: row.postedAt,
+      postingEvidenceArtifactId: row.postingEvidenceArtifactId,
+      postingEvidenceSource: row.postingEvidenceSourceType
+        ? postingEvidenceSourceLabel(row.postingEvidenceSourceType)
+        : null,
+      postingEvidenceHashSha256: row.postingEvidenceHashSha256,
+      postingEvidenceFileName: row.postingEvidenceFileName,
       exceptionNote: row.exceptionNote,
     })),
     contributionIssues: contributionIssueRows.map((row) => ({
