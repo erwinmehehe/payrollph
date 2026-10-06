@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { ImportPanel } from "@/components/import-panel";
+import { HcmCapabilitiesPanel } from "@/components/hcm-capabilities-panel";
 import type { DashboardData, Employee } from "./types";
 import { REST_DAY_NAMES } from "@/lib/payroll-rules";
 import { Avatar, EmptyState, PageHeading, Status, formatDate, formatTimeOnly, money } from "./ui";
@@ -90,6 +91,52 @@ type ConnectedWorkerProfile = {
       name: string;
       kind: string;
     }>;
+  };
+  capabilities: {
+    skills: Array<{
+      id: number;
+      skillId: number;
+      skillName: string;
+      skillCode: string;
+      category: string;
+      proficiency: number;
+      status: string;
+      effectiveFrom: string;
+      effectiveUntil: string | null;
+      verifiedAt: string | null;
+      verifiedByName: string | null;
+      notes: string | null;
+    }>;
+    jobSkillRequirements: Array<{
+      id: number;
+      skillId: number;
+      skillName: string;
+      skillCode: string;
+      category: string;
+      minimumProficiency: number;
+      mandatory: boolean;
+    }>;
+    jobCredentialRequirements: Array<{
+      id: number;
+      documentRequirementId: number;
+      name: string;
+      code: string;
+      kind: string;
+      mandatory: boolean;
+      blocksWorkforceEligibility: boolean;
+    }>;
+    workforceEligibility: null | {
+      status: "eligible" | "warning" | "ineligible";
+      eligible: boolean;
+      blockers: string[];
+      warnings: string[];
+      evidence: {
+        requiredSkills: number;
+        satisfiedSkills: number;
+        requiredCredentials: number;
+        satisfiedCredentials: number;
+      };
+    };
   };
   history: {
     employmentEvents: Array<{
@@ -197,6 +244,9 @@ type ConnectedWorkerProfile = {
     openLifecycleTasks: number;
     pendingPolicyAcknowledgements: number;
     documentComplianceRisks: number;
+    verifiedSkills: number;
+    workforceEligible: boolean | null;
+    workforceEligibilityBlockers: number;
     separationOpen: boolean;
     pendingEffectiveChanges: number;
   };
