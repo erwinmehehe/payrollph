@@ -10,7 +10,7 @@ test("HR site and work arrangements are scoped, MFA protected and audit logged",
   assert.ok(route.includes("assertScope"));
   assert.ok(route.includes('action === "set_arrangement"'));
   assert.ok(route.includes('action === "authorize_site"'));
-  assert.ok(route.includes('action === "end_authorization"'));
+  assert.ok(route.includes('"end_authorization"') && route.includes('const authorizationId = Number(body.authorizationId)'));
   assert.ok(route.includes("recordAuditEvent"));
 });
 test("WFM checks effective site authorization in coverage, claims and manager approval", () => {
