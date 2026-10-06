@@ -64,6 +64,7 @@ import {
 } from "@/lib/workforce-labor-variance";
 import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
 import { assertUnambiguousRoleDemand, resolveEmployeeJobProfileAtDate } from "@/lib/workforce-role-demand";
+import { evaluateEmployeeFromCapabilityData, loadCapabilityEligibilityData, loadEmployeeWfmEligibility } from "@/lib/hcm-workforce-eligibility-server";
 
 export const dynamic = "force-dynamic";
 
