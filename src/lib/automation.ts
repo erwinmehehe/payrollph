@@ -546,7 +546,7 @@ export function normalizeLifecycleActions(value: unknown): AutomationWorkflowSte
   return normalizeAutomationActions(value);
 }
 
-export function validateAutomationActionTrigger(trigger: AutomationTrigger, actions: AutomationWorkflowStep[]) {
+export function validateAutomationActionTrigger(trigger: AutomationTrigger, actions: AutomationWorkflowStep[]): string | null {
   for (const action of actions) {
     if (action.type === "branch") {
       const thenError = validateAutomationActionTrigger(trigger, action.then);
