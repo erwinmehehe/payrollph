@@ -339,8 +339,8 @@ test("framework security patch floors cannot regress", () => {
     dependencies?: Record<string, string>;
     devDependencies?: Record<string, string>;
   };
-  assert.equal(pkg.dependencies?.next, "16.3.7");
-  assert.equal(pkg.devDependencies?.["eslint-config-next"], "16.3.7");
+  assert.equal(pkg.dependencies?.next, "16.3.8");
+  assert.equal(pkg.devDependencies?.["eslint-config-next"], "16.3.8");
   assert.equal(pkg.devDependencies?.postcss, "8.5.28");
 });
 
