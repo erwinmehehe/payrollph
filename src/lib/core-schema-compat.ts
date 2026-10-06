@@ -535,25 +535,42 @@ export async function ensureCoreCompatibilitySchema() {
         $compat$;
       `);
       await client.query(`
-        ALTER TABLE employee_labor_allocations
-          DROP CONSTRAINT IF EXISTS employee_labor_allocations_basis_check
-      `);
-      await client.query(`
-        ALTER TABLE employee_labor_allocations
-          ADD CONSTRAINT employee_labor_allocations_basis_check
-          CHECK (allocation_basis IN ('percentage', 'hours'))
-      `);
-      await client.query(`
-        ALTER TABLE employee_labor_allocations
-          DROP CONSTRAINT IF EXISTS employee_labor_allocations_hours_check
-      `);
-      await client.query(`
-        ALTER TABLE employee_labor_allocations
-          ADD CONSTRAINT employee_labor_allocations_hours_check
-          CHECK (
-            (allocation_basis = 'percentage' AND allocation_hours IS NULL)
-            OR (allocation_basis = 'hours' AND allocation_hours > 0)
-          )
+        DO $compat$
+        DECLARE
+          basis_definition text;
+        BEGIN
+          SELECT pg_get_constraintdef(oid)
+          INTO basis_definition
+          FROM pg_constraint
+          WHERE conname = 'employee_labor_allocations_basis_check';
+
+          IF basis_definition IS NOT NULL AND position('hours' in basis_definition) = 0 THEN
+            ALTER TABLE employee_labor_allocations
+              DROP CONSTRAINT employee_labor_allocations_basis_check;
+          END IF;
+
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'employee_labor_allocations_basis_check'
+          ) THEN
+            ALTER TABLE employee_labor_allocations
+              ADD CONSTRAINT employee_labor_allocations_basis_check
+              CHECK (allocation_basis IN ('percentage', 'hours'));
+          END IF;
+
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'employee_labor_allocations_hours_check'
+          ) THEN
+            ALTER TABLE employee_labor_allocations
+              ADD CONSTRAINT employee_labor_allocations_hours_check
+              CHECK (
+                (allocation_basis = 'percentage' AND allocation_hours IS NULL)
+                OR (allocation_basis = 'hours' AND allocation_hours > 0)
+              );
+          END IF;
+        END
+        $compat$;
       `);
       await client.query(`
         CREATE TABLE IF NOT EXISTS labor_gl_mappings (
