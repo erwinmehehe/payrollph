@@ -46,6 +46,15 @@ jobs:
       - run: npm run db:push
       - run: npx tsc --noEmit
       - run: npx tsx --test tests/*.test.ts
+      - name: Run statutory golden payroll certification
+        run: npm run payroll:golden
+      - name: Upload golden payroll certification evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: payrollph-golden-payroll-certification
+          path: qa-artifacts/golden-payroll-certification.json
+          retention-days: 14
       - run: npm run seo:audit
       - run: npm run seo:routes
       - run: npm run seo:links

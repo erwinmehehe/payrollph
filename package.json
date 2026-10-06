@@ -15,7 +15,8 @@
     "seo:routes": "tsx scripts/seo-route-audit.ts",
     "seo:links": "tsx scripts/seo-internal-link-audit.ts",
     "leads:list": "tsx scripts/list-marketing-leads.ts",
-    "leads:set-status": "tsx scripts/update-marketing-lead-status.ts"
+    "leads:set-status": "tsx scripts/update-marketing-lead-status.ts",
+    "payroll:golden": "tsx scripts/golden-payroll-certification.ts"
   },
   "dependencies": {
     "@types/nodemailer": "^8.0.2",
