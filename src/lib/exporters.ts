@@ -1,10 +1,26 @@
 import { asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { bankTemplates, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
+import {
+  bankTemplates,
+  costCenters,
+  employeeLaborAllocations,
+  employees,
+  laborGlMappings,
+  legalEntities,
+  organizations,
+  payrollEntries,
+  payrollRuns,
+} from "@/db/schema";
 import { decryptBankAccount } from "@/lib/bank-account-crypto";
 import { decryptGovernmentId } from "@/lib/government-id-crypto";
 import { computePagIbig, computePhilHealth, computeSss } from "@/lib/payroll-rules";
 import { escapeCsvCell } from "@/lib/csv";
+import {
+  allocateLaborAmount,
+  resolveLaborAllocation,
+  resolveLaborGlAccount,
+  type LaborGlAccountKey,
+} from "@/lib/labor-costing";
 
 const csv = escapeCsvCell;
 const round2 = (value: number) => Math.round(value * 100) / 100;
@@ -391,6 +407,23 @@ export async function generateJournalCsv(runId: number) {
     .where(eq(payrollEntries.payrollRunId, runId))
     .orderBy(asc(employees.id));
 
+  const [allocationRows, centerRows, mappingRows, entityRows] = await Promise.all([
+    db.select().from(employeeLaborAllocations)
+      .where(eq(employeeLaborAllocations.organizationId, run.organizationId))
+      .orderBy(asc(employeeLaborAllocations.employeeId), asc(employeeLaborAllocations.id)),
+    db.select().from(costCenters)
+      .where(eq(costCenters.organizationId, run.organizationId))
+      .orderBy(asc(costCenters.code)),
+    db.select().from(laborGlMappings)
+      .where(eq(laborGlMappings.organizationId, run.organizationId))
+      .orderBy(asc(laborGlMappings.id)),
+    db.select().from(legalEntities)
+      .where(eq(legalEntities.organizationId, run.organizationId))
+      .orderBy(asc(legalEntities.code)),
+  ]);
+  const centerById = new Map(centerRows.map((row) => [row.id, row]));
+  const entityById = new Map(entityRows.map((row) => [row.id, row]));
+
   const totals = {
     gross: 0,
     net: 0,
@@ -422,14 +455,88 @@ export async function generateJournalCsv(runId: number) {
     return Number.isFinite(value) ? value : null;
   };
 
+  const header = [
+    "Date",
+    "Journal",
+    "Legal Entity",
+    "Cost Center",
+    "Client",
+    "Project",
+    "Job",
+    "Account Code",
+    "Account",
+    "Debit",
+    "Credit",
+    "Description",
+  ];
+  const rows: Array<Array<string>> = [];
+
+  const pushJournalRow = (input: {
+    side: "debit" | "credit";
+    amount: number;
+    legalEntityId: number | null;
+    costCenterId: number | null;
+    clientCode?: string | null;
+    projectCode?: string | null;
+    jobCode?: string | null;
+    accountKey: LaborGlAccountKey;
+    fallbackAccountName: string;
+    description: string;
+  }) => {
+    if (input.amount <= 0.004) return;
+    const account = resolveLaborGlAccount({
+      mappings: mappingRows,
+      legalEntityId: input.legalEntityId,
+      costCenterId: input.costCenterId,
+      accountKey: input.accountKey,
+      fallbackName: input.fallbackAccountName,
+    });
+    const entity = input.legalEntityId ? entityById.get(input.legalEntityId) : null;
+    const center = input.costCenterId ? centerById.get(input.costCenterId) : null;
+    rows.push([
+      String(run.payDate),
+      "PAYROLL",
+      entity ? entity.code : "",
+      center ? center.code : "",
+      input.clientCode ?? "",
+      input.projectCode ?? "",
+      input.jobCode ?? "",
+      account.accountCode ?? "",
+      account.accountName,
+      input.side === "debit" ? input.amount.toFixed(2) : "",
+      input.side === "credit" ? input.amount.toFixed(2) : "",
+      input.description,
+    ]);
+  };
+
   for (const { entry, employee } of entries) {
-    totals.gross += Number(entry.grossPay);
-    totals.net += Number(entry.netPay);
+    const employeeTotals = {
+      attendanceReductions: 0,
+      reimbursements: 0,
+      deMinimis: 0,
+      sssEe: 0,
+      philHealthEe: 0,
+      pagIbigEe: 0,
+      pagIbigVoluntary: 0,
+      birWht: 0,
+      governmentLoans: 0,
+      companyLoans: 0,
+      advances: 0,
+      benefitDeductions: 0,
+      sssEr: 0,
+      ecEr: 0,
+      philHealthEr: 0,
+      pagIbigEr: 0,
+    };
+    const gross = Number(entry.grossPay);
+    const net = Number(entry.netPay);
+    totals.gross += gross;
+    totals.net += net;
+
     const lines = Array.isArray(entry.lineItems)
       ? entry.lineItems as Array<{ code?: string; amount?: string | number; label?: string }>
       : [];
-
-    totals.birWht += taxWithheldFromLineItems(lines);
+    employeeTotals.birWht = taxWithheldFromLineItems(lines);
 
     for (const line of lines) {
       const code = String(line.code ?? "").toUpperCase();
@@ -437,18 +544,18 @@ export async function generateJournalCsv(runId: number) {
       if (!Number.isFinite(amount)) continue;
       const abs = Math.abs(amount);
 
-      if (code === "LATE" || code === "UT") totals.attendanceReductions += abs;
-      else if (code.startsWith("EXP-")) totals.reimbursements += Math.max(0, amount);
-      else if (code.startsWith("DM-")) totals.deMinimis += Math.max(0, amount);
-      else if (code === "SSS") totals.sssEe += abs;
-      else if (code === "PHIC") totals.philHealthEe += abs;
-      else if (code === "HDMF") totals.pagIbigEe += abs;
-      else if (code === "HDMF_VOL") totals.pagIbigVoluntary += abs;
+      if (code === "LATE" || code === "UT") employeeTotals.attendanceReductions += abs;
+      else if (code.startsWith("EXP-")) employeeTotals.reimbursements += Math.max(0, amount);
+      else if (code.startsWith("DM-")) employeeTotals.deMinimis += Math.max(0, amount);
+      else if (code === "SSS") employeeTotals.sssEe += abs;
+      else if (code === "PHIC") employeeTotals.philHealthEe += abs;
+      else if (code === "HDMF") employeeTotals.pagIbigEe += abs;
+      else if (code === "HDMF_VOL") employeeTotals.pagIbigVoluntary += abs;
       else if (code.startsWith("LOAN-")) {
-        if (/SSS|PAG-IBIG|HDMF/i.test(String(line.label ?? ""))) totals.governmentLoans += abs;
-        else totals.companyLoans += abs;
-      } else if (code.startsWith("EWA-")) totals.advances += abs;
-      else if (code.startsWith("BENEFIT-") || code.startsWith("BEN-")) totals.benefitDeductions += abs;
+        if (/SSS|PAG-IBIG|HDMF/i.test(String(line.label ?? ""))) employeeTotals.governmentLoans += abs;
+        else employeeTotals.companyLoans += abs;
+      } else if (code.startsWith("EWA-")) employeeTotals.advances += abs;
+      else if (code.startsWith("BENEFIT-") || code.startsWith("BEN-")) employeeTotals.benefitDeductions += abs;
     }
 
     const sssMonthlyRemuneration =
@@ -466,59 +573,133 @@ export async function generateJournalCsv(runId: number) {
     const sssRule = computeSss(sssMonthlyRemuneration);
     const phRule = computePhilHealth(philHealthBase);
     const hdmfRule = computePagIbig(pagIbigMonthlyCompensation);
-
     const sssLine = lines.find((line) => String(line.code).toUpperCase() === "SSS");
-    totals.sssEr +=
+
+    employeeTotals.sssEr =
       traceNumber(entry.trace, "sssEmployerCutoff=")
       ?? (sssLine ? 2 * Math.abs(Number(sssLine.amount ?? 0)) : 0);
-    totals.ecEr +=
+    employeeTotals.ecEr =
       traceNumber(entry.trace, "sssEmployerEcCutoff=")
       ?? round2(sssRule.employerEC / 2);
-    totals.philHealthEr +=
+    employeeTotals.philHealthEr =
       traceNumber(entry.trace, "philHealthEmployerCutoff=")
       ?? round2(phRule.employer / 2);
-    totals.pagIbigEr +=
+    employeeTotals.pagIbigEr =
       traceNumber(entry.trace, "pagIbigEmployerCutoff=")
       ?? round2(hdmfRule.employer / 2);
+
+    totals.attendanceReductions += employeeTotals.attendanceReductions;
+    totals.reimbursements += employeeTotals.reimbursements;
+    totals.deMinimis += employeeTotals.deMinimis;
+    totals.sssEe += employeeTotals.sssEe;
+    totals.philHealthEe += employeeTotals.philHealthEe;
+    totals.pagIbigEe += employeeTotals.pagIbigEe;
+    totals.pagIbigVoluntary += employeeTotals.pagIbigVoluntary;
+    totals.birWht += employeeTotals.birWht;
+    totals.governmentLoans += employeeTotals.governmentLoans;
+    totals.companyLoans += employeeTotals.companyLoans;
+    totals.advances += employeeTotals.advances;
+    totals.benefitDeductions += employeeTotals.benefitDeductions;
+    totals.sssEr += employeeTotals.sssEr;
+    totals.ecEr += employeeTotals.ecEr;
+    totals.philHealthEr += employeeTotals.philHealthEr;
+    totals.pagIbigEr += employeeTotals.pagIbigEr;
+
+    const legalEntityId = employee.legalEntityId ?? run.legalEntityId ?? null;
+    const resolved = resolveLaborAllocation({
+      employeeId: employee.id,
+      asOf: String(run.periodEnd),
+      rows: allocationRows.map((row) => ({
+        id: row.id,
+        employeeId: row.employeeId,
+        costCenterId: row.costCenterId,
+        effectiveFrom: String(row.effectiveFrom),
+        effectiveUntil: row.effectiveUntil ? String(row.effectiveUntil) : null,
+        allocationPercent: row.allocationPercent,
+        allocationBasis: row.allocationBasis,
+        allocationHours: row.allocationHours,
+        projectCode: row.projectCode,
+        clientCode: row.clientCode,
+        jobCode: row.jobCode,
+      })),
+    });
+
+    const description = `${employee.employeeNo} · ${run.periodLabel}`;
+    const salaryExpense = round2(
+      gross
+      - employeeTotals.reimbursements
+      - employeeTotals.deMinimis
+      - employeeTotals.attendanceReductions,
+    );
+    const expenseLines: Array<{
+      accountKey: LaborGlAccountKey;
+      fallbackAccountName: string;
+      amount: number;
+      description: string;
+    }> = [
+      { accountKey: "salary_expense", fallbackAccountName: "Salaries and Wages Expense", amount: salaryExpense, description },
+      { accountKey: "reimbursements_expense", fallbackAccountName: "Employee Reimbursements Expense", amount: employeeTotals.reimbursements, description },
+      { accountKey: "de_minimis_expense", fallbackAccountName: "Employee Benefits / De Minimis Expense", amount: employeeTotals.deMinimis, description },
+      { accountKey: "sss_employer_expense", fallbackAccountName: "Employer SSS Expense", amount: employeeTotals.sssEr, description: `${description} · employer SSS` },
+      { accountKey: "ec_employer_expense", fallbackAccountName: "Employer EC Expense", amount: employeeTotals.ecEr, description: `${description} · employer EC` },
+      { accountKey: "philhealth_employer_expense", fallbackAccountName: "Employer PhilHealth Expense", amount: employeeTotals.philHealthEr, description: `${description} · employer PhilHealth` },
+      { accountKey: "pagibig_employer_expense", fallbackAccountName: "Employer Pag-IBIG Expense", amount: employeeTotals.pagIbigEr, description: `${description} · employer Pag-IBIG` },
+    ];
+
+    for (const expense of expenseLines) {
+      for (const allocated of allocateLaborAmount(expense.amount, resolved)) {
+        pushJournalRow({
+          side: "debit",
+          amount: allocated.amount,
+          legalEntityId,
+          costCenterId: allocated.costCenterId,
+          clientCode: allocated.clientCode,
+          projectCode: allocated.projectCode,
+          jobCode: allocated.jobCode,
+          accountKey: expense.accountKey,
+          fallbackAccountName: expense.fallbackAccountName,
+          description: expense.description,
+        });
+      }
+    }
+
+    const credits: Array<{
+      accountKey: LaborGlAccountKey;
+      fallbackAccountName: string;
+      amount: number;
+      description: string;
+    }> = [
+      { accountKey: "sss_employee_payable", fallbackAccountName: "SSS Employee Contributions Payable", amount: employeeTotals.sssEe, description: `${description} · employee SSS` },
+      { accountKey: "sss_employer_payable", fallbackAccountName: "SSS Employer Contributions Payable", amount: employeeTotals.sssEr, description: `${description} · employer SSS` },
+      { accountKey: "ec_payable", fallbackAccountName: "Employees Compensation Payable", amount: employeeTotals.ecEr, description: `${description} · employer EC` },
+      { accountKey: "philhealth_employee_payable", fallbackAccountName: "PhilHealth Employee Contributions Payable", amount: employeeTotals.philHealthEe, description: `${description} · employee PhilHealth` },
+      { accountKey: "philhealth_employer_payable", fallbackAccountName: "PhilHealth Employer Contributions Payable", amount: employeeTotals.philHealthEr, description: `${description} · employer PhilHealth` },
+      { accountKey: "pagibig_employee_payable", fallbackAccountName: "Pag-IBIG Employee Contributions Payable", amount: employeeTotals.pagIbigEe, description: `${description} · employee Pag-IBIG` },
+      { accountKey: "pagibig_voluntary_payable", fallbackAccountName: "Pag-IBIG Voluntary Contributions Payable", amount: employeeTotals.pagIbigVoluntary, description: `${description} · voluntary Pag-IBIG` },
+      { accountKey: "pagibig_employer_payable", fallbackAccountName: "Pag-IBIG Employer Contributions Payable", amount: employeeTotals.pagIbigEr, description: `${description} · employer Pag-IBIG` },
+      { accountKey: "bir_withholding_payable", fallbackAccountName: "BIR Withholding Tax Payable", amount: employeeTotals.birWht, description: `${description} · compensation withholding` },
+      { accountKey: "government_loans_payable", fallbackAccountName: "Government Loan Deductions Payable", amount: employeeTotals.governmentLoans, description: `${description} · government loan deductions` },
+      { accountKey: "company_loan_receivable", fallbackAccountName: "Company Loan Receivable", amount: employeeTotals.companyLoans, description: `${description} · company loan recovery` },
+      { accountKey: "employee_advances_receivable", fallbackAccountName: "Employee Advances Receivable", amount: employeeTotals.advances, description: `${description} · earned-wage advance recovery` },
+      { accountKey: "employee_benefits_payable", fallbackAccountName: "Employee Benefit Deductions Payable", amount: employeeTotals.benefitDeductions, description: `${description} · employee benefit deductions` },
+      { accountKey: "cash_bank", fallbackAccountName: "Cash/Bank", amount: net, description: `${description} · net payroll disbursement` },
+    ];
+    for (const creditLine of credits) {
+      pushJournalRow({
+        side: "credit",
+        amount: creditLine.amount,
+        legalEntityId,
+        costCenterId: null,
+        accountKey: creditLine.accountKey,
+        fallbackAccountName: creditLine.fallbackAccountName,
+        description: creditLine.description,
+      });
+    }
   }
 
-  const salaryExpense = round2(totals.gross - totals.reimbursements - totals.deMinimis - totals.attendanceReductions);
   const employerStatutoryExpense = round2(totals.sssEr + totals.ecEr + totals.philHealthEr + totals.pagIbigEr);
-
-  const header = ["Date", "Journal", "Account", "Debit", "Credit", "Description"];
-  const rows: Array<Array<string>> = [];
-  const debit = (account: string, amount: number, description: string) => {
-    if (amount > 0.004) rows.push([String(run.payDate), "PAYROLL", account, amount.toFixed(2), "", description]);
-  };
-  const credit = (account: string, amount: number, description: string) => {
-    if (amount > 0.004) rows.push([String(run.payDate), "PAYROLL", account, "", amount.toFixed(2), description]);
-  };
-
-  debit("Salaries and Wages Expense", salaryExpense, run.periodLabel);
-  debit("Employee Reimbursements Expense", totals.reimbursements, run.periodLabel);
-  debit("Employee Benefits / De Minimis Expense", totals.deMinimis, run.periodLabel);
-  debit("Employer SSS Expense", totals.sssEr, "Employer statutory share");
-  debit("Employer EC Expense", totals.ecEr, "Employer compensation contribution");
-  debit("Employer PhilHealth Expense", totals.philHealthEr, "Employer statutory share");
-  debit("Employer Pag-IBIG Expense", totals.pagIbigEr, "Employer statutory share");
-
-  credit("SSS Employee Contributions Payable", totals.sssEe, "Employee statutory share");
-  credit("SSS Employer Contributions Payable", totals.sssEr, "Employer statutory share");
-  credit("Employees Compensation Payable", totals.ecEr, "Employer EC contribution");
-  credit("PhilHealth Employee Contributions Payable", totals.philHealthEe, "Employee statutory share");
-  credit("PhilHealth Employer Contributions Payable", totals.philHealthEr, "Employer statutory share");
-  credit("Pag-IBIG Employee Contributions Payable", totals.pagIbigEe, "Employee statutory share");
-  credit("Pag-IBIG Voluntary Contributions Payable", totals.pagIbigVoluntary, "Employee-elected voluntary contribution");
-  credit("Pag-IBIG Employer Contributions Payable", totals.pagIbigEr, "Employer statutory share");
-  credit("BIR Withholding Tax Payable", totals.birWht, "Compensation withholding");
-  credit("Government Loan Deductions Payable", totals.governmentLoans, "SSS / Pag-IBIG loan deductions");
-  credit("Company Loan Receivable", totals.companyLoans, "Employee company-loan recovery");
-  credit("Employee Advances Receivable", totals.advances, "Earned-wage advance recovery");
-  credit("Employee Benefit Deductions Payable", totals.benefitDeductions, "Employee benefit deductions");
-  credit("Cash/Bank", totals.net, "Net payroll disbursement");
-
-  const debitTotal = rows.reduce((sum, row) => sum + Number(row[3] || 0), 0);
-  const creditTotal = rows.reduce((sum, row) => sum + Number(row[4] || 0), 0);
+  const debitTotal = rows.reduce((sum, row) => sum + Number(row[9] || 0), 0);
+  const creditTotal = rows.reduce((sum, row) => sum + Number(row[10] || 0), 0);
   if (Math.abs(debitTotal - creditTotal) > 0.02) {
     throw new Error(
       `Payroll journal does not balance: debit ₱${debitTotal.toFixed(2)} vs credit ₱${creditTotal.toFixed(2)}. Review unclassified payroll lines before export.`,
