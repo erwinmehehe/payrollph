@@ -108,7 +108,7 @@ export async function POST(request: Request) {
   if (context.denied) return context.denied;
   const user = context.user!;
   const employee = context.employee!;
-  const legalEntityId = legalEntityId;
+  const legalEntityId = employee.legalEntityId;
   if (!legalEntityId) {
     return Response.json({ error: "Your employee record has no legal employer. Contact payroll before reporting a contribution issue." }, { status: 409 });
   }
