@@ -1168,6 +1168,133 @@ export async function ensureCoreCompatibilitySchema() {
         $compat$;
       `);
 
+      // The statutory remittance base predates the compatibility bootstrap.
+      // Production databases that missed historical migration 0021 need these
+      // parent tables before contribution-case compatibility can reference them.
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS statutory_remittance_batches (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          agency varchar(16) NOT NULL,
+          applicable_month varchar(7) NOT NULL,
+          due_date date NOT NULL,
+          status varchar(24) NOT NULL DEFAULT 'open',
+          employee_count integer NOT NULL DEFAULT 0,
+          expected_employee_share numeric(14,2) NOT NULL DEFAULT '0',
+          expected_employer_share numeric(14,2) NOT NULL DEFAULT '0',
+          expected_total numeric(14,2) NOT NULL DEFAULT '0',
+          amount_paid numeric(14,2),
+          payment_reference varchar(120),
+          agency_receipt_reference varchar(120),
+          payment_channel varchar(80),
+          payment_variance_note varchar(240),
+          paid_at timestamptz,
+          payment_recorded_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          payment_recorded_by varchar(120),
+          reconciled_at timestamptz,
+          reconciled_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          reconciled_by varchar(120),
+          snapshot_hash varchar(64) NOT NULL,
+          notes text,
+          created_by varchar(120) NOT NULL,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS statutory_remittance_batch_unique
+        ON statutory_remittance_batches(organization_id, agency, applicable_month)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS statutory_remittance_due_idx
+        ON statutory_remittance_batches(organization_id, status, due_date)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS statutory_remittance_batches_payment_recorder_idx
+        ON statutory_remittance_batches(organization_id, payment_recorded_by_user_id)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS statutory_remittance_batches_reconciler_idx
+        ON statutory_remittance_batches(organization_id, reconciled_by_user_id)
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS statutory_posting_evidence_artifacts (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          batch_id integer NOT NULL REFERENCES statutory_remittance_batches(id) ON DELETE CASCADE,
+          source_type varchar(32) NOT NULL,
+          outcome varchar(32) NOT NULL,
+          file_name varchar(200),
+          mime_type varchar(100),
+          byte_size integer,
+          content_sha256 varchar(64) NOT NULL,
+          file_data_base64 text,
+          evidence_reference varchar(160),
+          row_count integer NOT NULL DEFAULT 1,
+          recorded_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          recorded_by_name varchar(120) NOT NULL,
+          created_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS statutory_posting_evidence_batch_hash_unique
+        ON statutory_posting_evidence_artifacts(
+          organization_id, batch_id, content_sha256, outcome
+        )
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS statutory_posting_evidence_batch_idx
+        ON statutory_posting_evidence_artifacts(
+          organization_id, batch_id, source_type
+        )
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS statutory_remittance_members (
+          id serial PRIMARY KEY,
+          batch_id integer NOT NULL REFERENCES statutory_remittance_batches(id) ON DELETE CASCADE,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          employee_id integer NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+          employee_no varchar(32) NOT NULL,
+          employee_share numeric(12,2) NOT NULL DEFAULT '0',
+          employer_share numeric(12,2) NOT NULL DEFAULT '0',
+          total_contribution numeric(12,2) NOT NULL DEFAULT '0',
+          posting_status varchar(24) NOT NULL DEFAULT 'pending',
+          posting_reference varchar(120),
+          posted_amount numeric(12,2),
+          posted_at timestamptz,
+          confirmed_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          confirmed_by varchar(120),
+          posting_evidence_artifact_id integer REFERENCES statutory_posting_evidence_artifacts(id) ON DELETE SET NULL,
+          exception_note text,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        ALTER TABLE statutory_remittance_members
+          ADD COLUMN IF NOT EXISTS posted_amount numeric(12,2),
+          ADD COLUMN IF NOT EXISTS posting_evidence_artifact_id integer
+            REFERENCES statutory_posting_evidence_artifacts(id) ON DELETE SET NULL
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS statutory_remittance_member_unique
+        ON statutory_remittance_members(batch_id, employee_id)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS statutory_remittance_member_status_idx
+        ON statutory_remittance_members(organization_id, posting_status)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS statutory_remittance_members_confirmer_idx
+        ON statutory_remittance_members(organization_id, confirmed_by_user_id)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS statutory_remittance_members_evidence_idx
+        ON statutory_remittance_members(organization_id, posting_evidence_artifact_id)
+      `);
+
       // Contribution issue events depend on the parent cases table. Older
       // production databases can have the event compatibility block without
       // ever receiving the historical 0028 migration, so create the complete
