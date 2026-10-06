@@ -396,6 +396,7 @@ export async function POST(request: Request) {
       ),
     );
 
+    const resolvedByInputId = new Map(resolved.allocations.map((row) => [row.id, row]));
     const created = await db.transaction(async (tx) => {
       const closeDate = dayBefore(effectiveFrom);
       for (const row of rowsToClose) {
@@ -405,8 +406,9 @@ export async function POST(request: Request) {
       }
 
       const inserted = [];
-      for (const [index, allocation] of normalized.entries()) {
-        const resolvedAllocation = resolved.allocations[index]!;
+      for (const allocation of normalized) {
+        const resolvedAllocation = resolvedByInputId.get(allocation.id);
+        if (!resolvedAllocation) throw new Error("Resolved labor allocation row is missing.");
         const [row] = await tx.insert(employeeLaborAllocations).values({
           organizationId,
           employeeId,
