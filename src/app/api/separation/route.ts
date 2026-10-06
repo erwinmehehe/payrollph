@@ -6,6 +6,7 @@ import {
   employeePayProfiles,
   employees,
   historicalPayrollEntries,
+  hcmEmploymentTermDecisions,
   loanPayments,
   payrollEntries,
   payrollRuns,
@@ -284,6 +285,9 @@ export async function POST(request: Request) {
   const separationType = String(body.separationType ?? "resignation");
   const noticeDate = String(body.noticeDate ?? "");
   const lastDay = String(body.lastDay ?? "");
+  const employmentTermDecisionId = body.employmentTermDecisionId == null || body.employmentTermDecisionId === ""
+    ? null
+    : Number(body.employmentTermDecisionId);
 
   const denied = await assertOrganizationRole(
     user.id,
@@ -298,6 +302,12 @@ export async function POST(request: Request) {
   if (!Number.isInteger(employeeId) || !datePattern.test(noticeDate) || !datePattern.test(lastDay)) {
     return Response.json({ error: "employeeId, noticeDate and lastDay are required." }, { status: 400 });
   }
+  if (employmentTermDecisionId !== null && !Number.isInteger(employmentTermDecisionId)) {
+    return Response.json({ error: "employmentTermDecisionId must be a valid decision id." }, { status: 400 });
+  }
+  if (noticeDate > lastDay) {
+    return Response.json({ error: "Notice date cannot be after the employee last day." }, { status: 400 });
+  }
 
   try {
     const sources = await loadFinalPaySources({ organizationId, employeeId, lastDay });
@@ -305,6 +315,50 @@ export async function POST(request: Request) {
     if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
     if (lastDay < String(sources.employee.startDate)) {
       return Response.json({ error: "Last day cannot be before the employee's hire date." }, { status: 400 });
+    }
+
+    const [readyTermHandoff] = await db.select().from(hcmEmploymentTermDecisions).where(and(
+      eq(hcmEmploymentTermDecisions.organizationId, organizationId),
+      eq(hcmEmploymentTermDecisions.employeeId, employeeId),
+      eq(hcmEmploymentTermDecisions.decisionKind, "non_renew"),
+      eq(hcmEmploymentTermDecisions.status, "applied"),
+      inArray(hcmEmploymentTermDecisions.separationHandoffStatus, ["ready", "started"]),
+    )).orderBy(desc(hcmEmploymentTermDecisions.id)).limit(1);
+
+    let handoffDecision: typeof hcmEmploymentTermDecisions.$inferSelect | null = null;
+    if (employmentTermDecisionId !== null) {
+      const [selectedDecision] = await db.select().from(hcmEmploymentTermDecisions).where(and(
+        eq(hcmEmploymentTermDecisions.id, employmentTermDecisionId),
+        eq(hcmEmploymentTermDecisions.organizationId, organizationId),
+        eq(hcmEmploymentTermDecisions.employeeId, employeeId),
+      )).limit(1);
+      if (!selectedDecision) {
+        return Response.json({ error: "Employment-term decision not found for this worker." }, { status: 404 });
+      }
+      if (selectedDecision.decisionKind !== "non_renew" || selectedDecision.status !== "applied") {
+        return Response.json({ error: "Only an applied non-renewal decision can start a Separation handoff." }, { status: 409 });
+      }
+      if (!["ready", "started"].includes(selectedDecision.separationHandoffStatus)) {
+        return Response.json({ error: "This non-renewal handoff is not ready to start Separation." }, { status: 409 });
+      }
+      if (String(selectedDecision.proposedSeparationLastDay ?? "") !== lastDay) {
+        return Response.json({
+          error: "Separation last day must match the approved non-renewal decision.",
+          approvedLastDay: selectedDecision.proposedSeparationLastDay,
+        }, { status: 409 });
+      }
+      if (separationType !== "end_of_contract") {
+        return Response.json({
+          error: "A non-renewal handoff must use the end_of_contract separation type.",
+        }, { status: 400 });
+      }
+      handoffDecision = selectedDecision;
+    } else if (readyTermHandoff) {
+      return Response.json({
+        error: "This worker has a ready non-renewal handoff. Start Separation from that governed decision so the lifecycle remains linked.",
+        employmentTermDecisionId: readyTermHandoff.id,
+        proposedLastDay: readyTermHandoff.proposedSeparationLastDay,
+      }, { status: 409 });
     }
 
     const [unresolvedEffectiveChange] = await db.select({ id: workerEffectiveChanges.id, status: workerEffectiveChanges.status, effectiveDate: workerEffectiveChanges.effectiveDate })
@@ -328,6 +382,24 @@ export async function POST(request: Request) {
       eq(separationRecords.organizationId, organizationId),
       eq(separationRecords.employeeId, employeeId),
     )).orderBy(desc(separationRecords.id)).limit(1);
+
+    if (handoffDecision?.separationRecordId) {
+      if (!existingOpen || existingOpen.id !== handoffDecision.separationRecordId || existingOpen.status === "released") {
+        return Response.json({
+          error: "The non-renewal decision is already linked to a different or closed Separation record.",
+          separationRecordId: handoffDecision.separationRecordId,
+        }, { status: 409 });
+      }
+    }
+
+    if (handoffDecision && !handoffDecision.separationRecordId && existingOpen && existingOpen.status !== "released") {
+      if (existingOpen.separationType !== "end_of_contract" || String(existingOpen.lastDay) !== lastDay) {
+        return Response.json({
+          error: "Resolve the worker's existing open Separation package before linking this non-renewal handoff.",
+          separationRecordId: existingOpen.id,
+        }, { status: 409 });
+      }
+    }
 
     const legacyHistoryMissingBasic = sources.historical.filter((row) => row.basicSalary == null).length;
     const storedHistoricalBasic = sources.historical.reduce(
@@ -431,6 +503,8 @@ export async function POST(request: Request) {
       dailyRate: sources.resolvedPayProfile.dailyRate,
       leaveTaxReviewed,
       leaveMonetizationTaxExempt,
+      employmentTermDecisionId: handoffDecision?.id ?? null,
+      employmentTermDecisionKind: handoffDecision?.decisionKind ?? null,
     };
 
     const created = await db.transaction(async (tx) => {
@@ -502,6 +576,27 @@ export async function POST(request: Request) {
         .set({ status: "Separating" })
         .where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId)));
 
+      if (handoffDecision) {
+        if (handoffDecision.separationRecordId && handoffDecision.separationRecordId !== record.id) {
+          throw new Error("The non-renewal decision is already linked to another Separation record.");
+        }
+        const [linked] = await tx.update(hcmEmploymentTermDecisions).set({
+          separationRecordId: record.id,
+          separationHandoffStatus: "started",
+          separationHandoffStartedAt: handoffDecision.separationHandoffStartedAt ?? new Date(),
+          separationHandoffCompletedAt: null,
+          updatedAt: new Date(),
+        }).where(and(
+          eq(hcmEmploymentTermDecisions.id, handoffDecision.id),
+          eq(hcmEmploymentTermDecisions.organizationId, organizationId),
+          eq(hcmEmploymentTermDecisions.employeeId, employeeId),
+          eq(hcmEmploymentTermDecisions.decisionKind, "non_renew"),
+          eq(hcmEmploymentTermDecisions.status, "applied"),
+          inArray(hcmEmploymentTermDecisions.separationHandoffStatus, ["ready", "started"]),
+        )).returning();
+        if (!linked) throw new Error("The non-renewal handoff changed before Separation could start.");
+      }
+
       if (!(existingOpen && existingOpen.status !== "released")) {
         await tx.insert(workerEmploymentEvents).values({
           organizationId,
@@ -522,6 +617,7 @@ export async function POST(request: Request) {
             separationType,
             noticeDate,
             lastDay,
+            employmentTermDecisionId: handoffDecision?.id ?? null,
           },
           actorUserId: user.id,
           actorName: user.name,
@@ -721,6 +817,19 @@ export async function PATCH(request: Request) {
         throw new Error("Final-pay release state changed. Refresh and try again.");
       }
 
+      const [linkedTermDecision] = await tx.select().from(hcmEmploymentTermDecisions).where(and(
+        eq(hcmEmploymentTermDecisions.separationRecordId, fresh.id),
+        eq(hcmEmploymentTermDecisions.organizationId, fresh.organizationId),
+        eq(hcmEmploymentTermDecisions.employeeId, fresh.employeeId),
+      )).limit(1);
+      if (linkedTermDecision && (
+        linkedTermDecision.decisionKind !== "non_renew"
+        || linkedTermDecision.status !== "applied"
+        || linkedTermDecision.separationHandoffStatus !== "started"
+      )) {
+        throw new Error("The linked non-renewal handoff is no longer in a releasable state.");
+      }
+
       const freshSnapshot = (fresh.computationSnapshot ?? {}) as Record<string, unknown>;
       if (!sameSnapshot(freshSnapshot.sourceFingerprint, currentFingerprint)) {
         throw new Error("Final-pay source data changed before release. Recompute the package.");
@@ -842,10 +951,26 @@ export async function PATCH(request: Request) {
           separationType: fresh.separationType,
           releaseReference: releaseReference.slice(0, 160),
           positionClosed: Boolean(activeAssignment),
+          employmentTermDecisionId: linkedTermDecision?.id ?? null,
         },
         actorUserId: user.id,
         actorName: user.name,
       });
+
+      if (linkedTermDecision) {
+        const [completedHandoff] = await tx.update(hcmEmploymentTermDecisions).set({
+          separationHandoffStatus: "completed",
+          separationHandoffCompletedAt: new Date(),
+          updatedAt: new Date(),
+        }).where(and(
+          eq(hcmEmploymentTermDecisions.id, linkedTermDecision.id),
+          eq(hcmEmploymentTermDecisions.separationRecordId, fresh.id),
+          eq(hcmEmploymentTermDecisions.separationHandoffStatus, "started"),
+        )).returning();
+        if (!completedHandoff) {
+          throw new Error("The linked non-renewal handoff changed before final-pay release.");
+        }
+      }
 
       return updated;
     });
