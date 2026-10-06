@@ -120,5 +120,5 @@ test("OT UI exposes budget utilization and bulk decision operations", () => {
   assert.ok(source.includes("Reject selected"));
   assert.ok(source.includes('"bulk_decide_requests"'));
   assert.ok(source.includes('"upsert_budget"'));
-  assert.ok(source.includes("Budget authorization and wage entitlement stay separate."));
+  assert.ok(source.includes("Authorization and entitlement stay separate."));
 });
