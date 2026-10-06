@@ -11,8 +11,8 @@ test("approved leave feeds WFM coverage and full open-shift eligibility", () => 
   assert.ok(route.includes("approvedLeaveOnDate"));
   assert.ok(route.includes("approvedLeaveCoverageImpact"));
   assert.ok(route.includes("absenceEvidenceIssues"));
-  assert.ok(route.includes("cannot claim a full open shift"));
-  assert.ok(route.includes("cannot be approved for the open shift"));
+  assert.ok(route.includes("cannot claim the full shift"));
+  assert.ok(route.includes("cannot be approved for the full shift"));
   assert.ok(coverage.includes("approvedLeaveScheduledHeadcount"));
   assert.ok(coverage.includes("approvedLeaveShiftDefinitionIds"));
 });
@@ -40,7 +40,7 @@ test("WFM coverage consumes current precise leave intervals before legacy fallba
   assert.ok(route.includes("leaveRequestIntervals"));
   assert.ok(route.includes("resolveLeaveIntervalsForSchedule"));
   assert.ok(route.includes("approvedLeaveUnavailableMinutesByShiftDefinitionId"));
-  assert.ok(route.includes("approvedLeavePartiallyUnavailable"));
+  assert.ok(coverage.includes("approvedLeavePartiallyUnavailableHeadcount"));
 });
 
 test("open-shift checks use precise interval overlap instead of date-only blocking", () => {
