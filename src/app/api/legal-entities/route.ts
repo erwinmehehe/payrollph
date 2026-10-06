@@ -19,6 +19,7 @@ import {
   maskBankAccount,
 } from "@/lib/bank-account-crypto";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
+import { ensurePrimaryLegalEntity } from "@/lib/legal-entity";
 import {
   enforceSameOriginMutation,
   requireSensitiveActionMfa,
@@ -83,6 +84,8 @@ export async function GET(request: Request) {
   if (!Number.isInteger(organizationId) || organizationId <= 0) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
   }
+
+  await ensurePrimaryLegalEntity(organizationId);
 
   if (selectorMode) {
     const denied = await assertOrganizationRole(
