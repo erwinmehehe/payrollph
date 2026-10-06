@@ -68,7 +68,7 @@ import {
 import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
 import { assertUnambiguousRoleDemand, resolveEmployeeJobProfileAtDate } from "@/lib/workforce-role-demand";
 import { evaluateEmployeeFromCapabilityData, loadCapabilityEligibilityData, loadEmployeeWfmEligibility } from "@/lib/hcm-workforce-eligibility-server";
-import { approvedLeaveConflictsFullShift, approvedLeaveCoverageImpact } from "@/lib/workforce-absence";
+import { approvedLeaveCoverageImpact } from "@/lib/workforce-absence";
 import { resolveLeaveIntervalsForSchedule, type PreciseLeaveInterval } from "@/lib/workforce-absence-intervals";
 import { loadSiteEligibilityEvidence, employeeSiteEligibility } from "@/lib/hcm-worksite-eligibility-server";
 import { evaluateSiteEligibility } from "@/lib/hcm-worksite-eligibility";
@@ -1521,30 +1521,27 @@ export async function POST(request: Request) {
       }, { status: 409 });
     }
 
-    const approvedLeave = await approvedLeaveOnDate(
-      organizationId,
-      employee.id,
-      String(openShift.workDate),
-    );
-    if (approvedLeave.length > 0) {
-      const conflict = approvedLeaveConflictsFullShift({
-        leaves: approvedLeave,
-        employeeId: employee.id,
-        workDate: String(openShift.workDate),
-      });
-      return Response.json({
-        error: conflict.ambiguous
-          ? "Approved leave now overlaps this date without exact partial-day timing. Resolve the absence before approving a full open shift."
-          : "The employee now has approved leave on this date and cannot be approved for the open shift.",
-        approvedLeave,
-      }, { status: 409 });
-    }
-
     const [shift] = await db.select().from(shiftDefinitions).where(and(
       eq(shiftDefinitions.id, openShift.shiftDefinitionId),
       eq(shiftDefinitions.organizationId, organizationId),
     )).limit(1);
     if (!shift) return Response.json({ error: "Shift definition not found." }, { status: 404 });
+
+    const leaveConflict = await approvedLeaveConflictForShift({
+      organizationId,
+      employeeId: employee.id,
+      workDate: String(openShift.workDate),
+      shift,
+    });
+    if (leaveConflict.conflict) {
+      return Response.json({
+        error: leaveConflict.legacyAmbiguous
+          ? "Approved leave now overlaps this date but Legacy timing is ambiguous. Resolve the absence before approving a full open shift."
+          : "Approved leave now overlaps this open shift and the employee cannot be approved for the full shift.",
+        unavailableWallMinutes: leaveConflict.unavailableWallMinutes,
+        approvedLeave: leaveConflict.approvedLeave,
+      }, { status: 409 });
+    }
 
     const [existingOverride] = await db.select().from(scheduleOverrides).where(and(
       eq(scheduleOverrides.organizationId, organizationId),
