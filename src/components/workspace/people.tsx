@@ -89,7 +89,7 @@ type ConnectedWorkerProfile = {
 const PAGE_SIZE = 12;
 
 const TABS = [
-  { key: "all", label: "All people" },
+  { key: "all", label: "All employees" },
   { key: "Active", label: "Active" },
   { key: "On leave", label: "On leave" },
   { key: "Separating", label: "Separation" },
@@ -177,13 +177,9 @@ export function PeopleView({
   return (
     <>
       <PageHeading
-        eyebrow={hrMode ? `${data.selectedOrganization.legalName} · HR Admin` : "People"}
-        title={hrMode ? "People." : "Your people, in context."}
-        copy={
-          hrMode
-            ? "Manage employee records, pay profiles, employment status and organizational structure without duplicating the payroll-readiness dashboard."
-            : "Department and branch structure stay optional for small teams and are ready when a client grows into them."
-        }
+        eyebrow={hrMode ? `${data.selectedOrganization.legalName} · HR Admin` : "Employees"}
+        title="Employees"
+        copy="Manage employee records, pay, employment details and payroll readiness from one place."
         actions={
           canManage ? (
             <button className="primary-button brand" onClick={onAddEmployee}>
@@ -215,7 +211,7 @@ export function PeopleView({
         </div>
       )}
 
-      <div className="tabs" role="tablist" aria-label="People status">
+      <div className="tabs" role="tablist" aria-label="Employee status">
         {TABS.map((item) => (
           <button
             key={item.key}
@@ -239,7 +235,7 @@ export function PeopleView({
                 value={query}
                 onChange={(event) => search(event.target.value)}
                 placeholder="Search name, number, role"
-                aria-label="Search people"
+                aria-label="Search employees"
               />
             </div>
             <button className="filter-button" onClick={() => toggleSort("basicRate")}>
