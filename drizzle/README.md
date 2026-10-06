@@ -64,3 +64,5 @@ the first one, so it closes itself.
 - `0053_hcm_capability_wfm_eligibility.sql` adds normalized skills, verified employee proficiencies, job-profile skill requirements, and job-profile credential links backed by the existing document compliance/expiry system for WFM eligibility.
 
 - `0054_hcm_worksite_arrangements.sql` adds effective-dated work arrangements and per-employee secondary-site authorization for WFM eligibility.
+
+- `0055_precise_leave_windows.sql` stores clock-precise single-day leave and expands payroll leave-day precision to four decimals.
