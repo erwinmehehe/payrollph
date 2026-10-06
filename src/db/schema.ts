@@ -2926,6 +2926,7 @@ export const hcmEmploymentTermDecisions = pgTable(
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
     failure: text("failure"),
     evidenceSnapshotSha256: varchar("evidence_snapshot_sha256", { length: 64 }),
+    evidencePacketVersion: varchar("evidence_packet_version", { length: 16 }),
     evidenceSealedAt: timestamp("evidence_sealed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
