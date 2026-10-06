@@ -490,6 +490,7 @@ export async function ensureCoreCompatibilitySchema() {
           effective_until date,
           allocation_percent numeric(6,3) NOT NULL,
           allocation_basis varchar(24) NOT NULL DEFAULT 'percentage',
+          allocation_hours numeric(10,3),
           project_code varchar(64),
           client_code varchar(64),
           job_code varchar(64),
@@ -508,6 +509,10 @@ export async function ensureCoreCompatibilitySchema() {
         ON employee_labor_allocations(organization_id, cost_center_id)
       `);
       await client.query(`
+        ALTER TABLE employee_labor_allocations
+          ADD COLUMN IF NOT EXISTS allocation_hours numeric(10,3)
+      `);
+      await client.query(`
         DO $compat$
         BEGIN
           IF NOT EXISTS (
@@ -520,14 +525,6 @@ export async function ensureCoreCompatibilitySchema() {
           END IF;
           IF NOT EXISTS (
             SELECT 1 FROM pg_constraint
-            WHERE conname = 'employee_labor_allocations_basis_check'
-          ) THEN
-            ALTER TABLE employee_labor_allocations
-              ADD CONSTRAINT employee_labor_allocations_basis_check
-              CHECK (allocation_basis = 'percentage');
-          END IF;
-          IF NOT EXISTS (
-            SELECT 1 FROM pg_constraint
             WHERE conname = 'employee_labor_allocations_dates_check'
           ) THEN
             ALTER TABLE employee_labor_allocations
@@ -536,6 +533,55 @@ export async function ensureCoreCompatibilitySchema() {
           END IF;
         END
         $compat$;
+      `);
+      await client.query(`
+        ALTER TABLE employee_labor_allocations
+          DROP CONSTRAINT IF EXISTS employee_labor_allocations_basis_check
+      `);
+      await client.query(`
+        ALTER TABLE employee_labor_allocations
+          ADD CONSTRAINT employee_labor_allocations_basis_check
+          CHECK (allocation_basis IN ('percentage', 'hours'))
+      `);
+      await client.query(`
+        ALTER TABLE employee_labor_allocations
+          DROP CONSTRAINT IF EXISTS employee_labor_allocations_hours_check
+      `);
+      await client.query(`
+        ALTER TABLE employee_labor_allocations
+          ADD CONSTRAINT employee_labor_allocations_hours_check
+          CHECK (
+            (allocation_basis = 'percentage' AND allocation_hours IS NULL)
+            OR (allocation_basis = 'hours' AND allocation_hours > 0)
+          )
+      `);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS labor_gl_mappings (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          legal_entity_id integer REFERENCES legal_entities(id) ON DELETE CASCADE,
+          cost_center_id integer REFERENCES cost_centers(id) ON DELETE CASCADE,
+          account_key varchar(64) NOT NULL,
+          account_code varchar(40),
+          account_name varchar(160) NOT NULL,
+          active boolean NOT NULL DEFAULT true,
+          created_by varchar(120) NOT NULL DEFAULT 'System',
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS labor_gl_mappings_scope_unique
+        ON labor_gl_mappings(
+          organization_id,
+          COALESCE(legal_entity_id, 0),
+          COALESCE(cost_center_id, 0),
+          account_key
+        )
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS labor_gl_mappings_org_active_idx
+        ON labor_gl_mappings(organization_id, active)
       `);
 
       await client.query(`
