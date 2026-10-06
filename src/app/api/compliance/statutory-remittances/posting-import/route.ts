@@ -6,12 +6,14 @@ import {
   statutoryContributionIssueEvents,
   statutoryRemittanceBatches,
   statutoryRemittanceMembers,
+  statutoryPostingEvidenceArtifacts,
 } from "@/db/schema";
 import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { contributionCaseServiceTargets } from "@/lib/statutory-contribution-case-aging";
 import { canConfirmMemberPosting } from "@/lib/statutory-remittance";
+import { postingCsvEvidence } from "@/lib/statutory-posting-evidence";
 import { invalidateStatutoryRemittanceMonthCertification } from "@/lib/statutory-remittance-certification";
 import {
   parseStatutoryPostingCsv,
@@ -100,6 +102,10 @@ export async function POST(request: Request) {
   }
 
   const parsed = parseStatutoryPostingCsv(csv);
+  const csvEvidence = postingCsvEvidence({ csv, fileName });
+  if (csvEvidence.contentSha256 !== parsed.hash) {
+    return Response.json({ error: "Posting evidence hash verification failed." }, { status: 500 });
+  }
   const members = await db.select().from(statutoryRemittanceMembers).where(and(
     eq(statutoryRemittanceMembers.batchId, batchId),
     eq(statutoryRemittanceMembers.organizationId, organizationId),
@@ -183,7 +189,30 @@ export async function POST(request: Request) {
         : [];
       const existingEmployeeIds = new Set(existingCases.map((row) => row.employeeId));
 
-      autoCaseIds = await db.transaction(async (tx) => {
+      const mismatchResult = await db.transaction(async (tx) => {
+        const [insertedArtifact] = await tx.insert(statutoryPostingEvidenceArtifacts).values({
+          organizationId,
+          batchId,
+          sourceType: csvEvidence.sourceType,
+          outcome: "mismatch_cases",
+          fileName: csvEvidence.fileName,
+          mimeType: csvEvidence.mimeType,
+          byteSize: csvEvidence.byteSize,
+          contentSha256: csvEvidence.contentSha256,
+          fileDataBase64: csvEvidence.fileDataBase64,
+          evidenceReference: `${batch.agency} posting mismatch import`,
+          rowCount: amountMismatchCandidates.length,
+          recordedByUserId: user.id,
+          recordedByName: user.name,
+        }).onConflictDoNothing().returning();
+        const artifact = insertedArtifact ?? (await tx.select().from(statutoryPostingEvidenceArtifacts).where(and(
+          eq(statutoryPostingEvidenceArtifacts.organizationId, organizationId),
+          eq(statutoryPostingEvidenceArtifacts.batchId, batchId),
+          eq(statutoryPostingEvidenceArtifacts.contentSha256, csvEvidence.contentSha256),
+          eq(statutoryPostingEvidenceArtifacts.outcome, "mismatch_cases"),
+        )).limit(1))[0];
+        if (!artifact) throw new Error("Could not persist posting evidence artifact.");
+
         const createdIds: number[] = [];
         for (const candidate of amountMismatchCandidates) {
           if (existingEmployeeIds.has(candidate.member.employeeId)) continue;
@@ -204,7 +233,8 @@ export async function POST(request: Request) {
             employeeSnapshot: {
               source: "statutory_posting_import",
               fileName,
-              fileHash: parsed.hash,
+              fileHash: csvEvidence.contentSha256,
+              evidenceArtifactId: artifact.id,
               sourceLine: candidate.sourceLine,
               employeeNo: candidate.member.employeeNo,
               expectedTotal,
@@ -248,8 +278,9 @@ export async function POST(request: Request) {
           createdIds.push(issue.id);
           existingEmployeeIds.add(candidate.member.employeeId);
         }
-        return createdIds;
+        return { createdIds, artifact };
       });
+      autoCaseIds = mismatchResult.createdIds;
 
       if (autoCaseIds.length > 0) {
         await recordAuditEvent({
@@ -260,7 +291,9 @@ export async function POST(request: Request) {
           metadata: {
             batchId,
             fileName,
-            fileHash: parsed.hash,
+            fileHash: csvEvidence.contentSha256,
+            evidenceArtifactId: mismatchResult.artifact.id,
+            evidenceByteSize: mismatchResult.artifact.byteSize,
             caseIds: autoCaseIds,
             mismatchCount: autoCaseIds.length,
           },
@@ -301,6 +334,15 @@ export async function POST(request: Request) {
       validationFailed: true,
       amountMismatchCount: amountMismatchCandidates.length,
       autoCaseIds,
+      evidenceArtifactId:
+        openMismatchCases && autoCaseIds.length > 0
+          ? (await db.select({ id: statutoryPostingEvidenceArtifacts.id }).from(statutoryPostingEvidenceArtifacts).where(and(
+              eq(statutoryPostingEvidenceArtifacts.organizationId, organizationId),
+              eq(statutoryPostingEvidenceArtifacts.batchId, batchId),
+              eq(statutoryPostingEvidenceArtifacts.contentSha256, csvEvidence.contentSha256),
+              eq(statutoryPostingEvidenceArtifacts.outcome, "mismatch_cases"),
+            )).limit(1))[0]?.id ?? null
+          : null,
       casesOpened: openMismatchCases && autoCaseIds.length > 0,
       message: openMismatchCases && autoCaseIds.length > 0
         ? `${autoCaseIds.length} employee contribution compliance case${autoCaseIds.length === 1 ? "" : "s"} opened from agency amount mismatches. No posting rows were applied.`
@@ -343,13 +385,38 @@ export async function POST(request: Request) {
       throw new Error("Remittance batch changed while the import was being applied. Refresh and validate the file again.");
     }
 
+    const [insertedArtifact] = await tx.insert(statutoryPostingEvidenceArtifacts).values({
+      organizationId,
+      batchId,
+      sourceType: csvEvidence.sourceType,
+      outcome: "applied",
+      fileName: csvEvidence.fileName,
+      mimeType: csvEvidence.mimeType,
+      byteSize: csvEvidence.byteSize,
+      contentSha256: csvEvidence.contentSha256,
+      fileDataBase64: csvEvidence.fileDataBase64,
+      evidenceReference: `${batch.agency} member posting import`,
+      rowCount: matched.length,
+      recordedByUserId: user.id,
+      recordedByName: user.name,
+    }).onConflictDoNothing().returning();
+    const artifact = insertedArtifact ?? (await tx.select().from(statutoryPostingEvidenceArtifacts).where(and(
+      eq(statutoryPostingEvidenceArtifacts.organizationId, organizationId),
+      eq(statutoryPostingEvidenceArtifacts.batchId, batchId),
+      eq(statutoryPostingEvidenceArtifacts.contentSha256, csvEvidence.contentSha256),
+      eq(statutoryPostingEvidenceArtifacts.outcome, "applied"),
+    )).limit(1))[0];
+    if (!artifact) throw new Error("Could not persist posting evidence artifact.");
+
     for (const row of matched) {
       const updated = await tx.update(statutoryRemittanceMembers).set({
         postingStatus: "confirmed",
         postingReference: row.postingReference,
         postedAmount: row.postedAmount.toFixed(2),
         postedAt: row.postedAt,
+        confirmedByUserId: user.id,
         confirmedBy: user.name,
+        postingEvidenceArtifactId: artifact.id,
         exceptionNote: null,
         updatedAt: new Date(),
       }).where(and(
@@ -375,6 +442,7 @@ export async function POST(request: Request) {
     await tx.update(statutoryRemittanceBatches).set({
       status: reconciled ? "reconciled" : exceptions > 0 ? "exception" : "paid",
       reconciledAt: reconciled ? new Date() : null,
+      reconciledByUserId: reconciled ? user.id : null,
       reconciledBy: reconciled ? user.name : null,
       updatedAt: new Date(),
     }).where(and(
@@ -382,7 +450,7 @@ export async function POST(request: Request) {
       eq(statutoryRemittanceBatches.organizationId, organizationId),
     ));
 
-    return { pending, exceptions, reconciled };
+    return { pending, exceptions, reconciled, artifact };
   });
 
   await recordAuditEvent({
@@ -393,7 +461,9 @@ export async function POST(request: Request) {
     metadata: {
       batchId,
       fileName,
-      fileHash: parsed.hash,
+      fileHash: result.artifact.contentSha256,
+      evidenceArtifactId: result.artifact.id,
+      evidenceByteSize: result.artifact.byteSize,
       importedRows: matched.length,
       pendingPostingCount: result.pending,
       exceptionCount: result.exceptions,
@@ -406,7 +476,8 @@ export async function POST(request: Request) {
     dryRun: false,
     fileName,
     batchId,
-    fileHash: parsed.hash,
+    fileHash: result.artifact.contentSha256,
+    evidenceArtifactId: result.artifact.id,
     validRows: matched.length,
     errorCount: 0,
     errors: [],
