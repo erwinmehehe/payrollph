@@ -36,6 +36,7 @@ test("coverage UI distinguishes unavailable, unqualified and approved-leave excl
 
 test("WFM coverage consumes current precise leave intervals before legacy fallback", () => {
   const route = read("src/app/api/workforce/coverage/route.ts");
+  const coverage = read("src/lib/workforce-coverage.ts");
   assert.ok(route.includes("leaveRequestIntervalSets"));
   assert.ok(route.includes("leaveRequestIntervals"));
   assert.ok(route.includes("resolveLeaveIntervalsForSchedule"));
