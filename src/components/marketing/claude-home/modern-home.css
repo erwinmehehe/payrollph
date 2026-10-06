@@ -379,7 +379,7 @@
 .statutory-marks{display:flex;align-items:center;gap:36px}
 .statutory-marks span{color:#515154;font-size:12px;font-weight:700}
 
-/* Apple-style stories */
+/* Product story surfaces */
 .product-focus{background:#fff}
 .apple-story{
   padding:148px 0;
@@ -425,7 +425,7 @@
   align-items:center;
   gap:104px
 }
-.apple-product-panel{
+.linaw-product-panel{
   overflow:hidden;
   border:1px solid rgba(0,0,0,.075);
   border-radius:30px;
@@ -436,7 +436,7 @@
   transition:transform .4s cubic-bezier(.16,1,.3,1),box-shadow .4s cubic-bezier(.16,1,.3,1)
 }
 @media(hover:hover){
-  .apple-product-panel:hover{
+  .linaw-product-panel:hover{
     transform:translateY(-3px);
     box-shadow:
       0 4px 10px rgba(0,0,0,.03),
@@ -464,8 +464,8 @@
 .comparison-summary span{display:block;color:#9a9aa0;font-size:8.5px;text-transform:uppercase;letter-spacing:.07em}
 .comparison-summary strong{display:block;margin-top:8px;font-size:24px;letter-spacing:-.03em}
 .comparison-summary small{display:block;margin-top:4px;color:var(--green);font-size:8.5px}
-.apple-table{padding:14px 20px 22px}
-.apple-table-row{
+.linaw-table{padding:14px 20px 22px}
+.linaw-table-row{
   display:grid;
   grid-template-columns:1fr .9fr .55fr;
   align-items:center;
@@ -474,11 +474,11 @@
   color:#737378;
   font-size:10px
 }
-.apple-table-row:last-child{border-bottom:0}
-.apple-table-row strong{color:#424245;font-weight:620}
-.apple-table-row b{justify-self:end;color:var(--green);font-weight:650}
-.apple-table-row b.negative{color:#b42318}
-.apple-table-row.head{min-height:34px;color:#a1a1a6;font-size:8px;text-transform:uppercase;letter-spacing:.06em}
+.linaw-table-row:last-child{border-bottom:0}
+.linaw-table-row strong{color:#424245;font-weight:620}
+.linaw-table-row b{justify-self:end;color:var(--green);font-weight:650}
+.linaw-table-row b.negative{color:#b42318}
+.linaw-table-row.head{min-height:34px;color:#a1a1a6;font-size:8px;text-transform:uppercase;letter-spacing:.06em}
 
 .blocker-feature{
   display:grid;
@@ -798,14 +798,14 @@
   .apple-story-copy h2{font-size:49px;line-height:.95}
   .apple-story-copy p{font-size:15.5px;line-height:1.56}
   .apple-story-visual.wide{margin-top:46px}
-  .apple-product-panel{border-radius:18px}
+  .linaw-product-panel{border-radius:18px}
   .comparison-summary{grid-template-columns:1fr}
   .comparison-summary>div{display:grid;grid-template-columns:1fr auto;align-items:center;padding:14px 16px}
   .comparison-summary strong{margin-top:0;font-size:17px}
   .comparison-summary small{display:none}
-  .apple-table{padding:8px 14px 12px}
-  .apple-table-row{grid-template-columns:1fr .55fr;min-height:44px}
-  .apple-table-row>:nth-child(2){display:none}
+  .linaw-table{padding:8px 14px 12px}
+  .linaw-table-row{grid-template-columns:1fr .55fr;min-height:44px}
+  .linaw-table-row>:nth-child(2){display:none}
   .blocker-feature{grid-template-columns:42px 1fr;padding:22px 16px 18px}
   .blocker-feature-icon{width:42px;height:42px;border-radius:12px}
   .blocker-feature strong{font-size:19px}
@@ -1149,19 +1149,19 @@
   line-height:1.7
 }
 .story-visual{min-width:0}
-.apple-product-panel{
+.linaw-product-panel{
   border:1px solid #dce1ea;
   border-radius:18px;
   box-shadow:0 18px 54px -34px rgba(16,24,40,.22)
 }
-.apple-product-panel::before{
+.linaw-product-panel::before{
   content:"";
   display:block;
   height:3px;
   background:linear-gradient(90deg,var(--indigo) 0 64%,var(--green) 64% 78%,#eaecf0 78% 100%)
 }
 @media(hover:hover){
-  .apple-product-panel:hover{
+  .linaw-product-panel:hover{
     transform:translateY(-2px);
     box-shadow:0 24px 66px -34px rgba(16,24,40,.24)
   }
@@ -1280,7 +1280,7 @@
   color:#98a2b3
 }
 
-/* Remove obsolete centered keynote-style story rules from the active composition. */
+/* Legacy story selectors are neutralized; the active composition uses Linaw story primitives. */
 .apple-story,.apple-story-copy,.apple-story-visual.wide,.apple-split{all:unset}
 
 @media(max-width:1100px){
@@ -1342,7 +1342,7 @@
   .story-index{margin-bottom:18px}
   .story-copy h2{font-size:43px}
   .story-copy p{font-size:14.5px}
-  .apple-product-panel{border-radius:14px}
+  .linaw-product-panel{border-radius:14px}
 
   .workflow-section{padding:78px 0}
   .workflow-heading{text-align:left}
