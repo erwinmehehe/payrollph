@@ -208,7 +208,7 @@ export function buildEmploymentLifecycleRow(input: {
       dueDate,
       daysUntil,
       label: `${noun} due in ${daysUntil} day${daysUntil === 1 ? "" : "s"}`,
-      detail: "Prepare and route the employment decision before the due date.",
+      detail: "Prepare and route the employment decision before the due date. PayrollPH will not infer regularization, renewal, or separation.",
     };
   }
 
