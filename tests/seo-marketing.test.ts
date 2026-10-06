@@ -561,6 +561,34 @@ test("statutory calculators show review freshness and official references", () =
   assert.ok(calculators.includes("DOLE Labor Code, Book III"), "calculator sources must identify the DOLE reference");
 });
 
+test("standalone SEO pages keep titles and descriptions in target SERP ranges", () => {
+  const pages = [
+    "src/app/page.tsx",
+    "src/app/hris/page.tsx",
+    "src/app/time-and-attendance/page.tsx",
+    "src/app/employee-self-service/page.tsx",
+    "src/app/compliance/page.tsx",
+    "src/app/implementation/page.tsx",
+    "src/app/security/page.tsx",
+    "src/app/trust/page.tsx",
+    "src/app/integrations/page.tsx",
+    "src/app/developers/page.tsx",
+    "src/app/pricing/page.tsx",
+    "src/app/resources/page.tsx",
+    "src/app/calculators/page.tsx",
+    "src/app/payroll-health-check/page.tsx",
+    "src/app/payroll-outsourcing/page.tsx",
+  ];
+
+  for (const path of pages) {
+    const source = read(path);
+    const title = source.match(/title:\s*"([^"]+)"/)?.[1] ?? "";
+    const description = source.match(/description:\s*"([^"]+)"/)?.[1] ?? "";
+    assert.ok(title.length >= 55 && title.length <= 60, `${path} title length ${title.length} should be 55–60 characters`);
+    assert.ok(description.length >= 150 && description.length <= 160, `${path} description length ${description.length} should be 150–160 characters`);
+  }
+});
+
 test("public navigation exposes the SEO program without hiding the live demo", () => {
   const navigation = read("src/components/marketing/public-navigation.ts");
   for (const route of ["/demo", "/resources", "/compliance", "/trust", "/integrations", "/developers", "/calculators", "/payroll-health-check", "/industries"]) {
