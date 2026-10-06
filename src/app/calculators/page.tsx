@@ -5,7 +5,7 @@ import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 import { CALCULATORS } from "@/lib/calculators";
 
 export const metadata: Metadata = {
-  title: "Payroll Calculators Philippines | Linaw",
+  title: "Payroll Calculators Philippines | SSS, Tax & OT | Linaw",
   description: "Philippine payroll calculators for 13th-month pay, overtime, night differential, SSS, PhilHealth, Pag-IBIG and withholding tax using shared rule helpers.",
   alternates: { canonical: "/calculators" },
 };
