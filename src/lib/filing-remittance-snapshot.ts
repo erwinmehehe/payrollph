@@ -22,8 +22,6 @@ export function summarizeMonthlyContributionFile(input: {
   body: string;
   applicableMonth: string;
 }): MonthlyFilingSnapshot | null {
-  const totalColumn = MONTHLY_TOTAL_COLUMNS[`${input.agency}:${input.form}`];
-  if (!totalColumn) return null;
   if (!/^\d{4}-\d{2}$/.test(input.applicableMonth)) {
     throw new Error("Monthly filing snapshot requires applicableMonth in YYYY-MM format.");
   }
@@ -33,6 +31,36 @@ export function summarizeMonthlyContributionFile(input: {
     .filter((line) => !line.startsWith("#"))
     .join("\n");
   const rows = parseCsv(csvText);
+
+  if (input.agency === "BIR" && input.form === "1601-C") {
+    if (rows.length !== 2) {
+      throw new Error("BIR 1601-C filing snapshot must contain exactly one monthly summary row.");
+    }
+    const headers = rows[0].map((value) => value.trim());
+    const monthIndex = headers.indexOf("ApplicableMonth");
+    const totalIndex = headers.indexOf("WithholdingTax");
+    const employeesIndex = headers.indexOf("Employees");
+    if (monthIndex < 0 || totalIndex < 0 || employeesIndex < 0) {
+      throw new Error("BIR 1601-C filing is missing ApplicableMonth, WithholdingTax or Employees.");
+    }
+    const month = String(rows[1][monthIndex] ?? "").trim();
+    const total = Number(String(rows[1][totalIndex] ?? "").replace(/[₱,\s]/g, ""));
+    const employeeCount = Number(String(rows[1][employeesIndex] ?? "").trim());
+    if (month !== input.applicableMonth) {
+      throw new Error(`BIR 1601-C filing month ${month || "(blank)"} does not match ${input.applicableMonth}.`);
+    }
+    if (!Number.isFinite(total) || !Number.isInteger(employeeCount) || employeeCount < 0) {
+      throw new Error("BIR 1601-C filing has an invalid withholding total or employee count.");
+    }
+    return {
+      applicableMonth: input.applicableMonth,
+      employeeCount,
+      reportedTotal: round2(total),
+    };
+  }
+
+  const totalColumn = MONTHLY_TOTAL_COLUMNS[`${input.agency}:${input.form}`];
+  if (!totalColumn) return null;
   if (rows.length < 2) {
     throw new Error(`${input.agency} ${input.form} filing has no employee rows to summarize.`);
   }

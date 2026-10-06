@@ -1314,6 +1314,41 @@ export const governmentFilingValidations = pgTable(
   ],
 );
 
+export const birWithholdingRemittanceBatches = pgTable(
+  "bir_withholding_remittance_batches",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    applicableMonth: varchar("applicable_month", { length: 7 }).notNull(),
+    filingChannel: varchar("filing_channel", { length: 24 }).notNull(),
+    efpsGroup: varchar("efps_group", { length: 1 }),
+    filingDueDate: date("filing_due_date").notNull(),
+    paymentDueDate: date("payment_due_date").notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("open"),
+    employeeCount: integer("employee_count").notNull().default(0),
+    payrollRunCount: integer("payroll_run_count").notNull().default(0),
+    expectedTaxWithheld: numeric("expected_tax_withheld", { precision: 14, scale: 2 }).notNull().default("0"),
+    amountPaid: numeric("amount_paid", { precision: 14, scale: 2 }),
+    paymentReference: varchar("payment_reference", { length: 120 }),
+    paymentVarianceNote: varchar("payment_variance_note", { length: 240 }),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    paymentRecordedByUserId: integer("payment_recorded_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    paymentRecordedBy: varchar("payment_recorded_by", { length: 120 }),
+    filingValidationId: integer("filing_validation_id").references(() => governmentFilingValidations.id, { onDelete: "set null" }),
+    filingReference: varchar("filing_reference", { length: 120 }),
+    filedAt: timestamp("filed_at", { withTimezone: true }),
+    snapshotHash: varchar("snapshot_hash", { length: 64 }).notNull(),
+    createdBy: varchar("created_by", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("bir_withholding_remittance_month_unique").on(table.organizationId, table.applicableMonth),
+    index("bir_withholding_remittance_due_idx").on(table.organizationId, table.status, table.paymentDueDate),
+    index("bir_withholding_remittance_filing_idx").on(table.organizationId, table.filingValidationId),
+  ],
+);
+
 export const statutoryRemittanceBatches = pgTable(
   "statutory_remittance_batches",
   {
