@@ -1,0 +1,338 @@
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { db } from "@/db";
+import {
+  assets,
+  automationExecutions,
+  automationRules,
+  benefitEnrollments,
+  benefitPlans,
+  employees,
+  externalIdentities,
+  jobProfiles,
+  orgUnits,
+  permissionSets,
+  positionAssignments,
+  positions,
+  provisioningTasks,
+  scimIdentities,
+  separationRecords,
+  userOrganizations,
+  userPermissionAssignments,
+  users,
+} from "@/db/schema";
+import { getSessionUser } from "@/lib/auth";
+import {
+  assertOrganizationRole,
+  assertScope,
+  getAccess,
+  PEOPLE_ADMIN_ROLES,
+} from "@/lib/access";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(request: Request) {
+  const user = await getSessionUser();
+  if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+
+  const url = new URL(request.url);
+  const organizationId = Number(url.searchParams.get("organizationId"));
+  const employeeId = Number(url.searchParams.get("employeeId"));
+  if (!Number.isInteger(organizationId) || !Number.isInteger(employeeId)) {
+    return Response.json({ error: "organizationId and employeeId are required." }, { status: 400 });
+  }
+
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_ADMIN_ROLES,
+    "Only People administrators can view the connected worker profile.",
+  );
+  if (denied) return denied;
+
+  const access = await getAccess(user.id, organizationId);
+  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+
+  const [employee] = await db.select({
+    id: employees.id,
+    organizationId: employees.organizationId,
+    orgUnitId: employees.orgUnitId,
+    legalEntityId: employees.legalEntityId,
+    employeeNo: employees.employeeNo,
+    firstName: employees.firstName,
+    lastName: employees.lastName,
+    title: employees.title,
+    employmentType: employees.employmentType,
+    status: employees.status,
+    email: employees.email,
+    startDate: employees.startDate,
+  }).from(employees).where(and(
+    eq(employees.id, employeeId),
+    eq(employees.organizationId, organizationId),
+  )).limit(1);
+
+  if (!employee) return Response.json({ error: "Employee not found in this workspace." }, { status: 404 });
+  const scope = assertScope(access, employee.orgUnitId);
+  if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
+
+  const [
+    assignmentRows,
+    benefitRows,
+    assetRows,
+    taskRows,
+    executionRows,
+    linkedUsers,
+    separationRows,
+  ] = await Promise.all([
+    db.select().from(positionAssignments).where(and(
+      eq(positionAssignments.organizationId, organizationId),
+      eq(positionAssignments.employeeId, employeeId),
+      isNull(positionAssignments.effectiveUntil),
+    )).limit(1),
+    db.select({
+      id: benefitEnrollments.id,
+      planId: benefitEnrollments.planId,
+      status: benefitEnrollments.status,
+      monthlyContribution: benefitEnrollments.monthlyContribution,
+      startedOn: benefitEnrollments.startedOn,
+      endedOn: benefitEnrollments.endedOn,
+      planName: benefitPlans.name,
+      category: benefitPlans.category,
+      provider: benefitPlans.provider,
+      employeeShare: benefitPlans.employeeShare,
+      employerShare: benefitPlans.employerShare,
+    }).from(benefitEnrollments)
+      .innerJoin(benefitPlans, eq(benefitEnrollments.planId, benefitPlans.id))
+      .where(and(
+        eq(benefitEnrollments.organizationId, organizationId),
+        eq(benefitEnrollments.employeeId, employeeId),
+      )),
+    db.select({
+      id: assets.id,
+      type: assets.type,
+      name: assets.name,
+      serialNumber: assets.serialNumber,
+      status: assets.status,
+      assignedOn: assets.assignedOn,
+      returnedOn: assets.returnedOn,
+    }).from(assets).where(and(
+      eq(assets.organizationId, organizationId),
+      eq(assets.employeeId, employeeId),
+    )).orderBy(desc(assets.id)),
+    db.select().from(provisioningTasks).where(and(
+      eq(provisioningTasks.organizationId, organizationId),
+      eq(provisioningTasks.employeeId, employeeId),
+    )).orderBy(desc(provisioningTasks.id)),
+    db.select().from(automationExecutions).where(and(
+      eq(automationExecutions.organizationId, organizationId),
+      eq(automationExecutions.employeeId, employeeId),
+    )).orderBy(desc(automationExecutions.id)).limit(12),
+    db.select({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      active: users.active,
+      localPasswordEnabled: users.localPasswordEnabled,
+      createdAt: users.createdAt,
+    }).from(users).where(eq(users.employeeId, employeeId)),
+    db.select({
+      id: separationRecords.id,
+      separationType: separationRecords.separationType,
+      noticeDate: separationRecords.noticeDate,
+      lastDay: separationRecords.lastDay,
+      clearanceStatus: separationRecords.clearanceStatus,
+      status: separationRecords.status,
+      coeIssued: separationRecords.coeIssued,
+      createdAt: separationRecords.createdAt,
+    }).from(separationRecords).where(and(
+      eq(separationRecords.organizationId, organizationId),
+      eq(separationRecords.employeeId, employeeId),
+    )).orderBy(desc(separationRecords.id)).limit(1),
+  ]);
+
+  const assignment = assignmentRows[0] ?? null;
+  let position: null | {
+    id: number;
+    code: string;
+    status: string;
+    annualBudget: string;
+    employmentType: string;
+    orgUnitId: number | null;
+    managerEmployeeId: number | null;
+    jobProfileId: number;
+    profile: null | {
+      id: number;
+      title: string;
+      family: string;
+      level: string;
+      grade: string | null;
+    };
+    orgUnit: null | { id: number; name: string; code: string; type: string };
+    manager: null | { id: number; employeeNo: string; firstName: string; lastName: string; title: string };
+    effectiveFrom: string;
+  } = null;
+
+  if (assignment) {
+    const [positionRow] = await db.select().from(positions).where(and(
+      eq(positions.id, assignment.positionId),
+      eq(positions.organizationId, organizationId),
+    )).limit(1);
+
+    if (positionRow) {
+      const [profileRows, unitRows, managerRows] = await Promise.all([
+        db.select({
+          id: jobProfiles.id,
+          title: jobProfiles.title,
+          family: jobProfiles.family,
+          level: jobProfiles.level,
+          grade: jobProfiles.grade,
+        }).from(jobProfiles).where(and(
+          eq(jobProfiles.id, positionRow.jobProfileId),
+          eq(jobProfiles.organizationId, organizationId),
+        )).limit(1),
+        positionRow.orgUnitId
+          ? db.select({
+              id: orgUnits.id,
+              name: orgUnits.name,
+              code: orgUnits.code,
+              type: orgUnits.type,
+            }).from(orgUnits).where(and(
+              eq(orgUnits.id, positionRow.orgUnitId),
+              eq(orgUnits.organizationId, organizationId),
+            )).limit(1)
+          : Promise.resolve([]),
+        positionRow.managerEmployeeId
+          ? db.select({
+              id: employees.id,
+              employeeNo: employees.employeeNo,
+              firstName: employees.firstName,
+              lastName: employees.lastName,
+              title: employees.title,
+            }).from(employees).where(and(
+              eq(employees.id, positionRow.managerEmployeeId),
+              eq(employees.organizationId, organizationId),
+            )).limit(1)
+          : Promise.resolve([]),
+      ]);
+
+      position = {
+        id: positionRow.id,
+        code: positionRow.code,
+        status: positionRow.status,
+        annualBudget: positionRow.annualBudget,
+        employmentType: positionRow.employmentType,
+        orgUnitId: positionRow.orgUnitId,
+        managerEmployeeId: positionRow.managerEmployeeId,
+        jobProfileId: positionRow.jobProfileId,
+        profile: profileRows[0] ?? null,
+        orgUnit: unitRows[0] ?? null,
+        manager: managerRows[0] ?? null,
+        effectiveFrom: String(assignment.effectiveFrom),
+      };
+    }
+  }
+
+  const ruleIds = [...new Set(executionRows.map((row) => row.ruleId))];
+  const ruleRows = ruleIds.length
+    ? await db.select({
+        id: automationRules.id,
+        name: automationRules.name,
+        trigger: automationRules.trigger,
+      }).from(automationRules).where(and(
+        eq(automationRules.organizationId, organizationId),
+        inArray(automationRules.id, ruleIds),
+      ))
+    : [];
+  const ruleById = new Map(ruleRows.map((row) => [row.id, row]));
+
+  const identities = await Promise.all(linkedUsers.map(async (linkedUser) => {
+    const [membershipRows, scimRows, externalRows] = await Promise.all([
+      db.select().from(userOrganizations).where(and(
+        eq(userOrganizations.userId, linkedUser.id),
+        eq(userOrganizations.organizationId, organizationId),
+      )).limit(1),
+      db.select({
+        id: scimIdentities.id,
+        externalId: scimIdentities.externalId,
+        active: scimIdentities.active,
+        lastSyncedAt: scimIdentities.lastSyncedAt,
+      }).from(scimIdentities).where(and(
+        eq(scimIdentities.userId, linkedUser.id),
+        eq(scimIdentities.organizationId, organizationId),
+      )).limit(1),
+      db.select({
+        id: externalIdentities.id,
+        email: externalIdentities.email,
+        lastLoginAt: externalIdentities.lastLoginAt,
+      }).from(externalIdentities).where(and(
+        eq(externalIdentities.userId, linkedUser.id),
+        eq(externalIdentities.organizationId, organizationId),
+      )),
+    ]);
+    const membership = membershipRows[0] ?? null;
+    let permissionSet: null | { id: number; name: string } = null;
+    if (membership) {
+      const [assignmentRows] = await Promise.all([
+        db.select({
+          permissionSetId: userPermissionAssignments.permissionSetId,
+        }).from(userPermissionAssignments).where(and(
+          eq(userPermissionAssignments.organizationId, organizationId),
+          eq(userPermissionAssignments.userOrganizationId, membership.id),
+        )).limit(1),
+      ]);
+      const permissionAssignment = assignmentRows[0] ?? null;
+      if (permissionAssignment) {
+        const [set] = await db.select({
+          id: permissionSets.id,
+          name: permissionSets.name,
+        }).from(permissionSets).where(and(
+          eq(permissionSets.id, permissionAssignment.permissionSetId),
+          eq(permissionSets.organizationId, organizationId),
+        )).limit(1);
+        permissionSet = set ?? null;
+      }
+    }
+
+    return {
+      user: linkedUser,
+      membership: membership ? {
+        id: membership.id,
+        role: membership.role,
+        orgUnitId: membership.orgUnitId,
+        active: membership.active,
+      } : null,
+      permissionSet,
+      scim: scimRows[0] ?? null,
+      externalIdentities: externalRows,
+    };
+  }));
+
+  const activeBenefits = benefitRows.filter((row) => row.status === "active" && !row.endedOn);
+  const assignedAssets = assetRows.filter((row) => row.status === "assigned" && !row.returnedOn);
+  const openTasks = taskRows.filter((row) => !row.done);
+  const latestSeparation = separationRows[0] ?? null;
+
+  return Response.json({
+    employee,
+    position,
+    benefits: benefitRows,
+    assets: assetRows,
+    lifecycle: {
+      tasks: taskRows,
+      automations: executionRows.map((row) => ({
+        ...row,
+        ruleName: ruleById.get(row.ruleId)?.name ?? `Rule #${row.ruleId}`,
+      })),
+      separation: latestSeparation,
+    },
+    identities,
+    summary: {
+      authoritativePosition: Boolean(position),
+      linkedLogin: identities.length > 0,
+      scimManaged: identities.some((identity) => Boolean(identity.scim?.active)),
+      activeBenefits: activeBenefits.length,
+      assignedAssets: assignedAssets.length,
+      openLifecycleTasks: openTasks.length,
+      separationOpen: Boolean(latestSeparation && latestSeparation.status !== "released"),
+    },
+  });
+}
