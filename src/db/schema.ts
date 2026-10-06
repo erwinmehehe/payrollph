@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   date,
@@ -2030,19 +2031,29 @@ export const disciplinaryCases = pgTable("disciplinary_cases", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const jobRequisitions = pgTable("job_requisitions", {
-  id: serial("id").primaryKey(),
-  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  title: varchar("title", { length: 160 }).notNull(),
-  department: varchar("department", { length: 120 }).notNull(),
-  headcount: integer("headcount").notNull().default(1),
-  salaryMin: numeric("salary_min", { precision: 12, scale: 2 }),
-  salaryMax: numeric("salary_max", { precision: 12, scale: 2 }),
-  employmentType: varchar("employment_type", { length: 32 }).notNull().default("Full-time"),
-  status: varchar("status", { length: 32 }).notNull().default("open"), // "open", "interviewing", "filled", "cancelled"
-  description: text("description"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const jobRequisitions = pgTable(
+  "job_requisitions",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    positionId: integer("position_id").references(() => positions.id, { onDelete: "set null" }),
+    title: varchar("title", { length: 160 }).notNull(),
+    department: varchar("department", { length: 120 }).notNull(),
+    headcount: integer("headcount").notNull().default(1),
+    salaryMin: numeric("salary_min", { precision: 12, scale: 2 }),
+    salaryMax: numeric("salary_max", { precision: 12, scale: 2 }),
+    employmentType: varchar("employment_type", { length: 32 }).notNull().default("Full-time"),
+    status: varchar("status", { length: 32 }).notNull().default("open"), // "open", "interviewing", "filled", "cancelled"
+    description: text("description"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("job_requisitions_position_idx").on(table.organizationId, table.positionId),
+    uniqueIndex("job_requisitions_active_position_unique")
+      .on(table.positionId)
+      .where(sql`${table.positionId} is not null and ${table.status} not in ('filled', 'cancelled')`),
+  ],
+);
 
 export const jobApplicants = pgTable("job_applicants", {
   id: serial("id").primaryKey(),
@@ -2056,8 +2067,15 @@ export const jobApplicants = pgTable("job_applicants", {
   resumeUrl: text("resume_url"),
   notes: text("notes"),
   offeredSalary: numeric("offered_salary", { precision: 12, scale: 2 }),
+  hiredEmployeeId: integer("hired_employee_id").references(() => employees.id, { onDelete: "set null" }),
+  hiredByUserId: integer("hired_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  hiredAt: timestamp("hired_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("job_applicants_hired_employee_unique")
+    .on(table.hiredEmployeeId)
+    .where(sql`${table.hiredEmployeeId} is not null`),
+]);
 
 export const separationRecords = pgTable("separation_records", {
   id: serial("id").primaryKey(),
@@ -2283,6 +2301,9 @@ export const positionAssignments = pgTable(
   },
   (table) => [
     uniqueIndex("position_assignments_position_from_unique").on(table.positionId, table.effectiveFrom),
+    uniqueIndex("position_assignments_active_position_unique")
+      .on(table.positionId)
+      .where(sql`${table.effectiveUntil} is null`),
     index("position_assignments_employee_idx").on(table.organizationId, table.employeeId),
   ],
 );
