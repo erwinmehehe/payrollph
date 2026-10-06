@@ -6,6 +6,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { FILING_FORMS, findFilingForm } from "@/lib/filing-evidence";
+import { resolveComplianceLegalEntity } from "@/lib/legal-entity";
 import { listFilingValidations, recordGeneratedFiling } from "@/lib/filing-evidence-store";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 
@@ -18,17 +19,28 @@ export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
-  const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
+  const url = new URL(request.url);
+  const organizationId = Number(url.searchParams.get("organizationId"));
+  const requestedLegalEntityId = Number(url.searchParams.get("legalEntityId") ?? 0);
   if (!Number.isInteger(organizationId) || organizationId <= 0) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
   }
   const denied = await assertOrganizationRole(user.id, organizationId, PEOPLE_PAYROLL_ROLES, DENIED);
   if (denied) return denied;
 
-  return Response.json({
-    forms: FILING_FORMS,
-    records: await listFilingValidations(organizationId),
-  });
+  try {
+    const legalEntity = await resolveComplianceLegalEntity({
+      organizationId,
+      legalEntityId: requestedLegalEntityId || null,
+    });
+    return Response.json({
+      forms: FILING_FORMS,
+      legalEntity: { id: legalEntity.id, code: legalEntity.code, displayName: legalEntity.displayName },
+      records: await listFilingValidations(organizationId, legalEntity.id),
+    });
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "Legal employer could not be resolved." }, { status: 409 });
+  }
 }
 
 /**
@@ -93,6 +105,7 @@ export async function POST(request: Request) {
         resource: run.periodLabel,
         metadata: {
           runId,
+          legalEntityId: record.legalEntityId,
           recordId: record.id,
           fileSha256: record.fileSha256,
           generatorVersion: record.generatorVersion,
