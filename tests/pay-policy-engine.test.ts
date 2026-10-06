@@ -3,11 +3,13 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   HOLIDAY_REST_DAY_PREMIUM_EVENT,
+  NIGHT_DIFFERENTIAL_PREMIUM_EVENT,
   OVERTIME_PREMIUM_EVENT,
   orderedPayPolicyRules,
   payPolicyTrace,
   resolveApplicablePayPolicies,
   resolveHolidayRestDayPremium,
+  resolveNightDifferentialPremium,
   resolveOvertimePremium,
   resolveWorkedTimePremium,
   WORKED_TIME_PREMIUM_EVENT,
@@ -376,7 +378,7 @@ test("payroll engine loads, applies and traces the migrated company-premium fami
   assert.ok(source.includes("companyPremiumExcludedFromPagIbigBase"));
   assert.ok(source.includes("payPolicyExecution"));
   assert.ok(source.includes("...companyPremiumApplications"));
-  assert.ok(source.includes('PAYROLL_RULE_VERSION = "PH-2026.08"'));
+  assert.ok(source.includes('PAYROLL_RULE_VERSION = "PH-2026.09"'));
 });
 
 test("cross-midnight fallback blocks release rather than guessing effective-dated company premiums", () => {
@@ -669,8 +671,8 @@ test("payroll engine traces the holiday/rest-day family and preserves month-end 
   assert.ok(source.includes('traceInputNumber(prior.trace, "companyPremiumExcludedFromSssBase")'));
   assert.ok(source.includes('traceInputNumber(prior.trace, "holidayRestDayPremiumExcludedFromSssBase")'));
   assert.ok(source.includes("HOLIDAY_REST_DAY_PREMIUM_EVENT"));
-  assert.ok(source.includes('PAYROLL_RULE_VERSION = "PH-2026.08"'));
-  assert.ok(source.includes('version: "pay-rules-execution-v3"'));
+  assert.ok(source.includes('PAYROLL_RULE_VERSION = "PH-2026.09"'));
+  assert.ok(source.includes('version: "pay-rules-execution-v4"'));
   assert.ok(source.includes('overtime: "separate-overtime-premium-family"'));
   assert.ok(source.includes('nightDifferential: "statutory-only"'));
 });
@@ -906,8 +908,8 @@ test("payroll engine executes and traces OT overlays while preserving statutory 
   assert.ok(source.includes("overtimePremiumExcludedFromPagIbigBase"));
   assert.ok(source.includes('traceInputNumber(prior.trace, "overtimePremiumExcludedFromSssBase")'));
   assert.ok(source.includes("OVERTIME_PREMIUM_EVENT"));
-  assert.ok(source.includes('PAYROLL_RULE_VERSION = "PH-2026.08"'));
-  assert.ok(source.includes('version: "pay-rules-execution-v3"'));
+  assert.ok(source.includes('PAYROLL_RULE_VERSION = "PH-2026.09"'));
+  assert.ok(source.includes('version: "pay-rules-execution-v4"'));
   assert.ok(source.includes('statutoryEntitlement: "authoritative"'));
   assert.ok(source.includes('authorization: "evidence-only"'));
 });
@@ -916,4 +918,230 @@ test("cross-midnight fallback blocks OT overlays rather than guessing policy dat
   const source = readFileSync("src/lib/payroll-engine.ts", "utf8");
   assert.ok(source.includes("configurable overtime premium was not executed because cross-midnight payable-time allocation is incomplete"));
   assert.ok(source.includes("overtimeRuleCouldApply"));
+});
+
+
+test("night differential premium adds above the statutory 10% without replacing it", () => {
+  const result = resolveNightDifferentialPremium({
+    organizationId: 7,
+    employeeId: 42,
+    orgUnitIds: [9],
+    workDate: "2026-10-05",
+    minutes: 120,
+    hourlyRate: 200,
+    holidayType: "ordinary",
+    restDay: false,
+    overtime: false,
+    statutoryMultiplier: 1,
+    shiftCode: "NIGHT",
+    worksiteId: 3,
+    policies: [policy()],
+    rules: [rule({
+      eventType: NIGHT_DIFFERENTIAL_PREMIUM_EVENT,
+      conditions: {},
+      outcome: {
+        label: "CBA night top-up",
+        additionalDifferentialPercent: 10,
+        taxable: true,
+        includeInSssBase: true,
+        includeInPagIbigBase: false,
+      },
+    })],
+  });
+
+  assert.equal(result.statutoryFloorMode, "additive-only");
+  assert.equal(result.statutoryDifferentialPercent, 10);
+  assert.equal(result.amount, 40);
+  assert.equal(result.taxableAmount, 40);
+  assert.equal(result.sssIncludedAmount, 40);
+  assert.equal(result.pagIbigIncludedAmount, 0);
+  assert.equal(result.applied.length, 1);
+  assert.equal(result.applied[0].statutoryDifferentialPercent, 10);
+  assert.equal(result.applied[0].additionalDifferentialPercent, 10);
+});
+
+test("night differential overlay uses the statutory holiday/rest-day/overtime base", () => {
+  const result = resolveNightDifferentialPremium({
+    organizationId: 7,
+    employeeId: 42,
+    workDate: "2026-02-17",
+    minutes: 60,
+    hourlyRate: 200,
+    holidayType: "special",
+    restDay: true,
+    overtime: true,
+    statutoryMultiplier: 1.95,
+    shiftCode: "GY",
+    worksiteId: 8,
+    policies: [policy()],
+    rules: [rule({
+      eventType: NIGHT_DIFFERENTIAL_PREMIUM_EVENT,
+      conditions: {
+        holidayTypes: ["special"],
+        restDay: true,
+        overtime: true,
+        shiftCodes: ["GY"],
+        worksiteIds: [8],
+      },
+      outcome: {
+        additionalDifferentialPercent: 15,
+        taxable: true,
+        includeInSssBase: true,
+        includeInPagIbigBase: true,
+      },
+    })],
+  });
+
+  assert.equal(result.amount, 58.5);
+  assert.equal(result.applied[0].statutoryMultiplier, 1.95);
+  assert.equal(result.applied[0].overtime, true);
+});
+
+test("night differential conditions distinguish regular night work from night OT", () => {
+  const ruleRow = rule({
+    eventType: NIGHT_DIFFERENTIAL_PREMIUM_EVENT,
+    conditions: { overtime: false },
+    outcome: {
+      additionalDifferentialPercent: 10,
+      taxable: true,
+      includeInSssBase: true,
+      includeInPagIbigBase: true,
+    },
+  });
+  const base = {
+    organizationId: 7,
+    employeeId: 42,
+    workDate: "2026-10-05",
+    minutes: 60,
+    hourlyRate: 100,
+    holidayType: "ordinary" as const,
+    restDay: false,
+    statutoryMultiplier: 1,
+    shiftCode: null,
+    worksiteId: null,
+    policies: [policy()],
+    rules: [ruleRow],
+  };
+
+  assert.equal(resolveNightDifferentialPremium({ ...base, overtime: false }).amount, 10);
+  assert.equal(resolveNightDifferentialPremium({ ...base, overtime: true }).amount, 0);
+});
+
+test("night differential rule precedence shadows the same rule key while distinct top-ups stack", () => {
+  const policies = [
+    policy({ id: 1, code: "ORG-NSD", version: "ORG" }),
+    policy({
+      id: 2,
+      code: "EMP-NSD",
+      version: "EMP",
+      scopeType: "employee",
+      scopeEmployeeId: 42,
+      priority: 1,
+    }),
+  ];
+  const classification = {
+    taxable: true,
+    includeInSssBase: true,
+    includeInPagIbigBase: true,
+  };
+  const result = resolveNightDifferentialPremium({
+    organizationId: 7,
+    employeeId: 42,
+    workDate: "2026-10-05",
+    minutes: 60,
+    hourlyRate: 200,
+    holidayType: "ordinary",
+    restDay: false,
+    overtime: false,
+    statutoryMultiplier: 1,
+    shiftCode: null,
+    worksiteId: null,
+    policies,
+    rules: [
+      rule({
+        id: 1,
+        policyId: 1,
+        ruleKey: "NSD-TOPUP",
+        eventType: NIGHT_DIFFERENTIAL_PREMIUM_EVENT,
+        outcome: { ...classification, additionalDifferentialPercent: 5 },
+      }),
+      rule({
+        id: 2,
+        policyId: 2,
+        ruleKey: "NSD-TOPUP",
+        eventType: NIGHT_DIFFERENTIAL_PREMIUM_EVENT,
+        outcome: { ...classification, additionalDifferentialPercent: 10 },
+      }),
+      rule({
+        id: 3,
+        policyId: 1,
+        ruleKey: "SECOND-NSD-TOPUP",
+        eventType: NIGHT_DIFFERENTIAL_PREMIUM_EVENT,
+        outcome: { ...classification, additionalDifferentialPercent: 5 },
+      }),
+    ],
+  });
+
+  assert.equal(result.amount, 30);
+  assert.deepEqual(result.applied.map((item) => item.ruleId), [2, 3]);
+});
+
+test("night differential premium fails closed without statutory-floor protection or classifications", () => {
+  const base = {
+    organizationId: 7,
+    employeeId: 42,
+    workDate: "2026-10-05",
+    minutes: 60,
+    hourlyRate: 100,
+    holidayType: "ordinary" as const,
+    restDay: false,
+    overtime: false,
+    statutoryMultiplier: 1,
+    shiftCode: null,
+    worksiteId: null,
+    policies: [policy()],
+  };
+
+  assert.throws(() => resolveNightDifferentialPremium({
+    ...base,
+    rules: [rule({
+      eventType: NIGHT_DIFFERENTIAL_PREMIUM_EVENT,
+      statutoryFloorProtected: false,
+      outcome: {
+        additionalDifferentialPercent: 10,
+        taxable: true,
+        includeInSssBase: true,
+        includeInPagIbigBase: true,
+      },
+    })],
+  }), /statutoryFloorProtected=true/);
+
+  assert.throws(() => resolveNightDifferentialPremium({
+    ...base,
+    rules: [rule({
+      eventType: NIGHT_DIFFERENTIAL_PREMIUM_EVENT,
+      outcome: { additionalDifferentialPercent: 10 },
+    })],
+  }), /taxable must be explicitly true or false/);
+});
+
+test("payroll engine executes NSD overlays and carries classifications through month-end reconciliation", () => {
+  const source = readFileSync("src/lib/payroll-engine.ts", "utf8");
+  assert.ok(source.includes("applyNightDifferentialPremium"));
+  assert.ok(source.includes("+ nightDifferentialPremiumPay"));
+  assert.ok(source.includes("nightDifferentialPremiumExcludedFromSssBase"));
+  assert.ok(source.includes("nightDifferentialPremiumExcludedFromPagIbigBase"));
+  assert.ok(source.includes('traceInputNumber(prior.trace, "nightDifferentialPremiumExcludedFromSssBase")'));
+  assert.ok(source.includes("NIGHT_DIFFERENTIAL_PREMIUM_EVENT"));
+  assert.ok(source.includes('PAYROLL_RULE_VERSION = "PH-2026.09"'));
+  assert.ok(source.includes('version: "pay-rules-execution-v4"'));
+  assert.ok(source.includes('nightWindow: "statutory-10pm-to-6am"'));
+  assert.ok(source.includes('statutoryDifferentialPercent: 10'));
+  assert.ok(source.includes("...nightDifferentialPremiumApplications"));
+});
+
+test("cross-midnight fallback blocks NSD overlays rather than guessing policy date or premium class", () => {
+  const source = readFileSync("src/lib/payroll-engine.ts", "utf8");
+  assert.ok(source.includes("configurable night-differential premium was not executed because cross-midnight payable-time allocation is incomplete"));
+  assert.ok(source.includes("nightRuleCouldApply"));
 });

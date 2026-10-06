@@ -1017,3 +1017,294 @@ export function resolveOvertimePremium(input: {
     applied,
   };
 }
+
+
+export const NIGHT_DIFFERENTIAL_PREMIUM_EVENT = "night_differential_premium";
+
+export type AppliedNightDifferentialPremiumRule = {
+  ruleId: number;
+  ruleKey: string;
+  eventType: typeof NIGHT_DIFFERENTIAL_PREMIUM_EVENT;
+  policyId: number;
+  policyCode: string;
+  policyName: string;
+  policyVersion: string;
+  policyKind: string;
+  policyScopeType: PayPolicyScope;
+  workDate: string;
+  minutes: number;
+  hourlyRate: number;
+  holidayType: PayPolicyHolidayType;
+  restDay: boolean;
+  overtime: boolean;
+  shiftCode: string | null;
+  worksiteId: number | null;
+  statutoryMultiplier: number;
+  statutoryDifferentialPercent: number;
+  additionalDifferentialPercent: number;
+  amount: number;
+  label: string;
+  taxable: boolean;
+  includeInSssBase: boolean;
+  includeInPagIbigBase: boolean;
+};
+
+function ruleMatchesNightDifferentialPremium(
+  rule: PayPolicyRuleRecord,
+  context: {
+    holidayType: PayPolicyHolidayType;
+    restDay: boolean;
+    overtime: boolean;
+    shiftCode: string | null;
+    worksiteId: number | null;
+  },
+) {
+  const conditions = asObject(rule.conditions, `Pay rule ${rule.ruleKey} conditions`);
+  assertOnlyKeys(
+    conditions,
+    ["holidayTypes", "restDay", "overtime", "shiftCodes", "worksiteIds"],
+    `Pay rule ${rule.ruleKey} conditions`,
+  );
+
+  if (conditions.holidayTypes != null) {
+    if (!Array.isArray(conditions.holidayTypes) || conditions.holidayTypes.length === 0) {
+      throw new Error(
+        `Pay rule ${rule.ruleKey} holidayTypes must be a non-empty array when supplied.`,
+      );
+    }
+    const holidayTypes = conditions.holidayTypes.map((item) => {
+      if (typeof item !== "string" || !PAY_POLICY_HOLIDAY_TYPES.has(item as PayPolicyHolidayType)) {
+        throw new Error(
+          `Pay rule ${rule.ruleKey} holidayTypes must contain only ordinary, special, regular, or double.`,
+        );
+      }
+      return item as PayPolicyHolidayType;
+    });
+    if (!holidayTypes.includes(context.holidayType)) return false;
+  }
+
+  if (conditions.restDay != null) {
+    if (typeof conditions.restDay !== "boolean") {
+      throw new Error(`Pay rule ${rule.ruleKey} restDay must be true or false when supplied.`);
+    }
+    if (conditions.restDay !== context.restDay) return false;
+  }
+
+  if (conditions.overtime != null) {
+    if (typeof conditions.overtime !== "boolean") {
+      throw new Error(`Pay rule ${rule.ruleKey} overtime must be true or false when supplied.`);
+    }
+    if (conditions.overtime !== context.overtime) return false;
+  }
+
+  if (conditions.shiftCodes != null) {
+    if (!Array.isArray(conditions.shiftCodes) || conditions.shiftCodes.length === 0) {
+      throw new Error(`Pay rule ${rule.ruleKey} shiftCodes must be a non-empty array when supplied.`);
+    }
+    const shiftCodes = conditions.shiftCodes.map((item) => {
+      if (typeof item !== "string" || !item.trim()) {
+        throw new Error(`Pay rule ${rule.ruleKey} shiftCodes must contain non-empty strings.`);
+      }
+      return normalizeShiftCode(item);
+    });
+    if (!context.shiftCode) {
+      throw new Error(
+        `Pay rule ${rule.ruleKey} requires shift-code evidence, but payroll could not resolve a shift code.`,
+      );
+    }
+    if (!shiftCodes.includes(normalizeShiftCode(context.shiftCode))) return false;
+  }
+
+  if (conditions.worksiteIds != null) {
+    if (!Array.isArray(conditions.worksiteIds) || conditions.worksiteIds.length === 0) {
+      throw new Error(`Pay rule ${rule.ruleKey} worksiteIds must be a non-empty array when supplied.`);
+    }
+    const worksiteIds = conditions.worksiteIds.map((item) => {
+      const id = Number(item);
+      if (!Number.isInteger(id) || id <= 0) {
+        throw new Error(`Pay rule ${rule.ruleKey} worksiteIds must contain positive integer IDs.`);
+      }
+      return id;
+    });
+    if (context.worksiteId == null) {
+      throw new Error(
+        `Pay rule ${rule.ruleKey} requires worksite evidence, but payroll could not resolve a worksite.`,
+      );
+    }
+    if (!worksiteIds.includes(context.worksiteId)) return false;
+  }
+
+  return true;
+}
+
+function parseNightDifferentialPremiumOutcome(rule: PayPolicyRuleRecord) {
+  const outcome = asObject(rule.outcome, `Pay rule ${rule.ruleKey} outcome`);
+  assertOnlyKeys(
+    outcome,
+    [
+      "label",
+      "additionalDifferentialPercent",
+      "taxable",
+      "includeInSssBase",
+      "includeInPagIbigBase",
+    ],
+    `Pay rule ${rule.ruleKey} outcome`,
+  );
+
+  const additionalDifferentialPercent = positiveFiniteNumber(
+    outcome.additionalDifferentialPercent,
+    `Pay rule ${rule.ruleKey} additionalDifferentialPercent`,
+    500,
+  );
+  if (additionalDifferentialPercent <= 0) {
+    throw new Error(
+      `Pay rule ${rule.ruleKey} additionalDifferentialPercent must be greater than zero.`,
+    );
+  }
+
+  const label = typeof outcome.label === "string" && outcome.label.trim()
+    ? outcome.label.trim().slice(0, 160)
+    : rule.ruleKey;
+
+  return {
+    label,
+    additionalDifferentialPercent,
+    taxable: requiredBoolean(outcome.taxable, `Pay rule ${rule.ruleKey} taxable`),
+    includeInSssBase: requiredBoolean(
+      outcome.includeInSssBase,
+      `Pay rule ${rule.ruleKey} includeInSssBase`,
+    ),
+    includeInPagIbigBase: requiredBoolean(
+      outcome.includeInPagIbigBase,
+      `Pay rule ${rule.ruleKey} includeInPagIbigBase`,
+    ),
+  };
+}
+
+/**
+ * Executes employer/CBA night-differential top-ups only for payable minutes
+ * already classified inside the statutory 10 PM–6 AM night window.
+ *
+ * The statutory 10% differential remains authoritative and is calculated
+ * separately by payroll. This family can only add an additional percentage of
+ * the same holiday/rest-day/overtime-adjusted hourly base.
+ */
+export function resolveNightDifferentialPremium(input: {
+  organizationId: number;
+  employeeId: number;
+  orgUnitIds?: number[];
+  workDate: string;
+  minutes: number;
+  hourlyRate: number;
+  holidayType: PayPolicyHolidayType;
+  restDay: boolean;
+  overtime: boolean;
+  statutoryMultiplier: number;
+  shiftCode: string | null;
+  worksiteId: number | null;
+  policies: PayPolicyRecord[];
+  rules: PayPolicyRuleRecord[];
+}) {
+  const minutes = Math.max(0, Math.trunc(input.minutes));
+  const hourlyRate = Number(input.hourlyRate);
+  const statutoryMultiplier = Number(input.statutoryMultiplier);
+  if (!Number.isFinite(hourlyRate) || hourlyRate < 0) {
+    throw new Error("Night-differential premium hourlyRate must be a non-negative finite number.");
+  }
+  if (!Number.isFinite(statutoryMultiplier) || statutoryMultiplier < 1 || statutoryMultiplier > 10) {
+    throw new Error("Night-differential premium statutoryMultiplier must be between 1 and 10.");
+  }
+  if (!PAY_POLICY_HOLIDAY_TYPES.has(input.holidayType)) {
+    throw new Error(`Unsupported holiday type "${input.holidayType}".`);
+  }
+
+  const policies = resolveApplicablePayPolicies({
+    organizationId: input.organizationId,
+    employeeId: input.employeeId,
+    orgUnitIds: input.orgUnitIds,
+    asOf: input.workDate,
+    policies: input.policies,
+  });
+  const policyById = new Map(policies.map((policy) => [policy.id, policy]));
+  const ordered = orderedPayPolicyRules({ policies, rules: input.rules })
+    .filter((rule) => rule.eventType === NIGHT_DIFFERENTIAL_PREMIUM_EVENT);
+
+  const claimedRuleKeys = new Set<string>();
+  const applied: AppliedNightDifferentialPremiumRule[] = [];
+
+  for (const rule of ordered) {
+    if (!rule.statutoryFloorProtected) {
+      throw new Error(
+        `Executable pay rule ${rule.ruleKey} must keep statutoryFloorProtected=true.`,
+      );
+    }
+
+    const matches = ruleMatchesNightDifferentialPremium(rule, {
+      holidayType: input.holidayType,
+      restDay: input.restDay,
+      overtime: input.overtime,
+      shiftCode: input.shiftCode,
+      worksiteId: input.worksiteId,
+    });
+    if (!matches) continue;
+    if (claimedRuleKeys.has(rule.ruleKey)) continue;
+    claimedRuleKeys.add(rule.ruleKey);
+
+    const policy = policyById.get(rule.policyId);
+    if (!policy) continue;
+    const outcome = parseNightDifferentialPremiumOutcome(rule);
+    const amount = roundMoney(
+      (minutes / 60)
+        * hourlyRate
+        * statutoryMultiplier
+        * (outcome.additionalDifferentialPercent / 100),
+    );
+    if (amount <= 0 || minutes <= 0) continue;
+
+    applied.push({
+      ruleId: rule.id,
+      ruleKey: rule.ruleKey,
+      eventType: NIGHT_DIFFERENTIAL_PREMIUM_EVENT,
+      policyId: policy.id,
+      policyCode: policy.code,
+      policyName: policy.name,
+      policyVersion: policy.version,
+      policyKind: policy.policyKind,
+      policyScopeType: policy.scopeType,
+      workDate: input.workDate,
+      minutes,
+      hourlyRate,
+      holidayType: input.holidayType,
+      restDay: input.restDay,
+      overtime: input.overtime,
+      shiftCode: input.shiftCode,
+      worksiteId: input.worksiteId,
+      statutoryMultiplier,
+      statutoryDifferentialPercent: 10,
+      additionalDifferentialPercent: outcome.additionalDifferentialPercent,
+      amount,
+      label: outcome.label,
+      taxable: outcome.taxable,
+      includeInSssBase: outcome.includeInSssBase,
+      includeInPagIbigBase: outcome.includeInPagIbigBase,
+    });
+  }
+
+  return {
+    version: "night-differential-premium-v1" as const,
+    statutoryFloorMode: "additive-only" as const,
+    statutoryDifferentialPercent: 10 as const,
+    policies: payPolicyTrace(policies),
+    amount: roundMoney(applied.reduce((sum, item) => sum + item.amount, 0)),
+    taxableAmount: roundMoney(
+      applied.reduce((sum, item) => sum + (item.taxable ? item.amount : 0), 0),
+    ),
+    sssIncludedAmount: roundMoney(
+      applied.reduce((sum, item) => sum + (item.includeInSssBase ? item.amount : 0), 0),
+    ),
+    pagIbigIncludedAmount: roundMoney(
+      applied.reduce((sum, item) => sum + (item.includeInPagIbigBase ? item.amount : 0), 0),
+    ),
+    applied,
+  };
+}
