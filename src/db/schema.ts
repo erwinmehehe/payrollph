@@ -3058,6 +3058,49 @@ export const hcmLifecycleNotificationEvents = pgTable(
   ],
 );
 
+export const hcmLifecyclePolicies = pgTable(
+  "hcm_lifecycle_policies",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    version: integer("version").notNull().default(1),
+    actionWindowDays: integer("action_window_days").notNull().default(30),
+    reminderDays: jsonb("reminder_days").notNull().default([30, 14, 7, 1, 0]),
+    overdueEscalationDays: jsonb("overdue_escalation_days").notNull().default([1, 5]),
+    requireManagerReviewForProbation: boolean("require_manager_review_for_probation").notNull().default(false),
+    requireDecisionRationaleNote: boolean("require_decision_rationale_note").notNull().default(false),
+    requireNonRenewalAttachment: boolean("require_non_renewal_attachment").notNull().default(false),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    updatedByName: varchar("updated_by_name", { length: 120 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hcm_lifecycle_policies_org_unique").on(table.organizationId),
+  ],
+);
+
+export const hcmLifecyclePolicyEvents = pgTable(
+  "hcm_lifecycle_policy_events",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    policyId: integer("policy_id").notNull().references(() => hcmLifecyclePolicies.id, { onDelete: "restrict" }),
+    eventType: varchar("event_type", { length: 32 }).notNull(),
+    actorUserId: integer("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    actorName: varchar("actor_name", { length: 120 }).notNull(),
+    fromVersion: integer("from_version"),
+    toVersion: integer("to_version").notNull(),
+    beforeSnapshot: jsonb("before_snapshot"),
+    afterSnapshot: jsonb("after_snapshot").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("hcm_lifecycle_policy_events_org_idx").on(table.organizationId, table.createdAt),
+    index("hcm_lifecycle_policy_events_policy_idx").on(table.policyId, table.createdAt),
+  ],
+);
+
 export const workerEffectiveChanges = pgTable(
   "worker_effective_changes",
   {

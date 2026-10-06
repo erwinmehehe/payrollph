@@ -12,6 +12,7 @@ import {
 import { PEOPLE_ADMIN_ROLES, roleAllowed, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
 import { loadEmploymentLifecycleReadiness } from "@/lib/hcm-lifecycle-readiness-server";
 import { philippineBusinessDate } from "@/lib/hcm-employment-terms";
+import { DEFAULT_HCM_LIFECYCLE_POLICY, type HcmLifecyclePolicyConfig } from "@/lib/hcm-lifecycle-policy";
 import { queueMessage } from "@/lib/mailer";
 
 type LifecycleRow = Awaited<ReturnType<typeof loadEmploymentLifecycleReadiness>>["rows"][number];
@@ -39,18 +40,42 @@ export type LifecycleSignal = {
   dueDate: string | null;
 };
 
-function milestoneForDays(daysUntil: number | null) {
-  if (daysUntil == null) return { stage: "unscheduled", escalationStage: 0, severity: "info" as const };
-  if (daysUntil > 14) return { stage: "t30", escalationStage: 0, severity: "info" as const };
-  if (daysUntil > 7) return { stage: "t14", escalationStage: 0, severity: "info" as const };
-  if (daysUntil > 1) return { stage: "t7", escalationStage: 0, severity: "warning" as const };
-  if (daysUntil === 1) return { stage: "t1", escalationStage: 1, severity: "warning" as const };
-  if (daysUntil === 0) return { stage: "due", escalationStage: 1, severity: "blocker" as const };
-  if (daysUntil >= -4) return { stage: "overdue", escalationStage: 2, severity: "blocker" as const };
-  return { stage: "overdue_escalated", escalationStage: 3, severity: "blocker" as const };
+function milestoneForDays(
+  daysUntil: number | null,
+  policy: HcmLifecyclePolicyConfig,
+) {
+  if (daysUntil == null) {
+    return { stage: "unscheduled", escalationStage: 0, severity: "info" as const };
+  }
+  if (daysUntil > 0) {
+    const threshold = policy.reminderDays
+      .filter((day) => day > 0 && day >= daysUntil)
+      .sort((left, right) => left - right)[0];
+    if (threshold == null) return null;
+    return {
+      stage: `t${threshold}`,
+      escalationStage: threshold <= 1 ? 1 : 0,
+      severity: threshold <= 7 ? "warning" as const : "info" as const,
+    };
+  }
+  if (daysUntil === 0) {
+    return { stage: "due", escalationStage: 1, severity: "blocker" as const };
+  }
+  const overdueDays = Math.abs(daysUntil);
+  const [firstEscalation, secondEscalation] = policy.overdueEscalationDays;
+  if (overdueDays >= secondEscalation) {
+    return { stage: "overdue_escalated", escalationStage: 3, severity: "blocker" as const };
+  }
+  if (overdueDays >= firstEscalation) {
+    return { stage: "overdue", escalationStage: 2, severity: "blocker" as const };
+  }
+  return { stage: "overdue_pending", escalationStage: 1, severity: "warning" as const };
 }
 
-export function lifecycleSignalForRow(row: LifecycleRow): LifecycleSignal | null {
+export function lifecycleSignalForRow(
+  row: LifecycleRow,
+  policy: HcmLifecyclePolicyConfig = DEFAULT_HCM_LIFECYCLE_POLICY,
+): LifecycleSignal | null {
   if (row.action === "none" || row.action === "await_effective_date") return null;
 
   if (row.action === "configure_terms") {
@@ -69,7 +94,8 @@ export function lifecycleSignalForRow(row: LifecycleRow): LifecycleSignal | null
   }
 
   if (row.action === "record_decision" && row.term) {
-    const milestone = milestoneForDays(row.daysUntil);
+    const milestone = milestoneForDays(row.daysUntil, policy);
+    if (!milestone) return null;
     return {
       sourceType: "employment_terms",
       sourceId: row.term.id,
@@ -84,11 +110,12 @@ export function lifecycleSignalForRow(row: LifecycleRow): LifecycleSignal | null
 
   if ((row.action === "review_decision" || row.action === "retry_decision") && row.decision) {
     const overdueDays = row.daysUntil == null ? null : -row.daysUntil;
+    const [firstEscalation, secondEscalation] = policy.overdueEscalationDays;
     const escalationStage = row.action === "retry_decision"
       ? 2
-      : overdueDays != null && overdueDays >= 5
+      : overdueDays != null && overdueDays >= secondEscalation
         ? 3
-        : overdueDays != null && overdueDays > 0
+        : overdueDays != null && overdueDays >= firstEscalation
           ? 2
           : 1;
     return {
@@ -112,7 +139,8 @@ export function lifecycleSignalForRow(row: LifecycleRow): LifecycleSignal | null
   }
 
   if ((row.action === "start_separation" || row.action === "continue_separation") && row.decision) {
-    const milestone = milestoneForDays(row.daysUntil);
+    const milestone = milestoneForDays(row.daysUntil, policy);
+    if (!milestone) return null;
     const started = row.action === "continue_separation";
     return {
       sourceType: "separation_handoff",
@@ -350,7 +378,7 @@ async function syncOrganizationLifecycleTasks(
   const touched: LifecycleTask[] = [];
 
   for (const row of readiness.rows) {
-    const signal = lifecycleSignalForRow(row);
+    const signal = lifecycleSignalForRow(row, readiness.policy);
     if (!signal) continue;
     detected.add(signal.sourceKey);
 

@@ -21,6 +21,7 @@ import { HcmCapabilitiesPanel } from "@/components/hcm-capabilities-panel";
 import { HcmEmploymentLifecycleActionCenter } from "@/components/hcm-employment-lifecycle-action-center";
 import { HcmEmploymentLifecycleWorker } from "@/components/hcm-employment-lifecycle-worker";
 import { HcmLifecycleNotificationInbox } from "@/components/hcm-lifecycle-notification-inbox";
+import { HcmLifecyclePolicyPanel } from "@/components/hcm-lifecycle-policy-panel";
 import type { DashboardData, Employee } from "./types";
 import { REST_DAY_NAMES } from "@/lib/payroll-rules";
 import { Avatar, EmptyState, PageHeading, Status, formatDate, formatTimeOnly, money } from "./ui";
@@ -429,6 +430,10 @@ export function PeopleView({
       )}
 
       {canManage && <ImportPanel organizationId={data.selectedOrganization.id} onImported={onRefresh} />}
+
+      {canManageLifecycle && (
+        <HcmLifecyclePolicyPanel organizationId={data.selectedOrganization.id} />
+      )}
 
       {canManageLifecycle && (
         <HcmEmploymentLifecycleActionCenter

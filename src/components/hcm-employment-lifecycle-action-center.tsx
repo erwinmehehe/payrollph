@@ -47,6 +47,9 @@ type LifecycleRow = {
 
 type LifecyclePayload = {
   today: string;
+  policy: {
+    actionWindowDays: number;
+  };
   summary: {
     total: number;
     actionRequired: number;
@@ -140,7 +143,7 @@ export function HcmEmploymentLifecycleActionCenter({
               <div className="stat-icon blue"><CalendarClock size={18} /></div>
               <p>UPCOMING</p>
               <h3>{payload.summary.upcoming}</h3>
-              <span>Within 30 days</span>
+              <span>Within {payload.policy.actionWindowDays} days</span>
             </article>
             <article className="stat-card">
               <div className="stat-icon purple"><UserRoundCog size={18} /></div>

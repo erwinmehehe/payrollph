@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
+import { DEFAULT_HCM_LIFECYCLE_POLICY } from "@/lib/hcm-lifecycle-policy";
 import {
   documents,
   employees,
@@ -9,6 +10,7 @@ import {
   hcmEmploymentDecisionNotes,
   hcmEmploymentTermDecisions,
   hcmEmploymentTerms,
+  hcmLifecyclePolicies,
 } from "@/db/schema";
 
 export const EMPLOYMENT_DECISION_NOTE_KINDS = [
@@ -317,6 +319,38 @@ export async function approveEmploymentDecisionWithEvidence(input: {
       ))
       .orderBy(asc(hcmEmploymentDecisionDocuments.id));
 
+    const [lifecyclePolicy] = await tx.select().from(hcmLifecyclePolicies)
+      .where(eq(hcmLifecyclePolicies.organizationId, input.organizationId))
+      .limit(1);
+    const policy = lifecyclePolicy ?? DEFAULT_HCM_LIFECYCLE_POLICY;
+
+    if (
+      policy.requireManagerReviewForProbation
+      && term.termKind === "probationary"
+      && !notes.some((note) => note.noteKind === "manager_review")
+    ) {
+      throw new DecisionEvidenceApprovalError(
+        "Organization lifecycle policy requires a manager-review note before approving a probation decision.",
+      );
+    }
+    if (
+      policy.requireDecisionRationaleNote
+      && !notes.some((note) => note.noteKind === "decision_rationale")
+    ) {
+      throw new DecisionEvidenceApprovalError(
+        "Organization lifecycle policy requires a decision-rationale note before approval.",
+      );
+    }
+    if (
+      policy.requireNonRenewalAttachment
+      && decision.decisionKind === "non_renew"
+      && attachments.length === 0
+    ) {
+      throw new DecisionEvidenceApprovalError(
+        "Organization lifecycle policy requires at least one evidence attachment before approving a non-renewal.",
+      );
+    }
+
     if (attachments.some(({ document }) => !document.scannedClean) && process.env.NODE_ENV === "production") {
       throw new DecisionEvidenceApprovalError(
         "All attached decision evidence must pass malware scanning before approval.",
@@ -356,6 +390,12 @@ export async function approveEmploymentDecisionWithEvidence(input: {
         attachmentCount: attachments.length,
         effectiveDate: String(scheduled.effectiveDate),
         decisionKind: scheduled.decisionKind,
+        lifecyclePolicyVersion: lifecyclePolicy?.version ?? 0,
+        lifecyclePolicyRequirements: {
+          managerReviewForProbation: policy.requireManagerReviewForProbation,
+          decisionRationaleNote: policy.requireDecisionRationaleNote,
+          nonRenewalAttachment: policy.requireNonRenewalAttachment,
+        },
       },
       createdAt: now,
     });

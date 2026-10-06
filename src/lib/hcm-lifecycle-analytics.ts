@@ -192,6 +192,11 @@ export async function buildEmploymentLifecycleGovernanceReport(input: {
       `Decision activity from ${windowStart.toISOString().slice(0, 10)} through ${now.toISOString().slice(0, 10)}; current-state metrics are as of ${readiness.today}.`,
     ],
     [
+      "Lifecycle policy",
+      readiness.policy.persisted ? `v${readiness.policy.version}` : "System defaults",
+      `Action window ${readiness.policy.actionWindowDays} days · reminders ${readiness.policy.reminderDays.join("/")} · overdue escalation ${readiness.policy.overdueEscalationDays.join("/")} days.`,
+    ],
+    [
       "Workers with governed terms",
       String(summary.governedWorkers),
       "Active workers currently covered by the governed employment-term ledger.",
@@ -204,7 +209,7 @@ export async function buildEmploymentLifecycleGovernanceReport(input: {
     [
       "Lifecycle upcoming",
       String(summary.upcoming),
-      "Current lifecycle review/end dates inside the 30-day action window.",
+      `Current lifecycle review/end dates inside the ${readiness.policy.actionWindowDays}-day action window.`,
     ],
     [
       "Workers without governed terms",
