@@ -25,6 +25,7 @@ import {
   requireSensitiveActionMfa,
 } from "@/lib/security-request";
 import { worksiteAssignmentOverlaps } from "@/lib/workforce-worksite";
+import { markTimesheetsStaleForEmployeeRange } from "@/lib/workforce-timesheet-server";
 
 export const dynamic = "force-dynamic";
 
@@ -409,12 +410,15 @@ export async function POST(request: Request) {
         return created;
       });
       if (!updated) return Response.json({ error: "Work arrangement dates overlap an existing record." }, { status: 409 });
+      const stale = await markTimesheetsStaleForEmployeeRange({
+        organizationId, employeeId, startDate: effectiveFrom, endDate: effectiveUntil,
+      });
       await recordAuditEvent({
         organizationId, actor: user.name, action: "HCM work arrangement set",
         resource: employeeCheck.employee!.employeeNo + " · " + mode,
-        metadata: { arrangementId: updated.id, employeeId, mode, effectiveFrom, effectiveUntil, reason },
+        metadata: { arrangementId: updated.id, employeeId, mode, effectiveFrom, effectiveUntil, reason, staleTimesheetIds: stale.map((row) => row.id) },
       });
-      return Response.json({ arrangement: updated }, { status: 201 });
+      return Response.json({ arrangement: updated, staleTimesheetIds: stale.map((row) => row.id) }, { status: 201 });
     }
 
     if (action === "authorize_site") {
@@ -446,12 +450,15 @@ export async function POST(request: Request) {
         return row;
       });
       if (!created) return Response.json({ error: "An authorization overlaps this worker and worksite." }, { status: 409 });
+      const stale = await markTimesheetsStaleForEmployeeRange({
+        organizationId, employeeId, startDate: effectiveFrom, endDate: effectiveUntil,
+      });
       await recordAuditEvent({
         organizationId, actor: user.name, action: "HCM secondary worksite authorized",
         resource: employeeCheck.employee!.employeeNo + " · " + siteCheck.worksite!.code,
-        metadata: { authorizationId: created.id, employeeId, worksiteId, effectiveFrom, effectiveUntil, reason },
+        metadata: { authorizationId: created.id, employeeId, worksiteId, effectiveFrom, effectiveUntil, reason, staleTimesheetIds: stale.map((row) => row.id) },
       });
-      return Response.json({ authorization: created }, { status: 201 });
+      return Response.json({ authorization: created, staleTimesheetIds: stale.map((row) => row.id) }, { status: 201 });
     }
 
     const authorizationId = Number(body.authorizationId);
@@ -470,12 +477,15 @@ export async function POST(request: Request) {
     }
     const [ended] = await db.update(hcmWorksiteAuthorizations).set({ effectiveUntil: endDate })
       .where(and(eq(hcmWorksiteAuthorizations.id, authorizationId), eq(hcmWorksiteAuthorizations.organizationId, organizationId))).returning();
+    const stale = await markTimesheetsStaleForEmployeeRange({
+      organizationId, employeeId, startDate: addDays(endDate, 1),
+    });
     await recordAuditEvent({
       organizationId, actor: user.name, action: "HCM secondary worksite authorization ended",
       resource: employeeCheck.employee!.employeeNo,
-      metadata: { authorizationId, employeeId, worksiteId: ended.worksiteId, endDate },
+      metadata: { authorizationId, employeeId, worksiteId: ended.worksiteId, endDate, staleTimesheetIds: stale.map((row) => row.id) },
     });
-    return Response.json({ authorization: ended });
+    return Response.json({ authorization: ended, staleTimesheetIds: stale.map((row) => row.id) });
   }
 
   if (action === "assign_employee") {
