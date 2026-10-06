@@ -328,8 +328,14 @@ export async function POST(
 
   const gate = await evidenceAccess(user, organizationId, decisionId);
   if ("error" in gate) return gate.error;
-  if (gate.managerReviewOnly && noteKind !== "manager_review") {
-    return Response.json({ error: "Managers can contribute manager-review notes only." }, { status: 403 });
+  if (noteKind === "manager_review") {
+    return Response.json({
+      error: "Manager review is now a governed attestation tied to the worker's current reporting line. Use the manager-attestation endpoint.",
+      code: "USE_MANAGER_ATTESTATION",
+    }, { status: 409 });
+  }
+  if (gate.managerReviewOnly) {
+    return Response.json({ error: "Managers contribute through governed manager attestations rather than free-form review notes." }, { status: 403 });
   }
 
   const mfaDenied = requireSensitiveActionMfa(user);
