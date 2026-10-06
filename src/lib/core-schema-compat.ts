@@ -185,7 +185,7 @@ export async function ensureCoreCompatibilitySchema() {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v16'))");
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v17'))");
 
       await client.query(`
         ALTER TABLE organizations
@@ -1373,6 +1373,58 @@ export async function ensureCoreCompatibilitySchema() {
       await client.query(`
         CREATE UNIQUE INDEX IF NOT EXISTS managed_payroll_run_approval_unique
         ON managed_payroll_run_approvals(payroll_run_id)
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS overtime_budget_policies (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          org_unit_id integer NOT NULL REFERENCES org_units(id) ON DELETE CASCADE,
+          manager_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          scope_key varchar(120) NOT NULL,
+          month_start date NOT NULL,
+          budget_minutes integer NOT NULL DEFAULT 0,
+          enforcement_mode varchar(24) NOT NULL DEFAULT 'advisory',
+          active boolean NOT NULL DEFAULT true,
+          updated_by varchar(120) NOT NULL DEFAULT 'System',
+          updated_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS overtime_budget_scope_month_unique
+        ON overtime_budget_policies(organization_id, scope_key, month_start)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS overtime_budget_org_month_idx
+        ON overtime_budget_policies(organization_id, month_start)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS overtime_budget_org_unit_idx
+        ON overtime_budget_policies(organization_id, org_unit_id)
+      `);
+      await client.query(`
+        DO $compat$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'overtime_budget_minutes_check'
+          ) THEN
+            ALTER TABLE overtime_budget_policies
+              ADD CONSTRAINT overtime_budget_minutes_check
+              CHECK (budget_minutes >= 0 AND budget_minutes <= 1000000);
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'overtime_budget_mode_check'
+          ) THEN
+            ALTER TABLE overtime_budget_policies
+              ADD CONSTRAINT overtime_budget_mode_check
+              CHECK (enforcement_mode IN ('advisory', 'blocking'));
+          END IF;
+        END
+        $compat$;
       `);
 
       await client.query(`
