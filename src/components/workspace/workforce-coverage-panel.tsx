@@ -20,11 +20,20 @@ type Worksite = {
   active: boolean;
 };
 
+type JobProfile = {
+  id: number;
+  title: string;
+  family: string;
+  level: string;
+  active: boolean;
+};
+
 type Requirement = {
   id: number;
   worksiteId: number;
   workDate: string;
   shiftDefinitionId: number;
+  jobProfileId: number | null;
   requiredHeadcount: number;
   notes: string | null;
 };
@@ -34,6 +43,7 @@ type Coverage = {
   worksiteId: number;
   workDate: string;
   shiftDefinitionId: number;
+  jobProfileId: number | null;
   requiredHeadcount: number;
   scheduledHeadcount: number;
   unavailableScheduledHeadcount: number;
@@ -59,6 +69,7 @@ type OpenShift = {
   worksiteId: number;
   workDate: string;
   shiftDefinitionId: number;
+  jobProfileId: number | null;
   slots: number;
   status: string;
   sourceRequirementId: number | null;
@@ -81,6 +92,7 @@ type LaborVarianceRow = {
   worksiteId: number;
   workDate: string;
   shiftDefinitionId: number;
+  jobProfileId: number | null;
   requiredHeadcount: number;
   scheduledHeadcount: number;
   actualHeadcount: number;
@@ -131,12 +143,14 @@ type LaborVariance = {
     missingPayProfileEmployeeIds: number[];
     invalidPayProfileEmployeeIds: number[];
     unmatchedPunchRows: number;
+    roleEvidenceIssues: string[];
   };
 };
 
 type Payload = {
   shifts: Shift[];
   worksites: Worksite[];
+  jobProfiles: JobProfile[];
   requirements: Requirement[];
   coverage: Coverage[];
   availability: Availability[];
@@ -196,6 +210,7 @@ export function WorkforceCoveragePanel({
   const [requirementDate, setRequirementDate] = useState(localToday());
   const [requirementWorksiteId, setRequirementWorksiteId] = useState("");
   const [requirementShiftId, setRequirementShiftId] = useState("");
+  const [requirementJobProfileId, setRequirementJobProfileId] = useState("");
   const [requiredHeadcount, setRequiredHeadcount] = useState("1");
 
   const [availabilityEmployeeId, setAvailabilityEmployeeId] = useState(data.employees[0]?.id ?? 0);
@@ -267,6 +282,7 @@ export function WorkforceCoveragePanel({
     await mutate("create_requirement", {
       worksiteId: Number(requirementWorksiteId),
       shiftDefinitionId: Number(requirementShiftId),
+      jobProfileId: requirementJobProfileId ? Number(requirementJobProfileId) : null,
       workDate: requirementDate,
       requiredHeadcount: Number(requiredHeadcount),
     }, "Staffing requirement saved.");
@@ -313,6 +329,10 @@ export function WorkforceCoveragePanel({
     () => new Map((payload?.shifts ?? []).map((shift) => [shift.id, shift])),
     [payload],
   );
+  const jobProfileById = useMemo(
+    () => new Map((payload?.jobProfiles ?? []).map((profile) => [profile.id, profile])),
+    [payload],
+  );
   const employeeById = useMemo(
     () => new Map(data.employees.map((employee) => [employee.id, employee])),
     [data.employees],
@@ -334,7 +354,7 @@ export function WorkforceCoveragePanel({
           <div className="card-kicker">Coverage operations</div>
           <h2>Staff the work, not just the calendar.</h2>
           <p>
-            Set minimum staffing by worksite and shift, account for employee availability, expose roster gaps, and turn uncovered slots into auditable open shifts.
+            Set minimum staffing by worksite, shift, and job profile; account for employee availability, expose role-specific roster gaps, and turn uncovered slots into auditable open shifts.
           </p>
         </div>
         <button className="secondary-button" onClick={() => void load()} disabled={loading}>
@@ -384,6 +404,15 @@ export function WorkforceCoveragePanel({
             </div>
           )}
 
+          {labor.quality.roleEvidenceIssues.length > 0 && (
+            <div className="notice notice-amber" style={{ marginBottom: 14 }}>
+              <CircleAlert size={15} />
+              <span>
+                <strong>Role evidence needs review.</strong> {labor.quality.roleEvidenceIssues.length} employee-day record(s) have ambiguous active job-profile evidence and are excluded from role-specific coverage until position assignments are resolved.
+              </span>
+            </div>
+          )}
+
           {(labor.summary.unmatchedActualHours > 0 || labor.summary.scheduledOutsideRequirementHours > 0) && (
             <div className="notice notice-amber" style={{ marginBottom: 14 }}>
               <CircleAlert size={15} />
@@ -412,7 +441,7 @@ export function WorkforceCoveragePanel({
                     <td><strong>{row.workDate}</strong></td>
                     <td>
                       <strong>{worksiteById.get(row.worksiteId)?.name ?? `Site #${row.worksiteId}`}</strong>
-                      <div className="id">{shiftById.get(row.shiftDefinitionId)?.code ?? `Shift #${row.shiftDefinitionId}`}</div>
+                      <div className="id">{shiftById.get(row.shiftDefinitionId)?.code ?? `Shift #${row.shiftDefinitionId}`} · {row.jobProfileId ? jobProfileById.get(row.jobProfileId)?.title ?? `Profile #${row.jobProfileId}` : "Any role"}</div>
                     </td>
                     <td><strong>{row.requiredHeadcount}</strong><div className="id">{hours(row.requiredHours)}</div></td>
                     <td><strong>{row.scheduledHeadcount}</strong><div className="id">{hours(row.scheduledHours)} · {row.scheduledCoveragePercent}%</div></td>
@@ -451,6 +480,13 @@ export function WorkforceCoveragePanel({
                 Shift
                 <select value={requirementShiftId} onChange={(event) => setRequirementShiftId(event.target.value)}>
                   {(payload?.shifts ?? []).map((shift) => <option key={shift.id} value={shift.id}>{shift.code} · {shift.name}</option>)}
+                </select>
+              </label>
+              <label>
+                Job profile
+                <select value={requirementJobProfileId} onChange={(event) => setRequirementJobProfileId(event.target.value)}>
+                  <option value="">Any job profile</option>
+                  {(payload?.jobProfiles ?? []).map((profile) => <option key={profile.id} value={profile.id}>{profile.title} · {profile.level}</option>)}
                 </select>
               </label>
               <label>Required headcount<input type="number" min={1} max={10000} value={requiredHeadcount} onChange={(event) => setRequiredHeadcount(event.target.value)} /></label>
@@ -519,7 +555,7 @@ export function WorkforceCoveragePanel({
                 <td><strong>{row.workDate}</strong></td>
                 <td>
                   <strong>{worksiteById.get(row.worksiteId)?.name ?? `Site #${row.worksiteId}`}</strong>
-                  <div className="id">{shiftById.get(row.shiftDefinitionId)?.code ?? `Shift #${row.shiftDefinitionId}`}</div>
+                  <div className="id">{shiftById.get(row.shiftDefinitionId)?.code ?? `Shift #${row.shiftDefinitionId}`} · {row.jobProfileId ? jobProfileById.get(row.jobProfileId)?.title ?? `Profile #${row.jobProfileId}` : "Any role"}</div>
                 </td>
                 <td>{row.requiredHeadcount}</td>
                 <td>{row.availableScheduledHeadcount}</td>
@@ -551,7 +587,7 @@ export function WorkforceCoveragePanel({
               const claims = (payload?.claims ?? []).filter((claim) => claim.openShiftId === shift.id);
               return (
                 <span key={shift.id}>
-                  <b>{shift.workDate} · {worksiteById.get(shift.worksiteId)?.code ?? `Site #${shift.worksiteId}`} · {shiftById.get(shift.shiftDefinitionId)?.code ?? `Shift #${shift.shiftDefinitionId}`}</b>
+                  <b>{shift.workDate} · {worksiteById.get(shift.worksiteId)?.code ?? `Site #${shift.worksiteId}`} · {shiftById.get(shift.shiftDefinitionId)?.code ?? `Shift #${shift.shiftDefinitionId}`} · {shift.jobProfileId ? jobProfileById.get(shift.jobProfileId)?.title ?? `Profile #${shift.jobProfileId}` : "Any role"}</b>
                   <small style={{ display: "block", color: "var(--muted)" }}>
                     {shift.remainingSlots} of {shift.slots} slot(s) remaining · {shift.status} · {shift.reason}
                   </small>

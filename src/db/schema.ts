@@ -683,6 +683,7 @@ export const staffingRequirements = pgTable(
     worksiteId: integer("worksite_id").notNull().references(() => worksites.id, { onDelete: "cascade" }),
     workDate: date("work_date").notNull(),
     shiftDefinitionId: integer("shift_definition_id").notNull().references(() => shiftDefinitions.id, { onDelete: "restrict" }),
+    jobProfileId: integer("job_profile_id").references(() => jobProfiles.id, { onDelete: "restrict" }),
     requiredHeadcount: integer("required_headcount").notNull(),
     notes: varchar("notes", { length: 240 }),
     createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
@@ -691,13 +692,15 @@ export const staffingRequirements = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("staffing_requirement_unique").on(
+    uniqueIndex("staffing_requirement_role_unique").on(
       table.organizationId,
       table.worksiteId,
       table.workDate,
       table.shiftDefinitionId,
+      sql`coalesce(${table.jobProfileId}, 0)`,
     ),
     index("staffing_requirement_date_idx").on(table.organizationId, table.workDate),
+    index("staffing_requirement_role_idx").on(table.organizationId, table.jobProfileId, table.workDate),
   ],
 );
 
@@ -709,6 +712,7 @@ export const openShifts = pgTable(
     worksiteId: integer("worksite_id").notNull().references(() => worksites.id, { onDelete: "cascade" }),
     workDate: date("work_date").notNull(),
     shiftDefinitionId: integer("shift_definition_id").notNull().references(() => shiftDefinitions.id, { onDelete: "restrict" }),
+    jobProfileId: integer("job_profile_id").references(() => jobProfiles.id, { onDelete: "restrict" }),
     slots: integer("slots").notNull().default(1),
     status: varchar("status", { length: 24 }).notNull().default("open"),
     sourceRequirementId: integer("source_requirement_id").references(() => staffingRequirements.id, { onDelete: "set null" }),
@@ -721,6 +725,7 @@ export const openShifts = pgTable(
   (table) => [
     index("open_shifts_org_date_idx").on(table.organizationId, table.workDate, table.status),
     index("open_shifts_worksite_idx").on(table.organizationId, table.worksiteId, table.workDate),
+    index("open_shifts_role_idx").on(table.organizationId, table.jobProfileId, table.workDate, table.status),
   ],
 );
 

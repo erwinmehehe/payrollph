@@ -52,3 +52,5 @@ the first one, so it closes itself.
 - `0046_wfm_staffing_scenarios.sql` adds immutable WFM staffing scenario snapshots with scoped manager submission/approval evidence.
 
 - `0047_overtime_budget_controls.sql` adds monthly department/manager OT-minute budgets with advisory or blocking authorization controls.
+
+- `0049_wfm_role_demand.sql` adds optional job-profile demand to staffing requirements and open shifts, enabling role-specific coverage, labor variance, and staffing scenarios.

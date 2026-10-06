@@ -35,7 +35,7 @@ test("scenario snapshots are recalculated server-side and hashed before save", (
   assert.ok(route.includes("loadScopedWorkforceForecast"));
   assert.ok(route.includes('createHash("sha256")'));
   assert.ok(route.includes("JSON.stringify(snapshot)"));
-  assert.ok(route.includes('version: "wfm-staffing-scenario-v1"'));
+  assert.ok(route.includes('version: "wfm-staffing-scenario-v2"'));
   assert.ok(route.includes("snapshotHash: hash"));
   assert.ok(route.includes("Approved scenario evidence is immutable planning data."));
 });
