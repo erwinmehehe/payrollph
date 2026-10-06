@@ -270,20 +270,20 @@ export function HcmEmploymentDecisionEvidence({
             </div>
           </div>
 
-          {payload.canContribute && (
+          {payload?.canContribute && (
             <>
               <form onSubmit={addNote} style={{ marginBottom: 12 }}>
                 <div className="setting-form">
                   <label>Review note type
                     <select
                       value={noteKind}
-                      disabled={payload.managerReviewOnly}
+                      disabled={payload?.managerReviewOnly}
                       onChange={(event) => setNoteKind(event.target.value)}
                     >
                       <option value="manager_review">Manager review</option>
-                      {!payload.managerReviewOnly && <option value="hr_review">HR review</option>}
-                      {!payload.managerReviewOnly && <option value="decision_rationale">Decision rationale</option>}
-                      {!payload.managerReviewOnly && <option value="other">Other evidence note</option>}
+                      {!payload?.managerReviewOnly && <option value="hr_review">HR review</option>}
+                      {!payload?.managerReviewOnly && <option value="decision_rationale">Decision rationale</option>}
+                      {!payload?.managerReviewOnly && <option value="other">Other evidence note</option>}
                     </select>
                   </label>
                   <label>Review note
