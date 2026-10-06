@@ -185,7 +185,7 @@ export async function ensureCoreCompatibilitySchema() {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v16'))");
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v17'))");
 
       await client.query(`
         ALTER TABLE organizations
@@ -458,6 +458,76 @@ export async function ensureCoreCompatibilitySchema() {
       await client.query(`
         CREATE INDEX IF NOT EXISTS overtime_requests_status_idx
         ON overtime_requests(organization_id, status)
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS workforce_overtime_budgets (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          org_unit_id integer NOT NULL REFERENCES org_units(id) ON DELETE CASCADE,
+          period_start date NOT NULL,
+          period_end date NOT NULL,
+          budget_minutes integer NOT NULL,
+          warning_threshold_percent integer NOT NULL DEFAULT 80,
+          active boolean NOT NULL DEFAULT true,
+          created_by varchar(120) NOT NULL DEFAULT 'System',
+          created_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS workforce_overtime_budgets_unit_period_unique
+        ON workforce_overtime_budgets(organization_id, org_unit_id, period_start, period_end)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS workforce_overtime_budgets_org_period_idx
+        ON workforce_overtime_budgets(organization_id, period_start, period_end)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS workforce_overtime_budgets_unit_active_idx
+        ON workforce_overtime_budgets(organization_id, org_unit_id, active)
+      `);
+      await client.query(`
+        DO $compat$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'workforce_overtime_budgets_dates_check'
+          ) THEN
+            ALTER TABLE workforce_overtime_budgets
+              ADD CONSTRAINT workforce_overtime_budgets_dates_check
+              CHECK (period_end >= period_start);
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'workforce_overtime_budgets_minutes_check'
+          ) THEN
+            ALTER TABLE workforce_overtime_budgets
+              ADD CONSTRAINT workforce_overtime_budgets_minutes_check
+              CHECK (budget_minutes >= 0);
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'workforce_overtime_budgets_warning_check'
+          ) THEN
+            ALTER TABLE workforce_overtime_budgets
+              ADD CONSTRAINT workforce_overtime_budgets_warning_check
+              CHECK (warning_threshold_percent BETWEEN 1 AND 100);
+          END IF;
+        END
+        $compat$;
+      `);
+      await client.query(`
+        ALTER TABLE overtime_requests
+          ADD COLUMN IF NOT EXISTS budget_id integer REFERENCES workforce_overtime_budgets(id) ON DELETE SET NULL,
+          ADD COLUMN IF NOT EXISTS budget_minutes_at_decision integer,
+          ADD COLUMN IF NOT EXISTS budget_approved_minutes_before integer,
+          ADD COLUMN IF NOT EXISTS budget_override_reason varchar(240)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS overtime_requests_budget_idx
+        ON overtime_requests(organization_id, budget_id)
       `);
 
       await client.query(`
