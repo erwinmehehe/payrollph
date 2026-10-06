@@ -469,6 +469,48 @@ export const timePunches = pgTable("time_punches", {
   notes: text("notes"),
 });
 
+export const attendanceCapturePolicies = pgTable(
+  "attendance_capture_policies",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().unique().references(() => organizations.id, { onDelete: "cascade" }),
+    webBundyEnabled: boolean("web_bundy_enabled").notNull().default(true),
+    mobileClockEnabled: boolean("mobile_clock_enabled").notNull().default(true),
+    kioskClockEnabled: boolean("kiosk_clock_enabled").notNull().default(false),
+    offlineSyncEnabled: boolean("offline_sync_enabled").notNull().default(false),
+    requireLocation: boolean("require_location").notNull().default(false),
+    maxOfflineAgeMinutes: integer("max_offline_age_minutes").notNull().default(1440),
+    updatedBy: varchar("updated_by", { length: 120 }).notNull().default("System"),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+);
+
+export const attendanceOfflineEvents = pgTable(
+  "attendance_offline_events",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    clientEventId: varchar("client_event_id", { length: 96 }).notNull(),
+    actionType: varchar("action_type", { length: 24 }).notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    source: varchar("source", { length: 32 }).notNull(),
+    deviceSerial: varchar("device_serial", { length: 80 }),
+    location: text("location"),
+    status: varchar("status", { length: 24 }).notNull().default("received"),
+    rejectionReason: varchar("rejection_reason", { length: 240 }),
+    appliedPunchId: integer("applied_punch_id").references(() => timePunches.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("attendance_offline_event_unique").on(table.organizationId, table.clientEventId),
+    index("attendance_offline_employee_time_idx").on(table.organizationId, table.employeeId, table.occurredAt),
+    index("attendance_offline_status_idx").on(table.organizationId, table.status),
+  ],
+);
+
 export const attendanceCorrectionRequests = pgTable(
   "attendance_correction_requests",
   {
