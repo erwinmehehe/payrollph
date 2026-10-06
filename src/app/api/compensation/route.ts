@@ -20,6 +20,7 @@ import {
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, assertScope, getAccess, PAYROLL_RELEASE_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
+import { runAutomationEventSafely } from "@/lib/automation";
 import {
   annualizePay,
   compaRatio,
@@ -736,7 +737,24 @@ export async function PATCH(request: Request) {
         resource: `Employee #${row.employeeId}`,
         metadata: { componentAssignmentId: row.id, componentId: row.componentId, effectiveFrom: row.effectiveFrom, invalidatedPayrollRunIds: affectedRuns.map((run) => run.id) },
       });
-      return Response.json(row);
+
+      const automation = nextStatus === "active"
+        ? await runAutomationEventSafely({
+            organizationId: row.organizationId,
+            employeeId: row.employeeId,
+            trigger: "compensation.changed",
+            eventKey: `compensation-component-active:${row.id}`,
+            context: {
+              compensationComponentAssignmentId: row.id,
+              compensationComponentId: row.componentId,
+              effectiveDate: row.effectiveFrom,
+              eventAmount: Number(row.amount),
+              compensationChangeKind: "recurring_component",
+            },
+          })
+        : [];
+
+      return Response.json({ ...row, automation });
     }
 
     if (action === "decline") {
