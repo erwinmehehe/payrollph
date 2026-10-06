@@ -5,7 +5,7 @@ import { assertOrganizationRole, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/a
 
 export const dynamic = "force-dynamic";
 
-const VALID: ReportKey[] = ["headcount", "cost", "turnover", "compliance", "assurance"];
+const VALID: ReportKey[] = ["headcount", "cost", "turnover", "compliance", "assurance", "workforce"];
 
 export async function GET(request: Request) {
   const user = await getSessionUser();
