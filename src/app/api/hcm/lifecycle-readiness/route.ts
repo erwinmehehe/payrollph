@@ -1,0 +1,148 @@
+import { desc, eq } from "drizzle-orm";
+import { db } from "@/db";
+import {
+  employees,
+  hcmEmploymentTermDecisions,
+  hcmEmploymentTerms,
+  separationRecords,
+} from "@/db/schema";
+import { assertOrganizationRole, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
+import { getSessionUser } from "@/lib/auth";
+import {
+  buildEmploymentLifecycleRow,
+  sortEmploymentLifecycleRows,
+  summarizeEmploymentLifecycle,
+} from "@/lib/hcm-lifecycle-readiness";
+import { philippineBusinessDate } from "@/lib/hcm-employment-terms";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(request: Request) {
+  const user = await getSessionUser();
+  if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+
+  const url = new URL(request.url);
+  const organizationId = Number(url.searchParams.get("organizationId"));
+  if (!Number.isInteger(organizationId)) {
+    return Response.json({ error: "A valid organizationId is required." }, { status: 400 });
+  }
+
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_PAYROLL_ROLES,
+    "Your role is not allowed to view employment lifecycle readiness.",
+  );
+  if (denied) return denied;
+
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({
+      error: "Employment lifecycle readiness requires company-wide People or payroll access.",
+    }, { status: 403 });
+  }
+
+  const [employeeRows, termRows, decisionRows, separationRows] = await Promise.all([
+    db.select({
+      id: employees.id,
+      employeeNo: employees.employeeNo,
+      firstName: employees.firstName,
+      lastName: employees.lastName,
+      status: employees.status,
+    }).from(employees)
+      .where(eq(employees.organizationId, organizationId))
+      .orderBy(employees.lastName, employees.firstName, employees.id),
+    db.select().from(hcmEmploymentTerms)
+      .where(eq(hcmEmploymentTerms.organizationId, organizationId))
+      .orderBy(desc(hcmEmploymentTerms.effectiveFrom), desc(hcmEmploymentTerms.id)),
+    db.select().from(hcmEmploymentTermDecisions)
+      .where(eq(hcmEmploymentTermDecisions.organizationId, organizationId))
+      .orderBy(desc(hcmEmploymentTermDecisions.id)),
+    db.select({
+      id: separationRecords.id,
+      employeeId: separationRecords.employeeId,
+      status: separationRecords.status,
+      lastDay: separationRecords.lastDay,
+    }).from(separationRecords)
+      .where(eq(separationRecords.organizationId, organizationId))
+      .orderBy(desc(separationRecords.id)),
+  ]);
+
+  const activeTermByEmployee = new Map<number, (typeof termRows)[number]>();
+  for (const row of termRows) {
+    if (row.status === "active" && !activeTermByEmployee.has(row.employeeId)) {
+      activeTermByEmployee.set(row.employeeId, row);
+    }
+  }
+
+  const decisionByEmployee = new Map<number, (typeof decisionRows)[number]>();
+  for (const row of decisionRows) {
+    if (decisionByEmployee.has(row.employeeId)) continue;
+    if (
+      ["pending_approval", "scheduled", "failed"].includes(row.status)
+      || (
+        row.status === "applied"
+        && row.decisionKind === "non_renew"
+        && row.separationHandoffStatus !== "completed"
+      )
+    ) {
+      decisionByEmployee.set(row.employeeId, row);
+    }
+  }
+
+  const separationByEmployee = new Map<number, (typeof separationRows)[number]>();
+  for (const row of separationRows) {
+    if (!separationByEmployee.has(row.employeeId)) separationByEmployee.set(row.employeeId, row);
+  }
+
+  const today = philippineBusinessDate();
+  const rows = employeeRows
+    .filter((employee) => !["Separated", "Inactive", "Terminated"].includes(employee.status))
+    .map((employee) => {
+      const term = activeTermByEmployee.get(employee.id) ?? null;
+      const decision = decisionByEmployee.get(employee.id) ?? null;
+      const separation = separationByEmployee.get(employee.id) ?? null;
+
+      return buildEmploymentLifecycleRow({
+        employeeId: employee.id,
+        employeeNo: employee.employeeNo,
+        employeeName: `${employee.firstName} ${employee.lastName}`,
+        employeeStatus: employee.status,
+        term: term ? {
+          id: term.id,
+          termKind: term.termKind,
+          employmentType: term.employmentType,
+          effectiveFrom: String(term.effectiveFrom),
+          effectiveUntil: term.effectiveUntil ? String(term.effectiveUntil) : null,
+          probationReviewDate: term.probationReviewDate ? String(term.probationReviewDate) : null,
+          contractEndDate: term.contractEndDate ? String(term.contractEndDate) : null,
+          status: term.status,
+        } : null,
+        decision: decision ? {
+          id: decision.id,
+          decisionKind: decision.decisionKind,
+          status: decision.status,
+          effectiveDate: String(decision.effectiveDate),
+          proposedSeparationLastDay: decision.proposedSeparationLastDay
+            ? String(decision.proposedSeparationLastDay)
+            : null,
+          separationHandoffStatus: decision.separationHandoffStatus,
+          separationRecordId: decision.separationRecordId,
+          failure: decision.failure,
+        } : null,
+        separation: separation ? {
+          id: separation.id,
+          status: separation.status,
+          lastDay: String(separation.lastDay),
+        } : null,
+        today,
+      });
+    });
+
+  const sorted = sortEmploymentLifecycleRows(rows);
+  return Response.json({
+    today,
+    summary: summarizeEmploymentLifecycle(sorted),
+    rows: sorted,
+  });
+}
