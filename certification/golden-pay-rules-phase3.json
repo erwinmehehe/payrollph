@@ -29,7 +29,9 @@
         "expectedStatutoryLineCode": null,
         "expectedStatutoryAmount": 0,
         "expectedOverlayAmount": 120,
-        "expectedGrossDelta": 120
+        "expectedGrossDelta": 120,
+        "breakStart": "12:00",
+        "breakEnd": "13:00"
       },
       "outcome": {
         "label": "Golden company worked-time top-up",
@@ -65,7 +67,9 @@
         "expectedStatutoryLineCode": "HOLIDAY",
         "expectedStatutoryAmount": 600,
         "expectedOverlayAmount": 240,
-        "expectedGrossDelta": 240
+        "expectedGrossDelta": 240,
+        "breakStart": "12:00",
+        "breakEnd": "13:00"
       },
       "outcome": {
         "label": "Golden special-rest top-up",
@@ -106,7 +110,9 @@
         "expectedStatutoryLineCode": "OT",
         "expectedStatutoryAmount": 375,
         "expectedOverlayAmount": 60,
-        "expectedGrossDelta": 60
+        "expectedGrossDelta": 60,
+        "breakStart": "12:00",
+        "breakEnd": "13:00"
       },
       "outcome": {
         "label": "Golden overtime top-up",
@@ -142,7 +148,9 @@
         "expectedStatutoryLineCode": "ND",
         "expectedStatutoryAmount": 15,
         "expectedOverlayAmount": 15,
-        "expectedGrossDelta": 15
+        "expectedGrossDelta": 15,
+        "breakStart": "18:00",
+        "breakEnd": "19:00"
       },
       "outcome": {
         "label": "Golden night differential top-up",
