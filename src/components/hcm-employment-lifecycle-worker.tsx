@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CalendarClock, CheckCircle2, RefreshCw, ShieldCheck } from "lucide-react";
+import { HcmEmploymentDecisionEvidence } from "@/components/hcm-employment-decision-evidence";
 
 type TermLifecycle = {
   state: "none" | "future" | "upcoming" | "due" | "overdue";
@@ -384,6 +385,12 @@ export function HcmEmploymentLifecycleWorker({
           <div className="modal-note" style={{ marginTop: 8 }}>
             Four-eyes approval applies. Non-renewal only creates a handoff; employee separation and final pay remain owned by Separation.
           </div>
+          <HcmEmploymentDecisionEvidence
+            key={`${relevantDecision.id}:${relevantDecision.status}:${relevantDecision.separationHandoffStatus}`}
+            organizationId={organizationId}
+            decisionId={relevantDecision.id}
+            onChanged={load}
+          />
         </div>
       )}
 
