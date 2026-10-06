@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
   boolean,
+  check,
   date,
   integer,
   index,
@@ -3179,6 +3180,21 @@ export const hcmProbationReviews = pgTable(
   (table) => [
     uniqueIndex("hcm_probation_reviews_term_unique").on(table.organizationId, table.employmentTermId),
     index("hcm_probation_reviews_employee_idx").on(table.organizationId, table.employeeId, table.status),
+    check("hcm_probation_reviews_status_check", sql`${table.status} in ('draft','submitted')`),
+    check(
+      "hcm_probation_reviews_recommendation_check",
+      sql`${table.recommendation} is null or ${table.recommendation} in ('confirm_regular','non_renew','needs_hr_review')`,
+    ),
+    check(
+      "hcm_probation_reviews_ratings_check",
+      sql`
+        (${table.overallRating} is null or ${table.overallRating} between 1 and 5)
+        and (${table.roleExpectationsRating} is null or ${table.roleExpectationsRating} between 1 and 5)
+        and (${table.workQualityRating} is null or ${table.workQualityRating} between 1 and 5)
+        and (${table.reliabilityRating} is null or ${table.reliabilityRating} between 1 and 5)
+        and (${table.conductCollaborationRating} is null or ${table.conductCollaborationRating} between 1 and 5)
+      `,
+    ),
   ],
 );
 
@@ -3199,6 +3215,7 @@ export const hcmProbationReviewAcknowledgments = pgTable(
   (table) => [
     uniqueIndex("hcm_probation_review_ack_unique").on(table.reviewId, table.employeeId),
     index("hcm_probation_review_ack_employee_idx").on(table.organizationId, table.employeeId, table.createdAt),
+    check("hcm_probation_review_ack_response_check", sql`${table.response} = 'acknowledged_receipt'`),
   ],
 );
 
