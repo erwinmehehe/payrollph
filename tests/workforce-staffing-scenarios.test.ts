@@ -26,7 +26,7 @@ test("migration and production compatibility schema carry WFM scenario governanc
   assert.ok(migration.includes("workforce_scenarios_status_check"));
   assert.ok(migration.includes("'draft', 'submitted', 'approved', 'rejected'"));
   assert.ok(migration.includes("workforce_scenarios_org_name_version_unique"));
-  assert.ok(compat.includes("linaw_core_schema_compat_v16"));
+  assert.ok(compat.includes("linaw_core_schema_compat_v17"));
   assert.ok(compat.includes("CREATE TABLE IF NOT EXISTS workforce_planning_scenarios"));
   assert.ok(compat.includes("workforce_scenarios_status_check"));
 });
