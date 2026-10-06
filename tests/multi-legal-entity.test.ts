@@ -10,6 +10,7 @@ const payrollRoute = readFileSync("src/app/api/payroll-runs/route.ts", "utf8");
 const engine = readFileSync("src/lib/payroll-engine.ts", "utf8");
 const panel = readFileSync("src/components/legal-entities-panel.tsx", "utf8");
 const payrollModal = readFileSync("src/components/workspace/panels.tsx", "utf8");
+const primaryHelper = readFileSync("src/lib/legal-entity.ts", "utf8");
 
 test("legal employers are modeled under organizations and referenced by employees and payroll runs", () => {
   assert.ok(schema.includes('export const legalEntities = pgTable('));
@@ -53,6 +54,18 @@ test("production compatibility schema carries the same additive migration", () =
   assert.ok(compat.includes("ADD COLUMN IF NOT EXISTS legal_entity_id"));
   assert.ok(compat.includes("UPDATE payroll_runs pr"));
   assert.ok(compat.includes("legal_entities_org_primary_unique"));
+});
+
+test("newly created organizations lazily receive an idempotent PRIMARY employer", () => {
+  assert.ok(primaryHelper.includes('code: "PRIMARY"'));
+  assert.ok(primaryHelper.includes("onConflictDoNothing"));
+  assert.ok(primaryHelper.includes("organization.statutoryDeductionTiming"));
+  assert.ok(primaryHelper.includes("organization.payrollCalendarMode"));
+
+  const employeesApi = readFileSync("src/app/api/employees/route.ts", "utf8");
+  assert.ok(employeesApi.includes("ensurePrimaryLegalEntity(organizationId)"));
+  assert.ok(payrollRoute.includes("ensurePrimaryLegalEntity(organizationId)"));
+  assert.ok(legalApi.includes("ensurePrimaryLegalEntity(organizationId)"));
 });
 
 test("full legal-employer data is company-wide admin only while payroll gets a minimal selector", () => {
