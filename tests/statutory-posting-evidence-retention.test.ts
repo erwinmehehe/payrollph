@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { evaluateRemittanceMonthClose } from "../src/lib/statutory-remittance-close";
 import {
   manualPostingEvidenceHash,
   postingCsvEvidence,
@@ -54,4 +55,90 @@ test("posting evidence source labels distinguish imported and manual provenance"
   assert.equal(postingEvidenceSourceLabel("csv_import"), "Imported agency evidence");
   assert.equal(postingEvidenceSourceLabel("manual_confirmation"), "Manual payroll confirmation");
   assert.equal(postingEvidenceSourceLabel(null), "Evidence source unavailable");
+});
+
+
+test("month-close evidence preserves the historical member shape when no posting artifact exists", () => {
+  const evaluated = evaluateRemittanceMonthClose({
+    applicableMonth: "2026-09",
+    requiredAgencies: ["SSS"],
+    allPayrollRunsReleased: true,
+    alerts: [],
+    batches: [{
+      id: 1,
+      agency: "SSS",
+      applicableMonth: "2026-09",
+      status: "reconciled",
+      snapshotHash: "payroll-snapshot",
+      reconciledAt: "2026-10-01T00:00:00.000Z",
+      pendingPostingCount: 0,
+      exceptionCount: 0,
+    }],
+    members: [{
+      batchId: 1,
+      employeeId: 10,
+      postingStatus: "confirmed",
+      postedAmount: "1500.00",
+      postingReference: "REF-001",
+      confirmedBy: "Payroll",
+    }],
+    paymentEvidence: [{
+      id: 1,
+      batchId: 1,
+      fileName: "receipt.pdf",
+      fileSha256: "a".repeat(64),
+      byteSize: 10,
+      status: "active",
+      uploadedByName: "Payroll",
+      uploadedAt: "2026-10-01T00:00:00.000Z",
+    }],
+  });
+
+  const member = evaluated.members[0] as Record<string, unknown>;
+  assert.equal("postingEvidenceArtifactId" in member, false);
+  assert.equal("postingEvidenceHashSha256" in member, false);
+});
+
+test("month-close evidence binds posting provenance when an artifact exists", () => {
+  const evaluated = evaluateRemittanceMonthClose({
+    applicableMonth: "2026-09",
+    requiredAgencies: ["SSS"],
+    allPayrollRunsReleased: true,
+    alerts: [],
+    batches: [{
+      id: 1,
+      agency: "SSS",
+      applicableMonth: "2026-09",
+      status: "reconciled",
+      snapshotHash: "payroll-snapshot",
+      reconciledAt: "2026-10-01T00:00:00.000Z",
+      pendingPostingCount: 0,
+      exceptionCount: 0,
+    }],
+    members: [{
+      batchId: 1,
+      employeeId: 10,
+      postingStatus: "confirmed",
+      postedAmount: "1500.00",
+      postingReference: "REF-001",
+      confirmedBy: "Payroll",
+      postingEvidenceArtifactId: 7,
+      postingEvidenceSource: "Imported agency evidence",
+      postingEvidenceHashSha256: "b".repeat(64),
+    }],
+    paymentEvidence: [{
+      id: 1,
+      batchId: 1,
+      fileName: "receipt.pdf",
+      fileSha256: "a".repeat(64),
+      byteSize: 10,
+      status: "active",
+      uploadedByName: "Payroll",
+      uploadedAt: "2026-10-01T00:00:00.000Z",
+    }],
+  });
+
+  const member = evaluated.members[0] as Record<string, unknown>;
+  assert.equal(member.postingEvidenceArtifactId, 7);
+  assert.equal(member.postingEvidenceHashSha256, "b".repeat(64));
 });
