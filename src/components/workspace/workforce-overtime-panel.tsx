@@ -200,7 +200,7 @@ export function WorkforceOvertimePanel({
     );
   }
 
-  const visible = useMemo(
+  async function bulkDecide(decision: "approved" | "rejected") {\n    if (selectedIds.length === 0) {\n      notify("Select at least one pending OT request.", "err");\n      return;\n    }\n    const ok = await mutate("bulk_decide_requests", {\n      requestIds: selectedIds,\n      decision,\n      ...(budgetOverrideReason.trim() ? { budgetOverrideReason: budgetOverrideReason.trim() } : {}),\n    }, selectedIds.length + " overtime request(s) " + decision + " in one governed decision.");\n    if (ok) setSelectedIds([]);\n  }\n  const visible = useMemo(
     () => requests
       .filter((request) => filter === "all" || request.status === "pending")
       .sort((a, b) => String(b.workDate).localeCompare(String(a.workDate)) || b.id - a.id),
