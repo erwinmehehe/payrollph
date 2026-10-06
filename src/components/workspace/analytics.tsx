@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Download, FileBarChart2, RefreshCw, ShieldCheck, TrendingDown, UsersRound, WalletCards } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
+import { WorkforceAnalyticsPanel } from "./workforce-analytics-panel";
 import {
   EmptyState,
   ErrorState,
@@ -104,6 +105,8 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
           </button>
         }
       />
+
+      <WorkforceAnalyticsPanel data={data} notify={notify} />
 
       <section className="stats-grid">
         <Metric
