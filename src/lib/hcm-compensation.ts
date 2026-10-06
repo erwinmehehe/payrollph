@@ -377,6 +377,8 @@ export async function activateCompensationComponentAssignment(
   });
 
   if (result.skipped) return result;
+
+  const warnings: string[] = [];
   try {
     await recordAuditEvent({
       organizationId: result.assignment.organizationId,
@@ -390,10 +392,30 @@ export async function activateCompensationComponentAssignment(
         amount: Number(result.assignment.amount),
       },
     });
-  } catch {
-    // The authoritative component state and compensation event are already committed.
+  } catch (error) {
+    warnings.push(`audit: ${error instanceof Error ? error.message : "unknown failure"}`);
   }
-  return result;
+
+  let automation: Awaited<ReturnType<typeof runAutomationEventSafely>> = [];
+  try {
+    automation = await runAutomationEventSafely({
+      organizationId: result.assignment.organizationId,
+      employeeId: result.assignment.employeeId,
+      trigger: "compensation.changed",
+      eventKey: `compensation-component-active:${result.assignment.id}`,
+      context: {
+        compensationComponentAssignmentId: result.assignment.id,
+        compensationComponentId: result.assignment.componentId,
+        effectiveDate: result.assignment.effectiveFrom,
+        eventAmount: Number(result.assignment.amount),
+        compensationChangeKind: "recurring_component",
+      },
+    });
+  } catch (error) {
+    warnings.push(`automation: ${error instanceof Error ? error.message : "unknown failure"}`);
+  }
+
+  return { ...result, automation, warnings };
 }
 
 export async function runScheduledCompensationGovernance({
