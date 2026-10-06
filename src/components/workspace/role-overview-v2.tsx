@@ -50,6 +50,10 @@ function OwnerWorkspace({ data, currentRun, firstName, onPage, onNewRun }: Commo
   const activePeople = data.employees.filter((employee) => employee.status === "Active");
   const missingBank = activePeople.filter((employee) => !employee.bankAccount || !employee.bankCode).length;
   const exceptions = data.payrollEntries.filter((entry) => entry.status === "Exception").length;
+  const attendanceIssues = (data.punches ?? []).filter(
+    (punch) => !["complete", "present", "ok", "approved"].includes(punch.status.toLowerCase()),
+  ).length;
+  const pendingLeave = (data.leaveRequests ?? []).filter((request) => request.status === "Pending").length;
   const previous = data.payrollRuns.find((run) => run.id !== currentRun?.id && run.status === "Released");
   const currentGross = Number(currentRun?.grossPay ?? 0);
   const previousGross = Number(previous?.grossPay ?? 0);
@@ -57,7 +61,17 @@ function OwnerWorkspace({ data, currentRun, firstName, onPage, onNewRun }: Commo
   const readyForRelease = currentRun?.status === "Ready for release";
   const released = currentRun?.status === "Released";
   const checkerApproved = readyForRelease || released;
-  const hardBlockers = missingBank + exceptions + (checkerApproved ? 0 : 1);
+  const inputBlockers = missingBank + exceptions + attendanceIssues + pendingLeave;
+  const hardBlockers = inputBlockers + (checkerApproved ? 0 : 1);
+  const readyEmployees = Math.max(
+    0,
+    (currentRun?.employeeCount ?? activePeople.length) - new Set([
+      ...data.payrollEntries.filter((entry) => entry.status === "Exception").map((entry) => entry.employeeId),
+      ...(data.punches ?? [])
+        .filter((punch) => !["complete", "present", "ok", "approved"].includes(punch.status.toLowerCase()))
+        .map((punch) => punch.employeeId),
+    ]).size,
+  );
   const net = Number(currentRun?.netPay ?? 0);
   const deductions = Math.max(0, currentGross - net);
   const payChanges = (data.payRevisions ?? []).length;
@@ -66,13 +80,13 @@ function OwnerWorkspace({ data, currentRun, firstName, onPage, onNewRun }: Commo
   return (
     <div className="payrollph-dashboard role-workspace-v2 mockup-role-page" data-role-dashboard="owner" data-dashboard-variant="owner">
       <ContractGreeting firstName={firstName} />
-      <span className="role-contract-copy">Can I safely release this payroll?</span>
+      <span className="role-contract-copy">What do I need to do to get everyone paid?</span>
 
       <section className="mockup-owner-release dashboard-alert-banner">
         <div className="mockup-owner-head">
           <div>
-            <strong>Payroll ready for release</strong>
-            <span>{currentRun?.periodLabel ?? "Next payroll"} · {currentRun?.employeeCount ?? activePeople.length} employees{currentRun?.payDate ? " · Pay date " + formatShortDate(currentRun.payDate) : ""}</span>
+            <strong>{released ? "Payroll complete" : readyForRelease ? "Payroll ready for release" : "Next payroll"}</strong>
+            <span>{currentRun?.periodLabel ?? "Not started"} · {readyEmployees} of {currentRun?.employeeCount ?? activePeople.length} employees ready{currentRun?.payDate ? " · Pay date " + formatShortDate(currentRun.payDate) : ""}</span>
           </div>
           <Status value={currentRun?.status ?? "Not started"} />
         </div>
@@ -80,7 +94,7 @@ function OwnerWorkspace({ data, currentRun, firstName, onPage, onNewRun }: Commo
         <div className="mockup-owner-value-row">
           <div>
             <span className="mockup-big-money">{fullMoney(currentGross)}</span>
-            <small>Total funding required</small>
+            <small>Gross payroll</small>
           </div>
           {previous && (
             <div className="mockup-delta-badge">
@@ -97,29 +111,26 @@ function OwnerWorkspace({ data, currentRun, firstName, onPage, onNewRun }: Commo
         </div>
 
         <button className="mockup-owner-release-button" type="button" onClick={currentRun ? () => onPage("Payroll") : onNewRun}>
-          {!currentRun ? "Create payroll" : readyForRelease ? "Release " + fullMoney(currentGross) + " payroll" : released ? "View released payroll" : "Continue payroll"}
+          {!currentRun ? "Start payroll" : readyForRelease ? "Review & release payroll" : released ? "View payroll details" : inputBlockers ? "Fix payroll issues" : "Continue payroll"}
           <ArrowRight size={14} />
         </button>
 
         <div className="mockup-assurance-row">
           <MockCheck ok={checkerApproved} label="Checker approved" detail={checkerApproved ? "Independent review complete" : "Review pending"} />
           <MockCheck ok={missingBank === 0} label="Bank details ready" detail={missingBank ? String(missingBank) + " need attention" : "All verified"} />
-          <MockCheck ok={hardBlockers === 0} label={String(hardBlockers) + " hard blockers"} detail={hardBlockers ? "Resolve before release" : "All clear"} />
+          <MockCheck ok={hardBlockers === 0} label={hardBlockers ? String(hardBlockers) + " item" + (hardBlockers === 1 ? "" : "s") + " need attention" : "No blocking issues"} detail={hardBlockers ? "Resolve before payroll can finish" : "All clear"} />
         </div>
       </section>
-
-      <StatutoryRemittanceWatch
-        organizationId={data.selectedOrganization.id}
-        onOpen={() => onPage("Payroll")}
-      />
 
       <section className="mockup-section mockup-owner-alerts">
         <MockupSectionHeader title="Things to know before releasing" />
         <div className="mockup-knowledge-grid">
-          <KnowledgeItem tone={exceptions ? "rose" : "green"} title={exceptions ? String(exceptions) + " payroll exception" + (exceptions === 1 ? "" : "s") : "No payroll exceptions"} detail={exceptions ? "Review high-variance payroll entries" : "Current register is clear"} />
-          <KnowledgeItem tone={retro ? "amber" : "green"} title={retro ? String(retro) + " pending retro adjustment" + (retro === 1 ? "" : "s") : "No pending retro adjustments"} detail="Included only in the payroll where they settle" />
-          <KnowledgeItem tone={payChanges ? "blue" : "green"} title={payChanges ? String(payChanges) + " pay revision" + (payChanges === 1 ? "" : "s") : "No salary changes"} detail="Changes remain visible before release" />
-          <KnowledgeItem tone={missingBank ? "rose" : "green"} title={missingBank ? String(missingBank) + " bank detail issue" + (missingBank === 1 ? "" : "s") : "No bank detail changes"} detail={missingBank ? "Resolve payout details first" : "Since last payroll"} />
+          <KnowledgeItem tone={attendanceIssues ? "rose" : "green"} title={attendanceIssues ? String(attendanceIssues) + " attendance issue" + (attendanceIssues === 1 ? "" : "s") : "Attendance ready"} detail={attendanceIssues ? "Resolve time inputs before payroll can finish" : "No attendance blockers"} action={attendanceIssues ? "Review time" : undefined} onAction={attendanceIssues ? () => onPage("Time & attendance") : undefined} />
+          <KnowledgeItem tone={pendingLeave ? "amber" : "green"} title={pendingLeave ? String(pendingLeave) + " leave request" + (pendingLeave === 1 ? "" : "s") + " pending" : "Leave ready"} detail={pendingLeave ? "Review leave before payroll handoff" : "No pending leave inputs"} action={pendingLeave ? "Review leave" : undefined} onAction={pendingLeave ? () => onPage("Leave") : undefined} />
+          <KnowledgeItem tone={exceptions ? "rose" : "green"} title={exceptions ? String(exceptions) + " payroll exception" + (exceptions === 1 ? "" : "s") : "No payroll exceptions"} detail={exceptions ? "Review high-variance payroll entries" : "Current register is clear"} action={exceptions ? "Review payroll" : undefined} onAction={exceptions ? () => onPage("Payroll") : undefined} />
+          <KnowledgeItem tone={retro ? "amber" : "green"} title={retro ? String(retro) + " pending retro adjustment" + (retro === 1 ? "" : "s") : "No pending retro adjustments"} detail="Included only in the payroll where they settle" action={retro ? "Review payroll" : undefined} onAction={retro ? () => onPage("Payroll") : undefined} />
+          <KnowledgeItem tone={payChanges ? "blue" : "green"} title={payChanges ? String(payChanges) + " pay revision" + (payChanges === 1 ? "" : "s") : "No salary changes"} detail="Changes remain visible before release" action={payChanges ? "Review compensation" : undefined} onAction={payChanges ? () => onPage("Compensation") : undefined} />
+          <KnowledgeItem tone={missingBank ? "rose" : "green"} title={missingBank ? String(missingBank) + " bank detail issue" + (missingBank === 1 ? "" : "s") : "No bank detail changes"} detail={missingBank ? "Resolve payout details first" : "Since last payroll"} action={missingBank ? "Open employees" : undefined} onAction={missingBank ? () => onPage("People") : undefined} />
         </div>
       </section>
 
@@ -509,8 +520,29 @@ function MockupSectionHeader({ title, action, onAction }: { title: string; actio
   return <div className="mockup-section-header"><h2>{title}</h2>{action && onAction ? <button type="button" onClick={onAction}>{action} <ArrowRight size={12} /></button> : null}</div>;
 }
 
-function KnowledgeItem({ tone, title, detail }: { tone: "rose" | "amber" | "blue" | "green"; title: string; detail: string }) {
-  return <div className={"mockup-knowledge-item " + tone}><i>{tone === "green" ? <Check size={12} /> : <ShieldCheck size={12} />}</i><div><strong>{title}</strong><span>{detail}</span></div></div>;
+function KnowledgeItem({
+  tone,
+  title,
+  detail,
+  action,
+  onAction,
+}: {
+  tone: "rose" | "amber" | "blue" | "green";
+  title: string;
+  detail: string;
+  action?: string;
+  onAction?: () => void;
+}) {
+  return (
+    <div className={"mockup-knowledge-item " + tone}>
+      <i>{tone === "green" ? <Check size={12} /> : <ShieldCheck size={12} />}</i>
+      <div>
+        <strong>{title}</strong>
+        <span>{detail}</span>
+        {action && onAction ? <button type="button" className="link-button" onClick={onAction}>{action} <ArrowRight size={11} /></button> : null}
+      </div>
+    </div>
+  );
 }
 
 function MockStep({ index, label, detail, state }: { index: number; label: string; detail: string; state: "done" | "current" | "attention" | "locked" }) {
