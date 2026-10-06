@@ -60,3 +60,5 @@ the first one, so it closes itself.
 - `0051_hcm_org_job_architecture.sql` normalizes job families, levels and grades; enriches organization units with legal-employer, cost-center and effective-date context; and links positions to supervisory organizations and cost centers.
 
 - `0052_hcm_effective_dated_changes.sql` adds maker-checker governed, scheduled employment changes with future-date application, guarded retroactive corrections, position reservation, failure evidence, and immutable worker-history linkage.
+
+- `0053_hcm_capability_wfm_eligibility.sql` adds normalized skills, verified employee proficiencies, job-profile skill requirements, and job-profile credential links backed by the existing document compliance/expiry system for WFM eligibility.
