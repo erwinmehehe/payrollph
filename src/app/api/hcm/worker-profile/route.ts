@@ -11,6 +11,10 @@ import {
   externalIdentities,
   hcmDocumentRequirements,
   hcmEmployeeDocumentCompliance,
+  hcmEmployeeSkills,
+  hcmJobProfileCredentialRequirements,
+  hcmJobProfileSkillRequirements,
+  hcmSkills,
   hcmPolicyAssignments,
   hcmPolicyVersions,
   jobProfiles,
@@ -29,6 +33,7 @@ import {
   workerEmploymentEvents,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
+import { loadEmployeeWfmEligibility } from "@/lib/hcm-workforce-eligibility-server";
 import {
   assertOrganizationRole,
   assertScope,
@@ -94,6 +99,7 @@ export async function GET(request: Request) {
     separationRows,
     policyRows,
     documentComplianceRows,
+    employeeSkillRows,
   ] = await Promise.all([
     db.select().from(positionAssignments).where(and(
       eq(positionAssignments.organizationId, organizationId),
@@ -203,6 +209,27 @@ export async function GET(request: Request) {
         eq(hcmDocumentRequirements.active, true),
       ))
       .orderBy(desc(hcmEmployeeDocumentCompliance.id)),
+    db.select({
+      id: hcmEmployeeSkills.id,
+      skillId: hcmEmployeeSkills.skillId,
+      skillName: hcmSkills.name,
+      skillCode: hcmSkills.code,
+      category: hcmSkills.category,
+      proficiency: hcmEmployeeSkills.proficiency,
+      status: hcmEmployeeSkills.status,
+      effectiveFrom: hcmEmployeeSkills.effectiveFrom,
+      effectiveUntil: hcmEmployeeSkills.effectiveUntil,
+      verifiedAt: hcmEmployeeSkills.verifiedAt,
+      verifiedByName: hcmEmployeeSkills.verifiedByName,
+      notes: hcmEmployeeSkills.notes,
+    }).from(hcmEmployeeSkills)
+      .innerJoin(hcmSkills, eq(hcmEmployeeSkills.skillId, hcmSkills.id))
+      .where(and(
+        eq(hcmEmployeeSkills.organizationId, organizationId),
+        eq(hcmEmployeeSkills.employeeId, employeeId),
+        eq(hcmSkills.active, true),
+      ))
+      .orderBy(asc(hcmSkills.category), asc(hcmSkills.name), desc(hcmEmployeeSkills.effectiveFrom)),
   ]);
 
   const assignment = assignmentRows[0] ?? null;
