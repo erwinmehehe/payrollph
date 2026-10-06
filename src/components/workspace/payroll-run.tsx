@@ -24,6 +24,7 @@ import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
 import { readLineItems, readTrace, type BankTemplate, type DashboardData, type Notify, type PayrollEntry, type PayrollLineItem, type PayrollReleaseReceipt, type PayrollRun, type Task } from "./types";
 import { PayrollAssurancePanel } from "./payroll-assurance-panel";
 import { PayrollOfficerWorkspace } from "./payroll-officer-workspace";
+import { PayrollVarianceInsights } from "./payroll-variance-insights";
 import { StatutoryRemittancePanel } from "./statutory-remittance-panel";
 import { StatutoryRemittanceActionQueue } from "./statutory-remittance-action-queue";
 import { StatutoryRemittanceCorrectionsPanel } from "./statutory-remittance-corrections-panel";
@@ -72,6 +73,8 @@ export function PayrollRunView({
   onRelease,
   onDecide,
   onPage,
+  onOpenEmployee,
+  onOpenTimeIssue,
   onRefresh,
   notify,
 }: {
@@ -82,6 +85,8 @@ export function PayrollRunView({
   onRelease: (runId: number, acknowledgeExceptions: boolean) => Promise<{ receipt?: PayrollReleaseReceipt; error?: string }>;
   onDecide: (taskId: number, status: "Approved" | "Declined") => Promise<void>;
   onPage: (page: string) => void;
+  onOpenEmployee: (employeeId: number) => void;
+  onOpenTimeIssue: (employeeId: number) => void;
   onRefresh: () => Promise<void>;
   notify: Notify;
 }) {
@@ -379,13 +384,13 @@ export function PayrollRunView({
               ? `${data.selectedOrganization.legalName} · Owner`
               : `Payroll run #${run.id}`
         }
-        title={payrollOfficerMode ? "Run payroll." : ownerMode ? "Review and release payroll." : "Pay confidently, every cycle."}
+        title={payrollOfficerMode ? "Run payroll." : ownerMode ? "Review and release payroll." : "Run payroll with fewer surprises."}
         copy={
           payrollOfficerMode
-            ? "Prepare inputs, calculate the cutoff, resolve exceptions, then hand the run to an independent Checker. Release stays outside the Payroll Officer role."
+            ? "Review inputs, calculate payroll, review what changed, then send the run for independent review."
             : ownerMode
-              ? "Confirm the independent review, total funding requirement and payout readiness before you release the payroll."
-              : "Prepare, approve, release and export are deliberately separate steps. Each one is authorised on the server against your role and this client's workspace."
+              ? "Review what changed, confirm the independent approval and release payroll when everything is ready."
+              : "Review inputs, changes and approvals in one guided payroll flow."
         }
         actions={
           <>
@@ -439,47 +444,12 @@ export function PayrollRunView({
             document.getElementById("payroll-register")?.scrollIntoView({ behavior: "smooth", block: "start" });
           }}
           onExplainEmployee={setExplainEmployeeId}
+          onOpenEmployee={onOpenEmployee}
+          onOpenTimeIssue={onOpenTimeIssue}
           onShowAllExceptions={() => {
             setOnlyExceptions(true);
             document.getElementById("payroll-register")?.scrollIntoView({ behavior: "smooth", block: "start" });
           }}
-        />
-      )}
-
-      {["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "") && (
-        <StatutoryRemittancePanel
-          organizationId={data.selectedOrganization.id}
-          defaultMonth={String(run.periodEnd).slice(0, 7)}
-          notify={notify}
-        />
-      )}
-
-      {["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "") && (
-        <StatutoryRemittanceActionQueue
-          organizationId={data.selectedOrganization.id}
-          notify={notify}
-        />
-      )}
-
-      {["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "") && (
-        <StatutoryContributionIssueCasesPanel
-          organizationId={data.selectedOrganization.id}
-          notify={notify}
-        />
-      )}
-
-      {["owner", "admin", "bookkeeper", "payroll", "checker"].includes(data.access?.role ?? "") && (
-        <StatutoryRemittanceCorrectionsPanel
-          organizationId={data.selectedOrganization.id}
-          notify={notify}
-        />
-      )}
-
-      {["owner", "admin", "checker"].includes(data.access?.role ?? "") && (
-        <StatutoryRemittanceMonthClose
-          organizationId={data.selectedOrganization.id}
-          applicableMonth={String(run.periodEnd).slice(0, 7)}
-          notify={notify}
         />
       )}
 
@@ -497,6 +467,52 @@ export function PayrollRunView({
             document.getElementById("payroll-assurance")?.scrollIntoView({ behavior: "smooth", block: "start" });
           }}
         />
+      )}
+
+      {calculated && (
+        <PayrollVarianceInsights
+          runId={run.id}
+          onExplainEmployee={setExplainEmployeeId}
+          onOpenEmployee={onOpenEmployee}
+        />
+      )}
+
+      {["owner", "admin", "bookkeeper", "payroll", "checker"].includes(data.access?.role ?? "") && (
+        <details className="dashboard-deep-details" style={{ marginBottom: 16 }}>
+          <summary>Compliance & remittance operations</summary>
+          <div className="dashboard-secondary-controls">
+            {["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "") && (
+              <StatutoryRemittancePanel
+                organizationId={data.selectedOrganization.id}
+                defaultMonth={String(run.periodEnd).slice(0, 7)}
+                notify={notify}
+              />
+            )}
+            {["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "") && (
+              <StatutoryRemittanceActionQueue
+                organizationId={data.selectedOrganization.id}
+                notify={notify}
+              />
+            )}
+            {["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "") && (
+              <StatutoryContributionIssueCasesPanel
+                organizationId={data.selectedOrganization.id}
+                notify={notify}
+              />
+            )}
+            <StatutoryRemittanceCorrectionsPanel
+              organizationId={data.selectedOrganization.id}
+              notify={notify}
+            />
+            {["owner", "admin", "checker"].includes(data.access?.role ?? "") && (
+              <StatutoryRemittanceMonthClose
+                organizationId={data.selectedOrganization.id}
+                applicableMonth={String(run.periodEnd).slice(0, 7)}
+                notify={notify}
+              />
+            )}
+          </div>
+        </details>
       )}
 
       {visibleReleaseReceipt?.runId === run.id && (
