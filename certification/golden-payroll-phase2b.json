@@ -1,0 +1,135 @@
+{
+  "version": "phase2b-2026-10-06",
+  "tolerancePeso": 0.01,
+  "cases": {
+    "benefitPool90k": {
+      "description": "Prior shared benefit pool of ₱85,000 plus current ₱7,000 bonus taxes only ₱2,000.",
+      "expected": {
+        "priorPool": 85000,
+        "currentPool": 7000,
+        "remainingExemption": 5000,
+        "exemptCurrent": 5000,
+        "taxableCurrent": 2000,
+        "poolAfterCutoff": 92000,
+        "grossPay": 37000,
+        "sss": 875,
+        "philHealth": 750,
+        "pagIbig": 100,
+        "taxableCompensation": 30275,
+        "withholdingTax": 3659.1,
+        "deductions": 5384.1,
+        "netPay": 31615.9
+      }
+    },
+    "midCutoffHire": {
+      "description": "₱44,000 monthly employee starting Sep 8 is prorated for 8 of 15 cutoff calendar days.",
+      "expected": {
+        "grossPay": 11733.33,
+        "sss": 587.5,
+        "philHealth": 550,
+        "pagIbig": 100,
+        "taxableCompensation": 10495.83,
+        "withholdingTax": 11.83,
+        "deductions": 1249.33,
+        "netPay": 10484
+      }
+    },
+    "retroPay": {
+      "description": "Pending ₱3,000 retro adjustment is included once in current gross and tax bases.",
+      "expected": {
+        "basicPay": 20000,
+        "retroPay": 3000,
+        "grossPay": 23000,
+        "sss": 875,
+        "philHealth": 500,
+        "pagIbig": 100,
+        "taxableCompensation": 21525,
+        "withholdingTax": 1909.1,
+        "deductions": 3384.1,
+        "netPay": 19615.9
+      }
+    },
+    "leave": {
+      "description": "Paid, unpaid and 50%-paid leave preserve monthly salary semantics without double payment.",
+      "expected": {
+        "paid": {
+          "grossPay": 11000,
+          "leaveAdjustment": 0
+        },
+        "unpaid": {
+          "grossPay": 10000,
+          "leaveAdjustment": -1000
+        },
+        "partial": {
+          "grossPay": 10500,
+          "leaveAdjustment": -500
+        }
+      }
+    },
+    "loanWaterfall": {
+      "description": "Government loan deducts before company loan and company recovery is capped by remaining disposable pay.",
+      "expected": {
+        "grossPay": 10000,
+        "coreDeductions": 850,
+        "governmentLoanDeduction": 6000,
+        "companyLoanDeduction": 3150,
+        "deductions": 10000,
+        "netPay": 0,
+        "status": "Exception"
+      }
+    },
+    "monthFinalTrueUp": {
+      "description": "Second cutoff reconciles statutory contributions to actual month-to-date remuneration after a ₱10,000 commission.",
+      "expected": {
+        "priorGross": 15000,
+        "currentGross": 25000,
+        "statutoryMonthlySssCompensation": 40000,
+        "priorSssEmployee": 750,
+        "sss": 1000,
+        "priorPhilHealthEmployee": 375,
+        "philHealth": 375,
+        "priorPagIbigEmployee": 100,
+        "pagIbig": 100,
+        "taxableCompensation": 23525,
+        "withholdingTax": 2309.1,
+        "deductions": 3784.1,
+        "netPay": 21215.9,
+        "reconciliationMode": "month-final-ledger-true-up"
+      }
+    },
+    "holidayRestOtNsd": {
+      "description": "Special non-working day + rest day + 2h OT + NSD prices statutory premiums without suppressing entitlement.",
+      "expected": {
+        "basicPay": 17600,
+        "holidayPremium": 800,
+        "overtimePay": 780,
+        "nightDifferential": 108,
+        "grossPay": 19288,
+        "overtimeAuthorizationReviewDays": 0
+      }
+    },
+    "finalPay": {
+      "description": "Final-pay engine handles prorated 13th month, annual tax refund, final statutory deduction and loan cap.",
+      "expected": {
+        "basicSalaryEarnedYtd": 130000,
+        "thirteenthEntitlement": 10833.33,
+        "thirteenthPaidYtd": 5000,
+        "thirteenthDue": 5833.33,
+        "grossFinalPay": 20833.33,
+        "taxAdjustment": 2000,
+        "taxOutcome": "refund",
+        "taxDue": 0,
+        "taxWithheldYtd": 2000,
+        "finalStatutoryDeductions": 500,
+        "requestedLoanDeductions": 3000,
+        "loanDeductions": 3000,
+        "deferredLoanBalance": 0,
+        "netFinalPay": 19333.33
+      }
+    }
+  },
+  "limitations": [
+    "Engineering reconciliation only; independent CPA/payroll-practitioner review is still required.",
+    "Real employer parallel payroll cycles, government acceptance, and proprietary bank UAT remain external gates."
+  ]
+}
