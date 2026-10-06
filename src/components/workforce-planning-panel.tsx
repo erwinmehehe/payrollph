@@ -3,11 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BriefcaseBusiness, Building2, CheckCircle2, CircleDollarSign, Clock3, Plus, RefreshCw, Save, TrendingUp, UserCheck, UserPlus, UsersRound, XCircle } from "lucide-react";
 
-type JobProfile = { id: number; title: string; family: string; level: string; grade: string | null; active: boolean };
+type JobFamily = { id: number; code: string; name: string; active: boolean };
+type JobLevel = { id: number; code: string; name: string; sequence: number; active: boolean };
+type JobGrade = { id: number; code: string; name: string; sequence: number; active: boolean };
+type JobProfile = { id: number; title: string; familyId: number | null; levelId: number | null; gradeId: number | null; family: string; level: string; grade: string | null; active: boolean };
 type WorkforcePlan = { id: number; name: string; startDate: string; endDate: string; budget: string; status: string };
-type Position = { id: number; code: string; jobProfileId: number; orgUnitId: number | null; planId: number | null; managerEmployeeId: number | null; employmentType: string; status: string; plannedStartDate: string | null; annualBudget: string; activeRequisitionId: number | null; activeRequisitionStatus: string | null };
+type Position = { id: number; code: string; jobProfileId: number; orgUnitId: number | null; supervisoryOrgUnitId: number | null; legalEntityId: number | null; costCenterId: number | null; planId: number | null; managerEmployeeId: number | null; employmentType: string; status: string; plannedStartDate: string | null; annualBudget: string; activeRequisitionId: number | null; activeRequisitionStatus: string | null };
 type Assignment = { id: number; positionId: number; employeeId: number; effectiveFrom: string; effectiveUntil: string | null };
-type OrgUnit = { id: number; name: string; type: string };
+type OrgUnit = { id: number; parentId: number | null; name: string; code: string; type: string; legalEntityId: number | null; costCenterId: number | null; managerEmployeeId: number | null; effectiveFrom: string | null; effectiveUntil: string | null; active: boolean };
+type LegalEntity = { id: number; code: string; displayName: string; legalName: string; active: boolean };
+type CostCenter = { id: number; code: string; name: string; active: boolean };
 type Worksite = { id: number; orgUnitId: number | null; code: string; name: string; active: boolean };
 type Employee = { id: number; firstName: string; lastName: string; title: string; orgUnitId: number | null; status: string };
 type WorkforceScenario = {
@@ -93,15 +98,21 @@ const peso = (value: number | string | null | undefined) =>
 
 export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { organizationId: number; setNotice: (message: string) => void; onPage: (page: string) => void }) {
   const [profiles, setProfiles] = useState<JobProfile[]>([]);
+  const [jobFamilies, setJobFamilies] = useState<JobFamily[]>([]);
+  const [jobLevels, setJobLevels] = useState<JobLevel[]>([]);
+  const [jobGrades, setJobGrades] = useState<JobGrade[]>([]);
   const [plans, setPlans] = useState<WorkforcePlan[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [orgUnits, setOrgUnits] = useState<OrgUnit[]>([]);
+  const [legalEntities, setLegalEntities] = useState<LegalEntity[]>([]);
+  const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
   const [worksites, setWorksites] = useState<Worksite[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [scenarios, setScenarios] = useState<WorkforceScenario[]>([]);
   const [costVisible, setCostVisible] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [showArchitecture, setShowArchitecture] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showPlan, setShowPlan] = useState(false);
   const [showPosition, setShowPosition] = useState(false);
@@ -122,9 +133,13 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
   const [scenarioSaving, setScenarioSaving] = useState(false);
   const [scenarioDecisionNote, setScenarioDecisionNote] = useState("");
 
-  const [profileForm, setProfileForm] = useState({ title: "", family: "", level: "", grade: "" });
+  const [familyForm, setFamilyForm] = useState({ code: "", name: "" });
+  const [levelForm, setLevelForm] = useState({ code: "", name: "", sequence: "0" });
+  const [gradeForm, setGradeForm] = useState({ code: "", name: "", sequence: "0" });
+  const [orgUnitForm, setOrgUnitForm] = useState({ code: "", name: "", type: "department", parentId: "", legalEntityId: "", costCenterId: "", managerEmployeeId: "", effectiveFrom: "" });
+  const [profileForm, setProfileForm] = useState({ title: "", familyId: "", levelId: "", gradeId: "" });
   const [planForm, setPlanForm] = useState({ name: "", startDate: "", endDate: "", budget: "" });
-  const [positionForm, setPositionForm] = useState({ code: "", jobProfileId: "", orgUnitId: "", planId: "", managerEmployeeId: "", employmentType: "Regular", plannedStartDate: "", annualBudget: "" });
+  const [positionForm, setPositionForm] = useState({ code: "", jobProfileId: "", orgUnitId: "", supervisoryOrgUnitId: "", legalEntityId: "", costCenterId: "", planId: "", managerEmployeeId: "", employmentType: "Regular", plannedStartDate: "", annualBudget: "" });
   const [assignmentForm, setAssignmentForm] = useState({ positionId: "", employeeId: "", effectiveFrom: new Date().toISOString().slice(0, 10) });
 
   const load = useCallback(async () => {
@@ -134,10 +149,15 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) return setNotice(payload.error ?? "Could not load workforce planning.");
       setProfiles(payload.profiles ?? []);
+      setJobFamilies(payload.jobFamilies ?? []);
+      setJobLevels(payload.jobLevels ?? []);
+      setJobGrades(payload.jobGrades ?? []);
       setPlans(payload.plans ?? []);
       setPositions(payload.positions ?? []);
       setAssignments(payload.assignments ?? []);
       setOrgUnits(payload.orgUnits ?? []);
+      setLegalEntities(payload.legalEntities ?? []);
+      setCostCenters(payload.costCenters ?? []);
       setWorksites(payload.worksites ?? []);
       setEmployees(payload.employees ?? []);
       const scenarioResponse = await fetch(`/api/workforce-planning/scenarios?organizationId=${organizationId}`, { cache: "no-store" });
@@ -158,6 +178,9 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
   const employeeById = useMemo(() => new Map(employees.map((employee) => [employee.id, employee])), [employees]);
   const profileById = useMemo(() => new Map(profiles.map((profile) => [profile.id, profile])), [profiles]);
   const unitById = useMemo(() => new Map(orgUnits.map((unit) => [unit.id, unit])), [orgUnits]);
+  const legalEntityById = useMemo(() => new Map(legalEntities.map((entity) => [entity.id, entity])), [legalEntities]);
+  const costCenterById = useMemo(() => new Map(costCenters.map((center) => [center.id, center])), [costCenters]);
+  const supervisoryUnits = useMemo(() => orgUnits.filter((unit) => unit.active && unit.type === "supervisory"), [orgUnits]);
   const plannedCost = positions.filter((position) => position.status !== "closed").reduce((sum, position) => sum + Number(position.annualBudget), 0);
   const approvedOpen = positions.filter((position) => ["approved", "open"].includes(position.status)).length;
   const filled = positions.filter((position) => activeAssignmentByPosition.has(position.id)).length;
@@ -263,12 +286,65 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
     return payload;
   }
 
+  async function createFamily(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      await post({ entityType: "job_family", ...familyForm });
+      setFamilyForm({ code: "", name: "" });
+      await load();
+      setNotice("Job family created.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create job family."); }
+  }
+
+  async function createLevel(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      await post({ entityType: "job_level", ...levelForm, sequence: Number(levelForm.sequence) });
+      setLevelForm({ code: "", name: "", sequence: "0" });
+      await load();
+      setNotice("Job level created.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create job level."); }
+  }
+
+  async function createGrade(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      await post({ entityType: "job_grade", ...gradeForm, sequence: Number(gradeForm.sequence) });
+      setGradeForm({ code: "", name: "", sequence: "0" });
+      await load();
+      setNotice("Job grade created.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create job grade."); }
+  }
+
+  async function createOrgUnit(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      await post({
+        entityType: "org_unit",
+        ...orgUnitForm,
+        parentId: orgUnitForm.parentId ? Number(orgUnitForm.parentId) : null,
+        legalEntityId: orgUnitForm.legalEntityId ? Number(orgUnitForm.legalEntityId) : null,
+        costCenterId: orgUnitForm.costCenterId ? Number(orgUnitForm.costCenterId) : null,
+        managerEmployeeId: orgUnitForm.managerEmployeeId ? Number(orgUnitForm.managerEmployeeId) : null,
+      });
+      setOrgUnitForm({ code: "", name: "", type: "department", parentId: "", legalEntityId: "", costCenterId: "", managerEmployeeId: "", effectiveFrom: "" });
+      await load();
+      setNotice("Organization unit created.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create organization unit."); }
+  }
+
   async function createProfile(event: React.FormEvent) {
     event.preventDefault();
     try {
-      await post({ entityType: "profile", ...profileForm });
+      await post({
+        entityType: "profile",
+        title: profileForm.title,
+        familyId: Number(profileForm.familyId),
+        levelId: Number(profileForm.levelId),
+        gradeId: profileForm.gradeId ? Number(profileForm.gradeId) : null,
+      });
       setShowProfile(false);
-      setProfileForm({ title: "", family: "", level: "", grade: "" });
+      setProfileForm({ title: "", familyId: "", levelId: "", gradeId: "" });
       await load();
       setNotice("Job profile created.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create job profile."); }
@@ -293,12 +369,15 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
         ...positionForm,
         jobProfileId: Number(positionForm.jobProfileId),
         orgUnitId: positionForm.orgUnitId ? Number(positionForm.orgUnitId) : null,
+        supervisoryOrgUnitId: positionForm.supervisoryOrgUnitId ? Number(positionForm.supervisoryOrgUnitId) : null,
+        legalEntityId: positionForm.legalEntityId ? Number(positionForm.legalEntityId) : null,
+        costCenterId: positionForm.costCenterId ? Number(positionForm.costCenterId) : null,
         planId: positionForm.planId ? Number(positionForm.planId) : null,
         managerEmployeeId: positionForm.managerEmployeeId ? Number(positionForm.managerEmployeeId) : null,
         annualBudget: Number(positionForm.annualBudget),
       });
       setShowPosition(false);
-      setPositionForm({ code: "", jobProfileId: "", orgUnitId: "", planId: "", managerEmployeeId: "", employmentType: "Regular", plannedStartDate: "", annualBudget: "" });
+      setPositionForm({ code: "", jobProfileId: "", orgUnitId: "", supervisoryOrgUnitId: "", legalEntityId: "", costCenterId: "", planId: "", managerEmployeeId: "", employmentType: "Regular", plannedStartDate: "", annualBudget: "" });
       await load();
       setNotice("Position added to the headcount plan.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create position."); }
