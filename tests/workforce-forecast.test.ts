@@ -246,3 +246,33 @@ test("planning UI exposes explicit scenario assumptions and quality boundaries",
   assert.ok(source.includes("STAFFING PLAN APPROVAL"));
   assert.ok(source.includes("/api/workforce-planning/scenarios"));
 });
+
+
+test("forecast exposes role-level demand and capacity gaps", () => {
+  const result = buildWorkforceDemandForecast({
+    assumptions: { startDate: "2026-01-01", endDate: "2026-01-31", demandGrowthPercent: 0, vacancyFillPercent: 100, employerLoadPercent: 0 },
+    employees: [{ id: 1, status: "Active", jobProfileId: 7 }],
+    payProfiles: [{ employeeId: 1, payBasis: "monthly", rateAmount: 30000, standardWorkDaysPerMonth: 22, standardHoursPerDay: 8 }],
+    positions: [{ id: 11, status: "open", jobProfileId: 8, annualBudget: 500000, plannedStartDate: "2026-01-01" }],
+    staffingRequirements: [
+      { workDate: "2026-01-10", shiftDefinitionId: 1, jobProfileId: 7, requiredHeadcount: 2 },
+      { workDate: "2026-01-10", shiftDefinitionId: 1, jobProfileId: 8, requiredHeadcount: 1 },
+    ],
+    jobProfiles: [{ id: 7, title: "Agent" }, { id: 8, title: "Team Lead" }],
+    shifts: [{ id: 1, startTime: "08:00", endTime: "17:00", breakMinutes: 60, spansMidnight: false }],
+    laborAllocations: [],
+    costCenters: [],
+  });
+
+  assert.equal(result.roleDemand.length, 2);
+  assert.equal(result.roleDemand.find((row) => row.jobProfileId === 7)?.title, "Agent");
+  assert.ok((result.roleDemand.find((row) => row.jobProfileId === 7)?.currentCapacityHours ?? 0) > 0);
+  assert.ok((result.roleDemand.find((row) => row.jobProfileId === 8)?.expectedVacancyCapacityHours ?? 0) > 0);
+});
+
+test("planning UI renders role demand separately from total capacity", () => {
+  const source = readFileSync("src/components/workforce-planning-panel.tsx", "utf8");
+  assert.ok(source.includes("data-wfm-role-demand"));
+  assert.ok(source.includes("JOB PROFILE"));
+  assert.ok(source.includes("forecast.roleDemand"));
+});

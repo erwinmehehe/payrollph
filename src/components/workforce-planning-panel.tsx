@@ -54,6 +54,7 @@ type WorkforceForecast = {
     capacityGapAfterFills: number;
     capacityCoveragePercent: number;
   };
+  roleDemand: Array<{ jobProfileId: number | null; title: string; family: string | null; level: string | null; requiredHours: number; forecastHours: number; currentCapacityHours: number; expectedVacancyCapacityHours: number; projectedCapacityHours: number; capacityGapHours: number; coveragePercent: number }>;
   costCenters: Array<{ costCenterId: number; code: string; name: string; currentPeriodBaseCost: number; currentPeriodLoadedCost: number }>;
   unallocated: { currentPeriodBaseCost: number | null; plannedVacancyPeriodCost: number | null };
   quality: {
@@ -403,6 +404,25 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
               <UsersRound size={15} />
               <span><strong>{forecast.summary.capacityGapAfterFills > 0 ? "Capacity gap" : "Capacity covered"}:</strong> demand {forecast.summary.forecastHeadcountHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs vs projected capacity {forecast.summary.projectedCapacityHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs after expected fills. Gap after fills: {forecast.summary.capacityGapAfterFills.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs.</span>
             </div>
+
+            {forecast.roleDemand.length > 0 && (
+              <div className="data-table-wrap" style={{ marginBottom: 16 }}>
+                <table className="data-table" data-wfm-role-demand>
+                  <thead><tr><th>JOB PROFILE</th><th className="right">FORECAST DEMAND</th><th className="right">CURRENT CAPACITY</th><th className="right">AFTER FILLS</th><th className="right">GAP</th></tr></thead>
+                  <tbody>
+                    {forecast.roleDemand.map((row) => (
+                      <tr key={row.jobProfileId ?? "any"}>
+                        <td><strong>{row.title}</strong><small style={{ display: "block", color: "var(--muted)" }}>{[row.family, row.level].filter(Boolean).join(" · ") || "General staffing requirement"}</small></td>
+                        <td className="right">{row.forecastHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs</td>
+                        <td className="right">{row.currentCapacityHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs</td>
+                        <td className="right">{row.projectedCapacityHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs</td>
+                        <td className="right"><strong>{row.capacityGapHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs</strong><small style={{ display: "block", color: "var(--muted)" }}>{row.coveragePercent.toFixed(1)}% coverage</small></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             <div className="module-grid two">
               <div className="notice notice-slate" style={{ margin: 0 }}>
