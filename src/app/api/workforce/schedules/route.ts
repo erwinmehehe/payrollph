@@ -38,6 +38,10 @@ import {
   type ScheduleGuardrailPolicy,
 } from "@/lib/workforce-schedule-guardrails";
 import { resolveEmployeeScheduleWindow } from "@/lib/workforce-schedule-window";
+import {
+  markTimesheetsStaleForEmployeeDate,
+  markTimesheetsStaleForEmployeeRange,
+} from "@/lib/workforce-timesheet-server";
 import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
 
 export const dynamic = "force-dynamic";
@@ -703,6 +707,13 @@ export async function POST(request: Request) {
       createdBy: user.name,
     }).returning();
 
+    const staleTimesheets = await markTimesheetsStaleForEmployeeRange({
+      organizationId,
+      employeeId,
+      startDate: effectiveFrom,
+      endDate: effectiveUntil,
+    });
+
     await recordAuditEvent({
       organizationId,
       actor: user.name,
@@ -717,6 +728,7 @@ export async function POST(request: Request) {
         anchorDate,
         workLocationOrgUnitId,
         worksiteId,
+        staleTimesheetIds: staleTimesheets.map((row) => row.id),
       },
     });
 
@@ -724,6 +736,7 @@ export async function POST(request: Request) {
       assignment: created,
       guardrailIssues,
       guardrailPolicy,
+      staleTimesheetIds: staleTimesheets.map((row) => row.id),
     }, { status: 201 });
   }
 
@@ -861,6 +874,12 @@ export async function POST(request: Request) {
         approvedAt: new Date(),
       }).returning();
 
+      const staleTimesheets = await markTimesheetsStaleForEmployeeDate({
+        organizationId,
+        employeeId,
+        workDate,
+      });
+
       await recordAuditEvent({
         organizationId,
         actor: user.name,
@@ -876,6 +895,7 @@ export async function POST(request: Request) {
           workLocationOrgUnitId,
           worksiteId,
           reason,
+          staleTimesheetIds: staleTimesheets.map((row) => row.id),
         },
       });
 
@@ -883,6 +903,7 @@ export async function POST(request: Request) {
         override: created,
         guardrailIssues,
         guardrailPolicy,
+        staleTimesheetIds: staleTimesheets.map((row) => row.id),
       }, { status: 201 });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Schedule override could not be created.";
