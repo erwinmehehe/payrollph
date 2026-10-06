@@ -117,9 +117,11 @@ export function computeCoverage(input: {
     const conflicted = matching.filter((row) =>
       row.unavailableShiftDefinitionIds?.includes(requirement.shiftDefinitionId),
     );
-    const capabilityIneligible = matching.filter((row) =>
-      row.ineligibleShiftDefinitionIds?.includes(requirement.shiftDefinitionId),
-    );
+    const capabilityIneligible = requirement.jobProfileId == null
+      ? []
+      : matching.filter((row) =>
+          row.ineligibleShiftDefinitionIds?.includes(requirement.shiftDefinitionId),
+        );
     const unavailableOrIneligible = new Set([
       ...conflicted.map((row) => row.employeeId),
       ...capabilityIneligible.map((row) => row.employeeId),
