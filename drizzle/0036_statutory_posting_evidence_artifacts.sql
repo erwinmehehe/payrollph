@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS "statutory_posting_evidence_artifacts" (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "statutory_posting_evidence_batch_hash_unique"
-  ON "statutory_posting_evidence_artifacts" ("organization_id", "batch_id", "content_sha256");
+  ON "statutory_posting_evidence_artifacts" ("organization_id", "batch_id", "content_sha256", "outcome");
 
 CREATE INDEX IF NOT EXISTS "statutory_posting_evidence_batch_idx"
   ON "statutory_posting_evidence_artifacts" ("organization_id", "batch_id", "source_type");
