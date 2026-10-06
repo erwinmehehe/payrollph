@@ -20,6 +20,8 @@ import {
   orgUnits,
   organizations,
   overtimeRequests,
+  payPolicies,
+  payPolicyRules,
   payrollEntries,
   historicalPayrollEntries,
   payrollJobs,
@@ -99,8 +101,18 @@ import {
   type OvertimeRequestKind,
   type OvertimeRequestStatus,
 } from "@/lib/workforce-overtime";
+import {
+  WORKED_TIME_PREMIUM_EVENT,
+  payPolicyTrace,
+  resolveApplicablePayPolicies,
+  resolveWorkedTimePremium,
+  type AppliedWorkedTimePremiumRule,
+  type PayPolicyRecord,
+  type PayPolicyRuleRecord,
+  type PayPolicyScope,
+} from "@/lib/pay-policy-engine";
 
-export const PAYROLL_RULE_VERSION = "PH-2026.05";
+export const PAYROLL_RULE_VERSION = "PH-2026.06";
 const DEFAULT_CHUNK = 25;
 
 function money(value: number) {
@@ -109,6 +121,13 @@ function money(value: number) {
 
 function roundToCents(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function payPolicyScope(value: string): PayPolicyScope {
+  if (value === "organization" || value === "org_unit" || value === "employee") {
+    return value;
+  }
+  throw new Error(`Unsupported pay policy scope "${value}".`);
 }
 
 function traceInputNumber(trace: unknown, key: string) {
