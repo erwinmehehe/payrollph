@@ -113,10 +113,8 @@ export async function GET() {
       postingReference: statutoryRemittanceMembers.postingReference,
       postedAmount: statutoryRemittanceMembers.postedAmount,
       postedAt: statutoryRemittanceMembers.postedAt,
-      postingEvidenceArtifactId: statutoryRemittanceMembers.postingEvidenceArtifactId,
       postingEvidenceSourceType: statutoryPostingEvidenceArtifacts.sourceType,
       postingEvidenceHashSha256: statutoryPostingEvidenceArtifacts.contentSha256,
-      postingEvidenceFileName: statutoryPostingEvidenceArtifacts.fileName,
       exceptionNote: statutoryRemittanceMembers.exceptionNote,
     }).from(statutoryRemittanceMembers)
       .innerJoin(
@@ -291,12 +289,10 @@ export async function GET() {
       postingReference: row.postingReference,
       postedAmount: row.postedAmount,
       postedAt: row.postedAt,
-      postingEvidenceArtifactId: row.postingEvidenceArtifactId,
       postingEvidenceSource: row.postingEvidenceSourceType
         ? postingEvidenceSourceLabel(row.postingEvidenceSourceType)
         : null,
       postingEvidenceHashSha256: row.postingEvidenceHashSha256,
-      postingEvidenceFileName: row.postingEvidenceFileName,
       exceptionNote: row.exceptionNote,
     })),
     governmentLoanRemittances: governmentLoanRows.map((row) => ({
