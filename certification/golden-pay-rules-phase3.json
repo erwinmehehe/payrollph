@@ -1,0 +1,174 @@
+{
+  "version": "phase3-pay-rules-2026-10-06",
+  "tolerancePeso": 0.01,
+  "baseEmployee": {
+    "monthlySalary": 26400,
+    "standardWorkDaysPerMonth": 22,
+    "standardHoursPerDay": 8,
+    "hourlyRate": 150
+  },
+  "families": [
+    {
+      "eventType": "worked_time_premium",
+      "linePrefix": "PREM-",
+      "direct": {
+        "minutes": 480,
+        "hourlyRate": 150,
+        "expectedAmount": 120,
+        "expectedTaxableAmount": 120,
+        "expectedSssIncludedAmount": 120,
+        "expectedPagIbigIncludedAmount": 0
+      },
+      "payroll": {
+        "workDate": "2026-10-05",
+        "timeIn": "09:00",
+        "timeOut": "18:00",
+        "shiftStart": "09:00",
+        "shiftEnd": "18:00",
+        "restDay": null,
+        "expectedStatutoryLineCode": null,
+        "expectedStatutoryAmount": 0,
+        "expectedOverlayAmount": 120,
+        "expectedGrossDelta": 120,
+        "breakStart": "12:00",
+        "breakEnd": "13:00"
+      },
+      "outcome": {
+        "label": "Golden company worked-time top-up",
+        "premiumPercent": 10,
+        "premiumAmountPerHour": 0,
+        "taxable": true,
+        "includeInSssBase": true,
+        "includeInPagIbigBase": false
+      },
+      "conditions": {}
+    },
+    {
+      "eventType": "holiday_rest_day_premium",
+      "linePrefix": "DAYPREM-",
+      "direct": {
+        "minutes": 480,
+        "hourlyRate": 150,
+        "holidayType": "special",
+        "restDay": true,
+        "statutoryMultiplier": 1.5,
+        "expectedAmount": 240,
+        "expectedTaxableAmount": 240,
+        "expectedSssIncludedAmount": 240,
+        "expectedPagIbigIncludedAmount": 0
+      },
+      "payroll": {
+        "workDate": "2026-02-17",
+        "timeIn": "09:00",
+        "timeOut": "18:00",
+        "shiftStart": "09:00",
+        "shiftEnd": "18:00",
+        "restDay": "Tuesday",
+        "expectedStatutoryLineCode": "HOLIDAY",
+        "expectedStatutoryAmount": 600,
+        "expectedOverlayAmount": 240,
+        "expectedGrossDelta": 240,
+        "breakStart": "12:00",
+        "breakEnd": "13:00"
+      },
+      "outcome": {
+        "label": "Golden special-rest top-up",
+        "additionalPremiumPercent": 20,
+        "taxable": true,
+        "includeInSssBase": true,
+        "includeInPagIbigBase": false
+      },
+      "conditions": {
+        "holidayTypes": [
+          "special"
+        ],
+        "restDay": true
+      }
+    },
+    {
+      "eventType": "overtime_premium",
+      "linePrefix": "OTPREM-",
+      "direct": {
+        "minutes": 120,
+        "hourlyRate": 150,
+        "holidayType": "ordinary",
+        "restDay": false,
+        "statutoryMultiplier": 1.25,
+        "expectedAmount": 60,
+        "expectedTaxableAmount": 60,
+        "expectedSssIncludedAmount": 60,
+        "expectedPagIbigIncludedAmount": 0
+      },
+      "payroll": {
+        "workDate": "2026-10-05",
+        "timeIn": "09:00",
+        "timeOut": "20:00",
+        "shiftStart": "09:00",
+        "shiftEnd": "18:00",
+        "restDay": null,
+        "approvedOvertimeMinutes": 120,
+        "expectedStatutoryLineCode": "OT",
+        "expectedStatutoryAmount": 375,
+        "expectedOverlayAmount": 60,
+        "expectedGrossDelta": 60,
+        "breakStart": "12:00",
+        "breakEnd": "13:00"
+      },
+      "outcome": {
+        "label": "Golden overtime top-up",
+        "additionalPremiumPercent": 20,
+        "taxable": true,
+        "includeInSssBase": true,
+        "includeInPagIbigBase": false
+      },
+      "conditions": {}
+    },
+    {
+      "eventType": "night_differential_premium",
+      "linePrefix": "NDPREM-",
+      "direct": {
+        "minutes": 60,
+        "hourlyRate": 150,
+        "holidayType": "ordinary",
+        "restDay": false,
+        "overtime": false,
+        "statutoryMultiplier": 1,
+        "expectedAmount": 15,
+        "expectedTaxableAmount": 15,
+        "expectedSssIncludedAmount": 15,
+        "expectedPagIbigIncludedAmount": 0
+      },
+      "payroll": {
+        "workDate": "2026-10-05",
+        "timeIn": "14:00",
+        "timeOut": "23:00",
+        "shiftStart": "14:00",
+        "shiftEnd": "23:00",
+        "restDay": null,
+        "expectedStatutoryLineCode": "ND",
+        "expectedStatutoryAmount": 15,
+        "expectedOverlayAmount": 15,
+        "expectedGrossDelta": 15,
+        "breakStart": "18:00",
+        "breakEnd": "19:00"
+      },
+      "outcome": {
+        "label": "Golden night differential top-up",
+        "additionalDifferentialPercent": 10,
+        "taxable": true,
+        "includeInSssBase": true,
+        "includeInPagIbigBase": false
+      },
+      "conditions": {
+        "overtime": false
+      }
+    }
+  ],
+  "invariants": [
+    "Every executable premium family is represented exactly once.",
+    "Configurable pay-rule amounts are additive and cannot reduce statutory premium lines.",
+    "Employee-scoped policy applies only to the targeted employee; an otherwise identical baseline employee receives no overlay.",
+    "Tax, SSS-base and Pag-IBIG-base classifications remain explicit and are reconciled in direct family output and payroll trace.",
+    "Any future executable premium family causes the certification sentinel to fail until a golden case is added."
+  ]
+}
