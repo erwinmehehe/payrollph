@@ -388,7 +388,7 @@ export function WorkforceCoveragePanel({
             <div className="notice notice-amber" style={{ marginBottom: 14 }}>
               <CircleAlert size={15} />
               <span>
-                <strong>Variance evidence needs review.</strong> {hours(labor.summary.unmatchedActualHours)} actual labor could not be tied to a staffing requirement, and {hours(labor.summary.scheduledOutsideRequirementHours)} is rostered outside recorded staffing requirements.
+                <strong>Variance evidence needs review.</strong> {hours(labor.summary.unmatchedActualHours)} actual labor could not be tied to a staffing requirement, and {hours(labor.summary.scheduledOutsideRequirementHours)} is scheduled outside recorded staffing requirements.
               </span>
             </div>
           )}
