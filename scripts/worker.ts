@@ -3,6 +3,7 @@ import { pool } from "../src/db";
 import { processNextPayrollJob } from "../src/lib/payroll-engine";
 import { drainWebhookRetries } from "../src/lib/webhooks";
 import { drainOutboxRetries } from "../src/lib/mailer";
+import { drainMarketingLeadNotifications } from "../src/lib/marketing-leads";
 import { runScheduledStatutoryRemittanceSync } from "../src/lib/statutory-remittance-actions";
 import { runScheduledContributionCaseEscalations } from "../src/lib/statutory-contribution-case-escalations";
 
@@ -17,6 +18,7 @@ async function tick() {
   const payroll = await processNextPayrollJob("dedicated-worker");
   const webhooks = await drainWebhookRetries(20);
   const mail = await drainOutboxRetries(20);
+  const marketingLeads = await drainMarketingLeadNotifications(20);
   const statutoryRemittanceActions = await runScheduledStatutoryRemittanceSync({
     actor: "Dedicated worker",
   });
@@ -27,6 +29,7 @@ async function tick() {
     payrollProcessed: payroll.processed,
     webhookRetries: webhooks.length,
     mailRetries: mail.filter((item) => item.retried).length,
+    marketingLeadNotifications: marketingLeads.filter((item) => item.notified).length,
     statutoryRemittanceActions,
     contributionCaseEscalations,
   };
@@ -45,7 +48,7 @@ async function main() {
   while (!stopping) {
     try {
       const result = await tick();
-      if (!result.payrollProcessed && result.webhookRetries === 0 && result.mailRetries === 0) {
+      if (!result.payrollProcessed && result.webhookRetries === 0 && result.mailRetries === 0 && result.marketingLeadNotifications === 0) {
         await sleep(POLL_MS);
       }
     } catch (error) {

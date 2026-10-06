@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import nodemailer from "nodemailer";
 import { db } from "@/db";
 import { auditEvents, outbox } from "@/db/schema";
@@ -19,6 +19,13 @@ const SENSITIVE_LINK_PURPOSES = new Set([
 ]);
 
 const MAX_AUTOMATIC_RETRIES = 3;
+const RETRYABLE_OPERATIONAL_PURPOSES = new Set([
+  "payslip-ready",
+  "statutory-remittance-escalation",
+  "demo-request",
+  "trial-access-request",
+  "payroll-outsourcing-enquiry",
+]);
 const AUTO_RETRY_DELAYS_MS = [
   5 * 60 * 1000,
   30 * 60 * 1000,
@@ -331,12 +338,15 @@ export async function queueMessage(input: {
   }
 }
 
-export async function getOutboxMessage(id: number, organizationId: number) {
+export async function getOutboxMessage(id: number, organizationId: number | null) {
   await ensureOutboxDeliverySchema();
+  const organizationScope = organizationId == null
+    ? isNull(outbox.organizationId)
+    : eq(outbox.organizationId, organizationId);
   const [row] = await db
     .select()
     .from(outbox)
-    .where(and(eq(outbox.id, id), eq(outbox.organizationId, organizationId)))
+    .where(and(eq(outbox.id, id), organizationScope))
     .limit(1);
   return row ?? null;
 }
@@ -348,7 +358,7 @@ export async function getOutboxMessage(id: number, organizationId: number) {
  */
 export async function retryOutboxMessage(input: {
   id: number;
-  organizationId: number;
+  organizationId: number | null;
   actor: string;
   trigger: "manual" | "automatic";
 }) {

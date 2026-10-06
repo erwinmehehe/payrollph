@@ -4,13 +4,20 @@ import { readFileSync } from "node:fs";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("demo and trial attribution is stored as structured non-PII outbox metadata", () => {
+test("demo and trial attribution is stored on the durable lead before notification", () => {
   const route = read("src/app/api/demo-requests/route.ts");
-  assert.ok(route.includes("metadata: {"));
-  assert.ok(route.includes("marketing: {"));
-  assert.ok(route.includes("requestType"));
-  assert.ok(route.includes("headcount: headcount || \"not stated\""));
-  assert.ok(route.includes("...attribution"));
+  const leads = read("src/lib/marketing-leads.ts");
+  const recordIndex = route.indexOf("recordMarketingLead({");
+  const notifyIndex = route.indexOf("notifyMarketingLead(lead.id)");
+
+  assert.ok(recordIndex >= 0);
+  assert.ok(notifyIndex > recordIndex);
+  assert.ok(route.includes("attribution,"));
+  assert.ok(leads.includes("attribution jsonb"));
+  assert.ok(leads.includes("JSON.stringify(input.attribution ?? {})"));
+  assert.ok(leads.includes("metadata: {"));
+  assert.ok(leads.includes("marketing: {"));
+  assert.ok(leads.includes("...(lead.attribution ?? {})"));
 });
 
 test("queueMessage supports durable metadata without requiring an audit context", () => {
@@ -21,13 +28,16 @@ test("queueMessage supports durable metadata without requiring an audit context"
 
 test("marketing lead report aggregates attribution dimensions only", () => {
   const report = read("src/lib/marketing-report.ts");
-  assert.ok(report.includes('eq(outbox.purpose, "demo-request")'));
+  assert.ok(report.includes('inArray(marketingLeads.kind, ["demo", "trial-access"])'));
   assert.ok(report.includes("byRequestType"));
   assert.ok(report.includes("byLandingPath"));
   assert.ok(report.includes("bySourceMedium"));
   assert.ok(report.includes("byCampaign"));
   assert.ok(report.includes("byHeadcount"));
   assert.ok(report.includes("byDay"));
+
+  assert.ok(report.includes("marketingLeads.attribution"));
+  assert.ok(report.includes("marketingLeads.headcount"));
 
   for (const piiField of ["recipient:", "body:", "subject:", "company:", "email:", "name:"]) {
     assert.ok(!report.includes(piiField), `aggregate report must not select/expose ${piiField}`);

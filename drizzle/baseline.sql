@@ -1154,6 +1154,33 @@ BEGIN
 END
 $compat$;
 
+-- Durable public marketing lead capture
+CREATE TABLE IF NOT EXISTS "marketing_leads" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "kind" varchar(32) NOT NULL,
+  "name" varchar(120) NOT NULL,
+  "email" varchar(180) NOT NULL,
+  "company" varchar(160) NOT NULL,
+  "headcount" varchar(40),
+  "payroll_frequency" varchar(40),
+  "entities" varchar(40),
+  "notes" text,
+  "source_path" varchar(120) NOT NULL,
+  "attribution" jsonb DEFAULT '{}'::jsonb NOT NULL,
+  "status" varchar(24) DEFAULT 'new' NOT NULL,
+  "notification_status" varchar(24) DEFAULT 'not-configured' NOT NULL,
+  "notification_provider" varchar(40),
+  "notification_outbox_id" integer,
+  "notification_attempts" integer DEFAULT 0 NOT NULL,
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  "updated_at" timestamptz DEFAULT now() NOT NULL,
+  CONSTRAINT "marketing_leads_kind_check" CHECK ("kind" IN ('demo', 'trial-access', 'payroll-outsourcing')),
+  CONSTRAINT "marketing_leads_status_check" CHECK ("status" IN ('new', 'contacted', 'qualified', 'closed')),
+  CONSTRAINT "marketing_leads_notification_status_check" CHECK ("notification_status" IN ('not-configured', 'queued', 'sent', 'failed'))
+);
+CREATE INDEX IF NOT EXISTS "marketing_leads_status_created_idx" ON "marketing_leads" ("status", "created_at" DESC);
+CREATE INDEX IF NOT EXISTS "marketing_leads_kind_created_idx" ON "marketing_leads" ("kind", "created_at" DESC);
+
 -- Recruitment-to-approved-position lifecycle links
 ALTER TABLE "job_applicants"
   ADD COLUMN IF NOT EXISTS "hired_employee_id" integer REFERENCES "employees"("id") ON DELETE set null,

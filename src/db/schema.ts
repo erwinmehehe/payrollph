@@ -1488,6 +1488,34 @@ export const outbox = pgTable("outbox", {
   index("outbox_retry_idx").on(table.status, table.nextAttemptAt),
 ]);
 
+export const marketingLeads = pgTable(
+  "marketing_leads",
+  {
+    id: serial("id").primaryKey(),
+    kind: varchar("kind", { length: 32 }).notNull(),
+    name: varchar("name", { length: 120 }).notNull(),
+    email: varchar("email", { length: 180 }).notNull(),
+    company: varchar("company", { length: 160 }).notNull(),
+    headcount: varchar("headcount", { length: 40 }),
+    payrollFrequency: varchar("payroll_frequency", { length: 40 }),
+    entities: varchar("entities", { length: 40 }),
+    notes: text("notes"),
+    sourcePath: varchar("source_path", { length: 120 }).notNull(),
+    attribution: jsonb("attribution").notNull().default({}),
+    status: varchar("status", { length: 24 }).notNull().default("new"),
+    notificationStatus: varchar("notification_status", { length: 24 }).notNull().default("not-configured"),
+    notificationProvider: varchar("notification_provider", { length: 40 }),
+    notificationOutboxId: integer("notification_outbox_id"),
+    notificationAttempts: integer("notification_attempts").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("marketing_leads_status_created_idx").on(table.status, table.createdAt),
+    index("marketing_leads_kind_created_idx").on(table.kind, table.createdAt),
+  ],
+);
+
 export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
