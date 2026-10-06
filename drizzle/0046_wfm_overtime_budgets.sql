@@ -27,3 +27,22 @@ CREATE INDEX IF NOT EXISTS "overtime_budgets_org_month_idx"
   ON "overtime_budgets" ("organization_id", "period_month", "active");
 CREATE INDEX IF NOT EXISTS "overtime_budgets_manager_idx"
   ON "overtime_budgets" ("organization_id", "manager_user_id", "period_month");
+
+ALTER TABLE "overtime_requests"
+  ADD COLUMN IF NOT EXISTS "org_unit_id" integer REFERENCES "org_units"("id") ON DELETE set null;
+ALTER TABLE "overtime_requests"
+  ADD COLUMN IF NOT EXISTS "budget_id" integer REFERENCES "overtime_budgets"("id") ON DELETE set null;
+ALTER TABLE "overtime_requests"
+  ADD COLUMN IF NOT EXISTS "budget_snapshot" jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+UPDATE "overtime_requests" ot
+SET "org_unit_id" = e."org_unit_id"
+FROM "employees" e
+WHERE ot."employee_id" = e."id"
+  AND ot."organization_id" = e."organization_id"
+  AND ot."org_unit_id" IS NULL;
+
+CREATE INDEX IF NOT EXISTS "overtime_requests_org_unit_date_idx"
+  ON "overtime_requests" ("organization_id", "org_unit_id", "work_date");
+CREATE INDEX IF NOT EXISTS "overtime_requests_budget_idx"
+  ON "overtime_requests" ("budget_id", "status");
