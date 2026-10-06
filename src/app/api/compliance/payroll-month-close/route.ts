@@ -5,6 +5,7 @@ import { assertOrganizationRole, getAccess } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
+import { legalEntityAuditMetadata, resolveComplianceLegalEntity } from "@/lib/compliance-legal-entity";
 import { ensurePayrollMonthCloseSchema } from "@/lib/payroll-month-close-schema";
 import { buildPayrollMonthCloseState } from "@/lib/payroll-month-close-server";
 import { currentManilaMonth } from "@/lib/statutory-remittance-state";
@@ -43,6 +44,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const organizationId = Number(url.searchParams.get("organizationId"));
+  const requestedLegalEntityId = Number(url.searchParams.get("legalEntityId"));
   const applicableMonth = String(url.searchParams.get("applicableMonth") ?? "").trim();
   if (!Number.isInteger(organizationId) || !/^\d{4}-\d{2}$/.test(applicableMonth)) {
     return Response.json({ error: "organizationId and applicableMonth (YYYY-MM) are required." }, { status: 400 });
@@ -56,9 +58,23 @@ export async function GET(request: Request) {
   );
   if (denied) return denied;
 
-  const state = await buildPayrollMonthCloseState(organizationId, applicableMonth);
+  let legalEntity;
+  try {
+    legalEntity = await resolveComplianceLegalEntity({
+      organizationId,
+      requestedLegalEntityId: Number.isInteger(requestedLegalEntityId) ? requestedLegalEntityId : null,
+    });
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "Could not resolve legal employer.",
+      requiresLegalEntityId: true,
+    }, { status: 422 });
+  }
+
+  const state = await buildPayrollMonthCloseState(organizationId, legalEntity.id, applicableMonth);
   return Response.json({
     ...state,
+    legalEntity,
     canCertifyRole: CERTIFY_ROLES.includes(
       (await getAccess(user.id, organizationId))?.role as typeof CERTIFY_ROLES[number],
     ),
@@ -78,6 +94,7 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
+  const requestedLegalEntityId = Number(body.legalEntityId);
   const applicableMonth = String(body.applicableMonth ?? "").trim();
   if (!Number.isInteger(organizationId) || !/^\d{4}-\d{2}$/.test(applicableMonth)) {
     return Response.json({ error: "organizationId and applicableMonth (YYYY-MM) are required." }, { status: 400 });
@@ -90,6 +107,20 @@ export async function POST(request: Request) {
     "Only a company-wide Owner, Admin or Checker can independently certify payroll month close.",
   );
   if (denied) return denied;
+
+  let legalEntity;
+  try {
+    legalEntity = await resolveComplianceLegalEntity({
+      organizationId,
+      requestedLegalEntityId: Number.isInteger(requestedLegalEntityId) ? requestedLegalEntityId : null,
+    });
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "Could not resolve legal employer.",
+      requiresLegalEntityId: true,
+    }, { status: 422 });
+  }
+
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
   const rateDenied = await enforceSensitiveActionRateLimit(request, {
@@ -107,7 +138,7 @@ export async function POST(request: Request) {
     }, { status: 409 });
   }
 
-  const current = await buildPayrollMonthCloseState(organizationId, applicableMonth);
+  const current = await buildPayrollMonthCloseState(organizationId, legalEntity.id, applicableMonth);
   if (!current.evaluation.ready) {
     return Response.json({
       error: "This payroll month is not ready for independent certification.",
@@ -125,6 +156,7 @@ export async function POST(request: Request) {
   const [existingSnapshot] = await db.select().from(payrollMonthClosures)
     .where(and(
       eq(payrollMonthClosures.organizationId, organizationId),
+      eq(payrollMonthClosures.legalEntityId, legalEntity.id),
       eq(payrollMonthClosures.applicableMonth, applicableMonth),
       eq(payrollMonthClosures.snapshotHash, current.evaluation.snapshotHash),
     ))
@@ -132,6 +164,7 @@ export async function POST(request: Request) {
 
   const closure = existingSnapshot ?? (await db.insert(payrollMonthClosures).values({
     organizationId,
+    legalEntityId: legalEntity.id,
     applicableMonth,
     status: "certified",
     snapshotHash: current.evaluation.snapshotHash,
@@ -148,6 +181,7 @@ export async function POST(request: Request) {
     resource: applicableMonth,
     metadata: {
       payrollMonthClosureId: closure.id,
+      ...legalEntityAuditMetadata(legalEntity),
       applicableMonth,
       snapshotHash: current.evaluation.snapshotHash,
       runCount: current.evaluation.runCount,
