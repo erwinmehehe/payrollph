@@ -52,3 +52,5 @@ the first one, so it closes itself.
 - `0046_wfm_staffing_scenarios.sql` adds immutable WFM staffing scenario snapshots with scoped manager submission/approval evidence.
 
 - `0047_overtime_budget_controls.sql` adds monthly department/manager OT-minute budgets with advisory or blocking authorization controls.
+
+- `0049_automation_studio_v2.sql` adds durable Automation Studio workflow state for resumable waits, approval gates and scheduler-driven continuation.
