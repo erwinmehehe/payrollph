@@ -53,10 +53,14 @@ export async function GET() {
   if (context.denied) return context.denied;
   const user = context.user!;
   const employee = context.employee!;
+  if (!employee.legalEntityId) {
+    return Response.json({ error: "Your employee record has no legal employer. Contact payroll before reviewing contribution evidence." }, { status: 409 });
+  }
 
   const cases = await db.select().from(statutoryContributionIssueCases)
     .where(and(
       eq(statutoryContributionIssueCases.organizationId, employee.organizationId),
+      eq(statutoryContributionIssueCases.legalEntityId, employee.legalEntityId),
       eq(statutoryContributionIssueCases.employeeId, employee.id),
     ))
     .orderBy(desc(statutoryContributionIssueCases.createdAt), desc(statutoryContributionIssueCases.id))
@@ -104,6 +108,9 @@ export async function POST(request: Request) {
   if (context.denied) return context.denied;
   const user = context.user!;
   const employee = context.employee!;
+  if (!employee.legalEntityId) {
+    return Response.json({ error: "Your employee record has no legal employer. Contact payroll before reporting a contribution issue." }, { status: 409 });
+  }
 
   const rateDenied = await enforceSensitiveActionRateLimit(request, {
     userId: user.id,
@@ -146,6 +153,7 @@ export async function POST(request: Request) {
       .where(and(
         eq(statutoryRemittanceMembers.id, memberId),
         eq(statutoryRemittanceMembers.organizationId, employee.organizationId),
+        eq(statutoryRemittanceMembers.legalEntityId, employee.legalEntityId),
         eq(statutoryRemittanceMembers.employeeId, employee.id),
       ))
       .limit(1);
@@ -153,7 +161,7 @@ export async function POST(request: Request) {
     if (!row) {
       return Response.json({ error: "That contribution record is not part of your employee account." }, { status: 404 });
     }
-    if (row.batch.agency !== agency || row.batch.applicableMonth !== applicableMonth) {
+    if (row.batch.legalEntityId !== employee.legalEntityId || row.batch.agency !== agency || row.batch.applicableMonth !== applicableMonth) {
       return Response.json({ error: "The selected contribution record does not match the agency/month being reported." }, { status: 409 });
     }
     member = row.member;
@@ -164,6 +172,7 @@ export async function POST(request: Request) {
     .from(statutoryContributionIssueCases)
     .where(and(
       eq(statutoryContributionIssueCases.organizationId, employee.organizationId),
+      eq(statutoryContributionIssueCases.legalEntityId, employee.legalEntityId),
       eq(statutoryContributionIssueCases.employeeId, employee.id),
       eq(statutoryContributionIssueCases.agency, agency),
       eq(statutoryContributionIssueCases.applicableMonth, applicableMonth),
@@ -206,6 +215,7 @@ export async function POST(request: Request) {
   const created = await db.transaction(async (tx) => {
     const [issue] = await tx.insert(statutoryContributionIssueCases).values({
       organizationId: employee.organizationId,
+      legalEntityId: employee.legalEntityId,
       employeeId: employee.id,
       batchId: batch?.id ?? null,
       remittanceMemberId: member?.id ?? null,
@@ -257,6 +267,7 @@ export async function POST(request: Request) {
     resource: `${agency} · ${applicableMonth} · ${employee.employeeNo}`,
     metadata: {
       caseId: created.id,
+      legalEntityId: employee.legalEntityId,
       employeeId: employee.id,
       issueType,
       memberId: member?.id ?? null,
@@ -267,6 +278,7 @@ export async function POST(request: Request) {
 
   const invalidatedClosures = await invalidateStatutoryRemittanceMonthCertification({
     organizationId: employee.organizationId,
+    legalEntityId: employee.legalEntityId,
     applicableMonth,
     reason: `Employee contribution case #${created.id} was reported after month certification.`,
   });
