@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CalendarClock, CheckCircle2, RefreshCw, ShieldCheck } from "lucide-react";
 import { HcmEmploymentDecisionEvidence } from "@/components/hcm-employment-decision-evidence";
+import { HcmProbationReviewPanel } from "@/components/hcm-probation-review-panel";
 
 type TermLifecycle = {
   state: "none" | "future" | "upcoming" | "due" | "overdue";
@@ -280,6 +281,16 @@ export function HcmEmploymentLifecycleWorker({
           <AlertTriangle size={15} />
           <span><strong>No active governed employment terms.</strong> Configure the worker's terms before relying on probation or contract-end automation.</span>
         </div>
+      )}
+
+      {activeTerm?.termKind === "probationary" && (
+        <HcmProbationReviewPanel
+          organizationId={organizationId}
+          employeeId={employeeId}
+          employmentTermId={activeTerm.id}
+          probationReviewDate={activeTerm.probationReviewDate}
+          onChanged={load}
+        />
       )}
 
       {openTerm && (
