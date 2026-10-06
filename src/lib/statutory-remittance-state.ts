@@ -8,10 +8,12 @@ import {
   statutoryRemittanceBatches,
   statutoryRemittanceMembers,
   statutoryRemittancePaymentEvidence,
+  statutoryPostingEvidenceArtifacts,
 } from "@/db/schema";
 import { buildStatutoryRemittanceAlerts } from "@/lib/statutory-remittance-alerts";
 import { FILING_FORMS } from "@/lib/filing-evidence";
 import { compareFilingToRemittance } from "@/lib/filing-remittance-snapshot";
+import { postingEvidenceSourceLabel } from "@/lib/statutory-posting-evidence";
 import {
   effectiveRemittanceDueDate,
   statutorySharesForEntry,
@@ -77,6 +79,46 @@ export async function loadStatutoryRemittanceState(organizationId: number) {
         ))
         .orderBy(asc(statutoryRemittanceMembers.batchId), asc(statutoryRemittanceMembers.employeeNo))
     : [];
+
+  const evidenceArtifactIds = [...new Set(
+    members
+      .map((member) => member.postingEvidenceArtifactId)
+      .filter((id): id is number => Number.isInteger(id)),
+  )];
+  const postingEvidenceRows = evidenceArtifactIds.length
+    ? await db.select({
+        id: statutoryPostingEvidenceArtifacts.id,
+        batchId: statutoryPostingEvidenceArtifacts.batchId,
+        sourceType: statutoryPostingEvidenceArtifacts.sourceType,
+        outcome: statutoryPostingEvidenceArtifacts.outcome,
+        fileName: statutoryPostingEvidenceArtifacts.fileName,
+        byteSize: statutoryPostingEvidenceArtifacts.byteSize,
+        contentSha256: statutoryPostingEvidenceArtifacts.contentSha256,
+        rowCount: statutoryPostingEvidenceArtifacts.rowCount,
+        recordedByName: statutoryPostingEvidenceArtifacts.recordedByName,
+        createdAt: statutoryPostingEvidenceArtifacts.createdAt,
+      }).from(statutoryPostingEvidenceArtifacts)
+        .where(and(
+          eq(statutoryPostingEvidenceArtifacts.organizationId, organizationId),
+          inArray(statutoryPostingEvidenceArtifacts.id, evidenceArtifactIds),
+        ))
+    : [];
+  const postingEvidenceById = new Map(postingEvidenceRows.map((row) => [row.id, row]));
+  const membersWithEvidence = members.map((member) => {
+    const artifact = member.postingEvidenceArtifactId
+      ? postingEvidenceById.get(member.postingEvidenceArtifactId) ?? null
+      : null;
+    return {
+      ...member,
+      postingEvidenceSource: artifact ? postingEvidenceSourceLabel(artifact.sourceType) : null,
+      postingEvidenceHashSha256: artifact?.contentSha256 ?? null,
+      postingEvidenceFileName: artifact?.fileName ?? null,
+      postingEvidenceByteSize: artifact?.byteSize ?? null,
+      postingEvidenceRowCount: artifact?.rowCount ?? null,
+      postingEvidenceRecordedBy: artifact?.recordedByName ?? null,
+      postingEvidenceRecordedAt: artifact?.createdAt ?? null,
+    };
+  });
 
   const paymentProofRows = batchIds.length
     ? await db.select({
@@ -200,10 +242,10 @@ export async function loadStatutoryRemittanceState(organizationId: number) {
         batch.status === "open" && String(batch.dueDate) < today
           ? "overdue"
           : batch.status,
-      pendingPostingCount: members.filter(
+      pendingPostingCount: membersWithEvidence.filter(
         (member) => member.batchId === batch.id && member.postingStatus === "pending",
       ).length,
-      exceptionCount: members.filter(
+      exceptionCount: membersWithEvidence.filter(
         (member) => member.batchId === batch.id && member.postingStatus === "exception",
       ).length,
       paymentShortfall: Math.max(
@@ -245,7 +287,7 @@ export async function loadStatutoryRemittanceState(organizationId: number) {
     organization,
     today,
     batches: batchSummaries,
-    members,
+    members: membersWithEvidence,
     coverageGaps,
     alerts,
   };
