@@ -3,7 +3,7 @@ import { SeoLandingPage } from "@/components/marketing/seo-landing-page";
 
 export const metadata: Metadata = {
   title: "Payroll Trust Center | Security & Product Evidence | Linaw",
-  description: "Inspect Linaw payroll security controls, capability evidence, product status, rollout gates and validation limits before relying on a product claim.",
+  description: "Inspect Linaw payroll security controls, capability evidence, product status, rollout gates and validation limits before relying on a payroll product claim.",
   alternates: { canonical: "/trust" },
 };
 
