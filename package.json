@@ -13,7 +13,9 @@
     "security:preflight": "tsx scripts/security-preflight.ts",
     "seo:audit": "tsx scripts/seo-launch-audit.ts",
     "seo:routes": "tsx scripts/seo-route-audit.ts",
-    "seo:links": "tsx scripts/seo-internal-link-audit.ts"
+    "seo:links": "tsx scripts/seo-internal-link-audit.ts",
+    "leads:list": "tsx scripts/list-marketing-leads.ts",
+    "leads:set-status": "tsx scripts/update-marketing-lead-status.ts"
   },
   "dependencies": {
     "@types/nodemailer": "^8.0.2",
