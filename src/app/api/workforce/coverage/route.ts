@@ -452,7 +452,11 @@ export async function POST(request: Request) {
   if (rateDenied) return rateDenied;
 
   if (action === "create_availability") {
-    const employeeId = Number(body.employeeId);
+    const requestedEmployeeId = body.employeeId == null ? user.employeeId : Number(body.employeeId);
+    if (requestedEmployeeId == null || !Number.isInteger(requestedEmployeeId)) {
+      return Response.json({ error: "Linked employee identity is required." }, { status: 400 });
+    }
+    const employeeId = Number(requestedEmployeeId);
     const weekday = Number(body.weekday);
     const startTime = String(body.startTime ?? "");
     const endTime = String(body.endTime ?? "");
