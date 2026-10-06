@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { SeoLandingPage } from "@/components/marketing/seo-landing-page";
 
 export const metadata: Metadata = {
-  title: "Payroll Security Philippines | Controls & Privacy | Linaw",
+  title: "Payroll Software Security Philippines | Controls | Linaw",
   description: "Philippine payroll software security covering tenant isolation, RBAC, TOTP MFA, encrypted sensitive fields, audit trails, sessions and security checks.",
   alternates: { canonical: "/security" },
 };
