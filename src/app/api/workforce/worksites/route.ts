@@ -461,7 +461,8 @@ export async function POST(request: Request) {
       return Response.json({ authorization: created, staleTimesheetIds: stale.map((row) => row.id) }, { status: 201 });
     }
 
-    const authorizationId = Number(body.authorizationId);
+    if (action === "end_authorization") {
+      const authorizationId = Number(body.authorizationId);
     const endDate = String(body.endDate ?? "");
     if (!Number.isInteger(authorizationId) || !ISO_DATE.test(endDate)) {
       return Response.json({ error: "Valid authorizationId and inclusive endDate required." }, { status: 400 });
@@ -485,7 +486,8 @@ export async function POST(request: Request) {
       resource: employeeCheck.employee!.employeeNo,
       metadata: { authorizationId, employeeId, worksiteId: ended.worksiteId, endDate, staleTimesheetIds: stale.map((row) => row.id) },
     });
-    return Response.json({ authorization: ended, staleTimesheetIds: stale.map((row) => row.id) });
+      return Response.json({ authorization: ended, staleTimesheetIds: stale.map((row) => row.id) });
+    }
   }
 
   if (action === "assign_employee") {
