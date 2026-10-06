@@ -67,6 +67,8 @@ import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
 import { assertUnambiguousRoleDemand, resolveEmployeeJobProfileAtDate } from "@/lib/workforce-role-demand";
 import { evaluateEmployeeFromCapabilityData, loadCapabilityEligibilityData, loadEmployeeWfmEligibility } from "@/lib/hcm-workforce-eligibility-server";
 import { approvedLeaveConflictsFullShift, approvedLeaveCoverageImpact } from "@/lib/workforce-absence";
+import { loadSiteEligibilityEvidence, employeeSiteEligibility } from "@/lib/hcm-worksite-eligibility-server";
+import { evaluateSiteEligibility } from "@/lib/hcm-worksite-eligibility";
 
 export const dynamic = "force-dynamic";
 
@@ -233,6 +235,7 @@ async function coverageRows(input: {
       roleEvidenceIssues: [] as string[],
       capabilityEvidenceIssues: [] as string[],
       absenceEvidenceIssues: [] as string[],
+      siteEvidenceIssues: [] as string[],
     };
   }
 
@@ -280,6 +283,8 @@ async function coverageRows(input: {
     )).orderBy(asc(leaveRequests.employeeId), asc(leaveRequests.startDate), asc(leaveRequests.id)),
   ]);
 
+  const siteEvidence = await loadSiteEligibilityEvidence(input.organizationId, input.employeeIds);
+  const siteEvidenceIssues = new Set<string>();
   const capabilityData = await loadCapabilityEligibilityData({
     organizationId: input.organizationId,
     employeeIds: input.employeeIds,
@@ -452,6 +457,20 @@ async function coverageRows(input: {
         (leave) => approvedLeaveCoverageImpact(leave).kind === "full_day",
       );
       const approvedLeaveShiftDefinitionIds = fullDayLeave ? shiftIds : [];
+      const siteEligibility = evaluateSiteEligibility({
+        ...siteEvidence,
+        employeeId,
+        date,
+        worksiteId: day.worksiteId,
+      });
+      const siteIneligibleShiftDefinitionIds = siteEligibility.eligible ? [] : shiftIds;
+      if (siteEligibility.blockers.length) {
+        siteEvidenceIssues.add("Employee #" + employeeId + " · " + date + ": " + siteEligibility.blockers.join(" "));
+      }
+      if (siteEligibility.warnings.length) {
+        siteEvidenceIssues.add("Employee #" + employeeId + " · " + date + ": " + siteEligibility.warnings.join(" "));
+      }
+
       if (leaveOverlap.ambiguous) {
         absenceEvidenceIssues.add(
           "Employee #" + employeeId + " has approved partial/ambiguous leave on " + date
@@ -468,6 +487,7 @@ async function coverageRows(input: {
         unavailableShiftDefinitionIds: unavailableShiftIds,
         ineligibleShiftDefinitionIds: capabilityIneligibleShiftIds,
         approvedLeaveShiftDefinitionIds,
+        siteIneligibleShiftDefinitionIds,
       });
     }
   }
@@ -490,6 +510,7 @@ async function coverageRows(input: {
     roleEvidenceIssues: [...roleEvidenceIssues],
     capabilityEvidenceIssues: [...capabilityEvidenceIssues],
     absenceEvidenceIssues: [...absenceEvidenceIssues],
+    siteEvidenceIssues: [...siteEvidenceIssues],
   };
 }
 
@@ -749,6 +770,7 @@ export async function GET(request: Request) {
       roleEvidenceIssues: coverageData.roleEvidenceIssues,
       capabilityEvidenceIssues: coverageData.capabilityEvidenceIssues,
       absenceEvidenceIssues: coverageData.absenceEvidenceIssues,
+      siteEvidenceIssues: coverageData.siteEvidenceIssues,
     },
   };
 
