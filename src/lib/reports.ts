@@ -2,8 +2,9 @@ import { and, avg, count, desc, eq, gte, inArray, lte, sql, sum } from "drizzle-
 import { db } from "@/db";
 import { employees, leaveRequests, openShiftClaims, openShifts, overtimeRequests, payrollEntries, payrollRuns, staffingRequirements, timePunches, workforceTimesheets } from "@/db/schema";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
+import { buildEmploymentLifecycleGovernanceReport } from "@/lib/hcm-lifecycle-analytics";
 
-export type ReportKey = "headcount" | "cost" | "turnover" | "compliance" | "assurance" | "workforce";
+export type ReportKey = "headcount" | "cost" | "turnover" | "compliance" | "assurance" | "workforce" | "lifecycle";
 
 export const REPORT_DEFINITIONS: Array<{ key: ReportKey; name: string; description: string; columns: string[] }> = [
   { key: "headcount", name: "Headcount movement", description: "Active, leave, disciplinary and separating counts by employment type", columns: ["Employment type", "Status", "People", "Avg monthly basic"] },
@@ -12,9 +13,14 @@ export const REPORT_DEFINITIONS: Array<{ key: ReportKey; name: string; descripti
   { key: "compliance", name: "Compliance exceptions", description: "Punch exceptions and flagged payroll entries requiring sign-off", columns: ["Type", "Count", "Detail"] },
   { key: "assurance", name: "Payroll assurance", description: "Latest payroll controls and employee variances against the previous run", columns: ["Severity", "Employee", "Control", "Detail", "Current", "Delta"] },
   { key: "workforce", name: "Workforce operations", description: "Trailing 30-day overtime, absence, coverage, schedule adherence, payroll variance and labor cost", columns: ["Metric", "Current", "Context"] },
+  { key: "lifecycle", name: "Lifecycle governance", description: "Employment-term deadlines, decision flow, evidence coverage, non-renewal handoffs and notification escalations", columns: ["Metric", "Current", "Context"] },
 ];
 
 export async function runReport(key: ReportKey, organizationId: number) {
+  if (key === "lifecycle") {
+    return buildEmploymentLifecycleGovernanceReport({ organizationId });
+  }
+
   if (key === "headcount") {
     const rows = await db
       .select({
