@@ -6,6 +6,7 @@ import { drainOutboxRetries } from "@/lib/mailer";
 import { purgeExpiredOperationalData } from "@/lib/data-retention";
 import { runScheduledStatutoryRemittanceSync } from "@/lib/statutory-remittance-actions";
 import { runScheduledContributionCaseEscalations } from "@/lib/statutory-contribution-case-escalations";
+import { resumeDueAutomationExecutions } from "@/lib/automation";
 
 const MIN_INTERVAL_MS = 30_000;
 
@@ -38,6 +39,7 @@ export async function tickScheduler(force = false) {
   const contributionCaseEscalations = await runScheduledContributionCaseEscalations({
     actor: "System scheduler",
   });
+  const automationResumes = await resumeDueAutomationExecutions(now, 25);
 
   if (retentionDue) {
     const retentionPayload = { at: now.toISOString(), deleted: retention };
@@ -62,6 +64,7 @@ export async function tickScheduler(force = false) {
     retentionPurge: retention,
     statutoryRemittanceActions,
     contributionCaseEscalations,
+    automationResumes,
     at: now.toISOString(),
     results: {
       webhooks: webhookResults.slice(0, 10),
