@@ -24,7 +24,7 @@ test("public SEO infrastructure exists", () => {
 test("homepage and authority routes keep distinct search intent ownership", () => {
   const home = read("src/app/page.tsx");
   const hris = read("src/app/hris/page.tsx");
-  assert.ok(home.includes("Payroll Software Philippines | Payroll System | Linaw"), "homepage must own payroll software intent");
+  assert.ok(home.includes("Payroll Software Philippines | Payroll System PH | Linaw"), "homepage must own payroll software intent");
   assert.ok(!home.includes("HRIS & Payroll System"), "homepage must not reuse the HRIS title cluster");
   assert.ok(hris.includes("HRIS Philippines"), "/hris must own HRIS Philippines intent");
 });
@@ -263,7 +263,7 @@ test("integration, developer and trust pages keep distinct authority intent", ()
   const trust = read("src/app/trust/page.tsx");
   assert.ok(integrations.includes("Payroll Integrations Philippines | API & Webhooks | Linaw"));
   assert.ok(integrations.includes("Does an export file count as a native integration?"));
-  assert.ok(developers.includes("Payroll API Philippines | Developer Center | Linaw"));
+  assert.ok(developers.includes("Payroll API Philippines | Developer Tools & Webhooks | Linaw"));
   assert.ok(developers.includes("What API scopes are available today?"));
   assert.ok(trust.includes("Payroll Trust Center | Security & Product Evidence | Linaw"));
   assert.ok(trust.includes("Does a green CI run mean payroll is certified for production?"));
@@ -582,8 +582,10 @@ test("standalone SEO pages keep titles and descriptions in target SERP ranges", 
 
   for (const path of pages) {
     const source = read(path);
-    const title = source.match(/title:\s*"([^"]+)"/)?.[1] ?? "";
-    const description = source.match(/description:\s*"([^"]+)"/)?.[1] ?? "";
+    const metadataStart = source.indexOf("export const metadata");
+    const metadataSource = metadataStart >= 0 ? source.slice(metadataStart) : "";
+    const title = metadataSource.match(/title:\s*"([^"]+)"/)?.[1] ?? "";
+    const description = metadataSource.match(/description:\s*"([^"]+)"/)?.[1] ?? "";
     assert.ok(title.length >= 55 && title.length <= 60, `${path} title length ${title.length} should be 55–60 characters`);
     assert.ok(description.length >= 150 && description.length <= 160, `${path} description length ${description.length} should be 150–160 characters`);
   }
