@@ -1168,6 +1168,50 @@ export async function ensureCoreCompatibilitySchema() {
         $compat$;
       `);
 
+      // Contribution issue events depend on the parent cases table. Older
+      // production databases can have the event compatibility block without
+      // ever receiving the historical 0028 migration, so create the complete
+      // current parent shape first.
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS statutory_contribution_issue_cases (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          employee_id integer NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+          batch_id integer REFERENCES statutory_remittance_batches(id) ON DELETE SET NULL,
+          remittance_member_id integer REFERENCES statutory_remittance_members(id) ON DELETE SET NULL,
+          agency varchar(24) NOT NULL,
+          applicable_month varchar(7) NOT NULL,
+          issue_type varchar(48) NOT NULL,
+          description varchar(500) NOT NULL,
+          employee_snapshot jsonb NOT NULL,
+          status varchar(24) NOT NULL DEFAULT 'open',
+          reported_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          reported_by_name varchar(120) NOT NULL,
+          assigned_to_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          assigned_to_name varchar(120),
+          review_started_at timestamptz,
+          resolution_outcome varchar(48),
+          resolution_note varchar(600),
+          resolved_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          resolved_by_name varchar(120),
+          resolved_at timestamptz,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS statutory_contribution_issue_org_status_idx
+        ON statutory_contribution_issue_cases(organization_id, status, created_at)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS statutory_contribution_issue_employee_idx
+        ON statutory_contribution_issue_cases(organization_id, employee_id, created_at)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS statutory_contribution_issue_member_idx
+        ON statutory_contribution_issue_cases(organization_id, remittance_member_id)
+      `);
+
       await client.query(`
         CREATE TABLE IF NOT EXISTS statutory_contribution_issue_events (
           id serial PRIMARY KEY,
