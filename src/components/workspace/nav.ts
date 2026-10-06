@@ -1,5 +1,6 @@
 import {
   AlertCircle,
+  BadgeDollarSign,
   Banknote,
   BriefcaseBusiness,
   CalendarDays,
@@ -63,6 +64,7 @@ export const NAVIGATION: NavGroup[] = [
       { name: "Time & attendance", icon: Clock3, hint: "Punches, exceptions and derived hours", tone: "cyan" },
       { name: "Workforce", icon: CalendarDays, hint: "Rotations, roster assignments and rest-day overrides", tone: "teal" },
       { name: "Planning", icon: BriefcaseBusiness, hint: "Job architecture, positions, headcount plans and incumbents", tone: "purple" },
+      { name: "Compensation", icon: BadgeDollarSign, hint: "Salary bands, review budgets and governed pay changes", tone: "green" },
       { name: "Leave", icon: CalendarDays, hint: "Leave requests and balances", tone: "pink" },
       { name: "Approvals", icon: ClipboardCheck, hint: "Decisions assigned to you or your delegates", tone: "amber", badge: "approvals" },
     ],
