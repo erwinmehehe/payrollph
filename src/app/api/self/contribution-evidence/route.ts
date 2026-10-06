@@ -13,12 +13,14 @@ import {
   statutoryRemittanceMembers,
   statutoryRemittanceMonthClosures,
   statutoryRemittancePaymentEvidence,
+  statutoryPostingEvidenceArtifacts,
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { compareFilingToRemittance } from "@/lib/filing-remittance-snapshot";
 import { enforceSensitiveActionRateLimit } from "@/lib/security-request";
 import { buildContributionEvidencePack } from "@/lib/statutory-contribution-evidence-pack";
+import { postingEvidenceSourceLabel } from "@/lib/statutory-posting-evidence";
 import {
   statutorySharesForEntry,
   type StatutoryAgency,
@@ -136,6 +138,26 @@ export async function GET(request: Request) {
           eq(statutoryRemittanceMembers.organizationId, employee.organizationId),
           eq(statutoryRemittanceMembers.batchId, batch.id),
           eq(statutoryRemittanceMembers.employeeId, employee.id),
+        ))
+        .limit(1)
+    : [];
+
+  const [postingEvidenceArtifact] = member?.postingEvidenceArtifactId
+    ? await db.select({
+        id: statutoryPostingEvidenceArtifacts.id,
+        batchId: statutoryPostingEvidenceArtifacts.batchId,
+        sourceType: statutoryPostingEvidenceArtifacts.sourceType,
+        outcome: statutoryPostingEvidenceArtifacts.outcome,
+        fileName: statutoryPostingEvidenceArtifacts.fileName,
+        byteSize: statutoryPostingEvidenceArtifacts.byteSize,
+        contentSha256: statutoryPostingEvidenceArtifacts.contentSha256,
+        rowCount: statutoryPostingEvidenceArtifacts.rowCount,
+        createdAt: statutoryPostingEvidenceArtifacts.createdAt,
+      }).from(statutoryPostingEvidenceArtifacts)
+        .where(and(
+          eq(statutoryPostingEvidenceArtifacts.id, member.postingEvidenceArtifactId),
+          eq(statutoryPostingEvidenceArtifacts.organizationId, employee.organizationId),
+          eq(statutoryPostingEvidenceArtifacts.batchId, batch!.id),
         ))
         .limit(1)
     : [];
@@ -357,6 +379,16 @@ export async function GET(request: Request) {
       postingReference: member?.postingReference ?? null,
       postedAmount: member?.postedAmount ?? null,
       postedAt: member?.postedAt?.toISOString() ?? null,
+      postingEvidence: postingEvidenceArtifact ? {
+        artifactId: postingEvidenceArtifact.id,
+        source: postingEvidenceSourceLabel(postingEvidenceArtifact.sourceType),
+        outcome: postingEvidenceArtifact.outcome,
+        fileName: postingEvidenceArtifact.fileName,
+        byteSize: postingEvidenceArtifact.byteSize,
+        rowCount: postingEvidenceArtifact.rowCount,
+        sha256: postingEvidenceArtifact.contentSha256,
+        recordedAt: postingEvidenceArtifact.createdAt.toISOString(),
+      } : null,
       exceptionNote: member?.exceptionNote ?? null,
     } : null,
     filingEvidence,
@@ -364,8 +396,9 @@ export async function GET(request: Request) {
     certificationHistory,
     notices: [
       "This export is generated from PayrollPH records and is not an agency-issued certificate.",
-      "The evidence hash verifies the contents of this export; filing and payment-proof hashes identify the exact stored artifacts referenced here.",
+      "The evidence hash verifies the contents of this export; filing, payment-proof and posting-evidence hashes identify the exact stored artifacts referenced here.",
       "No other employee's payroll or contribution amounts are included.",
+      "Imported multi-employee posting source files are retained for employer audit but are not downloadable from employee self-service.",
       "Contribution-case timeline entries are limited to events explicitly marked employee-visible.",
     ],
   };
@@ -386,6 +419,11 @@ export async function GET(request: Request) {
       filingArtifacts: filingEvidence.length,
       paymentProofEvidenceId: paymentProof?.id ?? null,
       paymentProofSha256: paymentProof?.fileSha256 ?? null,
+      postingEvidenceArtifactId: postingEvidenceArtifact?.id ?? null,
+      postingEvidenceSha256: postingEvidenceArtifact?.contentSha256 ?? null,
+      postingEvidenceSource: postingEvidenceArtifact
+        ? postingEvidenceSourceLabel(postingEvidenceArtifact.sourceType)
+        : null,
       contributionCases: caseHistory.length,
       contributionCaseTimelineEvents: caseEvents.length,
     },
