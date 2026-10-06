@@ -1183,13 +1183,35 @@ export const leaveRequests = pgTable("leave_requests", {
   leaveType: varchar("leave_type", { length: 40 }).notNull(),
   startDate: date("start_date").notNull(),
   endDate: date("end_date").notNull(),
-  days: numeric("days", { precision: 6, scale: 1 }).notNull(),
+  days: numeric("days", { precision: 8, scale: 4 }).notNull(),
   reason: varchar("reason", { length: 240 }).notNull().default(""),
   status: varchar("status", { length: 32 }).notNull().default("Pending"),
   approvalTaskId: integer("approval_task_id"),
   decidedBy: varchar("decided_by", { length: 120 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Single-day, clock-precise leave evidence. Legacy multi-day requests retain their original range and day count. */
+export const hcmLeaveTimeWindows = pgTable(
+  "hcm_leave_time_windows",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    leaveRequestId: integer("leave_request_id").notNull().references(() => leaveRequests.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    workDate: date("work_date").notNull(),
+    startTime: varchar("start_time", { length: 5 }).notNull(),
+    endTime: varchar("end_time", { length: 5 }).notNull(),
+    minutes: integer("minutes").notNull(),
+    standardDayMinutes: integer("standard_day_minutes").notNull(),
+    exactDayEquivalent: numeric("exact_day_equivalent", { precision: 8, scale: 4 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hcm_leave_window_request_unique").on(table.leaveRequestId),
+    index("hcm_leave_windows_org_date_idx").on(table.organizationId, table.employeeId, table.workDate),
+  ],
+);
 
 export const provisioningTasks = pgTable("provisioning_tasks", {
   id: serial("id").primaryKey(),
