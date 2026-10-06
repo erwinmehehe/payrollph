@@ -28,6 +28,15 @@ export const dynamic = "force-dynamic";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+function currentManilaDate() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
 async function visibleEmployees(userId: number, organizationId: number) {
   const access = await getAccess(userId, organizationId);
   if (!access) return null;
@@ -180,6 +189,9 @@ export async function POST(request: Request) {
     const periodEnd = String(body.periodEnd ?? "");
     if (!Number.isInteger(employeeId) || !ISO_DATE.test(periodStart) || !ISO_DATE.test(periodEnd) || periodEnd < periodStart) {
       return Response.json({ error: "employeeId and valid periodStart/periodEnd are required." }, { status: 400 });
+    }
+    if (periodEnd > currentManilaDate()) {
+      return Response.json({ error: "A timesheet cannot be submitted before its period has ended." }, { status: 409 });
     }
 
     const selfService = user.employeeId === employeeId;
