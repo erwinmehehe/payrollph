@@ -18,7 +18,8 @@
     "leads:set-status": "tsx scripts/update-marketing-lead-status.ts",
     "payroll:golden": "tsx scripts/golden-payroll-certification.ts",
     "payroll:golden:phase2a": "tsx scripts/golden-payroll-phase2a.ts",
-    "payroll:golden:phase2b": "tsx scripts/golden-payroll-phase2b.ts"
+    "payroll:golden:phase2b": "tsx scripts/golden-payroll-phase2b.ts",
+    "payroll:golden:pay-rules": "tsx scripts/golden-pay-rules-phase3.ts"
   },
   "dependencies": {
     "@types/nodemailer": "^8.0.2",
