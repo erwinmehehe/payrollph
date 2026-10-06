@@ -89,9 +89,10 @@ export async function managedPayrollReleaseRequirement(
   const [engagement] = await db.select().from(managedPayrollEngagements)
     .where(eq(managedPayrollEngagements.organizationId, organizationId))
     .limit(1);
-  if (!engagement || !["pilot", "live"].includes(engagement.status)) {
+  if (!engagement) {
     return { required: false as const, engagement: null, approval: null };
   }
+  const engagementActive = ["pilot", "live"].includes(engagement.status);
 
   const [[approval], [run], gates] = await Promise.all([
     db.select().from(managedPayrollRunApprovals)
@@ -110,15 +111,19 @@ export async function managedPayrollReleaseRequirement(
   const gatesComplete = missingGateKeys.length === 0;
   const fingerprint = approval ? await managedPayrollRunFingerprint(payrollRunId) : null;
   const approvalValid = Boolean(
-    approval
+    engagementActive
+    && approval
     && run
     && fingerprint
+    && approval.approverUserId === engagement.clientApproverUserId
+    && approval.approvedByUserId === engagement.clientApproverUserId
     && managedPayrollApprovalMatches(run, approval, fingerprint),
   );
 
   return {
     required: true as const,
     engagement,
+    engagementActive,
     approval: approval ?? null,
     approvalValid,
     gatesComplete,
