@@ -144,14 +144,8 @@ export async function GET(request: Request) {
 
   const [postingEvidenceArtifact] = member?.postingEvidenceArtifactId
     ? await db.select({
-        id: statutoryPostingEvidenceArtifacts.id,
-        batchId: statutoryPostingEvidenceArtifacts.batchId,
         sourceType: statutoryPostingEvidenceArtifacts.sourceType,
-        outcome: statutoryPostingEvidenceArtifacts.outcome,
-        fileName: statutoryPostingEvidenceArtifacts.fileName,
-        byteSize: statutoryPostingEvidenceArtifacts.byteSize,
         contentSha256: statutoryPostingEvidenceArtifacts.contentSha256,
-        rowCount: statutoryPostingEvidenceArtifacts.rowCount,
         createdAt: statutoryPostingEvidenceArtifacts.createdAt,
       }).from(statutoryPostingEvidenceArtifacts)
         .where(and(
@@ -380,12 +374,7 @@ export async function GET(request: Request) {
       postedAmount: member?.postedAmount ?? null,
       postedAt: member?.postedAt?.toISOString() ?? null,
       postingEvidence: postingEvidenceArtifact ? {
-        artifactId: postingEvidenceArtifact.id,
         source: postingEvidenceSourceLabel(postingEvidenceArtifact.sourceType),
-        outcome: postingEvidenceArtifact.outcome,
-        fileName: postingEvidenceArtifact.fileName,
-        byteSize: postingEvidenceArtifact.byteSize,
-        rowCount: postingEvidenceArtifact.rowCount,
         sha256: postingEvidenceArtifact.contentSha256,
         recordedAt: postingEvidenceArtifact.createdAt.toISOString(),
       } : null,
