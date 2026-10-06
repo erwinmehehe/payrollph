@@ -37,6 +37,8 @@ export type ScheduledCoverageInput = {
   ineligibleShiftDefinitionIds?: number[];
   approvedLeaveShiftDefinitionIds?: number[];
   siteIneligibleShiftDefinitionIds?: number[];
+  paidMinutesByShiftDefinitionId?: Record<number, number>;
+  approvedLeaveUnavailableMinutesByShiftDefinitionId?: Record<number, number>;
 };
 
 function timeMinute(value: string) {
@@ -137,6 +139,28 @@ export function computeCoverage(input: {
       ...siteIneligible.map((row) => row.employeeId),
     ]);
     const availableScheduled = matching.filter((row) => !unavailableOrIneligible.has(row.employeeId)).length;
+    const scheduledPaidMinutes = matching.reduce(
+      (sum, row) => sum + Math.max(0, Number(row.paidMinutesByShiftDefinitionId?.[requirement.shiftDefinitionId] ?? 0)),
+      0,
+    );
+    const approvedLeaveUnavailableMinutes = matching.reduce(
+      (sum, row) => sum + Math.max(0, Number(row.approvedLeaveUnavailableMinutesByShiftDefinitionId?.[requirement.shiftDefinitionId] ?? 0)),
+      0,
+    );
+    const approvedLeavePartiallyUnavailable = matching.filter((row) => {
+      const paid = Math.max(0, Number(row.paidMinutesByShiftDefinitionId?.[requirement.shiftDefinitionId] ?? 0));
+      const unavailable = Math.max(0, Number(row.approvedLeaveUnavailableMinutesByShiftDefinitionId?.[requirement.shiftDefinitionId] ?? 0));
+      return paid > 0
+        && unavailable > 0
+        && unavailable < paid
+        && !row.approvedLeaveShiftDefinitionIds?.includes(requirement.shiftDefinitionId);
+    });
+    const availableScheduledMinutes = matching.reduce((sum, row) => {
+      if (unavailableOrIneligible.has(row.employeeId)) return sum;
+      const paid = Math.max(0, Number(row.paidMinutesByShiftDefinitionId?.[requirement.shiftDefinitionId] ?? 0));
+      const unavailable = Math.max(0, Number(row.approvedLeaveUnavailableMinutesByShiftDefinitionId?.[requirement.shiftDefinitionId] ?? 0));
+      return sum + Math.max(0, paid - Math.min(paid, unavailable));
+    }, 0);
     const gap = Math.max(0, requirement.requiredHeadcount - availableScheduled);
 
     return {
@@ -150,6 +174,10 @@ export function computeCoverage(input: {
       unavailableScheduledHeadcount: conflicted.length,
       capabilityIneligibleHeadcount: capabilityIneligible.length,
       approvedLeaveScheduledHeadcount: approvedLeave.length,
+      approvedLeavePartiallyUnavailableHeadcount: approvedLeavePartiallyUnavailable.length,
+      approvedLeaveUnavailableMinutes,
+      scheduledPaidMinutes,
+      availableScheduledMinutes,
       siteIneligibleHeadcount: siteIneligible.length,
       availableScheduledHeadcount: availableScheduled,
       gap,

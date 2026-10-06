@@ -70,6 +70,22 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
   const [startDate, setStartDate] = useState("2026-03-24");
   const [endDate, setEndDate] = useState("2026-03-24");
   const [days, setDays] = useState(1);
+  const [timingMode, setTimingMode] = useState<"full_day" | "first_half" | "second_half" | "timed">("full_day");
+  const [startLocalTime, setStartLocalTime] = useState("09:00");
+  const [endLocalTime, setEndLocalTime] = useState("13:00");
+  const [timedEndsNextDay, setTimedEndsNextDay] = useState(false);
+  const [timingPreview, setTimingPreview] = useState<{
+    blocking: boolean;
+    previews: Array<{
+      workDate: string;
+      timezone: string;
+      unavailableWallMinutes: number;
+      unavailablePaidMinutes: number | null;
+      blockers: Array<{ code: string; message: string }>;
+      warnings: Array<{ code: string; message: string }>;
+    }>;
+  } | null>(null);
+  const [previewingTiming, setPreviewingTiming] = useState(false);
 
   const [policyLeaveType, setPolicyLeaveType] = useState("Annual leave");
   const [annualDays, setAnnualDays] = useState(15);
@@ -85,15 +101,82 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
     }
   }, [configuredPolicies, leaveType]);
 
+  function preciseIntervals() {
+    if (timingMode === "full_day") return [];
+    if (startDate !== endDate) return null;
+    return [{
+      workDate: startDate,
+      kind: timingMode,
+      startLocalTime: timingMode === "timed" ? startLocalTime : null,
+      endLocalTime: timingMode === "timed" ? endLocalTime : null,
+      endsNextDay: timingMode === "timed" ? timedEndsNextDay : false,
+      timezone: "Asia/Manila",
+    }];
+  }
+
+  async function previewScheduleImpact() {
+    const intervals = preciseIntervals();
+    if (!intervals) {
+      setNotice("Half-day and custom-hour leave must be previewed one work date at a time.");
+      return;
+    }
+    if (timingMode === "full_day") {
+      setTimingPreview(null);
+      return;
+    }
+    setPreviewingTiming(true);
+    try {
+      const response = await fetch("/api/leave/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId: data.selectedOrganization.id,
+          employeeId,
+          intervals,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setTimingPreview(null);
+        setNotice(payload.error ?? "Could not preview leave timing.");
+        return;
+      }
+      setTimingPreview(payload);
+      if (payload.blocking) {
+        setNotice("Resolve the schedule/timing issue before submitting this partial leave.");
+      }
+    } finally {
+      setPreviewingTiming(false);
+    }
+  }
+
   async function submit() {
     if (configuredPolicies.length === 0) {
       setNotice("Configure at least one leave payroll treatment before submitting leave.");
       return;
     }
+    const intervals = preciseIntervals();
+    if (timingMode !== "full_day" && !intervals) {
+      setNotice("Partial leave timing currently requires a single work date.");
+      return;
+    }
+    if (timingMode !== "full_day" && (!timingPreview || timingPreview.blocking)) {
+      setNotice("Preview schedule impact before submitting partial leave.");
+      return;
+    }
     const response = await fetch("/api/leave", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ organizationId: data.selectedOrganization.id, employeeId, leaveType, startDate, endDate, days, reason: "Submitted in workspace" }),
+      body: JSON.stringify({
+        organizationId: data.selectedOrganization.id,
+        employeeId,
+        leaveType,
+        startDate,
+        endDate,
+        days,
+        reason: "Submitted in workspace",
+        intervals: intervals ?? undefined,
+      }),
     });
     const payload = await response.json();
     if (!response.ok) { setNotice(payload.error ?? "Could not submit leave."); return; }
@@ -219,10 +302,66 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
             <label>Start date<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
             <label>End date<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
             <label>Days<input type="number" min={0.5} step={0.5} value={days} onChange={(event) => setDays(Number(event.target.value))} /></label>
+            <label>Timing
+              <select
+                value={timingMode}
+                onChange={(event) => {
+                  const mode = event.target.value as "full_day" | "first_half" | "second_half" | "timed";
+                  setTimingMode(mode);
+                  setTimingPreview(null);
+                  if (mode !== "timed") setTimedEndsNextDay(false);
+                  if (mode === "first_half" || mode === "second_half") setDays(0.5);
+                }}
+              >
+                <option value="full_day">Full day</option>
+                <option value="first_half">First half</option>
+                <option value="second_half">Second half</option>
+                <option value="timed">Custom hours</option>
+              </select>
+            </label>
+            {timingMode === "timed" && (
+              <>
+                <label>Start time<input type="time" value={startLocalTime} onChange={(event) => { setStartLocalTime(event.target.value); setTimingPreview(null); }} /></label>
+                <label>End time<input type="time" value={endLocalTime} onChange={(event) => { setEndLocalTime(event.target.value); setTimingPreview(null); }} /></label>
+                <label>
+                  <span>Ends next day</span>
+                  <input
+                    type="checkbox"
+                    checked={timedEndsNextDay}
+                    onChange={(event) => {
+                      setTimedEndsNextDay(event.target.checked);
+                      setTimingPreview(null);
+                    }}
+                  />
+                </label>
+              </>
+            )}
+            {timingMode !== "full_day" && (
+              <div style={{ gridColumn: "1 / -1" }}>
+                <button className="secondary-button" type="button" disabled={previewingTiming} onClick={() => void previewScheduleImpact()}>
+                  {previewingTiming ? "Previewing…" : "Preview schedule impact"}
+                </button>
+                {timingPreview?.previews.map((preview) => (
+                  <div className="modal-note" key={preview.workDate} style={{ marginTop: 8 }}>
+                    {preview.workDate} · {preview.timezone} · {preview.unavailablePaidMinutes == null
+                      ? `${preview.unavailableWallMinutes} wall-clock min unavailable; paid-minute impact needs review`
+                      : `${preview.unavailablePaidMinutes} paid min unavailable`}
+                    {preview.blockers.length ? ` · ${preview.blockers.map((item) => item.message).join(" ")}` : ""}
+                    {preview.warnings.length ? ` · ${preview.warnings.map((item) => item.message).join(" ")}` : ""}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className="run-actions">
             <button className="secondary-button" onClick={() => setOpen(false)}>Cancel</button>
-            <button className="primary-button" onClick={submit} disabled={configuredPolicies.length === 0}>Submit request</button>
+            <button
+              className="primary-button"
+              onClick={submit}
+              disabled={configuredPolicies.length === 0 || (timingMode !== "full_day" && (!timingPreview || timingPreview.blocking))}
+            >
+              Submit request
+            </button>
           </div>
         </article>
       )}
@@ -234,6 +373,13 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
           const employee = data.employees.find((item) => item.id === row.employeeId);
           const start = new Date(`${row.startDate}T12:00:00`);
           const policy = policies.find((item) => item.leaveType.toLowerCase() === row.leaveType.toLowerCase());
+          const timingSummary = (row.intervals ?? []).map((interval) => {
+            if (interval.kind === "full_day") return `${interval.workDate}: Full day`;
+            if (interval.kind === "first_half") return `${interval.workDate}: First half`;
+            if (interval.kind === "second_half") return `${interval.workDate}: Second half`;
+            return `${interval.workDate}: ${interval.startLocalTime}–${interval.endLocalTime}${interval.endsNextDay ? " next day" : ""}`;
+          }).join(" · ");
+          const legacyPartialTiming = (row.intervals ?? []).length === 0 && Number(row.days) % 1 !== 0;
           return (
             <div className="leave-request" key={row.id}>
               <span className="date-tile"><small>{start.toLocaleString("en-PH", { month: "short" }).toUpperCase()}</small><b>{start.getDate()}</b></span>
@@ -243,6 +389,7 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
                 <span>
                   {row.leaveType} · {row.startDate}–{row.endDate} · {row.days} days
                   {policy ? ` · ${policy.payTreatment === "partial" ? `${policy.paidPercentage}% paid` : policy.payTreatment}` : " · payroll treatment missing"}
+                  {timingSummary ? ` · ${timingSummary}` : legacyPartialTiming ? " · Legacy timing not specified" : ""}
                 </span>
               </div>
               <Status value={row.status === "Pending" ? "Awaiting approval" : row.status} />

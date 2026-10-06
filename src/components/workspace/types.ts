@@ -244,6 +244,16 @@ export type Delegation = {
   active: boolean;
 };
 
+export type LeaveRequestInterval = {
+  id: number;
+  workDate: string;
+  kind: "full_day" | "first_half" | "second_half" | "timed" | string;
+  startLocalTime?: string | null;
+  endLocalTime?: string | null;
+  endsNextDay?: boolean;
+  timezone: string;
+};
+
 export type LeaveRequest = {
   id: number;
   employeeId: number;
@@ -252,6 +262,8 @@ export type LeaveRequest = {
   endDate: string;
   days: string;
   status: string;
+  intervalRevision?: number | null;
+  intervals?: LeaveRequestInterval[];
 };
 
 export type LeavePolicy = {

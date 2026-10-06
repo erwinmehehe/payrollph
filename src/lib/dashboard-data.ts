@@ -16,6 +16,8 @@ import {
   employees,
   freelancerProfiles,
   leavePolicies,
+  leaveRequestIntervals,
+  leaveRequestIntervalSets,
   leaveRequests,
   minWageOrders,
   organizations,
@@ -216,6 +218,34 @@ export async function getDashboardData(organizationId?: number) {
   const leaveRows = access.companyWide
     ? leaveRowsRaw
     : leaveRowsRaw.filter((leave) => visibleEmployeeIds.has(leave.employeeId));
+  const currentLeaveIntervalSets = leaveRows.length
+    ? await db.select().from(leaveRequestIntervalSets).where(and(
+        eq(leaveRequestIntervalSets.organizationId, selectedOrganization.id),
+        eq(leaveRequestIntervalSets.status, "current"),
+        inArray(leaveRequestIntervalSets.leaveRequestId, leaveRows.map((leave) => leave.id)),
+      ))
+    : [];
+  const currentLeaveIntervalSetIds = currentLeaveIntervalSets.map((row) => row.id);
+  const currentLeaveIntervals = currentLeaveIntervalSetIds.length
+    ? await db.select().from(leaveRequestIntervals).where(and(
+        eq(leaveRequestIntervals.organizationId, selectedOrganization.id),
+        inArray(leaveRequestIntervals.intervalSetId, currentLeaveIntervalSetIds),
+      ))
+    : [];
+  const currentLeaveSetByRequest = new Map(
+    currentLeaveIntervalSets.map((row) => [row.leaveRequestId, row]),
+  );
+  const leaveRowsWithTiming = leaveRows.map((leave) => {
+    const intervalSet = currentLeaveSetByRequest.get(leave.id);
+    return {
+      ...leave,
+      intervalRevision: intervalSet?.revision ?? null,
+      intervals: intervalSet
+        ? currentLeaveIntervals.filter((interval) => interval.intervalSetId === intervalSet.id)
+        : [],
+    };
+  });
+
   const provisionRows = access.companyWide
     ? provisionRowsRaw
     : provisionRowsRaw.filter((task) => visibleEmployeeIds.has(task.employeeId));
@@ -342,7 +372,7 @@ export async function getDashboardData(organizationId?: number) {
           delegation.fromApprover.toLowerCase() === sessionUser.name.toLowerCase()
           || delegation.toApprover.toLowerCase() === sessionUser.name.toLowerCase(),
         ),
-    leaveRequests: leaveRows,
+    leaveRequests: leaveRowsWithTiming,
     leavePolicies: leavePolicyRows,
     wageOrders: wages,
     provisioning: provisionRows,
