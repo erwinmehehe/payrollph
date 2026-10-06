@@ -23,6 +23,7 @@ export type StaffingRequirementInput = {
   worksiteId: number;
   workDate: string;
   shiftDefinitionId: number;
+  jobProfileId?: number | null;
   requiredHeadcount: number;
 };
 
@@ -30,6 +31,7 @@ export type ScheduledCoverageInput = {
   employeeId: number;
   workDate: string;
   worksiteId: number | null;
+  jobProfileId?: number | null;
   shiftDefinitionIds: number[];
   unavailableShiftDefinitionIds?: number[];
 };
@@ -108,7 +110,8 @@ export function computeCoverage(input: {
     const matching = input.scheduled.filter((row) =>
       row.workDate === requirement.workDate
       && row.worksiteId === requirement.worksiteId
-      && row.shiftDefinitionIds.includes(requirement.shiftDefinitionId),
+      && row.shiftDefinitionIds.includes(requirement.shiftDefinitionId)
+      && (requirement.jobProfileId == null || row.jobProfileId === requirement.jobProfileId),
     );
     const conflicted = matching.filter((row) =>
       row.unavailableShiftDefinitionIds?.includes(requirement.shiftDefinitionId),
@@ -121,6 +124,7 @@ export function computeCoverage(input: {
       worksiteId: requirement.worksiteId,
       workDate: requirement.workDate,
       shiftDefinitionId: requirement.shiftDefinitionId,
+      jobProfileId: requirement.jobProfileId ?? null,
       requiredHeadcount: requirement.requiredHeadcount,
       scheduledHeadcount: matching.length,
       unavailableScheduledHeadcount: conflicted.length,

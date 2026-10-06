@@ -683,6 +683,7 @@ export const staffingRequirements = pgTable(
     worksiteId: integer("worksite_id").notNull().references(() => worksites.id, { onDelete: "cascade" }),
     workDate: date("work_date").notNull(),
     shiftDefinitionId: integer("shift_definition_id").notNull().references(() => shiftDefinitions.id, { onDelete: "restrict" }),
+    jobProfileId: integer("job_profile_id").references(() => jobProfiles.id, { onDelete: "restrict" }),
     requiredHeadcount: integer("required_headcount").notNull(),
     notes: varchar("notes", { length: 240 }),
     createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
@@ -691,13 +692,14 @@ export const staffingRequirements = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("staffing_requirement_unique").on(
-      table.organizationId,
-      table.worksiteId,
-      table.workDate,
-      table.shiftDefinitionId,
-    ),
+    uniqueIndex("staffing_requirement_generic_unique")
+      .on(table.organizationId, table.worksiteId, table.workDate, table.shiftDefinitionId)
+      .where(sql`${table.jobProfileId} is null`),
+    uniqueIndex("staffing_requirement_profile_unique")
+      .on(table.organizationId, table.worksiteId, table.workDate, table.shiftDefinitionId, table.jobProfileId)
+      .where(sql`${table.jobProfileId} is not null`),
     index("staffing_requirement_date_idx").on(table.organizationId, table.workDate),
+    index("staffing_requirement_profile_date_idx").on(table.organizationId, table.jobProfileId, table.workDate),
   ],
 );
 
