@@ -46,3 +46,37 @@ export async function ensurePrimaryLegalEntity(
     .orderBy(asc(legalEntities.id));
   return rows.find((entity) => entity.primaryEntity) ?? rows[0] ?? null;
 }
+
+
+export async function resolveComplianceLegalEntity(input: {
+  organizationId: number;
+  legalEntityId?: number | null;
+}) {
+  await ensurePrimaryLegalEntity(input.organizationId);
+
+  const active = await db.select().from(legalEntities)
+    .where(and(
+      eq(legalEntities.organizationId, input.organizationId),
+      eq(legalEntities.active, true),
+    ))
+    .orderBy(asc(legalEntities.id));
+
+  if (active.length === 0) {
+    throw new Error("Create an active legal employer before running compliance workflows.");
+  }
+
+  const requested = Number(input.legalEntityId ?? 0);
+  if (Number.isInteger(requested) && requested > 0) {
+    const entity = active.find((row) => row.id === requested);
+    if (!entity) {
+      throw new Error("legalEntityId must reference an active legal employer in this organization.");
+    }
+    return entity;
+  }
+
+  if (active.length === 1) return active[0];
+
+  throw new Error(
+    "legalEntityId is required because this organization has multiple active legal employers.",
+  );
+}
