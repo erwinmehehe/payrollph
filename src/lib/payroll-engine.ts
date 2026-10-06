@@ -1799,14 +1799,13 @@ function calculateEmployeePay(input: {
           restDay: isRestDay,
         });
         const hours = segment.minutes / 60;
-        const segmentProfile = profileForDate(timeline, segment.calendarDate);
         const segmentSchedule =
           input.resolvedSchedules?.[segment.calendarDate]
           ?? input.resolvedSchedules?.[workDate];
         applyWorkedTimePremium({
           workDate: segment.calendarDate,
           minutes: segment.minutes,
-          hourlyRate: segmentProfile.hourlyRate,
+          hourlyRate: punchProfile.hourlyRate,
           shiftCode: scheduledSegment?.shiftCode ?? null,
           worksiteId: segmentSchedule?.worksiteId ?? null,
         });
@@ -1865,14 +1864,13 @@ function calculateEmployeePay(input: {
         });
       } else {
         const premiumRuleCouldApply = touchedPremiumDates.some((date) => {
-          const probeProfile = profileForDate(timeline, date);
           const probe = resolveWorkedTimePremium({
             organizationId: input.employee.organizationId,
             employeeId: input.employee.id,
             orgUnitIds: input.payPolicyOrgUnitIds ?? [],
             workDate: date,
             minutes: 60,
-            hourlyRate: probeProfile.hourlyRate,
+            hourlyRate: punchProfile.hourlyRate,
             shiftCode: scheduledSegment?.shiftCode ?? null,
             worksiteId:
               input.resolvedSchedules?.[date]?.worksiteId
