@@ -2504,6 +2504,90 @@ export const jobProfiles = pgTable(
   ],
 );
 
+export const hcmSkills = pgTable(
+  "hcm_skills",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    code: varchar("code", { length: 80 }).notNull(),
+    name: varchar("name", { length: 160 }).notNull(),
+    category: varchar("category", { length: 80 }).notNull().default("General"),
+    description: text("description"),
+    active: boolean("active").notNull().default(true),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdByName: varchar("created_by_name", { length: 120 }).notNull().default("System"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hcm_skills_org_code_unique").on(table.organizationId, table.code),
+    index("hcm_skills_org_active_idx").on(table.organizationId, table.active, table.category),
+  ],
+);
+
+export const hcmJobProfileSkillRequirements = pgTable(
+  "hcm_job_profile_skill_requirements",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    jobProfileId: integer("job_profile_id").notNull().references(() => jobProfiles.id, { onDelete: "cascade" }),
+    skillId: integer("skill_id").notNull().references(() => hcmSkills.id, { onDelete: "restrict" }),
+    minimumProficiency: integer("minimum_proficiency").notNull().default(1),
+    mandatory: boolean("mandatory").notNull().default(true),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hcm_job_profile_skill_unique").on(table.jobProfileId, table.skillId),
+    index("hcm_job_profile_skill_profile_idx").on(table.organizationId, table.jobProfileId),
+  ],
+);
+
+export const hcmEmployeeSkills = pgTable(
+  "hcm_employee_skills",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    skillId: integer("skill_id").notNull().references(() => hcmSkills.id, { onDelete: "restrict" }),
+    proficiency: integer("proficiency").notNull().default(1),
+    status: varchar("status", { length: 24 }).notNull().default("declared"),
+    effectiveFrom: date("effective_from").notNull(),
+    effectiveUntil: date("effective_until"),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    verifiedByUserId: integer("verified_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    verifiedByName: varchar("verified_by_name", { length: 120 }),
+    notes: varchar("notes", { length: 240 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hcm_employee_skill_effective_unique").on(table.employeeId, table.skillId, table.effectiveFrom),
+    index("hcm_employee_skill_employee_idx").on(table.organizationId, table.employeeId, table.status),
+    index("hcm_employee_skill_date_idx").on(table.organizationId, table.skillId, table.effectiveFrom),
+  ],
+);
+
+export const hcmJobProfileCredentialRequirements = pgTable(
+  "hcm_job_profile_credential_requirements",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    jobProfileId: integer("job_profile_id").notNull().references(() => jobProfiles.id, { onDelete: "cascade" }),
+    documentRequirementId: integer("document_requirement_id").notNull().references(() => hcmDocumentRequirements.id, { onDelete: "cascade" }),
+    mandatory: boolean("mandatory").notNull().default(true),
+    blocksWorkforceEligibility: boolean("blocks_workforce_eligibility").notNull().default(true),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hcm_job_profile_credential_unique").on(table.jobProfileId, table.documentRequirementId),
+    index("hcm_job_profile_credential_profile_idx").on(table.organizationId, table.jobProfileId),
+  ],
+);
+
 export const workforcePlans = pgTable(
   "workforce_plans",
   {
