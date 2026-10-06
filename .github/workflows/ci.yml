@@ -64,6 +64,15 @@ jobs:
           name: payrollph-golden-payroll-phase2a
           path: qa-artifacts/golden-payroll-phase2a-reconciliation.json
           retention-days: 14
+      - name: Run complex lifecycle golden payroll reconciliation
+        run: npm run payroll:golden:phase2b
+      - name: Upload Phase 2B payroll reconciliation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: payrollph-golden-payroll-phase2b
+          path: qa-artifacts/golden-payroll-phase2b-reconciliation.json
+          retention-days: 14
       - run: npm run seo:audit
       - run: npm run seo:routes
       - run: npm run seo:links
