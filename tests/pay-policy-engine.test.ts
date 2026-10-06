@@ -671,7 +671,7 @@ test("payroll engine traces the holiday/rest-day family and preserves month-end 
   assert.ok(source.includes("HOLIDAY_REST_DAY_PREMIUM_EVENT"));
   assert.ok(source.includes('PAYROLL_RULE_VERSION = "PH-2026.08"'));
   assert.ok(source.includes('version: "pay-rules-execution-v3"'));
-  assert.ok(source.includes('overtime: "statutory-only"'));
+  assert.ok(source.includes('overtime: "separate-overtime-premium-family"'));
   assert.ok(source.includes('nightDifferential: "statutory-only"'));
 });
 
