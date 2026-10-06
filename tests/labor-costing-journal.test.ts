@@ -31,3 +31,9 @@ test("dimensioned journal remains fail-closed on imbalance", () => {
   assert.ok(source.includes("Payroll journal does not balance"));
   assert.ok(source.includes("Math.abs(debitTotal - creditTotal) > 0.02"));
 });
+
+
+test("dimensioned journal preserves year-end tax refunds as debit liability movements", () => {
+  assert.ok(source.includes('side: creditLine.amount < 0 ? "debit" : "credit"'));
+  assert.ok(source.includes("Math.abs(creditLine.amount)"));
+});
