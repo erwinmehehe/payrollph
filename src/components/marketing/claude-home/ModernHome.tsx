@@ -153,10 +153,10 @@ function ProductWindow() {
 function Hero() {
   return (
     <section className="hero">
-      <div className="linaw-shell">
+      <div className="linaw-shell hero-layout">
         <div className="hero-copy">
-          <span className="hero-kicker">Payroll software for Philippine teams</span>
-          <h1>Payroll, <em>clearly.</em></h1>
+          <span className="hero-kicker">Philippine payroll control</span>
+          <h1>Payroll, <span>made clear.</span></h1>
           <p>
             Know what changed. Know what is blocked. Know who approved the release.
             Linaw gives every payroll run a clear state before money moves.
@@ -164,6 +164,10 @@ function Hero() {
           <div className="hero-actions">
             <a className="primary-cta" href="/demo">Try the live demo <ArrowRight size={16} /></a>
             <a className="text-cta" href="/book-demo">Book a walkthrough <ChevronRight size={15} /></a>
+          </div>
+          <div className="hero-state-rail" aria-label="Example payroll release state">
+            <i />
+            <div><strong>October 1–15 payroll</strong><span>3 blockers still prevent release</span></div>
           </div>
         </div>
 
@@ -261,42 +265,44 @@ function ApprovalVisual() {
 function ProductFocus() {
   return (
     <section className="product-focus" id="product">
-      <div className="apple-story apple-story-white">
-        <div className="linaw-shell">
-          <div className="apple-story-copy centered">
-            <span>SEE WHAT CHANGED</span>
-            <h2>Every movement. <em>Explained.</em></h2>
-            <p>Compare the current calculation with the previous state and see exactly which people, earnings and deductions moved.</p>
+      <div className="linaw-story linaw-story-white">
+        <div className="linaw-shell story-layout">
+          <div className="story-copy">
+            <span className="story-index">01</span>
+            <span className="story-kicker">SEE WHAT CHANGED</span>
+            <h2>Know exactly <strong>what moved.</strong></h2>
+            <p>Compare the current calculation with the previous state and see which people, earnings and deductions changed before anyone reviews the run.</p>
           </div>
-          <div className="apple-story-visual wide"><ChangesVisual /></div>
+          <div className="story-visual"><ChangesVisual /></div>
         </div>
       </div>
 
-      <div className="apple-story apple-story-soft">
-        <div className="linaw-shell apple-split">
-          <div className="apple-story-copy">
-            <span>BLOCK UNSAFE RELEASES</span>
-            <h2>Not ready means <em>not releasable.</em></h2>
-            <p>Hard blockers stay visible, name the affected employee, assign an owner and prevent the workflow from pretending payroll is ready.</p>
+      <div className="linaw-story linaw-story-tint">
+        <div className="linaw-shell story-layout story-layout-reverse">
+          <div className="story-copy">
+            <span className="story-index">02</span>
+            <span className="story-kicker">BLOCK UNSAFE RELEASES</span>
+            <h2>Stop the run <strong>before it becomes a payout problem.</strong></h2>
+            <p>Hard blockers stay visible, identify the affected employee, assign an owner and keep the release path locked until the issue is resolved.</p>
           </div>
-          <div className="apple-story-visual"><BlockerVisual /></div>
+          <div className="story-visual"><BlockerVisual /></div>
         </div>
       </div>
 
-      <div className="apple-story apple-story-white">
-        <div className="linaw-shell">
-          <div className="apple-story-copy centered">
-            <span>LEAVE A DECISION TRAIL</span>
-            <h2>Approval you can <em>prove later.</em></h2>
-            <p>Preparation, checking and release remain separate decisions, each with a user, timestamp and resulting payroll state.</p>
+      <div className="linaw-story linaw-story-white">
+        <div className="linaw-shell story-layout">
+          <div className="story-copy">
+            <span className="story-index">03</span>
+            <span className="story-kicker">KEEP THE DECISION TRAIL</span>
+            <h2>Every approval has <strong>an owner and a timestamp.</strong></h2>
+            <p>Preparation, checking and release remain separate decisions, so the evidence stays attached to the payroll run instead of disappearing into chat or spreadsheets.</p>
           </div>
-          <div className="apple-story-visual wide"><ApprovalVisual /></div>
+          <div className="story-visual"><ApprovalVisual /></div>
         </div>
       </div>
     </section>
   );
 }
-
 function Workflow() {
   const steps = [
     ["01", "Prepare"],
@@ -311,8 +317,8 @@ function Workflow() {
       <div className="linaw-shell">
         <div className="workflow-heading">
           <span>ONE CONTROLLED FLOW</span>
-          <h2>From inputs to release, without losing the thread.</h2>
-          <p>Each stage has one job. The next stage stays locked until the current decision is complete.</p>
+          <h2>A release path your team can follow.</h2>
+          <p>Prepare, calculate, resolve, review and release. Every handoff is visible, and unsafe transitions stay locked.</p>
         </div>
 
         <div className="workflow-rail">
@@ -343,7 +349,7 @@ function FAQ() {
       <div className="linaw-shell faq-layout">
         <div className="faq-heading">
           <span>COMMON QUESTIONS</span>
-          <h2>Everything else, without the sales pitch.</h2>
+          <h2>Questions teams ask before switching payroll.</h2>
           <a href="/pricing">See pricing <ArrowRight size={14} /></a>
         </div>
 
@@ -366,7 +372,7 @@ function FinalCTA() {
       <div className="linaw-shell final-inner">
         <div>
           <span>SEE THE REAL WORKFLOW</span>
-          <h2>Try the payroll flow yourself.</h2>
+          <h2>See how Linaw handles a real payroll handoff.</h2>
           <p>Open the role-based demo and see how Linaw handles calculation changes, blockers, review and release.</p>
         </div>
         <a className="primary-cta final-primary" href="/demo">Try the live demo <ArrowRight size={16} /></a>
