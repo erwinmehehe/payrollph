@@ -1,0 +1,370 @@
+import { createHash } from "node:crypto";
+import { and, asc, eq, sql } from "drizzle-orm";
+import { db } from "@/db";
+import {
+  documents,
+  employees,
+  hcmEmploymentDecisionDocuments,
+  hcmEmploymentDecisionEvents,
+  hcmEmploymentDecisionNotes,
+  hcmEmploymentTermDecisions,
+  hcmEmploymentTerms,
+} from "@/db/schema";
+
+export const EMPLOYMENT_DECISION_NOTE_KINDS = [
+  "manager_review",
+  "hr_review",
+  "decision_rationale",
+  "other",
+] as const;
+
+export const EMPLOYMENT_DECISION_EVIDENCE_KINDS = [
+  "probation_evaluation",
+  "performance_review",
+  "contract",
+  "manager_recommendation",
+  "other",
+] as const;
+
+export type EmploymentDecisionNoteKind = (typeof EMPLOYMENT_DECISION_NOTE_KINDS)[number];
+export type EmploymentDecisionEvidenceKind = (typeof EMPLOYMENT_DECISION_EVIDENCE_KINDS)[number];
+
+function canonicalize(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (!value || typeof value !== "object") return value;
+  const row = value as Record<string, unknown>;
+  return Object.keys(row).sort().reduce<Record<string, unknown>>((out, key) => {
+    out[key] = canonicalize(row[key]);
+    return out;
+  }, {});
+}
+
+export function canonicalJson(value: unknown) {
+  return JSON.stringify(canonicalize(value));
+}
+
+export function evidenceSha256(value: unknown) {
+  return createHash("sha256").update(canonicalJson(value)).digest("hex");
+}
+
+function proposalSnapshot(
+  decision: typeof hcmEmploymentTermDecisions.$inferSelect,
+  term: typeof hcmEmploymentTerms.$inferSelect,
+  notes: Array<typeof hcmEmploymentDecisionNotes.$inferSelect>,
+  attachments: Array<{
+    evidence: typeof hcmEmploymentDecisionDocuments.$inferSelect;
+    document: Pick<
+      typeof documents.$inferSelect,
+      "id" | "fileName" | "mimeType" | "byteSize" | "sha256" | "scannedClean" | "scanNote" | "createdAt"
+    >;
+  }>,
+) {
+  return {
+    packetVersion: "hcm-employment-decision-evidence-v1",
+    decision: {
+      id: decision.id,
+      organizationId: decision.organizationId,
+      employeeId: decision.employeeId,
+      employmentTermId: decision.employmentTermId,
+      decisionKind: decision.decisionKind,
+      effectiveDate: String(decision.effectiveDate),
+      nextEmploymentType: decision.nextEmploymentType,
+      nextTermKind: decision.nextTermKind,
+      nextEffectiveUntil: decision.nextEffectiveUntil ? String(decision.nextEffectiveUntil) : null,
+      nextProbationReviewDate: decision.nextProbationReviewDate ? String(decision.nextProbationReviewDate) : null,
+      nextContractEndDate: decision.nextContractEndDate ? String(decision.nextContractEndDate) : null,
+      nextProjectName: decision.nextProjectName,
+      proposedSeparationLastDay: decision.proposedSeparationLastDay
+        ? String(decision.proposedSeparationLastDay)
+        : null,
+      separationReason: decision.separationReason,
+      reason: decision.reason,
+      requestedByUserId: decision.requestedByUserId,
+      requestedBy: decision.requestedBy,
+      requestedAt: decision.createdAt.toISOString(),
+    },
+    sourceEmploymentTerms: {
+      id: term.id,
+      employmentType: term.employmentType,
+      termKind: term.termKind,
+      effectiveFrom: String(term.effectiveFrom),
+      effectiveUntil: term.effectiveUntil ? String(term.effectiveUntil) : null,
+      probationReviewDate: term.probationReviewDate ? String(term.probationReviewDate) : null,
+      contractEndDate: term.contractEndDate ? String(term.contractEndDate) : null,
+      projectName: term.projectName,
+      reason: term.reason,
+    },
+    notes: notes.map((note) => ({
+      id: note.id,
+      noteKind: note.noteKind,
+      content: note.content,
+      createdByUserId: note.createdByUserId,
+      createdByName: note.createdByName,
+      createdAt: note.createdAt.toISOString(),
+    })),
+    attachments: attachments.map(({ evidence, document }) => ({
+      id: evidence.id,
+      documentId: document.id,
+      evidenceKind: evidence.evidenceKind,
+      label: evidence.label,
+      fileName: document.fileName,
+      mimeType: document.mimeType,
+      byteSize: document.byteSize,
+      sha256: document.sha256,
+      scannedClean: document.scannedClean,
+      scanNote: document.scanNote,
+      attachedByUserId: evidence.attachedByUserId,
+      attachedByName: evidence.attachedByName,
+      attachedAt: evidence.createdAt.toISOString(),
+      documentCreatedAt: document.createdAt.toISOString(),
+    })),
+  };
+}
+
+async function loadReviewEvidence(input: {
+  organizationId: number;
+  decisionId: number;
+}) {
+  const [decision] = await db.select().from(hcmEmploymentTermDecisions).where(and(
+    eq(hcmEmploymentTermDecisions.id, input.decisionId),
+    eq(hcmEmploymentTermDecisions.organizationId, input.organizationId),
+  )).limit(1);
+  if (!decision) return null;
+
+  const [term, employee, notes, attachments] = await Promise.all([
+    db.select().from(hcmEmploymentTerms).where(and(
+      eq(hcmEmploymentTerms.id, decision.employmentTermId),
+      eq(hcmEmploymentTerms.organizationId, decision.organizationId),
+      eq(hcmEmploymentTerms.employeeId, decision.employeeId),
+    )).limit(1).then((rows) => rows[0] ?? null),
+    db.select({
+      id: employees.id,
+      employeeNo: employees.employeeNo,
+      firstName: employees.firstName,
+      lastName: employees.lastName,
+      title: employees.title,
+      employmentType: employees.employmentType,
+      status: employees.status,
+    }).from(employees).where(and(
+      eq(employees.id, decision.employeeId),
+      eq(employees.organizationId, decision.organizationId),
+    )).limit(1).then((rows) => rows[0] ?? null),
+    db.select().from(hcmEmploymentDecisionNotes).where(and(
+      eq(hcmEmploymentDecisionNotes.organizationId, input.organizationId),
+      eq(hcmEmploymentDecisionNotes.decisionId, input.decisionId),
+    )).orderBy(asc(hcmEmploymentDecisionNotes.id)),
+    db.select({
+      evidence: hcmEmploymentDecisionDocuments,
+      document: {
+        id: documents.id,
+        fileName: documents.fileName,
+        mimeType: documents.mimeType,
+        byteSize: documents.byteSize,
+        sha256: documents.sha256,
+        scannedClean: documents.scannedClean,
+        scanNote: documents.scanNote,
+        createdAt: documents.createdAt,
+      },
+    }).from(hcmEmploymentDecisionDocuments)
+      .innerJoin(documents, eq(hcmEmploymentDecisionDocuments.documentId, documents.id))
+      .where(and(
+        eq(hcmEmploymentDecisionDocuments.organizationId, input.organizationId),
+        eq(hcmEmploymentDecisionDocuments.decisionId, input.decisionId),
+      ))
+      .orderBy(asc(hcmEmploymentDecisionDocuments.id)),
+  ]);
+
+  if (!term || !employee) return null;
+  const reviewEvidence = proposalSnapshot(decision, term, notes, attachments);
+  return {
+    decision,
+    employee,
+    term,
+    notes,
+    attachments,
+    reviewEvidence,
+    currentEvidenceSha256: evidenceSha256(reviewEvidence),
+  };
+}
+
+export async function loadEmploymentDecisionEvidencePacket(input: {
+  organizationId: number;
+  decisionId: number;
+}) {
+  const review = await loadReviewEvidence(input);
+  if (!review) return null;
+
+  const events = await db.select().from(hcmEmploymentDecisionEvents).where(and(
+    eq(hcmEmploymentDecisionEvents.organizationId, input.organizationId),
+    eq(hcmEmploymentDecisionEvents.decisionId, input.decisionId),
+  )).orderBy(asc(hcmEmploymentDecisionEvents.createdAt), asc(hcmEmploymentDecisionEvents.id));
+
+  const sealedHash = review.decision.evidenceSnapshotSha256;
+  return {
+    packetVersion: "hcm-employment-decision-packet-v1",
+    generatedAt: new Date().toISOString(),
+    employee: review.employee,
+    decision: review.decision,
+    sourceEmploymentTerms: review.term,
+    reviewEvidence: review.reviewEvidence,
+    integrity: {
+      sealed: Boolean(sealedHash),
+      sealedAt: review.decision.evidenceSealedAt?.toISOString() ?? null,
+      sealedSha256: sealedHash,
+      currentSha256: review.currentEvidenceSha256,
+      status: sealedHash
+        ? sealedHash === review.currentEvidenceSha256 ? "verified" : "mismatch"
+        : "unsealed",
+    },
+    timeline: events,
+  };
+}
+
+export async function recordEmploymentDecisionEvidenceEvent(input: {
+  organizationId: number;
+  decisionId: number;
+  employeeId: number;
+  eventType: string;
+  actor: string;
+  actorUserId?: number | null;
+  metadata?: Record<string, unknown>;
+  createdAt?: Date;
+}) {
+  const [event] = await db.insert(hcmEmploymentDecisionEvents).values({
+    organizationId: input.organizationId,
+    decisionId: input.decisionId,
+    employeeId: input.employeeId,
+    eventType: input.eventType.slice(0, 40),
+    actorUserId: input.actorUserId ?? null,
+    actorName: input.actor.slice(0, 120),
+    metadata: input.metadata ?? {},
+    createdAt: input.createdAt ?? new Date(),
+  }).returning();
+  return event;
+}
+
+export class DecisionEvidenceApprovalError extends Error {
+  status: number;
+  constructor(message: string, status = 409) {
+    super(message);
+    this.name = "DecisionEvidenceApprovalError";
+    this.status = status;
+  }
+}
+
+export async function approveEmploymentDecisionWithEvidence(input: {
+  organizationId: number;
+  decisionId: number;
+  approverUserId: number;
+  approverName: string;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`
+      select id
+      from hcm_employment_term_decisions
+      where id = ${input.decisionId}
+        and organization_id = ${input.organizationId}
+      for update
+    `);
+
+    const [decision] = await tx.select().from(hcmEmploymentTermDecisions).where(and(
+      eq(hcmEmploymentTermDecisions.id, input.decisionId),
+      eq(hcmEmploymentTermDecisions.organizationId, input.organizationId),
+    )).limit(1);
+    if (!decision) throw new DecisionEvidenceApprovalError("Employment-term decision not found.", 404);
+    if (decision.status !== "pending_approval") {
+      throw new DecisionEvidenceApprovalError("Only pending employment-term decisions can be approved.");
+    }
+    if (decision.requestedByUserId === input.approverUserId) {
+      throw new DecisionEvidenceApprovalError(
+        "Four-eyes control: the requester cannot approve their own employment-term decision.",
+        403,
+      );
+    }
+
+    const [term] = await tx.select().from(hcmEmploymentTerms).where(and(
+      eq(hcmEmploymentTerms.id, decision.employmentTermId),
+      eq(hcmEmploymentTerms.organizationId, decision.organizationId),
+      eq(hcmEmploymentTerms.employeeId, decision.employeeId),
+    )).limit(1);
+    if (!term) throw new DecisionEvidenceApprovalError("Source employment terms were not found.");
+
+    const notes = await tx.select().from(hcmEmploymentDecisionNotes).where(and(
+      eq(hcmEmploymentDecisionNotes.organizationId, input.organizationId),
+      eq(hcmEmploymentDecisionNotes.decisionId, input.decisionId),
+    )).orderBy(asc(hcmEmploymentDecisionNotes.id));
+
+    const attachments = await tx.select({
+      evidence: hcmEmploymentDecisionDocuments,
+      document: {
+        id: documents.id,
+        fileName: documents.fileName,
+        mimeType: documents.mimeType,
+        byteSize: documents.byteSize,
+        sha256: documents.sha256,
+        scannedClean: documents.scannedClean,
+        scanNote: documents.scanNote,
+        createdAt: documents.createdAt,
+      },
+    }).from(hcmEmploymentDecisionDocuments)
+      .innerJoin(documents, eq(hcmEmploymentDecisionDocuments.documentId, documents.id))
+      .where(and(
+        eq(hcmEmploymentDecisionDocuments.organizationId, input.organizationId),
+        eq(hcmEmploymentDecisionDocuments.decisionId, input.decisionId),
+      ))
+      .orderBy(asc(hcmEmploymentDecisionDocuments.id));
+
+    if (attachments.some(({ document }) => !document.scannedClean) && process.env.NODE_ENV === "production") {
+      throw new DecisionEvidenceApprovalError(
+        "All attached decision evidence must pass malware scanning before approval.",
+      );
+    }
+
+    const reviewEvidence = proposalSnapshot(decision, term, notes, attachments);
+    const snapshotSha256 = evidenceSha256(reviewEvidence);
+
+    const [scheduled] = await tx.update(hcmEmploymentTermDecisions).set({
+      status: "scheduled",
+      approvedByUserId: input.approverUserId,
+      approvedBy: input.approverName,
+      approvedAt: now,
+      evidenceSnapshotSha256: snapshotSha256,
+      evidenceSealedAt: now,
+      failure: null,
+      updatedAt: now,
+    }).where(and(
+      eq(hcmEmploymentTermDecisions.id, input.decisionId),
+      eq(hcmEmploymentTermDecisions.status, "pending_approval"),
+    )).returning();
+    if (!scheduled) {
+      throw new DecisionEvidenceApprovalError("Decision changed before approval.");
+    }
+
+    await tx.insert(hcmEmploymentDecisionEvents).values({
+      organizationId: scheduled.organizationId,
+      decisionId: scheduled.id,
+      employeeId: scheduled.employeeId,
+      eventType: "approved",
+      actorUserId: input.approverUserId,
+      actorName: input.approverName,
+      metadata: {
+        evidenceSnapshotSha256: snapshotSha256,
+        noteCount: notes.length,
+        attachmentCount: attachments.length,
+        effectiveDate: String(scheduled.effectiveDate),
+        decisionKind: scheduled.decisionKind,
+      },
+      createdAt: now,
+    });
+
+    return {
+      decision: scheduled,
+      evidenceSnapshotSha256: snapshotSha256,
+      noteCount: notes.length,
+      attachmentCount: attachments.length,
+    };
+  });
+}
