@@ -2,8 +2,10 @@ import { and, asc, eq, gte, inArray, isNull, lt, lte, or } from "drizzle-orm";
 import { db, pool } from "@/db";
 import {
   calamityAdvisories,
+  compensationComponents,
   deMinimisGrants,
   earnedWageRequests,
+  employeeCompensationComponents,
   employeeLoans,
   employeePayProfiles,
   employeePayRevisions,
@@ -73,6 +75,7 @@ import {
   type ResolvedPayrollLeave,
 } from "@/lib/leave-payroll";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
+import { recurringComponentAmountForCutoff } from "@/lib/compensation";
 import {
   attendanceDeductionsForCutoff,
   fixedMonthlyBasicForTimeline,
@@ -778,6 +781,37 @@ async function processPayrollChunk(input: {
         lte(supplementaryEarnings.effectiveDate, run.periodEnd),
       ))
     : [];
+  const recurringCompensationRows = chunkIds.length
+    ? await db.select({
+        assignmentId: employeeCompensationComponents.id,
+        employeeId: employeeCompensationComponents.employeeId,
+        amount: employeeCompensationComponents.amount,
+        effectiveFrom: employeeCompensationComponents.effectiveFrom,
+        effectiveUntil: employeeCompensationComponents.effectiveUntil,
+        status: employeeCompensationComponents.status,
+        componentId: compensationComponents.id,
+        componentCode: compensationComponents.code,
+        componentName: compensationComponents.name,
+        kind: compensationComponents.kind,
+        amountFrequency: compensationComponents.amountFrequency,
+        taxable: compensationComponents.taxable,
+        includeInSssBase: compensationComponents.includeInSssBase,
+        includeInPagIbigBase: compensationComponents.includeInPagIbigBase,
+      })
+        .from(employeeCompensationComponents)
+        .innerJoin(compensationComponents, eq(employeeCompensationComponents.componentId, compensationComponents.id))
+        .where(and(
+          eq(employeeCompensationComponents.organizationId, input.organizationId),
+          inArray(employeeCompensationComponents.employeeId, chunkIds),
+          inArray(employeeCompensationComponents.status, ["scheduled", "active"]),
+          lte(employeeCompensationComponents.effectiveFrom, run.periodEnd),
+          or(
+            isNull(employeeCompensationComponents.effectiveUntil),
+            gte(employeeCompensationComponents.effectiveUntil, run.periodStart),
+          ),
+          eq(compensationComponents.active, true),
+        ))
+    : [];
   const approvedYearEndAdjustments = chunkIds.length
     ? await db.select().from(yearEndAdjustments).where(and(
         eq(yearEndAdjustments.organizationId, input.organizationId),
@@ -819,6 +853,13 @@ async function processPayrollChunk(input: {
     supplementaryByEmployee.set(
       earning.employeeId,
       [...(supplementaryByEmployee.get(earning.employeeId) ?? []), earning],
+    );
+  }
+  const recurringCompByEmployee = new Map<number, typeof recurringCompensationRows>();
+  for (const component of recurringCompensationRows) {
+    recurringCompByEmployee.set(
+      component.employeeId,
+      [...(recurringCompByEmployee.get(component.employeeId) ?? []), component],
     );
   }
   const deMinimisByEmployee = new Map<number, typeof deMinimis>();
@@ -1325,15 +1366,39 @@ async function processPayrollChunk(input: {
         requestedAmount: Number(a.requestedAmount),
         fee: Number(a.fee),
       })),
-      supplementaryEarnings: (supplementaryByEmployee.get(employee.id) ?? []).map((earning) => ({
-        id: earning.id,
-        earningType: earning.earningType,
-        label: earning.label,
-        amount: Number(earning.amount),
-        taxable: earning.taxable,
-        includeInSssBase: earning.includeInSssBase,
-        includeInPagIbigBase: earning.includeInPagIbigBase,
-      })),
+      supplementaryEarnings: [
+        ...(supplementaryByEmployee.get(employee.id) ?? []).map((earning) => ({
+          id: earning.id,
+          earningType: earning.earningType,
+          label: earning.label,
+          amount: Number(earning.amount),
+          taxable: earning.taxable,
+          includeInSssBase: earning.includeInSssBase,
+          includeInPagIbigBase: earning.includeInPagIbigBase,
+        })),
+        ...(recurringCompByEmployee.get(employee.id) ?? []).map((component) => ({
+          id: component.assignmentId,
+          code: `COMP-${component.assignmentId}`,
+          earningType: `recurring_${component.kind}`,
+          label: component.componentName,
+          amount: recurringComponentAmountForCutoff({
+            amount: Number(component.amount),
+            amountFrequency: component.amountFrequency,
+            effectiveFrom: String(component.effectiveFrom),
+            effectiveUntil: component.effectiveUntil ? String(component.effectiveUntil) : null,
+            periodStart: String(run.periodStart),
+            periodEnd: String(run.periodEnd),
+          }),
+          taxable: component.taxable,
+          includeInSssBase: component.includeInSssBase,
+          includeInPagIbigBase: component.includeInPagIbigBase,
+          notes: [
+            `Recurring component ${component.componentCode}`,
+            `Frequency: ${component.amountFrequency}`,
+            `Effective ${component.effectiveFrom}${component.effectiveUntil ? ` through ${component.effectiveUntil}` : ""}`,
+          ],
+        })),
+      ].filter((earning) => earning.amount > 0),
       yearEndTaxAdjustment: (() => {
         const adjustment = yearEndByEmployee.get(employee.id);
         return adjustment
@@ -1543,12 +1608,14 @@ function calculateEmployeePay(input: {
   advances?: Array<{ id: number; requestedAmount: number; fee: number }>;
   supplementaryEarnings?: Array<{
     id: number;
+    code?: string;
     earningType: string;
     label: string;
     amount: number;
     taxable: boolean;
     includeInSssBase: boolean;
     includeInPagIbigBase: boolean;
+    notes?: string[];
   }>;
   yearEndTaxAdjustment?: {
     id: number;
@@ -2668,10 +2735,11 @@ function calculateEmployeePay(input: {
   const supplementaryLines = (input.supplementaryEarnings ?? []).map((earning) => {
     const benefitPool90k = isSharedBenefitPoolEarningType(earning.earningType);
     return {
-      code: `EARN-${earning.id}`,
+      code: earning.code ?? `EARN-${earning.id}`,
       label: earning.label,
       amount: money(earning.amount),
       notes: [
+        ...(earning.notes ?? []),
         `Type: ${earning.earningType}`,
         benefitPool90k
           ? "Tax treatment: shared PHP 90,000 annual benefit pool"

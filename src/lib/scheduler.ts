@@ -7,6 +7,7 @@ import { purgeExpiredOperationalData } from "@/lib/data-retention";
 import { runScheduledStatutoryRemittanceSync } from "@/lib/statutory-remittance-actions";
 import { runScheduledContributionCaseEscalations } from "@/lib/statutory-contribution-case-escalations";
 import { runScheduledHcmDocumentExpiry } from "@/lib/hcm-documents";
+import { runScheduledCompensationGovernance } from "@/lib/hcm-compensation";
 import { runScheduledWorkerEffectiveChanges } from "@/lib/hcm-effective-changes";
 
 const MIN_INTERVAL_MS = 30_000;
@@ -57,6 +58,12 @@ export async function tickScheduler(force = false) {
     limit: 50,
   });
 
+  const hcmCompensation = await runScheduledCompensationGovernance({
+    actor: "System scheduler",
+    now,
+    limit: 100,
+  });
+
   if (hcmDocumentDue) {
     const hcmDocumentPayload = {
       at: now.toISOString(),
@@ -102,6 +109,7 @@ export async function tickScheduler(force = false) {
     contributionCaseEscalations,
     hcmDocumentExpiry,
     hcmEffectiveChanges,
+    hcmCompensation,
     at: now.toISOString(),
     results: {
       webhooks: webhookResults.slice(0, 10),

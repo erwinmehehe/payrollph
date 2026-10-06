@@ -13,7 +13,7 @@ DATABASE_URL="postgresql://..." npm run db:push
 `db:push` reads `src/db/schema.ts` and creates everything it finds there, which
 is the whole current schema. **Check that it actually created tables**: push has
 been seen to report success and create nothing against a non-standard Postgres.
-Expect 141 tables. If it creates nothing, apply `baseline.sql` instead, which is
+Expect 148 tables. If it creates nothing, apply `baseline.sql` instead, which is
 the same schema as plain SQL and can be pasted into the Neon or Supabase SQL
 editor without any tooling.
 
@@ -62,3 +62,5 @@ the first one, so it closes itself.
 - `0052_hcm_effective_dated_changes.sql` adds maker-checker governed, scheduled employment changes with future-date application, guarded retroactive corrections, position reservation, failure evidence, and immutable worker-history linkage.
 
 - `0053_hcm_capability_wfm_eligibility.sql` adds normalized skills, verified employee proficiencies, job-profile skill requirements, and job-profile credential links backed by the existing document compliance/expiry system for WFM eligibility.
+
+- `0054_hcm_compensation_architecture.sql` upgrades compensation bands with grade/legal-employer/effective-date scope, adds governed recurring compensation components, schedules approved pay changes without mutating current pay early, and records compensation history evidence.
