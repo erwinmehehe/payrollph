@@ -1183,6 +1183,18 @@ export async function POST(request: Request) {
           error: "The employee no longer has unambiguous active position evidence for the job profile required by this open shift.",
         }, { status: 409 });
       }
+      const capabilityEligibility = await loadEmployeeWfmEligibility({
+        organizationId,
+        employeeId: employee.id,
+        jobProfileId: openShift.jobProfileId,
+        workDate: String(openShift.workDate),
+      });
+      if (!capabilityEligibility.eligible) {
+        return Response.json({
+          error: "The employee no longer meets the required skills or credentials for this open shift.",
+          capabilityEligibility,
+        }, { status: 409 });
+      }
     }
 
     const [shift] = await db.select().from(shiftDefinitions).where(and(
