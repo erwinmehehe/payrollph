@@ -500,38 +500,6 @@ export const attendanceCorrectionRequests = pgTable(
   ],
 );
 
-export const overtimeRequests = pgTable(
-  "overtime_requests",
-  {
-    id: serial("id").primaryKey(),
-    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
-    workDate: date("work_date").notNull(),
-    requestedMinutes: integer("requested_minutes").notNull(),
-    reason: varchar("reason", { length: 240 }).notNull(),
-    requestKind: varchar("request_kind", { length: 32 }).notNull().default("pre_approved"),
-    status: varchar("status", { length: 24 }).notNull().default("pending"),
-    approvalTaskId: integer("approval_task_id"),
-    budgetId: integer("budget_id").references(() => overtimeBudgets.id, { onDelete: "set null" }),
-    budgetSnapshot: jsonb("budget_snapshot").notNull().default({}),
-    requestedBy: varchar("requested_by", { length: 120 }).notNull(),
-    requestedByUserId: integer("requested_by_user_id").references(() => users.id, { onDelete: "set null" }),
-    decidedBy: varchar("decided_by", { length: 120 }),
-    decidedByUserId: integer("decided_by_user_id").references(() => users.id, { onDelete: "set null" }),
-    decidedAt: timestamp("decided_at", { withTimezone: true }),
-    decisionNote: varchar("decision_note", { length: 240 }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (table) => [
-    index("overtime_requests_org_date_idx").on(table.organizationId, table.workDate),
-    index("overtime_requests_employee_date_idx").on(table.employeeId, table.workDate),
-    index("overtime_requests_org_unit_date_idx").on(table.organizationId, table.orgUnitId, table.workDate),
-    index("overtime_requests_budget_idx").on(table.budgetId, table.status),
-    index("overtime_requests_status_idx").on(table.organizationId, table.status),
-  ],
-);
-
 export const overtimeBudgets = pgTable(
   "overtime_budgets",
   {
@@ -557,6 +525,39 @@ export const overtimeBudgets = pgTable(
     ),
     index("overtime_budgets_org_month_idx").on(table.organizationId, table.periodMonth, table.active),
     index("overtime_budgets_manager_idx").on(table.organizationId, table.managerUserId, table.periodMonth),
+  ],
+);
+
+export const overtimeRequests = pgTable(
+  "overtime_requests",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    orgUnitId: integer("org_unit_id").references(() => orgUnits.id, { onDelete: "set null" }),
+    workDate: date("work_date").notNull(),
+    requestedMinutes: integer("requested_minutes").notNull(),
+    reason: varchar("reason", { length: 240 }).notNull(),
+    requestKind: varchar("request_kind", { length: 32 }).notNull().default("pre_approved"),
+    status: varchar("status", { length: 24 }).notNull().default("pending"),
+    approvalTaskId: integer("approval_task_id"),
+    budgetId: integer("budget_id").references(() => overtimeBudgets.id, { onDelete: "set null" }),
+    budgetSnapshot: jsonb("budget_snapshot").notNull().default({}),
+    requestedBy: varchar("requested_by", { length: 120 }).notNull(),
+    requestedByUserId: integer("requested_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    decidedBy: varchar("decided_by", { length: 120 }),
+    decidedByUserId: integer("decided_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decisionNote: varchar("decision_note", { length: 240 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("overtime_requests_org_date_idx").on(table.organizationId, table.workDate),
+    index("overtime_requests_employee_date_idx").on(table.employeeId, table.workDate),
+    index("overtime_requests_org_unit_date_idx").on(table.organizationId, table.orgUnitId, table.workDate),
+    index("overtime_requests_budget_idx").on(table.budgetId, table.status),
+    index("overtime_requests_status_idx").on(table.organizationId, table.status),
   ],
 );
 
