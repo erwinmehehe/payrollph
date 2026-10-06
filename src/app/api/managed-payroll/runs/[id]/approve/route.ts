@@ -98,13 +98,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const fingerprint = await managedPayrollRunFingerprint(run.id);
   if (existing) {
     const valid =
-      fingerprint === existing.payrollFingerprint
+      existing.approverUserId === engagement.clientApproverUserId
+      && existing.approvedByUserId === user.id
+      && fingerprint === existing.payrollFingerprint
       && Number(run.grossPay) === Number(existing.approvedGross)
       && Number(run.netPay) === Number(existing.approvedNet)
       && Number(run.employeeCount) === Number(existing.approvedEmployeeCount);
     if (valid) return Response.json({ approval: existing, alreadyApproved: true });
 
     const [approval] = await db.update(managedPayrollRunApprovals).set({
+      approverUserId: engagement.clientApproverUserId,
       approvedByUserId: user.id,
       approvedBy: user.name,
       payrollFingerprint: fingerprint,
