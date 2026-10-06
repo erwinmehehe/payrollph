@@ -1194,6 +1194,49 @@ export const leaveRequests = pgTable("leave_requests", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const leaveRequestIntervalSets = pgTable(
+  "leave_request_interval_sets",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    leaveRequestId: integer("leave_request_id").notNull().references(() => leaveRequests.id, { onDelete: "cascade" }),
+    revision: integer("revision").notNull(),
+    status: varchar("status", { length: 16 }).notNull().default("current"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdByName: varchar("created_by_name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    supersededAt: timestamp("superseded_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("leave_interval_set_revision_unique").on(table.leaveRequestId, table.revision),
+    uniqueIndex("leave_interval_set_current_unique")
+      .on(table.leaveRequestId)
+      .where(sql`${table.status} = 'current'`),
+    index("leave_interval_sets_org_request_idx").on(table.organizationId, table.leaveRequestId),
+  ],
+);
+
+export const leaveRequestIntervals = pgTable(
+  "leave_request_intervals",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    intervalSetId: integer("interval_set_id").notNull().references(() => leaveRequestIntervalSets.id, { onDelete: "cascade" }),
+    workDate: date("work_date").notNull(),
+    kind: varchar("kind", { length: 20 }).notNull(),
+    startLocalTime: varchar("start_local_time", { length: 8 }),
+    endLocalTime: varchar("end_local_time", { length: 8 }),
+    endsNextDay: boolean("ends_next_day").notNull().default(false),
+    timezone: varchar("timezone", { length: 64 }).notNull().default("Asia/Manila"),
+    source: varchar("source", { length: 24 }).notNull().default("request"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("leave_request_intervals_set_date_idx").on(table.intervalSetId, table.workDate),
+    index("leave_request_intervals_org_date_idx").on(table.organizationId, table.workDate),
+  ],
+);
+
 export const provisioningTasks = pgTable("provisioning_tasks", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
