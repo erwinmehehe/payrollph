@@ -3,7 +3,7 @@ import { SeoLandingPage } from "@/components/marketing/seo-landing-page";
 import { StructuredData } from "@/components/marketing/structured-data";
 
 export const metadata: Metadata = {
-  title: "HRIS Software Philippines | Employee Data & Payroll | Linaw",
+  title: "HRIS Philippines | Employee Data & Payroll Software | Linaw",
   description: "Philippine HRIS software for employee records, payroll-ready data, onboarding, lifecycle tasks, approvals and role-based workforce administration tools.",
   alternates: { canonical: "/hris" },
 };
