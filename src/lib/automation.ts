@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, lte } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalTasks,
@@ -242,6 +242,28 @@ type PayrollAdjustmentApprovalAction = {
   approver?: string;
 };
 
+type WaitAction = {
+  type: "wait";
+  amount: number;
+  unit: "minutes" | "hours" | "days";
+};
+
+type ApprovalGateAction = {
+  type: "approval_gate";
+  title: string;
+  detail: string;
+  approver?: string;
+  dueLabel?: string;
+  priority?: string;
+};
+
+type BranchAction = {
+  type: "branch";
+  conditions: StudioConditions;
+  then: AutomationWorkflowStep[];
+  else: AutomationWorkflowStep[];
+};
+
 export type AutomationAction =
   | CreateTaskAction
   | CreateChecklistAction
@@ -254,7 +276,15 @@ export type AutomationAction =
   | WebhookAction
   | PayrollAdjustmentApprovalAction;
 
-export type LifecycleAction = AutomationAction;
+export type AutomationWorkflowStep =
+  | AutomationAction
+  | WaitAction
+  | ApprovalGateAction
+  | BranchAction;
+
+type RunnableAutomationStep = Exclude<AutomationWorkflowStep, BranchAction>;
+
+export type LifecycleAction = AutomationWorkflowStep;
 
 export const AUTOMATION_ACTION_CATALOG = [
   { value: "create_task", label: "Create task", category: "Operations" },
@@ -267,6 +297,9 @@ export const AUTOMATION_ACTION_CATALOG = [
   { value: "deactivate_access", label: "Remove workspace access", category: "Access" },
   { value: "request_payroll_adjustment", label: "Request payroll adjustment approval", category: "Payroll" },
   { value: "webhook", label: "Call registered integration webhook", category: "Integration" },
+  { value: "wait", label: "Wait / delay", category: "Flow Control" },
+  { value: "approval_gate", label: "Pause until approval", category: "Governance" },
+  { value: "branch", label: "Conditional branch", category: "Flow Control" },
 ] as const;
 
 const EMPLOYEE_ACCESS_TRIGGERS = new Set<AutomationTrigger>([
@@ -348,13 +381,61 @@ function normalizeChecklistItems(value: unknown): ChecklistItem[] | null {
   return items;
 }
 
-export function normalizeAutomationActions(value: unknown): AutomationAction[] | null {
-  if (!Array.isArray(value) || value.length === 0 || value.length > 20) return null;
-  const actions: AutomationAction[] = [];
+function normalizeAutomationSteps(
+  value: unknown,
+  depth: number,
+  budget: { count: number },
+): AutomationWorkflowStep[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 20 || depth > 4) return null;
+  const actions: AutomationWorkflowStep[] = [];
+
   for (const raw of value) {
+    budget.count += 1;
+    if (budget.count > 50) return null;
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
     const action = raw as Record<string, unknown>;
     const type = String(action.type ?? "");
+
+    if (type === "wait") {
+      const amount = Number(action.amount);
+      const unit = String(action.unit ?? "minutes") as WaitAction["unit"];
+      const maximum = unit === "minutes" ? 43_200 : unit === "hours" ? 720 : unit === "days" ? 30 : 0;
+      if (!Number.isInteger(amount) || amount < 1 || maximum === 0 || amount > maximum) return null;
+      actions.push({ type, amount, unit });
+      continue;
+    }
+
+    if (type === "approval_gate") {
+      const title = String(action.title ?? "").trim();
+      const detail = String(action.detail ?? "").trim();
+      if (!title || !detail) return null;
+      actions.push({
+        type,
+        title: title.slice(0, 180),
+        detail: detail.slice(0, 240),
+        approver: String(action.approver ?? "People Ops").trim().slice(0, 120) || "People Ops",
+        dueLabel: String(action.dueLabel ?? "Workflow paused for approval").trim().slice(0, 80) || "Workflow paused for approval",
+        priority: String(action.priority ?? "Normal").trim().slice(0, 32) || "Normal",
+      });
+      continue;
+    }
+
+    if (type === "branch") {
+      const conditions = action.conditions;
+      if (!validAutomationConditions(conditions) || validLifecycleConditions(conditions)) return null;
+      const thenSteps = normalizeAutomationSteps(action.then, depth + 1, budget);
+      const elseSteps = action.else == null || (Array.isArray(action.else) && action.else.length === 0)
+        ? []
+        : normalizeAutomationSteps(action.else, depth + 1, budget);
+      if (!thenSteps || !elseSteps) return null;
+      actions.push({
+        type,
+        conditions: conditions as StudioConditions,
+        then: thenSteps,
+        else: elseSteps,
+      });
+      continue;
+    }
 
     if (type === "create_task") {
       const title = String(action.title ?? "").trim();
@@ -453,15 +534,37 @@ export function normalizeAutomationActions(value: unknown): AutomationAction[] |
 
     return null;
   }
+
   return actions;
 }
 
-export function normalizeLifecycleActions(value: unknown): AutomationAction[] | null {
+export function normalizeAutomationActions(value: unknown): AutomationWorkflowStep[] | null {
+  return normalizeAutomationSteps(value, 0, { count: 0 });
+}
+
+export function normalizeLifecycleActions(value: unknown): AutomationWorkflowStep[] | null {
   return normalizeAutomationActions(value);
 }
 
-export function validateAutomationActionTrigger(trigger: AutomationTrigger, actions: AutomationAction[]) {
+export function validateAutomationActionTrigger(trigger: AutomationTrigger, actions: AutomationWorkflowStep[]) {
   for (const action of actions) {
+    if (action.type === "branch") {
+      const thenError = validateAutomationActionTrigger(trigger, action.then);
+      if (thenError) return thenError;
+      const elseError = validateAutomationActionTrigger(trigger, action.else);
+      if (elseError) return elseError;
+      continue;
+    }
+    if (action.type === "wait") continue;
+    if (action.type === "approval_gate") {
+      if (
+        String(action.approver ?? "").trim().toLowerCase() === "manager"
+        && !AUTOMATION_TRIGGER_CATALOG.find((item) => item.value === trigger)?.employeeScoped
+      ) {
+        return "Manager-routed approval gates require an employee-scoped trigger.";
+      }
+      continue;
+    }
     if ((action.type === "revoke_sessions" || action.type === "deactivate_access") && trigger !== "employee.separated") {
       return "Session revocation and workspace-access removal are allowed only after employee separation.";
     }
@@ -556,6 +659,40 @@ function conditionMatches(
   if (!all.every((clause) => conditionClauseMatches(clause, context))) return false;
   if (any.length > 0 && !any.some((clause) => conditionClauseMatches(clause, context))) return false;
   return true;
+}
+
+function compileAutomationPlan(
+  steps: AutomationWorkflowStep[],
+  trigger: AutomationTrigger,
+  context: Record<string, unknown>,
+): RunnableAutomationStep[] {
+  const plan: RunnableAutomationStep[] = [];
+  for (const step of steps) {
+    if (step.type === "branch") {
+      const selected = conditionMatches(step.conditions, trigger, context) ? step.then : step.else;
+      plan.push(...compileAutomationPlan(selected, trigger, context));
+      continue;
+    }
+    plan.push(step);
+  }
+  return plan;
+}
+
+function executionResultArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object" && !Array.isArray(row))
+    : [];
+}
+
+function executionContextObject(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function waitDurationMs(step: WaitAction) {
+  const unitMs = step.unit === "days" ? 86_400_000 : step.unit === "hours" ? 3_600_000 : 60_000;
+  return step.amount * unitMs;
 }
 
 async function enrichEmployeeContext(input: {
@@ -900,6 +1037,214 @@ async function executeAction(input: {
   throw new Error(`Unsupported automation action: ${String(exhaustive)}`);
 }
 
+export async function advanceAutomationExecution(executionId: number) {
+  const [execution] = await db.select().from(automationExecutions)
+    .where(eq(automationExecutions.id, executionId))
+    .limit(1);
+  if (!execution) throw new Error("Automation execution not found.");
+  if (!["in_progress", "resuming"].includes(execution.status)) return execution;
+
+  const trigger = execution.trigger as AutomationTrigger;
+  if (!(AUTOMATION_TRIGGERS as readonly string[]).includes(trigger)) {
+    throw new Error("Stored automation execution has an unsupported trigger.");
+  }
+
+  const normalized = normalizeAutomationActions(execution.workflow);
+  if (!normalized || normalized.some((step) => step.type === "branch")) {
+    throw new Error("Stored automation execution workflow is invalid.");
+  }
+  const workflow = normalized as RunnableAutomationStep[];
+  const context = executionContextObject(execution.context);
+  let cursor = Math.max(0, Number(execution.cursor ?? 0));
+  const result = executionResultArray(execution.result);
+
+  while (cursor < workflow.length) {
+    const step = workflow[cursor];
+
+    if (step.type === "wait") {
+      const resumeAt = new Date(Date.now() + waitDurationMs(step));
+      result.push({
+        type: step.type,
+        stepIndex: cursor,
+        status: "waiting",
+        amount: step.amount,
+        unit: step.unit,
+        resumeAt: resumeAt.toISOString(),
+      });
+      const [waiting] = await db.update(automationExecutions).set({
+        status: "waiting",
+        cursor: cursor + 1,
+        resumeAt,
+        waitingApprovalTaskId: null,
+        result,
+        updatedAt: new Date(),
+      }).where(and(
+        eq(automationExecutions.id, execution.id),
+        eq(automationExecutions.status, execution.status),
+      )).returning();
+      return waiting ?? execution;
+    }
+
+    if (step.type === "approval_gate") {
+      const [task] = await db.insert(approvalTasks).values({
+        organizationId: execution.organizationId,
+        title: step.title,
+        detail: step.detail,
+        approver: resolveApprover(step.approver ?? "People Ops", context),
+        dueLabel: step.dueLabel ?? "Workflow paused for approval",
+        priority: step.priority ?? "Normal",
+      }).returning();
+      result.push({
+        type: step.type,
+        stepIndex: cursor,
+        status: "pending",
+        approvalTaskId: task.id,
+      });
+      const [waiting] = await db.update(automationExecutions).set({
+        status: "waiting_approval",
+        waitingApprovalTaskId: task.id,
+        resumeAt: null,
+        result,
+        updatedAt: new Date(),
+      }).where(and(
+        eq(automationExecutions.id, execution.id),
+        eq(automationExecutions.status, execution.status),
+      )).returning();
+      return waiting ?? execution;
+    }
+
+    try {
+      const evidence = await executeAction({
+        organizationId: execution.organizationId,
+        employeeId: execution.employeeId,
+        trigger,
+        eventKey: execution.eventKey,
+        executionId: execution.id,
+        actionIndex: cursor,
+        action: step,
+        context,
+      });
+      result.push({ ...evidence, stepIndex: cursor, status: "completed" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Automation action failed.";
+      result.push({ type: step.type, stepIndex: cursor, status: "failed", error: message });
+    }
+
+    cursor += 1;
+    await db.update(automationExecutions).set({
+      cursor,
+      result,
+      updatedAt: new Date(),
+    }).where(eq(automationExecutions.id, execution.id));
+  }
+
+  const businessResults = result.filter((row) => !["wait", "approval_gate", "approval_gate_decision"].includes(String(row.type ?? "")));
+  const failed = businessResults.filter((row) => row.status === "failed");
+  const succeeded = businessResults.filter((row) => row.status !== "failed");
+  const status = failed.length === 0 ? "completed" : succeeded.length === 0 ? "failed" : "partial";
+  const error = failed.length
+    ? failed.map((row) => String(row.error ?? "Automation action failed.")).join("\n").slice(0, 4000)
+    : null;
+
+  const [finished] = await db.update(automationExecutions).set({
+    status,
+    cursor: workflow.length,
+    resumeAt: null,
+    waitingApprovalTaskId: null,
+    result,
+    error,
+    updatedAt: new Date(),
+  }).where(eq(automationExecutions.id, execution.id)).returning();
+
+  return finished ?? execution;
+}
+
+export async function resumeDueAutomationExecutions(now = new Date(), limit = 25) {
+  const due = await db.select().from(automationExecutions).where(and(
+    eq(automationExecutions.status, "waiting"),
+    lte(automationExecutions.resumeAt, now),
+  )).limit(limit);
+
+  const outcomes: Array<{ executionId: number; status: string; error?: string }> = [];
+  for (const row of due) {
+    const [claimed] = await db.update(automationExecutions).set({
+      status: "in_progress",
+      resumeAt: null,
+      updatedAt: new Date(),
+    }).where(and(
+      eq(automationExecutions.id, row.id),
+      eq(automationExecutions.status, "waiting"),
+      lte(automationExecutions.resumeAt, now),
+    )).returning({ id: automationExecutions.id });
+    if (!claimed) continue;
+
+    try {
+      const advanced = await advanceAutomationExecution(row.id);
+      outcomes.push({ executionId: row.id, status: advanced.status });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Automation resume failed.";
+      await db.update(automationExecutions).set({
+        status: "failed",
+        error: message.slice(0, 4000),
+        updatedAt: new Date(),
+      }).where(eq(automationExecutions.id, row.id));
+      outcomes.push({ executionId: row.id, status: "failed", error: message });
+    }
+  }
+  return outcomes;
+}
+
+export async function resumeAutomationExecutionFromApproval(input: {
+  approvalTaskId: number;
+  decision: "Approved" | "Declined";
+  decidedBy: string;
+}) {
+  const [execution] = await db.select().from(automationExecutions).where(and(
+    eq(automationExecutions.waitingApprovalTaskId, input.approvalTaskId),
+    eq(automationExecutions.status, "waiting_approval"),
+  )).limit(1);
+  if (!execution) return null;
+
+  const result = executionResultArray(execution.result);
+  result.push({
+    type: "approval_gate_decision",
+    approvalTaskId: input.approvalTaskId,
+    decision: input.decision,
+    decidedBy: input.decidedBy,
+    decidedAt: new Date().toISOString(),
+  });
+
+  if (input.decision === "Declined") {
+    const [declined] = await db.update(automationExecutions).set({
+      status: "failed",
+      waitingApprovalTaskId: null,
+      result,
+      error: `Approval gate #${input.approvalTaskId} was declined by ${input.decidedBy}.`,
+      updatedAt: new Date(),
+    }).where(and(
+      eq(automationExecutions.id, execution.id),
+      eq(automationExecutions.status, "waiting_approval"),
+      eq(automationExecutions.waitingApprovalTaskId, input.approvalTaskId),
+    )).returning();
+    return declined ?? execution;
+  }
+
+  const [claimed] = await db.update(automationExecutions).set({
+    status: "in_progress",
+    cursor: execution.cursor + 1,
+    waitingApprovalTaskId: null,
+    result,
+    updatedAt: new Date(),
+  }).where(and(
+    eq(automationExecutions.id, execution.id),
+    eq(automationExecutions.status, "waiting_approval"),
+    eq(automationExecutions.waitingApprovalTaskId, input.approvalTaskId),
+  )).returning({ id: automationExecutions.id });
+  if (!claimed) return null;
+
+  return advanceAutomationExecution(execution.id);
+}
+
 export async function runAutomationEvent(input: {
   organizationId: number;
   employeeId?: number | null;
@@ -938,6 +1283,12 @@ export async function runAutomationEvent(input: {
       continue;
     }
 
+    const workflow = compileAutomationPlan(actions, input.trigger, context);
+    if (workflow.length > 50) {
+      outcomes.push({ ruleId: rule.id, status: "failed", error: "Compiled workflow exceeds the 50-step safety limit." });
+      continue;
+    }
+
     const [execution] = await db.insert(automationExecutions).values({
       organizationId: input.organizationId,
       ruleId: rule.id,
@@ -945,47 +1296,34 @@ export async function runAutomationEvent(input: {
       trigger: input.trigger,
       eventKey: input.eventKey.slice(0, 240),
       status: "in_progress",
-      result: {},
+      workflow,
+      context,
+      cursor: 0,
+      result: [],
+      updatedAt: new Date(),
     }).onConflictDoNothing().returning();
     if (!execution) {
       outcomes.push({ ruleId: rule.id, status: "skipped" });
       continue;
     }
 
-    const result: Record<string, unknown>[] = [];
-    const errors: string[] = [];
-    for (let index = 0; index < actions.length; index += 1) {
-      try {
-        result.push(await executeAction({
-          organizationId: input.organizationId,
-          employeeId: input.employeeId,
-          trigger: input.trigger,
-          eventKey: input.eventKey,
-          executionId: execution.id,
-          actionIndex: index,
-          action: actions[index],
-          context,
-        }));
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Automation action failed.";
-        errors.push(`Action ${index + 1} (${actions[index].type}): ${message}`);
-        result.push({ type: actions[index].type, status: "failed", error: message });
-      }
+    try {
+      const advanced = await advanceAutomationExecution(execution.id);
+      outcomes.push({
+        ruleId: rule.id,
+        status: advanced.status,
+        result: advanced.result,
+        ...(advanced.error ? { error: advanced.error } : {}),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Automation execution failed.";
+      await db.update(automationExecutions).set({
+        status: "failed",
+        error: message.slice(0, 4000),
+        updatedAt: new Date(),
+      }).where(eq(automationExecutions.id, execution.id));
+      outcomes.push({ ruleId: rule.id, status: "failed", error: message });
     }
-
-    const status = errors.length === 0 ? "completed" : errors.length === actions.length ? "failed" : "partial";
-    const error = errors.length ? errors.join("\n").slice(0, 4000) : null;
-    await db.update(automationExecutions).set({
-      status,
-      result,
-      error,
-    }).where(eq(automationExecutions.id, execution.id));
-    outcomes.push({
-      ruleId: rule.id,
-      status,
-      result,
-      ...(error ? { error } : {}),
-    });
   }
 
   return outcomes;
