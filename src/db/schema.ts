@@ -2819,6 +2819,51 @@ export const hcmEmploymentTerms = pgTable(
   ],
 );
 
+export const hcmEmploymentTermDecisions = pgTable(
+  "hcm_employment_term_decisions",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    employmentTermId: integer("employment_term_id").notNull().references(() => hcmEmploymentTerms.id, { onDelete: "restrict" }),
+    decisionKind: varchar("decision_kind", { length: 32 }).notNull(),
+    effectiveDate: date("effective_date").notNull(),
+    nextEmploymentType: varchar("next_employment_type", { length: 32 }),
+    nextTermKind: varchar("next_term_kind", { length: 24 }),
+    nextEffectiveUntil: date("next_effective_until"),
+    nextProbationReviewDate: date("next_probation_review_date"),
+    nextContractEndDate: date("next_contract_end_date"),
+    nextProjectName: varchar("next_project_name", { length: 160 }),
+    proposedSeparationLastDay: date("proposed_separation_last_day"),
+    separationReason: varchar("separation_reason", { length: 160 }),
+    status: varchar("status", { length: 24 }).notNull().default("pending_approval"),
+    separationHandoffStatus: varchar("separation_handoff_status", { length: 24 }).notNull().default("none"),
+    reason: varchar("reason", { length: 240 }).notNull(),
+    requestedByUserId: integer("requested_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    requestedBy: varchar("requested_by", { length: 120 }).notNull(),
+    approvedByUserId: integer("approved_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    approvedBy: varchar("approved_by", { length: 120 }),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    appliedAt: timestamp("applied_at", { withTimezone: true }),
+    successorTermId: integer("successor_term_id").references((): AnyPgColumn => hcmEmploymentTerms.id, { onDelete: "set null" }),
+    cancelledByUserId: integer("cancelled_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    cancelledBy: varchar("cancelled_by", { length: 120 }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    failure: text("failure"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hcm_employment_term_decisions_open_term_unique")
+      .on(table.employmentTermId)
+      .where(sql`${table.status} in ('pending_approval', 'scheduled')`),
+    index("hcm_employment_term_decisions_org_status_date_idx")
+      .on(table.organizationId, table.status, table.effectiveDate),
+    index("hcm_employment_term_decisions_employee_history_idx")
+      .on(table.organizationId, table.employeeId, table.createdAt),
+  ],
+);
+
 export const workerEffectiveChanges = pgTable(
   "worker_effective_changes",
   {
