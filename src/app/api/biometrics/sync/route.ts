@@ -34,6 +34,8 @@ export async function GET(request: Request) {
   return Response.json({
     devices,
     protocolsSupported: ["ADMS (Push SDK)", "Port Forwarding (TCP/IP)", "REST Webhook (Cloud)"],
+    bufferedOfflineSync: true,
+    replayBehavior: "Earliest IN and latest OUT win; exact replays are ignored.",
   });
 }
 
@@ -128,6 +130,7 @@ export async function POST(request: Request) {
   const staffByNo = new Map(staff.map((employee) => [employee.employeeNo.toUpperCase(), employee]));
 
   let ingested = 0;
+  let duplicates = 0;
   let unmatched = 0;
   let invalid = 0;
 
@@ -168,6 +171,7 @@ export async function POST(request: Request) {
     ).limit(1);
 
     const isIn = punchType === "0" || punchType.toLowerCase() === "in";
+    let applied = false;
     if (isIn) {
       if (!existing) {
         await db.insert(timePunches).values({
@@ -183,6 +187,7 @@ export async function POST(request: Request) {
           status: "Incomplete",
           notes: `ADMS Biometric IN (${device.deviceModel})`,
         });
+        applied = true;
       } else if (!existing.timeIn || punchDate < new Date(existing.timeIn)) {
         await db.update(timePunches).set({
           timeIn: punchDate,
@@ -190,6 +195,7 @@ export async function POST(request: Request) {
           source: "biometric_adms",
           deviceSerial,
         }).where(eq(timePunches.id, existing.id));
+        applied = true;
       }
     } else {
       if (!existing) {
@@ -206,6 +212,7 @@ export async function POST(request: Request) {
           status: "Incomplete",
           notes: `ADMS Biometric OUT (${device.deviceModel})`,
         });
+        applied = true;
       } else if (!existing.timeOut || punchDate > new Date(existing.timeOut)) {
         await db.update(timePunches).set({
           timeOut: punchDate,
@@ -214,10 +221,12 @@ export async function POST(request: Request) {
           source: "biometric_adms",
           deviceSerial,
         }).where(eq(timePunches.id, existing.id));
+        applied = true;
       }
     }
 
-    ingested += 1;
+    if (applied) ingested += 1;
+    else duplicates += 1;
   }
 
   await db.update(biometricDevices).set({
@@ -233,6 +242,7 @@ export async function POST(request: Request) {
     metadata: {
       totalLogs: logs.length,
       ingested,
+      duplicates,
       unmatched,
       invalid,
       deviceSerial,
@@ -244,6 +254,7 @@ export async function POST(request: Request) {
     ok: true,
     deviceSerial,
     ingested,
+    duplicates,
     unmatched,
     invalid,
     syncedAt: new Date().toISOString(),
