@@ -2953,6 +2953,7 @@ export const hcmEmploymentTermDecisions = pgTable(
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
     failure: text("failure"),
     evidenceSnapshotSha256: varchar("evidence_snapshot_sha256", { length: 64 }),
+    evidencePacketVersion: varchar("evidence_packet_version", { length: 16 }),
     evidenceSealedAt: timestamp("evidence_sealed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -3082,6 +3083,29 @@ export const hcmLifecycleNotificationEvents = pgTable(
   (table) => [
     index("hcm_lifecycle_notification_event_task_idx").on(table.organizationId, table.taskId, table.createdAt),
     index("hcm_lifecycle_notification_event_employee_idx").on(table.organizationId, table.employeeId, table.createdAt),
+  ],
+);
+
+export const hcmEmploymentDecisionManagerAttestations = pgTable(
+  "hcm_employment_decision_manager_attestations",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    decisionId: integer("decision_id").notNull().references(() => hcmEmploymentTermDecisions.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    workerPositionAssignmentId: integer("worker_position_assignment_id").notNull().references(() => positionAssignments.id, { onDelete: "restrict" }),
+    workerPositionId: integer("worker_position_id").notNull().references(() => positions.id, { onDelete: "restrict" }),
+    managerEmployeeId: integer("manager_employee_id").notNull().references(() => employees.id, { onDelete: "restrict" }),
+    managerUserId: integer("manager_user_id").references(() => users.id, { onDelete: "set null" }),
+    managerName: varchar("manager_name", { length: 120 }).notNull(),
+    recommendation: varchar("recommendation", { length: 32 }).notNull(),
+    statement: text("statement").notNull(),
+    reportingLineSnapshot: jsonb("reporting_line_snapshot").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("hcm_decision_manager_attestations_decision_idx").on(table.organizationId, table.decisionId, table.createdAt),
+    index("hcm_decision_manager_attestations_manager_idx").on(table.organizationId, table.managerEmployeeId, table.createdAt),
   ],
 );
 
