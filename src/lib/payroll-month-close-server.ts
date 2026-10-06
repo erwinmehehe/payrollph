@@ -40,8 +40,8 @@ function belongsToRun(event: typeof auditEvents.$inferSelect, runId: number) {
   return Number(metadata(event.metadata).runId) === runId;
 }
 
-async function liveRemittanceCertification(organizationId: number, applicableMonth: string) {
-  const state = await loadStatutoryRemittanceState(organizationId);
+async function liveRemittanceCertification(organizationId: number, legalEntityId: number, applicableMonth: string) {
+  const state = await loadStatutoryRemittanceState(organizationId, legalEntityId);
   if (!state) {
     return {
       certificationValid: false,
@@ -59,6 +59,7 @@ async function liveRemittanceCertification(organizationId: number, applicableMon
     periodEnd: payrollRuns.periodEnd,
   }).from(payrollRuns).where(and(
     eq(payrollRuns.organizationId, organizationId),
+    eq(payrollRuns.legalEntityId, legalEntityId),
     gte(payrollRuns.periodEnd, monthStart(applicableMonth)),
     lte(payrollRuns.periodEnd, monthEnd(applicableMonth)),
   ));
@@ -92,6 +93,7 @@ async function liveRemittanceCertification(organizationId: number, applicableMon
     : [];
   const issueCases = await db.select().from(statutoryContributionIssueCases).where(and(
     eq(statutoryContributionIssueCases.organizationId, organizationId),
+    eq(statutoryContributionIssueCases.legalEntityId, legalEntityId),
     eq(statutoryContributionIssueCases.applicableMonth, applicableMonth),
   ));
 
@@ -110,6 +112,7 @@ async function liveRemittanceCertification(organizationId: number, applicableMon
   const [closure] = await db.select().from(statutoryRemittanceMonthClosures)
     .where(and(
       eq(statutoryRemittanceMonthClosures.organizationId, organizationId),
+      eq(statutoryRemittanceMonthClosures.legalEntityId, legalEntityId),
       eq(statutoryRemittanceMonthClosures.applicableMonth, applicableMonth),
     ))
     .orderBy(desc(statutoryRemittanceMonthClosures.certifiedAt), desc(statutoryRemittanceMonthClosures.id))
@@ -134,11 +137,13 @@ async function liveRemittanceCertification(organizationId: number, applicableMon
 
 export async function buildPayrollMonthCloseState(
   organizationId: number,
+  legalEntityId: number,
   applicableMonth: string,
 ) {
   const payMonthRuns = await db.select().from(payrollRuns)
     .where(and(
       eq(payrollRuns.organizationId, organizationId),
+      eq(payrollRuns.legalEntityId, legalEntityId),
       gte(payrollRuns.payDate, monthStart(applicableMonth)),
       lte(payrollRuns.payDate, monthEnd(applicableMonth)),
     ))
@@ -152,12 +157,13 @@ export async function buildPayrollMonthCloseState(
     db.select().from(governmentFilingValidations)
       .where(and(
         eq(governmentFilingValidations.organizationId, organizationId),
+        eq(governmentFilingValidations.legalEntityId, legalEntityId),
         eq(governmentFilingValidations.agency, "BIR"),
         eq(governmentFilingValidations.form, "1601-C"),
         eq(governmentFilingValidations.applicableMonth, applicableMonth),
       ))
       .orderBy(desc(governmentFilingValidations.submittedAt), desc(governmentFilingValidations.id)),
-    liveRemittanceCertification(organizationId, applicableMonth),
+    liveRemittanceCertification(organizationId, legalEntityId, applicableMonth),
     buildLaborInspectionReadiness(organizationId),
   ]);
 
@@ -227,6 +233,7 @@ export async function buildPayrollMonthCloseState(
   const closures = await db.select().from(payrollMonthClosures)
     .where(and(
       eq(payrollMonthClosures.organizationId, organizationId),
+      eq(payrollMonthClosures.legalEntityId, legalEntityId),
       eq(payrollMonthClosures.applicableMonth, applicableMonth),
     ))
     .orderBy(desc(payrollMonthClosures.certifiedAt), desc(payrollMonthClosures.id));
@@ -255,6 +262,7 @@ export async function buildPayrollMonthCloseState(
   if (remittance.certifiedByName) evidenceActors.add(remittance.certifiedByName);
 
   return {
+    legalEntityId,
     applicableMonth,
     evaluation,
     closure,
