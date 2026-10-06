@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, Clock3, RefreshCcw, ShieldCheck, X } from "lucide-react";
+import { Check, Clock3, Gauge, Layers3, RefreshCcw, Save, ShieldCheck, X } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, Metric, Segmented, Spinner, Status } from "./ui";
 
@@ -20,9 +20,44 @@ type OvertimeRequestRow = {
   decidedByUserId: number | null;
   decidedAt: string | null;
   decisionNote: string | null;
+  budgetId: number | null;
+  budgetMinutesAtDecision: number | null;
+  budgetApprovedMinutesBefore: number | null;
+  budgetOverrideReason: string | null;
   createdAt: string;
   updatedAt: string;
 };
+
+type OvertimeBudgetRow = {
+  id: number;
+  organizationId: number;
+  orgUnitId: number;
+  periodStart: string;
+  periodEnd: string;
+  budgetMinutes: number;
+  warningThresholdPercent: number;
+  active: boolean;
+  approvedMinutesBefore: number;
+  pendingMinutes: number;
+  remainingMinutesBefore: number;
+  projectedApprovedMinutes: number;
+  projectedUtilizationPercent: number;
+  warning: boolean;
+  overBudget: boolean;
+};
+
+type OrgUnitOption = {
+  id: number;
+  name: string;
+  code: string;
+  type: string;
+};
+
+function monthWindow(dateText: string) {
+  const [year, month] = dateText.split("-").map(Number);
+  const end = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+  return { start: `${dateText.slice(0, 7)}-01`, end };
+}
 
 function todayManila() {
   return new Intl.DateTimeFormat("en-CA", {
