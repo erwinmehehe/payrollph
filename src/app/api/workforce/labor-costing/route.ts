@@ -4,6 +4,10 @@ import {
   costCenters,
   employeeLaborAllocations,
   employees,
+  laborGlMappings,
+  laborHourAllocations,
+  legalEntities,
+  payrollRuns,
 } from "@/db/schema";
 import {
   assertOrganizationRole,
@@ -14,7 +18,7 @@ import {
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
-import { resolveLaborAllocation } from "@/lib/labor-costing";
+import { resolveHoursBasedLaborAllocation, resolveLaborAllocation } from "@/lib/labor-costing";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -104,18 +108,26 @@ export async function GET(request: Request) {
       .map((employee) => employee.id),
   );
 
-  const [centerRows, allocationRows] = await Promise.all([
+  const [centerRows, allocationRows, hourRows, glRows] = await Promise.all([
     db.select().from(costCenters)
       .where(eq(costCenters.organizationId, organizationId))
       .orderBy(asc(costCenters.code)),
     db.select().from(employeeLaborAllocations)
       .where(eq(employeeLaborAllocations.organizationId, organizationId))
       .orderBy(asc(employeeLaborAllocations.employeeId), asc(employeeLaborAllocations.effectiveFrom), asc(employeeLaborAllocations.id)),
+    db.select().from(laborHourAllocations)
+      .where(eq(laborHourAllocations.organizationId, organizationId))
+      .orderBy(asc(laborHourAllocations.payrollRunId), asc(laborHourAllocations.employeeId), asc(laborHourAllocations.workDate), asc(laborHourAllocations.id)),
+    db.select().from(laborGlMappings)
+      .where(eq(laborGlMappings.organizationId, organizationId))
+      .orderBy(asc(laborGlMappings.legalEntityId), asc(laborGlMappings.costCenterId), asc(laborGlMappings.component), asc(laborGlMappings.effectiveFrom)),
   ]);
 
   return Response.json({
     costCenters: centerRows,
     allocations: allocationRows.filter((row) => visibleEmployeeIds.has(row.employeeId)),
+    hourAllocations: hourRows.filter((row) => visibleEmployeeIds.has(row.employeeId)),
+    glMappings: access.companyWide ? glRows : [],
   });
 }
 
