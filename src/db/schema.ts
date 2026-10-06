@@ -236,6 +236,7 @@ export const employeeWorksiteAssignments = pgTable(
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
     worksiteId: integer("worksite_id").notNull().references(() => worksites.id, { onDelete: "restrict" }),
+    decision: varchar("decision", { length: 8 }).notNull().default("allow"),
     effectiveFrom: date("effective_from").notNull(),
     effectiveUntil: date("effective_until"),
     reason: varchar("reason", { length: 240 }).notNull().default("Worksite assignment"),
@@ -285,6 +286,7 @@ export const hcmWorksiteAuthorizations = pgTable(
   (table) => [
     uniqueIndex("hcm_worksite_authorization_unique").on(table.employeeId, table.worksiteId, table.effectiveFrom),
     index("hcm_worksite_authorizations_effective_idx").on(table.organizationId, table.employeeId, table.effectiveFrom),
+    index("hcm_worksite_authorizations_decision_idx").on(table.organizationId, table.employeeId, table.worksiteId, table.decision, table.effectiveFrom),
   ],
 );
 
