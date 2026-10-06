@@ -65,7 +65,10 @@ async function managedPayload(organizationId: number, userId: number) {
         approvedBy: approval.approvedBy,
         approvedAt: approval.approvedAt,
         valid:
-          fingerprint === approval.payrollFingerprint
+          ["pilot", "live"].includes(engagement.status)
+          && approval.approverUserId === engagement.clientApproverUserId
+          && approval.approvedByUserId === engagement.clientApproverUserId
+          && fingerprint === approval.payrollFingerprint
           && Number(run.grossPay) === Number(approval.approvedGross)
           && Number(run.netPay) === Number(approval.approvedNet)
           && Number(run.employeeCount) === Number(approval.approvedEmployeeCount),
