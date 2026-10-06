@@ -26,6 +26,7 @@ import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { fixedMonthlyBasicForTimeline, resolvePayProfile, resolvePayTimeline } from "@/lib/pay-basis";
 import { REST_DAY_NAMES } from "@/lib/payroll-rules";
 import { runLifecycleAutomations } from "@/lib/automation";
+import { ensurePrimaryLegalEntity } from "@/lib/legal-entity";
 
 export const dynamic = "force-dynamic";
 
@@ -128,6 +129,7 @@ export async function POST(request: Request) {
   if (requestedLegalEntityId !== null && (!Number.isInteger(requestedLegalEntityId) || requestedLegalEntityId <= 0)) {
     return Response.json({ error: "Invalid legal employer." }, { status: 400 });
   }
+  await ensurePrimaryLegalEntity(organizationId);
   const entityRows = await db.select().from(legalEntities).where(and(
     eq(legalEntities.organizationId, organizationId),
     eq(legalEntities.active, true),
