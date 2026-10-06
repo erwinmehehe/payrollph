@@ -43,6 +43,7 @@ import {
   markTimesheetsStaleForEmployeeRange,
 } from "@/lib/workforce-timesheet-server";
 import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
+import { employeeSiteEligibility } from "@/lib/hcm-worksite-eligibility-server";
 
 export const dynamic = "force-dynamic";
 
@@ -276,6 +277,18 @@ export async function GET(request: Request) {
       defaultWorksiteId:
         selectEffectiveWorksiteAssignment(defaultWorksites, previewDate)?.worksiteId ?? null,
     }));
+    if (worksiteId != null) {
+      const eligibility = await employeeSiteEligibility({
+        organizationId, employeeId, worksiteId, date: effectiveFrom,
+      });
+      if (!eligibility.eligible) {
+        return Response.json({
+          error: "Work arrangement or site authorization does not permit this schedule.",
+          siteEligibility: eligibility,
+        }, { status: 409 });
+      }
+    }
+
     const guardrailPolicy = await scheduleGuardrailPolicy(organizationId);
     const guardrailEvaluationDays = await resolveEmployeeScheduleWindow({
       organizationId,
@@ -817,6 +830,18 @@ export async function POST(request: Request) {
       }
       if (!access.companyWide && workLocationOrgUnitId !== access.orgUnitId) {
         return Response.json({ error: "Scoped People administrators cannot override work outside their organization unit." }, { status: 403 });
+      }
+    }
+
+    if (worksiteId != null) {
+      const eligibility = await employeeSiteEligibility({
+        organizationId, employeeId, worksiteId, date: workDate,
+      });
+      if (!eligibility.eligible) {
+        return Response.json({
+          error: "Work arrangement or site authorization does not permit this override.",
+          siteEligibility: eligibility,
+        }, { status: 409 });
       }
     }
 
