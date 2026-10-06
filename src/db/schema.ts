@@ -2897,6 +2897,8 @@ export const hcmEmploymentTermDecisions = pgTable(
     cancelledBy: varchar("cancelled_by", { length: 120 }),
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
     failure: text("failure"),
+    evidenceSnapshotSha256: varchar("evidence_snapshot_sha256", { length: 64 }),
+    evidenceSealedAt: timestamp("evidence_sealed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -2911,6 +2913,63 @@ export const hcmEmploymentTermDecisions = pgTable(
     uniqueIndex("hcm_employment_term_decisions_separation_unique")
       .on(table.separationRecordId)
       .where(sql`${table.separationRecordId} is not null`),
+  ],
+);
+
+export const hcmEmploymentDecisionNotes = pgTable(
+  "hcm_employment_decision_notes",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    decisionId: integer("decision_id").notNull().references(() => hcmEmploymentTermDecisions.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    noteKind: varchar("note_kind", { length: 32 }).notNull(),
+    content: text("content").notNull(),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdByName: varchar("created_by_name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("hcm_employment_decision_notes_decision_idx").on(table.organizationId, table.decisionId, table.createdAt),
+  ],
+);
+
+export const hcmEmploymentDecisionDocuments = pgTable(
+  "hcm_employment_decision_documents",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    decisionId: integer("decision_id").notNull().references(() => hcmEmploymentTermDecisions.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    documentId: integer("document_id").notNull().references(() => documents.id, { onDelete: "restrict" }),
+    evidenceKind: varchar("evidence_kind", { length: 40 }).notNull(),
+    label: varchar("label", { length: 180 }).notNull(),
+    attachedByUserId: integer("attached_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    attachedByName: varchar("attached_by_name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hcm_employment_decision_document_unique").on(table.decisionId, table.documentId),
+    index("hcm_employment_decision_documents_decision_idx").on(table.organizationId, table.decisionId, table.createdAt),
+  ],
+);
+
+export const hcmEmploymentDecisionEvents = pgTable(
+  "hcm_employment_decision_events",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    decisionId: integer("decision_id").notNull().references(() => hcmEmploymentTermDecisions.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    eventType: varchar("event_type", { length: 40 }).notNull(),
+    actorUserId: integer("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    actorName: varchar("actor_name", { length: 120 }).notNull(),
+    metadata: jsonb("metadata").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("hcm_employment_decision_events_decision_idx").on(table.organizationId, table.decisionId, table.createdAt),
+    index("hcm_employment_decision_events_employee_idx").on(table.organizationId, table.employeeId, table.createdAt),
   ],
 );
 
