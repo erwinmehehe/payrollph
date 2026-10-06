@@ -16,8 +16,8 @@ const bySlug = new Map(resources.map((page) => [page.slug, page]));
 
 const resourceGroups = [
   {
-    title: "Payroll Guides Philippines | Buyer Tools & Resources | Linaw",
-    description: "Philippine payroll guides for software buying, migration, security, outsourcing decisions and spreadsheet-to-system planning for employers and payroll teams.",
+    title: "Choose and compare payroll software",
+    description: "Shortlist systems using evidence, operating fit, security, deployment model and total cost instead of a generic feature checklist.",
     slugs: [
       "best-payroll-software-philippines",
       "sprout-payroll-alternative",
@@ -72,8 +72,8 @@ const resourceGroups = [
 ] as const;
 
 export const metadata: Metadata = {
-  title: "Philippine Payroll Guides & Buyer Resources | Linaw",
-  description: "Philippine payroll guides for software buying, migration, compliance, operations, security, outsourcing decisions and payroll teams.",
+  title: "Payroll Guides Philippines | Buyer Tools & Resources | Linaw",
+  description: "Philippine payroll guides for software buying, migration, security, outsourcing decisions and spreadsheet-to-system planning for employers and payroll teams.",
   alternates: { canonical: "/resources" },
 };
 
