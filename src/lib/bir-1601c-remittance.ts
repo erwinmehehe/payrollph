@@ -60,10 +60,12 @@ export function buildBir1601cRemittanceSnapshot(input: {
       payrollRunCount: input.payrollRunCount,
       employeeCount,
       expectedTaxWithheld,
-      rows: input.entries.map((entry) => ({
-        employeeId: entry.employeeId,
-        tax: taxWithheldFromLineItems(entry.lineItems),
-      })),
+      rows: input.entries
+        .map((entry) => ({
+          employeeId: entry.employeeId,
+          tax: taxWithheldFromLineItems(entry.lineItems),
+        }))
+        .sort((a, b) => a.employeeId - b.employeeId || a.tax - b.tax),
     }))
     .digest("hex");
 
