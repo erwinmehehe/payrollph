@@ -28,6 +28,13 @@ import {
 export const dynamic = "force-dynamic";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const LABOR_GL_COMPONENTS = new Set([
+  "gross_pay",
+  "employer_sss",
+  "employer_ec",
+  "employer_philhealth",
+  "employer_pagibig",
+]);
 
 function cleanCode(value: unknown, length = 64) {
   const text = String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9_.-]/g, "");
@@ -145,9 +152,11 @@ export async function POST(request: Request) {
   const denied = await assertOrganizationRole(
     user.id,
     organizationId,
-    action === "create_cost_center" ? ORG_ADMIN_ROLES : PEOPLE_PAYROLL_ROLES,
-    action === "create_cost_center"
-      ? "Only organization administrators can create cost centers."
+    action === "create_cost_center" || action === "set_gl_mapping"
+      ? ORG_ADMIN_ROLES
+      : PEOPLE_PAYROLL_ROLES,
+    action === "create_cost_center" || action === "set_gl_mapping"
+      ? "Only organization administrators can manage organization-wide costing configuration."
       : "You do not have permission to manage labor costing.",
   );
   if (denied) return denied;
@@ -349,6 +358,243 @@ export async function POST(request: Request) {
     });
 
     return Response.json({ allocations: created }, { status: 201 });
+  }
+
+  if (action === "record_hours_allocation") {
+    const employeeId = Number(body.employeeId);
+    const payrollRunId = Number(body.payrollRunId);
+    const workDate = String(body.workDate ?? "").trim();
+    const sourceType = String(body.sourceType ?? "manual").trim().toLowerCase();
+    const sourceReference = String(body.sourceReference ?? "").trim().slice(0, 160) || null;
+    const allocationInput: Record<string, unknown>[] = Array.isArray(body.allocations)
+      ? body.allocations.filter((row: unknown): row is Record<string, unknown> => typeof row === "object" && row !== null)
+      : [];
+
+    if (
+      !Number.isInteger(employeeId)
+      || !Number.isInteger(payrollRunId)
+      || !ISO_DATE.test(workDate)
+      || !["attendance", "timesheet", "manual", "import"].includes(sourceType)
+      || allocationInput.length < 1
+      || allocationInput.length > 40
+    ) {
+      return Response.json({
+        error: "employeeId, payrollRunId, workDate, valid sourceType, and 1–40 allocation rows are required.",
+      }, { status: 400 });
+    }
+
+    const employeeCheck = await scopedEmployee(user.id, organizationId, employeeId);
+    if (employeeCheck.denied) return employeeCheck.denied;
+
+    const [run] = await db.select().from(payrollRuns).where(and(
+      eq(payrollRuns.id, payrollRunId),
+      eq(payrollRuns.organizationId, organizationId),
+    )).limit(1);
+    if (!run) {
+      return Response.json({ error: "Payroll run not found." }, { status: 404 });
+    }
+    if (!run.legalEntityId || !employeeCheck.employee!.legalEntityId) {
+      return Response.json({
+        error: "Hours-based costing requires an explicit legal entity on both the payroll run and employee.",
+      }, { status: 422 });
+    }
+    if (run.legalEntityId !== employeeCheck.employee!.legalEntityId) {
+      return Response.json({
+        error: "Employee legal entity does not match the payroll run legal entity.",
+      }, { status: 422 });
+    }
+    if (["released", "paid", "closed"].includes(String(run.status).toLowerCase())) {
+      return Response.json({
+        error: "Released or closed payroll runs cannot have labor-hour evidence replaced.",
+      }, { status: 409 });
+    }
+
+    const normalized = allocationInput.map((row, index) => ({
+      id: index + 1,
+      employeeId,
+      costCenterId: Number(row.costCenterId),
+      workDate,
+      minutes: Number(row.minutes),
+      projectCode: optionalCode(row.projectCode),
+      clientCode: optionalCode(row.clientCode),
+      jobCode: optionalCode(row.jobCode),
+    }));
+    if (normalized.some((row) => !Number.isInteger(row.costCenterId))) {
+      return Response.json({ error: "Every hours allocation requires a valid costCenterId." }, { status: 400 });
+    }
+
+    try {
+      resolveHoursBasedLaborAllocation({ employeeId, workDate, rows: normalized });
+    } catch (error) {
+      return Response.json({
+        error: error instanceof Error ? error.message : "Hours-based labor allocation is invalid.",
+      }, { status: 422 });
+    }
+
+    const requestedCenterIds = [...new Set(normalized.map((row) => row.costCenterId))];
+    const centerRows = await db.select().from(costCenters)
+      .where(eq(costCenters.organizationId, organizationId));
+    const validCenters = new Set(
+      centerRows.filter((center) => center.active && requestedCenterIds.includes(center.id)).map((center) => center.id),
+    );
+    if (requestedCenterIds.some((id) => !validCenters.has(id))) {
+      return Response.json({
+        error: "Every hours allocation cost center must be active and belong to this organization.",
+      }, { status: 422 });
+    }
+
+    const created = await db.transaction(async (tx) => {
+      await tx.delete(laborHourAllocations).where(and(
+        eq(laborHourAllocations.organizationId, organizationId),
+        eq(laborHourAllocations.payrollRunId, payrollRunId),
+        eq(laborHourAllocations.employeeId, employeeId),
+        eq(laborHourAllocations.workDate, workDate),
+      ));
+
+      const inserted = [];
+      for (const allocation of normalized) {
+        const [row] = await tx.insert(laborHourAllocations).values({
+          organizationId,
+          legalEntityId: run.legalEntityId!,
+          payrollRunId,
+          employeeId,
+          costCenterId: allocation.costCenterId,
+          workDate,
+          minutes: allocation.minutes,
+          projectCode: allocation.projectCode,
+          clientCode: allocation.clientCode,
+          jobCode: allocation.jobCode,
+          sourceType,
+          sourceReference,
+          createdByUserId: user.id,
+          createdBy: user.name,
+        }).returning();
+        inserted.push(row);
+      }
+      return inserted;
+    });
+
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "Hours-based labor allocation recorded",
+      resource: `${employeeCheck.employee!.employeeNo} · payroll #${payrollRunId} · ${workDate}`,
+      metadata: {
+        payrollRunId,
+        employeeId,
+        legalEntityId: run.legalEntityId,
+        sourceType,
+        sourceReference,
+        allocations: created.map((row) => ({
+          id: row.id,
+          costCenterId: row.costCenterId,
+          minutes: row.minutes,
+          clientCode: row.clientCode,
+          projectCode: row.projectCode,
+          jobCode: row.jobCode,
+        })),
+      },
+    });
+
+    return Response.json({ hourAllocations: created }, { status: 201 });
+  }
+
+  if (action === "set_gl_mapping") {
+    if (!access.companyWide) {
+      return Response.json({
+        error: "GL mappings require company-wide access.",
+      }, { status: 403 });
+    }
+
+    const legalEntityId = Number(body.legalEntityId);
+    const costCenterId = Number(body.costCenterId);
+    const component = String(body.component ?? "").trim().toLowerCase();
+    const glAccountCode = cleanCode(body.glAccountCode, 40);
+    const glAccountName = String(body.glAccountName ?? "").trim().slice(0, 160);
+    const effectiveFrom = String(body.effectiveFrom ?? "").trim();
+    const effectiveUntil = String(body.effectiveUntil ?? "").trim() || null;
+
+    if (
+      !Number.isInteger(legalEntityId)
+      || !Number.isInteger(costCenterId)
+      || !LABOR_GL_COMPONENTS.has(component)
+      || !glAccountCode
+      || !glAccountName
+      || !ISO_DATE.test(effectiveFrom)
+      || (effectiveUntil && !ISO_DATE.test(effectiveUntil))
+      || (effectiveUntil && effectiveUntil < effectiveFrom)
+    ) {
+      return Response.json({
+        error: "A legal entity, cost center, supported component, GL account, and valid effective dates are required.",
+      }, { status: 400 });
+    }
+
+    const [[entity], centers] = await Promise.all([
+      db.select().from(legalEntities).where(and(
+        eq(legalEntities.id, legalEntityId),
+        eq(legalEntities.organizationId, organizationId),
+      )).limit(1),
+      db.select().from(costCenters).where(eq(costCenters.organizationId, organizationId)),
+    ]);
+    const center = centers.find((row) => row.id === costCenterId && row.active);
+    if (!entity || !center) {
+      return Response.json({
+        error: "The legal entity and active cost center must belong to this organization.",
+      }, { status: 422 });
+    }
+
+    const existing = await db.select().from(laborGlMappings).where(and(
+      eq(laborGlMappings.organizationId, organizationId),
+      eq(laborGlMappings.legalEntityId, legalEntityId),
+      eq(laborGlMappings.costCenterId, costCenterId),
+      eq(laborGlMappings.component, component),
+    ));
+    const conflict = existing.find((row) =>
+      row.active
+      && rangesOverlap(
+        String(row.effectiveFrom),
+        row.effectiveUntil ? String(row.effectiveUntil) : null,
+        effectiveFrom,
+        effectiveUntil,
+      ),
+    );
+    if (conflict) {
+      return Response.json({
+        error: "An active GL mapping already overlaps this entity, cost center, component, and effective window.",
+      }, { status: 409 });
+    }
+
+    const [created] = await db.insert(laborGlMappings).values({
+      organizationId,
+      legalEntityId,
+      costCenterId,
+      component,
+      glAccountCode,
+      glAccountName,
+      effectiveFrom,
+      effectiveUntil,
+      active: true,
+      createdByUserId: user.id,
+      createdBy: user.name,
+    }).returning();
+
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "Labor GL mapping created",
+      resource: `${entity.code} · ${center.code} · ${component}`,
+      metadata: {
+        mappingId: created.id,
+        legalEntityId,
+        costCenterId,
+        component,
+        glAccountCode,
+        effectiveFrom,
+        effectiveUntil,
+      },
+    });
+
+    return Response.json({ glMapping: created }, { status: 201 });
   }
 
   return Response.json({ error: "Unsupported labor-costing action." }, { status: 400 });
