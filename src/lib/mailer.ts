@@ -168,7 +168,7 @@ async function finishDeliveryAttempt(input: {
   const retryDelay = AUTO_RETRY_DELAYS_MS[Math.min(Math.max(attempts - 1, 0), AUTO_RETRY_DELAYS_MS.length - 1)];
   const nextAttemptAt =
     !input.result.ok
-    && ["payslip-ready", "statutory-remittance-escalation", "employee-contribution-case"].includes(input.row.purpose)
+    && ["payslip-ready", "statutory-remittance-escalation", "employee-contribution-case", "hcm-lifecycle-notification"].includes(input.row.purpose)
     && attempts < input.row.maxAttempts
       ? new Date(now.getTime() + retryDelay)
       : null;
@@ -253,7 +253,7 @@ export async function queueMessage(input: {
     deliveryStatus: providerName === "none" ? "queued" : "sending",
     deliveryUpdatedAt: new Date(),
     metadata: input.metadata ?? input.audit?.metadata ?? {},
-    maxAttempts: ["payslip-ready", "statutory-remittance-escalation", "employee-contribution-case"].includes(input.purpose)
+    maxAttempts: ["payslip-ready", "statutory-remittance-escalation", "employee-contribution-case", "hcm-lifecycle-notification"].includes(input.purpose)
       ? MAX_AUTOMATIC_RETRIES + 1
       : 1,
   }).onConflictDoNothing().returning();
