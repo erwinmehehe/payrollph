@@ -2873,6 +2873,63 @@ export const hcmEmploymentTermDecisions = pgTable(
   ],
 );
 
+export const hcmLifecycleNotificationTasks = pgTable(
+  "hcm_lifecycle_notification_tasks",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    sourceType: varchar("source_type", { length: 32 }).notNull(),
+    sourceId: integer("source_id"),
+    sourceKey: varchar("source_key", { length: 160 }).notNull(),
+    action: varchar("action", { length: 32 }).notNull(),
+    stage: varchar("stage", { length: 32 }).notNull(),
+    escalationStage: integer("escalation_stage").notNull().default(0),
+    severity: varchar("severity", { length: 16 }).notNull(),
+    title: varchar("title", { length: 180 }).notNull(),
+    detail: varchar("detail", { length: 500 }).notNull(),
+    dueDate: date("due_date"),
+    status: varchar("status", { length: 24 }).notNull().default("open"),
+    ownerUserId: integer("owner_user_id").references(() => users.id, { onDelete: "set null" }),
+    ownerName: varchar("owner_name", { length: 120 }),
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+    acknowledgedByUserId: integer("acknowledged_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    acknowledgedByName: varchar("acknowledged_by_name", { length: 120 }),
+    snoozeUntil: timestamp("snooze_until", { withTimezone: true }),
+    notificationEpisode: integer("notification_episode").notNull().default(1),
+    lastNotifiedAt: timestamp("last_notified_at", { withTimezone: true }),
+    firstDetectedAt: timestamp("first_detected_at", { withTimezone: true }).notNull().defaultNow(),
+    lastDetectedAt: timestamp("last_detected_at", { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hcm_lifecycle_notification_source_unique").on(table.organizationId, table.sourceKey),
+    index("hcm_lifecycle_notification_status_idx").on(table.organizationId, table.status, table.severity, table.dueDate),
+    index("hcm_lifecycle_notification_owner_idx").on(table.organizationId, table.ownerUserId, table.status),
+  ],
+);
+
+export const hcmLifecycleNotificationEvents = pgTable(
+  "hcm_lifecycle_notification_events",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    taskId: integer("task_id").notNull().references(() => hcmLifecycleNotificationTasks.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    eventType: varchar("event_type", { length: 32 }).notNull(),
+    actorUserId: integer("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    actorName: varchar("actor_name", { length: 120 }).notNull(),
+    metadata: jsonb("metadata").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("hcm_lifecycle_notification_event_task_idx").on(table.organizationId, table.taskId, table.createdAt),
+    index("hcm_lifecycle_notification_event_employee_idx").on(table.organizationId, table.employeeId, table.createdAt),
+  ],
+);
+
 export const workerEffectiveChanges = pgTable(
   "worker_effective_changes",
   {

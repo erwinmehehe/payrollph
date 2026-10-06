@@ -20,6 +20,7 @@ import { ImportPanel } from "@/components/import-panel";
 import { HcmCapabilitiesPanel } from "@/components/hcm-capabilities-panel";
 import { HcmEmploymentLifecycleActionCenter } from "@/components/hcm-employment-lifecycle-action-center";
 import { HcmEmploymentLifecycleWorker } from "@/components/hcm-employment-lifecycle-worker";
+import { HcmLifecycleNotificationInbox } from "@/components/hcm-lifecycle-notification-inbox";
 import type { DashboardData, Employee } from "./types";
 import { REST_DAY_NAMES } from "@/lib/payroll-rules";
 import { Avatar, EmptyState, PageHeading, Status, formatDate, formatTimeOnly, money } from "./ui";
@@ -339,6 +340,9 @@ export function PeopleView({
       && data.access?.companyWide
       && ["owner", "admin", "bookkeeper", "hr"].includes(data.access.role),
   );
+  const canViewLifecycleNotifications = Boolean(
+    data.access && ["owner", "admin", "bookkeeper", "hr", "manager"].includes(data.access.role),
+  );
 
   // The drawer subject is derived: either a row the user clicked, or the person
   // the command palette handed us. No effect copies one into the other.
@@ -428,6 +432,17 @@ export function PeopleView({
 
       {canManageLifecycle && (
         <HcmEmploymentLifecycleActionCenter
+          organizationId={data.selectedOrganization.id}
+          onOpenEmployee={(employeeId) => {
+            const worker = data.employees.find((employee) => employee.id === employeeId);
+            if (worker) setPicked(worker);
+          }}
+          onOpenSeparation={() => onPage("separation")}
+        />
+      )}
+
+      {canViewLifecycleNotifications && (
+        <HcmLifecycleNotificationInbox
           organizationId={data.selectedOrganization.id}
           onOpenEmployee={(employeeId) => {
             const worker = data.employees.find((employee) => employee.id === employeeId);

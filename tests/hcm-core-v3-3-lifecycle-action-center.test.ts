@@ -162,11 +162,13 @@ test("lifecycle summary and sort put urgent employment actions first", () => {
 
 test("lifecycle readiness API is company-wide, read-only and payroll-aware", () => {
   const route = read("src/app/api/hcm/lifecycle-readiness/route.ts");
+  const server = read("src/lib/hcm-lifecycle-readiness-server.ts");
   assert.ok(route.includes("PEOPLE_PAYROLL_ROLES"));
   assert.ok(route.includes("access?.companyWide"));
-  assert.ok(route.includes("hcmEmploymentTerms"));
-  assert.ok(route.includes("hcmEmploymentTermDecisions"));
-  assert.ok(route.includes("separationRecords"));
+  assert.ok(route.includes("loadEmploymentLifecycleReadiness"));
+  assert.ok(server.includes("hcmEmploymentTerms"));
+  assert.ok(server.includes("hcmEmploymentTermDecisions"));
+  assert.ok(server.includes("separationRecords"));
   assert.equal(route.includes("export async function POST"), false);
   assert.equal(route.includes("export async function PATCH"), false);
 });

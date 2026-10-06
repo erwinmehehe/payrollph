@@ -11,6 +11,7 @@ import { runScheduledCompensationGovernance } from "@/lib/hcm-compensation";
 import { runScheduledWorkerEffectiveChanges } from "@/lib/hcm-effective-changes";
 import { runScheduledEmploymentTerms } from "@/lib/hcm-employment-terms";
 import { runScheduledEmploymentTermDecisions } from "@/lib/hcm-employment-term-decisions";
+import { runScheduledHcmLifecycleNotifications } from "@/lib/hcm-lifecycle-notifications";
 
 const MIN_INTERVAL_MS = 30_000;
 
@@ -78,6 +79,36 @@ export async function tickScheduler(force = false) {
     limit: 100,
   });
 
+  const [hcmLifecycleNotificationState] = await db.select().from(schedulerState)
+    .where(eq(schedulerState.jobName, "hcm-lifecycle-notifications"))
+    .limit(1);
+  const hcmLifecycleNotificationsDue =
+    !hcmLifecycleNotificationState?.lastRunAt
+    || now.getTime() - hcmLifecycleNotificationState.lastRunAt.getTime() >= 60 * 60 * 1000;
+  const hcmLifecycleNotifications = hcmLifecycleNotificationsDue
+    ? await runScheduledHcmLifecycleNotifications({ actor: "System scheduler", now })
+    : null;
+
+  if (hcmLifecycleNotificationsDue) {
+    const lifecyclePayload = {
+      at: now.toISOString(),
+      organizations: hcmLifecycleNotifications?.length ?? 0,
+      results: hcmLifecycleNotifications?.slice(0, 50) ?? [],
+    };
+    if (hcmLifecycleNotificationState) {
+      await db.update(schedulerState).set({
+        lastRunAt: now,
+        lastResult: lifecyclePayload,
+      }).where(eq(schedulerState.id, hcmLifecycleNotificationState.id));
+    } else {
+      await db.insert(schedulerState).values({
+        jobName: "hcm-lifecycle-notifications",
+        lastRunAt: now,
+        lastResult: lifecyclePayload,
+      });
+    }
+  }
+
   if (hcmDocumentDue) {
     const hcmDocumentPayload = {
       at: now.toISOString(),
@@ -126,6 +157,7 @@ export async function tickScheduler(force = false) {
     hcmEmploymentTerms,
     hcmEmploymentTermDecisions,
     hcmCompensation,
+    hcmLifecycleNotifications,
     at: now.toISOString(),
     results: {
       webhooks: webhookResults.slice(0, 10),
