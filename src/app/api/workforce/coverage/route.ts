@@ -180,6 +180,140 @@ async function approvedLeaveOnDate(
   }));
 }
 
+async function loadCurrentPreciseLeaveEvidence(
+  organizationId: number,
+  leaveIds: number[],
+) {
+  const uniqueLeaveIds = [...new Set(leaveIds)].filter((id) => Number.isInteger(id) && id > 0);
+  if (!uniqueLeaveIds.length) {
+    return {
+      setByLeaveId: new Map<number, typeof leaveRequestIntervalSets.$inferSelect>(),
+      intervalsByLeaveId: new Map<number, Array<typeof leaveRequestIntervals.$inferSelect>>(),
+    };
+  }
+
+  const sets = await db.select().from(leaveRequestIntervalSets).where(and(
+    eq(leaveRequestIntervalSets.organizationId, organizationId),
+    eq(leaveRequestIntervalSets.status, "current"),
+    inArray(leaveRequestIntervalSets.leaveRequestId, uniqueLeaveIds),
+  ));
+  const setIds = sets.map((row) => row.id);
+  const intervals = setIds.length
+    ? await db.select().from(leaveRequestIntervals).where(and(
+        eq(leaveRequestIntervals.organizationId, organizationId),
+        inArray(leaveRequestIntervals.intervalSetId, setIds),
+      ))
+    : [];
+
+  const setByLeaveId = new Map(sets.map((row) => [row.leaveRequestId, row]));
+  const intervalsByLeaveId = new Map<number, Array<typeof leaveRequestIntervals.$inferSelect>>();
+  for (const set of sets) {
+    intervalsByLeaveId.set(
+      set.leaveRequestId,
+      intervals.filter((row) => row.intervalSetId === set.id),
+    );
+  }
+  return { setByLeaveId, intervalsByLeaveId };
+}
+
+function preciseInterval(row: typeof leaveRequestIntervals.$inferSelect): PreciseLeaveInterval {
+  return {
+    workDate: String(row.workDate),
+    kind: row.kind as PreciseLeaveInterval["kind"],
+    startLocalTime: row.startLocalTime,
+    endLocalTime: row.endLocalTime,
+    endsNextDay: row.endsNextDay,
+    timezone: row.timezone,
+  };
+}
+
+function shiftWallMinutes(shift: {
+  startTime: string;
+  endTime: string;
+  spansMidnight: boolean;
+}) {
+  const start = Number(shift.startTime.slice(0, 2)) * 60 + Number(shift.startTime.slice(3, 5));
+  let end = Number(shift.endTime.slice(0, 2)) * 60 + Number(shift.endTime.slice(3, 5));
+  if (shift.spansMidnight || end <= start) end += 1440;
+  return Math.max(0, end - start);
+}
+
+async function approvedLeaveConflictForShift(input: {
+  organizationId: number;
+  employeeId: number;
+  workDate: string;
+  shift: typeof shiftDefinitions.$inferSelect;
+}) {
+  const approvedLeave = await approvedLeaveOnDate(
+    input.organizationId,
+    input.employeeId,
+    input.workDate,
+  );
+  if (!approvedLeave.length) {
+    return {
+      conflict: false,
+      legacyAmbiguous: false,
+      unavailableWallMinutes: 0,
+      approvedLeave,
+    };
+  }
+
+  const precise = await loadCurrentPreciseLeaveEvidence(
+    input.organizationId,
+    approvedLeave.map((row) => row.id),
+  );
+  let unavailableWallMinutes = 0;
+  let legacyAmbiguous = false;
+
+  for (const leave of approvedLeave) {
+    const preciseRows = precise.intervalsByLeaveId.get(leave.id) ?? [];
+    if (preciseRows.length > 0) {
+      const impact = resolveLeaveIntervalsForSchedule({
+        workDate: input.workDate,
+        intervals: preciseRows.map(preciseInterval).filter((row) => row.workDate === input.workDate),
+        schedule: {
+          date: input.workDate,
+          source: "unassigned",
+          isRestDay: false,
+          assignmentId: null,
+          patternId: null,
+          patternDayIndex: null,
+          overrideId: null,
+          workLocationOrgUnitId: null,
+          worksiteId: null,
+          audit: [],
+          segments: [{
+            shiftDefinitionId: input.shift.id,
+            shiftCode: input.shift.code,
+            shiftName: input.shift.name,
+            segmentOrder: 1,
+            startTime: input.shift.startTime,
+            endTime: input.shift.endTime,
+            breakMinutes: input.shift.breakMinutes,
+            spansMidnight: input.shift.spansMidnight,
+          }],
+        },
+      });
+      unavailableWallMinutes += impact.unavailableWallMinutes;
+      continue;
+    }
+
+    const legacyImpact = approvedLeaveCoverageImpact(leave);
+    if (legacyImpact.kind === "full_day") {
+      unavailableWallMinutes += shiftWallMinutes(input.shift);
+    } else {
+      legacyAmbiguous = true;
+    }
+  }
+
+  return {
+    conflict: unavailableWallMinutes > 0 || legacyAmbiguous,
+    legacyAmbiguous,
+    unavailableWallMinutes,
+    approvedLeave,
+  };
+}
+
 async function scheduleCatalog(organizationId: number) {
   const [shifts, patterns, days, segments] = await Promise.all([
     db.select().from(shiftDefinitions)
