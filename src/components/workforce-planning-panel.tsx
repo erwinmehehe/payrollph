@@ -435,13 +435,14 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
     <div>
       <div className="page-heading">
         <div>
-          <div className="eyebrow">WORKFORCE PLANNING</div>
-          <h1>Plan positions before opening requisitions.</h1>
-          <p>Keep an authoritative headcount ledger with job architecture, approved positions, budgets, ownership, and effective-dated incumbents.</p>
+          <div className="eyebrow">HCM STRUCTURE &amp; WORKFORCE PLANNING</div>
+          <h1>Define the organization before planning headcount.</h1>
+          <p>Keep one governed model for organization hierarchy, job architecture, positions, budgets, supervisory ownership, and effective-dated incumbents.</p>
         </div>
         <div className="page-actions">
           <button className="secondary-button" onClick={() => void load()} disabled={loading}><RefreshCw size={15} /> Refresh</button>
-          <button className="secondary-button" onClick={() => setShowProfile(!showProfile)}><BriefcaseBusiness size={15} /> Job profile</button>
+          <button className="secondary-button" onClick={() => setShowArchitecture(!showArchitecture)}><Building2 size={15} /> Architecture</button>
+          <button className="secondary-button" onClick={() => setShowProfile(!showProfile)} disabled={!jobFamilies.length || !jobLevels.length}><BriefcaseBusiness size={15} /> Job profile</button>
           <button className="secondary-button" onClick={() => setShowPlan(!showPlan)}><CircleDollarSign size={15} /> Plan</button>
           <button className="primary-button" onClick={() => setShowPosition(!showPosition)}><Plus size={15} /> Position</button>
         </div>
@@ -609,15 +610,78 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
         </div>
       </article>
 
+      {showArchitecture && (
+        <article className="card" style={{ padding: 20, marginBottom: 16 }}>
+          <div className="card-header">
+            <div>
+              <div className="card-kicker">HCM CORE 2.1</div>
+              <h2>Organization &amp; job architecture</h2>
+              <p>Define reusable dimensions first. Profiles and positions then reference governed records instead of inventing free-text structure.</p>
+            </div>
+          </div>
+
+          <div className="module-grid two" style={{ marginBottom: 16 }}>
+            <form onSubmit={createFamily} className="card" style={{ padding: 14, boxShadow: "none" }}>
+              <div className="card-kicker">JOB FAMILY</div>
+              <div className="setting-form">
+                <label>Code<input required value={familyForm.code} onChange={(e) => setFamilyForm({ ...familyForm, code: e.target.value })} placeholder="FINOPS" /></label>
+                <label>Name<input required value={familyForm.name} onChange={(e) => setFamilyForm({ ...familyForm, name: e.target.value })} placeholder="Finance Operations" /></label>
+              </div>
+              <div className="run-actions"><button className="primary-button"><Plus size={14} /> Add family</button></div>
+            </form>
+
+            <form onSubmit={createLevel} className="card" style={{ padding: 14, boxShadow: "none" }}>
+              <div className="card-kicker">JOB LEVEL</div>
+              <div className="setting-form">
+                <label>Code<input required value={levelForm.code} onChange={(e) => setLevelForm({ ...levelForm, code: e.target.value })} placeholder="M2" /></label>
+                <label>Name<input required value={levelForm.name} onChange={(e) => setLevelForm({ ...levelForm, name: e.target.value })} placeholder="Manager II" /></label>
+                <label>Sequence<input required type="number" min="0" value={levelForm.sequence} onChange={(e) => setLevelForm({ ...levelForm, sequence: e.target.value })} /></label>
+              </div>
+              <div className="run-actions"><button className="primary-button"><Plus size={14} /> Add level</button></div>
+            </form>
+
+            <form onSubmit={createGrade} className="card" style={{ padding: 14, boxShadow: "none" }}>
+              <div className="card-kicker">JOB GRADE</div>
+              <div className="setting-form">
+                <label>Code<input required value={gradeForm.code} onChange={(e) => setGradeForm({ ...gradeForm, code: e.target.value })} placeholder="G08" /></label>
+                <label>Name<input required value={gradeForm.name} onChange={(e) => setGradeForm({ ...gradeForm, name: e.target.value })} placeholder="Grade 8" /></label>
+                <label>Sequence<input required type="number" min="0" value={gradeForm.sequence} onChange={(e) => setGradeForm({ ...gradeForm, sequence: e.target.value })} /></label>
+              </div>
+              <div className="run-actions"><button className="primary-button"><Plus size={14} /> Add grade</button></div>
+            </form>
+
+            <form onSubmit={createOrgUnit} className="card" style={{ padding: 14, boxShadow: "none" }}>
+              <div className="card-kicker">ORGANIZATION UNIT</div>
+              <div className="setting-form">
+                <label>Code<input required value={orgUnitForm.code} onChange={(e) => setOrgUnitForm({ ...orgUnitForm, code: e.target.value })} placeholder="MNL-SALES" /></label>
+                <label>Name<input required value={orgUnitForm.name} onChange={(e) => setOrgUnitForm({ ...orgUnitForm, name: e.target.value })} placeholder="Manila Sales" /></label>
+                <label>Type<select value={orgUnitForm.type} onChange={(e) => setOrgUnitForm({ ...orgUnitForm, type: e.target.value })}><option value="company">Company</option><option value="business_unit">Business unit</option><option value="division">Division</option><option value="department">Department</option><option value="team">Team</option><option value="supervisory">Supervisory organization</option></select></label>
+                <label>Parent<select value={orgUnitForm.parentId} onChange={(e) => setOrgUnitForm({ ...orgUnitForm, parentId: e.target.value })}><option value="">Root / none</option>{orgUnits.filter((unit) => unit.active).map((unit) => <option key={unit.id} value={unit.id}>{unit.code} · {unit.name}</option>)}</select></label>
+                <label>Legal employer<select value={orgUnitForm.legalEntityId} onChange={(e) => setOrgUnitForm({ ...orgUnitForm, legalEntityId: e.target.value })}><option value="">Inherit / unassigned</option>{legalEntities.filter((entity) => entity.active).map((entity) => <option key={entity.id} value={entity.id}>{entity.code} · {entity.displayName}</option>)}</select></label>
+                <label>Cost center<select value={orgUnitForm.costCenterId} onChange={(e) => setOrgUnitForm({ ...orgUnitForm, costCenterId: e.target.value })}><option value="">Unassigned</option>{costCenters.filter((center) => center.active).map((center) => <option key={center.id} value={center.id}>{center.code} · {center.name}</option>)}</select></label>
+                <label>Manager<select value={orgUnitForm.managerEmployeeId} onChange={(e) => setOrgUnitForm({ ...orgUnitForm, managerEmployeeId: e.target.value })}><option value="">No manager</option>{employees.filter((employee) => employee.status === "Active").map((employee) => <option key={employee.id} value={employee.id}>{employee.firstName} {employee.lastName}</option>)}</select></label>
+                <label>Effective from<input type="date" value={orgUnitForm.effectiveFrom} onChange={(e) => setOrgUnitForm({ ...orgUnitForm, effectiveFrom: e.target.value })} /></label>
+              </div>
+              <div className="run-actions"><button className="primary-button"><Plus size={14} /> Add org unit</button></div>
+            </form>
+          </div>
+
+          <div className="notice notice-slate">
+            <Building2 size={15} />
+            <span><strong>Modeling rule.</strong> Departments/divisions describe the organization hierarchy. Supervisory organizations represent manager-led reporting groups. Positions may reference both, plus one legal employer and cost center.</span>
+          </div>
+        </article>
+      )}
+
       {showProfile && (
         <article className="card" style={{ padding: 20, marginBottom: 16 }}>
           <div className="card-header"><div><div className="card-kicker">JOB ARCHITECTURE</div><h2>Create a reusable job profile</h2></div></div>
           <form onSubmit={createProfile}>
             <div className="setting-form">
               <label>Title<input required value={profileForm.title} onChange={(e) => setProfileForm({ ...profileForm, title: e.target.value })} placeholder="Payroll Operations Manager" /></label>
-              <label>Family<input required value={profileForm.family} onChange={(e) => setProfileForm({ ...profileForm, family: e.target.value })} placeholder="Finance Operations" /></label>
-              <label>Level<input required value={profileForm.level} onChange={(e) => setProfileForm({ ...profileForm, level: e.target.value })} placeholder="Manager" /></label>
-              <label>Grade<input value={profileForm.grade} onChange={(e) => setProfileForm({ ...profileForm, grade: e.target.value })} placeholder="M2" /></label>
+              <label>Family<select required value={profileForm.familyId} onChange={(e) => setProfileForm({ ...profileForm, familyId: e.target.value })}><option value="">Select family</option>{jobFamilies.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
+              <label>Level<select required value={profileForm.levelId} onChange={(e) => setProfileForm({ ...profileForm, levelId: e.target.value })}><option value="">Select level</option>{jobLevels.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
+              <label>Grade<select value={profileForm.gradeId} onChange={(e) => setProfileForm({ ...profileForm, gradeId: e.target.value })}><option value="">No grade</option>{jobGrades.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
             </div>
             <div className="run-actions"><button type="button" className="secondary-button" onClick={() => setShowProfile(false)}>Cancel</button><button className="primary-button">Create profile</button></div>
           </form>
@@ -646,7 +710,10 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
             <div className="setting-form">
               <label>Position code<input required value={positionForm.code} onChange={(e) => setPositionForm({ ...positionForm, code: e.target.value })} placeholder="FIN-PAY-004" /></label>
               <label>Job profile<select required value={positionForm.jobProfileId} onChange={(e) => setPositionForm({ ...positionForm, jobProfileId: e.target.value })}><option value="">Select profile</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.title} · {profile.level}</option>)}</select></label>
-              <label>Org unit<select value={positionForm.orgUnitId} onChange={(e) => setPositionForm({ ...positionForm, orgUnitId: e.target.value })}><option value="">Company-wide / unassigned</option>{orgUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}</select></label>
+              <label>Org unit<select value={positionForm.orgUnitId} onChange={(e) => setPositionForm({ ...positionForm, orgUnitId: e.target.value })}><option value="">Company-wide / unassigned</option>{orgUnits.filter((unit) => unit.active && unit.type !== "supervisory").map((unit) => <option key={unit.id} value={unit.id}>{unit.code} · {unit.name}</option>)}</select></label>
+              <label>Supervisory org<select value={positionForm.supervisoryOrgUnitId} onChange={(e) => setPositionForm({ ...positionForm, supervisoryOrgUnitId: e.target.value })}><option value="">No supervisory org</option>{supervisoryUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.code} · {unit.name}</option>)}</select></label>
+              <label>Legal employer<select value={positionForm.legalEntityId} onChange={(e) => setPositionForm({ ...positionForm, legalEntityId: e.target.value })}><option value="">Unassigned</option>{legalEntities.filter((entity) => entity.active).map((entity) => <option key={entity.id} value={entity.id}>{entity.code} · {entity.displayName}</option>)}</select></label>
+              <label>Cost center<select value={positionForm.costCenterId} onChange={(e) => setPositionForm({ ...positionForm, costCenterId: e.target.value })}><option value="">Unassigned</option>{costCenters.filter((center) => center.active).map((center) => <option key={center.id} value={center.id}>{center.code} · {center.name}</option>)}</select></label>
               <label>Workforce plan<select value={positionForm.planId} onChange={(e) => setPositionForm({ ...positionForm, planId: e.target.value })}><option value="">No plan</option>{plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select></label>
               <label>Manager<select value={positionForm.managerEmployeeId} onChange={(e) => setPositionForm({ ...positionForm, managerEmployeeId: e.target.value })}><option value="">No manager</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.firstName} {employee.lastName}</option>)}</select></label>
               <label>Employment type<select value={positionForm.employmentType} onChange={(e) => setPositionForm({ ...positionForm, employmentType: e.target.value })}><option>Regular</option><option>Probationary</option><option>Part-time</option><option>Contractual</option></select></label>
@@ -695,7 +762,18 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
                 return (
                   <tr key={position.id}>
                     <td><strong>{position.code}</strong><small style={{ display: "block", color: "var(--muted)" }}>{position.employmentType}</small></td>
-                    <td><strong>{profile?.title ?? "Job profile"}</strong><small style={{ display: "block", color: "var(--muted)" }}>{position.orgUnitId ? unitById.get(position.orgUnitId)?.name ?? "Unit" : "Unassigned unit"}</small></td>
+                    <td>
+                      <strong>{profile?.title ?? "Job profile"}</strong>
+                      <small style={{ display: "block", color: "var(--muted)" }}>
+                        {position.orgUnitId ? unitById.get(position.orgUnitId)?.name ?? "Unit" : "Unassigned unit"}
+                        {position.supervisoryOrgUnitId ? ` · Sup: ${unitById.get(position.supervisoryOrgUnitId)?.name ?? "Supervisory org"}` : ""}
+                      </small>
+                      <small style={{ display: "block", color: "var(--muted)" }}>
+                        {position.legalEntityId ? legalEntityById.get(position.legalEntityId)?.displayName ?? "Legal employer" : "No legal employer"}
+                        {" · "}
+                        {position.costCenterId ? costCenterById.get(position.costCenterId)?.code ?? "Cost center" : "No cost center"}
+                      </small>
+                    </td>
                     <td>{incumbent ? <><strong>{incumbent.firstName} {incumbent.lastName}</strong><small style={{ display: "block", color: "var(--muted)" }}>{assignment?.effectiveFrom}</small></> : <span style={{ color: "var(--muted)" }}>Vacant</span>}</td>
                     <td>{position.plannedStartDate ?? "—"}</td>
                     <td className="right">{peso(position.annualBudget)}</td>
@@ -724,14 +802,27 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
 
       <section className="module-grid two" style={{ marginTop: 16 }}>
         <article className="card">
-          <div className="card-header"><div><div className="card-kicker">JOB ARCHITECTURE</div><h2>Profiles and levels</h2></div></div>
-          {profiles.length === 0 && <div className="empty-state">No job profiles yet.</div>}
+          <div className="card-header"><div><div className="card-kicker">JOB ARCHITECTURE</div><h2>Families, levels, grades &amp; profiles</h2></div></div>
+          <div className="notice notice-slate" style={{ margin: "0 0 10px" }}>
+            <span><strong>{jobFamilies.length}</strong> families · <strong>{jobLevels.length}</strong> levels · <strong>{jobGrades.length}</strong> grades · <strong>{profiles.length}</strong> profiles</span>
+          </div>
+          {profiles.length === 0 && <div className="empty-state">No job profiles yet. Open Architecture to define dimensions first.</div>}
           {profiles.map((profile) => <div className="leave-request" key={profile.id}><div className="inline-icon purple"><BriefcaseBusiness size={16} /></div><div><strong>{profile.title}</strong><span>{profile.family} · {profile.level}{profile.grade ? ` · ${profile.grade}` : ""}</span></div></div>)}
         </article>
         <article className="card">
           <div className="card-header"><div><div className="card-kicker">PLANS</div><h2>Planning windows</h2></div></div>
           {plans.length === 0 && <div className="empty-state">No workforce plans yet.</div>}
           {plans.map((plan) => <div className="leave-request" key={plan.id}><div className="inline-icon mint"><Building2 size={16} /></div><div style={{ flex: 1 }}><strong>{plan.name}</strong><span>{plan.startDate} – {plan.endDate} · {plan.status}</span></div><strong>{peso(plan.budget)}</strong></div>)}
+          <div className="card-kicker" style={{ marginTop: 16 }}>ORGANIZATION STRUCTURE</div>
+          {orgUnits.filter((unit) => unit.active).slice(0, 8).map((unit) => (
+            <div className="leave-request" key={`org-${unit.id}`}>
+              <div className="inline-icon mint"><Building2 size={16} /></div>
+              <div>
+                <strong>{unit.code} · {unit.name}</strong>
+                <span>{unit.type.replaceAll("_", " ")}{unit.parentId ? ` · parent ${unitById.get(unit.parentId)?.name ?? unit.parentId}` : ""}</span>
+              </div>
+            </div>
+          ))}
         </article>
       </section>
     </div>
