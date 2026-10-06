@@ -11,8 +11,8 @@ test("approved leave feeds WFM coverage and full open-shift eligibility", () => 
   assert.ok(route.includes("approvedLeaveOnDate"));
   assert.ok(route.includes("approvedLeaveCoverageImpact"));
   assert.ok(route.includes("absenceEvidenceIssues"));
-  assert.ok(route.includes("cannot claim a full open shift"));
-  assert.ok(route.includes("cannot be approved for the open shift"));
+  assert.ok(route.includes("cannot claim the full shift"));
+  assert.ok(route.includes("cannot be approved for the full shift"));
   assert.ok(coverage.includes("approvedLeaveScheduledHeadcount"));
   assert.ok(coverage.includes("approvedLeaveShiftDefinitionIds"));
 });
@@ -31,4 +31,32 @@ test("coverage UI distinguishes unavailable, unqualified and approved-leave excl
   assert.ok(panel.includes("approvedLeaveScheduledHeadcount"));
   assert.ok(panel.includes("capabilityIneligibleHeadcount"));
   assert.ok(panel.includes("on leave"));
+});
+
+
+test("WFM coverage consumes current precise leave intervals before legacy fallback", () => {
+  const route = read("src/app/api/workforce/coverage/route.ts");
+  const coverage = read("src/lib/workforce-coverage.ts");
+  assert.ok(route.includes("leaveRequestIntervalSets"));
+  assert.ok(route.includes("leaveRequestIntervals"));
+  assert.ok(route.includes("resolveLeaveIntervalsForSchedule"));
+  assert.ok(route.includes("approvedLeaveUnavailableMinutesByShiftDefinitionId"));
+  assert.ok(coverage.includes("approvedLeavePartiallyUnavailableHeadcount"));
+});
+
+test("open-shift checks use precise interval overlap instead of date-only blocking", () => {
+  const route = read("src/app/api/workforce/coverage/route.ts");
+  assert.ok(route.includes("approvedLeaveConflictForShift"));
+  assert.ok(route.includes("unavailableWallMinutes"));
+  assert.ok(route.includes("Legacy timing is ambiguous"));
+});
+
+
+test("coverage UI exposes precise partial-leave minute capacity separately from full-day exclusion", () => {
+  const panel = read("src/components/workspace/workforce-coverage-panel.tsx");
+  assert.ok(panel.includes("approvedLeavePartiallyUnavailableHeadcount"));
+  assert.ok(panel.includes("approvedLeaveUnavailableMinutes"));
+  assert.ok(panel.includes("availableScheduledMinutes"));
+  assert.ok(panel.includes("Partial leave"));
+  assert.ok(panel.includes("Available hours"));
 });
