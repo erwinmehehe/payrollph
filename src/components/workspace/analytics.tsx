@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Download, FileBarChart2, Gauge, RefreshCw, ShieldCheck, TrendingDown, UsersRound, WalletCards } from "lucide-react";
+import { AlertTriangle, ClipboardCheck, Download, FileBarChart2, Gauge, RefreshCw, ShieldCheck, TrendingDown, UsersRound, WalletCards } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
 import {
   EmptyState,
@@ -14,9 +14,10 @@ import {
   shortMoney,
 } from "./ui";
 
-type ReportKey = "headcount" | "cost" | "turnover" | "compliance" | "assurance" | "workforce";
+type ReportKey = "headcount" | "cost" | "turnover" | "compliance" | "assurance" | "workforce" | "lifecycle";
 
 const REPORTS: Array<{ key: ReportKey; name: string; description: string; icon: typeof UsersRound }> = [
+  { key: "lifecycle", name: "Lifecycle governance", description: "Employment terms, decision timing, evidence coverage, handoffs and escalations", icon: ClipboardCheck },
   { key: "workforce", name: "Workforce operations", description: "Overtime, absence, coverage, schedule adherence, payroll variance and labor cost", icon: Gauge },
   { key: "headcount", name: "Headcount movement", description: "Active, leave, disciplinary and separating counts by employment type", icon: UsersRound },
   { key: "cost", name: "Payroll cost", description: "Gross, deductions and net by run, with the rule version applied", icon: WalletCards },
@@ -98,7 +99,7 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
       <PageHeading
         eyebrow="Analytics"
         title="Workforce and payroll analytics from governed source data."
-        copy="Review overtime, absence, staffing coverage, schedule adherence, payroll variance and labor cost alongside payroll and compliance reports. CSV exports remain auditable."
+        copy="Review employment lifecycle governance, workforce operations, payroll variance, labor cost and compliance evidence from stored source data. CSV exports remain auditable."
         actions={
           <button className="secondary-button" onClick={reload} disabled={state === "loading"}>
             <RefreshCw size={15} className="i-blue" /> Refresh
