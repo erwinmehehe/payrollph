@@ -9,6 +9,7 @@ import { and, asc, desc, eq, gte, lt } from "drizzle-orm";
 import { db } from "@/db";
 import {
   assets,
+  compensationProposals,
   employeePayProfiles,
   employeePayRevisions,
   employeeRestDayRevisions,
@@ -429,10 +430,40 @@ export async function PATCH(request: Request) {
       ))
       .orderBy(desc(employeePayRevisions.effectiveDate), desc(employeePayRevisions.id))
       .limit(1);
-    if (latestRevision && payEffectiveDate < String(latestRevision.effectiveDate)) {
-      return Response.json({
-        error: `This employee already has a later pay change effective ${latestRevision.effectiveDate}. Add changes in chronological order so the audit chain stays unambiguous.`,
-      }, { status: 409 });
+
+    if (latestRevision) {
+      const [governedCompensation] = await db.select({
+        id: compensationProposals.id,
+        status: compensationProposals.status,
+      }).from(compensationProposals).where(and(
+        eq(compensationProposals.organizationId, organizationId),
+        eq(compensationProposals.employeeId, employeeId),
+        eq(compensationProposals.appliedPayRevisionId, latestRevision.id),
+      )).limit(1);
+
+      if (
+        governedCompensation
+        && ["scheduled", "failed"].includes(governedCompensation.status)
+      ) {
+        return Response.json({
+          error: "This employee has a governed compensation change that has not finished applying. Cancel, retry, or resolve that compensation proposal before using direct Edit pay.",
+          compensationProposalId: governedCompensation.id,
+          compensationStatus: governedCompensation.status,
+          effectiveDate: latestRevision.effectiveDate,
+        }, { status: 409 });
+      }
+
+      if (String(latestRevision.effectiveDate) > todayPh) {
+        return Response.json({
+          error: `This employee already has a future pay change effective ${latestRevision.effectiveDate}. Resolve that future pay event before using direct Edit pay.`,
+        }, { status: 409 });
+      }
+
+      if (payEffectiveDate < String(latestRevision.effectiveDate)) {
+        return Response.json({
+          error: `This employee already has a later pay change effective ${latestRevision.effectiveDate}. Add changes in chronological order so the audit chain stays unambiguous.`,
+        }, { status: 409 });
+      }
     }
 
     try {
