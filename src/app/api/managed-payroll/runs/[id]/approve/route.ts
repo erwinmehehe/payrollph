@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  auditEvents,
   managedPayrollEngagements,
   managedPayrollGates,
   managedPayrollRunApprovals,
@@ -50,6 +51,31 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return Response.json({
       error: `Client approval is available only after independent checker approval (currently ${run.status}).`,
     }, { status: 409 });
+  }
+
+  const approvalEvents = await db.select().from(auditEvents)
+    .where(eq(auditEvents.organizationId, run.organizationId));
+  const checkerDecision = approvalEvents
+    .filter((event) => {
+      if (!["Approval approved", "Approval approved by delegate"].includes(event.action)) return false;
+      if (!event.metadata || typeof event.metadata !== "object") return false;
+      return Number((event.metadata as Record<string, unknown>).payrollRunId) === run.id;
+    })
+    .sort((left, right) => right.id - left.id)[0] ?? null;
+  if (!checkerDecision) {
+    return Response.json({
+      error: "Independent checker approval evidence is missing. Re-submit this payroll for authenticated checker review before client approval.",
+    }, { status: 409 });
+  }
+  const checkerMetadata = checkerDecision.metadata as Record<string, unknown>;
+  const checkerUserId = Number(checkerMetadata.deciderUserId);
+  const sameAuthenticatedChecker = Number.isInteger(checkerUserId)
+    ? checkerUserId === user.id
+    : checkerDecision.actor.trim().toLowerCase() === user.name.trim().toLowerCase();
+  if (sameAuthenticatedChecker) {
+    return Response.json({
+      error: "Separation of duties: the payroll checker cannot also give the managed-payroll client approval for the same run.",
+    }, { status: 403 });
   }
 
   const gates = await db.select().from(managedPayrollGates)
