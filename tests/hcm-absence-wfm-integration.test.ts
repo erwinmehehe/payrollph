@@ -32,3 +32,20 @@ test("coverage UI distinguishes unavailable, unqualified and approved-leave excl
   assert.ok(panel.includes("capabilityIneligibleHeadcount"));
   assert.ok(panel.includes("on leave"));
 });
+
+
+test("WFM coverage consumes current precise leave intervals before legacy fallback", () => {
+  const route = read("src/app/api/workforce/coverage/route.ts");
+  assert.ok(route.includes("leaveRequestIntervalSets"));
+  assert.ok(route.includes("leaveRequestIntervals"));
+  assert.ok(route.includes("resolveLeaveIntervalsForSchedule"));
+  assert.ok(route.includes("approvedLeaveUnavailableMinutesByShiftDefinitionId"));
+  assert.ok(route.includes("approvedLeavePartiallyUnavailable"));
+});
+
+test("open-shift checks use precise interval overlap instead of date-only blocking", () => {
+  const route = read("src/app/api/workforce/coverage/route.ts");
+  assert.ok(route.includes("approvedLeaveConflictForShift"));
+  assert.ok(route.includes("unavailableWallMinutes"));
+  assert.ok(route.includes("Legacy timing is ambiguous"));
+});
