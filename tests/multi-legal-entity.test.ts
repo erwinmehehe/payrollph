@@ -48,7 +48,7 @@ test("migration creates a primary employer for existing organizations and backfi
 });
 
 test("production compatibility schema carries the same additive migration", () => {
-  assert.ok(compat.includes("linaw_core_schema_compat_v15"));
+  assert.match(compat, /linaw_core_schema_compat_v(?:1[6-9]|[2-9]\\d+)/);
   assert.ok(compat.includes("CREATE TABLE IF NOT EXISTS legal_entities"));
   assert.ok(compat.includes("ALTER TABLE employees"));
   assert.ok(compat.includes("ADD COLUMN IF NOT EXISTS legal_entity_id"));

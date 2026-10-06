@@ -2299,6 +2299,41 @@ export const workforcePlans = pgTable(
   ],
 );
 
+export const workforcePlanningScenarios = pgTable(
+  "workforce_planning_scenarios",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    planId: integer("plan_id").references(() => workforcePlans.id, { onDelete: "set null" }),
+    name: varchar("name", { length: 160 }).notNull(),
+    version: integer("version").notNull().default(1),
+    scopeOrgUnitId: integer("scope_org_unit_id").references(() => orgUnits.id, { onDelete: "set null" }),
+    worksiteId: integer("worksite_id").references(() => worksites.id, { onDelete: "set null" }),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date").notNull(),
+    demandGrowthPercent: numeric("demand_growth_percent", { precision: 7, scale: 2 }).notNull().default("0"),
+    vacancyFillPercent: numeric("vacancy_fill_percent", { precision: 7, scale: 2 }).notNull().default("100"),
+    employerLoadPercent: numeric("employer_load_percent", { precision: 7, scale: 2 }).notNull().default("0"),
+    status: varchar("status", { length: 24 }).notNull().default("draft"),
+    snapshot: jsonb("snapshot").notNull().default({}),
+    snapshotHash: varchar("snapshot_hash", { length: 64 }).notNull(),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    submittedByUserId: integer("submitted_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    decidedByUserId: integer("decided_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decisionNote: varchar("decision_note", { length: 500 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("workforce_scenarios_org_name_version_unique").on(table.organizationId, table.name, table.version),
+    index("workforce_scenarios_org_status_idx").on(table.organizationId, table.status),
+    index("workforce_scenarios_org_unit_idx").on(table.organizationId, table.scopeOrgUnitId),
+    index("workforce_scenarios_plan_idx").on(table.planId),
+  ],
+);
+
 export const positions = pgTable(
   "positions",
   {

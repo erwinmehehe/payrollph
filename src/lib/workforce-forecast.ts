@@ -100,6 +100,15 @@ export function hourlyBaseRate(profile: ForecastPayProfile) {
   throw new Error(`Unsupported pay basis "${profile.payBasis}".`);
 }
 
+export function annualStandardCapacityHours(profile: ForecastPayProfile) {
+  const workDays = number(profile.standardWorkDaysPerMonth, "standard work days");
+  const hours = number(profile.standardHoursPerDay, "standard hours");
+  if (hours <= 0 || workDays <= 0) {
+    throw new Error("Standard work days and hours must be greater than zero.");
+  }
+  return round2(hours * workDays * 12);
+}
+
 function minuteOfDay(value: string) {
   const match = value.match(/^(\d{2}):(\d{2})(?::\d{2})?$/);
   if (!match) throw new Error(`Invalid shift time "${value}".`);
@@ -161,6 +170,7 @@ export function buildWorkforceDemandForecast(input: {
   const missingPayProfileEmployeeIds: number[] = [];
   const invalidPayProfileEmployeeIds: number[] = [];
   const annualCostByEmployee = new Map<number, number>();
+  const annualCapacityByEmployee = new Map<number, number>();
   const hourlyRates: number[] = [];
 
   for (const employee of activeEmployees) {
@@ -171,6 +181,7 @@ export function buildWorkforceDemandForecast(input: {
     }
     try {
       annualCostByEmployee.set(employee.id, annualizePayProfile(profile));
+      annualCapacityByEmployee.set(employee.id, annualStandardCapacityHours(profile));
       hourlyRates.push(hourlyBaseRate(profile));
     } catch {
       invalidPayProfileEmployeeIds.push(employee.id);
@@ -179,6 +190,11 @@ export function buildWorkforceDemandForecast(input: {
 
   const annualizedBasePayroll = [...annualCostByEmployee.values()].reduce((sum, value) => sum + value, 0);
   const currentPeriodBasePayroll = annualizedBasePayroll * windowDays / 365.25;
+  const currentPeriodCapacityHours = [...annualCapacityByEmployee.values()]
+    .reduce((sum, annualHours) => sum + annualHours * windowDays / 365.25, 0);
+  const averageAnnualCapacityHours = annualCapacityByEmployee.size
+    ? [...annualCapacityByEmployee.values()].reduce((sum, value) => sum + value, 0) / annualCapacityByEmployee.size
+    : 0;
 
   const vacantPositions = input.positions.filter((position) => VACANT_POSITION_STATUSES.has(position.status));
   const vacantAnnualBudget = vacantPositions.reduce((sum, position) => sum + number(position.annualBudget, "position annual budget"), 0);
@@ -187,6 +203,10 @@ export function buildWorkforceDemandForecast(input: {
     const days = overlapDays(startDate, endDate, position.plannedStartDate);
     const periodBudget = number(position.annualBudget, "position annual budget") * days / 365.25;
     return sum + periodBudget * vacancyFillPercent / 100;
+  }, 0);
+  const expectedVacancyCapacityHours = vacantPositions.reduce((sum, position) => {
+    const days = overlapDays(startDate, endDate, position.plannedStartDate);
+    return sum + averageAnnualCapacityHours * days / 365.25 * vacancyFillPercent / 100;
   }, 0);
 
   const forecastPeriodBasePayroll = currentPeriodBasePayroll + expectedVacancyPeriodCost;
@@ -212,6 +232,12 @@ export function buildWorkforceDemandForecast(input: {
     }
   }
   const forecastHeadcountHours = requiredHeadcountHours * (1 + demandGrowthPercent / 100);
+  const projectedCapacityHours = currentPeriodCapacityHours + expectedVacancyCapacityHours;
+  const capacityGapBeforeFills = forecastHeadcountHours - currentPeriodCapacityHours;
+  const capacityGapAfterFills = forecastHeadcountHours - projectedCapacityHours;
+  const capacityCoveragePercent = forecastHeadcountHours > 0
+    ? projectedCapacityHours / forecastHeadcountHours * 100
+    : 100;
   const averageBaseHourlyRate = hourlyRates.length
     ? hourlyRates.reduce((sum, value) => sum + value, 0) / hourlyRates.length
     : 0;
@@ -286,6 +312,12 @@ export function buildWorkforceDemandForecast(input: {
       forecastHeadcountHours: round2(forecastHeadcountHours),
       averageBaseHourlyRate: round2(averageBaseHourlyRate),
       estimatedShiftDemandWageCost: round2(estimatedShiftDemandWageCost),
+      currentPeriodCapacityHours: round2(currentPeriodCapacityHours),
+      expectedVacancyCapacityHours: round2(expectedVacancyCapacityHours),
+      projectedCapacityHours: round2(projectedCapacityHours),
+      capacityGapBeforeFills: round2(capacityGapBeforeFills),
+      capacityGapAfterFills: round2(capacityGapAfterFills),
+      capacityCoveragePercent: round2(capacityCoveragePercent),
     },
     costCenters,
     unallocated: {

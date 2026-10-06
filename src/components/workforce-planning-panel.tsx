@@ -1,14 +1,33 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BriefcaseBusiness, Building2, CircleDollarSign, Clock3, Plus, RefreshCw, TrendingUp, UserCheck, UserPlus, UsersRound } from "lucide-react";
+import { BriefcaseBusiness, Building2, CheckCircle2, CircleDollarSign, Clock3, Plus, RefreshCw, Save, TrendingUp, UserCheck, UserPlus, UsersRound, XCircle } from "lucide-react";
 
 type JobProfile = { id: number; title: string; family: string; level: string; grade: string | null; active: boolean };
 type WorkforcePlan = { id: number; name: string; startDate: string; endDate: string; budget: string; status: string };
 type Position = { id: number; code: string; jobProfileId: number; orgUnitId: number | null; planId: number | null; managerEmployeeId: number | null; employmentType: string; status: string; plannedStartDate: string | null; annualBudget: string; activeRequisitionId: number | null; activeRequisitionStatus: string | null };
 type Assignment = { id: number; positionId: number; employeeId: number; effectiveFrom: string; effectiveUntil: string | null };
 type OrgUnit = { id: number; name: string; type: string };
+type Worksite = { id: number; orgUnitId: number | null; code: string; name: string; active: boolean };
 type Employee = { id: number; firstName: string; lastName: string; title: string; orgUnitId: number | null; status: string };
+type WorkforceScenario = {
+  id: number;
+  planId: number | null;
+  name: string;
+  version: number;
+  scopeOrgUnitId: number | null;
+  worksiteId: number | null;
+  startDate: string;
+  endDate: string;
+  status: string;
+  snapshotHash: string;
+  submittedByUserId: number | null;
+  submittedAt: string | null;
+  decidedByUserId: number | null;
+  decidedAt: string | null;
+  decisionNote: string | null;
+  snapshot: { forecast?: WorkforceForecast; scope?: { worksiteName?: string | null } } | null;
+};
 
 type WorkforceForecast = {
   assumptions: { startDate: string; endDate: string; windowDays: number; demandGrowthPercent: number; vacancyFillPercent: number; employerLoadPercent: number };
@@ -17,20 +36,26 @@ type WorkforceForecast = {
     costedHeadcount: number;
     vacantPositions: number;
     expectedVacancyFills: number;
-    annualizedBasePayroll: number;
-    vacantAnnualBudget: number;
-    annualRunRateLaborCost: number;
-    currentPeriodBasePayroll: number;
-    expectedVacancyPeriodCost: number;
-    employerLoadCost: number;
-    forecastPeriodLaborCost: number;
+    annualizedBasePayroll: number | null;
+    vacantAnnualBudget: number | null;
+    annualRunRateLaborCost: number | null;
+    currentPeriodBasePayroll: number | null;
+    expectedVacancyPeriodCost: number | null;
+    employerLoadCost: number | null;
+    forecastPeriodLaborCost: number | null;
     requiredHeadcountHours: number;
     forecastHeadcountHours: number;
-    averageBaseHourlyRate: number;
-    estimatedShiftDemandWageCost: number;
+    averageBaseHourlyRate: number | null;
+    estimatedShiftDemandWageCost: number | null;
+    currentPeriodCapacityHours: number;
+    expectedVacancyCapacityHours: number;
+    projectedCapacityHours: number;
+    capacityGapBeforeFills: number;
+    capacityGapAfterFills: number;
+    capacityCoveragePercent: number;
   };
   costCenters: Array<{ costCenterId: number; code: string; name: string; currentPeriodBaseCost: number; currentPeriodLoadedCost: number }>;
-  unallocated: { currentPeriodBaseCost: number; plannedVacancyPeriodCost: number };
+  unallocated: { currentPeriodBaseCost: number | null; plannedVacancyPeriodCost: number | null };
   quality: {
     missingPayProfileEmployeeIds: number[];
     invalidPayProfileEmployeeIds: number[];
@@ -46,7 +71,8 @@ function addDays(dateText: string, days: number) {
   return date.toISOString().slice(0, 10);
 }
 
-const peso = (value: number | string) => `₱${Number(value).toLocaleString("en-PH", { maximumFractionDigits: 0 })}`;
+const peso = (value: number | string | null | undefined) =>
+  value == null ? "Restricted" : `₱${Number(value).toLocaleString("en-PH", { maximumFractionDigits: 0 })}`;
 
 export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { organizationId: number; setNotice: (message: string) => void; onPage: (page: string) => void }) {
   const [profiles, setProfiles] = useState<JobProfile[]>([]);
@@ -54,7 +80,10 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
   const [positions, setPositions] = useState<Position[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [orgUnits, setOrgUnits] = useState<OrgUnit[]>([]);
+  const [worksites, setWorksites] = useState<Worksite[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [scenarios, setScenarios] = useState<WorkforceScenario[]>([]);
+  const [costVisible, setCostVisible] = useState(true);
   const [loading, setLoading] = useState(true);
   const [showProfile, setShowProfile] = useState(false);
   const [showPlan, setShowPlan] = useState(false);
@@ -69,6 +98,12 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
   const [demandGrowthPercent, setDemandGrowthPercent] = useState("0");
   const [vacancyFillPercent, setVacancyFillPercent] = useState("100");
   const [employerLoadPercent, setEmployerLoadPercent] = useState("15");
+  const [forecastOrgUnitId, setForecastOrgUnitId] = useState("");
+  const [forecastWorksiteId, setForecastWorksiteId] = useState("");
+  const [scenarioName, setScenarioName] = useState("");
+  const [scenarioPlanId, setScenarioPlanId] = useState("");
+  const [scenarioSaving, setScenarioSaving] = useState(false);
+  const [scenarioDecisionNote, setScenarioDecisionNote] = useState("");
 
   const [profileForm, setProfileForm] = useState({ title: "", family: "", level: "", grade: "" });
   const [planForm, setPlanForm] = useState({ name: "", startDate: "", endDate: "", budget: "" });
@@ -86,7 +121,14 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
       setPositions(payload.positions ?? []);
       setAssignments(payload.assignments ?? []);
       setOrgUnits(payload.orgUnits ?? []);
+      setWorksites(payload.worksites ?? []);
       setEmployees(payload.employees ?? []);
+      const scenarioResponse = await fetch(`/api/workforce-planning/scenarios?organizationId=${organizationId}`, { cache: "no-store" });
+      const scenarioPayload = await scenarioResponse.json().catch(() => ({}));
+      if (scenarioResponse.ok) {
+        setScenarios(scenarioPayload.scenarios ?? []);
+        setCostVisible(scenarioPayload.costVisible !== false);
+      }
     } finally {
       setLoading(false);
     }
@@ -117,6 +159,8 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
         demandGrowthPercent: String(Number(demandGrowthPercent) || 0),
         vacancyFillPercent: String(Number(vacancyFillPercent) || 0),
         employerLoadPercent: String(Number(employerLoadPercent) || 0),
+        ...(forecastOrgUnitId ? { orgUnitId: forecastOrgUnitId } : {}),
+        ...(forecastWorksiteId ? { worksiteId: forecastWorksiteId } : {}),
       });
       const response = await fetch(`/api/workforce-planning/forecast?${params.toString()}`, { cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
@@ -125,11 +169,70 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
         return;
       }
       setForecast(payload.forecast ?? null);
+      setCostVisible(payload.costVisible !== false);
     } catch {
       setNotice("Could not reach the workforce forecast service.");
     } finally {
       setForecastLoading(false);
     }
+  }
+
+  async function saveScenario() {
+    if (!scenarioName.trim()) {
+      setNotice("Give the staffing scenario a name before saving.");
+      return;
+    }
+    setScenarioSaving(true);
+    try {
+      const response = await fetch("/api/workforce-planning/scenarios", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          name: scenarioName.trim(),
+          planId: scenarioPlanId ? Number(scenarioPlanId) : null,
+          scopeOrgUnitId: forecastOrgUnitId ? Number(forecastOrgUnitId) : null,
+          worksiteId: forecastWorksiteId ? Number(forecastWorksiteId) : null,
+          startDate: forecastStart,
+          endDate: forecastEnd,
+          demandGrowthPercent: Number(demandGrowthPercent) || 0,
+          vacancyFillPercent: Number(vacancyFillPercent) || 0,
+          employerLoadPercent: Number(employerLoadPercent) || 0,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setNotice(payload.error ?? "Could not save staffing scenario.");
+        return;
+      }
+      setScenarioName("");
+      await load();
+      setNotice(`Staffing scenario ${payload.scenario?.name ?? ""} v${payload.scenario?.version ?? ""} saved as draft.`);
+    } catch {
+      setNotice("Could not reach staffing scenario management.");
+    } finally {
+      setScenarioSaving(false);
+    }
+  }
+
+  async function scenarioAction(scenarioId: number, action: "submit" | "approve" | "reject") {
+    const response = await fetch("/api/workforce-planning/scenarios", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        scenarioId,
+        action,
+        decisionNote: scenarioDecisionNote,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setNotice(payload.error ?? "Could not update staffing scenario.");
+      return;
+    }
+    setScenarioDecisionNote("");
+    await load();
+    setNotice(`Staffing scenario ${action === "submit" ? "submitted" : action === "approve" ? "approved" : "rejected"}.`);
   }
 
   async function post(body: Record<string, unknown>) {
@@ -273,6 +376,15 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
           <label>Demand growth %<input type="number" min="-50" max="200" step="1" value={demandGrowthPercent} onChange={(e) => setDemandGrowthPercent(e.target.value)} /></label>
           <label>Vacancy fill %<input type="number" min="0" max="100" step="1" value={vacancyFillPercent} onChange={(e) => setVacancyFillPercent(e.target.value)} /></label>
           <label>Employer load %<input type="number" min="0" max="100" step="0.5" value={employerLoadPercent} onChange={(e) => setEmployerLoadPercent(e.target.value)} /></label>
+          <label>Organization unit<select value={forecastOrgUnitId} onChange={(e) => { setForecastOrgUnitId(e.target.value); setForecastWorksiteId(""); }}><option value="">All visible units</option>{orgUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}</select></label>
+          <label>Worksite<select value={forecastWorksiteId} onChange={(e) => setForecastWorksiteId(e.target.value)}><option value="">All visible worksites</option>{worksites.filter((site) => !forecastOrgUnitId || site.orgUnitId === Number(forecastOrgUnitId)).map((site) => <option key={site.id} value={site.id}>{site.code} · {site.name}</option>)}</select></label>
+        </div>
+
+        <div className="setting-form" style={{ marginBottom: 16 }}>
+          <label>Scenario name<input value={scenarioName} onChange={(e) => setScenarioName(e.target.value)} placeholder="Q1 Peak staffing" /></label>
+          <label>Link to workforce plan<select value={scenarioPlanId} onChange={(e) => setScenarioPlanId(e.target.value)}><option value="">No linked plan</option>{plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name} · {plan.status}</option>)}</select></label>
+          <label>Approval note<input value={scenarioDecisionNote} onChange={(e) => setScenarioDecisionNote(e.target.value)} placeholder="Used when approving or rejecting" /></label>
+          <button className="secondary-button" type="button" onClick={() => void saveScenario()} disabled={scenarioSaving || !forecast}><Save size={15} /> {scenarioSaving ? "Saving..." : "Save scenario"}</button>
         </div>
 
         {!forecast && (
@@ -285,8 +397,12 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
               <article className="stat-card"><div className="stat-icon purple"><UsersRound size={19} /></div><p>ACTIVE HEADCOUNT</p><h3>{forecast.summary.activeHeadcount}</h3><span>{forecast.summary.costedHeadcount} with valid pay profiles</span></article>
               <article className="stat-card"><div className="stat-icon blue"><Clock3 size={19} /></div><p>FORECAST DEMAND</p><h3>{forecast.summary.forecastHeadcountHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs</h3><span>{forecast.summary.requiredHeadcountHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} baseline hours</span></article>
               <article className="stat-card"><div className="stat-icon orange"><UserPlus size={19} /></div><p>EXPECTED FILLS</p><h3>{forecast.summary.expectedVacancyFills}</h3><span>{forecast.summary.vacantPositions} vacant planned / approved / open positions</span></article>
-              <article className="stat-card"><div className="stat-icon mint"><CircleDollarSign size={19} /></div><p>PERIOD LABOR COST</p><h3>{peso(forecast.summary.forecastPeriodLaborCost)}</h3><span>{forecast.assumptions.windowDays} days · includes {forecast.assumptions.employerLoadPercent}% scenario load</span></article>
+              <article className="stat-card"><div className="stat-icon mint"><CircleDollarSign size={19} /></div><p>{costVisible ? "PERIOD LABOR COST" : "PROJECTED CAPACITY"}</p><h3>{costVisible ? peso(forecast.summary.forecastPeriodLaborCost) : `${forecast.summary.projectedCapacityHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs`}</h3><span>{costVisible ? `${forecast.assumptions.windowDays} days · includes ${forecast.assumptions.employerLoadPercent}% scenario load` : `${forecast.summary.capacityCoveragePercent.toFixed(1)}% demand coverage`}</span></article>
             </section>
+            <div className={forecast.summary.capacityGapAfterFills > 0 ? "notice notice-amber" : "notice notice-slate"} style={{ marginBottom: 16 }}>
+              <UsersRound size={15} />
+              <span><strong>{forecast.summary.capacityGapAfterFills > 0 ? "Capacity gap" : "Capacity covered"}:</strong> demand {forecast.summary.forecastHeadcountHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs vs projected capacity {forecast.summary.projectedCapacityHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs after expected fills. Gap after fills: {forecast.summary.capacityGapAfterFills.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs.</span>
+            </div>
 
             <div className="module-grid two">
               <div className="notice notice-slate" style={{ margin: 0 }}>
@@ -336,6 +452,46 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
             </div>
           </>
         )}
+      </article>
+
+      <article className="card" style={{ marginBottom: 16 }}>
+        <div className="card-header">
+          <div>
+            <div className="card-kicker">STAFFING PLAN APPROVAL</div>
+            <h2>Saved scenario evidence</h2>
+            <p>Drafts can be submitted for independent manager review. The submitter cannot approve or reject their own scenario.</p>
+          </div>
+        </div>
+        <div className="data-table-wrap">
+          <table className="data-table">
+            <thead><tr><th>SCENARIO</th><th>SCOPE</th><th>CAPACITY</th><th>STATUS</th><th className="right">ACTION</th></tr></thead>
+            <tbody>
+              {scenarios.map((scenario) => {
+                const scenarioForecast = scenario.snapshot?.forecast;
+                const gap = scenarioForecast?.summary.capacityGapAfterFills ?? null;
+                return (
+                  <tr key={scenario.id}>
+                    <td><strong>{scenario.name} v{scenario.version}</strong><small style={{ display: "block", color: "var(--muted)" }}>{scenario.startDate} → {scenario.endDate} · {scenario.snapshotHash.slice(0, 10)}</small></td>
+                    <td>{scenario.snapshot?.scope?.worksiteName ?? (scenario.scopeOrgUnitId ? unitById.get(scenario.scopeOrgUnitId)?.name ?? "Scoped unit" : "Company")}</td>
+                    <td>{scenarioForecast ? <><strong>{scenarioForecast.summary.capacityCoveragePercent.toFixed(1)}%</strong><small style={{ display: "block", color: "var(--muted)" }}>{gap == null ? "" : `${gap.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hr gap`}</small></> : "Snapshot unavailable"}</td>
+                    <td><span className={scenario.status === "approved" ? "status status-verified" : scenario.status === "rejected" ? "status status-rejected" : "status"}>{scenario.status}</span></td>
+                    <td className="right">
+                      <div className="run-actions" style={{ justifyContent: "flex-end" }}>
+                        {scenario.status === "draft" && <button className="secondary-button" onClick={() => void scenarioAction(scenario.id, "submit")}>Submit</button>}
+                        {scenario.status === "submitted" && <>
+                          <button className="secondary-button" onClick={() => void scenarioAction(scenario.id, "reject")}><XCircle size={14} /> Reject</button>
+                          <button className="primary-button" onClick={() => void scenarioAction(scenario.id, "approve")}><CheckCircle2 size={14} /> Approve</button>
+                        </>}
+                        {scenario.status === "approved" && <span className="status status-verified"><CheckCircle2 size={13} /> Locked evidence</span>}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {scenarios.length === 0 && <tr><td colSpan={5}><div className="empty-state">No saved staffing scenarios yet. Run a forecast, name it, and save the snapshot.</div></td></tr>}
+            </tbody>
+          </table>
+        </div>
       </article>
 
       {showProfile && (
