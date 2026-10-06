@@ -1105,7 +1105,7 @@ export function NewPayrollModal({
     let alive = true;
     (async () => {
       try {
-        const response = await fetch(`/api/legal-entities?organizationId=${organizationId}`, { cache: "no-store" });
+        const response = await fetch(`/api/legal-entities?organizationId=${organizationId}&mode=selector`, { cache: "no-store" });
         const payload = await response.json().catch(() => ({}));
         if (!alive) return;
         const rows = response.ok && Array.isArray(payload.legalEntities)
