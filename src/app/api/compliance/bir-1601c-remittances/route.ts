@@ -9,6 +9,7 @@ import {
 import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { resolveComplianceLegalEntity } from "@/lib/legal-entity";
 import {
   bir1601cDeadlines,
   buildBir1601cRemittanceSnapshot,
@@ -55,10 +56,11 @@ async function requirePayrollOperator(userId: number, organizationId: number) {
   return null;
 }
 
-async function acceptedFilingForMonth(organizationId: number, applicableMonth: string) {
+async function acceptedFilingForMonth(organizationId: number, legalEntityId: number, applicableMonth: string) {
   const [row] = await db.select().from(governmentFilingValidations)
     .where(and(
       eq(governmentFilingValidations.organizationId, organizationId),
+      eq(governmentFilingValidations.legalEntityId, legalEntityId),
       eq(governmentFilingValidations.agency, "BIR"),
       eq(governmentFilingValidations.form, "1601-C"),
       eq(governmentFilingValidations.applicableMonth, applicableMonth),
@@ -115,14 +117,36 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const organizationId = Number(url.searchParams.get("organizationId"));
+  const requestedLegalEntityId = Number(url.searchParams.get("legalEntityId") ?? 0);
   if (!Number.isInteger(organizationId)) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
   }
   const denied = await requirePayrollOperator(user.id, organizationId);
   if (denied) return denied;
+  let legalEntity;
+  try {
+    legalEntity = await resolveComplianceLegalEntity({
+      organizationId,
+      legalEntityId: requestedLegalEntityId || null,
+    });
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "Legal employer could not be resolved.",
+    }, { status: 409 });
+  }
+
+  let legalEntity;
+  try {
+    legalEntity = await resolveComplianceLegalEntity({ organizationId, legalEntityId: requestedLegalEntityId || null });
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "Legal employer could not be resolved." }, { status: 409 });
+  }
 
   const batches = await db.select().from(birWithholdingRemittanceBatches)
-    .where(eq(birWithholdingRemittanceBatches.organizationId, organizationId))
+    .where(and(
+      eq(birWithholdingRemittanceBatches.organizationId, organizationId),
+      eq(birWithholdingRemittanceBatches.legalEntityId, legalEntity.id),
+    ))
     .orderBy(desc(birWithholdingRemittanceBatches.applicableMonth), desc(birWithholdingRemittanceBatches.id));
 
   const today = new Intl.DateTimeFormat("en-CA", {
@@ -134,7 +158,7 @@ export async function GET(request: Request) {
 
   const withChecks = [];
   for (const batch of batches) {
-    const filing = await acceptedFilingForMonth(organizationId, batch.applicableMonth);
+    const filing = await acceptedFilingForMonth(organizationId, legalEntity.id, batch.applicableMonth);
     withChecks.push({
       ...batch,
       displayStatus:
@@ -145,7 +169,11 @@ export async function GET(request: Request) {
     });
   }
 
-  return Response.json({ today, batches: withChecks });
+  return Response.json({
+    today,
+    legalEntity: { id: legalEntity.id, code: legalEntity.code, displayName: legalEntity.displayName },
+    batches: withChecks,
+  });
 }
 
 export async function POST(request: Request) {
@@ -157,6 +185,7 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
+  const requestedLegalEntityId = Number(body.legalEntityId ?? 0);
   const action = String(body.action ?? "").trim();
   if (!Number.isInteger(organizationId)) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
@@ -209,6 +238,7 @@ export async function POST(request: Request) {
       .from(birWithholdingRemittanceBatches)
       .where(and(
         eq(birWithholdingRemittanceBatches.organizationId, organizationId),
+        eq(birWithholdingRemittanceBatches.legalEntityId, legalEntity.id),
         eq(birWithholdingRemittanceBatches.applicableMonth, applicableMonth),
       ))
       .limit(1);
@@ -220,6 +250,7 @@ export async function POST(request: Request) {
     const end = monthEnd(applicableMonth);
     const monthRuns = await db.select().from(payrollRuns).where(and(
       eq(payrollRuns.organizationId, organizationId),
+      eq(payrollRuns.legalEntityId, legalEntity.id),
       gte(payrollRuns.payDate, start),
       lte(payrollRuns.payDate, end),
     ));
@@ -251,6 +282,7 @@ export async function POST(request: Request) {
 
     const [created] = await db.insert(birWithholdingRemittanceBatches).values({
       organizationId,
+      legalEntityId: legalEntity.id,
       applicableMonth,
       filingChannel,
       efpsGroup: filingChannel === "efps" ? efpsGroup : null,
@@ -271,6 +303,8 @@ export async function POST(request: Request) {
       resource: applicableMonth,
       metadata: {
         batchId: created.id,
+        legalEntityId: legalEntity.id,
+        legalEntityCode: legalEntity.code,
         filingChannel,
         efpsGroup: created.efpsGroup,
         filingDueDate: deadlines.filingDueDate,
@@ -296,6 +330,7 @@ export async function POST(request: Request) {
     const [batch] = await db.select().from(birWithholdingRemittanceBatches).where(and(
       eq(birWithholdingRemittanceBatches.id, batchId),
       eq(birWithholdingRemittanceBatches.organizationId, organizationId),
+      eq(birWithholdingRemittanceBatches.legalEntityId, legalEntity.id),
     )).limit(1);
     if (!batch) return Response.json({ error: "BIR 1601-C reconciliation batch not found." }, { status: 404 });
     if (batch.status !== "open") {
@@ -307,7 +342,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "paidAt must be a valid date-time." }, { status: 400 });
     }
 
-    const filing = await acceptedFilingForMonth(organizationId, batch.applicableMonth);
+    const filing = await acceptedFilingForMonth(organizationId, legalEntity.id, batch.applicableMonth);
     const check = filingCheck(batch, filing);
     if (!check.matched || !filing) {
       return Response.json({
