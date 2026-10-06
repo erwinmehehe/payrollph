@@ -50,12 +50,15 @@ test("month close derives required agencies from the selected month's payroll li
 });
 
 
-test("certifier cannot certify evidence they helped create or correct", () => {
-  assert.ok(route.includes("evidenceActors"));
-  assert.ok(route.includes("paymentRecordedBy"));
-  assert.ok(route.includes("confirmedBy"));
-  assert.ok(route.includes("decidedByName"));
-  assert.ok(route.includes("cannot certify a remittance month containing evidence they recorded, confirmed, corrected, or resolved"));
+test("certifier cannot certify evidence they helped create, upload, or correct", () => {
+  assert.ok(route.includes("evidenceActorIdentity"));
+  assert.ok(route.includes("buildEvidenceActorIdentity"));
+  assert.ok(route.includes("certifierConflictsWithEvidence"));
+  assert.ok(route.includes("paymentRecordedByUserId"));
+  assert.ok(route.includes("confirmedByUserId"));
+  assert.ok(route.includes("decidedByUserId"));
+  assert.ok(route.includes("uploadedByUserId"));
+  assert.ok(route.includes("cannot certify a remittance month containing evidence they recorded, uploaded, confirmed, corrected, or resolved"));
 });
 
 test("certification history is immutable per evidence snapshot", () => {
@@ -78,9 +81,10 @@ test("month close self-initializes additive schema for existing deployments", ()
 test("month close includes employee contribution case history and unresolved blockers", () => {
   assert.ok(route.includes("statutoryContributionIssueCases"));
   assert.ok(route.includes("issueCases"));
-  assert.ok(route.includes("current.evaluation.issueCases.map"));
-  assert.ok(route.includes("resolvedByName"));
-  assert.ok(route.includes("recorded, confirmed, corrected, or resolved"));
+  assert.ok(route.includes("issueCases.map((issue)"));
+  assert.ok(route.includes("userId: issue.resolvedByUserId"));
+  assert.ok(route.includes("name: issue.resolvedByName"));
+  assert.ok(route.includes("recorded, uploaded, confirmed, corrected, or resolved"));
 });
 
 test("certification snapshot invalidation helper preserves history instead of deleting closures", () => {
