@@ -94,7 +94,7 @@ export const NAVIGATION: NavGroup[] = [
     items: [
       { name: "Integrations", icon: CloudCog, hint: "Email provider, accounting and bank connections", tone: "cyan" },
       { name: "Developer", icon: Webhook, hint: "API keys, webhooks and delivery log", tone: "slate", badge: "api" },
-      { name: "Enterprise", icon: ShieldCheck, hint: "SSO, SCIM, permission sets, session policy and lifecycle automation", tone: "purple" },
+      { name: "Enterprise", icon: ShieldCheck, hint: "Legal employers, SSO, SCIM, permissions, session policy and lifecycle automation", tone: "purple" },
       { name: "Readiness", icon: Gauge, hint: "Launch evidence, external proof and scale gates", tone: "amber" },
       { name: "Pricing", icon: CreditCard, hint: "Plans, seats and invoices", tone: "green" },
       { name: "Audit trail", icon: ReceiptText, hint: "Every recorded action, exportable", tone: "slate" },
