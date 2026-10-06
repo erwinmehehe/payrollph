@@ -1096,6 +1096,7 @@ export function SelfServicePortal() {
               employeeName={data.employee.firstName + " " + data.employee.lastName}
               onClose={() => setWebBundyOpen(false)}
               onPunchSuccess={() => setNonce((value) => value + 1)}
+              offlineSelfService
             />
           )}
         </main>
