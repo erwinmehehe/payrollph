@@ -50,6 +50,38 @@ test("PhilHealth and Pag-IBIG snapshots use their own total columns", () => {
   assert.equal(pagIbig?.reportedTotal, 800);
 });
 
+
+test("BIR 1601-C snapshot reads the one-row monthly withholding worksheet", () => {
+  const snapshot = summarizeMonthlyContributionFile({
+    agency: "BIR",
+    form: "1601-C",
+    applicableMonth: "2026-09",
+    body: [
+      "# DRAFT ONLY",
+      "Form,ApplicableMonth,WithholdingTax,Employees,PayrollRunsIncluded,Status",
+      "1601-C,2026-09,12500.25,18,2,DRAFT",
+    ].join("\n"),
+  });
+  assert.deepEqual(snapshot, {
+    applicableMonth: "2026-09",
+    employeeCount: 18,
+    reportedTotal: 12500.25,
+  });
+});
+
+test("BIR 1601-C snapshot permits an overremittance from year-end adjustments", () => {
+  const snapshot = summarizeMonthlyContributionFile({
+    agency: "BIR",
+    form: "1601-C",
+    applicableMonth: "2026-12",
+    body: [
+      "Form,ApplicableMonth,WithholdingTax,Employees,PayrollRunsIncluded,Status",
+      "1601-C,2026-12,-250.00,5,1,DRAFT",
+    ].join("\n"),
+  });
+  assert.equal(snapshot?.reportedTotal, -250);
+});
+
 test("non-contribution forms do not invent a remittance snapshot", () => {
   assert.equal(summarizeMonthlyContributionFile({
     agency: "BIR",
