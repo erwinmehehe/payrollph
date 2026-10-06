@@ -302,7 +302,11 @@ function parseWorkedTimePremiumOutcome(rule: PayPolicyRuleRecord) {
 }
 
 function roundMoney(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+  // Scale EPSILON with the magnitude so binary floating-point values that are
+  // mathematically exact half-cent boundaries (for example 266.665) round
+  // consistently to centavo precision instead of occasionally rounding down.
+  const correction = Number.EPSILON * Math.max(1, Math.abs(value));
+  return Math.round((value + correction) * 100) / 100;
 }
 
 /**
