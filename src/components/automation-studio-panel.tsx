@@ -487,7 +487,7 @@ export function AutomationStudioPanel({
         <div className="notice notice-slate" style={{ margin: 0 }}>
           <ShieldCheck size={16} className="i-purple" />
           <span>
-            <strong>Governed execution.</strong> Studio runs after authoritative transactions commit. Timed waits persist across worker restarts, approval gates pause the exact execution, payroll adjustments remain approval requests, access removal is separation-only, and external calls use registered signed webhooks rather than arbitrary URLs.
+            <strong>Governed execution.</strong> Studio runs after authoritative transactions commit. Timed waits persist across worker restarts and approval gates pause the exact execution. Payroll adjustments become approval requests, access removal is separation-only, and external calls use registered signed webhooks rather than arbitrary URLs.
           </span>
         </div>
       </article>
