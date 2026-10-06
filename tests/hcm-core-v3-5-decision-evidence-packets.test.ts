@@ -169,6 +169,6 @@ test("Core 3.5 evidence packet does not acquire authority to change employment s
   const source = read("src/lib/hcm-employment-decision-evidence.ts");
   assert.equal(route.includes('status: "Separated"'), false);
   assert.equal(route.includes("activateEmploymentTerm"), false);
-  assert.equal(route.includes("separationHandoffStatus: "started""), false);
+  assert.equal(route.includes('separationHandoffStatus: "started"'), false);
   assert.equal(source.includes("activateEmploymentTerm"), false);
 });
