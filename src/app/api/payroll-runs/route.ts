@@ -7,6 +7,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { drainPayrollQueue, enqueuePayrollRun, getPayrollJobStatus, PAYROLL_RULE_VERSION } from "@/lib/payroll-engine";
 import { assertOrganizationRole, assertOrganizationUnitAccess, getAccess, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { isCanonicalPhSemiMonthlyPeriod } from "@/lib/payroll-calendar";
+import { loadTimesheetPayrollGate } from "@/lib/workforce-timesheet-server";
 
 export const dynamic = "force-dynamic";
 
@@ -239,6 +240,20 @@ export async function POST(request: Request) {
     }, { status: 422 });
   }
 
+  const timesheetGate = await loadTimesheetPayrollGate({
+    organizationId,
+    employeeIds: employeesInScope.map((employee) => employee.id),
+    periodStart,
+    periodEnd,
+  });
+  if (processNow && !timesheetGate.gate.allowed) {
+    return Response.json({
+      error: "Approved workforce timesheets are required before payroll processing for this organization.",
+      code: "TIMESHEET_APPROVAL_REQUIRED",
+      timesheetGate: timesheetGate.gate,
+    }, { status: 422 });
+  }
+
   const periodLabel = periodLabelFromDates(periodStart, periodEnd);
   const [run] = await db.insert(payrollRuns).values({
     organizationId,
@@ -268,6 +283,8 @@ export async function POST(request: Request) {
       scope: scopeLabel,
       scopeOrgUnitId,
       ruleVersion: PAYROLL_RULE_VERSION,
+      timesheetPolicy: timesheetGate.policy,
+      timesheetGate: timesheetGate.gate,
     },
   });
 
@@ -279,6 +296,6 @@ export async function POST(request: Request) {
   }
 
   const [fresh] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, run.id));
-  return Response.json({ run: fresh, queue: queueMeta, processResult }, { status: 201 });
+  return Response.json({ run: fresh, queue: queueMeta, processResult, timesheetGate }, { status: 201 });
 }
 
