@@ -67,6 +67,10 @@ test("source CSV download is company-wide payroll-only, MFA-gated and private", 
   assert.ok(downloadRoute.includes("enforceSensitiveActionRateLimit(request"));
   assert.ok(downloadRoute.includes('"cache-control": "no-store, private"'));
   assert.ok(downloadRoute.includes("artifact.sourceType !== \"csv_import\""));
+  assert.ok(downloadRoute.includes('createHash("sha256").update(bytes).digest("hex")'));
+  assert.ok(downloadRoute.includes("Stored posting evidence failed SHA-256 verification."));
+  assert.ok(downloadRoute.includes("Statutory posting source evidence downloaded"));
+  assert.ok(downloadRoute.includes("recordAuditEvent"));
 });
 
 test("payroll UI shows provenance and permits protected source download", () => {
