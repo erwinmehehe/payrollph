@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Download, FileBarChart2, RefreshCw, ShieldCheck, TrendingDown, UsersRound, WalletCards } from "lucide-react";
+import { AlertTriangle, Download, FileBarChart2, Gauge, RefreshCw, ShieldCheck, TrendingDown, UsersRound, WalletCards } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
 import {
   EmptyState,
@@ -14,9 +14,10 @@ import {
   shortMoney,
 } from "./ui";
 
-type ReportKey = "headcount" | "cost" | "turnover" | "compliance" | "assurance";
+type ReportKey = "headcount" | "cost" | "turnover" | "compliance" | "assurance" | "workforce";
 
 const REPORTS: Array<{ key: ReportKey; name: string; description: string; icon: typeof UsersRound }> = [
+  { key: "workforce", name: "Workforce operations", description: "Overtime, absence, coverage, schedule adherence, payroll variance and labor cost", icon: Gauge },
   { key: "headcount", name: "Headcount movement", description: "Active, leave, disciplinary and separating counts by employment type", icon: UsersRound },
   { key: "cost", name: "Payroll cost", description: "Gross, deductions and net by run, with the rule version applied", icon: WalletCards },
   { key: "turnover", name: "Turnover risk", description: "Separating and disciplinary headcount as a share of the workforce", icon: TrendingDown },
@@ -27,7 +28,7 @@ const REPORTS: Array<{ key: ReportKey; name: string; description: string; icon: 
 type ReportResult = { key: string; columns: string[]; rows: string[][]; generatedAt?: string };
 
 export function AnalyticsView({ data, notify }: { data: DashboardData; notify: Notify }) {
-  const [active, setActive] = useState<ReportKey>("cost");
+  const [active, setActive] = useState<ReportKey>("workforce");
   const [state, setState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [result, setResult] = useState<ReportResult | null>(null);
   const [error, setError] = useState("");
@@ -96,8 +97,8 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
     <>
       <PageHeading
         eyebrow="Analytics"
-        title="Reports built on aggregate SQL."
-        copy="Each report runs a real aggregate query against this client's rows. Exporting one writes an audit event, so the CSV you hand an auditor is traceable."
+        title="Workforce and payroll analytics from governed source data."
+        copy="Review overtime, absence, staffing coverage, schedule adherence, payroll variance and labor cost alongside payroll and compliance reports. CSV exports remain auditable."
         actions={
           <button className="secondary-button" onClick={reload} disabled={state === "loading"}>
             <RefreshCw size={15} className="i-blue" /> Refresh
