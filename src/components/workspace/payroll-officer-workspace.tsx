@@ -43,6 +43,8 @@ export function PayrollOfficerWorkspace({
   onPage,
   onInspectEntry,
   onExplainEmployee,
+  onOpenEmployee,
+  onOpenTimeIssue,
   onShowAllExceptions,
 }: {
   data: DashboardData;
@@ -59,6 +61,8 @@ export function PayrollOfficerWorkspace({
   onPage: (page: string) => void;
   onInspectEntry: (entry: PayrollEntry) => void;
   onExplainEmployee: (employeeId: number) => void;
+  onOpenEmployee: (employeeId: number) => void;
+  onOpenTimeIssue: (employeeId: number) => void;
   onShowAllExceptions: () => void;
 }) {
   const exceptions = entries.filter((entry) => entry.status === "Exception");
@@ -137,14 +141,22 @@ export function PayrollOfficerWorkspace({
 
   const findingAttentionItems = actionableFindings.map((finding) => {
     const employee = data.employees.find((person) => person.id === finding.employeeId);
+    const employeeId = finding.employeeId!;
+    const attendanceIssue = finding.code === "MISSING_ATTENDANCE";
+    const employeeRecordIssue = finding.code === "MISSING_STATUTORY";
     return {
       key: `finding-${finding.code}-${finding.employeeId}`,
       title: employee
         ? `${finding.title} · ${employee.firstName} ${employee.lastName}`
         : finding.title,
       detail: finding.detail,
-      action: "Explain pay",
-      run: () => onExplainEmployee(finding.employeeId!),
+      action: attendanceIssue ? "Fix time" : employeeRecordIssue ? "Open employee" : "Explain pay",
+      icon: attendanceIssue ? "time" : employeeRecordIssue ? "employee" : "explain",
+      run: attendanceIssue
+        ? () => onOpenTimeIssue(employeeId)
+        : employeeRecordIssue
+          ? () => onOpenEmployee(employeeId)
+          : () => onExplainEmployee(employeeId),
     };
   });
 
@@ -164,9 +176,9 @@ export function PayrollOfficerWorkspace({
     <section className="payroll-officer-workflow" aria-label="Payroll Officer run workflow">
       <div className="payroll-officer-heading">
         <div>
-          <div className="card-kicker">PAYROLL OFFICER WORKSPACE</div>
+          <div className="card-kicker">RUN PAYROLL</div>
           <h2>{run.periodLabel}</h2>
-          <p>Move this run through four clear stages. Server-side payroll assurance remains the gate before checker submission.</p>
+          <p>Work through each step in order. PayrollPH keeps the compliance and approval checks in the background.</p>
         </div>
         <div className="payroll-officer-heading-status">
           <Status value={run.status} />
@@ -177,7 +189,7 @@ export function PayrollOfficerWorkspace({
       <div className="payroll-officer-steps">
         <WorkflowStep
           no={1}
-          title="Inputs"
+          title="Review inputs"
           state={workflow.steps.inputs.state}
           detail={
             checklist == null
@@ -215,16 +227,16 @@ export function PayrollOfficerWorkspace({
 
         <WorkflowStep
           no={3}
-          title="Exceptions"
+          title="Review changes"
           state={workflow.steps.exceptions.state}
           detail={
             !workflow.calculationReady
-              ? "Calculation must finish before exceptions can be reviewed."
+              ? "Calculation must finish before payroll changes can be reviewed."
               : exceptions.length
                 ? `${exceptions.length} employee entr${exceptions.length === 1 ? "y" : "ies"} need explanation or correction.`
                 : statutoryCheck && !statutoryCheck.passed
                   ? statutoryCheck.detail
-                  : "No engine exceptions remain in the current register."
+                  : "No blocking payroll changes remain in the current register."
           }
           action={
             exceptions.length ? (
@@ -237,7 +249,7 @@ export function PayrollOfficerWorkspace({
 
         <WorkflowStep
           no={4}
-          title="Submit to Checker"
+          title="Submit"
           state={workflow.steps.submit.state}
           detail={submitCopy}
           action={
@@ -249,7 +261,7 @@ export function PayrollOfficerWorkspace({
               <span className="payroll-officer-step-done"><ShieldCheck size={13} /> Approved</span>
             ) : (
               <button className="primary-button brand" disabled={!workflow.canSubmit} onClick={onSubmit}>
-                <Send size={14} /> Submit to checker
+                <Send size={14} /> Send for review
               </button>
             )
           }
@@ -288,7 +300,7 @@ export function PayrollOfficerWorkspace({
                   <p>{item.detail}</p>
                 </div>
                 <button className="secondary-button" onClick={item.run}>
-                  <FileSearch size={13} /> {item.action}
+                  {item.icon === "time" ? <Clock3 size={13} /> : item.icon === "employee" ? <UsersRound size={13} /> : <FileSearch size={13} />} {item.action}
                 </button>
               </div>
             ))}
