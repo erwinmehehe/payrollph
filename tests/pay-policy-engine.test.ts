@@ -364,6 +364,7 @@ test("worked-time premium rejects unsupported condition fields instead of guessi
 test("payroll engine loads, applies and traces the migrated company-premium family", () => {
   const source = readFileSync("src/lib/payroll-engine.ts", "utf8");
   assert.ok(source.includes("from(payPolicies)"));
+  assert.ok(source.includes("lte(payPolicies.effectiveFrom, workforcePricingWindowEnd)"));
   assert.ok(source.includes("from(payPolicyRules)"));
   assert.ok(source.includes("applyWorkedTimePremium"));
   assert.ok(source.includes("+ companyPremiumPay"));
