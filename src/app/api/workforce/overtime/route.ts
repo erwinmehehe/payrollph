@@ -528,11 +528,10 @@ export async function POST(request: Request) {
   }
 
   if (action === "decide_request" || action === "bulk_decide_requests") {
-    const requestIds = action === "decide_request"
+    const rawRequestIds: unknown[] = Array.isArray(body.requestIds) ? body.requestIds : [];
+    const requestIds: number[] = action === "decide_request"
       ? [Number(body.requestId)]
-      : Array.isArray(body.requestIds)
-        ? [...new Set(body.requestIds.map(Number))]
-        : [];
+      : [...new Set(rawRequestIds.map((value) => Number(value)))];
     const decision = String(body.decision ?? "").trim();
     const decisionNote = String(body.decisionNote ?? "").trim().slice(0, 240) || null;
 
