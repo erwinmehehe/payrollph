@@ -1034,13 +1034,15 @@ async function processPayrollChunk(input: {
       traceInputNumber(prior.trace, "supplementaryExcludedFromSssBase")
         + traceInputNumber(prior.trace, "companyPremiumExcludedFromSssBase")
         + traceInputNumber(prior.trace, "holidayRestDayPremiumExcludedFromSssBase")
-        + traceInputNumber(prior.trace, "overtimePremiumExcludedFromSssBase"),
+        + traceInputNumber(prior.trace, "overtimePremiumExcludedFromSssBase")
+        + traceInputNumber(prior.trace, "nightDifferentialPremiumExcludedFromSssBase"),
     );
     const priorExcludedFromPagIbig = roundToCents(
       traceInputNumber(prior.trace, "supplementaryExcludedFromPagIbigBase")
         + traceInputNumber(prior.trace, "companyPremiumExcludedFromPagIbigBase")
         + traceInputNumber(prior.trace, "holidayRestDayPremiumExcludedFromPagIbigBase")
-        + traceInputNumber(prior.trace, "overtimePremiumExcludedFromPagIbigBase"),
+        + traceInputNumber(prior.trace, "overtimePremiumExcludedFromPagIbigBase")
+        + traceInputNumber(prior.trace, "nightDifferentialPremiumExcludedFromPagIbigBase"),
     );
     previous.sssRemuneration = roundToCents(
       previous.sssRemuneration + Math.max(
