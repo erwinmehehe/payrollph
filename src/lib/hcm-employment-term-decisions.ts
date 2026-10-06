@@ -7,6 +7,7 @@ import {
   workerEmploymentEvents,
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
+import { recordEmploymentDecisionEvidenceEvent } from "@/lib/hcm-employment-decision-evidence";
 import {
   activateEmploymentTerm,
   EMPLOYMENT_TERM_KINDS,
@@ -264,6 +265,16 @@ export async function applyEmploymentTermDecision(input: {
         successorTermId: prepared.successorTermId,
         updatedAt: now,
       }).where(eq(hcmEmploymentTermDecisions.id, prepared.decision.id));
+      await recordEmploymentDecisionEvidenceEvent({
+        organizationId: prepared.decision.organizationId,
+        decisionId: prepared.decision.id,
+        employeeId: prepared.decision.employeeId,
+        eventType: "failed",
+        actor: input.actor,
+        actorUserId: input.actorUserId ?? null,
+        metadata: { failure: message, successorTermId: prepared.successorTermId },
+        createdAt: now,
+      });
       throw new Error(message);
     }
 
@@ -280,6 +291,22 @@ export async function applyEmploymentTermDecision(input: {
     if (!applied) throw new Error("Employment-term decision changed after successor activation.");
     prepared.decision = applied;
   }
+
+  await recordEmploymentDecisionEvidenceEvent({
+    organizationId: prepared.decision.organizationId,
+    decisionId: prepared.decision.id,
+    employeeId: prepared.decision.employeeId,
+    eventType: "applied",
+    actor: input.actor,
+    actorUserId: input.actorUserId ?? prepared.decision.approvedByUserId ?? prepared.decision.requestedByUserId,
+    metadata: {
+      employmentTermId: prepared.decision.employmentTermId,
+      decisionKind: prepared.decision.decisionKind,
+      successorTermId: prepared.successorTermId,
+      separationHandoffStatus: prepared.decision.separationHandoffStatus,
+    },
+    createdAt: now,
+  });
 
   await recordAuditEvent({
     organizationId: prepared.decision.organizationId,
@@ -324,14 +351,25 @@ export async function runScheduledEmploymentTermDecisions(input: {
       results.push({ id: row.id, ok: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Employment-term decision failed.";
-      await db.update(hcmEmploymentTermDecisions).set({
+      const [failed] = await db.update(hcmEmploymentTermDecisions).set({
         status: "failed",
         failure: message,
         updatedAt: now,
       }).where(and(
         eq(hcmEmploymentTermDecisions.id, row.id),
         eq(hcmEmploymentTermDecisions.status, "scheduled"),
-      ));
+      )).returning();
+      if (failed) {
+        await recordEmploymentDecisionEvidenceEvent({
+          organizationId: failed.organizationId,
+          decisionId: failed.id,
+          employeeId: failed.employeeId,
+          eventType: "failed",
+          actor: input.actor ?? "System scheduler",
+          metadata: { failure: message, scheduledApplication: true },
+          createdAt: now,
+        });
+      }
       results.push({ id: row.id, ok: false, error: message });
     }
   }
