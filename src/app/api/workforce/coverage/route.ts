@@ -7,6 +7,7 @@ import {
   employeeWorksiteAssignments,
   employees,
   jobProfiles,
+  leaveRequests,
   openShiftClaims,
   openShifts,
   positionAssignments,
@@ -65,6 +66,7 @@ import {
 import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
 import { assertUnambiguousRoleDemand, resolveEmployeeJobProfileAtDate } from "@/lib/workforce-role-demand";
 import { evaluateEmployeeFromCapabilityData, loadCapabilityEligibilityData, loadEmployeeWfmEligibility } from "@/lib/hcm-workforce-eligibility-server";
+import { approvedLeaveConflictsFullShift, approvedLeaveCoverageImpact } from "@/lib/workforce-absence";
 
 export const dynamic = "force-dynamic";
 
