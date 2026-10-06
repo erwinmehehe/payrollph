@@ -46,7 +46,7 @@ function timedBounds(interval: PreciseLeaveInterval) {
   }
   const start = timeMinutes(interval.startLocalTime);
   let end = timeMinutes(interval.endLocalTime);
-  if (interval.endsNextDay || end <= start) end += 1440;
+  if (interval.endsNextDay) end += 1440;
   return { start, end };
 }
 
