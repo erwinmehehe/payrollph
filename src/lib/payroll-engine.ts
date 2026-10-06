@@ -484,6 +484,52 @@ async function processPayrollChunk(input: {
   const units = await db.select().from(orgUnits).where(eq(orgUnits.organizationId, input.organizationId));
   const unitMap = new Map(units.map((unit) => [unit.id, unit]));
 
+  // Pay-rule execution is loaded once per payroll chunk, then resolved
+  // independently for each employee and work date. Only approved/effective
+  // policies can execute, and v1 supports additive worked-time premiums only.
+  const payPolicyRows = await db.select().from(payPolicies).where(and(
+    eq(payPolicies.organizationId, input.organizationId),
+    eq(payPolicies.active, true),
+    lte(payPolicies.effectiveFrom, run.periodEnd),
+    or(
+      isNull(payPolicies.effectiveUntil),
+      gte(payPolicies.effectiveUntil, run.periodStart),
+    ),
+  )).orderBy(asc(payPolicies.id));
+  const payPolicyIds = payPolicyRows.map((policy) => policy.id);
+  const payPolicyRuleRows = payPolicyIds.length
+    ? await db.select().from(payPolicyRules)
+        .where(inArray(payPolicyRules.policyId, payPolicyIds))
+        .orderBy(asc(payPolicyRules.policyId), asc(payPolicyRules.id))
+    : [];
+  const payrollPayPolicies: PayPolicyRecord[] = payPolicyRows.map((policy) => ({
+    id: policy.id,
+    organizationId: policy.organizationId,
+    code: policy.code,
+    name: policy.name,
+    policyKind: policy.policyKind,
+    version: policy.version,
+    scopeType: payPolicyScope(policy.scopeType),
+    scopeOrgUnitId: policy.scopeOrgUnitId,
+    scopeEmployeeId: policy.scopeEmployeeId,
+    priority: policy.priority,
+    effectiveFrom: String(policy.effectiveFrom),
+    effectiveUntil: policy.effectiveUntil ? String(policy.effectiveUntil) : null,
+    active: policy.active,
+    approvedAt: policy.approvedAt,
+  }));
+  const payrollPayPolicyRules: PayPolicyRuleRecord[] = payPolicyRuleRows.map((rule) => ({
+    id: rule.id,
+    policyId: rule.policyId,
+    ruleKey: rule.ruleKey,
+    eventType: rule.eventType,
+    conditions: rule.conditions,
+    outcome: rule.outcome,
+    priority: rule.priority,
+    statutoryFloorProtected: rule.statutoryFloorProtected,
+    enabled: rule.enabled,
+  }));
+
   // Workforce schedules are organization-level reusable definitions plus
   // employee-specific effective assignments/overrides. Load the reusable
   // definitions once per chunk and only the employee rows needed for this run.
