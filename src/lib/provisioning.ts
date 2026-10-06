@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, provisioningTasks } from "@/db/schema";
 
-const ONBOARDING = [
+export const ONBOARDING_TASKS = [
   { title: "Government IDs on file (SSS / PhilHealth / Pag-IBIG / TIN)", owner: "People Ops" },
   { title: "Payroll bank / GCash account verified", owner: "Finance" },
   { title: "Laptop / workstation assigned", owner: "IT" },
@@ -10,7 +10,7 @@ const ONBOARDING = [
   { title: "HMO enrollment submitted", owner: "People Ops" },
 ];
 
-const OFFBOARDING = [
+export const OFFBOARDING_TASKS = [
   { title: "Revoke email, SSO and software access", owner: "IT" },
   { title: "Recover laptop / assets", owner: "IT" },
   { title: "Final pay and 2316 queued", owner: "Finance" },
@@ -22,7 +22,7 @@ export async function seedProvisioning(organizationId: number, employeeId: numbe
   const existing = await db.select().from(provisioningTasks).where(eq(provisioningTasks.employeeId, employeeId));
   if (existing.some((row) => row.kind === kind)) return existing.filter((row) => row.kind === kind);
 
-  const templates = kind === "onboarding" ? ONBOARDING : OFFBOARDING;
+  const templates = kind === "onboarding" ? ONBOARDING_TASKS : OFFBOARDING_TASKS;
   return db.insert(provisioningTasks).values(templates.map((item) => ({
     organizationId,
     employeeId,
