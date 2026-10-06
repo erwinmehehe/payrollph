@@ -78,3 +78,5 @@ the first one, so it closes itself.
 - `0060_hcm_lifecycle_notifications.sql` adds durable employment-lifecycle notification tasks and immutable events for ownership, acknowledgement, snooze, milestone dedupe, and escalation without changing employment state automatically.
 
 - `0061_hcm_precise_leave_intervals.sql` adds immutable revisioned full-day, half-day and timed leave evidence for schedule-aware WFM capacity without changing legacy payroll treatment.
+
+- `0062_hcm_employment_decision_evidence.sql` adds sealed employment-decision evidence packets with immutable review notes, hashed supporting documents, approval/lifecycle event history, and a SHA-256 snapshot sealed at approval.
