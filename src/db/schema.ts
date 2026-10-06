@@ -530,6 +530,104 @@ export const employeeLaborAllocations = pgTable(
   ],
 );
 
+export const employeeAvailabilityRules = pgTable(
+  "employee_availability_rules",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    weekday: integer("weekday").notNull(),
+    startTime: varchar("start_time", { length: 8 }).notNull(),
+    endTime: varchar("end_time", { length: 8 }).notNull(),
+    availabilityType: varchar("availability_type", { length: 24 }).notNull().default("unavailable"),
+    effectiveFrom: date("effective_from").notNull(),
+    effectiveUntil: date("effective_until"),
+    notes: varchar("notes", { length: 240 }),
+    createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("employee_availability_employee_idx").on(table.organizationId, table.employeeId, table.weekday),
+    index("employee_availability_effective_idx").on(table.organizationId, table.effectiveFrom),
+  ],
+);
+
+export const staffingRequirements = pgTable(
+  "staffing_requirements",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    worksiteId: integer("worksite_id").notNull().references(() => worksites.id, { onDelete: "cascade" }),
+    workDate: date("work_date").notNull(),
+    shiftDefinitionId: integer("shift_definition_id").notNull().references(() => shiftDefinitions.id, { onDelete: "restrict" }),
+    requiredHeadcount: integer("required_headcount").notNull(),
+    notes: varchar("notes", { length: 240 }),
+    createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("staffing_requirement_unique").on(
+      table.organizationId,
+      table.worksiteId,
+      table.workDate,
+      table.shiftDefinitionId,
+    ),
+    index("staffing_requirement_date_idx").on(table.organizationId, table.workDate),
+  ],
+);
+
+export const openShifts = pgTable(
+  "open_shifts",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    worksiteId: integer("worksite_id").notNull().references(() => worksites.id, { onDelete: "cascade" }),
+    workDate: date("work_date").notNull(),
+    shiftDefinitionId: integer("shift_definition_id").notNull().references(() => shiftDefinitions.id, { onDelete: "restrict" }),
+    slots: integer("slots").notNull().default(1),
+    status: varchar("status", { length: 24 }).notNull().default("open"),
+    sourceRequirementId: integer("source_requirement_id").references(() => staffingRequirements.id, { onDelete: "set null" }),
+    reason: varchar("reason", { length: 240 }).notNull().default("Coverage gap"),
+    createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("open_shifts_org_date_idx").on(table.organizationId, table.workDate, table.status),
+    index("open_shifts_worksite_idx").on(table.organizationId, table.worksiteId, table.workDate),
+  ],
+);
+
+export const openShiftClaims = pgTable(
+  "open_shift_claims",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    openShiftId: integer("open_shift_id").notNull().references(() => openShifts.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    status: varchar("status", { length: 24 }).notNull().default("pending"),
+    reason: varchar("reason", { length: 240 }).notNull().default("Open shift claim"),
+    requestedBy: varchar("requested_by", { length: 120 }).notNull(),
+    requestedByUserId: integer("requested_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    decidedBy: varchar("decided_by", { length: 120 }),
+    decidedByUserId: integer("decided_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decisionNote: varchar("decision_note", { length: 240 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("open_shift_claim_unique").on(table.openShiftId, table.employeeId),
+    index("open_shift_claim_org_status_idx").on(table.organizationId, table.status),
+    index("open_shift_claim_employee_idx").on(table.organizationId, table.employeeId, table.status),
+  ],
+);
+
 export const payrollRuns = pgTable("payroll_runs", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
