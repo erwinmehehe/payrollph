@@ -478,7 +478,7 @@ export function HcmEmploymentLifecycleWorker({
 
       <div className="modal-note" style={{ marginTop: 12 }}>
         <ShieldCheck size={12} style={{ verticalAlign: "middle", marginRight: 5 }} />
-        PayrollPH never auto-regularizes, auto-renews, or auto-separates a worker from a date alone.
+        PayrollPH never auto-regularizes, never auto-renews, and never auto-separates a worker from a date alone.
       </div>
     </section>
   );
