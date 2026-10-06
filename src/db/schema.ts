@@ -2147,6 +2147,7 @@ export const payrollMonthClosures = pgTable(
   {
     id: serial("id").primaryKey(),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    legalEntityId: integer("legal_entity_id").notNull().references(() => legalEntities.id, { onDelete: "restrict" }),
     applicableMonth: varchar("applicable_month", { length: 7 }).notNull(),
     status: varchar("status", { length: 24 }).notNull().default("certified"),
     snapshotHash: varchar("snapshot_hash", { length: 64 }).notNull(),
@@ -2157,8 +2158,8 @@ export const payrollMonthClosures = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("payroll_month_closure_snapshot_unique").on(table.organizationId, table.applicableMonth, table.snapshotHash),
-    index("payroll_month_closure_status_idx").on(table.organizationId, table.applicableMonth, table.status),
+    uniqueIndex("payroll_month_closure_snapshot_unique").on(table.organizationId, table.legalEntityId, table.applicableMonth, table.snapshotHash),
+    index("payroll_month_closure_status_idx").on(table.organizationId, table.legalEntityId, table.applicableMonth, table.status),
   ],
 );
 
