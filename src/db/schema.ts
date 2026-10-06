@@ -527,6 +527,30 @@ export const overtimeRequests = pgTable(
   ],
 );
 
+export const overtimeBudgetPolicies = pgTable(
+  "overtime_budget_policies",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    orgUnitId: integer("org_unit_id").notNull().references(() => orgUnits.id, { onDelete: "cascade" }),
+    managerUserId: integer("manager_user_id").references(() => users.id, { onDelete: "set null" }),
+    scopeKey: varchar("scope_key", { length: 120 }).notNull(),
+    monthStart: date("month_start").notNull(),
+    budgetMinutes: integer("budget_minutes").notNull().default(0),
+    enforcementMode: varchar("enforcement_mode", { length: 24 }).notNull().default("advisory"),
+    active: boolean("active").notNull().default(true),
+    updatedBy: varchar("updated_by", { length: 120 }).notNull().default("System"),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("overtime_budget_scope_month_unique").on(table.organizationId, table.scopeKey, table.monthStart),
+    index("overtime_budget_org_month_idx").on(table.organizationId, table.monthStart),
+    index("overtime_budget_org_unit_idx").on(table.organizationId, table.orgUnitId),
+  ],
+);
+
 export const workforceTimesheetPolicies = pgTable(
   "workforce_timesheet_policies",
   {
