@@ -102,6 +102,7 @@ export async function GET(request: Request) {
   const runs = await db.select().from(payrollRuns)
     .where(and(
       eq(payrollRuns.organizationId, organizationId),
+      eq(payrollRuns.legalEntityId, issue.legalEntityId),
       eq(payrollRuns.status, "Released"),
       gte(payrollRuns.periodEnd, start),
       lte(payrollRuns.periodEnd, end),
@@ -138,6 +139,7 @@ export async function GET(request: Request) {
   const [batch] = await db.select().from(statutoryRemittanceBatches)
     .where(and(
       eq(statutoryRemittanceBatches.organizationId, organizationId),
+      eq(statutoryRemittanceBatches.legalEntityId, issue.legalEntityId),
       eq(statutoryRemittanceBatches.agency, agency),
       eq(statutoryRemittanceBatches.applicableMonth, applicableMonth),
     ))
@@ -147,6 +149,7 @@ export async function GET(request: Request) {
     ? await db.select().from(statutoryRemittanceMembers)
         .where(and(
           eq(statutoryRemittanceMembers.organizationId, organizationId),
+          eq(statutoryRemittanceMembers.legalEntityId, issue.legalEntityId),
           eq(statutoryRemittanceMembers.batchId, batch.id),
           eq(statutoryRemittanceMembers.employeeId, issue.employeeId),
         ))
@@ -168,6 +171,7 @@ export async function GET(request: Request) {
   const filings = await db.select().from(governmentFilingValidations)
     .where(and(
       eq(governmentFilingValidations.organizationId, organizationId),
+      eq(governmentFilingValidations.legalEntityId, issue.legalEntityId),
       eq(governmentFilingValidations.agency, agency),
       eq(governmentFilingValidations.applicableMonth, applicableMonth),
     ))
@@ -176,6 +180,7 @@ export async function GET(request: Request) {
   const closures = await db.select().from(statutoryRemittanceMonthClosures)
     .where(and(
       eq(statutoryRemittanceMonthClosures.organizationId, organizationId),
+      eq(statutoryRemittanceMonthClosures.legalEntityId, issue.legalEntityId),
       eq(statutoryRemittanceMonthClosures.applicableMonth, applicableMonth),
     ))
     .orderBy(asc(statutoryRemittanceMonthClosures.createdAt), asc(statutoryRemittanceMonthClosures.id));
@@ -216,6 +221,7 @@ export async function GET(request: Request) {
     generatedAt: new Date().toISOString(),
     case: {
       caseId: issue.id,
+      legalEntityId: issue.legalEntityId,
       employeeId: issue.employeeId,
       employeeNo: row.employeeNo,
       employeeName: `${row.firstName} ${row.lastName}`,
@@ -316,6 +322,7 @@ export async function GET(request: Request) {
     resource: `${agency} · ${applicableMonth} · case #${issue.id}`,
     metadata: {
       caseId: issue.id,
+      legalEntityId: issue.legalEntityId,
       employeeId: issue.employeeId,
       evidenceHashSha256: pack.evidenceHashSha256,
       payrollEntries: payrollEvidence.length,
