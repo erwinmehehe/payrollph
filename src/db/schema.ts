@@ -669,6 +669,58 @@ export const employeePayRetroAdjustments = pgTable(
   ],
 );
 
+export const managedPayrollEngagements = pgTable(
+  "managed_payroll_engagements",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    status: varchar("status", { length: 24 }).notNull().default("pilot"),
+    serviceTier: varchar("service_tier", { length: 48 }).notNull().default("Managed payroll"),
+    clientApproverUserId: integer("client_approver_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    slaHours: integer("sla_hours").notNull().default(24),
+    targetGoLive: date("target_go_live"),
+    createdBy: varchar("created_by", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("managed_payroll_engagement_org_unique").on(table.organizationId)],
+);
+
+export const managedPayrollGates = pgTable(
+  "managed_payroll_gates",
+  {
+    id: serial("id").primaryKey(),
+    engagementId: integer("engagement_id").notNull().references(() => managedPayrollEngagements.id, { onDelete: "cascade" }),
+    gateKey: varchar("gate_key", { length: 64 }).notNull(),
+    label: varchar("label", { length: 180 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("pending"),
+    evidenceRef: text("evidence_ref"),
+    completedBy: varchar("completed_by", { length: 120 }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("managed_payroll_gate_unique").on(table.engagementId, table.gateKey)],
+);
+
+export const managedPayrollRunApprovals = pgTable(
+  "managed_payroll_run_approvals",
+  {
+    id: serial("id").primaryKey(),
+    engagementId: integer("engagement_id").notNull().references(() => managedPayrollEngagements.id, { onDelete: "cascade" }),
+    payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "cascade" }),
+    approverUserId: integer("approver_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    approvedByUserId: integer("approved_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    approvedBy: varchar("approved_by", { length: 120 }).notNull(),
+    payrollFingerprint: varchar("payroll_fingerprint", { length: 64 }).notNull(),
+    approvedGross: numeric("approved_gross", { precision: 14, scale: 2 }).notNull(),
+    approvedNet: numeric("approved_net", { precision: 14, scale: 2 }).notNull(),
+    approvedEmployeeCount: integer("approved_employee_count").notNull(),
+    note: text("note"),
+    approvedAt: timestamp("approved_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("managed_payroll_run_approval_unique").on(table.payrollRunId)],
+);
+
 export const payrollEntries = pgTable("payroll_entries", {
   id: serial("id").primaryKey(),
   payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "cascade" }),

@@ -158,6 +158,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           payrollRunId,
           makerUserId: payrollSubmission ? Number(payrollSubmission.metadata.makerUserId) || null : null,
           approverUserId: payrollSubmission ? Number(payrollSubmission.metadata.approverUserId) || null : null,
+          deciderUserId: sessionUser.id,
         },
       });
 
