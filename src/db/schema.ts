@@ -276,6 +276,7 @@ export const hcmWorksiteAuthorizations = pgTable(
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
     worksiteId: integer("worksite_id").notNull().references(() => worksites.id, { onDelete: "restrict" }),
+    decision: varchar("decision", { length: 8 }).notNull().default("allow"),
     effectiveFrom: date("effective_from").notNull(),
     effectiveUntil: date("effective_until"),
     reason: varchar("reason", { length: 240 }).notNull(),
