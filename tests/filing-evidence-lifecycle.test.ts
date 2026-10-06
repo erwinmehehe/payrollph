@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { eq } from "drizzle-orm";
 import { db } from "../src/db";
-import { employees, organizations, payrollEntries, payrollRuns } from "../src/db/schema";
+import { employees, legalEntities, organizations, payrollEntries, payrollRuns } from "../src/db/schema";
 import { findFilingForm, parseFilingOutcome } from "../src/lib/filing-evidence";
 import {
   filingEvidenceSummaries,
@@ -16,8 +16,18 @@ const SSS = findFilingForm("SSS", "R-3")!;
 
 async function seedRun(name: string, basicRate = "30000") {
   const [org] = await db.insert(organizations).values({ name, legalName: `${name} Inc.`, plan: "Core" }).returning();
+  const [legalEntity] = await db.insert(legalEntities).values({
+    organizationId: org.id,
+    code: "PRIMARY",
+    legalName: `${name} Inc.`,
+    displayName: name,
+    primaryEntity: true,
+    active: true,
+    createdBy: "Test",
+  }).returning();
   const [employee] = await db.insert(employees).values({
     organizationId: org.id,
+    legalEntityId: legalEntity.id,
     employeeNo: "F-001",
     firstName: "Rico",
     middleName: "M",
@@ -30,6 +40,7 @@ async function seedRun(name: string, basicRate = "30000") {
   }).returning();
   const [run] = await db.insert(payrollRuns).values({
     organizationId: org.id,
+    legalEntityId: legalEntity.id,
     periodLabel: "Sep 2026",
     periodStart: "2026-09-01",
     periodEnd: "2026-09-30",
@@ -43,7 +54,7 @@ async function seedRun(name: string, basicRate = "30000") {
     deductions: "0",
     netPay: basicRate,
   });
-  return { org, employee, run };
+  return { org, legalEntity, employee, run };
 }
 
 function acceptance(method: "file_upload" | "manual_entry" = "file_upload") {
@@ -149,7 +160,7 @@ test("if payroll data changes after a record is made, its file is refused instea
 });
 
 test("a BIR 1604-C record is tracked separately and its acceptance never counts for SSS", async () => {
-  const { org, employee, run } = await seedRun("Filing BIR Co");
+  const { org, legalEntity, employee, run } = await seedRun("Filing BIR Co");
   const BIR = findFilingForm("BIR", "1604-C")!;
   try {
     // The annual extract fails closed without identity fields, so a record cannot be made from incomplete data.
@@ -158,7 +169,7 @@ test("a BIR 1604-C record is tracked separately and its acceptance never counts 
       /employer BIR TIN/,
     );
 
-    await db.update(organizations).set({ birTin: "123456789", birBranchCode: "0000" }).where(eq(organizations.id, org.id));
+    await db.update(legalEntities).set({ birTin: "123456789", birBranchCode: "0000" }).where(eq(legalEntities.id, legalEntity.id));
     await db.update(employees).set({ tin: "987654321", tinBranchCode: "0000" }).where(eq(employees.id, employee.id));
     await db.update(payrollEntries).set({
       lineItems: [{ code: "WHT", amount: "-1500" }],
@@ -166,6 +177,7 @@ test("a BIR 1604-C record is tracked separately and its acceptance never counts 
 
     const [secondReleasedRun] = await db.insert(payrollRuns).values({
       organizationId: org.id,
+      legalEntityId: legalEntity.id,
       periodLabel: "Dec 2026",
       periodStart: "2026-12-01",
       periodEnd: "2026-12-31",
@@ -186,6 +198,7 @@ test("a BIR 1604-C record is tracked separately and its acceptance never counts 
 
     const [draftRun] = await db.insert(payrollRuns).values({
       organizationId: org.id,
+      legalEntityId: legalEntity.id,
       periodLabel: "Nov 2026 Draft",
       periodStart: "2026-11-01",
       periodEnd: "2026-11-30",
@@ -203,6 +216,7 @@ test("a BIR 1604-C record is tracked separately and its acceptance never counts 
 
     const [priorYearRun] = await db.insert(payrollRuns).values({
       organizationId: org.id,
+      legalEntityId: legalEntity.id,
       periodLabel: "Dec 2025",
       periodStart: "2025-12-01",
       periodEnd: "2025-12-31",
