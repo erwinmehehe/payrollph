@@ -51,12 +51,15 @@ test("probation and fixed-term successor records require explicit dates", () => 
   assert.ok(route.includes("will not infer or extend probation automatically"));
 });
 
-test("separation handoff has explicit ready started completed evidence", () => {
+test("separation handoff has explicit states and Core 3.2 makes advancement Separation-owned", () => {
   const migration = read("drizzle/0057_hcm_employment_term_decisions.sql");
   const route = read("src/app/api/hcm/employment-term-decisions/route.ts");
+  const separation = read("src/app/api/separation/route.ts");
   assert.ok(migration.includes("'none','ready','started','completed'"));
-  assert.ok(route.includes('"mark_handoff_started"'));
-  assert.ok(route.includes('"mark_handoff_completed"'));
+  assert.equal(route.includes('"mark_handoff_started"'), false);
+  assert.equal(route.includes('"mark_handoff_completed"'), false);
+  assert.ok(separation.includes('separationHandoffStatus: "started"'));
+  assert.ok(separation.includes('separationHandoffStatus: "completed"'));
 });
 
 test("only one open decision can exist per active employment term", () => {
