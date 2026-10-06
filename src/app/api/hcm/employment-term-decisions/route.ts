@@ -8,6 +8,11 @@ import {
   applyEmploymentTermDecision,
   EMPLOYMENT_TERM_DECISION_KINDS,
 } from "@/lib/hcm-employment-term-decisions";
+import {
+  approveEmploymentDecisionWithEvidence,
+  DecisionEvidenceApprovalError,
+  recordEmploymentDecisionEvidenceEvent,
+} from "@/lib/hcm-employment-decision-evidence";
 import { EMPLOYMENT_TERM_KINDS, philippineBusinessDate } from "@/lib/hcm-employment-terms";
 import {
   enforceSameOriginMutation,
@@ -200,6 +205,22 @@ export async function POST(request: Request) {
       requestedBy: user.name,
     }).returning();
 
+    await recordEmploymentDecisionEvidenceEvent({
+      organizationId,
+      decisionId: created.id,
+      employeeId,
+      eventType: "requested",
+      actor: user.name,
+      actorUserId: user.id,
+      metadata: {
+        employmentTermId,
+        decisionKind,
+        effectiveDate,
+        proposedSeparationLastDay,
+      },
+      createdAt: created.createdAt,
+    });
+
     await recordAuditEvent({
       organizationId,
       actor: user.name,
@@ -271,6 +292,16 @@ export async function PATCH(request: Request) {
       eq(hcmEmploymentTermDecisions.id, id),
       eq(hcmEmploymentTermDecisions.organizationId, organizationId),
     )).returning();
+    await recordEmploymentDecisionEvidenceEvent({
+      organizationId,
+      decisionId: cancelled.id,
+      employeeId: cancelled.employeeId,
+      eventType: "cancelled",
+      actor: user.name,
+      actorUserId: user.id,
+      metadata: { previousStatus: decision.status },
+      createdAt: cancelled.cancelledAt ?? new Date(),
+    });
     await recordAuditEvent({
       organizationId,
       actor: user.name,
@@ -294,6 +325,15 @@ export async function PATCH(request: Request) {
       eq(hcmEmploymentTermDecisions.status, "failed"),
     )).returning();
     if (!scheduled) return Response.json({ error: "Decision changed before retry." }, { status: 409 });
+    await recordEmploymentDecisionEvidenceEvent({
+      organizationId,
+      decisionId: scheduled.id,
+      employeeId: scheduled.employeeId,
+      eventType: "retried",
+      actor: user.name,
+      actorUserId: user.id,
+      metadata: { previousStatus: "failed", effectiveDate: String(scheduled.effectiveDate) },
+    });
     if (String(scheduled.effectiveDate) <= philippineBusinessDate()) {
       try {
         const applied = await applyEmploymentTermDecision({ decisionId: id, actor: user.name, actorUserId: user.id });
@@ -305,33 +345,37 @@ export async function PATCH(request: Request) {
     return Response.json({ decision: scheduled, applied: false });
   }
 
-  if (decision.status !== "pending_approval") {
-    return Response.json({ error: "Only pending employment-term decisions can be approved." }, { status: 409 });
-  }
-  if (decision.requestedByUserId === user.id) {
-    return Response.json({ error: "Four-eyes control: the requester cannot approve their own employment-term decision." }, { status: 403 });
-  }
-
   const now = new Date();
-  const [scheduled] = await db.update(hcmEmploymentTermDecisions).set({
-    status: "scheduled",
-    approvedByUserId: user.id,
-    approvedBy: user.name,
-    approvedAt: now,
-    failure: null,
-    updatedAt: now,
-  }).where(and(
-    eq(hcmEmploymentTermDecisions.id, id),
-    eq(hcmEmploymentTermDecisions.status, "pending_approval"),
-  )).returning();
-  if (!scheduled) return Response.json({ error: "Decision changed before approval." }, { status: 409 });
+  let sealed;
+  try {
+    sealed = await approveEmploymentDecisionWithEvidence({
+      organizationId,
+      decisionId: id,
+      approverUserId: user.id,
+      approverName: user.name,
+      now,
+    });
+  } catch (error) {
+    if (error instanceof DecisionEvidenceApprovalError) {
+      return Response.json({ error: error.message }, { status: error.status });
+    }
+    return Response.json({ error: "Employment-term decision approval failed." }, { status: 409 });
+  }
+  const scheduled = sealed.decision;
 
   await recordAuditEvent({
     organizationId,
     actor: user.name,
     action: "HCM employment-term decision approved",
-    resource: `Employee #${decision.employeeId}`,
-    metadata: { employmentTermDecisionId: id, effectiveDate: scheduled.effectiveDate, decisionKind: scheduled.decisionKind },
+    resource: `Employee #${scheduled.employeeId}`,
+    metadata: {
+      employmentTermDecisionId: id,
+      effectiveDate: scheduled.effectiveDate,
+      decisionKind: scheduled.decisionKind,
+      evidenceSnapshotSha256: sealed.evidenceSnapshotSha256,
+      evidenceNoteCount: sealed.noteCount,
+      evidenceAttachmentCount: sealed.attachmentCount,
+    },
   });
 
   if (String(scheduled.effectiveDate) <= philippineBusinessDate(now)) {
