@@ -5,7 +5,7 @@ import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 import { resourcePages } from "@/lib/seo-content";
 
 export const metadata: Metadata = {
-  title: "Philippine Payroll Guides & Buyer Resources | Linaw",
+  title: "Payroll Guides Philippines | Buyer Tools & Resources | Linaw",
   description: "Philippine payroll guides for software buying, migration, security, outsourcing decisions and spreadsheet-to-system planning for employers and payroll teams.",
   alternates: { canonical: "/resources" },
 };
