@@ -9,6 +9,7 @@ import { runScheduledContributionCaseEscalations } from "@/lib/statutory-contrib
 import { runScheduledHcmDocumentExpiry } from "@/lib/hcm-documents";
 import { runScheduledCompensationGovernance } from "@/lib/hcm-compensation";
 import { runScheduledWorkerEffectiveChanges } from "@/lib/hcm-effective-changes";
+import { runScheduledEmploymentTerms } from "@/lib/hcm-employment-terms";
 
 const MIN_INTERVAL_MS = 30_000;
 
@@ -56,6 +57,12 @@ export async function tickScheduler(force = false) {
     actor: "System scheduler",
     now,
     limit: 50,
+  });
+
+  const hcmEmploymentTerms = await runScheduledEmploymentTerms({
+    actor: "System scheduler",
+    now,
+    limit: 100,
   });
 
   const hcmCompensation = await runScheduledCompensationGovernance({
@@ -109,6 +116,7 @@ export async function tickScheduler(force = false) {
     contributionCaseEscalations,
     hcmDocumentExpiry,
     hcmEffectiveChanges,
+    hcmEmploymentTerms,
     hcmCompensation,
     at: now.toISOString(),
     results: {
