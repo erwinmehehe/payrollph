@@ -49,7 +49,7 @@ export function summarizeMonthlyContributionFile(input: {
     if (month !== input.applicableMonth) {
       throw new Error(`BIR 1601-C filing month ${month || "(blank)"} does not match ${input.applicableMonth}.`);
     }
-    if (!Number.isFinite(total) || total < 0 || !Number.isInteger(employeeCount) || employeeCount < 0) {
+    if (!Number.isFinite(total) || !Number.isInteger(employeeCount) || employeeCount < 0) {
       throw new Error("BIR 1601-C filing has an invalid withholding total or employee count.");
     }
     return {
