@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Building2, Plus, RefreshCcw, Save, Trash2 } from "lucide-react";
+import { Building2, Copy, Plus, RefreshCcw, Save, Trash2 } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, Metric, Spinner, Status } from "./ui";
 
@@ -41,6 +41,36 @@ function localToday() {
   return local.toISOString().slice(0, 10);
 }
 
+function blankDraft(key: number, costCenterId: number | string = "", allocationPercent = "100"): DraftAllocation {
+  return {
+    key,
+    costCenterId: String(costCenterId),
+    allocationPercent,
+    clientCode: "",
+    projectCode: "",
+    jobCode: "",
+  };
+}
+
+function normalizeDimensionCode(value: string) {
+  return value.trim().toUpperCase().replace(/[^A-Z0-9_.-]/g, "").slice(0, 64);
+}
+
+function dimensionKey(row: DraftAllocation) {
+  return [
+    row.costCenterId,
+    normalizeDimensionCode(row.clientCode),
+    normalizeDimensionCode(row.projectCode),
+    normalizeDimensionCode(row.jobCode),
+  ].join("|");
+}
+
+function windowStatus(row: AllocationRow, today: string) {
+  if (row.effectiveFrom > today) return "Future";
+  if (row.effectiveUntil && row.effectiveUntil < today) return "Expired";
+  return "Current";
+}
+
 export function LaborCostingPanel({
   data,
   notify,
@@ -63,9 +93,7 @@ export function LaborCostingPanel({
   const [effectiveUntil, setEffectiveUntil] = useState("");
   const [reason, setReason] = useState("Labor costing allocation");
   const [nextKey, setNextKey] = useState(2);
-  const [drafts, setDrafts] = useState<DraftAllocation[]>([
-    { key: 1, costCenterId: "", allocationPercent: "100", clientCode: "", projectCode: "", jobCode: "" },
-  ]);
+  const [drafts, setDrafts] = useState<DraftAllocation[]>([blankDraft(1)]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -85,17 +113,36 @@ export function LaborCostingPanel({
   }, [notify, organizationId]);
 
   useEffect(() => {
+    setCostCenters([]);
+    setAllocations([]);
+    setEmployeeId(data.employees[0]?.id ?? 0);
+    setEffectiveFrom(localToday());
+    setEffectiveUntil("");
+    setReason("Labor costing allocation");
+    setDrafts([blankDraft(1)]);
+    setNextKey(2);
     void load();
-  }, [load]);
+  }, [organizationId, load]);
 
   useEffect(() => {
-    if (!costCenters.length) return;
-    setDrafts((current) => current.map((draft, index) => (
-      !draft.costCenterId && index === 0
-        ? { ...draft, costCenterId: String(costCenters[0].id) }
-        : draft
-    )));
-  }, [costCenters]);
+    if (data.employees.some((employee) => employee.id === employeeId)) return;
+    setEmployeeId(data.employees[0]?.id ?? 0);
+  }, [data.employees, employeeId]);
+
+  const activeCostCenters = useMemo(
+    () => costCenters.filter((center) => center.active),
+    [costCenters],
+  );
+
+  useEffect(() => {
+    const firstActiveId = activeCostCenters[0]?.id;
+    if (!firstActiveId) return;
+    const activeIds = new Set(activeCostCenters.map((center) => String(center.id)));
+    setDrafts((current) => current.map((draft, index) => {
+      if (activeIds.has(draft.costCenterId)) return draft;
+      return index === 0 ? { ...draft, costCenterId: String(firstActiveId) } : { ...draft, costCenterId: "" };
+    }));
+  }, [activeCostCenters]);
 
   const totalPercent = useMemo(
     () => Math.round(drafts.reduce((sum, row) => sum + (Number(row.allocationPercent) || 0), 0) * 1000) / 1000,
@@ -107,6 +154,46 @@ export function LaborCostingPanel({
       .filter((row) => row.employeeId === employeeId)
       .sort((a, b) => String(b.effectiveFrom).localeCompare(String(a.effectiveFrom)) || b.id - a.id),
     [allocations, employeeId],
+  );
+
+  const selectedEmployee = useMemo(
+    () => data.employees.find((employee) => employee.id === employeeId) ?? null,
+    [data.employees, employeeId],
+  );
+
+  const activeCenterIds = useMemo(
+    () => new Set(activeCostCenters.map((center) => String(center.id))),
+    [activeCostCenters],
+  );
+
+  const invalidPercent = drafts.some((row) => {
+    const value = Number(row.allocationPercent);
+    return !Number.isFinite(value) || value <= 0 || value > 100;
+  });
+  const inactiveOrMissingCenter = drafts.some((row) => !activeCenterIds.has(row.costCenterId));
+  const duplicateDimensions = useMemo(() => {
+    const seen = new Set<string>();
+    for (const row of drafts) {
+      if (!row.costCenterId) continue;
+      const key = dimensionKey(row);
+      if (seen.has(key)) return true;
+      seen.add(key);
+    }
+    return false;
+  }, [drafts]);
+  const dateRangeInvalid = Boolean(effectiveUntil && effectiveUntil < effectiveFrom);
+  const reconciled = Math.abs(totalPercent - 100) <= 0.001;
+  const canSave = Boolean(
+    employeeId
+    && effectiveFrom
+    && drafts.length
+    && activeCostCenters.length
+    && reconciled
+    && !invalidPercent
+    && !inactiveOrMissingCenter
+    && !duplicateDimensions
+    && !dateRangeInvalid
+    && saving === null,
   );
 
   async function mutate(action: string, payload: Record<string, unknown>, success: string) {
@@ -138,11 +225,25 @@ export function LaborCostingPanel({
       notify("Cost center code and name are required.", "err");
       return;
     }
-    await mutate("create_cost_center", {
+    const created = await mutate("create_cost_center", {
       code: centerCode,
       name: centerName,
       description: centerDescription || null,
     }, `Cost center ${centerCode.toUpperCase()} created.`);
+    if (created) {
+      setCenterCode("");
+      setCenterName("");
+      setCenterDescription("");
+    }
+  }
+
+  function resetDraftForEmployee(nextEmployeeId: number) {
+    setEmployeeId(nextEmployeeId);
+    setEffectiveFrom(localToday());
+    setEffectiveUntil("");
+    setReason("Labor costing allocation");
+    setDrafts([blankDraft(1, activeCostCenters[0]?.id ?? "")]);
+    setNextKey(2);
   }
 
   function updateDraft(key: number, patch: Partial<DraftAllocation>) {
@@ -151,17 +252,10 @@ export function LaborCostingPanel({
 
   function addDraft() {
     if (drafts.length >= 20) return;
-    const centerId = costCenters.find((center) => !drafts.some((row) => row.costCenterId === String(center.id)))?.id
-      ?? costCenters[0]?.id
+    const centerId = activeCostCenters.find((center) => !drafts.some((row) => row.costCenterId === String(center.id)))?.id
+      ?? activeCostCenters[0]?.id
       ?? "";
-    setDrafts((current) => [...current, {
-      key: nextKey,
-      costCenterId: String(centerId),
-      allocationPercent: "0",
-      clientCode: "",
-      projectCode: "",
-      jobCode: "",
-    }]);
+    setDrafts((current) => [...current, blankDraft(nextKey, centerId, "0")]);
     setNextKey((value) => value + 1);
   }
 
@@ -169,17 +263,44 @@ export function LaborCostingPanel({
     setDrafts((current) => current.length === 1 ? current : current.filter((row) => row.key !== key));
   }
 
+  function copyLatestPlan() {
+    if (!selectedHistory.length) return;
+    const latestStart = selectedHistory[0].effectiveFrom;
+    const latestRows = selectedHistory
+      .filter((row) => row.effectiveFrom === latestStart)
+      .sort((a, b) => a.id - b.id);
+    setDrafts(latestRows.map((row, index) => ({
+      key: index + 1,
+      costCenterId: String(row.costCenterId),
+      allocationPercent: String(row.allocationPercent),
+      clientCode: row.clientCode ?? "",
+      projectCode: row.projectCode ?? "",
+      jobCode: row.jobCode ?? "",
+    })));
+    setNextKey(latestRows.length + 1);
+    setReason(`Updated from allocation effective ${latestStart}`);
+    notify(`Loaded the latest ${latestRows.length}-row allocation as a new draft.`, "info");
+  }
+
   async function saveAllocations() {
     if (!employeeId || !effectiveFrom || drafts.length === 0) {
       notify("Employee, effective date and allocation rows are required.", "err");
       return;
     }
-    if (Math.abs(totalPercent - 100) > 0.001) {
+    if (dateRangeInvalid) {
+      notify("Effective until cannot be earlier than effective from.", "err");
+      return;
+    }
+    if (!reconciled) {
       notify(`Allocation must total exactly 100.000%. Current total: ${totalPercent.toFixed(3)}%.`, "err");
       return;
     }
-    if (drafts.some((row) => !row.costCenterId || Number(row.allocationPercent) <= 0)) {
-      notify("Every allocation row needs a cost center and a positive percentage.", "err");
+    if (invalidPercent || inactiveOrMissingCenter) {
+      notify("Every allocation row needs an active cost center and a percentage greater than 0 and no more than 100.", "err");
+      return;
+    }
+    if (duplicateDimensions) {
+      notify("Duplicate cost center/client/project/job combinations are not allowed in the same allocation set.", "err");
       return;
     }
 
@@ -198,6 +319,8 @@ export function LaborCostingPanel({
     }, "Effective-dated labor allocation saved.");
   }
 
+  const today = localToday();
+
   return (
     <section style={{ marginTop: 16 }}>
       <div className="card-header" style={{ padding: "0 0 12px" }}>
@@ -206,15 +329,15 @@ export function LaborCostingPanel({
           <h2>Cost centers & allocations</h2>
           <p>Allocate employee labor across finance dimensions without changing payroll entitlement or gross/net pay.</p>
         </div>
-        <button className="secondary-button" onClick={() => void load()} disabled={loading}>
+        <button className="secondary-button" type="button" onClick={() => void load()} disabled={loading}>
           {loading ? <Spinner label="Loading" /> : <RefreshCcw size={14} className="i-cyan" />} Refresh
         </button>
       </div>
 
       <section className="stats-grid">
-        <Metric label="Cost centers" value={String(costCenters.length)} hint="organization finance dimensions" icon={<Building2 size={16} className="i-cyan" />} tone="blue" />
+        <Metric label="Cost centers" value={String(costCenters.length)} hint={`${activeCostCenters.length} active finance dimensions`} icon={<Building2 size={16} className="i-cyan" />} tone="blue" />
         <Metric label="Employee plans" value={String(new Set(allocations.map((row) => row.employeeId)).size)} hint="employees with allocation history" icon={<Save size={16} className="i-green" />} tone="mint" />
-        <Metric label="Draft total" value={`${totalPercent.toFixed(3)}%`} hint={Math.abs(totalPercent - 100) <= 0.001 ? "reconciled" : "must equal 100.000%"} icon={<Building2 size={16} className={Math.abs(totalPercent - 100) <= 0.001 ? "i-green" : "i-amber"} />} tone={Math.abs(totalPercent - 100) <= 0.001 ? "mint" : "amber"} />
+        <Metric label="Draft total" value={`${totalPercent.toFixed(3)}%`} hint={reconciled ? "reconciled" : "must equal 100.000%"} icon={<Building2 size={16} className={reconciled ? "i-green" : "i-amber"} />} tone={reconciled ? "mint" : "amber"} />
         <Metric label="Allocation basis" value="%" hint="hours-based allocation comes later" icon={<Building2 size={16} className="i-slate" />} tone="slate" />
       </section>
 
@@ -224,6 +347,20 @@ export function LaborCostingPanel({
           <strong>Finance allocation, not wage calculation.</strong> This module records where labor cost belongs. It does not change statutory wages, contributions, withholding or net pay.
         </span>
       </div>
+
+      {duplicateDimensions && (
+        <div className="notice notice-amber">
+          <Building2 size={15} className="i-amber" />
+          <span><strong>Duplicate allocation dimension.</strong> Each cost center/client/project/job combination can appear only once in an effective allocation set.</span>
+        </div>
+      )}
+
+      {dateRangeInvalid && (
+        <div className="notice notice-amber">
+          <Building2 size={15} className="i-amber" />
+          <span><strong>Invalid effective window.</strong> Effective until must be the same as or later than effective from.</span>
+        </div>
+      )}
 
       <section className="module-grid two" style={{ marginTop: 16 }}>
         <article className="card">
@@ -235,12 +372,12 @@ export function LaborCostingPanel({
             </div>
           </div>
           <div className="setting-form">
-            <label>Code<input value={centerCode} onChange={(event) => setCenterCode(event.target.value)} /></label>
-            <label>Name<input value={centerName} onChange={(event) => setCenterName(event.target.value)} /></label>
-            <label>Description<input value={centerDescription} onChange={(event) => setCenterDescription(event.target.value)} /></label>
+            <label>Code<input value={centerCode} maxLength={40} onChange={(event) => setCenterCode(event.target.value)} /></label>
+            <label>Name<input value={centerName} maxLength={140} onChange={(event) => setCenterName(event.target.value)} /></label>
+            <label>Description<input value={centerDescription} maxLength={500} onChange={(event) => setCenterDescription(event.target.value)} /></label>
           </div>
           <div className="run-actions">
-            <button className="primary-button brand" disabled={saving !== null} onClick={() => void createCostCenter()}>
+            <button className="primary-button brand" type="button" disabled={saving !== null || !centerCode.trim() || !centerName.trim()} onClick={() => void createCostCenter()}>
               {saving === "create_cost_center" ? <Spinner label="Saving" /> : <Plus size={14} />} Create cost center
             </button>
           </div>
@@ -251,6 +388,11 @@ export function LaborCostingPanel({
                 <small style={{ display: "block", color: "var(--muted)" }}>{center.description || "No description"} · {center.active ? "Active" : "Inactive"}</small>
               </span>
             ))}
+            {!loading && costCenters.length === 0 && (
+              <EmptyState icon={<Building2 size={20} className="i-slate" />} title="No cost centers yet">
+                Create the first finance dimension before assigning employee labor.
+              </EmptyState>
+            )}
           </div>
         </article>
 
@@ -261,13 +403,14 @@ export function LaborCostingPanel({
               <h2>Set employee labor allocation</h2>
               <p>The active allocation set must reconcile to exactly 100.000% before the server will persist it.</p>
             </div>
-            <Status value={Math.abs(totalPercent - 100) <= 0.001 ? "Reconciled" : "Needs balancing"} />
+            <Status value={canSave ? "Reconciled" : "Needs review"} />
           </div>
 
           <div className="setting-form">
             <label>
               Employee
-              <select value={employeeId || ""} onChange={(event) => setEmployeeId(Number(event.target.value))}>
+              <select value={employeeId || ""} onChange={(event) => resetDraftForEmployee(Number(event.target.value))} disabled={!data.employees.length}>
+                {!data.employees.length && <option value="">No employees available</option>}
                 {data.employees.map((employee) => (
                   <option key={employee.id} value={employee.id}>{employee.employeeNo} · {employee.firstName} {employee.lastName}</option>
                 ))}
@@ -286,15 +429,15 @@ export function LaborCostingPanel({
                     Cost center
                     <select value={draft.costCenterId} onChange={(event) => updateDraft(draft.key, { costCenterId: event.target.value })}>
                       <option value="">Choose...</option>
-                      {costCenters.filter((center) => center.active).map((center) => (
+                      {activeCostCenters.map((center) => (
                         <option key={center.id} value={center.id}>{center.code} · {center.name}</option>
                       ))}
                     </select>
                   </label>
                   <label>Percent<input type="number" min={0.001} max={100} step={0.001} value={draft.allocationPercent} onChange={(event) => updateDraft(draft.key, { allocationPercent: event.target.value })} /></label>
-                  <label>Client code<input value={draft.clientCode} onChange={(event) => updateDraft(draft.key, { clientCode: event.target.value })} /></label>
-                  <label>Project code<input value={draft.projectCode} onChange={(event) => updateDraft(draft.key, { projectCode: event.target.value })} /></label>
-                  <label>Job code<input value={draft.jobCode} onChange={(event) => updateDraft(draft.key, { jobCode: event.target.value })} /></label>
+                  <label>Client code<input maxLength={64} value={draft.clientCode} onChange={(event) => updateDraft(draft.key, { clientCode: event.target.value })} /></label>
+                  <label>Project code<input maxLength={64} value={draft.projectCode} onChange={(event) => updateDraft(draft.key, { projectCode: event.target.value })} /></label>
+                  <label>Job code<input maxLength={64} value={draft.jobCode} onChange={(event) => updateDraft(draft.key, { jobCode: event.target.value })} /></label>
                 </div>
                 <button className="tiny-button decline" type="button" disabled={drafts.length === 1} onClick={() => removeDraft(draft.key)}>
                   <Trash2 size={13} /> Remove row
@@ -304,10 +447,13 @@ export function LaborCostingPanel({
           </div>
 
           <div className="run-actions">
-            <button className="secondary-button" type="button" disabled={drafts.length >= 20 || !costCenters.length} onClick={addDraft}>
+            <button className="secondary-button" type="button" disabled={!selectedHistory.length || saving !== null} onClick={copyLatestPlan}>
+              <Copy size={14} /> Copy latest plan
+            </button>
+            <button className="secondary-button" type="button" disabled={drafts.length >= 20 || !activeCostCenters.length || saving !== null} onClick={addDraft}>
               <Plus size={14} /> Add split
             </button>
-            <button className="primary-button brand" disabled={saving !== null || !costCenters.length || Math.abs(totalPercent - 100) > 0.001} onClick={() => void saveAllocations()}>
+            <button className="primary-button brand" type="button" disabled={!canSave} onClick={() => void saveAllocations()}>
               {saving === "set_employee_allocations" ? <Spinner label="Saving" /> : <Save size={14} />} Save allocation
             </button>
           </div>
@@ -318,18 +464,20 @@ export function LaborCostingPanel({
         <div className="card-header">
           <div>
             <div className="card-kicker">Allocation history</div>
-            <h2>Selected employee</h2>
-            <p>Effective dates are retained so finance reporting can reconstruct historical labor ownership.</p>
+            <h2>{selectedEmployee ? `${selectedEmployee.firstName} ${selectedEmployee.lastName}` : "Selected employee"}</h2>
+            <p>Effective dates and reasons are retained so finance reporting can reconstruct historical labor ownership.</p>
           </div>
         </div>
         <div className="data-table-wrap slim-scroll">
           <table className="data-table">
             <thead>
               <tr>
+                <th>Status</th>
                 <th>Effective window</th>
                 <th>Cost center</th>
                 <th>Allocation</th>
                 <th>Client / project / job</th>
+                <th>Reason</th>
               </tr>
             </thead>
             <tbody>
@@ -337,10 +485,12 @@ export function LaborCostingPanel({
                 const center = costCenters.find((item) => item.id === row.costCenterId);
                 return (
                   <tr key={row.id}>
+                    <td><Status value={windowStatus(row, today)} /></td>
                     <td><strong>{row.effectiveFrom}</strong><div className="id">to {row.effectiveUntil ?? "open-ended"}</div></td>
                     <td>{center ? `${center.code} · ${center.name}` : `Cost center #${row.costCenterId}`}</td>
                     <td className="num">{Number(row.allocationPercent).toFixed(3)}%</td>
                     <td>{[row.clientCode, row.projectCode, row.jobCode].filter(Boolean).join(" / ") || "—"}</td>
+                    <td>{row.reason || "—"}</td>
                   </tr>
                 );
               })}
