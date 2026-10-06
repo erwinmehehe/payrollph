@@ -185,7 +185,7 @@ export async function ensureCoreCompatibilitySchema() {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v15'))");
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v16'))");
 
       await client.query(`
         ALTER TABLE organizations
@@ -1373,6 +1373,88 @@ export async function ensureCoreCompatibilitySchema() {
       await client.query(`
         CREATE UNIQUE INDEX IF NOT EXISTS managed_payroll_run_approval_unique
         ON managed_payroll_run_approvals(payroll_run_id)
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS workforce_planning_scenarios (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          plan_id integer REFERENCES workforce_plans(id) ON DELETE SET NULL,
+          name varchar(160) NOT NULL,
+          version integer NOT NULL DEFAULT 1,
+          scope_org_unit_id integer REFERENCES org_units(id) ON DELETE SET NULL,
+          worksite_id integer REFERENCES worksites(id) ON DELETE SET NULL,
+          start_date date NOT NULL,
+          end_date date NOT NULL,
+          demand_growth_percent numeric(7,2) NOT NULL DEFAULT '0',
+          vacancy_fill_percent numeric(7,2) NOT NULL DEFAULT '100',
+          employer_load_percent numeric(7,2) NOT NULL DEFAULT '0',
+          status varchar(24) NOT NULL DEFAULT 'draft',
+          snapshot jsonb NOT NULL DEFAULT '{}'::jsonb,
+          snapshot_hash varchar(64) NOT NULL,
+          created_by_user_id integer NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+          submitted_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          submitted_at timestamptz,
+          decided_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          decided_at timestamptz,
+          decision_note varchar(500),
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS workforce_scenarios_org_name_version_unique
+        ON workforce_planning_scenarios(organization_id, name, version)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS workforce_scenarios_org_status_idx
+        ON workforce_planning_scenarios(organization_id, status)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS workforce_scenarios_org_unit_idx
+        ON workforce_planning_scenarios(organization_id, scope_org_unit_id)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS workforce_scenarios_plan_idx
+        ON workforce_planning_scenarios(plan_id)
+      `);
+      await client.query(`
+        DO $compat$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'workforce_scenarios_status_check'
+          ) THEN
+            ALTER TABLE workforce_planning_scenarios
+              ADD CONSTRAINT workforce_scenarios_status_check
+              CHECK (status IN ('draft', 'submitted', 'approved', 'rejected'));
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'workforce_scenarios_growth_check'
+          ) THEN
+            ALTER TABLE workforce_planning_scenarios
+              ADD CONSTRAINT workforce_scenarios_growth_check
+              CHECK (demand_growth_percent >= -50 AND demand_growth_percent <= 200);
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'workforce_scenarios_vacancy_fill_check'
+          ) THEN
+            ALTER TABLE workforce_planning_scenarios
+              ADD CONSTRAINT workforce_scenarios_vacancy_fill_check
+              CHECK (vacancy_fill_percent >= 0 AND vacancy_fill_percent <= 100);
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'workforce_scenarios_employer_load_check'
+          ) THEN
+            ALTER TABLE workforce_planning_scenarios
+              ADD CONSTRAINT workforce_scenarios_employer_load_check
+              CHECK (employer_load_percent >= 0 AND employer_load_percent <= 100);
+          END IF;
+        END
+        $compat$;
       `);
 
       await client.query("COMMIT");
