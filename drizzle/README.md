@@ -42,4 +42,7 @@ the first one, so it closes itself.
 
 - `0022_job_architecture_positions.sql` adds job profiles, workforce plans, positions, and effective-dated position assignments.
 
+
+- `0043_recruitment_position_handoff.sql` connects approved positions to requisitions and records the employee created by a governed hire conversion. `0024` is reserved by the compensation-governance tranche.
+
 - `0042_compensation_governance.sql` adds salary bands, compensation review cycles and governed pay-change proposals.
