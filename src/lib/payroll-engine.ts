@@ -102,16 +102,20 @@ import {
   type OvertimeRequestStatus,
 } from "@/lib/workforce-overtime";
 import {
+  HOLIDAY_REST_DAY_PREMIUM_EVENT,
   WORKED_TIME_PREMIUM_EVENT,
   payPolicyTrace,
+  resolveHolidayRestDayPremium,
   resolveWorkedTimePremium,
+  type AppliedHolidayRestDayPremiumRule,
   type AppliedWorkedTimePremiumRule,
+  type PayPolicyHolidayType,
   type PayPolicyRecord,
   type PayPolicyRuleRecord,
   type PayPolicyScope,
 } from "@/lib/pay-policy-engine";
 
-export const PAYROLL_RULE_VERSION = "PH-2026.06";
+export const PAYROLL_RULE_VERSION = "PH-2026.07";
 const DEFAULT_CHUNK = 25;
 
 function money(value: number) {
@@ -980,13 +984,15 @@ async function processPayrollChunk(input: {
       philHealthEmployer: 0,
       pagIbigEmployer: 0,
     };
-    const priorExcludedFromSss = traceInputNumber(
-      prior.trace,
-      "supplementaryExcludedFromSssBase",
+    const priorExcludedFromSss = roundToCents(
+      traceInputNumber(prior.trace, "supplementaryExcludedFromSssBase")
+        + traceInputNumber(prior.trace, "companyPremiumExcludedFromSssBase")
+        + traceInputNumber(prior.trace, "holidayRestDayPremiumExcludedFromSssBase"),
     );
-    const priorExcludedFromPagIbig = traceInputNumber(
-      prior.trace,
-      "supplementaryExcludedFromPagIbigBase",
+    const priorExcludedFromPagIbig = roundToCents(
+      traceInputNumber(prior.trace, "supplementaryExcludedFromPagIbigBase")
+        + traceInputNumber(prior.trace, "companyPremiumExcludedFromPagIbigBase")
+        + traceInputNumber(prior.trace, "holidayRestDayPremiumExcludedFromPagIbigBase"),
     );
     previous.sssRemuneration = roundToCents(
       previous.sssRemuneration + Math.max(
@@ -1580,6 +1586,14 @@ function calculateEmployeePay(input: {
   let companyPremiumExcludedFromPagIbigBase = 0;
   const companyPremiumApplications: AppliedWorkedTimePremiumRule[] = [];
   const companyPremiumPolicyTrace = new Map<number, ReturnType<typeof payPolicyTrace>[number]>();
+
+  let holidayRestDayPremiumPay = 0;
+  let holidayRestDayPremiumTaxable = 0;
+  let holidayRestDayPremiumExcludedFromSssBase = 0;
+  let holidayRestDayPremiumExcludedFromPagIbigBase = 0;
+  const holidayRestDayPremiumApplications: AppliedHolidayRestDayPremiumRule[] = [];
+  const holidayRestDayPremiumPolicyTrace = new Map<number, ReturnType<typeof payPolicyTrace>[number]>();
+
   const flags: string[] = [];
   const punchNotes: string[] = [];
   const holidayNotes: string[] = [];
@@ -1624,6 +1638,56 @@ function calculateEmployeePay(input: {
       }
     }
     companyPremiumApplications.push(...resolution.applied);
+    return resolution;
+  }
+
+  function applyHolidayRestDayPremium(inputSegment: {
+    workDate: string;
+    minutes: number;
+    hourlyRate: number;
+    holidayType: PayPolicyHolidayType;
+    restDay: boolean;
+    statutoryMultiplier: number;
+    shiftCode: string | null;
+    worksiteId: number | null;
+  }) {
+    const resolution = resolveHolidayRestDayPremium({
+      organizationId: input.employee.organizationId,
+      employeeId: input.employee.id,
+      orgUnitIds: input.payPolicyOrgUnitIds ?? [],
+      workDate: inputSegment.workDate,
+      minutes: inputSegment.minutes,
+      hourlyRate: inputSegment.hourlyRate,
+      holidayType: inputSegment.holidayType,
+      restDay: inputSegment.restDay,
+      statutoryMultiplier: inputSegment.statutoryMultiplier,
+      shiftCode: inputSegment.shiftCode,
+      worksiteId: inputSegment.worksiteId,
+      policies: input.payPolicies ?? [],
+      rules: input.payPolicyRules ?? [],
+    });
+
+    holidayRestDayPremiumPay = roundToCents(
+      holidayRestDayPremiumPay + resolution.amount,
+    );
+    holidayRestDayPremiumTaxable = roundToCents(
+      holidayRestDayPremiumTaxable + resolution.taxableAmount,
+    );
+    holidayRestDayPremiumExcludedFromSssBase = roundToCents(
+      holidayRestDayPremiumExcludedFromSssBase
+        + Math.max(0, resolution.amount - resolution.sssIncludedAmount),
+    );
+    holidayRestDayPremiumExcludedFromPagIbigBase = roundToCents(
+      holidayRestDayPremiumExcludedFromPagIbigBase
+        + Math.max(0, resolution.amount - resolution.pagIbigIncludedAmount),
+    );
+    const appliedPolicyIds = new Set(resolution.applied.map((item) => item.policyId));
+    for (const policy of resolution.policies) {
+      if (appliedPolicyIds.has(policy.policyId)) {
+        holidayRestDayPremiumPolicyTrace.set(policy.policyId, policy);
+      }
+    }
+    holidayRestDayPremiumApplications.push(...resolution.applied);
     return resolution;
   }
 
@@ -1813,6 +1877,17 @@ function calculateEmployeePay(input: {
         if (segment.overtime) {
           overtimePay += hours * punchProfile.hourlyRate * multiplier;
         } else {
+          applyHolidayRestDayPremium({
+            workDate: segment.calendarDate,
+            minutes: segment.minutes,
+            hourlyRate: punchProfile.hourlyRate,
+            holidayType: holidayContext.holiday as PayPolicyHolidayType,
+            restDay: isRestDay,
+            statutoryMultiplier: multiplier,
+            shiftCode: scheduledSegment?.shiftCode ?? null,
+            worksiteId: segmentSchedule?.worksiteId ?? null,
+          });
+
           if (punchProfile.payBasis !== "monthly") {
             workedBasicPay += hours * punchProfile.hourlyRate;
           }
@@ -1887,6 +1962,54 @@ function calculateEmployeePay(input: {
           flags.push(message);
           punchNotes.push(message);
         }
+
+        const holidayRestRuleCouldApply = touchedPremiumDates.some((date) => {
+          const dateHolidayContext = holidayPayContextOn(
+            date,
+            input.holidayCalendar ?? NATIONAL_HOLIDAYS_2026,
+          );
+          const dateRestDay = restDayForDate(
+            input.employee.restDay,
+            input.restDayRevisions ?? [],
+            date,
+          );
+          const dateLegacyRestDay = isRestDayOfWeek(date, dateRestDay);
+          const dateIsRestDay = payrollRestDayFromSchedule(
+            input.resolvedSchedules?.[date],
+            dateLegacyRestDay,
+          );
+          const dateMultiplier = holidayMultiplier({
+            holiday: dateHolidayContext.holiday,
+            worked: true,
+            overtime: false,
+            restDay: dateIsRestDay,
+          });
+          const probe = resolveHolidayRestDayPremium({
+            organizationId: input.employee.organizationId,
+            employeeId: input.employee.id,
+            orgUnitIds: input.payPolicyOrgUnitIds ?? [],
+            workDate: date,
+            minutes: 60,
+            hourlyRate: punchProfile.hourlyRate,
+            holidayType: dateHolidayContext.holiday as PayPolicyHolidayType,
+            restDay: dateIsRestDay,
+            statutoryMultiplier: dateMultiplier,
+            shiftCode: scheduledSegment?.shiftCode ?? null,
+            worksiteId:
+              input.resolvedSchedules?.[date]?.worksiteId
+              ?? input.resolvedSchedules?.[workDate]?.worksiteId
+              ?? null,
+            policies: input.payPolicies ?? [],
+            rules: input.payPolicyRules ?? [],
+          });
+          return probe.applied.length > 0;
+        });
+        if (holidayRestRuleCouldApply) {
+          const message =
+            `${workDate}: configurable holiday/rest-day premium was not executed because cross-midnight payable-time allocation is incomplete. Correct the attendance/break evidence before release so the calendar-day premium is not guessed.`;
+          flags.push(message);
+          punchNotes.push(message);
+        }
       }
 
       if (punchProfile.payBasis !== "monthly") {
@@ -1918,6 +2041,18 @@ function calculateEmployeePay(input: {
         overtime: false,
         restDay: isRestDay,
       });
+      if (touchedPremiumDates.length <= 1) {
+        applyHolidayRestDayPremium({
+          workDate,
+          minutes: segmentedRegularMinutes,
+          hourlyRate: punchProfile.hourlyRate,
+          holidayType: holidayContext.holiday as PayPolicyHolidayType,
+          restDay: isRestDay,
+          statutoryMultiplier: regularMultiplier,
+          shiftCode: scheduledSegment?.shiftCode ?? null,
+          worksiteId: input.resolvedSchedules?.[workDate]?.worksiteId ?? null,
+        });
+      }
       overtimePay +=
         (segmentedOvertimeMinutes / 60) * punchProfile.hourlyRate * otMultiplier;
       nightDiffPay +=
@@ -2348,6 +2483,36 @@ function calculateEmployeePay(input: {
     Math.max(0, companyPremiumPay - companyPremiumTaxable),
   );
 
+  const holidayRestDayPremiumLineGroups = new Map<number, {
+    application: AppliedHolidayRestDayPremiumRule;
+    minutes: number;
+    amount: number;
+  }>();
+  for (const application of holidayRestDayPremiumApplications) {
+    const existing = holidayRestDayPremiumLineGroups.get(application.ruleId);
+    holidayRestDayPremiumLineGroups.set(application.ruleId, {
+      application,
+      minutes: (existing?.minutes ?? 0) + application.minutes,
+      amount: roundToCents((existing?.amount ?? 0) + application.amount),
+    });
+  }
+  const holidayRestDayPremiumLines = [...holidayRestDayPremiumLineGroups.values()]
+    .sort((a, b) => a.application.policyId - b.application.policyId || a.application.ruleId - b.application.ruleId)
+    .map(({ application, minutes, amount }) => ({
+      code: `DAYPREM-${application.ruleId}`,
+      label: `Holiday/rest-day policy premium, ${application.label}`,
+      amount: money(amount),
+      notes: [
+        `Policy ${application.policyCode} v${application.policyVersion} · rule ${application.ruleKey}`,
+        `${minutes} regular worked minute(s) · ${application.holidayType}${application.restDay ? " + rest day" : ""} · statutory ×${application.statutoryMultiplier}`,
+        `Company top-up: +${application.additionalPremiumPercent}% of base hourly pay; OT and NSD remain statutory-only in this rule family`,
+        `Taxable: ${application.taxable ? "yes" : "no"} · SSS base: ${application.includeInSssBase ? "included" : "excluded"} · Pag-IBIG base: ${application.includeInPagIbigBase ? "included" : "excluded"}`,
+      ],
+    }));
+  const holidayRestDayPremiumNonTaxable = roundToCents(
+    Math.max(0, holidayRestDayPremiumPay - holidayRestDayPremiumTaxable),
+  );
+
   // Employee loans are lower-priority than statutory/tax deductions. Government
   // loan amortizations are attempted before company/other loans; anything that
   // cannot fit in available net pay is carried forward instead of disappearing
@@ -2368,6 +2533,7 @@ function calculateEmployeePay(input: {
       + nightDiffPay
       + calamityPay
       + holidayPremium
+      + holidayRestDayPremiumPay
       + companyPremiumPay
       + retroTotal
       + expenseTotal
@@ -2387,14 +2553,16 @@ function calculateEmployeePay(input: {
     gross
       - expenseTotal
       - supplementaryExcludedFromSssBase
-      - companyPremiumExcludedFromSssBase,
+      - companyPremiumExcludedFromSssBase
+      - holidayRestDayPremiumExcludedFromSssBase,
   );
   const pagIbigCutoffCompensation = Math.max(
     0,
     gross
       - expenseTotal
       - supplementaryExcludedFromPagIbigBase
-      - companyPremiumExcludedFromPagIbigBase,
+      - companyPremiumExcludedFromPagIbigBase
+      - holidayRestDayPremiumExcludedFromPagIbigBase,
   );
   const priorStatutory = input.priorStatutory ?? {
     sssRemuneration: 0,
@@ -2472,7 +2640,8 @@ function calculateEmployeePay(input: {
       - conversionTaxExemptTotal
       + supplementaryOrdinaryTaxableTotal
       + benefitPoolTreatment.taxableCurrent
-      + companyPremiumTaxable,
+      + companyPremiumTaxable
+      + holidayRestDayPremiumTaxable,
   );
   const taxableCompensation = treatAsMwe
     ? Math.max(0, mweTaxableSupplementaryCompensation - sss - philhealth - pagibigMandatory)
@@ -2485,6 +2654,7 @@ function calculateEmployeePay(input: {
           - benefitPoolTreatment.exemptCurrent
           - conversionTaxExemptTotal
           - companyPremiumNonTaxable
+          - holidayRestDayPremiumNonTaxable
           - sss
           - philhealth
           - pagibigMandatory,
@@ -2597,6 +2767,7 @@ function calculateEmployeePay(input: {
     { code: "OT", label: "Overtime", amount: money(overtimePay) },
     { code: "ND", label: "Night differential (10%)", amount: money(nightDiffPay) },
     { code: "HOLIDAY", label: "Holiday / rest-day premium", amount: money(holidayPremium), notes: holidayNotes },
+    ...holidayRestDayPremiumLines,
     ...companyPremiumLines,
     { code: "CALAMITY", label: "Calamity / hazard premium", amount: money(calamityPay), notes: calamityNotes },
     ...retroLines.map(({ amountNum: _amountNum, ...line }) => line),
@@ -2642,14 +2813,35 @@ function calculateEmployeePay(input: {
   ].filter((item) => Number(item.amount) !== 0);
 
   const resolvedWorkforceTrace = workforceScheduleTrace(input.resolvedSchedules);
+  const appliedPayPolicyTrace = new Map<number, ReturnType<typeof payPolicyTrace>[number]>();
+  for (const policy of companyPremiumPolicyTrace.values()) {
+    appliedPayPolicyTrace.set(policy.policyId, policy);
+  }
+  for (const policy of holidayRestDayPremiumPolicyTrace.values()) {
+    appliedPayPolicyTrace.set(policy.policyId, policy);
+  }
   const trace = {
     ruleVersion: PAYROLL_RULE_VERSION,
     payPolicyExecution: {
-      version: "worked-time-premium-v1",
+      version: "pay-rules-execution-v2",
       statutoryFloorMode: "additive-only",
-      migratedRuleFamilies: [WORKED_TIME_PREMIUM_EVENT],
-      appliedPolicies: [...companyPremiumPolicyTrace.values()].sort((a, b) => a.policyId - b.policyId),
-      appliedRules: companyPremiumApplications,
+      migratedRuleFamilies: [
+        WORKED_TIME_PREMIUM_EVENT,
+        HOLIDAY_REST_DAY_PREMIUM_EVENT,
+      ],
+      familyModes: {
+        holidayRestDayPremium: {
+          regularWorkedMinutes: "configurable-additive",
+          overtime: "statutory-only",
+          nightDifferential: "statutory-only",
+          unworkedHoliday: "statutory-only",
+        },
+      },
+      appliedPolicies: [...appliedPayPolicyTrace.values()].sort((a, b) => a.policyId - b.policyId),
+      appliedRules: [
+        ...companyPremiumApplications,
+        ...holidayRestDayPremiumApplications,
+      ],
     },
     workforceSchedule: {
       mode: resolvedWorkforceTrace.length > 0 ? "advanced-with-legacy-fallback" : "legacy",
@@ -2755,6 +2947,12 @@ function calculateEmployeePay(input: {
       `companyPremiumExcludedFromPagIbigBase=${money(companyPremiumExcludedFromPagIbigBase)}`,
       `companyPremiumAppliedRules=${companyPremiumApplications.length}`,
       `companyPremiumAppliedPolicies=${companyPremiumPolicyTrace.size}`,
+      `holidayRestDayPremium=${money(holidayRestDayPremiumPay)}`,
+      `holidayRestDayPremiumTaxable=${money(holidayRestDayPremiumTaxable)}`,
+      `holidayRestDayPremiumExcludedFromSssBase=${money(holidayRestDayPremiumExcludedFromSssBase)}`,
+      `holidayRestDayPremiumExcludedFromPagIbigBase=${money(holidayRestDayPremiumExcludedFromPagIbigBase)}`,
+      `holidayRestDayPremiumAppliedRules=${holidayRestDayPremiumApplications.length}`,
+      `holidayRestDayPremiumAppliedPolicies=${holidayRestDayPremiumPolicyTrace.size}`,
       `tardinessMinutes=${tardinessMinutes}`,
       `undertimeMinutes=${undertimeMinutes}`,
       `sssMonthlySalaryCredit=${money(sssRule.monthlySalaryCredit)}`,
@@ -2829,7 +3027,7 @@ function buildPayslipText(input: {
     "",
     ...(input.notes.length ? ["Notes:", ...input.notes] : ["Notes: none"]),
     "",
-    "Traceable line items generated from approved punches and PH-2026.05 rules.",
+    `Traceable line items generated from approved punches and ${input.ruleVersion} rules.`,
   ];
 
   // Build a simple text-based PDF content stream.
