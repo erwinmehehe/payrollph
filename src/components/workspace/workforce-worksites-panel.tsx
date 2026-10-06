@@ -42,7 +42,7 @@ type Payload = {
   worksites: Worksite[];
   assignments: WorksiteAssignment[];
   arrangements: Array<{ id: number; employeeId: number; mode: string; effectiveFrom: string; effectiveUntil: string | null }>;
-  authorizations: Array<{ id: number; employeeId: number; worksiteId: number; effectiveFrom: string; effectiveUntil: string | null }>;
+  authorizations: Array<{ id: number; employeeId: number; worksiteId: number; decision: "allow" | "deny"; effectiveFrom: string; effectiveUntil: string | null }>;
   holidays: HolidayRow[];
 };
 
@@ -86,6 +86,7 @@ export function WorkforceWorksitesPanel({
   const [arrangementMode, setArrangementMode] = useState("onsite");
   const [arrangementReason, setArrangementReason] = useState("Approved work arrangement");
   const [authorizationReason, setAuthorizationReason] = useState("Secondary worksite coverage");
+  const [restrictionReason, setRestrictionReason] = useState("Restricted worksite access");
   const canGovernArrangements = canManage && ["owner", "admin", "bookkeeper", "hr"].includes(data.access?.role ?? "");
 
   const [holidayWorksiteId, setHolidayWorksiteId] = useState("");
@@ -409,6 +410,7 @@ export function WorkforceWorksitesPanel({
               </select>
             </label>
             <label>Authorization reason<input value={authorizationReason} onChange={(event) => setAuthorizationReason(event.target.value)} /></label>
+            <label>Restriction reason<input value={restrictionReason} onChange={(event) => setRestrictionReason(event.target.value)} /></label>
           </div>
           <div className="run-actions">
             <button className="secondary-button" disabled={saving !== null || !employeeId || !worksiteId || !authorizationReason.trim()} onClick={() => void mutate("authorize_site", {
@@ -416,6 +418,12 @@ export function WorkforceWorksitesPanel({
               reason: authorizationReason,
             }, "Secondary worksite access granted for the selected dates.")}>
               <MapPin size={14} /> Authorize secondary site
+            </button>
+            <button className="secondary-button" disabled={saving !== null || !employeeId || !worksiteId || !restrictionReason.trim()} onClick={() => void mutate("deny_site", {
+              employeeId, worksiteId: Number(worksiteId), effectiveFrom, effectiveUntil,
+              reason: restrictionReason,
+            }, "Worksite restriction saved for the selected dates.")}>
+              <MapPin size={14} /> Restrict site
             </button>
           </div>
           <div className="policy-lines" style={{ marginTop: 12 }}>
@@ -427,13 +435,15 @@ export function WorkforceWorksitesPanel({
             ))}
             {(payload?.authorizations ?? []).filter((row) => row.employeeId === employeeId).map((row) => (
               <span key={"site-" + row.id}>
-                <b>Authorized: {worksiteById.get(row.worksiteId)?.name ?? row.worksiteId}</b>
+                <b>{row.decision === "deny" ? "Restricted" : "Authorized"}: {worksiteById.get(row.worksiteId)?.name ?? row.worksiteId}</b>
                 <small>{row.effectiveFrom} → {row.effectiveUntil ?? "ongoing"}</small>
                 {(!row.effectiveUntil || row.effectiveUntil >= localToday()) && (
                   <button className="secondary-button" disabled={saving !== null} onClick={() => void mutate("end_authorization", {
                     employeeId, authorizationId: row.id,
                     endDate: row.effectiveFrom > localToday() ? row.effectiveFrom : localToday(),
-                  }, "Site authorization end date recorded.")}>End authorization</button>
+                  }, row.decision === "deny" ? "Site restriction end date recorded." : "Site authorization end date recorded.")}>
+                    {row.decision === "deny" ? "End restriction" : "End authorization"}
+                  </button>
                 )}
               </span>
             ))}

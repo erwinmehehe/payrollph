@@ -47,3 +47,19 @@ test("payroll resolves effective worksites and uses them for site-specific holid
   assert.ok(payroll.includes("workforceHolidayApplies({"));
   assert.ok(payroll.includes("resolveWorkforceScheduleForDate(holiday.date).worksiteId"));
 });
+
+
+test("People governance supports explicit allow and deny worksite decisions", () => {
+  assert.ok(worksites.includes('"deny_site"'));
+  assert.ok(worksites.includes('const decision = action === "deny_site" ? "deny" : "allow"'));
+  assert.ok(worksites.includes("organizationId, employeeId, worksiteId, decision, effectiveFrom"));
+  assert.ok(worksites.includes("Only People administrators can govern work arrangements and worksite access."));
+  assert.ok(worksites.includes("requireSensitiveActionMfa(user)"));
+  assert.ok(worksites.includes("assertScope"));
+});
+
+test("ending worksite access applies to both allow and deny decisions", () => {
+  assert.ok(worksites.includes('action === "end_authorization"'));
+  assert.ok(worksites.includes("authorizationId"));
+  assert.ok(worksites.includes("hcmWorksiteAuthorizations.id"));
+});

@@ -7,6 +7,7 @@ import {
   benefitEnrollments,
   benefitPlans,
   costCenters,
+  employeeWorksiteAssignments,
   employees,
   externalIdentities,
   hcmDocumentRequirements,
@@ -14,6 +15,8 @@ import {
   hcmEmployeeSkills,
   hcmEmploymentTermDecisions,
   hcmEmploymentTerms,
+  hcmWorkArrangements,
+  hcmWorksiteAuthorizations,
   hcmJobProfileCredentialRequirements,
   hcmJobProfileSkillRequirements,
   hcmSkills,
@@ -33,9 +36,12 @@ import {
   users,
   workerEffectiveChanges,
   workerEmploymentEvents,
+  worksites,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { loadEmployeeWfmEligibility } from "@/lib/hcm-workforce-eligibility-server";
+import { employeeSiteEligibility } from "@/lib/hcm-worksite-eligibility-server";
+import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
 import { employmentTermLifecycle } from "@/lib/hcm-employment-terms";
 import {
   assertOrganizationRole,
@@ -656,6 +662,50 @@ export async function GET(request: Request) {
       })
     : null;
 
+  const [workArrangementRows, worksiteAssignmentRows, worksiteAuthorizationRows, worksiteRows] = await Promise.all([
+    db.select().from(hcmWorkArrangements).where(and(
+      eq(hcmWorkArrangements.organizationId, organizationId),
+      eq(hcmWorkArrangements.employeeId, employeeId),
+    )).orderBy(desc(hcmWorkArrangements.effectiveFrom), desc(hcmWorkArrangements.id)),
+    db.select().from(employeeWorksiteAssignments).where(and(
+      eq(employeeWorksiteAssignments.organizationId, organizationId),
+      eq(employeeWorksiteAssignments.employeeId, employeeId),
+    )).orderBy(desc(employeeWorksiteAssignments.effectiveFrom), desc(employeeWorksiteAssignments.id)),
+    db.select().from(hcmWorksiteAuthorizations).where(and(
+      eq(hcmWorksiteAuthorizations.organizationId, organizationId),
+      eq(hcmWorksiteAuthorizations.employeeId, employeeId),
+    )).orderBy(desc(hcmWorksiteAuthorizations.effectiveFrom), desc(hcmWorksiteAuthorizations.id)),
+    db.select().from(worksites).where(eq(worksites.organizationId, organizationId)).orderBy(asc(worksites.name)),
+  ]);
+  const currentWorkArrangement = workArrangementRows.find((row) =>
+    String(row.effectiveFrom) <= today
+    && (row.effectiveUntil == null || String(row.effectiveUntil) >= today)
+  ) ?? null;
+  const effectivePrimaryAssignment = selectEffectiveWorksiteAssignment(
+    worksiteAssignmentRows.map((row) => ({
+      id: row.id,
+      worksiteId: row.worksiteId,
+      effectiveFrom: String(row.effectiveFrom),
+      effectiveUntil: row.effectiveUntil ? String(row.effectiveUntil) : null,
+    })),
+    today,
+  );
+  const worksiteById = new Map(worksiteRows.map((row) => [row.id, row]));
+  const primaryWorksite = effectivePrimaryAssignment
+    ? {
+        ...effectivePrimaryAssignment,
+        worksite: worksiteById.get(effectivePrimaryAssignment.worksiteId) ?? null,
+      }
+    : null;
+  const currentPrimaryEligibility = primaryWorksite
+    ? await employeeSiteEligibility({
+        organizationId,
+        employeeId,
+        date: today,
+        worksiteId: primaryWorksite.worksiteId,
+      })
+    : null;
+
   const activeBenefits = benefitRows.filter((row) => row.status === "active" && !row.endedOn);
   const assignedAssets = assetRows.filter((row) => row.status === "assigned" && !row.returnedOn);
   const openTasks = taskRows.filter((row) => !row.done);
@@ -697,6 +747,15 @@ export async function GET(request: Request) {
       jobSkillRequirements: jobSkillRequirementRows,
       jobCredentialRequirements: jobCredentialRequirementRows,
       workforceEligibility,
+    },
+    worksiteGovernance: {
+      arrangement: currentWorkArrangement,
+      primaryWorksite,
+      authorizations: worksiteAuthorizationRows.map((row) => ({
+        ...row,
+        worksite: worksiteById.get(row.worksiteId) ?? null,
+      })),
+      currentEligibilitySummary: currentPrimaryEligibility,
     },
     effectiveChanges: effectiveChangeRows,
     employmentTerms: {

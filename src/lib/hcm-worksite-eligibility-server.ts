@@ -21,7 +21,7 @@ export async function loadSiteEligibilityEvidence(organizationId: number, employ
   return {
     sites,
     primaryAssignments: primary.map((row) => ({
-      id: row.id, employeeId: row.employeeId, worksiteId: row.worksiteId,
+      id: row.id, employeeId: row.employeeId, worksiteId: row.worksiteId, decision: row.decision as "allow" | "deny",
       effectiveFrom: String(row.effectiveFrom), effectiveUntil: row.effectiveUntil ? String(row.effectiveUntil) : null,
     })),
     arrangements: arrangements.map((row) => ({

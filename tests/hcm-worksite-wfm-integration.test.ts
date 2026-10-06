@@ -10,6 +10,9 @@ test("HR site and work arrangements are scoped, MFA protected and audit logged",
   assert.ok(route.includes("assertScope"));
   assert.ok(route.includes('action === "set_arrangement"'));
   assert.ok(route.includes('action === "authorize_site"'));
+  assert.ok(route.includes('action === "deny_site"'));
+  assert.ok(route.includes('const decision = action === "deny_site" ? "deny" : "allow"'));
+  assert.ok(route.includes("organizationId, employeeId, worksiteId, decision, effectiveFrom"));
   assert.ok(route.includes('"end_authorization"') && route.includes('const authorizationId = Number(body.authorizationId)'));
   assert.ok(route.includes("recordAuditEvent"));
 });
@@ -31,5 +34,16 @@ test("site governance remains visible in workforce operations", () => {
   const coverage = read("src/components/workspace/workforce-coverage-panel.tsx");
   assert.ok(sites.includes("Save work arrangement"));
   assert.ok(sites.includes("Authorize secondary site"));
+  assert.ok(sites.includes("Restrict site"));
+  assert.ok(sites.includes("Restricted"));
   assert.ok(coverage.includes("siteIneligibleHeadcount"));
+});
+
+
+test("connected worker profile reuses worksite governance evidence", () => {
+  const profile = read("src/app/api/hcm/worker-profile/route.ts");
+  const people = read("src/components/workspace/people.tsx");
+  assert.ok(profile.includes("worksiteGovernance"));
+  assert.ok(profile.includes("hcmWorksiteAuthorizations"));
+  assert.ok(people.includes("Worksite access"));
 });

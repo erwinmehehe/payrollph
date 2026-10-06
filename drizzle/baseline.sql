@@ -2020,6 +2020,7 @@ CREATE TABLE IF NOT EXISTS "hcm_worksite_authorizations" (
   "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
   "employee_id" integer NOT NULL REFERENCES "employees"("id") ON DELETE cascade,
   "worksite_id" integer NOT NULL REFERENCES "worksites"("id") ON DELETE restrict,
+  "decision" varchar(8) NOT NULL DEFAULT 'allow' CHECK ("decision" IN ('allow','deny')),
   "effective_from" date NOT NULL,
   "effective_until" date,
   "reason" varchar(240) NOT NULL,
@@ -2030,6 +2031,7 @@ CREATE TABLE IF NOT EXISTS "hcm_worksite_authorizations" (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "hcm_worksite_authorization_unique" ON "hcm_worksite_authorizations" ("employee_id","worksite_id","effective_from");
 CREATE INDEX IF NOT EXISTS "hcm_worksite_authorizations_effective_idx" ON "hcm_worksite_authorizations" ("organization_id","employee_id","effective_from");
+CREATE INDEX IF NOT EXISTS "hcm_worksite_authorizations_decision_idx" ON "hcm_worksite_authorizations" ("organization_id","employee_id","worksite_id","decision","effective_from");
 
 -- HCM Core 3.0: governed employment terms and lifecycle dates.
 -- Dates create review/action evidence; they never auto-regularize or auto-separate a worker.
