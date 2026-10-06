@@ -2084,6 +2084,17 @@ function calculateEmployeePay(input: {
         }
 
         if (segment.night) {
+          applyNightDifferentialPremium({
+            workDate: segment.calendarDate,
+            minutes: segment.minutes,
+            hourlyRate: punchProfile.hourlyRate,
+            holidayType: holidayContext.holiday as PayPolicyHolidayType,
+            restDay: isRestDay,
+            overtime: segment.overtime,
+            statutoryMultiplier: multiplier,
+            shiftCode: scheduledSegment?.shiftCode ?? null,
+            worksiteId: segmentSchedule?.worksiteId ?? null,
+          });
           nightDiffPay += hours * punchProfile.hourlyRate * multiplier * 0.1;
         }
 
@@ -2232,6 +2243,63 @@ function calculateEmployeePay(input: {
             punchNotes.push(message);
           }
         }
+
+        if (derived.nightDifferentialMinutes > 0) {
+          const nightRuleCouldApply = touchedPremiumDates.some((date) => {
+            const dateHolidayContext = holidayPayContextOn(
+              date,
+              input.holidayCalendar ?? NATIONAL_HOLIDAYS_2026,
+            );
+            const dateRestDay = restDayForDate(
+              input.employee.restDay,
+              input.restDayRevisions ?? [],
+              date,
+            );
+            const dateLegacyRestDay = isRestDayOfWeek(date, dateRestDay);
+            const dateIsRestDay = payrollRestDayFromSchedule(
+              input.resolvedSchedules?.[date],
+              dateLegacyRestDay,
+            );
+            const testContexts = [
+              { overtime: false, minutes: derived.nightRegularMinutes },
+              { overtime: true, minutes: derived.nightOvertimeMinutes },
+            ].filter((item) => item.minutes > 0);
+            return testContexts.some((item) => {
+              const dateMultiplier = holidayMultiplier({
+                holiday: dateHolidayContext.holiday,
+                worked: true,
+                overtime: item.overtime,
+                restDay: dateIsRestDay,
+              });
+              const probe = resolveNightDifferentialPremium({
+                organizationId: input.employee.organizationId,
+                employeeId: input.employee.id,
+                orgUnitIds: input.payPolicyOrgUnitIds ?? [],
+                workDate: date,
+                minutes: 60,
+                hourlyRate: punchProfile.hourlyRate,
+                holidayType: dateHolidayContext.holiday as PayPolicyHolidayType,
+                restDay: dateIsRestDay,
+                overtime: item.overtime,
+                statutoryMultiplier: dateMultiplier,
+                shiftCode: scheduledSegment?.shiftCode ?? null,
+                worksiteId:
+                  input.resolvedSchedules?.[date]?.worksiteId
+                  ?? input.resolvedSchedules?.[workDate]?.worksiteId
+                  ?? null,
+                policies: input.payPolicies ?? [],
+                rules: input.payPolicyRules ?? [],
+              });
+              return probe.applied.length > 0;
+            });
+          });
+          if (nightRuleCouldApply) {
+            const message =
+              `${workDate}: configurable night-differential premium was not executed because cross-midnight payable-time allocation is incomplete. Correct the attendance/break evidence before release so the NSD policy date/classification is not guessed.`;
+            flags.push(message);
+            punchNotes.push(message);
+          }
+        }
       }
 
       if (punchProfile.payBasis !== "monthly") {
@@ -2284,6 +2352,32 @@ function calculateEmployeePay(input: {
           shiftCode: scheduledSegment?.shiftCode ?? null,
           worksiteId: input.resolvedSchedules?.[workDate]?.worksiteId ?? null,
         });
+        if (derived.nightRegularMinutes > 0) {
+          applyNightDifferentialPremium({
+            workDate,
+            minutes: derived.nightRegularMinutes,
+            hourlyRate: punchProfile.hourlyRate,
+            holidayType: holidayContext.holiday as PayPolicyHolidayType,
+            restDay: isRestDay,
+            overtime: false,
+            statutoryMultiplier: regularMultiplier,
+            shiftCode: scheduledSegment?.shiftCode ?? null,
+            worksiteId: input.resolvedSchedules?.[workDate]?.worksiteId ?? null,
+          });
+        }
+        if (derived.nightOvertimeMinutes > 0) {
+          applyNightDifferentialPremium({
+            workDate,
+            minutes: derived.nightOvertimeMinutes,
+            hourlyRate: punchProfile.hourlyRate,
+            holidayType: holidayContext.holiday as PayPolicyHolidayType,
+            restDay: isRestDay,
+            overtime: true,
+            statutoryMultiplier: otMultiplier,
+            shiftCode: scheduledSegment?.shiftCode ?? null,
+            worksiteId: input.resolvedSchedules?.[workDate]?.worksiteId ?? null,
+          });
+        }
       }
       overtimePay +=
         (segmentedOvertimeMinutes / 60) * punchProfile.hourlyRate * otMultiplier;
