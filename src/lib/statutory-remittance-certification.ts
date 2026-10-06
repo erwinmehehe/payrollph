@@ -1,9 +1,10 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { statutoryRemittanceMonthClosures } from "@/db/schema";
 
 export async function invalidateStatutoryRemittanceMonthCertification(input: {
   organizationId: number;
+  legalEntityId: number | null;
   applicableMonth: string;
   reason: string;
 }) {
@@ -23,6 +24,9 @@ export async function invalidateStatutoryRemittanceMonthCertification(input: {
     updatedAt: now,
   }).where(and(
     eq(statutoryRemittanceMonthClosures.organizationId, input.organizationId),
+    input.legalEntityId == null
+      ? isNull(statutoryRemittanceMonthClosures.legalEntityId)
+      : eq(statutoryRemittanceMonthClosures.legalEntityId, input.legalEntityId),
     eq(statutoryRemittanceMonthClosures.applicableMonth, input.applicableMonth),
     eq(statutoryRemittanceMonthClosures.status, "certified"),
   )).returning({
