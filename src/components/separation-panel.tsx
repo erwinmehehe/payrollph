@@ -3,6 +3,25 @@
 import { useCallback, useEffect, useState } from "react";
 import { Check, CheckCircle2, Download, FileCheck, FileText, HelpCircle, Plus, Shield, UserX, X } from "lucide-react";
 
+type ReadyTermHandoff = {
+  employeeId: number;
+  employeeNo: string;
+  employeeName: string;
+  action: string;
+  dueDate: string | null;
+  label: string;
+  detail: string;
+  decision: null | {
+    id: number;
+    decisionKind: string;
+    status: string;
+    effectiveDate: string;
+    proposedSeparationLastDay?: string | null;
+    separationHandoffStatus?: string | null;
+    separationRecordId?: number | null;
+  };
+};
+
 type SeparationRecord = {
   id: number;
   employeeId: number;
@@ -49,6 +68,7 @@ const peso = (value: string | number) =>
 export function SeparationPanel({ organizationId, setNotice }: { organizationId: number; setNotice: (m: string) => void }) {
   const [separations, setSeparations] = useState<SeparationRecord[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
+  const [handoffs, setHandoffs] = useState<ReadyTermHandoff[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<SeparationRecord | null>(null);
@@ -57,6 +77,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
 
   const [form, setForm] = useState({
     employeeId: "",
+    employmentTermDecisionId: "",
     separationType: "resignation",
     noticeDate: new Date().toISOString().slice(0, 10),
     lastDay: new Date().toISOString().slice(0, 10),
@@ -84,9 +105,10 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
   useEffect(() => {
     let alive = true;
     (async () => {
-      const [sepRes, empRes] = await Promise.all([
+      const [sepRes, empRes, lifecycleRes] = await Promise.all([
         fetch(`/api/separation?organizationId=${organizationId}`, { cache: "no-store" }),
         fetch(`/api/employees?organizationId=${organizationId}`, { cache: "no-store" }),
+        fetch(`/api/hcm/lifecycle-readiness?organizationId=${organizationId}`, { cache: "no-store" }),
       ]);
       if (sepRes.ok) {
         const data = await sepRes.json();
@@ -97,6 +119,13 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
         const staff = await empRes.json();
         if (!alive) return;
         setEmployees(staff);
+      }
+      if (lifecycleRes.ok) {
+        const lifecycle = await lifecycleRes.json();
+        if (!alive) return;
+        setHandoffs((lifecycle.rows ?? []).filter((row: ReadyTermHandoff) => row.action === "start_separation"));
+      } else if (alive) {
+        setHandoffs([]);
       }
       if (!alive) return;
       setLoaded(true);
@@ -115,6 +144,9 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
         ...form,
         organizationId,
         employeeId: Number(form.employeeId),
+        employmentTermDecisionId: form.employmentTermDecisionId
+          ? Number(form.employmentTermDecisionId)
+          : undefined,
         historicalBasicSalaryEarned: Number(form.historicalBasicSalaryEarned),
         unpaidBasicSalary: Number(form.unpaidBasicSalary),
         finalStatutoryDeductions: Number(form.finalStatutoryDeductions),
@@ -132,6 +164,35 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
     setNotice("Final Pay package computed from the payroll ledger. Complete clearance before approval and release.");
     setShowModal(false);
     reload();
+  }
+
+  function openGenericSeparation() {
+    setForm((current) => ({
+      ...current,
+      employeeId: "",
+      employmentTermDecisionId: "",
+      separationType: "resignation",
+      noticeDate: new Date().toISOString().slice(0, 10),
+      lastDay: new Date().toISOString().slice(0, 10),
+    }));
+    setShowModal(true);
+  }
+
+  function startGovernedHandoff(row: ReadyTermHandoff) {
+    const approvedLastDay = row.decision?.proposedSeparationLastDay ?? row.dueDate;
+    if (!row.decision?.id || !approvedLastDay) {
+      setNotice("The approved non-renewal is missing its decision id or proposed last day.");
+      return;
+    }
+    setForm((current) => ({
+      ...current,
+      employeeId: String(row.employeeId),
+      employmentTermDecisionId: String(row.decision!.id),
+      separationType: "end_of_contract",
+      noticeDate: new Date().toISOString().slice(0, 10),
+      lastDay: approvedLastDay,
+    }));
+    setShowModal(true);
   }
 
   async function updateClearance(id: number, dept: "it" | "admin" | "finance" | "hr", value: boolean) {
@@ -193,10 +254,46 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Separation, Clearance &amp; Final Pay (DOLE Advisory 06-20)</h2>
           <p className="heading-copy">Ledger-based 13th month, unpaid salary, leave conversion, tax adjustment, approved deductions, clearance, and controlled final-pay release.</p>
         </div>
-        <button className="primary-button" onClick={() => setShowModal(true)}>
+        <button className="primary-button" onClick={openGenericSeparation}>
           <UserX size={15} className="i-red" /> Initiate Employee Separation
         </button>
       </div>
+
+      {handoffs.length > 0 && (
+        <article className="card" style={{ marginBottom: 18 }}>
+          <div className="card-header">
+            <div>
+              <div className="card-kicker">GOVERNED NON-RENEWAL HANDOFFS</div>
+              <h2>Approved contract endings ready for Separation</h2>
+              <p>
+                These workers have an approved non-renewal decision. Starting the package below preserves the decision id,
+                end-of-contract category, and approved last day.
+              </p>
+            </div>
+          </div>
+          <div className="data-table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr><th>EMPLOYEE</th><th>APPROVED LAST DAY</th><th>DECISION</th><th>ACTION</th></tr>
+              </thead>
+              <tbody>
+                {handoffs.map((row) => (
+                  <tr key={row.decision?.id ?? row.employeeId}>
+                    <td><strong>{row.employeeName}</strong><small style={{ display: "block", color: "var(--muted)" }}>{row.employeeNo}</small></td>
+                    <td>{row.decision?.proposedSeparationLastDay ?? row.dueDate ?? "—"}</td>
+                    <td>{row.decision ? `#${row.decision.id} · non-renewal` : row.label}</td>
+                    <td>
+                      <button className="primary-button" onClick={() => startGovernedHandoff(row)}>
+                        Start linked Separation
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      )}
 
       <div className="stats-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
         <article className="stat-card">
@@ -232,15 +329,24 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
             <button className="icon-button" onClick={() => setShowModal(false)}><X size={16} /></button>
           </div>
           <form onSubmit={initiateSeparation}>
+            {form.employmentTermDecisionId && (
+              <div className="notice notice-blue" style={{ marginBottom: 12 }}>
+                <Shield size={15} />
+                <span>
+                  <strong>This package is linked to governed employment decision #{form.employmentTermDecisionId}.</strong>
+                  {" "}Employee, end-of-contract category, and approved last day are locked to the non-renewal evidence.
+                </span>
+              </div>
+            )}
             <div className="setting-form">
               <label>Separating Employee
-                <select required value={form.employeeId} onChange={(e) => setForm({ ...form, employeeId: e.target.value })}>
+                <select required disabled={Boolean(form.employmentTermDecisionId)} value={form.employeeId} onChange={(e) => setForm({ ...form, employeeId: e.target.value })}>
                   <option value="">Select Employee…</option>
                   {employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName} ({emp.employeeNo})</option>)}
                 </select>
               </label>
               <label>Separation Category
-                <select value={form.separationType} onChange={(e) => setForm({ ...form, separationType: e.target.value })}>
+                <select disabled={Boolean(form.employmentTermDecisionId)} value={form.separationType} onChange={(e) => setForm({ ...form, separationType: e.target.value })}>
                   <option value="resignation">Voluntary Resignation (30d notice)</option>
                   <option value="retirement">Retirement</option>
                   <option value="end_of_contract">End of Fixed-Term Contract</option>
@@ -252,7 +358,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                 <input required type="date" value={form.noticeDate} onChange={(e) => setForm({ ...form, noticeDate: e.target.value })} />
               </label>
               <label>Effective Last Day
-                <input required type="date" value={form.lastDay} onChange={(e) => setForm({ ...form, lastDay: e.target.value })} />
+                <input required disabled={Boolean(form.employmentTermDecisionId)} type="date" value={form.lastDay} onChange={(e) => setForm({ ...form, lastDay: e.target.value })} />
               </label>
               <label>Legacy imported basic salary, if prompted
                 <input type="number" step="0.01" min="0" value={form.historicalBasicSalaryEarned} onChange={(e) => setForm({ ...form, historicalBasicSalaryEarned: e.target.value })} />
