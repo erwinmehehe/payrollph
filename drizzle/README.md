@@ -48,3 +48,5 @@ the first one, so it closes itself.
 - `0042_compensation_governance.sql` adds salary bands, compensation review cycles and governed pay-change proposals.
 
 - `0045_multi_legal_entities.sql` adds parent-workspace legal employers, entity registrations/payout policy, and legal-entity ownership on employees and payroll runs.
+
+- `0046_wfm_overtime_budgets.sql` adds monthly org-unit overtime budgets plus stable budget attribution/evidence on overtime requests.
