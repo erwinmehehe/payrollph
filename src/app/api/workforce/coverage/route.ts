@@ -1113,6 +1113,25 @@ export async function POST(request: Request) {
       }
     }
 
+    const approvedLeave = await approvedLeaveOnDate(
+      organizationId,
+      employeeId,
+      String(shiftRow.workDate),
+    );
+    if (approvedLeave.length > 0) {
+      const conflict = approvedLeaveConflictsFullShift({
+        leaves: approvedLeave,
+        employeeId,
+        workDate: String(shiftRow.workDate),
+      });
+      return Response.json({
+        error: conflict.ambiguous
+          ? "Approved leave overlaps this date but exact partial-day timing is not recorded. Resolve the absence timing before claiming a full open shift."
+          : "The employee has approved leave on this date and cannot claim a full open shift.",
+        approvedLeave,
+      }, { status: 409 });
+    }
+
     const [shiftDefinition] = await db.select().from(shiftDefinitions).where(and(
       eq(shiftDefinitions.id, shiftRow.shiftDefinitionId),
       eq(shiftDefinitions.organizationId, organizationId),
@@ -1257,6 +1276,25 @@ export async function POST(request: Request) {
           capabilityEligibility,
         }, { status: 409 });
       }
+    }
+
+    const approvedLeave = await approvedLeaveOnDate(
+      organizationId,
+      employee.id,
+      String(openShift.workDate),
+    );
+    if (approvedLeave.length > 0) {
+      const conflict = approvedLeaveConflictsFullShift({
+        leaves: approvedLeave,
+        employeeId: employee.id,
+        workDate: String(openShift.workDate),
+      });
+      return Response.json({
+        error: conflict.ambiguous
+          ? "Approved leave now overlaps this date without exact partial-day timing. Resolve the absence before approving a full open shift."
+          : "The employee now has approved leave on this date and cannot be approved for the open shift.",
+        approvedLeave,
+      }, { status: 409 });
     }
 
     const [shift] = await db.select().from(shiftDefinitions).where(and(
