@@ -209,6 +209,22 @@ export function WorkforceOvertimePanel({
   const pending = requests.filter((request) => request.status === "pending").length;
   const approved = requests.filter((request) => request.status === "approved").length;
   const rejected = requests.filter((request) => request.status === "rejected").length;
+  const activeBudgets = budgets.filter((budget) => budget.active);
+  const warningBudgets = activeBudgets.filter((budget) => budget.warning || budget.overBudget).length;
+
+  function budgetForRequest(request: OvertimeRequestRow) {
+    const employee = employees.get(request.employeeId);
+    if (!employee?.orgUnitId) return null;
+    return budgets.find((budget) =>
+      budget.active
+      && budget.orgUnitId === employee.orgUnitId
+      && request.workDate >= String(budget.periodStart)
+      && request.workDate <= String(budget.periodEnd),
+    ) ?? null;
+  }
+
+  const visiblePendingIds = visible.filter((request) => request.status === "pending").map((request) => request.id);
+  const allVisibleSelected = visiblePendingIds.length > 0 && visiblePendingIds.every((id) => selectedIds.includes(id));
 
   return (
     <section style={{ marginTop: 16 }}>
