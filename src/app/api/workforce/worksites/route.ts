@@ -1,8 +1,10 @@
-import { and, asc, eq, gte, isNull, or } from "drizzle-orm";
+import { and, asc, eq, gte, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employeeScheduleAssignments,
   employeeWorksiteAssignments,
+  hcmWorkArrangements,
+  hcmWorksiteAuthorizations,
   employees,
   orgUnits,
   scheduleOverrides,
@@ -12,6 +14,7 @@ import {
   assertOrganizationRole,
   assertScope,
   getAccess,
+  PEOPLE_ADMIN_ROLES,
   WORKFORCE_MANAGER_ROLES,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
@@ -22,10 +25,12 @@ import {
   requireSensitiveActionMfa,
 } from "@/lib/security-request";
 import { worksiteAssignmentOverlaps } from "@/lib/workforce-worksite";
+import { markTimesheetsStaleForEmployeeRange } from "@/lib/workforce-timesheet-server";
 
 export const dynamic = "force-dynamic";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const ARRANGEMENTS = new Set(["onsite", "hybrid", "remote", "field"]);
 const SITE_TYPES = new Set([
   "office",
   "branch",
@@ -124,7 +129,7 @@ export async function GET(request: Request) {
     return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
   }
 
-  const [siteRows, employeeRows, assignmentRows] = await Promise.all([
+  const [siteRows, employeeRows, assignmentRows, arrangementRows, clearanceRows] = await Promise.all([
     db.select().from(worksites)
       .where(eq(worksites.organizationId, organizationId))
       .orderBy(asc(worksites.name), asc(worksites.id)),
@@ -133,11 +138,13 @@ export async function GET(request: Request) {
       .orderBy(asc(employees.id)),
     db.select().from(employeeWorksiteAssignments)
       .where(eq(employeeWorksiteAssignments.organizationId, organizationId))
-      .orderBy(
-        asc(employeeWorksiteAssignments.employeeId),
-        asc(employeeWorksiteAssignments.effectiveFrom),
-        asc(employeeWorksiteAssignments.id),
-      ),
+      .orderBy(asc(employeeWorksiteAssignments.employeeId), asc(employeeWorksiteAssignments.effectiveFrom)),
+    db.select().from(hcmWorkArrangements)
+      .where(eq(hcmWorkArrangements.organizationId, organizationId))
+      .orderBy(asc(hcmWorkArrangements.employeeId), asc(hcmWorkArrangements.effectiveFrom)),
+    db.select().from(hcmWorksiteAuthorizations)
+      .where(eq(hcmWorksiteAuthorizations.organizationId, organizationId))
+      .orderBy(asc(hcmWorksiteAuthorizations.employeeId), asc(hcmWorksiteAuthorizations.effectiveFrom)),
   ]);
 
   const visibleEmployees = access.companyWide
@@ -149,6 +156,8 @@ export async function GET(request: Request) {
 
   return Response.json({
     worksites: visibleWorksites,
+    arrangements: arrangementRows.filter((row) => visibleEmployeeIds.has(row.employeeId)),
+    authorizations: clearanceRows.filter((row) => visibleEmployeeIds.has(row.employeeId) && visibleWorksiteIds.has(row.worksiteId)),
     assignments: assignmentRows.filter((assignment) =>
       visibleEmployeeIds.has(assignment.employeeId)
       && visibleWorksiteIds.has(assignment.worksiteId),
@@ -352,6 +361,133 @@ export async function POST(request: Request) {
     });
 
     return Response.json({ worksite: updated });
+  }
+
+  if (["set_arrangement", "authorize_site", "end_authorization"].includes(action)) {
+    const peopleDenied = await assertOrganizationRole(
+      user.id, organizationId, PEOPLE_ADMIN_ROLES,
+      "Only People administrators can govern work arrangements and worksite access.",
+    );
+    if (peopleDenied) return peopleDenied;
+    const employeeId = Number(body.employeeId);
+    if (!Number.isInteger(employeeId) || employeeId <= 0) {
+      return Response.json({ error: "Valid employeeId is required." }, { status: 400 });
+    }
+    const employeeCheck = await scopedEmployee(user.id, organizationId, employeeId);
+    if (employeeCheck.denied) return employeeCheck.denied;
+
+    if (action === "set_arrangement") {
+      const mode = String(body.mode ?? "");
+      const effectiveFrom = String(body.effectiveFrom ?? "");
+      const effectiveUntil = body.effectiveUntil ? String(body.effectiveUntil) : null;
+      const reason = String(body.reason ?? "").trim().slice(0, 240);
+      if (!ARRANGEMENTS.has(mode) || !ISO_DATE.test(effectiveFrom)
+        || (effectiveUntil && (!ISO_DATE.test(effectiveUntil) || effectiveUntil < effectiveFrom))
+        || !reason) {
+        return Response.json({ error: "Mode, effective date range and reason are required." }, { status: 400 });
+      }
+      const end = effectiveUntil ?? "9999-12-31";
+      const updated = await db.transaction(async (tx) => {
+        await tx.execute(sql`select id from employees where id = ${employeeId} for update`);
+        const existing = await tx.select().from(hcmWorkArrangements).where(and(
+          eq(hcmWorkArrangements.organizationId, organizationId),
+          eq(hcmWorkArrangements.employeeId, employeeId),
+        ));
+        const prior = existing.find((row) => !row.effectiveUntil && String(row.effectiveFrom) < effectiveFrom);
+        const overlapping = existing.some((row) =>
+          row.id !== prior?.id && String(row.effectiveFrom) <= end
+          && (row.effectiveUntil == null || String(row.effectiveUntil) >= effectiveFrom),
+        );
+        if (overlapping) return null;
+        if (prior) {
+          await tx.update(hcmWorkArrangements).set({ effectiveUntil: addDays(effectiveFrom, -1) })
+            .where(eq(hcmWorkArrangements.id, prior.id));
+        }
+        const [created] = await tx.insert(hcmWorkArrangements).values({
+          organizationId, employeeId, mode, effectiveFrom, effectiveUntil, reason,
+          createdByUserId: user.id, createdByName: user.name,
+        }).returning();
+        return created;
+      });
+      if (!updated) return Response.json({ error: "Work arrangement dates overlap an existing record." }, { status: 409 });
+      const stale = await markTimesheetsStaleForEmployeeRange({
+        organizationId, employeeId, startDate: effectiveFrom, endDate: effectiveUntil,
+      });
+      await recordAuditEvent({
+        organizationId, actor: user.name, action: "HCM work arrangement set",
+        resource: employeeCheck.employee!.employeeNo + " · " + mode,
+        metadata: { arrangementId: updated.id, employeeId, mode, effectiveFrom, effectiveUntil, reason, staleTimesheetIds: stale.map((row) => row.id) },
+      });
+      return Response.json({ arrangement: updated, staleTimesheetIds: stale.map((row) => row.id) }, { status: 201 });
+    }
+
+    if (action === "authorize_site") {
+      const worksiteId = Number(body.worksiteId);
+      const effectiveFrom = String(body.effectiveFrom ?? "");
+      const effectiveUntil = body.effectiveUntil ? String(body.effectiveUntil) : null;
+      const reason = String(body.reason ?? "").trim().slice(0, 240);
+      if (!Number.isInteger(worksiteId) || !ISO_DATE.test(effectiveFrom)
+        || (effectiveUntil && (!ISO_DATE.test(effectiveUntil) || effectiveUntil < effectiveFrom))
+        || !reason) {
+        return Response.json({ error: "Worksite, effective date range, and reason are required." }, { status: 400 });
+      }
+      const siteCheck = await scopedWorksite(user.id, organizationId, worksiteId);
+      if (siteCheck.denied) return siteCheck.denied;
+      if (!siteCheck.worksite?.active) return Response.json({ error: "Inactive worksites cannot be authorized." }, { status: 409 });
+      const end = effectiveUntil ?? "9999-12-31";
+      const created = await db.transaction(async (tx) => {
+        await tx.execute(sql`select id from employees where id = ${employeeId} for update`);
+        const existing = await tx.select().from(hcmWorksiteAuthorizations).where(and(
+          eq(hcmWorksiteAuthorizations.organizationId, organizationId),
+          eq(hcmWorksiteAuthorizations.employeeId, employeeId),
+          eq(hcmWorksiteAuthorizations.worksiteId, worksiteId),
+        ));
+        if (existing.some((row) => String(row.effectiveFrom) <= end && (row.effectiveUntil == null || String(row.effectiveUntil) >= effectiveFrom))) return null;
+        const [row] = await tx.insert(hcmWorksiteAuthorizations).values({
+          organizationId, employeeId, worksiteId, effectiveFrom, effectiveUntil, reason,
+          authorizedByUserId: user.id, authorizedByName: user.name,
+        }).returning();
+        return row;
+      });
+      if (!created) return Response.json({ error: "An authorization overlaps this worker and worksite." }, { status: 409 });
+      const stale = await markTimesheetsStaleForEmployeeRange({
+        organizationId, employeeId, startDate: effectiveFrom, endDate: effectiveUntil,
+      });
+      await recordAuditEvent({
+        organizationId, actor: user.name, action: "HCM secondary worksite authorized",
+        resource: employeeCheck.employee!.employeeNo + " · " + siteCheck.worksite!.code,
+        metadata: { authorizationId: created.id, employeeId, worksiteId, effectiveFrom, effectiveUntil, reason, staleTimesheetIds: stale.map((row) => row.id) },
+      });
+      return Response.json({ authorization: created, staleTimesheetIds: stale.map((row) => row.id) }, { status: 201 });
+    }
+
+    if (action === "end_authorization") {
+      const authorizationId = Number(body.authorizationId);
+    const endDate = String(body.endDate ?? "");
+    if (!Number.isInteger(authorizationId) || !ISO_DATE.test(endDate)) {
+      return Response.json({ error: "Valid authorizationId and inclusive endDate required." }, { status: 400 });
+    }
+    const [existing] = await db.select().from(hcmWorksiteAuthorizations).where(and(
+      eq(hcmWorksiteAuthorizations.id, authorizationId),
+      eq(hcmWorksiteAuthorizations.organizationId, organizationId),
+      eq(hcmWorksiteAuthorizations.employeeId, employeeId),
+    )).limit(1);
+    if (!existing || endDate < String(existing.effectiveFrom)
+      || (existing.effectiveUntil != null && endDate > String(existing.effectiveUntil))) {
+      return Response.json({ error: "Authorization missing or end date outside its existing range." }, { status: 409 });
+    }
+    const [ended] = await db.update(hcmWorksiteAuthorizations).set({ effectiveUntil: endDate })
+      .where(and(eq(hcmWorksiteAuthorizations.id, authorizationId), eq(hcmWorksiteAuthorizations.organizationId, organizationId))).returning();
+    const stale = await markTimesheetsStaleForEmployeeRange({
+      organizationId, employeeId, startDate: addDays(endDate, 1),
+    });
+    await recordAuditEvent({
+      organizationId, actor: user.name, action: "HCM secondary worksite authorization ended",
+      resource: employeeCheck.employee!.employeeNo,
+      metadata: { authorizationId, employeeId, worksiteId: ended.worksiteId, endDate, staleTimesheetIds: stale.map((row) => row.id) },
+    });
+      return Response.json({ authorization: ended, staleTimesheetIds: stale.map((row) => row.id) });
+    }
   }
 
   if (action === "assign_employee") {

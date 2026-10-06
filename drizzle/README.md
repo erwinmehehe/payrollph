@@ -64,3 +64,5 @@ the first one, so it closes itself.
 - `0053_hcm_capability_wfm_eligibility.sql` adds normalized skills, verified employee proficiencies, job-profile skill requirements, and job-profile credential links backed by the existing document compliance/expiry system for WFM eligibility.
 
 - `0054_hcm_compensation_architecture.sql` upgrades compensation bands with grade/legal-employer/effective-date scope, adds governed recurring compensation components, schedules approved pay changes without mutating current pay early, and records compensation history evidence.
+
+- `0055_hcm_worksite_arrangements.sql` adds effective-dated work arrangements and per-employee secondary-site authorization for WFM eligibility.

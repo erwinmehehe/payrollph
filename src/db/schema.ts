@@ -248,6 +248,46 @@ export const employeeWorksiteAssignments = pgTable(
   ],
 );
 
+export const hcmWorkArrangements = pgTable(
+  "hcm_work_arrangements",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    mode: varchar("mode", { length: 20 }).notNull(),
+    effectiveFrom: date("effective_from").notNull(),
+    effectiveUntil: date("effective_until"),
+    reason: varchar("reason", { length: 240 }).notNull(),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdByName: varchar("created_by_name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hcm_work_arrangement_employee_effective_unique").on(table.employeeId, table.effectiveFrom),
+    index("hcm_work_arrangements_employee_dates_idx").on(table.organizationId, table.employeeId, table.effectiveFrom),
+  ],
+);
+
+export const hcmWorksiteAuthorizations = pgTable(
+  "hcm_worksite_authorizations",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    worksiteId: integer("worksite_id").notNull().references(() => worksites.id, { onDelete: "restrict" }),
+    effectiveFrom: date("effective_from").notNull(),
+    effectiveUntil: date("effective_until"),
+    reason: varchar("reason", { length: 240 }).notNull(),
+    authorizedByUserId: integer("authorized_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    authorizedByName: varchar("authorized_by_name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hcm_worksite_authorization_unique").on(table.employeeId, table.worksiteId, table.effectiveFrom),
+    index("hcm_worksite_authorizations_effective_idx").on(table.organizationId, table.employeeId, table.effectiveFrom),
+  ],
+);
+
 export const employeePayProfiles = pgTable(
   "employee_pay_profiles",
   {
