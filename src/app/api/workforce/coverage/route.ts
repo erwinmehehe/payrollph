@@ -2,6 +2,7 @@ import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employeeAvailabilityRules,
+  employeePayProfiles,
   employeeScheduleAssignments,
   employeeWorksiteAssignments,
   employees,
@@ -13,6 +14,7 @@ import {
   schedulePatterns,
   shiftDefinitions,
   staffingRequirements,
+  timePunches,
   workforceScheduleGuardrailPolicies,
   worksites,
 } from "@/db/schema";
@@ -20,6 +22,7 @@ import {
   assertOrganizationRole,
   assertScope,
   getAccess,
+  PEOPLE_PAYROLL_ROLES,
   WORKFORCE_MANAGER_ROLES,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
@@ -45,8 +48,16 @@ import { resolveEmployeeScheduleWindow } from "@/lib/workforce-schedule-window";
 import { markTimesheetsStaleForEmployeeDate } from "@/lib/workforce-timesheet-server";
 import {
   resolveDailySchedule,
+  type ResolvedDailySchedule,
   type WorkforceScheduleOverrideSegment,
 } from "@/lib/workforce-scheduling";
+import { matchPunchesToWorkforceSegments } from "@/lib/workforce-payroll";
+import { hourlyBaseRate } from "@/lib/workforce-forecast";
+import {
+  actualWorkedMinutes,
+  computeWorkforceLaborVariance,
+  paidShiftMinutes,
+} from "@/lib/workforce-labor-variance";
 import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
 
 export const dynamic = "force-dynamic";
@@ -133,7 +144,19 @@ async function coverageRows(input: {
   requirements: Array<typeof staffingRequirements.$inferSelect>;
   availabilityRows: Array<typeof employeeAvailabilityRules.$inferSelect>;
 }) {
-  if (input.employeeIds.length === 0) return [];
+  if (input.employeeIds.length === 0) {
+    return {
+      coverage: [],
+      scheduledSegments: [] as Array<{
+        employeeId: number;
+        workDate: string;
+        worksiteId: number | null;
+        shiftDefinitionId: number;
+        paidMinutes: number;
+      }>,
+      schedules: new Map<string, ResolvedDailySchedule>(),
+    };
+  }
 
   const data = await scheduleCatalog(input.organizationId);
   const [assignmentRows, overrideRows, worksiteRows] = await Promise.all([
@@ -156,6 +179,14 @@ async function coverageRows(input: {
   const shiftsById = new Map(data.shifts.map((shift) => [shift.id, shift]));
   const dates = datesBetween(input.startDate, input.endDate);
   const scheduled = [];
+  const scheduledSegments: Array<{
+    employeeId: number;
+    workDate: string;
+    worksiteId: number | null;
+    shiftDefinitionId: number;
+    paidMinutes: number;
+  }> = [];
+  const schedules = new Map<string, ResolvedDailySchedule>();
 
   for (const employeeId of input.employeeIds) {
     const employeeAssignments = assignmentRows.filter((row) => row.employeeId === employeeId);
@@ -227,6 +258,25 @@ async function coverageRows(input: {
           selectEffectiveWorksiteAssignment(defaultWorksites, date)?.worksiteId ?? null,
       });
 
+      schedules.set(`${employeeId}|${date}`, day);
+      for (const segment of day.segments) {
+        const shift = shiftsById.get(segment.shiftDefinitionId);
+        if (!shift) continue;
+        scheduledSegments.push({
+          employeeId,
+          workDate: date,
+          worksiteId: day.worksiteId,
+          shiftDefinitionId: segment.shiftDefinitionId,
+          paidMinutes: paidShiftMinutes({
+            id: shift.id,
+            startTime: shift.startTime,
+            endTime: shift.endTime,
+            breakMinutes: shift.breakMinutes,
+            spansMidnight: shift.spansMidnight,
+          }),
+        });
+      }
+
       const shiftIds = day.segments.map((segment) => segment.shiftDefinitionId);
       const unavailableShiftIds = shiftIds.filter((shiftId) => {
         const shift = shiftsById.get(shiftId);
@@ -243,16 +293,20 @@ async function coverageRows(input: {
     }
   }
 
-  return computeCoverage({
-    requirements: input.requirements.map((row) => ({
-      id: row.id,
-      worksiteId: row.worksiteId,
-      workDate: String(row.workDate),
-      shiftDefinitionId: row.shiftDefinitionId,
-      requiredHeadcount: row.requiredHeadcount,
-    })),
-    scheduled,
-  });
+  return {
+    coverage: computeCoverage({
+      requirements: input.requirements.map((row) => ({
+        id: row.id,
+        worksiteId: row.worksiteId,
+        workDate: String(row.workDate),
+        shiftDefinitionId: row.shiftDefinitionId,
+        requiredHeadcount: row.requiredHeadcount,
+      })),
+      scheduled,
+    }),
+    scheduledSegments,
+    schedules,
+  };
 }
 
 async function loadGuardrailPolicy(organizationId: number) {
