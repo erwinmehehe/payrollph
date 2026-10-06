@@ -13,13 +13,13 @@ DATABASE_URL="postgresql://..." npm run db:push
 `db:push` reads `src/db/schema.ts` and creates everything it finds there, which
 is the whole current schema. **Check that it actually created tables**: push has
 been seen to report success and create nothing against a non-standard Postgres.
-Expect 87 tables. If it creates nothing, apply `baseline.sql` instead, which is
+Expect 90 tables. If it creates nothing, apply `baseline.sql` instead, which is
 the same schema as plain SQL and can be pasted into the Neon or Supabase SQL
 editor without any tooling.
 
 ## The files
 
-- `baseline.sql` is the complete current schema, 87 tables, generated from
+- `baseline.sql` is the complete current schema, 90 tables, generated from
   `src/db/schema.ts`. It is deliberately unnumbered: it is a starting point for
   an empty database, not the next step in the numbered sequence below.
 - `0001_payroll_periods_rbac.sql` and `0002_final_pay_reconciliation.sql` are
@@ -41,3 +41,5 @@ the first one, so it closes itself.
 - `0021_performance_management.sql` adds the HCM performance foundation: cycles, employee goals, and formal reviews.
 
 - `0022_job_architecture_positions.sql` adds job profiles, workforce plans, positions, and effective-dated position assignments.
+
+- `0042_compensation_governance.sql` adds salary bands, compensation review cycles and governed pay-change proposals.
