@@ -8,7 +8,7 @@ import {
 } from "../src/lib/compensation";
 
 const schema = readFileSync("src/db/schema.ts", "utf8");
-const migration = readFileSync("drizzle/0053_hcm_compensation_architecture.sql", "utf8");
+const migration = readFileSync("drizzle/0054_hcm_compensation_architecture.sql", "utf8");
 const baseline = readFileSync("drizzle/baseline.sql", "utf8");
 const route = readFileSync("src/app/api/compensation/route.ts", "utf8");
 const governance = readFileSync("src/lib/hcm-compensation.ts", "utf8");
