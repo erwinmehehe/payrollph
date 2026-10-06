@@ -5,7 +5,7 @@ import test from "node:test";
 const read = (path: string) => readFileSync(path, "utf8");
 
 const schema = read("src/db/schema.ts");
-const migration = read("drizzle/0046_hcm_documents_policy_center.sql");
+const migration = read("drizzle/0048_hcm_documents_policy_center.sql");
 const adminApi = read("src/app/api/hcm/documents/route.ts");
 const selfApi = read("src/app/api/self/documents/route.ts");
 const uploadApi = read("src/app/api/documents/route.ts");
