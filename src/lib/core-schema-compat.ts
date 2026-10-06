@@ -1775,6 +1775,8 @@ export async function ensureCoreCompatibilitySchema() {
       await client.query(`
         ALTER TABLE government_filing_validations
           ADD COLUMN IF NOT EXISTS legal_entity_id integer REFERENCES legal_entities(id) ON DELETE RESTRICT;
+        ALTER TABLE payroll_month_closures
+          ADD COLUMN IF NOT EXISTS legal_entity_id integer REFERENCES legal_entities(id) ON DELETE RESTRICT;
         ALTER TABLE bir_withholding_remittance_batches
           ADD COLUMN IF NOT EXISTS legal_entity_id integer REFERENCES legal_entities(id) ON DELETE RESTRICT;
         ALTER TABLE statutory_remittance_batches
@@ -1798,6 +1800,13 @@ export async function ensureCoreCompatibilitySchema() {
             ORDER BY le.id LIMIT 1)
         )
         WHERE gfv.legal_entity_id IS NULL;
+
+        UPDATE payroll_month_closures c
+        SET legal_entity_id = le.id
+        FROM legal_entities le
+        WHERE c.legal_entity_id IS NULL
+          AND le.organization_id = c.organization_id
+          AND le.primary_entity = true;
 
         UPDATE bir_withholding_remittance_batches b
         SET legal_entity_id = le.id
@@ -1848,6 +1857,7 @@ export async function ensureCoreCompatibilitySchema() {
         WHERE m.legal_entity_id IS NULL AND m.batch_id = b.id;
 
         ALTER TABLE government_filing_validations ALTER COLUMN legal_entity_id SET NOT NULL;
+        ALTER TABLE payroll_month_closures ALTER COLUMN legal_entity_id SET NOT NULL;
         ALTER TABLE bir_withholding_remittance_batches ALTER COLUMN legal_entity_id SET NOT NULL;
         ALTER TABLE statutory_remittance_batches ALTER COLUMN legal_entity_id SET NOT NULL;
         ALTER TABLE statutory_remittance_members ALTER COLUMN legal_entity_id SET NOT NULL;
@@ -1855,6 +1865,13 @@ export async function ensureCoreCompatibilitySchema() {
         ALTER TABLE statutory_contribution_issue_cases ALTER COLUMN legal_entity_id SET NOT NULL;
         ALTER TABLE government_loan_remittance_batches ALTER COLUMN legal_entity_id SET NOT NULL;
         ALTER TABLE government_loan_remittance_members ALTER COLUMN legal_entity_id SET NOT NULL;
+
+        DROP INDEX IF EXISTS payroll_month_closure_snapshot_unique;
+        CREATE UNIQUE INDEX IF NOT EXISTS payroll_month_closure_snapshot_unique
+          ON payroll_month_closures(organization_id, legal_entity_id, applicable_month, snapshot_hash);
+        DROP INDEX IF EXISTS payroll_month_closure_status_idx;
+        CREATE INDEX IF NOT EXISTS payroll_month_closure_status_idx
+          ON payroll_month_closures(organization_id, legal_entity_id, applicable_month, status);
 
         DROP INDEX IF EXISTS government_filing_file_unique;
         CREATE UNIQUE INDEX IF NOT EXISTS government_filing_file_unique
