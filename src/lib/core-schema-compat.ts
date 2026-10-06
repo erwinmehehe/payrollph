@@ -1178,6 +1178,85 @@ export async function ensureCoreCompatibilitySchema() {
         ON managed_payroll_run_approvals(payroll_run_id)
       `);
 
+      // Governed compensation bands, review cycles and approved proposals.
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS compensation_bands (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          job_profile_id integer NOT NULL REFERENCES job_profiles(id) ON DELETE RESTRICT,
+          location_code varchar(80) NOT NULL DEFAULT 'PH',
+          currency varchar(8) NOT NULL DEFAULT 'PHP',
+          minimum_annual numeric(14,2) NOT NULL,
+          midpoint_annual numeric(14,2) NOT NULL,
+          maximum_annual numeric(14,2) NOT NULL,
+          active boolean NOT NULL DEFAULT true,
+          created_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS compensation_bands_org_profile_location_unique
+        ON compensation_bands(organization_id, job_profile_id, location_code)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS compensation_bands_org_active_idx
+        ON compensation_bands(organization_id, active)
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS compensation_cycles (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          name varchar(160) NOT NULL,
+          start_date date NOT NULL,
+          end_date date NOT NULL,
+          effective_date date NOT NULL,
+          budget_pool numeric(14,2) NOT NULL DEFAULT 0,
+          status varchar(24) NOT NULL DEFAULT 'draft',
+          created_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          created_by varchar(120) NOT NULL DEFAULT 'System',
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS compensation_cycles_org_name_dates_unique
+        ON compensation_cycles(organization_id, name, start_date, end_date)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS compensation_cycles_org_status_idx
+        ON compensation_cycles(organization_id, status)
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS compensation_proposals (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          cycle_id integer NOT NULL REFERENCES compensation_cycles(id) ON DELETE CASCADE,
+          employee_id integer NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+          band_id integer NOT NULL REFERENCES compensation_bands(id) ON DELETE RESTRICT,
+          current_annual numeric(14,2) NOT NULL,
+          proposed_annual numeric(14,2) NOT NULL,
+          reason varchar(500) NOT NULL,
+          status varchar(24) NOT NULL DEFAULT 'proposed',
+          submitted_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          approved_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          approved_at timestamptz,
+          applied_pay_revision_id integer REFERENCES employee_pay_revisions(id) ON DELETE SET NULL,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS compensation_proposals_cycle_employee_unique
+        ON compensation_proposals(cycle_id, employee_id)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS compensation_proposals_org_status_idx
+        ON compensation_proposals(organization_id, status)
+      `);
+
       await client.query("COMMIT");
       coreSchemaReady = true;
     } catch (error) {
