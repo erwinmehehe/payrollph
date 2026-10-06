@@ -1,18 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BriefcaseBusiness, Building2, CircleDollarSign, Plus, RefreshCw, UserCheck, UsersRound } from "lucide-react";
+import { BriefcaseBusiness, Building2, CircleDollarSign, Plus, RefreshCw, UserCheck, UserPlus, UsersRound } from "lucide-react";
 
 type JobProfile = { id: number; title: string; family: string; level: string; grade: string | null; active: boolean };
 type WorkforcePlan = { id: number; name: string; startDate: string; endDate: string; budget: string; status: string };
-type Position = { id: number; code: string; jobProfileId: number; orgUnitId: number | null; planId: number | null; managerEmployeeId: number | null; employmentType: string; status: string; plannedStartDate: string | null; annualBudget: string };
+type Position = { id: number; code: string; jobProfileId: number; orgUnitId: number | null; planId: number | null; managerEmployeeId: number | null; employmentType: string; status: string; plannedStartDate: string | null; annualBudget: string; activeRequisitionId: number | null; activeRequisitionStatus: string | null };
 type Assignment = { id: number; positionId: number; employeeId: number; effectiveFrom: string; effectiveUntil: string | null };
 type OrgUnit = { id: number; name: string; type: string };
 type Employee = { id: number; firstName: string; lastName: string; title: string; orgUnitId: number | null; status: string };
 
 const peso = (value: number | string) => `₱${Number(value).toLocaleString("en-PH", { maximumFractionDigits: 0 })}`;
 
-export function WorkforcePlanningPanel({ organizationId, setNotice }: { organizationId: number; setNotice: (message: string) => void }) {
+export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { organizationId: number; setNotice: (message: string) => void; onPage: (page: string) => void }) {
   const [profiles, setProfiles] = useState<JobProfile[]>([]);
   const [plans, setPlans] = useState<WorkforcePlan[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
@@ -138,6 +138,26 @@ export function WorkforcePlanningPanel({ organizationId, setNotice }: { organiza
     setNotice(`Position ${position.code} moved to ${status}.`);
   }
 
+  async function openRecruitment(position: Position) {
+    const response = await fetch("/api/recruitment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        entityType: "requisition",
+        organizationId,
+        positionId: position.id,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setNotice(payload.error ?? "Could not open this position for recruitment.");
+      return;
+    }
+    await load();
+    setNotice(`Requisition #${payload.id} opened from position ${position.code}.`);
+    onPage("Recruitment");
+  }
+
   return (
     <div>
       <div className="page-heading">
@@ -215,7 +235,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice }: { organiza
           <div className="card-header"><div><div className="card-kicker">POSITION ASSIGNMENT</div><h2>Place an employee into an approved position</h2></div></div>
           <form onSubmit={assignPosition}>
             <div className="setting-form">
-              <label>Position<select required value={assignmentForm.positionId} onChange={(e) => setAssignmentForm({ ...assignmentForm, positionId: e.target.value })}><option value="">Select position</option>{positions.filter((position) => !activeAssignmentByPosition.has(position.id) && position.status !== "closed").map((position) => <option key={position.id} value={position.id}>{position.code} · {profileById.get(position.jobProfileId)?.title}</option>)}</select></label>
+              <label>Position<select required value={assignmentForm.positionId} onChange={(e) => setAssignmentForm({ ...assignmentForm, positionId: e.target.value })}><option value="">Select position</option>{positions.filter((position) => !activeAssignmentByPosition.has(position.id) && ["approved", "open"].includes(position.status)).map((position) => <option key={position.id} value={position.id}>{position.code} · {profileById.get(position.jobProfileId)?.title}</option>)}</select></label>
               <label>Employee<select required value={assignmentForm.employeeId} onChange={(e) => setAssignmentForm({ ...assignmentForm, employeeId: e.target.value })}><option value="">Select employee</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.firstName} {employee.lastName} · {employee.title}</option>)}</select></label>
               <label>Effective from<input required type="date" value={assignmentForm.effectiveFrom} onChange={(e) => setAssignmentForm({ ...assignmentForm, effectiveFrom: e.target.value })} /></label>
             </div>
@@ -226,18 +246,24 @@ export function WorkforcePlanningPanel({ organizationId, setNotice }: { organiza
 
       <article className="card">
         <div className="card-header">
-          <div><div className="card-kicker">POSITION LEDGER</div><h2>Approved structure, vacancies, and incumbents</h2><p>One position exists independently of the person who occupies it, so headcount remains auditable through hires, transfers, and exits.</p></div>
-          <button className="secondary-button" onClick={() => setShowAssignment(!showAssignment)} disabled={!positions.length || !employees.length}><UserCheck size={15} /> Assign incumbent</button>
+          <div><div className="card-kicker">POSITION LEDGER</div><h2>Approved structure, vacancies, and incumbents</h2><p>Approve headcount here, open the approved position in Recruitment, then let the hire flow create the employee and fill the position atomically.</p></div>
+          <button className="secondary-button" onClick={() => setShowAssignment(!showAssignment)} disabled={!positions.length || !employees.length}><UserCheck size={15} /> Assign existing employee</button>
         </div>
         <div className="data-table-wrap">
           <table className="data-table">
-            <thead><tr><th>POSITION</th><th>JOB / UNIT</th><th>INCUMBENT</th><th>START</th><th className="right">BUDGET</th><th>STATUS</th></tr></thead>
+            <thead><tr><th>POSITION</th><th>JOB / UNIT</th><th>INCUMBENT</th><th>START</th><th className="right">BUDGET</th><th>STATUS</th><th>ACTION</th></tr></thead>
             <tbody>
-              {positions.length === 0 && <tr><td colSpan={6}><div className="empty-state">No positions yet. Create job architecture, then add planned positions.</div></td></tr>}
+              {positions.length === 0 && <tr><td colSpan={7}><div className="empty-state">No positions yet. Create job architecture, then add planned positions.</div></td></tr>}
               {positions.map((position) => {
                 const assignment = activeAssignmentByPosition.get(position.id);
                 const incumbent = assignment ? employeeById.get(assignment.employeeId) : null;
                 const profile = profileById.get(position.jobProfileId);
+                const statusOptions =
+                  position.status === "filled"
+                    ? ["filled"]
+                    : position.status === "open"
+                      ? ["open", "frozen", "closed"]
+                      : ["planned", "approved", "frozen", "closed"];
                 return (
                   <tr key={position.id}>
                     <td><strong>{position.code}</strong><small style={{ display: "block", color: "var(--muted)" }}>{position.employmentType}</small></td>
@@ -247,8 +273,18 @@ export function WorkforcePlanningPanel({ organizationId, setNotice }: { organiza
                     <td className="right">{peso(position.annualBudget)}</td>
                     <td>
                       <select value={position.status} onChange={(e) => void updateStatus(position, e.target.value)} disabled={position.status === "filled"}>
-                        {["planned", "approved", "open", "frozen", "closed", ...(position.status === "filled" ? ["filled"] : [])].map((status) => <option key={status} value={status}>{status}</option>)}
+                        {statusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
                       </select>
+                      {position.activeRequisitionId && <small style={{ display: "block", color: "var(--muted)", marginTop: 4 }}>Req #{position.activeRequisitionId} · {position.activeRequisitionStatus}</small>}
+                    </td>
+                    <td>
+                      {position.status === "approved" && !position.activeRequisitionId ? (
+                        <button className="secondary-button" onClick={() => void openRecruitment(position)}><UserPlus size={14} /> Open requisition</button>
+                      ) : position.activeRequisitionId ? (
+                        <button className="secondary-button" onClick={() => onPage("Recruitment")}>View ATS</button>
+                      ) : (
+                        <span style={{ color: "var(--muted)", fontSize: 11 }}>{position.status === "planned" ? "Approve first" : "—"}</span>
+                      )}
                     </td>
                   </tr>
                 );
