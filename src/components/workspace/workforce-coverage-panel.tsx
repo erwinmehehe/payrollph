@@ -76,6 +76,64 @@ type Claim = {
   requestedBy: string;
 };
 
+type LaborVarianceRow = {
+  requirementId: number;
+  worksiteId: number;
+  workDate: string;
+  shiftDefinitionId: number;
+  requiredHeadcount: number;
+  scheduledHeadcount: number;
+  actualHeadcount: number;
+  requiredHours: number;
+  scheduledHours: number;
+  actualHours: number;
+  scheduledCoveragePercent: number;
+  actualCoveragePercent: number;
+  scheduledVsRequiredHours: number;
+  actualVsScheduledHours: number;
+  actualVsRequiredHours: number;
+  benchmarkHourlyRate: number | null;
+  requiredCostBasis: string | null;
+  requiredBaseCost: number | null;
+  scheduledBaseCost: number | null;
+  actualBaseCost: number | null;
+  scheduledVsRequiredBaseCost: number | null;
+  actualVsScheduledBaseCost: number | null;
+  actualVsRequiredBaseCost: number | null;
+  attendanceFlags: string[];
+};
+
+type LaborVariance = {
+  version: string;
+  costingBoundary: string;
+  costVisible: boolean;
+  rows: LaborVarianceRow[];
+  summary: {
+    requiredHours: number;
+    scheduledHours: number;
+    actualHours: number;
+    scheduledVsRequiredHours: number;
+    actualVsScheduledHours: number;
+    actualVsRequiredHours: number;
+    requiredBaseCost: number | null;
+    scheduledBaseCost: number | null;
+    actualBaseCost: number | null;
+    scheduledVsRequiredBaseCost: number | null;
+    actualVsScheduledBaseCost: number | null;
+    actualVsRequiredBaseCost: number | null;
+    unmatchedActualHours: number;
+    unmatchedActualBaseCost: number | null;
+    scheduledOutsideRequirementHours: number;
+    scheduledOutsideRequirementBaseCost: number | null;
+    attendanceExceptionCount: number;
+  };
+  quality: {
+    missingPayProfileEmployeeIds: number[];
+    invalidPayProfileEmployeeIds: number[];
+    unmatchedPunchRows: number;
+  };
+};
+
 type Payload = {
   shifts: Shift[];
   worksites: Worksite[];
@@ -84,6 +142,7 @@ type Payload = {
   availability: Availability[];
   openShifts: OpenShift[];
   claims: Claim[];
+  laborVariance: LaborVariance;
 };
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -98,6 +157,24 @@ function addDays(dateText: string, days: number) {
   const date = new Date(`${dateText}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+function hours(value: number) {
+  return `${value.toLocaleString("en-PH", { maximumFractionDigits: 1 })}h`;
+}
+
+function signedHours(value: number) {
+  const prefix = value > 0 ? "+" : "";
+  return `${prefix}${value.toLocaleString("en-PH", { maximumFractionDigits: 1 })}h`;
+}
+
+function peso(value: number | null | undefined) {
+  if (value == null) return "Restricted";
+  return new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
 export function WorkforceCoveragePanel({
@@ -248,6 +325,7 @@ export function WorkforceCoveragePanel({
     (sum, row) => sum + row.unavailableScheduledHeadcount,
     0,
   );
+  const labor = payload?.laborVariance;
 
   return (
     <article className="card" style={{ marginTop: 16 }} data-wfm-coverage>
@@ -275,6 +353,85 @@ export function WorkforceCoveragePanel({
         <label>Coverage window<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
         <label>Window end<input value={endDate} readOnly /></label>
       </div>
+
+      {labor && (
+        <section style={{ padding: "0 18px 18px" }} data-wfm-labor-variance>
+          <div className="card-header" style={{ paddingLeft: 0, paddingRight: 0 }}>
+            <div>
+              <div className="card-kicker">Required → scheduled → actual</div>
+              <h3>Labor plan variance</h3>
+              <p>Compare staffing demand, rostered capacity, and attendance actually worked for the same worksite and shift.</p>
+            </div>
+          </div>
+
+          <section className="stats-grid" style={{ padding: 0, marginBottom: 14 }}>
+            <Metric label="Required hours" value={hours(labor.summary.requiredHours)} hint="minimum staffing demand" icon={<UsersRound size={16} />} tone="slate" />
+            <Metric label="Scheduled hours" value={hours(labor.summary.scheduledHours)} hint={`${signedHours(labor.summary.scheduledVsRequiredHours)} vs required`} icon={<CalendarClock size={16} />} tone={labor.summary.scheduledVsRequiredHours < 0 ? "amber" : "blue"} />
+            <Metric label="Actual hours" value={hours(labor.summary.actualHours)} hint={`${signedHours(labor.summary.actualVsScheduledHours)} vs roster`} icon={<UsersRound size={16} />} tone={labor.summary.actualVsScheduledHours < 0 ? "amber" : "mint"} />
+            <Metric label="Attendance exceptions" value={String(labor.summary.attendanceExceptionCount)} hint={`${labor.quality.unmatchedPunchRows} unmatched punch row(s)`} icon={<CircleAlert size={16} />} tone={labor.summary.attendanceExceptionCount ? "amber" : "mint"} />
+          </section>
+
+          {labor.costVisible ? (
+            <div className="notice notice-slate" style={{ marginBottom: 14 }}>
+              <span>
+                <strong>Base labor cost:</strong> required {peso(labor.summary.requiredBaseCost)} · scheduled {peso(labor.summary.scheduledBaseCost)} · actual {peso(labor.summary.actualBaseCost)} · actual vs required {peso(labor.summary.actualVsRequiredBaseCost)}.
+                {" "}{labor.costingBoundary}
+              </span>
+            </div>
+          ) : (
+            <div className="notice notice-slate" style={{ marginBottom: 14 }}>
+              <span><strong>Labor-cost variance is restricted.</strong> WFM hours and coverage remain visible; pay-rate-derived cost needs People/Payroll access.</span>
+            </div>
+          )}
+
+          {(labor.summary.unmatchedActualHours > 0 || labor.summary.scheduledOutsideRequirementHours > 0) && (
+            <div className="notice notice-amber" style={{ marginBottom: 14 }}>
+              <CircleAlert size={15} />
+              <span>
+                <strong>Variance evidence needs review.</strong> {hours(labor.summary.unmatchedActualHours)} actual labor could not be tied to a staffing requirement, and {hours(labor.summary.scheduledOutsideRequirementHours)} is scheduled outside recorded staffing requirements.
+              </span>
+            </div>
+          )}
+
+          <div className="data-table-wrap slim-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Worksite / shift</th>
+                  <th>Required</th>
+                  <th>Scheduled</th>
+                  <th>Actual</th>
+                  <th>Actual vs required</th>
+                  <th>{labor.costVisible ? "Base cost variance" : "Evidence"}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {labor.rows.map((row) => (
+                  <tr key={row.requirementId}>
+                    <td><strong>{row.workDate}</strong></td>
+                    <td>
+                      <strong>{worksiteById.get(row.worksiteId)?.name ?? `Site #${row.worksiteId}`}</strong>
+                      <div className="id">{shiftById.get(row.shiftDefinitionId)?.code ?? `Shift #${row.shiftDefinitionId}`}</div>
+                    </td>
+                    <td><strong>{row.requiredHeadcount}</strong><div className="id">{hours(row.requiredHours)}</div></td>
+                    <td><strong>{row.scheduledHeadcount}</strong><div className="id">{hours(row.scheduledHours)} · {row.scheduledCoveragePercent}%</div></td>
+                    <td><strong>{row.actualHeadcount}</strong><div className="id">{hours(row.actualHours)} · {row.actualCoveragePercent}%</div></td>
+                    <td><Status value={signedHours(row.actualVsRequiredHours)} /></td>
+                    <td>
+                      {labor.costVisible
+                        ? <><strong>{peso(row.actualVsRequiredBaseCost)}</strong><div className="id">actual {peso(row.actualBaseCost)}</div></>
+                        : row.attendanceFlags.length
+                          ? <Status value={`${row.attendanceFlags.length} flag(s)`} />
+                          : <span className="id">Matched</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {canManage && (
         <section className="module-grid two" style={{ padding: "0 18px 18px" }}>
