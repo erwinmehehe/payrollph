@@ -80,7 +80,7 @@ export async function GET(
       ? {
           employeeId: gate.managerContext.manager.id,
           employeeNo: gate.managerContext.manager.employeeNo,
-          name: \`\${gate.managerContext.manager.firstName} \${gate.managerContext.manager.lastName}\`,
+          name: `${gate.managerContext.manager.firstName} ${gate.managerContext.manager.lastName}`,
           title: gate.managerContext.manager.title,
         }
       : null,
@@ -172,7 +172,7 @@ export async function POST(
       organizationId,
       actor: user.name,
       action: "Employment decision manager attestation submitted",
-      resource: \`Decision #\${decisionId}\`,
+      resource: `Decision #${decisionId}`,
       metadata: {
         employeeId: gate.managerContext.decision.employeeId,
         managerAttestationId: attestation.id,
