@@ -20,6 +20,8 @@ type AllocationRow = {
   effectiveFrom: string;
   effectiveUntil: string | null;
   allocationPercent: string;
+  allocationBasis: "percentage" | "hours";
+  allocationHours: string | null;
   clientCode: string | null;
   projectCode: string | null;
   jobCode: string | null;
@@ -30,6 +32,7 @@ type DraftAllocation = {
   key: number;
   costCenterId: string;
   allocationPercent: string;
+  allocationHours: string;
   clientCode: string;
   projectCode: string;
   jobCode: string;
@@ -46,6 +49,7 @@ function blankDraft(key: number, costCenterId: number | string = "", allocationP
     key,
     costCenterId: String(costCenterId),
     allocationPercent,
+    allocationHours: "8",
     clientCode: "",
     projectCode: "",
     jobCode: "",
@@ -92,6 +96,7 @@ export function LaborCostingPanel({
   const [effectiveFrom, setEffectiveFrom] = useState(localToday());
   const [effectiveUntil, setEffectiveUntil] = useState("");
   const [reason, setReason] = useState("Labor costing allocation");
+  const [allocationBasis, setAllocationBasis] = useState<"percentage" | "hours">("percentage");
   const [nextKey, setNextKey] = useState(2);
   const [drafts, setDrafts] = useState<DraftAllocation[]>([blankDraft(1)]);
 
@@ -119,6 +124,7 @@ export function LaborCostingPanel({
     setEffectiveFrom(localToday());
     setEffectiveUntil("");
     setReason("Labor costing allocation");
+    setAllocationBasis("percentage");
     setDrafts([blankDraft(1)]);
     setNextKey(2);
     void load();
@@ -148,6 +154,10 @@ export function LaborCostingPanel({
     () => Math.round(drafts.reduce((sum, row) => sum + (Number(row.allocationPercent) || 0), 0) * 1000) / 1000,
     [drafts],
   );
+  const totalHours = useMemo(
+    () => Math.round(drafts.reduce((sum, row) => sum + (Number(row.allocationHours) || 0), 0) * 1000) / 1000,
+    [drafts],
+  );
 
   const selectedHistory = useMemo(
     () => allocations
@@ -170,6 +180,10 @@ export function LaborCostingPanel({
     const value = Number(row.allocationPercent);
     return !Number.isFinite(value) || value <= 0 || value > 100;
   });
+  const invalidHours = drafts.some((row) => {
+    const value = Number(row.allocationHours);
+    return !Number.isFinite(value) || value <= 0;
+  });
   const inactiveOrMissingCenter = drafts.some((row) => !activeCenterIds.has(row.costCenterId));
   const duplicateDimensions = useMemo(() => {
     const seen = new Set<string>();
@@ -182,14 +196,16 @@ export function LaborCostingPanel({
     return false;
   }, [drafts]);
   const dateRangeInvalid = Boolean(effectiveUntil && effectiveUntil < effectiveFrom);
-  const reconciled = Math.abs(totalPercent - 100) <= 0.001;
+  const reconciled = allocationBasis === "hours"
+    ? totalHours > 0 && !invalidHours
+    : Math.abs(totalPercent - 100) <= 0.001;
   const canSave = Boolean(
     employeeId
     && effectiveFrom
     && drafts.length
     && activeCostCenters.length
     && reconciled
-    && !invalidPercent
+    && (allocationBasis === "hours" ? !invalidHours : !invalidPercent)
     && !inactiveOrMissingCenter
     && !duplicateDimensions
     && !dateRangeInvalid
@@ -242,6 +258,7 @@ export function LaborCostingPanel({
     setEffectiveFrom(localToday());
     setEffectiveUntil("");
     setReason("Labor costing allocation");
+    setAllocationBasis("percentage");
     setDrafts([blankDraft(1, activeCostCenters[0]?.id ?? "")]);
     setNextKey(2);
   }
@@ -269,10 +286,12 @@ export function LaborCostingPanel({
     const latestRows = selectedHistory
       .filter((row) => row.effectiveFrom === latestStart)
       .sort((a, b) => a.id - b.id);
+    setAllocationBasis(latestRows[0]?.allocationBasis === "hours" ? "hours" : "percentage");
     setDrafts(latestRows.map((row, index) => ({
       key: index + 1,
       costCenterId: String(row.costCenterId),
       allocationPercent: String(row.allocationPercent),
+      allocationHours: row.allocationHours == null ? "8" : String(row.allocationHours),
       clientCode: row.clientCode ?? "",
       projectCode: row.projectCode ?? "",
       jobCode: row.jobCode ?? "",
@@ -292,11 +311,21 @@ export function LaborCostingPanel({
       return;
     }
     if (!reconciled) {
-      notify(`Allocation must total exactly 100.000%. Current total: ${totalPercent.toFixed(3)}%.`, "err");
+      notify(
+        allocationBasis === "hours"
+          ? "Every allocation row needs positive hours."
+          : `Allocation must total exactly 100.000%. Current total: ${totalPercent.toFixed(3)}%.`,
+        "err",
+      );
       return;
     }
-    if (invalidPercent || inactiveOrMissingCenter) {
-      notify("Every allocation row needs an active cost center and a percentage greater than 0 and no more than 100.", "err");
+    if ((allocationBasis === "hours" ? invalidHours : invalidPercent) || inactiveOrMissingCenter) {
+      notify(
+        allocationBasis === "hours"
+          ? "Every allocation row needs an active cost center and hours greater than 0."
+          : "Every allocation row needs an active cost center and a percentage greater than 0 and no more than 100.",
+        "err",
+      );
       return;
     }
     if (duplicateDimensions) {
@@ -309,9 +338,11 @@ export function LaborCostingPanel({
       effectiveFrom,
       effectiveUntil: effectiveUntil || null,
       reason,
+      allocationBasis,
       allocations: drafts.map((row) => ({
         costCenterId: Number(row.costCenterId),
         allocationPercent: Number(row.allocationPercent),
+        allocationHours: Number(row.allocationHours),
         clientCode: row.clientCode || null,
         projectCode: row.projectCode || null,
         jobCode: row.jobCode || null,
@@ -337,8 +368,14 @@ export function LaborCostingPanel({
       <section className="stats-grid">
         <Metric label="Cost centers" value={String(costCenters.length)} hint={`${activeCostCenters.length} active finance dimensions`} icon={<Building2 size={16} className="i-cyan" />} tone="blue" />
         <Metric label="Employee plans" value={String(new Set(allocations.map((row) => row.employeeId)).size)} hint="employees with allocation history" icon={<Save size={16} className="i-green" />} tone="mint" />
-        <Metric label="Draft total" value={`${totalPercent.toFixed(3)}%`} hint={reconciled ? "reconciled" : "must equal 100.000%"} icon={<Building2 size={16} className={reconciled ? "i-green" : "i-amber"} />} tone={reconciled ? "mint" : "amber"} />
-        <Metric label="Allocation basis" value="%" hint="hours-based allocation comes later" icon={<Building2 size={16} className="i-slate" />} tone="slate" />
+        <Metric
+          label="Draft total"
+          value={allocationBasis === "hours" ? `${totalHours.toFixed(3)}h` : `${totalPercent.toFixed(3)}%`}
+          hint={reconciled ? "reconciled" : allocationBasis === "hours" ? "hours must be positive" : "must equal 100.000%"}
+          icon={<Building2 size={16} className={reconciled ? "i-green" : "i-amber"} />}
+          tone={reconciled ? "mint" : "amber"}
+        />
+        <Metric label="Allocation basis" value={allocationBasis === "hours" ? "Hours" : "%"} hint="source basis retained in audit evidence" icon={<Building2 size={16} className="i-slate" />} tone="slate" />
       </section>
 
       <div className="notice notice-slate">
@@ -401,7 +438,7 @@ export function LaborCostingPanel({
             <div>
               <div className="card-kicker">Effective-dated split</div>
               <h2>Set employee labor allocation</h2>
-              <p>The active allocation set must reconcile to exactly 100.000% before the server will persist it.</p>
+              <p>Use fixed percentages or source hours. Hour plans are normalized to 100% while preserving the entered hours for audit evidence.</p>
             </div>
             <Status value={canSave ? "Reconciled" : "Needs review"} />
           </div>
@@ -414,6 +451,13 @@ export function LaborCostingPanel({
                 {data.employees.map((employee) => (
                   <option key={employee.id} value={employee.id}>{employee.employeeNo} · {employee.firstName} {employee.lastName}</option>
                 ))}
+              </select>
+            </label>
+            <label>
+              Allocation basis
+              <select value={allocationBasis} onChange={(event) => setAllocationBasis(event.target.value === "hours" ? "hours" : "percentage")}>
+                <option value="percentage">Percentage</option>
+                <option value="hours">Hours</option>
               </select>
             </label>
             <label>Effective from<input type="date" value={effectiveFrom} onChange={(event) => setEffectiveFrom(event.target.value)} /></label>
@@ -434,7 +478,11 @@ export function LaborCostingPanel({
                       ))}
                     </select>
                   </label>
-                  <label>Percent<input type="number" min={0.001} max={100} step={0.001} value={draft.allocationPercent} onChange={(event) => updateDraft(draft.key, { allocationPercent: event.target.value })} /></label>
+                  {allocationBasis === "hours" ? (
+                    <label>Hours<input type="number" min={0.001} step={0.001} value={draft.allocationHours} onChange={(event) => updateDraft(draft.key, { allocationHours: event.target.value })} /></label>
+                  ) : (
+                    <label>Percent<input type="number" min={0.001} max={100} step={0.001} value={draft.allocationPercent} onChange={(event) => updateDraft(draft.key, { allocationPercent: event.target.value })} /></label>
+                  )}
                   <label>Client code<input maxLength={64} value={draft.clientCode} onChange={(event) => updateDraft(draft.key, { clientCode: event.target.value })} /></label>
                   <label>Project code<input maxLength={64} value={draft.projectCode} onChange={(event) => updateDraft(draft.key, { projectCode: event.target.value })} /></label>
                   <label>Job code<input maxLength={64} value={draft.jobCode} onChange={(event) => updateDraft(draft.key, { jobCode: event.target.value })} /></label>
@@ -488,7 +536,11 @@ export function LaborCostingPanel({
                     <td><Status value={windowStatus(row, today)} /></td>
                     <td><strong>{row.effectiveFrom}</strong><div className="id">to {row.effectiveUntil ?? "open-ended"}</div></td>
                     <td>{center ? `${center.code} · ${center.name}` : `Cost center #${row.costCenterId}`}</td>
-                    <td className="num">{Number(row.allocationPercent).toFixed(3)}%</td>
+                    <td className="num">
+                      {row.allocationBasis === "hours" && row.allocationHours
+                        ? `${Number(row.allocationHours).toFixed(3)}h · ${Number(row.allocationPercent).toFixed(3)}%`
+                        : `${Number(row.allocationPercent).toFixed(3)}%`}
+                    </td>
                     <td>{[row.clientCode, row.projectCode, row.jobCode].filter(Boolean).join(" / ") || "—"}</td>
                     <td>{row.reason || "—"}</td>
                   </tr>
