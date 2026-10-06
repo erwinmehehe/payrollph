@@ -17,11 +17,24 @@ const LOCAL_CHECK_INTERVAL_MS = 60 * 1000;
 
 let lastLocalScheduleCheck = 0;
 
+type StatutoryRemittanceSyncResult = {
+  organizationId: number;
+  legalEntityId?: number;
+  created: number;
+  reopened: number;
+  resolved: number;
+  activeAlerts: number;
+  escalationQueued: number;
+  escalationDeduplicated: number;
+  escalationError: string | null;
+  missingOrganization: boolean;
+};
+
 export async function syncStatutoryRemittanceActions(
   organizationId: number,
   actor: string,
   legalEntityId?: number,
-) {
+): Promise<StatutoryRemittanceSyncResult> {
   if (!legalEntityId) {
     const entities = await db.select().from(legalEntities).where(and(
       eq(legalEntities.organizationId, organizationId),
@@ -100,8 +113,8 @@ export async function syncStatutoryRemittanceActions(
           applicableMonth: alert.applicableMonth,
           severity: alert.tone,
           severityChangedAt: now,
-          title: alert.title,
-          detail: alert.detail,
+          title: `${state.legalEntity.code} · ${alert.title}`.slice(0, 180),
+          detail: `${state.legalEntity.displayName} · ${alert.detail}`.slice(0, 360),
           dueDate: alert.dueDate,
           status: "open",
           firstDetectedAt: now,
