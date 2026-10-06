@@ -83,16 +83,27 @@ export function WorkforceOvertimePanel({
   notify: Notify;
 }) {
   const organizationId = data.selectedOrganization.id;
+  const initialMonth = monthWindow(todayManila());
   const [requests, setRequests] = useState<OvertimeRequestRow[]>([]);
+  const [budgets, setBudgets] = useState<OvertimeBudgetRow[]>([]);
+  const [orgUnits, setOrgUnits] = useState<OrgUnitOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [filter, setFilter] = useState<"pending" | "all">("pending");
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   const [employeeId, setEmployeeId] = useState<number>(data.employees[0]?.id ?? 0);
   const [workDate, setWorkDate] = useState(todayManila());
   const [requestedMinutes, setRequestedMinutes] = useState("60");
   const [requestKind, setRequestKind] = useState("pre_approved");
   const [reason, setReason] = useState("Operational overtime requirement");
+
+  const [budgetOrgUnitId, setBudgetOrgUnitId] = useState<number>(0);
+  const [budgetStart, setBudgetStart] = useState(initialMonth.start);
+  const [budgetEnd, setBudgetEnd] = useState(initialMonth.end);
+  const [budgetMinutes, setBudgetMinutes] = useState("2400");
+  const [warningThresholdPercent, setWarningThresholdPercent] = useState("80");
+  const [budgetOverrideReason, setBudgetOverrideReason] = useState("");
 
   const employees = useMemo(
     () => new Map(data.employees.map((employee) => [employee.id, employee])),
@@ -107,7 +118,16 @@ export function WorkforceOvertimePanel({
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Could not load overtime requests.");
-      setRequests(Array.isArray(body.requests) ? body.requests : []);
+      const nextRequests = Array.isArray(body.requests) ? body.requests as OvertimeRequestRow[] : [];
+      const nextBudgets = Array.isArray(body.budgets) ? body.budgets as OvertimeBudgetRow[] : [];
+      const nextUnits = Array.isArray(body.orgUnits) ? body.orgUnits as OrgUnitOption[] : [];
+      setRequests(nextRequests);
+      setBudgets(nextBudgets);
+      setOrgUnits(nextUnits);
+      setSelectedIds((current) => current.filter((id) =>
+        nextRequests.some((request) => request.id === id && request.status === "pending"),
+      ));
+      setBudgetOrgUnitId((current) => current || nextUnits[0]?.id || 0);
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not load overtime requests.", "err");
     } finally {
