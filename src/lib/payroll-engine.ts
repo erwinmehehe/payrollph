@@ -1519,6 +1519,9 @@ function calculateEmployeePay(input: {
   restDayRevisions?: EffectiveRestDayRevisionInput[];
   resolvedSchedules?: Record<string, ResolvedDailySchedule>;
   overtimeRequests?: Array<OvertimeRequestEvidence & { workDate: string }>;
+  payPolicies?: PayPolicyRecord[];
+  payPolicyRules?: PayPolicyRuleRecord[];
+  payPolicyOrgUnitIds?: number[];
   periodStart: string;
   periodEnd: string;
   priorStatutory?: {
@@ -1572,10 +1575,55 @@ function calculateEmployeePay(input: {
   let tardinessDeduction = 0;
   let undertimeDeduction = 0;
   let holidayPremium = 0;
+  let companyPremiumPay = 0;
+  let companyPremiumTaxable = 0;
+  let companyPremiumExcludedFromSssBase = 0;
+  let companyPremiumExcludedFromPagIbigBase = 0;
+  const companyPremiumApplications: AppliedWorkedTimePremiumRule[] = [];
+  const companyPremiumPolicyTrace = new Map<number, ReturnType<typeof payPolicyTrace>[number]>();
   const flags: string[] = [];
   const punchNotes: string[] = [];
   const holidayNotes: string[] = [];
   const overtimeMinutesByWorkDate = new Map<string, number>();
+
+  function applyWorkedTimePremium(inputSegment: {
+    workDate: string;
+    minutes: number;
+    hourlyRate: number;
+    shiftCode: string | null;
+    worksiteId: number | null;
+  }) {
+    const resolution = resolveWorkedTimePremium({
+      organizationId: input.employee.organizationId,
+      employeeId: input.employee.id,
+      orgUnitIds: input.payPolicyOrgUnitIds ?? [],
+      workDate: inputSegment.workDate,
+      minutes: inputSegment.minutes,
+      hourlyRate: inputSegment.hourlyRate,
+      shiftCode: inputSegment.shiftCode,
+      worksiteId: inputSegment.worksiteId,
+      policies: input.payPolicies ?? [],
+      rules: input.payPolicyRules ?? [],
+    });
+
+    companyPremiumPay = roundToCents(companyPremiumPay + resolution.amount);
+    companyPremiumTaxable = roundToCents(
+      companyPremiumTaxable + resolution.taxableAmount,
+    );
+    companyPremiumExcludedFromSssBase = roundToCents(
+      companyPremiumExcludedFromSssBase
+        + Math.max(0, resolution.amount - resolution.sssIncludedAmount),
+    );
+    companyPremiumExcludedFromPagIbigBase = roundToCents(
+      companyPremiumExcludedFromPagIbigBase
+        + Math.max(0, resolution.amount - resolution.pagIbigIncludedAmount),
+    );
+    for (const policy of resolution.policies) {
+      companyPremiumPolicyTrace.set(policy.policyId, policy);
+    }
+    companyPremiumApplications.push(...resolution.applied);
+    return resolution;
+  }
 
   const eligiblePunches = input.punches.filter((punch) => String(punch.workDate) >= employmentStart);
   const punchesByWorkDate = new Map<string, Array<typeof timePunches.$inferSelect>>();
