@@ -475,15 +475,34 @@ async function coverageRows(input: {
           + " on " + date + ": " + capabilityEligibility.blockers.join(" "),
         );
       }
-      const leaveOverlap = approvedLeaveConflictsFullShift({
-        leaves: employeeApprovedLeaves,
-        employeeId,
-        workDate: date,
+      const approvedLeaveShiftDefinitionIds = shiftIds.filter((shiftId) => {
+        const shift = shiftsById.get(shiftId);
+        if (!shift) return false;
+        const conflict = approvedLeaveShiftConflict({
+          leaves: employeeApprovedLeaves,
+          employeeId,
+          workDate: date,
+          shift,
+        });
+        if (conflict.ambiguous) {
+          const ambiguousCount = conflict.overlaps.filter(
+            (leave) => !leave.window && approvedLeaveCoverageImpact(leave).kind !== "full_day",
+          ).length;
+          absenceEvidenceIssues.add(
+            "Employee #" + employeeId + " has " + ambiguousCount
+            + " approved range-level partial leave record(s) potentially overlapping "
+            + date + " shift #" + shiftId + ". Exact time is required to attribute shift coverage.",
+          );
+          return false;
+        }
+        if (conflict.conflict) {
+          absenceEvidenceIssues.add(
+            "Employee #" + employeeId + " has approved leave overlapping " + date
+            + " shift #" + shiftId + " by " + conflict.overlapMinutes + " minute(s).",
+          );
+        }
+        return conflict.conflict;
       });
-      const fullDayLeave = leaveOverlap.overlaps.some(
-        (leave) => approvedLeaveCoverageImpact(leave).kind === "full_day",
-      );
-      const approvedLeaveShiftDefinitionIds = fullDayLeave ? shiftIds : [];
       const siteEligibility = evaluateSiteEligibility({
         ...siteEvidence,
         employeeId,
@@ -496,13 +515,6 @@ async function coverageRows(input: {
       }
       if (siteEligibility.warnings.length) {
         siteEvidenceIssues.add("Employee #" + employeeId + " · " + date + ": " + siteEligibility.warnings.join(" "));
-      }
-
-      if (leaveOverlap.ambiguous) {
-        absenceEvidenceIssues.add(
-          "Employee #" + employeeId + " has approved partial/ambiguous leave on " + date
-          + "; exact shift-hour impact is not guessed from a range-level day total.",
-        );
       }
 
       scheduled.push({
