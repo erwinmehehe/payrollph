@@ -1,6 +1,6 @@
-import { and, desc, eq, gte } from "drizzle-orm";
+import { and, desc, gte, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { outbox } from "@/db/schema";
+import { marketingLeads } from "@/db/schema";
 
 type MarketingMetadata = {
   requestType: "demo" | "trial";
@@ -17,27 +17,6 @@ type MarketingMetadata = {
 
 function clean(value: unknown, max = 160) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
-}
-
-function marketingMetadata(value: unknown): MarketingMetadata | null {
-  if (!value || typeof value !== "object") return null;
-  const root = value as Record<string, unknown>;
-  const raw = root.marketing;
-  if (!raw || typeof raw !== "object") return null;
-  const input = raw as Record<string, unknown>;
-
-  return {
-    requestType: input.requestType === "trial" ? "trial" : "demo",
-    headcount: clean(input.headcount, 40) || "not stated",
-    landingPath: clean(input.landingPath, 300) || "(unknown)",
-    conversionPath: clean(input.conversionPath, 300) || "(unknown)",
-    referrer: clean(input.referrer, 500),
-    utmSource: clean(input.utmSource, 120),
-    utmMedium: clean(input.utmMedium, 120),
-    utmCampaign: clean(input.utmCampaign, 160),
-    utmContent: clean(input.utmContent, 160),
-    utmTerm: clean(input.utmTerm, 160),
-  };
 }
 
 function increment(map: Map<string, number>, key: string) {
@@ -57,12 +36,17 @@ export async function marketingLeadReport(days = 90) {
 
   const rows = await db
     .select({
-      metadata: outbox.metadata,
-      createdAt: outbox.createdAt,
+      kind: marketingLeads.kind,
+      headcount: marketingLeads.headcount,
+      attribution: marketingLeads.attribution,
+      createdAt: marketingLeads.createdAt,
     })
-    .from(outbox)
-    .where(and(eq(outbox.purpose, "demo-request"), gte(outbox.createdAt, since)))
-    .orderBy(desc(outbox.createdAt))
+    .from(marketingLeads)
+    .where(and(
+      inArray(marketingLeads.kind, ["demo", "trial-access"]),
+      gte(marketingLeads.createdAt, since),
+    ))
+    .orderBy(desc(marketingLeads.createdAt))
     .limit(5000);
 
   const requestType = new Map<string, number>();
@@ -75,10 +59,23 @@ export async function marketingLeadReport(days = 90) {
   let attributed = 0;
 
   for (const row of rows) {
-    const marketing = marketingMetadata(row.metadata);
-    if (!marketing) continue;
+    const raw = row.attribution && typeof row.attribution === "object"
+      ? row.attribution as Record<string, unknown>
+      : {};
+    const marketing: MarketingMetadata = {
+      requestType: row.kind === "trial-access" ? "trial" : "demo",
+      headcount: clean(row.headcount, 40) || "not stated",
+      landingPath: clean(raw.landingPath, 300) || "(unknown)",
+      conversionPath: clean(raw.conversionPath, 300) || "(unknown)",
+      referrer: clean(raw.referrer, 500),
+      utmSource: clean(raw.utmSource, 120),
+      utmMedium: clean(raw.utmMedium, 120),
+      utmCampaign: clean(raw.utmCampaign, 160),
+      utmContent: clean(raw.utmContent, 160),
+      utmTerm: clean(raw.utmTerm, 160),
+    };
 
-    attributed += 1;
+    if (Object.keys(raw).length > 0) attributed += 1;
     increment(requestType, marketing.requestType);
     increment(landingPath, marketing.landingPath);
     increment(
