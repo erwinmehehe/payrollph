@@ -64,3 +64,20 @@ test("sensitive access context is loaded only for people managers", () => {
   assert.ok(people.includes("if (!canManage)"));
   assert.ok(people.includes("{canManage && ("));
 });
+
+
+test("connected worker profile includes governed worksite evidence", () => {
+  assert.ok(route.includes("hcmWorkArrangements"));
+  assert.ok(route.includes("hcmWorksiteAuthorizations"));
+  assert.ok(route.includes("employeeWorksiteAssignments"));
+  assert.ok(route.includes("worksiteGovernance"));
+  assert.ok(route.includes("primaryWorksite"));
+  assert.ok(route.includes("authorizations"));
+  assert.ok(route.includes("decision"));
+});
+
+test("People surfaces work arrangement and worksite access evidence", () => {
+  assert.ok(people.includes("Work arrangement"));
+  assert.ok(people.includes("Worksite access"));
+  assert.ok(people.includes("worksiteGovernance"));
+});
