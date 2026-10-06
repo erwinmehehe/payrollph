@@ -2,7 +2,6 @@ import { and, eq, gte, inArray, lte } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employees,
-  organizations,
   payrollEntries,
   payrollRuns,
   statutoryRemittanceBatches,
@@ -13,6 +12,7 @@ import {
 import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { legalEntityAuditMetadata, resolveComplianceLegalEntity } from "@/lib/compliance-legal-entity";
 import { currentManilaMonth, loadStatutoryRemittanceState } from "@/lib/statutory-remittance-state";
 import { auditStatutoryContributionMonth } from "@/lib/statutory-contribution-assurance";
 import { manualPostingEvidenceHash } from "@/lib/statutory-posting-evidence";
@@ -67,16 +67,31 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const organizationId = Number(url.searchParams.get("organizationId"));
+  const requestedLegalEntityId = Number(url.searchParams.get("legalEntityId"));
   if (!Number.isInteger(organizationId)) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
   }
   const denied = await requirePayrollOperator(user.id, organizationId);
   if (denied) return denied;
 
-  const state = await loadStatutoryRemittanceState(organizationId);
+  let legalEntity;
+  try {
+    legalEntity = await resolveComplianceLegalEntity({
+      organizationId,
+      requestedLegalEntityId: Number.isInteger(requestedLegalEntityId) ? requestedLegalEntityId : null,
+    });
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "Could not resolve legal employer.",
+      requiresLegalEntityId: true,
+    }, { status: 422 });
+  }
+
+  const state = await loadStatutoryRemittanceState(organizationId, legalEntity.id);
   if (!state) return Response.json({ error: "Organization not found." }, { status: 404 });
 
   return Response.json({
+    legalEntity: state.legalEntity,
     today: state.today,
     batches: state.batches,
     members: state.members,
@@ -113,6 +128,19 @@ export async function POST(request: Request) {
   if (rateDenied) return rateDenied;
 
   if (action === "create_batch") {
+    let legalEntity;
+    try {
+      legalEntity = await resolveComplianceLegalEntity({
+        organizationId,
+        requestedLegalEntityId: Number.isInteger(Number(body.legalEntityId)) ? Number(body.legalEntityId) : null,
+      });
+    } catch (error) {
+      return Response.json({
+        error: error instanceof Error ? error.message : "Could not resolve legal employer.",
+        requiresLegalEntityId: true,
+      }, { status: 422 });
+    }
+
     const agency = String(body.agency ?? "") as StatutoryAgency;
     const applicableMonth = String(body.applicableMonth ?? "").trim();
     if (!AGENCIES.has(agency) || !/^\d{4}-\d{2}$/.test(applicableMonth)) {
@@ -128,6 +156,7 @@ export async function POST(request: Request) {
       .from(statutoryRemittanceBatches)
       .where(and(
         eq(statutoryRemittanceBatches.organizationId, organizationId),
+        eq(statutoryRemittanceBatches.legalEntityId, legalEntity.id),
         eq(statutoryRemittanceBatches.agency, agency),
         eq(statutoryRemittanceBatches.applicableMonth, applicableMonth),
       )).limit(1);
@@ -139,6 +168,7 @@ export async function POST(request: Request) {
     const end = monthEnd(applicableMonth);
     const monthRuns = await db.select().from(payrollRuns).where(and(
       eq(payrollRuns.organizationId, organizationId),
+      eq(payrollRuns.legalEntityId, legalEntity.id),
       gte(payrollRuns.periodEnd, start),
       lte(payrollRuns.periodEnd, end),
     ));
@@ -171,14 +201,10 @@ export async function POST(request: Request) {
           .from(employees)
           .where(and(
             eq(employees.organizationId, organizationId),
+            eq(employees.legalEntityId, legalEntity.id),
             inArray(employees.id, employeeIds),
           ))
       : [];
-    const [organization] = await db.select().from(organizations)
-      .where(eq(organizations.id, organizationId))
-      .limit(1);
-    if (!organization) return Response.json({ error: "Organization not found." }, { status: 404 });
-
     const assurance = auditStatutoryContributionMonth({
       agency,
       entries,
@@ -193,6 +219,7 @@ export async function POST(request: Request) {
         metadata: {
           agency,
           applicableMonth,
+          ...legalEntityAuditMetadata(legalEntity),
           payrollRunIds: runIds,
           checkedEmployees: assurance.checkedEmployees,
           issueCount: assurance.issues.length,
@@ -226,8 +253,8 @@ export async function POST(request: Request) {
       dueDate = effectiveRemittanceDueDate({
         agency,
         applicableMonth,
-        legalName: organization.legalName,
-        philHealthEmployerNo: organization.philHealthEmployerNo,
+        legalName: legalEntity.legalName,
+        philHealthEmployerNo: legalEntity.philHealthEmployerNo,
       });
     } catch (error) {
       return Response.json({
@@ -238,6 +265,7 @@ export async function POST(request: Request) {
     const created = await db.transaction(async (tx) => {
       const [batch] = await tx.insert(statutoryRemittanceBatches).values({
         organizationId,
+        legalEntityId: legalEntity.id,
         agency,
         applicableMonth,
         dueDate,
@@ -272,6 +300,7 @@ export async function POST(request: Request) {
       resource: `${agency} · ${applicableMonth}`,
       metadata: {
         batchId: created.id,
+        ...legalEntityAuditMetadata(legalEntity),
         employeeCount: snapshot.employeeCount,
         expectedEmployeeShare: snapshot.expectedEmployeeShare,
         expectedEmployerShare: snapshot.expectedEmployerShare,
