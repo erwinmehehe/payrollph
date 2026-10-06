@@ -926,6 +926,7 @@ CREATE TABLE IF NOT EXISTS "positions" (
   "code" varchar(48) NOT NULL,
   "job_profile_id" integer NOT NULL REFERENCES "job_profiles"("id") ON DELETE restrict,
   "org_unit_id" integer REFERENCES "org_units"("id") ON DELETE set null,
+  "legal_entity_id" integer REFERENCES "legal_entities"("id") ON DELETE restrict,
   "plan_id" integer REFERENCES "workforce_plans"("id") ON DELETE set null,
   "manager_employee_id" integer REFERENCES "employees"("id") ON DELETE set null,
   "employment_type" varchar(32) DEFAULT 'Regular' NOT NULL,
@@ -940,6 +941,7 @@ CREATE TABLE IF NOT EXISTS "positions" (
 CREATE UNIQUE INDEX IF NOT EXISTS "positions_org_code_unique" ON "positions" ("organization_id","code");
 CREATE INDEX IF NOT EXISTS "positions_org_status_idx" ON "positions" ("organization_id","status");
 CREATE INDEX IF NOT EXISTS "positions_org_unit_idx" ON "positions" ("organization_id","org_unit_id");
+CREATE INDEX IF NOT EXISTS "positions_legal_entity_idx" ON "positions" ("organization_id","legal_entity_id");
 CREATE INDEX IF NOT EXISTS "positions_plan_idx" ON "positions" ("plan_id");
 
 CREATE TABLE IF NOT EXISTS "position_assignments" (
@@ -947,6 +949,8 @@ CREATE TABLE IF NOT EXISTS "position_assignments" (
   "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
   "position_id" integer NOT NULL REFERENCES "positions"("id") ON DELETE cascade,
   "employee_id" integer NOT NULL REFERENCES "employees"("id") ON DELETE cascade,
+  "assignment_type" varchar(24) DEFAULT 'primary' NOT NULL,
+  "fte" numeric(5,4) DEFAULT '1.0000' NOT NULL,
   "effective_from" date NOT NULL,
   "effective_until" date,
   "reason" varchar(240) DEFAULT 'Position assignment' NOT NULL,
@@ -954,7 +958,38 @@ CREATE TABLE IF NOT EXISTS "position_assignments" (
   "created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "position_assignments_position_from_unique" ON "position_assignments" ("position_id","effective_from");
+CREATE UNIQUE INDEX IF NOT EXISTS "position_assignments_active_position_unique" ON "position_assignments" ("position_id") WHERE "effective_until" IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS "position_assignments_active_primary_employee_unique" ON "position_assignments" ("organization_id","employee_id") WHERE "assignment_type" = 'primary' AND "effective_until" IS NULL;
 CREATE INDEX IF NOT EXISTS "position_assignments_employee_idx" ON "position_assignments" ("organization_id","employee_id");
+CREATE INDEX IF NOT EXISTS "position_assignments_employee_date_idx" ON "position_assignments" ("employee_id","effective_from");
+
+CREATE TABLE IF NOT EXISTS "worker_employment_events" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "employee_id" integer NOT NULL REFERENCES "employees"("id") ON DELETE cascade,
+  "effective_date" date NOT NULL,
+  "event_type" varchar(32) NOT NULL,
+  "position_assignment_id" integer REFERENCES "position_assignments"("id") ON DELETE set null,
+  "from_position_id" integer REFERENCES "positions"("id") ON DELETE set null,
+  "to_position_id" integer REFERENCES "positions"("id") ON DELETE set null,
+  "from_org_unit_id" integer REFERENCES "org_units"("id") ON DELETE set null,
+  "to_org_unit_id" integer REFERENCES "org_units"("id") ON DELETE set null,
+  "from_legal_entity_id" integer REFERENCES "legal_entities"("id") ON DELETE set null,
+  "to_legal_entity_id" integer REFERENCES "legal_entities"("id") ON DELETE set null,
+  "from_manager_employee_id" integer REFERENCES "employees"("id") ON DELETE set null,
+  "to_manager_employee_id" integer REFERENCES "employees"("id") ON DELETE set null,
+  "from_employment_type" varchar(32),
+  "to_employment_type" varchar(32),
+  "from_status" varchar(32),
+  "to_status" varchar(32),
+  "reason" varchar(240) NOT NULL,
+  "metadata" jsonb DEFAULT '{}'::jsonb NOT NULL,
+  "actor_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "actor_name" varchar(120) DEFAULT 'System' NOT NULL,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE INDEX IF NOT EXISTS "worker_employment_events_employee_date_idx" ON "worker_employment_events" ("organization_id","employee_id","effective_date");
+CREATE INDEX IF NOT EXISTS "worker_employment_events_org_type_idx" ON "worker_employment_events" ("organization_id","event_type");
 
 
 -- Labor inspection readiness remediation ownership and close-out proof

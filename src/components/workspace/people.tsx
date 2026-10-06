@@ -29,9 +29,12 @@ type ConnectedWorkerProfile = {
     code: string;
     status: string;
     employmentType: string;
+    assignmentType: string;
+    fte: string;
     effectiveFrom: string;
     profile: null | { id: number; title: string; family: string; level: string; grade: string | null };
     orgUnit: null | { id: number; name: string; code: string; type: string };
+    legalEntity: null | { id: number; code: string; displayName: string; legalName: string };
     manager: null | { id: number; employeeNo: string; firstName: string; lastName: string; title: string };
   };
   benefits: Array<{
@@ -84,6 +87,40 @@ type ConnectedWorkerProfile = {
       code: string;
       name: string;
       kind: string;
+    }>;
+  };
+  history: {
+    employmentEvents: Array<{
+      id: number;
+      effectiveDate: string;
+      eventType: string;
+      reason: string;
+      actorName: string;
+      fromStatus: string | null;
+      toStatus: string | null;
+      fromEmploymentType: string | null;
+      toEmploymentType: string | null;
+      fromPositionId: number | null;
+      toPositionId: number | null;
+      metadata: unknown;
+    }>;
+    positionAssignments: Array<{
+      id: number;
+      assignmentType: string;
+      fte: string;
+      effectiveFrom: string;
+      effectiveUntil: string | null;
+      reason: string;
+      position: null | {
+        id: number;
+        code: string;
+        status: string;
+        employmentType: string;
+        profile: null | { id: number; title: string; family: string; level: string; grade: string | null };
+        orgUnit: null | { id: number; name: string; code: string; type: string };
+        legalEntity: null | { id: number; code: string; displayName: string };
+        manager: null | { id: number; employeeNo: string; firstName: string; lastName: string; title: string };
+      };
     }>;
   };
   identities: Array<{
@@ -790,7 +827,7 @@ function PersonDrawer({
                     </strong>
                     <small>
                       {connectedProfile.position
-                        ? `${connectedProfile.position.profile?.family ?? "Job family not set"} · ${connectedProfile.position.profile?.level ?? "Level not set"} · effective ${formatDate(connectedProfile.position.effectiveFrom)}`
+                        ? `${connectedProfile.position.profile?.family ?? "Job family not set"} · ${connectedProfile.position.profile?.level ?? "Level not set"} · ${connectedProfile.position.assignmentType} · ${Number(connectedProfile.position.fte).toFixed(2)} FTE · effective ${formatDate(connectedProfile.position.effectiveFrom)}`
                         : "Create or fill an approved position to make headcount authoritative"}
                     </small>
                   </div>
@@ -801,7 +838,7 @@ function PersonDrawer({
                         ? `${connectedProfile.position.manager.firstName} ${connectedProfile.position.manager.lastName}`
                         : "No manager"}
                     </strong>
-                    <small>{connectedProfile.position?.orgUnit?.name ?? "No organization unit"}</small>
+                    <small>{connectedProfile.position?.orgUnit?.name ?? "No organization unit"} · {connectedProfile.position?.legalEntity?.displayName ?? "Legal employer not assigned"}</small>
                   </div>
                   <div>
                     <span>System access</span>
@@ -854,6 +891,34 @@ function PersonDrawer({
                   </div>
                 </div>
 
+                {(connectedProfile.history.employmentEvents.length > 0 || connectedProfile.history.positionAssignments.length > 0) && (
+                  <div style={{ marginTop: 14 }}>
+                    <div className="card-kicker" style={{ marginBottom: 6 }}>WORKER HISTORY</div>
+                    {connectedProfile.history.employmentEvents.slice(0, 6).map((event) => (
+                      <div className="payslip-line" key={`employment-event-${event.id}`} style={{ gridTemplateColumns: "1fr auto" }}>
+                        <span>
+                          {event.eventType.replaceAll("_", " ")}
+                          <em>{event.reason} · recorded by {event.actorName}</em>
+                        </span>
+                        <b>{formatDate(event.effectiveDate)}</b>
+                      </div>
+                    ))}
+                    {connectedProfile.history.positionAssignments.slice(0, 4).map((assignment) => (
+                      <div className="payslip-line" key={`position-history-${assignment.id}`} style={{ gridTemplateColumns: "1fr auto" }}>
+                        <span>
+                          {assignment.position
+                            ? `${assignment.position.code} · ${assignment.position.profile?.title ?? "Position"}`
+                            : `Position assignment #${assignment.id}`}
+                          <em>
+                            {assignment.assignmentType} · {Number(assignment.fte).toFixed(2)} FTE · {assignment.position?.orgUnit?.name ?? "No org unit"} · {assignment.reason}
+                          </em>
+                        </span>
+                        <b>{formatDate(assignment.effectiveFrom)}{assignment.effectiveUntil ? ` → ${formatDate(assignment.effectiveUntil)}` : " → current"}</b>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {connectedProfile.identities.length > 0 && (
                   <div style={{ marginTop: 14 }}>
                     <div className="card-kicker" style={{ marginBottom: 6 }}>ACCESS &amp; IDENTITY</div>
@@ -896,7 +961,7 @@ function PersonDrawer({
                 )}
 
                 <div className="modal-note" style={{ marginTop: 14 }}>
-                  This profile is an HCM control surface, not a second source of truth. Position, benefits, identity, assets and lifecycle states remain owned by their governed modules and are only assembled here.
+                  This profile is an HCM control surface, not a second source of truth. Current position and employment state remain authoritative in their governed modules; the worker timeline preserves the effective-dated history of those changes.
                 </div>
               </div>
             )}

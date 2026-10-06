@@ -10,6 +10,7 @@ import {
   positionAssignments,
   positions,
   provisioningTasks,
+  workerEmploymentEvents,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import {
@@ -322,6 +323,7 @@ export async function POST(request: Request) {
     const [employee] = await tx.insert(employees).values({
       organizationId: applicant.organizationId,
       orgUnitId: position.orgUnitId,
+      legalEntityId: position.legalEntityId,
       employeeNo,
       firstName,
       middleName: middleName || null,
@@ -362,6 +364,8 @@ export async function POST(request: Request) {
         organizationId: applicant.organizationId,
         positionId: position.id,
         employeeId: employee.id,
+        assignmentType: "primary",
+        fte: "1.0000",
         effectiveFrom: startDate,
         reason: `Hired from requisition #${requisition.id}`,
         createdByUserId: user.id,
@@ -369,6 +373,31 @@ export async function POST(request: Request) {
       await tx.update(positions)
         .set({ status: "filled", updatedAt: new Date() })
         .where(eq(positions.id, position.id));
+
+      await tx.insert(workerEmploymentEvents).values({
+        organizationId: applicant.organizationId,
+        employeeId: employee.id,
+        effectiveDate: startDate,
+        eventType: "hire",
+        positionAssignmentId: assignment.id,
+        toPositionId: position.id,
+        toOrgUnitId: position.orgUnitId,
+        toLegalEntityId: position.legalEntityId,
+        toManagerEmployeeId: position.managerEmployeeId,
+        toEmploymentType: employee.employmentType,
+        toStatus: employee.status,
+        reason: `Hired from requisition #${requisition.id}`,
+        metadata: {
+          applicantId: applicant.id,
+          requisitionId: requisition.id,
+          positionCode: position.code,
+          jobProfileId: position.jobProfileId,
+          fte: 1,
+          source: "recruitment",
+        },
+        actorUserId: user.id,
+        actorName: user.name,
+      });
 
     await tx.update(jobApplicants)
       .set({

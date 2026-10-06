@@ -13,6 +13,7 @@ import {
   hcmPolicyAssignments,
   hcmPolicyVersions,
   jobProfiles,
+  legalEntities,
   orgUnits,
   permissionSets,
   positionAssignments,
@@ -23,6 +24,7 @@ import {
   userOrganizations,
   userPermissionAssignments,
   users,
+  workerEmploymentEvents,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import {
@@ -80,6 +82,8 @@ export async function GET(request: Request) {
 
   const [
     assignmentRows,
+    assignmentHistoryRows,
+    employmentEventRows,
     benefitRows,
     assetRows,
     taskRows,
@@ -92,8 +96,17 @@ export async function GET(request: Request) {
     db.select().from(positionAssignments).where(and(
       eq(positionAssignments.organizationId, organizationId),
       eq(positionAssignments.employeeId, employeeId),
+      eq(positionAssignments.assignmentType, "primary"),
       isNull(positionAssignments.effectiveUntil),
     )).limit(1),
+    db.select().from(positionAssignments).where(and(
+      eq(positionAssignments.organizationId, organizationId),
+      eq(positionAssignments.employeeId, employeeId),
+    )).orderBy(desc(positionAssignments.effectiveFrom), desc(positionAssignments.id)),
+    db.select().from(workerEmploymentEvents).where(and(
+      eq(workerEmploymentEvents.organizationId, organizationId),
+      eq(workerEmploymentEvents.employeeId, employeeId),
+    )).orderBy(desc(workerEmploymentEvents.effectiveDate), desc(workerEmploymentEvents.id)),
     db.select({
       id: benefitEnrollments.id,
       planId: benefitEnrollments.planId,
@@ -198,6 +211,7 @@ export async function GET(request: Request) {
     annualBudget: string;
     employmentType: string;
     orgUnitId: number | null;
+    legalEntityId: number | null;
     managerEmployeeId: number | null;
     jobProfileId: number;
     profile: null | {
@@ -208,7 +222,10 @@ export async function GET(request: Request) {
       grade: string | null;
     };
     orgUnit: null | { id: number; name: string; code: string; type: string };
+    legalEntity: null | { id: number; code: string; displayName: string; legalName: string };
     manager: null | { id: number; employeeNo: string; firstName: string; lastName: string; title: string };
+    assignmentType: string;
+    fte: string;
     effectiveFrom: string;
   } = null;
 
@@ -219,7 +236,7 @@ export async function GET(request: Request) {
     )).limit(1);
 
     if (positionRow) {
-      const [profileRows, unitRows, managerRows] = await Promise.all([
+      const [profileRows, unitRows, legalEntityRows, managerRows] = await Promise.all([
         db.select({
           id: jobProfiles.id,
           title: jobProfiles.title,
@@ -239,6 +256,17 @@ export async function GET(request: Request) {
             }).from(orgUnits).where(and(
               eq(orgUnits.id, positionRow.orgUnitId),
               eq(orgUnits.organizationId, organizationId),
+            )).limit(1)
+          : Promise.resolve([]),
+        positionRow.legalEntityId
+          ? db.select({
+              id: legalEntities.id,
+              code: legalEntities.code,
+              displayName: legalEntities.displayName,
+              legalName: legalEntities.legalName,
+            }).from(legalEntities).where(and(
+              eq(legalEntities.id, positionRow.legalEntityId),
+              eq(legalEntities.organizationId, organizationId),
             )).limit(1)
           : Promise.resolve([]),
         positionRow.managerEmployeeId
@@ -262,15 +290,85 @@ export async function GET(request: Request) {
         annualBudget: positionRow.annualBudget,
         employmentType: positionRow.employmentType,
         orgUnitId: positionRow.orgUnitId,
+        legalEntityId: positionRow.legalEntityId,
         managerEmployeeId: positionRow.managerEmployeeId,
         jobProfileId: positionRow.jobProfileId,
         profile: profileRows[0] ?? null,
         orgUnit: unitRows[0] ?? null,
+        legalEntity: legalEntityRows[0] ?? null,
         manager: managerRows[0] ?? null,
+        assignmentType: assignment.assignmentType,
+        fte: assignment.fte,
         effectiveFrom: String(assignment.effectiveFrom),
       };
     }
   }
+
+  const positionHistory = await Promise.all(assignmentHistoryRows.map(async (row) => {
+    const [positionRow] = await db.select().from(positions).where(and(
+      eq(positions.id, row.positionId),
+      eq(positions.organizationId, organizationId),
+    )).limit(1);
+    if (!positionRow) {
+      return {
+        ...row,
+        position: null,
+      };
+    }
+
+    const [profileRows, unitRows, entityRows, managerRows] = await Promise.all([
+      db.select({
+        id: jobProfiles.id,
+        title: jobProfiles.title,
+        family: jobProfiles.family,
+        level: jobProfiles.level,
+        grade: jobProfiles.grade,
+      }).from(jobProfiles).where(and(
+        eq(jobProfiles.id, positionRow.jobProfileId),
+        eq(jobProfiles.organizationId, organizationId),
+      )).limit(1),
+      positionRow.orgUnitId
+        ? db.select({ id: orgUnits.id, name: orgUnits.name, code: orgUnits.code, type: orgUnits.type })
+            .from(orgUnits).where(and(
+              eq(orgUnits.id, positionRow.orgUnitId),
+              eq(orgUnits.organizationId, organizationId),
+            )).limit(1)
+        : Promise.resolve([]),
+      positionRow.legalEntityId
+        ? db.select({ id: legalEntities.id, code: legalEntities.code, displayName: legalEntities.displayName })
+            .from(legalEntities).where(and(
+              eq(legalEntities.id, positionRow.legalEntityId),
+              eq(legalEntities.organizationId, organizationId),
+            )).limit(1)
+        : Promise.resolve([]),
+      positionRow.managerEmployeeId
+        ? db.select({
+            id: employees.id,
+            employeeNo: employees.employeeNo,
+            firstName: employees.firstName,
+            lastName: employees.lastName,
+            title: employees.title,
+          }).from(employees).where(and(
+            eq(employees.id, positionRow.managerEmployeeId),
+            eq(employees.organizationId, organizationId),
+          )).limit(1)
+        : Promise.resolve([]),
+    ]);
+
+    return {
+      ...row,
+      position: {
+        id: positionRow.id,
+        code: positionRow.code,
+        status: positionRow.status,
+        employmentType: positionRow.employmentType,
+        profile: profileRows[0] ?? null,
+        orgUnit: unitRows[0] ?? null,
+        legalEntity: entityRows[0] ?? null,
+        manager: managerRows[0] ?? null,
+      },
+    };
+  }));
 
   const ruleIds = [...new Set(executionRows.map((row) => row.ruleId))];
   const ruleRows = ruleIds.length
@@ -373,6 +471,10 @@ export async function GET(request: Request) {
     documents: {
       policies: policyRows,
       requirements: documentComplianceRows,
+    },
+    history: {
+      employmentEvents: employmentEventRows,
+      positionAssignments: positionHistory,
     },
     summary: {
       authoritativePosition: Boolean(position),

@@ -2484,6 +2484,7 @@ export const positions = pgTable(
     code: varchar("code", { length: 48 }).notNull(),
     jobProfileId: integer("job_profile_id").notNull().references(() => jobProfiles.id, { onDelete: "restrict" }),
     orgUnitId: integer("org_unit_id").references(() => orgUnits.id, { onDelete: "set null" }),
+    legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
     planId: integer("plan_id").references(() => workforcePlans.id, { onDelete: "set null" }),
     managerEmployeeId: integer("manager_employee_id").references(() => employees.id, { onDelete: "set null" }),
     employmentType: varchar("employment_type", { length: 32 }).notNull().default("Regular"),
@@ -2499,6 +2500,7 @@ export const positions = pgTable(
     uniqueIndex("positions_org_code_unique").on(table.organizationId, table.code),
     index("positions_org_status_idx").on(table.organizationId, table.status),
     index("positions_org_unit_idx").on(table.organizationId, table.orgUnitId),
+    index("positions_legal_entity_idx").on(table.organizationId, table.legalEntityId),
     index("positions_plan_idx").on(table.planId),
   ],
 );
@@ -2510,6 +2512,8 @@ export const positionAssignments = pgTable(
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     positionId: integer("position_id").notNull().references(() => positions.id, { onDelete: "cascade" }),
     employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    assignmentType: varchar("assignment_type", { length: 24 }).notNull().default("primary"),
+    fte: numeric("fte", { precision: 5, scale: 4 }).notNull().default("1.0000"),
     effectiveFrom: date("effective_from").notNull(),
     effectiveUntil: date("effective_until"),
     reason: varchar("reason", { length: 240 }).notNull().default("Position assignment"),
@@ -2521,7 +2525,44 @@ export const positionAssignments = pgTable(
     uniqueIndex("position_assignments_active_position_unique")
       .on(table.positionId)
       .where(sql`${table.effectiveUntil} is null`),
+    uniqueIndex("position_assignments_active_primary_employee_unique")
+      .on(table.organizationId, table.employeeId)
+      .where(sql`${table.assignmentType} = 'primary' and ${table.effectiveUntil} is null`),
     index("position_assignments_employee_idx").on(table.organizationId, table.employeeId),
+    index("position_assignments_employee_date_idx").on(table.employeeId, table.effectiveFrom),
+  ],
+);
+
+export const workerEmploymentEvents = pgTable(
+  "worker_employment_events",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    effectiveDate: date("effective_date").notNull(),
+    eventType: varchar("event_type", { length: 32 }).notNull(),
+    positionAssignmentId: integer("position_assignment_id").references(() => positionAssignments.id, { onDelete: "set null" }),
+    fromPositionId: integer("from_position_id").references(() => positions.id, { onDelete: "set null" }),
+    toPositionId: integer("to_position_id").references(() => positions.id, { onDelete: "set null" }),
+    fromOrgUnitId: integer("from_org_unit_id").references(() => orgUnits.id, { onDelete: "set null" }),
+    toOrgUnitId: integer("to_org_unit_id").references(() => orgUnits.id, { onDelete: "set null" }),
+    fromLegalEntityId: integer("from_legal_entity_id").references(() => legalEntities.id, { onDelete: "set null" }),
+    toLegalEntityId: integer("to_legal_entity_id").references(() => legalEntities.id, { onDelete: "set null" }),
+    fromManagerEmployeeId: integer("from_manager_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    toManagerEmployeeId: integer("to_manager_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    fromEmploymentType: varchar("from_employment_type", { length: 32 }),
+    toEmploymentType: varchar("to_employment_type", { length: 32 }),
+    fromStatus: varchar("from_status", { length: 32 }),
+    toStatus: varchar("to_status", { length: 32 }),
+    reason: varchar("reason", { length: 240 }).notNull(),
+    metadata: jsonb("metadata").notNull().default({}),
+    actorUserId: integer("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    actorName: varchar("actor_name", { length: 120 }).notNull().default("System"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("worker_employment_events_employee_date_idx").on(table.organizationId, table.employeeId, table.effectiveDate),
+    index("worker_employment_events_org_type_idx").on(table.organizationId, table.eventType),
   ],
 );
 
