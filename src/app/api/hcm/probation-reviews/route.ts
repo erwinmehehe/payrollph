@@ -26,6 +26,7 @@ import {
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
+  requireSensitiveActionMfa,
 } from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
@@ -270,6 +271,11 @@ export async function PATCH(request: Request) {
     windowMs: 5 * 60_000,
   });
   if (rateDenied) return rateDenied;
+
+  if (action === "submit") {
+    const mfaDenied = requireSensitiveActionMfa(user);
+    if (mfaDenied) return mfaDenied;
+  }
 
   const lockReason = await reviewMutable(organizationId, existing.employmentTermId, gate.term.status);
   if (lockReason) return Response.json({ error: lockReason }, { status: 409 });
