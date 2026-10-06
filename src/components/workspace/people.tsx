@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowUpDown,
   Building2,
@@ -21,6 +21,71 @@ import { REST_DAY_NAMES } from "@/lib/payroll-rules";
 import { Avatar, EmptyState, PageHeading, Status, formatDate, formatTimeOnly, money } from "./ui";
 
 type SortKey = "name" | "basicRate" | "status";
+
+type ConnectedWorkerProfile = {
+  position: null | {
+    id: number;
+    code: string;
+    status: string;
+    employmentType: string;
+    effectiveFrom: string;
+    profile: null | { id: number; title: string; family: string; level: string; grade: string | null };
+    orgUnit: null | { id: number; name: string; code: string; type: string };
+    manager: null | { id: number; employeeNo: string; firstName: string; lastName: string; title: string };
+  };
+  benefits: Array<{
+    id: number;
+    status: string;
+    endedOn: string | null;
+    planName: string;
+    category: string;
+    provider: string | null;
+  }>;
+  assets: Array<{
+    id: number;
+    type: string;
+    name: string;
+    serialNumber: string | null;
+    status: string;
+    returnedOn: string | null;
+  }>;
+  lifecycle: {
+    tasks: Array<{ id: number; kind: string; title: string; owner: string; done: boolean }>;
+    automations: Array<{ id: number; trigger: string; status: string; ruleName: string; createdAt: string }>;
+    separation: null | {
+      id: number;
+      separationType: string;
+      noticeDate: string;
+      lastDay: string;
+      clearanceStatus: string;
+      status: string;
+      coeIssued: boolean;
+    };
+  };
+  identities: Array<{
+    user: {
+      id: number;
+      email: string;
+      name: string;
+      active: boolean;
+      localPasswordEnabled: boolean;
+    };
+    membership: null | { id: number; role: string; orgUnitId: number | null; active: boolean };
+    permissionSet: null | { id: number; name: string };
+    scim: null | { id: number; externalId: string; active: boolean; lastSyncedAt: string };
+    externalIdentities: Array<{ id: number; email: string; lastLoginAt: string | null }>;
+  }>;
+  summary: {
+    authoritativePosition: boolean;
+    linkedLogin: boolean;
+    scimManaged: boolean;
+    activeBenefits: number;
+    assignedAssets: number;
+    openLifecycleTasks: number;
+    separationOpen: boolean;
+  };
+};
+
 const PAGE_SIZE = 12;
 
 const TABS = [
@@ -394,6 +459,41 @@ function PersonDrawer({
   const [bankCode, setBankCode] = useState(employee.bankCode ?? "");
   const [mobile, setMobile] = useState(employee.mobile ?? "");
   const [payoutError, setPayoutError] = useState("");
+  const [connectedProfile, setConnectedProfile] = useState<ConnectedWorkerProfile | null>(null);
+  const [connectedLoading, setConnectedLoading] = useState(false);
+  const [connectedError, setConnectedError] = useState("");
+
+  useEffect(() => {
+    if (!canManage) {
+      setConnectedProfile(null);
+      setConnectedError("");
+      return;
+    }
+
+    let cancelled = false;
+    async function loadConnectedProfile() {
+      setConnectedLoading(true);
+      setConnectedError("");
+      try {
+        const response = await fetch(
+          `/api/hcm/worker-profile?organizationId=${data.selectedOrganization.id}&employeeId=${employee.id}`,
+          { cache: "no-store" },
+        );
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error ?? "Could not load the connected worker profile.");
+        if (!cancelled) setConnectedProfile(payload as ConnectedWorkerProfile);
+      } catch (error) {
+        if (!cancelled) {
+          setConnectedProfile(null);
+          setConnectedError(error instanceof Error ? error.message : "Could not load the connected worker profile.");
+        }
+      } finally {
+        if (!cancelled) setConnectedLoading(false);
+      }
+    }
+    void loadConnectedProfile();
+    return () => { cancelled = true; };
+  }, [canManage, data.selectedOrganization.id, employee.id]);
 
   async function saveEmploymentDate() {
     setSavingEmployment(true);
@@ -637,6 +737,131 @@ function PersonDrawer({
             </div>
           )}
         </section>
+
+        {canManage && (
+          <section className="card" style={{ margin: "0 0 16px", boxShadow: "none" }}>
+            <div className="card-header">
+              <div>
+                <div className="card-kicker">CONNECTED WORKER PROFILE</div>
+                <h2 style={{ fontSize: 14 }}>People, position, access and lifecycle in one record</h2>
+                <p>One worker record connects authoritative position data to benefits, equipment, identity access and joiner/mover/leaver workflow evidence.</p>
+              </div>
+              <ShieldCheck size={17} className="i-purple" />
+            </div>
+
+            {connectedLoading && <div className="empty-state">Loading connected HCM context…</div>}
+            {connectedError && <div className="notice notice-amber" style={{ margin: "0 16px 14px" }}><span>{connectedError}</span></div>}
+
+            {connectedProfile && (
+              <div className="card-body">
+                <div className="run-stats" style={{ margin: 0 }}>
+                  <div>
+                    <span>Authoritative position</span>
+                    <strong style={{ fontSize: 13 }}>
+                      {connectedProfile.position
+                        ? `${connectedProfile.position.code} · ${connectedProfile.position.profile?.title ?? employee.title}`
+                        : "Not assigned"}
+                    </strong>
+                    <small>
+                      {connectedProfile.position
+                        ? `${connectedProfile.position.profile?.family ?? "Job family not set"} · ${connectedProfile.position.profile?.level ?? "Level not set"} · effective ${formatDate(connectedProfile.position.effectiveFrom)}`
+                        : "Create or fill an approved position to make headcount authoritative"}
+                    </small>
+                  </div>
+                  <div>
+                    <span>Manager &amp; org</span>
+                    <strong style={{ fontSize: 13 }}>
+                      {connectedProfile.position?.manager
+                        ? `${connectedProfile.position.manager.firstName} ${connectedProfile.position.manager.lastName}`
+                        : "No manager"}
+                    </strong>
+                    <small>{connectedProfile.position?.orgUnit?.name ?? "No organization unit"}</small>
+                  </div>
+                  <div>
+                    <span>System access</span>
+                    <strong style={{ fontSize: 13 }}>
+                      {connectedProfile.summary.linkedLogin
+                        ? connectedProfile.summary.scimManaged ? "SCIM managed" : "Linked login"
+                        : "No linked login"}
+                    </strong>
+                    <small>
+                      {connectedProfile.identities[0]?.membership
+                        ? `${connectedProfile.identities[0].membership.role} · ${connectedProfile.identities[0].permissionSet?.name ?? "default role permissions"}`
+                        : "No active workspace membership is linked"}
+                    </small>
+                  </div>
+                  <div>
+                    <span>Lifecycle readiness</span>
+                    <strong style={{ fontSize: 13 }}>{connectedProfile.summary.openLifecycleTasks} open task{connectedProfile.summary.openLifecycleTasks === 1 ? "" : "s"}</strong>
+                    <small>{connectedProfile.lifecycle.automations.length} recent automation execution{connectedProfile.lifecycle.automations.length === 1 ? "" : "s"}</small>
+                  </div>
+                </div>
+
+                <div className="module-grid two" style={{ marginTop: 14 }}>
+                  <div className="notice notice-slate" style={{ margin: 0 }}>
+                    <BriefcaseBusiness size={15} className="i-purple" />
+                    <span>
+                      <strong>{connectedProfile.summary.activeBenefits} active benefit enrollment{connectedProfile.summary.activeBenefits === 1 ? "" : "s"}.</strong>{" "}
+                      {connectedProfile.benefits.filter((item) => item.status === "active" && !item.endedOn).slice(0, 3).map((item) => item.planName).join(", ") || "No active plans recorded."}
+                    </span>
+                  </div>
+                  <div className="notice notice-slate" style={{ margin: 0 }}>
+                    <Building2 size={15} className="i-purple" />
+                    <span>
+                      <strong>{connectedProfile.summary.assignedAssets} assigned asset{connectedProfile.summary.assignedAssets === 1 ? "" : "s"}.</strong>{" "}
+                      {connectedProfile.assets.filter((item) => item.status === "assigned" && !item.returnedOn).slice(0, 3).map((item) => item.name).join(", ") || "No equipment currently assigned."}
+                    </span>
+                  </div>
+                </div>
+
+                {connectedProfile.identities.length > 0 && (
+                  <div style={{ marginTop: 14 }}>
+                    <div className="card-kicker" style={{ marginBottom: 6 }}>ACCESS &amp; IDENTITY</div>
+                    {connectedProfile.identities.map((identity) => (
+                      <div className="payslip-line" key={identity.user.id} style={{ gridTemplateColumns: "1fr auto" }}>
+                        <span>
+                          {identity.user.email}
+                          <em>
+                            {identity.user.active ? "account active" : "account inactive"} · {identity.scim?.active ? "SCIM provisioned" : identity.externalIdentities.length ? "SSO linked" : identity.user.localPasswordEnabled ? "local sign-in" : "no local password"} · {identity.permissionSet?.name ?? "role permissions"}
+                          </em>
+                        </span>
+                        <b>{identity.membership?.active ? identity.membership.role : "inactive"}</b>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {connectedProfile.lifecycle.tasks.length > 0 && (
+                  <div style={{ marginTop: 14 }}>
+                    <div className="card-kicker" style={{ marginBottom: 6 }}>LIFECYCLE TASKS</div>
+                    {connectedProfile.lifecycle.tasks.slice(0, 5).map((task) => (
+                      <div className="payslip-line" key={task.id} style={{ gridTemplateColumns: "1fr auto" }}>
+                        <span>
+                          {task.title}
+                          <em>{task.kind} · owner {task.owner}</em>
+                        </span>
+                        <b>{task.done ? "Complete" : "Open"}</b>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {connectedProfile.lifecycle.separation && (
+                  <div className="notice notice-amber" style={{ marginTop: 14 }}>
+                    <ShieldCheck size={15} />
+                    <span>
+                      <strong>Separation in progress.</strong> {connectedProfile.lifecycle.separation.separationType} · last day {formatDate(connectedProfile.lifecycle.separation.lastDay)} · clearance {connectedProfile.lifecycle.separation.clearanceStatus}.
+                    </span>
+                  </div>
+                )}
+
+                <div className="modal-note" style={{ marginTop: 14 }}>
+                  This profile is an HCM control surface, not a second source of truth. Position, benefits, identity, assets and lifecycle states remain owned by their governed modules and are only assembled here.
+                </div>
+              </div>
+            )}
+          </section>
+        )}
 
         <section className="card" style={{ margin: "0 0 16px", boxShadow: "none" }}>
           <div className="card-header">
