@@ -2,6 +2,7 @@ import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
 import {
   complianceActionTasks,
+  legalEntities,
   organizations,
   schedulerState,
 } from "@/db/schema";
@@ -19,20 +20,68 @@ let lastLocalScheduleCheck = 0;
 export async function syncStatutoryRemittanceActions(
   organizationId: number,
   actor: string,
+  legalEntityId?: number,
 ) {
-  const state = await loadStatutoryRemittanceState(organizationId);
-  if (!state) {
-    return { organizationId, created: 0, reopened: 0, resolved: 0, activeAlerts: 0, missingOrganization: true };
-  }
+  if (!legalEntityId) {
+    const entities = await db.select().from(legalEntities).where(and(
+      eq(legalEntities.organizationId, organizationId),
+      eq(legalEntities.active, true),
+    ));
+    if (entities.length === 0) {
+      return { organizationId, created: 0, reopened: 0, resolved: 0, activeAlerts: 0, escalationQueued: 0, escalationDeduplicated: 0, escalationError: null, missingOrganization: true };
+    }
 
-  const existing = await db.select().from(complianceActionTasks)
-    .where(and(
+    const now = new Date();
+    let legacyResolved = 0;
+    const legacyTasks = await db.select().from(complianceActionTasks).where(and(
       eq(complianceActionTasks.organizationId, organizationId),
       eq(complianceActionTasks.sourceType, SOURCE_TYPE),
     ));
+    for (const task of legacyTasks) {
+      if (task.sourceKey.startsWith("legal-entity:") || task.status === "resolved") continue;
+      const rows = await db.update(complianceActionTasks).set({
+        status: "resolved",
+        resolvedAt: now,
+        updatedAt: now,
+      }).where(and(
+        eq(complianceActionTasks.id, task.id),
+        ne(complianceActionTasks.status, "resolved"),
+      )).returning({ id: complianceActionTasks.id });
+      legacyResolved += rows.length;
+    }
+
+    const results = [];
+    for (const entity of entities) {
+      results.push(await syncStatutoryRemittanceActions(organizationId, actor, entity.id));
+    }
+    return {
+      organizationId,
+      created: results.reduce((sum, result) => sum + result.created, 0),
+      reopened: results.reduce((sum, result) => sum + result.reopened, 0),
+      resolved: legacyResolved + results.reduce((sum, result) => sum + result.resolved, 0),
+      activeAlerts: results.reduce((sum, result) => sum + result.activeAlerts, 0),
+      escalationQueued: results.reduce((sum, result) => sum + result.escalationQueued, 0),
+      escalationDeduplicated: results.reduce((sum, result) => sum + result.escalationDeduplicated, 0),
+      escalationError: results.map((result) => result.escalationError).filter(Boolean).join("; ") || null,
+      missingOrganization: false,
+    };
+  }
+
+  const state = await loadStatutoryRemittanceState(organizationId, legalEntityId);
+  if (!state) {
+    return { organizationId, legalEntityId, created: 0, reopened: 0, resolved: 0, activeAlerts: 0, escalationQueued: 0, escalationDeduplicated: 0, escalationError: null, missingOrganization: true };
+  }
+
+  const sourcePrefix = `legal-entity:${legalEntityId}:`;
+  const existing = (await db.select().from(complianceActionTasks)
+    .where(and(
+      eq(complianceActionTasks.organizationId, organizationId),
+      eq(complianceActionTasks.sourceType, SOURCE_TYPE),
+    )))
+    .filter((task) => task.sourceKey.startsWith(sourcePrefix));
 
   const existingByKey = new Map(existing.map((task) => [task.sourceKey, task]));
-  const activeKeys = new Set(state.alerts.map((alert) => alert.id));
+  const activeKeys = new Set(state.alerts.map((alert) => `${sourcePrefix}${alert.id}`));
   const now = new Date();
   let created = 0;
   let reopened = 0;
@@ -40,12 +89,13 @@ export async function syncStatutoryRemittanceActions(
 
   await db.transaction(async (tx) => {
     for (const alert of state.alerts) {
-      const current = existingByKey.get(alert.id);
+      const sourceKey = `${sourcePrefix}${alert.id}`;
+      const current = existingByKey.get(sourceKey);
       if (!current) {
         const inserted = await tx.insert(complianceActionTasks).values({
           organizationId,
           sourceType: SOURCE_TYPE,
-          sourceKey: alert.id,
+          sourceKey,
           agency: alert.agency,
           applicableMonth: alert.applicableMonth,
           severity: alert.tone,
@@ -75,8 +125,8 @@ export async function syncStatutoryRemittanceActions(
         applicableMonth: alert.applicableMonth,
         severity: alert.tone,
         severityChangedAt: severityChanged ? now : current.severityChangedAt,
-        title: alert.title,
-        detail: alert.detail,
+        title: `${state.legalEntity.code} · ${alert.title}`.slice(0, 180),
+        detail: `${state.legalEntity.displayName} · ${alert.detail}`.slice(0, 360),
         dueDate: alert.dueDate,
         lastDetectedAt: now,
         updatedAt: now,
@@ -129,6 +179,8 @@ export async function syncStatutoryRemittanceActions(
       action: "Statutory compliance action queue synchronized",
       resource: "SSS · PhilHealth · Pag-IBIG",
       metadata: {
+        legalEntityId,
+        legalEntityCode: state.legalEntity.code,
         created,
         reopened,
         resolved,
@@ -164,6 +216,7 @@ export async function syncStatutoryRemittanceActions(
 
   return {
     organizationId,
+    legalEntityId,
     created,
     reopened,
     resolved,
