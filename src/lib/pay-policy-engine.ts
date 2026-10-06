@@ -216,7 +216,12 @@ function ruleMatchesWorkedTimePremium(
       }
       return normalizeShiftCode(item);
     });
-    if (!context.shiftCode || !shiftCodes.includes(normalizeShiftCode(context.shiftCode))) {
+    if (!context.shiftCode) {
+      throw new Error(
+        `Pay rule ${rule.ruleKey} requires shift-code evidence, but payroll could not resolve a shift code.`,
+      );
+    }
+    if (!shiftCodes.includes(normalizeShiftCode(context.shiftCode))) {
       return false;
     }
   }
@@ -232,7 +237,12 @@ function ruleMatchesWorkedTimePremium(
       }
       return id;
     });
-    if (context.worksiteId == null || !worksiteIds.includes(context.worksiteId)) {
+    if (context.worksiteId == null) {
+      throw new Error(
+        `Pay rule ${rule.ruleKey} requires worksite evidence, but payroll could not resolve a worksite.`,
+      );
+    }
+    if (!worksiteIds.includes(context.worksiteId)) {
       return false;
     }
   }
