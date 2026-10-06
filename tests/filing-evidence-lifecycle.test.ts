@@ -23,7 +23,6 @@ async function seedRun(name: string, basicRate = "30000") {
     displayName: name,
     primaryEntity: true,
     active: true,
-    createdBy: "Test",
   }).returning();
   const [employee] = await db.insert(employees).values({
     organizationId: org.id,
