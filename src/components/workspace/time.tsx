@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { AlertTriangle, CalendarDays, Check, Clock3, Clock, Download, Search, Timer } from "lucide-react";
+import { AttendanceCaptureControlsPanel } from "./attendance-capture-controls-panel";
 import { AttendanceCorrectionsPanel } from "./attendance-corrections-panel";
 import { AttendanceExceptionsPanel } from "./attendance-exceptions-panel";
 import type { DashboardData, Notify, Punch } from "./types";
@@ -184,6 +185,12 @@ export function TimeView({
           </div>
         </article>
       </section>
+
+      <AttendanceCaptureControlsPanel
+        organizationId={data.selectedOrganization.id}
+        notify={notify}
+        canManage={canManage}
+      />
 
       <AttendanceExceptionsPanel
         organizationId={data.selectedOrganization.id}
