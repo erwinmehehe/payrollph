@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { ImportPanel } from "@/components/import-panel";
 import { HcmCapabilitiesPanel } from "@/components/hcm-capabilities-panel";
+import { HcmEmploymentLifecycleActionCenter } from "@/components/hcm-employment-lifecycle-action-center";
 import type { DashboardData, Employee } from "./types";
 import { REST_DAY_NAMES } from "@/lib/payroll-rules";
 import { Avatar, EmptyState, PageHeading, Status, formatDate, formatTimeOnly, money } from "./ui";
@@ -332,6 +333,11 @@ export function PeopleView({
   const [page, setPage] = useState(1);
   const [picked, setPicked] = useState<Employee | null>(null);
   const hrMode = data.access?.role === "hr";
+  const canManageLifecycle = Boolean(
+    canManage
+      && data.access?.companyWide
+      && ["owner", "admin", "bookkeeper", "hr"].includes(data.access.role),
+  );
 
   // The drawer subject is derived: either a row the user clicked, or the person
   // the command palette handed us. No effect copies one into the other.
@@ -418,6 +424,17 @@ export function PeopleView({
       )}
 
       {canManage && <ImportPanel organizationId={data.selectedOrganization.id} onImported={onRefresh} />}
+
+      {canManageLifecycle && (
+        <HcmEmploymentLifecycleActionCenter
+          organizationId={data.selectedOrganization.id}
+          onOpenEmployee={(employeeId) => {
+            const worker = data.employees.find((employee) => employee.id === employeeId);
+            if (worker) setPicked(worker);
+          }}
+          onOpenSeparation={() => onPage("separation")}
+        />
+      )}
 
       {openOffboarding > 0 && (
         <div className="notice notice-blue">
