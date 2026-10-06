@@ -89,6 +89,11 @@ test("employee self-service exposes hash/source but never the multi-employee CSV
   assert.ok(selfEvidence.includes("postingEvidenceSourceLabel"));
   assert.ok(selfEvidence.includes("are retained for employer audit but are not downloadable from employee self-service"));
   assert.ok(!selfEvidence.includes("fileDataBase64: postingEvidenceArtifact"));
+  assert.ok(!selfApi.includes("postingEvidenceFileName"));
+  assert.ok(!selfApi.includes("postingEvidenceArtifactId: row.postingEvidenceArtifactId"));
+  assert.ok(!selfEvidence.includes("fileName: postingEvidenceArtifact.fileName"));
+  assert.ok(!selfEvidence.includes("rowCount: postingEvidenceArtifact.rowCount"));
+  assert.ok(!selfEvidence.includes("artifactId: postingEvidenceArtifact.id"));
 });
 
 test("month-close snapshot is cryptographically bound to posting provenance", () => {
