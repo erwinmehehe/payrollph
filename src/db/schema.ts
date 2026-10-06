@@ -713,6 +713,87 @@ export const employeeLaborAllocations = pgTable(
   ],
 );
 
+export const laborHourAllocations = pgTable(
+  "labor_hour_allocations",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    legalEntityId: integer("legal_entity_id").notNull().references(() => legalEntities.id, { onDelete: "restrict" }),
+    payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    costCenterId: integer("cost_center_id").notNull().references(() => costCenters.id, { onDelete: "restrict" }),
+    workDate: date("work_date").notNull(),
+    minutes: integer("minutes").notNull(),
+    projectCode: varchar("project_code", { length: 64 }),
+    clientCode: varchar("client_code", { length: 64 }),
+    jobCode: varchar("job_code", { length: 64 }),
+    sourceType: varchar("source_type", { length: 24 }).notNull().default("manual"),
+    sourceReference: varchar("source_reference", { length: 160 }),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("labor_hour_allocation_dimension_unique").on(
+      table.payrollRunId,
+      table.employeeId,
+      table.workDate,
+      table.costCenterId,
+      sql`coalesce(${table.projectCode}, '')`,
+      sql`coalesce(${table.clientCode}, '')`,
+      sql`coalesce(${table.jobCode}, '')`,
+    ),
+    index("labor_hour_allocations_run_employee_idx").on(
+      table.organizationId,
+      table.payrollRunId,
+      table.employeeId,
+      table.workDate,
+    ),
+    index("labor_hour_allocations_cost_center_idx").on(
+      table.organizationId,
+      table.legalEntityId,
+      table.costCenterId,
+      table.workDate,
+    ),
+  ],
+);
+
+export const laborGlMappings = pgTable(
+  "labor_gl_mappings",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    legalEntityId: integer("legal_entity_id").notNull().references(() => legalEntities.id, { onDelete: "restrict" }),
+    costCenterId: integer("cost_center_id").notNull().references(() => costCenters.id, { onDelete: "restrict" }),
+    component: varchar("component", { length: 32 }).notNull(),
+    glAccountCode: varchar("gl_account_code", { length: 40 }).notNull(),
+    glAccountName: varchar("gl_account_name", { length: 160 }).notNull(),
+    effectiveFrom: date("effective_from").notNull(),
+    effectiveUntil: date("effective_until"),
+    active: boolean("active").notNull().default(true),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("labor_gl_mapping_effective_unique").on(
+      table.legalEntityId,
+      table.costCenterId,
+      table.component,
+      table.effectiveFrom,
+    ),
+    index("labor_gl_mappings_scope_idx").on(
+      table.organizationId,
+      table.legalEntityId,
+      table.costCenterId,
+      table.component,
+      table.active,
+    ),
+  ],
+);
+
 export const employeeAvailabilityRules = pgTable(
   "employee_availability_rules",
   {
