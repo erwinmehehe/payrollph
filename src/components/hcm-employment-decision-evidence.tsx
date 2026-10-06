@@ -48,6 +48,18 @@ type EvidencePacket = {
       attachedByName: string;
       attachedAt: string;
     }>;
+    managerAttestations?: Array<{
+      id: number;
+      managerEmployeeId: number;
+      managerUserId: number | null;
+      managerName: string;
+      recommendation: "support" | "do_not_support" | "needs_more_review";
+      statement: string;
+      workerPositionAssignmentId: number;
+      workerPositionId: number;
+      reportingLineSnapshot: Record<string, unknown>;
+      createdAt: string;
+    }>;
   };
   integrity: {
     sealed: boolean;
@@ -98,8 +110,10 @@ export function HcmEmploymentDecisionEvidence({
   const [payload, setPayload] = useState<EvidenceResponse | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [noteKind, setNoteKind] = useState("manager_review");
+  const [noteKind, setNoteKind] = useState("hr_review");
   const [note, setNote] = useState("");
+  const [managerRecommendation, setManagerRecommendation] = useState("support");
+  const [managerStatement, setManagerStatement] = useState("");
   const [evidenceKind, setEvidenceKind] = useState("probation_evaluation");
   const [label, setLabel] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -114,7 +128,7 @@ export function HcmEmploymentDecisionEvidence({
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? "Could not load the decision evidence packet.");
       setPayload(data as EvidenceResponse);
-      if ((data as EvidenceResponse).managerReviewOnly) setNoteKind("manager_review");
+      if (!(data as EvidenceResponse).managerReviewOnly) setNoteKind("hr_review");
     } catch (loadError) {
       setPayload(null);
       setError(loadError instanceof Error ? loadError.message : "Could not load the decision evidence packet.");
@@ -128,6 +142,7 @@ export function HcmEmploymentDecisionEvidence({
   const packet = payload?.packet ?? null;
   const notes = packet?.reviewEvidence.notes ?? [];
   const attachments = packet?.reviewEvidence.attachments ?? [];
+  const managerAttestations = packet?.reviewEvidence.managerAttestations ?? [];
   const timeline = packet?.timeline ?? [];
 
   const accepted = useMemo(() => payload?.uploadLimits.accepted.join(",") ?? "application/pdf,image/png,image/jpeg", [payload]);
@@ -157,6 +172,36 @@ export function HcmEmploymentDecisionEvidence({
       await onChanged?.();
     } catch (mutationError) {
       setError(mutationError instanceof Error ? mutationError.message : "Could not add review evidence.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitManagerAttestation(event: React.FormEvent) {
+    event.preventDefault();
+    if (managerStatement.trim().length < 20) return;
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(
+        `/api/hcm/employment-term-decisions/${decisionId}/manager-attestation`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            organizationId,
+            recommendation: managerRecommendation,
+            statement: managerStatement,
+          }),
+        },
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? "Could not submit manager attestation.");
+      setManagerStatement("");
+      await load();
+      await onChanged?.();
+    } catch (mutationError) {
+      setError(mutationError instanceof Error ? mutationError.message : "Could not submit manager attestation.");
     } finally {
       setBusy(false);
     }
@@ -201,7 +246,7 @@ export function HcmEmploymentDecisionEvidence({
             {packet ? `Decision #${packet.decision.id} · ${readable(packet.decision.decisionKind)}` : "Employment decision evidence"}
           </h2>
           <p>
-            Review notes and supporting files are append-only while approval is pending. Approval seals the exact review evidence with SHA-256.
+            Review notes, manager attestations, and supporting files are append-only while approval is pending. Approval seals the exact review evidence with SHA-256.
           </p>
         </div>
         <div className="run-actions">
@@ -254,9 +299,9 @@ export function HcmEmploymentDecisionEvidence({
               <small>requested by {packet.decision.requestedBy}</small>
             </div>
             <div>
-              <span>Review notes</span>
-              <strong style={{ fontSize: 13 }}>{notes.length}</strong>
-              <small>immutable contributions</small>
+              <span>Manager attestations</span>
+              <strong style={{ fontSize: 13 }}>{managerAttestations.length}</strong>
+              <small>reporting-line bound</small>
             </div>
             <div>
               <span>Attachments</span>
@@ -270,20 +315,68 @@ export function HcmEmploymentDecisionEvidence({
             </div>
           </div>
 
+          {managerAttestations.length > 0 && (
+            <div className="data-table-wrap" style={{ marginBottom: 12 }}>
+              <table className="data-table">
+                <thead><tr><th>MANAGER</th><th>RECOMMENDATION</th><th>STATEMENT</th><th>SUBMITTED</th></tr></thead>
+                <tbody>
+                  {managerAttestations.map((attestation) => (
+                    <tr key={attestation.id}>
+                      <td><strong>{attestation.managerName}</strong><small style={{ display: "block", color: "var(--muted)" }}>Employee #{attestation.managerEmployeeId}</small></td>
+                      <td>{readable(attestation.recommendation)}</td>
+                      <td style={{ maxWidth: 420 }}>{attestation.statement}</td>
+                      <td>{new Date(attestation.createdAt).toLocaleString("en-PH")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           {payload?.canContribute && (
             <>
+              {payload.managerReviewOnly ? (
+                <form onSubmit={submitManagerAttestation} style={{ marginBottom: 12 }}>
+                  <div className="notice notice-blue" style={{ marginBottom: 10 }}>
+                    <ShieldCheck size={15} />
+                    <span>Your attestation is bound to the worker's current reporting line and becomes immutable evidence for this decision. It does not approve the decision.</span>
+                  </div>
+                  <div className="setting-form">
+                    <label>Manager recommendation
+                      <select value={managerRecommendation} onChange={(event) => setManagerRecommendation(event.target.value)}>
+                        <option value="support">Support proposed decision</option>
+                        <option value="do_not_support">Do not support proposed decision</option>
+                        <option value="needs_more_review">Needs more review</option>
+                      </select>
+                    </label>
+                    <label>Manager attestation
+                      <textarea
+                        required
+                        minLength={20}
+                        maxLength={4000}
+                        value={managerStatement}
+                        onChange={(event) => setManagerStatement(event.target.value)}
+                        placeholder="Record the observations and facts supporting your recommendation."
+                      />
+                    </label>
+                  </div>
+                  <div className="run-actions">
+                    <button className="secondary-button" disabled={busy || managerStatement.trim().length < 20}>
+                      Submit immutable attestation
+                    </button>
+                  </div>
+                </form>
+              ) : (
               <form onSubmit={addNote} style={{ marginBottom: 12 }}>
                 <div className="setting-form">
                   <label>Review note type
                     <select
                       value={noteKind}
-                      disabled={payload?.managerReviewOnly}
                       onChange={(event) => setNoteKind(event.target.value)}
                     >
-                      <option value="manager_review">Manager review</option>
-                      {!payload?.managerReviewOnly && <option value="hr_review">HR review</option>}
-                      {!payload?.managerReviewOnly && <option value="decision_rationale">Decision rationale</option>}
-                      {!payload?.managerReviewOnly && <option value="other">Other evidence note</option>}
+                      <option value="hr_review">HR review</option>
+                      <option value="decision_rationale">Decision rationale</option>
+                      <option value="other">Other evidence note</option>
                     </select>
                   </label>
                   <label>Review note
@@ -303,6 +396,7 @@ export function HcmEmploymentDecisionEvidence({
                   </button>
                 </div>
               </form>
+              )}
 
               <form onSubmit={uploadEvidence} style={{ marginBottom: 12 }}>
                 <div className="setting-form">
