@@ -686,6 +686,7 @@ export async function GET(request: Request) {
       invalidPayProfileEmployeeIds,
       unmatchedPunchRows: actualLabor.filter((entry) => !entry.matchedToSchedule).length,
       roleEvidenceIssues: coverageData.roleEvidenceIssues,
+      capabilityEvidenceIssues: coverageData.capabilityEvidenceIssues,
     },
   };
 
