@@ -95,9 +95,9 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
   return (
     <>
       <PageHeading
-        eyebrow="Analytics"
-        title="Reports built on aggregate SQL."
-        copy="Each report runs a real aggregate query against this client's rows. Exporting one writes an audit event, so the CSV you hand an auditor is traceable."
+        eyebrow="Reports"
+        title="Payroll and workforce reports."
+        copy="Review payroll cost, headcount, exceptions and payroll assurance. Export a traceable CSV when you need it."
         actions={
           <button className="secondary-button" onClick={reload} disabled={state === "loading"}>
             <RefreshCw size={15} className="i-blue" /> Refresh

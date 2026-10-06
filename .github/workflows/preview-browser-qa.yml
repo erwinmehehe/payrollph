@@ -438,7 +438,7 @@ jobs:
             { id: "owner", label: "Owner", short: "Owner", person: "Andrea Lim", landing: "Good morning, Andrea", taskPage: "Overview", dashboardRole: "owner" },
             { id: "hr", label: "HR Admin", short: "HR Admin", person: "Aira Villanueva", landing: "Good morning, Aira", taskPage: "People", dashboardRole: "hr" },
             { id: "payroll", label: "Payroll Officer", short: "Payroll", person: "Paolo Cruz", landing: "Good morning, Paolo", taskPage: "Payroll", dashboardRole: "payroll" },
-            { id: "checker", label: "Checker", short: "Checker", person: "Mariel Santos", landing: "Good morning, Mariel", taskPage: "Reviews", dashboardRole: "checker" },
+            { id: "checker", label: "Checker", short: "Checker", person: "Mariel Santos", landing: "Good morning, Mariel", taskPage: "Overview", dashboardRole: "checker" },
             { id: "bookkeeper", label: "Bookkeeper", short: "Bookkeeper", person: "Bea Navarro", landing: "Good morning, Bea", taskPage: "Exports", dashboardRole: "bookkeeper" },
             { id: "employee", label: "Employee", short: "Employee", person: "Jonas Reyes", landing: "My pay", taskPage: "My pay", dashboardRole: null },
           ];
@@ -696,15 +696,15 @@ jobs:
 
             const sidebar = page.locator("aside");
             if (persona.id === "hr") {
-              check((await sidebar.locator(".nav-item").filter({ hasText: /^Payroll$/ }).count()) === 0, "HR: payroll operator navigation must stay hidden");
-              check((await sidebar.locator(".nav-item").filter({ hasText: /^Migration$/ }).count()) === 0, "HR: migration admin navigation must stay hidden");
+              check((await sidebar.locator('.nav-item[data-nav-name="Payroll"]').count()) === 0, "HR: payroll operator navigation must stay hidden");
+              check((await sidebar.locator('.nav-item[data-nav-name="Migration"]').count()) === 0, "HR: migration admin navigation must stay hidden");
             }
             if (persona.id === "checker") {
-              check((await sidebar.locator(".nav-item").filter({ hasText: /^People$/ }).count()) === 0, "Checker: people administration must stay hidden");
-              check((await sidebar.locator(".nav-item").filter({ hasText: /^Payroll$/ }).count()) === 0, "Checker: unsafe payroll-maker page must stay hidden");
+              check((await sidebar.locator('.nav-item[data-nav-name="People"]').count()) === 0, "Checker: people administration must stay hidden");
+              check((await sidebar.locator('.nav-item[data-nav-name="Payroll"]').count()) === 0, "Checker: unsafe payroll-maker page must stay hidden");
             }
             if (persona.id === "payroll") {
-              check((await sidebar.locator(".nav-item").filter({ hasText: /^Leave$/ }).count()) === 0, "Payroll: leave administration must stay hidden");
+              check((await sidebar.locator('.nav-item[data-nav-name="Leave"]').count()) === 0, "Payroll: leave administration must stay hidden");
               let approvalsNav = sidebar.locator(".nav-item").filter({ hasText: /^Approvals/ }).first();
               if ((await approvalsNav.count()) === 0) {
                 const more = sidebar.locator(".nav-more-toggle").first();
@@ -719,7 +719,7 @@ jobs:
               check((await page.getByRole("button", { name: /^Decline$/ }).count()) === 0, "Payroll: Decline action must be hidden");
               check((await page.getByRole("button", { name: /Delegation settings/i }).count()) === 0, "Payroll: delegation controls must be hidden");
               check((await page.locator("[data-payroll-handoff]").count()) >= 1, "Payroll: approvals page should retain the shared handoff context");
-              const overviewNav = sidebar.locator(".nav-item").filter({ hasText: /^(Overview|Today)$/ }).first();
+              const overviewNav = sidebar.locator('.nav-item[data-nav-name="Overview"]').first();
               await overviewNav.click();
               await page.waitForTimeout(100);
             }
@@ -739,7 +739,7 @@ jobs:
               const afterTask = (await page.locator("body").textContent()) ?? "";
               check(afterTask.includes("Rule version"), "Employee: opening the payslip did not reveal its details");
             } else {
-              const taskNav = page.locator("aside .nav-item").filter({ hasText: new RegExp(`^${persona.taskPage}`) }).first();
+              const taskNav = page.locator(`aside .nav-item[data-nav-name="${persona.taskPage}"]`).first();
               check((await taskNav.count()) === 1, `${persona.label}: target navigation ${persona.taskPage} is missing`);
               await taskNav.click();
               await page.waitForTimeout(250);
@@ -748,11 +748,11 @@ jobs:
                 check((await recovery.count()) === 1, "Payroll: unresolved exception recovery state is missing");
                 check((await recovery.innerText()).includes("Review exceptions"), "Payroll: exception recovery action is missing");
               }
-              const activeNav = page.locator("aside .nav-item[aria-current='page']").filter({ hasText: new RegExp(`^${persona.taskPage}`) }).first();
+              const activeNav = page.locator(`aside .nav-item[data-nav-name="${persona.taskPage}"][aria-current='page']`).first();
               check((await activeNav.count()) === 1, `${persona.label}: task navigation did not reach ${persona.taskPage}`);
               if (persona.id === "hr") {
                 const demoShell = page.locator('.app-shell[data-demo-role="hr"]');
-                check((await demoShell.count()) === 1, "HR: demo shell marker was lost after opening People");
+                check((await demoShell.count()) === 1, "HR: demo shell marker was lost after opening Employees");
 
                 const demoSidebar = demoShell.locator("aside.sidebar").first();
                 const demoTopbar = demoShell.locator("header.topbar").first();
@@ -760,24 +760,28 @@ jobs:
                   demoSidebar.evaluate((element) => getComputedStyle(element).backgroundColor),
                   demoTopbar.evaluate((element) => getComputedStyle(element).backgroundColor),
                 ]);
-                check(shellStyles[0] === "rgb(252, 252, 251)", `HR: People fell back to the old dark sidebar; saw ${shellStyles[0]}`);
-                check(shellStyles[1] !== "rgb(15, 27, 24)", `HR: People fell back to the old dark topbar; saw ${shellStyles[1]}`);
-                check((await demoShell.locator(".demo-sandbox:visible").count()) === 0, "HR: People reintroduced the bulky demo tools strip");
+                check(shellStyles[0] === "rgb(252, 252, 251)", `HR: Employees fell back to the old dark sidebar; saw ${shellStyles[0]}`);
+                check(shellStyles[1] !== "rgb(15, 27, 24)", `HR: Employees fell back to the old dark topbar; saw ${shellStyles[1]}`);
+                check((await demoShell.locator(".demo-sandbox:visible").count()) === 0, "HR: Employees reintroduced the bulky demo tools strip");
 
                 const peopleHeading = (await page.locator(".page-heading h1").first().innerText()).trim();
-                check(peopleHeading === "People.", `HR: People should be a directory page, saw "${peopleHeading}"`);
+                check(peopleHeading === "Employees", `HR: Employees should be a directory page, saw "${peopleHeading}"`);
                 const peopleText = (await page.locator(".content-area").innerText()).trim();
-                check(!peopleText.includes("Payroll readiness."), "HR: People duplicates the Today payroll-readiness dashboard");
+                check(!peopleText.includes("Payroll readiness."), "HR: Employees duplicates the Today payroll-readiness dashboard");
 
                 const directPrimary = demoSidebar.locator(".side-navigation > .nav-group:not(.nav-more-group) > .nav-item:visible");
-                check((await directPrimary.count()) === 2, "HR: primary demo navigation should stay focused on Today and People");
-                check((await demoSidebar.locator(".nav-more-toggle:visible").count()) === 1, "HR: secondary HR modules should stay accessible under More");
+                check((await directPrimary.count()) === 6, "HR: primary navigation should expose Home, Employees, Time, Leave, Hiring and Performance");
+                const primaryKeys = await directPrimary.evaluateAll((items) => items.map((item) => item.getAttribute("data-nav-name")));
+                for (const expected of ["Overview", "People", "Time & attendance", "Leave", "Recruitment", "Performance"]) {
+                  check(primaryKeys.includes(expected), `HR: primary navigation is missing ${expected}`);
+                }
+                check((await demoSidebar.locator(".nav-more-toggle:visible").count()) === 1, "HR: advanced HR modules should stay accessible under More");
 
                 const more = demoSidebar.locator(".nav-more-toggle").first();
                 await more.click();
-                const secondaryTime = demoSidebar.locator(".nav-more-items .nav-item").filter({ hasText: /^Time$/ }).first();
-                check((await secondaryTime.count()) === 1, "HR: Time must remain available under More");
-                await secondaryTime.click();
+                const secondaryPlanning = demoSidebar.locator('.nav-more-items .nav-item[data-nav-name="Planning"]').first();
+                check((await secondaryPlanning.count()) === 1, "HR: Planning must remain available under More");
+                await secondaryPlanning.click();
                 await page.waitForTimeout(180);
                 check((await page.locator('.app-shell[data-demo-role="hr"]').count()) === 1, "HR: demo shell marker was lost after opening a secondary module");
                 check(
@@ -785,9 +789,8 @@ jobs:
                   "HR: secondary module navigation fell back to the old dark sidebar",
                 );
                 check((await page.locator(".demo-sandbox:visible").count()) === 0, "HR: secondary module reintroduced the bulky demo tools strip");
-                // People was already exercised above. The secondary-module check only needs
-                // to prove the compact HR shell survives navigation away from People; returning
-                // here adds a second click target after the More group expands and is redundant.
+                // Employees was already exercised above. The secondary-module check only needs
+                // to prove the compact HR shell survives navigation into an advanced module.
               }
             }
 

@@ -87,8 +87,10 @@ test("release checklist exposes safe assurance findings for direct employee deep
   assert.ok(route.includes("employeeId: finding.employeeId ?? null"));
   assert.ok(!route.includes("current: finding.current"));
   assert.ok(workspace.includes("finding.employeeId"));
-  assert.ok(workspace.includes('action: "Explain pay"'));
-  assert.ok(workspace.includes("onExplainEmployee(finding.employeeId!)"));
+  assert.ok(workspace.includes('attendanceIssue ? "Fix time" : employeeRecordIssue ? "Open employee" : "Explain pay"'));
+  assert.ok(workspace.includes("onOpenTimeIssue(employeeId)"));
+  assert.ok(workspace.includes("onOpenEmployee(employeeId)"));
+  assert.ok(workspace.includes("onExplainEmployee(employeeId)"));
 });
 
 test("generic statutory attention never opens the first employee by accident", async () => {

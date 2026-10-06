@@ -16,9 +16,9 @@ test("remittance API returns deadline-aware alert data", () => {
   assert.ok(route.includes("today: state.today"));
 });
 
-test("owner and payroll dashboards both surface statutory remittance watch", () => {
+test("payroll dashboard surfaces remittance watch while owner Home stays payroll-first", () => {
   const matches = overview.match(/<StatutoryRemittanceWatch/g) ?? [];
-  assert.equal(matches.length, 2);
+  assert.equal(matches.length, 1);
   assert.ok(overview.includes('onOpen={() => onPage("Payroll")}'));
 });
 
@@ -33,7 +33,7 @@ test("dashboard watch never silently treats an API failure as compliant", () => 
 });
 
 
-test("remittance watch stays secondary to the primary owner and payroll workflow banners", () => {
+test("remittance watch stays off owner Home and secondary to the payroll workflow banner", () => {
   const ownerStart = overview.indexOf("function OwnerWorkspace");
   const payrollStart = overview.indexOf("function PayrollWorkspace");
   const checkerStart = overview.indexOf("function CheckerWorkspace");
@@ -41,6 +41,7 @@ test("remittance watch stays secondary to the primary owner and payroll workflow
   const ownerBlock = overview.slice(ownerStart, payrollStart);
   const payrollBlock = overview.slice(payrollStart, checkerStart);
 
-  assert.ok(ownerBlock.indexOf("mockup-owner-release dashboard-alert-banner") < ownerBlock.indexOf("<StatutoryRemittanceWatch"));
+  assert.ok(ownerBlock.includes("mockup-owner-release dashboard-alert-banner"));
+  assert.equal(ownerBlock.includes("<StatutoryRemittanceWatch"), false);
   assert.ok(payrollBlock.indexOf("mockup-progress-block dashboard-alert-banner") < payrollBlock.indexOf("<StatutoryRemittanceWatch"));
 });

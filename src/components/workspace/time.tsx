@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CalendarDays, Check, Clock3, Clock, Download, Search, Timer } from "lucide-react";
 import { AttendanceCorrectionsPanel } from "./attendance-corrections-panel";
 import { AttendanceExceptionsPanel } from "./attendance-exceptions-panel";
@@ -15,15 +15,26 @@ export function TimeView({
   onOpenBundy,
   notify,
   canManage = true,
+  focusEmployeeId,
+  onClearFocus,
 }: {
   data: DashboardData;
   onOpenBundy: () => void;
   notify: Notify;
   canManage?: boolean;
+  focusEmployeeId?: number | null;
+  onClearFocus?: () => void;
 }) {
   const punches = useMemo(() => data.punches ?? [], [data.punches]);
   const [view, setView] = useState<"all" | "incomplete">("all");
   const [query, setQuery] = useState("");
+  const focusedEmployee = data.employees.find((employee) => employee.id === focusEmployeeId) ?? null;
+
+  useEffect(() => {
+    if (!focusedEmployee) return;
+    setView("incomplete");
+    setQuery(`${focusedEmployee.firstName} ${focusedEmployee.lastName}`);
+  }, [focusedEmployee]);
 
   const stats = useMemo(() => {
     const complete = punches.filter(isComplete);
@@ -53,9 +64,9 @@ export function TimeView({
   return (
     <>
       <PageHeading
-        eyebrow="Time &amp; attendance"
-        title="Time that stands up to payroll."
-        copy="Raw punches are classified against the shift policy on the server. Tardiness, undertime, overtime and night differential are derived, never entered by hand."
+        eyebrow="Time"
+        title="Attendance ready for payroll."
+        copy="Review punches, exceptions and corrections before payroll. PayrollPH calculates tardiness, undertime, overtime and night differential from approved time records."
         actions={
           canManage ? (
             <>
@@ -75,6 +86,26 @@ export function TimeView({
           ) : undefined
         }
       />
+
+      {focusedEmployee && (
+        <div className="notice notice-blue" style={{ marginBottom: 16 }}>
+          <Clock3 size={15} className="i-cyan" />
+          <div style={{ flex: 1 }}>
+            <strong>Reviewing payroll-impacting time for {focusedEmployee.firstName} {focusedEmployee.lastName}</strong>
+            <p style={{ margin: "4px 0 0" }}>Showing incomplete punches first so you can fix the issue and return to payroll.</p>
+          </div>
+          <button
+            className="secondary-button"
+            onClick={() => {
+              setQuery("");
+              setView("all");
+              onClearFocus?.();
+            }}
+          >
+            Clear filter
+          </button>
+        </div>
+      )}
 
       <section className="stats-grid">
         <Metric

@@ -1,10 +1,12 @@
 export const ROLE_PRIMARY_PAGES: Partial<Record<string, readonly string[]>> = {
-  owner: ["Overview", "Payroll", "Analytics", "People", "Settings"],
-  admin: ["Overview", "Payroll", "Exports", "Compliance", "Analytics", "Settings"],
-  bookkeeper: ["Overview", "Exports", "Compliance", "Readiness", "Analytics"],
-  hr: ["Overview", "People"],
-  payroll: ["Overview", "Payroll", "Time & attendance", "People"],
-  checker: ["Overview", "Audit trail"],
+  // Payroll-first progressive disclosure. Advanced HCM and administration
+  // remain available under More without competing with the daily jobs.
+  owner: ["Overview", "Payroll", "People", "Time & attendance", "Leave", "Analytics"],
+  admin: ["Overview", "Payroll", "People", "Time & attendance", "Leave", "Analytics"],
+  bookkeeper: ["Overview", "Payroll", "Analytics", "Compliance", "Exports"],
+  hr: ["Overview", "People", "Time & attendance", "Leave", "Recruitment", "Performance"],
+  payroll: ["Overview", "Payroll", "Time & attendance", "People", "Analytics"],
+  checker: ["Overview", "Audit trail", "Analytics"],
   manager: ["Overview", "Planning", "Performance", "Approvals", "Analytics"],
 };
 
