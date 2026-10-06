@@ -85,12 +85,6 @@ export async function GET(request: Request) {
     }, { status: 409 });
   }
 
-  let legalEntity;
-  try {
-    legalEntity = await resolveComplianceLegalEntity({ organizationId, legalEntityId: requestedLegalEntityId || null });
-  } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "Legal employer could not be resolved." }, { status: 409 });
-  }
 
   const state = await loadStatutoryRemittanceState(organizationId, legalEntity.id);
   if (!state) return Response.json({ error: "Organization or legal employer not found." }, { status: 404 });
@@ -122,6 +116,17 @@ export async function POST(request: Request) {
 
   const denied = await requirePayrollOperator(user.id, organizationId);
   if (denied) return denied;
+  let legalEntity;
+  try {
+    legalEntity = await resolveComplianceLegalEntity({
+      organizationId,
+      legalEntityId: requestedLegalEntityId || null,
+    });
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "Legal employer could not be resolved.",
+    }, { status: 409 });
+  }
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
   const rateDenied = await enforceSensitiveActionRateLimit(request, {
