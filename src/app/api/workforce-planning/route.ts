@@ -43,6 +43,10 @@ function isoDate(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
+function todayPh() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
+}
+
 async function scopedUnit(userId: number, organizationId: number, orgUnitId: number | null) {
   const access = await getAccess(userId, organizationId);
   if (!access) return { error: Response.json({ error: "You do not have access to this workspace." }, { status: 403 }) };
@@ -472,6 +476,11 @@ export async function POST(request: Request) {
     if (!Number.isInteger(positionId) || !Number.isInteger(employeeId) || !isoDate(effectiveFrom)) {
       return Response.json({ error: "positionId, employeeId, and effectiveFrom are required." }, { status: 400 });
     }
+    if (effectiveFrom !== todayPh()) {
+      return Response.json({
+        error: "Direct assignment changes current worker state and must use the current Philippine business date. Future or retroactive assignments belong in the scheduled effective-dated HCM workflow.",
+      }, { status: 409 });
+    }
 
     const [position] = await db.select().from(positions)
       .where(and(eq(positions.id, positionId), eq(positions.organizationId, organizationId))).limit(1);
@@ -495,6 +504,9 @@ export async function POST(request: Request) {
     }).from(employees)
       .where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId))).limit(1);
     if (!employee) return Response.json({ error: "Employee not found in this workspace." }, { status: 404 });
+    if (employee.status !== "Active") {
+      return Response.json({ error: "Only active employees can receive a new primary position assignment." }, { status: 409 });
+    }
     const access = await getAccess(user.id, organizationId);
     const employeeScope = assertScope(access, employee.orgUnitId);
     if (!employeeScope.ok) return Response.json({ error: employeeScope.error }, { status: employeeScope.status });
