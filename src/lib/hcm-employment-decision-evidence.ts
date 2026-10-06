@@ -366,19 +366,54 @@ export async function approveEmploymentDecisionWithEvidence(input: {
       ))
       .orderBy(asc(hcmEmploymentDecisionDocuments.id));
 
+    const managerAttestations = await tx.select()
+      .from(hcmEmploymentDecisionManagerAttestations)
+      .where(and(
+        eq(hcmEmploymentDecisionManagerAttestations.organizationId, input.organizationId),
+        eq(hcmEmploymentDecisionManagerAttestations.decisionId, input.decisionId),
+      ))
+      .orderBy(
+        asc(hcmEmploymentDecisionManagerAttestations.createdAt),
+        asc(hcmEmploymentDecisionManagerAttestations.id),
+      );
+
+    const [currentReportingLine] = await tx.select({
+      assignmentId: positionAssignments.id,
+      positionId: positions.id,
+      managerEmployeeId: positions.managerEmployeeId,
+    }).from(positionAssignments)
+      .innerJoin(positions, eq(positionAssignments.positionId, positions.id))
+      .where(and(
+        eq(positionAssignments.organizationId, input.organizationId),
+        eq(positionAssignments.employeeId, decision.employeeId),
+        eq(positionAssignments.assignmentType, "primary"),
+        isNull(positionAssignments.effectiveUntil),
+      ))
+      .orderBy(desc(positionAssignments.effectiveFrom), desc(positionAssignments.id))
+      .limit(1);
+
+    const currentManagerAttestation = currentReportingLine?.managerEmployeeId
+      ? [...managerAttestations].reverse().find(
+          (attestation) => attestation.managerEmployeeId === currentReportingLine.managerEmployeeId,
+        ) ?? null
+      : null;
+
     const [lifecyclePolicy] = await tx.select().from(hcmLifecyclePolicies)
       .where(eq(hcmLifecyclePolicies.organizationId, input.organizationId))
       .limit(1);
     const policy = lifecyclePolicy ?? DEFAULT_HCM_LIFECYCLE_POLICY;
 
-    if (
-      policy.requireManagerReviewForProbation
-      && term.termKind === "probationary"
-      && !notes.some((note) => note.noteKind === "manager_review")
-    ) {
-      throw new DecisionEvidenceApprovalError(
-        "Organization lifecycle policy requires a manager-review note before approving a probation decision.",
-      );
+    if (policy.requireManagerReviewForProbation && term.termKind === "probationary") {
+      if (!currentReportingLine?.managerEmployeeId) {
+        throw new DecisionEvidenceApprovalError(
+          "Organization lifecycle policy requires a manager attestation, but this worker has no current manager on the active primary position.",
+        );
+      }
+      if (!currentManagerAttestation) {
+        throw new DecisionEvidenceApprovalError(
+          "Organization lifecycle policy requires an attestation from the worker's current manager before approving a probation decision.",
+        );
+      }
     }
     if (
       policy.requireDecisionRationaleNote
@@ -404,7 +439,13 @@ export async function approveEmploymentDecisionWithEvidence(input: {
       );
     }
 
-    const reviewEvidence = proposalSnapshot(decision, term, notes, attachments);
+    const reviewEvidence = proposalSnapshotV2(
+      decision,
+      term,
+      notes,
+      attachments,
+      managerAttestations,
+    );
     const snapshotSha256 = evidenceSha256(reviewEvidence);
 
     const [scheduled] = await tx.update(hcmEmploymentTermDecisions).set({
@@ -413,6 +454,7 @@ export async function approveEmploymentDecisionWithEvidence(input: {
       approvedBy: input.approverName,
       approvedAt: now,
       evidenceSnapshotSha256: snapshotSha256,
+      evidencePacketVersion: "v2",
       evidenceSealedAt: now,
       failure: null,
       updatedAt: now,
@@ -435,6 +477,10 @@ export async function approveEmploymentDecisionWithEvidence(input: {
         evidenceSnapshotSha256: snapshotSha256,
         noteCount: notes.length,
         attachmentCount: attachments.length,
+        managerAttestationCount: managerAttestations.length,
+        currentManagerAttestationId: currentManagerAttestation?.id ?? null,
+        currentManagerRecommendation: currentManagerAttestation?.recommendation ?? null,
+        evidencePacketVersion: "v2",
         effectiveDate: String(scheduled.effectiveDate),
         decisionKind: scheduled.decisionKind,
         lifecyclePolicyVersion: lifecyclePolicy?.version ?? 0,
@@ -452,6 +498,8 @@ export async function approveEmploymentDecisionWithEvidence(input: {
       evidenceSnapshotSha256: snapshotSha256,
       noteCount: notes.length,
       attachmentCount: attachments.length,
+      managerAttestationCount: managerAttestations.length,
+      currentManagerAttestationId: currentManagerAttestation?.id ?? null,
     };
   });
 }
