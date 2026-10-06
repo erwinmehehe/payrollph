@@ -25,3 +25,11 @@ test("Dashboard leave rows expose current precise interval evidence", () => {
   assert.ok(types.includes("intervalRevision"));
   assert.ok(types.includes("intervals?:"));
 });
+
+
+test("custom-hour leave requires explicit overnight selection instead of inferring it from clock order", () => {
+  const panels = read("src/components/workspace/panels.tsx");
+  assert.ok(panels.includes("Ends next day"));
+  assert.ok(panels.includes("timedEndsNextDay"));
+  assert.ok(!panels.includes("endLocalTime <= startLocalTime"));
+});
