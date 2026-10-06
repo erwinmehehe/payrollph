@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { SeoLandingPage } from "@/components/marketing/seo-landing-page";
 
 export const metadata: Metadata = {
-  title: "Payroll API Philippines | Developer Center | Linaw",
-  description: "Linaw payroll API documentation covering scoped keys, employee and payroll-run endpoints, HMAC-signed webhooks, delivery security and admin controls.",
+  title: "Payroll API Philippines | Developer Tools & Webhooks | Linaw",
+  description: "Linaw payroll API documentation for scoped keys, employee and payroll-run endpoints, HMAC-signed webhooks, delivery security and administrator controls.",
   alternates: { canonical: "/developers" },
 };
 
