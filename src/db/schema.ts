@@ -512,7 +512,8 @@ export const workforceTimesheets = pgTable(
     employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
     periodStart: date("period_start").notNull(),
     periodEnd: date("period_end").notNull(),
-    status: varchar("status", { length: 24 }).notNull().default("draft"),
+    version: integer("version").notNull().default(1),
+    status: varchar("status", { length: 24 }).notNull().default("submitted"),
     scheduledMinutes: integer("scheduled_minutes").notNull().default(0),
     workedMinutes: integer("worked_minutes").notNull().default(0),
     overtimeMinutes: integer("overtime_minutes").notNull().default(0),
@@ -531,11 +532,12 @@ export const workforceTimesheets = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("workforce_timesheet_period_unique").on(
+    uniqueIndex("workforce_timesheet_period_version_unique").on(
       table.organizationId,
       table.employeeId,
       table.periodStart,
       table.periodEnd,
+      table.version,
     ),
     index("workforce_timesheet_org_period_idx").on(table.organizationId, table.periodStart, table.periodEnd),
     index("workforce_timesheet_status_idx").on(table.organizationId, table.status),
