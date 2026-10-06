@@ -96,6 +96,10 @@ test("manager review API is reporting-line scoped and protects the irreversible 
   assert.ok(route.includes("requireSensitiveActionMfa"));
   assert.ok(route.includes("Submitted probation reviews are immutable."));
   assert.ok(route.includes('inArray(hcmEmploymentTermDecisions.status, ["scheduled", "applied"])'));
+  assert.ok(route.includes("db.transaction"));
+  assert.ok(route.includes("for update"));
+  assert.ok(route.includes("hcm_employment_term_decisions"));
+  assert.ok(route.includes("cannot be submitted after the employment decision has been approved"));
 });
 
 test("structured review remains evidence only and cannot approve or mutate employment state", () => {
