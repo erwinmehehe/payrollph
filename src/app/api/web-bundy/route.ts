@@ -1,7 +1,7 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, timePunches } from "@/db/schema";
+import { attendanceCapturePolicies, employees, timePunches } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertMembership, assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
@@ -27,6 +27,13 @@ export async function GET(request: Request) {
   let employeeId = Number(url.searchParams.get("employeeId") ?? 0);
   if (!Number.isInteger(organizationId)) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
+  }
+
+  const [capturePolicy] = await db.select().from(attendanceCapturePolicies)
+    .where(eq(attendanceCapturePolicies.organizationId, organizationId))
+    .limit(1);
+  if (capturePolicy && !capturePolicy.webBundyEnabled) {
+    return Response.json({ error: "Web Bundy capture is disabled for this organization." }, { status: 403 });
   }
 
   if (user.role === "employee") {

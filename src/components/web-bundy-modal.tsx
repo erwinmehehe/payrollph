@@ -9,12 +9,14 @@ export function WebBundyModal({
   employeeName,
   onClose,
   onPunchSuccess,
+  offlineSelfService = false,
 }: {
   organizationId: number;
   employeeId?: number;
   employeeName?: string;
   onClose: () => void;
   onPunchSuccess: () => void;
+  offlineSelfService?: boolean;
 }) {
   const [time, setTime] = useState("");
   const [date, setDate] = useState("");
@@ -22,6 +24,8 @@ export function WebBundyModal({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [capturePolicy, setCapturePolicy] = useState<{ mobileClockEnabled: boolean; offlineSyncEnabled: boolean; requireLocation: boolean } | null>(null);
+  const [queuedCount, setQueuedCount] = useState(0);
 
   useEffect(() => {
     const updateTime = () => {
@@ -36,6 +40,69 @@ export function WebBundyModal({
 
   const [nonce, setNonce] = useState(0);
   const reloadPunches = useCallback(() => setNonce((current) => current + 1), []);
+  const queueKey = `linaw-offline-attendance:${organizationId}`;
+
+  const refreshQueueCount = useCallback(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const value = JSON.parse(window.localStorage.getItem(queueKey) ?? "[]");
+      setQueuedCount(Array.isArray(value) ? value.length : 0);
+    } catch {
+      setQueuedCount(0);
+    }
+  }, [queueKey]);
+
+  const flushOfflineQueue = useCallback(async () => {
+    if (!offlineSelfService || typeof window === "undefined") return true;
+    let events: unknown[] = [];
+    try {
+      const value = JSON.parse(window.localStorage.getItem(queueKey) ?? "[]");
+      events = Array.isArray(value) ? value : [];
+    } catch {
+      events = [];
+    }
+    if (!events.length) {
+      setQueuedCount(0);
+      return true;
+    }
+    try {
+      const response = await fetch("/api/workforce/attendance-sync", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ organizationId, events }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) return false;
+      window.localStorage.removeItem(queueKey);
+      setQueuedCount(0);
+      setMessage(`Offline attendance synchronized: ${body.applied ?? 0} applied, ${body.duplicate ?? 0} duplicate, ${body.rejected ?? 0} rejected.`);
+      reloadPunches();
+      onPunchSuccess();
+      return true;
+    } catch {
+      return false;
+    }
+  }, [offlineSelfService, onPunchSuccess, organizationId, queueKey, reloadPunches]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const response = await fetch(`/api/workforce/attendance-capture?organizationId=${organizationId}`, { cache: "no-store" });
+        const body = await response.json().catch(() => ({}));
+        if (alive && response.ok) setCapturePolicy(body.policy ?? null);
+      } catch {
+        // Online capture still works when policy discovery is temporarily unavailable.
+      }
+      if (alive) refreshQueueCount();
+    })();
+    const sync = () => { void flushOfflineQueue(); };
+    window.addEventListener("online", sync);
+    return () => {
+      alive = false;
+      window.removeEventListener("online", sync);
+    };
+  }, [flushOfflineQueue, organizationId, refreshQueueCount]);
 
   // The fetch lives in the effect so every state update happens after an await,
   // and `alive` stops a slow response overwriting a newer one.
@@ -57,10 +124,40 @@ export function WebBundyModal({
     };
   }, [organizationId, employeeId, nonce]);
 
+  async function locationEvidence() {
+    if (!capturePolicy?.requireLocation) return "Web Bundy (Browser)";
+    if (!navigator.geolocation) throw new Error("Location access is required for attendance capture.");
+    return new Promise<string>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => resolve(`GPS ${position.coords.latitude.toFixed(6)},${position.coords.longitude.toFixed(6)} ±${Math.round(position.coords.accuracy)}m`),
+        () => reject(new Error("Location access is required by your organization's attendance policy.")),
+        { enableHighAccuracy: true, maximumAge: 60_000, timeout: 10_000 },
+      );
+    });
+  }
+
   async function handlePunch(actionType: "clock_in" | "clock_out") {
     setBusy(true);
     setMessage("");
     setError("");
+    let location = "Web Bundy (Browser)";
+    try {
+      location = await locationEvidence();
+    } catch (locationError) {
+      setError(locationError instanceof Error ? locationError.message : "Location evidence is required.");
+      setBusy(false);
+      return;
+    }
+
+    if (queuedCount > 0 && navigator.onLine) {
+      const flushed = await flushOfflineQueue();
+      if (!flushed) {
+        setError("Queued offline punches could not be synchronized. New punches are paused to preserve event order.");
+        setBusy(false);
+        return;
+      }
+    }
+
     try {
       const res = await fetch("/api/web-bundy", {
         method: "POST",
@@ -69,7 +166,7 @@ export function WebBundyModal({
           organizationId,
           employeeId,
           actionType,
-          location: "Web Bundy (Workstation Browser)",
+          location,
         }),
       });
       const data = await res.json();
@@ -81,7 +178,27 @@ export function WebBundyModal({
       reloadPunches();
       onPunchSuccess();
     } catch {
-      setError("Network error recording punch.");
+      if (offlineSelfService && capturePolicy?.mobileClockEnabled && capturePolicy.offlineSyncEnabled) {
+        const current = (() => {
+          try {
+            const value = JSON.parse(window.localStorage.getItem(queueKey) ?? "[]");
+            return Array.isArray(value) ? value : [];
+          } catch {
+            return [];
+          }
+        })();
+        current.push({
+          clientEventId: crypto.randomUUID(),
+          actionType,
+          occurredAt: new Date().toISOString(),
+          location,
+        });
+        window.localStorage.setItem(queueKey, JSON.stringify(current));
+        setQueuedCount(current.length);
+        setMessage("Network unavailable. Punch saved on this device and queued for secure synchronization.");
+      } else {
+        setError("Network error recording punch. Offline synchronization is not enabled for this account.");
+      }
     } finally {
       setBusy(false);
     }
@@ -117,6 +234,7 @@ export function WebBundyModal({
           </div>
         )}
 
+        {queuedCount > 0 && <div className="notice notice-amber" style={{ margin: "10px 0" }}><ShieldCheck size={16} /><span>{queuedCount} offline punch event(s) are waiting to synchronize.</span></div>}
         {message && <div className="notice notice-green" style={{ margin: "10px 0" }}><Check size={16} className="i-green" /><span>{message}</span></div>}
         {error && <div className="notice notice-amber" style={{ margin: "10px 0" }}><span>{error}</span></div>}
 
