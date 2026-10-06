@@ -74,14 +74,17 @@ async function deriveMissingMemberAddition(organizationId: number, caseId: numbe
   const [employee] = await db.select({
     id: employees.id,
     employeeNo: employees.employeeNo,
+    legalEntityId: employees.legalEntityId,
   }).from(employees).where(and(
     eq(employees.id, issue.employeeId),
     eq(employees.organizationId, organizationId),
+    eq(employees.legalEntityId, issue.legalEntityId),
   )).limit(1);
   if (!employee) throw new Error("Employee record not found.");
 
   const [batch] = await db.select().from(statutoryRemittanceBatches).where(and(
     eq(statutoryRemittanceBatches.organizationId, organizationId),
+    eq(statutoryRemittanceBatches.legalEntityId, issue.legalEntityId),
     eq(statutoryRemittanceBatches.agency, issue.agency),
     eq(statutoryRemittanceBatches.applicableMonth, issue.applicableMonth),
   )).limit(1);
@@ -94,6 +97,7 @@ async function deriveMissingMemberAddition(organizationId: number, caseId: numbe
 
   const existingMembers = await db.select().from(statutoryRemittanceMembers).where(and(
     eq(statutoryRemittanceMembers.organizationId, organizationId),
+    eq(statutoryRemittanceMembers.legalEntityId, issue.legalEntityId),
     eq(statutoryRemittanceMembers.batchId, batch.id),
   )).orderBy(asc(statutoryRemittanceMembers.employeeId));
 
@@ -107,6 +111,7 @@ async function deriveMissingMemberAddition(organizationId: number, caseId: numbe
 
   const runs = await db.select().from(payrollRuns).where(and(
     eq(payrollRuns.organizationId, organizationId),
+    eq(payrollRuns.legalEntityId, issue.legalEntityId),
     gte(payrollRuns.periodEnd, monthStart(issue.applicableMonth)),
     lte(payrollRuns.periodEnd, monthEnd(issue.applicableMonth)),
   ));
@@ -128,6 +133,7 @@ async function deriveMissingMemberAddition(organizationId: number, caseId: numbe
         employeeNo: employees.employeeNo,
       }).from(employees).where(and(
         eq(employees.organizationId, organizationId),
+        eq(employees.legalEntityId, issue.legalEntityId),
         inArray(employees.id, employeeIds),
       ))
     : [];
@@ -740,6 +746,7 @@ export async function POST(request: Request) {
         const [newMember] = await tx.insert(statutoryRemittanceMembers).values({
           batchId: currentBatch.id,
           organizationId,
+          legalEntityId: currentBatch.legalEntityId,
           employeeId: missingMemberAddition.employee.id,
           employeeNo: missingMemberAddition.employee.employeeNo,
           employeeShare: proposed.employeeShare,
@@ -865,6 +872,7 @@ export async function POST(request: Request) {
 
     const [correctedBatch] = await db.select({
       applicableMonth: statutoryRemittanceBatches.applicableMonth,
+      legalEntityId: statutoryRemittanceBatches.legalEntityId,
     }).from(statutoryRemittanceBatches).where(and(
       eq(statutoryRemittanceBatches.id, correction.batchId),
       eq(statutoryRemittanceBatches.organizationId, organizationId),
@@ -872,6 +880,7 @@ export async function POST(request: Request) {
     if (correctedBatch) {
       const invalidatedClosures = await invalidateStatutoryRemittanceMonthCertification({
         organizationId,
+        legalEntityId: correctedBatch.legalEntityId,
         applicableMonth: correctedBatch.applicableMonth,
         reason: `Approved remittance correction #${correction.id} changed certified month evidence.`,
       });
