@@ -12,11 +12,13 @@ import {
   summarizeEmploymentLifecycle,
 } from "@/lib/hcm-lifecycle-readiness";
 import { philippineBusinessDate } from "@/lib/hcm-employment-terms";
+import { loadHcmLifecyclePolicy } from "@/lib/hcm-lifecycle-policy";
 
 export async function loadEmploymentLifecycleReadiness(
   organizationId: number,
   today = philippineBusinessDate(),
 ) {
+  const policy = await loadHcmLifecyclePolicy(organizationId);
   const [employeeRows, termRows, decisionRows, separationRows] = await Promise.all([
     db.select({
       id: employees.id,
@@ -110,12 +112,14 @@ export async function loadEmploymentLifecycleReadiness(
           lastDay: String(separation.lastDay),
         } : null,
         today,
+        actionWindowDays: policy.actionWindowDays,
       });
     });
 
   const sorted = sortEmploymentLifecycleRows(rows);
   return {
     today,
+    policy,
     summary: summarizeEmploymentLifecycle(sorted),
     rows: sorted,
   };
