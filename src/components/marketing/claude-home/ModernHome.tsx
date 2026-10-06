@@ -197,18 +197,18 @@ function StatutoryStrip() {
 
 function ChangesVisual() {
   return (
-    <div className="apple-product-panel">
+    <div className="linaw-product-panel">
       <div className="panel-browser-bar"><i /><i /><i /><span>Calculation comparison</span></div>
       <div className="comparison-summary">
         <div><span>Net payroll</span><strong>₱403,920</strong><small>+₱7,430</small></div>
         <div><span>Employees changed</span><strong>12</strong><small>of 128</small></div>
         <div><span>New exceptions</span><strong>2</strong><small>needs review</small></div>
       </div>
-      <div className="apple-table">
-        <div className="apple-table-row head"><span>Employee</span><span>Change</span><span>Impact</span></div>
-        <div className="apple-table-row"><strong>Anna Santos</strong><span>Overtime +4.0h</span><b>+₱1,840</b></div>
-        <div className="apple-table-row"><strong>Jose Cruz</strong><span>Attendance correction</span><b>+₱920</b></div>
-        <div className="apple-table-row"><strong>Maria Reyes</strong><span>Loan deduction updated</span><b className="negative">−₱1,200</b></div>
+      <div className="linaw-table">
+        <div className="linaw-table-row head"><span>Employee</span><span>Change</span><span>Impact</span></div>
+        <div className="linaw-table-row"><strong>Anna Santos</strong><span>Overtime +4.0h</span><b>+₱1,840</b></div>
+        <div className="linaw-table-row"><strong>Jose Cruz</strong><span>Attendance correction</span><b>+₱920</b></div>
+        <div className="linaw-table-row"><strong>Maria Reyes</strong><span>Loan deduction updated</span><b className="negative">−₱1,200</b></div>
       </div>
     </div>
   );
@@ -216,7 +216,7 @@ function ChangesVisual() {
 
 function BlockerVisual() {
   return (
-    <div className="apple-product-panel blocker-panel">
+    <div className="linaw-product-panel blocker-panel">
       <div className="panel-browser-bar"><i /><i /><i /><span>Release safety</span></div>
       <div className="blocker-feature">
         <span className="blocker-feature-icon"><AlertTriangle /></span>
@@ -237,7 +237,7 @@ function BlockerVisual() {
 
 function ApprovalVisual() {
   return (
-    <div className="apple-product-panel approval-panel">
+    <div className="linaw-product-panel approval-panel">
       <div className="panel-browser-bar"><i /><i /><i /><span>Release evidence</span></div>
       <div className="approval-chain">
         <div className="approval-step complete">
