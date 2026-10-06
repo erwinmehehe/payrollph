@@ -20,6 +20,9 @@ type Member = {
   postedAmount?: string | null;
   postingReference?: string | null;
   confirmedBy?: string | null;
+  postingEvidenceArtifactId?: number | null;
+  postingEvidenceSource?: string | null;
+  postingEvidenceHashSha256?: string | null;
 };
 
 type PaymentEvidence = {
@@ -161,6 +164,9 @@ export function evaluateRemittanceMonthClose(input: {
       postedAmount: member.postedAmount ?? null,
       postingReference: member.postingReference ?? null,
       confirmedBy: member.confirmedBy ?? null,
+      postingEvidenceArtifactId: member.postingEvidenceArtifactId ?? null,
+      postingEvidenceSource: member.postingEvidenceSource ?? null,
+      postingEvidenceHashSha256: member.postingEvidenceHashSha256 ?? null,
     })),
     corrections: (input.corrections ?? [])
       .filter((correction) => monthBatchIds.has(correction.batchId) && correction.status === "approved" && correction.appliedAt)
