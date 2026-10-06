@@ -17,6 +17,17 @@ test("Core 3.9 migration creates structured probation review, receipt acknowledg
   assert.ok(migration.includes("hcm_probation_review_ack_unique"));
   assert.ok(migration.includes("acknowledged_receipt"));
   assert.ok(migration.includes("receipt-only-v1"));
+
+  const schema = read("src/db/schema.ts");
+  assert.ok(schema.includes("hcm_probation_reviews_status_check"));
+  assert.ok(schema.includes("hcm_probation_reviews_recommendation_check"));
+  assert.ok(schema.includes("hcm_probation_reviews_ratings_check"));
+  assert.ok(schema.includes("hcm_probation_review_ack_response_check"));
+
+  const baseline = read("drizzle/baseline.sql");
+  assert.ok(baseline.includes('CREATE TABLE IF NOT EXISTS "hcm_probation_reviews"'));
+  assert.ok(baseline.includes('CREATE TABLE IF NOT EXISTS "hcm_probation_review_acknowledgments"'));
+  assert.ok(baseline.includes('CREATE TABLE IF NOT EXISTS "hcm_probation_review_events"'));
 });
 
 test("probation review parser accepts bounded ratings and requires a complete review before submission", () => {
