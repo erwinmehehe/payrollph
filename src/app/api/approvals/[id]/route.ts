@@ -8,7 +8,7 @@ import { dispatchWebhook } from "@/lib/webhooks";
 import { assertMembership } from "@/lib/access";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
 import { isPublicDemoIdentity } from "@/lib/demo-security";
-import { runAutomationEventSafely } from "@/lib/automation";
+import { resumeAutomationExecutionFromApproval, runAutomationEventSafely } from "@/lib/automation";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const originDenied = enforceSameOriginMutation(request);
@@ -177,6 +177,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     throw error;
   }
 
+  let automationGate: unknown = null;
+  try {
+    automationGate = await resumeAutomationExecutionFromApproval({
+      approvalTaskId: taskId,
+      decision: status,
+      decidedBy: actor,
+    });
+  } catch (error) {
+    automationGate = {
+      status: "engine_error",
+      error: error instanceof Error ? error.message.slice(0, 4000) : "Automation approval resume failed.",
+    };
+  }
+
   const deliveries = sharedDemo ? [] : await dispatchWebhook({
     organizationId: task.organizationId,
     event: "approval.decided",
@@ -243,5 +257,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     webhookDeliveries: deliveries.length,
     leaveUpdated: Boolean(linkedLeave),
     automation,
+    automationGate,
   });
 }
