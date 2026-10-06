@@ -135,14 +135,32 @@ export const emailChangeTokens = pgTable("email_change_tokens", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const orgUnits = pgTable("org_units", {
-  id: serial("id").primaryKey(),
-  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  parentId: integer("parent_id"),
-  type: varchar("type", { length: 32 }).notNull(),
-  name: varchar("name", { length: 120 }).notNull(),
-  code: varchar("code", { length: 32 }).notNull(),
-});
+export const orgUnits = pgTable(
+  "org_units",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    parentId: integer("parent_id"),
+    type: varchar("type", { length: 32 }).notNull(),
+    name: varchar("name", { length: 120 }).notNull(),
+    code: varchar("code", { length: 32 }).notNull(),
+    legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
+    costCenterId: integer("cost_center_id").references(() => costCenters.id, { onDelete: "set null" }),
+    managerEmployeeId: integer("manager_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    effectiveFrom: date("effective_from"),
+    effectiveUntil: date("effective_until"),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("org_units_org_code_unique").on(table.organizationId, table.code),
+    index("org_units_org_parent_idx").on(table.organizationId, table.parentId),
+    index("org_units_org_type_idx").on(table.organizationId, table.type, table.active),
+    index("org_units_legal_entity_idx").on(table.organizationId, table.legalEntityId),
+    index("org_units_cost_center_idx").on(table.organizationId, table.costCenterId),
+  ],
+);
 
 export const worksites = pgTable(
   "worksites",
@@ -2400,12 +2418,74 @@ export const performanceReviews = pgTable(
 /* HCM: job architecture and position planning                                */
 /* -------------------------------------------------------------------------- */
 
+export const jobFamilies = pgTable(
+  "job_families",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    code: varchar("code", { length: 40 }).notNull(),
+    name: varchar("name", { length: 120 }).notNull(),
+    description: text("description"),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("job_families_org_code_unique").on(table.organizationId, table.code),
+    uniqueIndex("job_families_org_name_unique").on(table.organizationId, table.name),
+    index("job_families_org_active_idx").on(table.organizationId, table.active),
+  ],
+);
+
+export const jobLevels = pgTable(
+  "job_levels",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    code: varchar("code", { length: 40 }).notNull(),
+    name: varchar("name", { length: 80 }).notNull(),
+    sequence: integer("sequence").notNull().default(0),
+    description: text("description"),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("job_levels_org_code_unique").on(table.organizationId, table.code),
+    uniqueIndex("job_levels_org_name_unique").on(table.organizationId, table.name),
+    index("job_levels_org_sequence_idx").on(table.organizationId, table.sequence),
+  ],
+);
+
+export const jobGrades = pgTable(
+  "job_grades",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    code: varchar("code", { length: 40 }).notNull(),
+    name: varchar("name", { length: 80 }).notNull(),
+    sequence: integer("sequence").notNull().default(0),
+    description: text("description"),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("job_grades_org_code_unique").on(table.organizationId, table.code),
+    uniqueIndex("job_grades_org_name_unique").on(table.organizationId, table.name),
+    index("job_grades_org_sequence_idx").on(table.organizationId, table.sequence),
+  ],
+);
+
 export const jobProfiles = pgTable(
   "job_profiles",
   {
     id: serial("id").primaryKey(),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     title: varchar("title", { length: 160 }).notNull(),
+    familyId: integer("family_id").references(() => jobFamilies.id, { onDelete: "restrict" }),
+    levelId: integer("level_id").references(() => jobLevels.id, { onDelete: "restrict" }),
+    gradeId: integer("grade_id").references(() => jobGrades.id, { onDelete: "restrict" }),
     family: varchar("family", { length: 120 }).notNull().default("General"),
     level: varchar("level", { length: 80 }).notNull().default("Individual Contributor"),
     grade: varchar("grade", { length: 40 }),
@@ -2416,6 +2496,9 @@ export const jobProfiles = pgTable(
   },
   (table) => [
     uniqueIndex("job_profiles_org_title_level_unique").on(table.organizationId, table.title, table.level),
+    index("job_profiles_org_family_idx").on(table.organizationId, table.familyId),
+    index("job_profiles_org_level_idx").on(table.organizationId, table.levelId),
+    index("job_profiles_org_grade_idx").on(table.organizationId, table.gradeId),
     index("job_profiles_org_active_idx").on(table.organizationId, table.active),
   ],
 );
@@ -2484,7 +2567,9 @@ export const positions = pgTable(
     code: varchar("code", { length: 48 }).notNull(),
     jobProfileId: integer("job_profile_id").notNull().references(() => jobProfiles.id, { onDelete: "restrict" }),
     orgUnitId: integer("org_unit_id").references(() => orgUnits.id, { onDelete: "set null" }),
+    supervisoryOrgUnitId: integer("supervisory_org_unit_id").references(() => orgUnits.id, { onDelete: "set null" }),
     legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
+    costCenterId: integer("cost_center_id").references(() => costCenters.id, { onDelete: "set null" }),
     planId: integer("plan_id").references(() => workforcePlans.id, { onDelete: "set null" }),
     managerEmployeeId: integer("manager_employee_id").references(() => employees.id, { onDelete: "set null" }),
     employmentType: varchar("employment_type", { length: 32 }).notNull().default("Regular"),
@@ -2500,7 +2585,9 @@ export const positions = pgTable(
     uniqueIndex("positions_org_code_unique").on(table.organizationId, table.code),
     index("positions_org_status_idx").on(table.organizationId, table.status),
     index("positions_org_unit_idx").on(table.organizationId, table.orgUnitId),
+    index("positions_supervisory_org_idx").on(table.organizationId, table.supervisoryOrgUnitId),
     index("positions_legal_entity_idx").on(table.organizationId, table.legalEntityId),
+    index("positions_cost_center_idx").on(table.organizationId, table.costCenterId),
     index("positions_plan_idx").on(table.planId),
   ],
 );
