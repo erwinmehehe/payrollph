@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employees,
@@ -546,31 +546,47 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    const candidates = await loadDecisionCandidates({
-      userId: user.id,
-      organizationId,
-      requestIds,
-    });
-    if (candidates.error) return candidates.error;
+    const decisionResult = await db.transaction(async (tx) => {
+      // Blocking OT budgets are authorization controls, so the read/check/write
+      // sequence must be serialized. Without this lock, two managers could both
+      // observe the same remaining budget and approve past a blocking limit.
+      if (decision === "approved") {
+        await tx.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtext(${`overtime-budget:${organizationId}`}))`,
+        );
+      }
 
-    const budget = decision === "approved"
-      ? await approvalBudgetCheck({
-          organizationId,
-          managerUserId: user.id,
-          selected: candidates.selected,
-        })
-      : { blocked: false, warnings: [] as string[], evidence: [] as Array<Record<string, unknown>> };
+      const candidates = await loadDecisionCandidates({
+        userId: user.id,
+        organizationId,
+        requestIds,
+      });
+      if (candidates.error) {
+        return { response: candidates.error, candidates: null, budget: null, updated: null };
+      }
 
-    if (budget.blocked) {
-      return Response.json({
-        error: "Approval would exceed a blocking overtime budget.",
-        code: "OVERTIME_BUDGET_BLOCKED",
-        budgetWarnings: budget.warnings,
-        budgetEvidence: budget.evidence,
-      }, { status: 409 });
-    }
+      const budget = decision === "approved"
+        ? await approvalBudgetCheck({
+            organizationId,
+            managerUserId: user.id,
+            selected: candidates.selected,
+          })
+        : { blocked: false, warnings: [] as string[], evidence: [] as Array<Record<string, unknown>> };
 
-    const updated = await db.transaction(async (tx) => {
+      if (budget.blocked) {
+        return {
+          response: Response.json({
+            error: "Approval would exceed a blocking overtime budget.",
+            code: "OVERTIME_BUDGET_BLOCKED",
+            budgetWarnings: budget.warnings,
+            budgetEvidence: budget.evidence,
+          }, { status: 409 }),
+          candidates,
+          budget,
+          updated: null,
+        };
+      }
+
       const rows: Array<typeof overtimeRequests.$inferSelect> = [];
       for (const item of candidates.selected) {
         const [row] = await tx.update(overtimeRequests)
@@ -592,12 +608,18 @@ export async function POST(request: Request) {
         }
         rows.push(row);
       }
-      return rows;
+
+      return { response: null, candidates, budget, updated: rows };
     }).catch((error) => error instanceof Error ? error : new Error("Bulk overtime decision failed."));
 
-    if (updated instanceof Error) {
-      return Response.json({ error: updated.message }, { status: 409 });
+    if (decisionResult instanceof Error) {
+      return Response.json({ error: decisionResult.message }, { status: 409 });
     }
+    if (decisionResult.response) return decisionResult.response;
+
+    const candidates = decisionResult.candidates!;
+    const budget = decisionResult.budget!;
+    const updated = decisionResult.updated!;
 
     const automation: unknown[] = [];
     const staleTimesheetIds: number[] = [];
