@@ -24,6 +24,7 @@ import { seedProvisioning } from "@/lib/provisioning";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { fixedMonthlyBasicForTimeline, resolvePayProfile, resolvePayTimeline } from "@/lib/pay-basis";
 import { REST_DAY_NAMES } from "@/lib/payroll-rules";
+import { runLifecycleAutomations } from "@/lib/automation";
 
 export const dynamic = "force-dynamic";
 
@@ -229,6 +230,18 @@ export async function POST(request: Request) {
     },
   });
 
+  const automation = await runLifecycleAutomations({
+    organizationId,
+    employeeId: created.id,
+    trigger: "employee.hired",
+    eventKey: "employee-create:" + created.id,
+    context: {
+      orgUnitId: created.orgUnitId,
+      employmentType: created.employmentType,
+      title: created.title,
+    },
+  });
+
   return Response.json({
     employee: {
       ...created,
@@ -240,6 +253,7 @@ export async function POST(request: Request) {
       pagIbigNo: maskGovernmentId(created.pagIbigNo),
     },
     onboarding,
+    automation,
     asset: assignedAsset,
   }, { status: 201 });
 }

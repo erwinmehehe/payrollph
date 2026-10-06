@@ -36,6 +36,7 @@ import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
 import { buildFirstPayrollReadiness } from "@/lib/first-payroll-readiness";
+import { assertOrganizationSessionPolicy } from "@/lib/organization-auth-policy";
 
 export async function getDashboardData(organizationId?: number) {
   await ensureCoreCompatibilitySchema();
@@ -49,7 +50,11 @@ export async function getDashboardData(organizationId?: number) {
   const memberships = await db
     .select({ organizationId: userOrganizations.organizationId })
     .from(userOrganizations)
-    .where(eq(userOrganizations.userId, sessionUser.id))
+    .where(and(
+      eq(userOrganizations.userId, sessionUser.id),
+      eq(userOrganizations.active, true),
+      ne(userOrganizations.role, "employee"),
+    ))
     .orderBy(asc(userOrganizations.organizationId));
 
   const organizationIds = memberships.map((membership) => membership.organizationId);
@@ -69,6 +74,11 @@ export async function getDashboardData(organizationId?: number) {
 
   if (!selectedOrganization) {
     throw new Error("The requested workspace is not available to this account.");
+  }
+
+  const policyDenied = await assertOrganizationSessionPolicy(sessionUser.id, selectedOrganization.id);
+  if (policyDenied) {
+    throw new Error("This workspace requires single sign-on.");
   }
 
   const access = await getAccess(sessionUser.id, selectedOrganization.id);
@@ -261,7 +271,10 @@ export async function getDashboardData(organizationId?: number) {
     ? await db
         .select({ role: userOrganizations.role })
         .from(userOrganizations)
-        .where(eq(userOrganizations.organizationId, selectedOrganization.id))
+        .where(and(
+          eq(userOrganizations.organizationId, selectedOrganization.id),
+          eq(userOrganizations.active, true),
+        ))
     : [];
   const firstPayrollReadiness = canViewFirstPayrollReadiness
     ? buildFirstPayrollReadiness({
@@ -294,7 +307,7 @@ export async function getDashboardData(organizationId?: number) {
 
   return {
     firstPayrollReadiness,
-    user: sessionUser ? publicUser(sessionUser) : null,
+    user: sessionUser ? { ...publicUser(sessionUser), role: access.role } : null,
     access,
     capabilities,
     organizations: orgs,

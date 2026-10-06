@@ -53,7 +53,7 @@ test("company-wide analytics claim matches server authorization", () => {
   assert.ok(route.includes("PEOPLE_PAYROLL_ROLES"));
   assert.ok(route.includes("if (!access?.companyWide)"));
   assert.ok(route.includes("Company-wide analytics are not available to unit-scoped roles."));
-  assert.ok(dashboard.includes('user.role === "employee"'));
+  assert.ok(dashboard.includes('access.role === "employee"'));
 
   assert.ok(page.includes("Unit-scoped roles cannot use the company-wide reporting endpoint"));
   assert.ok(page.includes("employee self-service accounts cannot access the company dashboard"));

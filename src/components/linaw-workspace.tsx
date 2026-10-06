@@ -15,6 +15,7 @@ import { MigrationCenter } from "@/components/migration-center";
 import { NewHireModal } from "@/components/new-hire-modal";
 import { RecruitmentPanel } from "@/components/recruitment-panel";
 import { PerformancePanel } from "@/components/performance-panel";
+import { EnterpriseControlsPanel } from "@/components/enterprise-controls-panel";
 import { SeparationPanel } from "@/components/separation-panel";
 import { EwaPanel, ExpensesPanel } from "@/components/wallet-panel";
 import { WebBundyModal } from "@/components/web-bundy-modal";
@@ -522,6 +523,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
 
         {page === "Integrations" && <IntegrationsPage onOpenOutbox={canManageDeliveryOutbox ? () => setOutboxOpen(true) : undefined} />}
         {page === "Developer" && <DeveloperPage organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Enterprise" && <EnterpriseControlsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Readiness" && <LaunchReadinessPanel organizationId={data.selectedOrganization.id} />}
         {page === "Pricing" && <PricingPage plans={data.plans} onSelectPlan={(plan) => setCheckoutPlan(plan)} />}
         {page === "Audit trail" && <AuditPage events={data.auditEvents} organizationId={data.selectedOrganization.id} />}

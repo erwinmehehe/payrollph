@@ -4,9 +4,10 @@ import { db } from "@/db";
 import { sessions, users } from "@/db/schema";
 import { randomToken, sha256 } from "@/lib/crypto";
 import { shouldRevokeOnCredentialChange } from "@/lib/account";
+import { effectiveSessionPolicyForUser, enforceActiveSessionLimit } from "@/lib/enterprise-session";
 
 export const SESSION_COOKIE = process.env.NODE_ENV === "production" ? "__Host-linaw_session" : "linaw_session";
-const SESSION_DAYS = 14;
+export const SESSION_DAYS = 14;
 const SESSION_IDLE_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 // Only write a "last seen" timestamp if it is older than this, so the read path
 // does not issue a database write on every single request.
@@ -17,11 +18,17 @@ export type SessionMeta = { userAgent?: string | null; ip?: string | null };
 export async function createSession(
   userId: number,
   meta: SessionMeta = {},
-  options: { passwordChangedAt?: Date; mfaVerifiedAt?: Date | null } = {},
+  options: {
+    passwordChangedAt?: Date;
+    mfaVerifiedAt?: Date | null;
+    authMethod?: "local" | "oidc";
+    identityProviderId?: number | null;
+  } = {},
 ) {
   const token = randomToken(32);
-  const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
-  await db.insert(sessions).values({
+  const policy = await effectiveSessionPolicyForUser(userId);
+  const expiresAt = new Date(Date.now() + policy.maxHours * 60 * 60 * 1000);
+  const [created] = await db.insert(sessions).values({
     userId,
     tokenHash: sha256(token),
     expiresAt,
@@ -30,7 +37,10 @@ export async function createSession(
     lastSeenAt: new Date(),
     passwordChangedAt: options.passwordChangedAt ?? null,
     mfaVerifiedAt: options.mfaVerifiedAt ?? null,
-  });
+    authMethod: options.authMethod ?? "local",
+    identityProviderId: options.identityProviderId ?? null,
+  }).returning({ id: sessions.id });
+  await enforceActiveSessionLimit(userId, created.id, policy.maxActiveSessions);
   return { token, expiresAt };
 }
 
@@ -96,11 +106,30 @@ export async function getSessionUser() {
 
   if (!row) return null;
 
-  const lastSeen = row.session.lastSeenAt ? new Date(row.session.lastSeenAt).getTime() : 0;
-  if (lastSeen && Date.now() - lastSeen > SESSION_IDLE_TIMEOUT_MS) {
+  if (!row.user.active) {
     await db.update(sessions).set({ revokedAt: new Date() }).where(eq(sessions.id, row.session.id));
     return null;
   }
+
+  const policy = await effectiveSessionPolicyForUser(row.user.id);
+  const createdAt = new Date(row.session.createdAt).getTime();
+  if (Date.now() - createdAt > policy.maxHours * 60 * 60 * 1000) {
+    await db.update(sessions).set({ revokedAt: new Date() }).where(eq(sessions.id, row.session.id));
+    return null;
+  }
+  if (policy.requireMfa && !row.session.mfaVerifiedAt) {
+    await db.update(sessions).set({ revokedAt: new Date() }).where(eq(sessions.id, row.session.id));
+    return null;
+  }
+  const lastSeen = row.session.lastSeenAt ? new Date(row.session.lastSeenAt).getTime() : 0;
+  const idleTimeoutMs = Number.isFinite(policy.idleMinutes)
+    ? policy.idleMinutes * 60 * 1000
+    : SESSION_IDLE_TIMEOUT_MS;
+  if (lastSeen && Date.now() - lastSeen > idleTimeoutMs) {
+    await db.update(sessions).set({ revokedAt: new Date() }).where(eq(sessions.id, row.session.id));
+    return null;
+  }
+  await enforceActiveSessionLimit(row.user.id, row.session.id, policy.maxActiveSessions);
   if (Date.now() - lastSeen > LAST_SEEN_WRITE_INTERVAL_MS) {
     await db.update(sessions).set({ lastSeenAt: new Date() }).where(eq(sessions.id, row.session.id));
   }
@@ -117,6 +146,9 @@ export async function getSessionUser() {
     sessionExpiresAt: row.session.expiresAt,
     passwordChangedAt: row.session.passwordChangedAt ?? null,
     mfaVerifiedAt: row.session.mfaVerifiedAt ?? null,
+    authMethod: row.session.authMethod ?? "local",
+    identityProviderId: row.session.identityProviderId ?? null,
+    sessionPolicy: policy,
   };
 }
 
