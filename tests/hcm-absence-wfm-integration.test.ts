@@ -50,3 +50,13 @@ test("open-shift checks use precise interval overlap instead of date-only blocki
   assert.ok(route.includes("unavailableWallMinutes"));
   assert.ok(route.includes("Legacy timing is ambiguous"));
 });
+
+
+test("coverage UI exposes precise partial-leave minute capacity separately from full-day exclusion", () => {
+  const panel = read("src/components/workspace/workforce-coverage-panel.tsx");
+  assert.ok(panel.includes("approvedLeavePartiallyUnavailableHeadcount"));
+  assert.ok(panel.includes("approvedLeaveUnavailableMinutes"));
+  assert.ok(panel.includes("availableScheduledMinutes"));
+  assert.ok(panel.includes("Partial leave"));
+  assert.ok(panel.includes("Available hours"));
+});
