@@ -10,6 +10,7 @@ import {
   type FilingOutcomeInput,
 } from "@/lib/filing-evidence";
 import { summarizeMonthlyContributionFile } from "@/lib/filing-remittance-snapshot";
+import { resolveComplianceLegalEntity } from "@/lib/compliance-legal-entity";
 
 export type FilingValidationRow = typeof governmentFilingValidations.$inferSelect;
 
@@ -30,6 +31,10 @@ export async function recordGeneratedFiling(input: {
     .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.organizationId, input.organizationId)))
     .limit(1);
   if (!run) throw new Error("Payroll run not found in this workspace.");
+  const legalEntity = await resolveComplianceLegalEntity({
+    organizationId: input.organizationId,
+    authoritativeLegalEntityId: run.legalEntityId,
+  });
 
   const file = await generateGovernmentDraft(run.id, input.definition.kind);
   const fileSha256 = sha256Hex(file.body);
@@ -45,6 +50,7 @@ export async function recordGeneratedFiling(input: {
     .insert(governmentFilingValidations)
     .values({
       organizationId: input.organizationId,
+      legalEntityId: legalEntity.id,
       payrollRunId: run.id,
       agency: input.definition.agency,
       form: input.definition.form,
@@ -67,6 +73,7 @@ export async function recordGeneratedFiling(input: {
     .from(governmentFilingValidations)
     .where(and(
       eq(governmentFilingValidations.organizationId, input.organizationId),
+      eq(governmentFilingValidations.legalEntityId, legalEntity.id),
       eq(governmentFilingValidations.agency, input.definition.agency),
       eq(governmentFilingValidations.form, input.definition.form),
       eq(governmentFilingValidations.fileSha256, fileSha256),
@@ -92,11 +99,18 @@ export async function recordGeneratedFiling(input: {
   return { record: existing, created: false, file };
 }
 
-export async function listFilingValidations(organizationId: number) {
+export async function listFilingValidations(organizationId: number, legalEntityId?: number | null) {
   return db
     .select()
     .from(governmentFilingValidations)
-    .where(eq(governmentFilingValidations.organizationId, organizationId))
+    .where(
+      legalEntityId == null
+        ? eq(governmentFilingValidations.organizationId, organizationId)
+        : and(
+            eq(governmentFilingValidations.organizationId, organizationId),
+            eq(governmentFilingValidations.legalEntityId, legalEntityId),
+          ),
+    )
     .orderBy(desc(governmentFilingValidations.createdAt), desc(governmentFilingValidations.id))
     .limit(100);
 }
