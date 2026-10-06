@@ -436,7 +436,6 @@ async function runPayrollGolden(family: CatalogFamily, catalog: Catalog) {
     assertMoney(traceNumber(overlayEntry.trace, traceKeys.taxable), family.payroll.expectedOverlayAmount, `${family.eventType} trace taxable`, catalog.tolerancePeso);
     assertMoney(traceNumber(overlayEntry.trace, traceKeys.sssExcluded), 0, `${family.eventType} trace SSS excluded`, catalog.tolerancePeso);
     assertMoney(traceNumber(overlayEntry.trace, traceKeys.pagIbigExcluded), family.payroll.expectedOverlayAmount, `${family.eventType} trace Pag-IBIG excluded`, catalog.tolerancePeso);
-    assert.equal(traceNumber(overlayEntry.trace, traceKeys.appliedRules), 1);
     assertMoney(traceNumber(baselineEntry.trace, traceKeys.amount), 0, `${family.eventType} baseline trace amount`, catalog.tolerancePeso);
 
     const execution = overlayEntry.trace && typeof overlayEntry.trace === "object"
@@ -446,7 +445,27 @@ async function runPayrollGolden(family: CatalogFamily, catalog: Catalog) {
     assert.ok(Array.isArray(execution?.migratedRuleFamilies));
     assert.ok(execution.migratedRuleFamilies.includes(family.eventType));
     assert.ok(Array.isArray(execution?.appliedRules));
-    assert.equal(execution.appliedRules.filter((item: any) => item.eventType === family.eventType).length, 1);
+
+    const familyApplications = execution.appliedRules.filter(
+      (item: any) => item.eventType === family.eventType,
+    );
+    assert.ok(familyApplications.length >= 1, `${family.eventType} must record at least one applied segment`);
+    assert.equal(
+      traceNumber(overlayEntry.trace, traceKeys.appliedRules),
+      familyApplications.length,
+      `${family.eventType} trace application count must match execution evidence`,
+    );
+    assert.equal(
+      new Set(familyApplications.map((item: any) => item.ruleId)).size,
+      1,
+      `${family.eventType} golden case must resolve to exactly one unique policy rule`,
+    );
+    assertMoney(
+      familyApplications.reduce((sum: number, item: any) => sum + Number(item.amount ?? 0), 0),
+      family.payroll.expectedOverlayAmount,
+      `${family.eventType} applied segment total`,
+      catalog.tolerancePeso,
+    );
 
     return {
       baseline: {
