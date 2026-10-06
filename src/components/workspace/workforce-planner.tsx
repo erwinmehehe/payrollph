@@ -24,6 +24,7 @@ import { WorkforceScheduleSwapPanel } from "./workforce-schedule-swap-panel";
 import { WorkforceScheduleGuardrailsPanel } from "./workforce-schedule-guardrails-panel";
 import { WorkforceWorksitesPanel } from "./workforce-worksites-panel";
 import { WorkforceCoveragePanel } from "./workforce-coverage-panel";
+import { WorkforceTimesheetPanel } from "./workforce-timesheet-panel";
 
 type ShiftRow = {
   id: number;
@@ -420,6 +421,8 @@ export function WorkforcePlanner({
       <WorkforceWorksitesPanel data={data} notify={notify} canManage={canManage} />
 
       <WorkforceCoveragePanel data={data} notify={notify} canManage={canManage} />
+
+      <WorkforceTimesheetPanel data={data} notify={notify} canManage={canManage} />
 
       <article className="card" style={{ marginTop: 16 }}>
         <div className="card-header">
