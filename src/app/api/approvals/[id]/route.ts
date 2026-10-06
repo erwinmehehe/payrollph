@@ -9,6 +9,7 @@ import { assertMembership } from "@/lib/access";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
 import { isPublicDemoIdentity } from "@/lib/demo-security";
 import { runAutomationEventSafely } from "@/lib/automation";
+import { markTimesheetsStaleForEmployeeRange } from "@/lib/workforce-timesheet-server";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const originDenied = enforceSameOriginMutation(request);
@@ -185,12 +186,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const [linkedLeave] = await db.select().from(leaveRequests).where(eq(leaveRequests.approvalTaskId, taskId)).limit(1);
   const automation = [];
+  let leaveStaleTimesheetIds: number[] = [];
   if (linkedLeave) {
     await db.update(leaveRequests).set({
       status,
       decidedBy: actor,
     }).where(eq(leaveRequests.id, linkedLeave.id));
     if (status === "Approved") {
+      const staleTimesheets = await markTimesheetsStaleForEmployeeRange({
+        organizationId: task.organizationId,
+        employeeId: linkedLeave.employeeId,
+        startDate: String(linkedLeave.startDate),
+        endDate: String(linkedLeave.endDate),
+      });
+      leaveStaleTimesheetIds = staleTimesheets.map((row) => row.id);
+
       automation.push(...await runAutomationEventSafely({
         organizationId: task.organizationId,
         employeeId: linkedLeave.employeeId,
@@ -204,6 +214,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           startDate: linkedLeave.startDate,
           endDate: linkedLeave.endDate,
           approvalTaskId: taskId,
+          staleTimesheetIds: leaveStaleTimesheetIds,
         },
       }));
       if (!sharedDemo) {
@@ -242,6 +253,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     delegation: decision,
     webhookDeliveries: deliveries.length,
     leaveUpdated: Boolean(linkedLeave),
+    leaveStaleTimesheetIds,
     automation,
   });
 }

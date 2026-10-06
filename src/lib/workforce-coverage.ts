@@ -35,6 +35,7 @@ export type ScheduledCoverageInput = {
   shiftDefinitionIds: number[];
   unavailableShiftDefinitionIds?: number[];
   ineligibleShiftDefinitionIds?: number[];
+  approvedLeaveShiftDefinitionIds?: number[];
 };
 
 function timeMinute(value: string) {
@@ -122,9 +123,13 @@ export function computeCoverage(input: {
       : matching.filter((row) =>
           row.ineligibleShiftDefinitionIds?.includes(requirement.shiftDefinitionId),
         );
+    const approvedLeave = matching.filter((row) =>
+      row.approvedLeaveShiftDefinitionIds?.includes(requirement.shiftDefinitionId),
+    );
     const unavailableOrIneligible = new Set([
       ...conflicted.map((row) => row.employeeId),
       ...capabilityIneligible.map((row) => row.employeeId),
+      ...approvedLeave.map((row) => row.employeeId),
     ]);
     const availableScheduled = matching.filter((row) => !unavailableOrIneligible.has(row.employeeId)).length;
     const gap = Math.max(0, requirement.requiredHeadcount - availableScheduled);
@@ -139,6 +144,7 @@ export function computeCoverage(input: {
       scheduledHeadcount: matching.length,
       unavailableScheduledHeadcount: conflicted.length,
       capabilityIneligibleHeadcount: capabilityIneligible.length,
+      approvedLeaveScheduledHeadcount: approvedLeave.length,
       availableScheduledHeadcount: availableScheduled,
       gap,
       overage: Math.max(0, availableScheduled - requirement.requiredHeadcount),

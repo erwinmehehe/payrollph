@@ -145,3 +145,39 @@ test("generic headcount demand does not invent capability requirements", () => {
   assert.equal(result[0]?.availableScheduledHeadcount, 1);
   assert.equal(result[0]?.gap, 0);
 });
+
+
+test("approved full-day leave removes rostered workers from effective coverage", () => {
+  const result = computeCoverage({
+    requirements: [{
+      id: 101,
+      worksiteId: 1,
+      workDate: "2026-10-06",
+      shiftDefinitionId: 2,
+      jobProfileId: 7,
+      requiredHeadcount: 2,
+    }],
+    scheduled: [
+      {
+        employeeId: 1,
+        workDate: "2026-10-06",
+        worksiteId: 1,
+        jobProfileId: 7,
+        shiftDefinitionIds: [2],
+      },
+      {
+        employeeId: 2,
+        workDate: "2026-10-06",
+        worksiteId: 1,
+        jobProfileId: 7,
+        shiftDefinitionIds: [2],
+        approvedLeaveShiftDefinitionIds: [2],
+      },
+    ],
+  });
+
+  assert.equal(result[0]?.scheduledHeadcount, 2);
+  assert.equal(result[0]?.approvedLeaveScheduledHeadcount, 1);
+  assert.equal(result[0]?.availableScheduledHeadcount, 1);
+  assert.equal(result[0]?.gap, 1);
+});
