@@ -20,6 +20,7 @@ import {
   assertOrganizationRole,
   assertScope,
   getAccess,
+  roleAllowed,
   WORKFORCE_MANAGER_ROLES,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
@@ -285,22 +286,54 @@ export async function GET(request: Request) {
     }, { status: 400 });
   }
 
-  const denied = await assertOrganizationRole(
-    user.id,
-    organizationId,
-    WORKFORCE_MANAGER_ROLES,
-    "Only workforce managers can review coverage planning.",
-  );
-  if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access) return Response.json({ error: "Workspace access not found." }, { status: 403 });
 
-  const workforce = await visibleWorkforce(user.id, organizationId);
-  if (!workforce) return Response.json({ error: "Workspace access not found." }, { status: 403 });
+  const manager = roleAllowed(access.role, WORKFORCE_MANAGER_ROLES);
+  let visibleEmployees: Array<typeof employees.$inferSelect> = [];
+  let visibleWorksites: Array<typeof worksites.$inferSelect> = [];
+  let selfWorksiteAssignments: Array<typeof employeeWorksiteAssignments.$inferSelect> = [];
 
-  const employeeIds = workforce.visibleEmployees.map((employee) => employee.id);
-  const worksiteIds = workforce.visibleWorksites.map((site) => site.id);
+  if (manager) {
+    const workforce = await visibleWorkforce(user.id, organizationId);
+    if (!workforce) return Response.json({ error: "Workspace access not found." }, { status: 403 });
+    visibleEmployees = workforce.visibleEmployees;
+    visibleWorksites = workforce.visibleWorksites;
+  } else {
+    if (user.employeeId == null) {
+      return Response.json({ error: "Only workforce managers or linked employees can review workforce coverage." }, { status: 403 });
+    }
+    const employeeId = Number(user.employeeId);
+    const [employee] = await db.select().from(employees).where(and(
+      eq(employees.id, employeeId),
+      eq(employees.organizationId, organizationId),
+    )).limit(1);
+    if (!employee) return Response.json({ error: "Linked employee was not found in this organization." }, { status: 404 });
 
-  const [requirements, availability, openShiftRows, claimRows, shifts] = await Promise.all([
-    worksiteIds.length
+    visibleEmployees = [employee];
+    selfWorksiteAssignments = await db.select().from(employeeWorksiteAssignments).where(and(
+      eq(employeeWorksiteAssignments.organizationId, organizationId),
+      eq(employeeWorksiteAssignments.employeeId, employeeId),
+      lte(employeeWorksiteAssignments.effectiveFrom, endDate),
+    )).orderBy(asc(employeeWorksiteAssignments.effectiveFrom), asc(employeeWorksiteAssignments.id));
+
+    selfWorksiteAssignments = selfWorksiteAssignments.filter((assignment) =>
+      !assignment.effectiveUntil || String(assignment.effectiveUntil) >= startDate,
+    );
+    const assignedWorksiteIds = [...new Set(selfWorksiteAssignments.map((row) => row.worksiteId))];
+    visibleWorksites = assignedWorksiteIds.length
+      ? await db.select().from(worksites).where(and(
+          eq(worksites.organizationId, organizationId),
+          inArray(worksites.id, assignedWorksiteIds),
+        )).orderBy(asc(worksites.name))
+      : [];
+  }
+
+  const employeeIds = visibleEmployees.map((employee) => employee.id);
+  const worksiteIds = visibleWorksites.map((site) => site.id);
+
+  const [requirements, availability, allOpenShiftRows, claimRows, shifts] = await Promise.all([
+    manager && worksiteIds.length
       ? db.select().from(staffingRequirements).where(and(
           eq(staffingRequirements.organizationId, organizationId),
           inArray(staffingRequirements.worksiteId, worksiteIds),
@@ -323,31 +356,54 @@ export async function GET(request: Request) {
           lte(openShifts.workDate, endDate),
         )).orderBy(asc(openShifts.workDate), asc(openShifts.id))
       : [],
-    db.select().from(openShiftClaims)
-      .where(eq(openShiftClaims.organizationId, organizationId))
-      .orderBy(asc(openShiftClaims.openShiftId), asc(openShiftClaims.id)),
+    employeeIds.length
+      ? db.select().from(openShiftClaims)
+          .where(and(
+            eq(openShiftClaims.organizationId, organizationId),
+            inArray(openShiftClaims.employeeId, employeeIds),
+          ))
+          .orderBy(asc(openShiftClaims.openShiftId), asc(openShiftClaims.id))
+      : [],
     db.select().from(shiftDefinitions)
       .where(eq(shiftDefinitions.organizationId, organizationId))
       .orderBy(asc(shiftDefinitions.code)),
   ]);
 
-  const coverage = await coverageRows({
-    organizationId,
-    employeeIds,
-    startDate,
-    endDate,
-    requirements,
-    availabilityRows: availability,
-  });
+  const openShiftRows = manager
+    ? allOpenShiftRows
+    : allOpenShiftRows.filter((row) => {
+        const assignment = selectEffectiveWorksiteAssignment(
+          selfWorksiteAssignments.map((item) => ({
+            id: item.id,
+            worksiteId: item.worksiteId,
+            effectiveFrom: String(item.effectiveFrom),
+            effectiveUntil: item.effectiveUntil ? String(item.effectiveUntil) : null,
+          })),
+          String(row.workDate),
+        );
+        return assignment?.worksiteId === row.worksiteId;
+      });
+
+  const coverage = manager
+    ? await coverageRows({
+        organizationId,
+        employeeIds,
+        startDate,
+        endDate,
+        requirements,
+        availabilityRows: availability,
+      })
+    : [];
 
   return Response.json({
-    employees: workforce.visibleEmployees.map((employee) => ({
+    selfService: !manager,
+    employees: visibleEmployees.map((employee) => ({
       id: employee.id,
       employeeNo: employee.employeeNo,
       name: `${employee.firstName} ${employee.lastName}`,
       orgUnitId: employee.orgUnitId,
     })),
-    worksites: workforce.visibleWorksites,
+    worksites: visibleWorksites,
     shifts,
     requirements,
     availability,
