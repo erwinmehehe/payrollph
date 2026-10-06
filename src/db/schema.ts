@@ -1887,6 +1887,7 @@ export const governmentFilingValidations = pgTable(
   {
     id: serial("id").primaryKey(),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
     payrollRunId: integer("payroll_run_id").references(() => payrollRuns.id, { onDelete: "set null" }),
     agency: varchar("agency", { length: 16 }).notNull(),
     form: varchar("form", { length: 24 }).notNull(),
@@ -1908,7 +1909,13 @@ export const governmentFilingValidations = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("government_filing_file_unique").on(table.organizationId, table.agency, table.form, table.fileSha256),
+    uniqueIndex("government_filing_file_unique").on(
+      table.organizationId,
+      sql`coalesce(${table.legalEntityId}, 0)`,
+      table.agency,
+      table.form,
+      table.fileSha256,
+    ),
     index("government_filing_status_idx").on(table.agency, table.form, table.status),
   ],
 );
@@ -1918,6 +1925,7 @@ export const birWithholdingRemittanceBatches = pgTable(
   {
     id: serial("id").primaryKey(),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
     applicableMonth: varchar("applicable_month", { length: 7 }).notNull(),
     filingChannel: varchar("filing_channel", { length: 24 }).notNull(),
     efpsGroup: varchar("efps_group", { length: 1 }),
@@ -1942,7 +1950,11 @@ export const birWithholdingRemittanceBatches = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("bir_withholding_remittance_month_unique").on(table.organizationId, table.applicableMonth),
+    uniqueIndex("bir_withholding_remittance_month_unique").on(
+      table.organizationId,
+      sql`coalesce(${table.legalEntityId}, 0)`,
+      table.applicableMonth,
+    ),
     index("bir_withholding_remittance_due_idx").on(table.organizationId, table.status, table.paymentDueDate),
     index("bir_withholding_remittance_filing_idx").on(table.organizationId, table.filingValidationId),
   ],
@@ -1953,6 +1965,7 @@ export const statutoryRemittanceBatches = pgTable(
   {
     id: serial("id").primaryKey(),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
     agency: varchar("agency", { length: 16 }).notNull(),
     applicableMonth: varchar("applicable_month", { length: 7 }).notNull(),
     dueDate: date("due_date").notNull(),
@@ -1979,7 +1992,12 @@ export const statutoryRemittanceBatches = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("statutory_remittance_batch_unique").on(table.organizationId, table.agency, table.applicableMonth),
+    uniqueIndex("statutory_remittance_batch_unique").on(
+      table.organizationId,
+      sql`coalesce(${table.legalEntityId}, 0)`,
+      table.agency,
+      table.applicableMonth,
+    ),
     index("statutory_remittance_due_idx").on(table.organizationId, table.status, table.dueDate),
     index("statutory_remittance_batches_payment_recorder_idx").on(table.organizationId, table.paymentRecordedByUserId),
     index("statutory_remittance_batches_reconciler_idx").on(table.organizationId, table.reconciledByUserId),
@@ -2143,6 +2161,7 @@ export const payrollMonthClosures = pgTable(
   {
     id: serial("id").primaryKey(),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
     applicableMonth: varchar("applicable_month", { length: 7 }).notNull(),
     status: varchar("status", { length: 24 }).notNull().default("certified"),
     snapshotHash: varchar("snapshot_hash", { length: 64 }).notNull(),
@@ -2153,7 +2172,12 @@ export const payrollMonthClosures = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("payroll_month_closure_snapshot_unique").on(table.organizationId, table.applicableMonth, table.snapshotHash),
+    uniqueIndex("payroll_month_closure_snapshot_unique").on(
+      table.organizationId,
+      sql`coalesce(${table.legalEntityId}, 0)`,
+      table.applicableMonth,
+      table.snapshotHash,
+    ),
     index("payroll_month_closure_status_idx").on(table.organizationId, table.applicableMonth, table.status),
   ],
 );
@@ -2163,6 +2187,7 @@ export const statutoryRemittanceMonthClosures = pgTable(
   {
     id: serial("id").primaryKey(),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
     applicableMonth: varchar("applicable_month", { length: 7 }).notNull(),
     status: varchar("status", { length: 24 }).notNull().default("certified"),
     snapshotHash: varchar("snapshot_hash", { length: 64 }).notNull(),
@@ -2175,7 +2200,12 @@ export const statutoryRemittanceMonthClosures = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("statutory_remittance_month_closure_snapshot_unique").on(table.organizationId, table.applicableMonth, table.snapshotHash),
+    uniqueIndex("statutory_remittance_month_closure_snapshot_unique").on(
+      table.organizationId,
+      sql`coalesce(${table.legalEntityId}, 0)`,
+      table.applicableMonth,
+      table.snapshotHash,
+    ),
     index("statutory_remittance_month_closure_status_idx").on(table.organizationId, table.status),
   ],
 );
@@ -2185,6 +2215,7 @@ export const statutoryContributionIssueCases = pgTable(
   {
     id: serial("id").primaryKey(),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
     employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
     batchId: integer("batch_id").references(() => statutoryRemittanceBatches.id, { onDelete: "set null" }),
     remittanceMemberId: integer("remittance_member_id").references(() => statutoryRemittanceMembers.id, { onDelete: "set null" }),
@@ -2301,6 +2332,7 @@ export const governmentLoanRemittanceBatches = pgTable(
   {
     id: serial("id").primaryKey(),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
     agency: varchar("agency", { length: 16 }).notNull(),
     applicableMonth: varchar("applicable_month", { length: 7 }).notNull(),
     dueDate: date("due_date").notNull(),
@@ -2320,7 +2352,12 @@ export const governmentLoanRemittanceBatches = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("government_loan_remittance_batch_unique").on(table.organizationId, table.agency, table.applicableMonth),
+    uniqueIndex("government_loan_remittance_batch_unique").on(
+      table.organizationId,
+      sql`coalesce(${table.legalEntityId}, 0)`,
+      table.agency,
+      table.applicableMonth,
+    ),
     index("government_loan_remittance_due_idx").on(table.organizationId, table.status, table.dueDate),
   ],
 );
