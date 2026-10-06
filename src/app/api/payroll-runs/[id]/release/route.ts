@@ -15,6 +15,7 @@ import {
   requireSensitiveActionMfa,
 } from "@/lib/security-request";
 import { recordAuditEvent } from "@/lib/audit";
+import { managedPayrollReleaseRequirement } from "@/lib/managed-payroll";
 
 const RELEASABLE = ["Ready for release"];
 
@@ -82,6 +83,32 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return Response.json({
       error: "Payroll must be approved by a checker before release.",
       approvalStatus: payrollApproval?.status ?? "Not submitted",
+    }, { status: 409 });
+  }
+
+  const managedRequirement = await managedPayrollReleaseRequirement(run.organizationId, run.id);
+  if (
+    managedRequirement.required
+    && (
+      !managedRequirement.gatesComplete
+      || !managedRequirement.approval
+      || !managedRequirement.approvalValid
+    )
+  ) {
+    return Response.json({
+      error: !managedRequirement.gatesComplete
+        ? `Managed payroll implementation evidence is incomplete. Re-verify: ${managedRequirement.missingGateKeys.join(", ")}.`
+        : managedRequirement.approval
+          ? "Managed payroll client approval is stale because the payroll contents changed. The designated client approver must review and approve this exact run again."
+          : "Managed payroll requires designated client approval of this exact run before release.",
+      managedPayroll: {
+        required: true,
+        approverUserId: managedRequirement.engagement.clientApproverUserId,
+        gatesComplete: managedRequirement.gatesComplete,
+        missingGateKeys: managedRequirement.missingGateKeys,
+        approvalRecorded: Boolean(managedRequirement.approval),
+        approvalValid: Boolean(managedRequirement.approvalValid),
+      },
     }, { status: 409 });
   }
 
