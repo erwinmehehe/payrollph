@@ -40,3 +40,13 @@ test("managed payroll release rechecks implementation gates and approval fingerp
   assert.ok(approval.includes("previousGross"));
   assert.ok(approval.includes("previousApprovedAt"));
 });
+
+
+test("managed payroll client approval is distinct from the authenticated payroll checker", () => {
+  const approvalRoute = readFileSync("src/app/api/managed-payroll/runs/[id]/approve/route.ts", "utf8");
+  const checkerRoute = readFileSync("src/app/api/approvals/[id]/route.ts", "utf8");
+  assert.ok(checkerRoute.includes("deciderUserId: sessionUser.id"));
+  assert.ok(approvalRoute.includes("sameAuthenticatedChecker"));
+  assert.ok(approvalRoute.includes("the payroll checker cannot also give the managed-payroll client approval"));
+  assert.ok(approvalRoute.includes("Independent checker approval evidence is missing"));
+});
