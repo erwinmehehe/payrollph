@@ -2,6 +2,7 @@ import { and, inArray, isNotNull, lt, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
   emailChangeTokens,
+  marketingLeads,
   outbox,
   passwordResetTokens,
   rateLimitHits,
@@ -59,6 +60,13 @@ export const RECORD_RETENTION_SCHEDULE = {
     disposal:
       "Review rather than automatically purge while the evidence supports retained payroll/tax records, investigations, or legal claims.",
   },
+  marketingLeadRecords: {
+    reviewAfterYears: 1,
+    trigger: "Last activity on the enquiry",
+    authority: "Internal data-minimization policy under DPA/IRR proportionality and retention principles",
+    records: ["demo requests", "trial-access requests", "payroll-outsourcing enquiries"],
+    disposal: "Automatically purge after one year without a recorded update. Active sales records must be updated to reset the retention window.",
+  },
   operationalTransientData: {
     trigger: "Fixed operational windows below",
     authority: "Data minimization and operational necessity",
@@ -88,6 +96,11 @@ export const RETENTION_POLICY = {
     action: "purge-completed",
     rationale: "Operational evidence is retained longer than transient message delivery data.",
   },
+  marketingLeadRecords: {
+    retentionDaysAfterLastUpdate: 365,
+    action: "purge",
+    rationale: "Prospect contact data is useful for follow-up but should not remain indefinitely without activity.",
+  },
   payrollTaxEmploymentRecords: {
     retention: "record-class-schedule",
     action: "no-automatic-purge",
@@ -103,6 +116,7 @@ export async function purgeExpiredOperationalData(now = Date.now()) {
   const authCutoff = daysAgo(RETENTION_POLICY.authenticationArtifacts.retentionDaysAfterExpiry, now);
   const messageCutoff = daysAgo(RETENTION_POLICY.messageDeliveryRecords.retentionDays, now);
   const webhookCutoff = daysAgo(RETENTION_POLICY.webhookDeliveryRecords.retentionDays, now);
+  const marketingLeadCutoff = daysAgo(RETENTION_POLICY.marketingLeadRecords.retentionDaysAfterLastUpdate, now);
   const rateCutoff = hoursAgo(RETENTION_POLICY.rateLimitCounters.retentionHours, now);
 
   const deletedSessions = await db.delete(sessions).where(or(
@@ -132,6 +146,10 @@ export async function purgeExpiredOperationalData(now = Date.now()) {
     inArray(webhookDeliveries.status, ["delivered", "failed"]),
   )).returning({ id: webhookDeliveries.id });
 
+  const deletedMarketingLeads = await db.delete(marketingLeads)
+    .where(lt(marketingLeads.updatedAt, marketingLeadCutoff))
+    .returning({ id: marketingLeads.id });
+
   return {
     sessions: deletedSessions.length,
     passwordResetTokens: deletedPasswordTokens.length,
@@ -139,5 +157,6 @@ export async function purgeExpiredOperationalData(now = Date.now()) {
     rateLimitWindows: deletedRateHits.length,
     outboxMessages: deletedOutbox.length,
     webhookDeliveries: deletedWebhooks.length,
+    marketingLeads: deletedMarketingLeads.length,
   };
 }
