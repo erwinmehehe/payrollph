@@ -82,3 +82,5 @@ the first one, so it closes itself.
 - `0061_hcm_precise_leave_intervals.sql` adds immutable revisioned full-day, half-day and timed leave evidence for schedule-aware WFM capacity without changing legacy payroll treatment.
 
 - `0062_hcm_employment_decision_evidence.sql` adds sealed employment-decision evidence packets with immutable review notes, hashed supporting documents, approval/lifecycle event history, and a SHA-256 snapshot sealed at approval.
+
+- `0063_hcm_lifecycle_policy.sql` adds organization-specific lifecycle action windows, reminder/escalation cadence, optional decision-evidence requirements, optimistic versioning, and immutable policy-change snapshots.
