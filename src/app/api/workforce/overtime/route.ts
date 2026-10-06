@@ -9,6 +9,7 @@ import {
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { markTimesheetsStaleForEmployeeDate } from "@/lib/workforce-timesheet-server";
+import { runAutomationEventSafely } from "@/lib/automation";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -174,9 +175,24 @@ export async function POST(request: Request) {
       },
     });
 
+    const automation = await runAutomationEventSafely({
+      organizationId,
+      employeeId,
+      trigger: "overtime.requested",
+      eventKey: `overtime-requested:${created.id}`,
+      context: {
+        overtimeRequestId: created.id,
+        overtimeMinutes: requestedMinutes,
+        eventAmount: requestedMinutes,
+        workDate,
+        requestKind,
+      },
+    });
+
     return Response.json({
       request: created,
       staleTimesheetIds: staleTimesheets.map((row) => row.id),
+      automation,
     }, { status: 201 });
   }
 
@@ -250,9 +266,27 @@ export async function POST(request: Request) {
       },
     });
 
+    const automation = decision === "approved"
+      ? await runAutomationEventSafely({
+          organizationId,
+          employeeId: existing.employeeId,
+          trigger: "overtime.approved",
+          eventKey: `overtime-approved:${updated.id}`,
+          context: {
+            overtimeRequestId: updated.id,
+            overtimeMinutes: existing.requestedMinutes,
+            eventAmount: existing.requestedMinutes,
+            workDate: existing.workDate,
+            requestKind: existing.requestKind,
+            approvedBy: user.name,
+          },
+        })
+      : [];
+
     return Response.json({
       request: updated,
       staleTimesheetIds: staleTimesheets.map((row) => row.id),
+      automation,
     });
   }
 

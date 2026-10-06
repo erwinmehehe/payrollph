@@ -20,6 +20,7 @@ import {
 import { recordAuditEvent } from "@/lib/audit";
 import { resolvePayProfile } from "@/lib/pay-basis";
 import { ONBOARDING_TASKS } from "@/lib/provisioning";
+import { runAutomationEventSafely } from "@/lib/automation";
 
 export const dynamic = "force-dynamic";
 
@@ -423,9 +424,43 @@ export async function POST(request: Request) {
     },
   });
 
+  const employeeAutomation = await runAutomationEventSafely({
+    organizationId: applicant.organizationId,
+    employeeId: result.employee.id,
+    trigger: "employee.hired",
+    eventKey: `recruitment-employee-hired:${result.employee.id}`,
+    context: {
+      orgUnitId: position.orgUnitId,
+      employmentType: result.employee.employmentType,
+      title: result.employee.title,
+      positionId: position.id,
+      positionCode: position.code,
+      effectiveDate: startDate,
+      startDate,
+      salary: payProfile.monthlyEquivalent,
+      candidateId: applicant.id,
+      requisitionId: requisition.id,
+    },
+  });
+  const candidateAutomation = await runAutomationEventSafely({
+    organizationId: applicant.organizationId,
+    employeeId: result.employee.id,
+    trigger: "candidate.hired",
+    eventKey: `candidate-hired:${applicant.id}`,
+    context: {
+      applicantId: applicant.id,
+      requisitionId: requisition.id,
+      positionId: position.id,
+      positionCode: position.code,
+      effectiveDate: startDate,
+      salary: payProfile.monthlyEquivalent,
+    },
+  });
+
   return Response.json({
     employee: result.employee,
     onboarding: result.onboarding,
+    automation: [...employeeAutomation, ...candidateAutomation],
     position: {
       id: position.id,
       code: position.code,

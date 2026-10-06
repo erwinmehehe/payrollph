@@ -16,6 +16,7 @@ import {
   getAccess,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
+import { runAutomationEventSafely } from "@/lib/automation";
 
 export const dynamic = "force-dynamic";
 
@@ -291,7 +292,23 @@ export async function POST(request: Request) {
         },
       });
 
-      return Response.json(created, { status: 201 });
+      const automation = await runAutomationEventSafely({
+        organizationId,
+        trigger: "position.opened",
+        eventKey: `position-opened:${position.id}:${created.id}`,
+        context: {
+          positionId: position.id,
+          positionCode: position.code,
+          orgUnitId: position.orgUnitId,
+          title: created.title,
+          employmentType: position.employmentType,
+          annualBudget: Number(position.annualBudget),
+          eventAmount: Number(position.annualBudget),
+          requisitionId: created.id,
+        },
+      });
+
+      return Response.json({ ...created, automation }, { status: 201 });
     }
 
     return Response.json({

@@ -9,6 +9,7 @@ import { assertOrganizationRole, assertOrganizationUnitAccess, getAccess, PAYROL
 import { isCanonicalPhSemiMonthlyPeriod } from "@/lib/payroll-calendar";
 import { loadTimesheetPayrollGate } from "@/lib/workforce-timesheet-server";
 import { ensurePrimaryLegalEntity } from "@/lib/legal-entity";
+import { runAutomationEventSafely } from "@/lib/automation";
 
 export const dynamic = "force-dynamic";
 
@@ -312,6 +313,23 @@ export async function POST(request: Request) {
     },
   });
 
+  const automation = await runAutomationEventSafely({
+    organizationId,
+    trigger: "payroll.created",
+    eventKey: `payroll-created:${run.id}`,
+    context: {
+      payrollRunId: run.id,
+      periodLabel,
+      periodStart,
+      periodEnd,
+      payDate,
+      orgUnitId: scopeOrgUnitId,
+      legalEntityId: legalEntity.id,
+      payrollAmount: 0,
+      employeeCount: employeesInScope.length,
+    },
+  });
+
   let queueMeta = null;
   let processResult = null;
   if (processNow) {
@@ -320,6 +338,6 @@ export async function POST(request: Request) {
   }
 
   const [fresh] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, run.id));
-  return Response.json({ run: fresh, queue: queueMeta, processResult, timesheetGate }, { status: 201 });
+  return Response.json({ run: fresh, queue: queueMeta, processResult, timesheetGate, automation }, { status: 201 });
 }
 

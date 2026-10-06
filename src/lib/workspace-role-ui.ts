@@ -62,6 +62,7 @@ export const REAL_ROLE_PAGE_ACCESS: Partial<Record<string, readonly string[]>> =
     "Readiness",
     "Audit trail",
     "Enterprise",
+    "Automation",
   ],
 };
 

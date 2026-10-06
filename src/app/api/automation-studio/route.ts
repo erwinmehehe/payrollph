@@ -1,0 +1,277 @@
+import { and, desc, eq } from "drizzle-orm";
+import { db } from "@/db";
+import {
+  automationExecutions,
+  automationRules,
+  benefitPlans,
+  orgUnits,
+  permissionSets,
+} from "@/db/schema";
+import { getSessionUser } from "@/lib/auth";
+import { assertOrganizationRole, getAccess, ORG_ADMIN_ROLES } from "@/lib/access";
+import { recordAuditEvent } from "@/lib/audit";
+import { publicDemoMutationDenied } from "@/lib/demo-security";
+import {
+  AUTOMATION_ACTION_CATALOG,
+  AUTOMATION_CONDITION_FIELDS,
+  AUTOMATION_LIVE_TRIGGERS,
+  AUTOMATION_OPERATORS,
+  AUTOMATION_PLANNED_TRIGGERS,
+  AUTOMATION_TRIGGER_CATALOG,
+  AUTOMATION_TRIGGERS,
+  automationTriggerIsLive,
+  normalizeAutomationActions,
+  validAutomationConditions,
+  validateAutomationActionTrigger,
+  type AutomationTrigger,
+} from "@/lib/automation";
+import {
+  enforceSameOriginMutation,
+  enforceSensitiveActionRateLimit,
+  requireSensitiveActionMfa,
+} from "@/lib/security-request";
+
+export const dynamic = "force-dynamic";
+
+async function assertStudioAdmin(userId: number, organizationId: number) {
+  const denied = await assertOrganizationRole(
+    userId,
+    organizationId,
+    ORG_ADMIN_ROLES,
+    "Only company-wide administrators can manage Automation Studio.",
+  );
+  if (denied) return { denied, access: null };
+  const access = await getAccess(userId, organizationId);
+  if (!access?.companyWide) {
+    return {
+      denied: Response.json(
+        { error: "Automation Studio requires company-wide access." },
+        { status: 403 },
+      ),
+      access: null,
+    };
+  }
+  return { denied: null, access };
+}
+
+export async function GET(request: Request) {
+  const user = await getSessionUser();
+  if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+
+  const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
+  if (!Number.isInteger(organizationId)) {
+    return Response.json({ error: "organizationId is required." }, { status: 400 });
+  }
+
+  const guard = await assertStudioAdmin(user.id, organizationId);
+  if (guard.denied) return guard.denied;
+
+  const [rules, executions, units, sets, plans] = await Promise.all([
+    db.select().from(automationRules)
+      .where(eq(automationRules.organizationId, organizationId))
+      .orderBy(desc(automationRules.id)),
+    db.select().from(automationExecutions)
+      .where(eq(automationExecutions.organizationId, organizationId))
+      .orderBy(desc(automationExecutions.id))
+      .limit(100),
+    db.select({ id: orgUnits.id, name: orgUnits.name, code: orgUnits.code })
+      .from(orgUnits)
+      .where(eq(orgUnits.organizationId, organizationId))
+      .orderBy(orgUnits.name),
+    db.select({ id: permissionSets.id, name: permissionSets.name, active: permissionSets.active })
+      .from(permissionSets)
+      .where(eq(permissionSets.organizationId, organizationId))
+      .orderBy(permissionSets.name),
+    db.select({
+      id: benefitPlans.id,
+      name: benefitPlans.name,
+      category: benefitPlans.category,
+      active: benefitPlans.active,
+      employeeShare: benefitPlans.employeeShare,
+      cap: benefitPlans.cap,
+    }).from(benefitPlans)
+      .where(eq(benefitPlans.organizationId, organizationId))
+      .orderBy(benefitPlans.name),
+  ]);
+
+  const completed = executions.filter((row) => row.status === "completed").length;
+  const partial = executions.filter((row) => row.status === "partial").length;
+  const failed = executions.filter((row) => row.status === "failed").length;
+
+  return Response.json({
+    rules,
+    executions,
+    catalogs: {
+      triggers: AUTOMATION_TRIGGER_CATALOG.map((trigger) => ({
+        ...trigger,
+        live: automationTriggerIsLive(trigger.value),
+      })),
+      liveTriggers: AUTOMATION_LIVE_TRIGGERS,
+      plannedTriggers: AUTOMATION_PLANNED_TRIGGERS,
+      conditions: AUTOMATION_CONDITION_FIELDS,
+      operators: AUTOMATION_OPERATORS,
+      actions: AUTOMATION_ACTION_CATALOG,
+    },
+    orgUnits: units,
+    permissionSets: sets,
+    benefitPlans: plans,
+    analytics: {
+      activeRules: rules.filter((row) => row.active).length,
+      recentExecutions: executions.length,
+      completed,
+      partial,
+      failed,
+      successRate: executions.length
+        ? Math.round((completed / executions.length) * 1000) / 10
+        : 100,
+    },
+  });
+}
+
+export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
+  const user = await getSessionUser();
+  if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+
+  const demoDenied = publicDemoMutationDenied(user.email, "Automation Studio");
+  if (demoDenied) return demoDenied;
+
+  const body = await request.json().catch(() => ({}));
+  const organizationId = Number(body.organizationId);
+  const action = String(body.action ?? "");
+  if (!Number.isInteger(organizationId)) {
+    return Response.json({ error: "organizationId is required." }, { status: 400 });
+  }
+
+  const guard = await assertStudioAdmin(user.id, organizationId);
+  if (guard.denied) return guard.denied;
+
+  const mfaDenied = requireSensitiveActionMfa(user);
+  if (mfaDenied) return mfaDenied;
+  const rateDenied = await enforceSensitiveActionRateLimit(request, {
+    userId: user.id,
+    action: "automation-studio-" + (action || "mutation"),
+    resourceId: organizationId,
+    limit: 40,
+    windowMs: 5 * 60_000,
+  });
+  if (rateDenied) return rateDenied;
+
+  if (action === "save-rule") {
+    const id = body.id ? Number(body.id) : null;
+    const name = String(body.name ?? "").trim();
+    const trigger = String(body.trigger ?? "") as AutomationTrigger;
+    const conditions = body.conditions ?? { version: 1, all: [], any: [] };
+    const actions = normalizeAutomationActions(body.actions);
+
+    if (
+      !name
+      || !(AUTOMATION_TRIGGERS as readonly string[]).includes(trigger)
+      || !validAutomationConditions(conditions)
+      || !actions
+    ) {
+      return Response.json({
+        error: "Rule name, supported trigger, valid IF conditions, and at least one valid THEN action are required.",
+      }, { status: 400 });
+    }
+    if (!automationTriggerIsLive(trigger)) {
+      return Response.json({
+        error: "This trigger is visible on the Automation Studio roadmap but its authoritative event adapter is not connected yet.",
+        trigger,
+      }, { status: 409 });
+    }
+
+    const compatibilityError = validateAutomationActionTrigger(trigger, actions);
+    if (compatibilityError) {
+      return Response.json({ error: compatibilityError }, { status: 400 });
+    }
+
+    if (id) {
+      const [row] = await db.update(automationRules).set({
+        name: name.slice(0, 160),
+        trigger,
+        conditions,
+        actions,
+        active: body.active === undefined ? true : Boolean(body.active),
+        updatedAt: new Date(),
+      }).where(and(
+        eq(automationRules.id, id),
+        eq(automationRules.organizationId, organizationId),
+      )).returning();
+
+      if (!row) return Response.json({ error: "Automation rule not found." }, { status: 404 });
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Automation Studio rule updated",
+        resource: row.name,
+        metadata: {
+          ruleId: row.id,
+          trigger,
+          conditionCount:
+            (Array.isArray((conditions as { all?: unknown[] }).all) ? (conditions as { all?: unknown[] }).all!.length : 0)
+            + (Array.isArray((conditions as { any?: unknown[] }).any) ? (conditions as { any?: unknown[] }).any!.length : 0),
+          actionTypes: actions.map((item) => item.type),
+        },
+      });
+      return Response.json(row);
+    }
+
+    try {
+      const [row] = await db.insert(automationRules).values({
+        organizationId,
+        name: name.slice(0, 160),
+        trigger,
+        conditions,
+        actions,
+        active: true,
+        createdByUserId: user.id,
+      }).returning();
+
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Automation Studio rule created",
+        resource: row.name,
+        metadata: {
+          ruleId: row.id,
+          trigger,
+          actionTypes: actions.map((item) => item.type),
+        },
+      });
+      return Response.json(row, { status: 201 });
+    } catch {
+      return Response.json({ error: "An automation rule with this name already exists." }, { status: 409 });
+    }
+  }
+
+  if (action === "set-active") {
+    const ruleId = Number(body.ruleId);
+    const active = Boolean(body.active);
+    if (!Number.isInteger(ruleId)) {
+      return Response.json({ error: "ruleId is required." }, { status: 400 });
+    }
+
+    const [row] = await db.update(automationRules).set({
+      active,
+      updatedAt: new Date(),
+    }).where(and(
+      eq(automationRules.id, ruleId),
+      eq(automationRules.organizationId, organizationId),
+    )).returning();
+
+    if (!row) return Response.json({ error: "Automation rule not found." }, { status: 404 });
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: active ? "Automation Studio rule enabled" : "Automation Studio rule disabled",
+      resource: row.name,
+      metadata: { ruleId: row.id, trigger: row.trigger },
+    });
+    return Response.json(row);
+  }
+
+  return Response.json({ error: "Unsupported Automation Studio action." }, { status: 400 });
+}

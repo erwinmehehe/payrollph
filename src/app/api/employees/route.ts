@@ -25,7 +25,7 @@ import { seedProvisioning } from "@/lib/provisioning";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { fixedMonthlyBasicForTimeline, resolvePayProfile, resolvePayTimeline } from "@/lib/pay-basis";
 import { REST_DAY_NAMES } from "@/lib/payroll-rules";
-import { runLifecycleAutomations } from "@/lib/automation";
+import { runAutomationEventSafely, runLifecycleAutomations } from "@/lib/automation";
 import { ensurePrimaryLegalEntity } from "@/lib/legal-entity";
 
 export const dynamic = "force-dynamic";
@@ -779,7 +779,7 @@ export async function PATCH(request: Request) {
             ? "Employee employment dates updated"
             : "Employee work schedule updated";
 
-  await recordAuditEvent({
+  const audit = await recordAuditEvent({
     organizationId,
     actor: user.name,
     action,
@@ -800,6 +800,23 @@ export async function PATCH(request: Request) {
       restDayEffectiveDate: changedRestDay ? restDayEffectiveDate : undefined,
       restDayChangeReason: changedRestDay ? restDayChangeReason : undefined,
       restDayRevisionId: changedRestDay ? result.restDayRevisionId : undefined,
+    },
+  });
+
+  const automation = await runAutomationEventSafely({
+    organizationId,
+    employeeId,
+    trigger: "employee.updated",
+    eventKey: `employee-update:${audit?.id ?? employeeId + ":" + String(updated.startDate)}`,
+    context: {
+      orgUnitId: updated.orgUnitId,
+      employmentType: updated.employmentType,
+      title: updated.title,
+      effectiveDate: payEffectiveDate ?? restDayEffectiveDate ?? undefined,
+      eventAmount: nextPayProfile
+        ? nextPayProfile.monthlyEquivalent - Number(employee.basicRate)
+        : undefined,
+      changedFields: [...Object.keys(patch), ...(nextPayProfile ? ["payBasis", "rateAmount"] : [])],
     },
   });
 
@@ -831,5 +848,6 @@ export async function PATCH(request: Request) {
       previousRestDay: employee.restDay,
       newRestDay: updated.restDay,
     } : null,
+    automation,
   });
 }

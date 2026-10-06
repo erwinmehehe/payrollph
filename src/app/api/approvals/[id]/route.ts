@@ -8,6 +8,7 @@ import { dispatchWebhook } from "@/lib/webhooks";
 import { assertMembership } from "@/lib/access";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
 import { isPublicDemoIdentity } from "@/lib/demo-security";
+import { runAutomationEventSafely } from "@/lib/automation";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const originDenied = enforceSameOriginMutation(request);
@@ -183,19 +184,64 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   });
 
   const [linkedLeave] = await db.select().from(leaveRequests).where(eq(leaveRequests.approvalTaskId, taskId)).limit(1);
+  const automation = [];
   if (linkedLeave) {
     await db.update(leaveRequests).set({
       status,
       decidedBy: actor,
     }).where(eq(leaveRequests.id, linkedLeave.id));
-    if (status === "Approved" && !sharedDemo) {
-      await dispatchWebhook({
+    if (status === "Approved") {
+      automation.push(...await runAutomationEventSafely({
         organizationId: task.organizationId,
-        event: "leave.approved",
-        data: { leaveId: linkedLeave.id, employeeId: linkedLeave.employeeId, leaveType: linkedLeave.leaveType, days: linkedLeave.days },
-      });
+        employeeId: linkedLeave.employeeId,
+        trigger: "leave.approved",
+        eventKey: `leave-approved:${linkedLeave.id}:${taskId}`,
+        context: {
+          leaveId: linkedLeave.id,
+          leaveType: linkedLeave.leaveType,
+          leaveDays: Number(linkedLeave.days),
+          eventAmount: Number(linkedLeave.days),
+          startDate: linkedLeave.startDate,
+          endDate: linkedLeave.endDate,
+          approvalTaskId: taskId,
+        },
+      }));
+      if (!sharedDemo) {
+        await dispatchWebhook({
+          organizationId: task.organizationId,
+          event: "leave.approved",
+          data: { leaveId: linkedLeave.id, employeeId: linkedLeave.employeeId, leaveType: linkedLeave.leaveType, days: linkedLeave.days },
+        });
+      }
     }
   }
 
-  return Response.json({ ...updated, delegation: decision, webhookDeliveries: deliveries.length, leaveUpdated: Boolean(linkedLeave) });
+  if (payrollRunId && status === "Approved") {
+    const [approvedRun] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, payrollRunId)).limit(1);
+    if (approvedRun) {
+      automation.push(...await runAutomationEventSafely({
+        organizationId: task.organizationId,
+        trigger: "payroll.approved",
+        eventKey: `payroll-approved:${payrollRunId}:${taskId}`,
+        context: {
+          payrollRunId,
+          periodLabel: approvedRun.periodLabel,
+          orgUnitId: approvedRun.scopeOrgUnitId,
+          legalEntityId: approvedRun.legalEntityId,
+          payrollAmount: Number(approvedRun.grossPay),
+          netPay: Number(approvedRun.netPay),
+          approvalTaskId: taskId,
+          approvedBy: actor,
+        },
+      }));
+    }
+  }
+
+  return Response.json({
+    ...updated,
+    delegation: decision,
+    webhookDeliveries: deliveries.length,
+    leaveUpdated: Boolean(linkedLeave),
+    automation,
+  });
 }

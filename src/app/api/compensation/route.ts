@@ -16,6 +16,7 @@ import { assertOrganizationRole, assertScope, getAccess, PAYROLL_RELEASE_ROLES }
 import { recordAuditEvent } from "@/lib/audit";
 import { annualizePay, compaRatio, proposalBudgetDelta, proposalWithinBand, rateFromAnnual, validateBand } from "@/lib/compensation";
 import { enforceSameOriginMutation } from "@/lib/security-request";
+import { runAutomationEventSafely } from "@/lib/automation";
 
 export const dynamic = "force-dynamic";
 
@@ -269,5 +270,22 @@ export async function PATCH(request: Request) {
     metadata: { proposalId: id, cycleId: proposal.cycleId, payRevisionId: result.revision.id, effectiveDate: cycle.effectiveDate, proposedAnnual: proposal.proposedAnnual },
   });
 
-  return Response.json(result.updated);
+  const automation = await runAutomationEventSafely({
+    organizationId: proposal.organizationId,
+    employeeId: proposal.employeeId,
+    trigger: "compensation.changed",
+    eventKey: `compensation-changed:${result.revision.id}`,
+    context: {
+      compensationProposalId: proposal.id,
+      compensationCycleId: proposal.cycleId,
+      effectiveDate: cycle.effectiveDate,
+      previousAnnual: Number(proposal.currentAnnual),
+      proposedAnnual: Number(proposal.proposedAnnual),
+      eventAmount: Number(proposal.proposedAnnual) - Number(proposal.currentAnnual),
+      salary: nextRate,
+      payRevisionId: result.revision.id,
+    },
+  });
+
+  return Response.json({ ...result.updated, automation });
 }
