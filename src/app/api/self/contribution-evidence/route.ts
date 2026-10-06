@@ -144,6 +144,7 @@ export async function GET(request: Request) {
 
   const [postingEvidenceArtifact] = member?.postingEvidenceArtifactId
     ? await db.select({
+        id: statutoryPostingEvidenceArtifacts.id,
         sourceType: statutoryPostingEvidenceArtifacts.sourceType,
         contentSha256: statutoryPostingEvidenceArtifacts.contentSha256,
         createdAt: statutoryPostingEvidenceArtifacts.createdAt,
