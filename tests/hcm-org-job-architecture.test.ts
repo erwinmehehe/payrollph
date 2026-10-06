@@ -69,6 +69,8 @@ test("new job profiles reference structured dimensions instead of free-text inpu
 
 test("direct position assignment now respects the authoritative HCM worker model", () => {
   assert.ok(planning.includes("This employee already has an active primary position."));
+  assert.ok(planning.includes("Direct assignment changes current worker state"));
+  assert.ok(planning.includes("Only active employees can receive a new primary position assignment."));
   assert.ok(planning.includes('assignmentType: "primary"'));
   assert.ok(planning.includes('fte: "1.0000"'));
   assert.ok(planning.includes('eventType: "position_assigned"'));
