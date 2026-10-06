@@ -38,3 +38,18 @@ test("future overlapping allocation plans fail closed", () => {
   assert.ok(source.includes("futureOrSameStartConflict"));
   assert.ok(source.includes("Adjust that future allocation before adding another set."));
 });
+
+
+test("labor-costing API accepts hours-based allocation evidence", () => {
+  assert.ok(source.includes('body.allocationBasis === "hours"'));
+  assert.ok(source.includes("allocationHours"));
+  assert.ok(source.includes("resolvedAllocation.percent.toFixed(3)"));
+});
+
+test("GL mapping changes are company-wide, tenant-scoped, and auditable", () => {
+  assert.ok(source.includes('"set_gl_mapping"'));
+  assert.ok(source.includes("GL mappings require company-wide access."));
+  assert.ok(source.includes("eq(legalEntities.organizationId, organizationId)"));
+  assert.ok(source.includes("eq(costCenters.organizationId, organizationId)"));
+  assert.ok(source.includes('action: "Labor GL mapping set"'));
+});

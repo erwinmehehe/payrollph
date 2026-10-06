@@ -4,6 +4,8 @@ import {
   costCenters,
   employeeLaborAllocations,
   employees,
+  laborGlMappings,
+  legalEntities,
 } from "@/db/schema";
 import {
   assertOrganizationRole,
@@ -14,7 +16,7 @@ import {
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
-import { resolveLaborAllocation } from "@/lib/labor-costing";
+import { LABOR_GL_ACCOUNT_KEYS, resolveLaborAllocation } from "@/lib/labor-costing";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -104,18 +106,27 @@ export async function GET(request: Request) {
       .map((employee) => employee.id),
   );
 
-  const [centerRows, allocationRows] = await Promise.all([
+  const [centerRows, allocationRows, entityRows, glMappingRows] = await Promise.all([
     db.select().from(costCenters)
       .where(eq(costCenters.organizationId, organizationId))
       .orderBy(asc(costCenters.code)),
     db.select().from(employeeLaborAllocations)
       .where(eq(employeeLaborAllocations.organizationId, organizationId))
       .orderBy(asc(employeeLaborAllocations.employeeId), asc(employeeLaborAllocations.effectiveFrom), asc(employeeLaborAllocations.id)),
+    db.select().from(legalEntities)
+      .where(eq(legalEntities.organizationId, organizationId))
+      .orderBy(asc(legalEntities.code)),
+    db.select().from(laborGlMappings)
+      .where(eq(laborGlMappings.organizationId, organizationId))
+      .orderBy(asc(laborGlMappings.accountKey), asc(laborGlMappings.id)),
   ]);
 
   return Response.json({
     costCenters: centerRows,
     allocations: allocationRows.filter((row) => visibleEmployeeIds.has(row.employeeId)),
+    legalEntities: entityRows,
+    glMappings: glMappingRows,
+    glAccountKeys: LABOR_GL_ACCOUNT_KEYS,
   });
 }
 
@@ -130,12 +141,13 @@ export async function POST(request: Request) {
   const organizationId = Number(body.organizationId);
   const action = String(body.action ?? "").trim();
 
+  const adminAction = action === "create_cost_center" || action === "set_gl_mapping";
   const denied = await assertOrganizationRole(
     user.id,
     organizationId,
-    action === "create_cost_center" ? ORG_ADMIN_ROLES : PEOPLE_PAYROLL_ROLES,
-    action === "create_cost_center"
-      ? "Only organization administrators can create cost centers."
+    adminAction ? ORG_ADMIN_ROLES : PEOPLE_PAYROLL_ROLES,
+    adminAction
+      ? "Only organization administrators can change company-wide labor-costing configuration."
       : "You do not have permission to manage labor costing.",
   );
   if (denied) return denied;
@@ -192,11 +204,107 @@ export async function POST(request: Request) {
     }
   }
 
+  if (action === "set_gl_mapping") {
+    if (!access.companyWide) {
+      return Response.json({
+        error: "GL mappings require company-wide access.",
+      }, { status: 403 });
+    }
+
+    const accountKey = String(body.accountKey ?? "").trim();
+    const legalEntityId =
+      body.legalEntityId === null || body.legalEntityId === undefined || body.legalEntityId === ""
+        ? null
+        : Number(body.legalEntityId);
+    const costCenterId =
+      body.costCenterId === null || body.costCenterId === undefined || body.costCenterId === ""
+        ? null
+        : Number(body.costCenterId);
+    const accountCode = optionalCode(body.accountCode);
+    const accountName = String(body.accountName ?? "").trim().slice(0, 160);
+    const active = body.active !== false;
+
+    if (!LABOR_GL_ACCOUNT_KEYS.includes(accountKey as (typeof LABOR_GL_ACCOUNT_KEYS)[number])) {
+      return Response.json({ error: "Unsupported GL account key." }, { status: 400 });
+    }
+    if ((legalEntityId !== null && !Number.isInteger(legalEntityId))
+      || (costCenterId !== null && !Number.isInteger(costCenterId))
+      || !accountName) {
+      return Response.json({
+        error: "A valid optional legalEntityId, optional costCenterId, and accountName are required.",
+      }, { status: 400 });
+    }
+
+    if (legalEntityId !== null) {
+      const [entity] = await db.select().from(legalEntities).where(and(
+        eq(legalEntities.id, legalEntityId),
+        eq(legalEntities.organizationId, organizationId),
+      )).limit(1);
+      if (!entity) {
+        return Response.json({ error: "The legal entity does not belong to this organization." }, { status: 422 });
+      }
+    }
+    if (costCenterId !== null) {
+      const [center] = await db.select().from(costCenters).where(and(
+        eq(costCenters.id, costCenterId),
+        eq(costCenters.organizationId, organizationId),
+      )).limit(1);
+      if (!center) {
+        return Response.json({ error: "The cost center does not belong to this organization." }, { status: 422 });
+      }
+    }
+
+    const mappings = await db.select().from(laborGlMappings)
+      .where(eq(laborGlMappings.organizationId, organizationId));
+    const existing = mappings.find((row) =>
+      row.accountKey === accountKey
+      && row.legalEntityId === legalEntityId
+      && row.costCenterId === costCenterId
+    );
+
+    const [saved] = existing
+      ? await db.update(laborGlMappings).set({
+          accountCode,
+          accountName,
+          active,
+          createdBy: user.name,
+          updatedAt: new Date(),
+        }).where(eq(laborGlMappings.id, existing.id)).returning()
+      : await db.insert(laborGlMappings).values({
+          organizationId,
+          legalEntityId,
+          costCenterId,
+          accountKey,
+          accountCode,
+          accountName,
+          active,
+          createdBy: user.name,
+        }).returning();
+
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "Labor GL mapping set",
+      resource: accountKey,
+      metadata: {
+        mappingId: saved.id,
+        legalEntityId,
+        costCenterId,
+        accountCode,
+        accountName,
+        active,
+      },
+    });
+
+    return Response.json({ glMapping: saved }, { status: existing ? 200 : 201 });
+  }
+
   if (action === "set_employee_allocations") {
     const employeeId = Number(body.employeeId);
     const effectiveFrom = String(body.effectiveFrom ?? "").trim();
     const effectiveUntil = String(body.effectiveUntil ?? "").trim() || null;
     const reason = String(body.reason ?? "Labor costing allocation").trim().slice(0, 240);
+    const allocationBasis = body.allocationBasis === "hours" ? "hours" : "percentage";
     const allocationInput: Record<string, unknown>[] = Array.isArray(body.allocations)
       ? body.allocations.filter((row: unknown): row is Record<string, unknown> => typeof row === "object" && row !== null)
       : [];
@@ -224,7 +332,8 @@ export async function POST(request: Request) {
       effectiveFrom,
       effectiveUntil,
       allocationPercent: Number(row.allocationPercent),
-      allocationBasis: "percentage",
+      allocationBasis,
+      allocationHours: allocationBasis === "hours" ? Number(row.allocationHours) : null,
       projectCode: optionalCode(row.projectCode),
       clientCode: optionalCode(row.clientCode),
       jobCode: optionalCode(row.jobCode),
@@ -234,8 +343,9 @@ export async function POST(request: Request) {
       return Response.json({ error: "Every allocation requires a valid costCenterId." }, { status: 400 });
     }
 
+    let resolved: ReturnType<typeof resolveLaborAllocation>;
     try {
-      resolveLaborAllocation({ employeeId, asOf: effectiveFrom, rows: normalized });
+      resolved = resolveLaborAllocation({ employeeId, asOf: effectiveFrom, rows: normalized });
     } catch (error) {
       return Response.json({
         error: error instanceof Error ? error.message : "Labor allocation is invalid.",
@@ -286,6 +396,7 @@ export async function POST(request: Request) {
       ),
     );
 
+    const resolvedByInputId = new Map(resolved.allocations.map((row) => [row.id, row]));
     const created = await db.transaction(async (tx) => {
       const closeDate = dayBefore(effectiveFrom);
       for (const row of rowsToClose) {
@@ -296,14 +407,17 @@ export async function POST(request: Request) {
 
       const inserted = [];
       for (const allocation of normalized) {
+        const resolvedAllocation = resolvedByInputId.get(allocation.id);
+        if (!resolvedAllocation) throw new Error("Resolved labor allocation row is missing.");
         const [row] = await tx.insert(employeeLaborAllocations).values({
           organizationId,
           employeeId,
           costCenterId: allocation.costCenterId,
           effectiveFrom,
           effectiveUntil,
-          allocationPercent: allocation.allocationPercent.toFixed(3),
-          allocationBasis: "percentage",
+          allocationPercent: resolvedAllocation.percent.toFixed(3),
+          allocationBasis,
+          allocationHours: resolvedAllocation.hours === null ? null : resolvedAllocation.hours.toFixed(3),
           projectCode: allocation.projectCode,
           clientCode: allocation.clientCode,
           jobCode: allocation.jobCode,
@@ -329,6 +443,8 @@ export async function POST(request: Request) {
           id: row.id,
           costCenterId: row.costCenterId,
           allocationPercent: row.allocationPercent,
+          allocationBasis: row.allocationBasis,
+          allocationHours: row.allocationHours,
           clientCode: row.clientCode,
           projectCode: row.projectCode,
           jobCode: row.jobCode,
