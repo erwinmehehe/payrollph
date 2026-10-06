@@ -363,7 +363,7 @@ export async function POST(request: Request) {
     return Response.json({ worksite: updated });
   }
 
-  if (["set_arrangement", "authorize_site", "end_authorization"].includes(action)) {
+  if (["set_arrangement", "authorize_site", "deny_site", "end_authorization"].includes(action)) {
     const peopleDenied = await assertOrganizationRole(
       user.id, organizationId, PEOPLE_ADMIN_ROLES,
       "Only People administrators can govern work arrangements and worksite access.",
@@ -421,7 +421,8 @@ export async function POST(request: Request) {
       return Response.json({ arrangement: updated, staleTimesheetIds: stale.map((row) => row.id) }, { status: 201 });
     }
 
-    if (action === "authorize_site") {
+    if (action === "authorize_site" || action === "deny_site") {
+      const decision = action === "deny_site" ? "deny" : "allow";
       const worksiteId = Number(body.worksiteId);
       const effectiveFrom = String(body.effectiveFrom ?? "");
       const effectiveUntil = body.effectiveUntil ? String(body.effectiveUntil) : null;
@@ -433,7 +434,7 @@ export async function POST(request: Request) {
       }
       const siteCheck = await scopedWorksite(user.id, organizationId, worksiteId);
       if (siteCheck.denied) return siteCheck.denied;
-      if (!siteCheck.worksite?.active) return Response.json({ error: "Inactive worksites cannot be authorized." }, { status: 409 });
+      if (!siteCheck.worksite?.active) return Response.json({ error: decision === "deny" ? "Inactive worksites do not need a new restriction." : "Inactive worksites cannot be authorized." }, { status: 409 });
       const end = effectiveUntil ?? "9999-12-31";
       const created = await db.transaction(async (tx) => {
         await tx.execute(sql`select id from employees where id = ${employeeId} for update`);
@@ -441,22 +442,25 @@ export async function POST(request: Request) {
           eq(hcmWorksiteAuthorizations.organizationId, organizationId),
           eq(hcmWorksiteAuthorizations.employeeId, employeeId),
           eq(hcmWorksiteAuthorizations.worksiteId, worksiteId),
+          eq(hcmWorksiteAuthorizations.decision, decision),
         ));
         if (existing.some((row) => String(row.effectiveFrom) <= end && (row.effectiveUntil == null || String(row.effectiveUntil) >= effectiveFrom))) return null;
         const [row] = await tx.insert(hcmWorksiteAuthorizations).values({
-          organizationId, employeeId, worksiteId, effectiveFrom, effectiveUntil, reason,
+          organizationId, employeeId, worksiteId, decision, effectiveFrom, effectiveUntil, reason,
           authorizedByUserId: user.id, authorizedByName: user.name,
         }).returning();
         return row;
       });
-      if (!created) return Response.json({ error: "An authorization overlaps this worker and worksite." }, { status: 409 });
+      if (!created) return Response.json({ error: decision === "deny" ? "A restriction overlaps this worker and worksite." : "An authorization overlaps this worker and worksite." }, { status: 409 });
       const stale = await markTimesheetsStaleForEmployeeRange({
         organizationId, employeeId, startDate: effectiveFrom, endDate: effectiveUntil,
       });
       await recordAuditEvent({
-        organizationId, actor: user.name, action: "HCM secondary worksite authorized",
+        organizationId,
+        actor: user.name,
+        action: decision === "deny" ? "HCM worksite restricted" : "HCM secondary worksite authorized",
         resource: employeeCheck.employee!.employeeNo + " · " + siteCheck.worksite!.code,
-        metadata: { authorizationId: created.id, employeeId, worksiteId, effectiveFrom, effectiveUntil, reason, staleTimesheetIds: stale.map((row) => row.id) },
+        metadata: { authorizationId: created.id, employeeId, worksiteId, decision, effectiveFrom, effectiveUntil, reason, staleTimesheetIds: stale.map((row) => row.id) },
       });
       return Response.json({ authorization: created, staleTimesheetIds: stale.map((row) => row.id) }, { status: 201 });
     }
@@ -482,9 +486,11 @@ export async function POST(request: Request) {
       organizationId, employeeId, startDate: addDays(endDate, 1),
     });
     await recordAuditEvent({
-      organizationId, actor: user.name, action: "HCM secondary worksite authorization ended",
+      organizationId,
+      actor: user.name,
+      action: ended.decision === "deny" ? "HCM worksite restriction ended" : "HCM secondary worksite authorization ended",
       resource: employeeCheck.employee!.employeeNo,
-      metadata: { authorizationId, employeeId, worksiteId: ended.worksiteId, endDate, staleTimesheetIds: stale.map((row) => row.id) },
+      metadata: { authorizationId, employeeId, worksiteId: ended.worksiteId, decision: ended.decision, endDate, staleTimesheetIds: stale.map((row) => row.id) },
     });
       return Response.json({ authorization: ended, staleTimesheetIds: stale.map((row) => row.id) });
     }
