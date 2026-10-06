@@ -8,6 +8,7 @@ import { drainPayrollQueue, enqueuePayrollRun, getPayrollJobStatus, PAYROLL_RULE
 import { assertOrganizationRole, assertOrganizationUnitAccess, getAccess, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { isCanonicalPhSemiMonthlyPeriod } from "@/lib/payroll-calendar";
 import { loadTimesheetPayrollGate } from "@/lib/workforce-timesheet-server";
+import { ensurePrimaryLegalEntity } from "@/lib/legal-entity";
 
 export const dynamic = "force-dynamic";
 
@@ -174,6 +175,7 @@ export async function POST(request: Request) {
     .limit(1);
   if (!organization) return Response.json({ error: "Organization not found." }, { status: 404 });
 
+  await ensurePrimaryLegalEntity(organizationId);
   const legalEntityRows = await db.select().from(legalEntities).where(and(
     eq(legalEntities.organizationId, organizationId),
     eq(legalEntities.active, true),
