@@ -41,6 +41,8 @@ type HolidayRow = {
 type Payload = {
   worksites: Worksite[];
   assignments: WorksiteAssignment[];
+  arrangements: Array<{ id: number; employeeId: number; mode: string; effectiveFrom: string; effectiveUntil: string | null }>;
+  authorizations: Array<{ id: number; employeeId: number; worksiteId: number; effectiveFrom: string; effectiveUntil: string | null }>;
   holidays: HolidayRow[];
 };
 
@@ -81,6 +83,10 @@ export function WorkforceWorksitesPanel({
   const [effectiveFrom, setEffectiveFrom] = useState(localToday());
   const [effectiveUntil, setEffectiveUntil] = useState("");
   const [reason, setReason] = useState("Primary worksite assignment");
+  const [arrangementMode, setArrangementMode] = useState("onsite");
+  const [arrangementReason, setArrangementReason] = useState("Approved work arrangement");
+  const [authorizationReason, setAuthorizationReason] = useState("Secondary worksite coverage");
+  const canGovernArrangements = canManage && ["owner", "admin", "bookkeeper", "hr"].includes(data.access?.role ?? "");
 
   const [holidayWorksiteId, setHolidayWorksiteId] = useState("");
   const [holidayDate, setHolidayDate] = useState(localToday());
@@ -360,6 +366,79 @@ export function WorkforceWorksitesPanel({
             </button>
           </div>
         </div>
+      )}
+
+      {canGovernArrangements && activeWorksites.length > 0 && (
+        <section style={{ padding: "0 18px 18px" }} data-hcm-work-arrangements>
+          <div className="card-kicker" style={{ marginBottom: 8 }}>Worker location eligibility</div>
+          <p style={{ color: "var(--muted)", fontSize: 12 }}>
+            The primary worksite remains authoritative for payroll. These dated approvals authorize
+            additional sites and the worker's onsite, hybrid, remote or field arrangement.
+          </p>
+          <div className="setting-form">
+            <label>Worker
+              <select value={employeeId} onChange={(event) => setEmployeeId(Number(event.target.value))}>
+                {data.employees.map((employee) => (
+                  <option key={employee.id} value={employee.id}>{employee.employeeNo} · {employee.firstName} {employee.lastName}</option>
+                ))}
+              </select>
+            </label>
+            <label>Work arrangement
+              <select value={arrangementMode} onChange={(event) => setArrangementMode(event.target.value)}>
+                <option value="onsite">On-site</option><option value="hybrid">Hybrid</option>
+                <option value="remote">Remote</option><option value="field">Field</option>
+              </select>
+            </label>
+            <label>Effective from<input type="date" value={effectiveFrom} onChange={(event) => setEffectiveFrom(event.target.value)} /></label>
+            <label>Effective until (optional)<input type="date" min={effectiveFrom} value={effectiveUntil} onChange={(event) => setEffectiveUntil(event.target.value)} /></label>
+            <label>Arrangement reason<input value={arrangementReason} onChange={(event) => setArrangementReason(event.target.value)} /></label>
+          </div>
+          <div className="run-actions">
+            <button className="secondary-button" disabled={saving !== null || !employeeId || !arrangementReason.trim()} onClick={() => void mutate("set_arrangement", {
+              employeeId, mode: arrangementMode, effectiveFrom, effectiveUntil, reason: arrangementReason,
+            }, "Dated work arrangement saved.")}>
+              <Save size={14} /> Save work arrangement
+            </button>
+          </div>
+          <div className="setting-form" style={{ marginTop: 12 }}>
+            <label>Authorize additional worksite
+              <select value={worksiteId} onChange={(event) => setWorksiteId(event.target.value)}>
+                {activeWorksites.map((site) => (
+                  <option key={site.id} value={site.id}>{site.code} · {site.name}</option>
+                ))}
+              </select>
+            </label>
+            <label>Authorization reason<input value={authorizationReason} onChange={(event) => setAuthorizationReason(event.target.value)} /></label>
+          </div>
+          <div className="run-actions">
+            <button className="secondary-button" disabled={saving !== null || !employeeId || !worksiteId || !authorizationReason.trim()} onClick={() => void mutate("authorize_site", {
+              employeeId, worksiteId: Number(worksiteId), effectiveFrom, effectiveUntil,
+              reason: authorizationReason,
+            }, "Secondary worksite access granted for the selected dates.")}>
+              <MapPin size={14} /> Authorize secondary site
+            </button>
+          </div>
+          <div className="policy-lines" style={{ marginTop: 12 }}>
+            {(payload?.arrangements ?? []).filter((row) => row.employeeId === employeeId).map((row) => (
+              <span key={"arr-" + row.id}>
+                <b>{row.mode} arrangement</b>
+                <small>{row.effectiveFrom} → {row.effectiveUntil ?? "ongoing"}</small>
+              </span>
+            ))}
+            {(payload?.authorizations ?? []).filter((row) => row.employeeId === employeeId).map((row) => (
+              <span key={"site-" + row.id}>
+                <b>Authorized: {worksiteById.get(row.worksiteId)?.name ?? row.worksiteId}</b>
+                <small>{row.effectiveFrom} → {row.effectiveUntil ?? "ongoing"}</small>
+                {(!row.effectiveUntil || row.effectiveUntil >= localToday()) && (
+                  <button className="secondary-button" disabled={saving !== null} onClick={() => void mutate("end_authorization", {
+                    employeeId, authorizationId: row.id,
+                    endDate: row.effectiveFrom > localToday() ? row.effectiveFrom : localToday(),
+                  }, "Site authorization end date recorded.")}>End authorization</button>
+                )}
+              </span>
+            ))}
+          </div>
+        </section>
       )}
 
       {canManage && canManageHolidayCalendar && activeWorksites.length > 0 && (
