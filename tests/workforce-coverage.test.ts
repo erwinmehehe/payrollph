@@ -181,3 +181,24 @@ test("approved full-day leave removes rostered workers from effective coverage",
   assert.equal(result[0]?.availableScheduledHeadcount, 1);
   assert.equal(result[0]?.gap, 1);
 });
+
+
+test("site-ineligible scheduled workers create a qualified coverage gap", () => {
+  const result = computeCoverage({
+    requirements: [{
+      id: 222, worksiteId: 10, workDate: "2026-10-06",
+      shiftDefinitionId: 2, jobProfileId: 4, requiredHeadcount: 2,
+    }],
+    scheduled: [{
+      employeeId: 1, workDate: "2026-10-06", worksiteId: 10,
+      jobProfileId: 4, shiftDefinitionIds: [2],
+    }, {
+      employeeId: 2, workDate: "2026-10-06", worksiteId: 10,
+      jobProfileId: 4, shiftDefinitionIds: [2], siteIneligibleShiftDefinitionIds: [2],
+    }],
+  });
+  assert.equal(result[0]?.scheduledHeadcount, 2);
+  assert.equal(result[0]?.siteIneligibleHeadcount, 1);
+  assert.equal(result[0]?.availableScheduledHeadcount, 1);
+  assert.equal(result[0]?.gap, 1);
+});
