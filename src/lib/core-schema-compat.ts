@@ -539,6 +539,115 @@ export async function ensureCoreCompatibilitySchema() {
       `);
 
       await client.query(`
+        CREATE TABLE IF NOT EXISTS labor_hour_allocations (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          legal_entity_id integer NOT NULL REFERENCES legal_entities(id) ON DELETE RESTRICT,
+          payroll_run_id integer NOT NULL REFERENCES payroll_runs(id) ON DELETE CASCADE,
+          employee_id integer NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+          cost_center_id integer NOT NULL REFERENCES cost_centers(id) ON DELETE RESTRICT,
+          work_date date NOT NULL,
+          minutes integer NOT NULL,
+          project_code varchar(64),
+          client_code varchar(64),
+          job_code varchar(64),
+          source_type varchar(24) NOT NULL DEFAULT 'manual',
+          source_reference varchar(160),
+          created_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          created_by varchar(120) NOT NULL DEFAULT 'System',
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS labor_hour_allocation_dimension_unique
+        ON labor_hour_allocations(
+          payroll_run_id,
+          employee_id,
+          work_date,
+          cost_center_id,
+          COALESCE(project_code, ''),
+          COALESCE(client_code, ''),
+          COALESCE(job_code, '')
+        )
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS labor_hour_allocations_run_employee_idx
+        ON labor_hour_allocations(organization_id, payroll_run_id, employee_id, work_date)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS labor_hour_allocations_cost_center_idx
+        ON labor_hour_allocations(organization_id, legal_entity_id, cost_center_id, work_date)
+      `);
+      await client.query(`
+        DO $compat$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint WHERE conname = 'labor_hour_allocations_minutes_check'
+          ) THEN
+            ALTER TABLE labor_hour_allocations
+              ADD CONSTRAINT labor_hour_allocations_minutes_check
+              CHECK (minutes > 0 AND minutes <= 2880);
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint WHERE conname = 'labor_hour_allocations_source_check'
+          ) THEN
+            ALTER TABLE labor_hour_allocations
+              ADD CONSTRAINT labor_hour_allocations_source_check
+              CHECK (source_type IN ('attendance', 'timesheet', 'manual', 'import'));
+          END IF;
+        END
+        $compat$;
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS labor_gl_mappings (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          legal_entity_id integer NOT NULL REFERENCES legal_entities(id) ON DELETE RESTRICT,
+          cost_center_id integer NOT NULL REFERENCES cost_centers(id) ON DELETE RESTRICT,
+          component varchar(32) NOT NULL,
+          gl_account_code varchar(40) NOT NULL,
+          gl_account_name varchar(160) NOT NULL,
+          effective_from date NOT NULL,
+          effective_until date,
+          active boolean NOT NULL DEFAULT true,
+          created_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          created_by varchar(120) NOT NULL DEFAULT 'System',
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS labor_gl_mapping_effective_unique
+        ON labor_gl_mappings(legal_entity_id, cost_center_id, component, effective_from)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS labor_gl_mappings_scope_idx
+        ON labor_gl_mappings(organization_id, legal_entity_id, cost_center_id, component, active)
+      `);
+      await client.query(`
+        DO $compat$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint WHERE conname = 'labor_gl_mappings_component_check'
+          ) THEN
+            ALTER TABLE labor_gl_mappings
+              ADD CONSTRAINT labor_gl_mappings_component_check
+              CHECK (component IN ('gross_pay', 'employer_sss', 'employer_ec', 'employer_philhealth', 'employer_pagibig'));
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint WHERE conname = 'labor_gl_mappings_dates_check'
+          ) THEN
+            ALTER TABLE labor_gl_mappings
+              ADD CONSTRAINT labor_gl_mappings_dates_check
+              CHECK (effective_until IS NULL OR effective_until >= effective_from);
+          END IF;
+        END
+        $compat$;
+      `);
+
+      await client.query(`
         CREATE TABLE IF NOT EXISTS pay_policies (
           id serial PRIMARY KEY,
           organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
