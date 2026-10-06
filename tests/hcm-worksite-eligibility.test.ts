@@ -109,7 +109,7 @@ test("effective deny overrides an overlapping allow and expiry restores allow", 
     id: 32,
     employeeId: 99,
     worksiteId: 20,
-    decision: "deny",
+    decision: "deny" as const,
     effectiveFrom: "2026-10-01",
     effectiveUntil: "2026-10-06",
   }];
