@@ -49,6 +49,7 @@ type Coverage = {
   unavailableScheduledHeadcount: number;
   capabilityIneligibleHeadcount: number;
   approvedLeaveScheduledHeadcount: number;
+  siteIneligibleHeadcount: number;
   availableScheduledHeadcount: number;
   gap: number;
   overage: number;
@@ -148,6 +149,7 @@ type LaborVariance = {
     roleEvidenceIssues: string[];
     capabilityEvidenceIssues: string[];
     absenceEvidenceIssues: string[];
+    siteEvidenceIssues: string[];
   };
 };
 
@@ -357,6 +359,7 @@ export function WorkforceCoveragePanel({
     (sum, row) => sum + row.approvedLeaveScheduledHeadcount,
     0,
   );
+  const siteExclusions = (payload?.coverage ?? []).reduce((sum, row) => sum + row.siteIneligibleHeadcount, 0);
   const labor = payload?.laborVariance;
 
   return (
@@ -378,8 +381,8 @@ export function WorkforceCoveragePanel({
         <Metric label="Coverage gaps" value={String(gapCount)} hint={`${missingSlots} uncovered slot(s)`} icon={<CircleAlert size={16} />} tone={gapCount ? "amber" : "mint"} />
         <Metric
           label="Roster exclusions"
-          value={String(availabilityConflicts + capabilityConflicts + approvedLeaveConflicts)}
-          hint={availabilityConflicts + " unavailable · " + capabilityConflicts + " unqualified · " + approvedLeaveConflicts + " on leave"}
+          value={String(availabilityConflicts + capabilityConflicts + approvedLeaveConflicts + siteExclusions)}
+          hint={availabilityConflicts + " unavailable · " + capabilityConflicts + " unqualified · " + approvedLeaveConflicts + " on leave · " + siteExclusions + " site restricted"}
           icon={<CalendarClock size={16} />}
           tone={availabilityConflicts + capabilityConflicts + approvedLeaveConflicts ? "amber" : "slate"}
         />
@@ -581,7 +584,8 @@ export function WorkforceCoveragePanel({
                   {row.unavailableScheduledHeadcount ? <Status value={String(row.unavailableScheduledHeadcount) + " unavailable"} /> : null}
                   {row.capabilityIneligibleHeadcount ? <Status value={String(row.capabilityIneligibleHeadcount) + " unqualified"} /> : null}
                   {row.approvedLeaveScheduledHeadcount ? <Status value={String(row.approvedLeaveScheduledHeadcount) + " on leave"} /> : null}
-                  {!row.unavailableScheduledHeadcount && !row.capabilityIneligibleHeadcount && !row.approvedLeaveScheduledHeadcount ? "0" : null}
+                  {row.siteIneligibleHeadcount ? <Status value={String(row.siteIneligibleHeadcount) + " site restricted"} /> : null}
+                  {!row.unavailableScheduledHeadcount && !row.capabilityIneligibleHeadcount && !row.approvedLeaveScheduledHeadcount && !row.siteIneligibleHeadcount ? "0" : null}
                 </td>
                 <td>{row.gap ? <Status value={`${row.gap} short`} /> : row.overage ? <Status value={`+${row.overage} covered`} /> : <Status value="Covered" />}</td>
                 <td>
