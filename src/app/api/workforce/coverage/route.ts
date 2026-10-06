@@ -590,11 +590,12 @@ export async function POST(request: Request) {
 
   if (action === "claim_open_shift") {
     const openShiftId = Number(body.openShiftId);
-    const employeeId = body.employeeId == null ? user.employeeId : Number(body.employeeId);
+    const requestedEmployeeId = body.employeeId == null ? user.employeeId : Number(body.employeeId);
     const reason = String(body.reason ?? "Open shift claim").trim().slice(0, 240);
-    if (!Number.isInteger(openShiftId) || !Number.isInteger(employeeId) || !reason) {
+    if (!Number.isInteger(openShiftId) || requestedEmployeeId == null || !Number.isInteger(requestedEmployeeId) || !reason) {
       return Response.json({ error: "openShiftId, employee identity and reason are required." }, { status: 400 });
     }
+    const employeeId = Number(requestedEmployeeId);
     const selfService = user.employeeId === employeeId;
     if (!selfService) {
       const denied = await assertOrganizationRole(
