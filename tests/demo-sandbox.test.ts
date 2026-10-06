@@ -539,20 +539,34 @@ test("workspace dashboard matches the PayrollPH mockup using modular real-data c
   assert.ok(shell.includes("primaryPages"), "workspace shell must receive a role-specific primary navigation set");
   assert.ok(shell.includes("secondaryItems"), "secondary features must remain reachable outside the primary navigation");
   assert.ok(shell.includes("nav-more-toggle"), "secondary features must be grouped under More instead of deleted");
-  assert.deepEqual(ROLE_PRIMARY_PAGES.owner, ["Overview", "Payroll", "Analytics", "People", "Settings"]);
-  assert.deepEqual(ROLE_PRIMARY_PAGES.hr, ["Overview", "People"]);
-  for (const page of ["Planning", "Compensation", "Workforce", "Time & attendance", "Leave", "Recruitment", "Performance"]) {
-    assert.ok(REAL_ROLE_PAGE_ACCESS.hr?.includes(page), `HR secondary page ${page} must remain accessible under More`);
+  assert.deepEqual(ROLE_PRIMARY_PAGES.owner, ["Overview", "Payroll", "People", "Time & attendance", "Leave", "Analytics"]);
+  assert.deepEqual(ROLE_PRIMARY_PAGES.hr, ["Overview", "People", "Time & attendance", "Leave", "Recruitment", "Performance"]);
+  for (const page of ["Planning", "Compensation", "Workforce", "Approvals", "Compliance", "Loans", "Benefits", "De minimis", "Expenses", "Discipline", "Separation", "Assets"]) {
+    assert.ok(REAL_ROLE_PAGE_ACCESS.hr?.includes(page), `HR advanced page ${page} must remain accessible under More`);
   }
-  assert.deepEqual(ROLE_PRIMARY_PAGES.payroll, ["Overview", "Payroll", "Time & attendance", "People"]);
-  assert.deepEqual(ROLE_PRIMARY_PAGES.checker, ["Overview", "Audit trail"]);
-  assert.deepEqual(ROLE_PRIMARY_PAGES.bookkeeper, ["Overview", "Exports", "Compliance", "Readiness", "Analytics"]);
+  assert.deepEqual(ROLE_PRIMARY_PAGES.payroll, ["Overview", "Payroll", "Time & attendance", "People", "Analytics"]);
+  assert.deepEqual(ROLE_PRIMARY_PAGES.checker, ["Overview", "Audit trail", "Analytics"]);
+  assert.deepEqual(ROLE_PRIMARY_PAGES.bookkeeper, ["Overview", "Payroll", "Analytics", "Compliance", "Exports"]);
+  assert.ok(shell.includes('Overview: "Home"'), "default navigation should call the overview Home");
+  assert.ok(shell.includes('People: "Employees"'), "default navigation should call People Employees");
+  assert.ok(shell.includes('"Time & attendance": "Time"'), "default navigation should shorten Time & attendance to Time");
   assert.ok(shell.includes("Search employees, payroll, reports"), "top search should use the mockup wording");
   assert.ok(dashboard.includes("mockup-owner-release"), "owner dashboard must render the approved release card");
   assert.ok(dashboard.includes("mockup-four-step"), "payroll dashboard must render the approved workflow stepper");
   assert.ok(dashboard.includes("mockup-checker-summary"), "checker dashboard must render the approved comparison summary");
   assert.ok(dashboard.includes("hr-readiness-mockup"), "HR dashboard must render the approved readiness composition");
   assert.ok(dashboard.includes("mockup-close-steps"), "bookkeeper dashboard must render the approved close timeline");
+  assert.equal(existsSync("src/components/workspace/payroll-variance-insights.tsx"), true, "payroll review must include the plain-language variance module");
+  const variance = read("src/components/workspace/payroll-variance-insights.tsx");
+  assert.ok(variance.includes("WHAT CHANGED?"), "variance review must lead with plain-language comparison");
+  assert.ok(variance.includes("Explain pay"), "variance review must keep employee-level explanation reachable");
+  const payrollRun = read("src/components/workspace/payroll-run.tsx");
+  const payrollOfficer = read("src/components/workspace/payroll-officer-workspace.tsx");
+  const time = read("src/components/workspace/time.tsx");
+  assert.ok(payrollRun.includes("Compliance & remittance operations"), "advanced statutory operations must stay behind progressive disclosure");
+  assert.ok(payrollOfficer.includes('title="Review inputs"'), "guided payroll must start with review inputs");
+  assert.ok(payrollOfficer.includes('title="Review changes"'), "guided payroll must explicitly review changes before submission");
+  assert.ok(time.includes("Reviewing payroll-impacting time for"), "payroll blockers must deep-link into employee time review");
   for (const role of ["owner", "hr", "payroll", "checker", "bookkeeper"]) {
     assert.ok(dashboard.includes(`data-dashboard-variant="${role}"`), `missing role-first dashboard composition for ${role}`);
   }
