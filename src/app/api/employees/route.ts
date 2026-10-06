@@ -14,6 +14,7 @@ import {
   employeeRestDayRevisions,
   employeePayRetroAdjustments,
   employees,
+  legalEntities,
   payrollEntries,
   payrollRuns,
 } from "@/db/schema";
@@ -121,6 +122,23 @@ export async function POST(request: Request) {
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
   const employeeOrgUnitId = access.companyWide ? null : access.orgUnitId;
 
+  const requestedLegalEntityId = body.legalEntityId == null || body.legalEntityId === ""
+    ? null
+    : Number(body.legalEntityId);
+  if (requestedLegalEntityId !== null && (!Number.isInteger(requestedLegalEntityId) || requestedLegalEntityId <= 0)) {
+    return Response.json({ error: "Invalid legal employer." }, { status: 400 });
+  }
+  const entityRows = await db.select().from(legalEntities).where(and(
+    eq(legalEntities.organizationId, organizationId),
+    eq(legalEntities.active, true),
+  ));
+  const selectedLegalEntity = requestedLegalEntityId
+    ? entityRows.find((entity) => entity.id === requestedLegalEntityId)
+    : entityRows.find((entity) => entity.primaryEntity) ?? entityRows[0];
+  if (!selectedLegalEntity) {
+    return Response.json({ error: "Create an active legal employer before adding employees." }, { status: 422 });
+  }
+
   let payProfile;
   try {
     payProfile = resolvePayProfile({
@@ -151,6 +169,7 @@ export async function POST(request: Request) {
   const [created] = await db.insert(employees).values({
     organizationId,
     orgUnitId: employeeOrgUnitId,
+    legalEntityId: selectedLegalEntity.id,
     employeeNo,
     firstName,
     middleName: middleName || null,
@@ -227,6 +246,8 @@ export async function POST(request: Request) {
       rateAmount: payProfile.rateAmount,
       monthlyEquivalent: payProfile.monthlyEquivalent,
       payoutDetailsProvided: Boolean(bankAccount && bankCode),
+      legalEntityId: selectedLegalEntity.id,
+      legalEntityCode: selectedLegalEntity.code,
     },
   });
 
