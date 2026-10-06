@@ -1,17 +1,113 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalTasks, employees, leavePolicies, leaveRequests, userOrganizations, users } from "@/db/schema";
+import {
+  approvalTasks,
+  employees,
+  leavePolicies,
+  leaveRequestIntervals,
+  leaveRequestIntervalSets,
+  leaveRequests,
+  userOrganizations,
+  users,
+} from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { assertMembership, getAccess, roleAllowed } from "@/lib/access";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 import { runAutomationEventSafely } from "@/lib/automation";
+import { approvedLeaveCoverageImpact } from "@/lib/workforce-absence";
+import {
+  resolveLeaveIntervalsForSchedule,
+  validateLeaveIntervals,
+  type PreciseLeaveInterval,
+} from "@/lib/workforce-absence-intervals";
+import { loadResolvedEmployeeSchedule } from "@/lib/workforce-schedule-evidence-server";
+import { markTimesheetsStaleForEmployeeRange } from "@/lib/workforce-timesheet-server";
 
 export const dynamic = "force-dynamic";
 
 const LEAVE_ADMIN_ROLES = ["owner", "admin", "bookkeeper", "hr", "manager"] as const;
 const LEAVE_APPROVER_ROLES = ["manager", "hr", "owner", "admin", "bookkeeper"] as const;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+function calendarDates(startDate: string, endDate: string) {
+  const start = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+  const dates: string[] = [];
+  for (let cursor = new Date(start); cursor <= end; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+    dates.push(cursor.toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
+async function validatePreciseTiming(input: {
+  organizationId: number;
+  employeeId: number;
+  startDate: string;
+  endDate: string;
+  intervals: PreciseLeaveInterval[];
+}) {
+  const initial = validateLeaveIntervals(input.intervals);
+  if (!initial.ok) return { ok: false as const, errors: initial.errors, intervals: [] as PreciseLeaveInterval[] };
+
+  const outside = input.intervals.filter(
+    (interval) => interval.workDate < input.startDate || interval.workDate > input.endDate,
+  );
+  if (outside.length) {
+    return {
+      ok: false as const,
+      errors: ["Leave timing must fall within the leave request start/end dates."],
+      intervals: [] as PreciseLeaveInterval[],
+    };
+  }
+
+  const normalized: PreciseLeaveInterval[] = [];
+  const errors: string[] = [];
+  for (const workDate of [...new Set(input.intervals.map((row) => row.workDate))].sort()) {
+    const evidence = await loadResolvedEmployeeSchedule({
+      organizationId: input.organizationId,
+      employeeId: input.employeeId,
+      workDate,
+    });
+    const dayIntervals = input.intervals
+      .filter((row) => row.workDate === workDate)
+      .map((row) => ({ ...row, timezone: row.timezone?.trim() || evidence.timezone }));
+    const impact = resolveLeaveIntervalsForSchedule({
+      workDate,
+      intervals: dayIntervals,
+      schedule: evidence.schedule,
+    });
+    errors.push(...impact.blockers.map((item) => `${workDate}: ${item.message}`));
+    normalized.push(...dayIntervals);
+  }
+  return errors.length
+    ? { ok: false as const, errors, intervals: [] as PreciseLeaveInterval[] }
+    : { ok: true as const, errors: [] as string[], intervals: normalized };
+}
+
+async function preciseEvidenceForRequests(organizationId: number, leaveIds: number[]) {
+  if (!leaveIds.length) return new Map<number, { intervalSet: typeof leaveRequestIntervalSets.$inferSelect; intervals: Array<typeof leaveRequestIntervals.$inferSelect> }>();
+  const sets = await db.select().from(leaveRequestIntervalSets).where(and(
+    eq(leaveRequestIntervalSets.organizationId, organizationId),
+    eq(leaveRequestIntervalSets.status, "current"),
+    inArray(leaveRequestIntervalSets.leaveRequestId, leaveIds),
+  ));
+  const setIds = sets.map((row) => row.id);
+  const intervals = setIds.length
+    ? await db.select().from(leaveRequestIntervals).where(and(
+        eq(leaveRequestIntervals.organizationId, organizationId),
+        inArray(leaveRequestIntervals.intervalSetId, setIds),
+      ))
+    : [];
+  return new Map(sets.map((intervalSet) => [
+    intervalSet.leaveRequestId,
+    {
+      intervalSet,
+      intervals: intervals.filter((row) => row.intervalSetId === intervalSet.id),
+    },
+  ]));
+}
 
 export async function GET(request: Request) {
   const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
@@ -49,13 +145,19 @@ export async function GET(request: Request) {
   const visible = employeeIds
     ? rows.filter(({ leave }) => employeeIds!.includes(leave.employeeId))
     : rows;
+  const evidence = await preciseEvidenceForRequests(organizationId, visible.map(({ leave }) => leave.id));
 
   return Response.json({
-    requests: visible.map(({ leave, employee }) => ({
-      ...leave,
-      employeeName: `${employee.firstName} ${employee.lastName}`,
-      avatarInitials: employee.avatarInitials,
-    })),
+    requests: visible.map(({ leave, employee }) => {
+      const precise = evidence.get(leave.id);
+      return {
+        ...leave,
+        employeeName: `${employee.firstName} ${employee.lastName}`,
+        avatarInitials: employee.avatarInitials,
+        intervalSet: precise?.intervalSet ?? null,
+        intervals: precise?.intervals ?? [],
+      };
+    }),
   });
 }
 
@@ -69,6 +171,114 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
+  const action = String(body.action ?? "create");
+  if (!Number.isInteger(organizationId)) {
+    return Response.json({ error: "organizationId is required." }, { status: 400 });
+  }
+
+  const deniedMembership = await assertMembership(user.id, organizationId);
+  if (deniedMembership) return deniedMembership;
+  const access = await getAccess(user.id, organizationId);
+  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+
+  if (action === "revise_intervals") {
+    const leaveId = Number(body.leaveId);
+    const rawIntervals = Array.isArray(body.intervals) ? body.intervals as PreciseLeaveInterval[] : [];
+    if (!Number.isInteger(leaveId) || rawIntervals.length === 0) {
+      return Response.json({ error: "leaveId and precise intervals are required." }, { status: 400 });
+    }
+    const [leave] = await db.select().from(leaveRequests).where(and(
+      eq(leaveRequests.id, leaveId),
+      eq(leaveRequests.organizationId, organizationId),
+    )).limit(1);
+    if (!leave) return Response.json({ error: "Leave request not found." }, { status: 404 });
+
+    if (user.role === "employee") {
+      if (user.employeeId !== leave.employeeId) return Response.json({ error: "You can revise only your own leave request." }, { status: 403 });
+    } else if (!roleAllowed(access.role, LEAVE_ADMIN_ROLES)) {
+      return Response.json({ error: "Your role cannot revise leave timing." }, { status: 403 });
+    }
+    const [employee] = await db.select().from(employees).where(and(
+      eq(employees.id, leave.employeeId),
+      eq(employees.organizationId, organizationId),
+    )).limit(1);
+    if (!employee) return Response.json({ error: "Employee not found." }, { status: 404 });
+    if (access.role === "manager" && !access.companyWide && access.orgUnitId && employee.orgUnitId !== access.orgUnitId) {
+      return Response.json({ error: "This employee is outside your assigned unit." }, { status: 403 });
+    }
+    if (leave.status !== "Pending") {
+      return Response.json({
+        error: "Approved/rejected leave timing is immutable. Withdraw and submit a new governed request instead.",
+      }, { status: 409 });
+    }
+
+    const precise = await validatePreciseTiming({
+      organizationId,
+      employeeId: leave.employeeId,
+      startDate: String(leave.startDate),
+      endDate: String(leave.endDate),
+      intervals: rawIntervals,
+    });
+    if (!precise.ok) return Response.json({ error: "Leave timing is invalid.", errors: precise.errors }, { status: 400 });
+
+    const existingSets = await db.select().from(leaveRequestIntervalSets).where(and(
+      eq(leaveRequestIntervalSets.organizationId, organizationId),
+      eq(leaveRequestIntervalSets.leaveRequestId, leave.id),
+    )).orderBy(desc(leaveRequestIntervalSets.revision));
+    const nextRevision = Number(existingSets[0]?.revision ?? 0) + 1;
+
+    const intervalSet = await db.transaction(async (tx) => {
+      await tx.update(leaveRequestIntervalSets).set({
+        status: "superseded",
+        supersededAt: new Date(),
+      }).where(and(
+        eq(leaveRequestIntervalSets.organizationId, organizationId),
+        eq(leaveRequestIntervalSets.leaveRequestId, leave.id),
+        eq(leaveRequestIntervalSets.status, "current"),
+      ));
+      const [created] = await tx.insert(leaveRequestIntervalSets).values({
+        organizationId,
+        leaveRequestId: leave.id,
+        revision: nextRevision,
+        status: "current",
+        createdByUserId: user.id,
+        createdByName: user.name,
+      }).returning();
+      await tx.insert(leaveRequestIntervals).values(precise.intervals.map((interval) => ({
+        organizationId,
+        intervalSetId: created.id,
+        workDate: interval.workDate,
+        kind: interval.kind,
+        startLocalTime: interval.kind === "timed" ? interval.startLocalTime ?? null : null,
+        endLocalTime: interval.kind === "timed" ? interval.endLocalTime ?? null : null,
+        endsNextDay: interval.kind === "timed" ? Boolean(interval.endsNextDay) : false,
+        timezone: interval.timezone,
+        source: "revision",
+      })));
+      return created;
+    });
+
+    const stale = await markTimesheetsStaleForEmployeeRange({
+      organizationId,
+      employeeId: leave.employeeId,
+      startDate: String(leave.startDate),
+      endDate: String(leave.endDate),
+    });
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "Leave timing revised",
+      resource: `leave #${leave.id}`,
+      metadata: {
+        leaveId: leave.id,
+        nextRevision,
+        intervalSetId: intervalSet.id,
+        staleTimesheetIds: stale.map((row) => row.id),
+      },
+    });
+    return Response.json({ leave, intervalSet, intervals: precise.intervals, staleTimesheetIds: stale.map((row) => row.id) });
+  }
+
   let employeeId = Number(body.employeeId);
   const leaveType = String(body.leaveType ?? "").trim();
   const startDate = String(body.startDate ?? "").trim();
@@ -77,10 +287,9 @@ export async function POST(request: Request) {
   const reason = String(body.reason ?? "").trim();
 
   if (
-    !Number.isInteger(organizationId) ||
     !leaveType ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(startDate) ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(endDate) ||
+    !ISO_DATE.test(startDate) ||
+    !ISO_DATE.test(endDate) ||
     endDate < startDate ||
     !Number.isFinite(days) ||
     days <= 0
@@ -89,11 +298,6 @@ export async function POST(request: Request) {
       error: "organizationId, leaveType, valid start/end dates and positive days are required.",
     }, { status: 400 });
   }
-
-  const deniedMembership = await assertMembership(user.id, organizationId);
-  if (deniedMembership) return deniedMembership;
-  const access = await getAccess(user.id, organizationId);
-  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
 
   if (user.role === "employee") {
     if (!user.employeeId) return Response.json({ error: "Employee profile is not linked." }, { status: 403 });
@@ -131,6 +335,37 @@ export async function POST(request: Request) {
     }, { status: 422 });
   }
 
+  const headerImpact = approvedLeaveCoverageImpact({
+    id: 0,
+    employeeId,
+    startDate,
+    endDate,
+    days,
+    leaveType,
+  });
+  let requestedIntervals = Array.isArray(body.intervals) ? body.intervals as PreciseLeaveInterval[] : [];
+  if (headerImpact.kind === "ambiguous_partial" && requestedIntervals.length === 0) {
+    return Response.json({
+      error: "Precise timing is required for partial-day leave. Choose first half, second half, or custom hours.",
+    }, { status: 400 });
+  }
+  if (headerImpact.kind === "full_day" && requestedIntervals.length === 0) {
+    requestedIntervals = calendarDates(startDate, endDate).map((workDate) => ({
+      workDate,
+      kind: "full_day" as const,
+      timezone: "Asia/Manila",
+    }));
+  }
+
+  const precise = await validatePreciseTiming({
+    organizationId,
+    employeeId,
+    startDate,
+    endDate,
+    intervals: requestedIntervals,
+  });
+  if (!precise.ok) return Response.json({ error: "Leave timing is invalid.", errors: precise.errors }, { status: 400 });
+
   const members = await db
     .select({ id: users.id, name: users.name, role: userOrganizations.role })
     .from(userOrganizations)
@@ -148,51 +383,86 @@ export async function POST(request: Request) {
     }, { status: 409 });
   }
 
-  const [task] = await db.insert(approvalTasks).values({
-    organizationId,
-    title: "Approve leave request",
-    detail: `${employee.firstName} ${employee.lastName} · ${leaveType} · ${startDate}–${endDate}`,
-    approver: approver.name,
-    dueLabel: "Due in 2 days",
-    priority: "Normal",
-  }).returning();
+  const created = await db.transaction(async (tx) => {
+    const [task] = await tx.insert(approvalTasks).values({
+      organizationId,
+      title: "Approve leave request",
+      detail: `${employee.firstName} ${employee.lastName} · ${leaveType} · ${startDate}–${endDate}`,
+      approver: approver.name,
+      dueLabel: "Due in 2 days",
+      priority: "Normal",
+    }).returning();
 
-  const [row] = await db.insert(leaveRequests).values({
-    organizationId,
-    employeeId,
-    leaveType,
-    startDate,
-    endDate,
-    days: days.toFixed(1),
-    reason: reason.slice(0, 240),
-    status: "Pending",
-    approvalTaskId: task.id,
-  }).returning();
+    const [row] = await tx.insert(leaveRequests).values({
+      organizationId,
+      employeeId,
+      leaveType,
+      startDate,
+      endDate,
+      days: days.toFixed(1),
+      reason: reason.slice(0, 240),
+      status: "Pending",
+      approvalTaskId: task.id,
+    }).returning();
+
+    const [intervalSet] = await tx.insert(leaveRequestIntervalSets).values({
+      organizationId,
+      leaveRequestId: row.id,
+      revision: 1,
+      status: "current",
+      createdByUserId: user.id,
+      createdByName: user.name,
+    }).returning();
+    await tx.insert(leaveRequestIntervals).values(precise.intervals.map((interval) => ({
+      organizationId,
+      intervalSetId: intervalSet.id,
+      workDate: interval.workDate,
+      kind: interval.kind,
+      startLocalTime: interval.kind === "timed" ? interval.startLocalTime ?? null : null,
+      endLocalTime: interval.kind === "timed" ? interval.endLocalTime ?? null : null,
+      endsNextDay: interval.kind === "timed" ? Boolean(interval.endsNextDay) : false,
+      timezone: interval.timezone,
+      source: "request",
+    })));
+    return { task, row, intervalSet };
+  });
 
   await recordAuditEvent({
     organizationId,
     actor: user.name,
     action: "Leave request submitted",
     resource: `${employee.firstName} ${employee.lastName} · ${leaveType}`,
-    metadata: { leaveId: row.id, taskId: task.id, approverUserId: approver.id },
+    metadata: {
+      leaveId: created.row.id,
+      taskId: created.task.id,
+      approverUserId: approver.id,
+      intervalSetId: created.intervalSet.id,
+      intervalRevision: created.intervalSet.revision,
+    },
   });
 
   const automation = await runAutomationEventSafely({
     organizationId,
     employeeId,
     trigger: "leave.requested",
-    eventKey: `leave-requested:${row.id}`,
+    eventKey: `leave-requested:${created.row.id}`,
     context: {
-      leaveId: row.id,
+      leaveId: created.row.id,
       leaveType,
       leaveDays: days,
       eventAmount: days,
       startDate,
       endDate,
-      approvalTaskId: task.id,
+      approvalTaskId: created.task.id,
       approver: approver.name,
+      intervalRevision: created.intervalSet.revision,
     },
   });
 
-  return Response.json({ ...row, automation }, { status: 201 });
+  return Response.json({
+    ...created.row,
+    intervalSet: created.intervalSet,
+    intervals: precise.intervals,
+    automation,
+  }, { status: 201 });
 }
