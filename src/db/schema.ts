@@ -2841,6 +2841,9 @@ export const hcmEmploymentTermDecisions = pgTable(
     separationReason: varchar("separation_reason", { length: 160 }),
     status: varchar("status", { length: 24 }).notNull().default("pending_approval"),
     separationHandoffStatus: varchar("separation_handoff_status", { length: 24 }).notNull().default("none"),
+    separationRecordId: integer("separation_record_id").references(() => separationRecords.id, { onDelete: "restrict" }),
+    separationHandoffStartedAt: timestamp("separation_handoff_started_at", { withTimezone: true }),
+    separationHandoffCompletedAt: timestamp("separation_handoff_completed_at", { withTimezone: true }),
     reason: varchar("reason", { length: 240 }).notNull(),
     requestedByUserId: integer("requested_by_user_id").references(() => users.id, { onDelete: "set null" }),
     requestedBy: varchar("requested_by", { length: 120 }).notNull(),
@@ -2864,6 +2867,9 @@ export const hcmEmploymentTermDecisions = pgTable(
       .on(table.organizationId, table.status, table.effectiveDate),
     index("hcm_employment_term_decisions_employee_history_idx")
       .on(table.organizationId, table.employeeId, table.createdAt),
+    uniqueIndex("hcm_employment_term_decisions_separation_unique")
+      .on(table.separationRecordId)
+      .where(sql`${table.separationRecordId} is not null`),
   ],
 );
 
