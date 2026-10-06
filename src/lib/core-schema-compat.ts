@@ -185,7 +185,7 @@ export async function ensureCoreCompatibilitySchema() {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v15'))");
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v16'))");
 
       await client.query(`
         ALTER TABLE organizations
@@ -1373,6 +1373,94 @@ export async function ensureCoreCompatibilitySchema() {
       await client.query(`
         CREATE UNIQUE INDEX IF NOT EXISTS managed_payroll_run_approval_unique
         ON managed_payroll_run_approvals(payroll_run_id)
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS overtime_budgets (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          org_unit_id integer NOT NULL REFERENCES org_units(id) ON DELETE CASCADE,
+          period_month varchar(7) NOT NULL,
+          budget_minutes integer NOT NULL,
+          enforcement_mode varchar(24) NOT NULL DEFAULT 'advisory',
+          manager_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          active boolean NOT NULL DEFAULT true,
+          notes varchar(240),
+          updated_by varchar(120) NOT NULL,
+          updated_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS overtime_budgets_org_unit_month_unique
+        ON overtime_budgets(organization_id, org_unit_id, period_month)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS overtime_budgets_org_month_idx
+        ON overtime_budgets(organization_id, period_month, active)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS overtime_budgets_manager_idx
+        ON overtime_budgets(organization_id, manager_user_id, period_month)
+      `);
+      await client.query(`
+        DO $compat$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'overtime_budgets_period_month_check'
+          ) THEN
+            ALTER TABLE overtime_budgets
+              ADD CONSTRAINT overtime_budgets_period_month_check
+              CHECK (period_month ~ '^[0-9]{4}-[0-9]{2}$');
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'overtime_budgets_minutes_check'
+          ) THEN
+            ALTER TABLE overtime_budgets
+              ADD CONSTRAINT overtime_budgets_minutes_check
+              CHECK (budget_minutes >= 0 AND budget_minutes <= 1000000);
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'overtime_budgets_enforcement_check'
+          ) THEN
+            ALTER TABLE overtime_budgets
+              ADD CONSTRAINT overtime_budgets_enforcement_check
+              CHECK (enforcement_mode IN ('advisory', 'block'));
+          END IF;
+        END
+        $compat$;
+      `);
+      await client.query(`
+        ALTER TABLE overtime_requests
+          ADD COLUMN IF NOT EXISTS org_unit_id integer REFERENCES org_units(id) ON DELETE SET NULL
+      `);
+      await client.query(`
+        ALTER TABLE overtime_requests
+          ADD COLUMN IF NOT EXISTS budget_id integer REFERENCES overtime_budgets(id) ON DELETE SET NULL
+      `);
+      await client.query(`
+        ALTER TABLE overtime_requests
+          ADD COLUMN IF NOT EXISTS budget_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb
+      `);
+      await client.query(`
+        UPDATE overtime_requests ot
+        SET org_unit_id = e.org_unit_id
+        FROM employees e
+        WHERE ot.employee_id = e.id
+          AND ot.organization_id = e.organization_id
+          AND ot.org_unit_id IS NULL
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS overtime_requests_org_unit_date_idx
+        ON overtime_requests(organization_id, org_unit_id, work_date)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS overtime_requests_budget_idx
+        ON overtime_requests(budget_id, status)
       `);
 
       await client.query("COMMIT");
