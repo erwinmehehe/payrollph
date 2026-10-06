@@ -38,3 +38,12 @@ test("site governance remains visible in workforce operations", () => {
   assert.ok(sites.includes("Restricted"));
   assert.ok(coverage.includes("siteIneligibleHeadcount"));
 });
+
+
+test("connected worker profile reuses worksite governance evidence", () => {
+  const profile = read("src/app/api/hcm/worker-profile/route.ts");
+  const people = read("src/components/workspace/people.tsx");
+  assert.ok(profile.includes("worksiteGovernance"));
+  assert.ok(profile.includes("hcmWorksiteAuthorizations"));
+  assert.ok(people.includes("Worksite access"));
+});
