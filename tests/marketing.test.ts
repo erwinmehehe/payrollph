@@ -80,7 +80,7 @@ test("the software homepage keeps the full workspace demo off the marketing page
 test("the homepage leads with the approved Linaw payroll hero", () => {
   const modern = read("src/components/marketing/claude-home/ModernHome.tsx");
 
-  assert.ok(modern.includes("Payroll, <em>clearly.</em>"), "hero must lead with the simplified Linaw product proposition");
+  assert.ok(modern.includes("Payroll, <span>made clear.</span>"), "hero must lead with the Linaw payroll clarity proposition");
   assert.ok(modern.includes("Know what changed. Know what is blocked."), "hero must frame payroll clarity and release safety clearly");
   assert.ok(modern.includes('href="/demo"'), "hero must expose the live demo as the primary CTA");
   assert.ok(modern.includes('href="/book-demo"'), "hero must expose a book-demo CTA");
@@ -89,6 +89,8 @@ test("the homepage leads with the approved Linaw payroll hero", () => {
   assert.ok(modern.includes("SSS") && modern.includes("PhilHealth") && modern.includes("Pag-IBIG") && modern.includes("BIR"), "homepage must keep Philippine payroll rails visible");
   assert.ok(modern.includes("Government ID"), "homepage must show employee readiness context");
   assert.ok(!modern.includes("Let’s make payroll easier"), "hero must stay mascot-free");
+  assert.ok(modern.includes("hero-state-rail"), "hero must use the Linaw release-state visual motif");
+  assert.ok(modern.includes("story-layout-reverse"), "product storytelling must use Linaw's asymmetric editorial composition");
 });
 
 test("a dedicated role-based demo page exists", () => {
