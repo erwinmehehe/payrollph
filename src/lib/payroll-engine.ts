@@ -20,6 +20,8 @@ import {
   orgUnits,
   organizations,
   overtimeRequests,
+  payPolicies,
+  payPolicyRules,
   payrollEntries,
   historicalPayrollEntries,
   payrollJobs,
@@ -99,8 +101,17 @@ import {
   type OvertimeRequestKind,
   type OvertimeRequestStatus,
 } from "@/lib/workforce-overtime";
+import {
+  WORKED_TIME_PREMIUM_EVENT,
+  payPolicyTrace,
+  resolveWorkedTimePremium,
+  type AppliedWorkedTimePremiumRule,
+  type PayPolicyRecord,
+  type PayPolicyRuleRecord,
+  type PayPolicyScope,
+} from "@/lib/pay-policy-engine";
 
-export const PAYROLL_RULE_VERSION = "PH-2026.05";
+export const PAYROLL_RULE_VERSION = "PH-2026.06";
 const DEFAULT_CHUNK = 25;
 
 function money(value: number) {
@@ -109,6 +120,13 @@ function money(value: number) {
 
 function roundToCents(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function payPolicyScope(value: string): PayPolicyScope {
+  if (value === "organization" || value === "org_unit" || value === "employee") {
+    return value;
+  }
+  throw new Error(`Unsupported pay policy scope "${value}".`);
 }
 
 function traceInputNumber(trace: unknown, key: string) {
@@ -464,6 +482,52 @@ async function processPayrollChunk(input: {
 
   const units = await db.select().from(orgUnits).where(eq(orgUnits.organizationId, input.organizationId));
   const unitMap = new Map(units.map((unit) => [unit.id, unit]));
+
+  // Pay-rule execution is loaded once per payroll chunk, then resolved
+  // independently for each employee and work date. Only approved/effective
+  // policies can execute, and v1 supports additive worked-time premiums only.
+  const payPolicyRows = await db.select().from(payPolicies).where(and(
+    eq(payPolicies.organizationId, input.organizationId),
+    eq(payPolicies.active, true),
+    lte(payPolicies.effectiveFrom, workforcePricingWindowEnd),
+    or(
+      isNull(payPolicies.effectiveUntil),
+      gte(payPolicies.effectiveUntil, run.periodStart),
+    ),
+  )).orderBy(asc(payPolicies.id));
+  const payPolicyIds = payPolicyRows.map((policy) => policy.id);
+  const payPolicyRuleRows = payPolicyIds.length
+    ? await db.select().from(payPolicyRules)
+        .where(inArray(payPolicyRules.policyId, payPolicyIds))
+        .orderBy(asc(payPolicyRules.policyId), asc(payPolicyRules.id))
+    : [];
+  const payrollPayPolicies: PayPolicyRecord[] = payPolicyRows.map((policy) => ({
+    id: policy.id,
+    organizationId: policy.organizationId,
+    code: policy.code,
+    name: policy.name,
+    policyKind: policy.policyKind,
+    version: policy.version,
+    scopeType: payPolicyScope(policy.scopeType),
+    scopeOrgUnitId: policy.scopeOrgUnitId,
+    scopeEmployeeId: policy.scopeEmployeeId,
+    priority: policy.priority,
+    effectiveFrom: String(policy.effectiveFrom),
+    effectiveUntil: policy.effectiveUntil ? String(policy.effectiveUntil) : null,
+    active: policy.active,
+    approvedAt: policy.approvedAt,
+  }));
+  const payrollPayPolicyRules: PayPolicyRuleRecord[] = payPolicyRuleRows.map((rule) => ({
+    id: rule.id,
+    policyId: rule.policyId,
+    ruleKey: rule.ruleKey,
+    eventType: rule.eventType,
+    conditions: rule.conditions,
+    outcome: rule.outcome,
+    priority: rule.priority,
+    statutoryFloorProtected: rule.statutoryFloorProtected,
+    enabled: rule.enabled,
+  }));
 
   // Workforce schedules are organization-level reusable definitions plus
   // employee-specific effective assignments/overrides. Load the reusable
@@ -1304,6 +1368,9 @@ async function processPayrollChunk(input: {
         requestedByUserId: request.requestedByUserId,
         decidedByUserId: request.decidedByUserId,
       })),
+      payPolicies: payrollPayPolicies,
+      payPolicyRules: payrollPayPolicyRules,
+      payPolicyOrgUnitIds: [...employeeHolidayScopeIds],
       periodStart: String(run.periodStart),
       periodEnd: String(run.periodEnd),
       priorStatutory: priorStatutoryByEmployee.get(employee.id),
@@ -1451,6 +1518,9 @@ function calculateEmployeePay(input: {
   restDayRevisions?: EffectiveRestDayRevisionInput[];
   resolvedSchedules?: Record<string, ResolvedDailySchedule>;
   overtimeRequests?: Array<OvertimeRequestEvidence & { workDate: string }>;
+  payPolicies?: PayPolicyRecord[];
+  payPolicyRules?: PayPolicyRuleRecord[];
+  payPolicyOrgUnitIds?: number[];
   periodStart: string;
   periodEnd: string;
   priorStatutory?: {
@@ -1504,10 +1574,58 @@ function calculateEmployeePay(input: {
   let tardinessDeduction = 0;
   let undertimeDeduction = 0;
   let holidayPremium = 0;
+  let companyPremiumPay = 0;
+  let companyPremiumTaxable = 0;
+  let companyPremiumExcludedFromSssBase = 0;
+  let companyPremiumExcludedFromPagIbigBase = 0;
+  const companyPremiumApplications: AppliedWorkedTimePremiumRule[] = [];
+  const companyPremiumPolicyTrace = new Map<number, ReturnType<typeof payPolicyTrace>[number]>();
   const flags: string[] = [];
   const punchNotes: string[] = [];
   const holidayNotes: string[] = [];
   const overtimeMinutesByWorkDate = new Map<string, number>();
+
+  function applyWorkedTimePremium(inputSegment: {
+    workDate: string;
+    minutes: number;
+    hourlyRate: number;
+    shiftCode: string | null;
+    worksiteId: number | null;
+  }) {
+    const resolution = resolveWorkedTimePremium({
+      organizationId: input.employee.organizationId,
+      employeeId: input.employee.id,
+      orgUnitIds: input.payPolicyOrgUnitIds ?? [],
+      workDate: inputSegment.workDate,
+      minutes: inputSegment.minutes,
+      hourlyRate: inputSegment.hourlyRate,
+      shiftCode: inputSegment.shiftCode,
+      worksiteId: inputSegment.worksiteId,
+      policies: input.payPolicies ?? [],
+      rules: input.payPolicyRules ?? [],
+    });
+
+    companyPremiumPay = roundToCents(companyPremiumPay + resolution.amount);
+    companyPremiumTaxable = roundToCents(
+      companyPremiumTaxable + resolution.taxableAmount,
+    );
+    companyPremiumExcludedFromSssBase = roundToCents(
+      companyPremiumExcludedFromSssBase
+        + Math.max(0, resolution.amount - resolution.sssIncludedAmount),
+    );
+    companyPremiumExcludedFromPagIbigBase = roundToCents(
+      companyPremiumExcludedFromPagIbigBase
+        + Math.max(0, resolution.amount - resolution.pagIbigIncludedAmount),
+    );
+    const appliedPolicyIds = new Set(resolution.applied.map((item) => item.policyId));
+    for (const policy of resolution.policies) {
+      if (appliedPolicyIds.has(policy.policyId)) {
+        companyPremiumPolicyTrace.set(policy.policyId, policy);
+      }
+    }
+    companyPremiumApplications.push(...resolution.applied);
+    return resolution;
+  }
 
   const eligiblePunches = input.punches.filter((punch) => String(punch.workDate) >= employmentStart);
   const punchesByWorkDate = new Map<string, Array<typeof timePunches.$inferSelect>>();
@@ -1681,6 +1799,16 @@ function calculateEmployeePay(input: {
           restDay: isRestDay,
         });
         const hours = segment.minutes / 60;
+        const segmentSchedule =
+          input.resolvedSchedules?.[segment.calendarDate]
+          ?? input.resolvedSchedules?.[workDate];
+        applyWorkedTimePremium({
+          workDate: segment.calendarDate,
+          minutes: segment.minutes,
+          hourlyRate: punchProfile.hourlyRate,
+          shiftCode: scheduledSegment?.shiftCode ?? null,
+          worksiteId: segmentSchedule?.worksiteId ?? null,
+        });
 
         if (segment.overtime) {
           overtimePay += hours * punchProfile.hourlyRate * multiplier;
@@ -1722,6 +1850,45 @@ function calculateEmployeePay(input: {
         });
       }
     } else {
+      const touchedPremiumDates =
+        segmentation.attendanceCalendarDates.length > 0
+          ? segmentation.attendanceCalendarDates
+          : [workDate];
+      if (touchedPremiumDates.length <= 1) {
+        applyWorkedTimePremium({
+          workDate,
+          minutes: derived.workedMinutes,
+          hourlyRate: punchProfile.hourlyRate,
+          shiftCode: scheduledSegment?.shiftCode ?? null,
+          worksiteId: input.resolvedSchedules?.[workDate]?.worksiteId ?? null,
+        });
+      } else {
+        const premiumRuleCouldApply = touchedPremiumDates.some((date) => {
+          const probe = resolveWorkedTimePremium({
+            organizationId: input.employee.organizationId,
+            employeeId: input.employee.id,
+            orgUnitIds: input.payPolicyOrgUnitIds ?? [],
+            workDate: date,
+            minutes: 60,
+            hourlyRate: punchProfile.hourlyRate,
+            shiftCode: scheduledSegment?.shiftCode ?? null,
+            worksiteId:
+              input.resolvedSchedules?.[date]?.worksiteId
+              ?? input.resolvedSchedules?.[workDate]?.worksiteId
+              ?? null,
+            policies: input.payPolicies ?? [],
+            rules: input.payPolicyRules ?? [],
+          });
+          return probe.applied.length > 0;
+        });
+        if (premiumRuleCouldApply) {
+          const message =
+            `${workDate}: configurable company premium was not executed because cross-midnight payable-time allocation is incomplete. Correct the attendance/break evidence before release so the effective-dated premium is not guessed.`;
+          flags.push(message);
+          punchNotes.push(message);
+        }
+      }
+
       if (punchProfile.payBasis !== "monthly") {
         workedBasicPay += (segmentedRegularMinutes / 60) * punchProfile.hourlyRate;
       }
@@ -2152,6 +2319,35 @@ function calculateEmployeePay(input: {
     0,
   );
 
+  const companyPremiumLineGroups = new Map<number, {
+    application: AppliedWorkedTimePremiumRule;
+    minutes: number;
+    amount: number;
+  }>();
+  for (const application of companyPremiumApplications) {
+    const existing = companyPremiumLineGroups.get(application.ruleId);
+    companyPremiumLineGroups.set(application.ruleId, {
+      application,
+      minutes: (existing?.minutes ?? 0) + application.minutes,
+      amount: roundToCents((existing?.amount ?? 0) + application.amount),
+    });
+  }
+  const companyPremiumLines = [...companyPremiumLineGroups.values()]
+    .sort((a, b) => a.application.policyId - b.application.policyId || a.application.ruleId - b.application.ruleId)
+    .map(({ application, minutes, amount }) => ({
+      code: `PREM-${application.ruleId}`,
+      label: `Company premium, ${application.label}`,
+      amount: money(amount),
+      notes: [
+        `Policy ${application.policyCode} v${application.policyVersion} · rule ${application.ruleKey}`,
+        `${minutes} worked minute(s)`,
+        `Taxable: ${application.taxable ? "yes" : "no"} · SSS base: ${application.includeInSssBase ? "included" : "excluded"} · Pag-IBIG base: ${application.includeInPagIbigBase ? "included" : "excluded"}`,
+      ],
+    }));
+  const companyPremiumNonTaxable = roundToCents(
+    Math.max(0, companyPremiumPay - companyPremiumTaxable),
+  );
+
   // Employee loans are lower-priority than statutory/tax deductions. Government
   // loan amortizations are attempted before company/other loans; anything that
   // cannot fit in available net pay is carried forward instead of disappearing
@@ -2172,6 +2368,7 @@ function calculateEmployeePay(input: {
       + nightDiffPay
       + calamityPay
       + holidayPremium
+      + companyPremiumPay
       + retroTotal
       + expenseTotal
       + supplementaryTotal
@@ -2187,11 +2384,17 @@ function calculateEmployeePay(input: {
   // earlier obligation, so the current earned remuneration is used directly.
   const sssCutoffRemuneration = Math.max(
     0,
-    gross - expenseTotal - supplementaryExcludedFromSssBase,
+    gross
+      - expenseTotal
+      - supplementaryExcludedFromSssBase
+      - companyPremiumExcludedFromSssBase,
   );
   const pagIbigCutoffCompensation = Math.max(
     0,
-    gross - expenseTotal - supplementaryExcludedFromPagIbigBase,
+    gross
+      - expenseTotal
+      - supplementaryExcludedFromPagIbigBase
+      - companyPremiumExcludedFromPagIbigBase,
   );
   const priorStatutory = input.priorStatutory ?? {
     sssRemuneration: 0,
@@ -2268,7 +2471,8 @@ function calculateEmployeePay(input: {
     conversionTotal
       - conversionTaxExemptTotal
       + supplementaryOrdinaryTaxableTotal
-      + benefitPoolTreatment.taxableCurrent,
+      + benefitPoolTreatment.taxableCurrent
+      + companyPremiumTaxable,
   );
   const taxableCompensation = treatAsMwe
     ? Math.max(0, mweTaxableSupplementaryCompensation - sss - philhealth - pagibigMandatory)
@@ -2280,6 +2484,7 @@ function calculateEmployeePay(input: {
           - deMinimisExemptTotal
           - benefitPoolTreatment.exemptCurrent
           - conversionTaxExemptTotal
+          - companyPremiumNonTaxable
           - sss
           - philhealth
           - pagibigMandatory,
@@ -2392,6 +2597,7 @@ function calculateEmployeePay(input: {
     { code: "OT", label: "Overtime", amount: money(overtimePay) },
     { code: "ND", label: "Night differential (10%)", amount: money(nightDiffPay) },
     { code: "HOLIDAY", label: "Holiday / rest-day premium", amount: money(holidayPremium), notes: holidayNotes },
+    ...companyPremiumLines,
     { code: "CALAMITY", label: "Calamity / hazard premium", amount: money(calamityPay), notes: calamityNotes },
     ...retroLines.map(({ amountNum: _amountNum, ...line }) => line),
     ...conversionLines.map(({ amountNum: _amountNum, taxExempt: _taxExempt, ...c }) => c),
@@ -2438,6 +2644,13 @@ function calculateEmployeePay(input: {
   const resolvedWorkforceTrace = workforceScheduleTrace(input.resolvedSchedules);
   const trace = {
     ruleVersion: PAYROLL_RULE_VERSION,
+    payPolicyExecution: {
+      version: "worked-time-premium-v1",
+      statutoryFloorMode: "additive-only",
+      migratedRuleFamilies: [WORKED_TIME_PREMIUM_EVENT],
+      appliedPolicies: [...companyPremiumPolicyTrace.values()].sort((a, b) => a.policyId - b.policyId),
+      appliedRules: companyPremiumApplications,
+    },
     workforceSchedule: {
       mode: resolvedWorkforceTrace.length > 0 ? "advanced-with-legacy-fallback" : "legacy",
       days: resolvedWorkforceTrace,
@@ -2536,6 +2749,12 @@ function calculateEmployeePay(input: {
       `overtimeAuthorizedMinutes=${overtimeAuthorizationDays.reduce((sum, day) => sum + day.authorizedMinutes, 0)}`,
       `overtimeAuthorizationRequests=${overtimeAuthorizationDays.reduce((sum, day) => sum + day.requests.length, 0)}`,
       `nightMinutes=${nightMinutes}`,
+      `companyPremium=${money(companyPremiumPay)}`,
+      `companyPremiumTaxable=${money(companyPremiumTaxable)}`,
+      `companyPremiumExcludedFromSssBase=${money(companyPremiumExcludedFromSssBase)}`,
+      `companyPremiumExcludedFromPagIbigBase=${money(companyPremiumExcludedFromPagIbigBase)}`,
+      `companyPremiumAppliedRules=${companyPremiumApplications.length}`,
+      `companyPremiumAppliedPolicies=${companyPremiumPolicyTrace.size}`,
       `tardinessMinutes=${tardinessMinutes}`,
       `undertimeMinutes=${undertimeMinutes}`,
       `sssMonthlySalaryCredit=${money(sssRule.monthlySalaryCredit)}`,

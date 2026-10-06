@@ -5,6 +5,8 @@ import {
   orderedPayPolicyRules,
   payPolicyTrace,
   resolveApplicablePayPolicies,
+  resolveWorkedTimePremium,
+  WORKED_TIME_PREMIUM_EVENT,
   type PayPolicyRecord,
   type PayPolicyRuleRecord,
 } from "../src/lib/pay-policy-engine";
@@ -171,4 +173,244 @@ test("production compatibility schema includes pay policy tables and guards", ()
   assert.ok(source.includes("CREATE TABLE IF NOT EXISTS pay_policy_rules"));
   assert.ok(source.includes("pay_policies_dates_check"));
   assert.ok(source.includes("pay_policies_scope_check"));
+});
+
+
+test("worked-time premium is additive above statutory pay and carries explicit classifications", () => {
+  const result = resolveWorkedTimePremium({
+    organizationId: 7,
+    employeeId: 42,
+    orgUnitIds: [9],
+    workDate: "2026-10-05",
+    minutes: 120,
+    hourlyRate: 100,
+    shiftCode: "GRAVEYARD",
+    worksiteId: 3,
+    policies: [policy()],
+    rules: [rule({
+      eventType: WORKED_TIME_PREMIUM_EVENT,
+      conditions: {},
+      outcome: {
+        label: "Company shift premium",
+        premiumPercent: 10,
+        premiumAmountPerHour: 5,
+        taxable: true,
+        includeInSssBase: true,
+        includeInPagIbigBase: false,
+      },
+    })],
+  });
+
+  assert.equal(result.statutoryFloorMode, "additive-only");
+  assert.equal(result.amount, 30);
+  assert.equal(result.taxableAmount, 30);
+  assert.equal(result.sssIncludedAmount, 30);
+  assert.equal(result.pagIbigIncludedAmount, 0);
+  assert.equal(result.applied.length, 1);
+  assert.equal(result.applied[0].policyVersion, "2026.1");
+  assert.equal(result.applied[0].ruleId, 1);
+});
+
+test("higher-precedence matching rule key shadows the organization rule", () => {
+  const policies = [
+    policy({ id: 1, code: "SHIFT-PREM", version: "ORG" }),
+    policy({
+      id: 2,
+      code: "SHIFT-PREM-EMP",
+      version: "EMP",
+      scopeType: "employee",
+      scopeEmployeeId: 42,
+      priority: 1,
+    }),
+  ];
+  const commonOutcome = {
+    label: "Shift premium",
+    taxable: true,
+    includeInSssBase: true,
+    includeInPagIbigBase: true,
+  };
+  const result = resolveWorkedTimePremium({
+    organizationId: 7,
+    employeeId: 42,
+    workDate: "2026-10-05",
+    minutes: 60,
+    hourlyRate: 100,
+    shiftCode: "NIGHT",
+    worksiteId: null,
+    policies,
+    rules: [
+      rule({
+        id: 1,
+        policyId: 1,
+        ruleKey: "SHIFT-ADD",
+        eventType: WORKED_TIME_PREMIUM_EVENT,
+        outcome: { ...commonOutcome, premiumPercent: 10 },
+      }),
+      rule({
+        id: 2,
+        policyId: 2,
+        ruleKey: "SHIFT-ADD",
+        eventType: WORKED_TIME_PREMIUM_EVENT,
+        outcome: { ...commonOutcome, premiumPercent: 20 },
+      }),
+    ],
+  });
+
+  assert.equal(result.amount, 20);
+  assert.deepEqual(result.applied.map((item) => item.ruleId), [2]);
+});
+
+test("worked-time premium conditions can target shift and worksite without touching legal premium classes", () => {
+  const matchingRule = rule({
+    eventType: WORKED_TIME_PREMIUM_EVENT,
+    conditions: { shiftCodes: ["GY"], worksiteIds: [8] },
+    outcome: {
+      premiumAmountPerHour: 25,
+      taxable: true,
+      includeInSssBase: true,
+      includeInPagIbigBase: true,
+    },
+  });
+  const base = {
+    organizationId: 7,
+    employeeId: 42,
+    workDate: "2026-10-05",
+    minutes: 60,
+    hourlyRate: 100,
+    policies: [policy()],
+    rules: [matchingRule],
+  };
+
+  assert.equal(resolveWorkedTimePremium({
+    ...base,
+    shiftCode: "gy",
+    worksiteId: 8,
+  }).amount, 25);
+  assert.equal(resolveWorkedTimePremium({
+    ...base,
+    shiftCode: "DAY",
+    worksiteId: 8,
+  }).amount, 0);
+  assert.equal(resolveWorkedTimePremium({
+    ...base,
+    shiftCode: "GY",
+    worksiteId: 9,
+  }).amount, 0);
+});
+
+test("worked-time premium fails closed if statutory-floor protection is disabled", () => {
+  assert.throws(() => resolveWorkedTimePremium({
+    organizationId: 7,
+    employeeId: 42,
+    workDate: "2026-10-05",
+    minutes: 60,
+    hourlyRate: 100,
+    shiftCode: null,
+    worksiteId: null,
+    policies: [policy()],
+    rules: [rule({
+      eventType: WORKED_TIME_PREMIUM_EVENT,
+      statutoryFloorProtected: false,
+      outcome: {
+        premiumPercent: 10,
+        taxable: true,
+        includeInSssBase: true,
+        includeInPagIbigBase: true,
+      },
+    })],
+  }), /statutoryFloorProtected=true/);
+});
+
+test("worked-time premium requires explicit tax and contribution classifications", () => {
+  assert.throws(() => resolveWorkedTimePremium({
+    organizationId: 7,
+    employeeId: 42,
+    workDate: "2026-10-05",
+    minutes: 60,
+    hourlyRate: 100,
+    shiftCode: null,
+    worksiteId: null,
+    policies: [policy()],
+    rules: [rule({
+      eventType: WORKED_TIME_PREMIUM_EVENT,
+      outcome: { premiumPercent: 10 },
+    })],
+  }), /taxable must be explicitly true or false/);
+});
+
+test("worked-time premium rejects unsupported condition fields instead of guessing", () => {
+  assert.throws(() => resolveWorkedTimePremium({
+    organizationId: 7,
+    employeeId: 42,
+    workDate: "2026-10-05",
+    minutes: 60,
+    hourlyRate: 100,
+    shiftCode: null,
+    worksiteId: null,
+    policies: [policy()],
+    rules: [rule({
+      eventType: WORKED_TIME_PREMIUM_EVENT,
+      conditions: { overtime: true },
+      outcome: {
+        premiumPercent: 10,
+        taxable: true,
+        includeInSssBase: true,
+        includeInPagIbigBase: true,
+      },
+    })],
+  }), /unsupported field/);
+});
+
+test("payroll engine loads, applies and traces the migrated company-premium family", () => {
+  const source = readFileSync("src/lib/payroll-engine.ts", "utf8");
+  assert.ok(source.includes("from(payPolicies)"));
+  assert.ok(source.includes("lte(payPolicies.effectiveFrom, workforcePricingWindowEnd)"));
+  assert.ok(source.includes("from(payPolicyRules)"));
+  assert.ok(source.includes("applyWorkedTimePremium"));
+  assert.ok(source.includes("+ companyPremiumPay"));
+  assert.ok(source.includes("companyPremiumExcludedFromSssBase"));
+  assert.ok(source.includes("companyPremiumExcludedFromPagIbigBase"));
+  assert.ok(source.includes("payPolicyExecution"));
+  assert.ok(source.includes("appliedRules: companyPremiumApplications"));
+  assert.ok(source.includes('PAYROLL_RULE_VERSION = "PH-2026.06"'));
+});
+
+test("cross-midnight fallback blocks release rather than guessing effective-dated company premiums", () => {
+  const source = readFileSync("src/lib/payroll-engine.ts", "utf8");
+  assert.ok(source.includes("configurable company premium was not executed because cross-midnight payable-time allocation is incomplete"));
+  assert.ok(source.includes("premiumRuleCouldApply"));
+});
+
+
+test("targeted worked-time premiums require resolvable shift and worksite evidence", () => {
+  const targeted = rule({
+    eventType: WORKED_TIME_PREMIUM_EVENT,
+    conditions: { shiftCodes: ["NIGHT"], worksiteIds: [8] },
+    outcome: {
+      premiumPercent: 10,
+      taxable: true,
+      includeInSssBase: true,
+      includeInPagIbigBase: true,
+    },
+  });
+  const base = {
+    organizationId: 7,
+    employeeId: 42,
+    workDate: "2026-10-05",
+    minutes: 60,
+    hourlyRate: 100,
+    policies: [policy()],
+    rules: [targeted],
+  };
+
+  assert.throws(() => resolveWorkedTimePremium({
+    ...base,
+    shiftCode: null,
+    worksiteId: 8,
+  }), /could not resolve a shift code/);
+  assert.throws(() => resolveWorkedTimePremium({
+    ...base,
+    shiftCode: "NIGHT",
+    worksiteId: null,
+  }), /could not resolve a worksite/);
 });
