@@ -17,6 +17,7 @@ export function CompensationPanel({ organizationId, setNotice }: { organizationI
   const [bands, setBands] = useState<Band[]>([]);
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [canApprove, setCanApprove] = useState(false);
   const [loading, setLoading] = useState(true);
   const [bandForm, setBandForm] = useState({ jobProfileId: "", locationCode: "PH", minimumAnnual: "", midpointAnnual: "", maximumAnnual: "" });
   const [cycleForm, setCycleForm] = useState({ name: "", startDate: "", endDate: "", effectiveDate: "", budgetPool: "" });
@@ -33,6 +34,7 @@ export function CompensationPanel({ organizationId, setNotice }: { organizationI
       setBands(body.bands ?? []);
       setCycles(body.cycles ?? []);
       setProposals(body.proposals ?? []);
+      setCanApprove(Boolean(body.canApprove));
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Could not load compensation.");
     } finally {
@@ -64,8 +66,8 @@ export function CompensationPanel({ organizationId, setNotice }: { organizationI
   }
 
   const activeCycle = cycles.find((cycle) => cycle.status === "active");
-  const approvedSpend = useMemo(() => proposals.filter((proposal) => proposal.status === "approved")
-    .reduce((sum, proposal) => sum + Math.max(0, Number(proposal.proposedAnnual) - Number(proposal.currentAnnual)), 0), [proposals]);
+  const approvedSpend = useMemo(() => proposals.filter((proposal) => proposal.status === "approved" && proposal.cycleId === activeCycle?.id)
+    .reduce((sum, proposal) => sum + Math.max(0, Number(proposal.proposedAnnual) - Number(proposal.currentAnnual)), 0), [proposals, activeCycle?.id]);
 
   return (
     <div>
@@ -145,7 +147,7 @@ export function CompensationPanel({ organizationId, setNotice }: { organizationI
               <td><strong>{employee ? `${employee.firstName} ${employee.lastName}` : `Employee #${proposal.employeeId}`}</strong><small style={{ display: "block" }}>{proposal.reason}</small></td>
               <td>{peso(proposal.currentAnnual)}</td><td>{peso(proposal.proposedAnnual)}</td><td>{proposal.compaRatio == null ? "—" : `${proposal.compaRatio.toFixed(1)}%`}</td>
               <td>{proposal.status}</td>
-              <td>{proposal.status === "proposed" ? <span style={{ display: "flex", gap: 6 }}><button className="secondary-button" onClick={() => void decide(proposal.id, "approved")}><Check size={13} /> Approve</button><button className="secondary-button" onClick={() => void decide(proposal.id, "declined")}><X size={13} /> Decline</button></span> : "Decided"}</td>
+              <td>{proposal.status === "proposed" ? (canApprove ? <span style={{ display: "flex", gap: 6 }}><button className="secondary-button" onClick={() => void decide(proposal.id, "approved")}><Check size={13} /> Approve</button><button className="secondary-button" onClick={() => void decide(proposal.id, "declined")}><X size={13} /> Decline</button></span> : "Owner/Admin approval required") : "Decided"}</td>
             </tr>;
           })}</tbody></table>
         </div>
