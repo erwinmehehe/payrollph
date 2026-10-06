@@ -6,6 +6,7 @@ import {
   automationRules,
   benefitEnrollments,
   benefitPlans,
+  costCenters,
   employees,
   externalIdentities,
   hcmDocumentRequirements,
@@ -211,7 +212,9 @@ export async function GET(request: Request) {
     annualBudget: string;
     employmentType: string;
     orgUnitId: number | null;
+    supervisoryOrgUnitId: number | null;
     legalEntityId: number | null;
+    costCenterId: number | null;
     managerEmployeeId: number | null;
     jobProfileId: number;
     profile: null | {
@@ -222,7 +225,9 @@ export async function GET(request: Request) {
       grade: string | null;
     };
     orgUnit: null | { id: number; name: string; code: string; type: string };
+    supervisoryOrg: null | { id: number; name: string; code: string; type: string };
     legalEntity: null | { id: number; code: string; displayName: string; legalName: string };
+    costCenter: null | { id: number; code: string; name: string };
     manager: null | { id: number; employeeNo: string; firstName: string; lastName: string; title: string };
     assignmentType: string;
     fte: string;
@@ -236,7 +241,7 @@ export async function GET(request: Request) {
     )).limit(1);
 
     if (positionRow) {
-      const [profileRows, unitRows, legalEntityRows, managerRows] = await Promise.all([
+      const [profileRows, unitRows, supervisoryRows, legalEntityRows, costCenterRows, managerRows] = await Promise.all([
         db.select({
           id: jobProfiles.id,
           title: jobProfiles.title,
@@ -258,6 +263,17 @@ export async function GET(request: Request) {
               eq(orgUnits.organizationId, organizationId),
             )).limit(1)
           : Promise.resolve([]),
+        positionRow.supervisoryOrgUnitId
+          ? db.select({
+              id: orgUnits.id,
+              name: orgUnits.name,
+              code: orgUnits.code,
+              type: orgUnits.type,
+            }).from(orgUnits).where(and(
+              eq(orgUnits.id, positionRow.supervisoryOrgUnitId),
+              eq(orgUnits.organizationId, organizationId),
+            )).limit(1)
+          : Promise.resolve([]),
         positionRow.legalEntityId
           ? db.select({
               id: legalEntities.id,
@@ -267,6 +283,16 @@ export async function GET(request: Request) {
             }).from(legalEntities).where(and(
               eq(legalEntities.id, positionRow.legalEntityId),
               eq(legalEntities.organizationId, organizationId),
+            )).limit(1)
+          : Promise.resolve([]),
+        positionRow.costCenterId
+          ? db.select({
+              id: costCenters.id,
+              code: costCenters.code,
+              name: costCenters.name,
+            }).from(costCenters).where(and(
+              eq(costCenters.id, positionRow.costCenterId),
+              eq(costCenters.organizationId, organizationId),
             )).limit(1)
           : Promise.resolve([]),
         positionRow.managerEmployeeId
@@ -290,12 +316,16 @@ export async function GET(request: Request) {
         annualBudget: positionRow.annualBudget,
         employmentType: positionRow.employmentType,
         orgUnitId: positionRow.orgUnitId,
+        supervisoryOrgUnitId: positionRow.supervisoryOrgUnitId,
         legalEntityId: positionRow.legalEntityId,
+        costCenterId: positionRow.costCenterId,
         managerEmployeeId: positionRow.managerEmployeeId,
         jobProfileId: positionRow.jobProfileId,
         profile: profileRows[0] ?? null,
         orgUnit: unitRows[0] ?? null,
+        supervisoryOrg: supervisoryRows[0] ?? null,
         legalEntity: legalEntityRows[0] ?? null,
+        costCenter: costCenterRows[0] ?? null,
         manager: managerRows[0] ?? null,
         assignmentType: assignment.assignmentType,
         fte: assignment.fte,
@@ -316,7 +346,7 @@ export async function GET(request: Request) {
       };
     }
 
-    const [profileRows, unitRows, entityRows, managerRows] = await Promise.all([
+    const [profileRows, unitRows, supervisoryRows, entityRows, costCenterRows, managerRows] = await Promise.all([
       db.select({
         id: jobProfiles.id,
         title: jobProfiles.title,
@@ -334,11 +364,25 @@ export async function GET(request: Request) {
               eq(orgUnits.organizationId, organizationId),
             )).limit(1)
         : Promise.resolve([]),
+      positionRow.supervisoryOrgUnitId
+        ? db.select({ id: orgUnits.id, name: orgUnits.name, code: orgUnits.code, type: orgUnits.type })
+            .from(orgUnits).where(and(
+              eq(orgUnits.id, positionRow.supervisoryOrgUnitId),
+              eq(orgUnits.organizationId, organizationId),
+            )).limit(1)
+        : Promise.resolve([]),
       positionRow.legalEntityId
         ? db.select({ id: legalEntities.id, code: legalEntities.code, displayName: legalEntities.displayName })
             .from(legalEntities).where(and(
               eq(legalEntities.id, positionRow.legalEntityId),
               eq(legalEntities.organizationId, organizationId),
+            )).limit(1)
+        : Promise.resolve([]),
+      positionRow.costCenterId
+        ? db.select({ id: costCenters.id, code: costCenters.code, name: costCenters.name })
+            .from(costCenters).where(and(
+              eq(costCenters.id, positionRow.costCenterId),
+              eq(costCenters.organizationId, organizationId),
             )).limit(1)
         : Promise.resolve([]),
       positionRow.managerEmployeeId
@@ -364,7 +408,9 @@ export async function GET(request: Request) {
         employmentType: positionRow.employmentType,
         profile: profileRows[0] ?? null,
         orgUnit: unitRows[0] ?? null,
+        supervisoryOrg: supervisoryRows[0] ?? null,
         legalEntity: entityRows[0] ?? null,
+        costCenter: costCenterRows[0] ?? null,
         manager: managerRows[0] ?? null,
       },
     };
