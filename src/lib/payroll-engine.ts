@@ -3002,7 +3002,7 @@ function calculateEmployeePay(input: {
       familyModes: {
         holidayRestDayPremium: {
           regularWorkedMinutes: "configurable-additive",
-          overtime: "statutory-only",
+          overtime: "separate-overtime-premium-family",
           nightDifferential: "statutory-only",
           unworkedHoliday: "statutory-only",
         },
