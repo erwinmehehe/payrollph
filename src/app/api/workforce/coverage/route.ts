@@ -7,6 +7,7 @@ import {
   employeeWorksiteAssignments,
   employees,
   jobProfiles,
+  hcmLeaveTimeWindows,
   leaveRequests,
   openShiftClaims,
   openShifts,
@@ -66,7 +67,8 @@ import {
 import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
 import { assertUnambiguousRoleDemand, resolveEmployeeJobProfileAtDate } from "@/lib/workforce-role-demand";
 import { evaluateEmployeeFromCapabilityData, loadCapabilityEligibilityData, loadEmployeeWfmEligibility } from "@/lib/hcm-workforce-eligibility-server";
-import { approvedLeaveConflictsFullShift, approvedLeaveCoverageImpact } from "@/lib/workforce-absence";
+import { approvedLeaveShiftConflict, approvedLeaveCoverageImpact } from "@/lib/workforce-absence";
+import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 import { loadSiteEligibilityEvidence, employeeSiteEligibility } from "@/lib/hcm-worksite-eligibility-server";
 import { evaluateSiteEligibility } from "@/lib/hcm-worksite-eligibility";
 
@@ -159,14 +161,20 @@ async function approvedLeaveOnDate(
   employeeId: number,
   workDate: string,
 ) {
+  await ensureLeavePayrollSchema();
+  // The next calendar day may overlap an overnight shift starting on workDate.
   const rows = await db.select().from(leaveRequests).where(and(
     eq(leaveRequests.organizationId, organizationId),
     eq(leaveRequests.employeeId, employeeId),
     eq(leaveRequests.status, "Approved"),
-    lte(leaveRequests.startDate, workDate),
+    lte(leaveRequests.startDate, addDays(workDate, 1)),
     gte(leaveRequests.endDate, workDate),
   )).orderBy(asc(leaveRequests.startDate), asc(leaveRequests.id));
-
+  const windowRows = rows.length ? await db.select().from(hcmLeaveTimeWindows).where(and(
+    eq(hcmLeaveTimeWindows.organizationId, organizationId),
+    inArray(hcmLeaveTimeWindows.leaveRequestId, rows.map((row) => row.id)),
+  )) : [];
+  const byRequest = new Map(windowRows.map((row) => [row.leaveRequestId, row]));
   return rows.map((row) => ({
     id: row.id,
     employeeId: row.employeeId,
@@ -174,6 +182,12 @@ async function approvedLeaveOnDate(
     endDate: String(row.endDate),
     days: Number(row.days),
     leaveType: row.leaveType,
+    window: byRequest.has(row.id) ? {
+      workDate: String(byRequest.get(row.id)!.workDate),
+      startTime: byRequest.get(row.id)!.startTime,
+      endTime: byRequest.get(row.id)!.endTime,
+      minutes: byRequest.get(row.id)!.minutes,
+    } : null,
   }));
 }
 
@@ -239,6 +253,7 @@ async function coverageRows(input: {
     };
   }
 
+  await ensureLeavePayrollSchema();
   const data = await scheduleCatalog(input.organizationId);
   const [assignmentRows, overrideRows, worksiteRows, roleAssignmentRows, rolePositionRows, approvedLeaveRows] = await Promise.all([
     db.select().from(employeeScheduleAssignments).where(and(
@@ -278,10 +293,16 @@ async function coverageRows(input: {
       eq(leaveRequests.organizationId, input.organizationId),
       inArray(leaveRequests.employeeId, input.employeeIds),
       eq(leaveRequests.status, "Approved"),
-      lte(leaveRequests.startDate, input.endDate),
+      lte(leaveRequests.startDate, addDays(input.endDate, 1)),
       gte(leaveRequests.endDate, input.startDate),
     )).orderBy(asc(leaveRequests.employeeId), asc(leaveRequests.startDate), asc(leaveRequests.id)),
   ]);
+
+  const leaveWindowRows = approvedLeaveRows.length ? await db.select().from(hcmLeaveTimeWindows).where(and(
+    eq(hcmLeaveTimeWindows.organizationId, input.organizationId),
+    inArray(hcmLeaveTimeWindows.leaveRequestId, approvedLeaveRows.map((row) => row.id)),
+  )) : [];
+  const leaveWindowByRequest = new Map(leaveWindowRows.map((row) => [row.leaveRequestId, row]));
 
   const siteEvidence = await loadSiteEligibilityEvidence(input.organizationId, input.employeeIds);
   const siteEvidenceIssues = new Set<string>();
@@ -332,6 +353,12 @@ async function coverageRows(input: {
         endDate: String(row.endDate),
         days: Number(row.days),
         leaveType: row.leaveType,
+        window: leaveWindowByRequest.has(row.id) ? {
+          workDate: String(leaveWindowByRequest.get(row.id)!.workDate),
+          startTime: leaveWindowByRequest.get(row.id)!.startTime,
+          endTime: leaveWindowByRequest.get(row.id)!.endTime,
+          minutes: leaveWindowByRequest.get(row.id)!.minutes,
+        } : null,
       }));
     const availability: AvailabilityRule[] = input.availabilityRows
       .filter((row) => row.employeeId === employeeId)
