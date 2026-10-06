@@ -104,13 +104,16 @@ import {
 } from "@/lib/workforce-overtime";
 import {
   HOLIDAY_REST_DAY_PREMIUM_EVENT,
+  NIGHT_DIFFERENTIAL_PREMIUM_EVENT,
   OVERTIME_PREMIUM_EVENT,
   WORKED_TIME_PREMIUM_EVENT,
   payPolicyTrace,
   resolveHolidayRestDayPremium,
+  resolveNightDifferentialPremium,
   resolveOvertimePremium,
   resolveWorkedTimePremium,
   type AppliedHolidayRestDayPremiumRule,
+  type AppliedNightDifferentialPremiumRule,
   type AppliedOvertimePremiumRule,
   type AppliedWorkedTimePremiumRule,
   type PayPolicyHolidayType,
@@ -119,7 +122,7 @@ import {
   type PayPolicyScope,
 } from "@/lib/pay-policy-engine";
 
-export const PAYROLL_RULE_VERSION = "PH-2026.08";
+export const PAYROLL_RULE_VERSION = "PH-2026.09";
 const DEFAULT_CHUNK = 25;
 
 function money(value: number) {
@@ -1646,6 +1649,13 @@ function calculateEmployeePay(input: {
   const overtimePremiumApplications: AppliedOvertimePremiumRule[] = [];
   const overtimePremiumPolicyTrace = new Map<number, ReturnType<typeof payPolicyTrace>[number]>();
 
+  let nightDifferentialPremiumPay = 0;
+  let nightDifferentialPremiumTaxable = 0;
+  let nightDifferentialPremiumExcludedFromSssBase = 0;
+  let nightDifferentialPremiumExcludedFromPagIbigBase = 0;
+  const nightDifferentialPremiumApplications: AppliedNightDifferentialPremiumRule[] = [];
+  const nightDifferentialPremiumPolicyTrace = new Map<number, ReturnType<typeof payPolicyTrace>[number]>();
+
   const flags: string[] = [];
   const punchNotes: string[] = [];
   const holidayNotes: string[] = [];
@@ -1791,7 +1801,59 @@ function calculateEmployeePay(input: {
     return resolution;
   }
 
-  const eligiblePunches = input.punches.filter((punch) => String(punch.workDate) >= employmentStart);
+  function applyNightDifferentialPremium(inputSegment: {
+    workDate: string;
+    minutes: number;
+    hourlyRate: number;
+    holidayType: PayPolicyHolidayType;
+    restDay: boolean;
+    overtime: boolean;
+    statutoryMultiplier: number;
+    shiftCode: string | null;
+    worksiteId: number | null;
+  }) {
+    const resolution = resolveNightDifferentialPremium({
+      organizationId: input.employee.organizationId,
+      employeeId: input.employee.id,
+      orgUnitIds: input.payPolicyOrgUnitIds ?? [],
+      workDate: inputSegment.workDate,
+      minutes: inputSegment.minutes,
+      hourlyRate: inputSegment.hourlyRate,
+      holidayType: inputSegment.holidayType,
+      restDay: inputSegment.restDay,
+      overtime: inputSegment.overtime,
+      statutoryMultiplier: inputSegment.statutoryMultiplier,
+      shiftCode: inputSegment.shiftCode,
+      worksiteId: inputSegment.worksiteId,
+      policies: input.payPolicies ?? [],
+      rules: input.payPolicyRules ?? [],
+    });
+
+    nightDifferentialPremiumPay = roundToCents(
+      nightDifferentialPremiumPay + resolution.amount,
+    );
+    nightDifferentialPremiumTaxable = roundToCents(
+      nightDifferentialPremiumTaxable + resolution.taxableAmount,
+    );
+    nightDifferentialPremiumExcludedFromSssBase = roundToCents(
+      nightDifferentialPremiumExcludedFromSssBase
+        + Math.max(0, resolution.amount - resolution.sssIncludedAmount),
+    );
+    nightDifferentialPremiumExcludedFromPagIbigBase = roundToCents(
+      nightDifferentialPremiumExcludedFromPagIbigBase
+        + Math.max(0, resolution.amount - resolution.pagIbigIncludedAmount),
+    );
+    const appliedPolicyIds = new Set(resolution.applied.map((item) => item.policyId));
+    for (const policy of resolution.policies) {
+      if (appliedPolicyIds.has(policy.policyId)) {
+        nightDifferentialPremiumPolicyTrace.set(policy.policyId, policy);
+      }
+    }
+    nightDifferentialPremiumApplications.push(...resolution.applied);
+    return resolution;
+  }
+
+    const eligiblePunches = input.punches.filter((punch) => String(punch.workDate) >= employmentStart);
   const punchesByWorkDate = new Map<string, Array<typeof timePunches.$inferSelect>>();
   for (const punch of eligiblePunches) {
     const workDate = String(punch.workDate);
