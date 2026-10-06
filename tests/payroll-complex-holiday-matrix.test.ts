@@ -44,6 +44,13 @@ async function runComplexHoliday(input: {
     includeInSssBase: boolean;
     includeInPagIbigBase: boolean;
   };
+  overtimePremium?: {
+    conditions: Record<string, unknown>;
+    additionalPremiumPercent: number;
+    taxable: boolean;
+    includeInSssBase: boolean;
+    includeInPagIbigBase: boolean;
+  };
   attendance?: {
     timeIn: string;
     timeOut: string;
@@ -97,6 +104,39 @@ async function runComplexHoliday(input: {
         taxable: input.holidayRestDayPremium.taxable,
         includeInSssBase: input.holidayRestDayPremium.includeInSssBase,
         includeInPagIbigBase: input.holidayRestDayPremium.includeInPagIbigBase,
+      },
+      priority: 100,
+      statutoryFloorProtected: true,
+      enabled: true,
+    });
+  }
+
+  if (input.overtimePremium) {
+    const [policy] = await db.insert(payPolicies).values({
+      organizationId: org.id,
+      code: `OT-${input.label}`,
+      name: `OT policy ${input.label}`,
+      policyKind: "company",
+      version: "2026.1",
+      scopeType: "organization",
+      priority: 100,
+      effectiveFrom: input.workDate,
+      active: true,
+      approvedBy: "Payroll QA",
+      approvedAt: new Date(`${input.workDate}T00:00:00+08:00`),
+    }).returning();
+
+    await db.insert(payPolicyRules).values({
+      policyId: policy.id,
+      ruleKey: "OT-TOPUP",
+      eventType: "overtime_premium",
+      conditions: input.overtimePremium.conditions,
+      outcome: {
+        label: "Company OT top-up",
+        additionalPremiumPercent: input.overtimePremium.additionalPremiumPercent,
+        taxable: input.overtimePremium.taxable,
+        includeInSssBase: input.overtimePremium.includeInSssBase,
+        includeInPagIbigBase: input.overtimePremium.includeInPagIbigBase,
       },
       priority: 100,
       statutoryFloorProtected: true,
@@ -274,6 +314,103 @@ test("incomplete cross-midnight evidence blocks configurable holiday/rest-day pr
       trace.flags?.some((flag) =>
         flag.includes(
           "configurable holiday/rest-day premium was not executed because cross-midnight payable-time allocation is incomplete",
+        ),
+      ),
+    );
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});
+
+
+test("configurable OT top-up adds pay above special-holiday/rest-day OT without changing statutory OT or NSD", async () => {
+  const { org, entry } = await runComplexHoliday({
+    workDate: "2026-02-17",
+    label: "ot-policy-topup",
+    restDay: "Tuesday",
+    overtimePremium: {
+      conditions: { holidayTypes: ["special"], restDay: true },
+      additionalPremiumPercent: 25,
+      taxable: true,
+      includeInSssBase: true,
+      includeInPagIbigBase: false,
+    },
+    attendance: {
+      timeIn: "2026-02-17T12:00:00+08:00",
+      timeOut: "2026-02-17T23:00:00+08:00",
+      breakStart: "2026-02-17T16:00:00+08:00",
+      breakEnd: "2026-02-17T17:00:00+08:00",
+      shiftStart: "12:00",
+      shiftEnd: "21:00",
+    },
+  });
+
+  try {
+    const hourly = 200;
+    assert.equal(line(entry, "HOLIDAY")?.amount, money(8 * hourly * (1.5 - 1)));
+    assert.equal(line(entry, "OT")?.amount, money(2 * hourly * 1.95));
+    assert.equal(line(entry, "ND")?.amount, money(1 * hourly * 1.95 * 0.1));
+    assert.equal(linePrefix(entry, "OTPREM-")?.amount, money(2 * hourly * 0.25));
+
+    const trace = entry.trace as {
+      payPolicyExecution?: {
+        migratedRuleFamilies?: string[];
+        appliedRules?: Array<{
+          eventType?: string;
+          statutoryMultiplier?: number;
+          additionalPremiumPercent?: number;
+        }>;
+        familyModes?: {
+          overtimePremium?: {
+            statutoryEntitlement?: string;
+            authorization?: string;
+          };
+        };
+      };
+      inputs?: string[];
+    };
+    assert.ok(trace.payPolicyExecution?.migratedRuleFamilies?.includes("overtime_premium"));
+    const applied = trace.payPolicyExecution?.appliedRules?.find(
+      (item) => item.eventType === "overtime_premium",
+    );
+    assert.equal(applied?.statutoryMultiplier, 1.95);
+    assert.equal(applied?.additionalPremiumPercent, 25);
+    assert.equal(
+      trace.payPolicyExecution?.familyModes?.overtimePremium?.statutoryEntitlement,
+      "authoritative",
+    );
+    assert.equal(
+      trace.payPolicyExecution?.familyModes?.overtimePremium?.authorization,
+      "evidence-only",
+    );
+    assert.ok(trace.inputs?.includes("overtimePremium=100.00"));
+    assert.ok(trace.inputs?.includes("overtimePremiumExcludedFromPagIbigBase=100.00"));
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
+});
+
+test("incomplete cross-midnight evidence blocks configurable OT overlay execution", async () => {
+  const { org, entry } = await runComplexHoliday({
+    workDate: "2026-02-17",
+    label: "ot-xmid-block",
+    restDay: "Tuesday",
+    overtimePremium: {
+      conditions: {},
+      additionalPremiumPercent: 25,
+      taxable: true,
+      includeInSssBase: true,
+      includeInPagIbigBase: true,
+    },
+  });
+
+  try {
+    assert.equal(linePrefix(entry, "OTPREM-"), undefined);
+    const trace = entry.trace as { flags?: string[] };
+    assert.ok(
+      trace.flags?.some((flag) =>
+        flag.includes(
+          "configurable overtime premium was not executed because cross-midnight payable-time allocation is incomplete",
         ),
       ),
     );
