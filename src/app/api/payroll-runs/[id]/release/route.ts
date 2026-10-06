@@ -16,6 +16,7 @@ import {
 } from "@/lib/security-request";
 import { recordAuditEvent } from "@/lib/audit";
 import { managedPayrollReleaseRequirement } from "@/lib/managed-payroll";
+import { runAutomationEventSafely } from "@/lib/automation";
 
 const RELEASABLE = ["Ready for release"];
 
@@ -333,10 +334,29 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     receipt.payslips.label = "Payslips are available; delivery status needs attention";
   }
 
+  const automation = await runAutomationEventSafely({
+    organizationId: run.organizationId,
+    trigger: "payroll.released",
+    eventKey: `payroll-released:${run.id}`,
+    context: {
+      payrollRunId: run.id,
+      periodLabel: run.periodLabel,
+      orgUnitId: run.scopeOrgUnitId,
+      legalEntityId: run.legalEntityId,
+      payrollAmount: Number(run.grossPay),
+      netPay: Number(run.netPay),
+      employeeCount: Number(entryCount),
+      payDate: run.payDate,
+      releasedAt,
+      approvalTaskId: payrollApproval.id,
+    },
+  });
+
   return Response.json({
     run: updated,
     settlement,
     webhookDeliveries,
+    automation,
     employeesNotified: noticesSent + noticesQueued,
     emailDelivery: {
       sent: noticesSent,

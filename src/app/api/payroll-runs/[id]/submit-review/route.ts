@@ -12,6 +12,7 @@ import {
 import { getSessionUser } from "@/lib/auth";
 import { buildPayrollReleaseChecklist } from "@/lib/payroll-release-checklist";
 import { isPublicDemoIdentity } from "@/lib/demo-security";
+import { runAutomationEventSafely } from "@/lib/automation";
 
 const SUBMITTABLE = ["Needs review", "Processed"];
 
@@ -186,9 +187,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }, { status: 409 });
   }
 
+  const automation = await runAutomationEventSafely({
+    organizationId: run.organizationId,
+    trigger: "payroll.submitted",
+    eventKey: `payroll-submitted:${run.id}:${submission.task.id}`,
+    context: {
+      payrollRunId: run.id,
+      periodLabel: run.periodLabel,
+      orgUnitId: run.scopeOrgUnitId,
+      legalEntityId: run.legalEntityId,
+      payrollAmount: Number(run.grossPay),
+      netPay: Number(run.netPay),
+      employeeCount: Number(entryCount),
+      approvalTaskId: submission.task.id,
+      approver: checker.name,
+    },
+  });
+
   return Response.json({
     task: submission.task,
     maker: { id: user.id, name: user.name },
     approver: { id: checker.id, name: checker.name, role: checker.role },
+    automation,
   }, { status: 201 });
 }

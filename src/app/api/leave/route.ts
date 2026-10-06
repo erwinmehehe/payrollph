@@ -6,6 +6,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { assertMembership, getAccess, roleAllowed } from "@/lib/access";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
+import { runAutomationEventSafely } from "@/lib/automation";
 
 export const dynamic = "force-dynamic";
 
@@ -176,5 +177,22 @@ export async function POST(request: Request) {
     metadata: { leaveId: row.id, taskId: task.id, approverUserId: approver.id },
   });
 
-  return Response.json(row, { status: 201 });
+  const automation = await runAutomationEventSafely({
+    organizationId,
+    employeeId,
+    trigger: "leave.requested",
+    eventKey: `leave-requested:${row.id}`,
+    context: {
+      leaveId: row.id,
+      leaveType,
+      leaveDays: days,
+      eventAmount: days,
+      startDate,
+      endDate,
+      approvalTaskId: task.id,
+      approver: approver.name,
+    },
+  });
+
+  return Response.json({ ...row, automation }, { status: 201 });
 }

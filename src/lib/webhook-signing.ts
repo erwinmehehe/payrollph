@@ -8,6 +8,7 @@ export const WEBHOOK_EVENTS = [
   "employee.offboarded",
   "leave.approved",
   "approval.decided",
+  "automation.triggered",
 ] as const;
 
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];

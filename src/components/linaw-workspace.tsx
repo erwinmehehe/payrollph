@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Clock, ShieldCheck, Sparkles } from "lucide-react";
 import { AssetsPanel } from "@/components/assets-panel";
+import { AutomationStudioPanel } from "@/components/automation-studio-panel";
 import { BenefitsPanel } from "@/components/benefits-panel";
 import { ContractorsPanel } from "@/components/contractors-panel";
 import { CompensationPanel } from "@/components/compensation-panel";
@@ -525,6 +526,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
 
         {page === "Integrations" && <IntegrationsPage onOpenOutbox={canManageDeliveryOutbox ? () => setOutboxOpen(true) : undefined} />}
         {page === "Developer" && <DeveloperPage organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Automation" && <AutomationStudioPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Enterprise" && (
           <>
             <LegalEntitiesPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />

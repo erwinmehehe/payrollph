@@ -4,7 +4,7 @@ import { employees, jobProfiles, positionAssignments, positions } from "@/db/sch
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
-import { runLifecycleAutomations } from "@/lib/automation";
+import { runAutomationEventSafely, runLifecycleAutomations } from "@/lib/automation";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +32,7 @@ export async function POST(request: Request) {
   const targetPositionId = Number(body.targetPositionId);
   const effectiveFrom = String(body.effectiveFrom ?? todayPh()).trim();
   const reason = String(body.reason ?? "Internal position transfer").trim();
+  const movementType = String(body.movementType ?? (/promot/i.test(reason) ? "promotion" : "transfer")).trim().toLowerCase();
 
   if (!Number.isInteger(organizationId) || !Number.isInteger(employeeId) || !Number.isInteger(targetPositionId)) {
     return Response.json({ error: "organizationId, employeeId, and targetPositionId are required." }, { status: 400 });
@@ -42,6 +43,9 @@ export async function POST(request: Request) {
     }, { status: 409 });
   }
   if (!reason) return Response.json({ error: "A transfer reason is required." }, { status: 400 });
+  if (!["transfer", "promotion", "lateral"].includes(movementType)) {
+    return Response.json({ error: "movementType must be transfer, promotion, or lateral." }, { status: 400 });
+  }
 
   const denied = await assertOrganizationRole(
     user.id,
@@ -173,6 +177,7 @@ export async function POST(request: Request) {
       assignmentId: result.assignment.id,
       effectiveFrom,
       reason,
+      movementType,
     },
   });
 
@@ -186,14 +191,39 @@ export async function POST(request: Request) {
       orgUnitId: result.employee.orgUnitId,
       employmentType: result.employee.employmentType,
       title: result.employee.title,
+      previousPositionId: currentPosition.id,
+      positionId: targetPosition.id,
+      positionCode: targetPosition.code,
+      effectiveDate: effectiveFrom,
+      movementType,
     },
   });
+
+  if (movementType === "promotion") {
+    automation.push(...await runAutomationEventSafely({
+      organizationId,
+      employeeId,
+      trigger: "employee.promoted",
+      eventKey: "position-promotion:" + result.assignment.id,
+      context: {
+        previousOrgUnitId: employee.orgUnitId,
+        orgUnitId: result.employee.orgUnitId,
+        employmentType: result.employee.employmentType,
+        title: result.employee.title,
+        previousPositionId: currentPosition.id,
+        positionId: targetPosition.id,
+        positionCode: targetPosition.code,
+        effectiveDate: effectiveFrom,
+      },
+    }));
+  }
 
   return Response.json({
     employee: result.employee,
     fromPosition: currentPosition,
     toPosition: targetPosition,
     assignment: result.assignment,
+    movementType,
     automation,
   }, { status: 201 });
 }
