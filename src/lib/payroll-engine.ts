@@ -1618,8 +1618,11 @@ function calculateEmployeePay(input: {
       companyPremiumExcludedFromPagIbigBase
         + Math.max(0, resolution.amount - resolution.pagIbigIncludedAmount),
     );
+    const appliedPolicyIds = new Set(resolution.applied.map((item) => item.policyId));
     for (const policy of resolution.policies) {
-      companyPremiumPolicyTrace.set(policy.policyId, policy);
+      if (appliedPolicyIds.has(policy.policyId)) {
+        companyPremiumPolicyTrace.set(policy.policyId, policy);
+      }
     }
     companyPremiumApplications.push(...resolution.applied);
     return resolution;
