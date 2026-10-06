@@ -725,6 +725,7 @@ export async function GET(request: Request) {
       unmatchedPunchRows: actualLabor.filter((entry) => !entry.matchedToSchedule).length,
       roleEvidenceIssues: coverageData.roleEvidenceIssues,
       capabilityEvidenceIssues: coverageData.capabilityEvidenceIssues,
+      absenceEvidenceIssues: coverageData.absenceEvidenceIssues,
     },
   };
 
