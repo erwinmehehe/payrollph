@@ -16,6 +16,7 @@ test("scheduled minutes include cross-midnight duration less unpaid break", () =
     worksiteId: 1,
     segments: [{
       shiftDefinitionId: 1,
+      segmentOrder: 1,
       shiftCode: "NIGHT",
       shiftName: "Night",
       startTime: "22:00",
