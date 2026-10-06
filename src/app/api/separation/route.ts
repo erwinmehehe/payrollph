@@ -6,6 +6,7 @@ import {
   employeePayProfiles,
   employees,
   historicalPayrollEntries,
+  hcmEmploymentDecisionEvents,
   hcmEmploymentTermDecisions,
   loanPayments,
   payrollEntries,
@@ -595,6 +596,21 @@ export async function POST(request: Request) {
           inArray(hcmEmploymentTermDecisions.separationHandoffStatus, ["ready", "started"]),
         )).returning();
         if (!linked) throw new Error("The non-renewal handoff changed before Separation could start.");
+        if (handoffDecision.separationHandoffStatus === "ready") {
+          await tx.insert(hcmEmploymentDecisionEvents).values({
+            organizationId,
+            decisionId: linked.id,
+            employeeId,
+            eventType: "separation_started",
+            actorUserId: user.id,
+            actorName: user.name,
+            metadata: {
+              separationRecordId: record.id,
+              lastDay,
+              separationType,
+            },
+          });
+        }
       }
 
       if (!(existingOpen && existingOpen.status !== "released")) {
@@ -970,6 +986,19 @@ export async function PATCH(request: Request) {
         if (!completedHandoff) {
           throw new Error("The linked non-renewal handoff changed before final-pay release.");
         }
+        await tx.insert(hcmEmploymentDecisionEvents).values({
+          organizationId: completedHandoff.organizationId,
+          decisionId: completedHandoff.id,
+          employeeId: completedHandoff.employeeId,
+          eventType: "separation_completed",
+          actorUserId: user.id,
+          actorName: user.name,
+          metadata: {
+            separationRecordId: fresh.id,
+            lastDay: fresh.lastDay,
+            releaseReference: releaseReference.slice(0, 160),
+          },
+        });
       }
 
       return updated;
