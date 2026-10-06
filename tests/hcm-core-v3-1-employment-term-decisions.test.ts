@@ -34,9 +34,11 @@ test("successor-term decisions reuse governed Core 3 activation", () => {
 
 test("decision API enforces four-eyes, MFA and term-specific validation", () => {
   const route = read("src/app/api/hcm/employment-term-decisions/route.ts");
+  const evidence = read("src/lib/hcm-employment-decision-evidence.ts");
   assert.ok(route.includes("PEOPLE_ADMIN_ROLES"));
   assert.ok(route.includes("requireSensitiveActionMfa(user)"));
-  assert.ok(route.includes("requester cannot approve their own employment-term decision"));
+  assert.ok(route.includes("approveEmploymentDecisionWithEvidence"));
+  assert.ok(evidence.includes("requester cannot approve their own employment-term decision"));
   assert.ok(route.includes('decisionKind === "confirm_regular"'));
   assert.ok(route.includes('decisionKind === "non_renew"'));
   assert.ok(route.includes('decisionKind === "convert_terms"'));
