@@ -50,3 +50,19 @@ test("managed payroll client approval is distinct from the authenticated payroll
   assert.ok(approvalRoute.includes("the payroll checker cannot also give the managed-payroll client approval"));
   assert.ok(approvalRoute.includes("Independent checker approval evidence is missing"));
 });
+
+
+test("paused engagement and client-approver changes cannot bypass managed payroll release controls", () => {
+  const lib = readFileSync("src/lib/managed-payroll.ts", "utf8");
+  const managedRoute = readFileSync("src/app/api/managed-payroll/route.ts", "utf8");
+  const approvalRoute = readFileSync("src/app/api/managed-payroll/runs/[id]/approve/route.ts", "utf8");
+  const releaseRoute = readFileSync("src/app/api/payroll-runs/[id]/release/route.ts", "utf8");
+
+  assert.ok(lib.includes('const engagementActive = ["pilot", "live"].includes(engagement.status)'));
+  assert.ok(lib.includes("approval.approverUserId === engagement.clientApproverUserId"));
+  assert.ok(lib.includes("approval.approvedByUserId === engagement.clientApproverUserId"));
+  assert.ok(managedRoute.includes('["pilot", "live"].includes(engagement.status)'));
+  assert.ok(approvalRoute.includes("approverUserId: engagement.clientApproverUserId"));
+  assert.ok(releaseRoute.includes("Managed payroll is paused."));
+  assert.ok(releaseRoute.includes("designated approver changed"));
+});
