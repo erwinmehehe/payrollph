@@ -11,8 +11,8 @@ test("HR site and work arrangements are scoped, MFA protected and audit logged",
   assert.ok(route.includes('action === "set_arrangement"'));
   assert.ok(route.includes('action === "authorize_site"'));
   assert.ok(route.includes('action === "deny_site"'));
-  assert.ok(route.includes('decision: "allow"'));
-  assert.ok(route.includes('decision: "deny"'));
+  assert.ok(route.includes('const decision = action === "deny_site" ? "deny" : "allow"'));
+  assert.ok(route.includes("organizationId, employeeId, worksiteId, decision, effectiveFrom"));
   assert.ok(route.includes('"end_authorization"') && route.includes('const authorizationId = Number(body.authorizationId)'));
   assert.ok(route.includes("recordAuditEvent"));
 });
