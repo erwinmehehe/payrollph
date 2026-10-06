@@ -16,8 +16,8 @@ const bySlug = new Map(resources.map((page) => [page.slug, page]));
 
 const resourceGroups = [
   {
-    title: "Choose and compare payroll software",
-    description: "Shortlist systems using evidence, operating fit, security, deployment model and total cost instead of a generic feature checklist.",
+    title: "Payroll Guides Philippines | Buyer Tools & Resources | Linaw",
+    description: "Philippine payroll guides for software buying, migration, security, outsourcing decisions and spreadsheet-to-system planning for employers and payroll teams.",
     slugs: [
       "best-payroll-software-philippines",
       "sprout-payroll-alternative",
