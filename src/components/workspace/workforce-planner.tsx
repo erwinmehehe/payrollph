@@ -22,6 +22,7 @@ import { EmptyState, Metric, PageHeading, Spinner, Status } from "./ui";
 import { WorkforceOvertimePanel } from "./workforce-overtime-panel";
 import { WorkforceScheduleSwapPanel } from "./workforce-schedule-swap-panel";
 import { WorkforceScheduleGuardrailsPanel } from "./workforce-schedule-guardrails-panel";
+import { LaborCostingPanel } from "./labor-costing-panel";
 import { WorkforceWorksitesPanel } from "./workforce-worksites-panel";
 import { WorkforceCoveragePanel } from "./workforce-coverage-panel";
 import { WorkforceTimesheetPanel } from "./workforce-timesheet-panel";
@@ -704,6 +705,7 @@ export function WorkforcePlanner({
 
       <WorkforceOvertimePanel data={data} notify={notify} />
       <WorkforceScheduleSwapPanel data={data} notify={notify} />
+      <LaborCostingPanel data={data} notify={notify} />
 
       {loadingCatalog && !catalog && (
         <div className="notice notice-slate" style={{ marginTop: 16 }}>
