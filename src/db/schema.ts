@@ -2778,6 +2778,47 @@ export const workerEmploymentEvents = pgTable(
   ],
 );
 
+export const hcmEmploymentTerms = pgTable(
+  "hcm_employment_terms",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    employmentType: varchar("employment_type", { length: 32 }).notNull(),
+    termKind: varchar("term_kind", { length: 24 }).notNull(),
+    effectiveFrom: date("effective_from").notNull(),
+    effectiveUntil: date("effective_until"),
+    probationReviewDate: date("probation_review_date"),
+    contractEndDate: date("contract_end_date"),
+    projectName: varchar("project_name", { length: 160 }),
+    status: varchar("status", { length: 24 }).notNull().default("pending_approval"),
+    reason: varchar("reason", { length: 240 }).notNull(),
+    requestedByUserId: integer("requested_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    requestedBy: varchar("requested_by", { length: 120 }).notNull(),
+    approvedByUserId: integer("approved_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    approvedBy: varchar("approved_by", { length: 120 }),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    activatedAt: timestamp("activated_at", { withTimezone: true }),
+    supersededAt: timestamp("superseded_at", { withTimezone: true }),
+    cancelledByUserId: integer("cancelled_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    cancelledBy: varchar("cancelled_by", { length: 120 }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    failure: text("failure"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hcm_employment_terms_active_employee_unique")
+      .on(table.organizationId, table.employeeId)
+      .where(sql`${table.status} = 'active'`),
+    uniqueIndex("hcm_employment_terms_open_employee_unique")
+      .on(table.organizationId, table.employeeId)
+      .where(sql`${table.status} in ('pending_approval', 'scheduled')`),
+    index("hcm_employment_terms_org_status_date_idx").on(table.organizationId, table.status, table.effectiveFrom),
+    index("hcm_employment_terms_employee_history_idx").on(table.organizationId, table.employeeId, table.effectiveFrom),
+  ],
+);
+
 export const workerEffectiveChanges = pgTable(
   "worker_effective_changes",
   {
