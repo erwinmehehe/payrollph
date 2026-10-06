@@ -143,6 +143,10 @@ test("production compatibility schema carries labor-costing tables and constrain
   assert.ok(source.includes("employee_labor_allocations_percent_check"));
   assert.ok(source.includes("employee_labor_allocations_basis_check"));
   assert.ok(source.includes("employee_labor_allocations_dates_check"));
+  assert.ok(source.includes("ADD COLUMN IF NOT EXISTS allocation_hours"));
+  assert.ok(source.includes("CHECK (allocation_basis IN ('percentage', 'hours'))"));
+  assert.ok(source.includes("CREATE TABLE IF NOT EXISTS labor_gl_mappings"));
+  assert.ok(source.includes("labor_gl_mappings_scope_unique"));
 });
 
 
