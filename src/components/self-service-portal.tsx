@@ -23,6 +23,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import { EmployeeContributionIssueModal } from "@/components/employee-contribution-issue-modal";
+import { EmployeeDocumentsPanel } from "@/components/employee-documents-panel";
 import { WebBundyModal } from "@/components/web-bundy-modal";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { PayrollHandoff } from "@/components/payroll-handoff";
@@ -185,7 +186,7 @@ type Payload = {
   };
 };
 
-type SelfTab = "home" | "pay" | "time" | "leave" | "profile";
+type SelfTab = "home" | "pay" | "time" | "leave" | "documents" | "profile";
 
 const peso = (value: string | number) =>
   new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 2 }).format(Number(value));
@@ -472,11 +473,12 @@ export function SelfServicePortal() {
             ["pay", "Pay"],
             ["time", "Time"],
             ["leave", "Leave"],
+            ["documents", "Documents"],
             ["profile", "Profile"],
           ] as Array<[SelfTab, string]>).map(([value, label]) => (
             <button key={value} className={`nav-item ${tab === value ? "active" : ""}`} data-tone="green" onClick={() => setTab(value)}>
               <span className="nav-icon t-green">
-                {value === "home" ? <House size={15} /> : value === "pay" ? <WalletCards size={15} /> : value === "time" ? <Clock size={15} /> : value === "leave" ? <CalendarDays size={15} /> : <UserRound size={15} />}
+                {value === "home" ? <House size={15} /> : value === "pay" ? <WalletCards size={15} /> : value === "time" ? <Clock size={15} /> : value === "leave" ? <CalendarDays size={15} /> : value === "documents" ? <FileText size={15} /> : <UserRound size={15} />}
               </span>
               {label}
             </button>
@@ -523,11 +525,12 @@ export function SelfServicePortal() {
           ["pay", "Pay"],
           ["time", "Time"],
           ["leave", "Leave"],
+          ["documents", "Documents"],
           ["profile", "Profile"],
         ] as Array<[SelfTab, string]>).map(([value, label]) => (
           <button key={value} className={tab === value ? "active" : ""} onClick={() => setTab(value)}>
             <span className="employee-tab-icon">
-              {value === "home" ? <House size={16} /> : value === "pay" ? <WalletCards size={16} /> : value === "time" ? <Clock size={16} /> : value === "leave" ? <CalendarDays size={16} /> : <UserRound size={16} />}
+              {value === "home" ? <House size={16} /> : value === "pay" ? <WalletCards size={16} /> : value === "time" ? <Clock size={16} /> : value === "leave" ? <CalendarDays size={16} /> : value === "documents" ? <FileText size={16} /> : <UserRound size={16} />}
             </span>
             <span>{label}</span>
           </button>
@@ -1001,6 +1004,10 @@ export function SelfServicePortal() {
             ))}
           </article>
         </section>
+      )}
+
+      {tab === "documents" && data.employer && (
+        <EmployeeDocumentsPanel organizationId={data.employer.id} />
       )}
 
       {tab === "profile" && (

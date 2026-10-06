@@ -5,6 +5,7 @@ import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { runAutomationEventSafely, runLifecycleAutomations } from "@/lib/automation";
+import { syncEmployeeHcmObligations } from "@/lib/hcm-documents";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
@@ -181,6 +182,11 @@ export async function POST(request: Request) {
     },
   });
 
+  const hcmObligations = await syncEmployeeHcmObligations({
+    organizationId,
+    employeeId,
+  });
+
   const automation = await runLifecycleAutomations({
     organizationId,
     employeeId,
@@ -224,6 +230,7 @@ export async function POST(request: Request) {
     toPosition: targetPosition,
     assignment: result.assignment,
     movementType,
+    hcmObligations,
     automation,
   }, { status: 201 });
 }

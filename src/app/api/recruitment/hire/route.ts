@@ -21,6 +21,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { resolvePayProfile } from "@/lib/pay-basis";
 import { ONBOARDING_TASKS } from "@/lib/provisioning";
 import { runAutomationEventSafely } from "@/lib/automation";
+import { syncEmployeeHcmObligations } from "@/lib/hcm-documents";
 
 export const dynamic = "force-dynamic";
 
@@ -424,6 +425,11 @@ export async function POST(request: Request) {
     },
   });
 
+  const hcmObligations = await syncEmployeeHcmObligations({
+    organizationId: applicant.organizationId,
+    employeeId: result.employee.id,
+  });
+
   const employeeAutomation = await runAutomationEventSafely({
     organizationId: applicant.organizationId,
     employeeId: result.employee.id,
@@ -460,6 +466,7 @@ export async function POST(request: Request) {
   return Response.json({
     employee: result.employee,
     onboarding: result.onboarding,
+    hcmObligations,
     automation: [...employeeAutomation, ...candidateAutomation],
     position: {
       id: position.id,

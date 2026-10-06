@@ -8,6 +8,7 @@ import {
   CalendarDays,
   Check,
   Clock3,
+  FileText,
   LockKeyhole,
   Plus,
   Search,
@@ -62,6 +63,29 @@ type ConnectedWorkerProfile = {
       coeIssued: boolean;
     };
   };
+  documents: {
+    policies: Array<{
+      assignmentId: number;
+      status: string;
+      dueAt: string | null;
+      acknowledgedAt: string | null;
+      policyId: number;
+      policyCode: string;
+      title: string;
+      version: string;
+    }>;
+    requirements: Array<{
+      complianceId: number;
+      status: string;
+      dueAt: string | null;
+      expiresAt: string | null;
+      documentId: number | null;
+      requirementId: number;
+      code: string;
+      name: string;
+      kind: string;
+    }>;
+  };
   identities: Array<{
     user: {
       id: number;
@@ -82,6 +106,8 @@ type ConnectedWorkerProfile = {
     activeBenefits: number;
     assignedAssets: number;
     openLifecycleTasks: number;
+    pendingPolicyAcknowledgements: number;
+    documentComplianceRisks: number;
     separationOpen: boolean;
   };
 };
@@ -810,6 +836,20 @@ function PersonDrawer({
                     <span>
                       <strong>{connectedProfile.summary.assignedAssets} assigned asset{connectedProfile.summary.assignedAssets === 1 ? "" : "s"}.</strong>{" "}
                       {connectedProfile.assets.filter((item) => item.status === "assigned" && !item.returnedOn).slice(0, 3).map((item) => item.name).join(", ") || "No equipment currently assigned."}
+                    </span>
+                  </div>
+                  <div className={connectedProfile.summary.pendingPolicyAcknowledgements ? "notice notice-amber" : "notice notice-slate"} style={{ margin: 0 }}>
+                    <FileText size={15} className="i-purple" />
+                    <span>
+                      <strong>{connectedProfile.summary.pendingPolicyAcknowledgements} pending policy acknowledgement{connectedProfile.summary.pendingPolicyAcknowledgements === 1 ? "" : "s"}.</strong>{" "}
+                      {connectedProfile.documents.policies.filter((item) => item.status === "assigned").slice(0, 2).map((item) => item.title).join(", ") || "Policy acknowledgements are current."}
+                    </span>
+                  </div>
+                  <div className={connectedProfile.summary.documentComplianceRisks ? "notice notice-amber" : "notice notice-slate"} style={{ margin: 0 }}>
+                    <ShieldCheck size={15} className="i-purple" />
+                    <span>
+                      <strong>{connectedProfile.summary.documentComplianceRisks} document item{connectedProfile.summary.documentComplianceRisks === 1 ? "" : "s"} need attention.</strong>{" "}
+                      {connectedProfile.documents.requirements.filter((item) => ["missing", "submitted", "expiring", "expired"].includes(item.status)).slice(0, 2).map((item) => `${item.name}: ${item.status}`).join(", ") || "Required documents are current."}
                     </span>
                   </div>
                 </div>

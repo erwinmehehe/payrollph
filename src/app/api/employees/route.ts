@@ -27,6 +27,7 @@ import { fixedMonthlyBasicForTimeline, resolvePayProfile, resolvePayTimeline } f
 import { REST_DAY_NAMES } from "@/lib/payroll-rules";
 import { runAutomationEventSafely, runLifecycleAutomations } from "@/lib/automation";
 import { ensurePrimaryLegalEntity } from "@/lib/legal-entity";
+import { syncEmployeeHcmObligations } from "@/lib/hcm-documents";
 
 export const dynamic = "force-dynamic";
 
@@ -253,6 +254,11 @@ export async function POST(request: Request) {
     },
   });
 
+  const hcmObligations = await syncEmployeeHcmObligations({
+    organizationId,
+    employeeId: created.id,
+  });
+
   const automation = await runLifecycleAutomations({
     organizationId,
     employeeId: created.id,
@@ -276,6 +282,7 @@ export async function POST(request: Request) {
       pagIbigNo: maskGovernmentId(created.pagIbigNo),
     },
     onboarding,
+    hcmObligations,
     automation,
     asset: assignedAsset,
   }, { status: 201 });
@@ -803,6 +810,11 @@ export async function PATCH(request: Request) {
     },
   });
 
+  const hcmObligations = await syncEmployeeHcmObligations({
+    organizationId,
+    employeeId,
+  });
+
   const automation = await runAutomationEventSafely({
     organizationId,
     employeeId,
@@ -848,6 +860,7 @@ export async function PATCH(request: Request) {
       previousRestDay: employee.restDay,
       newRestDay: updated.restDay,
     } : null,
+    hcmObligations,
     automation,
   });
 }

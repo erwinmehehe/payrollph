@@ -8,6 +8,10 @@ import {
   benefitPlans,
   employees,
   externalIdentities,
+  hcmDocumentRequirements,
+  hcmEmployeeDocumentCompliance,
+  hcmPolicyAssignments,
+  hcmPolicyVersions,
   jobProfiles,
   orgUnits,
   permissionSets,
@@ -82,6 +86,8 @@ export async function GET(request: Request) {
     executionRows,
     linkedUsers,
     separationRows,
+    policyRows,
+    documentComplianceRows,
   ] = await Promise.all([
     db.select().from(positionAssignments).where(and(
       eq(positionAssignments.organizationId, organizationId),
@@ -147,6 +153,41 @@ export async function GET(request: Request) {
       eq(separationRecords.organizationId, organizationId),
       eq(separationRecords.employeeId, employeeId),
     )).orderBy(desc(separationRecords.id)).limit(1),
+    db.select({
+      assignmentId: hcmPolicyAssignments.id,
+      status: hcmPolicyAssignments.status,
+      dueAt: hcmPolicyAssignments.dueAt,
+      acknowledgedAt: hcmPolicyAssignments.acknowledgedAt,
+      policyId: hcmPolicyVersions.id,
+      policyCode: hcmPolicyVersions.policyCode,
+      title: hcmPolicyVersions.title,
+      version: hcmPolicyVersions.version,
+    }).from(hcmPolicyAssignments)
+      .innerJoin(hcmPolicyVersions, eq(hcmPolicyAssignments.policyId, hcmPolicyVersions.id))
+      .where(and(
+        eq(hcmPolicyAssignments.organizationId, organizationId),
+        eq(hcmPolicyAssignments.employeeId, employeeId),
+        eq(hcmPolicyVersions.status, "published"),
+      ))
+      .orderBy(desc(hcmPolicyAssignments.id)),
+    db.select({
+      complianceId: hcmEmployeeDocumentCompliance.id,
+      status: hcmEmployeeDocumentCompliance.status,
+      dueAt: hcmEmployeeDocumentCompliance.dueAt,
+      expiresAt: hcmEmployeeDocumentCompliance.expiresAt,
+      documentId: hcmEmployeeDocumentCompliance.documentId,
+      requirementId: hcmDocumentRequirements.id,
+      code: hcmDocumentRequirements.code,
+      name: hcmDocumentRequirements.name,
+      kind: hcmDocumentRequirements.kind,
+    }).from(hcmEmployeeDocumentCompliance)
+      .innerJoin(hcmDocumentRequirements, eq(hcmEmployeeDocumentCompliance.requirementId, hcmDocumentRequirements.id))
+      .where(and(
+        eq(hcmEmployeeDocumentCompliance.organizationId, organizationId),
+        eq(hcmEmployeeDocumentCompliance.employeeId, employeeId),
+        eq(hcmDocumentRequirements.active, true),
+      ))
+      .orderBy(desc(hcmEmployeeDocumentCompliance.id)),
   ]);
 
   const assignment = assignmentRows[0] ?? null;
@@ -310,6 +351,10 @@ export async function GET(request: Request) {
   const assignedAssets = assetRows.filter((row) => row.status === "assigned" && !row.returnedOn);
   const openTasks = taskRows.filter((row) => !row.done);
   const latestSeparation = separationRows[0] ?? null;
+  const pendingPolicyAcknowledgements = policyRows.filter((row) => row.status === "assigned");
+  const documentRisks = documentComplianceRows.filter((row) =>
+    ["missing", "submitted", "expiring", "expired"].includes(row.status),
+  );
 
   return Response.json({
     employee,
@@ -325,6 +370,10 @@ export async function GET(request: Request) {
       separation: latestSeparation,
     },
     identities,
+    documents: {
+      policies: policyRows,
+      requirements: documentComplianceRows,
+    },
     summary: {
       authoritativePosition: Boolean(position),
       linkedLogin: identities.length > 0,
@@ -332,6 +381,8 @@ export async function GET(request: Request) {
       activeBenefits: activeBenefits.length,
       assignedAssets: assignedAssets.length,
       openLifecycleTasks: openTasks.length,
+      pendingPolicyAcknowledgements: pendingPolicyAcknowledgements.length,
+      documentComplianceRisks: documentRisks.length,
       separationOpen: Boolean(latestSeparation && latestSeparation.status !== "released"),
     },
   });

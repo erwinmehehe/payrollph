@@ -649,7 +649,7 @@ jobs:
             }
             if (persona.id === "employee") {
               const employeeDesktopNav = page.locator(".employee-workspace-sidebar .employee-side-nav .nav-item:visible");
-              check((await employeeDesktopNav.count()) === 5, "Employee: desktop shared sidebar must expose Home, Pay, Time, Leave and Profile");
+              check((await employeeDesktopNav.count()) === 6, "Employee: desktop shared sidebar must expose Home, Pay, Time, Leave, Documents and Profile");
               const employeeNavHeights = await employeeDesktopNav.evaluateAll((items) =>
                 items.map((item) => item.getBoundingClientRect().height),
               );

@@ -1372,6 +1372,119 @@ export const documents = pgTable("documents", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const hcmPolicyVersions = pgTable(
+  "hcm_policy_versions",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    policyCode: varchar("policy_code", { length: 80 }).notNull(),
+    title: varchar("title", { length: 200 }).notNull(),
+    category: varchar("category", { length: 60 }).notNull().default("company_policy"),
+    version: varchar("version", { length: 48 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("draft"),
+    effectiveFrom: date("effective_from").notNull(),
+    effectiveUntil: date("effective_until"),
+    targetConditions: jsonb("target_conditions").notNull().default({}),
+    requiresAcknowledgement: boolean("requires_acknowledgement").notNull().default(true),
+    acknowledgementDueDays: integer("acknowledgement_due_days").notNull().default(7),
+    sourceDocumentId: integer("source_document_id").references(() => documents.id, { onDelete: "set null" }),
+    content: text("content").notNull().default(""),
+    contentSha256: varchar("content_sha256", { length: 64 }).notNull(),
+    approvedByUserId: integer("approved_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    approvedByName: varchar("approved_by_name", { length: 120 }),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdByName: varchar("created_by_name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hcm_policy_version_unique").on(table.organizationId, table.policyCode, table.version),
+    index("hcm_policy_status_effective_idx").on(table.organizationId, table.status, table.effectiveFrom),
+  ],
+);
+
+export const hcmPolicyAssignments = pgTable(
+  "hcm_policy_assignments",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    policyId: integer("policy_id").notNull().references(() => hcmPolicyVersions.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    assignedAt: timestamp("assigned_at", { withTimezone: true }).notNull().defaultNow(),
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    status: varchar("status", { length: 24 }).notNull().default("assigned"),
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+    acknowledgedByUserId: integer("acknowledged_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    acknowledgementSha256: varchar("acknowledgement_sha256", { length: 64 }),
+    acknowledgementEvidence: jsonb("acknowledgement_evidence").notNull().default({}),
+    waivedAt: timestamp("waived_at", { withTimezone: true }),
+    waivedByUserId: integer("waived_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    waivedByName: varchar("waived_by_name", { length: 120 }),
+    waiverReason: varchar("waiver_reason", { length: 240 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hcm_policy_assignment_unique").on(table.policyId, table.employeeId),
+    index("hcm_policy_assignment_employee_idx").on(table.organizationId, table.employeeId, table.status),
+    index("hcm_policy_assignment_due_idx").on(table.organizationId, table.status, table.dueAt),
+  ],
+);
+
+export const hcmDocumentRequirements = pgTable(
+  "hcm_document_requirements",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    code: varchar("code", { length: 80 }).notNull(),
+    name: varchar("name", { length: 180 }).notNull(),
+    kind: varchar("kind", { length: 40 }).notNull(),
+    targetConditions: jsonb("target_conditions").notNull().default({}),
+    mandatory: boolean("mandatory").notNull().default(true),
+    expiryRequired: boolean("expiry_required").notNull().default(false),
+    submissionDueDays: integer("submission_due_days").notNull().default(14),
+    renewalLeadDays: integer("renewal_lead_days").notNull().default(30),
+    active: boolean("active").notNull().default(true),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdByName: varchar("created_by_name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hcm_document_requirement_unique").on(table.organizationId, table.code),
+    index("hcm_document_requirement_active_idx").on(table.organizationId, table.active),
+  ],
+);
+
+export const hcmEmployeeDocumentCompliance = pgTable(
+  "hcm_employee_document_compliance",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    requirementId: integer("requirement_id").notNull().references(() => hcmDocumentRequirements.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    documentId: integer("document_id").references(() => documents.id, { onDelete: "set null" }),
+    status: varchar("status", { length: 24 }).notNull().default("missing"),
+    dueAt: date("due_at"),
+    expiresAt: date("expires_at"),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    verifiedByUserId: integer("verified_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    verifiedByName: varchar("verified_by_name", { length: 120 }),
+    waivedAt: timestamp("waived_at", { withTimezone: true }),
+    waivedByUserId: integer("waived_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    waivedByName: varchar("waived_by_name", { length: 120 }),
+    waiverReason: varchar("waiver_reason", { length: 240 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hcm_employee_document_requirement_unique").on(table.requirementId, table.employeeId),
+    index("hcm_employee_document_status_idx").on(table.organizationId, table.employeeId, table.status),
+    index("hcm_employee_document_expiry_idx").on(table.organizationId, table.status, table.expiresAt),
+  ],
+);
+
 export const invitations = pgTable("invitations", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),

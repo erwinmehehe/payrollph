@@ -8,6 +8,7 @@ import { AutomationStudioPanel } from "@/components/automation-studio-panel";
 import { BenefitsPanel } from "@/components/benefits-panel";
 import { ContractorsPanel } from "@/components/contractors-panel";
 import { CompensationPanel } from "@/components/compensation-panel";
+import { HcmDocumentsPanel } from "@/components/hcm-documents-panel";
 import { DeMinimisPanel } from "@/components/de-minimis-panel";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { DisciplinePanel } from "@/components/discipline-panel";
@@ -513,6 +514,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         )}
         {page === "Loans" && <LoansPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Benefits" && <BenefitsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Documents" && <HcmDocumentsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "De minimis" && <DeMinimisPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Expenses" && <ExpensesPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Earned wage" && <EwaPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}

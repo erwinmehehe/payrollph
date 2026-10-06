@@ -22,6 +22,7 @@ export const REAL_ROLE_PAGE_ACCESS: Partial<Record<string, readonly string[]>> =
     "Compliance",
     "Loans",
     "Benefits",
+    "Documents",
     "De minimis",
     "Expenses",
     "Recruitment",
@@ -63,6 +64,7 @@ export const REAL_ROLE_PAGE_ACCESS: Partial<Record<string, readonly string[]>> =
     "Audit trail",
     "Enterprise",
     "Automation",
+    "Documents",
   ],
 };
 
