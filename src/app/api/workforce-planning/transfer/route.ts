@@ -1,6 +1,6 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, jobProfiles, positionAssignments, positions, workerEmploymentEvents } from "@/db/schema";
+import { employees, jobProfiles, positionAssignments, positions, workerEffectiveChanges, workerEmploymentEvents } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
@@ -65,6 +65,23 @@ export async function POST(request: Request) {
   )).limit(1);
   if (!employee) return Response.json({ error: "Employee not found in this workspace." }, { status: 404 });
   if (employee.status !== "Active") return Response.json({ error: "Only active employees can be transferred." }, { status: 409 });
+
+  const [unresolvedEffectiveChange] = await db.select({ id: workerEffectiveChanges.id, status: workerEffectiveChanges.status, effectiveDate: workerEffectiveChanges.effectiveDate })
+    .from(workerEffectiveChanges)
+    .where(and(
+      eq(workerEffectiveChanges.organizationId, organizationId),
+      eq(workerEffectiveChanges.employeeId, employeeId),
+      inArray(workerEffectiveChanges.status, ["pending_approval", "scheduled", "failed"]),
+    ))
+    .limit(1);
+  if (unresolvedEffectiveChange) {
+    return Response.json({
+      error: "This worker already has an unresolved effective-dated HCM change. Cancel or resolve it before using the immediate transfer flow.",
+      effectiveChangeId: unresolvedEffectiveChange.id,
+      effectiveChangeStatus: unresolvedEffectiveChange.status,
+      effectiveDate: unresolvedEffectiveChange.effectiveDate,
+    }, { status: 409 });
+  }
 
   const employeeScope = assertScope(access, employee.orgUnitId);
   if (!employeeScope.ok) return Response.json({ error: employeeScope.error }, { status: employeeScope.status });

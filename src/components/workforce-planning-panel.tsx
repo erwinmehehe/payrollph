@@ -756,9 +756,11 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
                 const statusOptions =
                   position.status === "filled"
                     ? ["filled"]
-                    : position.status === "open"
-                      ? ["open", "frozen", "closed"]
-                      : ["planned", "approved", "frozen", "closed"];
+                    : position.status === "reserved"
+                      ? ["reserved"]
+                      : position.status === "open"
+                        ? ["open", "frozen", "closed"]
+                        : ["planned", "approved", "frozen", "closed"];
                 return (
                   <tr key={position.id}>
                     <td><strong>{position.code}</strong><small style={{ display: "block", color: "var(--muted)" }}>{position.employmentType}</small></td>
@@ -778,7 +780,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
                     <td>{position.plannedStartDate ?? "—"}</td>
                     <td className="right">{peso(position.annualBudget)}</td>
                     <td>
-                      <select value={position.status} onChange={(e) => void updateStatus(position, e.target.value)} disabled={position.status === "filled"}>
+                      <select value={position.status} onChange={(e) => void updateStatus(position, e.target.value)} disabled={position.status === "filled" || position.status === "reserved"}>
                         {statusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
                       </select>
                       {position.activeRequisitionId && <small style={{ display: "block", color: "var(--muted)", marginTop: 4 }}>Req #{position.activeRequisitionId} · {position.activeRequisitionStatus}</small>}
@@ -789,7 +791,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
                       ) : position.activeRequisitionId ? (
                         <button className="secondary-button" onClick={() => onPage("Recruitment")}>View ATS</button>
                       ) : (
-                        <span style={{ color: "var(--muted)", fontSize: 11 }}>{position.status === "planned" ? "Approve first" : "—"}</span>
+                        <span style={{ color: "var(--muted)", fontSize: 11 }}>{position.status === "planned" ? "Approve first" : position.status === "reserved" ? "Reserved for scheduled HCM change" : "—"}</span>
                       )}
                     </td>
                   </tr>

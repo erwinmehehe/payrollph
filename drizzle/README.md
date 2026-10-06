@@ -13,7 +13,7 @@ DATABASE_URL="postgresql://..." npm run db:push
 `db:push` reads `src/db/schema.ts` and creates everything it finds there, which
 is the whole current schema. **Check that it actually created tables**: push has
 been seen to report success and create nothing against a non-standard Postgres.
-Expect 140 tables. If it creates nothing, apply `baseline.sql` instead, which is
+Expect 141 tables. If it creates nothing, apply `baseline.sql` instead, which is
 the same schema as plain SQL and can be pasted into the Neon or Supabase SQL
 editor without any tooling.
 
@@ -58,3 +58,5 @@ the first one, so it closes itself.
 - `0050_hcm_core_worker_history.sql` adds legal-employer ownership on positions, primary/secondary assignment semantics with FTE, and an immutable worker employment-event timeline for hires, moves, promotions and separation lifecycle evidence.
 
 - `0051_hcm_org_job_architecture.sql` normalizes job families, levels and grades; enriches organization units with legal-employer, cost-center and effective-date context; and links positions to supervisory organizations and cost centers.
+
+- `0052_hcm_effective_dated_changes.sql` adds maker-checker governed, scheduled employment changes with future-date application, guarded retroactive corrections, position reservation, failure evidence, and immutable worker-history linkage.

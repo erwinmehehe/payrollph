@@ -1,5 +1,5 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   costCenters,
@@ -15,6 +15,7 @@ import {
   positions,
   workforcePlans,
   worksites,
+  workerEffectiveChanges,
   workerEmploymentEvents,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
@@ -506,6 +507,21 @@ export async function POST(request: Request) {
     if (!employee) return Response.json({ error: "Employee not found in this workspace." }, { status: 404 });
     if (employee.status !== "Active") {
       return Response.json({ error: "Only active employees can receive a new primary position assignment." }, { status: 409 });
+    }
+    const [unresolvedEffectiveChange] = await db.select({ id: workerEffectiveChanges.id, status: workerEffectiveChanges.status })
+      .from(workerEffectiveChanges)
+      .where(and(
+        eq(workerEffectiveChanges.organizationId, organizationId),
+        eq(workerEffectiveChanges.employeeId, employeeId),
+        inArray(workerEffectiveChanges.status, ["pending_approval", "scheduled", "failed"]),
+      ))
+      .limit(1);
+    if (unresolvedEffectiveChange) {
+      return Response.json({
+        error: "This employee has an unresolved effective-dated HCM change. Cancel or resolve it before direct position assignment.",
+        effectiveChangeId: unresolvedEffectiveChange.id,
+        effectiveChangeStatus: unresolvedEffectiveChange.status,
+      }, { status: 409 });
     }
     const access = await getAccess(user.id, organizationId);
     const employeeScope = assertScope(access, employee.orgUnitId);

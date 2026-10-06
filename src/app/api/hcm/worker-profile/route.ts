@@ -25,6 +25,7 @@ import {
   userOrganizations,
   userPermissionAssignments,
   users,
+  workerEffectiveChanges,
   workerEmploymentEvents,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
@@ -491,6 +492,79 @@ export async function GET(request: Request) {
     };
   }));
 
+  const [
+    effectiveChangeRows,
+    optionPositions,
+    optionAssignments,
+    optionUnits,
+    optionEntities,
+    optionCenters,
+    optionManagers,
+    optionProfiles,
+  ] = await Promise.all([
+    db.select().from(workerEffectiveChanges).where(and(
+      eq(workerEffectiveChanges.organizationId, organizationId),
+      eq(workerEffectiveChanges.employeeId, employeeId),
+    )).orderBy(desc(workerEffectiveChanges.effectiveDate), desc(workerEffectiveChanges.id)),
+    access.companyWide
+      ? db.select().from(positions).where(eq(positions.organizationId, organizationId)).orderBy(positions.code)
+      : Promise.resolve([]),
+    access.companyWide
+      ? db.select({ positionId: positionAssignments.positionId }).from(positionAssignments).where(and(
+          eq(positionAssignments.organizationId, organizationId),
+          isNull(positionAssignments.effectiveUntil),
+        ))
+      : Promise.resolve([]),
+    access.companyWide
+      ? db.select().from(orgUnits).where(and(
+          eq(orgUnits.organizationId, organizationId),
+          eq(orgUnits.active, true),
+        )).orderBy(orgUnits.name)
+      : Promise.resolve([]),
+    access.companyWide
+      ? db.select().from(legalEntities).where(and(
+          eq(legalEntities.organizationId, organizationId),
+          eq(legalEntities.active, true),
+        )).orderBy(legalEntities.displayName)
+      : Promise.resolve([]),
+    access.companyWide
+      ? db.select().from(costCenters).where(and(
+          eq(costCenters.organizationId, organizationId),
+          eq(costCenters.active, true),
+        )).orderBy(costCenters.name)
+      : Promise.resolve([]),
+    access.companyWide
+      ? db.select({
+          id: employees.id,
+          employeeNo: employees.employeeNo,
+          firstName: employees.firstName,
+          lastName: employees.lastName,
+          title: employees.title,
+        }).from(employees).where(and(
+          eq(employees.organizationId, organizationId),
+          eq(employees.status, "Active"),
+        )).orderBy(employees.lastName, employees.firstName)
+      : Promise.resolve([]),
+    access.companyWide
+      ? db.select({
+          id: jobProfiles.id,
+          title: jobProfiles.title,
+          family: jobProfiles.family,
+          level: jobProfiles.level,
+          grade: jobProfiles.grade,
+        }).from(jobProfiles).where(eq(jobProfiles.organizationId, organizationId))
+      : Promise.resolve([]),
+  ]);
+
+  const occupiedPositionIds = new Set(optionAssignments.map((row) => row.positionId));
+  const optionProfileById = new Map(optionProfiles.map((row) => [row.id, row]));
+  const availablePositions = optionPositions
+    .filter((row) => row.status === "approved" && !occupiedPositionIds.has(row.id))
+    .map((row) => ({
+      ...row,
+      profile: optionProfileById.get(row.jobProfileId) ?? null,
+    }));
+
   const activeBenefits = benefitRows.filter((row) => row.status === "active" && !row.endedOn);
   const assignedAssets = assetRows.filter((row) => row.status === "assigned" && !row.returnedOn);
   const openTasks = taskRows.filter((row) => !row.done);
@@ -518,6 +592,17 @@ export async function GET(request: Request) {
       policies: policyRows,
       requirements: documentComplianceRows,
     },
+    effectiveChanges: effectiveChangeRows,
+    changeOptions: {
+      canManage: access.companyWide,
+      positions: availablePositions,
+      orgUnits: optionUnits,
+      legalEntities: optionEntities,
+      costCenters: optionCenters,
+      managers: optionManagers.filter((row) => row.id !== employeeId),
+      employmentTypes: ["Regular", "Probationary", "Part-time", "Contractual"],
+      employeeStatuses: ["Active", "On leave"],
+    },
     history: {
       employmentEvents: employmentEventRows,
       positionAssignments: positionHistory,
@@ -532,6 +617,7 @@ export async function GET(request: Request) {
       pendingPolicyAcknowledgements: pendingPolicyAcknowledgements.length,
       documentComplianceRisks: documentRisks.length,
       separationOpen: Boolean(latestSeparation && latestSeparation.status !== "released"),
+      pendingEffectiveChanges: effectiveChangeRows.filter((row) => ["pending_approval", "scheduled", "failed"].includes(row.status)).length,
     },
   });
 }
