@@ -25,6 +25,8 @@ test("core schema compatibility upgrades fields used by production demo and dash
     "CREATE TABLE IF NOT EXISTS employee_worksite_assignments",
     "ADD COLUMN IF NOT EXISTS worksite_id integer REFERENCES worksites(id) ON DELETE SET NULL",
     "ADD COLUMN IF NOT EXISTS worksite_id integer REFERENCES worksites(id) ON DELETE CASCADE",
+    "ADD COLUMN IF NOT EXISTS job_profile_id integer REFERENCES job_profiles(id) ON DELETE RESTRICT",
+    "staffing_requirement_profile_unique",
   ]) {
     assert.ok(source.includes(fragment), `missing compatibility migration fragment: ${fragment}`);
   }

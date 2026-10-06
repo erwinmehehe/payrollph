@@ -11,6 +11,7 @@ export type LaborVarianceRequirement = {
   worksiteId: number;
   workDate: string;
   shiftDefinitionId: number;
+  jobProfileId?: number | null;
   requiredHeadcount: number;
 };
 
@@ -19,6 +20,7 @@ export type ScheduledLaborEntry = {
   worksiteId: number | null;
   workDate: string;
   shiftDefinitionId: number;
+  jobProfileId?: number | null;
   paidMinutes: number;
   hourlyRate: number;
 };
@@ -28,6 +30,7 @@ export type ActualLaborEntry = {
   worksiteId: number | null;
   workDate: string;
   shiftDefinitionId: number | null;
+  jobProfileId?: number | null;
   workedMinutes: number;
   hourlyRate: number;
   matchedToSchedule: boolean;
@@ -102,12 +105,14 @@ export function actualWorkedMinutes(input: {
   };
 }
 
-function key(input: {
-  worksiteId: number | null;
-  workDate: string;
-  shiftDefinitionId: number | null;
-}) {
-  return `${input.workDate}|${input.worksiteId ?? "none"}|${input.shiftDefinitionId ?? "none"}`;
+function sameLaborBucket(
+  requirement: LaborVarianceRequirement,
+  entry: Pick<ScheduledLaborEntry | ActualLaborEntry, "worksiteId" | "workDate" | "shiftDefinitionId" | "jobProfileId">,
+) {
+  return entry.workDate === requirement.workDate
+    && entry.worksiteId === requirement.worksiteId
+    && entry.shiftDefinitionId === requirement.shiftDefinitionId
+    && (requirement.jobProfileId == null || entry.jobProfileId === requirement.jobProfileId);
 }
 
 function percent(numerator: number, denominator: number) {
@@ -123,26 +128,13 @@ export function computeWorkforceLaborVariance(input: {
   benchmarkHourlyRate: number;
 }) {
   const shiftById = new Map(input.shifts.map((shift) => [shift.id, shift]));
-  const requirementKeys = new Set(
-    input.requirements.map((requirement) => key({
-      worksiteId: requirement.worksiteId,
-      workDate: requirement.workDate,
-      shiftDefinitionId: requirement.shiftDefinitionId,
-    })),
-  );
-
   const rows = input.requirements.map((requirement) => {
-    const rowKey = key({
-      worksiteId: requirement.worksiteId,
-      workDate: requirement.workDate,
-      shiftDefinitionId: requirement.shiftDefinitionId,
-    });
     const shift = shiftById.get(requirement.shiftDefinitionId);
     if (!shift) throw new Error(`Staffing requirement #${requirement.id} references a missing shift.`);
     const shiftMinutes = paidShiftMinutes(shift);
 
-    const scheduled = input.scheduled.filter((entry) => key(entry) === rowKey);
-    const actual = input.actual.filter((entry) => key(entry) === rowKey);
+    const scheduled = input.scheduled.filter((entry) => sameLaborBucket(requirement, entry));
+    const actual = input.actual.filter((entry) => sameLaborBucket(requirement, entry));
 
     const scheduledHeadcount = new Set(scheduled.map((entry) => entry.employeeId)).size;
     const actualHeadcount = new Set(
@@ -179,6 +171,7 @@ export function computeWorkforceLaborVariance(input: {
       worksiteId: requirement.worksiteId,
       workDate: requirement.workDate,
       shiftDefinitionId: requirement.shiftDefinitionId,
+      jobProfileId: requirement.jobProfileId ?? null,
       requiredHeadcount: requirement.requiredHeadcount,
       scheduledHeadcount,
       actualHeadcount,
@@ -202,9 +195,11 @@ export function computeWorkforceLaborVariance(input: {
     };
   });
 
-  const unmatchedActual = input.actual.filter((entry) => !requirementKeys.has(key(entry)));
+  const unmatchedActual = input.actual.filter(
+    (entry) => !input.requirements.some((requirement) => sameLaborBucket(requirement, entry)),
+  );
   const scheduledOutsideRequirements = input.scheduled.filter(
-    (entry) => !requirementKeys.has(key(entry)),
+    (entry) => !input.requirements.some((requirement) => sameLaborBucket(requirement, entry)),
   );
   const sum = <T>(items: T[], pick: (item: T) => number) =>
     items.reduce((total, item) => total + pick(item), 0);
