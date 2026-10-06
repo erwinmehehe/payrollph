@@ -1,8 +1,9 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
   hcmLifecycleNotificationEvents,
   hcmLifecycleNotificationTasks,
+  organizations,
   positionAssignments,
   positions,
   userOrganizations,
@@ -177,6 +178,7 @@ async function defaultLifecycleOwner(
       eq(positionAssignments.organizationId, organizationId),
       eq(positionAssignments.employeeId, employeeId),
       eq(positionAssignments.assignmentType, "primary"),
+      isNull(positionAssignments.effectiveUntil),
     ))
     .orderBy(positionAssignments.effectiveFrom)
     .limit(1);
@@ -488,12 +490,8 @@ export async function runScheduledHcmLifecycleNotifications(input: {
 } = {}) {
   const now = input.now ?? new Date();
   const actor = input.actor ?? "System scheduler";
-  const organizationIds = input.organizationIds ?? [
-    ...new Set(
-      (await db.select({ organizationId: userOrganizations.organizationId }).from(userOrganizations))
-        .map((row) => row.organizationId),
-    ),
-  ];
+  const organizationIds = input.organizationIds
+    ?? (await db.select({ id: organizations.id }).from(organizations)).map((row) => row.id);
 
   const results = [];
   for (const organizationId of organizationIds) {
