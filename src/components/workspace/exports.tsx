@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
 import { FilingEvidencePanel } from "./filing-evidence";
+import { Bir1601cRemittancePanel } from "./bir-1601c-remittance-panel";
 import { BookkeeperPayrollClose } from "./bookkeeper-payroll-close";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, PageHeading, Segmented, Status, formatDate, money } from "./ui";
@@ -614,6 +615,11 @@ export function ExportsView({
               />
             ))}
           </section>
+
+          <Bir1601cRemittancePanel
+            organizationId={organizationId}
+            notify={notify}
+          />
 
           <section className="integration-grid">
             <article className="export-card">
