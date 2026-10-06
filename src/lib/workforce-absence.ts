@@ -60,3 +60,74 @@ export function approvedLeaveConflictsFullShift(input: {
     ambiguous: overlaps.some((leave) => approvedLeaveCoverageImpact(leave).kind !== "full_day"),
   };
 }
+
+export type ClockPreciseLeave = ApprovedLeaveRange & {
+  window?: {
+    workDate: string;
+    startTime: string;
+    endTime: string;
+    minutes: number;
+  } | null;
+};
+
+function minuteOfDay(time: string) {
+  if (!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(time)) throw new Error("Clock time must be HH:mm.");
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+}
+
+export function preciseLeaveMinutes(startTime: string, endTime: string) {
+  const minutes = minuteOfDay(endTime) - minuteOfDay(startTime);
+  if (minutes <= 0) throw new Error("Timed leave must end after its start on the same day.");
+  return minutes;
+}
+
+export function preciseLeaveDayEquivalent(minutes: number, standardDayMinutes: number) {
+  if (!Number.isInteger(minutes) || !Number.isInteger(standardDayMinutes)
+    || standardDayMinutes < 60 || standardDayMinutes > 1440
+    || minutes < 1 || minutes > standardDayMinutes) {
+    throw new Error("Timed leave minutes must not exceed the employee's configured standard workday.");
+  }
+  return Math.round((minutes / standardDayMinutes) * 10_000) / 10_000;
+}
+
+function utcWallDay(date: string) { return isoDay(date); }
+const MINUTE = 60_000;
+const DAY = 86_400_000;
+
+export function approvedLeaveShiftConflict(input: {
+  leaves: ClockPreciseLeave[];
+  employeeId: number;
+  workDate: string;
+  shift: { startTime: string; endTime: string; spansMidnight: boolean };
+}) {
+  const shiftStart = utcWallDay(input.workDate) + minuteOfDay(input.shift.startTime.slice(0, 5)) * MINUTE;
+  let shiftEnd = utcWallDay(input.workDate) + minuteOfDay(input.shift.endTime.slice(0, 5)) * MINUTE;
+  if (input.shift.spansMidnight || shiftEnd <= shiftStart) shiftEnd += DAY;
+  const overlapping: ClockPreciseLeave[] = [];
+  let overlapMinutes = 0;
+  let ambiguous = false;
+
+  for (const leave of input.leaves.filter((item) => item.employeeId === input.employeeId)) {
+    if (leave.window) {
+      const start = utcWallDay(leave.window.workDate) + minuteOfDay(leave.window.startTime) * MINUTE;
+      const end = utcWallDay(leave.window.workDate) + minuteOfDay(leave.window.endTime) * MINUTE;
+      const minutes = Math.max(0, (Math.min(end, shiftEnd) - Math.max(start, shiftStart)) / MINUTE);
+      if (minutes > 0) { overlapping.push(leave); overlapMinutes += minutes; }
+      continue;
+    }
+    const start = utcWallDay(leave.startDate);
+    const end = utcWallDay(leave.endDate) + DAY;
+    if (Math.min(end, shiftEnd) <= Math.max(start, shiftStart)) continue;
+    overlapping.push(leave);
+    if (approvedLeaveCoverageImpact(leave).kind !== "full_day") ambiguous = true;
+    else overlapMinutes += (Math.min(end, shiftEnd) - Math.max(start, shiftStart)) / MINUTE;
+  }
+
+  return {
+    conflict: overlapping.length > 0,
+    ambiguous,
+    overlapMinutes: Math.min(Math.round(overlapMinutes), Math.round((shiftEnd - shiftStart) / MINUTE)),
+    overlaps: overlapping,
+  };
+}
