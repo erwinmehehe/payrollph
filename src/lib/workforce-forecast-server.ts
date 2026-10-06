@@ -6,6 +6,8 @@ import {
   employeePayProfiles,
   employees,
   employeeWorksiteAssignments,
+  jobProfiles,
+  positionAssignments,
   positions,
   shiftDefinitions,
   staffingRequirements,
@@ -17,6 +19,7 @@ import {
   WORKFORCE_MANAGER_ROLES,
 } from "@/lib/access";
 import { buildWorkforceDemandForecast } from "@/lib/workforce-forecast";
+import { assertUnambiguousRoleDemand, resolveEmployeeJobProfileAtDate } from "@/lib/workforce-role-demand";
 
 export type WorkforceForecastScope = {
   orgUnitId: number | null;
@@ -73,6 +76,8 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
     allocationRows,
     centerRows,
     worksiteAssignmentRows,
+    jobProfileRows,
+    positionAssignmentRows,
   ] = await Promise.all([
     db.select().from(employees)
       .where(eq(employees.organizationId, input.organizationId))
@@ -120,6 +125,26 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
         asc(employeeWorksiteAssignments.effectiveFrom),
         asc(employeeWorksiteAssignments.id),
       ),
+    db.select().from(jobProfiles)
+      .where(and(
+        eq(jobProfiles.organizationId, input.organizationId),
+        eq(jobProfiles.active, true),
+      ))
+      .orderBy(asc(jobProfiles.family), asc(jobProfiles.title), asc(jobProfiles.level)),
+    db.select().from(positionAssignments)
+      .where(and(
+        eq(positionAssignments.organizationId, input.organizationId),
+        lte(positionAssignments.effectiveFrom, input.startDate),
+        or(
+          isNull(positionAssignments.effectiveUntil),
+          gte(positionAssignments.effectiveUntil, input.startDate),
+        ),
+      ))
+      .orderBy(
+        asc(positionAssignments.employeeId),
+        asc(positionAssignments.effectiveFrom),
+        asc(positionAssignments.id),
+      ),
   ]);
 
   const requestedWorksite = input.worksiteId == null
@@ -154,6 +179,32 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
     return true;
   });
   const visibleEmployeeIds = new Set(visibleEmployees.map((employee) => employee.id));
+  const roleAssignments = positionAssignmentRows.map((row) => ({
+    employeeId: row.employeeId,
+    positionId: row.positionId,
+    effectiveFrom: String(row.effectiveFrom),
+    effectiveUntil: row.effectiveUntil ? String(row.effectiveUntil) : null,
+  }));
+  const rolePositions = positionRows.map((position) => ({
+    id: position.id,
+    jobProfileId: position.jobProfileId,
+  }));
+  const roleByEmployee = new Map<number, number | null>();
+  const roleEvidenceIssues: string[] = [];
+  for (const employee of visibleEmployees) {
+    const role = resolveEmployeeJobProfileAtDate({
+      employeeId: employee.id,
+      date: input.startDate,
+      assignments: roleAssignments,
+      positions: rolePositions,
+    });
+    roleByEmployee.set(employee.id, role.jobProfileId);
+    if (role.ambiguous) {
+      roleEvidenceIssues.push(
+        `Employee #${employee.id} has multiple active job profiles on ${input.startDate}; role capacity is not attributed until position evidence is resolved.`,
+      );
+    }
+  }
 
   const positionOrgUnitId = requestedWorksite?.orgUnitId ?? effectiveOrgUnitId;
   const visiblePositions = requestedWorksite
@@ -177,6 +228,13 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
     return true;
   });
   const visibleWorksiteIds = new Set(visibleWorksites.map((worksite) => worksite.id));
+  const visibleRequirementRows = requirementRows.filter((row) => visibleWorksiteIds.has(row.worksiteId));
+  assertUnambiguousRoleDemand(visibleRequirementRows.map((row) => ({
+    worksiteId: row.worksiteId,
+    workDate: String(row.workDate),
+    shiftDefinitionId: row.shiftDefinitionId,
+    jobProfileId: row.jobProfileId,
+  })));
 
   const forecast = buildWorkforceDemandForecast({
     assumptions: {
@@ -189,6 +247,7 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
     employees: visibleEmployees.map((employee) => ({
       id: employee.id,
       status: employee.status,
+      jobProfileId: roleByEmployee.get(employee.id) ?? null,
     })),
     payProfiles: payProfileRows
       .filter((profile) => visibleEmployeeIds.has(profile.employeeId))
@@ -202,14 +261,15 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
     positions: visiblePositions.map((position) => ({
       id: position.id,
       status: position.status,
+      jobProfileId: position.jobProfileId,
       annualBudget: position.annualBudget,
       plannedStartDate: position.plannedStartDate ? String(position.plannedStartDate) : null,
     })),
-    staffingRequirements: requirementRows
-      .filter((row) => visibleWorksiteIds.has(row.worksiteId))
+    staffingRequirements: visibleRequirementRows
       .map((row) => ({
         workDate: String(row.workDate),
         shiftDefinitionId: row.shiftDefinitionId,
+        jobProfileId: row.jobProfileId,
         requiredHeadcount: row.requiredHeadcount,
       })),
     shifts: shiftRows.map((shift) => ({
@@ -238,10 +298,23 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
       code: center.code,
       name: center.name,
     })),
+    jobProfiles: jobProfileRows.map((profile) => ({
+      id: profile.id,
+      title: profile.title,
+      family: profile.family,
+      level: profile.level,
+    })),
   });
+  const forecastWithRoleEvidence = {
+    ...forecast,
+    quality: {
+      ...forecast.quality,
+      roleEvidenceIssues,
+    },
+  };
 
   return {
-    forecast,
+    forecast: forecastWithRoleEvidence,
     scope: {
       companyWide: access.companyWide,
       membershipOrgUnitId: access.orgUnitId,

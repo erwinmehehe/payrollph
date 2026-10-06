@@ -54,6 +54,22 @@ type WorkforceForecast = {
     capacityGapAfterFills: number;
     capacityCoveragePercent: number;
   };
+  roleDemand: Array<{
+    jobProfileId: number | null;
+    title: string;
+    family: string;
+    level: string;
+    requiredHours: number;
+    forecastHours: number;
+    activeHeadcount: number;
+    vacantPositions: number;
+    expectedVacancyFills: number;
+    currentCapacityHours: number;
+    expectedVacancyCapacityHours: number;
+    projectedCapacityHours: number;
+    capacityGapHours: number;
+    coveragePercent: number;
+  }>;
   costCenters: Array<{ costCenterId: number; code: string; name: string; currentPeriodBaseCost: number; currentPeriodLoadedCost: number }>;
   unallocated: { currentPeriodBaseCost: number | null; plannedVacancyPeriodCost: number | null };
   quality: {
@@ -62,6 +78,7 @@ type WorkforceForecast = {
     allocationIssueEmployeeIds: number[];
     staffingRequirements: number;
     requirementsMissingShift: number;
+    roleEvidenceIssues: string[];
   };
 };
 
@@ -404,6 +421,25 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
               <span><strong>{forecast.summary.capacityGapAfterFills > 0 ? "Capacity gap" : "Capacity covered"}:</strong> demand {forecast.summary.forecastHeadcountHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs vs projected capacity {forecast.summary.projectedCapacityHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs after expected fills. Gap after fills: {forecast.summary.capacityGapAfterFills.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs.</span>
             </div>
 
+            <div className="data-table-wrap" style={{ marginBottom: 16 }}>
+              <table className="data-table">
+                <thead><tr><th>JOB PROFILE</th><th>DEMAND</th><th>CURRENT CAPACITY</th><th>EXPECTED FILLS</th><th>PROJECTED CAPACITY</th><th>GAP</th></tr></thead>
+                <tbody>
+                  {forecast.roleDemand.map((role) => (
+                    <tr key={role.jobProfileId ?? "any"}>
+                      <td><strong>{role.title}</strong><small style={{ display: "block", color: "var(--muted)" }}>{role.family} · {role.level}</small></td>
+                      <td><strong>{role.forecastHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs</strong><small style={{ display: "block", color: "var(--muted)" }}>{role.requiredHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} baseline</small></td>
+                      <td><strong>{role.currentCapacityHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs</strong><small style={{ display: "block", color: "var(--muted)" }}>{role.activeHeadcount} active</small></td>
+                      <td><strong>{role.expectedVacancyFills}</strong><small style={{ display: "block", color: "var(--muted)" }}>{role.vacantPositions} vacant positions</small></td>
+                      <td><strong>{role.projectedCapacityHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs</strong><small style={{ display: "block", color: "var(--muted)" }}>{role.coveragePercent.toFixed(1)}% coverage</small></td>
+                      <td><span className={role.capacityGapHours > 0 ? "status status-pending" : "status status-verified"}>{role.capacityGapHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs</span></td>
+                    </tr>
+                  ))}
+                  {forecast.roleDemand.length === 0 && <tr><td colSpan={6}><div className="empty-state">No staffing demand rows in this scenario window.</div></td></tr>}
+                </tbody>
+              </table>
+            </div>
+
             <div className="module-grid two">
               <div className="notice notice-slate" style={{ margin: 0 }}>
                 <TrendingUp size={15} />
@@ -419,11 +455,11 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
               </div>
             </div>
 
-            {(forecast.quality.missingPayProfileEmployeeIds.length > 0 || forecast.quality.invalidPayProfileEmployeeIds.length > 0 || forecast.quality.allocationIssueEmployeeIds.length > 0 || forecast.quality.requirementsMissingShift > 0) && (
+            {(forecast.quality.missingPayProfileEmployeeIds.length > 0 || forecast.quality.invalidPayProfileEmployeeIds.length > 0 || forecast.quality.allocationIssueEmployeeIds.length > 0 || forecast.quality.requirementsMissingShift > 0 || forecast.quality.roleEvidenceIssues.length > 0) && (
               <div className="notice notice-amber" style={{ marginTop: 16 }}>
                 <CircleDollarSign size={15} />
                 <span>
-                  <strong>Forecast quality needs review.</strong> Missing pay profiles: {forecast.quality.missingPayProfileEmployeeIds.length}; invalid pay profiles: {forecast.quality.invalidPayProfileEmployeeIds.length}; allocation issues: {forecast.quality.allocationIssueEmployeeIds.length}; staffing rows missing a valid shift: {forecast.quality.requirementsMissingShift}.
+                  <strong>Forecast quality needs review.</strong> Missing pay profiles: {forecast.quality.missingPayProfileEmployeeIds.length}; invalid pay profiles: {forecast.quality.invalidPayProfileEmployeeIds.length}; allocation issues: {forecast.quality.allocationIssueEmployeeIds.length}; staffing rows missing a valid shift: {forecast.quality.requirementsMissingShift}; ambiguous role evidence: {forecast.quality.roleEvidenceIssues.length}.
                 </span>
               </div>
             )}

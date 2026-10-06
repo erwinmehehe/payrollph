@@ -184,7 +184,7 @@ export async function POST(request: Request) {
       .limit(1);
     const version = (previous?.version ?? 0) + 1;
     const snapshot = {
-      version: "wfm-staffing-scenario-v1",
+      version: "wfm-staffing-scenario-v2",
       generatedAt: new Date().toISOString(),
       forecast: result.forecast,
       scope: result.scope,
