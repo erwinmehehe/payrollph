@@ -51,3 +51,14 @@ test("coverage UI is part of the main workforce planner", () => {
   assert.ok(panel.includes("Availability"));
   assert.ok(planner.includes("<WorkforceCoveragePanel"));
 });
+
+
+test("staffing requirements support role demand without double-counting generic demand", () => {
+  assert.ok(schema.includes('jobProfileId: integer("job_profile_id")'));
+  assert.ok(route.includes("jobProfileRows"));
+  assert.ok(route.includes("effectiveJobProfileId"));
+  assert.ok(route.includes("Use either one generic staffing requirement or a job-profile breakdown"));
+  assert.ok(route.includes("effective job profile does not match this open shift requirement"));
+  assert.ok(panel.includes("Job profile"));
+  assert.ok(panel.includes("Any role"));
+});
