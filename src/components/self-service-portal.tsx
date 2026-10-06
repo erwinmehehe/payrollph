@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { EmployeeContributionIssueModal } from "@/components/employee-contribution-issue-modal";
 import { EmployeeDocumentsPanel } from "@/components/employee-documents-panel";
+import { HcmSelfProbationReviews } from "@/components/hcm-self-probation-reviews";
 import { WebBundyModal } from "@/components/web-bundy-modal";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { PayrollHandoff } from "@/components/payroll-handoff";
@@ -625,6 +626,8 @@ export function SelfServicePortal() {
               onClick={() => setTab("pay")}
             />
           </section>
+
+          <HcmSelfProbationReviews />
 
           <section className="employee-home-history">
             <div className="employee-home-history-head">
