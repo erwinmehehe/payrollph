@@ -1,9 +1,10 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employees,
   jobProfiles,
+  jobRequisitions,
   orgUnits,
   positionAssignments,
   positions,
@@ -22,6 +23,13 @@ import { recordAuditEvent } from "@/lib/audit";
 export const dynamic = "force-dynamic";
 
 const POSITION_STATUSES = ["planned", "approved", "open", "filled", "frozen", "closed"] as const;
+
+class WorkforcePlanningConflict extends Error {
+  constructor(message: string, readonly details: Record<string, unknown> = {}) {
+    super(message);
+    this.name = "WorkforcePlanningConflict";
+  }
+}
 
 function isoDate(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -52,7 +60,7 @@ export async function GET(request: Request) {
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
 
-  const [profiles, plans, allPositions, assignments, units, staff] = await Promise.all([
+  const [profiles, plans, allPositions, assignments, units, staff, requisitions] = await Promise.all([
     db.select().from(jobProfiles).where(eq(jobProfiles.organizationId, organizationId)).orderBy(jobProfiles.title),
     db.select().from(workforcePlans).where(eq(workforcePlans.organizationId, organizationId)).orderBy(desc(workforcePlans.startDate)),
     db.select().from(positions).where(eq(positions.organizationId, organizationId)).orderBy(desc(positions.id)),
@@ -66,6 +74,14 @@ export async function GET(request: Request) {
       orgUnitId: employees.orgUnitId,
       status: employees.status,
     }).from(employees).where(eq(employees.organizationId, organizationId)),
+    db.select({
+      id: jobRequisitions.id,
+      positionId: jobRequisitions.positionId,
+      status: jobRequisitions.status,
+      createdAt: jobRequisitions.createdAt,
+    }).from(jobRequisitions)
+      .where(eq(jobRequisitions.organizationId, organizationId))
+      .orderBy(desc(jobRequisitions.id)),
   ]);
 
   const visiblePositions = access.companyWide
@@ -76,10 +92,28 @@ export async function GET(request: Request) {
     ? staff
     : staff.filter((employee) => employee.orgUnitId === access.orgUnitId);
 
+  const activeRequisitionByPosition = new Map<number, (typeof requisitions)[number]>();
+  for (const requisition of requisitions) {
+    if (
+      requisition.positionId != null &&
+      !activeRequisitionByPosition.has(requisition.positionId) &&
+      !["filled", "cancelled"].includes(requisition.status)
+    ) {
+      activeRequisitionByPosition.set(requisition.positionId, requisition);
+    }
+  }
+
   return Response.json({
     profiles,
     plans,
-    positions: visiblePositions,
+    positions: visiblePositions.map((position) => {
+      const activeRequisition = activeRequisitionByPosition.get(position.id);
+      return {
+        ...position,
+        activeRequisitionId: activeRequisition?.id ?? null,
+        activeRequisitionStatus: activeRequisition?.status ?? null,
+      };
+    }),
     assignments: assignments.filter((assignment) => visiblePositionIds.has(assignment.positionId)),
     orgUnits: access.companyWide ? units : units.filter((unit) => unit.id === access.orgUnitId),
     employees: visibleEmployees,
@@ -257,6 +291,12 @@ export async function POST(request: Request) {
     if (!position) return Response.json({ error: "Position not found in this workspace." }, { status: 404 });
     const unitScope = await scopedUnit(user.id, organizationId, position.orgUnitId);
     if ("error" in unitScope) return unitScope.error;
+    if (!["approved", "open"].includes(position.status)) {
+      return Response.json({
+        error: "A position must be approved or actively recruiting before an incumbent can be assigned.",
+        positionStatus: position.status,
+      }, { status: 409 });
+    }
 
     const [employee] = await db.select({ id: employees.id, orgUnitId: employees.orgUnitId }).from(employees)
       .where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId))).limit(1);
@@ -265,11 +305,48 @@ export async function POST(request: Request) {
     const employeeScope = assertScope(access, employee.orgUnitId);
     if (!employeeScope.ok) return Response.json({ error: employeeScope.error }, { status: employeeScope.status });
 
-    const [openAssignment] = await db.select({ id: positionAssignments.id }).from(positionAssignments)
-      .where(and(eq(positionAssignments.positionId, positionId), isNull(positionAssignments.effectiveUntil))).limit(1);
-    if (openAssignment) return Response.json({ error: "This position already has an active assignment." }, { status: 409 });
+    const rowOrResponse = await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(4102, ${positionId})`);
 
-    const [row] = await db.transaction(async (tx) => {
+      const [freshPosition] = await tx.select({ status: positions.status })
+        .from(positions)
+        .where(and(
+          eq(positions.id, positionId),
+          eq(positions.organizationId, organizationId),
+        ))
+        .limit(1);
+      if (!freshPosition || !["approved", "open"].includes(freshPosition.status)) {
+        throw new WorkforcePlanningConflict("A position must still be approved or open before an incumbent can be assigned.", {
+          positionStatus: freshPosition?.status ?? "missing",
+        });
+      }
+
+      const freshRequisitions = await tx.select({ id: jobRequisitions.id, status: jobRequisitions.status })
+        .from(jobRequisitions)
+        .where(and(
+          eq(jobRequisitions.organizationId, organizationId),
+          eq(jobRequisitions.positionId, positionId),
+        ))
+        .orderBy(desc(jobRequisitions.id));
+      const activeRequisition = freshRequisitions.find((row) => !["filled", "cancelled"].includes(row.status));
+      if (activeRequisition) {
+        throw new WorkforcePlanningConflict(
+          "This position has an active requisition. Fill it through Recruitment or close the requisition before assigning an incumbent directly.",
+          { requisitionId: activeRequisition.id, requisitionStatus: activeRequisition.status },
+        );
+      }
+
+      const [openAssignment] = await tx.select({ id: positionAssignments.id })
+        .from(positionAssignments)
+        .where(and(
+          eq(positionAssignments.positionId, positionId),
+          isNull(positionAssignments.effectiveUntil),
+        ))
+        .limit(1);
+      if (openAssignment) {
+        throw new WorkforcePlanningConflict("This position already has an active assignment.");
+      }
+
       const [assignment] = await tx.insert(positionAssignments).values({
         organizationId,
         positionId,
@@ -278,16 +355,33 @@ export async function POST(request: Request) {
         reason: body.reason ? String(body.reason).slice(0, 240) : "Position assignment",
         createdByUserId: user.id,
       }).returning();
-      await tx.update(positions).set({ status: "filled", updatedAt: new Date() }).where(eq(positions.id, positionId));
-      return [assignment];
+
+      await tx.update(positions)
+        .set({ status: "filled", updatedAt: new Date() })
+        .where(eq(positions.id, positionId));
+
+      return assignment;
+    }).catch((error: unknown) => {
+      if (error instanceof WorkforcePlanningConflict) {
+        return Response.json({ error: error.message, ...error.details }, { status: 409 });
+      }
+      throw error;
     });
+    if (rowOrResponse instanceof Response) return rowOrResponse;
+    const row = rowOrResponse;
 
     await recordAuditEvent({
       organizationId,
       actor: user.name,
       action: "Employee assigned to position",
       resource: position.code,
-      metadata: { positionId, employeeId, assignmentId: row.id, effectiveFrom },
+      metadata: {
+        positionId,
+        employeeId,
+        assignmentId: row.id,
+        effectiveFrom,
+        requisitionId: null,
+      },
     });
     return Response.json(row, { status: 201 });
   }
@@ -316,19 +410,85 @@ export async function PATCH(request: Request) {
   const unitScope = await scopedUnit(user.id, position.organizationId, position.orgUnitId);
   if ("error" in unitScope) return unitScope.error;
 
-  if (status === "filled") {
-    const [activeAssignment] = await db.select({ id: positionAssignments.id }).from(positionAssignments)
-      .where(and(eq(positionAssignments.positionId, id), isNull(positionAssignments.effectiveUntil))).limit(1);
-    if (!activeAssignment) return Response.json({ error: "A position can be marked filled only through an active employee assignment." }, { status: 409 });
-  }
+  const resultOrResponse = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(4102, ${position.id})`);
 
-  const [row] = await db.update(positions).set({ status, updatedAt: new Date() }).where(eq(positions.id, id)).returning();
+    const [freshPosition] = await tx.select({
+      status: positions.status,
+    }).from(positions).where(and(
+      eq(positions.id, position.id),
+      eq(positions.organizationId, position.organizationId),
+    )).limit(1);
+    if (!freshPosition) {
+      throw new WorkforcePlanningConflict("Position no longer exists.");
+    }
+
+    const freshRequisitions = await tx.select({ id: jobRequisitions.id, status: jobRequisitions.status })
+      .from(jobRequisitions)
+      .where(and(
+        eq(jobRequisitions.organizationId, position.organizationId),
+        eq(jobRequisitions.positionId, position.id),
+      ))
+      .orderBy(desc(jobRequisitions.id));
+    const activeRequisition = freshRequisitions.find((row) => !["filled", "cancelled"].includes(row.status));
+
+    const [activeAssignment] = await tx.select({ id: positionAssignments.id }).from(positionAssignments)
+      .where(and(eq(positionAssignments.positionId, id), isNull(positionAssignments.effectiveUntil))).limit(1);
+
+    if (status === "open" && !activeRequisition) {
+      throw new WorkforcePlanningConflict("A position becomes open only by creating a requisition from the Recruitment workflow.");
+    }
+
+    if (freshPosition.status === "filled" && status !== "filled" && activeAssignment) {
+      throw new WorkforcePlanningConflict("End the active position assignment before changing a filled position's lifecycle state.");
+    }
+
+    if (status === "filled" && !activeAssignment) {
+      throw new WorkforcePlanningConflict("A position can be marked filled only through an active employee assignment.");
+    }
+
+    if (activeRequisition && freshPosition.status === "open" && !["open", "filled", "frozen", "closed"].includes(status)) {
+      throw new WorkforcePlanningConflict("An actively recruiting position can only remain open, be filled, frozen, or closed.");
+    }
+
+    const cancelRequisition = Boolean(activeRequisition && ["filled", "frozen", "closed"].includes(status));
+    if (activeRequisition && cancelRequisition) {
+      await tx.update(jobRequisitions)
+        .set({ status: "cancelled" })
+        .where(eq(jobRequisitions.id, activeRequisition.id));
+    }
+
+    const [updated] = await tx.update(positions)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(positions.id, id))
+      .returning();
+
+    return {
+      updated,
+      fromStatus: freshPosition.status,
+      requisitionId: activeRequisition?.id ?? null,
+      requisitionCancelled: cancelRequisition,
+    };
+  }).catch((error: unknown) => {
+    if (error instanceof WorkforcePlanningConflict) {
+      return Response.json({ error: error.message, ...error.details }, { status: 409 });
+    }
+    throw error;
+  });
+  if (resultOrResponse instanceof Response) return resultOrResponse;
+
   await recordAuditEvent({
     organizationId: position.organizationId,
     actor: user.name,
     action: "Position status changed",
     resource: position.code,
-    metadata: { positionId: id, from: position.status, to: status },
+    metadata: {
+      positionId: id,
+      from: resultOrResponse.fromStatus,
+      to: status,
+      requisitionId: resultOrResponse.requisitionId,
+      requisitionCancelled: resultOrResponse.requisitionCancelled,
+    },
   });
-  return Response.json(row);
+  return Response.json(resultOrResponse.updated);
 }
