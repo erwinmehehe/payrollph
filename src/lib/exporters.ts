@@ -15,6 +15,7 @@ import { decryptBankAccount } from "@/lib/bank-account-crypto";
 import { decryptGovernmentId } from "@/lib/government-id-crypto";
 import { computePagIbig, computePhilHealth, computeSss } from "@/lib/payroll-rules";
 import { escapeCsvCell } from "@/lib/csv";
+import { resolveComplianceLegalEntity } from "@/lib/compliance-legal-entity";
 import {
   allocateLaborAmount,
   resolveLaborAllocation,
@@ -746,6 +747,10 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
   }
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) throw new Error("Payroll run not found");
+  const legalEntity = await resolveComplianceLegalEntity({
+    organizationId: run.organizationId,
+    authoritativeLegalEntityId: run.legalEntityId,
+  });
   const entries = await db.select({
     entry: payrollEntries,
     employee: employees,
@@ -782,7 +787,10 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
   const monthPrefix = String(run.payDate).slice(0, 7);
   const monthlyRuns = isFinalCutoffOfMonth
     ? (await db.select().from(payrollRuns)
-        .where(eq(payrollRuns.organizationId, run.organizationId)))
+        .where(and(
+          eq(payrollRuns.organizationId, run.organizationId),
+          eq(payrollRuns.legalEntityId, legalEntity.id),
+        )))
         .filter((candidate) =>
           String(candidate.payDate).startsWith(monthPrefix)
           && (candidate.status === "Released" || candidate.id === run.id)
@@ -831,6 +839,7 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     "# DRAFT ONLY, not a certified government submission file",
     `# kind=${kind}`,
     `# payrollRun=${run.id}`,
+    `# legalEntity=${legalEntity.code} · ${legalEntity.legalName}`,
     `# period=${run.periodLabel}`,
     "# Validate against the live government portal before filing.",
   ].join("\n");
@@ -1009,7 +1018,10 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
   }
 
   const annualRuns = (await db.select().from(payrollRuns)
-    .where(eq(payrollRuns.organizationId, run.organizationId)))
+    .where(and(
+      eq(payrollRuns.organizationId, run.organizationId),
+      eq(payrollRuns.legalEntityId, legalEntity.id),
+    )))
     .filter((candidate) =>
       candidate.status === "Released"
       && calendarYear(candidate.payDate) === taxYear
@@ -1028,11 +1040,8 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     .where(inArray(payrollEntries.payrollRunId, annualRunIds))
     .orderBy(asc(employees.id));
 
-  const [organization] = await db.select().from(organizations)
-    .where(eq(organizations.id, run.organizationId))
-    .limit(1);
-  const employerTin = (organization?.birTin ?? "").replace(/\D/g, "");
-  const employerBranchCode = (organization?.birBranchCode ?? "").replace(/\D/g, "").padStart(4, "0");
+  const employerTin = (legalEntity.birTin ?? "").replace(/\D/g, "");
+  const employerBranchCode = (legalEntity.birBranchCode ?? "").replace(/\D/g, "").padStart(4, "0");
 
   if (employerTin.length !== 9 || employerBranchCode.length !== 4) {
     throw new Error("BIR annual draft cannot be generated: employer BIR TIN and 4-digit branch code are required.");
