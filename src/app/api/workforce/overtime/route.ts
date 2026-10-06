@@ -8,6 +8,7 @@ import {
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { markTimesheetsStaleForEmployeeDate } from "@/lib/workforce-timesheet-server";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -152,6 +153,12 @@ export async function POST(request: Request) {
       requestedByUserId: user.id,
     }).returning();
 
+    const staleTimesheets = await markTimesheetsStaleForEmployeeDate({
+      organizationId,
+      employeeId,
+      workDate,
+    });
+
     await recordAuditEvent({
       organizationId,
       actor: user.name,
@@ -163,10 +170,14 @@ export async function POST(request: Request) {
         workDate,
         requestedMinutes,
         requestKind,
+        staleTimesheetIds: staleTimesheets.map((row) => row.id),
       },
     });
 
-    return Response.json({ request: created }, { status: 201 });
+    return Response.json({
+      request: created,
+      staleTimesheetIds: staleTimesheets.map((row) => row.id),
+    }, { status: 201 });
   }
 
   if (action === "decide_request") {
@@ -217,6 +228,12 @@ export async function POST(request: Request) {
       .where(eq(overtimeRequests.id, requestId))
       .returning();
 
+    const staleTimesheets = await markTimesheetsStaleForEmployeeDate({
+      organizationId,
+      employeeId: existing.employeeId,
+      workDate: String(existing.workDate),
+    });
+
     await recordAuditEvent({
       organizationId,
       actor: user.name,
@@ -229,10 +246,14 @@ export async function POST(request: Request) {
         requestedMinutes: existing.requestedMinutes,
         requestKind: existing.requestKind,
         decision,
+        staleTimesheetIds: staleTimesheets.map((row) => row.id),
       },
     });
 
-    return Response.json({ request: updated });
+    return Response.json({
+      request: updated,
+      staleTimesheetIds: staleTimesheets.map((row) => row.id),
+    });
   }
 
   return Response.json({ error: "Unsupported overtime action." }, { status: 400 });
