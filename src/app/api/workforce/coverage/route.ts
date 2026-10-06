@@ -420,6 +420,10 @@ async function coverageRows(input: {
     )).orderBy(asc(leaveRequests.employeeId), asc(leaveRequests.startDate), asc(leaveRequests.id)),
   ]);
 
+  const preciseLeaveEvidence = await loadCurrentPreciseLeaveEvidence(
+    input.organizationId,
+    approvedLeaveRows.map((row) => row.id),
+  );
   const siteEvidence = await loadSiteEligibilityEvidence(input.organizationId, input.employeeIds);
   const siteEvidenceIssues = new Set<string>();
   const capabilityData = await loadCapabilityEligibilityData({
@@ -585,15 +589,80 @@ async function coverageRows(input: {
           + " on " + date + ": " + capabilityEligibility.blockers.join(" "),
         );
       }
-      const leaveOverlap = approvedLeaveConflictsFullShift({
-        leaves: employeeApprovedLeaves,
-        employeeId,
-        workDate: date,
-      });
-      const fullDayLeave = leaveOverlap.overlaps.some(
-        (leave) => approvedLeaveCoverageImpact(leave).kind === "full_day",
+      const paidMinutesByShiftDefinitionId: Record<number, number> = {};
+      for (const segment of day.segments) {
+        const paid = Math.max(0, Number(segment.endTime ? (
+          (() => {
+            const shift = shiftsById.get(segment.shiftDefinitionId);
+            return shift ? paidShiftMinutes({
+              id: shift.id,
+              startTime: shift.startTime,
+              endTime: shift.endTime,
+              breakMinutes: shift.breakMinutes,
+              spansMidnight: shift.spansMidnight,
+            }) : 0;
+          })()
+        ) : 0));
+        paidMinutesByShiftDefinitionId[segment.shiftDefinitionId] =
+          (paidMinutesByShiftDefinitionId[segment.shiftDefinitionId] ?? 0) + paid;
+      }
+
+      const approvedLeaveUnavailableMinutesByShiftDefinitionId: Record<number, number> = {};
+      const fullUnavailableShiftIds = new Set<number>();
+      const dayApprovedLeaves = employeeApprovedLeaves.filter(
+        (leave) => leave.startDate <= date && leave.endDate >= date,
       );
-      const approvedLeaveShiftDefinitionIds = fullDayLeave ? shiftIds : [];
+
+      for (const leave of dayApprovedLeaves) {
+        const preciseRows = preciseLeaveEvidence.intervalsByLeaveId.get(leave.id) ?? [];
+        if (preciseRows.length > 0) {
+          const impact = resolveLeaveIntervalsForSchedule({
+            workDate: date,
+            intervals: preciseRows.map(preciseInterval).filter((row) => row.workDate === date),
+            schedule: day,
+          });
+          for (const blocker of impact.blockers) {
+            absenceEvidenceIssues.add(
+              "Employee #" + employeeId + " · " + date + " · " + blocker.code + ": " + blocker.message,
+            );
+          }
+          for (const warning of impact.warnings) {
+            absenceEvidenceIssues.add(
+              "Employee #" + employeeId + " · " + date + " · " + warning.code + ": " + warning.message,
+            );
+          }
+          for (const segmentImpact of impact.segmentImpacts) {
+            const segment = day.segments.find((row) => row.segmentOrder === segmentImpact.segmentOrder);
+            if (!segment || segmentImpact.unavailablePaidMinutes == null) continue;
+            const shiftId = segment.shiftDefinitionId;
+            approvedLeaveUnavailableMinutesByShiftDefinitionId[shiftId] =
+              (approvedLeaveUnavailableMinutesByShiftDefinitionId[shiftId] ?? 0)
+              + segmentImpact.unavailablePaidMinutes;
+          }
+          continue;
+        }
+
+        const legacyImpact = approvedLeaveCoverageImpact(leave);
+        if (legacyImpact.kind === "full_day") {
+          for (const shiftId of shiftIds) {
+            fullUnavailableShiftIds.add(shiftId);
+            approvedLeaveUnavailableMinutesByShiftDefinitionId[shiftId] =
+              paidMinutesByShiftDefinitionId[shiftId] ?? 0;
+          }
+        } else {
+          absenceEvidenceIssues.add(
+            "Employee #" + employeeId + " has approved partial/ambiguous leave on " + date
+            + "; Legacy timing is ambiguous and exact shift-hour impact is not guessed.",
+          );
+        }
+      }
+
+      for (const shiftId of shiftIds) {
+        const paid = paidMinutesByShiftDefinitionId[shiftId] ?? 0;
+        const unavailable = approvedLeaveUnavailableMinutesByShiftDefinitionId[shiftId] ?? 0;
+        if (paid > 0 && unavailable >= paid) fullUnavailableShiftIds.add(shiftId);
+      }
+      const approvedLeaveShiftDefinitionIds = [...fullUnavailableShiftIds];
       const siteEligibility = evaluateSiteEligibility({
         ...siteEvidence,
         employeeId,
@@ -608,13 +677,6 @@ async function coverageRows(input: {
         siteEvidenceIssues.add("Employee #" + employeeId + " · " + date + ": " + siteEligibility.warnings.join(" "));
       }
 
-      if (leaveOverlap.ambiguous) {
-        absenceEvidenceIssues.add(
-          "Employee #" + employeeId + " has approved partial/ambiguous leave on " + date
-          + "; exact shift-hour impact is not guessed from a range-level day total.",
-        );
-      }
-
       scheduled.push({
         employeeId,
         workDate: date,
@@ -624,6 +686,8 @@ async function coverageRows(input: {
         unavailableShiftDefinitionIds: unavailableShiftIds,
         ineligibleShiftDefinitionIds: capabilityIneligibleShiftIds,
         approvedLeaveShiftDefinitionIds,
+        approvedLeaveUnavailableMinutesByShiftDefinitionId,
+        paidMinutesByShiftDefinitionId,
         siteIneligibleShiftDefinitionIds,
       });
     }
