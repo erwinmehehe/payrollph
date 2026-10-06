@@ -111,11 +111,17 @@ function parseCsvRow(row: string) {
 }
 
 function journalTotals(body: string) {
-  const rows = body.trim().split("\n").slice(1).map(parseCsvRow);
-  return rows.reduce(
+  const parsed = body.trim().split("\n").map(parseCsvRow);
+  const header = parsed[0] ?? [];
+  const debitIndex = header.indexOf("Debit");
+  const creditIndex = header.indexOf("Credit");
+  assert.ok(debitIndex >= 0, "Journal CSV is missing the Debit column.");
+  assert.ok(creditIndex >= 0, "Journal CSV is missing the Credit column.");
+
+  return parsed.slice(1).reduce(
     (sum, row) => ({
-      debit: round2(sum.debit + Number(row[3] || 0)),
-      credit: round2(sum.credit + Number(row[4] || 0)),
+      debit: round2(sum.debit + Number(row[debitIndex] || 0)),
+      credit: round2(sum.credit + Number(row[creditIndex] || 0)),
     }),
     { debit: 0, credit: 0 },
   );
