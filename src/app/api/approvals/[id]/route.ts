@@ -1,7 +1,7 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalTasks, auditEvents, leaveRequests, payrollRuns } from "@/db/schema";
+import { approvalTasks, auditEvents, leaveRequestIntervalSets, leaveRequests, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { canDecide } from "@/lib/delegation";
 import { dispatchWebhook } from "@/lib/webhooks";
@@ -185,6 +185,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   });
 
   const [linkedLeave] = await db.select().from(leaveRequests).where(eq(leaveRequests.approvalTaskId, taskId)).limit(1);
+  const [linkedIntervalSet] = linkedLeave
+    ? await db.select().from(leaveRequestIntervalSets).where(and(
+        eq(leaveRequestIntervalSets.organizationId, task.organizationId),
+        eq(leaveRequestIntervalSets.leaveRequestId, linkedLeave.id),
+        eq(leaveRequestIntervalSets.status, "current"),
+      )).limit(1)
+    : [];
+  const intervalRevision = linkedIntervalSet?.revision ?? null;
   const automation = [];
   let leaveStaleTimesheetIds: number[] = [];
   if (linkedLeave) {
@@ -214,6 +222,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           startDate: linkedLeave.startDate,
           endDate: linkedLeave.endDate,
           approvalTaskId: taskId,
+          intervalRevision,
+          intervalSetId: linkedIntervalSet?.id ?? null,
           staleTimesheetIds: leaveStaleTimesheetIds,
         },
       }));
@@ -253,6 +263,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     delegation: decision,
     webhookDeliveries: deliveries.length,
     leaveUpdated: Boolean(linkedLeave),
+    intervalRevision,
     leaveStaleTimesheetIds,
     automation,
   });
