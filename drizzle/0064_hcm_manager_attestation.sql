@@ -1,6 +1,14 @@
 -- HCM Core 3.8: governed manager attestations for employment decisions.
 -- Attestations are append-only evidence. They do not approve, apply, renew, regularize, or separate workers.
 
+ALTER TABLE "hcm_employment_term_decisions"
+  ADD COLUMN IF NOT EXISTS "evidence_packet_version" varchar(16);
+
+UPDATE "hcm_employment_term_decisions"
+SET "evidence_packet_version" = 'v1'
+WHERE "evidence_snapshot_sha256" IS NOT NULL
+  AND "evidence_packet_version" IS NULL;
+
 CREATE TABLE IF NOT EXISTS "hcm_employment_decision_manager_attestations" (
   "id" serial PRIMARY KEY NOT NULL,
   "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
