@@ -50,3 +50,5 @@ the first one, so it closes itself.
 - `0045_multi_legal_entities.sql` adds parent-workspace legal employers, entity registrations/payout policy, and legal-entity ownership on employees and payroll runs.
 
 - `0046_wfm_staffing_scenarios.sql` adds immutable WFM staffing scenario snapshots with scoped manager submission/approval evidence.
+
+- `0047_wfm_overtime_budgets.sql` adds org-unit OT budget periods plus immutable budget evidence on OT decisions.
