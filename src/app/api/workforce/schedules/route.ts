@@ -277,18 +277,6 @@ export async function GET(request: Request) {
       defaultWorksiteId:
         selectEffectiveWorksiteAssignment(defaultWorksites, previewDate)?.worksiteId ?? null,
     }));
-    if (worksiteId != null) {
-      const eligibility = await employeeSiteEligibility({
-        organizationId, employeeId, worksiteId, date: effectiveFrom,
-      });
-      if (!eligibility.eligible) {
-        return Response.json({
-          error: "Work arrangement or site authorization does not permit this schedule.",
-          siteEligibility: eligibility,
-        }, { status: 409 });
-      }
-    }
-
     const guardrailPolicy = await scheduleGuardrailPolicy(organizationId);
     const guardrailEvaluationDays = await resolveEmployeeScheduleWindow({
       organizationId,
@@ -669,6 +657,18 @@ export async function POST(request: Request) {
       }
       if (!access.companyWide && workLocationOrgUnitId !== access.orgUnitId) {
         return Response.json({ error: "Scoped People administrators cannot assign work outside their organization unit." }, { status: 403 });
+      }
+    }
+
+    if (worksiteId != null) {
+      const eligibility = await employeeSiteEligibility({
+        organizationId, employeeId, worksiteId, date: effectiveFrom,
+      });
+      if (!eligibility.eligible) {
+        return Response.json({
+          error: "Work arrangement or site authorization does not permit this schedule.",
+          siteEligibility: eligibility,
+        }, { status: 409 });
       }
     }
 
