@@ -75,7 +75,7 @@ export function parseProbationReviewInput(
 
   if (requireComplete) {
     if (!parsed.recommendation) {
-      throw new Error("A manager recommendation is required before submitting the probation review.");
+      throw new Error("A review recommendation is required before submitting the probation review.");
     }
     for (const field of RATING_FIELDS) {
       if (parsed[field] == null) {
