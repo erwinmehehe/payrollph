@@ -1797,6 +1797,17 @@ function calculateEmployeePay(input: {
           restDay: isRestDay,
         });
         const hours = segment.minutes / 60;
+        const segmentProfile = profileForDate(timeline, segment.calendarDate);
+        const segmentSchedule =
+          input.resolvedSchedules?.[segment.calendarDate]
+          ?? input.resolvedSchedules?.[workDate];
+        applyWorkedTimePremium({
+          workDate: segment.calendarDate,
+          minutes: segment.minutes,
+          hourlyRate: segmentProfile.hourlyRate,
+          shiftCode: scheduledSegment?.shiftCode ?? null,
+          worksiteId: segmentSchedule?.worksiteId ?? null,
+        });
 
         if (segment.overtime) {
           overtimePay += hours * punchProfile.hourlyRate * multiplier;
@@ -1838,6 +1849,46 @@ function calculateEmployeePay(input: {
         });
       }
     } else {
+      const touchedPremiumDates =
+        segmentation.attendanceCalendarDates.length > 0
+          ? segmentation.attendanceCalendarDates
+          : [workDate];
+      if (touchedPremiumDates.length <= 1) {
+        applyWorkedTimePremium({
+          workDate,
+          minutes: derived.workedMinutes,
+          hourlyRate: punchProfile.hourlyRate,
+          shiftCode: scheduledSegment?.shiftCode ?? null,
+          worksiteId: input.resolvedSchedules?.[workDate]?.worksiteId ?? null,
+        });
+      } else {
+        const premiumRuleCouldApply = touchedPremiumDates.some((date) => {
+          const probeProfile = profileForDate(timeline, date);
+          const probe = resolveWorkedTimePremium({
+            organizationId: input.employee.organizationId,
+            employeeId: input.employee.id,
+            orgUnitIds: input.payPolicyOrgUnitIds ?? [],
+            workDate: date,
+            minutes: 60,
+            hourlyRate: probeProfile.hourlyRate,
+            shiftCode: scheduledSegment?.shiftCode ?? null,
+            worksiteId:
+              input.resolvedSchedules?.[date]?.worksiteId
+              ?? input.resolvedSchedules?.[workDate]?.worksiteId
+              ?? null,
+            policies: input.payPolicies ?? [],
+            rules: input.payPolicyRules ?? [],
+          });
+          return probe.applied.length > 0;
+        });
+        if (premiumRuleCouldApply) {
+          const message =
+            `${workDate}: configurable company premium was not executed because cross-midnight payable-time allocation is incomplete. Correct the attendance/break evidence before release so the effective-dated premium is not guessed.`;
+          flags.push(message);
+          punchNotes.push(message);
+        }
+      }
+
       if (punchProfile.payBasis !== "monthly") {
         workedBasicPay += (segmentedRegularMinutes / 60) * punchProfile.hourlyRate;
       }
