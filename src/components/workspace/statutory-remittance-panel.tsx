@@ -49,6 +49,11 @@ type Member = {
   postingStatus: string;
   postingReference: string | null;
   postedAmount: string | null;
+  postingEvidenceArtifactId: number | null;
+  postingEvidenceSource: string | null;
+  postingEvidenceHashSha256: string | null;
+  postingEvidenceFileName: string | null;
+  postingEvidenceByteSize: number | null;
   exceptionNote: string | null;
 };
 
@@ -336,6 +341,23 @@ export function StatutoryRemittancePanel({
                               <div>
                                 <span className="green-number"><CheckCircle2 size={13} /> Confirmed</span>
                                 <div className="id">Posted {money(member.postedAmount ?? member.totalContribution)}</div>
+                                {member.postingEvidenceSource && (
+                                  <div className="id">
+                                    {member.postingEvidenceSource}
+                                    {member.postingEvidenceHashSha256
+                                      ? ` · ${member.postingEvidenceHashSha256.slice(0, 12)}…`
+                                      : ""}
+                                  </div>
+                                )}
+                                {member.postingEvidenceArtifactId && member.postingEvidenceSource === "Imported agency evidence" && (
+                                  <a
+                                    className="secondary-button"
+                                    style={{ marginTop: 6, display: "inline-flex" }}
+                                    href={`/api/compliance/statutory-remittances/posting-evidence/${member.postingEvidenceArtifactId}`}
+                                  >
+                                    Download source evidence
+                                  </a>
+                                )}
                               </div>
                             ) : postingMemberId === member.id ? (
                               <div style={{ display: "grid", gap: 6 }}>
