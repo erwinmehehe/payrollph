@@ -15,6 +15,8 @@ const compat = readFileSync("src/lib/core-schema-compat.ts", "utf8");
 const statutory = readFileSync("src/app/api/compliance/statutory-remittances/route.ts", "utf8");
 const state = readFileSync("src/lib/statutory-remittance-state.ts", "utf8");
 const monthClose = readFileSync("src/app/api/compliance/remittance-month-close/route.ts", "utf8");
+const payrollMonthClose = readFileSync("src/app/api/compliance/payroll-month-close/route.ts", "utf8");
+const payrollMonthCloseServer = readFileSync("src/lib/payroll-month-close-server.ts", "utf8");
 const bir = readFileSync("src/app/api/compliance/bir-1601c-remittances/route.ts", "utf8");
 const loans = readFileSync("src/app/api/compliance/government-loan-remittances/route.ts", "utf8");
 const filings = readFileSync("src/lib/filing-evidence-store.ts", "utf8");
@@ -31,6 +33,7 @@ const caseEvidence = readFileSync("src/app/api/compliance/contribution-issues/ev
 test("legal-employer compliance columns are first-class and non-null in the Drizzle model", () => {
   for (const table of [
     "governmentFilingValidations",
+    "payrollMonthClosures",
     "birWithholdingRemittanceBatches",
     "statutoryRemittanceBatches",
     "statutoryRemittanceMembers",
@@ -60,7 +63,7 @@ test("migration and compatibility paths backfill legacy evidence before enforcin
 });
 
 test("multi-employer compliance lists and creation paths resolve one legal employer explicitly", () => {
-  for (const source of [statutory, monthClose, bir, loans, filingApi, payrollIssues]) {
+  for (const source of [statutory, monthClose, payrollMonthClose, bir, loans, filingApi, payrollIssues]) {
     assert.ok(source.includes("resolveComplianceLegalEntity"));
     assert.ok(source.includes("legalEntityId"));
   }
@@ -88,6 +91,11 @@ test("filing/remittance evidence cannot cross legal-employer boundaries", () => 
   assert.ok(loans.includes("eq(employees.legalEntityId, legalEntity.id)"));
   assert.ok(monthClose.includes("eq(statutoryContributionIssueCases.legalEntityId, legalEntityId)"));
   assert.ok(monthClose.includes("legalEntityId: legalEntity.id"));
+  assert.ok(payrollMonthClose.includes("buildPayrollMonthCloseState(organizationId, legalEntity.id, applicableMonth)"));
+  assert.ok(payrollMonthClose.includes("eq(payrollMonthClosures.legalEntityId, legalEntity.id)"));
+  assert.ok(payrollMonthCloseServer.includes("eq(payrollRuns.legalEntityId, legalEntityId)"));
+  assert.ok(payrollMonthCloseServer.includes("eq(governmentFilingValidations.legalEntityId, legalEntityId)"));
+  assert.ok(payrollMonthCloseServer.includes("eq(payrollMonthClosures.legalEntityId, legalEntityId)"));
 });
 
 test("employee disputes, corrections, exports and certification invalidation stay on their source legal employer", () => {
