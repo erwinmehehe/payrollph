@@ -1933,6 +1933,16 @@ function calculateEmployeePay(input: {
         });
 
         if (segment.overtime) {
+          applyOvertimePremium({
+            workDate: segment.calendarDate,
+            minutes: segment.minutes,
+            hourlyRate: punchProfile.hourlyRate,
+            holidayType: holidayContext.holiday as PayPolicyHolidayType,
+            restDay: isRestDay,
+            statutoryMultiplier: multiplier,
+            shiftCode: scheduledSegment?.shiftCode ?? null,
+            worksiteId: segmentSchedule?.worksiteId ?? null,
+          });
           overtimePay += hours * punchProfile.hourlyRate * multiplier;
         } else {
           applyHolidayRestDayPremium({
@@ -2068,6 +2078,56 @@ function calculateEmployeePay(input: {
           flags.push(message);
           punchNotes.push(message);
         }
+
+        if (segmentedOvertimeMinutes > 0) {
+          const overtimeRuleCouldApply = touchedPremiumDates.some((date) => {
+            const dateHolidayContext = holidayPayContextOn(
+              date,
+              input.holidayCalendar ?? NATIONAL_HOLIDAYS_2026,
+            );
+            const dateRestDay = restDayForDate(
+              input.employee.restDay,
+              input.restDayRevisions ?? [],
+              date,
+            );
+            const dateLegacyRestDay = isRestDayOfWeek(date, dateRestDay);
+            const dateIsRestDay = payrollRestDayFromSchedule(
+              input.resolvedSchedules?.[date],
+              dateLegacyRestDay,
+            );
+            const dateMultiplier = holidayMultiplier({
+              holiday: dateHolidayContext.holiday,
+              worked: true,
+              overtime: true,
+              restDay: dateIsRestDay,
+            });
+            const probe = resolveOvertimePremium({
+              organizationId: input.employee.organizationId,
+              employeeId: input.employee.id,
+              orgUnitIds: input.payPolicyOrgUnitIds ?? [],
+              workDate: date,
+              minutes: 60,
+              hourlyRate: punchProfile.hourlyRate,
+              holidayType: dateHolidayContext.holiday as PayPolicyHolidayType,
+              restDay: dateIsRestDay,
+              statutoryMultiplier: dateMultiplier,
+              shiftCode: scheduledSegment?.shiftCode ?? null,
+              worksiteId:
+                input.resolvedSchedules?.[date]?.worksiteId
+                ?? input.resolvedSchedules?.[workDate]?.worksiteId
+                ?? null,
+              policies: input.payPolicies ?? [],
+              rules: input.payPolicyRules ?? [],
+            });
+            return probe.applied.length > 0;
+          });
+          if (overtimeRuleCouldApply) {
+            const message =
+              `${workDate}: configurable overtime premium was not executed because cross-midnight payable-time allocation is incomplete. Correct the attendance/break evidence before release so the overtime policy date/classification is not guessed.`;
+            flags.push(message);
+            punchNotes.push(message);
+          }
+        }
       }
 
       if (punchProfile.payBasis !== "monthly") {
@@ -2107,6 +2167,16 @@ function calculateEmployeePay(input: {
           holidayType: holidayContext.holiday as PayPolicyHolidayType,
           restDay: isRestDay,
           statutoryMultiplier: regularMultiplier,
+          shiftCode: scheduledSegment?.shiftCode ?? null,
+          worksiteId: input.resolvedSchedules?.[workDate]?.worksiteId ?? null,
+        });
+        applyOvertimePremium({
+          workDate,
+          minutes: segmentedOvertimeMinutes,
+          hourlyRate: punchProfile.hourlyRate,
+          holidayType: holidayContext.holiday as PayPolicyHolidayType,
+          restDay: isRestDay,
+          statutoryMultiplier: otMultiplier,
           shiftCode: scheduledSegment?.shiftCode ?? null,
           worksiteId: input.resolvedSchedules?.[workDate]?.worksiteId ?? null,
         });
