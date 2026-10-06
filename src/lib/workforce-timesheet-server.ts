@@ -2,6 +2,8 @@ import { and, asc, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { db } from "@/db";
 import {
   attendanceCorrectionRequests,
+  leaveRequestIntervals,
+  leaveRequestIntervalSets,
   leaveRequests,
   overtimeRequests,
   timePunches,
@@ -19,6 +21,8 @@ import {
   type TimesheetPolicy,
 } from "@/lib/workforce-timesheet";
 import type { OvertimeRequestEvidence } from "@/lib/workforce-overtime";
+import { approvedLeaveCoverageImpact } from "@/lib/workforce-absence";
+import { resolveLeaveIntervalsForSchedule, type PreciseLeaveInterval } from "@/lib/workforce-absence-intervals";
 
 export async function loadTimesheetPolicy(organizationId: number): Promise<TimesheetPolicy> {
   const [row] = await db.select().from(workforceTimesheetPolicies)
@@ -76,6 +80,23 @@ export async function buildEmployeeTimesheetSnapshot(input: {
     )).orderBy(asc(leaveRequests.startDate), asc(leaveRequests.id)),
   ]);
 
+  const approvedLeaveRows = leaveRows.filter((row) => row.status === "Approved");
+  const currentIntervalSets = approvedLeaveRows.length
+    ? await db.select().from(leaveRequestIntervalSets).where(and(
+        eq(leaveRequestIntervalSets.organizationId, input.organizationId),
+        eq(leaveRequestIntervalSets.status, "current"),
+        inArray(leaveRequestIntervalSets.leaveRequestId, approvedLeaveRows.map((row) => row.id)),
+      ))
+    : [];
+  const currentIntervalSetIds = currentIntervalSets.map((row) => row.id);
+  const currentIntervals = currentIntervalSetIds.length
+    ? await db.select().from(leaveRequestIntervals).where(and(
+        eq(leaveRequestIntervals.organizationId, input.organizationId),
+        inArray(leaveRequestIntervals.intervalSetId, currentIntervalSetIds),
+      ))
+    : [];
+  const intervalSetByLeaveId = new Map(currentIntervalSets.map((row) => [row.leaveRequestId, row]));
+
   const scheduleByDate = new Map(schedules.map((day) => [day.date, day]));
   const punchesByDate = new Map<string, typeof punches>();
   for (const punch of punches) {
@@ -113,14 +134,54 @@ export async function buildEmployeeTimesheetSnapshot(input: {
     const schedule = scheduleByDate.get(date);
     if (!schedule) throw new Error(`Resolved schedule missing for ${date}.`);
     const dayPunches = punchesByDate.get(date) ?? [];
-    const onApprovedLeave = dateCoveredByApprovedLeave(
-      date,
-      leaveRows.map((leave) => ({
+    const approvedLeavesForDate = approvedLeaveRows.filter(
+      (leave) => String(leave.startDate) <= date && String(leave.endDate) >= date,
+    );
+    const preciseLeave = approvedLeavesForDate.flatMap((leave) => {
+      const intervalSet = intervalSetByLeaveId.get(leave.id);
+      if (!intervalSet) return [];
+      const intervals = currentIntervals
+        .filter((row) => row.intervalSetId === intervalSet.id && String(row.workDate) === date)
+        .map((row) => ({
+          workDate: String(row.workDate),
+          kind: row.kind as PreciseLeaveInterval["kind"],
+          startLocalTime: row.startLocalTime,
+          endLocalTime: row.endLocalTime,
+          endsNextDay: row.endsNextDay,
+          timezone: row.timezone,
+        }));
+      return [{
+        leaveId: leave.id,
+        intervalSetId: intervalSet.id,
+        intervalRevision: intervalSet.revision,
+        intervals,
+      }];
+    });
+    const preciseImpacts = preciseLeave.map((evidence) => ({
+      ...evidence,
+      impact: resolveLeaveIntervalsForSchedule({
+        workDate: date,
+        intervals: evidence.intervals,
+        schedule,
+      }),
+    }));
+    const preciseFullDayLeave = preciseLeave.some((evidence) =>
+      evidence.intervals.some((interval) => interval.kind === "full_day"),
+    );
+    const legacyFullDayLeave = approvedLeavesForDate.some((leave) => {
+      if (intervalSetByLeaveId.has(leave.id)) return false;
+      return approvedLeaveCoverageImpact({
+        id: leave.id,
+        employeeId: leave.employeeId,
         startDate: String(leave.startDate),
         endDate: String(leave.endDate),
-        status: leave.status,
-      })),
-    );
+        days: Number(leave.days),
+        leaveType: leave.leaveType,
+      }).kind === "full_day";
+    });
+    const onApprovedLeave = preciseFullDayLeave || legacyFullDayLeave;
+    const leaveWorkOverlap = dayPunches.length > 0
+      && preciseImpacts.some((evidence) => evidence.impact.unavailableWallMinutes > 0);
 
     const analysis = analyzeAttendanceDay({
       date,
@@ -140,6 +201,17 @@ export async function buildEmployeeTimesheetSnapshot(input: {
     let exceptions = analysis.exceptions;
     if (onApprovedLeave && dayPunches.length === 0) {
       exceptions = exceptions.filter((exception) => exception.kind !== "missing_punch");
+    }
+
+    if (leaveWorkOverlap) {
+      exceptions = [
+        ...exceptions,
+        {
+          kind: "clock_integrity" as const,
+          severity: "warning" as const,
+          message: `${date}: Approved leave overlaps recorded work. Review the attendance and leave evidence; punches are preserved and pay is not suppressed automatically.`,
+        },
+      ];
     }
 
     const pendingCorrectionIds = correctionsByDate.get(date) ?? [];
@@ -165,6 +237,17 @@ export async function buildEmployeeTimesheetSnapshot(input: {
     return {
       date,
       leave: onApprovedLeave,
+      preciseLeave: preciseImpacts.map((evidence) => ({
+        leaveId: evidence.leaveId,
+        intervalSetId: evidence.intervalSetId,
+        intervalRevision: evidence.intervalRevision,
+        intervals: evidence.intervals,
+        unavailableWallMinutes: evidence.impact.unavailableWallMinutes,
+        unavailablePaidMinutes: evidence.impact.unavailablePaidMinutes,
+        warnings: evidence.impact.warnings,
+        blockers: evidence.impact.blockers,
+      })),
+      leaveWorkOverlap,
       schedule: {
         source: schedule.source,
         isRestDay: schedule.isRestDay,
