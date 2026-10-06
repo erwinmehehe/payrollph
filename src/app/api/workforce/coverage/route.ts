@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employeeAvailabilityRules,
@@ -6,8 +6,11 @@ import {
   employeeScheduleAssignments,
   employeeWorksiteAssignments,
   employees,
+  jobProfiles,
   openShiftClaims,
   openShifts,
+  positionAssignments,
+  positions,
   scheduleOverrides,
   schedulePatternDays,
   schedulePatternSegments,
@@ -59,6 +62,7 @@ import {
   paidShiftMinutes,
   type ActualLaborEntry,
 } from "@/lib/workforce-labor-variance";
+import { effectiveJobProfileId } from "@/lib/workforce-role";
 import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
 
 export const dynamic = "force-dynamic";
@@ -153,14 +157,16 @@ async function coverageRows(input: {
         workDate: string;
         worksiteId: number | null;
         shiftDefinitionId: number;
+        jobProfileId: number | null;
         paidMinutes: number;
       }>,
       schedules: new Map<string, ResolvedDailySchedule>(),
+      jobProfileByEmployeeDate: new Map<string, number | null>(),
     };
   }
 
   const data = await scheduleCatalog(input.organizationId);
-  const [assignmentRows, overrideRows, worksiteRows] = await Promise.all([
+  const [assignmentRows, overrideRows, worksiteRows, positionAssignmentRows, positionRows] = await Promise.all([
     db.select().from(employeeScheduleAssignments).where(and(
       eq(employeeScheduleAssignments.organizationId, input.organizationId),
       inArray(employeeScheduleAssignments.employeeId, input.employeeIds),
@@ -175,6 +181,15 @@ async function coverageRows(input: {
       eq(employeeWorksiteAssignments.organizationId, input.organizationId),
       inArray(employeeWorksiteAssignments.employeeId, input.employeeIds),
     )).orderBy(asc(employeeWorksiteAssignments.employeeId), asc(employeeWorksiteAssignments.effectiveFrom)),
+    db.select().from(positionAssignments).where(and(
+      eq(positionAssignments.organizationId, input.organizationId),
+      inArray(positionAssignments.employeeId, input.employeeIds),
+      lte(positionAssignments.effectiveFrom, input.endDate),
+      or(isNull(positionAssignments.effectiveUntil), gte(positionAssignments.effectiveUntil, input.startDate)),
+    )).orderBy(asc(positionAssignments.employeeId), asc(positionAssignments.effectiveFrom)),
+    db.select().from(positions)
+      .where(eq(positions.organizationId, input.organizationId))
+      .orderBy(asc(positions.id)),
   ]);
 
   const shiftsById = new Map(data.shifts.map((shift) => [shift.id, shift]));
@@ -185,9 +200,11 @@ async function coverageRows(input: {
     workDate: string;
     worksiteId: number | null;
     shiftDefinitionId: number;
+    jobProfileId: number | null;
     paidMinutes: number;
   }> = [];
   const schedules = new Map<string, ResolvedDailySchedule>();
+  const jobProfileByEmployeeDate = new Map<string, number | null>();
 
   for (const employeeId of input.employeeIds) {
     const employeeAssignments = assignmentRows.filter((row) => row.employeeId === employeeId);
@@ -214,6 +231,20 @@ async function coverageRows(input: {
       }));
 
     for (const date of dates) {
+      const jobProfileId = effectiveJobProfileId({
+        employeeId,
+        date,
+        assignments: positionAssignmentRows.map((row) => ({
+          id: row.id,
+          employeeId: row.employeeId,
+          positionId: row.positionId,
+          effectiveFrom: String(row.effectiveFrom),
+          effectiveUntil: row.effectiveUntil ? String(row.effectiveUntil) : null,
+        })),
+        positions: positionRows.map((row) => ({ id: row.id, jobProfileId: row.jobProfileId })),
+      });
+      jobProfileByEmployeeDate.set(`${employeeId}|${date}`, jobProfileId);
+
       const day = resolveDailySchedule({
         date,
         assignments: employeeAssignments.map((row) => ({
@@ -268,6 +299,7 @@ async function coverageRows(input: {
           workDate: date,
           worksiteId: day.worksiteId,
           shiftDefinitionId: segment.shiftDefinitionId,
+          jobProfileId,
           paidMinutes: paidShiftMinutes({
             id: shift.id,
             startTime: shift.startTime,
@@ -288,6 +320,7 @@ async function coverageRows(input: {
         employeeId,
         workDate: date,
         worksiteId: day.worksiteId,
+        jobProfileId,
         shiftDefinitionIds: shiftIds,
         unavailableShiftDefinitionIds: unavailableShiftIds,
       });
@@ -301,13 +334,45 @@ async function coverageRows(input: {
         worksiteId: row.worksiteId,
         workDate: String(row.workDate),
         shiftDefinitionId: row.shiftDefinitionId,
+        jobProfileId: row.jobProfileId,
         requiredHeadcount: row.requiredHeadcount,
       })),
       scheduled,
     }),
     scheduledSegments,
     schedules,
+    jobProfileByEmployeeDate,
   };
+}
+
+async function employeeJobProfileAt(organizationId: number, employeeId: number, date: string) {
+  const [row] = await db.select({
+    assignmentId: positionAssignments.id,
+    jobProfileId: positions.jobProfileId,
+  })
+    .from(positionAssignments)
+    .innerJoin(positions, eq(positionAssignments.positionId, positions.id))
+    .where(and(
+      eq(positionAssignments.organizationId, organizationId),
+      eq(positions.organizationId, organizationId),
+      eq(positionAssignments.employeeId, employeeId),
+      lte(positionAssignments.effectiveFrom, date),
+      or(isNull(positionAssignments.effectiveUntil), gte(positionAssignments.effectiveUntil, date)),
+    ))
+    .orderBy(desc(positionAssignments.effectiveFrom), desc(positionAssignments.id))
+    .limit(1);
+  return row?.jobProfileId ?? null;
+}
+
+async function requiredJobProfileForOpenShift(organizationId: number, sourceRequirementId: number | null) {
+  if (sourceRequirementId == null) return null;
+  const [requirement] = await db.select({
+    jobProfileId: staffingRequirements.jobProfileId,
+  }).from(staffingRequirements).where(and(
+    eq(staffingRequirements.id, sourceRequirementId),
+    eq(staffingRequirements.organizationId, organizationId),
+  )).limit(1);
+  return requirement?.jobProfileId ?? null;
 }
 
 async function loadGuardrailPolicy(organizationId: number) {
@@ -362,7 +427,7 @@ export async function GET(request: Request) {
   const employeeIds = workforce.visibleEmployees.map((employee) => employee.id);
   const worksiteIds = workforce.visibleWorksites.map((site) => site.id);
 
-  const [requirements, availability, openShiftRows, claimRows, shifts, punchRows, payProfileRows] = await Promise.all([
+  const [requirements, availability, openShiftRows, claimRows, shifts, punchRows, payProfileRows, jobProfileRows] = await Promise.all([
     worksiteIds.length
       ? db.select().from(staffingRequirements).where(and(
           eq(staffingRequirements.organizationId, organizationId),
@@ -406,6 +471,9 @@ export async function GET(request: Request) {
           inArray(employeePayProfiles.employeeId, employeeIds),
         )).orderBy(asc(employeePayProfiles.employeeId))
       : [],
+    db.select().from(jobProfiles)
+      .where(eq(jobProfiles.organizationId, organizationId))
+      .orderBy(asc(jobProfiles.title), asc(jobProfiles.level)),
   ]);
 
   const coverageData = await coverageRows({
@@ -481,6 +549,7 @@ export async function GET(request: Request) {
         workDate,
         worksiteId: schedule?.worksiteId ?? null,
         shiftDefinitionId: segment?.shiftDefinitionId ?? null,
+        jobProfileId: coverageData.jobProfileByEmployeeDate.get(key) ?? null,
         workedMinutes: worked.minutes,
         hourlyRate: hourlyRateByEmployee.get(employeeId) ?? 0,
         matchedToSchedule: Boolean(segment) && !resolution.exception,
@@ -498,6 +567,7 @@ export async function GET(request: Request) {
       worksiteId: row.worksiteId,
       workDate: String(row.workDate),
       shiftDefinitionId: row.shiftDefinitionId,
+      jobProfileId: row.jobProfileId,
       requiredHeadcount: row.requiredHeadcount,
     })),
     shifts: shifts.map((shift) => ({
@@ -553,6 +623,7 @@ export async function GET(request: Request) {
     })),
     worksites: workforce.visibleWorksites,
     shifts,
+    jobProfiles: jobProfileRows,
     requirements,
     availability,
     coverage: coverageData.coverage,
@@ -680,14 +751,16 @@ export async function POST(request: Request) {
     const shiftDefinitionId = Number(body.shiftDefinitionId);
     const workDate = String(body.workDate ?? "");
     const requiredHeadcount = Number(body.requiredHeadcount);
+    const jobProfileId = body.jobProfileId == null || body.jobProfileId === "" ? null : Number(body.jobProfileId);
     const notes = String(body.notes ?? "").trim().slice(0, 240) || null;
 
     if (!Number.isInteger(worksiteId) || !Number.isInteger(shiftDefinitionId) || !ISO_DATE.test(workDate)
-      || !Number.isInteger(requiredHeadcount) || requiredHeadcount < 1 || requiredHeadcount > 10000) {
-      return Response.json({ error: "worksiteId, shiftDefinitionId, workDate and positive requiredHeadcount are required." }, { status: 400 });
+      || !Number.isInteger(requiredHeadcount) || requiredHeadcount < 1 || requiredHeadcount > 10000
+      || (jobProfileId != null && !Number.isInteger(jobProfileId))) {
+      return Response.json({ error: "worksiteId, shiftDefinitionId, workDate, optional jobProfileId and positive requiredHeadcount are required." }, { status: 400 });
     }
 
-    const [site, shift] = await Promise.all([
+    const [site, shift, profile] = await Promise.all([
       db.select().from(worksites).where(and(
         eq(worksites.id, worksiteId),
         eq(worksites.organizationId, organizationId),
@@ -696,17 +769,34 @@ export async function POST(request: Request) {
         eq(shiftDefinitions.id, shiftDefinitionId),
         eq(shiftDefinitions.organizationId, organizationId),
       )).limit(1),
+      jobProfileId == null
+        ? Promise.resolve([])
+        : db.select().from(jobProfiles).where(and(
+            eq(jobProfiles.id, jobProfileId),
+            eq(jobProfiles.organizationId, organizationId),
+            eq(jobProfiles.active, true),
+          )).limit(1),
     ]);
     if (!site[0] || !shift[0]) return Response.json({ error: "Worksite or shift does not belong to this organization." }, { status: 422 });
+    if (jobProfileId != null && !profile[0]) return Response.json({ error: "Job profile is inactive or does not belong to this organization." }, { status: 422 });
     const scope = assertScope(access, site[0].orgUnitId);
     if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
 
-    const [existing] = await db.select().from(staffingRequirements).where(and(
+    const slotRequirements = await db.select().from(staffingRequirements).where(and(
       eq(staffingRequirements.organizationId, organizationId),
       eq(staffingRequirements.worksiteId, worksiteId),
       eq(staffingRequirements.workDate, workDate),
       eq(staffingRequirements.shiftDefinitionId, shiftDefinitionId),
-    )).limit(1);
+    ));
+    const mixesGenericAndRoleDemand = slotRequirements.some((row) =>
+      (jobProfileId == null) !== (row.jobProfileId == null),
+    );
+    if (mixesGenericAndRoleDemand) {
+      return Response.json({
+        error: "Use either one generic staffing requirement or a job-profile breakdown for the same worksite/date/shift, not both.",
+      }, { status: 409 });
+    }
+    const existing = slotRequirements.find((row) => row.jobProfileId === jobProfileId);
 
     const [saved] = existing
       ? await db.update(staffingRequirements).set({
@@ -719,6 +809,7 @@ export async function POST(request: Request) {
           worksiteId,
           workDate,
           shiftDefinitionId,
+          jobProfileId,
           requiredHeadcount,
           notes,
           createdBy: user.name,
@@ -730,7 +821,7 @@ export async function POST(request: Request) {
       actor: user.name,
       action: existing ? "WFM staffing requirement updated" : "WFM staffing requirement created",
       resource: `${site[0].code} · ${workDate} · ${shift[0].code}`,
-      metadata: { requirementId: saved.id, worksiteId, workDate, shiftDefinitionId, requiredHeadcount },
+      metadata: { requirementId: saved.id, worksiteId, workDate, shiftDefinitionId, jobProfileId, requiredHeadcount },
     });
 
     return Response.json({ requirement: saved }, { status: existing ? 200 : 201 });
@@ -848,6 +939,14 @@ export async function POST(request: Request) {
       effectiveFrom: String(row.effectiveFrom),
       effectiveUntil: row.effectiveUntil ? String(row.effectiveUntil) : null,
     }));
+    const requiredJobProfileId = await requiredJobProfileForOpenShift(organizationId, shiftRow.sourceRequirementId);
+    if (requiredJobProfileId != null) {
+      const employeeJobProfileId = await employeeJobProfileAt(organizationId, employeeId, String(shiftRow.workDate));
+      if (employeeJobProfileId !== requiredJobProfileId) {
+        return Response.json({ error: "The employee's effective job profile does not match this open shift requirement." }, { status: 409 });
+      }
+    }
+
     if (!shiftDefinition || availabilityConflictForShift({
       rules: availability,
       date: String(shiftRow.workDate),
@@ -948,6 +1047,14 @@ export async function POST(request: Request) {
 
     if (openShift.status !== "open") {
       return Response.json({ error: "This open shift is already filled or cancelled." }, { status: 409 });
+    }
+
+    const requiredJobProfileId = await requiredJobProfileForOpenShift(organizationId, openShift.sourceRequirementId);
+    if (requiredJobProfileId != null) {
+      const employeeJobProfileId = await employeeJobProfileAt(organizationId, employee.id, String(openShift.workDate));
+      if (employeeJobProfileId !== requiredJobProfileId) {
+        return Response.json({ error: "The employee's effective job profile no longer matches this open shift requirement." }, { status: 409 });
+      }
     }
 
     const [shift] = await db.select().from(shiftDefinitions).where(and(
