@@ -21,6 +21,8 @@ test("core schema compatibility upgrades fields used by production demo and dash
     "ADD COLUMN IF NOT EXISTS source_system",
     "ADD COLUMN IF NOT EXISTS import_kind",
     "CREATE TABLE IF NOT EXISTS historical_payroll_entries",
+    "CREATE TABLE IF NOT EXISTS statutory_contribution_issue_cases",
+    "CREATE TABLE IF NOT EXISTS statutory_contribution_issue_events",
     "CREATE TABLE IF NOT EXISTS worksites",
     "CREATE TABLE IF NOT EXISTS employee_worksite_assignments",
     "ADD COLUMN IF NOT EXISTS worksite_id integer REFERENCES worksites(id) ON DELETE SET NULL",
@@ -69,4 +71,18 @@ test("core compatibility automatically seals legacy bank data and payroll snapsh
   assert.ok(source.includes("jsonb_set(trace, '{payment,bankAccount}'"));
   assert.ok(source.includes("decryptBankAccount(sealed) !== plain"));
   assert.ok(source.includes("export async function bankDataEncryptionReady()"));
+});
+
+
+test("contribution issue parent compatibility is created before dependent event table", () => {
+  const source = read("src/lib/core-schema-compat.ts");
+  const casesAt = source.indexOf("CREATE TABLE IF NOT EXISTS statutory_contribution_issue_cases");
+  const eventsAt = source.indexOf("CREATE TABLE IF NOT EXISTS statutory_contribution_issue_events");
+
+  assert.ok(casesAt >= 0, "production compatibility must create contribution issue cases");
+  assert.ok(eventsAt >= 0, "production compatibility must create contribution issue events");
+  assert.ok(casesAt < eventsAt, "parent contribution issue cases must exist before the event foreign key is created");
+  assert.ok(source.includes("statutory_contribution_issue_org_status_idx"));
+  assert.ok(source.includes("statutory_contribution_issue_employee_idx"));
+  assert.ok(source.includes("statutory_contribution_issue_member_idx"));
 });
