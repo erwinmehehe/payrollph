@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BriefcaseBusiness, Building2, CircleDollarSign, Plus, RefreshCw, UserCheck, UserPlus, UsersRound } from "lucide-react";
+import { BriefcaseBusiness, Building2, CircleDollarSign, Clock3, Plus, RefreshCw, TrendingUp, UserCheck, UserPlus, UsersRound } from "lucide-react";
 
 type JobProfile = { id: number; title: string; family: string; level: string; grade: string | null; active: boolean };
 type WorkforcePlan = { id: number; name: string; startDate: string; endDate: string; budget: string; status: string };
@@ -9,6 +9,42 @@ type Position = { id: number; code: string; jobProfileId: number; orgUnitId: num
 type Assignment = { id: number; positionId: number; employeeId: number; effectiveFrom: string; effectiveUntil: string | null };
 type OrgUnit = { id: number; name: string; type: string };
 type Employee = { id: number; firstName: string; lastName: string; title: string; orgUnitId: number | null; status: string };
+
+type WorkforceForecast = {
+  assumptions: { startDate: string; endDate: string; windowDays: number; demandGrowthPercent: number; vacancyFillPercent: number; employerLoadPercent: number };
+  summary: {
+    activeHeadcount: number;
+    costedHeadcount: number;
+    vacantPositions: number;
+    expectedVacancyFills: number;
+    annualizedBasePayroll: number;
+    vacantAnnualBudget: number;
+    annualRunRateLaborCost: number;
+    currentPeriodBasePayroll: number;
+    expectedVacancyPeriodCost: number;
+    employerLoadCost: number;
+    forecastPeriodLaborCost: number;
+    requiredHeadcountHours: number;
+    forecastHeadcountHours: number;
+    averageBaseHourlyRate: number;
+    estimatedShiftDemandWageCost: number;
+  };
+  costCenters: Array<{ costCenterId: number; code: string; name: string; currentPeriodBaseCost: number; currentPeriodLoadedCost: number }>;
+  unallocated: { currentPeriodBaseCost: number; plannedVacancyPeriodCost: number };
+  quality: {
+    missingPayProfileEmployeeIds: number[];
+    invalidPayProfileEmployeeIds: number[];
+    allocationIssueEmployeeIds: number[];
+    staffingRequirements: number;
+    requirementsMissingShift: number;
+  };
+};
+
+function addDays(dateText: string, days: number) {
+  const date = new Date(`${dateText}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
 
 const peso = (value: number | string) => `₱${Number(value).toLocaleString("en-PH", { maximumFractionDigits: 0 })}`;
 
@@ -24,6 +60,15 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
   const [showPlan, setShowPlan] = useState(false);
   const [showPosition, setShowPosition] = useState(false);
   const [showAssignment, setShowAssignment] = useState(false);
+
+  const initialForecastStart = new Date().toISOString().slice(0, 10);
+  const [forecast, setForecast] = useState<WorkforceForecast | null>(null);
+  const [forecastLoading, setForecastLoading] = useState(false);
+  const [forecastStart, setForecastStart] = useState(initialForecastStart);
+  const [forecastEnd, setForecastEnd] = useState(addDays(initialForecastStart, 89));
+  const [demandGrowthPercent, setDemandGrowthPercent] = useState("0");
+  const [vacancyFillPercent, setVacancyFillPercent] = useState("100");
+  const [employerLoadPercent, setEmployerLoadPercent] = useState("15");
 
   const [profileForm, setProfileForm] = useState({ title: "", family: "", level: "", grade: "" });
   const [planForm, setPlanForm] = useState({ name: "", startDate: "", endDate: "", budget: "" });
@@ -57,6 +102,35 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
   const plannedCost = positions.filter((position) => position.status !== "closed").reduce((sum, position) => sum + Number(position.annualBudget), 0);
   const approvedOpen = positions.filter((position) => ["approved", "open"].includes(position.status)).length;
   const filled = positions.filter((position) => activeAssignmentByPosition.has(position.id)).length;
+
+  async function runForecast() {
+    if (!forecastStart || !forecastEnd || forecastEnd < forecastStart) {
+      setNotice("Forecast end date must be on or after the start date.");
+      return;
+    }
+    setForecastLoading(true);
+    try {
+      const params = new URLSearchParams({
+        organizationId: String(organizationId),
+        startDate: forecastStart,
+        endDate: forecastEnd,
+        demandGrowthPercent: String(Number(demandGrowthPercent) || 0),
+        vacancyFillPercent: String(Number(vacancyFillPercent) || 0),
+        employerLoadPercent: String(Number(employerLoadPercent) || 0),
+      });
+      const response = await fetch(`/api/workforce-planning/forecast?${params.toString()}`, { cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setNotice(payload.error ?? "Could not calculate workforce forecast.");
+        return;
+      }
+      setForecast(payload.forecast ?? null);
+    } catch {
+      setNotice("Could not reach the workforce forecast service.");
+    } finally {
+      setForecastLoading(false);
+    }
+  }
 
   async function post(body: Record<string, unknown>) {
     const response = await fetch("/api/workforce-planning", {
@@ -180,6 +254,89 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
         <article className="stat-card"><div className="stat-icon mint"><UserCheck size={19} /></div><p>FILLED</p><h3>{filled}</h3><span>{positions.length ? Math.round((filled / positions.length) * 100) : 0}% fill rate</span></article>
         <article className="stat-card"><div className="stat-icon orange"><CircleDollarSign size={19} /></div><p>PLANNED ANNUAL COST</p><h3>{peso(plannedCost)}</h3><span>Position salary budgets</span></article>
       </section>
+
+      <article className="card" style={{ padding: 20, marginBottom: 16 }}>
+        <div className="card-header">
+          <div>
+            <div className="card-kicker">DEMAND & LABOR-COST FORECAST</div>
+            <h2>Model workforce demand before adding headcount.</h2>
+            <p>Combine current payroll run-rate, approved vacancies, staffing requirements, and cost-center allocations. Assumptions never change payroll or position records.</p>
+          </div>
+          <button className="primary-button" type="button" onClick={() => void runForecast()} disabled={forecastLoading}>
+            <TrendingUp size={15} /> {forecastLoading ? "Calculating..." : "Run forecast"}
+          </button>
+        </div>
+
+        <div className="setting-form" style={{ marginBottom: 16 }}>
+          <label>Forecast start<input type="date" value={forecastStart} onChange={(e) => setForecastStart(e.target.value)} /></label>
+          <label>Forecast end<input type="date" min={forecastStart} value={forecastEnd} onChange={(e) => setForecastEnd(e.target.value)} /></label>
+          <label>Demand growth %<input type="number" min="-50" max="200" step="1" value={demandGrowthPercent} onChange={(e) => setDemandGrowthPercent(e.target.value)} /></label>
+          <label>Vacancy fill %<input type="number" min="0" max="100" step="1" value={vacancyFillPercent} onChange={(e) => setVacancyFillPercent(e.target.value)} /></label>
+          <label>Employer load %<input type="number" min="0" max="100" step="0.5" value={employerLoadPercent} onChange={(e) => setEmployerLoadPercent(e.target.value)} /></label>
+        </div>
+
+        {!forecast && (
+          <div className="empty-state">Run a scenario to compare current payroll cost, vacancy budget, staffing demand, and finance allocation.</div>
+        )}
+
+        {forecast && (
+          <>
+            <section className="stats-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)", marginBottom: 16 }}>
+              <article className="stat-card"><div className="stat-icon purple"><UsersRound size={19} /></div><p>ACTIVE HEADCOUNT</p><h3>{forecast.summary.activeHeadcount}</h3><span>{forecast.summary.costedHeadcount} with valid pay profiles</span></article>
+              <article className="stat-card"><div className="stat-icon blue"><Clock3 size={19} /></div><p>FORECAST DEMAND</p><h3>{forecast.summary.forecastHeadcountHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs</h3><span>{forecast.summary.requiredHeadcountHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} baseline hours</span></article>
+              <article className="stat-card"><div className="stat-icon orange"><UserPlus size={19} /></div><p>EXPECTED FILLS</p><h3>{forecast.summary.expectedVacancyFills}</h3><span>{forecast.summary.vacantPositions} vacant planned / approved / open positions</span></article>
+              <article className="stat-card"><div className="stat-icon mint"><CircleDollarSign size={19} /></div><p>PERIOD LABOR COST</p><h3>{peso(forecast.summary.forecastPeriodLaborCost)}</h3><span>{forecast.assumptions.windowDays} days · includes {forecast.assumptions.employerLoadPercent}% scenario load</span></article>
+            </section>
+
+            <div className="module-grid two">
+              <div className="notice notice-slate" style={{ margin: 0 }}>
+                <TrendingUp size={15} />
+                <span>
+                  <strong>{peso(forecast.summary.annualRunRateLaborCost)} annual run-rate.</strong> Current annualized base payroll is {peso(forecast.summary.annualizedBasePayroll)} and vacant position budget is {peso(forecast.summary.vacantAnnualBudget)}.
+                </span>
+              </div>
+              <div className="notice notice-slate" style={{ margin: 0 }}>
+                <Clock3 size={15} />
+                <span>
+                  <strong>{peso(forecast.summary.estimatedShiftDemandWageCost)} shift-demand estimate.</strong> This uses recorded staffing requirements, paid shift hours, average base hourly rate, growth, and the scenario load. It is not added to the labor plan again.
+                </span>
+              </div>
+            </div>
+
+            {(forecast.quality.missingPayProfileEmployeeIds.length > 0 || forecast.quality.invalidPayProfileEmployeeIds.length > 0 || forecast.quality.allocationIssueEmployeeIds.length > 0 || forecast.quality.requirementsMissingShift > 0) && (
+              <div className="notice notice-amber" style={{ marginTop: 16 }}>
+                <CircleDollarSign size={15} />
+                <span>
+                  <strong>Forecast quality needs review.</strong> Missing pay profiles: {forecast.quality.missingPayProfileEmployeeIds.length}; invalid pay profiles: {forecast.quality.invalidPayProfileEmployeeIds.length}; allocation issues: {forecast.quality.allocationIssueEmployeeIds.length}; staffing rows missing a valid shift: {forecast.quality.requirementsMissingShift}.
+                </span>
+              </div>
+            )}
+
+            <div className="data-table-wrap" style={{ marginTop: 16 }}>
+              <table className="data-table">
+                <thead><tr><th>COST CENTER</th><th className="right">CURRENT BASE COST</th><th className="right">LOADED COST</th></tr></thead>
+                <tbody>
+                  {forecast.costCenters.map((center) => (
+                    <tr key={center.costCenterId}>
+                      <td><strong>{center.code}</strong><small style={{ display: "block", color: "var(--muted)" }}>{center.name}</small></td>
+                      <td className="right">{peso(center.currentPeriodBaseCost)}</td>
+                      <td className="right">{peso(center.currentPeriodLoadedCost)}</td>
+                    </tr>
+                  ))}
+                  {forecast.costCenters.length === 0 && <tr><td colSpan={3}><div className="empty-state">No current employee labor allocations resolve at the scenario start date.</div></td></tr>}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="notice notice-slate" style={{ marginTop: 16 }}>
+              <Building2 size={15} />
+              <span>
+                <strong>Planning boundary.</strong> Employer load is an explicit scenario assumption, not a statutory contribution calculation. Planned vacancy cost remains unallocated until a worker has an effective labor-cost allocation. Current unallocated base cost: {peso(forecast.unallocated.currentPeriodBaseCost)}.
+              </span>
+            </div>
+          </>
+        )}
+      </article>
 
       {showProfile && (
         <article className="card" style={{ padding: 20, marginBottom: 16 }}>
