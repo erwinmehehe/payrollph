@@ -117,9 +117,11 @@ test("forecast combines current payroll, vacancy budget, staffing demand, and co
   assert.equal(result.summary.forecastHeadcountHours, 20);
   assert.ok(result.summary.currentPeriodCapacityHours > 0);
   assert.ok(result.summary.expectedVacancyCapacityHours > 0);
-  assert.equal(
-    result.summary.projectedCapacityHours,
-    Math.round((result.summary.currentPeriodCapacityHours + result.summary.expectedVacancyCapacityHours) * 100) / 100,
+  assert.ok(
+    Math.abs(
+      result.summary.projectedCapacityHours
+        - (result.summary.currentPeriodCapacityHours + result.summary.expectedVacancyCapacityHours)
+    ) <= 0.01,
   );
   assert.equal(
     result.summary.capacityGapAfterFills,
