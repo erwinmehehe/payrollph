@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { DEFAULT_HCM_LIFECYCLE_POLICY } from "@/lib/hcm-lifecycle-policy";
 import {
@@ -7,10 +7,13 @@ import {
   employees,
   hcmEmploymentDecisionDocuments,
   hcmEmploymentDecisionEvents,
+  hcmEmploymentDecisionManagerAttestations,
   hcmEmploymentDecisionNotes,
   hcmEmploymentTermDecisions,
   hcmEmploymentTerms,
   hcmLifecyclePolicies,
+  positionAssignments,
+  positions,
 } from "@/db/schema";
 
 export const EMPLOYMENT_DECISION_NOTE_KINDS = [
@@ -49,7 +52,7 @@ export function evidenceSha256(value: unknown) {
   return createHash("sha256").update(canonicalJson(value)).digest("hex");
 }
 
-function proposalSnapshot(
+function proposalSnapshotV1(
   decision: typeof hcmEmploymentTermDecisions.$inferSelect,
   term: typeof hcmEmploymentTerms.$inferSelect,
   notes: Array<typeof hcmEmploymentDecisionNotes.$inferSelect>,
@@ -123,6 +126,38 @@ function proposalSnapshot(
   };
 }
 
+function proposalSnapshotV2(
+  decision: typeof hcmEmploymentTermDecisions.$inferSelect,
+  term: typeof hcmEmploymentTerms.$inferSelect,
+  notes: Array<typeof hcmEmploymentDecisionNotes.$inferSelect>,
+  attachments: Array<{
+    evidence: typeof hcmEmploymentDecisionDocuments.$inferSelect;
+    document: Pick<
+      typeof documents.$inferSelect,
+      "id" | "fileName" | "mimeType" | "byteSize" | "sha256" | "scannedClean" | "scanNote" | "createdAt"
+    >;
+  }>,
+  managerAttestations: Array<typeof hcmEmploymentDecisionManagerAttestations.$inferSelect>,
+) {
+  const v1 = proposalSnapshotV1(decision, term, notes, attachments);
+  return {
+    ...v1,
+    packetVersion: "hcm-employment-decision-evidence-v2",
+    managerAttestations: managerAttestations.map((attestation) => ({
+      id: attestation.id,
+      managerEmployeeId: attestation.managerEmployeeId,
+      managerUserId: attestation.managerUserId,
+      managerName: attestation.managerName,
+      recommendation: attestation.recommendation,
+      statement: attestation.statement,
+      workerPositionAssignmentId: attestation.workerPositionAssignmentId,
+      workerPositionId: attestation.workerPositionId,
+      reportingLineSnapshot: attestation.reportingLineSnapshot,
+      createdAt: attestation.createdAt.toISOString(),
+    })),
+  };
+}
+
 async function loadReviewEvidence(input: {
   organizationId: number;
   decisionId: number;
@@ -133,7 +168,7 @@ async function loadReviewEvidence(input: {
   )).limit(1);
   if (!decision) return null;
 
-  const [term, employee, notes, attachments] = await Promise.all([
+  const [term, employee, notes, attachments, managerAttestations] = await Promise.all([
     db.select().from(hcmEmploymentTerms).where(and(
       eq(hcmEmploymentTerms.id, decision.employmentTermId),
       eq(hcmEmploymentTerms.organizationId, decision.organizationId),
@@ -174,16 +209,28 @@ async function loadReviewEvidence(input: {
         eq(hcmEmploymentDecisionDocuments.decisionId, input.decisionId),
       ))
       .orderBy(asc(hcmEmploymentDecisionDocuments.id)),
+    db.select().from(hcmEmploymentDecisionManagerAttestations).where(and(
+      eq(hcmEmploymentDecisionManagerAttestations.organizationId, input.organizationId),
+      eq(hcmEmploymentDecisionManagerAttestations.decisionId, input.decisionId),
+    )).orderBy(
+      asc(hcmEmploymentDecisionManagerAttestations.createdAt),
+      asc(hcmEmploymentDecisionManagerAttestations.id),
+    ),
   ]);
 
   if (!term || !employee) return null;
-  const reviewEvidence = proposalSnapshot(decision, term, notes, attachments);
+  const evidencePacketVersion = decision.evidencePacketVersion === "v1" ? "v1" : "v2";
+  const reviewEvidence = evidencePacketVersion === "v1"
+    ? proposalSnapshotV1(decision, term, notes, attachments)
+    : proposalSnapshotV2(decision, term, notes, attachments, managerAttestations);
   return {
     decision,
     employee,
     term,
     notes,
     attachments,
+    managerAttestations,
+    evidencePacketVersion,
     reviewEvidence,
     currentEvidenceSha256: evidenceSha256(reviewEvidence),
   };
@@ -203,7 +250,7 @@ export async function loadEmploymentDecisionEvidencePacket(input: {
 
   const sealedHash = review.decision.evidenceSnapshotSha256;
   return {
-    packetVersion: "hcm-employment-decision-packet-v1",
+    packetVersion: review.evidencePacketVersion === "v1" ? "hcm-employment-decision-packet-v1" : "hcm-employment-decision-packet-v2",
     generatedAt: new Date().toISOString(),
     employee: review.employee,
     decision: review.decision,
@@ -319,19 +366,54 @@ export async function approveEmploymentDecisionWithEvidence(input: {
       ))
       .orderBy(asc(hcmEmploymentDecisionDocuments.id));
 
+    const managerAttestations = await tx.select()
+      .from(hcmEmploymentDecisionManagerAttestations)
+      .where(and(
+        eq(hcmEmploymentDecisionManagerAttestations.organizationId, input.organizationId),
+        eq(hcmEmploymentDecisionManagerAttestations.decisionId, input.decisionId),
+      ))
+      .orderBy(
+        asc(hcmEmploymentDecisionManagerAttestations.createdAt),
+        asc(hcmEmploymentDecisionManagerAttestations.id),
+      );
+
+    const [currentReportingLine] = await tx.select({
+      assignmentId: positionAssignments.id,
+      positionId: positions.id,
+      managerEmployeeId: positions.managerEmployeeId,
+    }).from(positionAssignments)
+      .innerJoin(positions, eq(positionAssignments.positionId, positions.id))
+      .where(and(
+        eq(positionAssignments.organizationId, input.organizationId),
+        eq(positionAssignments.employeeId, decision.employeeId),
+        eq(positionAssignments.assignmentType, "primary"),
+        isNull(positionAssignments.effectiveUntil),
+      ))
+      .orderBy(desc(positionAssignments.effectiveFrom), desc(positionAssignments.id))
+      .limit(1);
+
+    const currentManagerAttestation = currentReportingLine?.managerEmployeeId
+      ? [...managerAttestations].reverse().find(
+          (attestation) => attestation.managerEmployeeId === currentReportingLine.managerEmployeeId,
+        ) ?? null
+      : null;
+
     const [lifecyclePolicy] = await tx.select().from(hcmLifecyclePolicies)
       .where(eq(hcmLifecyclePolicies.organizationId, input.organizationId))
       .limit(1);
     const policy = lifecyclePolicy ?? DEFAULT_HCM_LIFECYCLE_POLICY;
 
-    if (
-      policy.requireManagerReviewForProbation
-      && term.termKind === "probationary"
-      && !notes.some((note) => note.noteKind === "manager_review")
-    ) {
-      throw new DecisionEvidenceApprovalError(
-        "Organization lifecycle policy requires a manager-review note before approving a probation decision.",
-      );
+    if (policy.requireManagerReviewForProbation && term.termKind === "probationary") {
+      if (!currentReportingLine?.managerEmployeeId) {
+        throw new DecisionEvidenceApprovalError(
+          "Organization lifecycle policy requires a manager attestation, but this worker has no current manager on the active primary position.",
+        );
+      }
+      if (!currentManagerAttestation) {
+        throw new DecisionEvidenceApprovalError(
+          "Organization lifecycle policy requires an attestation from the worker's current manager before approving a probation decision.",
+        );
+      }
     }
     if (
       policy.requireDecisionRationaleNote
@@ -357,7 +439,13 @@ export async function approveEmploymentDecisionWithEvidence(input: {
       );
     }
 
-    const reviewEvidence = proposalSnapshot(decision, term, notes, attachments);
+    const reviewEvidence = proposalSnapshotV2(
+      decision,
+      term,
+      notes,
+      attachments,
+      managerAttestations,
+    );
     const snapshotSha256 = evidenceSha256(reviewEvidence);
 
     const [scheduled] = await tx.update(hcmEmploymentTermDecisions).set({
@@ -366,6 +454,7 @@ export async function approveEmploymentDecisionWithEvidence(input: {
       approvedBy: input.approverName,
       approvedAt: now,
       evidenceSnapshotSha256: snapshotSha256,
+      evidencePacketVersion: "v2",
       evidenceSealedAt: now,
       failure: null,
       updatedAt: now,
@@ -388,6 +477,10 @@ export async function approveEmploymentDecisionWithEvidence(input: {
         evidenceSnapshotSha256: snapshotSha256,
         noteCount: notes.length,
         attachmentCount: attachments.length,
+        managerAttestationCount: managerAttestations.length,
+        currentManagerAttestationId: currentManagerAttestation?.id ?? null,
+        currentManagerRecommendation: currentManagerAttestation?.recommendation ?? null,
+        evidencePacketVersion: "v2",
         effectiveDate: String(scheduled.effectiveDate),
         decisionKind: scheduled.decisionKind,
         lifecyclePolicyVersion: lifecyclePolicy?.version ?? 0,
@@ -405,6 +498,8 @@ export async function approveEmploymentDecisionWithEvidence(input: {
       evidenceSnapshotSha256: snapshotSha256,
       noteCount: notes.length,
       attachmentCount: attachments.length,
+      managerAttestationCount: managerAttestations.length,
+      currentManagerAttestationId: currentManagerAttestation?.id ?? null,
     };
   });
 }
