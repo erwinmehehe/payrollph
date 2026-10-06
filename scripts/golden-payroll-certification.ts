@@ -56,7 +56,7 @@ const sources: Record<SourceKey, {
     agency: "Department of Labor and Employment / Philippine labor rules",
     document: "Statutory holiday, rest-day and overtime premium factors encoded in PayrollPH",
     effectiveFrom: "2026-01-01",
-    reference: "https://laborlaw.ph/holiday-pay/",
+    reference: "https://nwpc.dole.gov.ph/wp-content/uploads/2024/11/Workers-Statutory-Monetary-Benefits-Handbook-2024-Edition.pdf",
   },
 };
 
