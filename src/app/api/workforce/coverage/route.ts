@@ -7,6 +7,8 @@ import {
   employeeWorksiteAssignments,
   employees,
   jobProfiles,
+  leaveRequestIntervals,
+  leaveRequestIntervalSets,
   leaveRequests,
   openShiftClaims,
   openShifts,
@@ -67,6 +69,7 @@ import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
 import { assertUnambiguousRoleDemand, resolveEmployeeJobProfileAtDate } from "@/lib/workforce-role-demand";
 import { evaluateEmployeeFromCapabilityData, loadCapabilityEligibilityData, loadEmployeeWfmEligibility } from "@/lib/hcm-workforce-eligibility-server";
 import { approvedLeaveConflictsFullShift, approvedLeaveCoverageImpact } from "@/lib/workforce-absence";
+import { resolveLeaveIntervalsForSchedule, type PreciseLeaveInterval } from "@/lib/workforce-absence-intervals";
 import { loadSiteEligibilityEvidence, employeeSiteEligibility } from "@/lib/hcm-worksite-eligibility-server";
 import { evaluateSiteEligibility } from "@/lib/hcm-worksite-eligibility";
 
