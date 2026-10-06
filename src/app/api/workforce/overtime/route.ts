@@ -51,7 +51,7 @@ function monthBounds(periodMonth: string) {
 }
 
 function canRole(role: string, roles: readonly string[]) {
-  return roles.includes(role);
+  return (roles as readonly string[]).includes(role);
 }
 
 async function scopedEmployee(userId: number, organizationId: number, employeeId: number) {
