@@ -152,3 +152,19 @@ test("schema declares immutable leave interval revisions and current-set uniquen
   assert.ok(baseline.includes("leave_request_intervals"));
   assert.ok(baseline.includes("leave_interval_set_current_unique"));
 });
+
+
+test("same-day timed leave cannot run backwards without explicit overnight evidence", async () => {
+  const mod = await loadModule();
+  assert.ok(mod?.validateLeaveIntervals);
+  const result = mod.validateLeaveIntervals!([{
+    kind: "timed",
+    workDate: "2026-10-06",
+    startLocalTime: "14:00",
+    endLocalTime: "12:00",
+    endsNextDay: false,
+    timezone: "Asia/Manila",
+  }]);
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join(" "), /end after it starts|endsNextDay/i);
+});
