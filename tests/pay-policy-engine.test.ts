@@ -3,10 +3,12 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   HOLIDAY_REST_DAY_PREMIUM_EVENT,
+  OVERTIME_PREMIUM_EVENT,
   orderedPayPolicyRules,
   payPolicyTrace,
   resolveApplicablePayPolicies,
   resolveHolidayRestDayPremium,
+  resolveOvertimePremium,
   resolveWorkedTimePremium,
   WORKED_TIME_PREMIUM_EVENT,
   type PayPolicyRecord,
@@ -374,7 +376,7 @@ test("payroll engine loads, applies and traces the migrated company-premium fami
   assert.ok(source.includes("companyPremiumExcludedFromPagIbigBase"));
   assert.ok(source.includes("payPolicyExecution"));
   assert.ok(source.includes("...companyPremiumApplications"));
-  assert.ok(source.includes('PAYROLL_RULE_VERSION = "PH-2026.07"'));
+  assert.ok(source.includes('PAYROLL_RULE_VERSION = "PH-2026.08"'));
 });
 
 test("cross-midnight fallback blocks release rather than guessing effective-dated company premiums", () => {
@@ -667,8 +669,8 @@ test("payroll engine traces the holiday/rest-day family and preserves month-end 
   assert.ok(source.includes('traceInputNumber(prior.trace, "companyPremiumExcludedFromSssBase")'));
   assert.ok(source.includes('traceInputNumber(prior.trace, "holidayRestDayPremiumExcludedFromSssBase")'));
   assert.ok(source.includes("HOLIDAY_REST_DAY_PREMIUM_EVENT"));
-  assert.ok(source.includes('PAYROLL_RULE_VERSION = "PH-2026.07"'));
-  assert.ok(source.includes('version: "pay-rules-execution-v2"'));
+  assert.ok(source.includes('PAYROLL_RULE_VERSION = "PH-2026.08"'));
+  assert.ok(source.includes('version: "pay-rules-execution-v3"'));
   assert.ok(source.includes('overtime: "statutory-only"'));
   assert.ok(source.includes('nightDifferential: "statutory-only"'));
 });
@@ -677,4 +679,241 @@ test("cross-midnight fallback blocks holiday/rest-day overlays rather than guess
   const source = readFileSync("src/lib/payroll-engine.ts", "utf8");
   assert.ok(source.includes("configurable holiday/rest-day premium was not executed because cross-midnight payable-time allocation is incomplete"));
   assert.ok(source.includes("holidayRestRuleCouldApply"));
+});
+
+
+test("overtime premiums add above statutory OT without replacing the statutory multiplier", () => {
+  const result = resolveOvertimePremium({
+    organizationId: 7,
+    employeeId: 42,
+    orgUnitIds: [9],
+    workDate: "2026-10-05",
+    minutes: 120,
+    hourlyRate: 200,
+    holidayType: "ordinary",
+    restDay: false,
+    statutoryMultiplier: 1.25,
+    shiftCode: "DAY",
+    worksiteId: 3,
+    policies: [policy()],
+    rules: [rule({
+      eventType: OVERTIME_PREMIUM_EVENT,
+      conditions: {},
+      outcome: {
+        label: "Company OT top-up",
+        additionalPremiumPercent: 20,
+        taxable: true,
+        includeInSssBase: true,
+        includeInPagIbigBase: false,
+      },
+    })],
+  });
+
+  assert.equal(result.statutoryFloorMode, "additive-only");
+  assert.equal(result.authorizationMode, "evidence-only");
+  assert.equal(result.nightDifferentialMode, "statutory-only");
+  assert.equal(result.amount, 80);
+  assert.equal(result.taxableAmount, 80);
+  assert.equal(result.sssIncludedAmount, 80);
+  assert.equal(result.pagIbigIncludedAmount, 0);
+  assert.equal(result.applied.length, 1);
+  assert.equal(result.applied[0].statutoryMultiplier, 1.25);
+  assert.equal(result.applied[0].additionalPremiumPercent, 20);
+});
+
+test("overtime rules can target holiday, rest-day, shift, and worksite evidence", () => {
+  const targeted = rule({
+    eventType: OVERTIME_PREMIUM_EVENT,
+    conditions: {
+      holidayTypes: ["special"],
+      restDay: true,
+      shiftCodes: ["NIGHT"],
+      worksiteIds: [8],
+    },
+    outcome: {
+      additionalPremiumPercent: 30,
+      taxable: true,
+      includeInSssBase: true,
+      includeInPagIbigBase: true,
+    },
+  });
+  const base = {
+    organizationId: 7,
+    employeeId: 42,
+    workDate: "2026-02-17",
+    minutes: 60,
+    hourlyRate: 200,
+    holidayType: "special" as const,
+    restDay: true,
+    statutoryMultiplier: 1.95,
+    policies: [policy()],
+    rules: [targeted],
+  };
+
+  assert.equal(resolveOvertimePremium({
+    ...base,
+    shiftCode: "NIGHT",
+    worksiteId: 8,
+  }).amount, 60);
+  assert.equal(resolveOvertimePremium({
+    ...base,
+    shiftCode: "DAY",
+    worksiteId: 8,
+  }).amount, 0);
+  assert.equal(resolveOvertimePremium({
+    ...base,
+    holidayType: "ordinary",
+    shiftCode: "NIGHT",
+    worksiteId: 8,
+  }).amount, 0);
+});
+
+test("distinct OT rule keys stack while the same key obeys policy precedence", () => {
+  const policies = [
+    policy({ id: 1, code: "ORG-OT", version: "ORG" }),
+    policy({
+      id: 2,
+      code: "EMP-OT",
+      version: "EMP",
+      scopeType: "employee",
+      scopeEmployeeId: 42,
+      priority: 1,
+    }),
+  ];
+  const classification = {
+    taxable: true,
+    includeInSssBase: true,
+    includeInPagIbigBase: true,
+  };
+  const result = resolveOvertimePremium({
+    organizationId: 7,
+    employeeId: 42,
+    workDate: "2026-10-05",
+    minutes: 60,
+    hourlyRate: 200,
+    holidayType: "ordinary",
+    restDay: false,
+    statutoryMultiplier: 1.25,
+    shiftCode: null,
+    worksiteId: null,
+    policies,
+    rules: [
+      rule({
+        id: 1,
+        policyId: 1,
+        ruleKey: "OT-TOPUP",
+        eventType: OVERTIME_PREMIUM_EVENT,
+        outcome: { ...classification, additionalPremiumPercent: 10 },
+      }),
+      rule({
+        id: 2,
+        policyId: 2,
+        ruleKey: "OT-TOPUP",
+        eventType: OVERTIME_PREMIUM_EVENT,
+        outcome: { ...classification, additionalPremiumPercent: 20 },
+      }),
+      rule({
+        id: 3,
+        policyId: 1,
+        ruleKey: "SECOND-OT-TOPUP",
+        eventType: OVERTIME_PREMIUM_EVENT,
+        outcome: { ...classification, additionalPremiumPercent: 5 },
+      }),
+    ],
+  });
+
+  assert.equal(result.amount, 50);
+  assert.deepEqual(result.applied.map((item) => item.ruleId), [2, 3]);
+});
+
+test("overtime premium fails closed when statutory-floor protection is disabled", () => {
+  assert.throws(() => resolveOvertimePremium({
+    organizationId: 7,
+    employeeId: 42,
+    workDate: "2026-10-05",
+    minutes: 60,
+    hourlyRate: 100,
+    holidayType: "ordinary",
+    restDay: false,
+    statutoryMultiplier: 1.25,
+    shiftCode: null,
+    worksiteId: null,
+    policies: [policy()],
+    rules: [rule({
+      eventType: OVERTIME_PREMIUM_EVENT,
+      statutoryFloorProtected: false,
+      outcome: {
+        additionalPremiumPercent: 10,
+        taxable: true,
+        includeInSssBase: true,
+        includeInPagIbigBase: true,
+      },
+    })],
+  }), /statutoryFloorProtected=true/);
+});
+
+test("overtime premium requires explicit tax and contribution classifications", () => {
+  assert.throws(() => resolveOvertimePremium({
+    organizationId: 7,
+    employeeId: 42,
+    workDate: "2026-10-05",
+    minutes: 60,
+    hourlyRate: 100,
+    holidayType: "ordinary",
+    restDay: false,
+    statutoryMultiplier: 1.25,
+    shiftCode: null,
+    worksiteId: null,
+    policies: [policy()],
+    rules: [rule({
+      eventType: OVERTIME_PREMIUM_EVENT,
+      outcome: { additionalPremiumPercent: 10 },
+    })],
+  }), /taxable must be explicitly true or false/);
+});
+
+test("OT authorization cannot be used to suppress the configurable or statutory OT entitlement path", () => {
+  assert.throws(() => resolveOvertimePremium({
+    organizationId: 7,
+    employeeId: 42,
+    workDate: "2026-10-05",
+    minutes: 60,
+    hourlyRate: 100,
+    holidayType: "ordinary",
+    restDay: false,
+    statutoryMultiplier: 1.25,
+    shiftCode: null,
+    worksiteId: null,
+    policies: [policy()],
+    rules: [rule({
+      eventType: OVERTIME_PREMIUM_EVENT,
+      conditions: { authorizationRequired: true },
+      outcome: {
+        additionalPremiumPercent: 10,
+        taxable: true,
+        includeInSssBase: true,
+        includeInPagIbigBase: true,
+      },
+    })],
+  }), /unsupported field/);
+});
+
+test("payroll engine executes and traces OT overlays while preserving statutory OT accounting", () => {
+  const source = readFileSync("src/lib/payroll-engine.ts", "utf8");
+  assert.ok(source.includes("applyOvertimePremium"));
+  assert.ok(source.includes("+ overtimePremiumPay"));
+  assert.ok(source.includes("overtimePremiumExcludedFromSssBase"));
+  assert.ok(source.includes("overtimePremiumExcludedFromPagIbigBase"));
+  assert.ok(source.includes('traceInputNumber(prior.trace, "overtimePremiumExcludedFromSssBase")'));
+  assert.ok(source.includes("OVERTIME_PREMIUM_EVENT"));
+  assert.ok(source.includes('PAYROLL_RULE_VERSION = "PH-2026.08"'));
+  assert.ok(source.includes('version: "pay-rules-execution-v3"'));
+  assert.ok(source.includes('statutoryEntitlement: "authoritative"'));
+  assert.ok(source.includes('authorization: "evidence-only"'));
+});
+
+test("cross-midnight fallback blocks OT overlays rather than guessing policy date or day class", () => {
+  const source = readFileSync("src/lib/payroll-engine.ts", "utf8");
+  assert.ok(source.includes("configurable overtime premium was not executed because cross-midnight payable-time allocation is incomplete"));
+  assert.ok(source.includes("overtimeRuleCouldApply"));
 });
