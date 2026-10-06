@@ -156,9 +156,20 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
   const visibleEmployeeIds = new Set(visibleEmployees.map((employee) => employee.id));
 
   const positionOrgUnitId = requestedWorksite?.orgUnitId ?? effectiveOrgUnitId;
-  const visiblePositions = positionRows.filter((position) =>
-    positionOrgUnitId == null || position.orgUnitId === positionOrgUnitId
-  );
+  const visiblePositions = requestedWorksite
+    ? requestedWorksite.orgUnitId == null
+      ? []
+      : positionRows.filter((position) => position.orgUnitId === requestedWorksite.orgUnitId)
+    : positionRows.filter((position) =>
+        positionOrgUnitId == null || position.orgUnitId === positionOrgUnitId
+      );
+  const vacancyScopeMode = requestedWorksite
+    ? requestedWorksite.orgUnitId == null
+      ? "worksite-no-position-allocation"
+      : "worksite-org-unit-proxy"
+    : effectiveOrgUnitId == null
+      ? "company"
+      : "org-unit";
 
   const visibleWorksites = worksiteRows.filter((worksite) => {
     if (input.worksiteId != null) return worksite.id === input.worksiteId;
@@ -237,6 +248,7 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
       orgUnitId: effectiveOrgUnitId,
       worksiteId: input.worksiteId,
       worksiteName: requestedWorksite?.name ?? null,
+      vacancyScopeMode,
       visibleEmployees: visibleEmployees.length,
       visiblePositions: visiblePositions.length,
       visibleWorksites: visibleWorksiteIds.size,
