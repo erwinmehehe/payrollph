@@ -191,7 +191,11 @@ export function WorkforceOvertimePanel({
   async function saveBudget() {\n    const minutes = Number(budgetMinutes);\n    const threshold = Number(warningThresholdPercent);\n    if (!budgetOrgUnitId || !budgetStart || !budgetEnd || budgetEnd < budgetStart || !Number.isInteger(minutes) || minutes < 0 || !Number.isInteger(threshold) || threshold < 1 || threshold > 100) {\n      notify("Choose a unit, valid dates, whole budget minutes, and a warning threshold from 1–100%.", "err");\n      return;\n    }\n    await mutate("upsert_budget", {\n      orgUnitId: budgetOrgUnitId,\n      periodStart: budgetStart,\n      periodEnd: budgetEnd,\n      budgetMinutes: minutes,\n      warningThresholdPercent: threshold,\n    }, "OT budget saved.");\n  }\n  async function decide(requestId: number, decision: "approved" | "rejected") {
     await mutate(
       "decide_request",
-      { requestId, decision },
+      {
+        requestId,
+        decision,
+        ...(budgetOverrideReason.trim() ? { budgetOverrideReason: budgetOverrideReason.trim() } : {}),
+      },
       decision === "approved" ? "Overtime request approved." : "Overtime request rejected.",
     );
   }
