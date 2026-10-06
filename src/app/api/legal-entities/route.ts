@@ -305,6 +305,95 @@ export async function PATCH(request: Request) {
   )).limit(1);
   if (!existing) return Response.json({ error: "Legal employer not found." }, { status: 404 });
 
+  if (action === "update_entity") {
+    try {
+      const payrollCalendarMode = String(body.payrollCalendarMode ?? existing.payrollCalendarMode);
+      const statutoryDeductionTiming = String(body.statutoryDeductionTiming ?? existing.statutoryDeductionTiming);
+      if (!CALENDAR_MODES.has(payrollCalendarMode)) {
+        return Response.json({ error: "Invalid payroll calendar mode." }, { status: 422 });
+      }
+      if (!DEDUCTION_TIMINGS.has(statutoryDeductionTiming)) {
+        return Response.json({ error: "Invalid statutory deduction timing." }, { status: 422 });
+      }
+
+      const legalName = body.legalName === undefined
+        ? existing.legalName
+        : String(body.legalName ?? "").trim().slice(0, 200);
+      const displayName = body.displayName === undefined
+        ? existing.displayName
+        : String(body.displayName ?? "").trim().slice(0, 160);
+      if (legalName.length < 2 || displayName.length < 2) {
+        return Response.json({ error: "Legal name and display name are required." }, { status: 422 });
+      }
+
+      const nextBankCode = body.disbursementBankCode === undefined
+        ? existing.disbursementBankCode
+        : nullable(body.disbursementBankCode, 16)?.toUpperCase() ?? null;
+      const accountInputProvided = body.disbursementAccount !== undefined;
+      const accountInput = accountInputProvided ? String(body.disbursementAccount ?? "").trim() : "";
+      const clearAccount = body.clearDisbursementAccount === true;
+      const nextAccount = clearAccount
+        ? null
+        : accountInput
+          ? encryptBankAccount(accountInput)
+          : existing.disbursementAccount;
+      if (Boolean(nextBankCode) !== Boolean(nextAccount)) {
+        return Response.json({
+          error: "Disbursement bank code and account must be configured together.",
+        }, { status: 422 });
+      }
+
+      const [updated] = await db.update(legalEntities).set({
+        legalName,
+        displayName,
+        birTin: body.birTin === undefined ? existing.birTin : tin(body.birTin),
+        birBranchCode: body.birBranchCode === undefined ? existing.birBranchCode : branchCode(body.birBranchCode),
+        sssEmployerNo: body.sssEmployerNo === undefined ? existing.sssEmployerNo : nullable(body.sssEmployerNo, 24),
+        philHealthEmployerNo: body.philHealthEmployerNo === undefined ? existing.philHealthEmployerNo : nullable(body.philHealthEmployerNo, 24),
+        pagIbigEmployerNo: body.pagIbigEmployerNo === undefined ? existing.pagIbigEmployerNo : nullable(body.pagIbigEmployerNo, 24),
+        payrollCalendarMode,
+        statutoryDeductionTiming,
+        disbursementBankCode: nextBankCode,
+        disbursementAccountName: body.disbursementAccountName === undefined
+          ? existing.disbursementAccountName
+          : nullable(body.disbursementAccountName, 160),
+        disbursementAccount: nextAccount,
+        updatedAt: new Date(),
+      }).where(eq(legalEntities.id, legalEntityId)).returning();
+
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Legal employer profile updated",
+        resource: updated.displayName,
+        metadata: {
+          legalEntityId,
+          payrollCalendarMode,
+          statutoryDeductionTiming,
+          governmentRegistrationsConfigured: {
+            bir: Boolean(updated.birTin),
+            sss: Boolean(updated.sssEmployerNo),
+            philHealth: Boolean(updated.philHealthEmployerNo),
+            pagIbig: Boolean(updated.pagIbigEmployerNo),
+          },
+          disbursementConfigured: Boolean(updated.disbursementBankCode && updated.disbursementAccount),
+        },
+      });
+
+      return Response.json({
+        ok: true,
+        legalEntity: {
+          ...updated,
+          disbursementAccount: maskBankAccount(updated.disbursementAccount),
+        },
+      });
+    } catch (error) {
+      return Response.json({
+        error: error instanceof Error ? error.message : "Legal employer could not be updated.",
+      }, { status: 409 });
+    }
+  }
+
   if (action === "set_primary") {
     if (!existing.active) {
       return Response.json({ error: "An inactive legal employer cannot be primary." }, { status: 422 });
