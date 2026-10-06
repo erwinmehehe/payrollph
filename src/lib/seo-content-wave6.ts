@@ -2,6 +2,78 @@ import type { AuthorityPage } from "@/lib/seo-content";
 
 export const industryWave6: AuthorityPage[] = [
   {
+    slug: "security-agencies",
+    eyebrow: "Security agency payroll software Philippines",
+    title: "Payroll and timekeeping for Philippine security agencies.",
+    metaTitle: "Security Agency Payroll Software Philippines | Linaw",
+    description: "Payroll software for Philippine security agencies managing guard payroll, shifts, attendance, overtime, night work, deductions, approvals and payslips.",
+    intro: "Security-agency payroll is shaped by long shifts, night work, rest days, holiday duty, changing assignments and a mix of guards and office staff. Linaw focuses on the payroll and workforce-control layer: attendance evidence, premium-pay context, employee records, deductions, approvals, payslips and controlled payroll outputs.",
+    proof: [
+      "Guard and office employee payroll",
+      "Shift and attendance workflows",
+      "Overtime and night-work payroll logic",
+      "Rest-day and holiday context",
+      "Loans, benefits and payroll deductions",
+      "Maker-checker payroll release controls",
+    ],
+    sections: [
+      {
+        title: "Keep guards and office staff inside one controlled payroll process",
+        body: "Different employee groups can share one payroll system while organization and department scope keep access and payroll responsibility clear.",
+      },
+      {
+        title: "Bring shift and attendance evidence into payroll review",
+        body: "Attendance and biometric-ingestion workflows can feed payroll-relevant time data, while missing or inconsistent punches remain visible for review instead of being silently converted into payable hours.",
+      },
+      {
+        title: "Preserve night-work, overtime, rest-day and holiday context",
+        body: "Payroll premium calculations use the represented work-date context so a night shift, rest-day duty or holiday assignment is not flattened into one generic manual allowance.",
+      },
+      {
+        title: "Keep recurring deductions and employee obligations traceable",
+        body: "Loans, benefits and other payroll-impacting deductions can stay with the employee and payroll workflow instead of being maintained only in side spreadsheets.",
+      },
+      {
+        title: "Separate preparation, checking and final release",
+        body: "Payroll staff can prepare the run while independent checker and release roles retain control over the final payroll decision.",
+      },
+      {
+        title: "Keep security operations separate from payroll claims",
+        body: "Linaw does not claim SOSIA reporting, firearm tracking, guard-post deployment, licensing, guard-tour management or guard scheduling. Those are security-operations capabilities and should only be marketed when dedicated implemented product surfaces exist.",
+      },
+    ],
+    faq: [
+      {
+        question: "Can Linaw support payroll for security guards and head-office staff?",
+        answer: "Yes. Linaw can manage employee records, attendance inputs, payroll calculations, deductions, review and payslip workflows for different employee groups, provided their payroll basis and work rules are configured correctly.",
+      },
+      {
+        question: "How are night shifts and overtime handled?",
+        answer: "Linaw preserves payroll context such as overtime, night differential, rest days and holidays when calculating premium pay, rather than treating every additional hour as the same flat adjustment.",
+      },
+      {
+        question: "Can biometric attendance feed security-agency payroll?",
+        answer: "Linaw includes biometric-ingestion patterns and attendance workflows that can feed payroll-relevant time data, with unmatched or incomplete records remaining visible for review.",
+      },
+      {
+        question: "Does Linaw include SOSIA reports, firearm logs or guard deployment management?",
+        answer: "No. This page covers payroll and workforce controls only. SOSIA reporting, firearm records, licensing, guard-post deployment, guard scheduling and guard-tour operations are not claimed.",
+      },
+      {
+        question: "Can payroll approval be separated from payroll preparation?",
+        answer: "Yes. Payroll preparation, checker review and final release can remain distinct responsibilities so one payroll operator does not control the entire money path.",
+      },
+    ],
+    lastReviewed: "October 5, 2026",
+    lastReviewedIso: "2026-10-05",
+    related: [
+      { label: "Time & attendance", href: "/time-and-attendance", description: "Review shifts, punches, overtime, night work and attendance exceptions." },
+      { label: "Night differential calculator", href: "/calculators/night-differential", description: "Estimate night-work payroll impact using the configured payroll context." },
+      { label: "Biometric payroll integration", href: "/integrations/biometrics", description: "See supported biometric-ingestion patterns and device-validation boundaries." },
+      { label: "Payroll compliance", href: "/compliance", description: "Review statutory calculation and validation boundaries." },
+    ],
+  },
+  {
     slug: "logistics",
     eyebrow: "Logistics payroll software Philippines",
     title: "Payroll and timekeeping for Philippine logistics teams.",
