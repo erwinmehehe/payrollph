@@ -599,6 +599,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         <WebBundyModal
           organizationId={data.selectedOrganization.id}
           employeeName={data.user?.name ?? "Signed-in user"}
+          employees={data.employees}
           onClose={() => setWebBundyOpen(false)}
           onPunchSuccess={() => {
             void refresh();
