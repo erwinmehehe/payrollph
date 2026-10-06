@@ -343,7 +343,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "Every allocation requires a valid costCenterId." }, { status: 400 });
     }
 
-    let resolved;
+    let resolved: ReturnType<typeof resolveLaborAllocation>;
     try {
       resolved = resolveLaborAllocation({ employeeId, asOf: effectiveFrom, rows: normalized });
     } catch (error) {
