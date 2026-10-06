@@ -103,11 +103,14 @@ import {
 } from "@/lib/workforce-overtime";
 import {
   HOLIDAY_REST_DAY_PREMIUM_EVENT,
+  OVERTIME_PREMIUM_EVENT,
   WORKED_TIME_PREMIUM_EVENT,
   payPolicyTrace,
   resolveHolidayRestDayPremium,
+  resolveOvertimePremium,
   resolveWorkedTimePremium,
   type AppliedHolidayRestDayPremiumRule,
+  type AppliedOvertimePremiumRule,
   type AppliedWorkedTimePremiumRule,
   type PayPolicyHolidayType,
   type PayPolicyRecord,
@@ -115,7 +118,7 @@ import {
   type PayPolicyScope,
 } from "@/lib/pay-policy-engine";
 
-export const PAYROLL_RULE_VERSION = "PH-2026.07";
+export const PAYROLL_RULE_VERSION = "PH-2026.08";
 const DEFAULT_CHUNK = 25;
 
 function money(value: number) {
@@ -1594,6 +1597,13 @@ function calculateEmployeePay(input: {
   const holidayRestDayPremiumApplications: AppliedHolidayRestDayPremiumRule[] = [];
   const holidayRestDayPremiumPolicyTrace = new Map<number, ReturnType<typeof payPolicyTrace>[number]>();
 
+  let overtimePremiumPay = 0;
+  let overtimePremiumTaxable = 0;
+  let overtimePremiumExcludedFromSssBase = 0;
+  let overtimePremiumExcludedFromPagIbigBase = 0;
+  const overtimePremiumApplications: AppliedOvertimePremiumRule[] = [];
+  const overtimePremiumPolicyTrace = new Map<number, ReturnType<typeof payPolicyTrace>[number]>();
+
   const flags: string[] = [];
   const punchNotes: string[] = [];
   const holidayNotes: string[] = [];
@@ -1688,6 +1698,54 @@ function calculateEmployeePay(input: {
       }
     }
     holidayRestDayPremiumApplications.push(...resolution.applied);
+    return resolution;
+  }
+
+  function applyOvertimePremium(inputSegment: {
+    workDate: string;
+    minutes: number;
+    hourlyRate: number;
+    holidayType: PayPolicyHolidayType;
+    restDay: boolean;
+    statutoryMultiplier: number;
+    shiftCode: string | null;
+    worksiteId: number | null;
+  }) {
+    const resolution = resolveOvertimePremium({
+      organizationId: input.employee.organizationId,
+      employeeId: input.employee.id,
+      orgUnitIds: input.payPolicyOrgUnitIds ?? [],
+      workDate: inputSegment.workDate,
+      minutes: inputSegment.minutes,
+      hourlyRate: inputSegment.hourlyRate,
+      holidayType: inputSegment.holidayType,
+      restDay: inputSegment.restDay,
+      statutoryMultiplier: inputSegment.statutoryMultiplier,
+      shiftCode: inputSegment.shiftCode,
+      worksiteId: inputSegment.worksiteId,
+      policies: input.payPolicies ?? [],
+      rules: input.payPolicyRules ?? [],
+    });
+
+    overtimePremiumPay = roundToCents(overtimePremiumPay + resolution.amount);
+    overtimePremiumTaxable = roundToCents(
+      overtimePremiumTaxable + resolution.taxableAmount,
+    );
+    overtimePremiumExcludedFromSssBase = roundToCents(
+      overtimePremiumExcludedFromSssBase
+        + Math.max(0, resolution.amount - resolution.sssIncludedAmount),
+    );
+    overtimePremiumExcludedFromPagIbigBase = roundToCents(
+      overtimePremiumExcludedFromPagIbigBase
+        + Math.max(0, resolution.amount - resolution.pagIbigIncludedAmount),
+    );
+    const appliedPolicyIds = new Set(resolution.applied.map((item) => item.policyId));
+    for (const policy of resolution.policies) {
+      if (appliedPolicyIds.has(policy.policyId)) {
+        overtimePremiumPolicyTrace.set(policy.policyId, policy);
+      }
+    }
+    overtimePremiumApplications.push(...resolution.applied);
     return resolution;
   }
 
