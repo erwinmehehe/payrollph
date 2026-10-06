@@ -2,6 +2,7 @@ import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employeeAvailabilityRules,
+  employeePayProfiles,
   employeeScheduleAssignments,
   employeeWorksiteAssignments,
   employees,
@@ -13,6 +14,7 @@ import {
   schedulePatterns,
   shiftDefinitions,
   staffingRequirements,
+  timePunches,
   workforceScheduleGuardrailPolicies,
   worksites,
 } from "@/db/schema";
@@ -20,6 +22,7 @@ import {
   assertOrganizationRole,
   assertScope,
   getAccess,
+  PEOPLE_PAYROLL_ROLES,
   WORKFORCE_MANAGER_ROLES,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
@@ -45,8 +48,17 @@ import { resolveEmployeeScheduleWindow } from "@/lib/workforce-schedule-window";
 import { markTimesheetsStaleForEmployeeDate } from "@/lib/workforce-timesheet-server";
 import {
   resolveDailySchedule,
+  type ResolvedDailySchedule,
   type WorkforceScheduleOverrideSegment,
 } from "@/lib/workforce-scheduling";
+import { matchPunchesToWorkforceSegments } from "@/lib/workforce-payroll";
+import { hourlyBaseRate } from "@/lib/workforce-forecast";
+import {
+  actualWorkedMinutes,
+  computeWorkforceLaborVariance,
+  paidShiftMinutes,
+  type ActualLaborEntry,
+} from "@/lib/workforce-labor-variance";
 import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
 
 export const dynamic = "force-dynamic";
@@ -133,7 +145,19 @@ async function coverageRows(input: {
   requirements: Array<typeof staffingRequirements.$inferSelect>;
   availabilityRows: Array<typeof employeeAvailabilityRules.$inferSelect>;
 }) {
-  if (input.employeeIds.length === 0) return [];
+  if (input.employeeIds.length === 0) {
+    return {
+      coverage: [],
+      scheduledSegments: [] as Array<{
+        employeeId: number;
+        workDate: string;
+        worksiteId: number | null;
+        shiftDefinitionId: number;
+        paidMinutes: number;
+      }>,
+      schedules: new Map<string, ResolvedDailySchedule>(),
+    };
+  }
 
   const data = await scheduleCatalog(input.organizationId);
   const [assignmentRows, overrideRows, worksiteRows] = await Promise.all([
@@ -156,6 +180,14 @@ async function coverageRows(input: {
   const shiftsById = new Map(data.shifts.map((shift) => [shift.id, shift]));
   const dates = datesBetween(input.startDate, input.endDate);
   const scheduled = [];
+  const scheduledSegments: Array<{
+    employeeId: number;
+    workDate: string;
+    worksiteId: number | null;
+    shiftDefinitionId: number;
+    paidMinutes: number;
+  }> = [];
+  const schedules = new Map<string, ResolvedDailySchedule>();
 
   for (const employeeId of input.employeeIds) {
     const employeeAssignments = assignmentRows.filter((row) => row.employeeId === employeeId);
@@ -227,6 +259,25 @@ async function coverageRows(input: {
           selectEffectiveWorksiteAssignment(defaultWorksites, date)?.worksiteId ?? null,
       });
 
+      schedules.set(`${employeeId}|${date}`, day);
+      for (const segment of day.segments) {
+        const shift = shiftsById.get(segment.shiftDefinitionId);
+        if (!shift) continue;
+        scheduledSegments.push({
+          employeeId,
+          workDate: date,
+          worksiteId: day.worksiteId,
+          shiftDefinitionId: segment.shiftDefinitionId,
+          paidMinutes: paidShiftMinutes({
+            id: shift.id,
+            startTime: shift.startTime,
+            endTime: shift.endTime,
+            breakMinutes: shift.breakMinutes,
+            spansMidnight: shift.spansMidnight,
+          }),
+        });
+      }
+
       const shiftIds = day.segments.map((segment) => segment.shiftDefinitionId);
       const unavailableShiftIds = shiftIds.filter((shiftId) => {
         const shift = shiftsById.get(shiftId);
@@ -243,16 +294,20 @@ async function coverageRows(input: {
     }
   }
 
-  return computeCoverage({
-    requirements: input.requirements.map((row) => ({
-      id: row.id,
-      worksiteId: row.worksiteId,
-      workDate: String(row.workDate),
-      shiftDefinitionId: row.shiftDefinitionId,
-      requiredHeadcount: row.requiredHeadcount,
-    })),
-    scheduled,
-  });
+  return {
+    coverage: computeCoverage({
+      requirements: input.requirements.map((row) => ({
+        id: row.id,
+        worksiteId: row.worksiteId,
+        workDate: String(row.workDate),
+        shiftDefinitionId: row.shiftDefinitionId,
+        requiredHeadcount: row.requiredHeadcount,
+      })),
+      scheduled,
+    }),
+    scheduledSegments,
+    schedules,
+  };
 }
 
 async function loadGuardrailPolicy(organizationId: number) {
@@ -296,10 +351,18 @@ export async function GET(request: Request) {
   const workforce = await visibleWorkforce(user.id, organizationId);
   if (!workforce) return Response.json({ error: "Workspace access not found." }, { status: 403 });
 
+  const costDenied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_PAYROLL_ROLES,
+    "People/payroll access is required to view labor-cost variance.",
+  );
+  const canViewLaborCosts = costDenied === null;
+
   const employeeIds = workforce.visibleEmployees.map((employee) => employee.id);
   const worksiteIds = workforce.visibleWorksites.map((site) => site.id);
 
-  const [requirements, availability, openShiftRows, claimRows, shifts] = await Promise.all([
+  const [requirements, availability, openShiftRows, claimRows, shifts, punchRows, payProfileRows] = await Promise.all([
     worksiteIds.length
       ? db.select().from(staffingRequirements).where(and(
           eq(staffingRequirements.organizationId, organizationId),
@@ -329,9 +392,23 @@ export async function GET(request: Request) {
     db.select().from(shiftDefinitions)
       .where(eq(shiftDefinitions.organizationId, organizationId))
       .orderBy(asc(shiftDefinitions.code)),
+    employeeIds.length
+      ? db.select().from(timePunches).where(and(
+          eq(timePunches.organizationId, organizationId),
+          inArray(timePunches.employeeId, employeeIds),
+          gte(timePunches.workDate, startDate),
+          lte(timePunches.workDate, endDate),
+        )).orderBy(asc(timePunches.employeeId), asc(timePunches.workDate), asc(timePunches.id))
+      : [],
+    canViewLaborCosts && employeeIds.length
+      ? db.select().from(employeePayProfiles).where(and(
+          eq(employeePayProfiles.organizationId, organizationId),
+          inArray(employeePayProfiles.employeeId, employeeIds),
+        )).orderBy(asc(employeePayProfiles.employeeId))
+      : [],
   ]);
 
-  const coverage = await coverageRows({
+  const coverageData = await coverageRows({
     organizationId,
     employeeIds,
     startDate,
@@ -339,6 +416,133 @@ export async function GET(request: Request) {
     requirements,
     availabilityRows: availability,
   });
+
+  const hourlyRateByEmployee = new Map<number, number>();
+  const invalidPayProfileEmployeeIds: number[] = [];
+  if (canViewLaborCosts) {
+    for (const profile of payProfileRows) {
+      try {
+        hourlyRateByEmployee.set(profile.employeeId, hourlyBaseRate({
+          employeeId: profile.employeeId,
+          payBasis: profile.payBasis,
+          rateAmount: profile.rateAmount,
+          standardWorkDaysPerMonth: profile.standardWorkDaysPerMonth,
+          standardHoursPerDay: profile.standardHoursPerDay,
+        }));
+      } catch {
+        invalidPayProfileEmployeeIds.push(profile.employeeId);
+      }
+    }
+  }
+  const missingPayProfileEmployeeIds = canViewLaborCosts
+    ? employeeIds.filter((employeeId) => !hourlyRateByEmployee.has(employeeId))
+    : [];
+  const validRates = [...hourlyRateByEmployee.values()];
+  const benchmarkHourlyRate = validRates.length
+    ? validRates.reduce((sum, rate) => sum + rate, 0) / validRates.length
+    : 0;
+
+  const scheduledLabor = coverageData.scheduledSegments.map((entry) => ({
+    ...entry,
+    hourlyRate: hourlyRateByEmployee.get(entry.employeeId) ?? 0,
+  }));
+
+  const punchesByEmployeeDate = new Map<string, typeof punchRows>();
+  for (const punch of punchRows) {
+    const key = `${punch.employeeId}|${String(punch.workDate)}`;
+    punchesByEmployeeDate.set(key, [...(punchesByEmployeeDate.get(key) ?? []), punch]);
+  }
+
+  const actualLabor: ActualLaborEntry[] = [];
+  for (const [key, datePunches] of punchesByEmployeeDate) {
+    const [employeeIdText, workDate] = key.split("|");
+    const employeeId = Number(employeeIdText);
+    const schedule = coverageData.schedules.get(key);
+    const resolution = matchPunchesToWorkforceSegments({
+      date: workDate,
+      schedule,
+      punches: datePunches.map((punch) => ({
+        id: punch.id,
+        timeIn: punch.timeIn,
+      })),
+    });
+
+    for (const punch of datePunches) {
+      const segment = resolution.segmentByPunchId.get(punch.id) ?? null;
+      const worked = actualWorkedMinutes({
+        timeIn: punch.timeIn,
+        timeOut: punch.timeOut,
+        breakStart: punch.breakStart,
+        breakEnd: punch.breakEnd,
+        scheduledBreakMinutes: segment?.breakMinutes ?? 60,
+      });
+      actualLabor.push({
+        employeeId,
+        workDate,
+        worksiteId: schedule?.worksiteId ?? null,
+        shiftDefinitionId: segment?.shiftDefinitionId ?? null,
+        workedMinutes: worked.minutes,
+        hourlyRate: hourlyRateByEmployee.get(employeeId) ?? 0,
+        matchedToSchedule: Boolean(segment) && !resolution.exception,
+        flags: [
+          ...worked.flags,
+          ...(resolution.exception ? [resolution.exception] : []),
+        ],
+      });
+    }
+  }
+
+  const laborVariance = computeWorkforceLaborVariance({
+    requirements: requirements.map((row) => ({
+      id: row.id,
+      worksiteId: row.worksiteId,
+      workDate: String(row.workDate),
+      shiftDefinitionId: row.shiftDefinitionId,
+      requiredHeadcount: row.requiredHeadcount,
+    })),
+    shifts: shifts.map((shift) => ({
+      id: shift.id,
+      startTime: shift.startTime,
+      endTime: shift.endTime,
+      breakMinutes: shift.breakMinutes,
+      spansMidnight: shift.spansMidnight,
+    })),
+    scheduled: scheduledLabor,
+    actual: actualLabor,
+    benchmarkHourlyRate,
+  });
+
+  const laborVarianceResponse = {
+    ...laborVariance,
+    costVisible: canViewLaborCosts,
+    rows: laborVariance.rows.map((row) => canViewLaborCosts ? row : {
+      ...row,
+      benchmarkHourlyRate: null,
+      requiredCostBasis: null,
+      requiredBaseCost: null,
+      scheduledBaseCost: null,
+      actualBaseCost: null,
+      scheduledVsRequiredBaseCost: null,
+      actualVsScheduledBaseCost: null,
+      actualVsRequiredBaseCost: null,
+    }),
+    summary: canViewLaborCosts ? laborVariance.summary : {
+      ...laborVariance.summary,
+      requiredBaseCost: null,
+      scheduledBaseCost: null,
+      actualBaseCost: null,
+      scheduledVsRequiredBaseCost: null,
+      actualVsScheduledBaseCost: null,
+      actualVsRequiredBaseCost: null,
+      unmatchedActualBaseCost: null,
+      scheduledOutsideRequirementBaseCost: null,
+    },
+    quality: {
+      missingPayProfileEmployeeIds,
+      invalidPayProfileEmployeeIds,
+      unmatchedPunchRows: actualLabor.filter((entry) => !entry.matchedToSchedule).length,
+    },
+  };
 
   return Response.json({
     employees: workforce.visibleEmployees.map((employee) => ({
@@ -351,7 +555,8 @@ export async function GET(request: Request) {
     shifts,
     requirements,
     availability,
-    coverage,
+    coverage: coverageData.coverage,
+    laborVariance: laborVarianceResponse,
     openShifts: openShiftRows.map((row) => {
       const approved = claimRows.filter((claim) =>
         claim.openShiftId === row.id && claim.status === "approved",
