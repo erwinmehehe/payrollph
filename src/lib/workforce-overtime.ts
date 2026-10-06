@@ -121,3 +121,57 @@ export function resolveOvertimeAuthorizationDay(input: {
     requests,
   };
 }
+
+
+export type OvertimeBudgetEvaluation = {
+  budgetMinutes: number;
+  approvedMinutesBefore: number;
+  pendingMinutes: number;
+  requestMinutes: number;
+  remainingMinutesBefore: number;
+  projectedApprovedMinutes: number;
+  projectedUtilizationPercent: number;
+  warningThresholdPercent: number;
+  warning: boolean;
+  overBudget: boolean;
+};
+
+/**
+ * OT budget is an authorization/planning control only. It never changes
+ * statutory wage entitlement. Managers may use this evidence to govern
+ * approvals, while payroll remains based on validated worked overtime.
+ */
+export function evaluateOvertimeBudget(input: {
+  budgetMinutes: number;
+  approvedMinutesBefore: number;
+  pendingMinutes?: number;
+  requestMinutes?: number;
+  warningThresholdPercent?: number;
+}): OvertimeBudgetEvaluation {
+  const budgetMinutes = Math.max(0, Math.trunc(input.budgetMinutes));
+  const approvedMinutesBefore = Math.max(0, Math.trunc(input.approvedMinutesBefore));
+  const pendingMinutes = Math.max(0, Math.trunc(input.pendingMinutes ?? 0));
+  const requestMinutes = Math.max(0, Math.trunc(input.requestMinutes ?? 0));
+  const warningThresholdPercent = Math.min(
+    100,
+    Math.max(1, Math.trunc(input.warningThresholdPercent ?? 80)),
+  );
+  const projectedApprovedMinutes = approvedMinutesBefore + requestMinutes;
+  const projectedUtilizationPercent = budgetMinutes > 0
+    ? Math.round((projectedApprovedMinutes / budgetMinutes) * 10_000) / 100
+    : projectedApprovedMinutes > 0 ? 100 : 0;
+
+  return {
+    budgetMinutes,
+    approvedMinutesBefore,
+    pendingMinutes,
+    requestMinutes,
+    remainingMinutesBefore: Math.max(0, budgetMinutes - approvedMinutesBefore),
+    projectedApprovedMinutes,
+    projectedUtilizationPercent,
+    warningThresholdPercent,
+    warning: budgetMinutes > 0
+      && projectedApprovedMinutes * 100 >= budgetMinutes * warningThresholdPercent,
+    overBudget: projectedApprovedMinutes > budgetMinutes,
+  };
+}
