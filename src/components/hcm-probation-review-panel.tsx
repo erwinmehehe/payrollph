@@ -181,9 +181,9 @@ export function HcmProbationReviewPanel({
       <div className="card-header">
         <div>
           <div className="card-kicker">HCM CORE 3.9 · PROBATION REVIEW</div>
-          <h2 style={{ fontSize: 14 }}>Structured manager review</h2>
+          <h2 style={{ fontSize: 14 }}>Structured probation review</h2>
           <p>
-            Capture a manager assessment tied to this probationary employment term. The recommendation is evidence only;
+            Capture a structured assessment tied to this probationary employment term. The recommendation is evidence only;
             a separate governed employment decision is still required.
           </p>
         </div>
@@ -222,7 +222,7 @@ export function HcmProbationReviewPanel({
         <div style={{ display: "grid", gap: 12 }}>
           <div className="setting-form">
             <label>
-              Manager recommendation
+              Review recommendation
               <select
                 value={form.recommendation}
                 onChange={(event) => setForm({ ...form, recommendation: event.target.value })}
@@ -247,7 +247,7 @@ export function HcmProbationReviewPanel({
               maxLength={8000}
               value={form.summary}
               onChange={(event) => setForm({ ...form, summary: event.target.value })}
-              placeholder="Summarize the manager's observations and facts reviewed."
+              placeholder="Summarize the reviewer's observations and facts reviewed."
             />
           </label>
           <label>
@@ -290,7 +290,7 @@ export function HcmProbationReviewPanel({
             <div>
               <span>Recommendation</span>
               <strong style={{ fontSize: 13 }}>{readable(review.recommendation ?? "none")}</strong>
-              <small>manager evidence only</small>
+              <small>review evidence only</small>
             </div>
             <div>
               <span>Overall rating</span>
