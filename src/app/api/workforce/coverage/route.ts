@@ -1135,6 +1135,16 @@ export async function POST(request: Request) {
       }
     }
 
+    const siteEligibility = await employeeSiteEligibility({
+      organizationId, employeeId, date: String(shiftRow.workDate), worksiteId: shiftRow.worksiteId,
+    });
+    if (!siteEligibility.eligible) {
+      return Response.json({
+        error: "Employee lacks effective worksite authorization or compatible work arrangement for this shift.",
+        siteEligibility,
+      }, { status: 409 });
+    }
+
     const approvedLeave = await approvedLeaveOnDate(
       organizationId,
       employeeId,
@@ -1298,6 +1308,16 @@ export async function POST(request: Request) {
           capabilityEligibility,
         }, { status: 409 });
       }
+    }
+
+    const siteEligibility = await employeeSiteEligibility({
+      organizationId, employeeId: employee.id, date: String(openShift.workDate), worksiteId: openShift.worksiteId,
+    });
+    if (!siteEligibility.eligible) {
+      return Response.json({
+        error: "Worker worksite authorization or work arrangement changed before approval.",
+        siteEligibility,
+      }, { status: 409 });
     }
 
     const approvedLeave = await approvedLeaveOnDate(
