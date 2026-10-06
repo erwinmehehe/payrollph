@@ -3152,6 +3152,74 @@ export const hcmLifecyclePolicyEvents = pgTable(
   ],
 );
 
+export const hcmProbationReviews = pgTable(
+  "hcm_probation_reviews",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    employmentTermId: integer("employment_term_id").notNull().references(() => hcmEmploymentTerms.id, { onDelete: "restrict" }),
+    status: varchar("status", { length: 24 }).notNull().default("draft"),
+    recommendation: varchar("recommendation", { length: 32 }),
+    overallRating: integer("overall_rating"),
+    roleExpectationsRating: integer("role_expectations_rating"),
+    workQualityRating: integer("work_quality_rating"),
+    reliabilityRating: integer("reliability_rating"),
+    conductCollaborationRating: integer("conduct_collaboration_rating"),
+    summary: text("summary"),
+    strengths: text("strengths"),
+    developmentAreas: text("development_areas"),
+    reviewerUserId: integer("reviewer_user_id").references(() => users.id, { onDelete: "set null" }),
+    reviewerEmployeeId: integer("reviewer_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    reviewerName: varchar("reviewer_name", { length: 120 }).notNull(),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hcm_probation_reviews_term_unique").on(table.organizationId, table.employmentTermId),
+    index("hcm_probation_reviews_employee_idx").on(table.organizationId, table.employeeId, table.status),
+  ],
+);
+
+export const hcmProbationReviewAcknowledgments = pgTable(
+  "hcm_probation_review_acknowledgments",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    reviewId: integer("review_id").notNull().references(() => hcmProbationReviews.id, { onDelete: "restrict" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    response: varchar("response", { length: 32 }).notNull().default("acknowledged_receipt"),
+    employeeComment: text("employee_comment"),
+    statementVersion: varchar("statement_version", { length: 40 }).notNull().default("receipt-only-v1"),
+    acknowledgedByUserId: integer("acknowledged_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    acknowledgedByName: varchar("acknowledged_by_name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hcm_probation_review_ack_unique").on(table.reviewId, table.employeeId),
+    index("hcm_probation_review_ack_employee_idx").on(table.organizationId, table.employeeId, table.createdAt),
+  ],
+);
+
+export const hcmProbationReviewEvents = pgTable(
+  "hcm_probation_review_events",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    reviewId: integer("review_id").notNull().references(() => hcmProbationReviews.id, { onDelete: "restrict" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    eventType: varchar("event_type", { length: 32 }).notNull(),
+    actorUserId: integer("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    actorName: varchar("actor_name", { length: 120 }).notNull(),
+    metadata: jsonb("metadata").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("hcm_probation_review_events_review_idx").on(table.organizationId, table.reviewId, table.createdAt),
+  ],
+);
+
 export const workerEffectiveChanges = pgTable(
   "worker_effective_changes",
   {
