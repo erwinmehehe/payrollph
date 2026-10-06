@@ -202,3 +202,61 @@ test("site-ineligible scheduled workers create a qualified coverage gap", () => 
   assert.equal(result[0]?.availableScheduledHeadcount, 1);
   assert.equal(result[0]?.gap, 1);
 });
+
+
+test("partial approved leave reduces planned minutes without removing whole-shift headcount", () => {
+  const result = computeCoverage({
+    requirements: [{
+      id: 333,
+      worksiteId: 10,
+      workDate: "2026-10-06",
+      shiftDefinitionId: 2,
+      jobProfileId: 4,
+      requiredHeadcount: 1,
+    }],
+    scheduled: [{
+      employeeId: 1,
+      workDate: "2026-10-06",
+      worksiteId: 10,
+      jobProfileId: 4,
+      shiftDefinitionIds: [2],
+      paidMinutesByShiftDefinitionId: { 2: 480 },
+      approvedLeaveUnavailableMinutesByShiftDefinitionId: { 2: 240 },
+    } as any],
+  });
+
+  assert.equal(result[0]?.scheduledHeadcount, 1);
+  assert.equal(result[0]?.availableScheduledHeadcount, 1);
+  assert.equal(result[0]?.approvedLeavePartiallyUnavailableHeadcount, 1);
+  assert.equal(result[0]?.approvedLeaveUnavailableMinutes, 240);
+  assert.equal(result[0]?.scheduledPaidMinutes, 480);
+  assert.equal(result[0]?.availableScheduledMinutes, 240);
+});
+
+test("a fully unavailable precise-leave shift is excluded from available headcount", () => {
+  const result = computeCoverage({
+    requirements: [{
+      id: 334,
+      worksiteId: 10,
+      workDate: "2026-10-06",
+      shiftDefinitionId: 2,
+      jobProfileId: 4,
+      requiredHeadcount: 1,
+    }],
+    scheduled: [{
+      employeeId: 1,
+      workDate: "2026-10-06",
+      worksiteId: 10,
+      jobProfileId: 4,
+      shiftDefinitionIds: [2],
+      paidMinutesByShiftDefinitionId: { 2: 480 },
+      approvedLeaveUnavailableMinutesByShiftDefinitionId: { 2: 480 },
+      approvedLeaveShiftDefinitionIds: [2],
+    } as any],
+  });
+
+  assert.equal(result[0]?.approvedLeaveScheduledHeadcount, 1);
+  assert.equal(result[0]?.approvedLeavePartiallyUnavailableHeadcount, 0);
+  assert.equal(result[0]?.availableScheduledHeadcount, 0);
+  assert.equal(result[0]?.availableScheduledMinutes, 0);
+});
