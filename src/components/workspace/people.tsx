@@ -34,7 +34,9 @@ type ConnectedWorkerProfile = {
     effectiveFrom: string;
     profile: null | { id: number; title: string; family: string; level: string; grade: string | null };
     orgUnit: null | { id: number; name: string; code: string; type: string };
+    supervisoryOrg: null | { id: number; name: string; code: string; type: string };
     legalEntity: null | { id: number; code: string; displayName: string; legalName: string };
+    costCenter: null | { id: number; code: string; name: string };
     manager: null | { id: number; employeeNo: string; firstName: string; lastName: string; title: string };
   };
   benefits: Array<{
@@ -118,7 +120,9 @@ type ConnectedWorkerProfile = {
         employmentType: string;
         profile: null | { id: number; title: string; family: string; level: string; grade: string | null };
         orgUnit: null | { id: number; name: string; code: string; type: string };
+        supervisoryOrg: null | { id: number; name: string; code: string; type: string };
         legalEntity: null | { id: number; code: string; displayName: string };
+        costCenter: null | { id: number; code: string; name: string };
         manager: null | { id: number; employeeNo: string; firstName: string; lastName: string; title: string };
       };
     }>;
@@ -838,7 +842,15 @@ function PersonDrawer({
                         ? `${connectedProfile.position.manager.firstName} ${connectedProfile.position.manager.lastName}`
                         : "No manager"}
                     </strong>
-                    <small>{connectedProfile.position?.orgUnit?.name ?? "No organization unit"} · {connectedProfile.position?.legalEntity?.displayName ?? "Legal employer not assigned"}</small>
+                    <small>
+                      {connectedProfile.position?.orgUnit?.name ?? "No organization unit"}
+                      {" · "}
+                      {connectedProfile.position?.supervisoryOrg?.name ?? "No supervisory org"}
+                      {" · "}
+                      {connectedProfile.position?.legalEntity?.displayName ?? "Legal employer not assigned"}
+                      {" · "}
+                      {connectedProfile.position?.costCenter?.code ?? "No cost center"}
+                    </small>
                   </div>
                   <div>
                     <span>System access</span>
@@ -910,7 +922,7 @@ function PersonDrawer({
                             ? `${assignment.position.code} · ${assignment.position.profile?.title ?? "Position"}`
                             : `Position assignment #${assignment.id}`}
                           <em>
-                            {assignment.assignmentType} · {Number(assignment.fte).toFixed(2)} FTE · {assignment.position?.orgUnit?.name ?? "No org unit"} · {assignment.reason}
+                            {assignment.assignmentType} · {Number(assignment.fte).toFixed(2)} FTE · {assignment.position?.orgUnit?.name ?? "No org unit"} · {assignment.position?.supervisoryOrg?.name ?? "No supervisory org"} · {assignment.position?.costCenter?.code ?? "No cost center"} · {assignment.reason}
                           </em>
                         </span>
                         <b>{formatDate(assignment.effectiveFrom)}{assignment.effectiveUntil ? ` → ${formatDate(assignment.effectiveUntil)}` : " → current"}</b>
