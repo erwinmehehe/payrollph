@@ -252,6 +252,14 @@ export type LeaveRequest = {
   endDate: string;
   days: string;
   status: string;
+  timeWindow?: {
+    workDate: string;
+    startTime: string;
+    endTime: string;
+    minutes: number;
+    standardDayMinutes: number;
+    exactDayEquivalent: string;
+  } | null;
 };
 
 export type LeavePolicy = {
