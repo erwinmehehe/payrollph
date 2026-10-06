@@ -686,8 +686,8 @@ export async function generateJournalCsv(runId: number) {
     ];
     for (const creditLine of credits) {
       pushJournalRow({
-        side: "credit",
-        amount: creditLine.amount,
+        side: creditLine.amount < 0 ? "debit" : "credit",
+        amount: Math.abs(creditLine.amount),
         legalEntityId,
         costCenterId: null,
         accountKey: creditLine.accountKey,
