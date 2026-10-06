@@ -11,6 +11,7 @@ export type WorksiteAuthorization = {
   id: number;
   employeeId: number;
   worksiteId: number;
+  decision?: "allow" | "deny";
   effectiveFrom: string;
   effectiveUntil: string | null;
 };
@@ -49,12 +50,22 @@ export function evaluateSiteEligibility(input: {
   const primaryRows = input.primaryAssignments.filter((row) => row.employeeId === input.employeeId);
   const permits = input.authorizations.filter((row) => row.employeeId === input.employeeId);
   const primary = selectEffectiveWorksiteAssignment(primaryRows, input.date);
-  const authorized = permits.some((row) => row.worksiteId === input.worksiteId && active(row, input.date));
+  const explicitlyDenied = permits.some((row) =>
+    row.worksiteId === input.worksiteId
+    && row.decision === "deny"
+    && active(row, input.date)
+  );
+  const authorized = permits.some((row) =>
+    row.worksiteId === input.worksiteId
+    && row.decision !== "deny"
+    && active(row, input.date)
+  );
 
   let source: SiteEligibility["source"] = "none";
   if (primary?.worksiteId === input.worksiteId) source = "primary";
   else if (authorized) source = "authorization";
 
+  if (explicitlyDenied) blockers.push("Worksite access is explicitly denied for this employee on this date.");
   if (!site || !site.active) blockers.push("Target worksite is missing or inactive.");
   if (arrangement?.mode === "remote" && site?.siteType !== "remote_hub") {
     blockers.push("Remote arrangement requires a remote-hub worksite.");
