@@ -699,6 +699,7 @@ export const employeeLaborAllocations = pgTable(
     effectiveUntil: date("effective_until"),
     allocationPercent: numeric("allocation_percent", { precision: 6, scale: 3 }).notNull(),
     allocationBasis: varchar("allocation_basis", { length: 24 }).notNull().default("percentage"),
+    allocationHours: numeric("allocation_hours", { precision: 10, scale: 3 }),
     projectCode: varchar("project_code", { length: 64 }),
     clientCode: varchar("client_code", { length: 64 }),
     jobCode: varchar("job_code", { length: 64 }),
@@ -710,6 +711,32 @@ export const employeeLaborAllocations = pgTable(
   (table) => [
     index("employee_labor_allocations_employee_date_idx").on(table.employeeId, table.effectiveFrom),
     index("employee_labor_allocations_org_cost_center_idx").on(table.organizationId, table.costCenterId),
+  ],
+);
+
+export const laborGlMappings = pgTable(
+  "labor_gl_mappings",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "cascade" }),
+    costCenterId: integer("cost_center_id").references(() => costCenters.id, { onDelete: "cascade" }),
+    accountKey: varchar("account_key", { length: 64 }).notNull(),
+    accountCode: varchar("account_code", { length: 40 }),
+    accountName: varchar("account_name", { length: 160 }).notNull(),
+    active: boolean("active").notNull().default(true),
+    createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("labor_gl_mappings_scope_unique").on(
+      table.organizationId,
+      sql`coalesce(${table.legalEntityId}, 0)`,
+      sql`coalesce(${table.costCenterId}, 0)`,
+      table.accountKey,
+    ),
+    index("labor_gl_mappings_org_active_idx").on(table.organizationId, table.active),
   ],
 );
 
