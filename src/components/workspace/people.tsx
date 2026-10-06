@@ -19,6 +19,7 @@ import {
 import { ImportPanel } from "@/components/import-panel";
 import { HcmCapabilitiesPanel } from "@/components/hcm-capabilities-panel";
 import { HcmEmploymentLifecycleActionCenter } from "@/components/hcm-employment-lifecycle-action-center";
+import { HcmEmploymentLifecycleWorker } from "@/components/hcm-employment-lifecycle-worker";
 import type { DashboardData, Employee } from "./types";
 import { REST_DAY_NAMES } from "@/lib/payroll-rules";
 import { Avatar, EmptyState, PageHeading, Status, formatDate, formatTimeOnly, money } from "./ui";
@@ -629,6 +630,7 @@ export function PeopleView({
           employee={selected}
           canManage={canManage}
           onRefresh={onRefresh}
+          onPage={onPage}
           onClose={closeDrawer}
         />
       )}
@@ -641,14 +643,21 @@ function PersonDrawer({
   employee,
   canManage,
   onRefresh,
+  onPage,
   onClose,
 }: {
   data: DashboardData;
   employee: Employee;
   canManage: boolean;
   onRefresh: () => Promise<void>;
+  onPage: (page: string) => void;
   onClose: () => void;
 }) {
+  const canManageEmploymentLifecycle = Boolean(
+    canManage
+      && data.access?.companyWide
+      && ["owner", "admin", "bookkeeper", "hr"].includes(data.access.role),
+  );
   const [editingEmployment, setEditingEmployment] = useState(false);
   const [savingEmployment, setSavingEmployment] = useState(false);
   const [startDate, setStartDate] = useState(employee.startDate ?? "");
@@ -1475,6 +1484,16 @@ function PersonDrawer({
               </div>
             )}
           </section>
+        )}
+
+        {canManageEmploymentLifecycle && (
+          <HcmEmploymentLifecycleWorker
+            organizationId={data.selectedOrganization.id}
+            employeeId={employee.id}
+            currentEmploymentType={employee.employmentType}
+            onChanged={refreshConnectedProfile}
+            onOpenSeparation={() => onPage("separation")}
+          />
         )}
 
         {canManage && connectedProfile?.position?.profile?.id && (
