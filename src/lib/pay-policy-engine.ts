@@ -416,3 +416,320 @@ export function resolveWorkedTimePremium(input: {
     applied,
   };
 }
+
+
+export const HOLIDAY_REST_DAY_PREMIUM_EVENT = "holiday_rest_day_premium";
+
+export type PayPolicyHolidayType = "ordinary" | "special" | "regular" | "double";
+
+export type AppliedHolidayRestDayPremiumRule = {
+  ruleId: number;
+  ruleKey: string;
+  eventType: typeof HOLIDAY_REST_DAY_PREMIUM_EVENT;
+  policyId: number;
+  policyCode: string;
+  policyName: string;
+  policyVersion: string;
+  policyKind: string;
+  policyScopeType: PayPolicyScope;
+  workDate: string;
+  minutes: number;
+  hourlyRate: number;
+  holidayType: PayPolicyHolidayType;
+  restDay: boolean;
+  shiftCode: string | null;
+  worksiteId: number | null;
+  statutoryMultiplier: number;
+  additionalPremiumPercent: number;
+  amount: number;
+  label: string;
+  taxable: boolean;
+  includeInSssBase: boolean;
+  includeInPagIbigBase: boolean;
+};
+
+const PAY_POLICY_HOLIDAY_TYPES = new Set<PayPolicyHolidayType>([
+  "ordinary",
+  "special",
+  "regular",
+  "double",
+]);
+
+function ruleMatchesHolidayRestDayPremium(
+  rule: PayPolicyRuleRecord,
+  context: {
+    holidayType: PayPolicyHolidayType;
+    restDay: boolean;
+    shiftCode: string | null;
+    worksiteId: number | null;
+  },
+) {
+  const conditions = asObject(rule.conditions, `Pay rule ${rule.ruleKey} conditions`);
+  assertOnlyKeys(
+    conditions,
+    ["holidayTypes", "restDay", "shiftCodes", "worksiteIds"],
+    `Pay rule ${rule.ruleKey} conditions`,
+  );
+
+  let holidayTypes: PayPolicyHolidayType[] | null = null;
+  if (conditions.holidayTypes != null) {
+    if (!Array.isArray(conditions.holidayTypes) || conditions.holidayTypes.length === 0) {
+      throw new Error(
+        `Pay rule ${rule.ruleKey} holidayTypes must be a non-empty array when supplied.`,
+      );
+    }
+    holidayTypes = conditions.holidayTypes.map((item) => {
+      if (typeof item !== "string" || !PAY_POLICY_HOLIDAY_TYPES.has(item as PayPolicyHolidayType)) {
+        throw new Error(
+          `Pay rule ${rule.ruleKey} holidayTypes must contain only ordinary, special, regular, or double.`,
+        );
+      }
+      return item as PayPolicyHolidayType;
+    });
+  }
+
+  if (conditions.restDay != null && typeof conditions.restDay !== "boolean") {
+    throw new Error(`Pay rule ${rule.ruleKey} restDay must be true or false when supplied.`);
+  }
+
+  const targetsPremiumDay =
+    conditions.restDay === true
+    || Boolean(holidayTypes?.some((item) => item !== "ordinary"));
+  if (!targetsPremiumDay) {
+    throw new Error(
+      `Pay rule ${rule.ruleKey} must target a holiday and/or rest day; ordinary non-rest-day premiums belong in ${WORKED_TIME_PREMIUM_EVENT}.`,
+    );
+  }
+
+  if (holidayTypes && !holidayTypes.includes(context.holidayType)) {
+    return false;
+  }
+  if (
+    typeof conditions.restDay === "boolean"
+    && conditions.restDay !== context.restDay
+  ) {
+    return false;
+  }
+
+  if (conditions.shiftCodes != null) {
+    if (!Array.isArray(conditions.shiftCodes) || conditions.shiftCodes.length === 0) {
+      throw new Error(`Pay rule ${rule.ruleKey} shiftCodes must be a non-empty array when supplied.`);
+    }
+    const shiftCodes = conditions.shiftCodes.map((item) => {
+      if (typeof item !== "string" || !item.trim()) {
+        throw new Error(`Pay rule ${rule.ruleKey} shiftCodes must contain non-empty strings.`);
+      }
+      return normalizeShiftCode(item);
+    });
+    if (!context.shiftCode) {
+      throw new Error(
+        `Pay rule ${rule.ruleKey} requires shift-code evidence, but payroll could not resolve a shift code.`,
+      );
+    }
+    if (!shiftCodes.includes(normalizeShiftCode(context.shiftCode))) {
+      return false;
+    }
+  }
+
+  if (conditions.worksiteIds != null) {
+    if (!Array.isArray(conditions.worksiteIds) || conditions.worksiteIds.length === 0) {
+      throw new Error(`Pay rule ${rule.ruleKey} worksiteIds must be a non-empty array when supplied.`);
+    }
+    const worksiteIds = conditions.worksiteIds.map((item) => {
+      const id = Number(item);
+      if (!Number.isInteger(id) || id <= 0) {
+        throw new Error(`Pay rule ${rule.ruleKey} worksiteIds must contain positive integer IDs.`);
+      }
+      return id;
+    });
+    if (context.worksiteId == null) {
+      throw new Error(
+        `Pay rule ${rule.ruleKey} requires worksite evidence, but payroll could not resolve a worksite.`,
+      );
+    }
+    if (!worksiteIds.includes(context.worksiteId)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function parseHolidayRestDayPremiumOutcome(rule: PayPolicyRuleRecord) {
+  const outcome = asObject(rule.outcome, `Pay rule ${rule.ruleKey} outcome`);
+  assertOnlyKeys(
+    outcome,
+    [
+      "label",
+      "additionalPremiumPercent",
+      "taxable",
+      "includeInSssBase",
+      "includeInPagIbigBase",
+    ],
+    `Pay rule ${rule.ruleKey} outcome`,
+  );
+
+  const additionalPremiumPercent = positiveFiniteNumber(
+    outcome.additionalPremiumPercent,
+    `Pay rule ${rule.ruleKey} additionalPremiumPercent`,
+    500,
+  );
+  if (additionalPremiumPercent <= 0) {
+    throw new Error(
+      `Pay rule ${rule.ruleKey} additionalPremiumPercent must be greater than zero.`,
+    );
+  }
+
+  const label = typeof outcome.label === "string" && outcome.label.trim()
+    ? outcome.label.trim().slice(0, 160)
+    : rule.ruleKey;
+
+  return {
+    label,
+    additionalPremiumPercent,
+    taxable: requiredBoolean(outcome.taxable, `Pay rule ${rule.ruleKey} taxable`),
+    includeInSssBase: requiredBoolean(
+      outcome.includeInSssBase,
+      `Pay rule ${rule.ruleKey} includeInSssBase`,
+    ),
+    includeInPagIbigBase: requiredBoolean(
+      outcome.includeInPagIbigBase,
+      `Pay rule ${rule.ruleKey} includeInPagIbigBase`,
+    ),
+  };
+}
+
+/**
+ * Executes configurable employer/CBA holiday and rest-day top-ups for regular
+ * worked minutes only.
+ *
+ * The statutory holiday/rest-day multiplier remains authoritative and is never
+ * replaced. Each matching rule adds an explicit percentage of base hourly pay
+ * above that floor. Overtime and night-differential arithmetic stay on their
+ * statutory engines until those rule families are migrated independently.
+ *
+ * Distinct rule keys stack intentionally. A higher-precedence matching policy
+ * shadows a lower-precedence rule with the same rule key.
+ */
+export function resolveHolidayRestDayPremium(input: {
+  organizationId: number;
+  employeeId: number;
+  orgUnitIds?: number[];
+  workDate: string;
+  minutes: number;
+  hourlyRate: number;
+  holidayType: PayPolicyHolidayType;
+  restDay: boolean;
+  statutoryMultiplier: number;
+  shiftCode: string | null;
+  worksiteId: number | null;
+  policies: PayPolicyRecord[];
+  rules: PayPolicyRuleRecord[];
+}) {
+  const minutes = Math.max(0, Math.trunc(input.minutes));
+  const hourlyRate = Number(input.hourlyRate);
+  const statutoryMultiplier = Number(input.statutoryMultiplier);
+  if (!Number.isFinite(hourlyRate) || hourlyRate < 0) {
+    throw new Error("Holiday/rest-day premium hourlyRate must be a non-negative finite number.");
+  }
+  if (
+    !Number.isFinite(statutoryMultiplier)
+    || statutoryMultiplier < 1
+    || statutoryMultiplier > 10
+  ) {
+    throw new Error(
+      "Holiday/rest-day premium statutoryMultiplier must be between 1 and 10.",
+    );
+  }
+  if (!PAY_POLICY_HOLIDAY_TYPES.has(input.holidayType)) {
+    throw new Error(`Unsupported holiday type "${input.holidayType}".`);
+  }
+
+  const policies = resolveApplicablePayPolicies({
+    organizationId: input.organizationId,
+    employeeId: input.employeeId,
+    orgUnitIds: input.orgUnitIds,
+    asOf: input.workDate,
+    policies: input.policies,
+  });
+  const policyById = new Map(policies.map((policy) => [policy.id, policy]));
+  const ordered = orderedPayPolicyRules({ policies, rules: input.rules })
+    .filter((rule) => rule.eventType === HOLIDAY_REST_DAY_PREMIUM_EVENT);
+
+  const claimedRuleKeys = new Set<string>();
+  const applied: AppliedHolidayRestDayPremiumRule[] = [];
+
+  for (const rule of ordered) {
+    if (!rule.statutoryFloorProtected) {
+      throw new Error(
+        `Executable pay rule ${rule.ruleKey} must keep statutoryFloorProtected=true.`,
+      );
+    }
+
+    const matches = ruleMatchesHolidayRestDayPremium(rule, {
+      holidayType: input.holidayType,
+      restDay: input.restDay,
+      shiftCode: input.shiftCode,
+      worksiteId: input.worksiteId,
+    });
+    if (!matches) continue;
+
+    if (claimedRuleKeys.has(rule.ruleKey)) continue;
+    claimedRuleKeys.add(rule.ruleKey);
+
+    const policy = policyById.get(rule.policyId);
+    if (!policy) continue;
+    const outcome = parseHolidayRestDayPremiumOutcome(rule);
+    const amount = roundMoney(
+      (minutes / 60)
+        * hourlyRate
+        * (outcome.additionalPremiumPercent / 100),
+    );
+    if (amount <= 0 || minutes <= 0) continue;
+
+    applied.push({
+      ruleId: rule.id,
+      ruleKey: rule.ruleKey,
+      eventType: HOLIDAY_REST_DAY_PREMIUM_EVENT,
+      policyId: policy.id,
+      policyCode: policy.code,
+      policyName: policy.name,
+      policyVersion: policy.version,
+      policyKind: policy.policyKind,
+      policyScopeType: policy.scopeType,
+      workDate: input.workDate,
+      minutes,
+      hourlyRate,
+      holidayType: input.holidayType,
+      restDay: input.restDay,
+      shiftCode: input.shiftCode,
+      worksiteId: input.worksiteId,
+      statutoryMultiplier,
+      additionalPremiumPercent: outcome.additionalPremiumPercent,
+      amount,
+      label: outcome.label,
+      taxable: outcome.taxable,
+      includeInSssBase: outcome.includeInSssBase,
+      includeInPagIbigBase: outcome.includeInPagIbigBase,
+    });
+  }
+
+  return {
+    version: "holiday-rest-day-premium-v1" as const,
+    statutoryFloorMode: "additive-only" as const,
+    overtimeMode: "statutory-only" as const,
+    nightDifferentialMode: "statutory-only" as const,
+    policies: payPolicyTrace(policies),
+    amount: roundMoney(applied.reduce((sum, item) => sum + item.amount, 0)),
+    taxableAmount: roundMoney(
+      applied.reduce((sum, item) => sum + (item.taxable ? item.amount : 0), 0),
+    ),
+    sssIncludedAmount: roundMoney(
+      applied.reduce((sum, item) => sum + (item.includeInSssBase ? item.amount : 0), 0),
+    ),
+    pagIbigIncludedAmount: roundMoney(
+      applied.reduce((sum, item) => sum + (item.includeInPagIbigBase ? item.amount : 0), 0),
+    ),
+    applied,
+  };
+}
