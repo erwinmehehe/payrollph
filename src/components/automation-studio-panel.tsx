@@ -56,6 +56,9 @@ type Execution = {
   status: string;
   result: unknown;
   error: string | null;
+  cursor?: number;
+  resumeAt?: string | null;
+  waitingApprovalTaskId?: number | null;
   createdAt: string;
 };
 
@@ -86,6 +89,7 @@ type StudioData = {
     completed: number;
     partial: number;
     failed: number;
+    waiting: number;
     successRate: number;
   };
 };
@@ -115,6 +119,13 @@ type ActionDraft = {
   amount: string;
   reason: string;
   checklist: string;
+  waitAmount: string;
+  waitUnit: string;
+  branchField: string;
+  branchOperator: string;
+  branchValue: string;
+  branchThenTitle: string;
+  branchElseTitle: string;
 };
 
 const defaultAction = (id: string): ActionDraft => ({
@@ -135,6 +146,13 @@ const defaultAction = (id: string): ActionDraft => ({
   amount: "",
   reason: "",
   checklist: "",
+  waitAmount: "1",
+  waitUnit: "days",
+  branchField: "department",
+  branchOperator: "eq",
+  branchValue: "",
+  branchThenTitle: "",
+  branchElseTitle: "",
 });
 
 const formatDateTime = (value: string) =>
@@ -259,6 +277,39 @@ export function AutomationStudioPanel({
   }
 
   function serializeAction(row: ActionDraft): Record<string, unknown> {
+    if (row.type === "wait") {
+      return { type: row.type, amount: Number(row.waitAmount), unit: row.waitUnit };
+    }
+    if (row.type === "approval_gate") {
+      return {
+        type: row.type,
+        title: row.title,
+        detail: row.detail,
+        approver: row.approver,
+        priority: row.priority,
+        dueLabel: "Workflow paused for approval",
+      };
+    }
+    if (row.type === "branch") {
+      const field = data?.catalogs.conditions.find((item) => item.value === row.branchField);
+      const value = row.branchOperator === "exists"
+        ? row.branchValue !== "false"
+        : row.branchOperator === "in"
+          ? row.branchValue.split(",").map((item) => item.trim()).filter(Boolean).map((item) => field?.kind === "number" ? Number(item) : item)
+          : field?.kind === "number" ? Number(row.branchValue) : row.branchValue;
+      return {
+        type: row.type,
+        conditions: {
+          version: 1,
+          all: [{ field: row.branchField, operator: row.branchOperator, value }],
+          any: [],
+        },
+        then: [{ type: "create_task", title: row.branchThenTitle, owner: row.owner || "People Ops" }],
+        else: row.branchElseTitle.trim()
+          ? [{ type: "create_task", title: row.branchElseTitle, owner: row.owner || "People Ops" }]
+          : [],
+      };
+    }
     if (row.type === "create_task") {
       return { type: row.type, title: row.title, owner: row.owner };
     }
@@ -390,7 +441,7 @@ export function AutomationStudioPanel({
       <div className="page-heading">
         <div>
           <div className="eyebrow">AUTOMATION STUDIO</div>
-          <h1>Build governed WHEN / IF / THEN workflows.</h1>
+          <h1>Build governed WHEN / IF / THEN workflows with waits, approvals and branches.</h1>
           <p>
             Connect authoritative payroll, workforce, HCM, access and integration events without letting automation bypass approval, payroll or security controls.
           </p>
@@ -426,8 +477,8 @@ export function AutomationStudioPanel({
         </article>
         <article className="stat-card">
           <div className="stat-icon amber"><CircleAlert size={19} /></div>
-          <p>NEEDS ATTENTION</p>
-          <h3>{data.analytics.failed + data.analytics.partial}</h3>
+          <p>PAUSED / ATTENTION</p>
+          <h3>{data.analytics.waiting}</h3>
           <span>{data.analytics.failed} failed · {data.analytics.partial} partial</span>
         </article>
       </section>
@@ -436,7 +487,7 @@ export function AutomationStudioPanel({
         <div className="notice notice-slate" style={{ margin: 0 }}>
           <ShieldCheck size={16} className="i-purple" />
           <span>
-            <strong>Governed execution.</strong> Studio runs after authoritative transactions commit. Payroll adjustments become approval requests, access removal is separation-only, and external calls use registered signed webhooks rather than arbitrary URLs.
+            <strong>Governed execution.</strong> Studio runs after authoritative transactions commit. Timed waits persist across worker restarts, approval gates pause the exact execution, payroll adjustments remain approval requests, access removal is separation-only, and external calls use registered signed webhooks rather than arbitrary URLs.
           </span>
         </div>
       </article>
@@ -447,7 +498,7 @@ export function AutomationStudioPanel({
             <div>
               <div className="card-kicker">WORKFLOW BUILDER</div>
               <h2>Configure one deterministic automation</h2>
-              <p>Actions execute from top to bottom. A failed secondary action is recorded without rolling back the authoritative business event.</p>
+              <p>Steps execute from top to bottom. Waits resume from the scheduler, approval gates pause until a decision, and branches evaluate the original event context.</p>
             </div>
           </div>
 
@@ -590,6 +641,43 @@ export function AutomationStudioPanel({
                         ))}
                       </select>
 
+                      {row.type === "wait" && (
+                        <div className="setting-form">
+                          <label>Wait amount<input required type="number" min="1" value={row.waitAmount} onChange={(event) => updateAction(row.id, { waitAmount: event.target.value })} /></label>
+                          <label>Unit<select value={row.waitUnit} onChange={(event) => updateAction(row.id, { waitUnit: event.target.value })}><option value="minutes">Minutes</option><option value="hours">Hours</option><option value="days">Days</option></select></label>
+                          <div className="modal-note">The execution is persisted and resumed by the scheduler. Maximum delay is 30 days.</div>
+                        </div>
+                      )}
+
+                      {row.type === "approval_gate" && (
+                        <div className="setting-form">
+                          <label>Approval title<input required value={row.title} onChange={(event) => updateAction(row.id, { title: event.target.value })} /></label>
+                          <label>Approver<input value={row.approver} onChange={(event) => updateAction(row.id, { approver: event.target.value })} placeholder="manager or named approver" /></label>
+                          <label>Detail<input required value={row.detail} onChange={(event) => updateAction(row.id, { detail: event.target.value })} /></label>
+                          <label>Priority<select value={row.priority} onChange={(event) => updateAction(row.id, { priority: event.target.value })}><option>Normal</option><option>High</option></select></label>
+                          <div className="modal-note">This is a true gate: later workflow steps do not execute until the task is approved. A decline ends the execution as failed evidence.</div>
+                        </div>
+                      )}
+
+                      {row.type === "branch" && (() => {
+                        const branchField = data.catalogs.conditions.find((item) => item.value === row.branchField);
+                        return (
+                          <div className="setting-form">
+                            <label>Branch field<select value={row.branchField} onChange={(event) => updateAction(row.id, { branchField: event.target.value, branchValue: "" })}>{data.catalogs.conditions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+                            <label>Operator<select value={row.branchOperator} onChange={(event) => updateAction(row.id, { branchOperator: event.target.value })}>{data.catalogs.operators.map((operator) => <option key={operator} value={operator}>{operator}</option>)}</select></label>
+                            {row.branchOperator === "exists" ? (
+                              <label>Value<select value={row.branchValue || "true"} onChange={(event) => updateAction(row.id, { branchValue: event.target.value })}><option value="true">exists</option><option value="false">does not exist</option></select></label>
+                            ) : (
+                              <label>Value<input required type={branchField?.kind === "number" && row.branchOperator !== "in" ? "number" : "text"} value={row.branchValue} onChange={(event) => updateAction(row.id, { branchValue: event.target.value })} placeholder={row.branchOperator === "in" ? "Comma-separated values" : "Value"} /></label>
+                            )}
+                            <label>TRUE branch task<input required value={row.branchThenTitle} onChange={(event) => updateAction(row.id, { branchThenTitle: event.target.value })} placeholder="Create task when condition matches" /></label>
+                            <label>ELSE branch task<input value={row.branchElseTitle} onChange={(event) => updateAction(row.id, { branchElseTitle: event.target.value })} placeholder="Optional fallback task" /></label>
+                            <label>Task owner<input value={row.owner} onChange={(event) => updateAction(row.id, { owner: event.target.value })} /></label>
+                            <div className="modal-note">The engine supports nested branch step arrays; this first builder surface creates a governed task on the TRUE branch and an optional task on ELSE.</div>
+                          </div>
+                        );
+                      })()}
+
                       {row.type === "create_task" && (
                         <div className="setting-form">
                           <label>Task<input required value={row.title} onChange={(event) => updateAction(row.id, { title: event.target.value })} /></label>
@@ -723,7 +811,7 @@ export function AutomationStudioPanel({
           <div>
             <div className="card-kicker">EXECUTION EVIDENCE</div>
             <h2>Recent Automation Studio runs</h2>
-            <p>Every rule/event pair is idempotent. Partial failures preserve successful action evidence and the exact error.</p>
+            <p>Every rule/event pair is idempotent. Paused runs preserve their cursor, workflow snapshot and event context so they can resume without starting over.</p>
           </div>
           <Bot size={17} className="i-purple" />
         </div>
@@ -743,7 +831,11 @@ export function AutomationStudioPanel({
                     </span>
                     {row.error && <small style={{ display: "block", color: "var(--danger)", maxWidth: 340 }}>{row.error}</small>}
                   </td>
-                  <td>{formatDateTime(row.createdAt)}</td>
+                  <td>
+                    {formatDateTime(row.createdAt)}
+                    {row.resumeAt && <small style={{ display: "block", color: "var(--muted)" }}>Resumes {formatDateTime(row.resumeAt)}</small>}
+                    {row.waitingApprovalTaskId && <small style={{ display: "block", color: "var(--muted)" }}>Approval #{row.waitingApprovalTaskId}</small>}
+                  </td>
                 </tr>
               ))}
             </tbody>
