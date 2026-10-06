@@ -73,6 +73,7 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
   const [timingMode, setTimingMode] = useState<"full_day" | "first_half" | "second_half" | "timed">("full_day");
   const [startLocalTime, setStartLocalTime] = useState("09:00");
   const [endLocalTime, setEndLocalTime] = useState("13:00");
+  const [timedEndsNextDay, setTimedEndsNextDay] = useState(false);
   const [timingPreview, setTimingPreview] = useState<{
     blocking: boolean;
     previews: Array<{
@@ -108,7 +109,7 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
       kind: timingMode,
       startLocalTime: timingMode === "timed" ? startLocalTime : null,
       endLocalTime: timingMode === "timed" ? endLocalTime : null,
-      endsNextDay: timingMode === "timed" ? endLocalTime <= startLocalTime : false,
+      endsNextDay: timingMode === "timed" ? timedEndsNextDay : false,
       timezone: "Asia/Manila",
     }];
   }
@@ -308,6 +309,7 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
                   const mode = event.target.value as "full_day" | "first_half" | "second_half" | "timed";
                   setTimingMode(mode);
                   setTimingPreview(null);
+                  if (mode !== "timed") setTimedEndsNextDay(false);
                   if (mode === "first_half" || mode === "second_half") setDays(0.5);
                 }}
               >
@@ -321,6 +323,17 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
               <>
                 <label>Start time<input type="time" value={startLocalTime} onChange={(event) => { setStartLocalTime(event.target.value); setTimingPreview(null); }} /></label>
                 <label>End time<input type="time" value={endLocalTime} onChange={(event) => { setEndLocalTime(event.target.value); setTimingPreview(null); }} /></label>
+                <label>
+                  <span>Ends next day</span>
+                  <input
+                    type="checkbox"
+                    checked={timedEndsNextDay}
+                    onChange={(event) => {
+                      setTimedEndsNextDay(event.target.checked);
+                      setTimingPreview(null);
+                    }}
+                  />
+                </label>
               </>
             )}
             {timingMode !== "full_day" && (
