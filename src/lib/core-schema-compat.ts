@@ -1773,6 +1773,18 @@ export async function ensureCoreCompatibilitySchema() {
       // Multi-legal-employer compliance evidence must never aggregate liabilities
       // across separate Philippine employer registrations.
       await client.query(`
+        CREATE TABLE IF NOT EXISTS payroll_month_closures (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          applicable_month varchar(7) NOT NULL,
+          status varchar(24) NOT NULL DEFAULT 'certified',
+          snapshot_hash varchar(64) NOT NULL,
+          evidence_snapshot jsonb NOT NULL,
+          certified_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          certified_by_name varchar(120) NOT NULL,
+          certified_at timestamptz NOT NULL DEFAULT NOW(),
+          created_at timestamptz NOT NULL DEFAULT NOW()
+        );
         ALTER TABLE government_filing_validations
           ADD COLUMN IF NOT EXISTS legal_entity_id integer REFERENCES legal_entities(id) ON DELETE RESTRICT;
         ALTER TABLE payroll_month_closures
