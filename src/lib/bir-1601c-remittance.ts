@@ -116,8 +116,8 @@ export function canRecordBir1601cPayment(input: {
   if (paid > expected + 0.01 && String(input.paymentVarianceNote ?? "").trim().length < 4) {
     return { ok: false as const, error: "Explain any payment above the payroll withholding liability, such as surcharge, interest or compromise penalty." };
   }
-  if (input.paymentReference.trim().length < 4) {
-    return { ok: false as const, error: "BIR payment confirmation/reference is required." };
+  if (paid > 0 && input.paymentReference.trim().length < 4) {
+    return { ok: false as const, error: "BIR payment confirmation/reference is required when tax is paid." };
   }
   return { ok: true as const };
 }
