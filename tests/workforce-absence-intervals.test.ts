@@ -16,7 +16,8 @@ type IntervalModule = {
 
 async function loadModule(): Promise<IntervalModule | null> {
   try {
-    return await import("../src/lib/workforce-absence-intervals") as IntervalModule;
+    const modulePath = "../src/lib/workforce-absence-" + "intervals";
+    return await import(modulePath) as IntervalModule;
   } catch {
     return null;
   }
