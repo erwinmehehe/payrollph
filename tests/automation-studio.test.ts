@@ -105,7 +105,9 @@ test("access orchestration remains workspace scoped and does not globally disabl
   assert.ok(engine.includes("db.update(scimIdentities).set({ active: false"));
   assert.ok(engine.includes("db.update(sessions).set({ revokedAt: new Date() })"));
   assert.equal(engine.includes("db.update(users).set({ active: false })"), false);
-  assert.ok(engine.includes("Permission set"));
+  assert.ok(engine.includes("userPermissionAssignments"));
+  assert.ok(engine.includes("eq(userOrganizations.active, true)"));
+  assert.ok(engine.includes("eq(permissionSets.active, true)"));
 });
 
 test("automation failures cannot roll back authoritative HR or payroll transactions", () => {
