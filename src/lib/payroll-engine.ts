@@ -2319,6 +2319,35 @@ function calculateEmployeePay(input: {
     0,
   );
 
+  const companyPremiumLineGroups = new Map<number, {
+    application: AppliedWorkedTimePremiumRule;
+    minutes: number;
+    amount: number;
+  }>();
+  for (const application of companyPremiumApplications) {
+    const existing = companyPremiumLineGroups.get(application.ruleId);
+    companyPremiumLineGroups.set(application.ruleId, {
+      application,
+      minutes: (existing?.minutes ?? 0) + application.minutes,
+      amount: roundToCents((existing?.amount ?? 0) + application.amount),
+    });
+  }
+  const companyPremiumLines = [...companyPremiumLineGroups.values()]
+    .sort((a, b) => a.application.policyId - b.application.policyId || a.application.ruleId - b.application.ruleId)
+    .map(({ application, minutes, amount }) => ({
+      code: `PREM-${application.ruleId}`,
+      label: `Company premium, ${application.label}`,
+      amount: money(amount),
+      notes: [
+        `Policy ${application.policyCode} v${application.policyVersion} · rule ${application.ruleKey}`,
+        `${minutes} worked minute(s)`,
+        `Taxable: ${application.taxable ? "yes" : "no"} · SSS base: ${application.includeInSssBase ? "included" : "excluded"} · Pag-IBIG base: ${application.includeInPagIbigBase ? "included" : "excluded"}`,
+      ],
+    }));
+  const companyPremiumNonTaxable = roundToCents(
+    Math.max(0, companyPremiumPay - companyPremiumTaxable),
+  );
+
   // Employee loans are lower-priority than statutory/tax deductions. Government
   // loan amortizations are attempted before company/other loans; anything that
   // cannot fit in available net pay is carried forward instead of disappearing
@@ -2339,6 +2368,7 @@ function calculateEmployeePay(input: {
       + nightDiffPay
       + calamityPay
       + holidayPremium
+      + companyPremiumPay
       + retroTotal
       + expenseTotal
       + supplementaryTotal
@@ -2354,11 +2384,17 @@ function calculateEmployeePay(input: {
   // earlier obligation, so the current earned remuneration is used directly.
   const sssCutoffRemuneration = Math.max(
     0,
-    gross - expenseTotal - supplementaryExcludedFromSssBase,
+    gross
+      - expenseTotal
+      - supplementaryExcludedFromSssBase
+      - companyPremiumExcludedFromSssBase,
   );
   const pagIbigCutoffCompensation = Math.max(
     0,
-    gross - expenseTotal - supplementaryExcludedFromPagIbigBase,
+    gross
+      - expenseTotal
+      - supplementaryExcludedFromPagIbigBase
+      - companyPremiumExcludedFromPagIbigBase,
   );
   const priorStatutory = input.priorStatutory ?? {
     sssRemuneration: 0,
@@ -2435,7 +2471,8 @@ function calculateEmployeePay(input: {
     conversionTotal
       - conversionTaxExemptTotal
       + supplementaryOrdinaryTaxableTotal
-      + benefitPoolTreatment.taxableCurrent,
+      + benefitPoolTreatment.taxableCurrent
+      + companyPremiumTaxable,
   );
   const taxableCompensation = treatAsMwe
     ? Math.max(0, mweTaxableSupplementaryCompensation - sss - philhealth - pagibigMandatory)
@@ -2447,6 +2484,7 @@ function calculateEmployeePay(input: {
           - deMinimisExemptTotal
           - benefitPoolTreatment.exemptCurrent
           - conversionTaxExemptTotal
+          - companyPremiumNonTaxable
           - sss
           - philhealth
           - pagibigMandatory,
@@ -2559,6 +2597,7 @@ function calculateEmployeePay(input: {
     { code: "OT", label: "Overtime", amount: money(overtimePay) },
     { code: "ND", label: "Night differential (10%)", amount: money(nightDiffPay) },
     { code: "HOLIDAY", label: "Holiday / rest-day premium", amount: money(holidayPremium), notes: holidayNotes },
+    ...companyPremiumLines,
     { code: "CALAMITY", label: "Calamity / hazard premium", amount: money(calamityPay), notes: calamityNotes },
     ...retroLines.map(({ amountNum: _amountNum, ...line }) => line),
     ...conversionLines.map(({ amountNum: _amountNum, taxExempt: _taxExempt, ...c }) => c),
@@ -2605,6 +2644,13 @@ function calculateEmployeePay(input: {
   const resolvedWorkforceTrace = workforceScheduleTrace(input.resolvedSchedules);
   const trace = {
     ruleVersion: PAYROLL_RULE_VERSION,
+    payPolicyExecution: {
+      version: "worked-time-premium-v1",
+      statutoryFloorMode: "additive-only",
+      migratedRuleFamilies: [WORKED_TIME_PREMIUM_EVENT],
+      appliedPolicies: [...companyPremiumPolicyTrace.values()].sort((a, b) => a.policyId - b.policyId),
+      appliedRules: companyPremiumApplications,
+    },
     workforceSchedule: {
       mode: resolvedWorkforceTrace.length > 0 ? "advanced-with-legacy-fallback" : "legacy",
       days: resolvedWorkforceTrace,
@@ -2703,6 +2749,12 @@ function calculateEmployeePay(input: {
       `overtimeAuthorizedMinutes=${overtimeAuthorizationDays.reduce((sum, day) => sum + day.authorizedMinutes, 0)}`,
       `overtimeAuthorizationRequests=${overtimeAuthorizationDays.reduce((sum, day) => sum + day.requests.length, 0)}`,
       `nightMinutes=${nightMinutes}`,
+      `companyPremium=${money(companyPremiumPay)}`,
+      `companyPremiumTaxable=${money(companyPremiumTaxable)}`,
+      `companyPremiumExcludedFromSssBase=${money(companyPremiumExcludedFromSssBase)}`,
+      `companyPremiumExcludedFromPagIbigBase=${money(companyPremiumExcludedFromPagIbigBase)}`,
+      `companyPremiumAppliedRules=${companyPremiumApplications.length}`,
+      `companyPremiumAppliedPolicies=${companyPremiumPolicyTrace.size}`,
       `tardinessMinutes=${tardinessMinutes}`,
       `undertimeMinutes=${undertimeMinutes}`,
       `sssMonthlySalaryCredit=${money(sssRule.monthlySalaryCredit)}`,
