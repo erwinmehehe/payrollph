@@ -75,6 +75,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<"organization" | "team">("organization");
   const [focusEmployeeId, setFocusEmployeeId] = useState<number | null>(null);
+  const [focusTimeEmployeeId, setFocusTimeEmployeeId] = useState<number | null>(null);
 
   // Modals kept from the original build, all still server-authorised.
   const [newPayrollOpen, setNewPayrollOpen] = useState(false);
@@ -424,6 +425,14 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
             onRelease={releaseRun}
             onDecide={decideTask}
             onPage={setPage}
+            onOpenEmployee={(employeeId) => {
+              setFocusEmployeeId(employeeId);
+              setPage("People");
+            }}
+            onOpenTimeIssue={(employeeId) => {
+              setFocusTimeEmployeeId(employeeId);
+              setPage("Time & attendance");
+            }}
             onRefresh={async () => {
               await refresh();
             }}
@@ -470,6 +479,8 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
             onOpenBundy={() => setWebBundyOpen(true)}
             notify={notify}
             canManage={canManageTime}
+            focusEmployeeId={focusTimeEmployeeId}
+            onClearFocus={() => setFocusTimeEmployeeId(null)}
           />
         )}
 
