@@ -685,6 +685,57 @@ export const openShiftClaims = pgTable(
   ],
 );
 
+export const payPolicies = pgTable(
+  "pay_policies",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    code: varchar("code", { length: 64 }).notNull(),
+    name: varchar("name", { length: 160 }).notNull(),
+    policyKind: varchar("policy_kind", { length: 32 }).notNull().default("company"),
+    version: varchar("version", { length: 48 }).notNull(),
+    scopeType: varchar("scope_type", { length: 24 }).notNull().default("organization"),
+    scopeOrgUnitId: integer("scope_org_unit_id").references(() => orgUnits.id, { onDelete: "cascade" }),
+    scopeEmployeeId: integer("scope_employee_id").references(() => employees.id, { onDelete: "cascade" }),
+    priority: integer("priority").notNull().default(100),
+    effectiveFrom: date("effective_from").notNull(),
+    effectiveUntil: date("effective_until"),
+    active: boolean("active").notNull().default(true),
+    description: text("description"),
+    createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
+    approvedBy: varchar("approved_by", { length: 120 }),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("pay_policies_org_code_version_unique").on(table.organizationId, table.code, table.version),
+    index("pay_policies_org_effective_idx").on(table.organizationId, table.effectiveFrom),
+    index("pay_policies_scope_idx").on(table.organizationId, table.scopeType, table.scopeOrgUnitId, table.scopeEmployeeId),
+  ],
+);
+
+export const payPolicyRules = pgTable(
+  "pay_policy_rules",
+  {
+    id: serial("id").primaryKey(),
+    policyId: integer("policy_id").notNull().references(() => payPolicies.id, { onDelete: "cascade" }),
+    ruleKey: varchar("rule_key", { length: 80 }).notNull(),
+    eventType: varchar("event_type", { length: 48 }).notNull(),
+    conditions: jsonb("conditions").notNull().default({}),
+    outcome: jsonb("outcome").notNull().default({}),
+    priority: integer("priority").notNull().default(100),
+    statutoryFloorProtected: boolean("statutory_floor_protected").notNull().default(true),
+    enabled: boolean("enabled").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("pay_policy_rules_policy_key_unique").on(table.policyId, table.ruleKey),
+    index("pay_policy_rules_policy_priority_idx").on(table.policyId, table.priority),
+  ],
+);
+
 export const payrollRuns = pgTable("payroll_runs", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),

@@ -185,7 +185,7 @@ export async function ensureCoreCompatibilitySchema() {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v13'))");
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v14'))");
 
       await client.query(`
         ALTER TABLE organizations
@@ -419,6 +419,89 @@ export async function ensureCoreCompatibilitySchema() {
             ALTER TABLE employee_labor_allocations
               ADD CONSTRAINT employee_labor_allocations_dates_check
               CHECK (effective_until IS NULL OR effective_until >= effective_from);
+          END IF;
+        END
+        $compat$;
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS pay_policies (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          code varchar(64) NOT NULL,
+          name varchar(160) NOT NULL,
+          policy_kind varchar(32) NOT NULL DEFAULT 'company',
+          version varchar(48) NOT NULL,
+          scope_type varchar(24) NOT NULL DEFAULT 'organization',
+          scope_org_unit_id integer REFERENCES org_units(id) ON DELETE CASCADE,
+          scope_employee_id integer REFERENCES employees(id) ON DELETE CASCADE,
+          priority integer NOT NULL DEFAULT 100,
+          effective_from date NOT NULL,
+          effective_until date,
+          active boolean NOT NULL DEFAULT true,
+          description text,
+          created_by varchar(120) NOT NULL DEFAULT 'System',
+          approved_by varchar(120),
+          approved_at timestamptz,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS pay_policies_org_code_version_unique
+        ON pay_policies(organization_id, code, version)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS pay_policies_org_effective_idx
+        ON pay_policies(organization_id, effective_from)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS pay_policies_scope_idx
+        ON pay_policies(organization_id, scope_type, scope_org_unit_id, scope_employee_id)
+      `);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS pay_policy_rules (
+          id serial PRIMARY KEY,
+          policy_id integer NOT NULL REFERENCES pay_policies(id) ON DELETE CASCADE,
+          rule_key varchar(80) NOT NULL,
+          event_type varchar(48) NOT NULL,
+          conditions jsonb NOT NULL DEFAULT '{}'::jsonb,
+          outcome jsonb NOT NULL DEFAULT '{}'::jsonb,
+          priority integer NOT NULL DEFAULT 100,
+          statutory_floor_protected boolean NOT NULL DEFAULT true,
+          enabled boolean NOT NULL DEFAULT true,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS pay_policy_rules_policy_key_unique
+        ON pay_policy_rules(policy_id, rule_key)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS pay_policy_rules_policy_priority_idx
+        ON pay_policy_rules(policy_id, priority)
+      `);
+      await client.query(`
+        DO $compat$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint WHERE conname = 'pay_policies_dates_check'
+          ) THEN
+            ALTER TABLE pay_policies
+              ADD CONSTRAINT pay_policies_dates_check
+              CHECK (effective_until IS NULL OR effective_until >= effective_from);
+          END IF;
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint WHERE conname = 'pay_policies_scope_check'
+          ) THEN
+            ALTER TABLE pay_policies
+              ADD CONSTRAINT pay_policies_scope_check
+              CHECK (
+                (scope_type = 'organization' AND scope_org_unit_id IS NULL AND scope_employee_id IS NULL)
+                OR (scope_type = 'org_unit' AND scope_org_unit_id IS NOT NULL AND scope_employee_id IS NULL)
+                OR (scope_type = 'employee' AND scope_employee_id IS NOT NULL AND scope_org_unit_id IS NULL)
+              );
           END IF;
         END
         $compat$;
