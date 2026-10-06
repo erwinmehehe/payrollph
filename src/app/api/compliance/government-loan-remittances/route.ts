@@ -11,6 +11,7 @@ import {
 import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { resolveComplianceLegalEntity } from "@/lib/legal-entity";
 import {
   buildGovernmentLoanRemittanceSnapshot,
   canConfirmGovernmentLoanPosting,
@@ -61,14 +62,36 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const organizationId = Number(url.searchParams.get("organizationId"));
+  const requestedLegalEntityId = Number(url.searchParams.get("legalEntityId") ?? 0);
   if (!Number.isInteger(organizationId)) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
   }
   const denied = await requirePayrollOperator(user.id, organizationId);
   if (denied) return denied;
+  let legalEntity;
+  try {
+    legalEntity = await resolveComplianceLegalEntity({
+      organizationId,
+      legalEntityId: requestedLegalEntityId || null,
+    });
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "Legal employer could not be resolved.",
+    }, { status: 409 });
+  }
+
+  let legalEntity;
+  try {
+    legalEntity = await resolveComplianceLegalEntity({ organizationId, legalEntityId: requestedLegalEntityId || null });
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "Legal employer could not be resolved." }, { status: 409 });
+  }
 
   const batches = await db.select().from(governmentLoanRemittanceBatches)
-    .where(eq(governmentLoanRemittanceBatches.organizationId, organizationId))
+    .where(and(
+      eq(governmentLoanRemittanceBatches.organizationId, organizationId),
+      eq(governmentLoanRemittanceBatches.legalEntityId, legalEntity.id),
+    ))
     .orderBy(asc(governmentLoanRemittanceBatches.applicableMonth), asc(governmentLoanRemittanceBatches.agency));
   const batchIds = batches.map((batch) => batch.id);
   const members = batchIds.length
@@ -86,6 +109,7 @@ export async function GET(request: Request) {
 
   return Response.json({
     today,
+    legalEntity: { id: legalEntity.id, code: legalEntity.code, displayName: legalEntity.displayName },
     batches: batches.map((batch) => ({
       ...batch,
       displayStatus:
@@ -112,6 +136,7 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
+  const requestedLegalEntityId = Number(body.legalEntityId ?? 0);
   const action = String(body.action ?? "").trim();
   if (!Number.isInteger(organizationId)) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
@@ -146,6 +171,7 @@ export async function POST(request: Request) {
       .from(governmentLoanRemittanceBatches)
       .where(and(
         eq(governmentLoanRemittanceBatches.organizationId, organizationId),
+        eq(governmentLoanRemittanceBatches.legalEntityId, legalEntity.id),
         eq(governmentLoanRemittanceBatches.agency, agency),
         eq(governmentLoanRemittanceBatches.applicableMonth, applicableMonth),
       )).limit(1);
@@ -157,6 +183,7 @@ export async function POST(request: Request) {
     const end = monthEnd(applicableMonth);
     const monthRuns = await db.select().from(payrollRuns).where(and(
       eq(payrollRuns.organizationId, organizationId),
+      eq(payrollRuns.legalEntityId, legalEntity.id),
       gte(payrollRuns.periodEnd, start),
       lte(payrollRuns.periodEnd, end),
     ));
@@ -185,7 +212,10 @@ export async function POST(request: Request) {
     })
       .from(employeeLoans)
       .innerJoin(employees, eq(employeeLoans.employeeId, employees.id))
-      .where(eq(employeeLoans.organizationId, organizationId));
+      .where(and(
+        eq(employeeLoans.organizationId, organizationId),
+        eq(employees.legalEntityId, legalEntity.id),
+      ));
 
     const snapshot = buildGovernmentLoanRemittanceSnapshot({
       agency,
@@ -203,6 +233,7 @@ export async function POST(request: Request) {
     const created = await db.transaction(async (tx) => {
       const [batch] = await tx.insert(governmentLoanRemittanceBatches).values({
         organizationId,
+        legalEntityId: legalEntity.id,
         agency,
         applicableMonth,
         dueDate,
@@ -218,6 +249,7 @@ export async function POST(request: Request) {
         snapshot.members.map((member) => ({
           batchId: batch.id,
           organizationId,
+          legalEntityId: legalEntity.id,
           loanId: member.loanId,
           employeeId: member.employeeId,
           employeeNo: member.employeeNo,
@@ -237,6 +269,8 @@ export async function POST(request: Request) {
       resource: `${agency} loans · ${applicableMonth}`,
       metadata: {
         batchId: created.id,
+        legalEntityId: legalEntity.id,
+        legalEntityCode: legalEntity.code,
         employeeCount: snapshot.employeeCount,
         loanCount: snapshot.loanCount,
         expectedTotal: snapshot.expectedTotal,
@@ -260,6 +294,7 @@ export async function POST(request: Request) {
     const [batch] = await db.select().from(governmentLoanRemittanceBatches).where(and(
       eq(governmentLoanRemittanceBatches.id, batchId),
       eq(governmentLoanRemittanceBatches.organizationId, organizationId),
+      eq(governmentLoanRemittanceBatches.legalEntityId, legalEntity.id),
     )).limit(1);
     if (!batch) return Response.json({ error: "Government loan remittance batch not found." }, { status: 404 });
     if (batch.status !== "open") {
@@ -292,6 +327,7 @@ export async function POST(request: Request) {
     }).where(and(
       eq(governmentLoanRemittanceBatches.id, batchId),
       eq(governmentLoanRemittanceBatches.organizationId, organizationId),
+      eq(governmentLoanRemittanceBatches.legalEntityId, legalEntity.id),
     )).returning();
 
     await recordAuditEvent({
@@ -317,12 +353,14 @@ export async function POST(request: Request) {
     const [member] = await db.select().from(governmentLoanRemittanceMembers).where(and(
       eq(governmentLoanRemittanceMembers.id, memberId),
       eq(governmentLoanRemittanceMembers.organizationId, organizationId),
+      eq(governmentLoanRemittanceMembers.legalEntityId, legalEntity.id),
     )).limit(1);
     if (!member) return Response.json({ error: "Government loan remittance member not found." }, { status: 404 });
 
     const [batch] = await db.select().from(governmentLoanRemittanceBatches).where(and(
       eq(governmentLoanRemittanceBatches.id, member.batchId),
       eq(governmentLoanRemittanceBatches.organizationId, organizationId),
+      eq(governmentLoanRemittanceBatches.legalEntityId, legalEntity.id),
     )).limit(1);
     if (!batch) return Response.json({ error: "Government loan remittance batch not found." }, { status: 404 });
     if (member.postingStatus === "confirmed") {
