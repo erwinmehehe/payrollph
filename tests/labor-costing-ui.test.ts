@@ -62,3 +62,11 @@ test("labor costing UI makes wage-safety boundary explicit", () => {
   assert.ok(panel.includes("Finance allocation, not wage calculation"));
   assert.ok(panel.includes("does not change statutory wages"));
 });
+
+
+test("labor costing UI supports source-hours allocation plans", () => {
+  assert.ok(panel.includes('value="hours"'));
+  assert.ok(panel.includes("allocationHours"));
+  assert.ok(panel.includes("totalHours"));
+  assert.ok(panel.includes("source basis retained in audit evidence"));
+});
