@@ -284,7 +284,7 @@ export function HcmLifecycleNotificationInbox({
       )}
 
       <div className="modal-note" style={{ marginTop: 12 }}>
-        Reminder milestones: T-30, T-14, T-7, T-1, due, overdue, and escalated overdue. A new stage reopens an acknowledged or snoozed task and creates a new dedupe episode.
+        Reminder milestones and overdue thresholds follow the organization lifecycle policy. A new stage reopens an acknowledged or snoozed task and creates a new dedupe episode.
       </div>
     </section>
   );
