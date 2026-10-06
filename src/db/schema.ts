@@ -402,6 +402,7 @@ export const scheduleOverrides = pgTable(
     id: serial("id").primaryKey(),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    orgUnitId: integer("org_unit_id").references(() => orgUnits.id, { onDelete: "set null" }),
     workDate: date("work_date").notNull(),
     kind: varchar("kind", { length: 24 }).notNull().default("shift"),
     isRestDay: boolean("is_rest_day").notNull().default(false),
@@ -511,6 +512,8 @@ export const overtimeRequests = pgTable(
     requestKind: varchar("request_kind", { length: 32 }).notNull().default("pre_approved"),
     status: varchar("status", { length: 24 }).notNull().default("pending"),
     approvalTaskId: integer("approval_task_id"),
+    budgetId: integer("budget_id").references(() => overtimeBudgets.id, { onDelete: "set null" }),
+    budgetSnapshot: jsonb("budget_snapshot").notNull().default({}),
     requestedBy: varchar("requested_by", { length: 120 }).notNull(),
     requestedByUserId: integer("requested_by_user_id").references(() => users.id, { onDelete: "set null" }),
     decidedBy: varchar("decided_by", { length: 120 }),
@@ -523,6 +526,8 @@ export const overtimeRequests = pgTable(
   (table) => [
     index("overtime_requests_org_date_idx").on(table.organizationId, table.workDate),
     index("overtime_requests_employee_date_idx").on(table.employeeId, table.workDate),
+    index("overtime_requests_org_unit_date_idx").on(table.organizationId, table.orgUnitId, table.workDate),
+    index("overtime_requests_budget_idx").on(table.budgetId, table.status),
     index("overtime_requests_status_idx").on(table.organizationId, table.status),
   ],
 );
