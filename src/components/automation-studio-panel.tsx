@@ -441,7 +441,7 @@ export function AutomationStudioPanel({
       <div className="page-heading">
         <div>
           <div className="eyebrow">AUTOMATION STUDIO</div>
-          <h1>Build governed WHEN / IF / THEN workflows with waits, approvals and branches.</h1>
+          <h1>Build governed WHEN / IF / THEN workflows. Add waits, approvals and branches.</h1>
           <p>
             Connect authoritative payroll, workforce, HCM, access and integration events without letting automation bypass approval, payroll or security controls.
           </p>
