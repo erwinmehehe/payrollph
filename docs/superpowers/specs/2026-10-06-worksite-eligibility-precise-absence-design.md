@@ -1,9 +1,9 @@
 # Worksite authorization + precise absence timing for WFM
 
-**Status:** Proposed design for review (not implemented)
+**Status:** Approved design. Core worksite eligibility implemented by merged PR #477; residual worksite hardening and precise absence timing remain.
 **Date:** 2026-10-06
 **Scope:** WFM-supporting HCM, after merged PRs #472–#474
-**Order:** PR A — worksite and work-arrangement eligibility; PR B — per-day partial/hourly leave
+**Order:** Worksite core #477 (merged) → residual worksite hardening → precise per-day partial/hourly leave
 
 ## Problem and intent
 
@@ -29,6 +29,12 @@ Outcome: an authorized manager can answer **Can employee E perform job J at work
 **C. Leave uses exact dated intervals.** A single aggregate "0.5 day" is not sufficient evidence of which hours are absent. New leave must carry dated interval(s) when not full-day, and comparisons use scheduled work segments. Historical ambiguous entries remain legible and conservative.
 
 **D. Shared evaluation, multiple enforcement points.** Coverage reporting, open-shift claiming, manager approval and shift reassignment all use the same eligibility service. Separate "scheduled" from "eligible/available" and from "actual work/payable minutes". Recheck eligibility at the commit/approval boundary, not only when viewing the roster.
+
+## Current-state reconciliation
+
+After this spec was written, PR #477 merged the core worksite tranche: effective-dated onsite/hybrid/remote/field arrangements, secondary-site grants, qualified-coverage exclusion, open-shift claim/approval rechecks, explicit schedule mutation checks, legacy warnings, timesheet staleness, and WFM UI. Do not rebuild those parts.
+
+Residual worksite items from this approved design are: explicit dated site restrictions/deny precedence, structured finding codes/evidence instead of only strings, and connected-worker profile visibility. These are a hardening PR, not a replacement for #477.
 
 ## PR A: Effective-dated work arrangement and worksite eligibility
 
