@@ -185,7 +185,7 @@ export async function ensureCoreCompatibilitySchema() {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v17'))");
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v18'))");
 
       await client.query(`
         ALTER TABLE organizations
@@ -1507,6 +1507,52 @@ export async function ensureCoreCompatibilitySchema() {
           END IF;
         END
         $compat$;
+      `);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS attendance_capture_policies (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL UNIQUE REFERENCES organizations(id) ON DELETE CASCADE,
+          web_bundy_enabled boolean NOT NULL DEFAULT true,
+          mobile_clock_enabled boolean NOT NULL DEFAULT true,
+          kiosk_clock_enabled boolean NOT NULL DEFAULT false,
+          offline_sync_enabled boolean NOT NULL DEFAULT false,
+          require_location boolean NOT NULL DEFAULT false,
+          max_offline_age_minutes integer NOT NULL DEFAULT 1440,
+          updated_by varchar(120) NOT NULL DEFAULT 'System',
+          updated_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS attendance_offline_events (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          employee_id integer NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+          client_event_id varchar(96) NOT NULL,
+          action_type varchar(24) NOT NULL,
+          occurred_at timestamptz NOT NULL,
+          source varchar(32) NOT NULL,
+          device_serial varchar(80),
+          location text,
+          status varchar(24) NOT NULL DEFAULT 'received',
+          rejection_reason varchar(240),
+          applied_punch_id integer REFERENCES time_punches(id) ON DELETE SET NULL,
+          created_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS attendance_offline_event_unique
+        ON attendance_offline_events(organization_id, client_event_id)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS attendance_offline_employee_time_idx
+        ON attendance_offline_events(organization_id, employee_id, occurred_at)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS attendance_offline_status_idx
+        ON attendance_offline_events(organization_id, status)
       `);
 
       await client.query("COMMIT");
