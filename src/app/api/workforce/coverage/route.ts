@@ -42,6 +42,7 @@ import {
   scheduleGuardrailBlocksMutation,
 } from "@/lib/workforce-schedule-guardrails";
 import { resolveEmployeeScheduleWindow } from "@/lib/workforce-schedule-window";
+import { markTimesheetsStaleForEmployeeDate } from "@/lib/workforce-timesheet-server";
 import {
   resolveDailySchedule,
   type WorkforceScheduleOverrideSegment,
@@ -845,6 +846,12 @@ export async function POST(request: Request) {
 
     if (!result) return Response.json({ error: "Open shift is already fully claimed." }, { status: 409 });
 
+    const staleTimesheets = await markTimesheetsStaleForEmployeeDate({
+      organizationId,
+      employeeId: employee.id,
+      workDate: String(openShift.workDate),
+    });
+
     await recordAuditEvent({
       organizationId,
       actor: user.name,
@@ -857,6 +864,7 @@ export async function POST(request: Request) {
         scheduleOverrideId: result.override.id,
         filled: result.filled,
         guardrailIssues,
+        staleTimesheetIds: staleTimesheets.map((row) => row.id),
       },
     });
 
@@ -865,6 +873,7 @@ export async function POST(request: Request) {
       scheduleOverride: result.override,
       openShiftFilled: result.filled,
       guardrailIssues,
+      staleTimesheetIds: staleTimesheets.map((row) => row.id),
     });
   }
 

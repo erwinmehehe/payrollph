@@ -1,11 +1,12 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, eq } from "drizzle-orm";
+import { and, eq, lte } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalTasks, payrollRuns } from "@/db/schema";
+import { approvalTasks, employees, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { drainPayrollQueue, enqueuePayrollRun } from "@/lib/payroll-engine";
 import { assertOrganizationRole, assertOrganizationUnitAccess, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
+import { loadTimesheetPayrollGate } from "@/lib/workforce-timesheet-server";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const originDenied = enforceSameOriginMutation(_request);
@@ -39,6 +40,34 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   }
   if (["Queued", "Processing", "Recalculating"].includes(run.status)) {
     return Response.json({ error: `Payroll calculation is already in progress (currently ${run.status}).` }, { status: 409 });
+  }
+
+  const employeeRows = await db.select({ id: employees.id }).from(employees).where(
+    run.scopeOrgUnitId == null
+      ? and(
+          eq(employees.organizationId, run.organizationId),
+          eq(employees.status, "Active"),
+          lte(employees.startDate, run.periodEnd),
+        )
+      : and(
+          eq(employees.organizationId, run.organizationId),
+          eq(employees.orgUnitId, run.scopeOrgUnitId),
+          eq(employees.status, "Active"),
+          lte(employees.startDate, run.periodEnd),
+        ),
+  );
+  const timesheetGate = await loadTimesheetPayrollGate({
+    organizationId: run.organizationId,
+    employeeIds: employeeRows.map((employee) => employee.id),
+    periodStart: String(run.periodStart),
+    periodEnd: String(run.periodEnd),
+  });
+  if (!timesheetGate.gate.allowed) {
+    return Response.json({
+      error: "Approved workforce timesheets are required before payroll recalculation for this organization.",
+      code: "TIMESHEET_APPROVAL_REQUIRED",
+      timesheetGate: timesheetGate.gate,
+    }, { status: 422 });
   }
 
   // Claim the recalculation state before invalidating approvals. Submit-for-
@@ -110,8 +139,10 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       ruleVersion: "PH-2026.01",
       chunks: processResult.length,
       approvalsSuperseded: recalculation.superseded,
+      timesheetPolicy: timesheetGate.policy,
+      timesheetGate: timesheetGate.gate,
     },
   });
 
-  return Response.json({ run: fresh, queue, processResult });
+  return Response.json({ run: fresh, queue, processResult, timesheetGate });
 }

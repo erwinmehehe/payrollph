@@ -487,6 +487,63 @@ export const overtimeRequests = pgTable(
   ],
 );
 
+export const workforceTimesheetPolicies = pgTable(
+  "workforce_timesheet_policies",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().unique().references(() => organizations.id, { onDelete: "cascade" }),
+    enforcementMode: varchar("enforcement_mode", { length: 24 }).notNull().default("advisory"),
+    active: boolean("active").notNull().default(true),
+    updatedBy: varchar("updated_by", { length: 120 }).notNull().default("System"),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("workforce_timesheet_policy_org_idx").on(table.organizationId),
+  ],
+);
+
+export const workforceTimesheets = pgTable(
+  "workforce_timesheets",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    periodStart: date("period_start").notNull(),
+    periodEnd: date("period_end").notNull(),
+    version: integer("version").notNull().default(1),
+    status: varchar("status", { length: 24 }).notNull().default("submitted"),
+    scheduledMinutes: integer("scheduled_minutes").notNull().default(0),
+    workedMinutes: integer("worked_minutes").notNull().default(0),
+    overtimeMinutes: integer("overtime_minutes").notNull().default(0),
+    exceptionCount: integer("exception_count").notNull().default(0),
+    blockerCount: integer("blocker_count").notNull().default(0),
+    snapshot: jsonb("snapshot").notNull().default({}),
+    snapshotHash: varchar("snapshot_hash", { length: 64 }).notNull(),
+    submittedBy: varchar("submitted_by", { length: 120 }),
+    submittedByUserId: integer("submitted_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    decidedBy: varchar("decided_by", { length: 120 }),
+    decidedByUserId: integer("decided_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decisionNote: varchar("decision_note", { length: 240 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("workforce_timesheet_period_version_unique").on(
+      table.organizationId,
+      table.employeeId,
+      table.periodStart,
+      table.periodEnd,
+      table.version,
+    ),
+    index("workforce_timesheet_org_period_idx").on(table.organizationId, table.periodStart, table.periodEnd),
+    index("workforce_timesheet_status_idx").on(table.organizationId, table.status),
+  ],
+);
+
 export const costCenters = pgTable(
   "cost_centers",
   {
