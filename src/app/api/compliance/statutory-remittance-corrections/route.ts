@@ -63,6 +63,9 @@ async function deriveMissingMemberAddition(organizationId: number, caseId: numbe
     eq(statutoryContributionIssueCases.organizationId, organizationId),
   )).limit(1);
   if (!issue) throw new Error("Contribution issue case not found.");
+  if (!issue.legalEntityId) {
+    throw new Error("This legacy contribution issue is not scoped to a legal employer. Re-open it from an entity-scoped remittance batch.");
+  }
   if (issue.status === "resolved") throw new Error("Resolved contribution cases cannot request a missing-member correction.");
   if (issue.issueType !== "missing_posting") {
     throw new Error("Missing-member corrections are only available for missing-posting cases.");
@@ -77,11 +80,13 @@ async function deriveMissingMemberAddition(organizationId: number, caseId: numbe
   }).from(employees).where(and(
     eq(employees.id, issue.employeeId),
     eq(employees.organizationId, organizationId),
+    eq(employees.legalEntityId, issue.legalEntityId),
   )).limit(1);
   if (!employee) throw new Error("Employee record not found.");
 
   const [batch] = await db.select().from(statutoryRemittanceBatches).where(and(
     eq(statutoryRemittanceBatches.organizationId, organizationId),
+    eq(statutoryRemittanceBatches.legalEntityId, issue.legalEntityId),
     eq(statutoryRemittanceBatches.agency, issue.agency),
     eq(statutoryRemittanceBatches.applicableMonth, issue.applicableMonth),
   )).limit(1);
@@ -107,6 +112,7 @@ async function deriveMissingMemberAddition(organizationId: number, caseId: numbe
 
   const runs = await db.select().from(payrollRuns).where(and(
     eq(payrollRuns.organizationId, organizationId),
+    eq(payrollRuns.legalEntityId, issue.legalEntityId),
     gte(payrollRuns.periodEnd, monthStart(issue.applicableMonth)),
     lte(payrollRuns.periodEnd, monthEnd(issue.applicableMonth)),
   ));
@@ -128,6 +134,7 @@ async function deriveMissingMemberAddition(organizationId: number, caseId: numbe
         employeeNo: employees.employeeNo,
       }).from(employees).where(and(
         eq(employees.organizationId, organizationId),
+        eq(employees.legalEntityId, issue.legalEntityId),
         inArray(employees.id, employeeIds),
       ))
     : [];
