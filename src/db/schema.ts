@@ -3274,13 +3274,21 @@ export const automationExecutions = pgTable(
     trigger: varchar("trigger", { length: 64 }).notNull(),
     eventKey: varchar("event_key", { length: 240 }).notNull(),
     status: varchar("status", { length: 24 }).notNull().default("completed"),
-    result: jsonb("result").notNull().default({}),
+    workflow: jsonb("workflow").notNull().default([]),
+    context: jsonb("context").notNull().default({}),
+    cursor: integer("cursor").notNull().default(0),
+    resumeAt: timestamp("resume_at", { withTimezone: true }),
+    waitingApprovalTaskId: integer("waiting_approval_task_id"),
+    result: jsonb("result").notNull().default([]),
     error: text("error"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     uniqueIndex("automation_executions_rule_event_unique").on(table.ruleId, table.eventKey),
     index("automation_executions_org_created_idx").on(table.organizationId, table.createdAt),
+    index("automation_executions_resume_idx").on(table.status, table.resumeAt),
+    index("automation_executions_approval_idx").on(table.waitingApprovalTaskId),
   ],
 );
 

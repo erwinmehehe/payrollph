@@ -97,6 +97,8 @@ export async function GET(request: Request) {
   const completed = executions.filter((row) => row.status === "completed").length;
   const partial = executions.filter((row) => row.status === "partial").length;
   const failed = executions.filter((row) => row.status === "failed").length;
+  const waiting = executions.filter((row) => ["waiting", "waiting_approval", "in_progress"].includes(row.status)).length;
+  const terminal = completed + partial + failed;
 
   return Response.json({
     rules,
@@ -121,8 +123,9 @@ export async function GET(request: Request) {
       completed,
       partial,
       failed,
-      successRate: executions.length
-        ? Math.round((completed / executions.length) * 1000) / 10
+      waiting,
+      successRate: terminal
+        ? Math.round((completed / terminal) * 1000) / 10
         : 100,
     },
   });

@@ -53,6 +53,8 @@ the first one, so it closes itself.
 
 - `0047_overtime_budget_controls.sql` adds monthly department/manager OT-minute budgets with advisory or blocking authorization controls.
 
+- `0049_automation_studio_v2.sql` adds durable Automation Studio workflow state for resumable waits, approval gates and scheduler-driven continuation.
+
 - `0049_wfm_role_demand.sql` adds optional job-profile demand to staffing requirements and open shifts, enabling role-specific coverage, labor variance, and staffing scenarios.
 
 - `0050_hcm_core_worker_history.sql` adds legal-employer ownership on positions, primary/secondary assignment semantics with FTE, and an immutable worker employment-event timeline for hires, moves, promotions and separation lifecycle evidence.

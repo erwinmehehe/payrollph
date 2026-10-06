@@ -1338,12 +1338,20 @@ CREATE TABLE IF NOT EXISTS "automation_executions" (
   "trigger" varchar(64) NOT NULL,
   "event_key" varchar(240) NOT NULL,
   "status" varchar(24) DEFAULT 'completed' NOT NULL,
-  "result" jsonb DEFAULT '{}'::jsonb NOT NULL,
+  "workflow" jsonb DEFAULT '[]'::jsonb NOT NULL,
+  "context" jsonb DEFAULT '{}'::jsonb NOT NULL,
+  "cursor" integer DEFAULT 0 NOT NULL,
+  "resume_at" timestamp with time zone,
+  "waiting_approval_task_id" integer,
+  "result" jsonb DEFAULT '[]'::jsonb NOT NULL,
   "error" text,
-  "created_at" timestamp with time zone DEFAULT now() NOT NULL
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  "updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "automation_executions_rule_event_unique" ON "automation_executions" ("rule_id","event_key");
 CREATE INDEX IF NOT EXISTS "automation_executions_org_created_idx" ON "automation_executions" ("organization_id","created_at");
+CREATE INDEX IF NOT EXISTS "automation_executions_resume_idx" ON "automation_executions" ("status","resume_at");
+CREATE INDEX IF NOT EXISTS "automation_executions_approval_idx" ON "automation_executions" ("waiting_approval_task_id");
 
 
 -- Immutable employee statutory contribution case timeline

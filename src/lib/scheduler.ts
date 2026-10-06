@@ -12,6 +12,7 @@ import { runScheduledWorkerEffectiveChanges } from "@/lib/hcm-effective-changes"
 import { runScheduledEmploymentTerms } from "@/lib/hcm-employment-terms";
 import { runScheduledEmploymentTermDecisions } from "@/lib/hcm-employment-term-decisions";
 import { runScheduledHcmLifecycleNotifications } from "@/lib/hcm-lifecycle-notifications";
+import { resumeDueAutomationExecutions } from "@/lib/automation";
 
 const MIN_INTERVAL_MS = 30_000;
 
@@ -44,6 +45,7 @@ export async function tickScheduler(force = false) {
   const contributionCaseEscalations = await runScheduledContributionCaseEscalations({
     actor: "System scheduler",
   });
+  const automationResumes = await resumeDueAutomationExecutions(now, 25);
 
   const [hcmDocumentState] = await db.select().from(schedulerState)
     .where(eq(schedulerState.jobName, "hcm-document-expiry"))
@@ -152,6 +154,7 @@ export async function tickScheduler(force = false) {
     retentionPurge: retention,
     statutoryRemittanceActions,
     contributionCaseEscalations,
+    automationResumes,
     hcmDocumentExpiry,
     hcmEffectiveChanges,
     hcmEmploymentTerms,
