@@ -269,19 +269,34 @@ export async function loadTimesheetPayrollGate(input: {
   };
 }
 
-export async function markTimesheetsStaleForEmployeeDate(input: {
+export async function markTimesheetsStaleForEmployeeRange(input: {
   organizationId: number;
   employeeId: number;
-  workDate: string;
+  startDate: string;
+  endDate?: string | null;
 }) {
+  const endDate = input.endDate ?? "9999-12-31";
   return db.update(workforceTimesheets).set({
     status: "stale",
     updatedAt: new Date(),
   }).where(and(
     eq(workforceTimesheets.organizationId, input.organizationId),
     eq(workforceTimesheets.employeeId, input.employeeId),
-    lte(workforceTimesheets.periodStart, input.workDate),
-    gte(workforceTimesheets.periodEnd, input.workDate),
+    lte(workforceTimesheets.periodStart, endDate),
+    gte(workforceTimesheets.periodEnd, input.startDate),
     inArray(workforceTimesheets.status, ["submitted", "approved"]),
   )).returning({ id: workforceTimesheets.id, version: workforceTimesheets.version });
+}
+
+export async function markTimesheetsStaleForEmployeeDate(input: {
+  organizationId: number;
+  employeeId: number;
+  workDate: string;
+}) {
+  return markTimesheetsStaleForEmployeeRange({
+    organizationId: input.organizationId,
+    employeeId: input.employeeId,
+    startDate: input.workDate,
+    endDate: input.workDate,
+  });
 }
