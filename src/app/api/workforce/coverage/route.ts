@@ -1346,29 +1346,29 @@ export async function POST(request: Request) {
       }, { status: 409 });
     }
 
-    const approvedLeave = await approvedLeaveOnDate(
-      organizationId,
-      employeeId,
-      String(shiftRow.workDate),
-    );
-    if (approvedLeave.length > 0) {
-      const conflict = approvedLeaveConflictsFullShift({
-        leaves: approvedLeave,
-        employeeId,
-        workDate: String(shiftRow.workDate),
-      });
-      return Response.json({
-        error: conflict.ambiguous
-          ? "Approved leave overlaps this date but exact partial-day timing is not recorded. Resolve the absence timing before claiming a full open shift."
-          : "The employee has approved leave on this date and cannot claim a full open shift.",
-        approvedLeave,
-      }, { status: 409 });
-    }
-
     const [shiftDefinition] = await db.select().from(shiftDefinitions).where(and(
       eq(shiftDefinitions.id, shiftRow.shiftDefinitionId),
       eq(shiftDefinitions.organizationId, organizationId),
     )).limit(1);
+    if (!shiftDefinition) {
+      return Response.json({ error: "Shift definition not found." }, { status: 404 });
+    }
+
+    const leaveConflict = await approvedLeaveConflictForShift({
+      organizationId,
+      employeeId,
+      workDate: String(shiftRow.workDate),
+      shift: shiftDefinition,
+    });
+    if (leaveConflict.conflict) {
+      return Response.json({
+        error: leaveConflict.legacyAmbiguous
+          ? "Approved leave overlaps this date but Legacy timing is ambiguous. Resolve the absence timing before claiming a full open shift."
+          : "Approved leave overlaps this open shift and the employee cannot claim the full shift.",
+        unavailableWallMinutes: leaveConflict.unavailableWallMinutes,
+        approvedLeave: leaveConflict.approvedLeave,
+      }, { status: 409 });
+    }
     const availabilityRows = await db.select().from(employeeAvailabilityRules).where(and(
       eq(employeeAvailabilityRules.organizationId, organizationId),
       eq(employeeAvailabilityRules.employeeId, employeeId),
