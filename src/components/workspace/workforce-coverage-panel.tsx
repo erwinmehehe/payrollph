@@ -47,6 +47,8 @@ type Coverage = {
   requiredHeadcount: number;
   scheduledHeadcount: number;
   unavailableScheduledHeadcount: number;
+  capabilityIneligibleHeadcount: number;
+  approvedLeaveScheduledHeadcount: number;
   availableScheduledHeadcount: number;
   gap: number;
   overage: number;
@@ -144,6 +146,8 @@ type LaborVariance = {
     invalidPayProfileEmployeeIds: number[];
     unmatchedPunchRows: number;
     roleEvidenceIssues: string[];
+    capabilityEvidenceIssues: string[];
+    absenceEvidenceIssues: string[];
   };
 };
 
@@ -345,6 +349,14 @@ export function WorkforceCoveragePanel({
     (sum, row) => sum + row.unavailableScheduledHeadcount,
     0,
   );
+  const capabilityConflicts = (payload?.coverage ?? []).reduce(
+    (sum, row) => sum + row.capabilityIneligibleHeadcount,
+    0,
+  );
+  const approvedLeaveConflicts = (payload?.coverage ?? []).reduce(
+    (sum, row) => sum + row.approvedLeaveScheduledHeadcount,
+    0,
+  );
   const labor = payload?.laborVariance;
 
   return (
@@ -364,7 +376,13 @@ export function WorkforceCoveragePanel({
 
       <section className="stats-grid" style={{ padding: "0 18px 18px" }}>
         <Metric label="Coverage gaps" value={String(gapCount)} hint={`${missingSlots} uncovered slot(s)`} icon={<CircleAlert size={16} />} tone={gapCount ? "amber" : "mint"} />
-        <Metric label="Availability conflicts" value={String(availabilityConflicts)} hint="scheduled against unavailable windows" icon={<CalendarClock size={16} />} tone={availabilityConflicts ? "amber" : "slate"} />
+        <Metric
+          label="Roster exclusions"
+          value={String(availabilityConflicts + capabilityConflicts + approvedLeaveConflicts)}
+          hint={availabilityConflicts + " unavailable · " + capabilityConflicts + " unqualified · " + approvedLeaveConflicts + " on leave"}
+          icon={<CalendarClock size={16} />}
+          tone={availabilityConflicts + capabilityConflicts + approvedLeaveConflicts ? "amber" : "slate"}
+        />
         <Metric label="Open shifts" value={String((payload?.openShifts ?? []).filter((row) => row.status === "open").length)} hint="coverage recovery" icon={<UsersRound size={16} />} tone="blue" />
         <Metric label="Pending claims" value={String(pendingClaims)} hint="manager decision needed" icon={<UsersRound size={16} />} tone={pendingClaims ? "amber" : "slate"} />
       </section>
@@ -544,7 +562,7 @@ export function WorkforceCoveragePanel({
               <th>Worksite / shift</th>
               <th>Required</th>
               <th>Scheduled</th>
-              <th>Unavailable</th>
+              <th>Excluded</th>
               <th>Gap</th>
               <th>Recovery</th>
             </tr>
@@ -559,7 +577,12 @@ export function WorkforceCoveragePanel({
                 </td>
                 <td>{row.requiredHeadcount}</td>
                 <td>{row.availableScheduledHeadcount}</td>
-                <td>{row.unavailableScheduledHeadcount ? <Status value={`${row.unavailableScheduledHeadcount} conflict`} /> : "0"}</td>
+                <td>
+                  {row.unavailableScheduledHeadcount ? <Status value={String(row.unavailableScheduledHeadcount) + " unavailable"} /> : null}
+                  {row.capabilityIneligibleHeadcount ? <Status value={String(row.capabilityIneligibleHeadcount) + " unqualified"} /> : null}
+                  {row.approvedLeaveScheduledHeadcount ? <Status value={String(row.approvedLeaveScheduledHeadcount) + " on leave"} /> : null}
+                  {!row.unavailableScheduledHeadcount && !row.capabilityIneligibleHeadcount && !row.approvedLeaveScheduledHeadcount ? "0" : null}
+                </td>
                 <td>{row.gap ? <Status value={`${row.gap} short`} /> : row.overage ? <Status value={`+${row.overage} covered`} /> : <Status value="Covered" />}</td>
                 <td>
                   {row.gap > 0 && canManage ? (
