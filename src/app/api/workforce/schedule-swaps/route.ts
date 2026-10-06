@@ -29,6 +29,7 @@ import {
   type WorkforceScheduleOverrideSegment,
 } from "@/lib/workforce-scheduling";
 import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
+import { markTimesheetsStaleForEmployeeDate } from "@/lib/workforce-timesheet-server";
 import {
   assertScheduleSwappable,
   scheduleSwapOverrideValues,
@@ -543,6 +544,19 @@ export async function POST(request: Request) {
         return { updated, requesterCreated, counterpartyCreated };
       });
 
+      const [requesterStaleTimesheets, counterpartyStaleTimesheets] = await Promise.all([
+        markTimesheetsStaleForEmployeeDate({
+          organizationId,
+          employeeId: existing.requesterEmployeeId,
+          workDate: String(existing.requesterWorkDate),
+        }),
+        markTimesheetsStaleForEmployeeDate({
+          organizationId,
+          employeeId: existing.counterpartyEmployeeId,
+          workDate: String(existing.counterpartyWorkDate),
+        }),
+      ]);
+
       await recordAuditEvent({
         organizationId,
         actor: user.name,
@@ -556,6 +570,8 @@ export async function POST(request: Request) {
           counterpartyEmployeeId: existing.counterpartyEmployeeId,
           requesterWorkDate: existing.requesterWorkDate,
           counterpartyWorkDate: existing.counterpartyWorkDate,
+          requesterStaleTimesheetIds: requesterStaleTimesheets.map((row) => row.id),
+          counterpartyStaleTimesheetIds: counterpartyStaleTimesheets.map((row) => row.id),
           decisionNote,
         },
       });
@@ -563,6 +579,10 @@ export async function POST(request: Request) {
       return Response.json({
         swap: result.updated,
         overrides: [result.requesterCreated, result.counterpartyCreated],
+        staleTimesheetIds: [
+          ...requesterStaleTimesheets.map((row) => row.id),
+          ...counterpartyStaleTimesheets.map((row) => row.id),
+        ],
       });
     } catch (error) {
       return Response.json({
