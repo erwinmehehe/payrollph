@@ -76,3 +76,5 @@ the first one, so it closes itself.
 - `0059_hcm_term_separation_linkage.sql` makes non-renewal handoff state authoritative to the real Separation/final-pay lifecycle, linking a decision to exactly one separation package and completing the handoff only on final-pay release.
 
 - `0060_hcm_lifecycle_notifications.sql` adds durable employment-lifecycle notification tasks and immutable events for ownership, acknowledgement, snooze, milestone dedupe, and escalation without changing employment state automatically.
+
+- `0061_hcm_precise_leave_intervals.sql` adds immutable revisioned full-day, half-day and timed leave evidence for schedule-aware WFM capacity without changing legacy payroll treatment.
