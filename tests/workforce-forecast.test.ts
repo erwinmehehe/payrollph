@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  annualStandardCapacityHours,
   annualizePayProfile,
   buildWorkforceDemandForecast,
   hourlyBaseRate,
@@ -40,6 +41,13 @@ test("pay profiles annualize consistently across monthly, daily, and hourly base
     standardWorkDaysPerMonth: 22,
     standardHoursPerDay: 8,
   }), 200);
+  assert.equal(annualStandardCapacityHours({
+    employeeId: 1,
+    payBasis: "monthly",
+    rateAmount: 35200,
+    standardWorkDaysPerMonth: 22,
+    standardHoursPerDay: 8,
+  }), 2112);
 });
 
 test("paid shift hours handle breaks and cross-midnight shifts", () => {
@@ -107,6 +115,17 @@ test("forecast combines current payroll, vacancy budget, staffing demand, and co
   assert.equal(result.summary.expectedVacancyFills, 0.5);
   assert.equal(result.summary.requiredHeadcountHours, 16);
   assert.equal(result.summary.forecastHeadcountHours, 20);
+  assert.ok(result.summary.currentPeriodCapacityHours > 0);
+  assert.ok(result.summary.expectedVacancyCapacityHours > 0);
+  assert.equal(
+    result.summary.projectedCapacityHours,
+    Math.round((result.summary.currentPeriodCapacityHours + result.summary.expectedVacancyCapacityHours) * 100) / 100,
+  );
+  assert.equal(
+    result.summary.capacityGapAfterFills,
+    Math.round((result.summary.forecastHeadcountHours - result.summary.projectedCapacityHours) * 100) / 100,
+  );
+  assert.ok(result.summary.capacityCoveragePercent > 100);
   assert.equal(result.summary.annualizedBasePayroll, 782400);
   assert.equal(result.summary.vacantAnnualBudget, 600000);
   assert.ok(result.summary.forecastPeriodLaborCost > result.summary.currentPeriodBasePayroll);
@@ -193,16 +212,21 @@ test("forecast assumptions fail closed outside the governed range", () => {
   }), /Demand growth must be between/);
 });
 
-test("forecast API is read-only, salary-sensitive, and scoped to tenant/org unit", () => {
-  const source = readFileSync("src/app/api/workforce-planning/forecast/route.ts", "utf8");
-  assert.ok(source.includes("PEOPLE_PAYROLL_ROLES"));
-  assert.ok(source.includes("getAccess(user.id, organizationId)"));
-  assert.ok(source.includes("employee.orgUnitId === access.orgUnitId"));
-  assert.ok(source.includes("position.orgUnitId === access.orgUnitId"));
-  assert.ok(source.includes("visibleWorksiteIds"));
-  assert.ok(source.includes("Planning estimate only"));
-  assert.ok(!source.includes("export async function POST"));
-  assert.ok(!source.includes("export async function PATCH"));
+test("forecast API is read-only and delegates WFM scope plus salary redaction to the server service", () => {
+  const route = readFileSync("src/app/api/workforce-planning/forecast/route.ts", "utf8");
+  const service = readFileSync("src/lib/workforce-forecast-server.ts", "utf8");
+  assert.ok(route.includes("loadScopedWorkforceForecast"));
+  assert.ok(route.includes("redactWorkforceForecastCosts"));
+  assert.ok(route.includes("Planning estimate only"));
+  assert.ok(!route.includes("export async function POST"));
+  assert.ok(!route.includes("export async function PATCH"));
+  assert.ok(service.includes("WORKFORCE_MANAGER_ROLES"));
+  assert.ok(service.includes("PEOPLE_PAYROLL_ROLES"));
+  assert.ok(service.includes("access.orgUnitId"));
+  assert.ok(service.includes("requestedWorksite.orgUnitId"));
+  assert.ok(service.includes("employeeWorksiteAtStart"));
+  assert.ok(service.includes("annualizedBasePayroll: null"));
+  assert.ok(service.includes("forecastPeriodLaborCost: null"));
 });
 
 test("planning UI exposes explicit scenario assumptions and quality boundaries", () => {
@@ -215,4 +239,8 @@ test("planning UI exposes explicit scenario assumptions and quality boundaries",
   assert.ok(source.includes("Forecast quality needs review"));
   assert.ok(source.includes("not a statutory contribution calculation"));
   assert.ok(source.includes("It is not added to the labor plan again."));
+  assert.ok(source.includes("PROJECTED CAPACITY"));
+  assert.ok(source.includes("capacityGapAfterFills"));
+  assert.ok(source.includes("STAFFING PLAN APPROVAL"));
+  assert.ok(source.includes("/api/workforce-planning/scenarios"));
 });
