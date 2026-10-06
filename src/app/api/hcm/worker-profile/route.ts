@@ -802,6 +802,18 @@ export async function GET(request: Request) {
         && row.status === "applied"
         && row.separationHandoffStatus === "ready",
       ),
+      separationHandoffStarted: employmentTermDecisionRows.some((row) =>
+        row.decisionKind === "non_renew"
+        && row.status === "applied"
+        && row.separationHandoffStatus === "started"
+        && row.separationRecordId != null,
+      ),
+      separationHandoffCompleted: employmentTermDecisionRows.some((row) =>
+        row.decisionKind === "non_renew"
+        && row.status === "applied"
+        && row.separationHandoffStatus === "completed"
+        && row.separationRecordId != null,
+      ),
     },
   });
 }
