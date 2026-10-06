@@ -68,8 +68,10 @@ export function buildEmploymentLifecycleRow(input: {
   decision: EmploymentLifecycleDecision | null;
   separation: EmploymentLifecycleSeparation;
   today: string;
+  actionWindowDays?: number;
 }) {
   const { term, decision, separation, today } = input;
+  const actionWindowDays = input.actionWindowDays ?? 30;
 
   if (!term) {
     return {
@@ -199,7 +201,7 @@ export function buildEmploymentLifecycleRow(input: {
     };
   }
 
-  if (daysUntil <= 30) {
+  if (daysUntil <= actionWindowDays) {
     return {
       ...input,
       state: "upcoming" as const,
@@ -220,7 +222,7 @@ export function buildEmploymentLifecycleRow(input: {
     dueDate,
     daysUntil,
     label: "Lifecycle date is scheduled",
-    detail: `${noun} is outside the 30-day action window.`,
+    detail: `${noun} is outside the ${actionWindowDays}-day action window.`,
   };
 }
 
