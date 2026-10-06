@@ -21,6 +21,9 @@ test("core schema compatibility upgrades fields used by production demo and dash
     "ADD COLUMN IF NOT EXISTS source_system",
     "ADD COLUMN IF NOT EXISTS import_kind",
     "CREATE TABLE IF NOT EXISTS historical_payroll_entries",
+    "CREATE TABLE IF NOT EXISTS statutory_remittance_batches",
+    "CREATE TABLE IF NOT EXISTS statutory_posting_evidence_artifacts",
+    "CREATE TABLE IF NOT EXISTS statutory_remittance_members",
     "CREATE TABLE IF NOT EXISTS statutory_contribution_issue_cases",
     "CREATE TABLE IF NOT EXISTS statutory_contribution_issue_events",
     "CREATE TABLE IF NOT EXISTS worksites",
@@ -85,4 +88,22 @@ test("contribution issue parent compatibility is created before dependent event 
   assert.ok(source.includes("statutory_contribution_issue_org_status_idx"));
   assert.ok(source.includes("statutory_contribution_issue_employee_idx"));
   assert.ok(source.includes("statutory_contribution_issue_member_idx"));
+});
+
+
+test("statutory remittance compatibility creates the full parent chain before contribution cases", () => {
+  const source = read("src/lib/core-schema-compat.ts");
+  const batchesAt = source.indexOf("CREATE TABLE IF NOT EXISTS statutory_remittance_batches");
+  const artifactsAt = source.indexOf("CREATE TABLE IF NOT EXISTS statutory_posting_evidence_artifacts");
+  const membersAt = source.indexOf("CREATE TABLE IF NOT EXISTS statutory_remittance_members");
+  const casesAt = source.indexOf("CREATE TABLE IF NOT EXISTS statutory_contribution_issue_cases");
+
+  assert.ok(batchesAt >= 0);
+  assert.ok(artifactsAt > batchesAt, "posting evidence must follow its remittance batch parent");
+  assert.ok(membersAt > artifactsAt, "members must follow posting evidence because they reference it");
+  assert.ok(casesAt > membersAt, "contribution cases must follow remittance batches and members");
+  assert.ok(source.includes("ADD COLUMN IF NOT EXISTS posted_amount"));
+  assert.ok(source.includes("ADD COLUMN IF NOT EXISTS posting_evidence_artifact_id"));
+  assert.ok(source.includes("statutory_remittance_member_unique"));
+  assert.ok(source.includes("statutory_remittance_members_evidence_idx"));
 });
