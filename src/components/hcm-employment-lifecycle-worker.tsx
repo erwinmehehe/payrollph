@@ -386,6 +386,7 @@ export function HcmEmploymentLifecycleWorker({
             Four-eyes approval applies. Non-renewal only creates a handoff; employee separation and final pay remain owned by Separation.
           </div>
           <HcmEmploymentDecisionEvidence
+            key={`${relevantDecision.id}:${relevantDecision.status}:${relevantDecision.separationHandoffStatus}`}
             organizationId={organizationId}
             decisionId={relevantDecision.id}
             onChanged={load}
