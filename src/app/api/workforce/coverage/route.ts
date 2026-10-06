@@ -152,6 +152,29 @@ async function employeeJobProfileOnDate(
   });
 }
 
+async function approvedLeaveOnDate(
+  organizationId: number,
+  employeeId: number,
+  workDate: string,
+) {
+  const rows = await db.select().from(leaveRequests).where(and(
+    eq(leaveRequests.organizationId, organizationId),
+    eq(leaveRequests.employeeId, employeeId),
+    eq(leaveRequests.status, "Approved"),
+    lte(leaveRequests.startDate, workDate),
+    gte(leaveRequests.endDate, workDate),
+  )).orderBy(asc(leaveRequests.startDate), asc(leaveRequests.id));
+
+  return rows.map((row) => ({
+    id: row.id,
+    employeeId: row.employeeId,
+    startDate: String(row.startDate),
+    endDate: String(row.endDate),
+    days: Number(row.days),
+    leaveType: row.leaveType,
+  }));
+}
+
 async function scheduleCatalog(organizationId: number) {
   const [shifts, patterns, days, segments] = await Promise.all([
     db.select().from(shiftDefinitions)
