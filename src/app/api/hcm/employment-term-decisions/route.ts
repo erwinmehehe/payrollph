@@ -232,7 +232,7 @@ export async function PATCH(request: Request) {
   const organizationId = Number(body.organizationId);
   const action = String(body.action ?? "").trim().toLowerCase();
   if (!Number.isInteger(id) || !Number.isInteger(organizationId)
-      || !["approve", "cancel", "retry", "mark_handoff_started", "mark_handoff_completed"].includes(action)) {
+      || !["approve", "cancel", "retry"].includes(action)) {
     return Response.json({ error: "Valid id, organizationId, and supported action are required." }, { status: 400 });
   }
 
@@ -255,32 +255,8 @@ export async function PATCH(request: Request) {
   )).limit(1);
   if (!decision) return Response.json({ error: "Employment-term decision not found." }, { status: 404 });
 
-  if (action === "mark_handoff_started" || action === "mark_handoff_completed") {
-    if (decision.decisionKind !== "non_renew" || decision.status !== "applied") {
-      return Response.json({ error: "Only an applied non-renewal decision can advance the separation handoff." }, { status: 409 });
-    }
-    const expected = action === "mark_handoff_started" ? "ready" : "started";
-    const next = action === "mark_handoff_started" ? "started" : "completed";
-    if (decision.separationHandoffStatus !== expected) {
-      return Response.json({ error: `Separation handoff must be ${expected} before it can become ${next}.` }, { status: 409 });
-    }
-    const [updated] = await db.update(hcmEmploymentTermDecisions).set({
-      separationHandoffStatus: next,
-      updatedAt: new Date(),
-    }).where(and(
-      eq(hcmEmploymentTermDecisions.id, id),
-      eq(hcmEmploymentTermDecisions.separationHandoffStatus, expected),
-    )).returning();
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: `HCM separation handoff ${next}`,
-      resource: `Employee #${decision.employeeId}`,
-      metadata: { employmentTermDecisionId: id, proposedLastDay: decision.proposedSeparationLastDay },
-    });
-    return Response.json({ decision: updated });
-  }
-
+  // Core 3.2: handoff state is authoritative evidence from the Separation workflow.
+  // It can no longer be advanced manually from the term-decision endpoint.
   if (action === "cancel") {
     if (!["pending_approval", "scheduled", "failed"].includes(decision.status)) {
       return Response.json({ error: "Only pending, scheduled, or failed decisions can be cancelled." }, { status: 409 });
