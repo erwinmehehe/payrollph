@@ -457,7 +457,15 @@ CREATE TABLE "org_units" (
 	"parent_id" integer,
 	"type" varchar(32) NOT NULL,
 	"name" varchar(120) NOT NULL,
-	"code" varchar(32) NOT NULL
+	"code" varchar(32) NOT NULL,
+	"legal_entity_id" integer,
+	"cost_center_id" integer,
+	"manager_employee_id" integer,
+	"effective_from" date,
+	"effective_until" date,
+	"active" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "organizations" (
@@ -889,10 +897,76 @@ CREATE UNIQUE INDEX IF NOT EXISTS "performance_reviews_cycle_employee_unique" ON
 CREATE INDEX IF NOT EXISTS "performance_reviews_org_employee_idx" ON "performance_reviews" ("organization_id","employee_id");
 
 -- HCM job architecture and position planning
+CREATE UNIQUE INDEX IF NOT EXISTS "org_units_org_code_unique" ON "org_units" ("organization_id","code");
+CREATE INDEX IF NOT EXISTS "org_units_org_parent_idx" ON "org_units" ("organization_id","parent_id");
+CREATE INDEX IF NOT EXISTS "org_units_org_type_idx" ON "org_units" ("organization_id","type","active");
+CREATE INDEX IF NOT EXISTS "org_units_legal_entity_idx" ON "org_units" ("organization_id","legal_entity_id");
+CREATE INDEX IF NOT EXISTS "org_units_cost_center_idx" ON "org_units" ("organization_id","cost_center_id");
+
+CREATE TABLE IF NOT EXISTS "cost_centers" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "code" varchar(40) NOT NULL,
+  "name" varchar(140) NOT NULL,
+  "description" text,
+  "active" boolean DEFAULT true NOT NULL,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "cost_centers_org_code_unique" ON "cost_centers" ("organization_id","code");
+CREATE INDEX IF NOT EXISTS "cost_centers_org_active_idx" ON "cost_centers" ("organization_id","active");
+
+CREATE TABLE IF NOT EXISTS "job_families" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "code" varchar(40) NOT NULL,
+  "name" varchar(120) NOT NULL,
+  "description" text,
+  "active" boolean DEFAULT true NOT NULL,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "job_families_org_code_unique" ON "job_families" ("organization_id","code");
+CREATE UNIQUE INDEX IF NOT EXISTS "job_families_org_name_unique" ON "job_families" ("organization_id","name");
+CREATE INDEX IF NOT EXISTS "job_families_org_active_idx" ON "job_families" ("organization_id","active");
+
+CREATE TABLE IF NOT EXISTS "job_levels" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "code" varchar(40) NOT NULL,
+  "name" varchar(80) NOT NULL,
+  "sequence" integer DEFAULT 0 NOT NULL,
+  "description" text,
+  "active" boolean DEFAULT true NOT NULL,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "job_levels_org_code_unique" ON "job_levels" ("organization_id","code");
+CREATE UNIQUE INDEX IF NOT EXISTS "job_levels_org_name_unique" ON "job_levels" ("organization_id","name");
+CREATE INDEX IF NOT EXISTS "job_levels_org_sequence_idx" ON "job_levels" ("organization_id","sequence");
+
+CREATE TABLE IF NOT EXISTS "job_grades" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "code" varchar(40) NOT NULL,
+  "name" varchar(80) NOT NULL,
+  "sequence" integer DEFAULT 0 NOT NULL,
+  "description" text,
+  "active" boolean DEFAULT true NOT NULL,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "job_grades_org_code_unique" ON "job_grades" ("organization_id","code");
+CREATE UNIQUE INDEX IF NOT EXISTS "job_grades_org_name_unique" ON "job_grades" ("organization_id","name");
+CREATE INDEX IF NOT EXISTS "job_grades_org_sequence_idx" ON "job_grades" ("organization_id","sequence");
+
 CREATE TABLE IF NOT EXISTS "job_profiles" (
   "id" serial PRIMARY KEY NOT NULL,
   "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
   "title" varchar(160) NOT NULL,
+  "family_id" integer REFERENCES "job_families"("id") ON DELETE restrict,
+  "level_id" integer REFERENCES "job_levels"("id") ON DELETE restrict,
+  "grade_id" integer REFERENCES "job_grades"("id") ON DELETE restrict,
   "family" varchar(120) DEFAULT 'General' NOT NULL,
   "level" varchar(80) DEFAULT 'Individual Contributor' NOT NULL,
   "grade" varchar(40),
@@ -902,6 +976,9 @@ CREATE TABLE IF NOT EXISTS "job_profiles" (
   "updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "job_profiles_org_title_level_unique" ON "job_profiles" ("organization_id","title","level");
+CREATE INDEX IF NOT EXISTS "job_profiles_org_family_idx" ON "job_profiles" ("organization_id","family_id");
+CREATE INDEX IF NOT EXISTS "job_profiles_org_level_idx" ON "job_profiles" ("organization_id","level_id");
+CREATE INDEX IF NOT EXISTS "job_profiles_org_grade_idx" ON "job_profiles" ("organization_id","grade_id");
 CREATE INDEX IF NOT EXISTS "job_profiles_org_active_idx" ON "job_profiles" ("organization_id","active");
 
 CREATE TABLE IF NOT EXISTS "workforce_plans" (
@@ -926,7 +1003,9 @@ CREATE TABLE IF NOT EXISTS "positions" (
   "code" varchar(48) NOT NULL,
   "job_profile_id" integer NOT NULL REFERENCES "job_profiles"("id") ON DELETE restrict,
   "org_unit_id" integer REFERENCES "org_units"("id") ON DELETE set null,
+  "supervisory_org_unit_id" integer REFERENCES "org_units"("id") ON DELETE set null,
   "legal_entity_id" integer REFERENCES "legal_entities"("id") ON DELETE restrict,
+  "cost_center_id" integer REFERENCES "cost_centers"("id") ON DELETE set null,
   "plan_id" integer REFERENCES "workforce_plans"("id") ON DELETE set null,
   "manager_employee_id" integer REFERENCES "employees"("id") ON DELETE set null,
   "employment_type" varchar(32) DEFAULT 'Regular' NOT NULL,
@@ -941,7 +1020,9 @@ CREATE TABLE IF NOT EXISTS "positions" (
 CREATE UNIQUE INDEX IF NOT EXISTS "positions_org_code_unique" ON "positions" ("organization_id","code");
 CREATE INDEX IF NOT EXISTS "positions_org_status_idx" ON "positions" ("organization_id","status");
 CREATE INDEX IF NOT EXISTS "positions_org_unit_idx" ON "positions" ("organization_id","org_unit_id");
+CREATE INDEX IF NOT EXISTS "positions_supervisory_org_idx" ON "positions" ("organization_id","supervisory_org_unit_id");
 CREATE INDEX IF NOT EXISTS "positions_legal_entity_idx" ON "positions" ("organization_id","legal_entity_id");
+CREATE INDEX IF NOT EXISTS "positions_cost_center_idx" ON "positions" ("organization_id","cost_center_id");
 CREATE INDEX IF NOT EXISTS "positions_plan_idx" ON "positions" ("plan_id");
 
 CREATE TABLE IF NOT EXISTS "position_assignments" (

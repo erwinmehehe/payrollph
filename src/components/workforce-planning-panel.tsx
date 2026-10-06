@@ -3,11 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BriefcaseBusiness, Building2, CheckCircle2, CircleDollarSign, Clock3, Plus, RefreshCw, Save, TrendingUp, UserCheck, UserPlus, UsersRound, XCircle } from "lucide-react";
 
-type JobProfile = { id: number; title: string; family: string; level: string; grade: string | null; active: boolean };
+type JobFamily = { id: number; code: string; name: string; active: boolean };
+type JobLevel = { id: number; code: string; name: string; sequence: number; active: boolean };
+type JobGrade = { id: number; code: string; name: string; sequence: number; active: boolean };
+type JobProfile = { id: number; title: string; familyId: number | null; levelId: number | null; gradeId: number | null; family: string; level: string; grade: string | null; active: boolean };
 type WorkforcePlan = { id: number; name: string; startDate: string; endDate: string; budget: string; status: string };
-type Position = { id: number; code: string; jobProfileId: number; orgUnitId: number | null; planId: number | null; managerEmployeeId: number | null; employmentType: string; status: string; plannedStartDate: string | null; annualBudget: string; activeRequisitionId: number | null; activeRequisitionStatus: string | null };
+type Position = { id: number; code: string; jobProfileId: number; orgUnitId: number | null; supervisoryOrgUnitId: number | null; legalEntityId: number | null; costCenterId: number | null; planId: number | null; managerEmployeeId: number | null; employmentType: string; status: string; plannedStartDate: string | null; annualBudget: string; activeRequisitionId: number | null; activeRequisitionStatus: string | null };
 type Assignment = { id: number; positionId: number; employeeId: number; effectiveFrom: string; effectiveUntil: string | null };
-type OrgUnit = { id: number; name: string; type: string };
+type OrgUnit = { id: number; parentId: number | null; name: string; code: string; type: string; legalEntityId: number | null; costCenterId: number | null; managerEmployeeId: number | null; effectiveFrom: string | null; effectiveUntil: string | null; active: boolean };
+type LegalEntity = { id: number; code: string; displayName: string; legalName: string; active: boolean };
+type CostCenter = { id: number; code: string; name: string; active: boolean };
 type Worksite = { id: number; orgUnitId: number | null; code: string; name: string; active: boolean };
 type Employee = { id: number; firstName: string; lastName: string; title: string; orgUnitId: number | null; status: string };
 type WorkforceScenario = {
@@ -93,15 +98,21 @@ const peso = (value: number | string | null | undefined) =>
 
 export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { organizationId: number; setNotice: (message: string) => void; onPage: (page: string) => void }) {
   const [profiles, setProfiles] = useState<JobProfile[]>([]);
+  const [jobFamilies, setJobFamilies] = useState<JobFamily[]>([]);
+  const [jobLevels, setJobLevels] = useState<JobLevel[]>([]);
+  const [jobGrades, setJobGrades] = useState<JobGrade[]>([]);
   const [plans, setPlans] = useState<WorkforcePlan[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [orgUnits, setOrgUnits] = useState<OrgUnit[]>([]);
+  const [legalEntities, setLegalEntities] = useState<LegalEntity[]>([]);
+  const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
   const [worksites, setWorksites] = useState<Worksite[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [scenarios, setScenarios] = useState<WorkforceScenario[]>([]);
   const [costVisible, setCostVisible] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [showArchitecture, setShowArchitecture] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showPlan, setShowPlan] = useState(false);
   const [showPosition, setShowPosition] = useState(false);
@@ -122,9 +133,13 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
   const [scenarioSaving, setScenarioSaving] = useState(false);
   const [scenarioDecisionNote, setScenarioDecisionNote] = useState("");
 
-  const [profileForm, setProfileForm] = useState({ title: "", family: "", level: "", grade: "" });
+  const [familyForm, setFamilyForm] = useState({ code: "", name: "" });
+  const [levelForm, setLevelForm] = useState({ code: "", name: "", sequence: "0" });
+  const [gradeForm, setGradeForm] = useState({ code: "", name: "", sequence: "0" });
+  const [orgUnitForm, setOrgUnitForm] = useState({ code: "", name: "", type: "department", parentId: "", legalEntityId: "", costCenterId: "", managerEmployeeId: "", effectiveFrom: "" });
+  const [profileForm, setProfileForm] = useState({ title: "", familyId: "", levelId: "", gradeId: "" });
   const [planForm, setPlanForm] = useState({ name: "", startDate: "", endDate: "", budget: "" });
-  const [positionForm, setPositionForm] = useState({ code: "", jobProfileId: "", orgUnitId: "", planId: "", managerEmployeeId: "", employmentType: "Regular", plannedStartDate: "", annualBudget: "" });
+  const [positionForm, setPositionForm] = useState({ code: "", jobProfileId: "", orgUnitId: "", supervisoryOrgUnitId: "", legalEntityId: "", costCenterId: "", planId: "", managerEmployeeId: "", employmentType: "Regular", plannedStartDate: "", annualBudget: "" });
   const [assignmentForm, setAssignmentForm] = useState({ positionId: "", employeeId: "", effectiveFrom: new Date().toISOString().slice(0, 10) });
 
   const load = useCallback(async () => {
@@ -134,10 +149,15 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) return setNotice(payload.error ?? "Could not load workforce planning.");
       setProfiles(payload.profiles ?? []);
+      setJobFamilies(payload.jobFamilies ?? []);
+      setJobLevels(payload.jobLevels ?? []);
+      setJobGrades(payload.jobGrades ?? []);
       setPlans(payload.plans ?? []);
       setPositions(payload.positions ?? []);
       setAssignments(payload.assignments ?? []);
       setOrgUnits(payload.orgUnits ?? []);
+      setLegalEntities(payload.legalEntities ?? []);
+      setCostCenters(payload.costCenters ?? []);
       setWorksites(payload.worksites ?? []);
       setEmployees(payload.employees ?? []);
       const scenarioResponse = await fetch(`/api/workforce-planning/scenarios?organizationId=${organizationId}`, { cache: "no-store" });
@@ -158,6 +178,9 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
   const employeeById = useMemo(() => new Map(employees.map((employee) => [employee.id, employee])), [employees]);
   const profileById = useMemo(() => new Map(profiles.map((profile) => [profile.id, profile])), [profiles]);
   const unitById = useMemo(() => new Map(orgUnits.map((unit) => [unit.id, unit])), [orgUnits]);
+  const legalEntityById = useMemo(() => new Map(legalEntities.map((entity) => [entity.id, entity])), [legalEntities]);
+  const costCenterById = useMemo(() => new Map(costCenters.map((center) => [center.id, center])), [costCenters]);
+  const supervisoryUnits = useMemo(() => orgUnits.filter((unit) => unit.active && unit.type === "supervisory"), [orgUnits]);
   const plannedCost = positions.filter((position) => position.status !== "closed").reduce((sum, position) => sum + Number(position.annualBudget), 0);
   const approvedOpen = positions.filter((position) => ["approved", "open"].includes(position.status)).length;
   const filled = positions.filter((position) => activeAssignmentByPosition.has(position.id)).length;
@@ -263,12 +286,65 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
     return payload;
   }
 
+  async function createFamily(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      await post({ entityType: "job_family", ...familyForm });
+      setFamilyForm({ code: "", name: "" });
+      await load();
+      setNotice("Job family created.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create job family."); }
+  }
+
+  async function createLevel(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      await post({ entityType: "job_level", ...levelForm, sequence: Number(levelForm.sequence) });
+      setLevelForm({ code: "", name: "", sequence: "0" });
+      await load();
+      setNotice("Job level created.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create job level."); }
+  }
+
+  async function createGrade(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      await post({ entityType: "job_grade", ...gradeForm, sequence: Number(gradeForm.sequence) });
+      setGradeForm({ code: "", name: "", sequence: "0" });
+      await load();
+      setNotice("Job grade created.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create job grade."); }
+  }
+
+  async function createOrgUnit(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      await post({
+        entityType: "org_unit",
+        ...orgUnitForm,
+        parentId: orgUnitForm.parentId ? Number(orgUnitForm.parentId) : null,
+        legalEntityId: orgUnitForm.legalEntityId ? Number(orgUnitForm.legalEntityId) : null,
+        costCenterId: orgUnitForm.costCenterId ? Number(orgUnitForm.costCenterId) : null,
+        managerEmployeeId: orgUnitForm.managerEmployeeId ? Number(orgUnitForm.managerEmployeeId) : null,
+      });
+      setOrgUnitForm({ code: "", name: "", type: "department", parentId: "", legalEntityId: "", costCenterId: "", managerEmployeeId: "", effectiveFrom: "" });
+      await load();
+      setNotice("Organization unit created.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create organization unit."); }
+  }
+
   async function createProfile(event: React.FormEvent) {
     event.preventDefault();
     try {
-      await post({ entityType: "profile", ...profileForm });
+      await post({
+        entityType: "profile",
+        title: profileForm.title,
+        familyId: Number(profileForm.familyId),
+        levelId: Number(profileForm.levelId),
+        gradeId: profileForm.gradeId ? Number(profileForm.gradeId) : null,
+      });
       setShowProfile(false);
-      setProfileForm({ title: "", family: "", level: "", grade: "" });
+      setProfileForm({ title: "", familyId: "", levelId: "", gradeId: "" });
       await load();
       setNotice("Job profile created.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create job profile."); }
@@ -293,12 +369,15 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
         ...positionForm,
         jobProfileId: Number(positionForm.jobProfileId),
         orgUnitId: positionForm.orgUnitId ? Number(positionForm.orgUnitId) : null,
+        supervisoryOrgUnitId: positionForm.supervisoryOrgUnitId ? Number(positionForm.supervisoryOrgUnitId) : null,
+        legalEntityId: positionForm.legalEntityId ? Number(positionForm.legalEntityId) : null,
+        costCenterId: positionForm.costCenterId ? Number(positionForm.costCenterId) : null,
         planId: positionForm.planId ? Number(positionForm.planId) : null,
         managerEmployeeId: positionForm.managerEmployeeId ? Number(positionForm.managerEmployeeId) : null,
         annualBudget: Number(positionForm.annualBudget),
       });
       setShowPosition(false);
-      setPositionForm({ code: "", jobProfileId: "", orgUnitId: "", planId: "", managerEmployeeId: "", employmentType: "Regular", plannedStartDate: "", annualBudget: "" });
+      setPositionForm({ code: "", jobProfileId: "", orgUnitId: "", supervisoryOrgUnitId: "", legalEntityId: "", costCenterId: "", planId: "", managerEmployeeId: "", employmentType: "Regular", plannedStartDate: "", annualBudget: "" });
       await load();
       setNotice("Position added to the headcount plan.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create position."); }
@@ -356,13 +435,14 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
     <div>
       <div className="page-heading">
         <div>
-          <div className="eyebrow">WORKFORCE PLANNING</div>
-          <h1>Plan positions before opening requisitions.</h1>
-          <p>Keep an authoritative headcount ledger with job architecture, approved positions, budgets, ownership, and effective-dated incumbents.</p>
+          <div className="eyebrow">HCM STRUCTURE &amp; WORKFORCE PLANNING</div>
+          <h1>Define the organization before planning headcount.</h1>
+          <p>Keep one governed model for organization hierarchy, job architecture, positions, budgets, supervisory ownership, and effective-dated incumbents.</p>
         </div>
         <div className="page-actions">
           <button className="secondary-button" onClick={() => void load()} disabled={loading}><RefreshCw size={15} /> Refresh</button>
-          <button className="secondary-button" onClick={() => setShowProfile(!showProfile)}><BriefcaseBusiness size={15} /> Job profile</button>
+          <button className="secondary-button" onClick={() => setShowArchitecture(!showArchitecture)}><Building2 size={15} /> Architecture</button>
+          <button className="secondary-button" onClick={() => setShowProfile(!showProfile)} disabled={!jobFamilies.length || !jobLevels.length}><BriefcaseBusiness size={15} /> Job profile</button>
           <button className="secondary-button" onClick={() => setShowPlan(!showPlan)}><CircleDollarSign size={15} /> Plan</button>
           <button className="primary-button" onClick={() => setShowPosition(!showPosition)}><Plus size={15} /> Position</button>
         </div>
@@ -530,15 +610,78 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
         </div>
       </article>
 
+      {showArchitecture && (
+        <article className="card" style={{ padding: 20, marginBottom: 16 }}>
+          <div className="card-header">
+            <div>
+              <div className="card-kicker">HCM CORE 2.1</div>
+              <h2>Organization &amp; job architecture</h2>
+              <p>Define reusable dimensions first. Profiles and positions then reference governed records instead of inventing free-text structure.</p>
+            </div>
+          </div>
+
+          <div className="module-grid two" style={{ marginBottom: 16 }}>
+            <form onSubmit={createFamily} className="card" style={{ padding: 14, boxShadow: "none" }}>
+              <div className="card-kicker">JOB FAMILY</div>
+              <div className="setting-form">
+                <label>Code<input required value={familyForm.code} onChange={(e) => setFamilyForm({ ...familyForm, code: e.target.value })} placeholder="FINOPS" /></label>
+                <label>Name<input required value={familyForm.name} onChange={(e) => setFamilyForm({ ...familyForm, name: e.target.value })} placeholder="Finance Operations" /></label>
+              </div>
+              <div className="run-actions"><button className="primary-button"><Plus size={14} /> Add family</button></div>
+            </form>
+
+            <form onSubmit={createLevel} className="card" style={{ padding: 14, boxShadow: "none" }}>
+              <div className="card-kicker">JOB LEVEL</div>
+              <div className="setting-form">
+                <label>Code<input required value={levelForm.code} onChange={(e) => setLevelForm({ ...levelForm, code: e.target.value })} placeholder="M2" /></label>
+                <label>Name<input required value={levelForm.name} onChange={(e) => setLevelForm({ ...levelForm, name: e.target.value })} placeholder="Manager II" /></label>
+                <label>Sequence<input required type="number" min="0" value={levelForm.sequence} onChange={(e) => setLevelForm({ ...levelForm, sequence: e.target.value })} /></label>
+              </div>
+              <div className="run-actions"><button className="primary-button"><Plus size={14} /> Add level</button></div>
+            </form>
+
+            <form onSubmit={createGrade} className="card" style={{ padding: 14, boxShadow: "none" }}>
+              <div className="card-kicker">JOB GRADE</div>
+              <div className="setting-form">
+                <label>Code<input required value={gradeForm.code} onChange={(e) => setGradeForm({ ...gradeForm, code: e.target.value })} placeholder="G08" /></label>
+                <label>Name<input required value={gradeForm.name} onChange={(e) => setGradeForm({ ...gradeForm, name: e.target.value })} placeholder="Grade 8" /></label>
+                <label>Sequence<input required type="number" min="0" value={gradeForm.sequence} onChange={(e) => setGradeForm({ ...gradeForm, sequence: e.target.value })} /></label>
+              </div>
+              <div className="run-actions"><button className="primary-button"><Plus size={14} /> Add grade</button></div>
+            </form>
+
+            <form onSubmit={createOrgUnit} className="card" style={{ padding: 14, boxShadow: "none" }}>
+              <div className="card-kicker">ORGANIZATION UNIT</div>
+              <div className="setting-form">
+                <label>Code<input required value={orgUnitForm.code} onChange={(e) => setOrgUnitForm({ ...orgUnitForm, code: e.target.value })} placeholder="MNL-SALES" /></label>
+                <label>Name<input required value={orgUnitForm.name} onChange={(e) => setOrgUnitForm({ ...orgUnitForm, name: e.target.value })} placeholder="Manila Sales" /></label>
+                <label>Type<select value={orgUnitForm.type} onChange={(e) => setOrgUnitForm({ ...orgUnitForm, type: e.target.value })}><option value="company">Company</option><option value="business_unit">Business unit</option><option value="division">Division</option><option value="department">Department</option><option value="team">Team</option><option value="supervisory">Supervisory organization</option></select></label>
+                <label>Parent<select value={orgUnitForm.parentId} onChange={(e) => setOrgUnitForm({ ...orgUnitForm, parentId: e.target.value })}><option value="">Root / none</option>{orgUnits.filter((unit) => unit.active).map((unit) => <option key={unit.id} value={unit.id}>{unit.code} · {unit.name}</option>)}</select></label>
+                <label>Legal employer<select value={orgUnitForm.legalEntityId} onChange={(e) => setOrgUnitForm({ ...orgUnitForm, legalEntityId: e.target.value })}><option value="">Inherit / unassigned</option>{legalEntities.filter((entity) => entity.active).map((entity) => <option key={entity.id} value={entity.id}>{entity.code} · {entity.displayName}</option>)}</select></label>
+                <label>Cost center<select value={orgUnitForm.costCenterId} onChange={(e) => setOrgUnitForm({ ...orgUnitForm, costCenterId: e.target.value })}><option value="">Unassigned</option>{costCenters.filter((center) => center.active).map((center) => <option key={center.id} value={center.id}>{center.code} · {center.name}</option>)}</select></label>
+                <label>Manager<select value={orgUnitForm.managerEmployeeId} onChange={(e) => setOrgUnitForm({ ...orgUnitForm, managerEmployeeId: e.target.value })}><option value="">No manager</option>{employees.filter((employee) => employee.status === "Active").map((employee) => <option key={employee.id} value={employee.id}>{employee.firstName} {employee.lastName}</option>)}</select></label>
+                <label>Effective from<input type="date" value={orgUnitForm.effectiveFrom} onChange={(e) => setOrgUnitForm({ ...orgUnitForm, effectiveFrom: e.target.value })} /></label>
+              </div>
+              <div className="run-actions"><button className="primary-button"><Plus size={14} /> Add org unit</button></div>
+            </form>
+          </div>
+
+          <div className="notice notice-slate">
+            <Building2 size={15} />
+            <span><strong>Modeling rule.</strong> Departments/divisions describe the organization hierarchy. Supervisory organizations represent manager-led reporting groups. Positions may reference both, plus one legal employer and cost center.</span>
+          </div>
+        </article>
+      )}
+
       {showProfile && (
         <article className="card" style={{ padding: 20, marginBottom: 16 }}>
           <div className="card-header"><div><div className="card-kicker">JOB ARCHITECTURE</div><h2>Create a reusable job profile</h2></div></div>
           <form onSubmit={createProfile}>
             <div className="setting-form">
               <label>Title<input required value={profileForm.title} onChange={(e) => setProfileForm({ ...profileForm, title: e.target.value })} placeholder="Payroll Operations Manager" /></label>
-              <label>Family<input required value={profileForm.family} onChange={(e) => setProfileForm({ ...profileForm, family: e.target.value })} placeholder="Finance Operations" /></label>
-              <label>Level<input required value={profileForm.level} onChange={(e) => setProfileForm({ ...profileForm, level: e.target.value })} placeholder="Manager" /></label>
-              <label>Grade<input value={profileForm.grade} onChange={(e) => setProfileForm({ ...profileForm, grade: e.target.value })} placeholder="M2" /></label>
+              <label>Family<select required value={profileForm.familyId} onChange={(e) => setProfileForm({ ...profileForm, familyId: e.target.value })}><option value="">Select family</option>{jobFamilies.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
+              <label>Level<select required value={profileForm.levelId} onChange={(e) => setProfileForm({ ...profileForm, levelId: e.target.value })}><option value="">Select level</option>{jobLevels.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
+              <label>Grade<select value={profileForm.gradeId} onChange={(e) => setProfileForm({ ...profileForm, gradeId: e.target.value })}><option value="">No grade</option>{jobGrades.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
             </div>
             <div className="run-actions"><button type="button" className="secondary-button" onClick={() => setShowProfile(false)}>Cancel</button><button className="primary-button">Create profile</button></div>
           </form>
@@ -567,7 +710,10 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
             <div className="setting-form">
               <label>Position code<input required value={positionForm.code} onChange={(e) => setPositionForm({ ...positionForm, code: e.target.value })} placeholder="FIN-PAY-004" /></label>
               <label>Job profile<select required value={positionForm.jobProfileId} onChange={(e) => setPositionForm({ ...positionForm, jobProfileId: e.target.value })}><option value="">Select profile</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.title} · {profile.level}</option>)}</select></label>
-              <label>Org unit<select value={positionForm.orgUnitId} onChange={(e) => setPositionForm({ ...positionForm, orgUnitId: e.target.value })}><option value="">Company-wide / unassigned</option>{orgUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}</select></label>
+              <label>Org unit<select value={positionForm.orgUnitId} onChange={(e) => setPositionForm({ ...positionForm, orgUnitId: e.target.value })}><option value="">Company-wide / unassigned</option>{orgUnits.filter((unit) => unit.active && unit.type !== "supervisory").map((unit) => <option key={unit.id} value={unit.id}>{unit.code} · {unit.name}</option>)}</select></label>
+              <label>Supervisory org<select value={positionForm.supervisoryOrgUnitId} onChange={(e) => setPositionForm({ ...positionForm, supervisoryOrgUnitId: e.target.value })}><option value="">No supervisory org</option>{supervisoryUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.code} · {unit.name}</option>)}</select></label>
+              <label>Legal employer<select value={positionForm.legalEntityId} onChange={(e) => setPositionForm({ ...positionForm, legalEntityId: e.target.value })}><option value="">Unassigned</option>{legalEntities.filter((entity) => entity.active).map((entity) => <option key={entity.id} value={entity.id}>{entity.code} · {entity.displayName}</option>)}</select></label>
+              <label>Cost center<select value={positionForm.costCenterId} onChange={(e) => setPositionForm({ ...positionForm, costCenterId: e.target.value })}><option value="">Unassigned</option>{costCenters.filter((center) => center.active).map((center) => <option key={center.id} value={center.id}>{center.code} · {center.name}</option>)}</select></label>
               <label>Workforce plan<select value={positionForm.planId} onChange={(e) => setPositionForm({ ...positionForm, planId: e.target.value })}><option value="">No plan</option>{plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select></label>
               <label>Manager<select value={positionForm.managerEmployeeId} onChange={(e) => setPositionForm({ ...positionForm, managerEmployeeId: e.target.value })}><option value="">No manager</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.firstName} {employee.lastName}</option>)}</select></label>
               <label>Employment type<select value={positionForm.employmentType} onChange={(e) => setPositionForm({ ...positionForm, employmentType: e.target.value })}><option>Regular</option><option>Probationary</option><option>Part-time</option><option>Contractual</option></select></label>
@@ -616,7 +762,18 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
                 return (
                   <tr key={position.id}>
                     <td><strong>{position.code}</strong><small style={{ display: "block", color: "var(--muted)" }}>{position.employmentType}</small></td>
-                    <td><strong>{profile?.title ?? "Job profile"}</strong><small style={{ display: "block", color: "var(--muted)" }}>{position.orgUnitId ? unitById.get(position.orgUnitId)?.name ?? "Unit" : "Unassigned unit"}</small></td>
+                    <td>
+                      <strong>{profile?.title ?? "Job profile"}</strong>
+                      <small style={{ display: "block", color: "var(--muted)" }}>
+                        {position.orgUnitId ? unitById.get(position.orgUnitId)?.name ?? "Unit" : "Unassigned unit"}
+                        {position.supervisoryOrgUnitId ? ` · Sup: ${unitById.get(position.supervisoryOrgUnitId)?.name ?? "Supervisory org"}` : ""}
+                      </small>
+                      <small style={{ display: "block", color: "var(--muted)" }}>
+                        {position.legalEntityId ? legalEntityById.get(position.legalEntityId)?.displayName ?? "Legal employer" : "No legal employer"}
+                        {" · "}
+                        {position.costCenterId ? costCenterById.get(position.costCenterId)?.code ?? "Cost center" : "No cost center"}
+                      </small>
+                    </td>
                     <td>{incumbent ? <><strong>{incumbent.firstName} {incumbent.lastName}</strong><small style={{ display: "block", color: "var(--muted)" }}>{assignment?.effectiveFrom}</small></> : <span style={{ color: "var(--muted)" }}>Vacant</span>}</td>
                     <td>{position.plannedStartDate ?? "—"}</td>
                     <td className="right">{peso(position.annualBudget)}</td>
@@ -645,14 +802,27 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
 
       <section className="module-grid two" style={{ marginTop: 16 }}>
         <article className="card">
-          <div className="card-header"><div><div className="card-kicker">JOB ARCHITECTURE</div><h2>Profiles and levels</h2></div></div>
-          {profiles.length === 0 && <div className="empty-state">No job profiles yet.</div>}
+          <div className="card-header"><div><div className="card-kicker">JOB ARCHITECTURE</div><h2>Families, levels, grades &amp; profiles</h2></div></div>
+          <div className="notice notice-slate" style={{ margin: "0 0 10px" }}>
+            <span><strong>{jobFamilies.length}</strong> families · <strong>{jobLevels.length}</strong> levels · <strong>{jobGrades.length}</strong> grades · <strong>{profiles.length}</strong> profiles</span>
+          </div>
+          {profiles.length === 0 && <div className="empty-state">No job profiles yet. Open Architecture to define dimensions first.</div>}
           {profiles.map((profile) => <div className="leave-request" key={profile.id}><div className="inline-icon purple"><BriefcaseBusiness size={16} /></div><div><strong>{profile.title}</strong><span>{profile.family} · {profile.level}{profile.grade ? ` · ${profile.grade}` : ""}</span></div></div>)}
         </article>
         <article className="card">
           <div className="card-header"><div><div className="card-kicker">PLANS</div><h2>Planning windows</h2></div></div>
           {plans.length === 0 && <div className="empty-state">No workforce plans yet.</div>}
           {plans.map((plan) => <div className="leave-request" key={plan.id}><div className="inline-icon mint"><Building2 size={16} /></div><div style={{ flex: 1 }}><strong>{plan.name}</strong><span>{plan.startDate} – {plan.endDate} · {plan.status}</span></div><strong>{peso(plan.budget)}</strong></div>)}
+          <div className="card-kicker" style={{ marginTop: 16 }}>ORGANIZATION STRUCTURE</div>
+          {orgUnits.filter((unit) => unit.active).slice(0, 8).map((unit) => (
+            <div className="leave-request" key={`org-${unit.id}`}>
+              <div className="inline-icon mint"><Building2 size={16} /></div>
+              <div>
+                <strong>{unit.code} · {unit.name}</strong>
+                <span>{unit.type.replaceAll("_", " ")}{unit.parentId ? ` · parent ${unitById.get(unit.parentId)?.name ?? unit.parentId}` : ""}</span>
+              </div>
+            </div>
+          ))}
         </article>
       </section>
     </div>

@@ -2,14 +2,20 @@ import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  costCenters,
   employees,
+  jobFamilies,
+  jobGrades,
+  jobLevels,
   jobProfiles,
   jobRequisitions,
+  legalEntities,
   orgUnits,
   positionAssignments,
   positions,
   workforcePlans,
   worksites,
+  workerEmploymentEvents,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import {
@@ -24,6 +30,7 @@ import { recordAuditEvent } from "@/lib/audit";
 export const dynamic = "force-dynamic";
 
 const POSITION_STATUSES = ["planned", "approved", "open", "filled", "frozen", "closed"] as const;
+const ORG_UNIT_TYPES = ["company", "business_unit", "division", "department", "team", "supervisory"] as const;
 
 class WorkforcePlanningConflict extends Error {
   constructor(message: string, readonly details: Record<string, unknown> = {}) {
@@ -34,6 +41,10 @@ class WorkforcePlanningConflict extends Error {
 
 function isoDate(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function todayPh() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
 }
 
 async function scopedUnit(userId: number, organizationId: number, orgUnitId: number | null) {
@@ -61,12 +72,17 @@ export async function GET(request: Request) {
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
 
-  const [profiles, plans, allPositions, assignments, units, staff, requisitions, siteRows] = await Promise.all([
+  const [profiles, families, levels, grades, plans, allPositions, assignments, units, entityRows, costCenterRows, staff, requisitions, siteRows] = await Promise.all([
     db.select().from(jobProfiles).where(eq(jobProfiles.organizationId, organizationId)).orderBy(jobProfiles.title),
+    db.select().from(jobFamilies).where(eq(jobFamilies.organizationId, organizationId)).orderBy(jobFamilies.name),
+    db.select().from(jobLevels).where(eq(jobLevels.organizationId, organizationId)).orderBy(jobLevels.sequence, jobLevels.name),
+    db.select().from(jobGrades).where(eq(jobGrades.organizationId, organizationId)).orderBy(jobGrades.sequence, jobGrades.name),
     db.select().from(workforcePlans).where(eq(workforcePlans.organizationId, organizationId)).orderBy(desc(workforcePlans.startDate)),
     db.select().from(positions).where(eq(positions.organizationId, organizationId)).orderBy(desc(positions.id)),
     db.select().from(positionAssignments).where(eq(positionAssignments.organizationId, organizationId)).orderBy(desc(positionAssignments.effectiveFrom)),
     db.select().from(orgUnits).where(eq(orgUnits.organizationId, organizationId)).orderBy(orgUnits.name),
+    db.select().from(legalEntities).where(eq(legalEntities.organizationId, organizationId)).orderBy(legalEntities.displayName),
+    db.select().from(costCenters).where(eq(costCenters.organizationId, organizationId)).orderBy(costCenters.name),
     db.select({
       id: employees.id,
       firstName: employees.firstName,
@@ -109,6 +125,9 @@ export async function GET(request: Request) {
 
   return Response.json({
     profiles,
+    jobFamilies: families,
+    jobLevels: levels,
+    jobGrades: grades,
     plans,
     positions: visiblePositions.map((position) => {
       const activeRequisition = activeRequisitionByPosition.get(position.id);
@@ -120,6 +139,8 @@ export async function GET(request: Request) {
     }),
     assignments: assignments.filter((assignment) => visiblePositionIds.has(assignment.positionId)),
     orgUnits: access.companyWide ? units : units.filter((unit) => unit.id === access.orgUnitId),
+    legalEntities: access.companyWide ? entityRows : [],
+    costCenters: access.companyWide ? costCenterRows : [],
     worksites: access.companyWide
       ? siteRows
       : siteRows.filter((site) => site.orgUnitId === access.orgUnitId),
@@ -147,6 +168,128 @@ export async function POST(request: Request) {
   );
   if (denied) return denied;
 
+  if (["job_family", "job_level", "job_grade", "org_unit"].includes(entityType)) {
+    const adminDenied = await assertOrganizationRole(user.id, organizationId, PEOPLE_ADMIN_ROLES);
+    if (adminDenied) return adminDenied;
+    const access = await getAccess(user.id, organizationId);
+    if (!access?.companyWide) {
+      return Response.json({ error: "Organization and job architecture require company-wide People access." }, { status: 403 });
+    }
+
+    if (entityType === "job_family") {
+      const code = String(body.code ?? "").trim().toUpperCase();
+      const name = String(body.name ?? "").trim();
+      if (!code || !name) return Response.json({ error: "Family code and name are required." }, { status: 400 });
+      try {
+        const [row] = await db.insert(jobFamilies).values({
+          organizationId,
+          code: code.slice(0, 40),
+          name: name.slice(0, 120),
+          description: body.description ? String(body.description).trim().slice(0, 2000) : null,
+        }).returning();
+        await recordAuditEvent({ organizationId, actor: user.name, action: "Job family created", resource: row.name, metadata: { jobFamilyId: row.id, code: row.code } });
+        return Response.json(row, { status: 201 });
+      } catch {
+        return Response.json({ error: "A job family with that code or name already exists." }, { status: 409 });
+      }
+    }
+
+    if (entityType === "job_level") {
+      const code = String(body.code ?? "").trim().toUpperCase();
+      const name = String(body.name ?? "").trim();
+      const sequence = Number(body.sequence ?? 0);
+      if (!code || !name || !Number.isInteger(sequence) || sequence < 0) {
+        return Response.json({ error: "Level code, name, and a non-negative sequence are required." }, { status: 400 });
+      }
+      try {
+        const [row] = await db.insert(jobLevels).values({
+          organizationId,
+          code: code.slice(0, 40),
+          name: name.slice(0, 80),
+          sequence,
+          description: body.description ? String(body.description).trim().slice(0, 2000) : null,
+        }).returning();
+        await recordAuditEvent({ organizationId, actor: user.name, action: "Job level created", resource: row.name, metadata: { jobLevelId: row.id, code: row.code, sequence } });
+        return Response.json(row, { status: 201 });
+      } catch {
+        return Response.json({ error: "A job level with that code or name already exists." }, { status: 409 });
+      }
+    }
+
+    if (entityType === "job_grade") {
+      const code = String(body.code ?? "").trim().toUpperCase();
+      const name = String(body.name ?? "").trim();
+      const sequence = Number(body.sequence ?? 0);
+      if (!code || !name || !Number.isInteger(sequence) || sequence < 0) {
+        return Response.json({ error: "Grade code, name, and a non-negative sequence are required." }, { status: 400 });
+      }
+      try {
+        const [row] = await db.insert(jobGrades).values({
+          organizationId,
+          code: code.slice(0, 40),
+          name: name.slice(0, 80),
+          sequence,
+          description: body.description ? String(body.description).trim().slice(0, 2000) : null,
+        }).returning();
+        await recordAuditEvent({ organizationId, actor: user.name, action: "Job grade created", resource: row.name, metadata: { jobGradeId: row.id, code: row.code, sequence } });
+        return Response.json(row, { status: 201 });
+      } catch {
+        return Response.json({ error: "A job grade with that code or name already exists." }, { status: 409 });
+      }
+    }
+
+    const code = String(body.code ?? "").trim().toUpperCase();
+    const name = String(body.name ?? "").trim();
+    const type = String(body.type ?? "department").trim().toLowerCase();
+    const parentId = body.parentId ? Number(body.parentId) : null;
+    const legalEntityId = body.legalEntityId ? Number(body.legalEntityId) : null;
+    const costCenterId = body.costCenterId ? Number(body.costCenterId) : null;
+    const managerEmployeeId = body.managerEmployeeId ? Number(body.managerEmployeeId) : null;
+    const effectiveFrom = body.effectiveFrom ? String(body.effectiveFrom) : null;
+    if (!code || !name || !ORG_UNIT_TYPES.includes(type as (typeof ORG_UNIT_TYPES)[number])) {
+      return Response.json({ error: "Organization-unit code, name, and a supported type are required." }, { status: 400 });
+    }
+    if (effectiveFrom && !isoDate(effectiveFrom)) {
+      return Response.json({ error: "effectiveFrom must use YYYY-MM-DD." }, { status: 400 });
+    }
+
+    const [parent, entity, center, manager] = await Promise.all([
+      parentId ? db.select({ id: orgUnits.id }).from(orgUnits).where(and(eq(orgUnits.id, parentId), eq(orgUnits.organizationId, organizationId))).limit(1) : Promise.resolve([]),
+      legalEntityId ? db.select({ id: legalEntities.id }).from(legalEntities).where(and(eq(legalEntities.id, legalEntityId), eq(legalEntities.organizationId, organizationId), eq(legalEntities.active, true))).limit(1) : Promise.resolve([]),
+      costCenterId ? db.select({ id: costCenters.id }).from(costCenters).where(and(eq(costCenters.id, costCenterId), eq(costCenters.organizationId, organizationId), eq(costCenters.active, true))).limit(1) : Promise.resolve([]),
+      managerEmployeeId ? db.select({ id: employees.id }).from(employees).where(and(eq(employees.id, managerEmployeeId), eq(employees.organizationId, organizationId))).limit(1) : Promise.resolve([]),
+    ]);
+    if (parentId && !parent[0]) return Response.json({ error: "Parent organization unit not found." }, { status: 404 });
+    if (legalEntityId && !entity[0]) return Response.json({ error: "Active legal employer not found." }, { status: 404 });
+    if (costCenterId && !center[0]) return Response.json({ error: "Active cost center not found." }, { status: 404 });
+    if (managerEmployeeId && !manager[0]) return Response.json({ error: "Manager employee not found." }, { status: 404 });
+
+    try {
+      const [row] = await db.insert(orgUnits).values({
+        organizationId,
+        parentId,
+        type: type.slice(0, 32),
+        name: name.slice(0, 120),
+        code: code.slice(0, 32),
+        legalEntityId,
+        costCenterId,
+        managerEmployeeId,
+        effectiveFrom,
+        active: true,
+      }).returning();
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Organization unit created",
+        resource: row.name,
+        metadata: { orgUnitId: row.id, code: row.code, type: row.type, parentId, legalEntityId, costCenterId, managerEmployeeId, effectiveFrom },
+      });
+      return Response.json(row, { status: 201 });
+    } catch {
+      return Response.json({ error: "An organization unit with that code already exists." }, { status: 409 });
+    }
+  }
+
   if (entityType === "profile") {
     const adminDenied = await assertOrganizationRole(user.id, organizationId, PEOPLE_ADMIN_ROLES);
     if (adminDenied) return adminDenied;
@@ -154,17 +297,35 @@ export async function POST(request: Request) {
     if (!access?.companyWide) return Response.json({ error: "Job architecture requires company-wide access." }, { status: 403 });
 
     const title = String(body.title ?? "").trim();
-    const family = String(body.family ?? "General").trim();
-    const level = String(body.level ?? "Individual Contributor").trim();
-    if (!title) return Response.json({ error: "Job title is required." }, { status: 400 });
+    const familyId = Number(body.familyId);
+    const levelId = Number(body.levelId);
+    const gradeId = body.gradeId ? Number(body.gradeId) : null;
+    if (!title || !Number.isInteger(familyId) || !Number.isInteger(levelId) || (gradeId !== null && !Number.isInteger(gradeId))) {
+      return Response.json({ error: "Job title, family, and level are required; grade is optional." }, { status: 400 });
+    }
+
+    const [[family], [level], gradeRows] = await Promise.all([
+      db.select().from(jobFamilies).where(and(eq(jobFamilies.id, familyId), eq(jobFamilies.organizationId, organizationId), eq(jobFamilies.active, true))).limit(1),
+      db.select().from(jobLevels).where(and(eq(jobLevels.id, levelId), eq(jobLevels.organizationId, organizationId), eq(jobLevels.active, true))).limit(1),
+      gradeId
+        ? db.select().from(jobGrades).where(and(eq(jobGrades.id, gradeId), eq(jobGrades.organizationId, organizationId), eq(jobGrades.active, true))).limit(1)
+        : Promise.resolve([]),
+    ]);
+    const grade = gradeRows[0] ?? null;
+    if (!family) return Response.json({ error: "Active job family not found." }, { status: 404 });
+    if (!level) return Response.json({ error: "Active job level not found." }, { status: 404 });
+    if (gradeId && !grade) return Response.json({ error: "Active job grade not found." }, { status: 404 });
 
     try {
       const [row] = await db.insert(jobProfiles).values({
         organizationId,
         title: title.slice(0, 160),
-        family: family.slice(0, 120) || "General",
-        level: level.slice(0, 80) || "Individual Contributor",
-        grade: body.grade ? String(body.grade).slice(0, 40) : null,
+        familyId: family.id,
+        levelId: level.id,
+        gradeId: grade?.id ?? null,
+        family: family.name,
+        level: level.name,
+        grade: grade?.name ?? null,
         description: body.description ? String(body.description).slice(0, 4000) : null,
       }).returning();
       await recordAuditEvent({
@@ -172,7 +333,7 @@ export async function POST(request: Request) {
         actor: user.name,
         action: "Job profile created",
         resource: row.title,
-        metadata: { jobProfileId: row.id, family: row.family, level: row.level },
+        metadata: { jobProfileId: row.id, familyId: row.familyId, levelId: row.levelId, gradeId: row.gradeId, family: row.family, level: row.level, grade: row.grade },
       });
       return Response.json(row, { status: 201 });
     } catch {
@@ -222,6 +383,9 @@ export async function POST(request: Request) {
     const code = String(body.code ?? "").trim().toUpperCase();
     const jobProfileId = Number(body.jobProfileId);
     const orgUnitId = body.orgUnitId ? Number(body.orgUnitId) : null;
+    const supervisoryOrgUnitId = body.supervisoryOrgUnitId ? Number(body.supervisoryOrgUnitId) : null;
+    const legalEntityId = body.legalEntityId ? Number(body.legalEntityId) : null;
+    const costCenterId = body.costCenterId ? Number(body.costCenterId) : null;
     const planId = body.planId ? Number(body.planId) : null;
     const managerEmployeeId = body.managerEmployeeId ? Number(body.managerEmployeeId) : null;
     const annualBudget = Number(body.annualBudget ?? 0);
@@ -239,9 +403,26 @@ export async function POST(request: Request) {
     if (!profile) return Response.json({ error: "Job profile not found in this workspace." }, { status: 404 });
 
     if (orgUnitId) {
-      const [unit] = await db.select({ id: orgUnits.id }).from(orgUnits)
+      const [unit] = await db.select({ id: orgUnits.id, active: orgUnits.active }).from(orgUnits)
         .where(and(eq(orgUnits.id, orgUnitId), eq(orgUnits.organizationId, organizationId))).limit(1);
-      if (!unit) return Response.json({ error: "Organization unit not found in this workspace." }, { status: 404 });
+      if (!unit?.active) return Response.json({ error: "Active organization unit not found in this workspace." }, { status: 404 });
+    }
+    if (supervisoryOrgUnitId) {
+      const [supervisory] = await db.select({ id: orgUnits.id, type: orgUnits.type, active: orgUnits.active }).from(orgUnits)
+        .where(and(eq(orgUnits.id, supervisoryOrgUnitId), eq(orgUnits.organizationId, organizationId))).limit(1);
+      if (!supervisory?.active || supervisory.type !== "supervisory") {
+        return Response.json({ error: "supervisoryOrgUnitId must reference an active supervisory organization." }, { status: 400 });
+      }
+    }
+    if (legalEntityId) {
+      const [entity] = await db.select({ id: legalEntities.id }).from(legalEntities)
+        .where(and(eq(legalEntities.id, legalEntityId), eq(legalEntities.organizationId, organizationId), eq(legalEntities.active, true))).limit(1);
+      if (!entity) return Response.json({ error: "Active legal employer not found in this workspace." }, { status: 404 });
+    }
+    if (costCenterId) {
+      const [center] = await db.select({ id: costCenters.id }).from(costCenters)
+        .where(and(eq(costCenters.id, costCenterId), eq(costCenters.organizationId, organizationId), eq(costCenters.active, true))).limit(1);
+      if (!center) return Response.json({ error: "Active cost center not found in this workspace." }, { status: 404 });
     }
     if (planId) {
       const [plan] = await db.select({ id: workforcePlans.id }).from(workforcePlans)
@@ -263,6 +444,9 @@ export async function POST(request: Request) {
         code: code.slice(0, 48),
         jobProfileId,
         orgUnitId,
+        supervisoryOrgUnitId,
+        legalEntityId,
+        costCenterId,
         planId,
         managerEmployeeId,
         employmentType: body.employmentType ? String(body.employmentType).slice(0, 32) : "Regular",
@@ -277,7 +461,7 @@ export async function POST(request: Request) {
         actor: user.name,
         action: "Position created",
         resource: row.code,
-        metadata: { positionId: row.id, jobProfileId, orgUnitId, planId, annualBudget },
+        metadata: { positionId: row.id, jobProfileId, orgUnitId, supervisoryOrgUnitId, legalEntityId, costCenterId, planId, annualBudget },
       });
       return Response.json(row, { status: 201 });
     } catch {
@@ -292,6 +476,11 @@ export async function POST(request: Request) {
     if (!Number.isInteger(positionId) || !Number.isInteger(employeeId) || !isoDate(effectiveFrom)) {
       return Response.json({ error: "positionId, employeeId, and effectiveFrom are required." }, { status: 400 });
     }
+    if (effectiveFrom !== todayPh()) {
+      return Response.json({
+        error: "Direct assignment changes current worker state and must use the current Philippine business date. Future or retroactive assignments belong in the scheduled effective-dated HCM workflow.",
+      }, { status: 409 });
+    }
 
     const [position] = await db.select().from(positions)
       .where(and(eq(positions.id, positionId), eq(positions.organizationId, organizationId))).limit(1);
@@ -305,9 +494,19 @@ export async function POST(request: Request) {
       }, { status: 409 });
     }
 
-    const [employee] = await db.select({ id: employees.id, orgUnitId: employees.orgUnitId }).from(employees)
+    const [employee] = await db.select({
+      id: employees.id,
+      orgUnitId: employees.orgUnitId,
+      legalEntityId: employees.legalEntityId,
+      employmentType: employees.employmentType,
+      status: employees.status,
+      title: employees.title,
+    }).from(employees)
       .where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId))).limit(1);
     if (!employee) return Response.json({ error: "Employee not found in this workspace." }, { status: 404 });
+    if (employee.status !== "Active") {
+      return Response.json({ error: "Only active employees can receive a new primary position assignment." }, { status: 409 });
+    }
     const access = await getAccess(user.id, organizationId);
     const employeeScope = assertScope(access, employee.orgUnitId);
     if (!employeeScope.ok) return Response.json({ error: employeeScope.error }, { status: employeeScope.status });
@@ -354,10 +553,28 @@ export async function POST(request: Request) {
         throw new WorkforcePlanningConflict("This position already has an active assignment.");
       }
 
+      const [existingPrimary] = await tx.select({ id: positionAssignments.id }).from(positionAssignments)
+        .where(and(
+          eq(positionAssignments.organizationId, organizationId),
+          eq(positionAssignments.employeeId, employeeId),
+          eq(positionAssignments.assignmentType, "primary"),
+          isNull(positionAssignments.effectiveUntil),
+        )).limit(1);
+      if (existingPrimary) {
+        throw new WorkforcePlanningConflict("This employee already has an active primary position. Use the transfer/promotion workflow instead.");
+      }
+
+      const [profile] = await tx.select({ title: jobProfiles.title }).from(jobProfiles)
+        .where(and(eq(jobProfiles.id, position.jobProfileId), eq(jobProfiles.organizationId, organizationId)))
+        .limit(1);
+      if (!profile) throw new WorkforcePlanningConflict("The position job profile is missing.");
+
       const [assignment] = await tx.insert(positionAssignments).values({
         organizationId,
         positionId,
         employeeId,
+        assignmentType: "primary",
+        fte: "1.0000",
         effectiveFrom,
         reason: body.reason ? String(body.reason).slice(0, 240) : "Position assignment",
         createdByUserId: user.id,
@@ -366,6 +583,41 @@ export async function POST(request: Request) {
       await tx.update(positions)
         .set({ status: "filled", updatedAt: new Date() })
         .where(eq(positions.id, positionId));
+
+      const [updatedEmployee] = await tx.update(employees).set({
+        orgUnitId: position.orgUnitId,
+        legalEntityId: position.legalEntityId ?? employee.legalEntityId,
+        title: profile.title,
+        employmentType: position.employmentType,
+      }).where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId))).returning();
+
+      await tx.insert(workerEmploymentEvents).values({
+        organizationId,
+        employeeId,
+        effectiveDate: effectiveFrom,
+        eventType: "position_assigned",
+        positionAssignmentId: assignment.id,
+        toPositionId: position.id,
+        fromOrgUnitId: employee.orgUnitId,
+        toOrgUnitId: position.orgUnitId,
+        fromLegalEntityId: employee.legalEntityId,
+        toLegalEntityId: updatedEmployee.legalEntityId,
+        toManagerEmployeeId: position.managerEmployeeId,
+        fromEmploymentType: employee.employmentType,
+        toEmploymentType: updatedEmployee.employmentType,
+        fromStatus: employee.status,
+        toStatus: updatedEmployee.status,
+        reason: assignment.reason,
+        metadata: {
+          positionCode: position.code,
+          supervisoryOrgUnitId: position.supervisoryOrgUnitId,
+          costCenterId: position.costCenterId,
+          fte: 1,
+          source: "planning",
+        },
+        actorUserId: user.id,
+        actorName: user.name,
+      });
 
       return assignment;
     }).catch((error: unknown) => {
@@ -393,7 +645,7 @@ export async function POST(request: Request) {
     return Response.json(row, { status: 201 });
   }
 
-  return Response.json({ error: "entityType must be profile, plan, position, or assignment." }, { status: 400 });
+  return Response.json({ error: "entityType must be job_family, job_level, job_grade, org_unit, profile, plan, position, or assignment." }, { status: 400 });
 }
 
 export async function PATCH(request: Request) {
