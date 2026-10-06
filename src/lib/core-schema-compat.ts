@@ -1598,6 +1598,33 @@ export async function ensureCoreCompatibilitySchema() {
         $compat$;
       `);
 
+      // Workforce planning scenarios reference the older workforce plan
+      // foundation. Keep production compatibility self-contained for databases
+      // that never received the historical job-architecture migration.
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS workforce_plans (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          name varchar(160) NOT NULL,
+          start_date date NOT NULL,
+          end_date date NOT NULL,
+          budget numeric(14,2) NOT NULL DEFAULT '0',
+          status varchar(24) NOT NULL DEFAULT 'draft',
+          created_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          created_by varchar(120) NOT NULL DEFAULT 'System',
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS workforce_plans_org_name_dates_unique
+        ON workforce_plans(organization_id, name, start_date, end_date)
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS workforce_plans_org_status_idx
+        ON workforce_plans(organization_id, status)
+      `);
+
       await client.query(`
         CREATE TABLE IF NOT EXISTS workforce_planning_scenarios (
           id serial PRIMARY KEY,
