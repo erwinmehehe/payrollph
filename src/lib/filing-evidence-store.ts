@@ -72,6 +72,23 @@ export async function recordGeneratedFiling(input: {
       eq(governmentFilingValidations.fileSha256, fileSha256),
     ))
     .limit(1);
+
+  // Snapshot metadata is deterministically derived from the already-hashed file.
+  // Backfill newly-supported metadata without changing the immutable file or its
+  // recorded agency outcome.
+  if (existing && remittanceSnapshot && (
+    existing.applicableMonth !== remittanceSnapshot.applicableMonth
+    || existing.employeeCount !== remittanceSnapshot.employeeCount
+    || Number(existing.reportedTotal ?? Number.NaN) !== remittanceSnapshot.reportedTotal
+  )) {
+    const [backfilled] = await db.update(governmentFilingValidations).set({
+      applicableMonth: remittanceSnapshot.applicableMonth,
+      employeeCount: remittanceSnapshot.employeeCount,
+      reportedTotal: remittanceSnapshot.reportedTotal.toFixed(2),
+    }).where(eq(governmentFilingValidations.id, existing.id)).returning();
+    return { record: backfilled ?? existing, created: false, file };
+  }
+
   return { record: existing, created: false, file };
 }
 
