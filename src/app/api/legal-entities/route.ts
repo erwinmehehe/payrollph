@@ -8,8 +8,9 @@ import {
 } from "@/db/schema";
 import {
   assertOrganizationRole,
+  getAccess,
   ORG_ADMIN_ROLES,
-  PEOPLE_PAYROLL_ROLES,
+  PAYROLL_OPERATOR_ROLES,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
@@ -56,29 +57,57 @@ function branchCode(value: unknown) {
 }
 
 async function requireAdmin(userId: number, organizationId: number) {
-  return assertOrganizationRole(
+  const denied = await assertOrganizationRole(
     userId,
     organizationId,
     ORG_ADMIN_ROLES,
     "Only organization administrators can manage legal employers.",
   );
+  if (denied) return denied;
+  const access = await getAccess(userId, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({
+      error: "Legal-employer administration requires company-wide access.",
+    }, { status: 403 });
+  }
+  return null;
 }
 
 export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
-  const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
+  const url = new URL(request.url);
+  const organizationId = Number(url.searchParams.get("organizationId"));
+  const selectorMode = url.searchParams.get("mode") === "selector";
   if (!Number.isInteger(organizationId) || organizationId <= 0) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
   }
 
-  const denied = await assertOrganizationRole(
-    user.id,
-    organizationId,
-    PEOPLE_PAYROLL_ROLES,
-    "People or payroll access is required to view legal employers.",
-  );
+  if (selectorMode) {
+    const denied = await assertOrganizationRole(
+      user.id,
+      organizationId,
+      PAYROLL_OPERATOR_ROLES,
+      "Only payroll operators can select a legal employer for payroll.",
+    );
+    if (denied) return denied;
+    const entities = await db.select({
+      id: legalEntities.id,
+      code: legalEntities.code,
+      displayName: legalEntities.displayName,
+      primaryEntity: legalEntities.primaryEntity,
+      active: legalEntities.active,
+    }).from(legalEntities)
+      .where(and(
+        eq(legalEntities.organizationId, organizationId),
+        eq(legalEntities.active, true),
+      ))
+      .orderBy(asc(legalEntities.id));
+    return Response.json({ legalEntities: entities });
+  }
+
+  const denied = await requireAdmin(user.id, organizationId);
   if (denied) return denied;
 
   const [entities, employeeRows, runRows] = await Promise.all([
