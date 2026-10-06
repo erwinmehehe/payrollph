@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { SeoLandingPage } from "@/components/marketing/seo-landing-page";
 
 export const metadata: Metadata = {
-  title: "Timekeeping System Philippines | Payroll | Linaw",
+  title: "Timekeeping Software Philippines | Payroll-Ready | Linaw",
   description: "Philippine timekeeping and attendance software with raw punches, schedules, overtime workflows, night differential and payroll-connected attendance processing.",
   alternates: { canonical: "/time-and-attendance" },
 };
