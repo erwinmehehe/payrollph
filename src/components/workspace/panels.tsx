@@ -1068,17 +1068,20 @@ function PrivacySettings({ data, setNotice }: { data: DashboardData; setNotice: 
 }
 
 export function NewPayrollModal({
+  organizationId,
   onClose,
   onCreate,
   busy,
   orgUnits = [],
 }: {
+  organizationId: number;
   onClose: () => void;
   onCreate: (input: {
     periodStart: string;
     periodEnd: string;
     payDate: string;
     scopeOrgUnitId: number | null;
+    legalEntityId: number;
   }) => void;
   busy: boolean;
   orgUnits?: OrgUnit[];
@@ -1094,12 +1097,35 @@ export function NewPayrollModal({
   const [periodEnd, setPeriodEnd] = useState(day <= 15 ? iso(year, month, 15) : iso(year, month, lastDay));
   const [payDate, setPayDate] = useState(day <= 15 ? iso(year, month, 15) : iso(year, month, lastDay));
   const [scopeOrgUnitId, setScopeOrgUnitId] = useState<number | null>(null);
+  const [legalEntities, setLegalEntities] = useState<Array<{ id: number; code: string; displayName: string; primaryEntity: boolean }>>([]);
+  const [legalEntityId, setLegalEntityId] = useState<number | null>(null);
+  const [legalEntitiesLoading, setLegalEntitiesLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const response = await fetch(`/api/legal-entities?organizationId=${organizationId}&mode=selector`, { cache: "no-store" });
+        const payload = await response.json().catch(() => ({}));
+        if (!alive) return;
+        const rows = response.ok && Array.isArray(payload.legalEntities)
+          ? payload.legalEntities.filter((entity: { active?: boolean }) => entity.active !== false)
+          : [];
+        setLegalEntities(rows);
+        setLegalEntityId(rows.find((entity: { primaryEntity?: boolean }) => entity.primaryEntity)?.id ?? rows[0]?.id ?? null);
+      } finally {
+        if (alive) setLegalEntitiesLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [organizationId]);
 
   const periodDays = periodStart && periodEnd
     ? Math.floor((Date.parse(`${periodEnd}T00:00:00Z`) - Date.parse(`${periodStart}T00:00:00Z`)) / 86_400_000) + 1
     : 0;
   const periodTooLong = periodDays > 16;
   const invalidDates = !periodStart || !periodEnd || !payDate || periodStart > periodEnd || payDate < periodEnd || periodTooLong;
+  const invalidEntity = legalEntitiesLoading || !legalEntityId;
 
   return (
     <div className="modal-backdrop" role="presentation">
@@ -1111,6 +1137,18 @@ export function NewPayrollModal({
         <p>Choose the exact attendance period, pay date, and employee scope. Linaw will calculate only punches and people inside this run.</p>
 
         <div className="setting-form">
+          <label>Legal employer
+            <select
+              value={legalEntityId ?? ""}
+              onChange={(event) => setLegalEntityId(event.target.value ? Number(event.target.value) : null)}
+              disabled={legalEntitiesLoading}
+            >
+              {legalEntities.length === 0 && <option value="">No active legal employer</option>}
+              {legalEntities.map((entity) => (
+                <option key={entity.id} value={entity.id}>{entity.code} · {entity.displayName}{entity.primaryEntity ? " · Primary" : ""}</option>
+              ))}
+            </select>
+          </label>
           <label>Period start
             <input type="date" value={periodStart} onChange={(event) => setPeriodStart(event.target.value)} />
           </label>
@@ -1149,14 +1187,14 @@ export function NewPayrollModal({
 
         <div className="modal-note">
           <ShieldCheck size={16} className="i-green" />
-          Scope is stored by organization-unit ID, and attendance is restricted to the selected cutoff dates.
+          The payroll run is bound to one legal employer. Employee scope, payroll calendar, statutory deduction timing, attendance, and future remittance evidence stay inside that employer boundary.
         </div>
         <div className="modal-actions">
           <button className="secondary-button" onClick={onClose}>Cancel</button>
           <button
             className="primary-button"
-            disabled={busy || invalidDates}
-            onClick={() => onCreate({ periodStart, periodEnd, payDate, scopeOrgUnitId })}
+            disabled={busy || invalidDates || invalidEntity}
+            onClick={() => legalEntityId && onCreate({ periodStart, periodEnd, payDate, scopeOrgUnitId, legalEntityId })}
           >
             {busy ? "Processing…" : "Create & process"} <ArrowUpRight size={16} />
           </button>

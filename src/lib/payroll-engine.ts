@@ -17,6 +17,7 @@ import {
   leavePolicies,
   leaveRequests,
   holidays,
+  legalEntities,
   orgUnits,
   organizations,
   overtimeRequests,
@@ -218,18 +219,33 @@ export async function enqueuePayrollRun(runId: number, chunkSize = DEFAULT_CHUNK
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) throw new Error("Payroll run not found");
 
-  const employeeWhere = run.scopeOrgUnitId
-    ? and(
-        eq(employees.organizationId, run.organizationId),
-        eq(employees.orgUnitId, run.scopeOrgUnitId),
-        eq(employees.status, "Active"),
-        lte(employees.startDate, run.periodEnd),
-      )
-    : and(
-        eq(employees.organizationId, run.organizationId),
-        eq(employees.status, "Active"),
-        lte(employees.startDate, run.periodEnd),
-      );
+  const employeeWhere = run.legalEntityId
+    ? run.scopeOrgUnitId
+      ? and(
+          eq(employees.organizationId, run.organizationId),
+          eq(employees.legalEntityId, run.legalEntityId),
+          eq(employees.orgUnitId, run.scopeOrgUnitId),
+          eq(employees.status, "Active"),
+          lte(employees.startDate, run.periodEnd),
+        )
+      : and(
+          eq(employees.organizationId, run.organizationId),
+          eq(employees.legalEntityId, run.legalEntityId),
+          eq(employees.status, "Active"),
+          lte(employees.startDate, run.periodEnd),
+        )
+    : run.scopeOrgUnitId
+      ? and(
+          eq(employees.organizationId, run.organizationId),
+          eq(employees.orgUnitId, run.scopeOrgUnitId),
+          eq(employees.status, "Active"),
+          lte(employees.startDate, run.periodEnd),
+        )
+      : and(
+          eq(employees.organizationId, run.organizationId),
+          eq(employees.status, "Active"),
+          lte(employees.startDate, run.periodEnd),
+        );
   const employeeRows = await db.select().from(employees).where(employeeWhere).orderBy(asc(employees.id));
   if (employeeRows.length === 0) {
     throw new Error("Payroll scope has no active employees. Add or reactivate an employee before calculating.");
@@ -272,6 +288,7 @@ export async function enqueuePayrollRun(runId: number, chunkSize = DEFAULT_CHUNK
       periodStart: run.periodStart,
       periodEnd: run.periodEnd,
       scopeOrgUnitId: run.scopeOrgUnitId,
+      legalEntityId: run.legalEntityId,
     },
   });
 
@@ -409,19 +426,42 @@ async function processPayrollChunk(input: {
     .where(eq(organizations.id, input.organizationId))
     .limit(1);
   if (!organization) throw new Error("Payroll organization missing");
+  const [legalEntity] = run.legalEntityId
+    ? await db.select().from(legalEntities).where(and(
+        eq(legalEntities.id, run.legalEntityId),
+        eq(legalEntities.organizationId, input.organizationId),
+      )).limit(1)
+    : [];
+  if (run.legalEntityId && !legalEntity) throw new Error("Payroll legal employer missing");
+  const payrollEmployer = legalEntity ?? organization;
 
-  const employeeWhere = run.scopeOrgUnitId
-    ? and(
-        eq(employees.organizationId, input.organizationId),
-        eq(employees.orgUnitId, run.scopeOrgUnitId),
-        eq(employees.status, "Active"),
-        lte(employees.startDate, run.periodEnd),
-      )
-    : and(
-        eq(employees.organizationId, input.organizationId),
-        eq(employees.status, "Active"),
-        lte(employees.startDate, run.periodEnd),
-      );
+  const employeeWhere = run.legalEntityId
+    ? run.scopeOrgUnitId
+      ? and(
+          eq(employees.organizationId, input.organizationId),
+          eq(employees.legalEntityId, run.legalEntityId),
+          eq(employees.orgUnitId, run.scopeOrgUnitId),
+          eq(employees.status, "Active"),
+          lte(employees.startDate, run.periodEnd),
+        )
+      : and(
+          eq(employees.organizationId, input.organizationId),
+          eq(employees.legalEntityId, run.legalEntityId),
+          eq(employees.status, "Active"),
+          lte(employees.startDate, run.periodEnd),
+        )
+    : run.scopeOrgUnitId
+      ? and(
+          eq(employees.organizationId, input.organizationId),
+          eq(employees.orgUnitId, run.scopeOrgUnitId),
+          eq(employees.status, "Active"),
+          lte(employees.startDate, run.periodEnd),
+        )
+      : and(
+          eq(employees.organizationId, input.organizationId),
+          eq(employees.status, "Active"),
+          lte(employees.startDate, run.periodEnd),
+        );
   const allEmployees = await db.select().from(employees)
     .where(employeeWhere)
     .orderBy(asc(employees.id));
@@ -1367,7 +1407,7 @@ async function processPayrollChunk(input: {
       holidayCalendarFingerprint: holidayCalendarFingerprint(employeeHolidayCalendar),
       holidayEligibilityAttendanceDates,
       holidayEligibilityPaidLeaveDates,
-      statutoryDeductionTiming: organization.statutoryDeductionTiming,
+      statutoryDeductionTiming: payrollEmployer.statutoryDeductionTiming,
       restDayRevisions: employeeRestDayRevisions,
       resolvedSchedules: Object.fromEntries(workforceScheduleCache),
       overtimeRequests: (overtimeRequestsByEmployee.get(employee.id) ?? []).map((request) => ({

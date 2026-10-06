@@ -11,6 +11,7 @@ import { DeMinimisPanel } from "@/components/de-minimis-panel";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { DisciplinePanel } from "@/components/discipline-panel";
 import { LoansPanel } from "@/components/loans-panel";
+import { LegalEntitiesPanel } from "@/components/legal-entities-panel";
 import { MigrationCenter } from "@/components/migration-center";
 import { NewHireModal } from "@/components/new-hire-modal";
 import { RecruitmentPanel } from "@/components/recruitment-panel";
@@ -200,6 +201,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
     periodEnd: string;
     payDate: string;
     scopeOrgUnitId: number | null;
+    legalEntityId: number;
   }) {
     setBusy(true);
     try {
@@ -523,7 +525,12 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
 
         {page === "Integrations" && <IntegrationsPage onOpenOutbox={canManageDeliveryOutbox ? () => setOutboxOpen(true) : undefined} />}
         {page === "Developer" && <DeveloperPage organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
-        {page === "Enterprise" && <EnterpriseControlsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Enterprise" && (
+          <>
+            <LegalEntitiesPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />
+            <EnterpriseControlsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />
+          </>
+        )}
         {page === "Readiness" && <LaunchReadinessPanel organizationId={data.selectedOrganization.id} />}
         {page === "Pricing" && <PricingPage plans={data.plans} onSelectPlan={(plan) => setCheckoutPlan(plan)} />}
         {page === "Audit trail" && <AuditPage events={data.auditEvents} organizationId={data.selectedOrganization.id} />}
@@ -549,6 +556,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
 
       {newPayrollOpen && (
         <NewPayrollModal
+          organizationId={data.selectedOrganization.id}
           onClose={() => setNewPayrollOpen(false)}
           onCreate={createPayroll}
           busy={busy}

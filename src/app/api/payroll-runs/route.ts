@@ -1,13 +1,14 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, asc, desc, eq, lte } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, organizations, orgUnits, payrollEntries, payrollRuns } from "@/db/schema";
+import { employees, legalEntities, organizations, orgUnits, payrollEntries, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { drainPayrollQueue, enqueuePayrollRun, getPayrollJobStatus, PAYROLL_RULE_VERSION } from "@/lib/payroll-engine";
 import { assertOrganizationRole, assertOrganizationUnitAccess, getAccess, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { isCanonicalPhSemiMonthlyPeriod } from "@/lib/payroll-calendar";
 import { loadTimesheetPayrollGate } from "@/lib/workforce-timesheet-server";
+import { ensurePrimaryLegalEntity } from "@/lib/legal-entity";
 
 export const dynamic = "force-dynamic";
 
@@ -122,6 +123,7 @@ export async function POST(request: Request) {
   const periodEnd = typeof body.periodEnd === "string" ? body.periodEnd.trim() : "";
   const payDate = typeof body.payDate === "string" ? body.payDate.trim() : "";
   const rawScopeOrgUnitId = body.scopeOrgUnitId == null || body.scopeOrgUnitId === "" ? null : Number(body.scopeOrgUnitId);
+  const requestedLegalEntityId = body.legalEntityId == null || body.legalEntityId === "" ? null : Number(body.legalEntityId);
   const processNow = body.processNow !== false;
 
   if (
@@ -150,6 +152,9 @@ export async function POST(request: Request) {
   if (rawScopeOrgUnitId !== null && (!Number.isInteger(rawScopeOrgUnitId) || rawScopeOrgUnitId <= 0)) {
     return Response.json({ error: "Invalid payroll scope." }, { status: 400 });
   }
+  if (requestedLegalEntityId !== null && (!Number.isInteger(requestedLegalEntityId) || requestedLegalEntityId <= 0)) {
+    return Response.json({ error: "Invalid legal employer." }, { status: 400 });
+  }
 
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
@@ -169,12 +174,25 @@ export async function POST(request: Request) {
     .where(eq(organizations.id, organizationId))
     .limit(1);
   if (!organization) return Response.json({ error: "Organization not found." }, { status: 404 });
+
+  await ensurePrimaryLegalEntity(organizationId);
+  const legalEntityRows = await db.select().from(legalEntities).where(and(
+    eq(legalEntities.organizationId, organizationId),
+    eq(legalEntities.active, true),
+  ));
+  const legalEntity = requestedLegalEntityId
+    ? legalEntityRows.find((entity) => entity.id === requestedLegalEntityId)
+    : legalEntityRows.find((entity) => entity.primaryEntity) ?? legalEntityRows[0];
+  if (!legalEntity) {
+    return Response.json({ error: "Create an active legal employer before starting payroll." }, { status: 422 });
+  }
+
   if (
-    organization.payrollCalendarMode === "ph_semi_monthly"
+    legalEntity.payrollCalendarMode === "ph_semi_monthly"
     && !isCanonicalPhSemiMonthlyPeriod(periodStart, periodEnd)
   ) {
     return Response.json({
-      error: "This organization uses the Philippine semi-monthly calendar. Payroll periods must be exactly the 1st–15th or the 16th–end of month.",
+      error: `${legalEntity.displayName} uses the Philippine semi-monthly calendar. Payroll periods must be exactly the 1st–15th or the 16th–end of month.`,
       code: "INVALID_PH_SEMI_MONTHLY_PERIOD",
     }, { status: 422 });
   }
@@ -203,12 +221,14 @@ export async function POST(request: Request) {
   const employeeScope = scopeOrgUnitId
     ? and(
         eq(employees.organizationId, organizationId),
+        eq(employees.legalEntityId, legalEntity.id),
         eq(employees.orgUnitId, scopeOrgUnitId),
         eq(employees.status, "Active"),
         lte(employees.startDate, periodEnd),
       )
     : and(
         eq(employees.organizationId, organizationId),
+        eq(employees.legalEntityId, legalEntity.id),
         eq(employees.status, "Active"),
         lte(employees.startDate, periodEnd),
       );
@@ -224,7 +244,7 @@ export async function POST(request: Request) {
     .from(employees)
     .where(employeeScope);
   if (employeesInScope.length === 0) {
-    return Response.json({ error: "The selected payroll scope has no active employees." }, { status: 400 });
+    return Response.json({ error: `The selected payroll scope has no active employees assigned to ${legalEntity.displayName}.` }, { status: 400 });
   }
 
   const missingPayout = employeesInScope.filter((employee) => {
@@ -257,6 +277,7 @@ export async function POST(request: Request) {
   const periodLabel = periodLabelFromDates(periodStart, periodEnd);
   const [run] = await db.insert(payrollRuns).values({
     organizationId,
+    legalEntityId: legalEntity.id,
     periodLabel,
     periodStart,
     periodEnd,
@@ -282,6 +303,9 @@ export async function POST(request: Request) {
       payDate,
       scope: scopeLabel,
       scopeOrgUnitId,
+      legalEntityId: legalEntity.id,
+      legalEntityCode: legalEntity.code,
+      legalEntityName: legalEntity.displayName,
       ruleVersion: PAYROLL_RULE_VERSION,
       timesheetPolicy: timesheetGate.policy,
       timesheetGate: timesheetGate.gate,

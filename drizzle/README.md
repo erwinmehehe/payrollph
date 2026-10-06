@@ -46,3 +46,5 @@ the first one, so it closes itself.
 - `0043_recruitment_position_handoff.sql` connects approved positions to requisitions and records the employee created by a governed hire conversion. `0024` is reserved by the compensation-governance tranche.
 
 - `0042_compensation_governance.sql` adds salary bands, compensation review cycles and governed pay-change proposals.
+
+- `0045_multi_legal_entities.sql` adds parent-workspace legal employers, entity registrations/payout policy, and legal-entity ownership on employees and payroll runs.

@@ -64,6 +64,39 @@ export const userOrganizations = pgTable(
   (table) => [uniqueIndex("user_org_unique").on(table.userId, table.organizationId)],
 );
 
+export const legalEntities = pgTable(
+  "legal_entities",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    code: varchar("code", { length: 40 }).notNull(),
+    legalName: varchar("legal_name", { length: 200 }).notNull(),
+    displayName: varchar("display_name", { length: 160 }).notNull(),
+    birTin: varchar("bir_tin", { length: 16 }),
+    birBranchCode: varchar("bir_branch_code", { length: 4 }),
+    sssEmployerNo: varchar("sss_employer_no", { length: 24 }),
+    philHealthEmployerNo: varchar("philhealth_employer_no", { length: 24 }),
+    pagIbigEmployerNo: varchar("pagibig_employer_no", { length: 24 }),
+    statutoryDeductionTiming: varchar("statutory_deduction_timing", { length: 24 }).notNull().default("split"),
+    payrollCalendarMode: varchar("payroll_calendar_mode", { length: 24 }).notNull().default("flexible"),
+    disbursementBankCode: varchar("disbursement_bank_code", { length: 16 }),
+    disbursementAccountName: varchar("disbursement_account_name", { length: 160 }),
+    disbursementAccount: varchar("disbursement_account", { length: 160 }),
+    primaryEntity: boolean("primary_entity").notNull().default(false),
+    active: boolean("active").notNull().default(true),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("legal_entities_org_code_unique").on(table.organizationId, table.code),
+    uniqueIndex("legal_entities_org_primary_unique")
+      .on(table.organizationId)
+      .where(sql`${table.primaryEntity} = true`),
+    index("legal_entities_org_active_idx").on(table.organizationId, table.active),
+  ],
+);
+
 export const sessions = pgTable("sessions", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -140,6 +173,7 @@ export const employees = pgTable("employees", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   orgUnitId: integer("org_unit_id").references(() => orgUnits.id, { onDelete: "set null" }),
+  legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
   employeeNo: varchar("employee_no", { length: 32 }).notNull(),
   firstName: varchar("first_name", { length: 80 }).notNull(),
   middleName: varchar("middle_name", { length: 80 }),
@@ -745,6 +779,7 @@ export const payPolicyRules = pgTable(
 export const payrollRuns = pgTable("payroll_runs", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
   periodLabel: varchar("period_label", { length: 80 }).notNull(),
   periodStart: date("period_start").notNull(),
   periodEnd: date("period_end").notNull(),

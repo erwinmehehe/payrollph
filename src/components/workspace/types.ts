@@ -42,6 +42,7 @@ export type Employee = {
   region?: string | null;
   restDay?: string | null;
   orgUnitId?: number | null;
+  legalEntityId?: number | null;
   email?: string | null;
   bankAccount?: string | null;
   bankCode?: string | null;
@@ -93,6 +94,7 @@ export type PayrollRun = {
   periodEnd: string;
   scopeLabel: string;
   scopeOrgUnitId?: number | null;
+  legalEntityId?: number | null;
   status: string;
   payDate: string;
   employeeCount: number;
