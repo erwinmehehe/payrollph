@@ -6,6 +6,7 @@ import { drainOutboxRetries } from "@/lib/mailer";
 import { purgeExpiredOperationalData } from "@/lib/data-retention";
 import { runScheduledStatutoryRemittanceSync } from "@/lib/statutory-remittance-actions";
 import { runScheduledContributionCaseEscalations } from "@/lib/statutory-contribution-case-escalations";
+import { runScheduledHcmDocumentExpiry } from "@/lib/hcm-documents";
 
 const MIN_INTERVAL_MS = 30_000;
 
@@ -39,6 +40,36 @@ export async function tickScheduler(force = false) {
     actor: "System scheduler",
   });
 
+  const [hcmDocumentState] = await db.select().from(schedulerState)
+    .where(eq(schedulerState.jobName, "hcm-document-expiry"))
+    .limit(1);
+  const hcmDocumentDue =
+    !hcmDocumentState?.lastRunAt
+    || now.getTime() - hcmDocumentState.lastRunAt.getTime() >= 6 * 60 * 60 * 1000;
+  const hcmDocumentExpiry = hcmDocumentDue
+    ? await runScheduledHcmDocumentExpiry({ actor: "System scheduler", now })
+    : null;
+
+  if (hcmDocumentDue) {
+    const hcmDocumentPayload = {
+      at: now.toISOString(),
+      processed: hcmDocumentExpiry?.length ?? 0,
+      results: hcmDocumentExpiry?.slice(0, 50) ?? [],
+    };
+    if (hcmDocumentState) {
+      await db.update(schedulerState).set({
+        lastRunAt: now,
+        lastResult: hcmDocumentPayload,
+      }).where(eq(schedulerState.id, hcmDocumentState.id));
+    } else {
+      await db.insert(schedulerState).values({
+        jobName: "hcm-document-expiry",
+        lastRunAt: now,
+        lastResult: hcmDocumentPayload,
+      });
+    }
+  }
+
   if (retentionDue) {
     const retentionPayload = { at: now.toISOString(), deleted: retention };
     if (retentionState) {
@@ -62,6 +93,7 @@ export async function tickScheduler(force = false) {
     retentionPurge: retention,
     statutoryRemittanceActions,
     contributionCaseEscalations,
+    hcmDocumentExpiry,
     at: now.toISOString(),
     results: {
       webhooks: webhookResults.slice(0, 10),

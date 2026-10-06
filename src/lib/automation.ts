@@ -71,11 +71,11 @@ export const AUTOMATION_LIVE_TRIGGERS = [
   "compensation.changed",
   "candidate.hired",
   "position.opened",
+  "document.expires",
 ] as const satisfies readonly AutomationTrigger[];
 
 export const AUTOMATION_PLANNED_TRIGGERS = [
   "attendance.exception_created",
-  "document.expires",
   "government.remittance_due",
   "contribution.discrepancy_detected",
 ] as const satisfies readonly AutomationTrigger[];
@@ -133,6 +133,10 @@ export const AUTOMATION_CONDITION_FIELDS = [
   { value: "employeeStatus", label: "Employee status", kind: "string" },
   { value: "legalEntityId", label: "Legal employer ID", kind: "number" },
   { value: "eventAmount", label: "Event amount", kind: "number" },
+  { value: "documentKind", label: "Document type", kind: "string" },
+  { value: "documentRequirementCode", label: "Document requirement code", kind: "string" },
+  { value: "documentStatus", label: "Document compliance status", kind: "string" },
+  { value: "daysUntilExpiry", label: "Days until document expiry", kind: "number" },
 ] as const;
 
 export const AUTOMATION_OPERATORS = [
