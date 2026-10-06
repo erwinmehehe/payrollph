@@ -1,6 +1,6 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, jobProfiles, positionAssignments, positions } from "@/db/schema";
+import { employees, jobProfiles, positionAssignments, positions, workerEmploymentEvents } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
@@ -133,6 +133,8 @@ export async function POST(request: Request) {
       organizationId,
       positionId: targetPosition.id,
       employeeId,
+      assignmentType: currentAssignment.assignmentType,
+      fte: currentAssignment.fte,
       effectiveFrom,
       reason: reason.slice(0, 240),
       createdByUserId: user.id,
@@ -154,12 +156,43 @@ export async function POST(request: Request) {
 
     const [updatedEmployee] = await tx.update(employees).set({
       orgUnitId: targetPosition.orgUnitId,
+      legalEntityId: targetPosition.legalEntityId ?? employee.legalEntityId,
       title: targetProfile.title,
       employmentType: targetPosition.employmentType,
     }).where(and(
       eq(employees.id, employeeId),
       eq(employees.organizationId, organizationId),
     )).returning();
+
+    await tx.insert(workerEmploymentEvents).values({
+      organizationId,
+      employeeId,
+      effectiveDate: effectiveFrom,
+      eventType: movementType,
+      positionAssignmentId: newAssignment.id,
+      fromPositionId: currentPosition.id,
+      toPositionId: targetPosition.id,
+      fromOrgUnitId: employee.orgUnitId,
+      toOrgUnitId: targetPosition.orgUnitId,
+      fromLegalEntityId: currentPosition.legalEntityId ?? employee.legalEntityId,
+      toLegalEntityId: updatedEmployee.legalEntityId,
+      fromManagerEmployeeId: currentPosition.managerEmployeeId,
+      toManagerEmployeeId: targetPosition.managerEmployeeId,
+      fromEmploymentType: employee.employmentType,
+      toEmploymentType: updatedEmployee.employmentType,
+      fromStatus: employee.status,
+      toStatus: updatedEmployee.status,
+      reason: reason.slice(0, 240),
+      metadata: {
+        fromAssignmentId: currentAssignment.id,
+        toAssignmentId: newAssignment.id,
+        fromPositionCode: currentPosition.code,
+        toPositionCode: targetPosition.code,
+        fte: Number(newAssignment.fte),
+      },
+      actorUserId: user.id,
+      actorName: user.name,
+    });
 
     return { closedAssignment: closed, assignment: newAssignment, employee: updatedEmployee };
   });

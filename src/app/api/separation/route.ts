@@ -1,5 +1,5 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employeeLoans,
@@ -9,7 +9,10 @@ import {
   loanPayments,
   payrollEntries,
   payrollRuns,
+  positionAssignments,
+  positions,
   separationRecords,
+  workerEmploymentEvents,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import {
@@ -481,6 +484,32 @@ export async function POST(request: Request) {
         .set({ status: "Separating" })
         .where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId)));
 
+      if (!(existingOpen && existingOpen.status !== "released")) {
+        await tx.insert(workerEmploymentEvents).values({
+          organizationId,
+          employeeId,
+          effectiveDate: noticeDate,
+          eventType: "separation_started",
+          fromOrgUnitId: sources.employee.orgUnitId,
+          toOrgUnitId: sources.employee.orgUnitId,
+          fromLegalEntityId: sources.employee.legalEntityId,
+          toLegalEntityId: sources.employee.legalEntityId,
+          fromEmploymentType: sources.employee.employmentType,
+          toEmploymentType: sources.employee.employmentType,
+          fromStatus: sources.employee.status,
+          toStatus: "Separating",
+          reason: `Separation initiated: ${separationType}`.slice(0, 240),
+          metadata: {
+            separationId: record.id,
+            separationType,
+            noticeDate,
+            lastDay,
+          },
+          actorUserId: user.id,
+          actorName: user.name,
+        });
+      }
+
       return record;
     });
 
@@ -552,8 +581,10 @@ export async function PATCH(request: Request) {
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
   const [employee] = await db.select({
     orgUnitId: employees.orgUnitId,
+    legalEntityId: employees.legalEntityId,
     title: employees.title,
     employmentType: employees.employmentType,
+    status: employees.status,
   }).from(employees)
     .where(and(eq(employees.id, sep.employeeId), eq(employees.organizationId, sep.organizationId)))
     .limit(1);
@@ -677,6 +708,24 @@ export async function PATCH(request: Request) {
         throw new Error("Final-pay source data changed before release. Recompute the package.");
       }
 
+      const [activeAssignment] = await tx.select().from(positionAssignments).where(and(
+        eq(positionAssignments.organizationId, fresh.organizationId),
+        eq(positionAssignments.employeeId, fresh.employeeId),
+        eq(positionAssignments.assignmentType, "primary"),
+        isNull(positionAssignments.effectiveUntil),
+      )).limit(1);
+
+      const [activePosition] = activeAssignment
+        ? await tx.select().from(positions).where(and(
+            eq(positions.id, activeAssignment.positionId),
+            eq(positions.organizationId, fresh.organizationId),
+          )).limit(1)
+        : [];
+
+      if (activeAssignment && String(activeAssignment.effectiveFrom) > String(fresh.lastDay)) {
+        throw new Error("The active position assignment begins after the employee last day. Correct the HCM assignment before releasing final pay.");
+      }
+
       const deductOutstandingLoans = Boolean(freshSnapshot.deductOutstandingLoans);
       if (deductOutstandingLoans) {
         let collectible = Number(fresh.loanDeductions);
@@ -738,6 +787,47 @@ export async function PATCH(request: Request) {
         eq(employees.id, fresh.employeeId),
         eq(employees.organizationId, fresh.organizationId),
       ));
+
+      if (activeAssignment) {
+        await tx.update(positionAssignments).set({
+          effectiveUntil: fresh.lastDay,
+        }).where(and(
+          eq(positionAssignments.id, activeAssignment.id),
+          isNull(positionAssignments.effectiveUntil),
+        ));
+      }
+
+      if (activePosition) {
+        await tx.update(positions).set({
+          status: "open",
+          updatedAt: new Date(),
+        }).where(eq(positions.id, activePosition.id));
+      }
+
+      await tx.insert(workerEmploymentEvents).values({
+        organizationId: fresh.organizationId,
+        employeeId: fresh.employeeId,
+        effectiveDate: fresh.lastDay,
+        eventType: "separation_released",
+        positionAssignmentId: activeAssignment?.id ?? null,
+        fromPositionId: activePosition?.id ?? null,
+        fromOrgUnitId: employee.orgUnitId,
+        fromLegalEntityId: employee.legalEntityId,
+        fromManagerEmployeeId: activePosition?.managerEmployeeId ?? null,
+        fromEmploymentType: employee.employmentType,
+        toEmploymentType: employee.employmentType,
+        fromStatus: employee.status,
+        toStatus: "Separated",
+        reason: `Separation released: ${fresh.separationType}`.slice(0, 240),
+        metadata: {
+          separationId: fresh.id,
+          separationType: fresh.separationType,
+          releaseReference: releaseReference.slice(0, 160),
+          positionClosed: Boolean(activeAssignment),
+        },
+        actorUserId: user.id,
+        actorName: user.name,
+      });
 
       return updated;
     });
