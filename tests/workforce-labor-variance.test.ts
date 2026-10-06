@@ -143,3 +143,35 @@ test("coverage UI shows required scheduled actual labor without requiring cost p
   assert.ok(source.includes("scheduled outside recorded staffing requirements"));
   assert.ok(source.includes("data-wfm-labor-variance"));
 });
+
+
+test("role-specific labor variance does not count a different job profile", () => {
+  const result = computeWorkforceLaborVariance({
+    requirements: [{
+      id: 22,
+      worksiteId: 10,
+      workDate: "2026-10-05",
+      shiftDefinitionId: 1,
+      jobProfileId: 7,
+      requiredHeadcount: 2,
+    }],
+    shifts: [{ id: 1, startTime: "08:00", endTime: "17:00", breakMinutes: 60, spansMidnight: false }],
+    scheduled: [
+      { employeeId: 1, worksiteId: 10, workDate: "2026-10-05", shiftDefinitionId: 1, jobProfileId: 7, paidMinutes: 480, hourlyRate: 100 },
+      { employeeId: 2, worksiteId: 10, workDate: "2026-10-05", shiftDefinitionId: 1, jobProfileId: 9, paidMinutes: 480, hourlyRate: 100 },
+    ],
+    actual: [
+      { employeeId: 1, worksiteId: 10, workDate: "2026-10-05", shiftDefinitionId: 1, jobProfileId: 7, workedMinutes: 480, hourlyRate: 100, matchedToSchedule: true },
+      { employeeId: 2, worksiteId: 10, workDate: "2026-10-05", shiftDefinitionId: 1, jobProfileId: 9, workedMinutes: 480, hourlyRate: 100, matchedToSchedule: true },
+    ],
+    benchmarkHourlyRate: 100,
+  });
+
+  assert.equal(result.rows[0].jobProfileId, 7);
+  assert.equal(result.rows[0].scheduledHeadcount, 1);
+  assert.equal(result.rows[0].actualHeadcount, 1);
+  assert.equal(result.rows[0].scheduledHours, 8);
+  assert.equal(result.rows[0].actualHours, 8);
+  assert.equal(result.summary.scheduledOutsideRequirementHours, 8);
+  assert.equal(result.summary.unmatchedActualHours, 8);
+});

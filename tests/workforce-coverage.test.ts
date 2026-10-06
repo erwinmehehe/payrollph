@@ -84,3 +84,31 @@ test("open shift remaining slots never go negative", () => {
   assert.equal(remainingOpenShiftSlots({ slots: 3, approvedClaims: 1 }), 2);
   assert.equal(remainingOpenShiftSlots({ slots: 1, approvedClaims: 2 }), 0);
 });
+
+
+test("role-specific coverage counts only employees in the required job profile", () => {
+  const requirements = [{
+    id: 8,
+    worksiteId: 100,
+    workDate: "2026-10-05",
+    shiftDefinitionId: 3,
+    jobProfileId: 7,
+    requiredHeadcount: 2,
+  }];
+  const scheduled = [
+    { employeeId: 1, workDate: "2026-10-05", worksiteId: 100, jobProfileId: 7, shiftDefinitionIds: [3], unavailableShiftDefinitionIds: [] },
+    { employeeId: 2, workDate: "2026-10-05", worksiteId: 100, jobProfileId: 9, shiftDefinitionIds: [3], unavailableShiftDefinitionIds: [] },
+  ];
+
+  const roleRows = computeCoverage({ requirements, scheduled });
+  assert.equal(roleRows[0].scheduledHeadcount, 1);
+  assert.equal(roleRows[0].gap, 1);
+  assert.equal(roleRows[0].jobProfileId, 7);
+
+  const genericRows = computeCoverage({
+    requirements: [{ ...requirements[0], id: 9, jobProfileId: null }],
+    scheduled,
+  });
+  assert.equal(genericRows[0].scheduledHeadcount, 2);
+  assert.equal(genericRows[0].gap, 0);
+});
