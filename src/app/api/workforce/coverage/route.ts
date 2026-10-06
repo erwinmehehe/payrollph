@@ -209,11 +209,12 @@ async function coverageRows(input: {
       roleByEmployeeDate,
       roleEvidenceIssues: [] as string[],
       capabilityEvidenceIssues: [] as string[],
+      absenceEvidenceIssues: [] as string[],
     };
   }
 
   const data = await scheduleCatalog(input.organizationId);
-  const [assignmentRows, overrideRows, worksiteRows, roleAssignmentRows, rolePositionRows] = await Promise.all([
+  const [assignmentRows, overrideRows, worksiteRows, roleAssignmentRows, rolePositionRows, approvedLeaveRows] = await Promise.all([
     db.select().from(employeeScheduleAssignments).where(and(
       eq(employeeScheduleAssignments.organizationId, input.organizationId),
       inArray(employeeScheduleAssignments.employeeId, input.employeeIds),
@@ -247,6 +248,13 @@ async function coverageRows(input: {
     }).from(positions)
       .where(eq(positions.organizationId, input.organizationId))
       .orderBy(asc(positions.id)),
+    db.select().from(leaveRequests).where(and(
+      eq(leaveRequests.organizationId, input.organizationId),
+      inArray(leaveRequests.employeeId, input.employeeIds),
+      eq(leaveRequests.status, "Approved"),
+      lte(leaveRequests.startDate, input.endDate),
+      gte(leaveRequests.endDate, input.startDate),
+    )).orderBy(asc(leaveRequests.employeeId), asc(leaveRequests.startDate), asc(leaveRequests.id)),
   ]);
 
   const capabilityData = await loadCapabilityEligibilityData({
@@ -255,6 +263,7 @@ async function coverageRows(input: {
     jobProfileIds: [...new Set(rolePositionRows.map((row) => row.jobProfileId))],
   });
   const capabilityEvidenceIssues = new Set<string>();
+  const absenceEvidenceIssues = new Set<string>();
 
   const shiftsById = new Map(data.shifts.map((shift) => [shift.id, shift]));
   const dates = datesBetween(input.startDate, input.endDate);
@@ -285,6 +294,16 @@ async function coverageRows(input: {
         worksiteId: row.worksiteId,
         effectiveFrom: String(row.effectiveFrom),
         effectiveUntil: row.effectiveUntil ? String(row.effectiveUntil) : null,
+      }));
+    const employeeApprovedLeaves = approvedLeaveRows
+      .filter((row) => row.employeeId === employeeId)
+      .map((row) => ({
+        id: row.id,
+        employeeId: row.employeeId,
+        startDate: String(row.startDate),
+        endDate: String(row.endDate),
+        days: Number(row.days),
+        leaveType: row.leaveType,
       }));
     const availability: AvailabilityRule[] = input.availabilityRows
       .filter((row) => row.employeeId === employeeId)
@@ -401,6 +420,21 @@ async function coverageRows(input: {
           + " on " + date + ": " + capabilityEligibility.blockers.join(" "),
         );
       }
+      const leaveOverlap = approvedLeaveConflictsFullShift({
+        leaves: employeeApprovedLeaves,
+        employeeId,
+        workDate: date,
+      });
+      const fullDayLeave = leaveOverlap.overlaps.some(
+        (leave) => approvedLeaveCoverageImpact(leave).kind === "full_day",
+      );
+      const approvedLeaveShiftDefinitionIds = fullDayLeave ? shiftIds : [];
+      if (leaveOverlap.ambiguous) {
+        absenceEvidenceIssues.add(
+          "Employee #" + employeeId + " has approved partial/ambiguous leave on " + date
+          + "; exact shift-hour impact is not guessed from a range-level day total.",
+        );
+      }
 
       scheduled.push({
         employeeId,
@@ -410,6 +444,7 @@ async function coverageRows(input: {
         shiftDefinitionIds: shiftIds,
         unavailableShiftDefinitionIds: unavailableShiftIds,
         ineligibleShiftDefinitionIds: capabilityIneligibleShiftIds,
+        approvedLeaveShiftDefinitionIds,
       });
     }
   }
@@ -431,6 +466,7 @@ async function coverageRows(input: {
     roleByEmployeeDate,
     roleEvidenceIssues: [...roleEvidenceIssues],
     capabilityEvidenceIssues: [...capabilityEvidenceIssues],
+    absenceEvidenceIssues: [...absenceEvidenceIssues],
   };
 }
 
