@@ -38,6 +38,8 @@ type CatalogFamily = {
     timeOut: string;
     shiftStart: string;
     shiftEnd: string;
+    breakStart: string;
+    breakEnd: string;
     restDay: string | null;
     approvedOvertimeMinutes?: number;
     expectedStatutoryLineCode: string | null;
@@ -334,6 +336,8 @@ async function runPayrollGolden(family: CatalogFamily, catalog: Catalog) {
       workDate: family.payroll.workDate,
       timeIn: toManilaDateTime(family.payroll.workDate, family.payroll.timeIn),
       timeOut: toManilaDateTime(family.payroll.workDate, family.payroll.timeOut),
+      breakStart: toManilaDateTime(family.payroll.workDate, family.payroll.breakStart),
+      breakEnd: toManilaDateTime(family.payroll.workDate, family.payroll.breakEnd),
       shiftStart: family.payroll.shiftStart,
       shiftEnd: family.payroll.shiftEnd,
       status: "Complete",
