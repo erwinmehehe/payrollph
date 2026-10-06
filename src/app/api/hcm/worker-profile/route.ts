@@ -12,6 +12,7 @@ import {
   hcmDocumentRequirements,
   hcmEmployeeDocumentCompliance,
   hcmEmployeeSkills,
+  hcmEmploymentTermDecisions,
   hcmEmploymentTerms,
   hcmJobProfileCredentialRequirements,
   hcmJobProfileSkillRequirements,
@@ -103,6 +104,7 @@ export async function GET(request: Request) {
     documentComplianceRows,
     employeeSkillRows,
     employmentTermRows,
+    employmentTermDecisionRows,
   ] = await Promise.all([
     db.select().from(positionAssignments).where(and(
       eq(positionAssignments.organizationId, organizationId),
@@ -237,6 +239,10 @@ export async function GET(request: Request) {
       eq(hcmEmploymentTerms.organizationId, organizationId),
       eq(hcmEmploymentTerms.employeeId, employeeId),
     )).orderBy(desc(hcmEmploymentTerms.effectiveFrom), desc(hcmEmploymentTerms.id)),
+    db.select().from(hcmEmploymentTermDecisions).where(and(
+      eq(hcmEmploymentTermDecisions.organizationId, organizationId),
+      eq(hcmEmploymentTermDecisions.employeeId, employeeId),
+    )).orderBy(desc(hcmEmploymentTermDecisions.createdAt), desc(hcmEmploymentTermDecisions.id)),
   ]);
 
   const assignment = assignmentRows[0] ?? null;
@@ -698,6 +704,7 @@ export async function GET(request: Request) {
       active: activeEmploymentTerm,
       lifecycle: employmentTermLifecycleState,
     },
+    employmentTermDecisions: employmentTermDecisionRows,
     changeOptions: {
       canManage: access.companyWide,
       positions: availablePositions,
@@ -728,6 +735,14 @@ export async function GET(request: Request) {
       pendingEffectiveChanges: effectiveChangeRows.filter((row) => ["pending_approval", "scheduled", "failed"].includes(row.status)).length,
       employmentTermsOpen: employmentTermRows.filter((row) => ["pending_approval", "scheduled", "failed"].includes(row.status)).length,
       employmentTermsLifecycleState: employmentTermLifecycleState?.state ?? null,
+      employmentTermDecisionsOpen: employmentTermDecisionRows.filter((row) =>
+        ["pending_approval", "scheduled", "failed"].includes(row.status),
+      ).length,
+      separationHandoffReady: employmentTermDecisionRows.some((row) =>
+        row.decisionKind === "non_renew"
+        && row.status === "applied"
+        && row.separationHandoffStatus === "ready",
+      ),
     },
   });
 }

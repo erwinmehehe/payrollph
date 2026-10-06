@@ -68,3 +68,5 @@ the first one, so it closes itself.
 - `0055_hcm_worksite_arrangements.sql` adds effective-dated work arrangements and per-employee secondary-site authorization for WFM eligibility.
 
 - `0056_hcm_employment_terms.sql` adds maker-checker employment terms, lifecycle review/end dates, scheduled activation, and immutable worker-history linkage without automatic regularization or separation.
+
+- `0057_hcm_employment_term_decisions.sql` adds maker-checker probation/renewal/conversion/non-renewal decisions, successor-term lineage, and explicit separation handoff evidence without automatic regularization or separation.
