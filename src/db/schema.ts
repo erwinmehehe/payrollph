@@ -440,6 +440,10 @@ export const scheduleSwapRequests = pgTable(
     decidedByUserId: integer("decided_by_user_id").references(() => users.id, { onDelete: "set null" }),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     decisionNote: varchar("decision_note", { length: 240 }),
+    budgetId: integer("budget_id").references(() => workforceOvertimeBudgets.id, { onDelete: "set null" }),
+    budgetMinutesAtDecision: integer("budget_minutes_at_decision"),
+    budgetApprovedMinutesBefore: integer("budget_approved_minutes_before"),
+    budgetOverrideReason: varchar("budget_override_reason", { length: 240 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -499,6 +503,42 @@ export const attendanceCorrectionRequests = pgTable(
   ],
 );
 
+export const workforceOvertimeBudgets = pgTable(
+  "workforce_overtime_budgets",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    orgUnitId: integer("org_unit_id").notNull().references(() => orgUnits.id, { onDelete: "cascade" }),
+    periodStart: date("period_start").notNull(),
+    periodEnd: date("period_end").notNull(),
+    budgetMinutes: integer("budget_minutes").notNull(),
+    warningThresholdPercent: integer("warning_threshold_percent").notNull().default(80),
+    active: boolean("active").notNull().default(true),
+    createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("workforce_overtime_budgets_unit_period_unique").on(
+      table.organizationId,
+      table.orgUnitId,
+      table.periodStart,
+      table.periodEnd,
+    ),
+    index("workforce_overtime_budgets_org_period_idx").on(
+      table.organizationId,
+      table.periodStart,
+      table.periodEnd,
+    ),
+    index("workforce_overtime_budgets_unit_active_idx").on(
+      table.organizationId,
+      table.orgUnitId,
+      table.active,
+    ),
+  ],
+);
+
 export const overtimeRequests = pgTable(
   "overtime_requests",
   {
@@ -524,6 +564,7 @@ export const overtimeRequests = pgTable(
     index("overtime_requests_org_date_idx").on(table.organizationId, table.workDate),
     index("overtime_requests_employee_date_idx").on(table.employeeId, table.workDate),
     index("overtime_requests_status_idx").on(table.organizationId, table.status),
+    index("overtime_requests_budget_idx").on(table.organizationId, table.budgetId),
   ],
 );
 
