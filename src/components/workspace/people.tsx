@@ -1083,6 +1083,19 @@ function PersonDrawer({
                     <strong style={{ fontSize: 13 }}>{connectedProfile.summary.openLifecycleTasks} open task{connectedProfile.summary.openLifecycleTasks === 1 ? "" : "s"}</strong>
                     <small>{connectedProfile.lifecycle.automations.length} recent automation execution{connectedProfile.lifecycle.automations.length === 1 ? "" : "s"}</small>
                   </div>
+                  <div>
+                    <span>Workforce eligibility</span>
+                    <strong style={{ fontSize: 13 }}>
+                      {connectedProfile.summary.workforceEligible == null
+                        ? "No governed job profile"
+                        : connectedProfile.summary.workforceEligible ? "Qualified" : "Blocked"}
+                    </strong>
+                    <small>
+                      {connectedProfile.summary.verifiedSkills} verified skill{connectedProfile.summary.verifiedSkills === 1 ? "" : "s"}
+                      {" · "}
+                      {connectedProfile.summary.workforceEligibilityBlockers} blocking gap{connectedProfile.summary.workforceEligibilityBlockers === 1 ? "" : "s"}
+                    </small>
+                  </div>
                 </div>
 
                 <div style={{ marginTop: 14 }}>
