@@ -32,20 +32,23 @@ export type Notification = {
 };
 
 const WORKSPACE_LABELS: Record<string, string> = {
-  Overview: "Overview",
-  People: "People",
+  Overview: "Home",
+  People: "Employees",
+  "Time & attendance": "Time",
   Analytics: "Reports",
 };
 
+const MORE_GROUP_LABELS: Record<string, string> = {
+  Workspace: "Workforce & People",
+  Operate: "HR & Payroll",
+  Manage: "Admin & Integrations",
+};
+
 function workspaceLabel(page: string, role?: string | null) {
-  if (role === "owner" && page === "Analytics") return "Reports";
-  if (role === "owner" && page === "People") return "Team";
   if (role === "payroll" && page === "Overview") return "Today";
-  if (role === "payroll" && page === "Time & attendance") return "Time";
   if (role === "checker" && page === "Overview") return "Reviews";
   if (role === "checker" && page === "Audit trail") return "Payroll history";
   if (role === "hr" && page === "Overview") return "Today";
-  if (role === "hr" && page === "Time & attendance") return "Time";
   if (role === "hr" && page === "Recruitment") return "Onboarding";
   if (role === "bookkeeper" && page === "Overview") return "Close";
   if (role === "bookkeeper" && page === "Analytics") return "Reports";
@@ -114,6 +117,7 @@ export function WorkspaceShell({
   const secondaryGroups = NAVIGATION
     .map((group) => ({
       ...group,
+      label: MORE_GROUP_LABELS[group.label] ?? group.label,
       items: group.items.filter((item) => secondaryItems.some((secondary) => secondary.name === item.name)),
     }))
     .filter((group) => group.items.length > 0);
