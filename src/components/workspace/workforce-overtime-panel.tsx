@@ -290,7 +290,7 @@ export function WorkforceOvertimePanel({
       <div className="notice notice-slate">
         <ShieldCheck size={15} className="i-green" />
         <span>
-          <strong>Budget authorization and wage entitlement stay separate.</strong> A blocking budget can stop approval, but validated legally payable overtime is still calculated from actual attendance.
+          <strong>Authorization and entitlement stay separate.</strong> A blocking budget can stop authorization, but validated legally payable overtime is still calculated from actual attendance.
         </span>
       </div>
 
