@@ -3,6 +3,7 @@ import { db } from "@/db";
 import {
   employees,
   governmentFilingValidations,
+  legalEntities,
   organizations,
   payrollEntries,
   payrollRuns,
@@ -66,6 +67,9 @@ export async function GET(request: Request) {
     .where(eq(employees.id, user.employeeId))
     .limit(1);
   if (!employee) return Response.json({ error: "Employee record not found." }, { status: 404 });
+  if (!employee.legalEntityId) {
+    return Response.json({ error: "Your employee record has no legal employer. Contact payroll before exporting contribution evidence." }, { status: 409 });
+  }
 
   const rateDenied = await enforceSensitiveActionRateLimit(request, {
     userId: user.id,
@@ -76,14 +80,27 @@ export async function GET(request: Request) {
   });
   if (rateDenied) return rateDenied;
 
-  const [organization] = await db.select({
-    id: organizations.id,
-    name: organizations.name,
-    legalName: organizations.legalName,
-  }).from(organizations)
-    .where(eq(organizations.id, employee.organizationId))
-    .limit(1);
-  if (!organization) return Response.json({ error: "Employer record not found." }, { status: 404 });
+  const [[organization], [legalEntity]] = await Promise.all([
+    db.select({
+      id: organizations.id,
+      name: organizations.name,
+      legalName: organizations.legalName,
+    }).from(organizations)
+      .where(eq(organizations.id, employee.organizationId))
+      .limit(1),
+    db.select({
+      id: legalEntities.id,
+      code: legalEntities.code,
+      legalName: legalEntities.legalName,
+      displayName: legalEntities.displayName,
+    }).from(legalEntities)
+      .where(and(
+        eq(legalEntities.id, employee.legalEntityId),
+        eq(legalEntities.organizationId, employee.organizationId),
+      ))
+      .limit(1),
+  ]);
+  if (!organization || !legalEntity) return Response.json({ error: "Employer record not found." }, { status: 404 });
 
   const start = monthStart(applicableMonth);
   const end = monthEnd(applicableMonth);
@@ -91,6 +108,7 @@ export async function GET(request: Request) {
   const runs = await db.select().from(payrollRuns)
     .where(and(
       eq(payrollRuns.organizationId, employee.organizationId),
+      eq(payrollRuns.legalEntityId, employee.legalEntityId),
       eq(payrollRuns.status, "Released"),
       gte(payrollRuns.periodEnd, start),
       lte(payrollRuns.periodEnd, end),
@@ -127,6 +145,7 @@ export async function GET(request: Request) {
   const [batch] = await db.select().from(statutoryRemittanceBatches)
     .where(and(
       eq(statutoryRemittanceBatches.organizationId, employee.organizationId),
+      eq(statutoryRemittanceBatches.legalEntityId, employee.legalEntityId),
       eq(statutoryRemittanceBatches.agency, agency),
       eq(statutoryRemittanceBatches.applicableMonth, applicableMonth),
     ))
@@ -136,6 +155,7 @@ export async function GET(request: Request) {
     ? await db.select().from(statutoryRemittanceMembers)
         .where(and(
           eq(statutoryRemittanceMembers.organizationId, employee.organizationId),
+          eq(statutoryRemittanceMembers.legalEntityId, employee.legalEntityId),
           eq(statutoryRemittanceMembers.batchId, batch.id),
           eq(statutoryRemittanceMembers.employeeId, employee.id),
         ))
@@ -178,6 +198,7 @@ export async function GET(request: Request) {
   const filings = await db.select().from(governmentFilingValidations)
     .where(and(
       eq(governmentFilingValidations.organizationId, employee.organizationId),
+      eq(governmentFilingValidations.legalEntityId, employee.legalEntityId),
       eq(governmentFilingValidations.agency, agency),
       eq(governmentFilingValidations.applicableMonth, applicableMonth),
     ))
@@ -186,6 +207,7 @@ export async function GET(request: Request) {
   const cases = await db.select().from(statutoryContributionIssueCases)
     .where(and(
       eq(statutoryContributionIssueCases.organizationId, employee.organizationId),
+      eq(statutoryContributionIssueCases.legalEntityId, employee.legalEntityId),
       eq(statutoryContributionIssueCases.employeeId, employee.id),
       eq(statutoryContributionIssueCases.agency, agency),
       eq(statutoryContributionIssueCases.applicableMonth, applicableMonth),
@@ -214,6 +236,7 @@ export async function GET(request: Request) {
   const closures = await db.select().from(statutoryRemittanceMonthClosures)
     .where(and(
       eq(statutoryRemittanceMonthClosures.organizationId, employee.organizationId),
+      eq(statutoryRemittanceMonthClosures.legalEntityId, employee.legalEntityId),
       eq(statutoryRemittanceMonthClosures.applicableMonth, applicableMonth),
     ))
     .orderBy(asc(statutoryRemittanceMonthClosures.createdAt), asc(statutoryRemittanceMonthClosures.id));
@@ -330,8 +353,11 @@ export async function GET(request: Request) {
       name: `${employee.firstName} ${employee.lastName}`,
     },
     employer: {
-      name: organization.name,
-      legalName: organization.legalName,
+      organizationName: organization.name,
+      legalEntityId: legalEntity.id,
+      legalEntityCode: legalEntity.code,
+      name: legalEntity.displayName,
+      legalName: legalEntity.legalName,
     },
     agency,
     applicableMonth,
@@ -402,6 +428,8 @@ export async function GET(request: Request) {
     resource: `${agency} · ${applicableMonth} · ${employee.employeeNo}`,
     metadata: {
       employeeId: employee.id,
+      legalEntityId: employee.legalEntityId,
+      legalEntityCode: legalEntity.code,
       agency,
       applicableMonth,
       evidenceHashSha256: pack.evidenceHashSha256,
