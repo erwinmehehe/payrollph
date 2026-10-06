@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employees,
@@ -288,15 +288,94 @@ export async function PATCH(request: Request) {
   }
 
   const now = new Date();
-  const [review] = await db.update(hcmProbationReviews).set({
-    ...fields,
-    status: action === "submit" ? "submitted" : "draft",
-    submittedAt: action === "submit" ? now : null,
-    updatedAt: now,
-  }).where(and(
-    eq(hcmProbationReviews.id, id),
-    eq(hcmProbationReviews.status, "draft"),
-  )).returning();
+  let review: typeof hcmProbationReviews.$inferSelect | undefined;
+
+  if (action === "submit") {
+    try {
+      review = await db.transaction(async (tx) => {
+        await tx.execute(sql`
+          select id
+          from hcm_probation_reviews
+          where id = ${id}
+            and organization_id = ${organizationId}
+          for update
+        `);
+
+        await tx.execute(sql`
+          select id
+          from hcm_employment_terms
+          where id = ${existing.employmentTermId}
+            and organization_id = ${organizationId}
+          for update
+        `);
+
+        await tx.execute(sql`
+          select id
+          from hcm_employment_term_decisions
+          where organization_id = ${organizationId}
+            and employment_term_id = ${existing.employmentTermId}
+          for update
+        `);
+
+        const [lockedReview] = await tx.select().from(hcmProbationReviews).where(and(
+          eq(hcmProbationReviews.id, id),
+          eq(hcmProbationReviews.organizationId, organizationId),
+        )).limit(1);
+        if (!lockedReview || lockedReview.status !== "draft") {
+          throw new Error("Probation review changed before this submission.");
+        }
+
+        const [lockedTerm] = await tx.select().from(hcmEmploymentTerms).where(and(
+          eq(hcmEmploymentTerms.id, existing.employmentTermId),
+          eq(hcmEmploymentTerms.organizationId, organizationId),
+          eq(hcmEmploymentTerms.employeeId, existing.employeeId),
+        )).limit(1);
+        if (!lockedTerm || lockedTerm.status !== "active") {
+          throw new Error("Only the active probationary employment term can receive a submitted review.");
+        }
+
+        const [approvedDecision] = await tx.select({ id: hcmEmploymentTermDecisions.id })
+          .from(hcmEmploymentTermDecisions)
+          .where(and(
+            eq(hcmEmploymentTermDecisions.organizationId, organizationId),
+            eq(hcmEmploymentTermDecisions.employmentTermId, existing.employmentTermId),
+            inArray(hcmEmploymentTermDecisions.status, ["scheduled", "applied"]),
+          ))
+          .limit(1);
+        if (approvedDecision) {
+          throw new Error("The probation review cannot be submitted after the employment decision has been approved.");
+        }
+
+        const [submitted] = await tx.update(hcmProbationReviews).set({
+          ...fields,
+          status: "submitted",
+          submittedAt: now,
+          updatedAt: now,
+        }).where(and(
+          eq(hcmProbationReviews.id, id),
+          eq(hcmProbationReviews.status, "draft"),
+        )).returning();
+
+        if (!submitted) throw new Error("Probation review changed before this submission.");
+        return submitted;
+      });
+    } catch (error) {
+      return Response.json({
+        error: error instanceof Error ? error.message : "Probation review could not be submitted.",
+      }, { status: 409 });
+    }
+  } else {
+    [review] = await db.update(hcmProbationReviews).set({
+      ...fields,
+      status: "draft",
+      submittedAt: null,
+      updatedAt: now,
+    }).where(and(
+      eq(hcmProbationReviews.id, id),
+      eq(hcmProbationReviews.status, "draft"),
+    )).returning();
+  }
+
   if (!review) return Response.json({ error: "Probation review changed before this update." }, { status: 409 });
 
   await recordProbationReviewEvent({
