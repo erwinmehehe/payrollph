@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { SeoLandingPage } from "@/components/marketing/seo-landing-page";
 
 export const metadata: Metadata = {
-  title: "HRIS Philippines | Employee Records & Payroll | Linaw",
-  description: "Philippine HRIS software for employee records, payroll-ready data, onboarding, lifecycle tasks, approvals and role-based workforce administration.",
+  title: "HRIS Software Philippines | Employee Data & Payroll | Linaw",
+  description: "Philippine HRIS software for employee records, payroll-ready data, onboarding, lifecycle tasks, approvals and role-based workforce administration tools.",
   alternates: { canonical: "/hris" },
 };
 
