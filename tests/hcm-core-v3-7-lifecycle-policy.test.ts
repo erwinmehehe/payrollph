@@ -188,7 +188,8 @@ test("optional evidence controls are enforced inside the existing sealed approva
   const evidence = read("src/lib/hcm-employment-decision-evidence.ts");
   assert.ok(evidence.includes("hcmLifecyclePolicies"));
   assert.ok(evidence.includes("requireManagerReviewForProbation"));
-  assert.ok(evidence.includes('note.noteKind === "manager_review"'));
+  assert.ok(evidence.includes("currentManagerAttestation"));
+  assert.ok(evidence.includes("worker's current manager before approving a probation decision"));
   assert.ok(evidence.includes("requireDecisionRationaleNote"));
   assert.ok(evidence.includes('note.noteKind === "decision_rationale"'));
   assert.ok(evidence.includes("requireNonRenewalAttachment"));
