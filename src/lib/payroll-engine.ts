@@ -489,7 +489,7 @@ async function processPayrollChunk(input: {
   const payPolicyRows = await db.select().from(payPolicies).where(and(
     eq(payPolicies.organizationId, input.organizationId),
     eq(payPolicies.active, true),
-    lte(payPolicies.effectiveFrom, run.periodEnd),
+    lte(payPolicies.effectiveFrom, workforcePricingWindowEnd),
     or(
       isNull(payPolicies.effectiveUntil),
       gte(payPolicies.effectiveUntil, run.periodStart),
