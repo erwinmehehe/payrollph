@@ -12,6 +12,7 @@ import {
   hcmDocumentRequirements,
   hcmEmployeeDocumentCompliance,
   hcmEmployeeSkills,
+  hcmEmploymentTerms,
   hcmJobProfileCredentialRequirements,
   hcmJobProfileSkillRequirements,
   hcmSkills,
@@ -34,6 +35,7 @@ import {
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { loadEmployeeWfmEligibility } from "@/lib/hcm-workforce-eligibility-server";
+import { employmentTermLifecycle } from "@/lib/hcm-employment-terms";
 import {
   assertOrganizationRole,
   assertScope,
@@ -100,6 +102,7 @@ export async function GET(request: Request) {
     policyRows,
     documentComplianceRows,
     employeeSkillRows,
+    employmentTermRows,
   ] = await Promise.all([
     db.select().from(positionAssignments).where(and(
       eq(positionAssignments.organizationId, organizationId),
@@ -230,6 +233,10 @@ export async function GET(request: Request) {
         eq(hcmSkills.active, true),
       ))
       .orderBy(asc(hcmSkills.category), asc(hcmSkills.name), desc(hcmEmployeeSkills.effectiveFrom)),
+    db.select().from(hcmEmploymentTerms).where(and(
+      eq(hcmEmploymentTerms.organizationId, organizationId),
+      eq(hcmEmploymentTerms.employeeId, employeeId),
+    )).orderBy(desc(hcmEmploymentTerms.effectiveFrom), desc(hcmEmploymentTerms.id)),
   ]);
 
   const assignment = assignmentRows[0] ?? null;
@@ -651,6 +658,15 @@ export async function GET(request: Request) {
   const documentRisks = documentComplianceRows.filter((row) =>
     ["missing", "submitted", "expiring", "expired"].includes(row.status),
   );
+  const activeEmploymentTerm = employmentTermRows.find((row) => row.status === "active") ?? null;
+  const employmentTermLifecycleState = activeEmploymentTerm
+    ? employmentTermLifecycle({
+        termKind: activeEmploymentTerm.termKind,
+        probationReviewDate: activeEmploymentTerm.probationReviewDate ? String(activeEmploymentTerm.probationReviewDate) : null,
+        contractEndDate: activeEmploymentTerm.contractEndDate ? String(activeEmploymentTerm.contractEndDate) : null,
+        effectiveUntil: activeEmploymentTerm.effectiveUntil ? String(activeEmploymentTerm.effectiveUntil) : null,
+      }, today)
+    : null;
 
   return Response.json({
     employee,
@@ -677,6 +693,11 @@ export async function GET(request: Request) {
       workforceEligibility,
     },
     effectiveChanges: effectiveChangeRows,
+    employmentTerms: {
+      history: employmentTermRows,
+      active: activeEmploymentTerm,
+      lifecycle: employmentTermLifecycleState,
+    },
     changeOptions: {
       canManage: access.companyWide,
       positions: availablePositions,
@@ -705,6 +726,8 @@ export async function GET(request: Request) {
       workforceEligibilityBlockers: workforceEligibility?.blockers.length ?? 0,
       separationOpen: Boolean(latestSeparation && latestSeparation.status !== "released"),
       pendingEffectiveChanges: effectiveChangeRows.filter((row) => ["pending_approval", "scheduled", "failed"].includes(row.status)).length,
+      employmentTermsOpen: employmentTermRows.filter((row) => ["pending_approval", "scheduled", "failed"].includes(row.status)).length,
+      employmentTermsLifecycleState: employmentTermLifecycleState?.state ?? null,
     },
   });
 }
