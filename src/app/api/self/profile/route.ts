@@ -5,6 +5,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { enforceSameOriginMutation } from "@/lib/security-request";
+import { assertMembership } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,8 @@ export async function PATCH(request: Request) {
     .where(eq(employees.id, session.employeeId))
     .limit(1);
   if (!employee) return Response.json({ error: "Employee record not found." }, { status: 404 });
+  const membershipDenied = await assertMembership(session.id, employee.organizationId);
+  if (membershipDenied) return membershipDenied;
 
   const body = await request.json().catch(() => ({}));
   const updates = {

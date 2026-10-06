@@ -6,6 +6,7 @@ import { getSessionUser } from "@/lib/auth";
 import { employeePayStatusLabel } from "@/lib/payroll-handoff";
 import { recordAuditEvent } from "@/lib/audit";
 import { enforceSameOriginMutation } from "@/lib/security-request";
+import { assertMembership } from "@/lib/access";
 import { computeBalance } from "@/lib/leave-accrual";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 import { postingEvidenceSourceLabel } from "@/lib/statutory-posting-evidence";
@@ -31,6 +32,8 @@ export async function GET() {
 
   const [employee] = await db.select().from(employees).where(eq(employees.id, session.employeeId)).limit(1);
   if (!employee) return Response.json({ error: "Employee record not found." }, { status: 404 });
+  const membershipDenied = await assertMembership(session.id, employee.organizationId);
+  if (membershipDenied) return membershipDenied;
 
   const [organization] = await db.select().from(organizations).where(eq(organizations.id, employee.organizationId)).limit(1);
 
@@ -376,7 +379,10 @@ export async function POST(request: Request) {
   const memberships = await db
     .select({ organizationId: userOrganizations.organizationId })
     .from(userOrganizations)
-    .where(eq(userOrganizations.userId, session.id));
+    .where(and(
+      eq(userOrganizations.userId, session.id),
+      eq(userOrganizations.active, true),
+    ));
   const myOrganizations = memberships.map((row) => row.organizationId);
   if (myOrganizations.length === 0) {
     return Response.json({ error: "Your account is not a member of any workspace." }, { status: 403 });
@@ -392,6 +398,8 @@ export async function POST(request: Request) {
     return Response.json({ error: "That employee number exists in more than one of your workspaces. Ask your administrator to link it directly." }, { status: 409 });
   }
   const employee = candidates[0];
+  const claimMembershipDenied = await assertMembership(session.id, employee.organizationId);
+  if (claimMembershipDenied) return claimMembershipDenied;
 
   const claimed = await db.select({ id: users.id, email: users.email }).from(users).where(eq(users.employeeId, employee.id)).limit(1);
   if (claimed.length && claimed[0].id !== session.id) {

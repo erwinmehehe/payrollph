@@ -156,3 +156,121 @@ export async function postValidatedWebhook(input: {
     request.end(input.body);
   });
 }
+
+
+export async function getValidatedJson<T = unknown>(input: {
+  url: string;
+  timeoutMs?: number;
+  maxBytes?: number;
+  headers?: Record<string, string>;
+}) {
+  const target = await resolveWebhookTarget(input.url);
+  const pinned = target.addresses[0];
+  if (!pinned) throw new Error("Validated target has no public address.");
+
+  const url = new URL(target.url);
+  const transport = url.protocol === "https:" ? httpsRequest : httpRequest;
+  const maxBytes = input.maxBytes ?? 1_000_000;
+
+  return new Promise<T>((resolve, reject) => {
+    const request = transport(url, {
+      method: "GET",
+      headers: { Accept: "application/json", ...(input.headers ?? {}) },
+      lookup: (_hostname, _options, callback) => {
+        callback(null, pinned.address, pinned.family);
+      },
+      ...(url.protocol === "https:" ? { servername: target.hostname } : {}),
+    }, (response) => {
+      const status = response.statusCode ?? 0;
+      const chunks: Buffer[] = [];
+      let size = 0;
+      response.on("data", (chunk: Buffer) => {
+        size += chunk.length;
+        if (size > maxBytes) {
+          request.destroy(new Error("Validated JSON response exceeded the allowed size."));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      response.on("end", () => {
+        if (status < 200 || status >= 300) {
+          reject(new Error(`Validated JSON request failed with status ${status}.`));
+          return;
+        }
+        try {
+          resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")) as T);
+        } catch {
+          reject(new Error("Validated JSON response was not valid JSON."));
+        }
+      });
+    });
+    request.setTimeout(input.timeoutMs ?? 5_000, () => {
+      request.destroy(new Error("Validated JSON request timed out."));
+    });
+    request.on("error", reject);
+    request.end();
+  });
+}
+
+
+export async function postValidatedForm<T = unknown>(input: {
+  url: string;
+  body: URLSearchParams;
+  timeoutMs?: number;
+  maxBytes?: number;
+  headers?: Record<string, string>;
+}) {
+  const target = await resolveWebhookTarget(input.url);
+  const pinned = target.addresses[0];
+  if (!pinned) throw new Error("Validated target has no public address.");
+
+  const url = new URL(target.url);
+  const transport = url.protocol === "https:" ? httpsRequest : httpRequest;
+  const encoded = input.body.toString();
+  const maxBytes = input.maxBytes ?? 1_000_000;
+
+  return new Promise<T>((resolve, reject) => {
+    const request = transport(url, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Content-Length": Buffer.byteLength(encoded).toString(),
+        ...(input.headers ?? {}),
+      },
+      lookup: (_hostname, _options, callback) => {
+        callback(null, pinned.address, pinned.family);
+      },
+      ...(url.protocol === "https:" ? { servername: target.hostname } : {}),
+    }, (response) => {
+      const status = response.statusCode ?? 0;
+      const chunks: Buffer[] = [];
+      let size = 0;
+      response.on("data", (chunk: Buffer) => {
+        size += chunk.length;
+        if (size > maxBytes) {
+          request.destroy(new Error("Validated form response exceeded the allowed size."));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      response.on("end", () => {
+        const raw = Buffer.concat(chunks).toString("utf8");
+        if (status < 200 || status >= 300) {
+          reject(new Error(`Validated form request failed with status ${status}.`));
+          return;
+        }
+        try {
+          resolve(JSON.parse(raw) as T);
+        } catch {
+          reject(new Error("Validated form response was not valid JSON."));
+        }
+      });
+    });
+    request.setTimeout(input.timeoutMs ?? 5_000, () => {
+      request.destroy(new Error("Validated form request timed out."));
+    });
+    request.on("error", reject);
+    request.end(encoded);
+  });
+}
