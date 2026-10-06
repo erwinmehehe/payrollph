@@ -1,12 +1,13 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalTasks, employees, leavePolicies, leaveRequests, userOrganizations, users } from "@/db/schema";
+import { approvalTasks, employeePayProfiles, employees, hcmLeaveTimeWindows, leavePolicies, leaveRequests, userOrganizations, users } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { assertMembership, getAccess, roleAllowed } from "@/lib/access";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 import { runAutomationEventSafely } from "@/lib/automation";
+import { preciseLeaveDayEquivalent, preciseLeaveMinutes } from "@/lib/workforce-absence";
 
 export const dynamic = "force-dynamic";
 
@@ -73,7 +74,12 @@ export async function POST(request: Request) {
   const leaveType = String(body.leaveType ?? "").trim();
   const startDate = String(body.startDate ?? "").trim();
   const endDate = String(body.endDate ?? "").trim();
-  const days = Number(body.days);
+  const timingMode = body.timingMode === "timed" ? "timed" : "range";
+  const startTime = String(body.startTime ?? "");
+  const endTime = String(body.endTime ?? "");
+  let days = Number(body.days);
+  let timedMinutes: number | null = null;
+  let standardDayMinutes: number | null = null;
   const reason = String(body.reason ?? "").trim();
 
   if (
@@ -82,8 +88,8 @@ export async function POST(request: Request) {
     !/^\d{4}-\d{2}-\d{2}$/.test(startDate) ||
     !/^\d{4}-\d{2}-\d{2}$/.test(endDate) ||
     endDate < startDate ||
-    !Number.isFinite(days) ||
-    days <= 0
+    (timingMode === "range" && (!Number.isFinite(days) || days <= 0))
+    || (timingMode === "timed" && startDate !== endDate)
   ) {
     return Response.json({
       error: "organizationId, leaveType, valid start/end dates and positive days are required.",
@@ -110,6 +116,47 @@ export async function POST(request: Request) {
     .where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId)))
     .limit(1);
   if (!employee) return Response.json({ error: "Employee not found in this organization." }, { status: 404 });
+
+  if (timingMode === "timed") {
+    const [profile] = await db.select({ standardHoursPerDay: employeePayProfiles.standardHoursPerDay })
+      .from(employeePayProfiles).where(and(
+        eq(employeePayProfiles.organizationId, organizationId),
+        eq(employeePayProfiles.employeeId, employeeId),
+      )).limit(1);
+    if (!profile) {
+      return Response.json({
+        error: "Configure the worker's standard payroll hours per day before requesting clock-precise leave.",
+      }, { status: 422 });
+    }
+    try {
+      standardDayMinutes = Math.round(Number(profile.standardHoursPerDay) * 60);
+      timedMinutes = preciseLeaveMinutes(startTime, endTime);
+      days = preciseLeaveDayEquivalent(timedMinutes, standardDayMinutes);
+    } catch (error) {
+      return Response.json({
+        error: error instanceof Error ? error.message : "Invalid single-day timed leave.",
+      }, { status: 400 });
+    }
+
+    const existing = await db.select({ id: leaveRequests.id }).from(leaveRequests).where(and(
+      eq(leaveRequests.organizationId, organizationId),
+      eq(leaveRequests.employeeId, employeeId),
+    ));
+    if (existing.length) {
+      const rows = await db.select().from(leaveRequests).where(and(
+        eq(leaveRequests.organizationId, organizationId),
+        eq(leaveRequests.employeeId, employeeId),
+      ));
+      if (rows.some((row) =>
+        ["Pending", "Approved"].includes(row.status)
+        && String(row.startDate) <= startDate && String(row.endDate) >= startDate
+      )) {
+        return Response.json({
+          error: "Another pending or approved leave request already covers this date. Resolve it before entering exact hours.",
+        }, { status: 409 });
+      }
+    }
+  }
 
   if (
     access.role === "manager" &&
@@ -148,33 +195,41 @@ export async function POST(request: Request) {
     }, { status: 409 });
   }
 
-  const [task] = await db.insert(approvalTasks).values({
-    organizationId,
-    title: "Approve leave request",
-    detail: `${employee.firstName} ${employee.lastName} · ${leaveType} · ${startDate}–${endDate}`,
-    approver: approver.name,
-    dueLabel: "Due in 2 days",
-    priority: "Normal",
-  }).returning();
+  const { task, row } = await db.transaction(async (tx) => {
+    const [task] = await tx.insert(approvalTasks).values({
+      organizationId,
+      title: "Approve leave request",
+      detail: employee.firstName + " " + employee.lastName + " · " + leaveType
+        + " · " + startDate + "–" + endDate
+        + (timingMode === "timed" ? " (" + startTime + "–" + endTime + ")" : ""),
+      approver: approver.name,
+      dueLabel: "Due in 2 days",
+      priority: "Normal",
+    }).returning();
+    const [row] = await tx.insert(leaveRequests).values({
+      organizationId, employeeId, leaveType, startDate, endDate,
+      days: days.toFixed(4),
+      reason: reason.slice(0, 240),
+      status: "Pending",
+      approvalTaskId: task.id,
+    }).returning();
 
-  const [row] = await db.insert(leaveRequests).values({
-    organizationId,
-    employeeId,
-    leaveType,
-    startDate,
-    endDate,
-    days: days.toFixed(1),
-    reason: reason.slice(0, 240),
-    status: "Pending",
-    approvalTaskId: task.id,
-  }).returning();
+    if (timedMinutes != null && standardDayMinutes != null) {
+      await tx.insert(hcmLeaveTimeWindows).values({
+        organizationId, leaveRequestId: row.id, employeeId,
+        workDate: startDate, startTime, endTime, minutes: timedMinutes,
+        standardDayMinutes, exactDayEquivalent: days.toFixed(4),
+      });
+    }
+    return { task, row };
+  });
 
   await recordAuditEvent({
     organizationId,
     actor: user.name,
     action: "Leave request submitted",
     resource: `${employee.firstName} ${employee.lastName} · ${leaveType}`,
-    metadata: { leaveId: row.id, taskId: task.id, approverUserId: approver.id },
+    metadata: { leaveId: row.id, taskId: task.id, approverUserId: approver.id, timingMode, startTime: timingMode === "timed" ? startTime : null, endTime: timingMode === "timed" ? endTime : null, timedMinutes, standardDayMinutes, exactDayEquivalent: days },
   });
 
   const automation = await runAutomationEventSafely({
@@ -186,6 +241,8 @@ export async function POST(request: Request) {
       leaveId: row.id,
       leaveType,
       leaveDays: days,
+      timingMode,
+      timedMinutes,
       eventAmount: days,
       startDate,
       endDate,
