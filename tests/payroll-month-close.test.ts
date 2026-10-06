@@ -140,3 +140,19 @@ test("month close self-initializes schema and is visible in Compliance Center", 
   assert.ok(ui.includes("One certificate for the month, backed by every underlying control."));
   assert.ok(ui.includes("not a government certification"));
 });
+
+
+test("payroll month close is certified independently per legal employer", () => {
+  const route = readFileSync("src/app/api/compliance/payroll-month-close/route.ts", "utf8");
+  const server = readFileSync("src/lib/payroll-month-close-server.ts", "utf8");
+  const schema = readFileSync("src/db/schema.ts", "utf8");
+  assert.ok(schema.includes('legalEntityId: integer("legal_entity_id").notNull().references(() => legalEntities.id'));
+  assert.ok(route.includes("resolveComplianceLegalEntity"));
+  assert.ok(route.includes("buildPayrollMonthCloseState(organizationId, legalEntity.id, applicableMonth)"));
+  assert.ok(route.includes("eq(payrollMonthClosures.legalEntityId, legalEntity.id)"));
+  assert.ok(route.includes("legalEntityId: legalEntity.id"));
+  assert.ok(server.includes("eq(payrollRuns.legalEntityId, legalEntityId)"));
+  assert.ok(server.includes("eq(governmentFilingValidations.legalEntityId, legalEntityId)"));
+  assert.ok(server.includes("eq(statutoryContributionIssueCases.legalEntityId, legalEntityId)"));
+  assert.ok(server.includes("eq(payrollMonthClosures.legalEntityId, legalEntityId)"));
+});
