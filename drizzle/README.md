@@ -13,7 +13,7 @@ DATABASE_URL="postgresql://..." npm run db:push
 `db:push` reads `src/db/schema.ts` and creates everything it finds there, which
 is the whole current schema. **Check that it actually created tables**: push has
 been seen to report success and create nothing against a non-standard Postgres.
-Expect 139 tables. If it creates nothing, apply `baseline.sql` instead, which is
+Expect 137 tables. If it creates nothing, apply `baseline.sql` instead, which is
 the same schema as plain SQL and can be pasted into the Neon or Supabase SQL
 editor without any tooling.
 
