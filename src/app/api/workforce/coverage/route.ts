@@ -57,6 +57,7 @@ import {
   actualWorkedMinutes,
   computeWorkforceLaborVariance,
   paidShiftMinutes,
+  type ActualLaborEntry,
 } from "@/lib/workforce-labor-variance";
 import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
 
@@ -452,7 +453,7 @@ export async function GET(request: Request) {
     punchesByEmployeeDate.set(key, [...(punchesByEmployeeDate.get(key) ?? []), punch]);
   }
 
-  const actualLabor = [];
+  const actualLabor: ActualLaborEntry[] = [];
   for (const [key, datePunches] of punchesByEmployeeDate) {
     const [employeeIdText, workDate] = key.split("|");
     const employeeId = Number(employeeIdText);
