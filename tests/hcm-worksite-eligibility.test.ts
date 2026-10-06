@@ -78,3 +78,52 @@ test("inactive worksite always blocks eligibility", () => {
   });
   assert.equal(result.eligible, false);
 });
+
+
+test("effective deny overrides the authoritative primary site", () => {
+  const result = evaluateSiteEligibility({
+    ...base,
+    worksiteId: 10,
+    authorizations: [{
+      id: 30,
+      employeeId: 99,
+      worksiteId: 10,
+      decision: "deny",
+      effectiveFrom: "2026-10-01",
+      effectiveUntil: null,
+    }],
+  });
+  assert.equal(result.eligible, false);
+  assert.match(result.blockers.join(" "), /denied|restricted/i);
+});
+
+test("effective deny overrides an overlapping allow and expiry restores allow", () => {
+  const evidence = [{
+    id: 31,
+    employeeId: 99,
+    worksiteId: 20,
+    decision: "allow",
+    effectiveFrom: "2026-01-01",
+    effectiveUntil: null,
+  }, {
+    id: 32,
+    employeeId: 99,
+    worksiteId: 20,
+    decision: "deny",
+    effectiveFrom: "2026-10-01",
+    effectiveUntil: "2026-10-06",
+  }];
+
+  assert.equal(evaluateSiteEligibility({
+    ...base,
+    worksiteId: 20,
+    authorizations: evidence,
+  }).eligible, false);
+
+  assert.equal(evaluateSiteEligibility({
+    ...base,
+    date: "2026-10-07",
+    worksiteId: 20,
+    authorizations: evidence,
+  }).eligible, true);
+});
