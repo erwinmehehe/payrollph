@@ -49,6 +49,10 @@ type Coverage = {
   unavailableScheduledHeadcount: number;
   capabilityIneligibleHeadcount: number;
   approvedLeaveScheduledHeadcount: number;
+  approvedLeavePartiallyUnavailableHeadcount: number;
+  approvedLeaveUnavailableMinutes: number;
+  scheduledPaidMinutes: number;
+  availableScheduledMinutes: number;
   siteIneligibleHeadcount: number;
   availableScheduledHeadcount: number;
   gap: number;
@@ -359,6 +363,18 @@ export function WorkforceCoveragePanel({
     (sum, row) => sum + row.approvedLeaveScheduledHeadcount,
     0,
   );
+  const partialLeaveConflicts = (payload?.coverage ?? []).reduce(
+    (sum, row) => sum + row.approvedLeavePartiallyUnavailableHeadcount,
+    0,
+  );
+  const partialLeaveMinutes = (payload?.coverage ?? []).reduce(
+    (sum, row) => sum + row.approvedLeaveUnavailableMinutes,
+    0,
+  );
+  const availablePlannedMinutes = (payload?.coverage ?? []).reduce(
+    (sum, row) => sum + row.availableScheduledMinutes,
+    0,
+  );
   const siteExclusions = (payload?.coverage ?? []).reduce((sum, row) => sum + row.siteIneligibleHeadcount, 0);
   const labor = payload?.laborVariance;
 
@@ -385,6 +401,20 @@ export function WorkforceCoveragePanel({
           hint={availabilityConflicts + " unavailable · " + capabilityConflicts + " unqualified · " + approvedLeaveConflicts + " on leave · " + siteExclusions + " site restricted"}
           icon={<CalendarClock size={16} />}
           tone={availabilityConflicts + capabilityConflicts + approvedLeaveConflicts ? "amber" : "slate"}
+        />
+        <Metric
+          label="Partial leave"
+          value={String(partialLeaveConflicts)}
+          hint={(partialLeaveMinutes / 60).toLocaleString("en-PH", { maximumFractionDigits: 1 }) + "h unavailable"}
+          icon={<CalendarClock size={16} />}
+          tone={partialLeaveConflicts ? "amber" : "slate"}
+        />
+        <Metric
+          label="Available hours"
+          value={(availablePlannedMinutes / 60).toLocaleString("en-PH", { maximumFractionDigits: 1 }) + "h"}
+          hint="planned capacity after precise approved leave"
+          icon={<UsersRound size={16} />}
+          tone="blue"
         />
         <Metric label="Open shifts" value={String((payload?.openShifts ?? []).filter((row) => row.status === "open").length)} hint="coverage recovery" icon={<UsersRound size={16} />} tone="blue" />
         <Metric label="Pending claims" value={String(pendingClaims)} hint="manager decision needed" icon={<UsersRound size={16} />} tone={pendingClaims ? "amber" : "slate"} />
@@ -579,11 +609,21 @@ export function WorkforceCoveragePanel({
                   <div className="id">{shiftById.get(row.shiftDefinitionId)?.code ?? `Shift #${row.shiftDefinitionId}`} · {row.jobProfileId ? jobProfileById.get(row.jobProfileId)?.title ?? `Profile #${row.jobProfileId}` : "Any role"}</div>
                 </td>
                 <td>{row.requiredHeadcount}</td>
-                <td>{row.availableScheduledHeadcount}</td>
+                <td>
+                  <strong>{row.availableScheduledHeadcount}</strong>
+                  {row.scheduledPaidMinutes > 0 && (
+                    <div className="id">
+                      {(row.availableScheduledMinutes / 60).toLocaleString("en-PH", { maximumFractionDigits: 1 })}h available
+                      {" · "}
+                      {(row.scheduledPaidMinutes / 60).toLocaleString("en-PH", { maximumFractionDigits: 1 })}h scheduled
+                    </div>
+                  )}
+                </td>
                 <td>
                   {row.unavailableScheduledHeadcount ? <Status value={String(row.unavailableScheduledHeadcount) + " unavailable"} /> : null}
                   {row.capabilityIneligibleHeadcount ? <Status value={String(row.capabilityIneligibleHeadcount) + " unqualified"} /> : null}
                   {row.approvedLeaveScheduledHeadcount ? <Status value={String(row.approvedLeaveScheduledHeadcount) + " on leave"} /> : null}
+                  {row.approvedLeavePartiallyUnavailableHeadcount ? <Status value={String(row.approvedLeavePartiallyUnavailableHeadcount) + " partial leave"} /> : null}
                   {row.siteIneligibleHeadcount ? <Status value={String(row.siteIneligibleHeadcount) + " site restricted"} /> : null}
                   {!row.unavailableScheduledHeadcount && !row.capabilityIneligibleHeadcount && !row.approvedLeaveScheduledHeadcount && !row.siteIneligibleHeadcount ? "0" : null}
                 </td>
