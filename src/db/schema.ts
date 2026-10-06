@@ -1400,6 +1400,7 @@ export const statutoryPostingEvidenceArtifacts = pgTable(
       table.organizationId,
       table.batchId,
       table.contentSha256,
+      table.outcome,
     ),
     index("statutory_posting_evidence_batch_idx").on(
       table.organizationId,
