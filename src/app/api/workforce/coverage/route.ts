@@ -206,6 +206,7 @@ async function coverageRows(input: {
       schedules: new Map<string, ResolvedDailySchedule>(),
       roleByEmployeeDate,
       roleEvidenceIssues: [] as string[],
+      capabilityEvidenceIssues: [] as string[],
     };
   }
 
@@ -245,6 +246,13 @@ async function coverageRows(input: {
       .where(eq(positions.organizationId, input.organizationId))
       .orderBy(asc(positions.id)),
   ]);
+
+  const capabilityData = await loadCapabilityEligibilityData({
+    organizationId: input.organizationId,
+    employeeIds: input.employeeIds,
+    jobProfileIds: [...new Set(rolePositionRows.map((row) => row.jobProfileId))],
+  });
+  const capabilityEvidenceIssues = new Set<string>();
 
   const shiftsById = new Map(data.shifts.map((shift) => [shift.id, shift]));
   const dates = datesBetween(input.startDate, input.endDate);
@@ -402,6 +410,7 @@ async function coverageRows(input: {
     schedules,
     roleByEmployeeDate,
     roleEvidenceIssues: [...roleEvidenceIssues],
+    capabilityEvidenceIssues: [...capabilityEvidenceIssues],
   };
 }
 
