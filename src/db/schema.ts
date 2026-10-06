@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   boolean,
   date,
   integer,
@@ -146,7 +147,7 @@ export const orgUnits = pgTable(
     code: varchar("code", { length: 32 }).notNull(),
     legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
     costCenterId: integer("cost_center_id").references(() => costCenters.id, { onDelete: "set null" }),
-    managerEmployeeId: integer("manager_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    managerEmployeeId: integer("manager_employee_id").references((): AnyPgColumn => employees.id, { onDelete: "set null" }),
     effectiveFrom: date("effective_from"),
     effectiveUntil: date("effective_until"),
     active: boolean("active").notNull().default(true),
