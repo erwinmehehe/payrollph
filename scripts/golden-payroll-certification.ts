@@ -50,7 +50,7 @@ const sources: Record<SourceKey, {
     agency: "Bureau of Internal Revenue",
     document: "RR No. 11-2018 Annex E — Withholding Tax Table effective January 1, 2023 onwards",
     effectiveFrom: "2023-01-01",
-    reference: "https://bir-cdn.bir.gov.ph/local/pdf/RR%20No.%2011-2018.pdf",
+    reference: "https://bir-cdn.bir.gov.ph/local/pdf/Annex%20E%20RR%2011-2018.pdf",
   },
   "labor-premiums": {
     agency: "Department of Labor and Employment / Philippine labor rules",
