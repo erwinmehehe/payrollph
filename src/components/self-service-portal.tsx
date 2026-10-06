@@ -56,10 +56,8 @@ type ContributionPosting = {
   postingReference: string | null;
   postedAmount: string | null;
   postedAt: string | null;
-  postingEvidenceArtifactId: number | null;
   postingEvidenceSource: string | null;
   postingEvidenceHashSha256: string | null;
-  postingEvidenceFileName: string | null;
   exceptionNote: string | null;
 };
 
