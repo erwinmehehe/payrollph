@@ -8,7 +8,7 @@ import {
   PEOPLE_PAYROLL_ROLES,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
-import { getSessionUser, requireSensitiveActionMfa } from "@/lib/auth";
+import { getSessionUser } from "@/lib/auth";
 import {
   HcmLifecyclePolicyConflictError,
   lifecyclePolicySnapshot,
@@ -19,6 +19,7 @@ import {
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
+  requireSensitiveActionMfa,
 } from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
