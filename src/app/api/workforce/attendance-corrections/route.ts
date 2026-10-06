@@ -22,6 +22,7 @@ import {
   punchStatusAfterCorrection,
   type AttendancePunchSnapshot,
 } from "@/lib/workforce-attendance-correction";
+import { markTimesheetsStaleForEmployeeDate } from "@/lib/workforce-timesheet-server";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -398,6 +399,12 @@ export async function POST(request: Request) {
         return { updatedPunch, updatedRequest };
       });
 
+      const staleTimesheets = await markTimesheetsStaleForEmployeeDate({
+        organizationId,
+        employeeId: existing.employeeId,
+        workDate: String(existing.workDate),
+      });
+
       await recordAuditEvent({
         organizationId,
         actor: user.name,
@@ -410,6 +417,7 @@ export async function POST(request: Request) {
           originalPunchSnapshot: original,
           proposedPunchSnapshot: proposed,
           invalidatedPayrollRunIds: invalidatedRunIds,
+          staleTimesheetIds: staleTimesheets.map((row) => row.id),
           decisionNote,
         },
       });
@@ -418,6 +426,7 @@ export async function POST(request: Request) {
         correction: result.updatedRequest,
         punch: result.updatedPunch,
         invalidatedPayrollRunIds: invalidatedRunIds,
+        staleTimesheetIds: staleTimesheets.map((row) => row.id),
       });
     } catch (error) {
       return Response.json({
