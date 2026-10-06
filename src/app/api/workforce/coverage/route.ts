@@ -382,6 +382,23 @@ async function coverageRows(input: {
         const shift = shiftsById.get(shiftId);
         return shift ? availabilityConflictForShift({ rules: availability, date, shift }) : false;
       });
+      const capabilityEligibility = role.jobProfileId == null
+        ? null
+        : evaluateEmployeeFromCapabilityData({
+            data: capabilityData,
+            employeeId,
+            jobProfileId: role.jobProfileId,
+            workDate: date,
+          });
+      const capabilityIneligibleShiftIds = capabilityEligibility && !capabilityEligibility.eligible
+        ? shiftIds
+        : [];
+      if (capabilityEligibility && !capabilityEligibility.eligible) {
+        capabilityEvidenceIssues.add(
+          "Employee #" + employeeId + " is not qualified for job profile #" + role.jobProfileId
+          + " on " + date + ": " + capabilityEligibility.blockers.join(" "),
+        );
+      }
 
       scheduled.push({
         employeeId,
@@ -390,6 +407,7 @@ async function coverageRows(input: {
         jobProfileId: role.jobProfileId,
         shiftDefinitionIds: shiftIds,
         unavailableShiftDefinitionIds: unavailableShiftIds,
+        ineligibleShiftDefinitionIds: capabilityIneligibleShiftIds,
       });
     }
   }
