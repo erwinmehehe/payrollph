@@ -1,8 +1,10 @@
+import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { statutoryPostingEvidenceArtifacts } from "@/db/schema";
 import { getAccess, PAYROLL_OPERATOR_ROLES, roleAllowed } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
+import { recordAuditEvent } from "@/lib/audit";
 import {
   enforceSensitiveActionRateLimit,
   requireSensitiveActionMfa,
@@ -66,6 +68,27 @@ export async function GET(
       error: "Stored posting evidence failed byte-size verification.",
     }, { status: 500 });
   }
+  const contentSha256 = createHash("sha256").update(bytes).digest("hex");
+  if (contentSha256 !== artifact.contentSha256) {
+    return Response.json({
+      error: "Stored posting evidence failed SHA-256 verification.",
+    }, { status: 500 });
+  }
+
+  await recordAuditEvent({
+    organizationId: artifact.organizationId,
+    actor: user.name,
+    action: "Statutory posting source evidence downloaded",
+    resource: `Posting evidence #${artifact.id}`,
+    metadata: {
+      evidenceArtifactId: artifact.id,
+      batchId: artifact.batchId,
+      sourceType: artifact.sourceType,
+      fileName: artifact.fileName,
+      byteSize: artifact.byteSize,
+      contentSha256: artifact.contentSha256,
+    },
+  });
 
   return new Response(bytes, {
     status: 200,
