@@ -54,7 +54,14 @@ import { INVITABLE_ROLES, invitableRoleLabel } from "@/lib/roles";
 import type { AuditEvent, DashboardData, Employee, OrgUnit, PayrollEntry, PayrollRun, PricingPlan } from "./types";
 import { Avatar, Metric, PageHeading, Status, formatDate, formatDateTime as formatTime, money } from "./ui";
 export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData; setNotice: (message: string) => void; onRefresh: () => Promise<void> }) {
-  const requests = data.leaveRequests ?? [];
+  const [requests, setRequests] = useState(data.leaveRequests ?? []);
+  async function reloadLeaveEvidence() {
+    const response = await fetch("/api/leave?organizationId=" + data.selectedOrganization.id, { cache: "no-store" });
+    if (!response.ok) return;
+    const payload = await response.json().catch(() => ({}));
+    if (Array.isArray(payload.requests)) setRequests(payload.requests);
+  }
+  useEffect(() => { void reloadLeaveEvidence(); }, [data.selectedOrganization.id]);
   const policies = data.leavePolicies ?? [];
   const configuredPolicies = policies.filter(
     (policy) => policy.active && ["paid", "unpaid", "partial"].includes(policy.payTreatment),
@@ -67,9 +74,12 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
   const [policyOpen, setPolicyOpen] = useState(false);
   const [employeeId, setEmployeeId] = useState(data.employees[0]?.id ?? 0);
   const [leaveType, setLeaveType] = useState("Annual leave");
-  const [startDate, setStartDate] = useState("2026-03-24");
-  const [endDate, setEndDate] = useState("2026-03-24");
+  const [startDate, setStartDate] = useState(() => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date()));
+  const [endDate, setEndDate] = useState(() => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date()));
   const [days, setDays] = useState(1);
+  const [timingMode, setTimingMode] = useState<"range" | "timed">("range");
+  const [leaveStartTime, setLeaveStartTime] = useState("08:00");
+  const [leaveEndTime, setLeaveEndTime] = useState("12:00");
 
   const [policyLeaveType, setPolicyLeaveType] = useState("Annual leave");
   const [annualDays, setAnnualDays] = useState(15);
@@ -93,12 +103,13 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
     const response = await fetch("/api/leave", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ organizationId: data.selectedOrganization.id, employeeId, leaveType, startDate, endDate, days, reason: "Submitted in workspace" }),
+      body: JSON.stringify({ organizationId: data.selectedOrganization.id, employeeId, leaveType, startDate, endDate: timingMode === "timed" ? startDate : endDate, days: timingMode === "timed" ? undefined : days, timingMode, startTime: timingMode === "timed" ? leaveStartTime : undefined, endTime: timingMode === "timed" ? leaveEndTime : undefined, reason: "Submitted in workspace" }),
     });
     const payload = await response.json();
     if (!response.ok) { setNotice(payload.error ?? "Could not submit leave."); return; }
     setOpen(false);
     await onRefresh();
+    await reloadLeaveEvidence();
     setNotice("Leave request submitted and queued for approval.");
   }
 
@@ -216,9 +227,25 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
                   : configuredPolicies.map((policy) => <option key={policy.id} value={policy.leaveType}>{policy.leaveType}</option>)}
               </select>
             </label>
+            <label>Timing
+              <select value={timingMode} onChange={(event) => setTimingMode(event.target.value as "range" | "timed")}>
+                <option value="range">Full-day / date range</option>
+                <option value="timed">Specific hours (including half-day)</option>
+              </select>
+            </label>
             <label>Start date<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
-            <label>End date<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
-            <label>Days<input type="number" min={0.5} step={0.5} value={days} onChange={(event) => setDays(Number(event.target.value))} /></label>
+            {timingMode === "timed" ? (
+              <>
+                <label>Leave starts<input type="time" required value={leaveStartTime} onChange={(event) => setLeaveStartTime(event.target.value)} /></label>
+                <label>Leave ends<input type="time" required value={leaveEndTime} onChange={(event) => setLeaveEndTime(event.target.value)} /></label>
+                <p className="modal-note">One day only. Payroll calculates the exact day fraction from this worker's configured standard daily hours, and WFM uses the actual time overlap with scheduled shifts.</p>
+              </>
+            ) : (
+              <>
+                <label>End date<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
+                <label>Days<input type="number" min={0.5} step={0.5} value={days} onChange={(event) => setDays(Number(event.target.value))} /></label>
+              </>
+            )}
           </div>
           <div className="run-actions">
             <button className="secondary-button" onClick={() => setOpen(false)}>Cancel</button>
@@ -242,6 +269,7 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
                 <strong>{employee ? `${employee.firstName} ${employee.lastName}` : "Employee"}</strong>
                 <span>
                   {row.leaveType} · {row.startDate}–{row.endDate} · {row.days} days
+                  {row.timeWindow ? ` · ${row.timeWindow.startTime}–${row.timeWindow.endTime} (${row.timeWindow.minutes} minutes)` : ""}
                   {policy ? ` · ${policy.payTreatment === "partial" ? `${policy.paidPercentage}% paid` : policy.payTreatment}` : " · payroll treatment missing"}
                 </span>
               </div>
