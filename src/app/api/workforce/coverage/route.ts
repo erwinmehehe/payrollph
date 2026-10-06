@@ -1184,29 +1184,26 @@ export async function POST(request: Request) {
       }, { status: 409 });
     }
 
-    const approvedLeave = await approvedLeaveOnDate(
-      organizationId,
-      employeeId,
-      String(shiftRow.workDate),
-    );
-    if (approvedLeave.length > 0) {
-      const conflict = approvedLeaveConflictsFullShift({
-        leaves: approvedLeave,
-        employeeId,
-        workDate: String(shiftRow.workDate),
-      });
-      return Response.json({
-        error: conflict.ambiguous
-          ? "Approved leave overlaps this date but exact partial-day timing is not recorded. Resolve the absence timing before claiming a full open shift."
-          : "The employee has approved leave on this date and cannot claim a full open shift.",
-        approvedLeave,
-      }, { status: 409 });
-    }
-
     const [shiftDefinition] = await db.select().from(shiftDefinitions).where(and(
       eq(shiftDefinitions.id, shiftRow.shiftDefinitionId),
       eq(shiftDefinitions.organizationId, organizationId),
     )).limit(1);
+    if (!shiftDefinition) return Response.json({ error: "Shift definition not found." }, { status: 404 });
+    const approvedLeave = await approvedLeaveOnDate(organizationId, employeeId, String(shiftRow.workDate));
+    const leaveConflict = approvedLeaveShiftConflict({
+      leaves: approvedLeave, employeeId, workDate: String(shiftRow.workDate), shift: shiftDefinition,
+    });
+    if (leaveConflict.conflict) {
+      return Response.json({
+        error: leaveConflict.ambiguous
+          ? "Approved leave overlaps this date but exact partial-day timing is not recorded. Resolve the absence timing before claiming a full open shift."
+          : "The employee has approved leave overlapping the shift and cannot claim a full open shift.",
+        overlapMinutes: leaveConflict.overlapMinutes,
+        approvedLeave: leaveConflict.overlaps,
+      }, { status: 409 });
+    }
+
+
     const availabilityRows = await db.select().from(employeeAvailabilityRules).where(and(
       eq(employeeAvailabilityRules.organizationId, organizationId),
       eq(employeeAvailabilityRules.employeeId, employeeId),
@@ -1359,30 +1356,26 @@ export async function POST(request: Request) {
       }, { status: 409 });
     }
 
-    const approvedLeave = await approvedLeaveOnDate(
-      organizationId,
-      employee.id,
-      String(openShift.workDate),
-    );
-    if (approvedLeave.length > 0) {
-      const conflict = approvedLeaveConflictsFullShift({
-        leaves: approvedLeave,
-        employeeId: employee.id,
-        workDate: String(openShift.workDate),
-      });
-      return Response.json({
-        error: conflict.ambiguous
-          ? "Approved leave now overlaps this date without exact partial-day timing. Resolve the absence before approving a full open shift."
-          : "The employee now has approved leave on this date and cannot be approved for the open shift.",
-        approvedLeave,
-      }, { status: 409 });
-    }
-
     const [shift] = await db.select().from(shiftDefinitions).where(and(
       eq(shiftDefinitions.id, openShift.shiftDefinitionId),
       eq(shiftDefinitions.organizationId, organizationId),
     )).limit(1);
     if (!shift) return Response.json({ error: "Shift definition not found." }, { status: 404 });
+    const approvedLeave = await approvedLeaveOnDate(organizationId, employee.id, String(openShift.workDate));
+    const leaveConflict = approvedLeaveShiftConflict({
+      leaves: approvedLeave, employeeId: employee.id, workDate: String(openShift.workDate), shift,
+    });
+    if (leaveConflict.conflict) {
+      return Response.json({
+        error: leaveConflict.ambiguous
+          ? "Approved leave now overlaps this date without exact partial-day timing. Resolve the absence before approving a full open shift."
+          : "The employee has leave overlapping the shift and cannot be approved for the open shift.",
+        overlapMinutes: leaveConflict.overlapMinutes,
+        approvedLeave: leaveConflict.overlaps,
+      }, { status: 409 });
+    }
+
+
 
     const [existingOverride] = await db.select().from(scheduleOverrides).where(and(
       eq(scheduleOverrides.organizationId, organizationId),
