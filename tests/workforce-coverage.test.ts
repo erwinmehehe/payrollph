@@ -84,3 +84,64 @@ test("open shift remaining slots never go negative", () => {
   assert.equal(remainingOpenShiftSlots({ slots: 3, approvedClaims: 1 }), 2);
   assert.equal(remainingOpenShiftSlots({ slots: 1, approvedClaims: 2 }), 0);
 });
+
+
+test("role-specific coverage excludes capability-ineligible scheduled workers", () => {
+  const result = computeCoverage({
+    requirements: [{
+      id: 99,
+      worksiteId: 1,
+      workDate: "2026-10-06",
+      shiftDefinitionId: 2,
+      jobProfileId: 7,
+      requiredHeadcount: 2,
+    }],
+    scheduled: [
+      {
+        employeeId: 1,
+        workDate: "2026-10-06",
+        worksiteId: 1,
+        jobProfileId: 7,
+        shiftDefinitionIds: [2],
+      },
+      {
+        employeeId: 2,
+        workDate: "2026-10-06",
+        worksiteId: 1,
+        jobProfileId: 7,
+        shiftDefinitionIds: [2],
+        ineligibleShiftDefinitionIds: [2],
+      },
+    ],
+  });
+
+  assert.equal(result[0]?.scheduledHeadcount, 2);
+  assert.equal(result[0]?.capabilityIneligibleHeadcount, 1);
+  assert.equal(result[0]?.availableScheduledHeadcount, 1);
+  assert.equal(result[0]?.gap, 1);
+});
+
+test("generic headcount demand does not invent capability requirements", () => {
+  const result = computeCoverage({
+    requirements: [{
+      id: 100,
+      worksiteId: 1,
+      workDate: "2026-10-06",
+      shiftDefinitionId: 2,
+      jobProfileId: null,
+      requiredHeadcount: 1,
+    }],
+    scheduled: [{
+      employeeId: 3,
+      workDate: "2026-10-06",
+      worksiteId: 1,
+      jobProfileId: 7,
+      shiftDefinitionIds: [2],
+      ineligibleShiftDefinitionIds: [2],
+    }],
+  });
+
+  assert.equal(result[0]?.capabilityIneligibleHeadcount, 0);
+  assert.equal(result[0]?.availableScheduledHeadcount, 1);
+  assert.equal(result[0]?.gap, 0);
+});

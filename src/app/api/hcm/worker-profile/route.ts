@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
   assets,
@@ -11,6 +11,10 @@ import {
   externalIdentities,
   hcmDocumentRequirements,
   hcmEmployeeDocumentCompliance,
+  hcmEmployeeSkills,
+  hcmJobProfileCredentialRequirements,
+  hcmJobProfileSkillRequirements,
+  hcmSkills,
   hcmPolicyAssignments,
   hcmPolicyVersions,
   jobProfiles,
@@ -29,6 +33,7 @@ import {
   workerEmploymentEvents,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
+import { loadEmployeeWfmEligibility } from "@/lib/hcm-workforce-eligibility-server";
 import {
   assertOrganizationRole,
   assertScope,
@@ -94,6 +99,7 @@ export async function GET(request: Request) {
     separationRows,
     policyRows,
     documentComplianceRows,
+    employeeSkillRows,
   ] = await Promise.all([
     db.select().from(positionAssignments).where(and(
       eq(positionAssignments.organizationId, organizationId),
@@ -203,6 +209,27 @@ export async function GET(request: Request) {
         eq(hcmDocumentRequirements.active, true),
       ))
       .orderBy(desc(hcmEmployeeDocumentCompliance.id)),
+    db.select({
+      id: hcmEmployeeSkills.id,
+      skillId: hcmEmployeeSkills.skillId,
+      skillName: hcmSkills.name,
+      skillCode: hcmSkills.code,
+      category: hcmSkills.category,
+      proficiency: hcmEmployeeSkills.proficiency,
+      status: hcmEmployeeSkills.status,
+      effectiveFrom: hcmEmployeeSkills.effectiveFrom,
+      effectiveUntil: hcmEmployeeSkills.effectiveUntil,
+      verifiedAt: hcmEmployeeSkills.verifiedAt,
+      verifiedByName: hcmEmployeeSkills.verifiedByName,
+      notes: hcmEmployeeSkills.notes,
+    }).from(hcmEmployeeSkills)
+      .innerJoin(hcmSkills, eq(hcmEmployeeSkills.skillId, hcmSkills.id))
+      .where(and(
+        eq(hcmEmployeeSkills.organizationId, organizationId),
+        eq(hcmEmployeeSkills.employeeId, employeeId),
+        eq(hcmSkills.active, true),
+      ))
+      .orderBy(asc(hcmSkills.category), asc(hcmSkills.name), desc(hcmEmployeeSkills.effectiveFrom)),
   ]);
 
   const assignment = assignmentRows[0] ?? null;
@@ -565,6 +592,57 @@ export async function GET(request: Request) {
       profile: optionProfileById.get(row.jobProfileId) ?? null,
     }));
 
+  const capabilityJobProfileId = position?.jobProfileId ?? null;
+  const [jobSkillRequirementRows, jobCredentialRequirementRows] = capabilityJobProfileId
+    ? await Promise.all([
+        db.select({
+          id: hcmJobProfileSkillRequirements.id,
+          skillId: hcmJobProfileSkillRequirements.skillId,
+          skillName: hcmSkills.name,
+          skillCode: hcmSkills.code,
+          category: hcmSkills.category,
+          minimumProficiency: hcmJobProfileSkillRequirements.minimumProficiency,
+          mandatory: hcmJobProfileSkillRequirements.mandatory,
+        }).from(hcmJobProfileSkillRequirements)
+          .innerJoin(hcmSkills, eq(hcmJobProfileSkillRequirements.skillId, hcmSkills.id))
+          .where(and(
+            eq(hcmJobProfileSkillRequirements.organizationId, organizationId),
+            eq(hcmJobProfileSkillRequirements.jobProfileId, capabilityJobProfileId),
+            eq(hcmSkills.active, true),
+          ))
+          .orderBy(asc(hcmSkills.category), asc(hcmSkills.name)),
+        db.select({
+          id: hcmJobProfileCredentialRequirements.id,
+          documentRequirementId: hcmJobProfileCredentialRequirements.documentRequirementId,
+          name: hcmDocumentRequirements.name,
+          code: hcmDocumentRequirements.code,
+          kind: hcmDocumentRequirements.kind,
+          mandatory: hcmJobProfileCredentialRequirements.mandatory,
+          blocksWorkforceEligibility: hcmJobProfileCredentialRequirements.blocksWorkforceEligibility,
+        }).from(hcmJobProfileCredentialRequirements)
+          .innerJoin(
+            hcmDocumentRequirements,
+            eq(hcmJobProfileCredentialRequirements.documentRequirementId, hcmDocumentRequirements.id),
+          )
+          .where(and(
+            eq(hcmJobProfileCredentialRequirements.organizationId, organizationId),
+            eq(hcmJobProfileCredentialRequirements.jobProfileId, capabilityJobProfileId),
+            eq(hcmDocumentRequirements.active, true),
+          ))
+          .orderBy(asc(hcmDocumentRequirements.name)),
+      ])
+    : [[], []];
+
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
+  const workforceEligibility = capabilityJobProfileId
+    ? await loadEmployeeWfmEligibility({
+        organizationId,
+        employeeId,
+        jobProfileId: capabilityJobProfileId,
+        workDate: today,
+      })
+    : null;
+
   const activeBenefits = benefitRows.filter((row) => row.status === "active" && !row.endedOn);
   const assignedAssets = assetRows.filter((row) => row.status === "assigned" && !row.returnedOn);
   const openTasks = taskRows.filter((row) => !row.done);
@@ -592,6 +670,12 @@ export async function GET(request: Request) {
       policies: policyRows,
       requirements: documentComplianceRows,
     },
+    capabilities: {
+      skills: employeeSkillRows,
+      jobSkillRequirements: jobSkillRequirementRows,
+      jobCredentialRequirements: jobCredentialRequirementRows,
+      workforceEligibility,
+    },
     effectiveChanges: effectiveChangeRows,
     changeOptions: {
       canManage: access.companyWide,
@@ -616,6 +700,9 @@ export async function GET(request: Request) {
       openLifecycleTasks: openTasks.length,
       pendingPolicyAcknowledgements: pendingPolicyAcknowledgements.length,
       documentComplianceRisks: documentRisks.length,
+      verifiedSkills: employeeSkillRows.filter((row) => row.status === "verified").length,
+      workforceEligible: workforceEligibility?.eligible ?? null,
+      workforceEligibilityBlockers: workforceEligibility?.blockers.length ?? 0,
       separationOpen: Boolean(latestSeparation && latestSeparation.status !== "released"),
       pendingEffectiveChanges: effectiveChangeRows.filter((row) => ["pending_approval", "scheduled", "failed"].includes(row.status)).length,
     },

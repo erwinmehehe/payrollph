@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { ImportPanel } from "@/components/import-panel";
+import { HcmCapabilitiesPanel } from "@/components/hcm-capabilities-panel";
 import type { DashboardData, Employee } from "./types";
 import { REST_DAY_NAMES } from "@/lib/payroll-rules";
 import { Avatar, EmptyState, PageHeading, Status, formatDate, formatTimeOnly, money } from "./ui";
@@ -90,6 +91,52 @@ type ConnectedWorkerProfile = {
       name: string;
       kind: string;
     }>;
+  };
+  capabilities: {
+    skills: Array<{
+      id: number;
+      skillId: number;
+      skillName: string;
+      skillCode: string;
+      category: string;
+      proficiency: number;
+      status: string;
+      effectiveFrom: string;
+      effectiveUntil: string | null;
+      verifiedAt: string | null;
+      verifiedByName: string | null;
+      notes: string | null;
+    }>;
+    jobSkillRequirements: Array<{
+      id: number;
+      skillId: number;
+      skillName: string;
+      skillCode: string;
+      category: string;
+      minimumProficiency: number;
+      mandatory: boolean;
+    }>;
+    jobCredentialRequirements: Array<{
+      id: number;
+      documentRequirementId: number;
+      name: string;
+      code: string;
+      kind: string;
+      mandatory: boolean;
+      blocksWorkforceEligibility: boolean;
+    }>;
+    workforceEligibility: null | {
+      status: "eligible" | "warning" | "ineligible";
+      eligible: boolean;
+      blockers: string[];
+      warnings: string[];
+      evidence: {
+        requiredSkills: number;
+        satisfiedSkills: number;
+        requiredCredentials: number;
+        satisfiedCredentials: number;
+      };
+    };
   };
   history: {
     employmentEvents: Array<{
@@ -197,6 +244,9 @@ type ConnectedWorkerProfile = {
     openLifecycleTasks: number;
     pendingPolicyAcknowledgements: number;
     documentComplianceRisks: number;
+    verifiedSkills: number;
+    workforceEligible: boolean | null;
+    workforceEligibilityBlockers: number;
     separationOpen: boolean;
     pendingEffectiveChanges: number;
   };
@@ -1033,6 +1083,19 @@ function PersonDrawer({
                     <strong style={{ fontSize: 13 }}>{connectedProfile.summary.openLifecycleTasks} open task{connectedProfile.summary.openLifecycleTasks === 1 ? "" : "s"}</strong>
                     <small>{connectedProfile.lifecycle.automations.length} recent automation execution{connectedProfile.lifecycle.automations.length === 1 ? "" : "s"}</small>
                   </div>
+                  <div>
+                    <span>Workforce eligibility</span>
+                    <strong style={{ fontSize: 13 }}>
+                      {connectedProfile.summary.workforceEligible == null
+                        ? "No governed job profile"
+                        : connectedProfile.summary.workforceEligible ? "Qualified" : "Blocked"}
+                    </strong>
+                    <small>
+                      {connectedProfile.summary.verifiedSkills} verified skill{connectedProfile.summary.verifiedSkills === 1 ? "" : "s"}
+                      {" · "}
+                      {connectedProfile.summary.workforceEligibilityBlockers} blocking gap{connectedProfile.summary.workforceEligibilityBlockers === 1 ? "" : "s"}
+                    </small>
+                  </div>
                 </div>
 
                 <div style={{ marginTop: 14 }}>
@@ -1323,6 +1386,38 @@ function PersonDrawer({
               </div>
             )}
           </section>
+        )}
+
+        {canManage && connectedProfile?.position?.profile?.id && (
+          <>
+            {connectedProfile.capabilities.workforceEligibility && (
+              <div
+                className={`notice ${connectedProfile.capabilities.workforceEligibility.eligible ? "notice-green" : "notice-amber"}`}
+                style={{ marginBottom: 16 }}
+              >
+                <ShieldCheck size={15} />
+                <span>
+                  <strong>
+                    {connectedProfile.capabilities.workforceEligibility.eligible
+                      ? "Qualified for role-based WFM coverage."
+                      : "Blocked from qualified role coverage and role-specific open shifts."}
+                  </strong>
+                  {" "}
+                  {connectedProfile.capabilities.workforceEligibility.blockers.join(" ")}
+                  {connectedProfile.capabilities.workforceEligibility.warnings.length > 0
+                    ? " " + connectedProfile.capabilities.workforceEligibility.warnings.join(" ")
+                    : ""}
+                </span>
+              </div>
+            )}
+            <HcmCapabilitiesPanel
+              organizationId={data.selectedOrganization.id}
+              employeeId={employee.id}
+              jobProfileId={connectedProfile.position.profile.id}
+              canManage={canManage}
+              onChanged={refreshConnectedProfile}
+            />
+          </>
         )}
 
         <section className="card" style={{ margin: "0 0 16px", boxShadow: "none" }}>

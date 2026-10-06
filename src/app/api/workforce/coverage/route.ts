@@ -64,6 +64,7 @@ import {
 } from "@/lib/workforce-labor-variance";
 import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
 import { assertUnambiguousRoleDemand, resolveEmployeeJobProfileAtDate } from "@/lib/workforce-role-demand";
+import { evaluateEmployeeFromCapabilityData, loadCapabilityEligibilityData, loadEmployeeWfmEligibility } from "@/lib/hcm-workforce-eligibility-server";
 
 export const dynamic = "force-dynamic";
 
@@ -205,6 +206,7 @@ async function coverageRows(input: {
       schedules: new Map<string, ResolvedDailySchedule>(),
       roleByEmployeeDate,
       roleEvidenceIssues: [] as string[],
+      capabilityEvidenceIssues: [] as string[],
     };
   }
 
@@ -244,6 +246,13 @@ async function coverageRows(input: {
       .where(eq(positions.organizationId, input.organizationId))
       .orderBy(asc(positions.id)),
   ]);
+
+  const capabilityData = await loadCapabilityEligibilityData({
+    organizationId: input.organizationId,
+    employeeIds: input.employeeIds,
+    jobProfileIds: [...new Set(rolePositionRows.map((row) => row.jobProfileId))],
+  });
+  const capabilityEvidenceIssues = new Set<string>();
 
   const shiftsById = new Map(data.shifts.map((shift) => [shift.id, shift]));
   const dates = datesBetween(input.startDate, input.endDate);
@@ -373,6 +382,23 @@ async function coverageRows(input: {
         const shift = shiftsById.get(shiftId);
         return shift ? availabilityConflictForShift({ rules: availability, date, shift }) : false;
       });
+      const capabilityEligibility = role.jobProfileId == null
+        ? null
+        : evaluateEmployeeFromCapabilityData({
+            data: capabilityData,
+            employeeId,
+            jobProfileId: role.jobProfileId,
+            workDate: date,
+          });
+      const capabilityIneligibleShiftIds = capabilityEligibility && !capabilityEligibility.eligible
+        ? shiftIds
+        : [];
+      if (capabilityEligibility && !capabilityEligibility.eligible) {
+        capabilityEvidenceIssues.add(
+          "Employee #" + employeeId + " is not qualified for job profile #" + role.jobProfileId
+          + " on " + date + ": " + capabilityEligibility.blockers.join(" "),
+        );
+      }
 
       scheduled.push({
         employeeId,
@@ -381,6 +407,7 @@ async function coverageRows(input: {
         jobProfileId: role.jobProfileId,
         shiftDefinitionIds: shiftIds,
         unavailableShiftDefinitionIds: unavailableShiftIds,
+        ineligibleShiftDefinitionIds: capabilityIneligibleShiftIds,
       });
     }
   }
@@ -401,6 +428,7 @@ async function coverageRows(input: {
     schedules,
     roleByEmployeeDate,
     roleEvidenceIssues: [...roleEvidenceIssues],
+    capabilityEvidenceIssues: [...capabilityEvidenceIssues],
   };
 }
 
@@ -658,6 +686,7 @@ export async function GET(request: Request) {
       invalidPayProfileEmployeeIds,
       unmatchedPunchRows: actualLabor.filter((entry) => !entry.matchedToSchedule).length,
       roleEvidenceIssues: coverageData.roleEvidenceIssues,
+      capabilityEvidenceIssues: coverageData.capabilityEvidenceIssues,
     },
   };
 
@@ -1008,6 +1037,18 @@ export async function POST(request: Request) {
           error: "The employee does not hold the job profile required by this open shift on the work date.",
         }, { status: 409 });
       }
+      const capabilityEligibility = await loadEmployeeWfmEligibility({
+        organizationId,
+        employeeId,
+        jobProfileId: shiftRow.jobProfileId,
+        workDate: String(shiftRow.workDate),
+      });
+      if (!capabilityEligibility.eligible) {
+        return Response.json({
+          error: "The employee does not meet the required skills or credentials for this open shift.",
+          capabilityEligibility,
+        }, { status: 409 });
+      }
     }
 
     const [shiftDefinition] = await db.select().from(shiftDefinitions).where(and(
@@ -1140,6 +1181,18 @@ export async function POST(request: Request) {
       if (role.ambiguous || role.jobProfileId !== openShift.jobProfileId) {
         return Response.json({
           error: "The employee no longer has unambiguous active position evidence for the job profile required by this open shift.",
+        }, { status: 409 });
+      }
+      const capabilityEligibility = await loadEmployeeWfmEligibility({
+        organizationId,
+        employeeId: employee.id,
+        jobProfileId: openShift.jobProfileId,
+        workDate: String(openShift.workDate),
+      });
+      if (!capabilityEligibility.eligible) {
+        return Response.json({
+          error: "The employee no longer meets the required skills or credentials for this open shift.",
+          capabilityEligibility,
         }, { status: 409 });
       }
     }
