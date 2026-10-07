@@ -361,6 +361,14 @@ test("payout reconciliation route and UI enforce failed-only retry semantics", (
   assert.ok(view.includes("failed only"));
   assert.ok(view.includes('data-payout-transfer-list'));
   assert.ok(view.includes('payoutState.reconciliation.provider !== "PayMongo"'));
+  assert.ok(view.includes("PAYOUT CONTROL CENTER"));
+  assert.ok(view.includes("Released net pay"));
+  assert.ok(view.includes("Settled"));
+  assert.ok(view.includes("Unsettled"));
+  assert.ok(view.includes("Final variance"));
+  assert.ok(view.includes("data-payout-transfer-ledger"));
+  assert.ok(view.includes("data-payout-transfer-status"));
+  assert.ok(view.includes("employeeByNo"));
 });
 
 
