@@ -3250,6 +3250,36 @@ export const hcmJobProfileSkillRequirements = pgTable(
   ],
 );
 
+export const hcmSkillExpectationDefaults = pgTable(
+  "hcm_skill_expectation_defaults",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    jobFamilyId: integer("job_family_id").references(() => jobFamilies.id, { onDelete: "cascade" }),
+    jobLevelId: integer("job_level_id").references(() => jobLevels.id, { onDelete: "cascade" }),
+    skillId: integer("skill_id").notNull().references(() => hcmSkills.id, { onDelete: "restrict" }),
+    minimumProficiency: integer("minimum_proficiency").notNull().default(1),
+    mandatory: boolean("mandatory").notNull().default(false),
+    active: boolean("active").notNull().default(true),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdByName: varchar("created_by_name", { length: 120 }).notNull().default("System"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hcm_skill_expectation_defaults_scope_unique").on(
+      table.organizationId,
+      sql`coalesce(${table.jobFamilyId}, 0)`,
+      sql`coalesce(${table.jobLevelId}, 0)`,
+      table.skillId,
+    ),
+    index("hcm_skill_expectation_defaults_family_idx").on(table.organizationId, table.jobFamilyId, table.active),
+    index("hcm_skill_expectation_defaults_level_idx").on(table.organizationId, table.jobLevelId, table.active),
+    check("hcm_skill_expectation_defaults_scope_check", sql`${table.jobFamilyId} IS NOT NULL OR ${table.jobLevelId} IS NOT NULL`),
+    check("hcm_skill_expectation_defaults_proficiency_check", sql`${table.minimumProficiency} >= 1 AND ${table.minimumProficiency} <= 5`),
+  ],
+);
+
 export const hcmEmployeeSkills = pgTable(
   "hcm_employee_skills",
   {
