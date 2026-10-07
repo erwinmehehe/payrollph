@@ -64,6 +64,7 @@ export const AUTOMATION_LIVE_TRIGGERS = [
   "payroll.submitted",
   "payroll.approved",
   "payroll.released",
+  "attendance.exception_created",
   "overtime.requested",
   "overtime.approved",
   "leave.requested",
@@ -75,7 +76,6 @@ export const AUTOMATION_LIVE_TRIGGERS = [
 ] as const satisfies readonly AutomationTrigger[];
 
 export const AUTOMATION_PLANNED_TRIGGERS = [
-  "attendance.exception_created",
   "government.remittance_due",
   "contribution.discrepancy_detected",
 ] as const satisfies readonly AutomationTrigger[];
