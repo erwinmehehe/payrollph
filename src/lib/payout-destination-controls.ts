@@ -97,68 +97,82 @@ export async function createPayoutDestinationChangeRequest(input: {
   const reason = input.reason.trim();
   if (!reason) throw new Error("A reason is required for a payout destination change.");
 
-  const [existing] = await db.select().from(employeePayoutChangeRequests).where(and(
-    eq(employeePayoutChangeRequests.organizationId, input.organizationId),
-    eq(employeePayoutChangeRequests.employeeId, input.employeeId),
-    eq(employeePayoutChangeRequests.status, "pending"),
-  )).limit(1);
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`
+      select id from employees
+      where id = ${input.employeeId} and organization_id = ${input.organizationId}
+      for update
+    `);
 
-  if (existing) {
-    const sameProposal =
-      sameBankAccount(existing.proposedBankAccount, proposedBankAccount)
-      && normalizeCode(existing.proposedBankCode) === proposedBankCode
-      && normalizeMobile(existing.proposedMobile) === proposedMobile;
-    if (sameProposal && existing.requestedByUserId === input.requestedByUserId) {
-      return safePayoutChangeRequest(existing);
+    const [currentEmployee] = await tx.select().from(employees).where(and(
+      eq(employees.id, input.employeeId),
+      eq(employees.organizationId, input.organizationId),
+    )).limit(1);
+    if (!currentEmployee) throw new Error("Employee not found.");
+
+    const [existing] = await tx.select().from(employeePayoutChangeRequests).where(and(
+      eq(employeePayoutChangeRequests.organizationId, input.organizationId),
+      eq(employeePayoutChangeRequests.employeeId, input.employeeId),
+      eq(employeePayoutChangeRequests.status, "pending"),
+    )).limit(1);
+
+    if (existing) {
+      const sameProposal =
+        sameBankAccount(existing.proposedBankAccount, proposedBankAccount)
+        && normalizeCode(existing.proposedBankCode) === proposedBankCode
+        && normalizeMobile(existing.proposedMobile) === proposedMobile;
+      if (sameProposal && existing.requestedByUserId === input.requestedByUserId) {
+        return safePayoutChangeRequest(existing);
+      }
+      throw new Error("This employee already has a pending payout destination change.");
     }
-    throw new Error("This employee already has a pending payout destination change.");
-  }
 
-  const originalSnapshot = {
-    maskedAccount: maskBankAccount(employee.bankAccount),
-    bankCode: normalizeCode(employee.bankCode),
-    mobile: normalizeMobile(employee.mobile),
-  };
-  const originalStateSha256 = payoutDestinationStateSha256({
-    bankAccount: employee.bankAccount,
-    bankCode: employee.bankCode,
-    mobile: employee.mobile,
-  });
+    const originalSnapshot = {
+      maskedAccount: maskBankAccount(currentEmployee.bankAccount),
+      bankCode: normalizeCode(currentEmployee.bankCode),
+      mobile: normalizeMobile(currentEmployee.mobile),
+    };
+    const originalStateSha256 = payoutDestinationStateSha256({
+      bankAccount: currentEmployee.bankAccount,
+      bankCode: currentEmployee.bankCode,
+      mobile: currentEmployee.mobile,
+    });
 
-  const [created] = await db.insert(employeePayoutChangeRequests).values({
-    organizationId: input.organizationId,
-    employeeId: input.employeeId,
-    status: "pending",
-    reason: reason.slice(0, 360),
-    originalSnapshot,
-    originalStateSha256,
-    proposedBankAccount,
-    proposedBankCode,
-    proposedMobile,
-    proposedMaskedAccount: maskBankAccount(proposedBankAccount),
-    requestedByUserId: input.requestedByUserId,
-    requestedByName: input.requestedByName.slice(0, 120),
-  }).returning();
-
-  await db.insert(auditEvents).values({
-    organizationId: input.organizationId,
-    actor: input.requestedByName,
-    action: "Employee payout destination change requested",
-    resource: `Employee #${input.employeeId}`,
-    metadata: {
-      requestId: created.id,
+    const [created] = await tx.insert(employeePayoutChangeRequests).values({
+      organizationId: input.organizationId,
       employeeId: input.employeeId,
-      requestedByUserId: input.requestedByUserId,
-      reason: created.reason,
+      status: "pending",
+      reason: reason.slice(0, 360),
       originalSnapshot,
-      proposedMaskedAccount: created.proposedMaskedAccount,
+      originalStateSha256,
+      proposedBankAccount,
       proposedBankCode,
       proposedMobile,
-      treasuryPolicyEnabled: true,
-    },
-  });
+      proposedMaskedAccount: maskBankAccount(proposedBankAccount),
+      requestedByUserId: input.requestedByUserId,
+      requestedByName: input.requestedByName.slice(0, 120),
+    }).returning();
 
-  return safePayoutChangeRequest(created);
+    await tx.insert(auditEvents).values({
+      organizationId: input.organizationId,
+      actor: input.requestedByName,
+      action: "Employee payout destination change requested",
+      resource: `Employee #${input.employeeId}`,
+      metadata: {
+        requestId: created.id,
+        employeeId: input.employeeId,
+        requestedByUserId: input.requestedByUserId,
+        reason: created.reason,
+        originalSnapshot,
+        proposedMaskedAccount: created.proposedMaskedAccount,
+        proposedBankCode,
+        proposedMobile,
+        treasuryPolicyEnabled: true,
+      },
+    });
+
+    return safePayoutChangeRequest(created);
+  });
 }
 
 export async function decidePayoutDestinationChange(input: {
@@ -188,17 +202,17 @@ export async function decidePayoutDestinationChange(input: {
       return { kind: "forbidden" as const, message: "Maker-checker control: the requester cannot approve or reject their own payout destination change." };
     }
 
+    await tx.execute(sql`
+      select id from employees
+      where id = ${request.employeeId} and organization_id = ${input.organizationId}
+      for update
+    `);
+
     const [employee] = await tx.select().from(employees).where(and(
       eq(employees.id, request.employeeId),
       eq(employees.organizationId, input.organizationId),
     )).limit(1);
     if (!employee) return { kind: "conflict" as const, message: "The employee record no longer exists." };
-
-    await tx.execute(sql`
-      select id from employees
-      where id = ${employee.id}
-      for update
-    `);
 
     const currentStateSha256 = payoutDestinationStateSha256({
       bankAccount: employee.bankAccount,
