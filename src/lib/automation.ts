@@ -1484,6 +1484,186 @@ async function executeAction(input: {
   throw new Error(`Unsupported automation action: ${String(exhaustive)}`);
 }
 
+
+const NON_RETRYABLE_EXECUTION_ACTIONS = new Set([
+  "create_task",
+  "create_onboarding_checklist",
+  "send_slack_message",
+  "webhook",
+]);
+
+const SAFE_REPLAY_EXECUTION_ACTIONS = new Set([
+  "assign_permission_set",
+  "assign_benefit",
+  "revoke_sessions",
+  "deactivate_access",
+]);
+
+function latestBusinessStepResults(result: Array<Record<string, unknown>>) {
+  const latest = new Map<number, Record<string, unknown>>();
+  for (const row of result) {
+    const type = String(row.type ?? "");
+    if (["wait", "approval_gate", "approval_gate_decision"].includes(type)) continue;
+    const stepIndex = Number(row.stepIndex);
+    if (!Number.isInteger(stepIndex) || stepIndex < 0) continue;
+    latest.set(stepIndex, row);
+  }
+  return [...latest.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([, row]) => row);
+}
+
+function terminalExecutionState(result: Array<Record<string, unknown>>) {
+  const businessResults = latestBusinessStepResults(result);
+  const failed = businessResults.filter((row) => row.status === "failed");
+  const succeeded = businessResults.filter((row) => row.status !== "failed");
+  return {
+    status: failed.length === 0 ? "completed" : succeeded.length === 0 ? "failed" : "partial",
+    error: failed.length
+      ? failed.map((row) => String(row.error ?? "Automation action failed.")).join("\n").slice(0, 4000)
+      : null,
+  };
+}
+
+export async function retryAutomationExecutionFailedStep(input: {
+  organizationId: number;
+  executionId: number;
+  stepIndex?: number | null;
+}) {
+  const [execution] = await db.select().from(automationExecutions).where(and(
+    eq(automationExecutions.id, input.executionId),
+    eq(automationExecutions.organizationId, input.organizationId),
+  )).limit(1);
+  if (!execution) throw new Error("Automation execution not found.");
+  if (!["failed", "partial"].includes(execution.status)) {
+    throw new Error("Only failed or partial executions can retry a failed step.");
+  }
+
+  const trigger = execution.trigger as AutomationTrigger;
+  if (!(AUTOMATION_TRIGGERS as readonly string[]).includes(trigger)) {
+    throw new Error("Stored automation execution has an unsupported trigger.");
+  }
+  const normalized = normalizeAutomationActions(execution.workflow);
+  if (!normalized || normalized.some((step) => step.type === "branch")) {
+    throw new Error("Stored automation execution workflow is invalid.");
+  }
+  const workflow = normalized as RunnableAutomationStep[];
+  const result = executionResultArray(execution.result);
+  const failedSteps = latestBusinessStepResults(result)
+    .filter((row) => row.status === "failed")
+    .map((row) => Number(row.stepIndex))
+    .filter((stepIndex) => Number.isInteger(stepIndex));
+
+  const stepIndex = input.stepIndex == null ? failedSteps[0] : input.stepIndex;
+  if (!Number.isInteger(stepIndex) || !failedSteps.includes(stepIndex as number)) {
+    throw new Error("The requested automation step is not currently failed.");
+  }
+
+  const step = workflow[stepIndex as number];
+  if (!step || step.type === "wait" || step.type === "approval_gate") {
+    throw new Error("Only failed business-action steps can be retried.");
+  }
+  if (NON_RETRYABLE_EXECUTION_ACTIONS.has(step.type)) {
+    throw new Error(
+      `The failed ${step.type} action is not safe for automatic retry. Inspect its external side effects and resolve it manually.`,
+    );
+  }
+
+  try {
+    const evidence = await executeAction({
+      organizationId: execution.organizationId,
+      employeeId: execution.employeeId,
+      trigger,
+      eventKey: execution.eventKey,
+      executionId: execution.id,
+      actionIndex: stepIndex as number,
+      action: step,
+      context: executionContextObject(execution.context),
+    });
+    result.push({
+      ...evidence,
+      stepIndex,
+      status: "completed",
+      retryAttempt: true,
+      retriedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Automation action retry failed.";
+    result.push({
+      type: step.type,
+      stepIndex,
+      status: "failed",
+      error: message,
+      retryAttempt: true,
+      retriedAt: new Date().toISOString(),
+    });
+  }
+
+  const terminal = terminalExecutionState(result);
+  const [updated] = await db.update(automationExecutions).set({
+    status: terminal.status,
+    result,
+    error: terminal.error,
+    updatedAt: new Date(),
+  }).where(and(
+    eq(automationExecutions.id, execution.id),
+    eq(automationExecutions.organizationId, input.organizationId),
+  )).returning();
+  return updated ?? execution;
+}
+
+export async function replayAutomationExecutionSnapshot(input: {
+  organizationId: number;
+  executionId: number;
+}) {
+  const [execution] = await db.select().from(automationExecutions).where(and(
+    eq(automationExecutions.id, input.executionId),
+    eq(automationExecutions.organizationId, input.organizationId),
+  )).limit(1);
+  if (!execution) throw new Error("Automation execution not found.");
+  if (!["failed", "partial"].includes(execution.status)) {
+    throw new Error("Only failed or partial executions can be replayed.");
+  }
+
+  const trigger = execution.trigger as AutomationTrigger;
+  if (!(AUTOMATION_TRIGGERS as readonly string[]).includes(trigger)) {
+    throw new Error("Stored automation execution has an unsupported trigger.");
+  }
+  const normalized = normalizeAutomationActions(execution.workflow);
+  if (!normalized || normalized.some((step) => step.type === "branch")) {
+    throw new Error("Stored automation execution workflow is invalid.");
+  }
+  const workflow = normalized as RunnableAutomationStep[];
+  const businessSteps = workflow.filter((step) => !["wait", "approval_gate"].includes(step.type));
+  if (
+    workflow.some((step) => ["wait", "approval_gate"].includes(step.type))
+    || businessSteps.length === 0
+    || businessSteps.some((step) => !SAFE_REPLAY_EXECUTION_ACTIONS.has(step.type))
+  ) {
+    throw new Error(
+      "Stored-snapshot replay is allowed only for workflows made entirely of idempotent state-setting actions. Use failed-step retry or manual review for messaging, approvals, documents, webhooks, tasks, waits, or schedule changes.",
+    );
+  }
+
+  const suffix = `:replay:${execution.id}:${Date.now().toString(36)}`;
+  const eventKey = execution.eventKey.slice(0, Math.max(1, 240 - suffix.length)) + suffix;
+  const [replay] = await db.insert(automationExecutions).values({
+    organizationId: execution.organizationId,
+    ruleId: execution.ruleId,
+    employeeId: execution.employeeId,
+    trigger: execution.trigger,
+    eventKey,
+    status: "in_progress",
+    workflow: execution.workflow,
+    context: execution.context,
+    cursor: 0,
+    result: [],
+    updatedAt: new Date(),
+  }).returning();
+  if (!replay) throw new Error("Automation execution replay could not be created.");
+  return advanceAutomationExecution(replay.id);
+}
+
 export async function advanceAutomationExecution(executionId: number) {
   const [execution] = await db.select().from(automationExecutions)
     .where(eq(automationExecutions.id, executionId))
@@ -1591,21 +1771,15 @@ export async function advanceAutomationExecution(executionId: number) {
     }).where(eq(automationExecutions.id, execution.id));
   }
 
-  const businessResults = result.filter((row) => !["wait", "approval_gate", "approval_gate_decision"].includes(String(row.type ?? "")));
-  const failed = businessResults.filter((row) => row.status === "failed");
-  const succeeded = businessResults.filter((row) => row.status !== "failed");
-  const status = failed.length === 0 ? "completed" : succeeded.length === 0 ? "failed" : "partial";
-  const error = failed.length
-    ? failed.map((row) => String(row.error ?? "Automation action failed.")).join("\n").slice(0, 4000)
-    : null;
+  const terminal = terminalExecutionState(result);
 
   const [finished] = await db.update(automationExecutions).set({
-    status,
+    status: terminal.status,
     cursor: workflow.length,
     resumeAt: null,
     waitingApprovalTaskId: null,
     result,
-    error,
+    error: terminal.error,
     updatedAt: new Date(),
   }).where(eq(automationExecutions.id, execution.id)).returning();
 
