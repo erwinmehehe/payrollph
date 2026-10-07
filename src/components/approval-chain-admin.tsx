@@ -201,7 +201,7 @@ export function ApprovalChainAdmin({
         </div>
 
         <div className="run-actions" style={{ marginTop: 12 }}>
-          <button type="button" className="secondary-button" disabled={steps.length >= 12} onClick={() => setSteps((rows) => [...rows, { label: `Approval ${rows.length + 1}`, approver: "People Ops", dueLabel: "Review required", priority: "Normal", minimumAmount: Number(rows.at(-1)?.minimumAmount ?? 0) }])}>
+          <button type="button" className="secondary-button" disabled={steps.length >= 12} onClick={() => setSteps((rows) => [...rows, { label: `Approval ${rows.length + 1}`, approver: "People Ops", dueLabel: "Review required", priority: "Normal", minimumAmount: Number(rows[rows.length - 1]?.minimumAmount ?? 0) }])}>
             <Plus size={14} /> Step
           </button>
           {editingId && <button type="button" className="secondary-button" onClick={reset}>Cancel edit</button>}
