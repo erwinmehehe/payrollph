@@ -177,7 +177,7 @@ jobs:
             const payrollSidebar = heroPreview.getByRole("button", {name:"Payroll", exact:true});
             check((await payrollSidebar.count()) === 1, name + ": clickable Payroll sidebar item missing");
             await payrollSidebar.click();
-            const payrollPanelHeading = heroPreview.getByRole("heading", {name:"Payroll runs"});
+            const payrollPanelHeading = heroPreview.locator("h3").filter({hasText:"Payroll runs"});
             await payrollPanelHeading.waitFor({state:"visible",timeout:3000});
             check((await payrollPanelHeading.count()) === 1, name + ": Payroll sidebar did not switch preview content");
             check((await payrollSidebar.getAttribute("aria-current")) === "page", name + ": clicked sidebar item did not become active");
