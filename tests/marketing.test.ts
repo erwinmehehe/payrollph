@@ -94,7 +94,7 @@ test("the homepage presents the connected Linaw platform without invented proof"
   assert.ok(sections.includes("Example only. No real employee data"), "payroll preview must avoid suggesting real customer data");
   assert.ok(!hero.includes("Trusted by") && !sections.includes("What our customers say"), "no fabricated social proof");
   assert.ok(product.includes("See how a payroll calculation explains itself."), "statutory explanation must stay below the fold");
-  assert.ok(trust.includes("Controls that return 403, not a tooltip."), "security controls must remain a primary product story");
+  assert.ok(trust.includes("Access controls worth being clear about."), "security controls must remain a primary product story");
 });
 
 test("a dedicated role-based demo page exists", () => {
