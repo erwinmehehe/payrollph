@@ -27,6 +27,7 @@ import {
   validAutomationConditions,
   validateAutomationActionTrigger,
   type AutomationTrigger,
+  type AutomationWorkflowStep,
 } from "@/lib/automation";
 import { AUTOMATION_DOCUMENT_TEMPLATES } from "@/lib/automation-document-templates";
 import {
@@ -56,6 +57,35 @@ function uniqueConstraintViolation(error: unknown) {
     && "code" in error
     && (error as { code?: string }).code === "23505",
   );
+}
+
+async function validateConnectorActions(organizationId: number, actions: AutomationWorkflowStep[]) {
+  const connectors = await listSafeIntegrationConnectors(organizationId);
+  const byId = new Map(connectors.map((connector) => [connector.id, connector]));
+
+  const walk = (steps: AutomationWorkflowStep[]): string | null => {
+    for (const step of steps) {
+      if (step.type === "branch") {
+        const thenError = walk(step.then);
+        if (thenError) return thenError;
+        const elseError = walk(step.else);
+        if (elseError) return elseError;
+        continue;
+      }
+      if (step.type !== "send_slack_message") continue;
+      const connector = byId.get(step.connectorId);
+      if (!connector || connector.provider !== "slack" || !connector.active) {
+        return "Slack message actions require an active verified Slack connector.";
+      }
+      const channelId = step.channelId ?? connector.config.defaultChannelId;
+      if (!connector.config.allowedChannelIds.includes(channelId)) {
+        return "Slack message channel is not allow-listed on the selected connector.";
+      }
+    }
+    return null;
+  };
+
+  return walk(actions);
 }
 
 async function assertStudioAdmin(userId: number, organizationId: number) {
@@ -309,6 +339,8 @@ export async function POST(request: Request) {
 
     const compatibilityError = validateAutomationActionTrigger(trigger, actions);
     if (compatibilityError) return Response.json({ error: compatibilityError }, { status: 400 });
+    const connectorError = await validateConnectorActions(organizationId, actions);
+    if (connectorError) return Response.json({ error: connectorError }, { status: 409 });
 
     try {
       const result = await saveAutomationRuleDraft({
@@ -349,6 +381,18 @@ export async function POST(request: Request) {
   if (action === "publish-rule") {
     const ruleId = Number(body.ruleId);
     if (!Number.isInteger(ruleId)) return Response.json({ error: "ruleId is required." }, { status: 400 });
+
+    const versions = await listAutomationRuleVersions(organizationId);
+    const draft = versions.find((version) => version.ruleId === ruleId && version.status === "draft");
+    const draftActions = draft ? normalizeAutomationActions(draft.actions) : null;
+    if (draft && !draftActions) {
+      return Response.json({ error: "Draft actions are invalid and cannot be published." }, { status: 409 });
+    }
+    if (draftActions) {
+      const connectorError = await validateConnectorActions(organizationId, draftActions);
+      if (connectorError) return Response.json({ error: connectorError }, { status: 409 });
+    }
+
     try {
       const result = await publishAutomationRuleDraft({
         organizationId,
@@ -385,6 +429,18 @@ export async function POST(request: Request) {
     if (!Number.isInteger(ruleId) || !Number.isInteger(targetVersion)) {
       return Response.json({ error: "ruleId and targetVersion are required." }, { status: 400 });
     }
+
+    const versions = await listAutomationRuleVersions(organizationId);
+    const target = versions.find((version) => version.ruleId === ruleId && version.version === targetVersion);
+    const targetActions = target ? normalizeAutomationActions(target.actions) : null;
+    if (target && !targetActions) {
+      return Response.json({ error: "Rollback target actions are invalid." }, { status: 409 });
+    }
+    if (targetActions) {
+      const connectorError = await validateConnectorActions(organizationId, targetActions);
+      if (connectorError) return Response.json({ error: connectorError }, { status: 409 });
+    }
+
     try {
       const result = await rollbackAutomationRule({
         organizationId,
@@ -422,6 +478,17 @@ export async function POST(request: Request) {
     const active = Boolean(body.active);
     if (!Number.isInteger(ruleId)) {
       return Response.json({ error: "ruleId is required." }, { status: 400 });
+    }
+
+    if (active) {
+      const [rule] = await db.select().from(automationRules).where(eq(automationRules.id, ruleId)).limit(1);
+      if (!rule || rule.organizationId !== organizationId) {
+        return Response.json({ error: "Automation rule not found." }, { status: 404 });
+      }
+      const currentActions = normalizeAutomationActions(rule.actions);
+      if (!currentActions) return Response.json({ error: "Published actions are invalid." }, { status: 409 });
+      const connectorError = await validateConnectorActions(organizationId, currentActions);
+      if (connectorError) return Response.json({ error: connectorError }, { status: 409 });
     }
 
     try {
