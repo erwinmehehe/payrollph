@@ -916,6 +916,33 @@ export const payrollRuns = pgTable("payroll_runs", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const payrollReleaseHolds = pgTable(
+  "payroll_release_holds",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "cascade" }),
+    sourceType: varchar("source_type", { length: 32 }).notNull().default("automation"),
+    sourceKey: varchar("source_key", { length: 180 }).notNull(),
+    reason: varchar("reason", { length: 500 }).notNull(),
+    status: varchar("status", { length: 16 }).notNull().default("active"),
+    placedBy: varchar("placed_by", { length: 120 }).notNull(),
+    placedAt: timestamp("placed_at", { withTimezone: true }).notNull().defaultNow(),
+    clearedByUserId: integer("cleared_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    clearedBy: varchar("cleared_by", { length: 120 }),
+    clearedAt: timestamp("cleared_at", { withTimezone: true }),
+    clearanceNote: varchar("clearance_note", { length: 500 }),
+    metadata: jsonb("metadata").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("payroll_release_holds_source_unique").on(table.payrollRunId, table.sourceType, table.sourceKey),
+    index("payroll_release_holds_active_idx").on(table.organizationId, table.payrollRunId, table.status),
+    check("payroll_release_holds_status_check", sql`${table.status} in ('active','cleared')`),
+  ],
+);
+
 export const employeePayRetroAdjustments = pgTable(
   "employee_pay_retro_adjustments",
   {
