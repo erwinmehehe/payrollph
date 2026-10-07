@@ -2,8 +2,9 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { approvalChainPolicies } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { assertOrganizationRole, ORG_ADMIN_ROLES } from "@/lib/access";
+import { assertOrganizationRole, getAccess, ORG_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
+import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { validateApprovalChainSteps } from "@/lib/approval-chains";
 import {
   enforceSameOriginMutation,
@@ -27,6 +28,10 @@ export async function GET(request: Request) {
     "Only company-wide administrators can manage approval chains.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Approval-chain administration requires company-wide access." }, { status: 403 });
+  }
 
   const policies = await db.select().from(approvalChainPolicies)
     .where(eq(approvalChainPolicies.organizationId, organizationId))
@@ -40,6 +45,9 @@ export async function POST(request: Request) {
 
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
+
+  const demoDenied = publicDemoMutationDenied(user.email, "Approval chains");
+  if (demoDenied) return demoDenied;
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
@@ -55,6 +63,10 @@ export async function POST(request: Request) {
     "Only company-wide administrators can manage approval chains.",
   );
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide) {
+    return Response.json({ error: "Approval-chain administration requires company-wide access." }, { status: 403 });
+  }
 
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
