@@ -398,6 +398,17 @@ export function WorkforceCoveragePanel({
     return rows;
   }, [payload?.claimRecommendations]);
 
+  const proactiveByRequirement = useMemo(
+    () => new Map((payload?.proactiveSuggestions ?? []).map((row) => [row.requirementId, row])),
+    [payload?.proactiveSuggestions],
+  );
+  const riskByRequirement = useMemo(
+    () => new Map((payload?.coverageRisk ?? []).map((row) => [row.requirementId, row])),
+    [payload?.coverageRisk],
+  );
+  const criticalRiskCount = (payload?.coverageRisk ?? []).filter((row) => row.level === "critical").length;
+  const highRiskCount = (payload?.coverageRisk ?? []).filter((row) => row.level === "high").length;
+
   const gapCount = (payload?.coverage ?? []).filter((row) => row.gap > 0).length;
   const missingSlots = (payload?.coverage ?? []).reduce((sum, row) => sum + row.gap, 0);
   const pendingClaims = (payload?.claims ?? []).filter((claim) => claim.status === "pending").length;
