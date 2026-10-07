@@ -1295,6 +1295,208 @@ export async function POST(request: Request) {
   );
   if (managerDenied && action !== "claim_open_shift") return managerDenied;
 
+  if (action === "stage_recovery_plan") {
+    const mfaDenied = requireSensitiveActionMfa(user);
+    if (mfaDenied) return mfaDenied;
+
+    const requested = Array.isArray(body.assignments) ? body.assignments : [];
+    if (requested.length === 0 || requested.length > 50) {
+      return Response.json({ error: "Recovery plan must contain 1 to 50 proposed assignments." }, { status: 400 });
+    }
+
+    const assignments = requested.map((row: unknown) => {
+      const value = row as { requirementId?: unknown; employeeId?: unknown };
+      return {
+        requirementId: Number(value.requirementId),
+        employeeId: Number(value.employeeId),
+      };
+    });
+    if (assignments.some((row) => !Number.isInteger(row.requirementId) || !Number.isInteger(row.employeeId))) {
+      return Response.json({ error: "Each recovery assignment requires a valid requirementId and employeeId." }, { status: 400 });
+    }
+
+    const duplicateKey = new Set<string>();
+    for (const row of assignments) {
+      const key = `${row.requirementId}:${row.employeeId}`;
+      if (duplicateKey.has(key)) {
+        return Response.json({ error: "Recovery plan contains duplicate employee assignments for the same requirement." }, { status: 409 });
+      }
+      duplicateKey.add(key);
+    }
+
+    const requirementIds = [...new Set(assignments.map((row) => row.requirementId))];
+    const employeeIdsRequested = [...new Set(assignments.map((row) => row.employeeId))];
+    const [requirementRows, employeeRows] = await Promise.all([
+      db.select().from(staffingRequirements).where(and(
+        eq(staffingRequirements.organizationId, organizationId),
+        inArray(staffingRequirements.id, requirementIds),
+      )),
+      db.select().from(employees).where(and(
+        eq(employees.organizationId, organizationId),
+        inArray(employees.id, employeeIdsRequested),
+      )),
+    ]);
+    if (requirementRows.length !== requirementIds.length || employeeRows.length !== employeeIdsRequested.length) {
+      return Response.json({ error: "One or more recovery requirements or employees no longer exist." }, { status: 409 });
+    }
+
+    const employeeById = new Map(employeeRows.map((row) => [row.id, row]));
+    const requirementById = new Map(requirementRows.map((row) => [row.id, row]));
+
+    for (const proposal of assignments) {
+      const requirement = requirementById.get(proposal.requirementId)!;
+      const employee = employeeById.get(proposal.employeeId)!;
+      const scope = assertScope(access, employee.orgUnitId);
+      if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
+
+      const [site, shift] = await Promise.all([
+        db.select().from(worksites).where(and(
+          eq(worksites.id, requirement.worksiteId),
+          eq(worksites.organizationId, organizationId),
+        )).limit(1),
+        db.select().from(shiftDefinitions).where(and(
+          eq(shiftDefinitions.id, requirement.shiftDefinitionId),
+          eq(shiftDefinitions.organizationId, organizationId),
+        )).limit(1),
+      ]);
+      if (!site[0] || !shift[0]) {
+        return Response.json({ error: "Recovery requirement references a missing worksite or shift." }, { status: 409 });
+      }
+      const siteScope = assertScope(access, site[0].orgUnitId);
+      if (!siteScope.ok) return Response.json({ error: siteScope.error }, { status: siteScope.status });
+
+      if (requirement.jobProfileId != null) {
+        const role = await employeeJobProfileOnDate(organizationId, employee.id, String(requirement.workDate));
+        if (role.ambiguous || role.jobProfileId !== requirement.jobProfileId) {
+          return Response.json({ error: `${employee.employeeNo} no longer has the required job profile for the proposed recovery shift.` }, { status: 409 });
+        }
+        const capability = await loadEmployeeWfmEligibility({
+          organizationId,
+          employeeId: employee.id,
+          jobProfileId: requirement.jobProfileId,
+          workDate: String(requirement.workDate),
+        });
+        if (!capability.eligible) {
+          return Response.json({ error: `${employee.employeeNo} no longer meets the required skills or credentials.`, capability }, { status: 409 });
+        }
+      }
+
+      const siteEligibility = await employeeSiteEligibility({
+        organizationId,
+        employeeId: employee.id,
+        date: String(requirement.workDate),
+        worksiteId: requirement.worksiteId,
+      });
+      if (!siteEligibility.eligible) {
+        return Response.json({ error: `${employee.employeeNo} is not eligible for the proposed worksite.`, siteEligibility }, { status: 409 });
+      }
+
+      const leaveConflict = await approvedLeaveConflictForShift({
+        organizationId,
+        employeeId: employee.id,
+        workDate: String(requirement.workDate),
+        shift: shift[0],
+      });
+      if (leaveConflict.conflict) {
+        return Response.json({ error: `${employee.employeeNo} now has approved leave overlapping the proposed shift.` }, { status: 409 });
+      }
+
+      const availabilityRows = await db.select().from(employeeAvailabilityRules).where(and(
+        eq(employeeAvailabilityRules.organizationId, organizationId),
+        eq(employeeAvailabilityRules.employeeId, employee.id),
+        lte(employeeAvailabilityRules.effectiveFrom, requirement.workDate),
+      ));
+      const rules: AvailabilityRule[] = availabilityRows.map((row) => ({
+        id: row.id,
+        employeeId: row.employeeId,
+        weekday: row.weekday,
+        startTime: row.startTime,
+        endTime: row.endTime,
+        availabilityType: row.availabilityType === "preferred" ? "preferred" : "unavailable",
+        effectiveFrom: String(row.effectiveFrom),
+        effectiveUntil: row.effectiveUntil ? String(row.effectiveUntil) : null,
+      }));
+      if (availabilityConflictForShift({ rules, date: String(requirement.workDate), shift: shift[0] })) {
+        return Response.json({ error: `${employee.employeeNo} is now unavailable for the proposed shift.` }, { status: 409 });
+      }
+
+      const current = await resolveEmployeeScheduleWindow({
+        organizationId,
+        employeeId: employee.id,
+        startDate: String(requirement.workDate),
+        endDate: String(requirement.workDate),
+      });
+      if (current[0] && !current[0].isRestDay && current[0].segments.length > 0) {
+        return Response.json({ error: `${employee.employeeNo} already has scheduled work on ${requirement.workDate}.` }, { status: 409 });
+      }
+    }
+
+    const staged = await db.transaction(async (tx) => {
+      const results: Array<{ requirementId: number; openShiftId: number; claimId: number; employeeId: number }> = [];
+      for (const requirementId of requirementIds) {
+        const requirement = requirementById.get(requirementId)!;
+        const proposals = assignments.filter((row) => row.requirementId === requirementId);
+        let [openShift] = await tx.select().from(openShifts).where(and(
+          eq(openShifts.organizationId, organizationId),
+          eq(openShifts.sourceRequirementId, requirementId),
+          eq(openShifts.status, "open"),
+        )).limit(1);
+
+        if (!openShift) {
+          [openShift] = await tx.insert(openShifts).values({
+            organizationId,
+            worksiteId: requirement.worksiteId,
+            workDate: requirement.workDate,
+            shiftDefinitionId: requirement.shiftDefinitionId,
+            jobProfileId: requirement.jobProfileId,
+            slots: proposals.length,
+            status: "open",
+            sourceRequirementId: requirement.id,
+            reason: "Governed recovery plan",
+            createdBy: user.name,
+            createdByUserId: user.id,
+          }).returning();
+        } else if (openShift.slots < proposals.length) {
+          [openShift] = await tx.update(openShifts).set({
+            slots: proposals.length,
+            updatedAt: new Date(),
+          }).where(eq(openShifts.id, openShift.id)).returning();
+        }
+
+        for (const proposal of proposals) {
+          const [existing] = await tx.select().from(openShiftClaims).where(and(
+            eq(openShiftClaims.organizationId, organizationId),
+            eq(openShiftClaims.openShiftId, openShift.id),
+            eq(openShiftClaims.employeeId, proposal.employeeId),
+          )).limit(1);
+          if (existing && ["pending", "approved"].includes(existing.status)) continue;
+
+          const [claim] = await tx.insert(openShiftClaims).values({
+            organizationId,
+            openShiftId: openShift.id,
+            employeeId: proposal.employeeId,
+            status: "pending",
+            reason: "Staged from best-fit recovery simulation",
+            requestedBy: user.name,
+            requestedByUserId: user.id,
+          }).returning();
+          results.push({ requirementId, openShiftId: openShift.id, claimId: claim.id, employeeId: proposal.employeeId });
+        }
+      }
+      return results;
+    });
+
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "WFM recovery plan staged",
+      resource: `${staged.length} pending recovery assignment(s)`,
+      metadata: { staged },
+    });
+
+    return Response.json({ staged }, { status: 201 });
+  }
+
   if (action === "create_requirement") {
     const mfaDenied = requireSensitiveActionMfa(user);
     if (mfaDenied) return mfaDenied;
