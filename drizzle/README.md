@@ -100,3 +100,5 @@ the first one, so it closes itself.
 - `0071_amount_based_approval_limits.sql` adds immutable amount/routing evidence so configurable approval chains can require higher approval levels only after governed monetary thresholds are crossed.
 
 - `0072_treasury_separation.sql` adds opt-in enterprise treasury separation with stable-user payout operators and release-vs-disbursement actor separation.
+
+- `0073_payout_destination_dual_control.sql` adds maker-checker requests for employee payout destination changes when treasury separation is enabled, preserving encrypted proposed bank data and immutable request evidence.
