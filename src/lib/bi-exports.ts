@@ -105,6 +105,12 @@ export type BiExportFilters = {
 
 type BiRow = Record<string, string | number | null>;
 
+function validIsoDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
 function inclusiveDays(startDate: string, endDate: string) {
   const start = Date.parse(`${startDate}T00:00:00Z`);
   const end = Date.parse(`${endDate}T00:00:00Z`);
@@ -113,8 +119,8 @@ function inclusiveDays(startDate: string, endDate: string) {
 }
 
 export function validateBiExportFilters(filters: BiExportFilters) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(filters.startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(filters.endDate)) {
-    return "startDate and endDate must use YYYY-MM-DD.";
+  if (!validIsoDate(filters.startDate) || !validIsoDate(filters.endDate)) {
+    return "startDate and endDate must be valid calendar dates using YYYY-MM-DD.";
   }
   const days = inclusiveDays(filters.startDate, filters.endDate);
   if (days == null || days < 1) return "endDate must be on or after startDate.";
