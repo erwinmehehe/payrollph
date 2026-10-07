@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Flag, Plus, Target, Trophy } from "lucide-react";
 import { PerformanceCalibrationPanel } from "@/components/performance-calibration-panel";
+import { PerformanceCompetencyArchitecturePanel } from "@/components/performance-competency-architecture-panel";
 import { PerformanceContinuityPanel } from "@/components/performance-continuity-panel";
 
 type Employee = { id: number; firstName: string; lastName: string; title: string; orgUnitId: number | null };
@@ -34,6 +35,8 @@ type Template = {
   type: "competency" | "kra";
   description: string | null;
   defaultWeight: string;
+  jobProfileId: number | null;
+  skillId: number | null;
   active: boolean;
 };
 type CycleTemplate = { id: number; cycleId: number; templateId: number; weight: string; required: boolean };
@@ -52,6 +55,11 @@ type ReviewItem = {
   id: number;
   reviewId: number;
   templateId: number;
+  jobProfileId: number | null;
+  skillId: number | null;
+  expectedProficiency: number | null;
+  required: boolean;
+  weight: string;
   selfScore: string | null;
   managerScore: string | null;
   finalScore: string | null;
@@ -453,7 +461,10 @@ export function PerformanceGovernancePanel({
                   <div className="leave-request" key={item.id}>
                     <div style={{ flex: 1 }}>
                       <strong>{template?.name ?? "Review item #" + item.id}</strong>
-                      <span>{(template?.type?.toUpperCase() ?? "ITEM") + " · " + (link?.weight ?? "0") + "% weight" + (link?.required ? " · required" : "")}</span>
+                      <span>{(template?.type?.toUpperCase() ?? "ITEM") + " · " + item.weight + "% weight" + (item.required ? " · required" : "") + (item.expectedProficiency ? " · job expectation ≥" + item.expectedProficiency + "/5" : "")}</span>
+                      {item.expectedProficiency && item.finalScore && (
+                        <span>{"Proficiency gap: " + (Number(item.finalScore) - item.expectedProficiency).toFixed(1) + " vs role expectation"}</span>
+                      )}
                       {item.selfScore && <span>{"Employee: " + Number(item.selfScore).toFixed(1) + "/5" + (item.employeeComment ? " · " + item.employeeComment : "")}</span>}
                       {review.status !== "completed" && (
                         <div className="setting-form" style={{ marginTop: 8 }}>
@@ -502,6 +513,8 @@ export function PerformanceGovernancePanel({
           );
         })}
       </article>
+
+      {canCalibrate && <PerformanceCompetencyArchitecturePanel organizationId={organizationId} setNotice={setNotice} />}
 
       {canCalibrate && <PerformanceCalibrationPanel organizationId={organizationId} setNotice={setNotice} />}
 
