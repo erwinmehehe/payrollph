@@ -21,8 +21,8 @@ export default function Hero() {
             <Link href="/book-demo" style={{ backgroundColor:"#0866ed",color:"#fff" }} className="hero-primary-cta inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-[#0866ed] px-6 py-3.5 text-[14px] font-semibold text-white shadow-[0_14px_30px_-18px_rgba(8,102,237,.75)] hover:bg-[#0754c5]">
               Request a demo <ArrowRight size={16} aria-hidden="true" />
             </Link>
-            <Link href="/demo" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-[#d4e0ee] bg-white px-6 py-3.5 text-[14px] font-semibold text-[#263b55] hover:bg-[#f1f6ff]">
-              Open interactive demo <ChevronRight size={16} aria-hidden="true" />
+            <Link href="#demo" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-[#d4e0ee] bg-white px-6 py-3.5 text-[14px] font-semibold text-[#263b55] hover:bg-[#f1f6ff]">
+              Explore interactive demo <ChevronRight size={16} aria-hidden="true" />
             </Link>
           </div>
           <div className="mt-10 grid max-w-[560px] gap-4 border-t border-[#e5ebf3] pt-6 sm:grid-cols-3">
