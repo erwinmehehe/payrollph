@@ -48,6 +48,11 @@ const ROLE_APPROVER_GROUPS: Record<string, readonly string[]> = {
   "role:manager": ["manager", "admin", "owner"],
 };
 
+export function roleApproverMatchesRole(approver: string, role: string) {
+  const acceptedRoles = ROLE_APPROVER_GROUPS[approver.trim().toLowerCase()] ?? null;
+  return acceptedRoles ? acceptedRoles.includes(role) : false;
+}
+
 export async function canDecide(
   organizationId: number,
   approver: string,
@@ -68,7 +73,7 @@ export async function canDecide(
       eq(userOrganizations.active, true),
     )).limit(1);
     actorRole = membership?.role ?? null;
-    roleMatched = actorRole != null && acceptedRoles.includes(actorRole);
+    roleMatched = actorRole != null && roleApproverMatchesRole(approver, actorRole);
   }
 
   const resolved = await resolveEffectiveApprovers(organizationId, approver);

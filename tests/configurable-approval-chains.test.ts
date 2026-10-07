@@ -128,3 +128,14 @@ test("role-based decisions are not mislabeled as delegated named approvals", () 
   const route = read("src/app/api/approvals/[id]/route.ts");
   assert.ok(route.includes("decision.roleMatched ? null"));
 });
+
+
+test("role-based approval tasks remain visible without leaking routed cost in task detail", () => {
+  const dashboard = read("src/lib/dashboard-data.ts");
+  const scenarios = read("src/app/api/workforce-planning/scenarios/route.ts");
+  const approvalsView = read("src/components/workspace/approvals.tsx");
+  assert.ok(dashboard.includes("roleApproverMatchesRole(task.approver, access.role)"));
+  assert.ok(scenarios.includes("routed by governed incremental annual labor cost"));
+  assert.equal(scenarios.includes("incremental annual labor cost PHP"), false);
+  assert.ok(approvalsView.includes('if (value === "role:finance") return "Finance role"'));
+});

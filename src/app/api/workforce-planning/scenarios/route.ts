@@ -447,7 +447,7 @@ export async function PATCH(request: Request) {
       const [task] = await tx.insert(approvalTasks).values({
         organizationId: fresh.organizationId,
         title: `Workforce plan approval · ${fresh.name} v${fresh.version}`.slice(0, 180),
-        detail: `Workforce scenario #${fresh.id} · Plan #${fresh.planId} · incremental annual labor cost PHP ${routing.amount.toFixed(2)}`.slice(0, 240),
+        detail: `Workforce scenario #${fresh.id} · Plan #${fresh.planId} · routed by governed incremental annual labor cost`.slice(0, 240),
         approver: first.approver,
         dueLabel: first.dueLabel ?? "Workforce plan review required",
         priority: first.priority ?? "High",
