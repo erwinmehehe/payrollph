@@ -111,7 +111,8 @@ test("every place that reads or writes the number goes through the crypto module
   const read = (path: string) => readFileSync(path, "utf8");
 
   const payout = read("src/lib/paymongo-disbursements.ts");
-  assert.ok(payout.includes("decryptBankAccount(employee.bankAccount)"), "PayMongo transfers must use the decrypted number");
+  assert.ok(payout.includes("readPayrollPaymentSnapshot(entry.trace)"), "PayMongo transfers must use the immutable payroll payment snapshot");
+  assert.ok(payout.includes("decryptBankAccount(payment.bankAccount)"), "PayMongo transfers must decrypt the snapshot bank number");
 
   const exporter = read("src/lib/exporters.ts");
   assert.ok(exporter.includes("decryptBankAccount(payment.bankAccount)"), "bank files must use the decrypted number");
