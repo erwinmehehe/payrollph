@@ -214,9 +214,6 @@ export async function POST(request: Request) {
     return Response.json({ error: "Publishing the official headcount baseline requires company-wide access." }, { status: 403 });
   }
 
-  if (hash(scenario.snapshot) !== scenario.snapshotHash) {
-    return Response.json({ error: "The approved scenario snapshot no longer matches its recorded evidence hash." }, { status: 409 });
-  }
 
   const [[plan], positionRows, assignmentRows] = await Promise.all([
     db.select().from(workforcePlans).where(and(
@@ -243,14 +240,8 @@ export async function POST(request: Request) {
   });
   const forecast = extractForecastSummary(scenario.snapshot);
 
-  const [latest] = await db.select({ version: workforcePlanBaselines.version })
-    .from(workforcePlanBaselines)
-    .where(eq(workforcePlanBaselines.planId, plan.id))
-    .orderBy(desc(workforcePlanBaselines.version))
-    .limit(1);
-  const version = (latest?.version ?? 0) + 1;
   const publishedAt = new Date();
-  const snapshot = {
+  const snapshotBase = {
     version: "hcm-headcount-baseline-v1",
     publishedAt: publishedAt.toISOString(),
     asOf,
@@ -281,11 +272,18 @@ export async function POST(request: Request) {
     forecast,
     boundary: "This immutable baseline records approved workforce-plan evidence at publication. Live position, assignment, requisition, payroll, and scheduling records continue to change independently and are reconciled as actuals.",
   };
-  const snapshotHash = hash(snapshot);
-
   try {
     const baseline = await db.transaction(async (tx) => {
       await tx.execute(sql`select id from workforce_plans where id = ${plan.id} for update`);
+
+      const [latest] = await tx.select({ version: workforcePlanBaselines.version })
+        .from(workforcePlanBaselines)
+        .where(eq(workforcePlanBaselines.planId, plan.id))
+        .orderBy(desc(workforcePlanBaselines.version))
+        .limit(1);
+      const version = (latest?.version ?? 0) + 1;
+      const snapshot = { ...snapshotBase, planVersion: version };
+      const snapshotHash = hash(snapshot);
 
       const [existing] = await tx.select().from(workforcePlanBaselines).where(and(
         eq(workforcePlanBaselines.organizationId, scenario.organizationId),
@@ -322,21 +320,21 @@ export async function POST(request: Request) {
         updatedAt: publishedAt,
       }).where(eq(workforcePlans.id, plan.id));
 
-      return created;
+      return { created, version, snapshotHash };
     });
 
     await recordAuditEvent({
       organizationId: scenario.organizationId,
       actor: user.name,
       action: "Workforce plan baseline published",
-      resource: `${plan.name} v${version}`,
+      resource: `${plan.name} v${baseline.version}`,
       metadata: {
-        baselineId: baseline.id,
+        baselineId: baseline.created.id,
         planId: plan.id,
         scenarioId: scenario.id,
         scenarioVersion: scenario.version,
         scenarioSnapshotHash: scenario.snapshotHash,
-        snapshotHash,
+        snapshotHash: baseline.snapshotHash,
         requestedHeadcount: headcount.requestedHeadcount,
         approvedHeadcount: headcount.approvedHeadcount,
         filledHeadcount: headcount.filledHeadcount,
@@ -344,7 +342,7 @@ export async function POST(request: Request) {
       },
     });
 
-    return Response.json({ baseline }, { status: 201 });
+    return Response.json({ baseline: baseline.created }, { status: 201 });
   } catch (error) {
     if (error instanceof Error && error.message === "SCENARIO_ALREADY_PUBLISHED") {
       return Response.json({ error: "This approved scenario has already been published as a plan baseline." }, { status: 409 });
