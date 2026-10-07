@@ -139,6 +139,7 @@ export const DEMO_ROLE_PAGES: Partial<Record<DemoRoleId, readonly string[]>> = {
   owner: [
     "Overview",
     "Payroll",
+    "Payouts",
     "People",
     "Planning",
     "Compensation",
@@ -172,6 +173,7 @@ export const DEMO_ROLE_PAGES: Partial<Record<DemoRoleId, readonly string[]>> = {
   payroll: [
     "Overview",
     "Payroll",
+    "Payouts",
     "People",
     "Time & attendance",
     "Approvals",
@@ -215,6 +217,7 @@ export const DEMO_ROLE_PAGES: Partial<Record<DemoRoleId, readonly string[]>> = {
   bookkeeper: [
     "Overview",
     "Payroll",
+    "Payouts",
     "Workforce",
     "Exports",
     "Compliance",
