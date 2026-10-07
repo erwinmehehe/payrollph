@@ -75,6 +75,7 @@ import { approvedLeaveCoverageImpact } from "@/lib/workforce-absence";
 import { resolveLeaveIntervalsForSchedule, type PreciseLeaveInterval } from "@/lib/workforce-absence-intervals";
 import { loadSiteEligibilityEvidence, employeeSiteEligibility } from "@/lib/hcm-worksite-eligibility-server";
 import { evaluateSiteEligibility } from "@/lib/hcm-worksite-eligibility";
+import { resolveDynamicWorkerGroupMembers } from "@/lib/dynamic-worker-groups";
 
 export const dynamic = "force-dynamic";
 
@@ -740,6 +741,7 @@ export async function GET(request: Request) {
   const organizationId = Number(url.searchParams.get("organizationId"));
   const startDate = String(url.searchParams.get("startDate") ?? "");
   const endDate = String(url.searchParams.get("endDate") ?? "");
+  const dynamicGroupCode = String(url.searchParams.get("dynamicGroupCode") ?? "").trim();
   const dates = datesBetween(startDate, endDate);
 
   if (!Number.isInteger(organizationId) || !ISO_DATE.test(startDate) || !ISO_DATE.test(endDate) || dates.length === 0) {
@@ -759,6 +761,17 @@ export async function GET(request: Request) {
   const workforce = await visibleWorkforce(user.id, organizationId);
   if (!workforce) return Response.json({ error: "Workspace access not found." }, { status: 403 });
 
+  const dynamicSelection = dynamicGroupCode
+    ? await resolveDynamicWorkerGroupMembers({ organizationId, code: dynamicGroupCode })
+    : null;
+  if (dynamicGroupCode && !dynamicSelection) {
+    return Response.json({ error: "Dynamic Group not found or inactive." }, { status: 404 });
+  }
+  const dynamicEmployeeIds = dynamicSelection ? new Set(dynamicSelection.employeeIds) : null;
+  const visibleEmployees = dynamicEmployeeIds
+    ? workforce.visibleEmployees.filter((employee) => dynamicEmployeeIds.has(employee.id))
+    : workforce.visibleEmployees;
+
   const costDenied = await assertOrganizationRole(
     user.id,
     organizationId,
@@ -767,7 +780,7 @@ export async function GET(request: Request) {
   );
   const canViewLaborCosts = costDenied === null;
 
-  const employeeIds = workforce.visibleEmployees.map((employee) => employee.id);
+  const employeeIds = visibleEmployees.map((employee) => employee.id);
   const worksiteIds = workforce.visibleWorksites.map((site) => site.id);
 
   const [requirements, availability, openShiftRows, claimRows, shifts, punchRows, payProfileRows] = await Promise.all([
@@ -979,7 +992,7 @@ export async function GET(request: Request) {
   };
 
   const employeeNameById = new Map(
-    workforce.visibleEmployees.map((employee) => [
+    visibleEmployees.map((employee) => [
       employee.id,
       `${employee.firstName} ${employee.lastName}`,
     ]),
@@ -998,7 +1011,7 @@ export async function GET(request: Request) {
     if (!shift) continue;
 
     const candidates = [];
-    for (const employee of workforce.visibleEmployees) {
+    for (const employee of visibleEmployees) {
       const key = `${employee.id}|${coverageRow.workDate}`;
       const current = coverageData.schedules.get(key);
       if (current && !current.isRestDay && current.segments.length > 0) continue;
@@ -1194,7 +1207,12 @@ export async function GET(request: Request) {
   });
 
   return Response.json({
-    employees: workforce.visibleEmployees.map((employee) => ({
+    dynamicGroup: dynamicSelection ? {
+      ...dynamicSelection.group,
+      memberCount: dynamicSelection.employeeIds.length,
+      visibleMemberCount: visibleEmployees.length,
+    } : null,
+    employees: visibleEmployees.map((employee) => ({
       id: employee.id,
       employeeNo: employee.employeeNo,
       name: `${employee.firstName} ${employee.lastName}`,
