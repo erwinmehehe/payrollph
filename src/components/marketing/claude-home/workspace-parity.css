@@ -1,0 +1,109 @@
+/* Marketing-to-workspace visual parity. Source: dashboard-design.css on main.
+   Scoped to public marketing; never changes authenticated workspace styles. */
+.home-redesign {
+  --linaw-primary: #0866ed;
+  --linaw-primary-hover: #0754c5;
+  --linaw-ink: #10213d;
+  --linaw-muted: #64748b;
+  --linaw-border: #e2e8f0;
+  --linaw-canvas: #f8fafc;
+  --linaw-blue-wash: #edf5ff;
+  --color-ink-950: var(--linaw-ink);
+  --color-ink-900: var(--linaw-ink);
+  --color-ink-700: #425472;
+  --color-ink-500: var(--linaw-muted);
+  --color-ink-400: #8290a3;
+  --color-line: var(--linaw-border);
+  --color-mist: var(--linaw-canvas);
+  --color-mist-2: var(--linaw-blue-wash);
+  --color-monday-blue: var(--linaw-primary);
+  --color-monday-sky: var(--linaw-primary);
+  --shadow-card: 0 2px 6px rgba(15, 23, 42, .035);
+  --shadow-soft: 0 2px 6px rgba(15, 23, 42, .035);
+  --shadow-lift: 0 6px 20px rgba(15, 23, 42, .07);
+  color: var(--linaw-ink);
+  background: #fff;
+}
+.home-redesign :focus-visible {
+  outline: 3px solid #78b2ff;
+  outline-offset: 3px;
+}
+.home-redesign .font-display { letter-spacing: -.035em; }
+.home-redesign header nav { max-width: 1240px; }
+.home-redesign header .linaw-mark { width: 34px; height: 40px; }
+.home-redesign header .font-display { color: var(--linaw-ink); }
+.home-redesign header a[href="/book-demo"].nav-start-cta,
+.home-redesign header a[href="/book-demo"].nav-start-cta:hover {
+  background: var(--linaw-primary) !important;
+  border-color: var(--linaw-primary) !important;
+  color: #fff !important;
+  border-radius: 8px !important;
+  box-shadow: none;
+}
+.home-redesign header a[href="/book-demo"].nav-start-cta:hover { background: var(--linaw-primary-hover) !important; }
+.home-redesign .hero-primary-cta,
+.home-redesign .btn-primary,
+.home-redesign a[href="/book-demo"].hero-primary-cta {
+  background: var(--linaw-primary) !important;
+  color: #fff !important;
+  border-color: var(--linaw-primary) !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+}
+.home-redesign .hero-primary-cta:hover,
+.home-redesign .btn-primary:hover { background: var(--linaw-primary-hover) !important; transform: none; }
+.home-redesign section#top { background: #fbfdff; border-color: var(--linaw-border); }
+.home-redesign section#top h1 { color: var(--linaw-ink); }
+.home-redesign section#top h1 span { color: var(--linaw-primary); }
+.home-redesign section#top p { text-wrap: pretty; }
+.home-redesign section#top [data-testid="payroll-hero-preview"] {
+  border: 1px solid var(--linaw-border);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, .07);
+}
+.home-redesign section#top [data-testid="payroll-hero-preview"] aside {
+  background: #fbfdff;
+  border-color: var(--linaw-border);
+}
+.home-redesign #solutions article,
+.home-redesign #payroll .overflow-hidden.rounded-\[26px\],
+.home-redesign #demo > div > div.overflow-hidden {
+  border-color: var(--linaw-border);
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, .035);
+}
+.home-redesign #solutions article:hover { transform: none; border-color: #cdd9eb; box-shadow: 0 8px 24px rgba(15, 23, 42, .06); }
+.home-redesign #solutions article h3 { color: var(--linaw-ink); }
+.home-redesign #solutions article a { color: var(--linaw-primary); }
+.home-redesign #payroll, .home-redesign #demo { background: var(--linaw-canvas); }
+.home-redesign :is(#payroll,#wfm,#hcm,#outsourcing,#solutions,#demo) h2 { color: var(--linaw-ink); }
+.home-redesign #demo [role="tab"][aria-selected="true"] {
+  background: var(--linaw-blue-wash);
+  border-color: #cbdff9;
+  color: #075ee3;
+}
+.home-redesign #demo [role="tab"] { border-radius: 8px; }
+.home-redesign #demo [role="tabpanel"] { color: var(--linaw-ink); }
+.home-redesign .system-demo-stage {
+  border-color: var(--linaw-border);
+  border-radius: 12px;
+  box-shadow: 0 3px 16px rgba(15, 23, 42, .06);
+}
+.home-redesign .system-demo-toolbar,
+.home-redesign .system-demo-product .pv-side { background: #fbfdff; }
+.home-redesign .system-demo-open,
+.home-redesign .system-demo-foot a { color: var(--linaw-primary); }
+.home-redesign .system-demo-open {
+  background: var(--linaw-blue-wash);
+  border-color: #cbdff9;
+  border-radius: 8px;
+}
+.home-redesign .system-demo-open:hover { background: #e4efff; transform: none; }
+.home-redesign .card-hover:hover { transform: none; box-shadow: 0 6px 20px rgba(15, 23, 42, .06); }
+.home-redesign input[type=range].lin { background: linear-gradient(to right, var(--linaw-primary) var(--p), var(--linaw-border) var(--p)); }
+.home-redesign input[type=range].lin::-webkit-slider-thumb { border-color: var(--linaw-primary); }
+.home-redesign input[type=range].lin::-moz-range-thumb { border-color: var(--linaw-primary); }
+@media (max-width: 768px) {
+  .home-redesign section#top h1 { font-size: clamp(36px, 9vw, 58px); }
+  .home-redesign section#top [data-testid="payroll-hero-preview"] { border-radius: 10px; }
+}
