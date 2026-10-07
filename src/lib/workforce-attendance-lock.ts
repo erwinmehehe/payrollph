@@ -58,14 +58,14 @@ export function payrollCutoffLockForPeriod(
 
 export async function loadActiveAttendanceLocks(organizationId: number) {
   await ensureWorkforceAttendanceControlSchema();
-  return db.select().from(workforceAttendancePeriodLocks)
+  const rows = await db.select().from(workforceAttendancePeriodLocks)
     .where(eq(workforceAttendancePeriodLocks.organizationId, organizationId))
     .orderBy(
       asc(workforceAttendancePeriodLocks.periodStart),
       asc(workforceAttendancePeriodLocks.periodEnd),
       asc(workforceAttendancePeriodLocks.id),
-    )
-    .then((rows) => rows.filter((row) => row.status === "locked"));
+    );
+  return rows.filter((row) => row.status === "locked");
 }
 
 export async function loadAttendanceLockPolicy(organizationId: number) {
