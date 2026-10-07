@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ApprovalChainAdmin } from "@/components/approval-chain-admin";
 import {
   Activity,
   Bot,
@@ -68,6 +69,16 @@ type AutomationRule = {
   updatedAt: string;
 };
 
+type ApprovalChainPolicy = {
+  id: number;
+  code: string;
+  name: string;
+  purpose: string;
+  version: number;
+  steps: unknown;
+  active: boolean;
+};
+
 type AutomationRuleVersion = {
   id: number;
   ruleId: number;
@@ -120,6 +131,7 @@ type StudioData = {
     employeeShare: string;
     cap: string | null;
   }>;
+  approvalChains: ApprovalChainPolicy[];
   schedulePatterns: Array<{
     id: number;
     code: string;
@@ -152,6 +164,7 @@ type ActionDraft = {
   owner: string;
   detail: string;
   approver: string;
+  approvalChainCode: string;
   priority: string;
   recipient: string;
   email: string;
@@ -184,6 +197,7 @@ const defaultAction = (id: string): ActionDraft => ({
   owner: "People Ops",
   detail: "",
   approver: "People Ops",
+  approvalChainCode: "",
   priority: "Normal",
   recipient: "employee",
   email: "",
@@ -346,6 +360,7 @@ export function AutomationStudioPanel({
         title: row.title,
         detail: row.detail,
         approver: row.approver,
+        approvalChainCode: row.approvalChainCode || undefined,
         priority: row.priority,
         dueLabel: "Workflow paused for approval",
       };
@@ -389,6 +404,7 @@ export function AutomationStudioPanel({
         title: row.title,
         detail: row.detail,
         approver: row.approver,
+        approvalChainCode: row.approvalChainCode || undefined,
         priority: row.priority,
       };
     }
@@ -686,6 +702,8 @@ export function AutomationStudioPanel({
         </div>
       </section>
 
+      <ApprovalChainAdmin organizationId={organizationId} setNotice={setNotice} onChanged={load} />
+
       {showBuilder && (
         <form onSubmit={saveRule} className="card" style={{ marginTop: 16 }}>
           <div className="card-header">
@@ -874,6 +892,7 @@ export function AutomationStudioPanel({
                         <div className="setting-form">
                           <label>Approval title<input required value={row.title} onChange={(event) => updateAction(row.id, { title: event.target.value })} /></label>
                           <label>Approver<input value={row.approver} onChange={(event) => updateAction(row.id, { approver: event.target.value })} placeholder="manager or named approver" /></label>
+                          <label>Approval chain<select value={row.approvalChainCode} onChange={(event) => updateAction(row.id, { approvalChainCode: event.target.value })}><option value="">Single approver</option>{data.approvalChains.map((chain) => <option key={chain.id} value={chain.code}>{chain.name} · v{chain.version}</option>)}</select></label>
                           <label>Detail<input required value={row.detail} onChange={(event) => updateAction(row.id, { detail: event.target.value })} /></label>
                           <label>Priority<select value={row.priority} onChange={(event) => updateAction(row.id, { priority: event.target.value })}><option>Normal</option><option>High</option></select></label>
                           <div className="modal-note">This is a true gate: later workflow steps do not execute until the task is approved. A decline ends the execution as failed evidence.</div>
@@ -917,6 +936,7 @@ export function AutomationStudioPanel({
                         <div className="setting-form">
                           <label>Approval title<input required value={row.title} onChange={(event) => updateAction(row.id, { title: event.target.value })} /></label>
                           <label>Approver<input value={row.approver} onChange={(event) => updateAction(row.id, { approver: event.target.value })} placeholder="manager or named approver" /></label>
+                          <label>Approval chain<select value={row.approvalChainCode} onChange={(event) => updateAction(row.id, { approvalChainCode: event.target.value })}><option value="">Single approver</option>{data.approvalChains.map((chain) => <option key={chain.id} value={chain.code}>{chain.name} · v{chain.version}</option>)}</select></label>
                           <label>Detail<input required value={row.detail} onChange={(event) => updateAction(row.id, { detail: event.target.value })} /></label>
                           <label>Priority<select value={row.priority} onChange={(event) => updateAction(row.id, { priority: event.target.value })}><option>Normal</option><option>High</option></select></label>
                         </div>
