@@ -107,3 +107,5 @@ the first one, so it closes itself.
 - `0074_company_payout_profiles.sql` adds legal-employer payout profiles and explicit bank-adapter lifecycle metadata so bank configuration can progress from draft/spec/mapping/UAT to portal-validated without changing payroll computation.
 
 - `0076_performance_structure_controls.sql` adds cascading company/team/employee goals, competency/KRA templates, structured review items, and governed performance-cycle completion controls.
+
+- `0077_performance_calibration.sql` adds one governed calibration session per performance cycle, score-change rationale evidence, and finalized calibrated ratings before cycle closure.
