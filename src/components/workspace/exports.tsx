@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   Banknote,
@@ -63,12 +63,40 @@ export function ExportsView({
   const [submittingPayout, setSubmittingPayout] = useState(false);
   const [reconcilingPayout, setReconcilingPayout] = useState(false);
   const [retryingFailedPayouts, setRetryingFailedPayouts] = useState(false);
+  const [treasuryStatus, setTreasuryStatus] = useState<{ enabled: boolean; assigned: boolean } | null>(null);
 
   const run = runs.find((item) => item.id === runId) ?? runs[0];
   const organizationId = data.selectedOrganization.id;
   const payoutState = run ? derivePayrollPayoutState(data.auditEvents, run.id) : null;
   const bookkeeperMode = data.access?.role === "bookkeeper";
-  const canRecordManualPayout = data.access?.role === "owner";
+  const treasuryStatusEligible = ["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "");
+  const canRecordManualPayout = treasuryStatus
+    ? treasuryStatus.enabled ? treasuryStatus.assigned : data.access?.role === "owner"
+    : data.access?.role === "owner";
+  const canGenerateLiveBankFile = treasuryStatus
+    ? treasuryStatus.enabled
+      ? treasuryStatus.assigned
+      : ["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "")
+    : ["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "");
+
+  useEffect(() => {
+    if (!treasuryStatusEligible) {
+      setTreasuryStatus({ enabled: false, assigned: false });
+      return;
+    }
+    let cancelled = false;
+    void fetch(`/api/treasury-controls?organizationId=${organizationId}&view=current-user`, { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}));
+        if (cancelled || !response.ok) return;
+        setTreasuryStatus({
+          enabled: Boolean(payload.policy?.enabled),
+          assigned: Boolean(payload.currentUserAssigned),
+        });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [organizationId, treasuryStatusEligible]);
 
   async function download(url: string, label: string) {
     setExporting(label);
@@ -275,6 +303,14 @@ export function ExportsView({
           remain draft-only until agency acceptance evidence is recorded. See <a className="link-button" href="/api/readiness">/api/readiness</a>.
         </span>
       </div>
+      {treasuryStatus?.enabled && (
+        <div className="notice notice-slate" data-treasury-separation-active>
+          <ShieldCheck size={15} className="i-purple" />
+          <span>
+            Treasury separation is active. Live payout actions require an assigned treasury operator, and the person who released this payroll cannot also move or confirm its funds.
+          </span>
+        </div>
+      )}
       {data.access?.companyWide && ["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "") && (
         <ManagedPayrollControlRoom data={data} run={run} notify={notify} />
       )}
@@ -502,7 +538,7 @@ export function ExportsView({
                       </div>
                     )}
 
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {canRecordManualPayout && <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                       <button
                         className="secondary-button"
                         disabled={reconcilingPayout || retryingFailedPayouts}
@@ -533,7 +569,7 @@ export function ExportsView({
                             : `Retry ${payoutState.reconciliation.failed} failed only`}
                         </button>
                       )}
-                    </div>
+                    </div>}
 
                     {payoutState.reconciliation.transfers.length > 0 && (
                       <div className="audit-list" data-payout-transfer-list>
@@ -663,6 +699,8 @@ export function ExportsView({
                   />
                   <button
                     className={mode === "live" ? "primary-button" : "secondary-button"}
+                    disabled={mode === "live" && !canGenerateLiveBankFile}
+                    title={mode === "live" && !canGenerateLiveBankFile ? "An assigned treasury operator must generate the final bank file when treasury separation is enabled." : undefined}
                     onClick={() =>
                       void download(
                         `/api/payroll-runs/${run.id}/exports?kind=bank&template=${encodeURIComponent(template)}&dryRun=${mode === "dry"}`,

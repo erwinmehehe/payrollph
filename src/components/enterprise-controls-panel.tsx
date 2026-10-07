@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Bot, KeyRound, LockKeyhole, RefreshCw, ShieldCheck, UserCog, Workflow, X } from "lucide-react";
+import { TreasuryControlsPanel } from "@/components/treasury-controls-panel";
 
 type SecurityPolicy = {
   sessionIdleMinutes: number;
@@ -256,7 +257,7 @@ export function EnterpriseControlsPanel({ organizationId, setNotice }: { organiz
         <div>
           <div className="eyebrow">ENTERPRISE</div>
           <h1>Enterprise controls</h1>
-          <p>Configure verified company SSO and SCIM, narrow role access with deny-only permission sets, and automate joiner/mover/leaver follow-through without allowing rules to bypass authoritative HR transactions.</p>
+          <p>Configure verified company SSO and SCIM, treasury separation, deny-only permission sets, and governed lifecycle automation without bypassing authoritative payroll or HR transactions.</p>
         </div>
         <div className="page-actions"><button className="secondary-button" onClick={() => void load()} disabled={loading}><RefreshCw size={15} /> Refresh</button></div>
       </div>
@@ -294,6 +295,8 @@ export function EnterpriseControlsPanel({ organizationId, setNotice }: { organiz
           <div className="run-actions"><button className="primary-button">Save security policy</button></div>
         </form>
       </article>
+
+      <TreasuryControlsPanel organizationId={organizationId} setNotice={setNotice} />
 
       <section className="module-grid two">
         <article className="card">

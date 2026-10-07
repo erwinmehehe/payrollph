@@ -343,7 +343,8 @@ test("payout reconciliation route and UI enforce failed-only retry semantics", (
   const view = readFileSync("src/components/workspace/exports.tsx", "utf8");
 
   for (const marker of [
-    "Only the workspace owner can reconcile or retry payroll payouts.",
+    "authorizeTreasuryOperation",
+    'requireReleaseSeparation: action === "retry-failed"',
     "Pending transfers must not be resent.",
     'body.action === "retry-failed"',
     "retryableReferences",

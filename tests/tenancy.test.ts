@@ -100,8 +100,10 @@ test("payroll authority separates preparation, approval, release and live disbur
   assert.ok(release.includes("PAYROLL_RELEASE_ROLES"));
 
   const exportsRoute = read("src/app/api/payroll-runs/[id]/exports/route.ts");
-  assert.ok(exportsRoute.includes("PAYROLL_DISBURSEMENT_ROLES"));
-  assert.ok(exportsRoute.includes('mode === "preflight" ? PAYROLL_OPERATOR_ROLES : PAYROLL_DISBURSEMENT_ROLES'));
+  assert.ok(exportsRoute.includes("authorizeTreasuryOperation"));
+  assert.ok(exportsRoute.includes('if (mode === "preflight")'));
+  assert.ok(exportsRoute.includes("PAYROLL_OPERATOR_ROLES"));
+  assert.ok(exportsRoute.includes("requireReleaseSeparation: true"));
 });
 
 test("payroll creation validates real dates and caps a cutoff at 16 days", () => {
