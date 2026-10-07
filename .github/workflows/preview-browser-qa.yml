@@ -177,11 +177,15 @@ jobs:
             const payrollSidebar = heroPreview.getByRole("button", {name:"Payroll", exact:true});
             check((await payrollSidebar.count()) === 1, name + ": clickable Payroll sidebar item missing");
             await payrollSidebar.click();
-            check((await heroPreview.getByRole("heading", {name:"Payroll runs"}).count()) === 1, name + ": Payroll sidebar did not switch preview content");
+            const payrollPanelHeading = heroPreview.getByRole("heading", {name:"Payroll runs"});
+            await payrollPanelHeading.waitFor({state:"visible",timeout:3000});
+            check((await payrollPanelHeading.count()) === 1, name + ": Payroll sidebar did not switch preview content");
             check((await payrollSidebar.getAttribute("aria-current")) === "page", name + ": clicked sidebar item did not become active");
             const homeSidebar = heroPreview.getByRole("button", {name:"Home", exact:true});
             await homeSidebar.click();
-            check((await heroPreview.getByText("Let’s make payday a good day.").count()) === 1, name + ": Home sidebar did not restore dashboard");
+            const homeHeading = heroPreview.getByText("Let’s make payday a good day.");
+            await homeHeading.waitFor({state:"visible",timeout:3000});
+            check((await homeHeading.count()) === 1, name + ": Home sidebar did not restore dashboard");
             check((await cinematic.locator('a[href="#demo"]').count()) >= 1, name + ": cinematic frame must link to the full role demo");
             await cinematic.getByRole("tab", {name:/Review/}).click();
             check((await cinematic.getByRole("heading", {name:"Payroll review"}).count()) === 1, name + ": Review scene did not switch to Checker");
