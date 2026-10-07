@@ -4138,6 +4138,7 @@ export const automationEventLog = pgTable(
     employeeId: integer("employee_id").references(() => employees.id, { onDelete: "set null" }),
     trigger: varchar("trigger", { length: 64 }).notNull(),
     eventKey: varchar("event_key", { length: 240 }).notNull(),
+    source: varchar("source", { length: 32 }).notNull().default("authoritative"),
     context: jsonb("context").notNull().default({}),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
   },
