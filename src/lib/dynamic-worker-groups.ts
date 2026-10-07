@@ -80,3 +80,33 @@ export async function previewDynamicWorkerGroup(input: {
     })),
   };
 }
+
+
+export async function resolveDynamicWorkerGroupMembers(input: {
+  organizationId: number;
+  code: string;
+}) {
+  const code = normalizeDynamicGroupCode(input.code);
+  if (!code) return null;
+  const [group] = await db.select().from(dynamicWorkerGroups).where(and(
+    eq(dynamicWorkerGroups.organizationId, input.organizationId),
+    eq(dynamicWorkerGroups.code, code),
+    eq(dynamicWorkerGroups.active, true),
+  )).limit(1);
+  if (!group || !validDynamicWorkerGroupConditions(group.conditions)) return null;
+
+  const contexts = await loadWorkerAttributeContexts({ organizationId: input.organizationId });
+  const members = contexts.filter((context) =>
+    workerMatchesDynamicGroup(group.conditions, context as unknown as Record<string, unknown>)
+  );
+  return {
+    group: {
+      id: group.id,
+      code: group.code,
+      name: group.name,
+      version: group.version,
+    },
+    members,
+    employeeIds: members.map((member) => member.employeeId),
+  };
+}
