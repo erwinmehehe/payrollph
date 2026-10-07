@@ -13,6 +13,7 @@ import { runScheduledWorkerEffectiveChanges } from "@/lib/hcm-effective-changes"
 import { runScheduledEmploymentTerms } from "@/lib/hcm-employment-terms";
 import { runScheduledEmploymentTermDecisions } from "@/lib/hcm-employment-term-decisions";
 import { runScheduledHcmLifecycleNotifications } from "@/lib/hcm-lifecycle-notifications";
+import { runScheduledPerformanceReminders } from "@/lib/hcm-performance-reminders";
 import { resumeDueAutomationExecutions } from "@/lib/automation";
 
 const MIN_INTERVAL_MS = 30_000;
@@ -93,6 +94,36 @@ export async function tickScheduler(force = false) {
     ? await runScheduledHcmLifecycleNotifications({ actor: "System scheduler", now })
     : null;
 
+  const [performanceReminderState] = await db.select().from(schedulerState)
+    .where(eq(schedulerState.jobName, "hcm-performance-reminders"))
+    .limit(1);
+  const performanceRemindersDue =
+    !performanceReminderState?.lastRunAt
+    || now.getTime() - performanceReminderState.lastRunAt.getTime() >= 60 * 60 * 1000;
+  const performanceReminders = performanceRemindersDue
+    ? await runScheduledPerformanceReminders({ actor: "System scheduler", now })
+    : null;
+
+  if (performanceRemindersDue) {
+    const performanceReminderPayload = {
+      at: now.toISOString(),
+      organizations: performanceReminders?.length ?? 0,
+      results: performanceReminders?.slice(0, 50) ?? [],
+    };
+    if (performanceReminderState) {
+      await db.update(schedulerState).set({
+        lastRunAt: now,
+        lastResult: performanceReminderPayload,
+      }).where(eq(schedulerState.id, performanceReminderState.id));
+    } else {
+      await db.insert(schedulerState).values({
+        jobName: "hcm-performance-reminders",
+        lastRunAt: now,
+        lastResult: performanceReminderPayload,
+      });
+    }
+  }
+
   if (hcmLifecycleNotificationsDue) {
     const lifecyclePayload = {
       at: now.toISOString(),
@@ -164,6 +195,7 @@ export async function tickScheduler(force = false) {
     hcmEmploymentTermDecisions,
     hcmCompensation,
     hcmLifecycleNotifications,
+    performanceReminders,
     at: now.toISOString(),
     results: {
       webhooks: webhookResults.slice(0, 10),
