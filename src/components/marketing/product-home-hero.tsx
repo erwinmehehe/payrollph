@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { Wallet, CalendarClock, Users, ContactRound, ChartNoAxesCombined, UserRound } from "lucide-react";
 import { WorkspacePreview } from "@/components/marketing/workspace-preview";
+
+const productIcons = [Wallet, CalendarClock, Users, ContactRound, ChartNoAxesCombined, UserRound];
 
 const areas = [
   { id: "payroll", name: "Payroll", color: "#0877ff", image: "payroll", height: 1501, title: "Payroll / inputs, calculation & review", copy: "See the payroll run, its amounts, and the items that need your team’s attention.", href: "/small-business-payroll" },
@@ -23,7 +26,7 @@ export function ProductHomeHero() {
         <h1>Your people. Your payroll.<br /><span>Working together.</span></h1>
         <p className="lp-description">Bring employee records, time, payroll, and approvals into one connected workspace. Give every team a clearer view of what comes next.</p>
         <div className="lp-picker" role="group" aria-label="Choose a product area">
-          {areas.map((area) => <button key={area.id} type="button" aria-pressed={selected.id === area.id} aria-controls="product-screen" onClick={() => { setSelected(area); setPreviewPage(destinations[area.id]); }} style={{ "--area-color": area.color } as React.CSSProperties}><span className="lp-check" aria-hidden="true">{selected.id === area.id ? "✓" : "+"}</span>{area.name}</button>)}
+          {areas.map((area, index) => { const Icon = productIcons[index]; return <button key={area.id} type="button" aria-pressed={selected.id === area.id} aria-controls="product-screen" onClick={() => { setSelected(area); setPreviewPage(destinations[area.id]); }} style={{ "--area-color": area.color } as React.CSSProperties}><span className="lp-product-icon" aria-hidden="true"><Icon size={22} strokeWidth={1.7} /></span><span>{area.name}</span></button>; })}
         </div>
         <div className="lp-actions"><a className="lp-button lp-primary hero-primary-cta" href="/demo">Explore the demo <span aria-hidden="true">→</span></a><a className="lp-button" href="/book-demo">Talk to us</a></div>
         <p className="lp-micro">One connected workflow. Clear responsibilities at every step.</p>
