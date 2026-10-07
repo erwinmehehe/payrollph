@@ -463,9 +463,11 @@ export async function POST(request: Request) {
     if (event.status !== "open") {
       return Response.json({ error: "Only open attendance exceptions can be assigned." }, { status: 409 });
     }
-    const ownerUserId = Number(body.ownerUserId);
+    const ownerUserId = body.ownerUserId == null || body.ownerUserId === ""
+      ? user.id
+      : Number(body.ownerUserId);
     if (!Number.isInteger(ownerUserId) || ownerUserId <= 0) {
-      return Response.json({ error: "ownerUserId is required." }, { status: 400 });
+      return Response.json({ error: "ownerUserId must be a valid user when provided." }, { status: 400 });
     }
     const [owner] = await db.select({
       id: users.id,
