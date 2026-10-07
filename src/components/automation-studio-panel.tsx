@@ -43,8 +43,23 @@ type AutomationRule = {
   conditions: unknown;
   actions: unknown;
   active: boolean;
+  publishedVersion: number;
+  draftVersion: number | null;
   createdAt: string;
   updatedAt: string;
+};
+
+type AutomationRuleVersion = {
+  id: number;
+  ruleId: number;
+  version: number;
+  status: "draft" | "published" | "superseded";
+  name: string;
+  trigger: string;
+  active: boolean;
+  sourceVersion: number | null;
+  createdAt: string;
+  publishedAt: string | null;
 };
 
 type Execution = {
@@ -64,6 +79,7 @@ type Execution = {
 
 type StudioData = {
   rules: AutomationRule[];
+  versions: AutomationRuleVersion[];
   executions: Execution[];
   catalogs: {
     triggers: TriggerCatalog[];
@@ -399,11 +415,53 @@ export function AutomationStudioPanel({
       resetBuilder();
       setShowBuilder(false);
       await load();
-      setNotice("Automation Studio rule saved.");
+      setNotice("Automation draft saved. Publish it from the workflow list when it is ready to go live.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Could not save automation rule.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function publishRule(rule: AutomationRule) {
+    try {
+      const response = await fetch("/api/automation-studio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          action: "publish-rule",
+          ruleId: rule.id,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Could not publish automation draft.");
+      await load();
+      setNotice(`${rule.name} published as version ${payload.published?.version ?? ""}.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not publish automation draft.");
+    }
+  }
+
+  async function rollbackRule(rule: AutomationRule, targetVersion: number) {
+    if (!window.confirm(`Roll back ${rule.name} to the definition from version ${targetVersion}? This creates a new published version and preserves history.`)) return;
+    try {
+      const response = await fetch("/api/automation-studio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          action: "rollback-rule",
+          ruleId: rule.id,
+          targetVersion,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Could not roll back automation rule.");
+      await load();
+      setNotice(`${rule.name} restored from version ${targetVersion} as new published version ${payload.published?.version ?? ""}.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not roll back automation rule.");
     }
   }
 
@@ -487,7 +545,7 @@ export function AutomationStudioPanel({
         <div className="notice notice-slate" style={{ margin: 0 }}>
           <ShieldCheck size={16} className="i-purple" />
           <span>
-            <strong>Governed execution.</strong> Studio runs after authoritative transactions commit. Timed waits persist across worker restarts and approval gates pause the exact execution. Payroll adjustments become approval requests, access removal is separation-only, and external calls use registered signed webhooks rather than arbitrary URLs.
+            <strong>Governed execution.</strong> Workflow edits are saved as drafts and do not affect production until separately published. Published versions remain auditable and rollback creates a new version instead of rewriting history. Studio runs after authoritative transactions commit. Timed waits persist across worker restarts and approval gates pause the exact execution. Payroll adjustments become approval requests, access removal is separation-only, and external calls use registered signed webhooks rather than arbitrary URLs.
           </span>
         </div>
       </article>
@@ -749,7 +807,7 @@ export function AutomationStudioPanel({
             <div className="run-actions" style={{ marginTop: 16 }}>
               <button type="button" className="secondary-button" onClick={() => { resetBuilder(); setShowBuilder(false); }}>Cancel</button>
               <button className="primary-button" disabled={saving || !name.trim() || !selectedTrigger?.live}>
-                <Play size={14} /> {saving ? "Saving…" : "Save workflow"}
+                <Play size={14} /> {saving ? "Saving…" : "Save draft"}
               </button>
             </div>
           </div>
@@ -768,19 +826,44 @@ export function AutomationStudioPanel({
           {data.rules.length === 0 && <div className="empty-state">No Automation Studio workflows yet.</div>}
           {data.rules.map((rule) => {
             const triggerInfo = data.catalogs.triggers.find((item) => item.value === rule.trigger);
+            const versions = data.versions
+              .filter((version) => version.ruleId === rule.id)
+              .sort((a, b) => b.version - a.version);
+            const rollbackTarget = versions.find((version) =>
+              version.status !== "draft" && version.version !== rule.publishedVersion
+            ) ?? null;
             return (
               <div className="leave-request" key={rule.id}>
                 <div className="inline-icon purple"><Workflow size={16} /></div>
                 <div style={{ flex: 1 }}>
                   <strong>{rule.name}</strong>
                   <span>
-                    {triggerInfo?.label ?? rule.trigger} · {conditionCount(rule.conditions)} IF · {actionCount(rule.actions)} THEN · {rule.active ? "active" : "disabled"}
+                    {triggerInfo?.label ?? rule.trigger} · {conditionCount(rule.conditions)} IF · {actionCount(rule.actions)} THEN · {rule.publishedVersion > 0 ? (rule.active ? "active" : "disabled") : "not published"}
                     {triggerInfo && !triggerInfo.live ? " · adapter planned" : ""}
                   </span>
+                  <small style={{ display: "block", color: "var(--muted)", marginTop: 4 }}>
+                    {rule.publishedVersion > 0 ? `Published v${rule.publishedVersion}` : "No published version"}
+                    {rule.draftVersion ? ` · Draft v${rule.draftVersion} waiting to publish` : ""}
+                    {rollbackTarget ? ` · Prior v${rollbackTarget.version} available` : ""}
+                  </small>
                 </div>
-                <button className="secondary-button" onClick={() => void setRuleActive(rule, !rule.active)}>
-                  {rule.active ? "Disable" : "Enable"}
-                </button>
+                <div className="run-actions" style={{ margin: 0 }}>
+                  {rule.draftVersion && (
+                    <button className="primary-button" onClick={() => void publishRule(rule)}>
+                      Publish v{rule.draftVersion}
+                    </button>
+                  )}
+                  {rollbackTarget && rule.publishedVersion > 0 && (
+                    <button className="secondary-button" onClick={() => void rollbackRule(rule, rollbackTarget.version)}>
+                      Rollback to v{rollbackTarget.version}
+                    </button>
+                  )}
+                  {rule.publishedVersion > 0 && (
+                    <button className="secondary-button" onClick={() => void setRuleActive(rule, !rule.active)}>
+                      {rule.active ? "Disable" : "Enable"}
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
