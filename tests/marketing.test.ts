@@ -381,7 +381,8 @@ test("homepage hero stays focused without a mascot or embedded app demo", () => 
   assert.ok(!hero.includes("PayrollOwlArt"), "homepage hero must not render an owl mascot");
   assert.ok(!hero.includes("payroll-hero-speech"), "homepage hero must not render mascot speech");
   assert.ok(!hero.includes("WorkspacePreview"), "homepage hero must not embed a miniature app");
-  assert.ok(hero.includes("payroll-hero-control-card"), "homepage hero must use the release-readiness proof card");
+  assert.ok(hero.includes('data-testid="payroll-hero-preview"'), "homepage hero must expose the labelled static product illustration");
+  assert.ok(hero.includes("Illustrative · sample data"), "homepage preview must not appear to be a live customer payroll");
 });
 
 
