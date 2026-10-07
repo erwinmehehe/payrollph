@@ -12,6 +12,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { notifyPayrollOfContributionCase } from "@/lib/statutory-contribution-case-notifications";
 import { contributionCaseServiceStatus, contributionCaseServiceTargets } from "@/lib/statutory-contribution-case-aging";
 import { invalidateStatutoryRemittanceMonthCertification } from "@/lib/statutory-remittance-certification";
+import { emitContributionDiscrepancyAutomation } from "@/lib/statutory-contribution-automation";
 import { getSessionUser } from "@/lib/auth";
 import {
   enforceSameOriginMutation,
@@ -261,6 +262,20 @@ export async function POST(request: Request) {
     return issue;
   });
 
+  const automation = await emitContributionDiscrepancyAutomation({
+    organizationId: employee.organizationId,
+    employeeId: employee.id,
+    legalEntityId,
+    caseId: created.id,
+    issueType: created.issueType,
+    agency: created.agency,
+    applicableMonth: created.applicableMonth,
+    source: "employee_report",
+    severity: member?.postingStatus === "exception" ? "danger" : "warning",
+    batchId: created.batchId,
+    remittanceMemberId: created.remittanceMemberId,
+  });
+
   await recordAuditEvent({
     organizationId: employee.organizationId,
     actor: user.name,
@@ -316,5 +331,6 @@ export async function POST(request: Request) {
       createdAt: created.createdAt,
       service: contributionCaseServiceStatus(created),
     },
+    automation,
   }, { status: 201 });
 }
