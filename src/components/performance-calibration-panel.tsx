@@ -9,6 +9,7 @@ type Session = {
   name: string;
   status: "open" | "finalized";
   notes: string | null;
+  policyVersion: number | null;
   finalizedByName: string | null;
   finalizedAt: string | null;
 };
@@ -46,6 +47,33 @@ type Cycle = {
   requireCalibration: boolean;
 };
 
+type CalibrationFlag = {
+  id: number;
+  sessionId: number;
+  reviewId: number | null;
+  reviewerUserId: number | null;
+  flagType: string;
+  severity: "warning" | "blocker";
+  title: string;
+  detail: string;
+  observedValue: string | null;
+  thresholdValue: string | null;
+  status: "open" | "accepted" | "resolved";
+  resolutionNote: string | null;
+};
+
+type CalibrationPolicy = {
+  version: number;
+  minimumManagerSample: number;
+  managerMeanDeviationThreshold: number;
+  highRatingThreshold: number;
+  highRatingShareThreshold: number;
+  lowRatingThreshold: number;
+  lowRatingShareThreshold: number;
+  largeScoreChangeThreshold: number;
+  requireFlagResolution: boolean;
+};
+
 export function PerformanceCalibrationPanel({
   organizationId,
   setNotice,
@@ -58,6 +86,10 @@ export function PerformanceCalibrationPanel({
   const [reviews, setReviews] = useState<Review[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [cycles, setCycles] = useState<Cycle[]>([]);
+  const [flags, setFlags] = useState<CalibrationFlag[]>([]);
+  const [policy, setPolicy] = useState<CalibrationPolicy | null>(null);
+  const [policyForm, setPolicyForm] = useState({ minimumManagerSample: "3", managerMeanDeviationThreshold: "0.75", highRatingThreshold: "4.5", highRatingShareThreshold: "60", lowRatingThreshold: "2", lowRatingShareThreshold: "40", largeScoreChangeThreshold: "1", requireFlagResolution: true });
+  const [flagNotes, setFlagNotes] = useState<Record<number, string>>({});
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ cycleId: "", name: "", notes: "" });
   const [scores, setScores] = useState<Record<number, string>>({});
@@ -75,6 +107,20 @@ export function PerformanceCalibrationPanel({
     setReviews(payload.reviews ?? []);
     setEmployees(payload.employees ?? []);
     setCycles(payload.cycles ?? []);
+    setFlags(payload.flags ?? []);
+    const nextPolicy: CalibrationPolicy | null = payload.policy ?? null;
+    setPolicy(nextPolicy);
+    if (nextPolicy) setPolicyForm({
+      minimumManagerSample: String(nextPolicy.minimumManagerSample),
+      managerMeanDeviationThreshold: String(nextPolicy.managerMeanDeviationThreshold),
+      highRatingThreshold: String(nextPolicy.highRatingThreshold),
+      highRatingShareThreshold: String(nextPolicy.highRatingShareThreshold),
+      lowRatingThreshold: String(nextPolicy.lowRatingThreshold),
+      lowRatingShareThreshold: String(nextPolicy.lowRatingShareThreshold),
+      largeScoreChangeThreshold: String(nextPolicy.largeScoreChangeThreshold),
+      requireFlagResolution: nextPolicy.requireFlagResolution,
+    });
+    setFlagNotes(Object.fromEntries((payload.flags ?? []).map((flag: CalibrationFlag) => [flag.id, flag.resolutionNote ?? ""])));
     setScores(Object.fromEntries((payload.entries ?? []).map((entry: Entry) => [
       entry.id,
       entry.calibratedScore ? String(Number(entry.calibratedScore)) : String(Number(entry.originalScore)),
@@ -158,6 +204,56 @@ export function PerformanceCalibrationPanel({
     setNotice("Calibration finalized. Calibrated ratings are now the performance final ratings; compensation remains unchanged.");
   }
 
+  async function savePolicy(event: React.FormEvent) {
+    event.preventDefault();
+    const response = await fetch("/api/performance/calibration", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "policy",
+        organizationId,
+        expectedVersion: policy?.version ?? 0,
+        minimumManagerSample: Number(policyForm.minimumManagerSample),
+        managerMeanDeviationThreshold: Number(policyForm.managerMeanDeviationThreshold),
+        highRatingThreshold: Number(policyForm.highRatingThreshold),
+        highRatingShareThreshold: Number(policyForm.highRatingShareThreshold),
+        lowRatingThreshold: Number(policyForm.lowRatingThreshold),
+        lowRatingShareThreshold: Number(policyForm.lowRatingShareThreshold),
+        largeScoreChangeThreshold: Number(policyForm.largeScoreChangeThreshold),
+        requireFlagResolution: policyForm.requireFlagResolution,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setNotice(payload.error ?? "Could not update calibration policy.");
+      return;
+    }
+    await load();
+    setNotice("Calibration distribution policy version updated. Existing sessions keep their frozen policy snapshot.");
+  }
+
+  async function closeFlag(session: Session, flag: CalibrationFlag, status: "accepted" | "resolved") {
+    const response = await fetch("/api/performance/calibration", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "flag",
+        organizationId,
+        sessionId: session.id,
+        flagId: flag.id,
+        status,
+        resolutionNote: flagNotes[flag.id] ?? "",
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setNotice(payload.error ?? "Could not close calibration flag.");
+      return;
+    }
+    await load();
+    setNotice(status === "accepted" ? "Calibration outlier accepted with rationale." : "Calibration outlier resolved.");
+  }
+
   return (
     <article className="card" style={{ padding: 20 }}>
       <div className="card-header">
@@ -171,6 +267,27 @@ export function PerformanceCalibrationPanel({
           <button className="primary-button" type="button" onClick={() => setShowCreate((value) => !value)}><Scale size={14} /> New calibration</button>
         </div>
       </div>
+
+      <form onSubmit={savePolicy} className="employee-edit-card" style={{ marginBottom: 18 }}>
+        <div className="employee-list-card-head">
+          <div>
+            <span className="card-kicker">DISTRIBUTION POLICY · v{policy?.version ?? 0}</span>
+            <h3>Outlier thresholds</h3>
+            <p>New calibration sessions freeze these settings. Policy updates never rewrite an open session's thresholds.</p>
+          </div>
+        </div>
+        <div className="setting-form">
+          <label>Minimum manager sample<input type="number" min="2" step="1" value={policyForm.minimumManagerSample} onChange={(event) => setPolicyForm({ ...policyForm, minimumManagerSample: event.target.value })} /></label>
+          <label>Mean deviation flag<input type="number" min="0.1" max="4" step="0.05" value={policyForm.managerMeanDeviationThreshold} onChange={(event) => setPolicyForm({ ...policyForm, managerMeanDeviationThreshold: event.target.value })} /></label>
+          <label>High rating ≥<input type="number" min="1" max="5" step="0.1" value={policyForm.highRatingThreshold} onChange={(event) => setPolicyForm({ ...policyForm, highRatingThreshold: event.target.value })} /></label>
+          <label>High share %<input type="number" min="0" max="100" step="1" value={policyForm.highRatingShareThreshold} onChange={(event) => setPolicyForm({ ...policyForm, highRatingShareThreshold: event.target.value })} /></label>
+          <label>Low rating ≤<input type="number" min="1" max="5" step="0.1" value={policyForm.lowRatingThreshold} onChange={(event) => setPolicyForm({ ...policyForm, lowRatingThreshold: event.target.value })} /></label>
+          <label>Low share %<input type="number" min="0" max="100" step="1" value={policyForm.lowRatingShareThreshold} onChange={(event) => setPolicyForm({ ...policyForm, lowRatingShareThreshold: event.target.value })} /></label>
+          <label>Large score change<input type="number" min="0.1" max="4" step="0.1" value={policyForm.largeScoreChangeThreshold} onChange={(event) => setPolicyForm({ ...policyForm, largeScoreChangeThreshold: event.target.value })} /></label>
+          <label><input type="checkbox" checked={policyForm.requireFlagResolution} onChange={(event) => setPolicyForm({ ...policyForm, requireFlagResolution: event.target.checked })} /> Require flag resolution before finalization</label>
+        </div>
+        <div className="run-actions"><button className="secondary-button">Save policy version</button></div>
+      </form>
 
       {showCreate && (
         <form onSubmit={createSession} style={{ marginBottom: 18 }}>
@@ -210,12 +327,35 @@ export function PerformanceCalibrationPanel({
               <div>
                 <span className="card-kicker">{cycle?.name ?? "Performance cycle"}</span>
                 <h3>{session.name}</h3>
-                <p>{session.status === "finalized" ? "Finalized calibration" : "Open calibration"} · {changed} changed rating(s)</p>
+                <p>{session.status === "finalized" ? "Finalized calibration" : "Open calibration"} · {changed} changed rating(s) · policy v{session.policyVersion ?? 0}</p>
               </div>
               {session.status === "finalized" ? <span className="employee-status-pill good">Finalized</span> : <span className="employee-status-pill warn">{pending} unscored</span>}
             </div>
 
             {session.notes && <p>{session.notes}</p>}
+
+            {flags.filter((flag) => flag.sessionId === session.id).map((flag) => (
+              <div className="employee-edit-card" key={flag.id} style={{ marginBottom: 10 }}>
+                <div className="employee-list-card-head">
+                  <div>
+                    <span className="card-kicker">{flag.flagType.replaceAll("_", " ").toUpperCase()}</span>
+                    <strong>{flag.title}</strong>
+                    <p>{flag.detail}</p>
+                  </div>
+                  <span className={"employee-status-pill " + (flag.status === "open" ? (flag.severity === "blocker" ? "bad" : "warn") : "good")}>{flag.status}</span>
+                </div>
+                {flag.status === "open" && session.status === "open" && (
+                  <>
+                    <label>Resolution / acceptance rationale<input value={flagNotes[flag.id] ?? ""} onChange={(event) => setFlagNotes((current) => ({ ...current, [flag.id]: event.target.value }))} placeholder="Document why the distribution is acceptable or what was corrected." /></label>
+                    <div className="run-actions">
+                      <button type="button" className="secondary-button" onClick={() => void closeFlag(session, flag, "accepted")}>Accept with rationale</button>
+                      <button type="button" className="primary-button" onClick={() => void closeFlag(session, flag, "resolved")}>Resolve</button>
+                    </div>
+                  </>
+                )}
+                {flag.status !== "open" && flag.resolutionNote && <p>Decision: {flag.resolutionNote}</p>}
+              </div>
+            ))}
 
             {sessionEntries.map((entry) => {
               const review = reviewById.get(entry.reviewId);
@@ -261,7 +401,15 @@ export function PerformanceCalibrationPanel({
 
             {session.status === "open" && (
               <div className="run-actions">
-                <button className="primary-button" type="button" disabled={sessionEntries.some((entry) => !entry.calibratedScore)} onClick={() => void finalize(session)}>
+                <button
+                  className="primary-button"
+                  type="button"
+                  disabled={
+                    sessionEntries.some((entry) => !entry.calibratedScore)
+                    || (policyForm.requireFlagResolution && flags.some((flag) => flag.sessionId === session.id && flag.status === "open"))
+                  }
+                  onClick={() => void finalize(session)}
+                >
                   <CheckCircle2 size={14} /> Finalize calibration
                 </button>
               </div>
