@@ -273,6 +273,9 @@ test("WFM evidence closes schedule -> punch -> correction -> timesheet -> payrol
       "payroll trace must retain the authoritative corrected punch evidence",
     );
   } finally {
+    // schedule_pattern_segments restrict shift deletion, so remove the pattern
+    // tree before deleting the organization and its shift definitions.
+    await db.delete(schedulePatterns).where(eq(schedulePatterns.organizationId, org.id));
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
 });
