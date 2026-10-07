@@ -3472,6 +3472,8 @@ export const automationRules = pgTable(
     conditions: jsonb("conditions").notNull().default({}),
     actions: jsonb("actions").notNull().default([]),
     active: boolean("active").notNull().default(true),
+    publishedVersion: integer("published_version").notNull().default(1),
+    draftVersion: integer("draft_version"),
     createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
