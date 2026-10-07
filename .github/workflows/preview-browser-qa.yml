@@ -144,30 +144,39 @@ jobs:
             check(response && response.ok(), `${name}: homepage did not return 2xx`);
 
             const h1 = (await page.locator("h1").first().innerText()).trim();
-            check(h1.includes("Philippine payroll you can verify before you pay."), `${name}: expected Linaw payroll hero heading not found; saw "${h1}"`);
-            const heroPrimary = page.locator(".hero-primary-cta");
-            check((await heroPrimary.count()) === 1, `${name}: hero primary CTA is missing`);
+            const normalizedH1 = h1.replace(/\s+/g, " ");
+            check(normalizedH1.includes("People, payroll and compliance made clear."), name + ": integrated Linaw hero is missing: " + h1);
+            const heroPrimary = page.locator('#top a[href="/book-demo"]').first();
+            check((await heroPrimary.count()) === 1, name + ": request-demo hero CTA is missing");
             const heroPrimaryStyles = await heroPrimary.evaluate((el) => {
               const style = getComputedStyle(el);
               return { color: style.color, backgroundColor: style.backgroundColor };
             });
-            check(heroPrimaryStyles.color === "rgb(255, 255, 255)", `${name}: hero primary CTA text lost white contrast; saw ${heroPrimaryStyles.color}`);
-            check(heroPrimaryStyles.backgroundColor !== "rgba(0, 0, 0, 0)" && heroPrimaryStyles.backgroundColor !== "rgb(255, 255, 255)", `${name}: hero primary CTA background lost contrast; saw ${heroPrimaryStyles.backgroundColor}`);
+            check(heroPrimaryStyles.color === "rgb(255, 255, 255)", name + ": hero CTA must retain white text");
+            check(heroPrimaryStyles.backgroundColor !== "rgba(0, 0, 0, 0)" && heroPrimaryStyles.backgroundColor !== "rgb(255, 255, 255)", name + ": hero CTA must be filled");
+            for (const section of ["solutions", "payroll", "wfm", "hcm", "outsourcing", "compliance", "demo", "pricing"]) {
+              check((await page.locator("#" + section).count()) === 1, name + ": missing homepage section #" + section);
+            }
+            check((await page.getByText("Illustrative · sample data").count()) === 1, name + ": sample hero data needs a visible disclaimer");
             if (name === "desktop") {
               const primaryNav = page.getByRole("navigation", { name: "Primary" });
-              check((await primaryNav.getByRole("link", { name: "Live demo", exact: true }).getAttribute("href")) === "/demo", "desktop: primary nav does not expose role-based demo");
-              check((await primaryNav.getByRole("link", { name: "Payroll outsourcing", exact: true }).getAttribute("href")) === "/payroll-outsourcing", "desktop: primary nav does not expose payroll outsourcing");
-              check((await primaryNav.getByRole("link", { name: "Trust", exact: true }).getAttribute("href")) === "/trust", "desktop: primary nav does not expose trust center");
-              check((await primaryNav.getByRole("link", { name: "Pricing", exact: true }).getAttribute("href")) === "/pricing", "desktop: primary nav does not expose dedicated pricing page");
+              for (const [label, target] of [
+                ["Payroll", "/#payroll"], ["Workforce Management", "/workforce-management"],
+                ["HCM", "/hcm"], ["Outsourcing", "/payroll-outsourcing"], ["Pricing", "/pricing"]
+              ]) {
+                check((await primaryNav.getByRole("link", { name: label, exact: true }).getAttribute("href")) === target, "desktop: navigation link " + label + " does not lead to " + target);
+              }
             } else {
               const menu = page.getByRole("button", { name: "Open menu" });
-              check((await menu.count()) === 1, "mobile-390: menu button is missing");
+              check((await menu.count()) === 1, name + ": mobile menu is missing");
               await menu.click();
               const mobileHeader = page.getByRole("banner");
-              check((await mobileHeader.getByRole("link", { name: "Live demo", exact: true }).getAttribute("href")) === "/demo", "mobile-390: menu does not expose role-based demo");
-              check((await mobileHeader.getByRole("link", { name: "Payroll outsourcing", exact: true }).getAttribute("href")) === "/payroll-outsourcing", "mobile-390: menu does not expose payroll outsourcing");
-              check((await mobileHeader.getByRole("link", { name: "Trust", exact: true }).getAttribute("href")) === "/trust", "mobile-390: menu does not expose trust center");
-              check((await mobileHeader.getByRole("link", { name: "Pricing", exact: true }).getAttribute("href")) === "/pricing", "mobile-390: menu does not expose dedicated pricing page");
+              for (const [label, target] of [
+                ["Payroll", "/#payroll"], ["Workforce Management", "/workforce-management"],
+                ["HCM", "/hcm"], ["Outsourcing", "/payroll-outsourcing"], ["Pricing", "/pricing"]
+              ]) {
+                check((await mobileHeader.getByRole("link", { name: label, exact: true }).getAttribute("href")) === target, name + ": mobile nav link " + label + " does not lead to " + target);
+              }
               await page.getByRole("button", { name: "Close menu" }).click();
             }
 
@@ -204,11 +213,15 @@ jobs:
 
             if (name === "desktop") {
               const hero = page.locator("#top");
-              check((await hero.locator(".payroll-hero-control-card").count()) === 1, "desktop: release-readiness proof card is missing");
-              check((await hero.getByRole("heading", { name: "Can I safely release this payroll?" }).count()) === 1, "desktop: release-readiness question is missing");
+              check((await hero.getByTestId("payroll-hero-preview").count()) === 1, "desktop: sample payroll preview is missing");
+              check((await hero.getByText("Review before release").count()) === 1, "desktop: sample release control is missing");
               check((await hero.locator(".payroll-hero-owl").count()) === 0, "desktop: homepage mascot must stay removed");
-              check((await hero.locator(".payroll-hero-speech").count()) === 0, "desktop: mascot speech bubble must stay removed");
-              check((await hero.locator(".payroll-home-trust li").count()) === 3, "desktop: hero trust list must expose three proof points");
+              for (const proof of ["Philippine-focused", "Built for teams", "Payroll-connected"]) {
+                check((await hero.getByText(proof).count()) === 1, "desktop: missing hero context " + proof);
+              }
+              check((await page.locator('#solutions a[href="/workforce-management"]').count()) === 1, "desktop: WFM card must link to its page");
+              check((await page.locator('#solutions a[href="/hcm"]').count()) === 1, "desktop: HCM card must link to its page");
+              check((await page.locator('#solutions a[href="/payroll-outsourcing"]').count()) === 1, "desktop: outsourcing card must link to its page");
 
               const demo = page.locator("#demo");
               check((await demo.count()) === 1, "desktop: live demo section is missing");
@@ -255,28 +268,22 @@ jobs:
               check(migrationStyles.columns !== "none", "desktop: Migration preview has no grid columns");
               check(migrationStyles.scrollWidth <= migrationStyles.width + 1, `desktop: Migration preview overflows ${migrationStyles.scrollWidth}px > ${migrationStyles.width}px`);
               check((await demo.getByRole("link", { name: /Open role-based sandbox/i }).count()) === 1, "desktop: role-based sandbox handoff is missing");
-              report.modules.push({ module: "Release-readiness hero", active: true });
+              report.modules.push({ module: "Illustrative payroll hero", active: true });
               report.modules.push({ module: "Shared Linaw workspace preview", active: true });
             }
 
             if (name === "mobile-390") {
               const normalizedHeading = h1.replace(/\s+/g, " ");
-              check(
-                normalizedHeading.includes("Philippine payroll you can verify before you pay."),
-                `mobile-390: hero words collided after responsive line-break removal; saw "${normalizedHeading}"`,
-              );
-
+              check(normalizedHeading.includes("People, payroll and compliance made clear."), "mobile-390: hero heading collided: " + normalizedHeading);
               const mobileHero = page.locator("#top");
-              const mobileControlCard = mobileHero.locator(".payroll-hero-control-card").first();
-              check((await mobileControlCard.count()) === 1, "mobile-390: release-readiness proof card is missing");
+              const mobileControlCard = mobileHero.getByTestId("payroll-hero-preview");
+              check((await mobileControlCard.count()) === 1, "mobile-390: sample payroll preview is missing");
               const controlFit = await mobileControlCard.evaluate((element) => ({
                 clientWidth: element.clientWidth,
                 scrollWidth: element.scrollWidth,
               }));
-              check(
-                controlFit.scrollWidth <= controlFit.clientWidth + 1,
-                `mobile-390: release-readiness card clips ${controlFit.scrollWidth}px > ${controlFit.clientWidth}px`,
-              );
+              check(controlFit.scrollWidth <= controlFit.clientWidth + 1, "mobile-390: payroll preview is clipped");
+
               const securityProof = page.locator("#security article").first();
               const securityHeading = securityProof.getByRole("heading", { name: "One workspace can never read another's payroll." });
               const securityCopy = securityProof.locator("p").filter({ hasText: "Every session route passes one shared membership gate." }).first();
@@ -288,20 +295,14 @@ jobs:
               );
 
               const closingCta = page.locator("#cta");
-              const trialCta = closingCta.locator('a[href="/signup"]').first();
-              check((await trialCta.count()) === 1, "mobile-390: trial access CTA is missing");
-              const trialCtaStyles = await trialCta.evaluate((element) => ({
+              const requestDemo = closingCta.locator('a[href="/book-demo"]').first();
+              check((await requestDemo.count()) === 1, "mobile-390: final demo CTA is missing");
+              const requestDemoStyles = await requestDemo.evaluate((element) => ({
                 color: getComputedStyle(element).color,
                 backgroundColor: getComputedStyle(element).backgroundColor,
               }));
-              check(
-                trialCtaStyles.color === "rgb(17, 20, 31)",
-                `mobile-390: trial CTA text lost dark contrast on white; saw ${trialCtaStyles.color}`,
-              );
-              check(
-                trialCtaStyles.backgroundColor === "rgb(255, 255, 255)",
-                `mobile-390: trial CTA background is not white; saw ${trialCtaStyles.backgroundColor}`,
-              );
+              check(requestDemoStyles.color === "rgb(255, 255, 255)", "mobile-390: final CTA must retain readable white text");
+              check(requestDemoStyles.backgroundColor !== "rgba(0, 0, 0, 0)", "mobile-390: final CTA requires a filled background");
 
               await mobileHero.screenshot({ path: `${outDir}/homepage-mobile-390-hero.png` });
               await pricing.screenshot({ path: `${outDir}/homepage-mobile-390-pricing.png` });
@@ -340,7 +341,9 @@ jobs:
             const routes = [
               { path: "/demo", heading: "See Linaw from the seat you actually use." },
               { path: "/signup", heading: "Request access to a Linaw trial workspace." },
-              { path: "/payroll-outsourcing", heading: "Payroll outsourcing in the Philippines, without losing control." },
+              { path: "/payroll-outsourcing", heading: "Payroll processing handled. Your approvals stay yours." },
+              { path: "/workforce-management", heading: "From shifts to payroll, without the blind spots." },
+              { path: "/hcm", heading: "Know your people. Keep every change connected." },
               { path: "/small-business-payroll", heading: "A clearer payroll process for Philippine small businesses." },
               { path: "/resources", heading: "Practical guidance for buying, migrating and operating Philippine payroll." },
               { path: "/industries", heading: "Payroll workflows shaped by how your workforce actually operates." },
@@ -1009,6 +1012,7 @@ jobs:
             const browser = await chromium.launch({ headless: true });
             try {
               await qaHomepage(browser, "desktop", { width: 1440, height: 1000 });
+              await qaHomepage(browser, "tablet-768", { width: 768, height: 1024 });
               await qaHomepage(browser, "mobile-390", { width: 390, height: 844 });
               await qaPublicRoutes(browser);
 
