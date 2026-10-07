@@ -444,13 +444,45 @@ export async function POST(request: Request) {
 
     const versions = await listAutomationRuleVersions(organizationId);
     const draft = versions.find((version) => version.ruleId === ruleId && version.status === "draft");
-    const draftActions = draft ? normalizeAutomationActions(draft.actions) : null;
-    if (draft && !draftActions) {
-      return Response.json({ error: "Draft actions are invalid and cannot be published." }, { status: 409 });
+    if (!draft) {
+      return Response.json({ error: "This workflow has no saved draft to publish." }, { status: 409 });
     }
-    if (draftActions) {
-      const connectorError = await validateConnectorActions(organizationId, draftActions);
-      if (connectorError) return Response.json({ error: connectorError }, { status: 409 });
+    const draftTrigger = draft.trigger as AutomationTrigger;
+    const draftActions = normalizeAutomationActions(draft.actions);
+    if (
+      !(AUTOMATION_TRIGGERS as readonly string[]).includes(draftTrigger)
+      || !validAutomationConditions(draft.conditions)
+      || !draftActions
+    ) {
+      return Response.json({ error: "Draft definition is invalid and cannot be published." }, { status: 409 });
+    }
+    const connectorError = await validateConnectorActions(organizationId, draftActions);
+    if (connectorError) return Response.json({ error: connectorError }, { status: 409 });
+
+    const previewEvents = await db.select().from(automationEventLog).where(and(
+      eq(automationEventLog.organizationId, organizationId),
+      eq(automationEventLog.trigger, draftTrigger),
+    )).orderBy(desc(automationEventLog.occurredAt), desc(automationEventLog.id)).limit(200);
+    const impactPreview = simulateAutomationImpact({
+      trigger: draftTrigger,
+      conditions: draft.conditions,
+      actions: draftActions,
+      events: previewEvents.map((row) => ({
+        employeeId: row.employeeId,
+        eventKey: row.eventKey,
+        source: row.source,
+        context: row.context && typeof row.context === "object" && !Array.isArray(row.context)
+          ? row.context as Record<string, unknown>
+          : {},
+        occurredAt: row.occurredAt,
+      })),
+    });
+    if (impactPreview.definitionError || impactPreview.authoritativePolicyBlocks > 0) {
+      return Response.json({
+        error: impactPreview.definitionError
+          ?? "Impact Preview found authoritative events that would hit policy blocks. Resolve them before publishing.",
+        impactPreview,
+      }, { status: 409 });
     }
 
     try {
@@ -469,6 +501,16 @@ export async function POST(request: Request) {
           publishedVersion: result.published.version,
           trigger: result.rule.trigger,
           active: result.rule.active,
+          impactPreview: {
+            eventsEvaluated: impactPreview.eventsEvaluated,
+            matchedEvents: impactPreview.matchedEvents,
+            skippedEvents: impactPreview.skippedEvents,
+            authoritativeEvents: impactPreview.authoritativeEvents,
+            legacyBackfillEvents: impactPreview.legacyBackfillEvents,
+            projectedSteps: impactPreview.projectedSteps,
+            policyBlocks: impactPreview.policyBlocks,
+            projectedPayrollAdjustmentAbsoluteAmount: impactPreview.projectedPayrollAdjustmentAbsoluteAmount,
+          },
         },
       });
       return Response.json(result);
