@@ -58,6 +58,8 @@ type ReviewItem = {
   jobProfileId: number | null;
   skillId: number | null;
   expectedProficiency: number | null;
+  expectationSource: "profile" | "family" | "level" | "family_level" | null;
+  expectationRuleId: number | null;
   required: boolean;
   weight: string;
   selfScore: string | null;
@@ -460,7 +462,7 @@ export function PerformanceGovernancePanel({
                   <div className="leave-request" key={item.id}>
                     <div style={{ flex: 1 }}>
                       <strong>{template?.name ?? "Review item #" + item.id}</strong>
-                      <span>{(template?.type?.toUpperCase() ?? "ITEM") + " · " + item.weight + "% weight" + (item.required ? " · required" : "") + (item.expectedProficiency ? " · job expectation ≥" + item.expectedProficiency + "/5" : "")}</span>
+                      <span>{(template?.type?.toUpperCase() ?? "ITEM") + " · " + item.weight + "% weight" + (item.required ? " · required" : "") + (item.expectedProficiency ? " · job expectation ≥" + item.expectedProficiency + "/5" : "") + (item.expectationSource ? " · " + item.expectationSource.replaceAll("_", " ") : "")}</span>
                       {item.expectedProficiency && item.finalScore && (
                         <span>{"Proficiency gap: " + (Number(item.finalScore) - item.expectedProficiency).toFixed(1) + " vs role expectation"}</span>
                       )}
