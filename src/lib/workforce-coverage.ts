@@ -389,3 +389,103 @@ export function simulateBestFitCoverage(input: {
     requirementsStillAtRisk,
   };
 }
+
+
+export type RosterReadinessSignal = {
+  code:
+    | "coverage_critical"
+    | "coverage_high"
+    | "pending_recovery"
+    | "blocking_guardrail"
+    | "role_evidence"
+    | "capability_evidence"
+    | "absence_evidence"
+    | "site_evidence";
+  level: "blocker" | "warning";
+  count: number;
+  message: string;
+};
+
+export type RosterPublishReadiness = {
+  status: "ready" | "warning" | "blocked";
+  blockerCount: number;
+  warningCount: number;
+  signals: RosterReadinessSignal[];
+};
+
+export function buildRosterPublishReadiness(input: {
+  coverageRisk: Array<{ level: "low" | "medium" | "high" | "critical" }>;
+  pendingRecoveryClaims: number;
+  blockingGuardrailIssues: number;
+  roleEvidenceIssues: number;
+  capabilityEvidenceIssues: number;
+  absenceEvidenceIssues: number;
+  siteEvidenceIssues: number;
+}): RosterPublishReadiness {
+  const signals: RosterReadinessSignal[] = [];
+  const criticalCoverage = input.coverageRisk.filter((row) => row.level === "critical").length;
+  const highCoverage = input.coverageRisk.filter((row) => row.level === "high").length;
+
+  if (criticalCoverage > 0) {
+    signals.push({
+      code: "coverage_critical",
+      level: "blocker",
+      count: criticalCoverage,
+      message: `${criticalCoverage} staffing requirement(s) have uncovered demand with no governed eligible recovery candidate.`,
+    });
+  }
+  if (highCoverage > 0) {
+    signals.push({
+      code: "coverage_high",
+      level: "warning",
+      count: highCoverage,
+      message: `${highCoverage} staffing requirement(s) have a recovery bench smaller than the remaining gap.`,
+    });
+  }
+  if (input.pendingRecoveryClaims > 0) {
+    signals.push({
+      code: "pending_recovery",
+      level: "warning",
+      count: input.pendingRecoveryClaims,
+      message: `${input.pendingRecoveryClaims} recovery claim(s) still need a manager decision.`,
+    });
+  }
+  if (input.blockingGuardrailIssues > 0) {
+    signals.push({
+      code: "blocking_guardrail",
+      level: "blocker",
+      count: input.blockingGuardrailIssues,
+      message: `${input.blockingGuardrailIssues} blocking schedule guardrail issue(s) remain unresolved.`,
+    });
+  }
+
+  const evidence: Array<[RosterReadinessSignal["code"], number, string]> = [
+    ["role_evidence", input.roleEvidenceIssues, "job-profile evidence"],
+    ["capability_evidence", input.capabilityEvidenceIssues, "skills/credential evidence"],
+    ["absence_evidence", input.absenceEvidenceIssues, "leave/absence evidence"],
+    ["site_evidence", input.siteEvidenceIssues, "worksite eligibility evidence"],
+  ];
+  for (const [code, count, label] of evidence) {
+    if (count <= 0) continue;
+    signals.push({
+      code,
+      level: code === "role_evidence" ? "blocker" : "warning",
+      count,
+      message: `${count} ${label} issue(s) need review before the roster is treated as final.`,
+    });
+  }
+
+  const blockerCount = signals
+    .filter((signal) => signal.level === "blocker")
+    .reduce((sum, signal) => sum + signal.count, 0);
+  const warningCount = signals
+    .filter((signal) => signal.level === "warning")
+    .reduce((sum, signal) => sum + signal.count, 0);
+
+  return {
+    status: blockerCount > 0 ? "blocked" : warningCount > 0 ? "warning" : "ready",
+    blockerCount,
+    warningCount,
+    signals,
+  };
+}
