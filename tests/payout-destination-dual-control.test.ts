@@ -191,6 +191,13 @@ test("employee API routes payout changes into dual control only when treasury se
   assert.ok(employeesRoute.includes("employee-payout-destination-change"));
 });
 
+test("treasury separation cannot be disabled while payout destination approvals remain pending", () => {
+  const route = read("src/app/api/treasury-controls/route.ts");
+  assert.ok(route.includes("employeePayoutChangeRequests"));
+  assert.ok(route.includes("Resolve pending payout destination change requests before disabling treasury separation."));
+  assert.ok(route.includes('eq(employeePayoutChangeRequests.status, "pending")'));
+});
+
 test("payout change decisions require assigned treasury authority, MFA and maker-checker evidence", () => {
   const route = read("src/app/api/payout-destination-changes/[id]/route.ts");
   const treasury = read("src/lib/treasury-controls.ts");
