@@ -483,10 +483,13 @@ export async function POST(request: Request) {
         eq(performanceReviews.cycleId, cycleId),
       ));
       for (const review of openReviews) {
+        const structure = await reviewStructureForEmployee(organizationId, review.employeeId, cycleId);
+        const item = structure.items.find((candidate) => candidate.templateId === templateId);
+        if (!item) continue;
         await db.insert(performanceReviewItems).values({
           organizationId,
           reviewId: review.id,
-          templateId,
+          ...item,
         }).onConflictDoNothing();
       }
 
@@ -607,6 +610,15 @@ export async function POST(request: Request) {
     if (!cycle) return Response.json({ error: "Performance cycle not found in this workspace." }, { status: 404 });
     if (cycle.status === "completed") return Response.json({ error: "Completed cycles cannot accept new reviews." }, { status: 409 });
 
+    const structure = await reviewStructureForEmployee(organizationId, employeeId, cycleId);
+    if (structure.missingMandatorySkills.length) {
+      return Response.json({
+        error: "This employee's active job profile has mandatory skills that are not represented by competency templates attached to this review cycle.",
+        missingMandatorySkills: structure.missingMandatorySkills,
+        jobProfileId: structure.jobProfileId,
+      }, { status: 409 });
+    }
+
     try {
       const [row] = await db.insert(performanceReviews).values({
         organizationId,
@@ -616,15 +628,11 @@ export async function POST(request: Request) {
         status: "in_progress",
       }).returning();
 
-      const links = await db.select().from(performanceCycleTemplates).where(and(
-        eq(performanceCycleTemplates.organizationId, organizationId),
-        eq(performanceCycleTemplates.cycleId, cycleId),
-      ));
-      if (links.length) {
-        await db.insert(performanceReviewItems).values(links.map((link) => ({
+      if (structure.items.length) {
+        await db.insert(performanceReviewItems).values(structure.items.map((item) => ({
           organizationId,
           reviewId: row.id,
-          templateId: link.templateId,
+          ...item,
         })));
       }
 
@@ -633,7 +641,14 @@ export async function POST(request: Request) {
         actor: user.name,
         action: "Performance review opened",
         resource: `Employee #${employeeId}`,
-        metadata: { reviewId: row.id, cycleId, employeeId, structuredItems: links.length },
+        metadata: {
+          reviewId: row.id,
+          cycleId,
+          employeeId,
+          jobProfileId: structure.jobProfileId,
+          structuredItems: structure.items.length,
+          jobCompetencyItems: structure.items.filter((item) => item.skillId != null).length,
+        },
       });
 
       return Response.json(row, { status: 201 });
@@ -783,19 +798,12 @@ export async function PATCH(request: Request) {
         return Response.json({ error: "This cycle requires the employee self-assessment before manager completion." }, { status: 409 });
       }
 
-      const [links, items] = await Promise.all([
-        db.select().from(performanceCycleTemplates).where(and(
-          eq(performanceCycleTemplates.organizationId, existing.organizationId),
-          eq(performanceCycleTemplates.cycleId, existing.cycleId),
-        )),
-        db.select().from(performanceReviewItems).where(and(
-          eq(performanceReviewItems.organizationId, existing.organizationId),
-          eq(performanceReviewItems.reviewId, id),
-        )),
-      ]);
-      for (const link of links.filter((row) => row.required)) {
-        const item = items.find((row) => row.templateId === link.templateId);
-        if (!item?.managerScore || !item?.finalScore) {
+      const items = await db.select().from(performanceReviewItems).where(and(
+        eq(performanceReviewItems.organizationId, existing.organizationId),
+        eq(performanceReviewItems.reviewId, id),
+      ));
+      for (const item of items.filter((row) => row.required)) {
+        if (!item.managerScore || !item.finalScore) {
           return Response.json({ error: "Score every required competency/KRA item before completing the review." }, { status: 409 });
         }
         if (cycle.requireSelfAssessment && !item.selfScore) {
