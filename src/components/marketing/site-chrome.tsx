@@ -8,7 +8,7 @@ import { PUBLIC_FOOTER_GROUPS, PUBLIC_PRIMARY_LINKS } from "./public-navigation"
 
 export function BrandMark({ size = 32 }: { size?: number }) {
   return (
-    <span className="flex shrink-0 items-center justify-center" style={{ width:size, height:size }} aria-hidden="true">
+    <span className="flex shrink-0 items-center justify-center [&_.linaw-mark]:block [&_.linaw-mark]:h-full [&_.linaw-mark]:w-full" style={{ width:size, height:size }} aria-hidden="true">
       <LinawMark />
     </span>
   );
