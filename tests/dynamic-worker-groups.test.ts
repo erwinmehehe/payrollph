@@ -49,6 +49,10 @@ test("dynamic groups support ANY membership and array overlap", () => {
     { field: "validCredentialCodes", operator: "in", value: ["rn-license"] },
     context,
   ), true);
+  assert.equal(dynamicGroupClauseMatches(
+    { field: "validCredentialCodes", operator: "eq", value: "rn-license" },
+    context,
+  ), true);
 });
 
 test("dynamic group definitions reject unknown fields and empty populations", () => {
@@ -78,9 +82,12 @@ test("dynamic groups are versioned, governed and snapshotted into automation con
   assert.ok(api.includes("requireSensitiveActionMfa"));
   assert.ok(api.includes("Dynamic worker group updated"));
   assert.ok(api.includes("previewDynamicWorkerGroup"));
+  assert.ok(api.includes("Disable dependent Automation Studio workflows"));
+  assert.ok(api.includes("activeAutomationDependencyCount"));
   assert.ok(automation.includes("dynamicGroupMemberships: memberships"));
   assert.ok(automation.includes('value: "dynamicGroupCodes"'));
   assert.ok(panel.includes("DYNAMIC GROUPS · SUPERGROUPS"));
   assert.ok(panel.includes("LIVE MEMBERSHIP"));
   assert.ok(studio.includes("<DynamicWorkerGroupsPanel"));
+  assert.ok(studio.includes("Select a live group"));
 });
