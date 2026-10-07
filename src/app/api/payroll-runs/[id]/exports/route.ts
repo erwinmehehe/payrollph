@@ -492,6 +492,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         batchId: result.batchId,
         provider: result.provider,
         transferCount: result.transfers.length,
+        expectedAmountCents: Math.round(Number(run.netPay) * 100),
         transferStatuses: result.transfers.map((transfer) => transfer.status),
         transfers: result.transfers,
         completedAt,
