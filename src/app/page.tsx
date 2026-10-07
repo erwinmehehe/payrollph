@@ -1,6 +1,7 @@
 import "@/components/marketing/claude-home/home.css";
 import "@/components/marketing/claude-home/workspace-parity.css";
 import "@/components/marketing/claude-home/app-product-preview.css";
+import "@/components/marketing/claude-home/cinematic-hero.css";
 import type { Metadata } from "next";
 import { SoftwareHome } from "@/components/marketing/software-home";
 import { HOMEPAGE_FAQS } from "@/components/marketing/homepage-faqs";
