@@ -5,7 +5,7 @@ import { BarChart3, CheckCircle2, Flag, Plus, RefreshCw, Target, Trophy } from "
 import { PerformanceGovernancePanel } from "@/components/performance-governance-panel";
 
 type Employee = { id: number; firstName: string; lastName: string; title: string; orgUnitId: number | null; status: string };
-type Cycle = { id: number; name: string; startDate: string; endDate: string; status: string; requireSelfAssessment: boolean; requireManagerSummary: boolean };
+type Cycle = { id: number; name: string; startDate: string; endDate: string; status: string; requireSelfAssessment: boolean; requireManagerSummary: boolean; requireCalibration: boolean };
 type Goal = { id: number; employeeId: number; cycleId: number | null; title: string; description: string | null; weight: string; progress: number; status: string; dueDate: string | null };
 type Review = { id: number; employeeId: number; cycleId: number; status: string; selfScore: string | null; employeeReflection: string | null; managerScore: string | null; finalScore: string | null; managerSummary: string | null };
 
@@ -18,7 +18,7 @@ export function PerformancePanel({ organizationId, setNotice }: { organizationId
   const [showCycle, setShowCycle] = useState(false);
   const [showGoal, setShowGoal] = useState(false);
   const [showReview, setShowReview] = useState(false);
-  const [cycleForm, setCycleForm] = useState({ name: "", startDate: "", endDate: "", requireSelfAssessment: true, requireManagerSummary: true });
+  const [cycleForm, setCycleForm] = useState({ name: "", startDate: "", endDate: "", requireSelfAssessment: true, requireManagerSummary: true, requireCalibration: false });
   const [goalForm, setGoalForm] = useState({ employeeId: "", cycleId: "", title: "", description: "", weight: "25", dueDate: "" });
   const [reviewForm, setReviewForm] = useState({ employeeId: "", cycleId: "", managerScore: "3", managerSummary: "" });
 
@@ -70,7 +70,7 @@ export function PerformancePanel({ organizationId, setNotice }: { organizationId
     try {
       await post({ entityType: "cycle", ...cycleForm });
       setShowCycle(false);
-      setCycleForm({ name: "", startDate: "", endDate: "", requireSelfAssessment: true, requireManagerSummary: true });
+      setCycleForm({ name: "", startDate: "", endDate: "", requireSelfAssessment: true, requireManagerSummary: true, requireCalibration: false });
       await load();
       setNotice("Performance cycle created.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create cycle."); }
@@ -154,6 +154,7 @@ export function PerformancePanel({ organizationId, setNotice }: { organizationId
               <label>End date<input required type="date" value={cycleForm.endDate} onChange={(e) => setCycleForm({ ...cycleForm, endDate: e.target.value })} /></label>
               <label><input type="checkbox" checked={cycleForm.requireSelfAssessment} onChange={(e) => setCycleForm({ ...cycleForm, requireSelfAssessment: e.target.checked })} /> Require employee self-assessment</label>
               <label><input type="checkbox" checked={cycleForm.requireManagerSummary} onChange={(e) => setCycleForm({ ...cycleForm, requireManagerSummary: e.target.checked })} /> Require manager narrative</label>
+              <label><input type="checkbox" checked={cycleForm.requireCalibration} onChange={(e) => setCycleForm({ ...cycleForm, requireCalibration: e.target.checked })} /> Require HR calibration before cycle close</label>
             </div>
             <div className="run-actions"><button type="button" className="secondary-button" onClick={() => setShowCycle(false)}>Cancel</button><button className="primary-button">Create cycle</button></div>
           </form>

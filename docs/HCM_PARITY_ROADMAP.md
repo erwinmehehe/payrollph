@@ -1,6 +1,6 @@
 # Linaw HCM parity roadmap
 
-Updated: 2026-10-05
+Updated: 2026-10-07
 
 ## Product direction
 
@@ -29,24 +29,34 @@ Public product research used for the roadmap:
 
 ## Tranche 1 — Performance foundation
 
-Status: implemented on `feat/hcm-performance-foundation`.
+Status: expanded through employee self-assessment, structured performance governance and calibration.
 
+Built:
 - Performance cycles
 - Employee goals with weight, due date, progress and status
 - Formal manager reviews with 1–5 scoring and narrative
+- Employee self-assessment and reflection in self-service
+- Company -> team -> employee goal hierarchy with governed parent alignment
+- Reusable competency/KRA templates with cycle-specific weighting and required-item rules
+- Structured employee and manager ratings/comments per competency/KRA
+- Review-completion controls for required self-assessment, manager narrative and structured evidence
+- Review-structure freeze after the first completed review
+- Company-wide People-admin calibration sessions after manager review completion
+- Written rationale required for changed calibrated ratings
+- Optional required calibration before cycle closure
+- Finalized calibration updates only the performance final rating
+- Performance data remains explicitly separated from compensation actions
 - Tenant and org-unit scoping
 - Audit events
-- Workspace page for HR/managers
+- Workspace page for HR/managers plus employee self-service
 - Migration + baseline schema + regression tests
 
 Next improvements inside this module:
-- Employee self-assessment
-- Goal hierarchy / cascading company -> team -> employee
-- Competency/KRA templates
-- Calibration sessions
 - Continuous feedback / 1:1 notes
-- Review reminders and completion analytics
-- Explicit separation between performance data and compensation decisions
+- Review reminders and due-date automation
+- Completion/distribution analytics by manager and org unit
+- Competency libraries linked more deeply to job-profile skill requirements
+- Calibration distribution views and outlier analytics
 
 ## Tranche 2 — Job architecture and position control
 

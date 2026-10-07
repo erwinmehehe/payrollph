@@ -4,6 +4,7 @@ import {
   employees,
   jobProfiles,
   orgUnits,
+  performanceCalibrationSessions,
   performanceCycleTemplates,
   performanceCycles,
   performanceGoals,
@@ -82,15 +83,22 @@ async function assertGoalAccess(userId: number, goal: typeof performanceGoals.$i
   return scopedEmployee(userId, goal.organizationId, goal.employeeId);
 }
 
-async function cycleCompletionReadiness(organizationId: number, cycleId: number) {
-  const [reviews, cycleLinks] = await Promise.all([
+async function cycleCompletionReadiness(
+  organizationId: number,
+  cycle: typeof performanceCycles.$inferSelect,
+) {
+  const [reviews, cycleLinks, calibrationSessions] = await Promise.all([
     db.select().from(performanceReviews).where(and(
       eq(performanceReviews.organizationId, organizationId),
-      eq(performanceReviews.cycleId, cycleId),
+      eq(performanceReviews.cycleId, cycle.id),
     )),
     db.select().from(performanceCycleTemplates).where(and(
       eq(performanceCycleTemplates.organizationId, organizationId),
-      eq(performanceCycleTemplates.cycleId, cycleId),
+      eq(performanceCycleTemplates.cycleId, cycle.id),
+    )),
+    db.select().from(performanceCalibrationSessions).where(and(
+      eq(performanceCalibrationSessions.organizationId, organizationId),
+      eq(performanceCalibrationSessions.cycleId, cycle.id),
     )),
   ]);
 
@@ -110,6 +118,8 @@ async function cycleCompletionReadiness(organizationId: number, cycleId: number)
       return !item?.managerScore || !item?.finalScore;
     }),
   );
+  const calibrationFinalized = calibrationSessions.some((session) => session.status === "finalized");
+  const calibrationRequiredAndOpen = (cycle.requireCalibration || calibrationSessions.length > 0) && !calibrationFinalized;
 
   return {
     totalReviews: reviews.length,
@@ -117,11 +127,15 @@ async function cycleCompletionReadiness(organizationId: number, cycleId: number)
     openReviews: openReviews.length,
     missingFinalRatings: missingFinalRatings.length,
     missingRequiredItems: missingRequiredItems.length,
+    calibrationRequired: cycle.requireCalibration,
+    calibrationFinalized,
+    calibrationRequiredAndOpen,
     ready:
       reviews.length > 0 &&
       openReviews.length === 0 &&
       missingFinalRatings.length === 0 &&
-      missingRequiredItems.length === 0,
+      missingRequiredItems.length === 0 &&
+      !calibrationRequiredAndOpen,
   };
 }
 
@@ -195,7 +209,7 @@ export async function GET(request: Request) {
   const visibleUnits = access.companyWide ? units : units.filter((unit) => unit.id === access.orgUnitId);
 
   const readiness = Object.fromEntries(
-    await Promise.all(cycles.map(async (cycle) => [cycle.id, await cycleCompletionReadiness(organizationId, cycle.id)])),
+    await Promise.all(cycles.map(async (cycle) => [cycle.id, await cycleCompletionReadiness(organizationId, cycle)])),
   );
 
   return Response.json({
@@ -263,6 +277,7 @@ export async function POST(request: Request) {
       status: "active",
       requireSelfAssessment: body.requireSelfAssessment === true,
       requireManagerSummary: body.requireManagerSummary !== false,
+      requireCalibration: body.requireCalibration === true,
       createdByUserId: user.id,
       createdBy: user.name,
     }).returning();
@@ -278,6 +293,7 @@ export async function POST(request: Request) {
         endDate,
         requireSelfAssessment: row.requireSelfAssessment,
         requireManagerSummary: row.requireManagerSummary,
+        requireCalibration: row.requireCalibration,
       },
     });
 
@@ -741,10 +757,10 @@ export async function PATCH(request: Request) {
     }
     if (cycle.status === "completed") return Response.json(cycle);
 
-    const readiness = await cycleCompletionReadiness(cycle.organizationId, id);
+    const readiness = await cycleCompletionReadiness(cycle.organizationId, cycle);
     if (!readiness.ready) {
       return Response.json({
-        error: "The cycle cannot close until every review is completed with final ratings and all required structured items are scored.",
+        error: "The cycle cannot close until every review is complete, required structured evidence is scored, and any required calibration is finalized.",
         readiness,
       }, { status: 409 });
     }

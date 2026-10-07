@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Flag, Plus, Target, Trophy } from "lucide-react";
+import { PerformanceCalibrationPanel } from "@/components/performance-calibration-panel";
 
 type Employee = { id: number; firstName: string; lastName: string; title: string; orgUnitId: number | null };
 type OrgUnit = { id: number; name: string; type: string };
@@ -11,6 +12,7 @@ type Cycle = {
   status: string;
   requireSelfAssessment: boolean;
   requireManagerSummary: boolean;
+  requireCalibration: boolean;
 };
 type Goal = {
   id: number;
@@ -80,6 +82,7 @@ export function PerformanceGovernancePanel({
   const [reviews, setReviews] = useState<Review[]>([]);
   const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
   const [readiness, setReadiness] = useState<Record<string, Readiness>>({});
+  const [canCalibrate, setCanCalibrate] = useState(false);
 
   const [showGoal, setShowGoal] = useState(false);
   const [showTemplate, setShowTemplate] = useState(false);
@@ -132,6 +135,7 @@ export function PerformanceGovernancePanel({
     setReviews(payload.reviews ?? []);
     setReviewItems(payload.reviewItems ?? []);
     setReadiness(payload.cycleReadiness ?? {});
+    setCanCalibrate(Boolean(payload.access?.companyWide && ["owner", "admin", "bookkeeper", "hr"].includes(payload.access?.role)));
     setManagerScores(Object.fromEntries((payload.reviews ?? []).map((review: Review) => [
       review.id,
       review.managerScore ? String(Number(review.managerScore)) : "3",
@@ -488,7 +492,7 @@ export function PerformanceGovernancePanel({
               <div className="inline-icon purple"><CheckCircle2 size={15} /></div>
               <div style={{ flex: 1 }}>
                 <strong>{cycle.name}</strong>
-                <span>{cycle.status + " · self-assessment " + (cycle.requireSelfAssessment ? "required" : "optional") + " · manager narrative " + (cycle.requireManagerSummary ? "required" : "optional")}</span>
+                <span>{cycle.status + " · self-assessment " + (cycle.requireSelfAssessment ? "required" : "optional") + " · manager narrative " + (cycle.requireManagerSummary ? "required" : "optional") + " · calibration " + (cycle.requireCalibration ? "required" : "optional")}</span>
                 {state && <span>{state.completedReviews + "/" + state.totalReviews + " reviews complete · " + state.missingRequiredItems + " missing structured evidence"}</span>}
               </div>
               {cycle.status !== "completed" && <button className={state?.ready ? "primary-button" : "secondary-button"} disabled={!state?.ready} onClick={() => void closeCycle(cycle)}>{state?.ready ? "Complete cycle" : "Not ready"}</button>}
@@ -497,6 +501,8 @@ export function PerformanceGovernancePanel({
           );
         })}
       </article>
+
+      {canCalibrate && <PerformanceCalibrationPanel organizationId={organizationId} setNotice={setNotice} />}
     </div>
   );
 }
