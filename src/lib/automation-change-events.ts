@@ -66,7 +66,7 @@ export function fieldChangeContext(change: AutomationFieldChange) {
           previousNumericValue,
           newNumericValue,
           changeAmount,
-          changePercent: Math.round((changePercent ?? 0) * 100) / 100,
+          ...(changePercent == null ? {} : { changePercent: Math.round(changePercent * 100) / 100 }),
         }
       : {}),
     ...(change.metadata ?? {}),
