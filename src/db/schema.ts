@@ -3101,7 +3101,7 @@ export const performanceOneOnOneActionItemEvents = pgTable(
   },
   (table) => [
     index("performance_one_on_one_action_item_events_item_idx").on(table.organizationId, table.actionItemId, table.createdAt),
-    check("performance_one_on_one_action_item_events_type_check", sql`${table.eventType} IN ('created','status_changed','reassigned','due_date_changed','visibility_changed','reopened','cancelled')`),
+    check("performance_one_on_one_action_item_events_type_check", sql`${table.eventType} IN ('created','updated','status_changed','reassigned','due_date_changed','visibility_changed','reopened','cancelled')`),
   ],
 );
 
