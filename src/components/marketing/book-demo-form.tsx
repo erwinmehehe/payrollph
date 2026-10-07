@@ -148,7 +148,7 @@ export function BookDemoForm({ variant = "demo" }: { variant?: "demo" | "contact
             onChange={set("notes")}
             placeholder="Example: semi-monthly payroll across two branches, BIR worksheets, and how approvals work when our approver is on leave."
           />
-          <small className="mt-2 block text-[11px] font-normal text-[#8B90AA]">Optional. Do not include passwords or employee personal data.</small>
+          <small className="mt-2 block text-[11px] font-normal text-[#8B90AA]">Optional. Use a company-level brief. Employee records, bank details, and payroll files belong in your signed-in workspace.</small>
         </label>
       </div>
 

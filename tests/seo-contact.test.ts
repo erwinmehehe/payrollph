@@ -31,19 +31,18 @@ test("contact page routes to implemented public workflows", () => {
 
 test("contact page does not invent phone, office, or support email details", () => {
   const page = read("src/app/contact/page.tsx");
-  assert.ok(page.includes("does not publish an unverified phone number"));
-  assert.ok(page.includes("physical office address"));
-  assert.ok(page.includes("public support email"));
+  assert.doesNotMatch(page, /\+63[\s()-]*\d{3}|\d{2}\s+[^<]+Street/);
   assert.ok(!page.includes("tel:"));
   assert.ok(!page.includes("mailto:"));
 });
 
-test("contact page warns against sending sensitive payroll data through public flows", () => {
+test("contact form keeps sensitive payroll data in the signed-in workspace", () => {
   const page = read("src/app/contact/page.tsx");
-  assert.ok(page.includes("Keep employee and payroll data out of public inquiry flows."));
-  assert.ok(page.includes("employee records"));
-  assert.ok(page.includes("bank details"));
-  assert.ok(page.includes("payroll files"));
+  const form = read("src/components/marketing/book-demo-form.tsx");
+  assert.ok(page.includes('<BookDemoForm variant="contact"'));
+  assert.ok(form.includes("company-level brief"));
+  assert.ok(form.includes("Employee records, bank details, and payroll files"));
+  assert.ok(form.includes("signed-in workspace"));
 });
 
 test("public footer links to Contact Linaw", () => {

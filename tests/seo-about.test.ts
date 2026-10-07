@@ -41,13 +41,12 @@ test("About page does not import unsupported JeonSoft history or client-count cl
   assert.equal(/leading payroll/i.test(page), false);
 });
 
-test("About page explicitly documents evidence boundaries", () => {
+test("About page directs buyers to evidence without inventing endorsements", () => {
   const page = read("src/app/about/page.tsx");
-  assert.ok(page.includes("What Linaw does not claim here."));
-  assert.ok(page.includes("company founding year"));
-  assert.ok(page.includes("historical client count"));
-  assert.ok(page.includes("independent certification"));
-  assert.ok(page.includes("government endorsement"));
+  assert.ok(page.includes("Review the controls behind the product."));
+  assert.ok(page.includes('"/methodology"'));
+  assert.ok(page.includes('"/trust"'));
+  assert.doesNotMatch(page, /government[- ]endorsed|ISO[- ]certified|SOC[- ]2[- ]certified/i);
 });
 
 test("About page links to evidence and evaluation surfaces", () => {
