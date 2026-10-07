@@ -2845,6 +2845,8 @@ export const performanceReviewItems = pgTable(
     jobProfileId: integer("job_profile_id").references((): AnyPgColumn => jobProfiles.id, { onDelete: "set null" }),
     skillId: integer("skill_id").references((): AnyPgColumn => hcmSkills.id, { onDelete: "set null" }),
     expectedProficiency: integer("expected_proficiency"),
+    expectationSource: varchar("expectation_source", { length: 24 }),
+    expectationRuleId: integer("expectation_rule_id").references((): AnyPgColumn => hcmSkillExpectationDefaults.id, { onDelete: "set null" }),
     required: boolean("required").notNull().default(true),
     weight: numeric("weight", { precision: 5, scale: 2 }).notNull().default("0"),
     selfScore: numeric("self_score", { precision: 4, scale: 2 }),
@@ -2859,10 +2861,12 @@ export const performanceReviewItems = pgTable(
     uniqueIndex("performance_review_items_unique").on(table.reviewId, table.templateId),
     index("performance_review_items_org_review_idx").on(table.organizationId, table.reviewId),
     index("performance_review_items_skill_idx").on(table.organizationId, table.skillId, table.jobProfileId),
+    index("performance_review_items_expectation_rule_idx").on(table.organizationId, table.expectationRuleId),
     check("performance_review_items_self_score_check", sql`${table.selfScore} IS NULL OR (${table.selfScore} >= 1 AND ${table.selfScore} <= 5)`),
     check("performance_review_items_manager_score_check", sql`${table.managerScore} IS NULL OR (${table.managerScore} >= 1 AND ${table.managerScore} <= 5)`),
     check("performance_review_items_final_score_check", sql`${table.finalScore} IS NULL OR (${table.finalScore} >= 1 AND ${table.finalScore} <= 5)`),
     check("performance_review_items_expected_proficiency_check", sql`${table.expectedProficiency} IS NULL OR (${table.expectedProficiency} >= 1 AND ${table.expectedProficiency} <= 5)`),
+    check("performance_review_items_expectation_source_check", sql`${table.expectationSource} IS NULL OR ${table.expectationSource} IN (\'profile\',\'family\',\'level\',\'family_level\')`),
     check("performance_review_items_weight_check", sql`${table.weight} >= 0 AND ${table.weight} <= 100`),
   ],
 );
@@ -3022,6 +3026,25 @@ export const performanceOneOnOnes = pgTable(
     index("performance_one_on_ones_org_employee_idx").on(table.organizationId, table.employeeId, table.scheduledFor),
     index("performance_one_on_ones_manager_idx").on(table.organizationId, table.managerUserId, table.status, table.scheduledFor),
     check("performance_one_on_ones_status_check", sql`${table.status} IN ('scheduled','completed','cancelled')`),
+  ],
+);
+
+export const performanceOneOnOneAgendaContributions = pgTable(
+  "performance_one_on_one_agenda_contributions",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    oneOnOneId: integer("one_on_one_id").notNull().references(() => performanceOneOnOnes.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    authorUserId: integer("author_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    authorEmployeeId: integer("author_employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    authorName: varchar("author_name", { length: 120 }).notNull(),
+    content: text("content").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("performance_one_on_one_agenda_contributions_meeting_idx").on(table.organizationId, table.oneOnOneId, table.createdAt),
+    index("performance_one_on_one_agenda_contributions_employee_idx").on(table.organizationId, table.employeeId, table.createdAt),
   ],
 );
 
