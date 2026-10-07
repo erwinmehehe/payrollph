@@ -4,13 +4,12 @@ export type PublicLink = {
 };
 
 export const PUBLIC_PRIMARY_LINKS: PublicLink[] = [
-  { label: "Payroll", href: "/#payroll" },
-  { label: "Workforce Management", href: "/workforce-management" },
+  { label: "Platform", href: "/#solutions" },
+  { label: "Workforce", href: "/workforce-management" },
   { label: "HCM", href: "/hcm" },
   { label: "Outsourcing", href: "/payroll-outsourcing" },
   { label: "Pricing", href: "/pricing" },
   { label: "Live demo", href: "/demo" },
-  { label: "Trust", href: "/trust" },
 ];
 
 export const PUBLIC_FOOTER_GROUPS: Array<{ label: string; links: PublicLink[] }> = [
