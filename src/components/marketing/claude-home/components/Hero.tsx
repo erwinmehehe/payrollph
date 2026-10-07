@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, ChevronRight, ShieldCheck, UsersRound, CalendarDays } from "lucide-react";
+import { ArrowRight, ChevronRight, ShieldCheck, UsersRound, CalendarDays } from "lucide-react";
 import { AppProductPreview } from "./AppProductPreview";
 
 export default function Hero() {
