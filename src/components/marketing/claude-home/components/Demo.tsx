@@ -43,7 +43,17 @@ export default function Demo() {
               <p className="px-3 pb-3 pt-2 text-[10px] font-bold uppercase tracking-[.17em] text-[#91a1b5]">Workspaces</p>
               <div role="tablist" aria-label="Sample payroll roles" className="grid grid-cols-2 gap-2 lg:grid-cols-1">
                 {roles.map((role, index) => (
-                  <button key={role.id} type="button" id={"sample-role-" + role.id} role="tab" aria-controls="sample-role-panel" aria-selected={active === index} onClick={() => setActive(index)}
+                  <button key={role.id} type="button" id={"sample-role-" + role.id} role="tab" aria-controls="sample-role-panel" aria-selected={active === index} tabIndex={active === index ? 0 : -1} onClick={() => setActive(index)} onKeyDown={(event) => {
+                      let next = index;
+                      if (event.key === "ArrowDown" || event.key === "ArrowRight") next = (index + 1) % roles.length;
+                      else if (event.key === "ArrowUp" || event.key === "ArrowLeft") next = (index - 1 + roles.length) % roles.length;
+                      else if (event.key === "Home") next = 0;
+                      else if (event.key === "End") next = roles.length - 1;
+                      else return;
+                      event.preventDefault();
+                      setActive(next);
+                      event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
+                    }}
                     className={"flex min-h-[64px] items-center gap-2.5 rounded-xl border px-3 py-3 text-left transition-colors sm:px-4 " + (active === index ? "border-[#cbdff9] bg-[#edf5ff] text-[#155fc6]" : "border-transparent bg-white text-[#53677e] hover:border-[#e5ebf5] hover:bg-[#f5f9ff]")}>
                     <span className={"flex h-9 w-9 shrink-0 items-center justify-center rounded-lg " + (active === index ? "bg-[#dcecff]" : "bg-[#f1f4f9]")}><role.icon size={17} aria-hidden="true" /></span>
                     <span className="min-w-0"><span className="block text-[12px] font-bold leading-snug">{role.name}</span><span className="mt-0.5 block text-[10px] leading-snug opacity-75">{role.sub}</span></span>
