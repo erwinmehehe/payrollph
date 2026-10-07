@@ -4,6 +4,7 @@ import { statutoryRemittanceMonthClosures } from "@/db/schema";
 
 export async function invalidateStatutoryRemittanceMonthCertification(input: {
   organizationId: number;
+  legalEntityId: number;
   applicableMonth: string;
   reason: string;
 }) {
@@ -23,6 +24,7 @@ export async function invalidateStatutoryRemittanceMonthCertification(input: {
     updatedAt: now,
   }).where(and(
     eq(statutoryRemittanceMonthClosures.organizationId, input.organizationId),
+    eq(statutoryRemittanceMonthClosures.legalEntityId, input.legalEntityId),
     eq(statutoryRemittanceMonthClosures.applicableMonth, input.applicableMonth),
     eq(statutoryRemittanceMonthClosures.status, "certified"),
   )).returning({

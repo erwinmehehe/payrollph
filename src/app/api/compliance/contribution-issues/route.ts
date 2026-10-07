@@ -18,6 +18,7 @@ import {
 } from "@/lib/statutory-contribution-case-resolution";
 import { invalidateStatutoryRemittanceMonthCertification } from "@/lib/statutory-remittance-certification";
 import { getSessionUser } from "@/lib/auth";
+import { resolveComplianceLegalEntity } from "@/lib/legal-entity";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -59,12 +60,25 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const organizationId = Number(url.searchParams.get("organizationId"));
+  const requestedLegalEntityId = Number(url.searchParams.get("legalEntityId") ?? 0);
   if (!Number.isInteger(organizationId)) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
   }
 
   const denied = await requirePayrollOperator(user.id, organizationId);
   if (denied) return denied;
+
+  let legalEntity;
+  try {
+    legalEntity = await resolveComplianceLegalEntity({
+      organizationId,
+      legalEntityId: requestedLegalEntityId || null,
+    });
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "Legal employer could not be resolved.",
+    }, { status: 409 });
+  }
 
   const rows = await db.select({
     issue: statutoryContributionIssueCases,
@@ -74,7 +88,10 @@ export async function GET(request: Request) {
   })
     .from(statutoryContributionIssueCases)
     .innerJoin(employees, eq(statutoryContributionIssueCases.employeeId, employees.id))
-    .where(eq(statutoryContributionIssueCases.organizationId, organizationId))
+    .where(and(
+      eq(statutoryContributionIssueCases.organizationId, organizationId),
+      eq(statutoryContributionIssueCases.legalEntityId, legalEntity.id),
+    ))
     .orderBy(
       asc(statutoryContributionIssueCases.status),
       desc(statutoryContributionIssueCases.createdAt),
@@ -98,6 +115,7 @@ export async function GET(request: Request) {
   }
 
   return Response.json({
+    legalEntity: { id: legalEntity.id, code: legalEntity.code, displayName: legalEntity.displayName },
     cases: rows.map((row) => ({
       ...row.issue,
       employeeNo: row.employeeNo,
@@ -324,6 +342,7 @@ export async function POST(request: Request) {
       }).from(statutoryRemittanceMembers).where(and(
         eq(statutoryRemittanceMembers.id, issue.remittanceMemberId),
         eq(statutoryRemittanceMembers.organizationId, organizationId),
+        eq(statutoryRemittanceMembers.legalEntityId, issue.legalEntityId),
         eq(statutoryRemittanceMembers.employeeId, issue.employeeId),
       )).limit(1);
       if (!member || member.postingStatus !== "confirmed") {
@@ -492,6 +511,7 @@ export async function POST(request: Request) {
 
     const invalidatedClosures = await invalidateStatutoryRemittanceMonthCertification({
       organizationId,
+      legalEntityId: issue.legalEntityId,
       applicableMonth: issue.applicableMonth,
       reason: `Employee contribution case #${issue.id} resolution changed certified month evidence.`,
     });

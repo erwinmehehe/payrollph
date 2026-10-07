@@ -180,6 +180,7 @@ export async function POST(request: Request) {
             employeeId: statutoryContributionIssueCases.employeeId,
           }).from(statutoryContributionIssueCases).where(and(
             eq(statutoryContributionIssueCases.organizationId, organizationId),
+            eq(statutoryContributionIssueCases.legalEntityId, batch.legalEntityId),
             eq(statutoryContributionIssueCases.agency, batch.agency),
             eq(statutoryContributionIssueCases.applicableMonth, batch.applicableMonth),
             eq(statutoryContributionIssueCases.issueType, "wrong_posted_amount"),
@@ -223,6 +224,7 @@ export async function POST(request: Request) {
 
           const [issue] = await tx.insert(statutoryContributionIssueCases).values({
             organizationId,
+            legalEntityId: batch.legalEntityId,
             employeeId: candidate.member.employeeId,
             batchId: batch.id,
             remittanceMemberId: candidate.member.id,
@@ -301,6 +303,7 @@ export async function POST(request: Request) {
 
         const invalidatedClosures = await invalidateStatutoryRemittanceMonthCertification({
           organizationId,
+          legalEntityId: batch.legalEntityId,
           applicableMonth: batch.applicableMonth,
           reason: `Agency posting import opened ${autoCaseIds.length} contribution mismatch case(s).`,
         });
