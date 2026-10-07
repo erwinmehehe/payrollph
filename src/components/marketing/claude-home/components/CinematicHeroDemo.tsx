@@ -67,12 +67,14 @@ export function CinematicHeroDemo() {
             <p>{current.copy}</p>
           </div>
 
-          <Link href="#demo" className="cinematic-demo-preview-link" aria-label={"Explore the full Linaw role demo from "+current.eyebrow.toLowerCase()+" scene"}>
+          <div className="cinematic-demo-preview-link" aria-label={"Interactive Linaw "+current.eyebrow.toLowerCase()+" scene"}>
             <div key={current.id} className="cinematic-demo-preview cinematic-demo-enter">
               <AppProductPreview role={current.role} compact/>
             </div>
-            <span className="cinematic-demo-click-hint"><MousePointer2 size={13} aria-hidden="true"/>Click to explore the full role demo</span>
-          </Link>
+            <Link href="#demo" className="cinematic-demo-click-hint">
+              <MousePointer2 size={13} aria-hidden="true"/>Explore the full role demo
+            </Link>
+          </div>
         </div>
 
         <div className="cinematic-demo-scenes" role="tablist" aria-label="Hero product scenes">
