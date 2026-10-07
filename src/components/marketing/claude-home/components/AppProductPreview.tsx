@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { LinawMark } from "@/components/linaw-mark";
 import { DEMO_ROLES, type DemoRoleId } from "@/lib/demo-roles";
 import { workspacePrimaryPagesForRole } from "@/lib/workspace-role-ui";
+import { NAVIGATION } from "@/components/workspace/nav";
 import {
   AlertCircle, ArrowRight, CalendarDays, Check, ChevronRight,
   ClipboardCheck, Clock3, FileText, Leaf, LockKeyhole, ShieldCheck,
@@ -35,12 +36,16 @@ export function AppProductPreview({ role, compact = false }: { role: DemoRoleId;
       <div className="linaw-app-preview-layout">
         <aside className="linaw-app-preview-rail" aria-label="Illustrative sidebar navigation">
           <div className="linaw-app-preview-role"><span className="linaw-app-preview-pulse" />{info?.shortLabel ?? role} workspace</div>
-          {nav.map((item, i) => (
-            <div key={item} className={"linaw-app-preview-nav " + (i === 0 ? "active" : "")}>
-              <span className="linaw-app-preview-nav-symbol" aria-hidden>{i === 0 ? "⌂" : String(i + 1)}</span>
-              <span>{label(item)}</span>
-            </div>
-          ))}
+          {nav.map((item, i) => {
+            const Icon = NAVIGATION.flatMap(group => group.items).find(link => link.name === item)?.icon ??
+              (item === "My pay" ? WalletCards : item === "Attendance" ? Clock3 : Leaf);
+            return (
+              <div key={item} className={"linaw-app-preview-nav " + (i === 0 ? "active" : "")}>
+                <span className="linaw-app-preview-nav-symbol" aria-hidden><Icon size={12} strokeWidth={2} /></span>
+                <span>{label(item)}</span>
+              </div>
+            );
+          })}
           <span className="linaw-app-preview-rail-label">EXAMPLE WORKSPACE</span>
         </aside>
         <div className="linaw-app-preview-content">
