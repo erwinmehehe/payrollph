@@ -1,6 +1,14 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, performanceCycles, performanceGoals, performanceReviews } from "@/db/schema";
+import {
+  employees,
+  performanceCycleTemplates,
+  performanceCycles,
+  performanceGoals,
+  performanceReviewItems,
+  performanceReviews,
+  performanceTemplates,
+} from "@/db/schema";
 import { assertMembership } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
@@ -36,7 +44,7 @@ export async function GET() {
   const context = await selfContext();
   if ("error" in context) return context.error;
 
-  const [reviews, goals, cycles] = await Promise.all([
+  const [reviews, goals, cycles, allItems, templates, cycleTemplates] = await Promise.all([
     db.select().from(performanceReviews)
       .where(and(
         eq(performanceReviews.organizationId, context.employee.organizationId),
@@ -52,11 +60,30 @@ export async function GET() {
     db.select().from(performanceCycles)
       .where(eq(performanceCycles.organizationId, context.employee.organizationId))
       .orderBy(desc(performanceCycles.startDate)),
+    db.select().from(performanceReviewItems)
+      .where(eq(performanceReviewItems.organizationId, context.employee.organizationId)),
+    db.select().from(performanceTemplates)
+      .where(eq(performanceTemplates.organizationId, context.employee.organizationId)),
+    db.select().from(performanceCycleTemplates)
+      .where(eq(performanceCycleTemplates.organizationId, context.employee.organizationId)),
   ]);
 
   const cycleById = new Map(cycles.map((cycle) => [cycle.id, cycle]));
+  const templateById = new Map(templates.map((template) => [template.id, template]));
+  const linkByKey = new Map(cycleTemplates.map((link) => [`${link.cycleId}:${link.templateId}`, link]));
+
   return Response.json({
-    reviews: reviews.map((review) => ({ ...review, cycle: cycleById.get(review.cycleId) ?? null })),
+    reviews: reviews.map((review) => ({
+      ...review,
+      cycle: cycleById.get(review.cycleId) ?? null,
+      items: allItems
+        .filter((item) => item.reviewId === review.id)
+        .map((item) => ({
+          ...item,
+          template: templateById.get(item.templateId) ?? null,
+          cycleTemplate: linkByKey.get(`${review.cycleId}:${item.templateId}`) ?? null,
+        })),
+    })),
     goals,
   });
 }
@@ -72,6 +99,7 @@ export async function PATCH(request: Request) {
   const reviewId = Number(body.reviewId);
   const selfScore = score(body.selfScore);
   const employeeReflection = String(body.employeeReflection ?? "").trim().slice(0, 8000);
+  const submittedItems = Array.isArray(body.items) ? body.items : [];
 
   if (!Number.isInteger(reviewId)) {
     return Response.json({ error: "A valid reviewId is required." }, { status: 400 });
@@ -105,6 +133,53 @@ export async function PATCH(request: Request) {
     return Response.json({ error: "This review is already completed and the self-assessment is locked." }, { status: 409 });
   }
 
+  const [cycle] = await db.select().from(performanceCycles).where(and(
+    eq(performanceCycles.id, existing.cycleId),
+    eq(performanceCycles.organizationId, context.employee.organizationId),
+  )).limit(1);
+  if (!cycle) return Response.json({ error: "Performance cycle not found." }, { status: 404 });
+  if (cycle.status === "completed") {
+    return Response.json({ error: "This performance cycle is completed and locked." }, { status: 409 });
+  }
+
+  const items = await db.select().from(performanceReviewItems).where(and(
+    eq(performanceReviewItems.organizationId, context.employee.organizationId),
+    eq(performanceReviewItems.reviewId, reviewId),
+  ));
+  const itemIds = new Set(items.map((item) => item.id));
+  const normalizedItems: Array<{ id: number; selfScore: string; employeeComment: string | null }> = [];
+
+  for (const raw of submittedItems) {
+    const candidate = raw as Record<string, unknown>;
+    const id = Number(candidate.id);
+    const itemScore = score(candidate.selfScore);
+    if (!Number.isInteger(id) || !itemIds.has(id)) {
+      return Response.json({ error: "A submitted competency/KRA item does not belong to this review." }, { status: 400 });
+    }
+    if (itemScore === null) {
+      return Response.json({ error: "Competency/KRA self-ratings must be from 1.00 to 5.00." }, { status: 400 });
+    }
+    normalizedItems.push({
+      id,
+      selfScore: itemScore,
+      employeeComment: String(candidate.employeeComment ?? "").trim().slice(0, 4000) || null,
+    });
+  }
+
+  if (cycle.requireSelfAssessment && items.length) {
+    const links = await db.select().from(performanceCycleTemplates).where(and(
+      eq(performanceCycleTemplates.organizationId, context.employee.organizationId),
+      eq(performanceCycleTemplates.cycleId, existing.cycleId),
+    ));
+    const requiredTemplateIds = new Set(links.filter((link) => link.required).map((link) => link.templateId));
+    for (const item of items.filter((row) => requiredTemplateIds.has(row.templateId))) {
+      const submitted = normalizedItems.find((candidate) => candidate.id === item.id);
+      if (!submitted && !item.selfScore) {
+        return Response.json({ error: "Rate every required competency/KRA item before submitting this self-assessment." }, { status: 409 });
+      }
+    }
+  }
+
   const [row] = await db.update(performanceReviews)
     .set({
       selfScore,
@@ -113,6 +188,23 @@ export async function PATCH(request: Request) {
     })
     .where(eq(performanceReviews.id, reviewId))
     .returning();
+
+  if (normalizedItems.length) {
+    for (const item of normalizedItems) {
+      await db.update(performanceReviewItems).set({
+        selfScore: item.selfScore,
+        employeeComment: item.employeeComment,
+        updatedAt: new Date(),
+      }).where(and(
+        eq(performanceReviewItems.id, item.id),
+        eq(performanceReviewItems.reviewId, reviewId),
+      ));
+    }
+  }
+
+  const updatedItems = itemIds.size
+    ? await db.select().from(performanceReviewItems).where(inArray(performanceReviewItems.id, [...itemIds]))
+    : [];
 
   await recordAuditEvent({
     organizationId: context.employee.organizationId,
@@ -124,8 +216,9 @@ export async function PATCH(request: Request) {
       cycleId: existing.cycleId,
       selfScore,
       reflectionLength: employeeReflection.length,
+      structuredItemCount: normalizedItems.length,
     },
   });
 
-  return Response.json(row);
+  return Response.json({ ...row, items: updatedItems });
 }

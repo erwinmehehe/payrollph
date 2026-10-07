@@ -20,6 +20,29 @@ type Cycle = {
   startDate: string;
   endDate: string;
   status: string;
+  requireSelfAssessment: boolean;
+  requireManagerSummary: boolean;
+};
+
+type ReviewItem = {
+  id: number;
+  templateId: number;
+  selfScore: string | null;
+  managerScore: string | null;
+  finalScore: string | null;
+  employeeComment: string | null;
+  managerComment: string | null;
+  template: {
+    id: number;
+    name: string;
+    code: string;
+    type: "competency" | "kra";
+    description: string | null;
+  } | null;
+  cycleTemplate: {
+    weight: string;
+    required: boolean;
+  } | null;
 };
 
 type Review = {
@@ -33,6 +56,7 @@ type Review = {
   managerSummary: string | null;
   completedAt: string | null;
   cycle: Cycle | null;
+  items: ReviewItem[];
 };
 
 export function HcmSelfPerformance() {
@@ -41,9 +65,24 @@ export function HcmSelfPerformance() {
   const [selectedReviewId, setSelectedReviewId] = useState<number | null>(null);
   const [selfScore, setSelfScore] = useState("3");
   const [reflection, setReflection] = useState("");
+  const [itemScores, setItemScores] = useState<Record<number, string>>({});
+  const [itemComments, setItemComments] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
+
+  function loadDraft(review: Review | undefined) {
+    setSelfScore(review?.selfScore ? String(Number(review.selfScore)) : "3");
+    setReflection(review?.employeeReflection ?? "");
+    setItemScores(Object.fromEntries((review?.items ?? []).map((item) => [
+      item.id,
+      item.selfScore ? String(Number(item.selfScore)) : "3",
+    ])));
+    setItemComments(Object.fromEntries((review?.items ?? []).map((item) => [
+      item.id,
+      item.employeeComment ?? "",
+    ])));
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -55,14 +94,13 @@ export function HcmSelfPerformance() {
         setNotice(payload.error ?? "Could not load performance reviews.");
         return;
       }
-      const nextReviews = payload.reviews ?? [];
+      const nextReviews: Review[] = payload.reviews ?? [];
       setReviews(nextReviews);
       setGoals(payload.goals ?? []);
-      const editable = nextReviews.find((review: Review) => review.status !== "completed");
+      const editable = nextReviews.find((review) => review.status !== "completed") ?? nextReviews[0];
       if (editable) {
         setSelectedReviewId(editable.id);
-        setSelfScore(editable.selfScore ? String(Number(editable.selfScore)) : "3");
-        setReflection(editable.employeeReflection ?? "");
+        loadDraft(editable);
       }
     } finally {
       setLoading(false);
@@ -86,8 +124,7 @@ export function HcmSelfPerformance() {
   function chooseReview(id: number) {
     const review = reviews.find((item) => item.id === id);
     setSelectedReviewId(id);
-    setSelfScore(review?.selfScore ? String(Number(review.selfScore)) : "3");
-    setReflection(review?.employeeReflection ?? "");
+    loadDraft(review);
     setNotice("");
   }
 
@@ -104,6 +141,11 @@ export function HcmSelfPerformance() {
           reviewId: activeReview.id,
           selfScore: Number(selfScore),
           employeeReflection: reflection,
+          items: activeReview.items.map((item) => ({
+            id: item.id,
+            selfScore: Number(itemScores[item.id] ?? 3),
+            employeeComment: itemComments[item.id] ?? "",
+          })),
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -111,7 +153,7 @@ export function HcmSelfPerformance() {
         setNotice(payload.error ?? "Could not submit your self-assessment.");
         return;
       }
-      setNotice("Self-assessment saved. Your manager will see it as input, but the final rating remains a separate manager decision.");
+      setNotice("Self-assessment saved. Your manager will see it as evidence, while the final rating remains a separate manager decision.");
       await load();
     } catch {
       setNotice("Could not submit your self-assessment because the server could not be reached.");
@@ -130,7 +172,7 @@ export function HcmSelfPerformance() {
         <div>
           <span className="card-kicker">PERFORMANCE</span>
           <h3>My goals and self-assessments</h3>
-          <p>Reflect on your own results before your manager completes the formal review.</p>
+          <p>Reflect on outcomes and structured competencies/KRAs before your manager completes the formal review.</p>
         </div>
         <button className="secondary-button" type="button" onClick={() => void load()}>
           <RefreshCw size={14} /> Refresh
@@ -141,7 +183,7 @@ export function HcmSelfPerformance() {
 
       {reviews.length === 0 ? (
         <div className="employee-empty-row">
-          No performance review has been opened for you yet. Your goals will still appear here once they are assigned.
+          No performance review has been opened for you yet. Your assigned goals will appear here when available.
         </div>
       ) : (
         <div className="employee-profile-grid" style={{ marginBottom: 16 }}>
@@ -170,6 +212,9 @@ export function HcmSelfPerformance() {
             <div>
               <span className="card-kicker">{activeReview.cycle?.name ?? "CURRENT REVIEW"}</span>
               <h3>{activeReview.status === "completed" ? "Review completed" : "Your self-assessment"}</h3>
+              {activeReview.cycle?.requireSelfAssessment && activeReview.status !== "completed" && (
+                <p>This cycle requires your self-assessment before the manager can complete the review.</p>
+              )}
             </div>
             <BadgeCheck size={18} />
           </div>
@@ -188,17 +233,72 @@ export function HcmSelfPerformance() {
           )}
 
           {activeReview.status === "completed" ? (
-            <div style={{ display: "grid", gap: 10 }}>
+            <div style={{ display: "grid", gap: 14 }}>
               <div><strong>Your reflection</strong><p>{activeReview.employeeReflection ?? "No reflection submitted."}</p></div>
-              <div><strong>Your score</strong><p>{activeReview.selfScore ? `${Number(activeReview.selfScore).toFixed(1)}/5` : "—"}</p></div>
+              <div><strong>Your overall score</strong><p>{activeReview.selfScore ? `${Number(activeReview.selfScore).toFixed(1)}/5` : "—"}</p></div>
+              {activeReview.items.map((item) => (
+                <div className="employee-leave-row" key={item.id}>
+                  <div>
+                    <strong>{item.template?.name ?? `Review item #${item.id}`}</strong>
+                    <span>{item.template?.type?.toUpperCase() ?? "ITEM"} · {item.cycleTemplate?.weight ?? "0"}% weight</span>
+                    {item.employeeComment && <span>Your note: {item.employeeComment}</span>}
+                    {item.managerComment && <span>Manager note: {item.managerComment}</span>}
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <strong>{item.selfScore ? `Self ${Number(item.selfScore).toFixed(1)}` : "Self —"}</strong>
+                    <span>{item.finalScore ? `Final ${Number(item.finalScore).toFixed(1)}` : "Final —"}</span>
+                  </div>
+                </div>
+              ))}
               <div><strong>Manager assessment</strong><p>{activeReview.managerSummary ?? "No manager summary recorded."}</p></div>
               <div><strong>Final rating</strong><p>{activeReview.finalScore ? `${Number(activeReview.finalScore).toFixed(1)}/5` : "—"}</p></div>
             </div>
           ) : (
             <form onSubmit={submit}>
+              {activeReview.items.length > 0 && (
+                <div style={{ display: "grid", gap: 12, marginBottom: 18 }}>
+                  {activeReview.items.map((item) => (
+                    <div className="employee-edit-card" key={item.id}>
+                      <div className="employee-list-card-head">
+                        <div>
+                          <span className="card-kicker">{item.template?.type?.toUpperCase() ?? "REVIEW ITEM"} · {item.cycleTemplate?.weight ?? "0"}% WEIGHT</span>
+                          <h3>{item.template?.name ?? `Review item #${item.id}`}</h3>
+                          {item.template?.description && <p>{item.template.description}</p>}
+                        </div>
+                        {item.cycleTemplate?.required && <span className="employee-status-pill warn">Required</span>}
+                      </div>
+                      <div className="employee-edit-fields">
+                        <label>
+                          Your rating
+                          <input
+                            required={Boolean(item.cycleTemplate?.required)}
+                            type="number"
+                            min="1"
+                            max="5"
+                            step="0.1"
+                            value={itemScores[item.id] ?? "3"}
+                            onChange={(event) => setItemScores((current) => ({ ...current, [item.id]: event.target.value }))}
+                          />
+                        </label>
+                        <label style={{ gridColumn: "1 / -1" }}>
+                          Evidence / comment
+                          <textarea
+                            rows={2}
+                            maxLength={4000}
+                            value={itemComments[item.id] ?? ""}
+                            onChange={(event) => setItemComments((current) => ({ ...current, [item.id]: event.target.value }))}
+                            placeholder="Add examples or evidence that support your rating."
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="employee-edit-fields">
                 <label>
-                  Self-assessment score
+                  Overall self-assessment score
                   <input
                     required
                     type="number"
@@ -210,7 +310,7 @@ export function HcmSelfPerformance() {
                   />
                 </label>
                 <label style={{ gridColumn: "1 / -1" }}>
-                  Reflection
+                  Overall reflection
                   <textarea
                     required
                     rows={5}
