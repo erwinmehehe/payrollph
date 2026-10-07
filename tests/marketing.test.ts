@@ -74,7 +74,7 @@ test("marketing previews reuse the current app's role and navigation contracts",
   assert.ok(home.includes("<Demo />"), "homepage must include product walkthrough");
   assert.ok(hero.includes("<CinematicHeroDemo />"), "hero must mount the cinematic product walkthrough");
   assert.ok(cinematic.includes("<AppProductPreview role={current.role} compact/>"), "cinematic scenes must reuse the current dashboard component");
-  assert.ok(cinematic.includes('href="/demo"'), "cinematic product frame must be clickable");
+  assert.ok(cinematic.includes('href="#demo"'), "cinematic product frame must click into the full homepage demo");
   assert.ok(cinematic.includes("SCENE_DURATION"), "cinematic walkthrough must auto-advance");
   assert.ok(demo.includes("<AppProductPreview role={role} />"), "role previews must share the exact marketing dashboard chrome");
   assert.ok(demo.includes('id="demo"'), "homepage must keep its anchor");
