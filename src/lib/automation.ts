@@ -806,6 +806,201 @@ function compileAutomationPlan(
   return plan;
 }
 
+
+export type AutomationImpactEvent = {
+  employeeId?: number | null;
+  eventKey: string;
+  source?: string | null;
+  context: Record<string, unknown>;
+  occurredAt?: Date | string | null;
+};
+
+export type AutomationImpactSample = {
+  eventKey: string;
+  employeeId: number | null;
+  source: string;
+  occurredAt: string | null;
+  matched: boolean;
+  reason: string;
+  projectedSteps: string[];
+  policyBlocks: string[];
+};
+
+export type AutomationImpactPreview = {
+  trigger: AutomationTrigger;
+  eventsEvaluated: number;
+  matchedEvents: number;
+  skippedEvents: number;
+  projectedSteps: number;
+  approvalSteps: number;
+  waitSteps: number;
+  policyBlocks: number;
+  projectedPayrollAdjustmentAmount: number;
+  projectedPayrollAdjustmentAbsoluteAmount: number;
+  actionCounts: Record<string, number>;
+  authoritativeEvents: number;
+  legacyBackfillEvents: number;
+  definitionError: string | null;
+  samples: AutomationImpactSample[];
+};
+
+function automationConditionReason(
+  conditions: LegacyRuleCondition | StudioConditions,
+  trigger: AutomationTrigger,
+  context: Record<string, unknown>,
+) {
+  if (conditionMatches(conditions, trigger, context)) return "IF conditions matched.";
+  if (validLifecycleConditions(conditions)) return "Legacy lifecycle IF conditions did not match.";
+
+  const failedAll = (conditions.all ?? [])
+    .filter((clause) => !conditionClauseMatches(clause, context))
+    .map((clause) => clause.field);
+  const any = conditions.any ?? [];
+  if (failedAll.length) {
+    return `IF did not match: ${[...new Set(failedAll)].join(", ")} failed.`;
+  }
+  if (any.length && !any.some((clause) => conditionClauseMatches(clause, context))) {
+    return `IF did not match: none of ANY conditions matched (${[...new Set(any.map((clause) => clause.field))].join(", ")}).`;
+  }
+  return "IF conditions did not match.";
+}
+
+function previewStepPolicyBlocks(input: {
+  step: RunnableAutomationStep;
+  employeeId?: number | null;
+  context: Record<string, unknown>;
+}) {
+  const step = input.step;
+  const blocks: string[] = [];
+  const employeeRequired = new Set([
+    "create_task",
+    "create_onboarding_checklist",
+    "assign_permission_set",
+    "assign_benefit",
+    "assign_schedule",
+    "generate_document",
+    "revoke_sessions",
+    "deactivate_access",
+  ]);
+  if (employeeRequired.has(step.type) && !input.employeeId) {
+    blocks.push(`${step.type} requires an employee-scoped event.`);
+  }
+
+  if (step.type === "send_email") {
+    if (step.recipient === "employee" && !String(input.context.employeeEmail ?? "").trim()) {
+      blocks.push("Employee email is unavailable.");
+    }
+    if (step.recipient === "manager" && !String(input.context.managerEmail ?? "").trim()) {
+      blocks.push("Manager email is unavailable.");
+    }
+  }
+
+  if (
+    (step.type === "approval_gate" || step.type === "request_approval" || step.type === "request_payroll_adjustment")
+    && String(step.approver ?? "").trim().toLowerCase() === "manager"
+    && !String(input.context.managerName ?? "").trim()
+  ) {
+    blocks.push("Manager-routed approval has no resolved manager.");
+  }
+
+  if (step.type === "assign_schedule") {
+    const date = step.effectiveDateSource === "event_effective_date"
+      ? String(input.context.effectiveDate ?? "")
+      : step.effectiveDateSource === "employee_start_date"
+        ? String(input.context.employeeStartDate ?? "")
+        : todayPh();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      blocks.push(`Schedule assignment cannot resolve ${step.effectiveDateSource.replaceAll("_", " ")}.`);
+    }
+  }
+
+  return blocks;
+}
+
+export function simulateAutomationImpact(input: {
+  trigger: AutomationTrigger;
+  conditions: LegacyRuleCondition | StudioConditions;
+  actions: AutomationWorkflowStep[];
+  events: AutomationImpactEvent[];
+  sampleLimit?: number;
+}): AutomationImpactPreview {
+  const definitionError = validateAutomationActionTrigger(input.trigger, input.actions);
+  const actionCounts: Record<string, number> = {};
+  let matchedEvents = 0;
+  let projectedSteps = 0;
+  let approvalSteps = 0;
+  let waitSteps = 0;
+  let policyBlocks = 0;
+  let projectedPayrollAdjustmentAmount = 0;
+  let projectedPayrollAdjustmentAbsoluteAmount = 0;
+  const samples: AutomationImpactSample[] = [];
+  const sampleLimit = Math.max(1, Math.min(25, input.sampleLimit ?? 12));
+
+  for (const event of input.events) {
+    const context = executionContextObject(event.context);
+    const matched = !definitionError && conditionMatches(input.conditions, input.trigger, context);
+    const plan = matched ? compileAutomationPlan(input.actions, input.trigger, context) : [];
+    const eventBlocks: string[] = [];
+
+    if (matched) {
+      matchedEvents += 1;
+      projectedSteps += plan.length;
+      for (const step of plan) {
+        actionCounts[step.type] = (actionCounts[step.type] ?? 0) + 1;
+        if (step.type === "approval_gate" || step.type === "request_approval" || step.type === "request_payroll_adjustment") {
+          approvalSteps += 1;
+        }
+        if (step.type === "wait") waitSteps += 1;
+        if (step.type === "request_payroll_adjustment") {
+          projectedPayrollAdjustmentAmount += step.amount;
+          projectedPayrollAdjustmentAbsoluteAmount += Math.abs(step.amount);
+        }
+        eventBlocks.push(...previewStepPolicyBlocks({
+          step,
+          employeeId: event.employeeId,
+          context,
+        }));
+      }
+      policyBlocks += eventBlocks.length;
+    }
+
+    if (samples.length < sampleLimit) {
+      samples.push({
+        eventKey: event.eventKey,
+        employeeId: event.employeeId ?? null,
+        source: String(event.source ?? "authoritative"),
+        occurredAt: event.occurredAt
+          ? new Date(event.occurredAt).toISOString()
+          : null,
+        matched,
+        reason: definitionError
+          ? `Definition blocked: ${definitionError}`
+          : automationConditionReason(input.conditions, input.trigger, context),
+        projectedSteps: plan.map((step) => step.type),
+        policyBlocks: eventBlocks,
+      });
+    }
+  }
+
+  return {
+    trigger: input.trigger,
+    eventsEvaluated: input.events.length,
+    matchedEvents,
+    skippedEvents: input.events.length - matchedEvents,
+    projectedSteps,
+    approvalSteps,
+    waitSteps,
+    policyBlocks,
+    projectedPayrollAdjustmentAmount: Math.round(projectedPayrollAdjustmentAmount * 100) / 100,
+    projectedPayrollAdjustmentAbsoluteAmount: Math.round(projectedPayrollAdjustmentAbsoluteAmount * 100) / 100,
+    actionCounts,
+    authoritativeEvents: input.events.filter((event) => event.source !== "execution_backfill").length,
+    legacyBackfillEvents: input.events.filter((event) => event.source === "execution_backfill").length,
+    definitionError,
+    samples,
+  };
+}
+
 function executionResultArray(value: unknown) {
   return Array.isArray(value)
     ? value.filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object" && !Array.isArray(row))
