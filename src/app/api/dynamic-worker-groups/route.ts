@@ -7,12 +7,12 @@ import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import {
   DYNAMIC_WORKER_GROUP_FIELDS,
+  DYNAMIC_WORKER_GROUP_OPERATORS,
   listDynamicWorkerGroups,
   normalizeDynamicGroupCode,
   previewDynamicWorkerGroup,
   validDynamicWorkerGroupConditions,
 } from "@/lib/dynamic-worker-groups";
-import { AUTOMATION_OPERATORS } from "@/lib/automation";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -96,7 +96,7 @@ export async function GET(request: Request) {
     groups,
     catalogs: {
       fields: DYNAMIC_WORKER_GROUP_FIELDS,
-      operators: AUTOMATION_OPERATORS,
+      operators: DYNAMIC_WORKER_GROUP_OPERATORS,
     },
   });
 }
