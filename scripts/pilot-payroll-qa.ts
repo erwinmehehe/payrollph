@@ -350,11 +350,26 @@ async function main() {
     eq(attendanceExceptionEvents.employeeId, created[0].id),
     eq(attendanceExceptionEvents.workDate, "2026-09-17"),
   ));
+  const earlyDepartureEvent = exceptionRowsBefore.find(
+    (item) => item.exceptionKind === "early_departure" && item.status === "open",
+  );
   assert.ok(
-    exceptionRowsBefore.some((item) => item.exceptionKind === "early_departure" && item.status === "open"),
+    earlyDepartureEvent?.id,
     "WFM attendance exception ledger did not persist the open early-departure exception.",
   );
-  (report.lifecycle as string[]).push("wfm-attendance-exception-detected");
+  assert.ok(earlyDepartureEvent.slaDueAt, "WFM attendance exception did not receive an SLA deadline.");
+
+  const assignedException = await expectOk(owner, "/api/workforce/attendance-exceptions", {
+    method: "POST",
+    json: {
+      organizationId,
+      eventId: earlyDepartureEvent.id,
+      action: "assign",
+    },
+  });
+  assert.equal(Number(assignedException.event?.ownerUserId), ownerUser.id);
+  assert.equal(assignedException.event?.ownerName, ownerUser.name);
+  (report.lifecycle as string[]).push("wfm-attendance-exception-owned-with-sla");
 
   const payroll = await login(payrollUser.email, credentials.payroll);
   const checker = await login(checkerUser.email, credentials.checker);
@@ -392,11 +407,28 @@ async function main() {
     eq(attendanceExceptionEvents.employeeId, created[0].id),
     eq(attendanceExceptionEvents.workDate, "2026-09-17"),
   ));
+  const resolvedException = exceptionRowsAfter.find(
+    (item) => item.id === earlyDepartureEvent.id && item.status === "resolved",
+  );
   assert.ok(
-    exceptionRowsAfter.some((item) => item.exceptionKind === "early_departure" && item.status === "resolved"),
+    resolvedException?.resolvedAt,
     "Approved attendance correction did not resolve the WFM exception ledger.",
   );
+
+  const resolutionEvidence = await expectOk(owner, "/api/workforce/attendance-exceptions", {
+    method: "POST",
+    json: {
+      organizationId,
+      eventId: earlyDepartureEvent.id,
+      action: "record_resolution",
+      resolutionNote: "Approved punch correction restored the scheduled 18:00 departure before payroll calculation.",
+    },
+  });
+  assert.equal(Number(resolutionEvidence.event?.resolvedByUserId), ownerUser.id);
+  assert.match(String(resolutionEvidence.event?.resolutionNote ?? ""), /restored the scheduled 18:00 departure/i);
+  assert.ok(resolutionEvidence.event?.resolutionRecordedAt);
   (report.lifecycle as string[]).push("wfm-attendance-correction-approved-four-eyes");
+  (report.lifecycle as string[]).push("wfm-attendance-resolution-evidence-recorded");
 
   const runPayload = await expectOk(payroll, "/api/payroll-runs", {
     method: "POST",
@@ -468,8 +500,12 @@ async function main() {
     overnightOverrideId,
     correctedPunchId: correctionPunch!.id,
     correctionRequestId,
+    attendanceExceptionEventId: earlyDepartureEvent.id,
     exceptionKind: "early_departure",
+    exceptionOwnerUserId: ownerUser.id,
+    exceptionSlaDueAt: earlyDepartureEvent.slaDueAt,
     exceptionResolved: true,
+    resolutionEvidenceRecorded: true,
     payrollTraceMode: "advanced-with-legacy-fallback",
     payableTimeMode: "calendar-segmented",
   };
@@ -548,7 +584,9 @@ async function main() {
     "Workforce schedule pattern created",
     "Employee workforce schedule assigned",
     "Employee schedule override created",
+    "Attendance exception assigned",
     "Attendance correction requested",
+    "Attendance exception resolution evidence recorded",
     "Attendance correction approved and applied",
     "Payroll submitted for review",
     "Approval approved",
