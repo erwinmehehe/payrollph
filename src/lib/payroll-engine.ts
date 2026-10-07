@@ -67,7 +67,7 @@ import {
 import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
 import { isSharedBenefitPoolEarningType, sharedBenefitPoolCutoffTreatment } from "@/lib/annualization";
 import { calculateBenefits, type EnrollmentInput } from "@/lib/benefits";
-import { benefitEnrollments, benefitPlans } from "@/db/schema";
+import { benefitDependents, benefitEnrollments, benefitPlans } from "@/db/schema";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 import {
   leaveRangeContainsDate,
@@ -697,11 +697,28 @@ async function processPayrollChunk(input: {
         eq(benefitEnrollments.organizationId, input.organizationId),
         eq(benefitEnrollments.status, "active"),
       ));
+  const activeEnrollmentIds = enrolments.map((row) => row.id);
+  const dependentRows = activeEnrollmentIds.length
+    ? await db.select().from(benefitDependents).where(and(
+        eq(benefitDependents.organizationId, input.organizationId),
+        eq(benefitDependents.status, "active"),
+        inArray(benefitDependents.enrollmentId, activeEnrollmentIds),
+      ))
+    : [];
+  const dependentContributionByEnrollment = new Map<number, number>();
+  for (const dependent of dependentRows) {
+    dependentContributionByEnrollment.set(
+      dependent.enrollmentId,
+      (dependentContributionByEnrollment.get(dependent.enrollmentId) ?? 0) + Number(dependent.monthlyContribution),
+    );
+  }
+
   const enrolmentsByEmployee = new Map<number, EnrollmentInput[]>();
   for (const enrolment of enrolments) {
     const plan = planById.get(enrolment.planId);
     if (!plan) continue;
     const list = enrolmentsByEmployee.get(enrolment.employeeId) ?? [];
+    const dependentContribution = dependentContributionByEnrollment.get(enrolment.id) ?? 0;
     list.push({
       plan: {
         id: plan.id,
@@ -711,7 +728,7 @@ async function processPayrollChunk(input: {
         employerShare: Number(plan.employerShare),
         cap: plan.cap == null ? null : Number(plan.cap),
       },
-      monthlyContribution: Number(enrolment.monthlyContribution),
+      monthlyContribution: Number(enrolment.monthlyContribution) + dependentContribution,
       active: true,
     });
     enrolmentsByEmployee.set(enrolment.employeeId, list);
