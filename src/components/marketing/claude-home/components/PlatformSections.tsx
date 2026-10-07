@@ -32,6 +32,13 @@ const solutions = [
   {name:"Human Capital Management",overline:"03 · HCM",href:"/hcm",copy:"Keep employee changes, roles and positions connected.",bullets:["Employee lifecycle","Workforce and position records"],icon:Users,tone:"bg-[#f0ebff] text-[#6a49dc]",panelTone:"bg-[#faf8ff]"},
   {name:"Payroll Outsourcing",overline:"04 · SERVICE",href:"/payroll-outsourcing",copy:"Get help processing payroll while your team retains approval.",bullets:["Managed payroll processing","Clear input and review handoffs"],icon:BriefcaseBusiness,tone:"bg-[#fff1df] text-[#b76c15]",panelTone:"bg-[#fffaf3]"},
 ];
+const solutionJourneys: Record<string, string[]> = {
+  Payroll: ["Inputs", "Review", "Payslips"],
+  "Workforce Management": ["Schedule", "Time", "Payroll"],
+  "Human Capital Management": ["Employee", "Changes", "Payroll"],
+  "Payroll Outsourcing": ["Inputs", "Approval", "Outputs"],
+};
+
 export function SolutionsGrid() {
   return <section id="solutions" className="scroll-mt-24 py-20 sm:py-24">
     <div className="mx-auto max-w-[1240px] px-5 sm:px-8">
@@ -49,10 +56,15 @@ export function SolutionsGrid() {
               <ul className="mt-4 space-y-2.5">{item.bullets.map(t=><li key={t} className="flex items-start gap-2 text-[12px] font-medium text-[#51627b]"><Check size={13} className="mt-0.5 shrink-0 text-[#149c66]"/>{t}</li>)}</ul>
               <Link href={item.href} className="mt-6 inline-flex items-center gap-2 text-[13px] font-bold text-[#176be9] hover:underline">Explore {item.name}<ArrowRight size={14} aria-hidden="true"/></Link>
             </div>
-            <div className={"relative h-[105px] border-t border-[#edf1f6] px-6 pt-4 "+item.panelTone}>
-              <div className="flex gap-2"><span className="h-2 w-14 rounded-full bg-[#c6d4e9]" /><span className="h-2 w-6 rounded-full bg-[#dbe5f0]"/></div>
-              <div className="mt-4 flex items-end gap-2.5">
-                {[44,69,50,79,59].map((h,i)=><span key={i} style={{height:h+"px"}} className="w-9 rounded-t-lg border border-[#dde8f5] bg-white shadow-sm"/>)}
+            <div className={"border-t border-[#edf1f6] px-5 py-4 "+item.panelTone}>
+              <p className="text-[9px] font-bold uppercase tracking-[.13em] text-[#8190a7]">Workflow at a glance</p>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {solutionJourneys[item.name].map((step,i)=>(
+                  <span key={step} className="inline-flex items-center gap-1.5">
+                    {i > 0 && <ChevronRight size={12} className="text-[#9db0c6]" aria-hidden="true" />}
+                    <span className="rounded-lg border border-[#e2eaf5] bg-white px-2 py-1 text-[10px] font-semibold text-[#47617d]">{step}</span>
+                  </span>
+                ))}
               </div>
             </div>
           </article>
