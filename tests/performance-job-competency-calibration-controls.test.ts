@@ -28,7 +28,7 @@ test("performance competencies map to HCM skills and freeze role expectations in
 test("mandatory job-profile skills must be represented in the review cycle before a review opens", () => {
   assert.ok(performanceRoute.includes("missingMandatorySkills"));
   assert.ok(performanceRoute.includes("mandatory skills that are not represented by competency templates attached to this review cycle"));
-  assert.ok(performanceRoute.includes('template.jobProfileId == null || template.jobProfileId === jobProfileId'));
+  assert.ok(performanceRoute.includes('row.template!.jobProfileId == null || row.template!.jobProfileId === jobProfileId'));
   assert.ok(performanceRoute.includes('template.type === "competency"'));
 });
 
@@ -56,7 +56,7 @@ test("calibration distribution policy is versioned and snapshotted per session",
   assert.ok(schema.includes("export const performanceCalibrationPolicies = pgTable("));
   assert.ok(calibrationRoute.includes("expectedVersion"));
   assert.ok(calibrationRoute.includes("policySnapshot: sessionPolicy"));
-  assert.ok(calibrationRoute.includes("Existing sessions"));
+  assert.ok(calibrationRoute.includes("policyVersion: sessionPolicy.version"));
   assert.ok(calibrationPanel.includes("Existing sessions keep their frozen policy snapshot."));
 });
 
