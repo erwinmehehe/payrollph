@@ -2,6 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employees,
+  hcmSkills,
   orgUnits,
   performanceCalibrationEntries,
   performanceCalibrationFlags,
@@ -62,7 +63,7 @@ export async function GET(request: Request) {
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
   const companyPeopleAdmin = access.companyWide && roleAllowed(access.role, PEOPLE_ADMIN_ROLES);
 
-  const [cycles, staff, units, memberships] = await Promise.all([
+  const [cycles, staff, units, memberships, skillCatalog] = await Promise.all([
     db.select().from(performanceCycles)
       .where(eq(performanceCycles.organizationId, organizationId))
       .orderBy(desc(performanceCycles.startDate)),
@@ -89,6 +90,14 @@ export async function GET(request: Request) {
         eq(userOrganizations.active, true),
         eq(users.active, true),
       )),
+    db.select({
+      id: hcmSkills.id,
+      code: hcmSkills.code,
+      name: hcmSkills.name,
+      category: hcmSkills.category,
+      active: hcmSkills.active,
+    }).from(hcmSkills)
+      .where(eq(hcmSkills.organizationId, organizationId)),
   ]);
 
   const cycle = Number.isInteger(requestedCycleId)
@@ -111,6 +120,7 @@ export async function GET(request: Request) {
       byOrgUnit: [],
       ratingDistribution: [],
       cycleTrends: [],
+      skillTrends: [],
       activity: { completedOneOnOnes: 0, feedbackEntries: 0 },
       calibration: null,
     });
@@ -331,6 +341,106 @@ export async function GET(request: Request) {
     };
   });
 
+  const completedCycleIdSet = new Set(trendCycles.map((item) => item.id));
+  const visibleReviewById = new Map(
+    visibleReviews
+      .filter((review) => review.status === "completed" && completedCycleIdSet.has(review.cycleId))
+      .map((review) => [review.id, review]),
+  );
+  const skillById = new Map(skillCatalog.map((skill) => [skill.id, skill]));
+  const skillItemGroups = new Map<number, typeof allReviewItems>();
+
+  for (const item of allReviewItems) {
+    if (item.skillId == null || item.finalScore == null) continue;
+    const review = visibleReviewById.get(item.reviewId);
+    if (!review) continue;
+    const group = skillItemGroups.get(item.skillId) ?? [];
+    group.push(item);
+    skillItemGroups.set(item.skillId, group);
+  }
+
+  const skillTrends = [...skillItemGroups.entries()].map(([skillId, items]) => {
+    const skill = skillById.get(skillId);
+    const points = trendCycles.flatMap((trendCycle) => {
+      const cycleReviewIds = new Set(
+        [...visibleReviewById.values()]
+          .filter((review) => review.cycleId === trendCycle.id)
+          .map((review) => review.id),
+      );
+      const cycleItems = items.filter((item) => cycleReviewIds.has(item.reviewId));
+      if (!cycleItems.length) return [];
+
+      const finalScores = cycleItems.map((item) => Number(item.finalScore)).filter(Number.isFinite);
+      const expectations = cycleItems
+        .map((item) => item.expectedProficiency == null ? null : Number(item.expectedProficiency))
+        .filter((value): value is number => value != null && Number.isFinite(value));
+      const below = cycleItems.filter((item) =>
+        item.expectedProficiency != null
+        && Number(item.finalScore) < Number(item.expectedProficiency)
+      );
+      const employeeIds = new Set(
+        cycleItems
+          .map((item) => visibleReviewById.get(item.reviewId)?.employeeId)
+          .filter((id): id is number => id != null),
+      );
+      const average = (values: number[]) => values.length
+        ? Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 100) / 100
+        : null;
+
+      return [{
+        cycleId: trendCycle.id,
+        cycleName: trendCycle.name,
+        endDate: trendCycle.endDate,
+        itemCount: cycleItems.length,
+        employeeCount: employeeIds.size,
+        averageFinalScore: average(finalScores),
+        averageExpectedProficiency: average(expectations),
+        belowExpectationCount: below.length,
+        belowExpectationRate: percentage(below.length, cycleItems.length),
+      }];
+    });
+
+    let consecutiveGapCycles = 0;
+    for (let index = points.length - 1; index >= 0; index -= 1) {
+      const point = points[index];
+      if (
+        point.averageFinalScore == null
+        || point.averageExpectedProficiency == null
+        || point.averageFinalScore >= point.averageExpectedProficiency
+      ) break;
+      consecutiveGapCycles += 1;
+    }
+
+    const latest = points.at(-1) ?? null;
+    const previous = points.length > 1 ? points.at(-2) ?? null : null;
+    return {
+      skillId,
+      code: skill?.code ?? "SKILL-" + skillId,
+      name: skill?.name ?? "Skill #" + skillId,
+      category: skill?.category ?? "Uncategorized",
+      active: skill?.active ?? false,
+      cycles: points,
+      latestAverageFinalScore: latest?.averageFinalScore ?? null,
+      latestAverageExpectedProficiency: latest?.averageExpectedProficiency ?? null,
+      latestBelowExpectationRate: latest?.belowExpectationRate ?? 0,
+      scoreDelta:
+        latest?.averageFinalScore != null && previous?.averageFinalScore != null
+          ? Math.round((latest.averageFinalScore - previous.averageFinalScore) * 100) / 100
+          : null,
+      gapRateDelta:
+        latest && previous
+          ? Math.round((latest.belowExpectationRate - previous.belowExpectationRate) * 10) / 10
+          : null,
+      consecutiveGapCycles,
+      persistentGap: consecutiveGapCycles >= 2,
+    };
+  }).sort((left, right) =>
+    Number(right.persistentGap) - Number(left.persistentGap)
+    || right.consecutiveGapCycles - left.consecutiveGapCycles
+    || right.latestBelowExpectationRate - left.latestBelowExpectationRate
+    || left.name.localeCompare(right.name)
+  );
+
   let calibration: null | {
     status: string;
     changedRatings: number;
@@ -381,6 +491,7 @@ export async function GET(request: Request) {
     byOrgUnit,
     ratingDistribution,
     cycleTrends,
+    skillTrends,
     activity: {
       completedOneOnOnes: meetings.length,
       feedbackEntries: feedback.length,
