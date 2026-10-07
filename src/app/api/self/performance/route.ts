@@ -4,7 +4,9 @@ import {
   employees,
   performanceCycleTemplates,
   performanceCycles,
+  performanceFeedback,
   performanceGoals,
+  performanceOneOnOnes,
   performanceReviewItems,
   performanceReviews,
   performanceTemplates,
@@ -44,7 +46,7 @@ export async function GET() {
   const context = await selfContext();
   if ("error" in context) return context.error;
 
-  const [reviews, goals, cycles, allItems, templates, cycleTemplates] = await Promise.all([
+  const [reviews, goals, cycles, allItems, templates, cycleTemplates, oneOnOnes, feedback] = await Promise.all([
     db.select().from(performanceReviews)
       .where(and(
         eq(performanceReviews.organizationId, context.employee.organizationId),
@@ -66,6 +68,35 @@ export async function GET() {
       .where(eq(performanceTemplates.organizationId, context.employee.organizationId)),
     db.select().from(performanceCycleTemplates)
       .where(eq(performanceCycleTemplates.organizationId, context.employee.organizationId)),
+    db.select({
+      id: performanceOneOnOnes.id,
+      scheduledFor: performanceOneOnOnes.scheduledFor,
+      status: performanceOneOnOnes.status,
+      agenda: performanceOneOnOnes.agenda,
+      sharedSummary: performanceOneOnOnes.sharedSummary,
+      completedAt: performanceOneOnOnes.completedAt,
+      cancelledAt: performanceOneOnOnes.cancelledAt,
+      createdByName: performanceOneOnOnes.createdByName,
+    }).from(performanceOneOnOnes)
+      .where(and(
+        eq(performanceOneOnOnes.organizationId, context.employee.organizationId),
+        eq(performanceOneOnOnes.employeeId, context.employee.id),
+      ))
+      .orderBy(desc(performanceOneOnOnes.scheduledFor)),
+    db.select({
+      id: performanceFeedback.id,
+      goalId: performanceFeedback.goalId,
+      authorName: performanceFeedback.authorName,
+      feedbackType: performanceFeedback.feedbackType,
+      content: performanceFeedback.content,
+      occurredAt: performanceFeedback.occurredAt,
+    }).from(performanceFeedback)
+      .where(and(
+        eq(performanceFeedback.organizationId, context.employee.organizationId),
+        eq(performanceFeedback.employeeId, context.employee.id),
+        eq(performanceFeedback.visibility, "employee_shared"),
+      ))
+      .orderBy(desc(performanceFeedback.occurredAt)),
   ]);
 
   const cycleById = new Map(cycles.map((cycle) => [cycle.id, cycle]));
@@ -85,6 +116,8 @@ export async function GET() {
         })),
     })),
     goals,
+    oneOnOnes,
+    feedback,
   });
 }
 
