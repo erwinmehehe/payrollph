@@ -7,12 +7,7 @@ import {
   automationRules,
   benefitEnrollments,
   benefitPlans,
-  employees,
-  jobProfiles,
-  orgUnits,
   permissionSets,
-  positionAssignments,
-  positions,
   provisioningTasks,
   scimIdentities,
   sessions,
@@ -26,6 +21,8 @@ import { assignEmployeeScheduleGoverned } from "@/lib/workforce-schedule-assignm
 import { generateAutomationEmployeeDocument } from "@/lib/automation-document-generation";
 import { createApprovalFromConfiguredChain } from "@/lib/approval-chains";
 import { deliverSlackAutomationMessage } from "@/lib/integration-connectors";
+import { loadWorkerAttributeContext } from "@/lib/worker-attribute-context";
+import { resolveWorkerDynamicGroups } from "@/lib/dynamic-worker-groups";
 import {
   getAutomationDocumentTemplate,
   type AutomationDocumentTrigger,
@@ -157,6 +154,7 @@ export const AUTOMATION_CONDITION_FIELDS = [
   { value: "contributionSource", label: "Contribution discrepancy source", kind: "string" },
   { value: "contributionSeverity", label: "Contribution discrepancy severity", kind: "string" },
   { value: "contributionCaseId", label: "Contribution case ID", kind: "number" },
+  { value: "dynamicGroupCodes", label: "Dynamic group code", kind: "string_array" },
 ] as const;
 
 export const AUTOMATION_OPERATORS = [
@@ -743,13 +741,33 @@ function conditionClauseMatches(clause: AutomationConditionClause, context: Reco
     const exists = actual !== undefined && actual !== null && actual !== "";
     return expected === false ? !exists : exists;
   }
-  if (clause.operator === "eq") return actual === expected || String(actual ?? "") === String(expected ?? "");
-  if (clause.operator === "neq") return !(actual === expected || String(actual ?? "") === String(expected ?? ""));
+  if (clause.operator === "eq") {
+    if (Array.isArray(actual)) {
+      return actual.some((item) => item === expected || String(item ?? "") === String(expected ?? ""));
+    }
+    return actual === expected || String(actual ?? "") === String(expected ?? "");
+  }
+  if (clause.operator === "neq") {
+    if (Array.isArray(actual)) {
+      return !actual.some((item) => item === expected || String(item ?? "") === String(expected ?? ""));
+    }
+    return !(actual === expected || String(actual ?? "") === String(expected ?? ""));
+  }
   if (clause.operator === "contains") {
-    return String(actual ?? "").toLowerCase().includes(String(expected ?? "").toLowerCase());
+    const needle = String(expected ?? "").toLowerCase();
+    if (Array.isArray(actual)) {
+      return actual.some((item) => String(item ?? "").toLowerCase().includes(needle));
+    }
+    return String(actual ?? "").toLowerCase().includes(needle);
   }
   if (clause.operator === "in") {
-    return Array.isArray(expected) && expected.some((item) => actual === item || String(actual ?? "") === String(item ?? ""));
+    if (!Array.isArray(expected)) return false;
+    if (Array.isArray(actual)) {
+      return actual.some((actualItem) =>
+        expected.some((item) => actualItem === item || String(actualItem ?? "") === String(item ?? ""))
+      );
+    }
+    return expected.some((item) => actual === item || String(actual ?? "") === String(item ?? ""));
   }
 
   const left = Number(actual);
@@ -1036,93 +1054,24 @@ async function enrichEmployeeContext(input: {
 }) {
   if (!input.employeeId) return { ...(input.context ?? {}) };
 
-  const [employee] = await db.select().from(employees).where(and(
-    eq(employees.id, input.employeeId),
-    eq(employees.organizationId, input.organizationId),
-  )).limit(1);
-  if (!employee) return { employeeId: input.employeeId, ...(input.context ?? {}) };
+  const worker = await loadWorkerAttributeContext({
+    organizationId: input.organizationId,
+    employeeId: input.employeeId,
+  });
+  if (!worker) return { employeeId: input.employeeId, ...(input.context ?? {}) };
 
-  const [assignment] = await db.select().from(positionAssignments).where(and(
-    eq(positionAssignments.organizationId, input.organizationId),
-    eq(positionAssignments.employeeId, employee.id),
-    isNull(positionAssignments.effectiveUntil),
-  )).limit(1);
-
-  const [unitRows, positionRows] = await Promise.all([
-    employee.orgUnitId
-      ? db.select({ id: orgUnits.id, name: orgUnits.name }).from(orgUnits).where(and(
-          eq(orgUnits.id, employee.orgUnitId),
-          eq(orgUnits.organizationId, input.organizationId),
-        )).limit(1)
-      : Promise.resolve([]),
-    assignment
-      ? db.select().from(positions).where(and(
-          eq(positions.id, assignment.positionId),
-          eq(positions.organizationId, input.organizationId),
-        )).limit(1)
-      : Promise.resolve([]),
-  ]);
-
-  const position = positionRows[0] ?? null;
-  const [profileRows, managerRows] = await Promise.all([
-    position
-      ? db.select({
-          id: jobProfiles.id,
-          title: jobProfiles.title,
-          family: jobProfiles.family,
-          level: jobProfiles.level,
-          grade: jobProfiles.grade,
-        }).from(jobProfiles).where(and(
-          eq(jobProfiles.id, position.jobProfileId),
-          eq(jobProfiles.organizationId, input.organizationId),
-        )).limit(1)
-      : Promise.resolve([]),
-    position?.managerEmployeeId
-      ? db.select({
-          id: employees.id,
-          firstName: employees.firstName,
-          lastName: employees.lastName,
-          email: employees.email,
-          title: employees.title,
-        }).from(employees).where(and(
-          eq(employees.id, position.managerEmployeeId),
-          eq(employees.organizationId, input.organizationId),
-        )).limit(1)
-      : Promise.resolve([]),
-  ]);
-
-  const profile = profileRows[0] ?? null;
-  const manager = managerRows[0] ?? null;
-  const start = Date.parse(String(employee.startDate) + "T00:00:00Z");
-  const today = Date.parse(todayPh() + "T00:00:00Z");
-  const tenureDays = Number.isFinite(start) ? Math.max(0, Math.floor((today - start) / 86_400_000)) : 0;
+  const memberships = await resolveWorkerDynamicGroups({
+    organizationId: input.organizationId,
+    context: worker,
+  });
 
   return {
-    employeeId: employee.id,
-    employeeNo: employee.employeeNo,
-    employeeName: `${employee.firstName} ${employee.lastName}`,
-    employeeEmail: employee.email,
-    employeeStatus: employee.status,
-    employeeStartDate: String(employee.startDate),
-    orgUnitId: employee.orgUnitId,
-    department: unitRows[0]?.name ?? null,
-    location: employee.region,
-    employmentType: employee.employmentType,
-    title: employee.title,
-    role: profile?.title ?? employee.title,
-    salary: Number(employee.basicRate),
-    legalEntityId: employee.legalEntityId,
-    tenureDays,
-    tenureYears: Math.round((tenureDays / 365.25) * 100) / 100,
-    positionId: position?.id ?? null,
-    positionCode: position?.code ?? null,
-    jobFamily: profile?.family ?? null,
-    jobLevel: profile?.level ?? null,
-    grade: profile?.grade ?? null,
-    managerEmployeeId: manager?.id ?? null,
-    managerName: manager ? `${manager.firstName} ${manager.lastName}` : null,
-    managerEmail: manager?.email ?? null,
+    ...worker,
     ...(input.context ?? {}),
+    dynamicGroupIds: memberships.map((group) => group.id),
+    dynamicGroupCodes: memberships.map((group) => group.code),
+    dynamicGroupNames: memberships.map((group) => group.name),
+    dynamicGroupMemberships: memberships,
   };
 }
 

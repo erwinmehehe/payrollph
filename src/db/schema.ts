@@ -4132,6 +4132,28 @@ export const employeePayoutChangeRequests = pgTable(
   ],
 );
 
+export const dynamicWorkerGroups = pgTable(
+  "dynamic_worker_groups",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    code: varchar("code", { length: 80 }).notNull(),
+    name: varchar("name", { length: 160 }).notNull(),
+    description: varchar("description", { length: 500 }),
+    conditions: jsonb("conditions").notNull().default({ version: 1, all: [], any: [] }),
+    version: integer("version").notNull().default(1),
+    active: boolean("active").notNull().default(true),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdByName: varchar("created_by_name", { length: 120 }).notNull().default("System"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("dynamic_worker_groups_org_code_unique").on(table.organizationId, table.code),
+    index("dynamic_worker_groups_org_active_idx").on(table.organizationId, table.active, table.name),
+  ],
+);
+
 export const automationRules = pgTable(
   "automation_rules",
   {
