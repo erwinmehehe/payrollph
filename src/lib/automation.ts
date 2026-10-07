@@ -21,6 +21,7 @@ import {
 } from "@/db/schema";
 import { queueMessage } from "@/lib/mailer";
 import { dispatchWebhook } from "@/lib/webhooks";
+import { assignEmployeeScheduleGoverned } from "@/lib/workforce-schedule-assignment";
 
 export const AUTOMATION_TRIGGERS = [
   "employee.hired",
@@ -238,6 +239,14 @@ type AssignBenefitAction = {
   monthlyContribution?: number;
 };
 
+type AssignScheduleAction = {
+  type: "assign_schedule";
+  patternId: number;
+  effectiveDateSource: "event_effective_date" | "employee_start_date" | "today";
+  offsetDays?: number;
+  reason: string;
+};
+
 type RevokeSessionsAction = {
   type: "revoke_sessions";
 };
@@ -286,6 +295,7 @@ export type AutomationAction =
   | SendEmailAction
   | AssignPermissionSetAction
   | AssignBenefitAction
+  | AssignScheduleAction
   | RevokeSessionsAction
   | DeactivateAccessAction
   | WebhookAction
@@ -308,6 +318,7 @@ export const AUTOMATION_ACTION_CATALOG = [
   { value: "send_email", label: "Send email / notification", category: "Communication" },
   { value: "assign_permission_set", label: "Assign access policy", category: "Access" },
   { value: "assign_benefit", label: "Assign benefit", category: "Benefits" },
+  { value: "assign_schedule", label: "Assign schedule pattern", category: "Workforce" },
   { value: "revoke_sessions", label: "Revoke active sessions", category: "Access" },
   { value: "deactivate_access", label: "Remove workspace access", category: "Access" },
   { value: "request_payroll_adjustment", label: "Request payroll adjustment approval", category: "Payroll" },
@@ -323,6 +334,12 @@ const EMPLOYEE_ACCESS_TRIGGERS = new Set<AutomationTrigger>([
   "employee.moved",
   "employee.promoted",
   "candidate.hired",
+]);
+
+const SCHEDULE_ASSIGNMENT_TRIGGERS = new Set<AutomationTrigger>([
+  "employee.hired",
+  "employee.moved",
+  "employee.promoted",
 ]);
 
 function todayPh() {
@@ -503,6 +520,30 @@ function normalizeAutomationSteps(
       continue;
     }
 
+    if (type === "assign_schedule") {
+      const patternId = Number(action.patternId);
+      const effectiveDateSource = String(action.effectiveDateSource ?? "event_effective_date") as AssignScheduleAction["effectiveDateSource"];
+      const offsetDays = Number(action.offsetDays ?? 0);
+      const reason = String(action.reason ?? "").trim();
+      if (
+        !Number.isInteger(patternId)
+        || patternId <= 0
+        || !["event_effective_date", "employee_start_date", "today"].includes(effectiveDateSource)
+        || !Number.isInteger(offsetDays)
+        || offsetDays < 0
+        || offsetDays > 365
+        || !reason
+      ) return null;
+      actions.push({
+        type,
+        patternId,
+        effectiveDateSource,
+        offsetDays,
+        reason: reason.slice(0, 240),
+      });
+      continue;
+    }
+
     if (type === "assign_permission_set") {
       const permissionSetId = Number(action.permissionSetId);
       if (!Number.isInteger(permissionSetId) || permissionSetId <= 0) return null;
@@ -562,7 +603,8 @@ export function normalizeLifecycleActions(value: unknown): AutomationWorkflowSte
 }
 
 export function validateAutomationActionTrigger(trigger: AutomationTrigger, actions: AutomationWorkflowStep[]): string | null {
-  for (const action of actions) {
+  for (let actionIndex = 0; actionIndex < actions.length; actionIndex += 1) {
+    const action = actions[actionIndex];
     if (action.type === "branch") {
       const thenError = validateAutomationActionTrigger(trigger, action.then);
       if (thenError) return thenError;
@@ -577,6 +619,15 @@ export function validateAutomationActionTrigger(trigger: AutomationTrigger, acti
         && !AUTOMATION_TRIGGER_CATALOG.find((item) => item.value === trigger)?.employeeScoped
       ) {
         return "Manager-routed approval gates require an employee-scoped trigger.";
+      }
+      continue;
+    }
+    if (action.type === "assign_schedule") {
+      if (!SCHEDULE_ASSIGNMENT_TRIGGERS.has(trigger)) {
+        return "Schedule assignment automation is allowed only after employee hire, move, or promotion events.";
+      }
+      if (actions[actionIndex - 1]?.type !== "approval_gate") {
+        return "Schedule assignment automation must be immediately preceded by an approval gate.";
       }
       continue;
     }
@@ -784,6 +835,7 @@ async function enrichEmployeeContext(input: {
     employeeName: `${employee.firstName} ${employee.lastName}`,
     employeeEmail: employee.email,
     employeeStatus: employee.status,
+    employeeStartDate: String(employee.startDate),
     orgUnitId: employee.orgUnitId,
     department: unitRows[0]?.name ?? null,
     location: employee.region,
@@ -899,6 +951,45 @@ async function executeAction(input: {
       },
     });
     return { type: action.type, recipient, deliveryStatus: delivery.status, outboxId: delivery.id };
+  }
+
+  if (action.type === "assign_schedule") {
+    const employeeId = requiredEmployeeId(input.employeeId, "Assign schedule pattern");
+    const rawDate = action.effectiveDateSource === "event_effective_date"
+      ? String(input.context.effectiveDate ?? "")
+      : action.effectiveDateSource === "employee_start_date"
+        ? String(input.context.employeeStartDate ?? "")
+        : todayPh();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
+      throw new Error(
+        action.effectiveDateSource === "event_effective_date"
+          ? "Schedule assignment requires a valid effectiveDate in the triggering event."
+          : "Schedule assignment could not resolve a valid employee start date.",
+      );
+    }
+    const date = new Date(`${rawDate}T00:00:00Z`);
+    date.setUTCDate(date.getUTCDate() + (action.offsetDays ?? 0));
+    const effectiveFrom = date.toISOString().slice(0, 10);
+
+    const result = await assignEmployeeScheduleGoverned({
+      organizationId: input.organizationId,
+      employeeId,
+      patternId: action.patternId,
+      effectiveFrom,
+      reason: action.reason,
+      sourceKey: `Automation Studio #${input.executionId}:${input.actionIndex}`,
+      actor: "Automation Studio",
+    });
+    return {
+      type: action.type,
+      assignmentId: result.assignment.id,
+      patternId: action.patternId,
+      effectiveFrom,
+      idempotent: result.idempotent,
+      staleTimesheetIds: result.staleTimesheetIds,
+      guardrailIssues: result.guardrailIssues,
+      auditWarning: result.auditWarning,
+    };
   }
 
   if (action.type === "assign_permission_set") {
