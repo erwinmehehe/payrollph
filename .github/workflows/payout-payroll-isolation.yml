@@ -1,0 +1,40 @@
+name: Payout Payroll Isolation
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  payout-payroll-isolation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Enforce payout/payroll isolation
+        if: github.event_name == 'pull_request'
+        env:
+          PAYOUT_GUARD_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PAYOUT_GUARD_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: npx tsx scripts/verify-payout-payroll-isolation.ts
+
+      - name: Explain manual run
+        if: github.event_name != 'pull_request'
+        run: echo "Payout/payroll isolation is evaluated from pull-request base and head SHAs."
