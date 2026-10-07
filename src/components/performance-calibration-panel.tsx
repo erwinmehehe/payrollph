@@ -10,6 +10,7 @@ type Session = {
   status: "open" | "finalized";
   notes: string | null;
   policyVersion: number | null;
+  policySnapshot: CalibrationPolicy | null;
   finalizedByName: string | null;
   finalizedAt: string | null;
 };
@@ -406,7 +407,7 @@ export function PerformanceCalibrationPanel({
                   type="button"
                   disabled={
                     sessionEntries.some((entry) => !entry.calibratedScore)
-                    || (policyForm.requireFlagResolution && flags.some((flag) => flag.sessionId === session.id && flag.status === "open"))
+                    || ((session.policySnapshot?.requireFlagResolution ?? true) && flags.some((flag) => flag.sessionId === session.id && flag.status === "open"))
                   }
                   onClick={() => void finalize(session)}
                 >
