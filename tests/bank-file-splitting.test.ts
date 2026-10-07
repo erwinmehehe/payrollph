@@ -76,6 +76,15 @@ test("multi-file bundle is a valid ZIP-shaped archive containing every filename"
   assert.equal(zip.readUInt16LE(zip.length - 22 + 10), 2);
 });
 
+test("split bank archive bytes are deterministic for validation evidence hashing", () => {
+  const files = [
+    { name: "payroll-part-001.csv", body: "employee,amount\nA,100.00" },
+    { name: "payroll-part-002.csv", body: "employee,amount\nB,200.00" },
+  ];
+
+  assert.deepEqual(createStoredZip(files), createStoredZip(files));
+});
+
 test("bank exporter applies payout-profile limits after released payroll values are fixed", async () => {
   const { readFile } = await import("node:fs/promises");
   const source = await readFile("src/lib/exporters.ts", "utf8");
