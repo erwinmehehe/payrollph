@@ -10,7 +10,7 @@ import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
 import { isPublicDemoIdentity } from "@/lib/demo-security";
 import { resumeAutomationExecutionFromApproval, runAutomationEventSafely } from "@/lib/automation";
 import { markTimesheetsStaleForEmployeeRange } from "@/lib/workforce-timesheet-server";
-import { advanceApprovalChainAfterDecision } from "@/lib/approval-chains";
+import { advanceApprovalChainAfterDecisionTx } from "@/lib/approval-chains";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const originDenied = enforceSameOriginMutation(request);
@@ -111,8 +111,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const onBehalf = actor.toLowerCase() !== task.approver.toLowerCase() ? task.approver : null;
 
   let updated;
+  let chain: Awaited<ReturnType<typeof advanceApprovalChainAfterDecisionTx>> = {
+    isChain: false,
+    final: true,
+    nextTaskId: null,
+    instanceId: null,
+  };
   try {
-    updated = await db.transaction(async (tx) => {
+    const decisionResult = await db.transaction(async (tx) => {
       // Payroll decisions claim the payroll state first. Recalculation uses the
       // same lock order, which avoids an approval/recalculation deadlock and
       // guarantees that only one concurrent decision can win.
@@ -147,6 +153,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         throw new Error("APPROVAL_TASK_CONFLICT");
       }
 
+      const chainResult = await advanceApprovalChainAfterDecisionTx(tx, {
+        taskId,
+        decision: status,
+        decidedBy: actor,
+      });
+
       await tx.insert(auditEvents).values({
         organizationId: task.organizationId,
         actor,
@@ -162,11 +174,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           makerUserId: payrollSubmission ? Number(payrollSubmission.metadata.makerUserId) || null : null,
           approverUserId: payrollSubmission ? Number(payrollSubmission.metadata.approverUserId) || null : null,
           deciderUserId: sessionUser.id,
+          approvalChainInstanceId: chainResult.instanceId,
+          approvalChainFinal: chainResult.final,
+          nextApprovalTaskId: chainResult.nextTaskId,
         },
       });
 
-      return updatedTask;
+      return { updatedTask, chainResult };
     });
+    updated = decisionResult.updatedTask;
+    chain = decisionResult.chainResult;
   } catch (error) {
     if (error instanceof Error && (
       error.message === "PAYROLL_APPROVAL_CONFLICT" ||
@@ -178,12 +195,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
     throw error;
   }
-
-  const chain = await advanceApprovalChainAfterDecision({
-    taskId,
-    decision: status,
-    decidedBy: actor,
-  });
 
   let automationGate: unknown = null;
   try {
