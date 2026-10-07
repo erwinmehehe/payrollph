@@ -73,9 +73,9 @@ test("multi-employer compliance lists and creation paths resolve one legal emplo
 });
 
 test("government exports aggregate only payrolls owned by the selected run's legal employer", () => {
-  assert.ok(exporter.includes('if (!run.legalEntityId)'));
-  assert.ok(exporter.includes("eq(payrollRuns.legalEntityId, run.legalEntityId)"));
-  assert.ok(exporter.includes("eq(legalEntities.id, run.legalEntityId)"));
+  assert.ok(exporter.includes("resolveComplianceLegalEntity({"));
+  assert.ok(exporter.includes("eq(payrollRuns.legalEntityId, legalEntityId)"));
+  assert.ok(exporter.includes("legalEntityId: run.legalEntityId"));
   assert.ok(exporter.includes('const employerTin = (legalEntity.birTin ?? "")'));
   assert.ok(exporter.includes('const employerBranchCode = (legalEntity.birBranchCode ?? "")'));
   assert.ok(!exporter.includes('const employerTin = (organization?.birTin ?? "")'));
@@ -99,7 +99,7 @@ test("filing/remittance evidence cannot cross legal-employer boundaries", () => 
 });
 
 test("employee disputes, corrections, exports and certification invalidation stay on their source legal employer", () => {
-  assert.ok(selfIssues.includes("legalEntityId: employee.legalEntityId"));
+  assert.ok(selfIssues.includes("const legalEntityId = employee.legalEntityId"));
   assert.ok(payrollIssues.includes("eq(statutoryRemittanceMembers.legalEntityId, issue.legalEntityId)"));
   assert.ok(postingImport.includes("legalEntityId: batch.legalEntityId"));
   assert.ok(corrections.includes("legalEntityId: currentBatch.legalEntityId"));
