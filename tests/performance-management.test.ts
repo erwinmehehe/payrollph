@@ -37,7 +37,8 @@ test("performance mutations use same-origin protection and audit logging", () =>
 });
 
 test("performance inputs have bounded progress, scores and goal weights", () => {
-  assert.ok(route.includes("weight < 0 || weight > 100"));
+  assert.ok(route.includes("boundedWeight"));
+  assert.ok(route.includes("n >= 0 && n <= 100"));
   assert.ok(route.includes("progress < 0 || progress > 100"));
   assert.ok(route.includes("n >= 1 && n <= 5"));
 });
