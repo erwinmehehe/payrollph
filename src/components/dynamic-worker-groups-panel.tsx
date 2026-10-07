@@ -356,10 +356,16 @@ export function DynamicWorkerGroupsPanel({
                 <input
                   required
                   value={code}
+                  disabled={editingId != null}
                   onChange={(event) => setCode(event.target.value.toLowerCase())}
                   placeholder="night-shift-support"
                   style={{ width: "100%", marginTop: 6 }}
                 />
+                {editingId != null && (
+                  <small style={{ display: "block", color: "var(--muted)", marginTop: 4 }}>
+                    Stable identifier: code is immutable after creation so downstream workflow references do not break.
+                  </small>
+                )}
               </label>
             </div>
             <label style={{ display: "block", marginBottom: 12 }}>
