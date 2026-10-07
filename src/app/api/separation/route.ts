@@ -1049,14 +1049,6 @@ export async function PATCH(request: Request) {
           source: "separation-release",
           metadata: { separationId: sep.id, separationType: sep.separationType },
         },
-        {
-          field: "positionId",
-          previousValue: activePosition?.id ?? null,
-          newValue: null,
-          effectiveDate: String(sep.lastDay),
-          source: "separation-release",
-          metadata: { separationId: sep.id, separationType: sep.separationType },
-        },
       ],
     });
 
