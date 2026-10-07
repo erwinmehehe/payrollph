@@ -42,15 +42,26 @@ type WorkforceForecast = {
     vacantPositions: number;
     expectedVacancyFills: number;
     annualizedBasePayroll: number | null;
+    annualizedEmployerStatutory: number | null;
+    annualizedEmployerBenefits: number | null;
     vacantAnnualBudget: number | null;
+    annualRunRateEmployerStatutory: number | null;
+    annualRunRateEmployerBenefits: number | null;
     annualRunRateLaborCost: number | null;
     currentPeriodBasePayroll: number | null;
+    currentPeriodEmployerStatutory: number | null;
+    currentPeriodEmployerBenefits: number | null;
     expectedVacancyPeriodCost: number | null;
+    expectedVacancyPeriodStatutory: number | null;
+    expectedVacancyPeriodBenefits: number | null;
     employerLoadCost: number | null;
+    forecastPeriodEmployerStatutory: number | null;
+    forecastPeriodEmployerBenefits: number | null;
     forecastPeriodLaborCost: number | null;
     requiredHeadcountHours: number;
     forecastHeadcountHours: number;
     averageBaseHourlyRate: number | null;
+    averageLoadedHourlyRate: number | null;
     estimatedShiftDemandWageCost: number | null;
     currentPeriodCapacityHours: number;
     expectedVacancyCapacityHours: number;
@@ -76,7 +87,7 @@ type WorkforceForecast = {
     coveragePercent: number;
   }>;
   costCenters: Array<{ costCenterId: number; code: string; name: string; currentPeriodBaseCost: number; currentPeriodLoadedCost: number }>;
-  unallocated: { currentPeriodBaseCost: number | null; plannedVacancyPeriodCost: number | null };
+  unallocated: { currentPeriodBaseCost: number | null; currentPeriodLoadedCost: number | null; plannedVacancyPeriodCost: number | null };
   quality: {
     missingPayProfileEmployeeIds: number[];
     invalidPayProfileEmployeeIds: number[];
@@ -494,7 +505,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
               <article className="stat-card"><div className="stat-icon purple"><UsersRound size={19} /></div><p>ACTIVE HEADCOUNT</p><h3>{forecast.summary.activeHeadcount}</h3><span>{forecast.summary.costedHeadcount} with valid pay profiles</span></article>
               <article className="stat-card"><div className="stat-icon blue"><Clock3 size={19} /></div><p>FORECAST DEMAND</p><h3>{forecast.summary.forecastHeadcountHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs</h3><span>{forecast.summary.requiredHeadcountHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} baseline hours</span></article>
               <article className="stat-card"><div className="stat-icon orange"><UserPlus size={19} /></div><p>EXPECTED FILLS</p><h3>{forecast.summary.expectedVacancyFills}</h3><span>{forecast.summary.vacantPositions} vacant planned / approved / open positions</span></article>
-              <article className="stat-card"><div className="stat-icon mint"><CircleDollarSign size={19} /></div><p>{costVisible ? "PERIOD LABOR COST" : "PROJECTED CAPACITY"}</p><h3>{costVisible ? peso(forecast.summary.forecastPeriodLaborCost) : `${forecast.summary.projectedCapacityHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs`}</h3><span>{costVisible ? `${forecast.assumptions.windowDays} days · includes ${forecast.assumptions.employerLoadPercent}% scenario load` : `${forecast.summary.capacityCoveragePercent.toFixed(1)}% demand coverage`}</span></article>
+              <article className="stat-card"><div className="stat-icon mint"><CircleDollarSign size={19} /></div><p>{costVisible ? "PERIOD LABOR COST" : "PROJECTED CAPACITY"}</p><h3>{costVisible ? peso(forecast.summary.forecastPeriodLaborCost) : `${forecast.summary.projectedCapacityHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs`}</h3><span>{costVisible ? `${forecast.assumptions.windowDays} days · statutory + benefits + ${forecast.assumptions.employerLoadPercent}% custom load` : `${forecast.summary.capacityCoveragePercent.toFixed(1)}% demand coverage`}</span></article>
             </section>
             <div className={forecast.summary.capacityGapAfterFills > 0 ? "notice notice-amber" : "notice notice-slate"} style={{ marginBottom: 16 }}>
               <UsersRound size={15} />
@@ -524,16 +535,25 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
               <div className="notice notice-slate" style={{ margin: 0 }}>
                 <TrendingUp size={15} />
                 <span>
-                  <strong>{peso(forecast.summary.annualRunRateLaborCost)} annual run-rate.</strong> Current annualized base payroll is {peso(forecast.summary.annualizedBasePayroll)} and vacant position budget is {peso(forecast.summary.vacantAnnualBudget)}.
+                  <strong>{peso(forecast.summary.annualRunRateLaborCost)} fully loaded annual run-rate.</strong> Base payroll {peso(forecast.summary.annualizedBasePayroll)} · employer statutory {peso(forecast.summary.annualizedEmployerStatutory)} · employer benefits {peso(forecast.summary.annualizedEmployerBenefits)} · vacancy budget {peso(forecast.summary.vacantAnnualBudget)}.
                 </span>
               </div>
               <div className="notice notice-slate" style={{ margin: 0 }}>
                 <Clock3 size={15} />
                 <span>
-                  <strong>{peso(forecast.summary.estimatedShiftDemandWageCost)} shift-demand estimate.</strong> This uses recorded staffing requirements, paid shift hours, average base hourly rate, growth, and the scenario load. It is not added to the labor plan again.
+                  <strong>{peso(forecast.summary.estimatedShiftDemandWageCost)} loaded shift-demand estimate.</strong> Demand uses paid shift hours and {peso(forecast.summary.averageLoadedHourlyRate)} average loaded hourly cost, including current employer statutory and benefit burden plus the optional custom load.
                 </span>
               </div>
             </div>
+
+            {costVisible && (
+              <section className="stats-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)", marginTop: 16, marginBottom: 16 }}>
+                <article className="stat-card"><p>BASE PAY</p><h3>{peso(forecast.summary.currentPeriodBasePayroll)}</h3><span>current workforce</span></article>
+                <article className="stat-card"><p>EMPLOYER STATUTORY</p><h3>{peso(forecast.summary.forecastPeriodEmployerStatutory)}</h3><span>SSS/EC + PhilHealth + Pag-IBIG</span></article>
+                <article className="stat-card"><p>EMPLOYER BENEFITS</p><h3>{peso(forecast.summary.forecastPeriodEmployerBenefits)}</h3><span>active benefit evidence + expected fills</span></article>
+                <article className="stat-card"><p>CUSTOM LOAD</p><h3>{peso(forecast.summary.employerLoadCost)}</h3><span>{forecast.assumptions.employerLoadPercent}% scenario assumption</span></article>
+              </section>
+            )}
 
             {(forecast.quality.missingPayProfileEmployeeIds.length > 0 || forecast.quality.invalidPayProfileEmployeeIds.length > 0 || forecast.quality.allocationIssueEmployeeIds.length > 0 || forecast.quality.requirementsMissingShift > 0 || forecast.quality.roleEvidenceIssues.length > 0) && (
               <div className="notice notice-amber" style={{ marginTop: 16 }}>
@@ -563,7 +583,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
             <div className="notice notice-slate" style={{ marginTop: 16 }}>
               <Building2 size={15} />
               <span>
-                <strong>Planning boundary.</strong> Employer load is an explicit scenario assumption, not a statutory contribution calculation. Planned vacancy cost remains unallocated until a worker has an effective labor-cost allocation. Current unallocated base cost: {peso(forecast.unallocated.currentPeriodBaseCost)}.
+                <strong>Planning boundary.</strong> Employer statutory burden is calculated from the same current SSS/EC, PhilHealth, and Pag-IBIG functions used by payroll; employer benefits come from active benefit enrollment evidence. The custom employer-load percentage remains a planning assumption. Final liabilities are still determined by the actual payroll period. Planned vacancies remain unallocated until a worker has an effective labor-cost allocation. Current unallocated loaded cost: {peso(forecast.unallocated.currentPeriodLoadedCost)}.
               </span>
             </div>
           </>
