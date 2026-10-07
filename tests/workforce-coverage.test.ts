@@ -407,6 +407,8 @@ test("best-fit coverage simulation skips high workload risk unless explicitly al
 test("roster publish readiness blocks critical coverage and blocking guardrails", () => {
   const readiness = buildRosterPublishReadiness({
     coverageRisk: [{ level: "critical" }, { level: "low" }],
+    uncoveredRequirements: 1,
+    uncoveredSlots: 2,
     pendingRecoveryClaims: 0,
     blockingGuardrailIssues: 2,
     roleEvidenceIssues: 0,
@@ -416,7 +418,8 @@ test("roster publish readiness blocks critical coverage and blocking guardrails"
   });
 
   assert.equal(readiness.status, "blocked");
-  assert.equal(readiness.blockerCount, 3);
+  assert.equal(readiness.blockerCount, 4);
+  assert.ok(readiness.signals.some((signal) => signal.code === "coverage_gap"));
   assert.ok(readiness.signals.some((signal) => signal.code === "coverage_critical"));
   assert.ok(readiness.signals.some((signal) => signal.code === "blocking_guardrail"));
 });
@@ -424,6 +427,8 @@ test("roster publish readiness blocks critical coverage and blocking guardrails"
 test("roster publish readiness can be ready with warnings but no blockers", () => {
   const readiness = buildRosterPublishReadiness({
     coverageRisk: [{ level: "high" }, { level: "medium" }],
+    uncoveredRequirements: 0,
+    uncoveredSlots: 0,
     pendingRecoveryClaims: 2,
     blockingGuardrailIssues: 0,
     roleEvidenceIssues: 0,
@@ -440,6 +445,8 @@ test("roster publish readiness can be ready with warnings but no blockers", () =
 test("roster publish readiness is ready when no unresolved signals remain", () => {
   const readiness = buildRosterPublishReadiness({
     coverageRisk: [{ level: "low" }],
+    uncoveredRequirements: 0,
+    uncoveredSlots: 0,
     pendingRecoveryClaims: 0,
     blockingGuardrailIssues: 0,
     roleEvidenceIssues: 0,
