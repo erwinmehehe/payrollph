@@ -1,7 +1,12 @@
 import { createHash } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  approvalChainInstanceSteps,
+  approvalChainInstances,
+  approvalChainPolicies,
+  approvalTasks,
+  workforcePlanBaselines,
   workforcePlanningScenarios,
   workforcePlans,
 } from "@/db/schema";
@@ -11,6 +16,7 @@ import {
   WORKFORCE_MANAGER_ROLES,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
+import { approvalStepsForAmount, validateApprovalChainSteps } from "@/lib/approval-chains";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import {
@@ -18,10 +24,10 @@ import {
   redactWorkforceForecastCosts,
 } from "@/lib/workforce-forecast-server";
 import { enforceSameOriginMutation } from "@/lib/security-request";
+import { workforcePlanApprovalAmount } from "@/lib/workforce-plan-approval";
 
 export const dynamic = "force-dynamic";
 
-const APPROVER_ROLES = new Set(["owner", "admin", "hr", "manager"]);
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 function roleAllowed(role: string, roles: readonly string[]) {
@@ -94,18 +100,88 @@ export async function GET(request: Request) {
   }
   const canViewCost = roleAllowed(access.role, PEOPLE_PAYROLL_ROLES as readonly string[]);
 
-  const rows = await db.select().from(workforcePlanningScenarios)
-    .where(eq(workforcePlanningScenarios.organizationId, organizationId))
-    .orderBy(desc(workforcePlanningScenarios.createdAt), desc(workforcePlanningScenarios.id));
+  const [rows, instances, policies] = await Promise.all([
+    db.select().from(workforcePlanningScenarios)
+      .where(eq(workforcePlanningScenarios.organizationId, organizationId))
+      .orderBy(desc(workforcePlanningScenarios.createdAt), desc(workforcePlanningScenarios.id)),
+    db.select().from(approvalChainInstances).where(and(
+      eq(approvalChainInstances.organizationId, organizationId),
+      eq(approvalChainInstances.sourceType, "workforce_plan_scenario"),
+    )).orderBy(desc(approvalChainInstances.createdAt)),
+    db.select().from(approvalChainPolicies).where(and(
+      eq(approvalChainPolicies.organizationId, organizationId),
+      eq(approvalChainPolicies.purpose, "workforce_plan"),
+      eq(approvalChainPolicies.active, true),
+    )).orderBy(asc(approvalChainPolicies.id)),
+  ]);
+
+  const instanceIds = instances.map((row) => row.id);
+  const steps = instanceIds.length
+    ? await db.select().from(approvalChainInstanceSteps)
+        .where(inArray(approvalChainInstanceSteps.instanceId, instanceIds))
+        .orderBy(asc(approvalChainInstanceSteps.instanceId), asc(approvalChainInstanceSteps.stepIndex))
+    : [];
+  const stepsByInstance = new Map<number, typeof steps>();
+  for (const step of steps) {
+    stepsByInstance.set(step.instanceId, [...(stepsByInstance.get(step.instanceId) ?? []), step]);
+  }
+  const instanceByScenarioId = new Map<number, (typeof instances)[number]>();
+  for (const instance of instances) {
+    const scenarioId = Number(instance.sourceKey);
+    if (Number.isInteger(scenarioId) && !instanceByScenarioId.has(scenarioId)) {
+      instanceByScenarioId.set(scenarioId, instance);
+    }
+  }
 
   return Response.json({
     scenarios: rows
       .filter((row) => scenarioVisibleToAccess(row, access))
-      .map((row) => ({
-        ...row,
-        snapshot: canViewCost ? row.snapshot : redactScenarioSnapshot(row.snapshot),
-      })),
+      .map((row) => {
+        const instance = instanceByScenarioId.get(row.id) ?? null;
+        const instanceSteps = instance ? stepsByInstance.get(instance.id) ?? [] : [];
+        const currentStep = instance
+          ? instanceSteps.find((step) => step.stepIndex === instance.currentStepIndex) ?? null
+          : null;
+        return {
+          ...row,
+          snapshot: canViewCost ? row.snapshot : redactScenarioSnapshot(row.snapshot),
+          approvalProcess: instance ? {
+            instanceId: instance.id,
+            policyCode: instance.policyCode,
+            policyVersion: instance.policyVersion,
+            status: instance.status,
+            amount: canViewCost && instance.amount != null ? Number(instance.amount) : null,
+            amountBasis: instance.amountBasis,
+            currentStepIndex: instance.currentStepIndex,
+            currentStep: currentStep ? {
+              label: currentStep.label,
+              approver: currentStep.approver,
+              status: currentStep.status,
+              approvalTaskId: currentStep.approvalTaskId,
+            } : null,
+            steps: instanceSteps.map((step) => ({
+              stepIndex: step.stepIndex,
+              label: step.label,
+              approver: step.approver,
+              status: step.status,
+              approvalTaskId: step.approvalTaskId,
+              decidedBy: step.decidedBy,
+              decidedAt: step.decidedAt,
+            })),
+          } : null,
+        };
+      }),
     costVisible: canViewCost,
+    approvalConfiguration: {
+      configured: policies.length === 1,
+      conflict: policies.length > 1,
+      policy: policies.length === 1 ? {
+        id: policies[0].id,
+        code: policies[0].code,
+        name: policies[0].name,
+        version: policies[0].version,
+      } : null,
+    },
   });
 }
 
@@ -263,9 +339,10 @@ export async function PATCH(request: Request) {
   const body = await request.json().catch(() => ({}));
   const scenarioId = Number(body.scenarioId);
   const action = String(body.action ?? "");
-  const decisionNote = String(body.decisionNote ?? "").trim().slice(0, 500) || null;
-  if (!Number.isInteger(scenarioId) || scenarioId <= 0 || !["submit", "approve", "reject"].includes(action)) {
-    return Response.json({ error: "Valid scenarioId and action are required." }, { status: 400 });
+  if (!Number.isInteger(scenarioId) || scenarioId <= 0 || action !== "submit") {
+    return Response.json({
+      error: "Valid scenarioId and submit action are required. Workforce-plan approval decisions are completed from Approvals.",
+    }, { status: 400 });
   }
 
   const [scenario] = await db.select().from(workforcePlanningScenarios)
@@ -277,13 +354,118 @@ export async function PATCH(request: Request) {
   if (!access || !scenarioVisibleToAccess(scenario, access)) {
     return Response.json({ error: "This staffing scenario is outside your workforce scope." }, { status: 403 });
   }
+  if (scenario.status !== "draft") {
+    return Response.json({ error: "Only draft scenarios can be submitted." }, { status: 409 });
+  }
+  if (!scenario.planId) {
+    return Response.json({ error: "Link this scenario to a workforce plan before submitting it for approval." }, { status: 409 });
+  }
 
-  if (action === "submit") {
-    if (scenario.status !== "draft") {
-      return Response.json({ error: "Only draft scenarios can be submitted." }, { status: 409 });
-    }
-    const [updated] = await db.transaction(async (tx) => {
-      const [row] = await tx.update(workforcePlanningScenarios).set({
+  const policies = await db.select().from(approvalChainPolicies).where(and(
+    eq(approvalChainPolicies.organizationId, scenario.organizationId),
+    eq(approvalChainPolicies.purpose, "workforce_plan"),
+    eq(approvalChainPolicies.active, true),
+  )).orderBy(asc(approvalChainPolicies.id));
+  if (policies.length === 0) {
+    return Response.json({
+      error: "No active Workforce planning approval chain is configured. Create one in Automation > Approval routing before submitting.",
+    }, { status: 409 });
+  }
+  if (policies.length > 1) {
+    return Response.json({
+      error: "Multiple active Workforce planning approval chains were found. Keep exactly one active policy before submitting.",
+    }, { status: 409 });
+  }
+  const policy = policies[0];
+  const policySteps = validateApprovalChainSteps(policy.steps);
+  if (!policySteps) {
+    return Response.json({ error: "The active workforce-plan approval chain has an invalid step definition." }, { status: 409 });
+  }
+
+  const [currentBaseline] = await db.select().from(workforcePlanBaselines).where(and(
+    eq(workforcePlanBaselines.organizationId, scenario.organizationId),
+    eq(workforcePlanBaselines.planId, scenario.planId),
+    eq(workforcePlanBaselines.current, true),
+  )).orderBy(desc(workforcePlanBaselines.version)).limit(1);
+
+  let routing;
+  try {
+    routing = workforcePlanApprovalAmount({
+      scenarioSnapshot: scenario.snapshot,
+      currentBaselineSnapshot: currentBaseline?.snapshot ?? null,
+    });
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "Could not calculate the workforce-plan approval amount.",
+    }, { status: 409 });
+  }
+  const routedSteps = approvalStepsForAmount(policySteps, routing.amount);
+  if (routedSteps.length < 1) {
+    return Response.json({ error: "The active workforce-plan approval chain has no applicable step." }, { status: 409 });
+  }
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      await tx.execute(sql`select id from workforce_planning_scenarios where id = ${scenarioId} for update`);
+      const [fresh] = await tx.select().from(workforcePlanningScenarios)
+        .where(eq(workforcePlanningScenarios.id, scenarioId))
+        .limit(1);
+      if (!fresh || fresh.status !== "draft") {
+        throw new Error("SCENARIO_SUBMISSION_CONFLICT");
+      }
+
+      const [existing] = await tx.select().from(approvalChainInstances).where(and(
+        eq(approvalChainInstances.organizationId, fresh.organizationId),
+        eq(approvalChainInstances.sourceType, "workforce_plan_scenario"),
+        eq(approvalChainInstances.sourceKey, String(fresh.id)),
+      )).limit(1);
+      if (existing) throw new Error("SCENARIO_APPROVAL_ALREADY_STARTED");
+
+      const [instance] = await tx.insert(approvalChainInstances).values({
+        organizationId: fresh.organizationId,
+        policyId: policy.id,
+        policyCode: policy.code,
+        policyVersion: policy.version,
+        sourceType: "workforce_plan_scenario",
+        sourceKey: String(fresh.id),
+        status: "pending",
+        currentStepIndex: 0,
+        stepsSnapshot: routedSteps,
+        amount: routing.amount.toFixed(2),
+        amountCurrency: "PHP",
+        amountBasis: routing.basis,
+        routingSnapshot: {
+          ...routing,
+          policySteps,
+          appliedSteps: routedSteps,
+          scenarioSnapshotHash: fresh.snapshotHash,
+          planId: fresh.planId,
+        },
+      }).returning();
+
+      const first = routedSteps[0];
+      const [task] = await tx.insert(approvalTasks).values({
+        organizationId: fresh.organizationId,
+        title: `Workforce plan approval · ${fresh.name} v${fresh.version}`.slice(0, 180),
+        detail: `Workforce scenario #${fresh.id} · Plan #${fresh.planId} · incremental annual labor cost PHP ${routing.amount.toFixed(2)}`.slice(0, 240),
+        approver: first.approver,
+        dueLabel: first.dueLabel ?? "Workforce plan review required",
+        priority: first.priority ?? "High",
+        approvalChainInstanceId: instance.id,
+        approvalChainStepIndex: 0,
+      }).returning();
+
+      const [step] = await tx.insert(approvalChainInstanceSteps).values({
+        organizationId: fresh.organizationId,
+        instanceId: instance.id,
+        stepIndex: 0,
+        label: first.label,
+        approver: first.approver,
+        status: "pending",
+        approvalTaskId: task.id,
+      }).returning();
+
+      const [updated] = await tx.update(workforcePlanningScenarios).set({
         status: "submitted",
         submittedByUserId: user.id,
         submittedAt: new Date(),
@@ -292,13 +474,20 @@ export async function PATCH(request: Request) {
         eq(workforcePlanningScenarios.id, scenarioId),
         eq(workforcePlanningScenarios.status, "draft"),
       )).returning();
-      if (!row) throw new Error("Scenario changed before submission. Refresh and retry.");
-      if (row.planId) {
-        await tx.update(workforcePlans)
-          .set({ status: "submitted", updatedAt: new Date() })
-          .where(eq(workforcePlans.id, row.planId));
+      if (!updated) throw new Error("SCENARIO_SUBMISSION_CONFLICT");
+
+      if (updated.planId && updated.scopeOrgUnitId == null && updated.worksiteId == null) {
+        const [linkedPlan] = await tx.select({ status: workforcePlans.status }).from(workforcePlans)
+          .where(eq(workforcePlans.id, updated.planId))
+          .limit(1);
+        if (linkedPlan && linkedPlan.status !== "published") {
+          await tx.update(workforcePlans)
+            .set({ status: "submitted", updatedAt: new Date() })
+            .where(eq(workforcePlans.id, updated.planId));
+        }
       }
-      return [row];
+
+      return { scenario: updated, instance, task, step };
     });
 
     await recordAuditEvent({
@@ -306,63 +495,46 @@ export async function PATCH(request: Request) {
       actor: user.name,
       action: "Workforce staffing scenario submitted",
       resource: `${scenario.name} v${scenario.version}`,
-      metadata: { scenarioId, snapshotHash: scenario.snapshotHash },
+      metadata: {
+        scenarioId,
+        planId: scenario.planId,
+        snapshotHash: scenario.snapshotHash,
+        approvalChainInstanceId: result.instance.id,
+        approvalPolicyCode: policy.code,
+        approvalPolicyVersion: policy.version,
+        approvalTaskId: result.task.id,
+        approvalAmount: routing.amount,
+        approvalAmountBasis: routing.basis,
+        proposedAnnualLaborCost: routing.proposedAnnualLaborCost,
+        referenceAnnualLaborCost: routing.referenceAnnualLaborCost,
+        routedStepCount: routedSteps.length,
+      },
     });
-    return Response.json({ scenario: updated });
-  }
 
-  if (!APPROVER_ROLES.has(access.role)) {
-    return Response.json({ error: "Manager, HR, owner or admin approval is required." }, { status: 403 });
-  }
-  if (scenario.status !== "submitted") {
-    return Response.json({ error: "Only submitted scenarios can be approved or rejected." }, { status: 409 });
-  }
-  if (scenario.submittedByUserId === user.id) {
     return Response.json({
-      error: "Maker-checker control: the submitter cannot approve or reject their own staffing scenario.",
-    }, { status: 409 });
-  }
-
-  const nextStatus = action === "approve" ? "approved" : "rejected";
-  const [updated] = await db.transaction(async (tx) => {
-    const [row] = await tx.update(workforcePlanningScenarios).set({
-      status: nextStatus,
-      decidedByUserId: user.id,
-      decidedAt: new Date(),
-      decisionNote,
-      updatedAt: new Date(),
-    }).where(and(
-      eq(workforcePlanningScenarios.id, scenarioId),
-      eq(workforcePlanningScenarios.status, "submitted"),
-    )).returning();
-    if (!row) throw new Error("Scenario changed before decision. Refresh and retry.");
-
-    if (row.planId) {
-      await tx.update(workforcePlans)
-        .set({
-          status: nextStatus === "approved" ? "approved" : "rejected",
-          updatedAt: new Date(),
-        })
-        .where(eq(workforcePlans.id, row.planId));
+      scenario: result.scenario,
+      approvalProcess: {
+        instanceId: result.instance.id,
+        policyCode: result.instance.policyCode,
+        policyVersion: result.instance.policyVersion,
+        status: result.instance.status,
+        amount: roleAllowed(access.role, PEOPLE_PAYROLL_ROLES as readonly string[]) ? routing.amount : null,
+        amountBasis: routing.basis,
+        currentStep: {
+          label: result.step.label,
+          approver: result.step.approver,
+          approvalTaskId: result.task.id,
+        },
+        stepCount: routedSteps.length,
+      },
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "SCENARIO_APPROVAL_ALREADY_STARTED") {
+      return Response.json({ error: "This scenario already has an approval process." }, { status: 409 });
     }
-    return [row];
-  });
-
-  await recordAuditEvent({
-    organizationId: scenario.organizationId,
-    actor: user.name,
-    action: action === "approve"
-      ? "Workforce staffing scenario approved"
-      : "Workforce staffing scenario rejected",
-    resource: `${scenario.name} v${scenario.version}`,
-    metadata: {
-      scenarioId,
-      snapshotHash: scenario.snapshotHash,
-      submittedByUserId: scenario.submittedByUserId,
-      decidedByUserId: user.id,
-      decisionNote,
-    },
-  });
-
-  return Response.json({ scenario: updated });
+    if (error instanceof Error && error.message === "SCENARIO_SUBMISSION_CONFLICT") {
+      return Response.json({ error: "This scenario changed while submission was being saved. Refresh and retry." }, { status: 409 });
+    }
+    throw error;
+  }
 }

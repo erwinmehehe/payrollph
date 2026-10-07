@@ -16,6 +16,18 @@ type CostCenter = { id: number; code: string; name: string; active: boolean };
 type Worksite = { id: number; orgUnitId: number | null; code: string; name: string; active: boolean };
 type Shift = { id: number; code: string; name: string; startTime: string; endTime: string; active: boolean };
 type Employee = { id: number; firstName: string; lastName: string; title: string; orgUnitId: number | null; status: string };
+type WorkforceApprovalProcess = {
+  instanceId: number;
+  policyCode: string;
+  policyVersion: number;
+  status: string;
+  amount: number | null;
+  amountBasis: string | null;
+  currentStepIndex: number;
+  currentStep: { label: string; approver: string; status: string; approvalTaskId: number | null } | null;
+  steps: Array<{ stepIndex: number; label: string; approver: string; status: string; approvalTaskId: number | null; decidedBy: string | null; decidedAt: string | null }>;
+};
+
 type WorkforceScenario = {
   id: number;
   planId: number | null;
@@ -33,6 +45,13 @@ type WorkforceScenario = {
   decidedAt: string | null;
   decisionNote: string | null;
   snapshot: { forecast?: WorkforceForecast; scope?: { worksiteName?: string | null } } | null;
+  approvalProcess?: WorkforceApprovalProcess | null;
+};
+
+type WorkforceApprovalConfiguration = {
+  configured: boolean;
+  conflict: boolean;
+  policy: { id: number; code: string; name: string; version: number } | null;
 };
 
 type HeadcountPlanSummaryView = {
@@ -159,6 +178,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [scenarios, setScenarios] = useState<WorkforceScenario[]>([]);
+  const [approvalConfiguration, setApprovalConfiguration] = useState<WorkforceApprovalConfiguration>({ configured: false, conflict: false, policy: null });
   const [baselines, setBaselines] = useState<WorkforcePlanBaseline[]>([]);
   const [baselinePublishing, setBaselinePublishing] = useState<number | null>(null);
   const [costVisible, setCostVisible] = useState(true);
@@ -182,7 +202,6 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
   const [scenarioName, setScenarioName] = useState("");
   const [scenarioPlanId, setScenarioPlanId] = useState("");
   const [scenarioSaving, setScenarioSaving] = useState(false);
-  const [scenarioDecisionNote, setScenarioDecisionNote] = useState("");
   const [handoffSaving, setHandoffSaving] = useState(false);
   const [handoffForm, setHandoffForm] = useState({
     planId: "",
@@ -226,6 +245,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
       const scenarioPayload = await scenarioResponse.json().catch(() => ({}));
       if (scenarioResponse.ok) {
         setScenarios(scenarioPayload.scenarios ?? []);
+        setApprovalConfiguration(scenarioPayload.approvalConfiguration ?? { configured: false, conflict: false, policy: null });
         setCostVisible(scenarioPayload.costVisible !== false);
       }
       const baselineResponse = await fetch(`/api/workforce-planning/baselines?organizationId=${organizationId}`, { cache: "no-store" });
@@ -333,24 +353,22 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
     }
   }
 
-  async function scenarioAction(scenarioId: number, action: "submit" | "approve" | "reject") {
+  async function scenarioAction(scenarioId: number, action: "submit") {
     const response = await fetch("/api/workforce-planning/scenarios", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        scenarioId,
-        action,
-        decisionNote: scenarioDecisionNote,
-      }),
+      body: JSON.stringify({ scenarioId, action }),
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      setNotice(payload.error ?? "Could not update staffing scenario.");
+      setNotice(payload.error ?? "Could not submit staffing scenario.");
       return;
     }
-    setScenarioDecisionNote("");
     await load();
-    setNotice(`Staffing scenario ${action === "submit" ? "submitted" : action === "approve" ? "approved" : "rejected"}.`);
+    const currentStep = payload.approvalProcess?.currentStep;
+    setNotice(currentStep
+      ? `Staffing scenario submitted to ${currentStep.label} (${currentStep.approver}).`
+      : "Staffing scenario submitted for approval.");
   }
 
   async function publishBaseline(scenarioId: number) {
@@ -668,7 +686,15 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
         <div className="setting-form" style={{ marginBottom: 16 }}>
           <label>Scenario name<input value={scenarioName} onChange={(e) => setScenarioName(e.target.value)} placeholder="Q1 Peak staffing" /></label>
           <label>Link to workforce plan<select value={scenarioPlanId} onChange={(e) => setScenarioPlanId(e.target.value)}><option value="">No linked plan</option>{plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name} · {plan.status}</option>)}</select></label>
-          <label>Approval note<input value={scenarioDecisionNote} onChange={(e) => setScenarioDecisionNote(e.target.value)} placeholder="Used when approving or rejecting" /></label>
+          <div className={approvalConfiguration.configured ? "notice notice-slate" : "notice notice-amber"} style={{ margin: 0 }}>
+            <span>
+              {approvalConfiguration.configured && approvalConfiguration.policy
+                ? `Approval: ${approvalConfiguration.policy.name} v${approvalConfiguration.policy.version}`
+                : approvalConfiguration.conflict
+                  ? "Approval routing conflict: keep exactly one Workforce planning policy active."
+                  : "Approval routing not configured. Create a Workforce planning chain in Automation before submitting."}
+            </span>
+          </div>
           <button className="secondary-button" type="button" onClick={() => void saveScenario()} disabled={scenarioSaving || !forecast}><Save size={15} /> {scenarioSaving ? "Saving..." : "Save scenario"}</button>
         </div>
 
@@ -772,9 +798,19 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
           <div>
             <div className="card-kicker">STAFFING PLAN APPROVAL</div>
             <h2>Saved scenario evidence</h2>
-            <p>Drafts can be submitted for independent manager review. The submitter cannot approve or reject their own scenario.</p>
+            <p>Drafts enter the configured HCM business process. Approval steps are routed by incremental annual labor cost, use the shared Approvals inbox, and preserve maker-checker separation.</p>
           </div>
         </div>
+        {!approvalConfiguration.configured && (
+          <div className="notice notice-amber" style={{ marginBottom: 12 }}>
+            <span>
+              {approvalConfiguration.conflict
+                ? "Multiple Workforce planning approval policies are active. Resolve the conflict in Automation before submitting a plan."
+                : "No Workforce planning approval policy is active. Use the Workforce plan template in Automation > Approval routing."}
+            </span>
+            <button className="secondary-button" type="button" onClick={() => onPage("Automation")}>Configure routing</button>
+          </div>
+        )}
         <div className="data-table-wrap">
           <table className="data-table">
             <thead><tr><th>SCENARIO</th><th>SCOPE</th><th>CAPACITY</th><th>STATUS</th><th className="right">ACTION</th></tr></thead>
@@ -787,14 +823,27 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
                     <td><strong>{scenario.name} v{scenario.version}</strong><small style={{ display: "block", color: "var(--muted)" }}>{scenario.startDate} → {scenario.endDate} · {scenario.snapshotHash.slice(0, 10)}</small></td>
                     <td>{scenario.snapshot?.scope?.worksiteName ?? (scenario.scopeOrgUnitId ? unitById.get(scenario.scopeOrgUnitId)?.name ?? "Scoped unit" : "Company")}</td>
                     <td>{scenarioForecast ? <><strong>{scenarioForecast.summary.capacityCoveragePercent.toFixed(1)}%</strong><small style={{ display: "block", color: "var(--muted)" }}>{gap == null ? "" : `${gap.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hr gap`}</small></> : "Snapshot unavailable"}</td>
-                    <td><span className={scenario.status === "approved" ? "status status-verified" : scenario.status === "rejected" ? "status status-rejected" : "status"}>{scenario.status}</span></td>
+                    <td>
+                      <span className={scenario.status === "approved" ? "status status-verified" : scenario.status === "rejected" ? "status status-rejected" : "status"}>{scenario.status}</span>
+                      {scenario.status === "submitted" && scenario.approvalProcess?.currentStep && (
+                        <small style={{ display: "block", color: "var(--muted)", marginTop: 4 }}>
+                          {scenario.approvalProcess.currentStep.label} · {scenario.approvalProcess.currentStep.approver}
+                          {scenario.approvalProcess.amount != null ? ` · ${peso(scenario.approvalProcess.amount)} incremental annual cost` : ""}
+                        </small>
+                      )}
+                    </td>
                     <td className="right">
                       <div className="run-actions" style={{ justifyContent: "flex-end" }}>
-                        {scenario.status === "draft" && <button className="secondary-button" onClick={() => void scenarioAction(scenario.id, "submit")}>Submit</button>}
-                        {scenario.status === "submitted" && <>
-                          <button className="secondary-button" onClick={() => void scenarioAction(scenario.id, "reject")}><XCircle size={14} /> Reject</button>
-                          <button className="primary-button" onClick={() => void scenarioAction(scenario.id, "approve")}><CheckCircle2 size={14} /> Approve</button>
-                        </>}
+                        {scenario.status === "draft" && (
+                          <button
+                            className="secondary-button"
+                            disabled={!approvalConfiguration.configured || !scenario.planId}
+                            onClick={() => void scenarioAction(scenario.id, "submit")}
+                          >
+                            Submit
+                          </button>
+                        )}
+                        {scenario.status === "submitted" && <button className="secondary-button" onClick={() => onPage("Approvals")}><CheckCircle2 size={14} /> Open approvals</button>}
                         {scenario.status === "approved" && (() => {
                           const currentBaseline = scenario.planId ? currentBaselineByPlan.get(scenario.planId) : null;
                           if (currentBaseline?.scenarioId === scenario.id) {

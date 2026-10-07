@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { workforcePlanApprovalAmount } from "../src/lib/workforce-plan-approval";
 
 const schema = readFileSync("src/db/schema.ts", "utf8");
 const migration = readFileSync("drizzle/0046_wfm_staffing_scenarios.sql", "utf8");
@@ -9,6 +10,7 @@ const route = readFileSync("src/app/api/workforce-planning/scenarios/route.ts", 
 const forecastService = readFileSync("src/lib/workforce-forecast-server.ts", "utf8");
 const planningRoute = readFileSync("src/app/api/workforce-planning/route.ts", "utf8");
 const panel = readFileSync("src/components/workforce-planning-panel.tsx", "utf8");
+const approvals = readFileSync("src/app/api/approvals/[id]/route.ts", "utf8");
 
 test("staffing scenarios persist immutable forecast evidence and approval state", () => {
   assert.ok(schema.includes('export const workforcePlanningScenarios = pgTable('));
@@ -40,25 +42,30 @@ test("scenario snapshots are recalculated server-side and hashed before save", (
   assert.ok(route.includes("Approved scenario evidence is immutable planning data."));
 });
 
-test("scenario workflow enforces scoped WFM access and maker-checker review", () => {
+test("scenario submission starts the configured workforce-plan business process", () => {
   assert.ok(route.includes("WORKFORCE_MANAGER_ROLES"));
   assert.ok(route.includes("scenarioVisibleToAccess"));
-  assert.ok(route.includes("APPROVER_ROLES"));
-  assert.ok(route.includes('scenario.status !== "draft"'));
-  assert.ok(route.includes('scenario.status !== "submitted"'));
-  assert.ok(route.includes("scenario.submittedByUserId === user.id"));
-  assert.ok(route.includes("Maker-checker control"));
+  assert.ok(route.includes('eq(approvalChainPolicies.purpose, "workforce_plan")'));
+  assert.ok(route.includes("validateApprovalChainSteps"));
+  assert.ok(route.includes("approvalStepsForAmount"));
+  assert.ok(route.includes("workforcePlanApprovalAmount"));
+  assert.ok(route.includes('sourceType: "workforce_plan_scenario"'));
+  assert.ok(route.includes("approvalChainInstanceId: instance.id"));
   assert.ok(route.includes('status: "submitted"'));
-  assert.ok(route.includes('nextStatus === "approved" ? "approved" : "rejected"'));
+  assert.ok(route.includes("Workforce-plan approval decisions are completed from Approvals."));
+  assert.equal(route.includes('action === "approve"'), false);
+  assert.equal(route.includes('action === "reject"'), false);
 });
 
-test("scenario mutations are same-origin protected, demo-safe and audited", () => {
+test("scenario mutations are same-origin protected, demo-safe and final decisions are audited by Approvals", () => {
   assert.ok(route.includes("enforceSameOriginMutation(request)"));
   assert.ok(route.includes("publicDemoMutationDenied"));
   assert.ok(route.includes('"Workforce staffing scenario saved"'));
   assert.ok(route.includes('"Workforce staffing scenario submitted"'));
-  assert.ok(route.includes('"Workforce staffing scenario approved"'));
-  assert.ok(route.includes('"Workforce staffing scenario rejected"'));
+  assert.ok(approvals.includes('"Workforce staffing scenario approved"'));
+  assert.ok(approvals.includes('"Workforce staffing scenario rejected"'));
+  assert.ok(approvals.includes("workforceScenarioApproval"));
+  assert.ok(approvals.includes("WORKFORCE_PLAN_APPROVAL_CONFLICT"));
 });
 
 test("WFM managers can see staffing capacity while payroll-derived costs remain permissioned", () => {
@@ -71,7 +78,7 @@ test("WFM managers can see staffing capacity while payroll-derived costs remain 
   assert.ok(route.includes("redactScenarioSnapshot"));
 });
 
-test("planning API returns scoped worksites and UI supports scenario scope plus review actions", () => {
+test("planning UI submits scenarios into the shared Approvals business process", () => {
   assert.ok(planningRoute.includes("worksites"));
   assert.ok(planningRoute.includes("siteRows.filter"));
   assert.ok(panel.includes("Organization unit"));
@@ -79,7 +86,72 @@ test("planning API returns scoped worksites and UI supports scenario scope plus 
   assert.ok(panel.includes("Save scenario"));
   assert.ok(panel.includes("STAFFING PLAN APPROVAL"));
   assert.ok(panel.includes('scenarioAction(scenario.id, "submit")'));
-  assert.ok(panel.includes('scenarioAction(scenario.id, "approve")'));
-  assert.ok(panel.includes('scenarioAction(scenario.id, "reject")'));
-  assert.ok(panel.includes("Locked evidence"));
+  assert.equal(panel.includes('scenarioAction(scenario.id, "approve")'), false);
+  assert.equal(panel.includes('scenarioAction(scenario.id, "reject")'), false);
+  assert.ok(panel.includes('onPage("Approvals")'));
+  assert.ok(panel.includes("incremental annual cost"));
+  assert.ok(panel.includes("approvalConfiguration"));
+  assert.ok(panel.includes("Locked evidence") || panel.includes("Current baseline"));
+});
+
+
+test("approval routing uses incremental annual labor cost against the published baseline", () => {
+  const routed = workforcePlanApprovalAmount({
+    scenarioSnapshot: {
+      forecast: {
+        assumptions: { windowDays: 90 },
+        summary: {
+          annualRunRateLaborCost: 12_500_000,
+          annualizedBasePayroll: 9_000_000,
+          currentPeriodStatutoryEmployerCost: 200_000,
+          currentPeriodBenefitEmployerCost: 50_000,
+          currentPeriodRecurringCompensationCost: 25_000,
+        },
+      },
+    },
+    currentBaselineSnapshot: {
+      forecast: { annualRunRateLaborCost: 10_000_000 },
+    },
+  });
+  assert.equal(routed.amount, 2_500_000);
+  assert.equal(routed.basis, "incremental_annual_labor_cost_vs_published_baseline");
+  assert.equal(routed.referenceAnnualLaborCost, 10_000_000);
+});
+
+test("first-plan approval routing falls back to current loaded workforce cost", () => {
+  const routed = workforcePlanApprovalAmount({
+    scenarioSnapshot: {
+      forecast: {
+        assumptions: { windowDays: 365.25 },
+        summary: {
+          annualRunRateLaborCost: 12_000_000,
+          annualizedBasePayroll: 9_000_000,
+          currentPeriodStatutoryEmployerCost: 600_000,
+          currentPeriodBenefitEmployerCost: 300_000,
+          currentPeriodRecurringCompensationCost: 100_000,
+        },
+      },
+    },
+  });
+  assert.equal(routed.referenceAnnualLaborCost, 10_000_000);
+  assert.equal(routed.amount, 2_000_000);
+  assert.equal(routed.basis, "incremental_annual_labor_cost_vs_current_workforce");
+});
+
+test("workforce-plan maker-checker is enforced in the shared Approvals engine", () => {
+  assert.ok(approvals.includes('instance?.sourceType === "workforce_plan_scenario"'));
+  assert.ok(approvals.includes("scenario.submittedByUserId === sessionUser.id"));
+  assert.ok(approvals.includes("cannot approve any step of its business process"));
+  assert.ok(approvals.includes("chainResult.isChain"));
+  assert.ok(approvals.includes("chainResult.final"));
+  assert.ok(approvals.includes('chainResult.status === "approved" || chainResult.status === "declined"'));
+  assert.ok(approvals.includes('status: nextScenarioStatus'));
+});
+
+
+test("published workforce plan remains authoritative while a revision is in approval", () => {
+  assert.ok(route.includes('linkedPlan.status !== "published"'));
+  assert.ok(approvals.includes('linkedPlan.status !== "published"'));
+  assert.ok(route.includes('status: "submitted"'));
+  assert.ok(approvals.includes("nextScenarioStatus"));
 });
