@@ -18,7 +18,7 @@ export default function Hero() {
             From schedules and employee records to payroll review and payslips, Linaw brings the work together in one connected Philippine platform.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Link href="/book-demo" style={{ color: "#ffffff", backgroundColor: "#10243d" }} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#10243d] px-6 py-3.5 text-[14px] font-semibold text-white shadow-[0_14px_25px_-14px_rgba(16,36,61,.45)] transition-transform hover:-translate-y-0.5">
+            <Link href="/book-demo" style={{ color: "#ffffff", backgroundColor: "#0866ed" }} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#0866ed] px-6 py-3.5 text-[14px] font-semibold text-white shadow-[0_14px_25px_-14px_rgba(16,36,61,.45)] transition-transform hover:-translate-y-0.5">
               Request a demo <ArrowRight size={16} aria-hidden="true" />
             </Link>
             <Link href="/demo" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[#d9e1eb] bg-white px-6 py-3.5 text-[14px] font-semibold text-[#15253d] transition-colors hover:bg-[#f1f6ff]">
@@ -45,7 +45,7 @@ export default function Hero() {
         </div>
         <div className="relative min-w-0 lg:pl-3">
           <div aria-hidden="true" className="absolute -inset-5 rounded-[42px] bg-[#a6caff]/20 blur-3xl" />
-          <div data-testid="payroll-hero-preview" className="relative overflow-hidden rounded-[27px] border border-white bg-white shadow-[0_40px_100px_-40px_rgba(37,75,132,.32),0_5px_30px_-13px_rgba(31,58,89,.17)]">
+          <div data-testid="payroll-hero-preview" className="relative overflow-hidden rounded-xl border border-[#e2e8f0] bg-white shadow-[0_40px_100px_-40px_rgba(37,75,132,.32),0_5px_30px_-13px_rgba(31,58,89,.17)]">
             <div className="flex items-center justify-between border-b border-[#e9edf4] bg-white px-4 py-3 sm:px-5">
               <div className="flex items-center gap-2 text-[12px] font-bold text-[#1a2b47]">
                 <span className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-[#e9f2ff] text-[#1769ea]"><ShieldCheck size={15} aria-hidden="true" /></span>
@@ -64,16 +64,16 @@ export default function Hero() {
               <div className="min-w-0 bg-[#fff] p-3 sm:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <p className="text-[10px] font-medium text-[#8994a7]">Payroll overview</p>
-                    <h2 className="mt-1 text-[17px] font-bold tracking-tight text-[#18263c] sm:text-[20px]">Ready for the next step.</h2>
+                    <p className="text-[10px] font-medium text-[#8994a7]">Owner · payroll workspace</p>
+                    <h2 className="mt-1 text-[17px] font-bold tracking-tight text-[#18263c] sm:text-[20px]">Ready for payday</h2>
                   </div>
                   <span className="rounded-full bg-[#e9f8f1] px-2.5 py-1 text-[10px] font-semibold text-[#0b8556]">Sample run</span>
                 </div>
                 <div className="mt-4 grid gap-2 sm:grid-cols-3">
                   {[
-                    {label:"Sample net pay",value:"₱412,800",color:"text-[#1769ea]"},
-                    {label:"Employee records",value:"48",color:"text-[#192943]"},
-                    {label:"Review items",value:"2",color:"text-[#be7230]"},
+                    {label:"Net payroll funding",value:"₱412,800",color:"text-[#1769ea]"},
+                    {label:"Employees in run",value:"48",color:"text-[#192943]"},
+                    {label:"Checks to review",value:"2",color:"text-[#be7230]"},
                   ].map((m)=>(
                     <div key={m.label} className="rounded-xl border border-[#e8eef6] bg-[#fafcff] p-3">
                       <p className="text-[9px] text-[#8b98aa]">{m.label}</p>
@@ -83,8 +83,8 @@ export default function Hero() {
                 </div>
                 <div className="mt-4 rounded-2xl border border-[#e9edf5] p-3 sm:p-4">
                   <div className="flex items-center justify-between gap-2">
-                    <strong className="text-[11px] text-[#253954] sm:text-[12px]">Payroll handoff</strong>
-                    <span className="text-[9px] font-medium text-[#8794a6]">Example workflow</span>
+                    <strong className="text-[11px] text-[#253954] sm:text-[12px]">Checks before release</strong>
+                    <span className="text-[9px] font-medium text-[#8794a6]">Illustrative workflow</span>
                   </div>
                   <div className="mt-3 grid grid-cols-4 gap-1.5">
                     {[
