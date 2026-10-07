@@ -357,6 +357,18 @@ export async function POST(request: Request) {
     if (!cycle || !template) return Response.json({ error: "Cycle or template not found in this workspace." }, { status: 404 });
     if (cycle.status === "completed") return Response.json({ error: "Completed cycles cannot accept new templates." }, { status: 409 });
 
+    const existingReviews = await db.select({ id: performanceReviews.id, status: performanceReviews.status })
+      .from(performanceReviews)
+      .where(and(
+        eq(performanceReviews.organizationId, organizationId),
+        eq(performanceReviews.cycleId, cycleId),
+      ));
+    if (existingReviews.some((review) => review.status === "completed")) {
+      return Response.json({
+        error: "Review structure is locked after the first review completes. Create a new cycle to change required competencies or KRAs.",
+      }, { status: 409 });
+    }
+
     try {
       const [row] = await db.insert(performanceCycleTemplates).values({
         organizationId,
