@@ -15,6 +15,17 @@ ALTER TABLE "performance_review_items"
   ADD COLUMN IF NOT EXISTS "required" boolean NOT NULL DEFAULT true,
   ADD COLUMN IF NOT EXISTS "weight" numeric(5,2) NOT NULL DEFAULT 0;
 
+UPDATE "performance_review_items" AS pri
+SET
+  "required" = pct."required",
+  "weight" = pct."weight"
+FROM "performance_reviews" AS pr
+JOIN "performance_cycle_templates" AS pct
+  ON pct."cycle_id" = pr."cycle_id"
+ AND pct."template_id" = pri."template_id"
+WHERE pri."review_id" = pr."id"
+  AND pri."organization_id" = pr."organization_id";
+
 ALTER TABLE "performance_review_items"
   DROP CONSTRAINT IF EXISTS "performance_review_items_expected_proficiency_check";
 ALTER TABLE "performance_review_items"
