@@ -201,6 +201,10 @@ export async function GET(request: Request) {
     if (connectorError) {
       return Response.json({ error: connectorError }, { status: 409 });
     }
+    const groupError = await validateDynamicGroupReferences(organizationId, draft.conditions, actions);
+    if (groupError) {
+      return Response.json({ error: groupError }, { status: 409 });
+    }
 
     const eventRows = await db.select().from(automationEventLog).where(and(
       eq(automationEventLog.organizationId, organizationId),
@@ -662,6 +666,8 @@ export async function POST(request: Request) {
       if (!currentActions) return Response.json({ error: "Published actions are invalid." }, { status: 409 });
       const connectorError = await validateConnectorActions(organizationId, currentActions);
       if (connectorError) return Response.json({ error: connectorError }, { status: 409 });
+      const groupError = await validateDynamicGroupReferences(organizationId, rule.conditions, currentActions);
+      if (groupError) return Response.json({ error: groupError }, { status: 409 });
     }
 
     try {
