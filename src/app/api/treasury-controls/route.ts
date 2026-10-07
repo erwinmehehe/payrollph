@@ -160,12 +160,15 @@ export async function POST(request: Request) {
 
   const enabled = Boolean(body.enabled);
   const requireSeparation = body.requireReleaseSubmitterSeparation !== false;
-  const requestedIds: number[] = Array.isArray(body.operatorUserIds)
-    ? [...new Set(body.operatorUserIds.flatMap((value: unknown) => {
-        const userId = Number(value);
-        return Number.isInteger(userId) ? [userId] : [];
-      }))]
-    : [];
+  const requestedIds: number[] = [];
+  if (Array.isArray(body.operatorUserIds)) {
+    for (const value of body.operatorUserIds as unknown[]) {
+      const userId = Number(value);
+      if (Number.isInteger(userId) && !requestedIds.includes(userId)) {
+        requestedIds.push(userId);
+      }
+    }
+  }
 
   const candidates = await companyWideCandidates(organizationId);
   const candidateIds = new Set(candidates.map((row) => row.userId));
