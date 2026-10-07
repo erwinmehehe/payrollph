@@ -1,5 +1,5 @@
 import { ArrowRight, CheckCircle2, Database, ShieldCheck } from "lucide-react";
-import { WorkspacePreview } from "@/components/marketing/workspace-preview";
+import { ProductSimulation } from "@/components/marketing/product-simulation";
 import { Reveal, SectionHeading } from "./ui";
 
 export default function Demo() {
@@ -44,7 +44,7 @@ export default function Demo() {
             </div>
 
             <div className="system-demo-product">
-              <WorkspacePreview mode="interactive" />
+              <ProductSimulation area="payroll" />
             </div>
           </div>
         </Reveal>

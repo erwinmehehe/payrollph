@@ -44,6 +44,7 @@ export default function HrisPage() {
         faq={faq}
       />
       <SeoLandingPage
+      simulationArea="people"
       eyebrow="HRIS Philippines"
       title="HRIS software connected to the payroll work that follows."
       intro="Linaw keeps employee records, organizational access, onboarding and payroll workflows in one Philippine HR and payroll workspace instead of making HR maintain disconnected records."

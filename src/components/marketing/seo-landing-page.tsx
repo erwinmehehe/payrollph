@@ -2,6 +2,8 @@ import Link from "next/link";
 import { ArrowRight, Check, ExternalLink } from "lucide-react";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 
+import { ProductSimulation, type ProductSimulationArea } from "./product-simulation";
+
 export type SeoSection = {
   title: string;
   body: string;
@@ -21,6 +23,7 @@ export type SeoDirectoryGroup = {
 };
 
 type Props = {
+  simulationArea?: ProductSimulationArea;
   eyebrow: string;
   title: string;
   intro: string;
@@ -36,6 +39,7 @@ type Props = {
 };
 
 export function SeoLandingPage({
+  simulationArea,
   eyebrow,
   title,
   intro,
@@ -102,6 +106,8 @@ export function SeoLandingPage({
             </div>
           </div>
         </section>
+
+        {simulationArea ? <ProductSimulation area={simulationArea} /> : null}
 
         <section className="py-16 sm:py-20">
           <div className="mx-auto grid max-w-[1180px] gap-5 px-5 sm:px-8 lg:grid-cols-2">

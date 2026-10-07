@@ -259,7 +259,7 @@ test("homepage product screens hand off to the deeper interactive demo", () => {
   const demo = read("src/components/marketing/claude-home/components/Demo.tsx");
   assert.ok(hero.includes("LinawSimulation"));
   assert.ok(hero.includes('href="/demo"'));
-  assert.ok(demo.includes('mode="interactive"'));
+  assert.ok(demo.includes('<ProductSimulation area="payroll"'));
   assert.ok(demo.includes("Interactive payroll workflow"));
 });
 

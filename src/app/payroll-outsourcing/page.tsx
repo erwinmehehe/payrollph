@@ -1,3 +1,4 @@
+import { ProductSimulation } from "@/components/marketing/product-simulation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
@@ -179,6 +180,7 @@ export default function PayrollOutsourcingPage() {
             </aside>
           </div>
         </section>
+        <ProductSimulation area="payroll" />
 
         <section className="py-16 sm:py-20" id="process">
           <div className="mx-auto max-w-[1180px] px-5 sm:px-8">

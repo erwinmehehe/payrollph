@@ -44,6 +44,7 @@ export default function EmployeeSelfServicePage() {
         faq={faq}
       />
       <SeoLandingPage
+      simulationArea="employee"
       eyebrow="Employee self-service Philippines"
       title="A payroll self-service portal scoped to the employee who signed in."
       intro="Linaw gives employees direct access to their own payroll information while server-side employee scoping prevents the portal from trusting a client-supplied employee ID."
