@@ -1,4 +1,4 @@
-import { and, eq, isNull, lte } from "drizzle-orm";
+import { and, eq, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalTasks,
@@ -50,6 +50,10 @@ export const AUTOMATION_TRIGGERS = [
   "document.expires",
   "government.remittance_due",
   "contribution.discrepancy_detected",
+  "benefit.enrollment_created",
+  "benefit.dependent_added",
+  "benefit.coverage_activated",
+  "benefit.coverage_ended",
 ] as const;
 
 export const LIFECYCLE_TRIGGERS = [
@@ -83,6 +87,10 @@ export const AUTOMATION_LIVE_TRIGGERS = [
   "document.expires",
   "government.remittance_due",
   "contribution.discrepancy_detected",
+  "benefit.enrollment_created",
+  "benefit.dependent_added",
+  "benefit.coverage_activated",
+  "benefit.coverage_ended",
 ] as const satisfies readonly AutomationTrigger[];
 
 export const AUTOMATION_PLANNED_TRIGGERS = [] as const satisfies readonly AutomationTrigger[];
@@ -118,6 +126,10 @@ export const AUTOMATION_TRIGGER_CATALOG: Array<{
   { value: "document.expires", label: "Document expires", category: "Compliance", employeeScoped: true },
   { value: "government.remittance_due", label: "Government remittance due", category: "Compliance", employeeScoped: false },
   { value: "contribution.discrepancy_detected", label: "Contribution discrepancy detected", category: "Compliance", employeeScoped: true },
+  { value: "benefit.enrollment_created", label: "Benefit enrollment created", category: "Benefits", employeeScoped: true },
+  { value: "benefit.dependent_added", label: "HMO dependent added", category: "Benefits", employeeScoped: true },
+  { value: "benefit.coverage_activated", label: "HMO coverage activated", category: "Benefits", employeeScoped: true },
+  { value: "benefit.coverage_ended", label: "HMO coverage ended", category: "Benefits", employeeScoped: true },
 ];
 
 export const AUTOMATION_CONDITION_FIELDS = [
@@ -168,6 +180,13 @@ export const AUTOMATION_CONDITION_FIELDS = [
   { value: "contributionSource", label: "Contribution discrepancy source", kind: "string" },
   { value: "contributionSeverity", label: "Contribution discrepancy severity", kind: "string" },
   { value: "contributionCaseId", label: "Contribution case ID", kind: "number" },
+  { value: "benefitPlanId", label: "Benefit plan ID", kind: "number" },
+  { value: "benefitPlanName", label: "Benefit plan name", kind: "string" },
+  { value: "benefitProvider", label: "Benefit provider", kind: "string" },
+  { value: "benefitStatus", label: "Benefit enrollment status", kind: "string" },
+  { value: "providerStatus", label: "Provider enrollment status", kind: "string" },
+  { value: "dependentRelationship", label: "Dependent relationship", kind: "string" },
+  { value: "dependentMonthlyContribution", label: "Dependent monthly contribution", kind: "number" },
   { value: "dynamicGroupCodes", label: "Dynamic group code", kind: "string_array" },
 ] as const;
 
@@ -1297,7 +1316,7 @@ async function executeAction(input: {
     const employeeId = requiredEmployeeId(input.employeeId, "Assign benefit");
     const [plan] = await db.select().from(benefitPlans).where(and(
       eq(benefitPlans.id, action.planId),
-      eq(benefitPlans.organizationId, input.organizationId),
+      or(isNull(benefitPlans.organizationId), eq(benefitPlans.organizationId, input.organizationId)),
       eq(benefitPlans.active, true),
     )).limit(1);
     if (!plan) throw new Error("The configured benefit plan is missing or inactive.");
