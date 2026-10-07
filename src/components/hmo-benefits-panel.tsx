@@ -175,6 +175,20 @@ export function HmoBenefitsPanel({
     await load();
   }
 
+  async function updateDependent(dependentId: number, status: "active" | "rejected" | "ended") {
+    const response = await fetch("/api/benefits/hmo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "update_dependent", organizationId, dependentId, status }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) return setNotice(payload.error ?? "Could not update HMO dependent.");
+    setNotice(status === "active"
+      ? "Dependent activated. Any employee-paid premium will flow into payroll."
+      : "Dependent status updated.");
+    await load();
+  }
+
   async function updateEnrollment(
     enrollmentId: number,
     patch: { status?: string; providerStatus?: string; effectiveOn?: string },
@@ -268,7 +282,22 @@ export function HmoBenefitsPanel({
                     <strong>{employeeById.get(enrollment.employeeId) ?? `Employee #${enrollment.employeeId}`}</strong>
                     <small>{plan?.provider} · {plan?.name} · {enrollment.status} · provider: {enrollment.providerStatus}</small>
                     {enrollment.dependents.length > 0 && (
-                      <small>{enrollment.dependents.map((dependent) => `${dependent.name} (${dependent.relationship}, ${dependent.status}, ${peso(dependent.monthlyContribution)}/mo)`).join(" · ")}</small>
+                      <span style={{ display: "grid", gap: 4, marginTop: 6 }}>
+                        {enrollment.dependents.map((dependent) => (
+                          <small key={dependent.id} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                            <span>{dependent.name} ({dependent.relationship}, {dependent.status}, {peso(dependent.monthlyContribution)}/mo)</span>
+                            {dependent.status === "pending" && (
+                              <>
+                                <button type="button" className="row-more" onClick={() => void updateDependent(dependent.id, "active")}>Activate</button>
+                                <button type="button" className="row-more" onClick={() => void updateDependent(dependent.id, "rejected")}>Reject</button>
+                              </>
+                            )}
+                            {dependent.status === "active" && (
+                              <button type="button" className="row-more" onClick={() => void updateDependent(dependent.id, "ended")}>End</button>
+                            )}
+                          </small>
+                        ))}
+                      </span>
                     )}
                   </span>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
