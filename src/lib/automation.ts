@@ -2,6 +2,7 @@ import { and, eq, isNull, lte } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalTasks,
+  automationEventLog,
   automationExecutions,
   automationRules,
   benefitEnrollments,
@@ -1496,6 +1497,15 @@ export async function runAutomationEvent(input: {
     employeeId: input.employeeId,
     context: input.context,
   });
+  await db.insert(automationEventLog).values({
+    organizationId: input.organizationId,
+    employeeId: input.employeeId ?? null,
+    trigger: input.trigger,
+    eventKey: input.eventKey.slice(0, 240),
+    context,
+    occurredAt: new Date(),
+  }).onConflictDoNothing();
+
   const rules = await db.select().from(automationRules).where(and(
     eq(automationRules.organizationId, input.organizationId),
     eq(automationRules.trigger, input.trigger),
