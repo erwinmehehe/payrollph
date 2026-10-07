@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { documents, employees } from "@/db/schema";
@@ -74,6 +75,15 @@ export async function GET(
   }
 
   const body = Buffer.from(document.content, "base64");
+  if (document.sourceType === "generated") {
+    const sha256 = createHash("sha256").update(body).digest("hex");
+    if (sha256 !== document.sha256) {
+      return Response.json({
+        error: "Generated document integrity verification failed.",
+      }, { status: 409 });
+    }
+  }
+
   return new Response(body, {
     headers: {
       "Content-Type": document.mimeType,
