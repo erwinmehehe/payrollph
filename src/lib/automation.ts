@@ -74,11 +74,10 @@ export const AUTOMATION_LIVE_TRIGGERS = [
   "position.opened",
   "document.expires",
   "government.remittance_due",
-] as const satisfies readonly AutomationTrigger[];
-
-export const AUTOMATION_PLANNED_TRIGGERS = [
   "contribution.discrepancy_detected",
 ] as const satisfies readonly AutomationTrigger[];
+
+export const AUTOMATION_PLANNED_TRIGGERS = [] as const satisfies readonly AutomationTrigger[];
 
 export function automationTriggerIsLive(trigger: AutomationTrigger) {
   return (AUTOMATION_LIVE_TRIGGERS as readonly string[]).includes(trigger);
@@ -145,6 +144,10 @@ export const AUTOMATION_CONDITION_FIELDS = [
   { value: "daysUntilDue", label: "Days until remittance due", kind: "number" },
   { value: "remittanceAlertTone", label: "Remittance alert severity", kind: "string" },
   { value: "complianceActionTaskId", label: "Compliance action task ID", kind: "number" },
+  { value: "contributionIssueType", label: "Contribution issue type", kind: "string" },
+  { value: "contributionSource", label: "Contribution discrepancy source", kind: "string" },
+  { value: "contributionSeverity", label: "Contribution discrepancy severity", kind: "string" },
+  { value: "contributionCaseId", label: "Contribution case ID", kind: "number" },
 ] as const;
 
 export const AUTOMATION_OPERATORS = [
