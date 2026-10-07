@@ -15,6 +15,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { listApprovalChainPolicies } from "@/lib/approval-chains";
 import { listSafeIntegrationConnectors } from "@/lib/integration-connectors";
+import { listDynamicWorkerGroups } from "@/lib/dynamic-worker-groups";
 import {
   AUTOMATION_ACTION_CATALOG,
   AUTOMATION_CONDITION_FIELDS,
@@ -87,6 +88,61 @@ async function validateConnectorActions(organizationId: number, actions: Automat
     return null;
   };
 
+  return walk(actions);
+}
+
+async function validateDynamicGroupReferences(
+  organizationId: number,
+  conditions: unknown,
+  actions: AutomationWorkflowStep[],
+) {
+  const groups = await listDynamicWorkerGroups(organizationId, true);
+  const codes = new Set(groups.map((group) => group.code));
+  const ids = new Set(groups.map((group) => group.id));
+
+  const checkConditions = (value: unknown): string | null => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+    const row = value as Record<string, unknown>;
+    for (const bucket of ["all", "any"] as const) {
+      const clauses = Array.isArray(row[bucket]) ? row[bucket] as Array<Record<string, unknown>> : [];
+      for (const clause of clauses) {
+        const field = String(clause.field ?? "");
+        const operator = String(clause.operator ?? "");
+        if (field !== "dynamicGroupCodes" && field !== "dynamicGroupIds") continue;
+        if (operator === "contains") {
+          return "Dynamic Group workflow conditions require exact eq/neq/in membership, not substring contains.";
+        }
+        const values = operator === "in"
+          ? (Array.isArray(clause.value) ? clause.value : [])
+          : [clause.value];
+        if (values.length === 0) return "Dynamic Group workflow condition is missing a group reference.";
+        if (field === "dynamicGroupCodes") {
+          const missing = values.map((value) => String(value ?? "")).filter((value) => !codes.has(value));
+          if (missing.length) return `Dynamic Group code is missing or disabled: ${missing.join(", ")}.`;
+        } else {
+          const missing = values.map(Number).filter((value) => !Number.isInteger(value) || !ids.has(value));
+          if (missing.length) return `Dynamic Group ID is missing or disabled: ${missing.join(", ")}.`;
+        }
+      }
+    }
+    return null;
+  };
+
+  const topError = checkConditions(conditions);
+  if (topError) return topError;
+
+  const walk = (steps: AutomationWorkflowStep[]): string | null => {
+    for (const step of steps) {
+      if (step.type !== "branch") continue;
+      const branchError = checkConditions(step.conditions);
+      if (branchError) return branchError;
+      const thenError = walk(step.then);
+      if (thenError) return thenError;
+      const elseError = walk(step.else);
+      if (elseError) return elseError;
+    }
+    return null;
+  };
   return walk(actions);
 }
 
@@ -181,7 +237,7 @@ export async function GET(request: Request) {
     });
   }
 
-  const [rules, versions, executions, units, sets, plans, patterns, approvalChains, integrationConnectors] = await Promise.all([
+  const [rules, versions, executions, units, sets, plans, patterns, approvalChains, integrationConnectors, dynamicGroups] = await Promise.all([
     db.select().from(automationRules)
       .where(eq(automationRules.organizationId, organizationId))
       .orderBy(desc(automationRules.id)),
@@ -219,6 +275,7 @@ export async function GET(request: Request) {
       .orderBy(schedulePatterns.name),
     listApprovalChainPolicies(organizationId),
     listSafeIntegrationConnectors(organizationId),
+    listDynamicWorkerGroups(organizationId, true),
   ]);
 
   const completed = executions.filter((row) => row.status === "completed").length;
@@ -270,6 +327,12 @@ export async function GET(request: Request) {
     benefitPlans: plans,
     approvalChains: approvalChains.filter((chain) => chain.active),
     integrationConnectors: integrationConnectors.filter((connector) => connector.active),
+    dynamicGroups: dynamicGroups.map((group) => ({
+      id: group.id,
+      code: group.code,
+      name: group.name,
+      version: group.version,
+    })),
     schedulePatterns: patterns.filter((pattern) => pattern.active),
     analytics: {
       activeRules: rules.filter((row) => row.active).length,
@@ -401,6 +464,8 @@ export async function POST(request: Request) {
     if (compatibilityError) return Response.json({ error: compatibilityError }, { status: 400 });
     const connectorError = await validateConnectorActions(organizationId, actions);
     if (connectorError) return Response.json({ error: connectorError }, { status: 409 });
+    const groupError = await validateDynamicGroupReferences(organizationId, conditions, actions);
+    if (groupError) return Response.json({ error: groupError }, { status: 409 });
 
     try {
       const result = await saveAutomationRuleDraft({
@@ -458,6 +523,8 @@ export async function POST(request: Request) {
     }
     const connectorError = await validateConnectorActions(organizationId, draftActions);
     if (connectorError) return Response.json({ error: connectorError }, { status: 409 });
+    const groupError = await validateDynamicGroupReferences(organizationId, draft.conditions, draftActions);
+    if (groupError) return Response.json({ error: groupError }, { status: 409 });
 
     const previewEvents = await db.select().from(automationEventLog).where(and(
       eq(automationEventLog.organizationId, organizationId),
@@ -541,6 +608,10 @@ export async function POST(request: Request) {
     if (targetActions) {
       const connectorError = await validateConnectorActions(organizationId, targetActions);
       if (connectorError) return Response.json({ error: connectorError }, { status: 409 });
+      if (target) {
+        const groupError = await validateDynamicGroupReferences(organizationId, target.conditions, targetActions);
+        if (groupError) return Response.json({ error: groupError }, { status: 409 });
+      }
     }
 
     try {
