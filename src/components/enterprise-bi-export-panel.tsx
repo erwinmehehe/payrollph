@@ -36,6 +36,7 @@ export function EnterpriseBiExportPanel({
   const [startDate, setStartDate] = useState(isoDate(ninetyDaysAgo));
   const [endDate, setEndDate] = useState(isoDate(today));
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -57,7 +58,7 @@ export function EnterpriseBiExportPanel({
 
   const selected = definitions.find((definition) => definition.key === dataset);
 
-  function requestExport() {
+  async function requestExport() {
     if (!startDate || !endDate) {
       notify("Choose a start and end date for the BI export.", "err");
       return;
@@ -73,8 +74,33 @@ export function EnterpriseBiExportPanel({
       startDate,
       endDate,
     });
-    window.open(`/api/bi-exports?${params.toString()}`, "_blank", "noopener");
-    notify("BI export requested. The generated file is integrity-hashed and recorded in the audit trail.", "info");
+    setExporting(true);
+    try {
+      const response = await fetch(`/api/bi-exports?${params.toString()}`, { cache: "no-store" });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error ?? `BI export failed with status ${response.status}.`);
+      }
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      const disposition = response.headers.get("Content-Disposition") ?? "";
+      const fileName = disposition.match(/filename=([^;]+)/)?.[1]?.replace(/^"|"$/g, "")
+        ?? `linaw-bi-${dataset}.${format === "ndjson" ? "ndjson" : format}`;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(objectUrl);
+      const rowCount = response.headers.get("X-Linaw-BI-Row-Count");
+      const sha = response.headers.get("X-Linaw-BI-SHA256");
+      notify(`BI export generated${rowCount ? ` · ${rowCount} rows` : ""}${sha ? ` · SHA-256 ${sha.slice(0, 12)}…` : ""}. Audit evidence recorded.`, "ok");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "BI export failed.", "err");
+    } finally {
+      setExporting(false);
+    }
   }
 
   return (
@@ -138,9 +164,9 @@ export function EnterpriseBiExportPanel({
         )}
 
         <div className="run-actions" style={{ marginTop: 14 }}>
-          <button type="button" className="primary-button brand" disabled={loading || !definitions.length} onClick={requestExport}>
+          <button type="button" className="primary-button brand" disabled={loading || exporting || !definitions.length} onClick={() => void requestExport()}>
             {format === "json" || format === "ndjson" ? <FileJson2 size={14} /> : <Download size={14} />}
-            Export {format.toUpperCase()}
+            {exporting ? "Generating…" : `Export ${format.toUpperCase()}`}
           </button>
         </div>
       </div>
